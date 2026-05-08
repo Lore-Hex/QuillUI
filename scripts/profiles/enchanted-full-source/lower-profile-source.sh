@@ -12,6 +12,7 @@ MSG
 fi
 
 LOWERED_COPY="$1"
+PROFILE_DIR="$(cd "$(dirname "$0")" && pwd)"
 TOOLING_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
 if [[ ! -d "$LOWERED_COPY" ]]; then
@@ -40,6 +41,8 @@ find "$LOWERED_COPY" -name '*.swift' -print0 |
 "$TOOLING_DIR/ensure-swift-imports.sh" "$LOWERED_COPY" SwiftUI \
   Services/Clipboard.swift \
   UI/Shared/Chat/Components/Recorder/SpeechRecogniser.swift
+
+"$TOOLING_DIR/install-profile-templates.sh" "$PROFILE_DIR/templates" "$LOWERED_COPY"
 
 conversation_store="$LOWERED_COPY/Stores/ConversationStore.swift"
 if [[ -f "$conversation_store" ]]; then
@@ -74,29 +77,6 @@ if [[ -f "$clipboard" ]]; then
   ' "$clipboard"
 fi
 
-sidebar_button="$LOWERED_COPY/UI/Shared/Sidebar/Components/SidebarButton.swift"
-if [[ -f "$sidebar_button" ]]; then
-  cat > "$sidebar_button" <<'SWIFT'
-//
-//  SidebarButton.swift
-//  Enchanted
-//
-
-import SwiftUI
-import QuillUI
-
-struct SidebarButton: View {
-    var title: String
-    var image: String
-    var onClick: () -> ()
-
-    var body: some View {
-        QuillSidebarNavigationButton(title: title, systemImage: image, action: onClick)
-    }
-}
-SWIFT
-fi
-
 enchanted_app="$LOWERED_COPY/Application/EnchantedApp.swift"
 if [[ -f "$enchanted_app" ]]; then
   perl -0pi -e '
@@ -107,181 +87,6 @@ fi
 header_view="$LOWERED_COPY/UI/Shared/Chat/Components/Header.swift"
 if [[ -f "$header_view" ]]; then
   perl -0pi -e 's/Text\(selectedModel\.name\)/Text("Model")/g' "$header_view"
-fi
-
-empty_conversation_view="$LOWERED_COPY/UI/Shared/Chat/Components/EmptyConversaitonView.swift"
-if [[ -f "$empty_conversation_view" ]]; then
-  cat > "$empty_conversation_view" <<'SWIFT'
-//
-//  EmptyConversaitonView.swift
-//  Enchanted
-//
-
-import SwiftUI
-import QuillUI
-
-struct EmptyConversaitonView: View, KeyboardReadable {
-    var sendPrompt: (String) -> Void
-
-    private var prompts: [QuillPrompt] {
-        SamplePrompts.samples.prefix(4).map { sample in
-            QuillPrompt(
-                id: sample.id,
-                title: sample.prompt,
-                systemImage: sample.type.icon
-            )
-        }
-    }
-
-    var body: some View {
-        QuillChatEmptyState(
-            brandTitle: "Quill",
-            prompts: prompts,
-            columns: 4,
-            cardWidth: 155,
-            cardHeight: 128,
-            spacing: 15
-        ) { prompt in
-            sendPrompt(prompt.title)
-        }
-    }
-}
-SWIFT
-fi
-
-chat_view_macos="$LOWERED_COPY/UI/macOS/Chat/ChatView_macOS.swift"
-if [[ -f "$chat_view_macos" ]]; then
-  cat > "$chat_view_macos" <<'SWIFT'
-//
-//  Chat.swift
-//  Enchanted
-//
-
-#if os(macOS) || os(Linux) || os(visionOS)
-import SwiftUI
-import QuillUI
-
-struct ChatView: View {
-    var selectedConversation: ConversationSD?
-    var conversations: [ConversationSD]
-    var messages: [MessageSD]
-    var modelsList: [LanguageModelSD]
-    var onMenuTap: () -> Void
-    var onNewConversationTap: () -> Void
-    var onSendMessageTap: (_ prompt: String, _ model: LanguageModelSD, _ image: Image?, _ trimmingMessageId: String?) -> Void
-    var onConversationTap: (_ conversation: ConversationSD) -> Void
-    var conversationState: ConversationState
-    var onStopGenerateTap: () -> Void
-    var reachable: Bool
-    var modelSupportsImages: Bool
-    var selectedModel: LanguageModelSD?
-    var onSelectModel: (_ model: LanguageModelSD?) -> Void
-    var onConversationDelete: (_ conversation: ConversationSD) -> Void
-    var onDeleteDailyConversations: (_ date: Date) -> Void
-    var userInitials: String
-    var copyChat: (_ json: Bool) -> Void
-
-    @State private var message = ""
-    @State private var editMessage: MessageSD?
-    @FocusState private var isFocusedInput: Bool
-
-    private var modelMenuActions: [QuillMenuAction] {
-        if modelsList.isEmpty {
-            return [
-                QuillMenuAction(title: "No models available", isDisabled: true) {}
-            ]
-        }
-
-        return modelsList.map { model in
-            let title = model.prettyVersion.isEmpty ? model.prettyName : "\(model.prettyName) \(model.prettyVersion)"
-            let icon = selectedModel?.name == model.name ? "checkmark" : nil
-            return QuillMenuAction(id: model.name, title: title, systemImage: icon) {
-                onSelectModel(model)
-            }
-        }
-    }
-
-    private var optionsMenuActions: [QuillMenuAction] {
-        [
-            QuillMenuAction(title: "Copy Chat", systemImage: "doc.on.doc") {
-                copyChat(false)
-            },
-            QuillMenuAction(title: "Copy Chat as JSON", systemImage: "curlybraces") {
-                copyChat(true)
-            }
-        ]
-    }
-
-    var body: some View {
-        QuillDesktopSplitLayout(title: "Quill Chat", sidebarWidth: 320) {
-            SidebarView(
-                selectedConversation: selectedConversation,
-                conversations: conversations,
-                onConversationTap: onConversationTap,
-                onConversationDelete: onConversationDelete,
-                onDeleteDailyConversations: onDeleteDailyConversations
-            )
-        } toolbar: {
-            QuillToolbarActionRow {
-                QuillToolbarMenuButton(
-                    systemImage: "chevron.down",
-                    menuWidth: 220,
-                    actions: modelMenuActions
-                )
-
-                QuillToolbarMenuButton(
-                    systemImage: "ellipsis",
-                    showsChevron: true,
-                    width: 42,
-                    menuWidth: 180,
-                    actions: optionsMenuActions
-                )
-
-                QuillToolbarIconButton(systemImage: "square.and.pencil", action: onNewConversationTap)
-            }
-        } content: {
-            VStack(alignment: .center, spacing: 0) {
-                if selectedConversation != nil {
-                    MessageListView(
-                        messages: messages,
-                        conversationState: conversationState,
-                        userInitials: userInitials,
-                        editMessage: $editMessage
-                    )
-                } else {
-                    EmptyConversaitonView(sendPrompt: { selectedMessage in
-                        if let selectedModel = selectedModel {
-                            onSendMessageTap(selectedMessage, selectedModel, nil, nil)
-                        }
-                    })
-                }
-
-                if !reachable {
-                    UnreachableAPIView()
-                }
-
-                InputFieldsView(
-                    message: $message,
-                    conversationState: conversationState,
-                    onStopGenerateTap: onStopGenerateTap,
-                    selectedModel: selectedModel,
-                    onSendMessageTap: onSendMessageTap,
-                    editMessage: $editMessage
-                )
-                .padding()
-                .frame(width: 800)
-            }
-        }
-        .onChange(of: editMessage, initial: false) { _, newMessage in
-            if let newMessage = newMessage {
-                message = newMessage.content
-                isFocusedInput = true
-            }
-        }
-    }
-}
-#endif
-SWIFT
 fi
 
 view_extension="$LOWERED_COPY/Extensions/View+Extension.swift"
@@ -359,36 +164,6 @@ do
     : > "$LOWERED_COPY/$profile_replaced_file"
   fi
 done
-
-cat > "$LOWERED_COPY/QuillGeneratedProfileAliases.swift" <<'SWIFT'
-import AppKit
-import QuillKit
-import SwiftUI
-
-typealias Accessibility = QuillAccessibilityService
-typealias KeyBase = QuillKeyBase
-typealias HotkeyCombination = QuillHotkeyCombination
-typealias CGKeyCode = UInt16
-typealias FloatingPanel = QuillFloatingPanel
-typealias PanelManager = QuillPanelManager
-typealias QuillUpdater = QuillUpdateService
-typealias CheckForUpdatesMenuItem = QuillCheckForUpdatesMenuItem
-typealias QuillUSBWatcher = QuillDeviceWatcher
-typealias HotkeyService = QuillHotkeyService
-
-extension CGKeyCode {
-    static let kVK_ANSI_V: CGKeyCode = 0x09
-}
-
-enum QuillUSBLauncher {
-    static func install() {
-        QuillDeviceLauncher.install(
-            label: "co.lorehex.quillchat.usb-launcher",
-            subsystem: "co.lorehex.quillchat"
-        )
-    }
-}
-SWIFT
 
 "$TOOLING_DIR/generate-hashable-identity-shims.sh" \
   "$LOWERED_COPY/QuillGeneratedFullSourceShims.swift" \

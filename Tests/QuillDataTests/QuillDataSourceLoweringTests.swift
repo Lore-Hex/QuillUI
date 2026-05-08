@@ -161,6 +161,55 @@ struct QuillDataSourceLoweringTests {
         #expect(prepended.hasPrefix("import AppKit\nstruct NoImport"))
     }
 
+    @Test("profile template installer copies nested replacement files")
+    func profileTemplateInstallerCopiesNestedReplacementFiles() throws {
+        let root = try packageRoot()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillProfileTemplateTests-\(UUID().uuidString)", isDirectory: true)
+        let templates = directory.appendingPathComponent("Templates", isDirectory: true)
+        let output = directory.appendingPathComponent("Output", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let nestedTemplate = templates.appendingPathComponent("UI/Chat/Replacement.swift")
+        try FileManager.default.createDirectory(
+            at: nestedTemplate.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "struct Replacement {}\n".write(to: nestedTemplate, atomically: true, encoding: .utf8)
+
+        let topLevelTemplate = templates.appendingPathComponent("GeneratedAliases.swift")
+        try "typealias Example = Int\n".write(to: topLevelTemplate, atomically: true, encoding: .utf8)
+
+        let staleOutput = output.appendingPathComponent("UI/Chat/Replacement.swift")
+        try FileManager.default.createDirectory(
+            at: staleOutput.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "stale\n".write(to: staleOutput, atomically: true, encoding: .utf8)
+
+        let script = root.appendingPathComponent("scripts/install-profile-templates.sh")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [script.path, templates.path, output.path]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        try process.run()
+        process.waitUntilExit()
+
+        let log = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        #expect(process.terminationStatus == 0, Comment(rawValue: log))
+
+        let copiedNested = try String(contentsOf: staleOutput, encoding: .utf8)
+        #expect(copiedNested == "struct Replacement {}\n")
+
+        let copiedTopLevel = try String(
+            contentsOf: output.appendingPathComponent("GeneratedAliases.swift"),
+            encoding: .utf8
+        )
+        #expect(copiedTopLevel == "typealias Example = Int\n")
+    }
+
     private func packageRoot() throws -> URL {
         var directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
         for _ in 0..<8 {
