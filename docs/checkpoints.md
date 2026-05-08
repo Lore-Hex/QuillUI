@@ -556,3 +556,15 @@ Status: passing for generated check mode, generic app mode, and Xvfb startup smo
 - Verified generic app mode through `scripts/build-swiftui-linux-app.sh --profile enchanted-full-source`: `quill-chat-linux` built and survived a 6-second Xvfb startup smoke.
 - `bash -n scripts/*.sh scripts/profiles/*.sh`, `scripts/build-swiftui-linux-app.sh --list-profiles`, and `git diff --check` passed.
 - Remaining honest gap: Enchanted lowering is still a large shell profile. Next reductions should split source rewrites into named profile phases and move more source-shape compatibility into QuillUI/QuillKit APIs.
+
+## Checkpoint 41: Cross-Platform Parity Tests
+
+Status: passing on macOS and Linux test suites.
+
+- Added `QuillParityTests`, a cross-platform test target that runs the same assertions on macOS and Linux for UTType identifiers/conformance, URL path behavior, UserDefaults semantics, JSON round-trips, Calendar date deltas, QuillData model-context persistence, and deterministic fuzz cases.
+- Exposed QuillUI view-tree extraction helpers as `@_spi(QuillTesting)` so Linux compatibility tests can assert menu, command, label, and symbol extraction behavior directly without making those helpers public API.
+- Added Linux compatibility coverage for `quillTextLabel`, `quillSystemImageName`, `quillMenuElements`, `quillCommandMenuItems`, and `quillPickerOptions`, including disabled-action behavior.
+- Documented a real Foundation parity edge case: swift-corelibs `UserDefaults.integer(forKey:)` does not preserve every platform-sized extreme `Int`, so parity coverage now uses the portable integer range QuillUI/AppStorage depends on.
+- Verified macOS: `swift test --disable-automatic-resolution` passed with 73 tests in 10 suites.
+- Verified Linux: `swift test --scratch-path .build-linux` passed with 135 tests in 13 suites.
+- Remaining honest gap: this is API/semantic parity coverage, not visual parity. Next useful parity tests should compare generated view trees and eventually screenshot-level output against real SwiftUI references.

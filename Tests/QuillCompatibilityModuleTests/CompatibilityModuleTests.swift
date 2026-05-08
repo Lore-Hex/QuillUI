@@ -18,6 +18,7 @@ import IOKit.usb
 import WrappingHStack
 import Vortex
 import KeyboardShortcuts
+@_spi(QuillTesting) import QuillUI
 
 @Suite("Linux compatibility import modules", .serialized)
 struct CompatibilityModuleTests {
@@ -593,7 +594,7 @@ struct CompatibilityModuleTests {
         // tests' images that may share content.
         let unique = "quill-image-dedup-\(UUID().uuidString)".data(using: .utf8)!
 
-        // Same bytes, three calls — should write exactly one file.
+        // Same bytes, three calls; should write exactly one file.
         _ = Image(data: unique)
         _ = Image(data: unique)
         _ = Image(data: unique)
@@ -1106,6 +1107,127 @@ struct CompatibilityModuleTests {
     }
 
     // MARK: - QuillCompatibilityEvent equality
+
+    // MARK: - SPI: view-tree introspection helpers
+
+    @Test("quillTextLabel extracts text content from primitive view types")
+    func quillTextLabelExtractsFromPrimitives() {
+        // Text: returns its content directly.
+        #expect(QuillUI.quillTextLabel(from: Text("Hello")) == "Hello")
+        #expect(QuillUI.quillTextLabel(from: Text("")) == "")
+
+        // Label: returns its title (the system-image side is ignored here).
+        #expect(QuillUI.quillTextLabel(from: Label("Settings", systemImage: "gear")) == "Settings")
+
+        // Image: bridges through quillSystemImageName, which remaps SF Symbols
+        // and returns the (potentially-remapped) name.
+        #expect(QuillUI.quillTextLabel(from: Image(systemName: "paperplane.fill")) == "arrow.forward.circle.fill")
+
+        // Unknown view type returns an empty string fallback (used so callers can detect
+        // "no extractable label" without crashing on opaque view types).
+        struct Unknown: View {
+            var body: some View { Text("nope") }
+        }
+        #expect(QuillUI.quillTextLabel(from: Unknown()) == "")
+    }
+
+    @Test("quillSystemImageName remaps SF Symbol names and falls back gracefully")
+    func quillSystemImageNameRemapsAndFallsBack() {
+        // Known SF Symbol uses the fallback table.
+        #expect(QuillUI.quillSystemImageName(from: Image(systemName: "paperplane.fill")) == "arrow.forward.circle.fill")
+        #expect(QuillUI.quillSystemImageName(from: Image(systemName: "photo.fill")) == "folder.badge.plus")
+        #expect(QuillUI.quillSystemImageName(from: Image(systemName: "lightbulb.circle")) == "info.circle")
+
+        // Unknown SF Symbol passes through unchanged.
+        #expect(QuillUI.quillSystemImageName(from: Image(systemName: "custom.symbol.name")) == "custom.symbol.name")
+
+        // Non-Image view returns a "circle" sentinel so the GTK-side has a real symbol
+        // to render even if the caller passed something inappropriate.
+        #expect(QuillUI.quillSystemImageName(from: Text("not-an-image")) == "circle")
+    }
+
+    @Test("quillMenuElements walks Button, Disabled, KeyboardShortcut, and recurses MultiChildView")
+    func quillMenuElementsWalksViewTree() {
+        // Plain Button returns a single .item with the button's title and action.
+        let buttonTapCount = QuillTestBox<Int>(0)
+        let plainButton = Button("Save") {
+            buttonTapCount.value = (buttonTapCount.value ?? 0) + 1
+        }
+        let plainElements = QuillUI.quillMenuElements(from: plainButton)
+        #expect(plainElements.count == 1)
+        if case .item(let label, let action) = plainElements.first {
+            #expect(label == "Save")
+            action()
+            #expect(buttonTapCount.value == 1)
+        } else {
+            Issue.record("Expected .item, got \(String(describing: plainElements.first))")
+        }
+
+        // DisabledView wrapping a button replaces the action with a no-op
+        // closure so calling it does nothing.
+        let disabledTapCount = QuillTestBox<Int>(0)
+        let disabledButton = Button("Delete") {
+            disabledTapCount.value = (disabledTapCount.value ?? 0) + 1
+        }.disabled(true)
+        let disabledElements = QuillUI.quillMenuElements(from: disabledButton)
+        #expect(disabledElements.count == 1)
+        if case .item(let label, let action) = disabledElements.first {
+            #expect(label == "Delete")
+            action()
+            // Disabled actions are replaced with empty closures, so the count
+            // must stay at zero.
+            #expect(disabledTapCount.value == 0)
+        } else {
+            Issue.record("Expected disabled .item, got \(String(describing: disabledElements.first))")
+        }
+
+        // Unknown view type returns []
+        struct Unknown: View {
+            var body: some View { Text("x") }
+        }
+        #expect(QuillUI.quillMenuElements(from: Unknown()).isEmpty)
+    }
+
+    @Test("quillCommandMenuItems extracts from Button and respects disabled state")
+    func quillCommandMenuItemsExtraction() {
+        let count = QuillTestBox<Int>(0)
+        let button = Button("Open") {
+            count.value = (count.value ?? 0) + 1
+        }
+
+        let items = QuillUI.quillCommandMenuItems(from: button)
+        #expect(items.count == 1)
+        #expect(items.first?.label == "Open")
+
+        // Verify the action is the button's action (calls increment counter).
+        items.first?.action()
+        #expect(count.value == 1)
+
+        // Unknown view returns empty.
+        struct Unknown: View {
+            var body: some View { Text("x") }
+        }
+        #expect(QuillUI.quillCommandMenuItems(from: Unknown()).isEmpty)
+    }
+
+    @Test("quillPickerOptions extracts labels and tags from tagged view content")
+    func quillPickerOptionsExtraction() {
+        let options = QuillUI.quillPickerOptions(from: HStack {
+            Text("").tag("a")
+            Image(systemName: "photo.fill").tag("b")
+        })
+
+        #expect(options.count == 2)
+        #expect(options[0].label == "a")
+        #expect(options[0].tag == AnyHashable("a"))
+        #expect(options[1].label == "folder.badge.plus")
+        #expect(options[1].tag == AnyHashable("b"))
+
+        struct Unknown: View {
+            var body: some View { Text("x") }
+        }
+        #expect(QuillUI.quillPickerOptions(from: Unknown()).isEmpty)
+    }
 
     @Test("QuillCompatibilityEvent equality covers all fields")
     func quillCompatibilityEventEquatable() {

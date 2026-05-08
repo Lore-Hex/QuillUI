@@ -1324,7 +1324,8 @@ extension Button: QuillButtonRepresentable {
     fileprivate var quillButtonAction: () -> Void { action }
 }
 
-private func quillTextLabel(from view: any View) -> String {
+@_spi(QuillTesting)
+public func quillTextLabel(from view: any View) -> String {
     if let text = view as? Text {
         return text.content
     }
@@ -1349,7 +1350,8 @@ private func quillTextLabel(from view: any View) -> String {
     return ""
 }
 
-private func quillSystemImageName(from view: any View) -> String {
+@_spi(QuillTesting)
+public func quillSystemImageName(from view: any View) -> String {
     guard let image = view as? Image else {
         return "circle"
     }
@@ -1362,7 +1364,8 @@ private func quillSystemImageName(from view: any View) -> String {
     }
 }
 
-private func quillMenuElements(from view: any View) -> [MenuElement] {
+@_spi(QuillTesting)
+public func quillMenuElements(from view: any View) -> [MenuElement] {
     if let button = view as? any QuillButtonRepresentable {
         return [.item(label: button.quillButtonLabel, action: button.quillButtonAction)]
     }
@@ -1395,7 +1398,8 @@ private func quillMenuElement(_ element: MenuElement, disabled: Bool) -> MenuEle
     }
 }
 
-private func quillCommandMenuItems(from view: any View) -> [CommandMenuItem] {
+@_spi(QuillTesting)
+public func quillCommandMenuItems(from view: any View) -> [CommandMenuItem] {
     if let button = view as? any QuillButtonRepresentable {
         return [CommandMenuItem(button.quillButtonLabel, action: button.quillButtonAction)]
     }
@@ -1421,7 +1425,8 @@ private func quillCommandMenuItems(from view: any View) -> [CommandMenuItem] {
     return []
 }
 
-private func quillPickerOptions(from view: any View) -> [(label: String, tag: AnyHashable)] {
+@_spi(QuillTesting)
+public func quillPickerOptions(from view: any View) -> [(label: String, tag: AnyHashable)] {
     if let tagged = view as? AnyTagView {
         let label = quillTextLabel(from: tagged.anyTagContent)
         return [(label.isEmpty ? String(describing: tagged.anyTagValue.base) : label, tagged.anyTagValue)]

@@ -61,6 +61,14 @@ var targets: [Target] = [
         dependencies: [
             "QuillKit"
         ]
+    ),
+    .testTarget(
+        name: "QuillParityTests",
+        dependencies: [
+            "QuillUI",
+            "QuillKit",
+            "QuillData"
+        ]
     )
 ]
 
