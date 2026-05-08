@@ -42,6 +42,26 @@ environment contract:
 - `QUILLUI_PROFILE_ENTRY_TYPE`
 - `QUILLUI_PROFILE_MAIN_TYPE`
 
+Profiles that produce a lowered Swift source tree should delegate package
+assembly to `scripts/generate-swiftui-linux-package.sh`. That helper owns the
+reusable SwiftPM package shape: copying lowered sources, adding the QuillUI
+compatibility products, optionally generating the GTK `@main`, patching the
+pinned SwiftOpenUI checkout, and running `swift build`.
+
+The package helper takes this stable environment contract:
+
+- `QUILLUI_GENERATED_SOURCES_DIR`
+- `QUILLUI_GENERATED_SOURCE_COUNT_DIR`
+- `QUILLUI_GENERATED_WORKDIR`
+- `QUILLUI_GENERATED_PACKAGE_DIR`
+- `QUILLUI_GENERATED_PACKAGE_NAME`
+- `QUILLUI_GENERATED_PRODUCT_NAME`
+- `QUILLUI_GENERATED_TARGET_NAME`
+- `QUILLUI_GENERATED_INCLUDE_GTK_BACKEND`
+- `QUILLUI_GENERATED_APP_ENTRY_TYPE`
+- `QUILLUI_GENERATED_APP_MAIN_TYPE`
+- `QUILLUI_GENERATED_REPORT_LABEL`
+
 Reusable fallback behavior should live in library targets, not in profiles.
 The current `enchanted-full-source` profile keeps only app/source-shape wiring
 for accessibility, hotkeys, updater, panel, and USB launcher names; the Linux

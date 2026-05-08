@@ -39,8 +39,6 @@ case "$MODE" in
     ;;
 esac
 
-TARGET_DIR="$PACKAGE_DIR/Sources/$TARGET_NAME"
-
 validate_swift_type() {
   local value="$1"
   local label="$2"
@@ -70,7 +68,7 @@ MSG
 fi
 
 rm -rf "$WORK_ROOT"
-mkdir -p "$SOURCE_COPY" "$TARGET_DIR"
+mkdir -p "$SOURCE_COPY"
 cp -R "$UPSTREAM_DIR"/. "$SOURCE_COPY"/
 
 "$ROOT_DIR/scripts/lower-swiftdata-for-quilldata.sh" "$SOURCE_COPY" "$LOWERED_COPY"
@@ -273,14 +271,7 @@ enum QuillUSBLauncher {
 }
 SWIFT
 
-while IFS= read -r -d '' source_file; do
-  relative_path="${source_file#$LOWERED_COPY/}"
-  destination_file="$TARGET_DIR/$relative_path"
-  mkdir -p "$(dirname "$destination_file")"
-  cp "$source_file" "$destination_file"
-done < <(find "$LOWERED_COPY" -name '*.swift' -print0)
-
-cat > "$TARGET_DIR/QuillGeneratedFullSourceShims.swift" <<'SWIFT'
+cat > "$LOWERED_COPY/QuillGeneratedFullSourceShims.swift" <<'SWIFT'
 import Foundation
 import AppKit
 import SwiftData
@@ -330,19 +321,8 @@ extension CompletionInstructionSD: Hashable {
 
 SWIFT
 
-if [[ "$MODE" == "app" ]]; then
-  cat > "$TARGET_DIR/GeneratedMain.swift" <<SWIFT
-import BackendGTK4
-
-@main
-struct $APP_MAIN_TYPE {
-    static func main() {
-        GTK4Backend().run($APP_ENTRY_TYPE.self)
-    }
-}
-SWIFT
-else
-  cat > "$TARGET_DIR/GeneratedMain.swift" <<'SWIFT'
+if [[ "$MODE" != "app" ]]; then
+  cat > "$LOWERED_COPY/GeneratedMain.swift" <<'SWIFT'
 import Foundation
 import SwiftData
 import SwiftUI
@@ -466,89 +446,20 @@ struct GeneratedEnchantedFullSourceCheck {
 SWIFT
 fi
 
-extra_package_dependencies=""
-extra_target_dependencies=""
+include_gtk_backend=0
 if [[ "$MODE" == "app" ]]; then
-  extra_package_dependencies=$',
-        .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433")'
-  extra_target_dependencies=$',
-                .product(name: "BackendGTK4", package: "SwiftOpenUI")'
+  include_gtk_backend=1
 fi
 
-cat > "$PACKAGE_DIR/Package.swift" <<SWIFT
-// swift-tools-version: 6.0
-
-import PackageDescription
-
-let package = Package(
-    name: "$PACKAGE_NAME",
-    products: [
-        .executable(name: "$PRODUCT_NAME", targets: ["$TARGET_NAME"])
-    ],
-    dependencies: [
-        .package(name: "QuillUI", path: "$ROOT_DIR")$extra_package_dependencies
-    ],
-    targets: [
-        .executableTarget(
-            name: "$TARGET_NAME",
-            dependencies: [
-                .product(name: "SwiftUI", package: "QuillUI"),
-                .product(name: "SwiftData", package: "QuillUI"),
-                .product(name: "Combine", package: "QuillUI"),
-                .product(name: "UniformTypeIdentifiers", package: "QuillUI"),
-                .product(name: "OllamaKit", package: "QuillUI"),
-                .product(name: "MarkdownUI", package: "QuillUI"),
-                .product(name: "Splash", package: "QuillUI"),
-                .product(name: "ActivityIndicatorView", package: "QuillUI"),
-                .product(name: "WrappingHStack", package: "QuillUI"),
-                .product(name: "Vortex", package: "QuillUI"),
-                .product(name: "KeyboardShortcuts", package: "QuillUI"),
-                .product(name: "Magnet", package: "QuillUI"),
-                .product(name: "Carbon", package: "QuillUI"),
-                .product(name: "AsyncAlgorithms", package: "QuillUI"),
-                .product(name: "AppKit", package: "QuillUI"),
-                .product(name: "AVFoundation", package: "QuillUI"),
-                .product(name: "Speech", package: "QuillUI"),
-                .product(name: "PhotosUI", package: "QuillUI"),
-                .product(name: "UIKit", package: "QuillUI"),
-                .product(name: "IOKit", package: "QuillUI"),
-                .product(name: "Security", package: "QuillUI"),
-                .product(name: "ServiceManagement", package: "QuillUI"),
-                .product(name: "Sparkle", package: "QuillUI"),
-                .product(name: "ApplicationServices", package: "QuillUI"),
-                .product(name: "CoreGraphics", package: "QuillUI"),
-                .product(name: "Alamofire", package: "QuillUI"),
-                .product(name: "os", package: "QuillUI")
-                $extra_target_dependencies
-            ],
-            swiftSettings: [
-                .swiftLanguageMode(.v5)
-            ]
-        )
-    ]
-)
-SWIFT
-
-source_count="$(find "$SOURCE_COPY" -name '*.swift' | wc -l | tr -d ' ')"
-generated_count="$(find "$TARGET_DIR" -name '*.swift' | wc -l | tr -d ' ')"
-
-QUILLUI_SWIFT_PACKAGE_PATH="$PACKAGE_DIR" "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$WORK_ROOT/.build-check"
-
-swift build \
-  --package-path "$PACKAGE_DIR" \
-  --scratch-path "$WORK_ROOT/.build-check" \
-  --product "$PRODUCT_NAME"
-
-cat <<MSG
-
-Generated Enchanted full-source $MODE completed.
-Source copied from:
-  $UPSTREAM_DIR
-Source Swift files copied: $source_count
-Generated Swift files compiled: $generated_count
-Product:
-  $PRODUCT_NAME
-Generated package:
-  $PACKAGE_DIR
-
-MSG
+QUILLUI_GENERATED_SOURCES_DIR="$LOWERED_COPY" \
+QUILLUI_GENERATED_SOURCE_COUNT_DIR="$SOURCE_COPY" \
+QUILLUI_GENERATED_WORKDIR="$WORK_ROOT" \
+QUILLUI_GENERATED_PACKAGE_DIR="$PACKAGE_DIR" \
+QUILLUI_GENERATED_PACKAGE_NAME="$PACKAGE_NAME" \
+QUILLUI_GENERATED_PRODUCT_NAME="$PRODUCT_NAME" \
+QUILLUI_GENERATED_TARGET_NAME="$TARGET_NAME" \
+QUILLUI_GENERATED_INCLUDE_GTK_BACKEND="$include_gtk_backend" \
+QUILLUI_GENERATED_APP_ENTRY_TYPE="$APP_ENTRY_TYPE" \
+QUILLUI_GENERATED_APP_MAIN_TYPE="$APP_MAIN_TYPE" \
+QUILLUI_GENERATED_REPORT_LABEL="Generated Enchanted full-source $MODE" \
+"$ROOT_DIR/scripts/generate-swiftui-linux-package.sh"

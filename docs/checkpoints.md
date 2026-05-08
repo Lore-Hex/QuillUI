@@ -540,3 +540,19 @@ Status: passing for profile discovery, direct generated Quill Chat build, alias 
 - Verified the compatibility alias `--profile enchanted` still builds the local 92-file Quill Chat generated app.
 - `bash -n scripts/*.sh scripts/profiles/*.sh` and `git diff --check` passed.
 - Remaining honest gap: profile discovery is now generic, but the Enchanted lowering implementation still lives in the legacy generated full-source script. The next pass should split lowering phases into profile-owned files so the generic generated-package writer can be reused by IceCubes, NetNewsWire, CodeEdit, and WireGuard.
+
+## Checkpoint 40: Reusable Generated Package Builder
+
+Status: passing for generated check mode, generic app mode, and Xvfb startup smoke after the refactor.
+
+- Added `scripts/generate-swiftui-linux-package.sh` as the reusable generated-package assembly layer for SwiftUI-shaped app profiles.
+- Moved generic source copying, SwiftPM package writing, broad QuillUI compatibility-product dependency wiring, optional GTK `@main` generation, SwiftOpenUI checkout patching, and final `swift build` out of the Enchanted full-source script.
+- Reduced `scripts/generated-enchanted-full-source-check.sh` from 554 lines to 465 lines; its remaining content is now mostly Enchanted/Quill Chat source lowering and app-specific compile-check construction.
+- Documented the stable `QUILLUI_GENERATED_*` package-helper contract in `docs/linux-build-tooling.md`.
+- Expanded Linux-only compatibility tests for gradients, `PresentationMode`, compatibility error descriptions, `FocusState`, `Namespace`, sidebar actions, prompt identity, transitions, and diagnostic event equality.
+- Verified the compatibility test expansion on Linux: 116 tests in 12 suites passed.
+- Verified macOS tests after the compatibility expansion: 59 tests in 9 suites passed.
+- Verified generated check mode through the new package helper against the local 92-file Quill Chat tree: 95 generated Swift files compiled.
+- Verified generic app mode through `scripts/build-swiftui-linux-app.sh --profile enchanted-full-source`: `quill-chat-linux` built and survived a 6-second Xvfb startup smoke.
+- `bash -n scripts/*.sh scripts/profiles/*.sh`, `scripts/build-swiftui-linux-app.sh --list-profiles`, and `git diff --check` passed.
+- Remaining honest gap: Enchanted lowering is still a large shell profile. Next reductions should split source rewrites into named profile phases and move more source-shape compatibility into QuillUI/QuillKit APIs.
