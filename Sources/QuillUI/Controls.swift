@@ -548,6 +548,29 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
     }
 }
 
+public struct QuillToolbarActionRow<Content: View>: View {
+    public var spacing: Int
+    private var content: Content
+
+    public init(spacing: Int = 14, @ViewBuilder content: () -> Content) {
+        self.spacing = spacing
+        self.content = content()
+    }
+
+    public var body: some View {
+        HStack(alignment: .center, spacing: stackSpacing) {
+            content
+        }
+        .frame(height: 32, alignment: .center)
+    }
+
+    #if os(macOS) || os(iOS) || os(visionOS)
+    private var stackSpacing: CGFloat { CGFloat(spacing) }
+    #else
+    private var stackSpacing: Int { spacing }
+    #endif
+}
+
 public struct QuillMenuAction: Identifiable {
     public enum Kind {
         case item

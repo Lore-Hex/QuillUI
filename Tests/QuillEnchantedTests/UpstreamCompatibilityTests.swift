@@ -569,7 +569,10 @@ struct UpstreamCompatibilityTests {
             QuillDesktopSplitLayout(title: "Quill Chat") {
                 QuillConversationHistoryList(items: []) { _ in }
             } toolbar: {
-                QuillFloatingIconButton(systemImage: "square.and.pencil") {}
+                QuillToolbarActionRow {
+                    QuillFloatingIconButton(systemImage: "ellipsis.circle") {}
+                    QuillFloatingIconButton(systemImage: "square.and.pencil") {}
+                }
             } content: {
                 QuillChatEmptyState(brandTitle: "Quill", prompts: prompts, columns: 4) { _ in }
             }.body

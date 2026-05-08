@@ -98,6 +98,10 @@ def prompt_card_pixel(rgb: tuple[int, int, int]) -> bool:
     )
 
 
+def toolbar_dark_pixel(rgb: tuple[int, int, int]) -> bool:
+    return sum(rgb) < 320
+
+
 def content_bounds(image: Screenshot) -> tuple[int, int, int, int]:
     rows = [
         y
@@ -149,8 +153,25 @@ def validate_quill_chat_landmarks(image: Screenshot) -> str:
     )
     header_score = line_row_score(image, header_y, detail_left, right + 1)
     require(
-        85 <= header_y - top <= 130 and header_score >= detail_width * 0.70,
+        55 <= header_y - top <= 95 and header_score >= detail_width * 0.70,
         f"Quill Chat header divider is missing or misplaced: y={header_y}, score={header_score}",
+    )
+
+    toolbar_rows = [
+        y
+        for y in range(top + 25, header_y)
+        if sum(
+            1
+            for x in range(max(detail_left, right - 220), right + 1)
+            if toolbar_dark_pixel(image.rgb(x, y))
+        )
+        >= 3
+    ]
+    require(toolbar_rows, "Quill Chat toolbar actions were not detected")
+    toolbar_spread = toolbar_rows[-1] - toolbar_rows[0] + 1
+    require(
+        toolbar_spread <= 32,
+        f"Quill Chat toolbar actions appear vertically stacked: spread={toolbar_spread}px",
     )
 
     prompt_row = -1
@@ -197,6 +218,7 @@ def validate_quill_chat_landmarks(image: Screenshot) -> str:
         f"app={app_width}x{app_height}, "
         f"sidebar={sidebar_width}px, "
         f"header={header_y - top}px, "
+        f"toolbar={toolbar_rows[0]}-{toolbar_rows[-1]}, "
         f"prompt_row={prompt_row}px, "
         f"cards={prompt_segments[0].start}-{prompt_segments[-1].end}, "
         f"composer={composer_segment.width}px@{composer_y}"

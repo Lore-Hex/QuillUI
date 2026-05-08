@@ -181,13 +181,28 @@ struct ChatView: View {
                 onDeleteDailyConversations: onDeleteDailyConversations
             )
         } toolbar: {
-            ToolbarView(
-                modelsList: modelsList,
-                selectedModel: selectedModel,
-                onSelectModel: onSelectModel,
-                onNewConversationTap: onNewConversationTap,
-                copyChat: copyChat
-            )
+            QuillToolbarActionRow {
+                ModelSelectorView(
+                    modelsList: modelsList,
+                    selectedModel: selectedModel,
+                    onSelectModel: onSelectModel,
+                    showChevron: false
+                )
+                .frame(height: 20)
+
+                MoreOptionsMenuView(copyChat: copyChat)
+
+                Button(action: onNewConversationTap) {
+                    Image(systemName: "square.and.pencil")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 20)
+                        .padding(5)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .keyboardShortcut(KeyEquivalent("n"), modifiers: .command)
+            }
         } content: {
             VStack(alignment: .center, spacing: 0) {
                 if selectedConversation != nil {

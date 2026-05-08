@@ -645,3 +645,17 @@ Status: passing for script syntax, standalone screenshot verification, and fresh
 - Verified existing screenshot directly in the Linux VM: `scripts/verify-gtk-screenshot.py .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` reported app `1121x600`, sidebar `320px`, header `109px`, prompt cards `395-1045`, and composer `750px@510`.
 - Verified fresh generated app visual mode in the Linux VM: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt the 92-file generated Quill Chat app, captured an 1180x760 screenshot, and passed the same landmark checks.
 - Remaining honest gap: these are deterministic landmark checks, not image-diff parity against a macOS reference. The next QA layer should compare against a stored macOS reference or a declarative layout spec with tolerance bands for each viewport.
+
+## Checkpoint 48: Generated Quill Chat Toolbar Row
+
+Status: passing on macOS tests, Linux tests, generated full-source build, and Linux GTK visual smoke.
+
+- Added reusable `QuillToolbarActionRow` to QuillUI so toolbar actions can be forced into a compact horizontal row when a SwiftUI toolbar tuple renders vertically under the current GTK backend.
+- Updated the Enchanted full-source profile's generated Linux `ChatView_macOS.swift` replacement to inline `ModelSelectorView`, `MoreOptionsMenuView`, and the new-chat button inside `QuillToolbarActionRow` instead of embedding the upstream `ToolbarView` tuple as one opaque child.
+- Extended structural view-tree coverage to exercise `QuillToolbarActionRow` inside `QuillDesktopSplitLayout`.
+- Tightened `scripts/verify-gtk-screenshot.py` so Quill Chat visual QA now fails if toolbar actions are vertically stacked; it also accepts the improved shorter header.
+- Verified macOS: `swift test --disable-automatic-resolution` passed with 75 tests in 10 suites.
+- Verified Linux: `swift test --scratch-path .build-linux` passed with 141 tests in 13 suites.
+- Verified generated check mode: `scripts/generated-enchanted-full-source-check.sh` compiled the generated full-source product.
+- Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt the 92-file generated Quill Chat app and passed landmarks with header `73px`, toolbar `47-59`, prompt cards `395-1045`, and composer `750px@474`.
+- Remaining honest gap: the toolbar is now correctly row-shaped, but its model/menu controls are still generic GTK menu buttons rather than macOS-like icon-only affordances. A native menu-button rendering pass should follow.
