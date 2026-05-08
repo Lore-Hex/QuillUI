@@ -61,6 +61,9 @@ assembly:
 - `scripts/install-profile-templates.sh` copies profile-owned replacement files
   into the lowered tree so large generated Swift files live as reviewable
   templates instead of shell heredocs.
+- `scripts/apply-profile-rewrites.sh` applies reviewable profile rewrite rules:
+  `__all__.pl` runs across every Swift file and `*.swift.pl` rules map to
+  matching source paths.
 - `scripts/generate-hashable-identity-shims.sh` emits small generated Swift
   extensions that make lowered model classes `Hashable`/`Equatable` by stable
   identity properties, with optional `Identifiable.id` aliases for models whose

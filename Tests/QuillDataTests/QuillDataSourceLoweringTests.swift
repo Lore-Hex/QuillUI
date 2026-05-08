@@ -210,6 +210,69 @@ struct QuillDataSourceLoweringTests {
         #expect(copiedTopLevel == "typealias Example = Int\n")
     }
 
+    @Test("profile rewrite helper applies global and file-specific rules")
+    func profileRewriteHelperAppliesGlobalAndFileSpecificRules() throws {
+        let root = try packageRoot()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillProfileRewriteTests-\(UUID().uuidString)", isDirectory: true)
+        let source = directory.appendingPathComponent("Source", isDirectory: true)
+        let rules = directory.appendingPathComponent("Rules", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let nestedSource = source.appendingPathComponent("Nested/Target.swift")
+        try FileManager.default.createDirectory(
+            at: nestedSource.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        func target() async {
+            await Example.shared.run()
+            Value.old()
+        }
+        """.write(to: nestedSource, atomically: true, encoding: .utf8)
+
+        let otherSource = source.appendingPathComponent("Other.swift")
+        try """
+        func other() async {
+            await Example.shared.run()
+            Value.old()
+        }
+        """.write(to: otherSource, atomically: true, encoding: .utf8)
+
+        let nestedRule = rules.appendingPathComponent("Nested/Target.swift.pl")
+        try FileManager.default.createDirectory(
+            at: nestedRule.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "s/Value\\.old\\(\\)/Value.new()/g;\n".write(to: nestedRule, atomically: true, encoding: .utf8)
+        try "s/await Example\\.shared\\.run\\(\\)/Example.shared.run()/g;\n".write(
+            to: rules.appendingPathComponent("__all__.pl"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let script = root.appendingPathComponent("scripts/apply-profile-rewrites.sh")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [script.path, source.path, rules.path]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        try process.run()
+        process.waitUntilExit()
+
+        let log = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        #expect(process.terminationStatus == 0, Comment(rawValue: log))
+
+        let rewrittenNested = try String(contentsOf: nestedSource, encoding: .utf8)
+        #expect(rewrittenNested.contains("Example.shared.run()"))
+        #expect(rewrittenNested.contains("Value.new()"))
+
+        let rewrittenOther = try String(contentsOf: otherSource, encoding: .utf8)
+        #expect(rewrittenOther.contains("Example.shared.run()"))
+        #expect(rewrittenOther.contains("Value.old()"))
+    }
+
     private func packageRoot() throws -> URL {
         var directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
         for _ in 0..<8 {

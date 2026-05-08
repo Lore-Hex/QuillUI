@@ -20,16 +20,6 @@ if [[ ! -d "$LOWERED_COPY" ]]; then
   exit 66
 fi
 
-find "$LOWERED_COPY" -name '*.swift' -print0 |
-  xargs -0 perl -0pi -e '
-    s/await Haptics\.shared\.mediumTap\(\)/Haptics.shared.mediumTap()/g;
-    s/await languageModelStore\.setModel\(/languageModelStore.setModel(/g;
-    s/let messages = await ConversationStore\.shared\.messages/let messages = ConversationStore.shared.messages/g;
-    s/await Accessibility\.shared\.showAccessibilityInstructionsWindow\(\)/Accessibility.shared.showAccessibilityInstructionsWindow()/g;
-    s/_ = try await loadCompletions/_ = await loadCompletions/g;
-    s/try\? await conversationStore\.deleteAllConversations\(\)/conversationStore.deleteAllConversations()/g;
-  '
-
 "$TOOLING_DIR/ensure-swift-imports.sh" "$LOWERED_COPY" AppKit \
   Application/EnchantedApp.swift \
   Extensions/UIImage+Extension.swift \
@@ -43,112 +33,7 @@ find "$LOWERED_COPY" -name '*.swift' -print0 |
   UI/Shared/Chat/Components/Recorder/SpeechRecogniser.swift
 
 "$TOOLING_DIR/install-profile-templates.sh" "$PROFILE_DIR/templates" "$LOWERED_COPY"
-
-conversation_store="$LOWERED_COPY/Stores/ConversationStore.swift"
-if [[ -f "$conversation_store" ]]; then
-  perl -0pi -e '
-    s/final class ConversationStore: Sendable/final class ConversationStore: \@unchecked Sendable/g;
-    s/(\n[ \t]*let assistantMessage = MessageSD\(content: "", role: "assistant"\))/\n        let messageHistoryForRequest = messageHistory$1/g;
-    s/messages: messageHistory/messages: messageHistoryForRequest/g;
-    s/self\?\.handleComplete\(\)/Task { \@MainActor in self?.handleComplete() }/g;
-    s/self\?\.handleError\(error\.localizedDescription\)/Task { \@MainActor in self?.handleError(error.localizedDescription) }/g;
-    s/self\?\.handleReceive\(response\)/Task { \@MainActor in self?.handleReceive(response) }/g;
-  ' "$conversation_store"
-fi
-
-speech_service="$LOWERED_COPY/Services/SpeechService.swift"
-if [[ -f "$speech_service" ]]; then
-  perl -0pi -e '
-    s/^[ \t]*\@MainActor[ \t]+final class/final class/gm;
-    s/([ \t]*)synthesizer\.stopSpeaking\(at: \.immediate\)/$1_ = synthesizer.stopSpeaking(at: .immediate)/g;
-  ' "$speech_service"
-fi
-
-model_selector="$LOWERED_COPY/UI/Shared/Chat/Components/ModelSelectorView.swift"
-if [[ -f "$model_selector" ]]; then
-  perl -0pi -e 's/([:(,][ \t]*)\@MainActor[ \t]+/$1/g' "$model_selector"
-fi
-
-clipboard="$LOWERED_COPY/Services/Clipboard.swift"
-if [[ -f "$clipboard" ]]; then
-  perl -0pi -e '
-    s/return NSImage\(data: imgData\)/return PlatformImage(data: imgData)/g;
-    s/\n#endif\n[ \t]*return nil\n([ \t]*\})/\n#endif\n$1/s;
-  ' "$clipboard"
-fi
-
-enchanted_app="$LOWERED_COPY/Application/EnchantedApp.swift"
-if [[ -f "$enchanted_app" ]]; then
-  perl -0pi -e '
-    s/\@NSApplicationDelegateAdaptor\(PanelManager\.self\) var panelManager/\@State var panelManager = PanelManager()/g;
-  ' "$enchanted_app"
-fi
-
-header_view="$LOWERED_COPY/UI/Shared/Chat/Components/Header.swift"
-if [[ -f "$header_view" ]]; then
-  perl -0pi -e 's/Text\(selectedModel\.name\)/Text("Model")/g' "$header_view"
-fi
-
-view_extension="$LOWERED_COPY/Extensions/View+Extension.swift"
-if [[ -f "$view_extension" ]]; then
-  perl -0pi -e '
-    s/let image = renderer\.nsImage/let image: PlatformImage? = nil/g;
-  ' "$view_extension"
-fi
-
-recording_view="$LOWERED_COPY/UI/Shared/Chat/Components/Recorder/RecordingView.swift"
-if [[ -f "$recording_view" ]]; then
-  perl -0pi -e '
-    s/\nstruct MeetingView_Previews: PreviewProvider[\s\S]*\z/\n/s;
-    s/await speechRecognizer\.userInit\(\)/speechRecognizer.userInit()/g;
-  ' "$recording_view"
-fi
-
-speech_recogniser="$LOWERED_COPY/UI/Shared/Chat/Components/Recorder/SpeechRecogniser.swift"
-if [[ -f "$speech_recogniser" ]]; then
-  perl -0pi -e '
-    s/actor SpeechRecognizer/final class SpeechRecognizer/;
-    s/Task \{[ \t]*\@MainActor[ \t]+in/Task {/g;
-    s/Task \{[ \t]*\@MainActor[ \t]+\[errorMessage\][ \t]+in/Task { [errorMessage] in/g;
-    s/^[ \t]*\@MainActor[ \t]+//gm;
-    s/nonisolated private func/private func/g;
-    s/await self\.setUpdateHandler/self.setUpdateHandler/g;
-    s/await transcribe\(\)/transcribe()/g;
-    s/await reset\(\)/reset()/g;
-    s/await onUpdate\?\(message\)/onUpdate?(message)/g;
-  ' "$speech_recogniser"
-fi
-
-panel_vm="$LOWERED_COPY/UI/macOS/PromptPanel/PanelCompletionsVM.swift"
-if [[ -f "$panel_vm" ]]; then
-  perl -0pi -e '
-    s/self\?\.handleComplete\(\)/Task { \@MainActor in self?.handleComplete() }/g;
-    s/self\?\.handleError\(error\.localizedDescription\)/Task { \@MainActor in self?.handleError(error.localizedDescription) }/g;
-    s/self\?\.handleReceive\(response\)/Task { \@MainActor in self?.handleReceive(response) }/g;
-    s/OKCompletionOptions\(temperature: completion\.modelTemperature \?\? 0\.8\)/OKCompletionOptions(temperature: Double(completion.modelTemperature ?? 0.8))/g;
-  ' "$panel_vm"
-fi
-
-completions_editor="$LOWERED_COPY/UI/macOS/CompletionsEditor/CompletionsEditor.swift"
-if [[ -f "$completions_editor" ]]; then
-  perl -0pi -e '
-    s/completions: \$completionsStore\.completions/completions: Binding(get: { completionsStore.completions }, set: { completionsStore.completions = \$0 })/g;
-  ' "$completions_editor"
-fi
-
-completions_editor_view="$LOWERED_COPY/UI/macOS/CompletionsEditor/CompletionsEditorView.swift"
-if [[ -f "$completions_editor_view" ]]; then
-  perl -0pi -e '
-    s/ForEach\(\$completions, editActions: \.move\) \{ \$completion in/ForEach(completions) { completion in/g;
-  ' "$completions_editor_view"
-fi
-
-upsert_completion_view="$LOWERED_COPY/UI/macOS/CompletionsEditor/UpsertCompletionView.swift"
-if [[ -f "$upsert_completion_view" ]]; then
-  perl -0pi -e '
-    s/\.onChange\(of: keyboardShortcutKey\) \{ newValue in\n([ \t]*)if newValue\.count > 1 \{\n([ \t]*)keyboardShortcutKey = String\(newValue\.prefix\(1\)\)\n([ \t]*)\}\n([ \t]*)\}/.onChange(of: keyboardShortcutKey, perform: { newValue in\n$1if newValue.count > 1 {\n$2keyboardShortcutKey = String(newValue.prefix(1))\n$3}\n$4})/g;
-  ' "$upsert_completion_view"
-fi
+"$TOOLING_DIR/apply-profile-rewrites.sh" "$LOWERED_COPY" "$PROFILE_DIR/rewrite-rules"
 
 for profile_replaced_file in \
   Helpers/Accessibility.swift \

@@ -779,3 +779,18 @@ Status: passing from a clean temporary worktree with only the staged template-ex
 - Verified clean generated check mode: `QUILLUI_APP_SOURCE_DIR=/Users/jperla/claude/QuillUI/.upstream/enchanted/Enchanted scripts/generated-enchanted-full-source-check.sh` compiled 87 source Swift files into 90 generated Swift files.
 - Verified clean generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt 92 source Swift files into 95 generated Swift files and passed landmarks with header `73px`, toolbar `48-56`, prompt cards `395-1045`, and composer `750px@474`.
 - Remaining honest gap: the app-specific replacement logic still exists, but it is now isolated in templates. The next real reduction should replace more of those templates with reusable QuillUI/QuillKit APIs.
+
+## Checkpoint 57: Declarative Profile Rewrite Rules
+
+Status: passing from a clean temporary worktree with only the staged rewrite-rule patch applied, plus generated upstream Enchanted compile and generated Quill Chat visual smoke.
+
+- Added `scripts/apply-profile-rewrites.sh`, a reusable helper that applies `__all__.pl` across every Swift file and maps profile `*.swift.pl` rules to matching lowered source paths.
+- Moved Enchanted's per-file Perl rewrites out of `lower-profile-source.sh` into small reviewable files under `scripts/profiles/enchanted-full-source/rewrite-rules/`.
+- Reduced `scripts/profiles/enchanted-full-source/lower-profile-source.sh` from 173 to 58 lines, below the `<100` line target for the active profile script, without editing app sources.
+- Added regression coverage for global rewrite rules, nested file-specific rules, and files that should receive only global rewrites.
+- Verified syntax: `bash -n` passed for build-tooling scripts and `perl -c` passed for all Enchanted profile rewrite rules.
+- Verified clean macOS focused: `swift test --scratch-path .build-macos-lowering --disable-automatic-resolution --filter QuillDataSourceLoweringTests` passed with 5 tests.
+- Verified clean Linux focused: `swift test --scratch-path .build-linux --filter QuillDataSourceLoweringTests` passed with 5 tests.
+- Verified clean generated check mode: `QUILLUI_APP_SOURCE_DIR=/Users/jperla/claude/QuillUI/.upstream/enchanted/Enchanted scripts/generated-enchanted-full-source-check.sh` compiled 87 source Swift files into 90 generated Swift files.
+- Verified clean generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt 92 source Swift files into 95 generated Swift files and passed landmarks with header `73px`, toolbar `48-56`, prompt cards `395-1045`, and composer `750px@474`.
+- Remaining honest gap: this makes the profile small and auditable, but the rules are still compatibility rewrites. The next functional milestone should move one of those rule categories into actual QuillUI/QuillKit APIs.
