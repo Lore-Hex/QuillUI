@@ -1,17 +1,8 @@
 import Foundation
+import QuillUI
 import QuillKit
 
-public final class NSImage: @unchecked Sendable {
-    public var data: Data?
-
-    public init?(data: Data) {
-        self.data = data
-    }
-
-    public var tiffRepresentation: Data? {
-        data
-    }
-}
+public typealias NSImage = QuillUI.NSImage
 
 public final class NSPasteboard: @unchecked Sendable {
     public struct PasteboardType: Hashable, Sendable, ExpressibleByStringLiteral {

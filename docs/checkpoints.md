@@ -407,3 +407,19 @@ Status: passing on macOS, Linux, and Linux GTK smoke.
 - macOS verification passed: `swift test --disable-automatic-resolution` with 58 tests in 9 suites.
 - Linux GTK verification passed: `swift test` with 92 tests in 12 suites, generated Enchanted core build, both GTK products built, and both apps survived the 4-second Xvfb smoke run.
 - Remaining honest gap: the UI layer is still split between the prototype GTK slice and upstream SwiftUI files. The next milestone is expanding generated-source compilation to `UI/Shared` and `UI/macOS/Chat` so the prototype can shrink toward a tiny Linux entry point.
+
+## Checkpoint 31: Generated Enchanted Chat Components Build
+
+Status: passing on macOS, Linux, and Linux GTK smoke.
+
+- Added `scripts/generated-enchanted-chat-components-check.sh`, a repeatable Linux-only harness that copies 38 real upstream Enchanted Swift files covering core models/stores, selected services, shared chat message views, empty state, status, model picker, selected/removable images, options menu, reading-aloud UI, simple floating buttons, Markdown, and Splash syntax highlighting.
+- Expanded QuillUI's SwiftUI compatibility surface for the shared chat UI: `FocusState`, `ContextMenu`, `AnyTransition`, `PinnedScrollableViews`, `TextSelectability`, `AngularGradient`, `GridItem(.flexible/fixed, spacing:alignment:)`, `LazyVGrid(columns:alignment:spacing:)`, list-row modifiers, hover/text-selection/focus fallbacks, `offset(CGSize)`, `padding(EdgeInsets)`, `HStack`/`VStack` `Double` spacing, `Animation.snappy`, `repeatForever`, and `delay`.
+- Moved the Linux `NSImage` compatibility type into QuillUI and made AppKit expose the same type, so `SwiftUI` no longer depends on the AppKit compatibility module while still supporting `Image(nsImage:)`.
+- Fixed `FocusState` to provide SwiftUI-shaped default initializers for `Bool` and optional values, plus nonmutating writes, which also restored the prototype upstream slice build.
+- Wired the generated chat-components check into `scripts/linux-gtk-check.sh` after the generated core check.
+- Added Linux regression coverage for the Enchanted chat component modifier/layout/focus/transition surface.
+- Updated the Quill Chat audit script and API coverage matrix to distinguish the generated real-source chat component harness from the older prototype slice.
+- macOS verification passed: `swift test --disable-automatic-resolution` with 58 tests in 9 suites.
+- Linux verification passed: `swift test --scratch-path .build-linux` with 93 tests in 12 suites.
+- Linux GTK verification passed: unit tests, generated Enchanted core build, generated Enchanted chat-components build, both GTK products built, and both apps survived the 4-second Xvfb smoke run.
+- Remaining honest gaps: this still uses generated-source lowering for SwiftData macros, previews, and SwiftOpenUI main-actor mismatches; it does not yet compile the full `UI/macOS/Chat` entry path or replace the prototype app with real Enchanted source plus a tiny Linux entry point.

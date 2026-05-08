@@ -163,6 +163,18 @@ public struct QuillPlatformImage: Sendable {
 
 public typealias PlatformImage = QuillPlatformImage
 
+public final class NSImage: @unchecked Sendable {
+    public var data: Data?
+
+    public init?(data: Data) {
+        self.data = data
+    }
+
+    public var tiffRepresentation: Data? {
+        data
+    }
+}
+
 public final class ImageRenderer<Content: View> {
     public var content: Content
     public var scale: CGFloat = 1.0

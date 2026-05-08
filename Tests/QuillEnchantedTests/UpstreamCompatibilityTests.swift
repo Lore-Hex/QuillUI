@@ -138,6 +138,66 @@ struct UpstreamCompatibilityTests {
         _ = URL(fileURLWithPath: "/tmp/image.png").startAccessingSecurityScopedResource()
     }
 
+    @Test("compiles Enchanted chat component compatibility surface")
+    func compilesEnchantedChatComponentSurface() {
+        let focusState = FocusState<Bool>(wrappedValue: false)
+        let focused = focusState.projectedValue
+        focused.wrappedValue = true
+        #expect(focusState.wrappedValue)
+
+        let contextMenu = ContextMenu {
+            Button("Copy") {}
+            Divider()
+        }
+
+        _ = Text("Message")
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .padding(.vertical, 10.0)
+            .padding(.horizontal, 10.0)
+            .padding(EdgeInsets(top: 1, leading: 2, bottom: 3, trailing: 4))
+            .textSelection(.enabled)
+            .focused(focused)
+            .onHover { _ in }
+            .transition(.asymmetric(
+                insertion: AnyTransition.opacity.combined(with: .scale(scale: 0.7, anchor: .top)),
+                removal: .slide
+            ))
+            .offset(CGSize(width: 4, height: -2))
+            .contextMenu(contextMenu)
+
+        _ = LazyVGrid(
+            columns: [
+                GridItem(.flexible(minimum: 80, maximum: 180), spacing: 12, alignment: .center)
+            ],
+            alignment: .leading,
+            spacing: 16.0
+        ) {
+            Text("Prompt")
+        }
+
+        _ = HStack(alignment: .firstTextBaseline, spacing: 10.0) {
+            Text("Quill")
+            Text("Chat")
+        }
+
+        _ = VStack(spacing: 6.0) {
+            Text("One")
+            Text("Two")
+        }
+
+        _ = AngularGradient(
+            colors: [.systemBlue, .systemRed],
+            center: .center,
+            startAngle: .zero,
+            endAngle: .degrees(360)
+        ).opacity(0.5)
+
+        _ = Animation.snappy(duration: 0.2)
+            .repeatForever(autoreverses: false)
+            .delay(0.1)
+    }
+
     @Test("loads dropped file data through NSItemProvider compatibility")
     func loadsDroppedFileData() throws {
         let directory = FileManager.default.temporaryDirectory

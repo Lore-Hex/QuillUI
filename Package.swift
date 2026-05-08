@@ -90,7 +90,7 @@ let linuxCompatibilityModuleTargets: [Target] = [
     .target(name: "Magnet", dependencies: ["AppKit", "QuillKit"]),
     .target(name: "AVFoundation", dependencies: ["QuillKit"]),
     .target(name: "Speech", dependencies: ["AVFoundation"]),
-    .target(name: "AppKit", dependencies: ["QuillKit"]),
+    .target(name: "AppKit", dependencies: ["QuillUI", "QuillKit"]),
     .target(name: "UIKit", dependencies: ["QuillKit"]),
     .target(name: "PhotosUI", dependencies: ["SwiftUI"]),
     .target(name: "Security", dependencies: ["QuillKit"]),

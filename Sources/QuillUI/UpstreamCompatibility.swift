@@ -265,6 +265,117 @@ public struct SymbolEffectOptions: Sendable {
     public static func `repeat`(_ count: Int) -> SymbolEffectOptions { SymbolEffectOptions() }
 }
 
+@propertyWrapper
+public struct FocusState<Value> {
+    private final class Box {
+        var value: Value
+
+        init(_ value: Value) {
+            self.value = value
+        }
+    }
+
+    private var box: Box
+
+    public init() where Value == Bool {
+        self.box = Box(false)
+    }
+
+    public init<Wrapped>() where Value == Wrapped? {
+        self.box = Box(nil)
+    }
+
+    public init(wrappedValue: Value) {
+        self.box = Box(wrappedValue)
+    }
+
+    public var wrappedValue: Value {
+        get { box.value }
+        nonmutating set { box.value = newValue }
+    }
+
+    public var projectedValue: Binding<Value> {
+        Binding(
+            get: { box.value },
+            set: { box.value = $0 }
+        )
+    }
+}
+
+public struct AnyTransition: Sendable {
+    public init() {}
+
+    public static let opacity = AnyTransition()
+    public static let slide = AnyTransition()
+
+    public static func scale(scale: Double = 1.0, anchor: UnitPoint = .center) -> AnyTransition {
+        AnyTransition()
+    }
+
+    public static func asymmetric(insertion: AnyTransition, removal: AnyTransition) -> AnyTransition {
+        AnyTransition()
+    }
+
+    public init(_ transition: AnyTransition) {
+        self = transition
+    }
+
+    public func combined(with transition: AnyTransition) -> AnyTransition {
+        AnyTransition()
+    }
+}
+
+public struct PinnedScrollableViews: OptionSet, Sendable {
+    public var rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    public static let sectionHeaders = PinnedScrollableViews(rawValue: 1 << 0)
+    public static let sectionFooters = PinnedScrollableViews(rawValue: 1 << 1)
+}
+
+public struct ContextMenu {
+    public var menuElements: [MenuElement]
+
+    public init(@MenuBuilder menuItems: () -> [MenuElement]) {
+        self.menuElements = menuItems()
+    }
+}
+
+public enum TextSelectability: Sendable {
+    case enabled
+    case disabled
+}
+
+public struct AngularGradient {
+    public var gradient: Gradient
+    public var center: UnitPoint
+    public var startAngle: Angle
+    public var endAngle: Angle
+
+    public init(
+        gradient: Gradient,
+        center: UnitPoint,
+        startAngle: Angle = .zero,
+        endAngle: Angle = .zero
+    ) {
+        self.gradient = gradient
+        self.center = center
+        self.startAngle = startAngle
+        self.endAngle = endAngle
+    }
+
+    public init(colors: [Color], center: UnitPoint, startAngle: Angle = .zero, endAngle: Angle = .zero) {
+        self.init(gradient: Gradient(colors: colors), center: center, startAngle: startAngle, endAngle: endAngle)
+    }
+
+    public func opacity(_ opacity: Double) -> Color {
+        gradient.quillAverageColor.opacity(opacity)
+    }
+}
+
 public struct ButtonStyleConfiguration {
     public var label: Text
     public var isPressed: Bool
@@ -298,6 +409,90 @@ public extension ToolbarItemPlacement {
     static var navigation: ToolbarItemPlacement { .leading }
     static var navigationBarTrailing: ToolbarItemPlacement { .trailing }
     static var topBarLeading: ToolbarItemPlacement { .leading }
+}
+
+public extension VerticalAlignment {
+    static var firstTextBaseline: VerticalAlignment { .bottom }
+    static var lastTextBaseline: VerticalAlignment { .bottom }
+}
+
+public extension GridItem.Size {
+    static func flexible(minimum: Double = 10, maximum: Double = .infinity) -> GridItem.Size {
+        .flexible
+    }
+
+    static func fixed(_ size: Double) -> GridItem.Size {
+        .fixed
+    }
+}
+
+public extension GridItem {
+    init(_ size: Size = .flexible, spacing: Double? = nil, alignment: Alignment? = nil) {
+        self.init(size)
+    }
+}
+
+public extension LazyVGrid where Data == Int {
+    init(
+        columns: [GridItem],
+        alignment: HorizontalAlignment = .center,
+        spacing: Double? = nil,
+        pinnedViews: PinnedScrollableViews = [],
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.init(columns: columns, data: [0]) { _ in content() }
+    }
+}
+
+public extension Animation {
+    static func snappy(duration: Double = 0.35) -> Animation {
+        .easeOut(duration: duration)
+    }
+
+    func repeatForever(autoreverses: Bool = true) -> Animation {
+        self
+    }
+
+    func delay(_ delay: Double) -> Animation {
+        self
+    }
+}
+
+@MainActor
+public func withAnimation(_ animation: Animation = .default, _ body: @MainActor () -> Void) {
+    SwiftOpenUI.withAnimation(animation) {
+        MainActor.assumeIsolated {
+            body()
+        }
+    }
+}
+
+public extension HStack {
+    init(
+        alignment: VerticalAlignment = .center,
+        spacing: Double?,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.init(
+            alignment: alignment,
+            spacing: spacing.map { Int($0) } ?? stackDefaultSpacing,
+            content: content
+        )
+    }
+}
+
+public extension VStack {
+    init(
+        alignment: HorizontalAlignment = .center,
+        spacing: Double?,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.init(
+            alignment: alignment,
+            spacing: spacing.map { Int($0) } ?? stackDefaultSpacing,
+            content: content
+        )
+    }
 }
 
 public extension CommandGroupPlacement {
@@ -359,6 +554,10 @@ public extension Menu {
 }
 
 public extension MenuBuilder {
+    static func buildExpression(_ elements: [MenuElement]) -> [MenuElement] {
+        elements
+    }
+
     static func buildExpression<Label: View>(_ button: Button<Label>) -> [MenuElement] {
         [.item(label: quillTextLabel(from: button.label), action: button.action)]
     }
@@ -549,6 +748,63 @@ public extension View {
         return self
     }
 
+    func onHover(perform action: @escaping (Bool) -> Void) -> Self {
+        recordQuillUIFallback(
+            "onHover",
+            message: "onHover is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func offset(_ size: CGSize) -> OffsetView<Self> {
+        offset(x: size.width, y: size.height)
+    }
+
+    func padding(_ insets: EdgeInsets) -> PaddedView<Self> {
+        padding(
+            top: Int(insets.top),
+            bottom: Int(insets.bottom),
+            leading: Int(insets.leading),
+            trailing: Int(insets.trailing)
+        )
+    }
+
+    func padding(_ edges: Edge.Set, _ amount: Double) -> PaddedView<Self> {
+        padding(edges, Int(amount))
+    }
+
+    func listRowInsets(_ insets: EdgeInsets?) -> Self {
+        recordQuillUIFallback(
+            "listRowInsets",
+            message: "listRowInsets is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> Self {
+        recordQuillUIFallback(
+            "listRowSeparator",
+            message: "listRowSeparator is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func focused<Value>(_ binding: Binding<Value>) -> Self {
+        recordQuillUIFallback(
+            "focused",
+            message: "FocusState is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func textSelection(_ selection: TextSelectability = .enabled) -> Self {
+        recordQuillUIFallback(
+            "textSelection",
+            message: "textSelection is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
     func fileImporter(
         isPresented: Binding<Bool>,
         allowedContentTypes: [UTType],
@@ -622,6 +878,20 @@ public extension View {
         } isTargeted: { targeted in
             isTargeted?.wrappedValue = targeted
         }
+    }
+
+    func contextMenu(_ contextMenu: ContextMenu) -> ContextMenuView<Self> {
+        self.contextMenu {
+            contextMenu.menuElements
+        }
+    }
+
+    func transition(_ transition: AnyTransition) -> Self {
+        recordQuillUIFallback(
+            "transition",
+            message: "transition is currently a source-compatibility fallback on Linux."
+        )
+        return self
     }
 
     func symbolEffect<Value: Equatable>(
@@ -729,9 +999,16 @@ public extension View {
         onChange(of: value, action)
     }
 
+    func onChange<V: Equatable>(
+        of value: V,
+        _ action: @escaping () -> Void
+    ) -> OnChangeTwoArgView<Self, V> {
+        onChange(of: value) { _, _ in action() }
+    }
+
 }
 
-private extension Gradient {
+public extension Gradient {
     var quillAverageColor: Color {
         guard !stops.isEmpty else { return .primary }
         let count = Double(stops.count)
