@@ -449,15 +449,31 @@ public extension LazyVGrid where Data == Int {
 
 public extension Animation {
     static func snappy(duration: Double = 0.35) -> Animation {
-        .easeOut(duration: duration)
+        QuillCompatibilityDiagnostics.shared.record(
+            QuillCompatibilityEvent(
+                subsystem: "QuillUI",
+                operation: "Animation.snappy",
+                severity: .warning,
+                message: "Animation.snappy is approximated by .easeOut(duration:) on Linux. Real SwiftUI's snappy is a spring; motion shape will differ."
+            )
+        )
+        return .easeOut(duration: duration)
     }
 
     func repeatForever(autoreverses: Bool = true) -> Animation {
-        self
+        recordQuillUIFallback(
+            "Animation.repeatForever",
+            message: "Animation.repeatForever is currently a source-compatibility no-op on Linux; the animation will run once instead of looping."
+        )
+        return self
     }
 
     func delay(_ delay: Double) -> Animation {
-        self
+        recordQuillUIFallback(
+            "Animation.delay",
+            message: "Animation.delay is currently a source-compatibility no-op on Linux; the requested delay will not be applied."
+        )
+        return self
     }
 }
 
@@ -717,7 +733,150 @@ public extension Image {
     }
 }
 
+extension Image: @retroactive Equatable {
+    public static func == (lhs: Image, rhs: Image) -> Bool {
+        switch (lhs.source, rhs.source) {
+        case (.systemName(let left), .systemName(let right)):
+            return left == right && lhs.scale == rhs.scale && lhs.isResizable == rhs.isResizable
+        case (.filePath(let left), .filePath(let right)):
+            return left == right && lhs.scale == rhs.scale && lhs.isResizable == rhs.isResizable
+        case (.materialSymbol(let left), .materialSymbol(let right)):
+            return left == right && lhs.scale == rhs.scale && lhs.isResizable == rhs.isResizable
+        default:
+            return false
+        }
+    }
+}
+
+public extension State {
+    init(initialValue: Value) {
+        self.init(wrappedValue: initialValue)
+    }
+}
+
+public extension WindowGroup {
+    init(@ViewBuilder content: () -> Content) {
+        self.init("Quill", content: content)
+    }
+}
+
+public struct LabeledContent<Content: View>: View {
+    public var title: String
+    public var content: Content
+
+    public init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+            content
+        }
+    }
+}
+
+public struct TableColumn<RowValue, Content: View>: View {
+    public var title: String
+    private var content: (RowValue) -> Content
+
+    public init(_ title: String, @ViewBuilder content: @escaping (RowValue) -> Content) {
+        self.title = title
+        self.content = content
+    }
+
+    public var body: some View {
+        Text(title)
+    }
+
+    public func width(min: Double? = nil, max: Double? = nil) -> Self {
+        self
+    }
+}
+
+public struct AnyTableColumn<RowValue>: View {
+    public var title: String
+
+    public init<Content: View>(_ column: TableColumn<RowValue, Content>) {
+        self.title = column.title
+    }
+
+    public var body: some View {
+        Text(title)
+    }
+}
+
+@resultBuilder
+public enum TableColumnBuilder<RowValue> {
+    public static func buildBlock(_ columns: [AnyTableColumn<RowValue>]...) -> [AnyTableColumn<RowValue>] {
+        columns.flatMap { $0 }
+    }
+
+    public static func buildExpression<Content: View>(
+        _ column: TableColumn<RowValue, Content>
+    ) -> [AnyTableColumn<RowValue>] {
+        [AnyTableColumn(column)]
+    }
+}
+
+public struct Table<RowValue>: View {
+    public var rows: [RowValue]
+    public var columns: [AnyTableColumn<RowValue>]
+
+    public init(_ rows: [RowValue], @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]) {
+        self.rows = rows
+        self.columns = columns()
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(columns.enumerated()), id: \.offset) { _, column in
+                column
+            }
+        }
+    }
+}
+
+public enum ScrollIndicatorVisibility: Sendable {
+    case automatic
+    case visible
+    case hidden
+    case never
+}
+
+public struct DragGesture: Sendable {
+    public struct Value: Sendable {
+        public var translation: CGSize
+
+        public init(translation: CGSize = .zero) {
+            self.translation = translation
+        }
+    }
+
+    private var onChangedAction: (@Sendable (Value) -> Void)?
+    private var onEndedAction: (@Sendable (Value) -> Void)?
+
+    public init() {}
+
+    public func onChanged(_ action: @escaping @Sendable (Value) -> Void) -> DragGesture {
+        var copy = self
+        copy.onChangedAction = action
+        return copy
+    }
+
+    public func onEnded(_ action: @escaping @Sendable (Value) -> Void) -> DragGesture {
+        var copy = self
+        copy.onEndedAction = action
+        return copy
+    }
+}
+
 public extension View {
+    func antialiased(_ antialiased: Bool) -> Self {
+        self
+    }
+
     func imageScale(_ scale: ImageScale) -> some View {
         recordQuillUIFallback(
             "imageScale",
@@ -804,6 +963,14 @@ public extension View {
         return self
     }
 
+    func focused<Value: Equatable>(_ binding: Binding<Value?>, equals value: Value) -> Self {
+        recordQuillUIFallback(
+            "focused",
+            message: "Optional FocusState bindings are currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
     func textSelection(_ selection: TextSelectability = .enabled) -> Self {
         recordQuillUIFallback(
             "textSelection",
@@ -818,6 +985,10 @@ public extension View {
             message: "minimumScaleFactor is currently a source-compatibility fallback on Linux."
         )
         return self
+    }
+
+    func lineLimit(_ number: Int?, reservesSpace: Bool) -> some View {
+        lineLimit(number)
     }
 
     func fileImporter(
@@ -859,6 +1030,70 @@ public extension View {
 
     func foregroundStyle(_ primary: Color, _ secondary: Color) -> some View {
         foregroundColor(primary)
+    }
+
+    func symbolRenderingMode(_ mode: Image.SymbolRenderingMode?) -> Self {
+        recordQuillUIFallback(
+            "symbolRenderingMode",
+            message: "View symbolRenderingMode is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> Self {
+        recordQuillUIFallback(
+            "scrollIndicators",
+            message: "scrollIndicators is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func scrollContentBackground(_ visibility: Visibility) -> Self {
+        recordQuillUIFallback(
+            "scrollContentBackground",
+            message: "scrollContentBackground is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func focusEffectDisabled(_ disabled: Bool = true) -> Self {
+        recordQuillUIFallback(
+            "focusEffectDisabled",
+            message: "focusEffectDisabled is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func edgesIgnoringSafeArea(_ edges: Edge.Set) -> Self {
+        recordQuillUIFallback(
+            "edgesIgnoringSafeArea",
+            message: "edgesIgnoringSafeArea is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func ignoresSafeArea(_ edges: Edge.Set = .all) -> Self {
+        recordQuillUIFallback(
+            "ignoresSafeArea",
+            message: "ignoresSafeArea is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func onMove(perform action: ((IndexSet, Int) -> Void)?) -> Self {
+        recordQuillUIFallback(
+            "onMove",
+            message: "onMove is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func gesture<Gesture>(_ gesture: Gesture) -> Self {
+        recordQuillUIFallback(
+            "gesture",
+            message: "gesture is currently a source-compatibility fallback on Linux."
+        )
+        return self
     }
 
     func mask<Mask: View>(_ mask: Mask) -> Self {
@@ -948,6 +1183,17 @@ public extension View {
         focusedValue(keyPath, value)
     }
 
+    func focusedSceneValue<Value>(
+        _ keyPath: WritableKeyPath<FocusedValues, Value?>,
+        _ value: Value
+    ) -> Self {
+        recordQuillUIFallback(
+            "focusedSceneValue",
+            message: "focusedSceneValue is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
     func textFieldStyle(_ style: RoundedBorderTextFieldStyle) -> some View {
         textFieldStyle(TextFieldStyleType.roundedBorder)
     }
@@ -1021,6 +1267,39 @@ public extension View {
         onChange(of: value) { _, _ in action() }
     }
 
+    func onChange<V: Equatable>(
+        of value: V,
+        _ action: @escaping (V) -> Void
+    ) -> OnChangeTwoArgView<Self, V> {
+        onChange(of: value) { _, newValue in action(newValue) }
+    }
+
+    func confirmationDialog<Actions: View, Message: View>(
+        _ title: String,
+        isPresented: Binding<Bool>,
+        @ViewBuilder actions: () -> Actions,
+        @ViewBuilder message: () -> Message
+    ) -> ConfirmationDialogView<Self> {
+        confirmationDialog(title, isPresented: isPresented, actions: [])
+    }
+
+}
+
+public extension Array {
+    mutating func move(fromOffsets source: IndexSet, toOffset destination: Int) {
+        let moving = source.sorted().compactMap { indices.contains($0) ? self[$0] : nil }
+        for index in source.sorted(by: >) where indices.contains(index) {
+            remove(at: index)
+        }
+        let insertion = Swift.max(0, Swift.min(destination, count))
+        insert(contentsOf: moving, at: insertion)
+    }
+}
+
+public extension AnyTransition {
+    static var scale: AnyTransition {
+        .scale()
+    }
 }
 
 public extension Gradient {

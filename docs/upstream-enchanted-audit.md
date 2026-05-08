@@ -6,7 +6,7 @@ Swift files: 87
 
 ## Current Answer
 
-A direct `import SwiftUI` to `import QuillUI` replacement is not enough yet. The broad chat UI shape is close enough to reuse, but upstream Enchanted still has Apple-only service layers and SwiftData models that need adapters.
+A direct `import SwiftUI` to `import QuillUI` replacement is not enough yet. The broad chat UI shape is close enough to reuse, and QuillUI now has a generated Linux harness that compiles all 87 upstream Enchanted Swift files, but upstream Enchanted still has Apple-only service layers and SwiftData/Observation syntax that need generated lowering or adapters.
 
 The lowest-change strategy is:
 
@@ -18,6 +18,7 @@ The lowest-change strategy is:
 
 ## Covered By QuillUI
 
+- 87/87 upstream Swift files compile in `scripts/generated-enchanted-full-source-check.sh` after generated lowering.
 - `NavigationSplitView`, `NavigationSplitViewVisibility`
 - `@FocusState`, `.focused(...)`
 - `ScrollViewReader`
@@ -48,13 +49,16 @@ The lowest-change strategy is:
   - `.renderingMode(...)`
   - `ButtonStyle`, `PlainButtonStyle`
   - `.regularMaterial`
+  - `LabeledContent`, `Table`, `DragGesture`, scroll/focus/safe-area modifiers, and `Array.move(fromOffsets:toOffset:)`
+  - AppKit image placeholders and diagnostics used by Enchanted's image/completion/export paths
+  - `KeyboardShortcuts.Name(default:)` and shortcut key/modifier storage
 
 ## Remaining Blockers
 
-These are not good QuillUI shims because they are app behavior or Apple frameworks:
+These are no longer compile blockers for the generated full-source harness, but they are still real product blockers because they are app behavior or Apple frameworks:
 
-- `SwiftData`: 10 importing files, plus `@Model`, `ModelContainer`, `ModelContext`, `FetchDescriptor`, `SortDescriptor`, and `#Predicate`.
-- Apple UI/framework services that still need native Linux behavior, even when imports compile through module shells:
+- `SwiftData`: 10 importing files, plus `@Model`, `ModelContainer`, `ModelContext`, `FetchDescriptor`, `SortDescriptor`, and `#Predicate`; current coverage depends on generated source lowering.
+- Apple UI/framework services that still need native Linux behavior, even though imports compile through module shells:
   - `AppKit`: 4 importing files
   - `UIKit`: 3 importing files
   - `AVFoundation`: 4 importing files

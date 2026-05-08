@@ -82,6 +82,26 @@ struct CompatibilityModuleTests {
         _ = Text("Shortcut").onKeyboardShortcut("togglePanelMode", type: .keyDown) {}
     }
 
+    @Test("AppKit image and KeyboardShortcuts compatibility cover Enchanted full source")
+    func appKitImageAndKeyboardShortcutCompatibility() throws {
+        let shortcut = KeyboardShortcuts.Shortcut(.k, modifiers: [.command, .shift])
+        let name = KeyboardShortcuts.Name("togglePanelMode", default: shortcut)
+        #expect(name.rawValue == "togglePanelMode")
+        #expect(name.defaultShortcut == shortcut)
+        #expect(KeyboardShortcuts.Shortcut(.character("p")).key == .character("p"))
+
+        let result = try AppleCompatibilitySmoke.runAppKitImageSmoke()
+        #expect(result.sizeRoundTrip)
+        #expect(result.namedImagePlaceholder)
+        #expect(result.bitmapRepresentationRoundTrip)
+        #expect(result.operations.isSuperset(of: Set([
+            "NSImage.lockFocus",
+            "NSImage.draw",
+            "NSImage.unlockFocus",
+            "NSImage(named:)"
+        ])))
+    }
+
     @Test("MarkdownUI and Splash cover Enchanted markdown theme contracts")
     func markdownAndSplashContractsCompile() {
         let configuration = CodeBlockConfiguration(language: "swift", content: "let answer = 42")
@@ -466,6 +486,96 @@ struct CompatibilityModuleTests {
             "trustEvaluation",
             "launchAtLogin"
         ])))
+    }
+
+    @Test("previously-silent QuillUI stubs now record diagnostics")
+    func previouslySilentStubsRecordDiagnostics() throws {
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        // Bindings: previously returned self with no diagnostic.
+        let binding: Binding<Int> = .constant(0)
+        _ = binding.animation()
+        _ = binding.animation(.easeOut(duration: 0.1))
+
+        // listStyle(PlainListStyle): previously returned self with no diagnostic.
+        _ = Text("List row").listStyle(PlainListStyle())
+
+        // Animation chain methods: previously returned self with no diagnostic.
+        _ = Animation.snappy()
+        _ = Animation.snappy(duration: 0.5)
+        _ = Animation.easeOut(duration: 0.2).repeatForever(autoreverses: true)
+        _ = Animation.easeOut(duration: 0.2).delay(0.4)
+
+        // ImageRenderer: previously returned nil with no diagnostic.
+        let renderer = ImageRenderer(content: Text("rendered"))
+        #expect(renderer.uiImage == nil)
+        #expect(renderer.nsImage == nil)
+
+        // NSImage.tiffRepresentation: previously returned wrong bytes silently.
+        let nsImage = NSImage(data: Data([0x89, 0x50, 0x4E, 0x47]))
+        #expect(nsImage?.tiffRepresentation == Data([0x89, 0x50, 0x4E, 0x47]))
+
+        let events = QuillCompatibilityDiagnostics.shared.events
+        let operations = Set(events.map(\.operation))
+
+        #expect(operations.isSuperset(of: Set([
+            "Binding.animation",
+            "listStyle(PlainListStyle)",
+            "Animation.snappy",
+            "Animation.repeatForever",
+            "Animation.delay",
+            "ImageRenderer.init",
+            "ImageRenderer.uiImage",
+            "ImageRenderer.nsImage",
+            "NSImage.tiffRepresentation"
+        ])))
+
+        // Severity: stubs that just no-op are .info; stubs that return wrong/missing
+        // data (NSImage tiff lie, ImageRenderer always-nil) are .warning so they
+        // surface louder in any diagnostic UI that filters by severity.
+        let severitiesByOperation = Dictionary(
+            grouping: events,
+            by: \.operation
+        ).mapValues { Set($0.map(\.severity)) }
+
+        #expect(severitiesByOperation["Binding.animation"]?.contains(.info) == true)
+        #expect(severitiesByOperation["listStyle(PlainListStyle)"]?.contains(.info) == true)
+        #expect(severitiesByOperation["Animation.repeatForever"]?.contains(.info) == true)
+        #expect(severitiesByOperation["Animation.delay"]?.contains(.info) == true)
+        #expect(severitiesByOperation["Animation.snappy"]?.contains(.warning) == true)
+        #expect(severitiesByOperation["NSImage.tiffRepresentation"]?.contains(.warning) == true)
+        #expect(severitiesByOperation["ImageRenderer.uiImage"]?.contains(.warning) == true)
+        #expect(severitiesByOperation["ImageRenderer.nsImage"]?.contains(.warning) == true)
+    }
+
+    @Test("Image(data:) deduplicates identical bytes within a process")
+    func imageDataInitDeduplicatesIdenticalBytes() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillUIImages", isDirectory: true)
+
+        // Snapshot existing files so we measure only the delta from this test.
+        let before = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+
+        // Make the bytes unique to this test run so we don't collide with other
+        // tests' images that may share content.
+        let unique = "quill-image-dedup-\(UUID().uuidString)".data(using: .utf8)!
+
+        // Same bytes, three calls — should write exactly one file.
+        _ = Image(data: unique)
+        _ = Image(data: unique)
+        _ = Image(data: unique)
+
+        let after = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        let added = Set(after).subtracting(Set(before))
+        #expect(added.count == 1, "Image(data:) should write a single PNG for repeated identical bytes; instead wrote \(added.count): \(added.sorted())")
+
+        // Different bytes should write a second file.
+        let unique2 = "quill-image-dedup-2-\(UUID().uuidString)".data(using: .utf8)!
+        _ = Image(data: unique2)
+
+        let afterSecond = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        let addedSecond = Set(afterSecond).subtracting(Set(before))
+        #expect(addedSecond.count == 2, "Image(data:) with new bytes should add a second PNG; saw \(addedSecond.count) total new files")
     }
 }
 

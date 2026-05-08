@@ -202,6 +202,96 @@ struct UpstreamCompatibilityTests {
             .delay(0.1)
     }
 
+    @Test("compiles full-source Enchanted compatibility surface")
+    func compilesFullSourceEnchantedCompatibilitySurface() {
+        struct TableRow: Hashable {
+            var title: String
+            var count: Int
+        }
+
+        var focusedField: String?
+        var moved: (IndexSet, Int)?
+        let dragChanged = LockedTestValue(false)
+        let dragEnded = LockedTestValue(false)
+        var showingDialog = true
+
+        _ = State(initialValue: "draft")
+        _ = WindowGroup {
+            Text("Quill")
+        }
+
+        _ = LabeledContent("Endpoint") {
+            Text("http://localhost:11434")
+        }.body
+
+        let titleColumn = TableColumn<TableRow, Text>("Title") { row in
+            Text(row.title)
+        }
+        _ = titleColumn.body
+        _ = AnyTableColumn(titleColumn).body
+
+        let table = Table([
+            TableRow(title: "Chat", count: 3),
+            TableRow(title: "Completions", count: 4)
+        ]) {
+            titleColumn.width(min: 80, max: 220)
+
+            TableColumn("Count") { row in
+                Text("\(row.count)")
+            }
+        }
+        _ = table.body
+
+        _ = Text("Full source")
+            .antialiased(true)
+            .focused(Binding(get: { focusedField }, set: { focusedField = $0 }), equals: "message")
+            .lineLimit(2, reservesSpace: true)
+            .scrollIndicators(.hidden)
+            .scrollContentBackground(.hidden)
+            .focusEffectDisabled()
+            .edgesIgnoringSafeArea(.all)
+            .ignoresSafeArea(.all)
+            .onMove { source, destination in
+                moved = (source, destination)
+            }
+            .gesture(
+                DragGesture()
+                    .onChanged { _ in dragChanged.set(true) }
+                    .onEnded { _ in dragEnded.set(true) }
+            )
+            .symbolRenderingMode(.hierarchical)
+            .confirmationDialog(
+                "Delete",
+                isPresented: Binding(get: { showingDialog }, set: { showingDialog = $0 })
+            ) {
+                Button("Delete") {}
+            } message: {
+                Text("Delete this completion?")
+            }
+
+        var completions = ["a", "b", "c", "d"]
+        completions.move(fromOffsets: IndexSet([1, 2]), toOffset: 4)
+        #expect(completions == ["a", "d", "b", "c"])
+        #expect(moved == nil)
+        #expect(dragChanged.value == false)
+        #expect(dragEnded.value == false)
+
+        #expect(Image(systemName: "gear") == Image(systemName: "gear"))
+        #expect(Image(systemName: "gear").imageScale(.large) != Image(systemName: "gear"))
+        #expect(Image(filePath: "/tmp/quill.png") == Image(filePath: "/tmp/quill.png"))
+        #expect(Image(material: "search") == Image(material: "search"))
+        #expect(Image(systemName: "gear") != Image(filePath: "gear"))
+
+        let dragValue = DragGesture.Value(translation: CGSize(width: 3, height: -2))
+        #expect(dragValue.translation == CGSize(width: 3, height: -2))
+
+        let dismissed = LockedTestValue(false)
+        PresentationMode {
+            dismissed.set(true)
+        }.dismiss()
+        #expect(dismissed.value)
+    }
+
     @Test("loads dropped file data through NSItemProvider compatibility")
     func loadsDroppedFileData() throws {
         let directory = FileManager.default.temporaryDirectory

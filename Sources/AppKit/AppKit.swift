@@ -3,6 +3,40 @@ import QuillUI
 import QuillKit
 
 public typealias NSImage = QuillUI.NSImage
+public typealias NSSize = CGSize
+public typealias NSPoint = CGPoint
+public typealias NSRect = CGRect
+public typealias NSCompositingOperation = QuillUI.QuillImageCompositingOperation
+
+public final class NSBitmapImageRep: @unchecked Sendable {
+    public enum FileType: Sendable {
+        case jpeg
+    }
+
+    public struct PropertyKey: Hashable, Sendable, ExpressibleByStringLiteral {
+        public var rawValue: String
+
+        public init(_ rawValue: String) {
+            self.rawValue = rawValue
+        }
+
+        public init(stringLiteral value: String) {
+            self.rawValue = value
+        }
+
+        public static let compressionFactor = PropertyKey("compressionFactor")
+    }
+
+    private var data: Data
+
+    public init?(data: Data) {
+        self.data = data
+    }
+
+    public func representation(using type: FileType, properties: [PropertyKey: Any]) -> Data? {
+        data
+    }
+}
 
 public final class NSPasteboard: @unchecked Sendable {
     public struct PasteboardType: Hashable, Sendable, ExpressibleByStringLiteral {

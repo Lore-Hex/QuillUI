@@ -8,6 +8,7 @@ import UIKit
 #endif
 #else
 import SwiftOpenUI
+import QuillKit
 #endif
 
 #if os(macOS) || os(iOS) || os(visionOS)
@@ -156,6 +157,32 @@ public extension Color {
     }
 }
 
+// MARK: - Compatibility diagnostics
+
+@inline(__always)
+fileprivate func recordCompatibilityFallback(_ operation: String, message: String? = nil) {
+    QuillCompatibilityDiagnostics.shared.record(
+        QuillCompatibilityEvent(
+            subsystem: "QuillUI",
+            operation: operation,
+            severity: .info,
+            message: message ?? "\(operation) is currently a source-compatibility fallback on Linux."
+        )
+    )
+}
+
+@inline(__always)
+fileprivate func recordCompatibilityWarning(_ operation: String, message: String) {
+    QuillCompatibilityDiagnostics.shared.record(
+        QuillCompatibilityEvent(
+            subsystem: "QuillUI",
+            operation: operation,
+            severity: .warning,
+            message: message
+        )
+    )
+}
+
 public struct QuillPlatformImage: Sendable {
     public var data: Data?
 
@@ -168,14 +195,61 @@ public typealias PlatformImage = QuillPlatformImage
 
 public final class NSImage: @unchecked Sendable {
     public var data: Data?
+    public var size: CGSize
 
     public init?(data: Data) {
         self.data = data
+        self.size = CGSize(width: 1, height: 1)
     }
 
-    public var tiffRepresentation: Data? {
-        data
+    public init(size: CGSize) {
+        self.data = nil
+        self.size = size
     }
+
+    public convenience init?(named name: String) {
+        recordCompatibilityWarning(
+            "NSImage(named:)",
+            message: "NSImage(named:) returns a blank placeholder image for '\(name)' on Linux; app assets are not loaded through AppKit yet."
+        )
+        self.init(size: CGSize(width: 1, height: 1))
+    }
+
+    /// On Linux this returns the original input bytes regardless of the source
+    /// format. Apps that depend on actual TIFF encoding will receive
+    /// mislabeled bytes; the warning is recorded so callers see it in
+    /// `QuillCompatibilityDiagnostics.shared.events`.
+    public var tiffRepresentation: Data? {
+        recordCompatibilityWarning(
+            "NSImage.tiffRepresentation",
+            message: "NSImage.tiffRepresentation returns the original input bytes (no TIFF encoding) on Linux. Downstream code expecting TIFF format may behave incorrectly."
+        )
+        return data
+    }
+
+    public func lockFocus() {
+        recordCompatibilityFallback("NSImage.lockFocus")
+    }
+
+    public func unlockFocus() {
+        recordCompatibilityFallback("NSImage.unlockFocus")
+    }
+
+    public func draw(
+        in destinationRect: CGRect,
+        from sourceRect: CGRect,
+        operation: QuillImageCompositingOperation,
+        fraction: Double
+    ) {
+        recordCompatibilityFallback(
+            "NSImage.draw",
+            message: "NSImage.draw is currently a no-op on Linux; image compositing needs a real bitmap backend."
+        )
+    }
+}
+
+public enum QuillImageCompositingOperation: Sendable {
+    case copy
 }
 
 public final class ImageRenderer<Content: View> {
@@ -184,10 +258,27 @@ public final class ImageRenderer<Content: View> {
 
     public init(content: Content) {
         self.content = content
+        recordCompatibilityWarning(
+            "ImageRenderer.init",
+            message: "ImageRenderer is not yet implemented on Linux; uiImage/nsImage will return nil and any image export paths will silently fail."
+        )
     }
 
-    public var uiImage: PlatformImage? { nil }
-    public var nsImage: PlatformImage? { nil }
+    public var uiImage: PlatformImage? {
+        recordCompatibilityWarning(
+            "ImageRenderer.uiImage",
+            message: "ImageRenderer.uiImage returned nil on Linux; image export is not yet supported."
+        )
+        return nil
+    }
+
+    public var nsImage: PlatformImage? {
+        recordCompatibilityWarning(
+            "ImageRenderer.nsImage",
+            message: "ImageRenderer.nsImage returned nil on Linux; image export is not yet supported."
+        )
+        return nil
+    }
 }
 
 public protocol KeyboardReadable {}
@@ -223,23 +314,66 @@ public extension TextField {
     }
 }
 
+/// Process-lifetime cache for `Image(data:)` so identical Data values do not
+/// rewrite the temp file on every call. Without this, a chat or feed UI that
+/// renders the same image many times leaks a fresh PNG to disk per render.
+private final class QuillImageDataCache: @unchecked Sendable {
+    static let shared = QuillImageDataCache()
+
+    private let lock = NSLock()
+    private var urlsByContent: [Data: URL] = [:]
+
+    func materialize(_ data: Data, in directory: URL) -> URL {
+        return lock.withLock {
+            if let existing = urlsByContent[data],
+               FileManager.default.fileExists(atPath: existing.path) {
+                return existing
+            }
+            let url = directory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("png")
+            do {
+                try data.write(to: url, options: [.atomic])
+            } catch {
+                recordCompatibilityWarning(
+                    "Image(data:)",
+                    message: "Failed to materialize image data to \(url.path): \(error.localizedDescription)"
+                )
+            }
+            urlsByContent[data] = url
+            return url
+        }
+    }
+}
+
 public extension Image {
     init(_ name: String) {
         self.init(resource: name)
     }
 
     init(data: Data) {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("QuillUIImages", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let fileURL = directory.appendingPathComponent(UUID().uuidString).appendingPathExtension("png")
-        try? data.write(to: fileURL, options: [.atomic])
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillUIImages", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            recordCompatibilityWarning(
+                "Image(data:)",
+                message: "Failed to create QuillUIImages temp directory: \(error.localizedDescription)"
+            )
+        }
+        let fileURL = QuillImageDataCache.shared.materialize(data, in: directory)
         self.init(filePath: fileURL.path)
     }
 }
 
 public extension Binding {
     func animation(_ animation: Animation? = nil) -> Binding<Value> {
-        self
+        recordCompatibilityFallback("Binding.animation")
+        return self
     }
 }
 
@@ -319,7 +453,8 @@ public extension View {
     }
 
     func listStyle(_ style: PlainListStyle) -> Self {
-        self
+        recordCompatibilityFallback("listStyle(PlainListStyle)")
+        return self
     }
 
     func task(priority: TaskPriority = .userInitiated, _ action: @escaping @Sendable () async -> Void) -> OnAppearView<Self> {

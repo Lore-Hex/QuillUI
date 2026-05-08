@@ -29,6 +29,13 @@ enum AppleCompatibilitySmoke {
         var speechAuthorizationDenied: Bool
     }
 
+    struct AppKitImageResult {
+        var sizeRoundTrip: Bool
+        var namedImagePlaceholder: Bool
+        var bitmapRepresentationRoundTrip: Bool
+        var operations: Set<String>
+    }
+
     static func runAppleServiceSmoke() throws -> AppleServiceResult {
         UIPasteboard.general.string = "hello"
 
@@ -141,6 +148,33 @@ enum AppleCompatibilitySmoke {
         return DiagnosticFallbackResult(
             operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation)),
             speechAuthorizationDenied: authorizationStatus == .denied
+        )
+    }
+
+    static func runAppKitImageSmoke() throws -> AppKitImageResult {
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let size = NSSize(width: 24, height: 16)
+        let image = NSImage(size: size)
+        let sizeRoundTrip = image.size == size
+        image.lockFocus()
+        image.draw(
+            in: NSRect(x: 0, y: 0, width: 24, height: 16),
+            from: NSRect(x: 0, y: 0, width: 12, height: 8),
+            operation: .copy,
+            fraction: 0.5
+        )
+        image.unlockFocus()
+
+        let namedImage = NSImage(named: "StatusBarIcon")
+        let encoded = Data([0xFF, 0xD8, 0xFF, 0xD9])
+        let rep = NSBitmapImageRep(data: encoded)
+
+        return AppKitImageResult(
+            sizeRoundTrip: sizeRoundTrip,
+            namedImagePlaceholder: namedImage?.size == CGSize(width: 1, height: 1),
+            bitmapRepresentationRoundTrip: rep?.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) == encoded,
+            operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
         )
     }
 }

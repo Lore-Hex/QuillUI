@@ -439,3 +439,20 @@ Status: passing on macOS, Linux, and Linux GTK smoke.
 - Linux GTK verification passed: unit tests, generated Enchanted core build, generated Enchanted chat-components build, generated Enchanted macOS-chat build, both GTK products built, and both apps survived the 4-second Xvfb smoke run.
 - `bash -n scripts/*.sh`, `git diff --check`, `scripts/audit-quill-chat.sh`, and `scripts/audit-upstream-enchanted.sh` passed.
 - Remaining honest gaps: this still uses generated source lowering for SwiftData macros, previews, actor/main-actor mismatches, and Enchanted-only hotkeys; it still uses a generated sidebar/settings bridge rather than the full real application entry/sidebar/settings source.
+
+## Checkpoint 33: Generated Enchanted Full-Source Build
+
+Status: passing on macOS, Linux, and Linux GTK smoke.
+
+- Added `scripts/generated-enchanted-full-source-check.sh`, a Linux-only harness that copies all 87 upstream Enchanted Swift files, lowers SwiftData/Observation/previews/platform gates into generated source, and compiles the result through QuillUI, QuillData, QuillKit module shells, SwiftOpenUI, and OpenCombine.
+- The harness now covers the full application/sidebar/settings/menu-bar/prompt-panel/completions/iOS/macOS/shared source set, not only the earlier core, shared chat components, or 45-file macOS chat slice.
+- Moved reusable compatibility out of the generated harness and into QuillUI/AppKit/KeyboardShortcuts where it belongs: `State(initialValue:)`, default `WindowGroup`, `LabeledContent`, `Table`, `DragGesture`, scroll/focus/safe-area modifiers, `Array.move(fromOffsets:toOffset:)`, AppKit `NSImage`/`NSBitmapImageRep` image surface, and `KeyboardShortcuts.Name(default:)`.
+- Kept only app-specific generated bridges in the full-source harness for Linux-only accessibility/hotkey/prompt-panel behavior, identity/hashability, and a generated entry point. Enchanted source itself remains untouched.
+- Wired the full-source harness into `scripts/linux-gtk-check.sh`, after the generated core/chat/macOS-chat checks and before the GTK app smoke builds.
+- Added Linux regression coverage for the new full-source compatibility surface and AppKit/KeyboardShortcuts adapters.
+- macOS verification passed: `swift test --disable-automatic-resolution` with 58 tests in 9 suites.
+- Linux verification passed: `swift test --scratch-path .build-linux` with 97 tests in 12 suites.
+- Linux coverage after this pass: QuillUI 1816/2038 lines (89.1%), functions 345/405 (85.2%), regions 490/598 (81.9%); QuillKit 142/175 lines (81.1%), functions 50/56 (89.3%), regions 53/62 (85.5%).
+- Generated full-source verification passed: 87 source Swift files copied, 89 generated Swift files compiled, and no generated-code warnings after lowering cleanup; remaining warnings are external SwiftPM/OpenCombine `-pthread` warnings.
+- Linux GTK verification passed: unit tests, generated Enchanted core build, chat-components build, macOS-chat build, full-source build, both GTK products built, and both apps survived the 4-second Xvfb smoke run.
+- Remaining honest gaps: this is 87/87 upstream Enchanted compile coverage, not yet the local 92-file Quill Chat rebrand as a production Linux app. The remaining work is turning the generated source pipeline into a maintained build plugin/tiny Linux entry point and replacing diagnostic service fallbacks with native Linux backends.
