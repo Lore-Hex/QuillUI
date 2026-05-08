@@ -497,3 +497,20 @@ Status: passing for patch smoke, macOS tests, and generated Quill Chat Linux app
 - Verified `swift test --disable-automatic-resolution` passes on macOS with 58 tests in 9 suites.
 - Verified generated local `quill-chat-linux` builds from the 92-file Quill Chat tree and survives a 6-second Xvfb smoke without missing Material-symbol or GTK `object-fit` warnings. Remaining smoke output is the Lima/Xvfb DRI3 acceleration warning.
 - Remaining honest gaps: this is still a local checkout patch around a pinned dependency. The durable fix is to upstream the SF Symbol mappings to SwiftOpenUI or move QuillUI to a fork/revision containing them.
+
+## Checkpoint 37: Generic SwiftUI Linux App Builder
+
+Status: passing on macOS tests, direct generic Linux build, wrapper Linux build, and generated app smoke.
+
+- Added `scripts/build-swiftui-linux-app.sh` as the generic build-tooling entry point for SwiftUI-shaped app trees. It accepts `--source-dir`, `--app-type`, `--product-name`, `--workdir`, `--run`, and `--profile`.
+- Kept source lowering honest by making `enchanted-full-source` an explicit profile instead of presenting Enchanted/Quill Chat rewrites as universal Swift app lowering.
+- Changed `scripts/build-quill-chat-linux.sh` into a thin wrapper over the generic builder with Quill Chat's source directory, `EnchantedApp`, `quill-chat-linux`, and the `enchanted-full-source` profile.
+- Added generic environment aliases to `scripts/generated-enchanted-full-source-check.sh`: `QUILLUI_APP_SOURCE_DIR`, `QUILLUI_GENERATED_APP_WORKDIR`, `QUILLUI_GENERATED_APP_MODE`, `QUILLUI_GENERATED_APP_PRODUCT_NAME`, `QUILLUI_GENERATED_APP_PACKAGE_NAME`, `QUILLUI_GENERATED_APP_TARGET_NAME`, `QUILLUI_GENERATED_APP_ENTRY_TYPE`, and `QUILLUI_GENERATED_APP_MAIN_TYPE`.
+- Added validation for generated Swift app entry/main type names before emitting `GeneratedMain.swift`.
+- Added `docs/linux-build-tooling.md` to document the stable CLI contract and the current profile boundary.
+- Verified `swift test --disable-automatic-resolution` passes on macOS with 58 tests in 9 suites.
+- Verified the generic command builds the local 92-file Quill Chat tree and emits `quill-chat-linux` from `--source-dir`, `--app-type`, `--product-name`, and `--profile`.
+- Verified the generated generic-builder `quill-chat-linux` executable survives a 6-second Xvfb smoke run.
+- Verified `scripts/build-quill-chat-linux.sh` still builds as a wrapper over the generic command.
+- `bash -n scripts/*.sh` and `git diff --check` passed.
+- Remaining honest gap: the build CLI is generalized; the lowering backend is not yet universal. The next durable step is a profile/plugin system where IceCubes, NetNewsWire, CodeEdit, WireGuard, and other apps each add reusable compatibility/lowering rules instead of new bespoke app scripts.

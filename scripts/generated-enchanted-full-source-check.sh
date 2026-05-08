@@ -13,23 +13,25 @@ MSG
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-UPSTREAM_DIR="${ENCHANTED_SOURCE_DIR:-$ROOT_DIR/.upstream/enchanted/Enchanted}"
-WORK_ROOT="${QUILLUI_GENERATED_ENCHANTED_FULL_WORKDIR:-$ROOT_DIR/.build/generated-enchanted-full-source-check}"
+UPSTREAM_DIR="${QUILLUI_APP_SOURCE_DIR:-${ENCHANTED_SOURCE_DIR:-$ROOT_DIR/.upstream/enchanted/Enchanted}}"
+WORK_ROOT="${QUILLUI_GENERATED_APP_WORKDIR:-${QUILLUI_GENERATED_ENCHANTED_FULL_WORKDIR:-$ROOT_DIR/.build/generated-enchanted-full-source-check}}"
 SOURCE_COPY="$WORK_ROOT/source/Enchanted"
 LOWERED_COPY="$WORK_ROOT/lowered/Enchanted"
 PACKAGE_DIR="$WORK_ROOT/package"
-MODE="${QUILLUI_GENERATED_ENCHANTED_MODE:-check}"
+MODE="${QUILLUI_GENERATED_APP_MODE:-${QUILLUI_GENERATED_ENCHANTED_MODE:-check}}"
+APP_ENTRY_TYPE="${QUILLUI_GENERATED_APP_ENTRY_TYPE:-EnchantedApp}"
+APP_MAIN_TYPE="${QUILLUI_GENERATED_APP_MAIN_TYPE:-GeneratedSwiftUILinuxMain}"
 
 case "$MODE" in
   check)
-    PACKAGE_NAME="${QUILLUI_GENERATED_ENCHANTED_PACKAGE_NAME:-GeneratedEnchantedFullSourceCheck}"
-    PRODUCT_NAME="${QUILLUI_GENERATED_ENCHANTED_PRODUCT_NAME:-generated-enchanted-full-source}"
-    TARGET_NAME="${QUILLUI_GENERATED_ENCHANTED_TARGET_NAME:-GeneratedEnchantedFullSource}"
+    PACKAGE_NAME="${QUILLUI_GENERATED_APP_PACKAGE_NAME:-${QUILLUI_GENERATED_ENCHANTED_PACKAGE_NAME:-GeneratedEnchantedFullSourceCheck}}"
+    PRODUCT_NAME="${QUILLUI_GENERATED_APP_PRODUCT_NAME:-${QUILLUI_GENERATED_ENCHANTED_PRODUCT_NAME:-generated-enchanted-full-source}}"
+    TARGET_NAME="${QUILLUI_GENERATED_APP_TARGET_NAME:-${QUILLUI_GENERATED_ENCHANTED_TARGET_NAME:-GeneratedEnchantedFullSource}}"
     ;;
   app)
-    PACKAGE_NAME="${QUILLUI_GENERATED_ENCHANTED_PACKAGE_NAME:-GeneratedEnchantedLinuxApp}"
-    PRODUCT_NAME="${QUILLUI_GENERATED_ENCHANTED_PRODUCT_NAME:-quill-chat-linux}"
-    TARGET_NAME="${QUILLUI_GENERATED_ENCHANTED_TARGET_NAME:-GeneratedEnchantedLinuxApp}"
+    PACKAGE_NAME="${QUILLUI_GENERATED_APP_PACKAGE_NAME:-${QUILLUI_GENERATED_ENCHANTED_PACKAGE_NAME:-GeneratedEnchantedLinuxApp}}"
+    PRODUCT_NAME="${QUILLUI_GENERATED_APP_PRODUCT_NAME:-${QUILLUI_GENERATED_ENCHANTED_PRODUCT_NAME:-quill-chat-linux}}"
+    TARGET_NAME="${QUILLUI_GENERATED_APP_TARGET_NAME:-${QUILLUI_GENERATED_ENCHANTED_TARGET_NAME:-GeneratedEnchantedLinuxApp}}"
     ;;
   *)
     echo "Unsupported QUILLUI_GENERATED_ENCHANTED_MODE: $MODE" >&2
@@ -38,6 +40,19 @@ case "$MODE" in
 esac
 
 TARGET_DIR="$PACKAGE_DIR/Sources/$TARGET_NAME"
+
+validate_swift_type() {
+  local value="$1"
+  local label="$2"
+
+  if [[ ! "$value" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]]; then
+    echo "$label must be a Swift type path, got: $value" >&2
+    exit 64
+  fi
+}
+
+validate_swift_type "$APP_ENTRY_TYPE" "QUILLUI_GENERATED_APP_ENTRY_TYPE"
+validate_swift_type "$APP_MAIN_TYPE" "QUILLUI_GENERATED_APP_MAIN_TYPE"
 
 if [[ -z "$WORK_ROOT" || "$WORK_ROOT" == "/" || "$WORK_ROOT" == "$ROOT_DIR" ]]; then
   echo "Refusing unsafe generated work directory: ${WORK_ROOT:-<empty>}" >&2
@@ -49,7 +64,7 @@ if [[ ! -d "$UPSTREAM_DIR" ]]; then
 Enchanted source was not found at:
   $UPSTREAM_DIR
 
-Set ENCHANTED_SOURCE_DIR=/path/to/Enchanted and rerun.
+Set QUILLUI_APP_SOURCE_DIR=/path/to/AppSources and rerun.
 MSG
   exit 66
 fi
@@ -492,13 +507,13 @@ extension Image {
 SWIFT
 
 if [[ "$MODE" == "app" ]]; then
-  cat > "$TARGET_DIR/GeneratedMain.swift" <<'SWIFT'
+  cat > "$TARGET_DIR/GeneratedMain.swift" <<SWIFT
 import BackendGTK4
 
 @main
-struct GeneratedEnchantedLinuxMain {
+struct $APP_MAIN_TYPE {
     static func main() {
-        GTK4Backend().run(EnchantedApp.self)
+        GTK4Backend().run($APP_ENTRY_TYPE.self)
     }
 }
 SWIFT
