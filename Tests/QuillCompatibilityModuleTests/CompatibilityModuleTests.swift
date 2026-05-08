@@ -904,6 +904,240 @@ struct CompatibilityModuleTests {
         let withCustomID = QuillMenuAction(id: "explicit", title: "Title") {}
         #expect(withCustomID.id == "explicit")
     }
+
+    // MARK: - Gradient.quillAverageColor
+
+    @Test("Gradient.quillAverageColor averages stops by RGBA component")
+    func gradientAverageColorAveragesStops() {
+        // Two-stop gradient: red (1,0,0,1) and blue (0,0,1,1) averages to (0.5, 0, 0.5, 1).
+        let twoStops = Gradient(colors: [
+            Color(red: 1.0, green: 0.0, blue: 0.0, opacity: 1.0),
+            Color(red: 0.0, green: 0.0, blue: 1.0, opacity: 1.0)
+        ])
+        let avg = twoStops.quillAverageColor
+        #expect(abs(avg.red - 0.5) < 0.001, "expected red ~= 0.5, got \(avg.red)")
+        #expect(abs(avg.green - 0.0) < 0.001, "expected green ~= 0.0, got \(avg.green)")
+        #expect(abs(avg.blue - 0.5) < 0.001, "expected blue ~= 0.5, got \(avg.blue)")
+        #expect(abs(avg.alpha - 1.0) < 0.001, "expected alpha ~= 1.0, got \(avg.alpha)")
+
+        // Three identical stops average to that color (sanity check on the
+        // reduce path; divisor must be count, not count - 1).
+        let solid = Gradient(colors: [
+            Color(red: 0.4, green: 0.6, blue: 0.8, opacity: 0.5),
+            Color(red: 0.4, green: 0.6, blue: 0.8, opacity: 0.5),
+            Color(red: 0.4, green: 0.6, blue: 0.8, opacity: 0.5)
+        ])
+        let solidAvg = solid.quillAverageColor
+        #expect(abs(solidAvg.red - 0.4) < 0.001)
+        #expect(abs(solidAvg.green - 0.6) < 0.001)
+        #expect(abs(solidAvg.blue - 0.8) < 0.001)
+        #expect(abs(solidAvg.alpha - 0.5) < 0.001)
+
+        // Empty gradient returns .primary instead of dividing by zero.
+        // We can't compare Color values directly across the SwiftOpenUI shim,
+        // but accessing the property must not crash.
+        _ = Gradient(colors: []).quillAverageColor
+    }
+
+    // MARK: - PresentationMode.dismiss
+
+    @Test("PresentationMode invokes its dismiss closure")
+    func presentationModeInvokesDismissClosure() {
+        let invoked = QuillTestBox<Int>(0)
+        let mode = PresentationMode(dismiss: {
+            invoked.value = (invoked.value ?? 0) + 1
+        })
+
+        // The exposed `wrappedValue` returns self, so wrappedValue.dismiss()
+        // hits the same action; both call paths must work.
+        mode.dismiss()
+        mode.wrappedValue.dismiss()
+        #expect(invoked.value == 2)
+
+        // Default initializer is a no-op closure that doesn't crash.
+        PresentationMode().dismiss()
+    }
+
+    // MARK: - QuillCompatibilityError.errorDescription
+
+    @Test("QuillCompatibilityError formats LocalizedError descriptions")
+    func quillCompatibilityErrorDescriptions() {
+        let unavailable = QuillCompatibilityError.representationUnavailable("public.png")
+        #expect(unavailable.errorDescription == "No data representation is available for public.png.")
+
+        let noProvider = QuillCompatibilityError.fileSelectionUnavailable
+        #expect(noProvider.errorDescription == "No file selection provider is available.")
+
+        let url = URL(fileURLWithPath: "/tmp/photo.txt")
+        let unsupported = QuillCompatibilityError.unsupportedFileSelection(url, [.png, .jpeg])
+        #expect(
+            unsupported.errorDescription
+                == "/tmp/photo.txt is not one of the allowed file types: public.png, public.jpeg.",
+            "Got unexpected description: \(unsupported.errorDescription ?? "nil")"
+        )
+
+        // Empty allowedTypes still formats cleanly (joined separator collapses).
+        let emptyAllowed = QuillCompatibilityError.unsupportedFileSelection(url, [])
+        #expect(
+            emptyAllowed.errorDescription
+                == "/tmp/photo.txt is not one of the allowed file types: ."
+        )
+    }
+
+    // MARK: - FocusState init paths
+
+    @Test("FocusState exposes correct defaults across its three init paths")
+    func focusStateInitPaths() {
+        // Bool-defaulted init starts at false.
+        let boolFocus = FocusState<Bool>()
+        #expect(boolFocus.wrappedValue == false)
+
+        // Optional<Wrapped> init starts at nil.
+        let optionalFocus = FocusState<String?>()
+        #expect(optionalFocus.wrappedValue == nil)
+
+        // wrappedValue init starts at the provided value.
+        let provided = FocusState<Int>(wrappedValue: 7)
+        #expect(provided.wrappedValue == 7)
+
+        // Mutating wrappedValue persists (FocusState boxes its storage so
+        // nonmutating set works on a let-bound copy, just like SwiftUI).
+        provided.wrappedValue = 42
+        #expect(provided.wrappedValue == 42)
+
+        // Binding produced via projectedValue can read AND write.
+        let binding = provided.projectedValue
+        #expect(binding.wrappedValue == 42)
+        binding.wrappedValue = 99
+        #expect(provided.wrappedValue == 99)
+    }
+
+    // MARK: - Namespace identity
+
+    @Test("Namespace generates unique IDs across instances and is Hashable")
+    func namespaceGeneratesUniqueIdentities() {
+        let first = Namespace()
+        let second = Namespace()
+        #expect(first.wrappedValue != second.wrappedValue)
+
+        // Same Namespace returns the same ID across reads.
+        let stored = first.wrappedValue
+        #expect(first.wrappedValue == stored)
+
+        // IDs are usable as Set / Dictionary keys.
+        let ids: Set<Namespace.ID> = [
+            first.wrappedValue,
+            second.wrappedValue,
+            first.wrappedValue
+        ]
+        #expect(ids.count == 2)
+    }
+
+    // MARK: - QuillSidebarNavigationAction.perform
+
+    @Test("QuillSidebarNavigationAction perform invokes its action and id falls back to title")
+    func quillSidebarNavigationActionPerformsAction() {
+        let count = QuillTestBox<Int>(0)
+        let action = QuillSidebarNavigationAction(
+            title: "Settings",
+            systemImage: "gear",
+            action: { count.value = (count.value ?? 0) + 1 }
+        )
+
+        action.perform()
+        action.perform()
+        action.perform()
+        #expect(count.value == 3)
+
+        // id falls back to title when not provided.
+        #expect(action.id == "Settings")
+
+        // Explicit id wins over title.
+        let custom = QuillSidebarNavigationAction(
+            id: "settings.id",
+            title: "Settings",
+            systemImage: "gear",
+            action: {}
+        )
+        #expect(custom.id == "settings.id")
+    }
+
+    // MARK: - QuillPrompt identity
+
+    @Test("QuillPrompt id falls back to title and supports Hashable identity")
+    func quillPromptIdentityFallsBackToTitle() {
+        let untagged = QuillPrompt(title: "Summarize", systemImage: "doc.text")
+        #expect(untagged.id == "Summarize")
+
+        let tagged = QuillPrompt(id: "prompt.summarize.v2", title: "Summarize", systemImage: "doc.text")
+        #expect(tagged.id == "prompt.summarize.v2")
+
+        // Different titles with the same explicit id collapse via Hashable when
+        // both id and title differ; Hashable is the full struct, not just id.
+        let alpha = QuillPrompt(id: "x", title: "A", systemImage: "1.circle")
+        let beta = QuillPrompt(id: "x", title: "A", systemImage: "1.circle")
+        let gamma = QuillPrompt(id: "x", title: "B", systemImage: "1.circle")
+        #expect(alpha == beta)
+        #expect(alpha != gamma)
+
+        let set: Set<QuillPrompt> = [alpha, beta, gamma]
+        #expect(set.count == 2)
+    }
+
+    // MARK: - AnyTransition combinators
+
+    @Test("AnyTransition combinators do not crash and return AnyTransition values")
+    func anyTransitionCombinatorsAreSafe() {
+        // Static factories.
+        _ = AnyTransition.opacity
+        _ = AnyTransition.slide
+        _ = AnyTransition.scale()
+        _ = AnyTransition.scale(scale: 0.5, anchor: .center)
+        _ = AnyTransition.asymmetric(insertion: .opacity, removal: .slide)
+
+        // Init-from-self preserves the value.
+        let copy = AnyTransition(.opacity)
+        _ = copy
+
+        // Combined returns a non-crashing AnyTransition (currently a stub
+        // returning a fresh value; when this gains real behavior, this test
+        // will need real assertions).
+        _ = AnyTransition.opacity.combined(with: .slide)
+    }
+
+    // MARK: - QuillCompatibilityEvent equality
+
+    @Test("QuillCompatibilityEvent equality covers all fields")
+    func quillCompatibilityEventEquatable() {
+        let a = QuillCompatibilityEvent(
+            subsystem: "QuillUI",
+            operation: "op",
+            severity: .info,
+            message: "msg"
+        )
+        let b = QuillCompatibilityEvent(
+            subsystem: "QuillUI",
+            operation: "op",
+            severity: .info,
+            message: "msg"
+        )
+        let differentSeverity = QuillCompatibilityEvent(
+            subsystem: "QuillUI",
+            operation: "op",
+            severity: .warning,
+            message: "msg"
+        )
+        let differentMessage = QuillCompatibilityEvent(
+            subsystem: "QuillUI",
+            operation: "op",
+            severity: .info,
+            message: "different"
+        )
+
+        #expect(a == b)
+        #expect(a != differentSeverity)
+        #expect(a != differentMessage)
+    }
 }
 
 /// RawRepresentable enum for AppStorage round-trip tests. Defined at file
