@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="$ROOT_DIR/.qa"
 SCREENSHOT_PATH="${1:-$OUTPUT_DIR/quill-enchanted-gtk.png}"
 PRODUCT="${2:-quill-enchanted}"
+APP_EXECUTABLE=""
 
 install_packages() {
   if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
@@ -34,9 +35,47 @@ install_packages
 
 mkdir -p "$(dirname "$SCREENSHOT_PATH")"
 
-"$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$ROOT_DIR/.build-linux"
-swift build --scratch-path "$ROOT_DIR/.build-linux" --product "$PRODUCT"
-BIN_PATH="$(swift build --scratch-path "$ROOT_DIR/.build-linux" --show-bin-path)"
+build_and_resolve_executable() {
+  if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
+    local quill_chat_app_dir="${QUILL_CHAT_DIR:-$ROOT_DIR/../quill/clients/quill-chat}/Enchanted"
+    local quill_chat_work_root="${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$ROOT_DIR/.build/quill-chat-linux}"
+
+    if [[ ! -d "$quill_chat_app_dir" ]]; then
+      cat >&2 <<MSG
+Quill Chat source was not found at:
+  $quill_chat_app_dir
+
+Set QUILL_CHAT_DIR=/path/to/quill/clients/quill-chat or pass a different
+SwiftPM product as the second argument.
+MSG
+      exit 66
+    fi
+
+    QUILLUI_QUILL_CHAT_BUILD_WORKDIR="$quill_chat_work_root" \
+    QUILLUI_QUILL_CHAT_PRODUCT_NAME="$PRODUCT" \
+    "$ROOT_DIR/scripts/build-quill-chat-linux.sh"
+
+    local quill_chat_bin_path
+    quill_chat_bin_path="$(swift build \
+      --package-path "$quill_chat_work_root/package" \
+      --scratch-path "$quill_chat_work_root/.build-check" \
+      --show-bin-path)"
+    APP_EXECUTABLE="$quill_chat_bin_path/$PRODUCT"
+  else
+    "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$ROOT_DIR/.build-linux"
+    swift build --scratch-path "$ROOT_DIR/.build-linux" --product "$PRODUCT"
+    local bin_path
+    bin_path="$(swift build --scratch-path "$ROOT_DIR/.build-linux" --show-bin-path)"
+    APP_EXECUTABLE="$bin_path/$PRODUCT"
+  fi
+}
+
+build_and_resolve_executable
+
+if [[ ! -x "$APP_EXECUTABLE" ]]; then
+  echo "Built executable is missing or not executable: $APP_EXECUTABLE" >&2
+  exit 1
+fi
 
 DISPLAY_ID=":94"
 Xvfb "$DISPLAY_ID" -screen 0 1180x760x24 >/tmp/quillui-xvfb.log 2>&1 &
@@ -51,7 +90,7 @@ cleanup() {
 trap cleanup EXIT
 
 sleep 1
-GTK_A11Y=none DISPLAY="$DISPLAY_ID" "$BIN_PATH/$PRODUCT" >/tmp/quillui-gtk-app.log 2>&1 &
+GTK_A11Y=none DISPLAY="$DISPLAY_ID" "$APP_EXECUTABLE" >/tmp/quillui-gtk-app.log 2>&1 &
 app_pid=$!
 
 sleep 4
@@ -68,15 +107,16 @@ if not path.exists() or path.stat().st_size == 0:
     raise SystemExit("Screenshot was not created")
 
 probe = subprocess.run(
-    ["identify", "-format", "%w %h %[mean]", str(path)],
+    ["identify", "-format", "%w %h %[mean] %[standard-deviation]", str(path)],
     check=True,
     text=True,
     stdout=subprocess.PIPE,
 )
-width_text, height_text, mean_text = probe.stdout.split()
+width_text, height_text, mean_text, stddev_text = probe.stdout.split()
 width = int(width_text)
 height = int(height_text)
 mean = float(mean_text)
+stddev = float(stddev_text)
 
 if width < 900 or height < 600:
     raise SystemExit(f"Screenshot is unexpectedly small: {width}x{height}")
@@ -84,5 +124,11 @@ if width < 900 or height < 600:
 if mean <= 1000:
     raise SystemExit(f"Screenshot appears blank or near-black: mean={mean}")
 
-sys.stdout.write(f"Visual smoke screenshot: {path} ({width}x{height}, mean={mean:.1f})\n")
+if stddev <= 250:
+    raise SystemExit(f"Screenshot appears visually flat: standard-deviation={stddev:.1f}")
+
+sys.stdout.write(
+    f"Visual smoke screenshot: {path} "
+    f"({width}x{height}, mean={mean:.1f}, stddev={stddev:.1f})\n"
+)
 PY

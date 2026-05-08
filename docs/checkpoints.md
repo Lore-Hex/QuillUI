@@ -608,3 +608,14 @@ Status: passing on Linux tests, macOS parity tests, generated Enchanted check mo
 - Verified generated check mode against the local 92-file Quill Chat tree: 95 generated Swift files compiled.
 - Verified generic app mode through `scripts/build-swiftui-linux-app.sh --profile enchanted-full-source`: `quill-chat-linux` built and survived a 6-second Xvfb startup smoke.
 - Remaining honest gap: `ImageRenderer` and SwiftUI view rasterization are still nil-returning fallbacks. The native follow-up is an offscreen GTK snapshot/Cairo encode path for SwiftUI views, not another `NSImage` byte-transcode shim.
+
+## Checkpoint 45: Generated Quill Chat Visual Smoke
+
+Status: passing for generated app build and Xvfb screenshot smoke.
+
+- Extended `scripts/linux-gtk-visual-check.sh` so it can screenshot the generated `quill-chat-linux` product, not only root SwiftPM products like `quill-enchanted`.
+- For `quill-chat-linux`, the visual script now builds through `scripts/build-quill-chat-linux.sh`, resolves the generated package executable with SwiftPM's active bin path, launches it under Xvfb, and captures the screenshot.
+- Tightened visual smoke validation from brightness-only to brightness plus pixel variation, so a blank white window no longer passes the check.
+- Documented the generated app visual command in `docs/linux-build-tooling.md` and updated the API coverage matrix QA row.
+- Verified in the Linux VM with `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux`: screenshot captured at 1180x760 with mean 62672.1 and standard deviation 4059.4.
+- Remaining honest gap: this is still a nonblank/variation smoke, not a perceptual comparison against the macOS Quill Chat screenshot. The next visual QA step should compute layout landmarks such as sidebar width, toolbar height, composer position, prompt card bounds, and dominant colors from the screenshot.

@@ -91,3 +91,14 @@ scripts/build-quill-chat-linux.sh
 
 It supplies Quill Chat's source directory, app type, product name, and the
 current `enchanted-full-source` profile to the generic builder.
+
+The Linux visual smoke script can screenshot either root SwiftPM products or
+the generated Quill Chat app product:
+
+```bash
+scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux
+```
+
+For `quill-chat-linux`, the script builds through the generic app builder,
+resolves the generated package executable, captures an Xvfb screenshot, and
+checks both brightness and pixel variation so blank white windows fail.
