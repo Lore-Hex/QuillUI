@@ -41,6 +41,7 @@ Works now:
 - SwiftData-style optional `@Relationship` declarations with no explicit default value.
 - Class-backed identity-map tracking for fetched objects, so app-defined `saveChanges()` extensions that check `hasChanges` can persist later mutations.
 - `scripts/lower-swiftdata-for-quilldata.sh`, which creates a generated source copy that lowers `@Model`, `@Transient`, and `#Predicate<T>` into QuillData-compatible Swift without editing app sources.
+- `scripts/generated-enchanted-core-check.sh`, which proves that Enchanted's real model/store/service core can compile as generated Linux source after QuillData lowering plus a small generated identity/actor-hop shim.
 
 In-repo consumer:
 
@@ -49,6 +50,7 @@ In-repo consumer:
 Important gaps:
 
 - `@Model` is a Swift macro. QuillData does not yet provide a compiler macro, so the current near-zero-change path is a generated Linux source copy rather than direct compilation of the pristine files.
+- `@Observable` and some main-actor callback hops are also macro/runtime-shaped Apple conveniences. The current generated Enchanted core check removes `@Observable` and marshals OpenCombine sink callbacks to `MainActor` in generated source; a production build plugin should own those transformations.
 - Foundation `#Predicate` can trap before QuillData sees it when built against plain class models outside SwiftData's macro/runtime path. The lowering script rewrites those call sites to `QuillPredicate`; direct hand ports can also use `QuillPredicate` or `FetchDescriptor(filter:)`.
 - Relationships currently encode as model fields; delete rules and inverse maintenance are not schema-native yet.
 - There is no `@Query` observation layer yet.

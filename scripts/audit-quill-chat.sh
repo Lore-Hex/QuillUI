@@ -54,6 +54,7 @@ $status
 - Target app-side compatibility shim: <= 100 lines.
 - Current Quill Chat working tree changes: $(git -C "$QUILL_CHAT_DIR" diff --shortstat 2>/dev/null || echo "unknown")
 - Current QuillUI prototype slice lines: $prototype_lines
+- Generated real-source core check: \`scripts/generated-enchanted-core-check.sh\` compiles upstream Models, Stores, SwiftData models, Ollama/SwiftData services, and the ModelContext extension through QuillUI/QuillData on Linux.
 - Interpretation: the prototype slice is scaffolding, not the desired port shape. The real target is compiling the Quill Chat source with QuillUI/QuillData adapters plus a tiny Linux entry point.
 
 ## Imports
@@ -114,7 +115,7 @@ for file in \
   "$APP_DIR/UI/Shared/Chat/Components/EmptyConversaitonView.swift" \
   "$APP_DIR/UI/Shared/Chat/Components/ConversationStatusView.swift" \
   "$APP_DIR/UI/Shared/Chat/Components/Recorder/RecordingView.swift" \
-  "$APP_DIR/Databases/SwiftDataService.swift"
+  "$APP_DIR/Services/SwiftDataService.swift"
 do
   if [[ -f "$file" ]]; then
     printf -- "- %s (%s lines)\n" "${file#$QUILL_CHAT_DIR/}" "$(wc -l < "$file" | tr -d ' ')"

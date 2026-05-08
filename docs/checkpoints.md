@@ -394,3 +394,16 @@ Status: passing on macOS, Linux, and Linux GTK smoke.
 - Linux GTK verification passed: both GTK products built and both apps survived the 4-second Xvfb smoke run.
 - `bash -n scripts/*.sh`, `git diff --check`, `scripts/audit-quill-chat.sh`, and `scripts/audit-upstream-enchanted.sh` passed.
 - Remaining honest gap: this is still generated-source lowering, not a first-class Swift compiler macro or SwiftPM build plugin. The next step is to wire the generated source into a real Enchanted Linux build target instead of the current prototype slice.
+
+## Checkpoint 30: Generated Enchanted Core Build
+
+Status: passing on macOS, Linux, and Linux GTK smoke.
+
+- Added `scripts/generated-enchanted-core-check.sh`, a repeatable Linux-only source-compatibility harness that copies real upstream Enchanted `Models`, `Stores`, `SwiftData` models, selected `Services`, and the `ModelContext` extension into a generated SwiftPM executable.
+- The harness runs `scripts/lower-swiftdata-for-quilldata.sh`, removes `@Observable` from generated source, adds generated identity/equality shims for SwiftData model classes, adds Linux image-rendering helper shims, and marshals OpenCombine sink callbacks back to `MainActor`.
+- Verified the generated package against the real upstream Enchanted core: 18 Swift files are lowered and the `generated-enchanted-core` executable builds on Linux through the QuillUI `SwiftUI`, `SwiftData`, `Combine`, and `OllamaKit` compatibility products.
+- Wired the generated real-source core check into `scripts/linux-gtk-check.sh` so normal Linux GTK QA now validates both the prototype GTK apps and the generated Enchanted core source.
+- Updated the Quill Chat audit and API coverage matrix to distinguish the remaining prototype UI slice from the new real-source model/store/service compile harness.
+- macOS verification passed: `swift test --disable-automatic-resolution` with 58 tests in 9 suites.
+- Linux GTK verification passed: `swift test` with 92 tests in 12 suites, generated Enchanted core build, both GTK products built, and both apps survived the 4-second Xvfb smoke run.
+- Remaining honest gap: the UI layer is still split between the prototype GTK slice and upstream SwiftUI files. The next milestone is expanding generated-source compilation to `UI/Shared` and `UI/macOS/Chat` so the prototype can shrink toward a tiny Linux entry point.

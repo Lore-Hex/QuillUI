@@ -47,6 +47,7 @@ fi
 scripts/patch-swiftopenui-gtk-css.sh .build-linux
 
 swift test --scratch-path .build-linux
+scripts/generated-enchanted-core-check.sh
 swift build --scratch-path .build-linux --product quill-enchanted
 swift build --scratch-path .build-linux --product quill-enchanted-upstream-slice
 BIN_PATH="$(swift build --scratch-path .build-linux --show-bin-path)"
