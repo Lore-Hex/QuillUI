@@ -56,6 +56,10 @@ assembly:
 - `scripts/lower-swiftui-source-for-linux.sh` applies conservative in-place
   cleanup for generated SwiftUI source, including `@main`, previews,
   `@Observable`, `@MainActor`, and `os(macOS)` platform gates.
+- `scripts/generate-hashable-identity-shims.sh` emits small generated Swift
+  extensions that make lowered model classes `Hashable`/`Equatable` by stable
+  identity properties, with optional `Identifiable.id` aliases for models whose
+  Apple macro originally synthesized the identity.
 
 Profile-specific lowering phases should live next to the profile entry point
 under `scripts/profiles/<profile-name>/`. That keeps app source-shape fixes

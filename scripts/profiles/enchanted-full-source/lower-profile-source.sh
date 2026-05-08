@@ -405,52 +405,9 @@ enum QuillUSBLauncher {
 }
 SWIFT
 
-cat > "$LOWERED_COPY/QuillGeneratedFullSourceShims.swift" <<'SWIFT'
-import Foundation
-import AppKit
-import SwiftData
-import SwiftUI
-
-extension LanguageModelSD: Hashable {
-    var id: String { name }
-
-    static func == (lhs: LanguageModelSD, rhs: LanguageModelSD) -> Bool {
-        lhs.name == rhs.name
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(name)
-    }
-}
-
-extension ConversationSD: Hashable {
-    static func == (lhs: ConversationSD, rhs: ConversationSD) -> Bool {
-        lhs.id == rhs.id
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-}
-
-extension MessageSD: Hashable {
-    static func == (lhs: MessageSD, rhs: MessageSD) -> Bool {
-        lhs.id == rhs.id
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-}
-
-extension CompletionInstructionSD: Hashable {
-    static func == (lhs: CompletionInstructionSD, rhs: CompletionInstructionSD) -> Bool {
-        lhs.id == rhs.id
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-}
-
-SWIFT
+"$(dirname "$0")/../../generate-hashable-identity-shims.sh" \
+  "$LOWERED_COPY/QuillGeneratedFullSourceShims.swift" \
+  LanguageModelSD:name:id:String \
+  ConversationSD:id \
+  MessageSD:id \
+  CompletionInstructionSD:id
