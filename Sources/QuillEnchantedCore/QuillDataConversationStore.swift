@@ -110,7 +110,7 @@ public final class QuillDataConversationStore: ConversationPersistence {
     }
 
     public func save() throws {
-        try context.saveChanges()
+        try context.save()
     }
 
     private func conversationRecord(id: String) throws -> QuillDataConversationRecord? {

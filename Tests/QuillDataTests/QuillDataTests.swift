@@ -22,7 +22,9 @@ struct QuillDataTests {
 
         context.insert(low)
         context.insert(high)
-        try context.saveChanges()
+        #expect(context.hasChanges)
+        try context.save()
+        #expect(context.hasChanges == false)
 
         let highPriority = try context.fetch(FetchDescriptor<TodoItem>(
             filter: { $0.priority >= 2 },
@@ -32,7 +34,7 @@ struct QuillDataTests {
         #expect(highPriority.map(\.title) == ["High"])
 
         high.title = "Very high"
-        try context.saveChanges()
+        try context.save()
 
         let sorted = try context.fetch(FetchDescriptor<TodoItem>(
             sortBy: [SortDescriptor(\TodoItem.priority, order: .reverse)]
@@ -41,7 +43,7 @@ struct QuillDataTests {
         #expect(sorted.map(\.title) == ["Very high", "Low"])
 
         context.delete(high)
-        try context.saveChanges()
+        try context.save()
         #expect(try context.fetch(FetchDescriptor<TodoItem>()).map(\.title) == ["Low"])
 
         try context.delete(model: TodoItem.self)
@@ -237,6 +239,28 @@ struct QuillDataTests {
         #expect(matches.map(\.title) == ["High"])
     }
 
+    @Test("fetching class-backed models marks context changed for app saveChanges extensions")
+    func classBackedFetchMarksPotentialChanges() throws {
+        let url = temporarySQLiteURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let schema = Schema([TodoItem.self])
+        let context = try ModelContext(ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, url: url)]
+        ))
+        context.insert(TodoItem(title: "Original", priority: 1))
+        try context.save()
+        #expect(context.hasChanges == false)
+
+        let fetched = try context.fetch(FetchDescriptor<TodoItem>())
+        #expect(context.hasChanges)
+        fetched[0].title = "Edited"
+        try context.save()
+
+        #expect(try context.fetch(FetchDescriptor<TodoItem>()).map(\.title) == ["Edited"])
+    }
+
     @Test("supports SwiftData-style attribute wrappers on codable classes")
     func attributeWrapperPersistsValues() throws {
         let url = temporarySQLiteURL()
@@ -250,11 +274,30 @@ struct QuillDataTests {
         let context = ModelContext(container)
 
         context.insert(WrappedModel(slug: "ollama", enabled: true))
-        try context.saveChanges()
+        try context.save()
 
         let models = try context.fetch(FetchDescriptor<WrappedModel>())
         #expect(models.map(\.slug) == ["ollama"])
         #expect(models[0].enabled)
+    }
+
+    @Test("models without explicit id fall back to stable name identity")
+    func nameBackedIdentityUpserts() throws {
+        let url = temporarySQLiteURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let schema = Schema([NamedModel.self])
+        let context = try ModelContext(ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, url: url)]
+        ))
+
+        context.insert(NamedModel(name: "llama3.2:latest", enabled: false))
+        context.insert(NamedModel(name: "llama3.2:latest", enabled: true))
+
+        let models = try context.fetch(FetchDescriptor<NamedModel>())
+        #expect(models.count == 1)
+        #expect(models.first?.enabled == true)
     }
 
     @Test("relationship wrappers encode and decode nested values")
@@ -384,6 +427,16 @@ private final class FolderModel: PersistentModel {
     init(name: String, items: [ValueTodoItem]) {
         self.name = name
         self.items = items
+    }
+}
+
+private final class NamedModel: PersistentModel {
+    var name: String
+    var enabled: Bool
+
+    init(name: String, enabled: Bool) {
+        self.name = name
+        self.enabled = enabled
     }
 }
 

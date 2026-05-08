@@ -364,3 +364,18 @@ Status: passing on macOS, Linux, and Linux GTK smoke.
 - Linux GTK verification passed: both GTK products built and both apps survived the 4-second Xvfb smoke run.
 - `bash -n scripts/*.sh`, `git diff --check`, `scripts/audit-quill-chat.sh`, and `scripts/audit-upstream-enchanted.sh` passed.
 - Remaining honest gap: Darwin's `IONotificationPortSetDispatchQueue(..., DispatchQueue.main)` bridging does not exist in Linux C Dispatch, and real device-arrival behavior should be implemented with a native QuillKit udev/libusb backend.
+
+## Checkpoint 28: QuillData Source-Shape Tightening
+
+Status: passing on macOS, Linux, and Linux GTK smoke.
+
+- Moved QuillData closer to SwiftData's source shape by removing the nonstandard built-in `ModelContext.saveChanges()` method that would collide with Enchanted's own `ModelContext` extension.
+- Added `ModelContext.hasChanges`, which lets Enchanted's existing app-defined `saveChanges()` extension compile against QuillData.
+- Relaxed `PersistentModel` so Codable models do not also need an explicit `Identifiable` conformance; the SQLite row identity now falls back through stable encoded `id`, `name`, or `slug` fields.
+- Improved class-backed model tracking with an identity map, so fetched class instances replace duplicate decoded copies and later mutation plus `save()` persists the tracked object.
+- Added regression tests for `hasChanges`, name-backed identity upserts, class-backed fetch/mutate/save behavior, and existing class filter/delete semantics.
+- macOS verification passed: `swift test --disable-automatic-resolution` with 54 tests in 8 suites.
+- Linux verification passed: `swift test --scratch-path .build-linux` with 88 tests in 11 suites.
+- Linux GTK verification passed: both GTK products built and both apps survived the 4-second Xvfb smoke run.
+- `bash -n scripts/*.sh`, `git diff --check`, `scripts/audit-quill-chat.sh`, and `scripts/audit-upstream-enchanted.sh` passed.
+- Remaining honest gap: Foundation `#Predicate` still cannot be used safely with plain class-backed models because it can trap before QuillData receives the descriptor. Enchanted's class `#Predicate` calls still need a macro/lowering strategy or small source rewrite to closure filters.

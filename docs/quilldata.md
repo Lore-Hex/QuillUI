@@ -30,12 +30,13 @@ This backend is slower than a schema-native SQLiteData/GRDB implementation becau
 
 Works now:
 
-- Codable `PersistentModel` classes and structs with stable `id` values.
-- `ModelContext.insert`, `fetch`, `delete`, `delete(model:)`, `save`, and `saveChanges`.
+- Codable `PersistentModel` classes and structs with stable `id`, `name`, or `slug` values.
+- `ModelContext.insert`, `fetch`, `delete`, `delete(model:)`, `save`, and `hasChanges`.
 - Foundation `SortDescriptor`.
 - Foundation `#Predicate` for value models.
 - Closure filters for class models through `FetchDescriptor(filter:)`.
 - SwiftData-style `@Attribute(.unique)` syntax for stored properties.
+- Class-backed identity-map tracking for fetched objects, so app-defined `saveChanges()` extensions that check `hasChanges` can persist later mutations.
 
 In-repo consumer:
 
@@ -44,7 +45,7 @@ In-repo consumer:
 Important gaps:
 
 - `@Model` is a Swift macro. QuillData does not yet provide a replacement macro, so current ports still need a small model declaration change.
-- Foundation `#Predicate` can trap when evaluated against plain class models outside SwiftData's macro/runtime path. QuillData therefore rejects class-backed `Predicate` evaluation and provides `FetchDescriptor(filter:)` for the slow compatibility backend.
+- Foundation `#Predicate` can trap before QuillData sees it when built against plain class models outside SwiftData's macro/runtime path. Ports should use `FetchDescriptor(filter:)` for class models until QuillData has a macro/native predicate lowering path.
 - Relationships currently encode as model fields; delete rules and inverse maintenance are not schema-native yet.
 - There is no `@Query` observation layer yet.
 - Migrations are limited to the generic row table.

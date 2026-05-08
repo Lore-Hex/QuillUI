@@ -1,7 +1,7 @@
 import CSQLite
 import Foundation
 
-public protocol PersistentModel: Codable, Identifiable where ID: Codable, ID: Hashable {}
+public protocol PersistentModel: Codable {}
 
 public struct Schema {
     public var models: [any PersistentModel.Type]
@@ -66,17 +66,24 @@ public final class ModelContext: @unchecked Sendable {
     private let lock = NSRecursiveLock()
     private var trackedModels: [ObjectIdentifier: TrackedModel] = [:]
     private var recordedErrors: [Error] = []
+    private var changed = false
 
     public var autosaveEnabled = true
+    public var hasChanges: Bool {
+        lock.withLock {
+            changed || !recordedErrors.isEmpty
+        }
+    }
 
     public init(_ container: ModelContainer) {
         self.container = container
     }
 
     public func insert<Model: PersistentModel>(_ model: Model) {
-        track(model)
         do {
             try container.store.upsert(model)
+            markChanged()
+            track(model)
         } catch {
             record(error)
         }
@@ -84,9 +91,10 @@ public final class ModelContext: @unchecked Sendable {
 
     public func fetch<Model: PersistentModel>(_ descriptor: FetchDescriptor<Model>) throws -> [Model] {
         var models = try container.store.fetchAll(Model.self)
+        models = models.map { existingTrackedModel(for: $0) ?? $0 }
 
         if let predicate = descriptor.predicate {
-            guard !(Model.self is AnyObject.Type) else {
+            guard models.allSatisfy({ Mirror(reflecting: $0).displayStyle != .class }) else {
                 throw QuillDataError.unsupportedPredicate(
                     "Foundation #Predicate cannot safely evaluate class-backed models in QuillData's JSON-row backend yet. Use FetchDescriptor(filter:) for compatibility queries."
                 )
@@ -121,6 +129,9 @@ public final class ModelContext: @unchecked Sendable {
         }
 
         models.forEach(track)
+        if models.contains(where: { Mirror(reflecting: $0).displayStyle == .class }) {
+            markChanged()
+        }
         return models
     }
 
@@ -128,6 +139,7 @@ public final class ModelContext: @unchecked Sendable {
         do {
             try container.store.delete(model)
             untrack(model)
+            markChanged()
         } catch {
             record(error)
         }
@@ -136,6 +148,7 @@ public final class ModelContext: @unchecked Sendable {
     public func delete<Model: PersistentModel>(model: Model.Type) throws {
         try container.store.deleteAll(Model.self)
         untrackAll(Model.self)
+        markChanged()
     }
 
     public func delete<Model: PersistentModel>(model: Model.Type, where predicate: Predicate<Model>) throws {
@@ -143,6 +156,7 @@ public final class ModelContext: @unchecked Sendable {
         for match in matches {
             try container.store.delete(match)
             untrack(match)
+            markChanged()
         }
     }
 
@@ -164,26 +178,27 @@ public final class ModelContext: @unchecked Sendable {
         for saveTrackedModel in models {
             try saveTrackedModel.save()
         }
-    }
-
-    public func saveChanges() throws {
-        try save()
+        lock.withLock {
+            changed = false
+        }
     }
 
     private func track<Model: PersistentModel>(_ model: Model) {
         guard Mirror(reflecting: model).displayStyle == .class else { return }
         let object = model as AnyObject
         let modelType = String(reflecting: Model.self)
-        let modelID = String(describing: model.id)
+        let modelID = (try? container.store.identifier(for: model)) ?? String(ObjectIdentifier(object).hashValue)
         lock.withLock {
-            if trackedModels.values.contains(where: { $0.modelType == modelType && $0.modelID == modelID }) {
-                return
+            trackedModels = trackedModels.filter { identifier, trackedModel in
+                identifier == ObjectIdentifier(object) ||
+                trackedModel.modelType != modelType ||
+                trackedModel.modelID != modelID
             }
             trackedModels[ObjectIdentifier(object)] = TrackedModel(
                 modelType: modelType,
                 modelID: modelID,
-                save: { [weak object] in
-                    guard let model = object as? Model else { return }
+                object: object,
+                save: { [model] in
                     try self.container.store.upsert(model)
                 }
             )
@@ -193,10 +208,10 @@ public final class ModelContext: @unchecked Sendable {
     private func untrack<Model: PersistentModel>(_ model: Model) {
         guard Mirror(reflecting: model).displayStyle == .class else { return }
         let modelType = String(reflecting: Model.self)
-        let modelID = String(describing: model.id)
+        let modelID = try? container.store.identifier(for: model)
         lock.withLock {
             trackedModels = trackedModels.filter { _, trackedModel in
-                trackedModel.modelType != modelType || trackedModel.modelID != modelID
+                trackedModel.modelType != modelType || modelID.map { trackedModel.modelID != $0 } ?? false
             }
         }
     }
@@ -216,9 +231,29 @@ public final class ModelContext: @unchecked Sendable {
         }
     }
 
+    private func markChanged() {
+        lock.withLock {
+            changed = true
+        }
+    }
+
+    private func existingTrackedModel<Model: PersistentModel>(for model: Model) -> Model? {
+        guard Mirror(reflecting: model).displayStyle == .class,
+              let modelID = try? container.store.identifier(for: model) else {
+            return nil
+        }
+        let modelType = String(reflecting: Model.self)
+        return lock.withLock {
+            trackedModels.values.first { trackedModel in
+                trackedModel.modelType == modelType && trackedModel.modelID == modelID
+            }?.object as? Model
+        }
+    }
+
     private struct TrackedModel {
         var modelType: String
         var modelID: String
+        var object: AnyObject
         var save: () throws -> Void
     }
 }
@@ -400,7 +435,7 @@ final class QuillDataSQLiteStore: @unchecked Sendable {
                 """,
                 bindings: [
                     .text(modelType(Model.self)),
-                    .text(modelID(model)),
+                    .text(modelID(model, encodedData: data)),
                     .blob(data),
                     .double(Date().timeIntervalSince1970)
                 ]
@@ -437,9 +472,19 @@ final class QuillDataSQLiteStore: @unchecked Sendable {
         try lock.withLock {
             try execute(
                 "DELETE FROM quilldata_records WHERE model_type = ? AND model_id = ?",
-                bindings: [.text(modelType(Model.self)), .text(modelID(model))]
+                bindings: [.text(modelType(Model.self)), .text(identifier(for: model))]
             )
         }
+    }
+
+    func identifier<Model: PersistentModel>(for model: Model) throws -> String {
+        let data: Data
+        do {
+            data = try encoder.encode(model)
+        } catch {
+            throw QuillDataError.encodeFailed(error.localizedDescription)
+        }
+        return modelID(model, encodedData: data)
     }
 
     func deleteAll<Model: PersistentModel>(_ model: Model.Type) throws {
@@ -478,8 +523,20 @@ final class QuillDataSQLiteStore: @unchecked Sendable {
         String(reflecting: Model.self)
     }
 
-    private func modelID<Model: PersistentModel>(_ model: Model) -> String {
-        String(describing: model.id)
+    private func modelID<Model: PersistentModel>(_ model: Model, encodedData data: Data) -> String {
+        if let identifiable = model as? any Identifiable {
+            return String(describing: identifiable.id)
+        }
+
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            for key in ["id", "name", "slug"] {
+                if let value = object[key], !(value is NSNull) {
+                    return "\(key):\(String(describing: value))"
+                }
+            }
+        }
+
+        return data.base64EncodedString()
     }
 
     private enum BindingValue {
