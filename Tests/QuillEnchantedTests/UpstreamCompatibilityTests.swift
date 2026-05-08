@@ -53,7 +53,9 @@ struct UpstreamCompatibilityTests {
         #expect(QuillSystemSymbol.compatibleName("paperplane.fill") == "arrow.forward.circle.fill")
         #expect(QuillSystemSymbol.compatibleName("photo.fill") == "folder.badge.plus")
         #expect(QuillSystemSymbol.compatibleName("keyboard") == "doc.on.doc")
+        #expect(QuillSystemSymbol.compatibleName("keyboard.fill") == "doc.on.doc")
         #expect(QuillSystemSymbol.compatibleName("waveform") == "ellipsis.circle")
+        #expect(QuillSystemSymbol.compatibleName("x.circle.fill") == "xmark.circle.fill")
         _ = QuillFloatingIconButton(systemImage: "paperplane.fill") {}
         _ = QuillPromptList(prompts: [
             QuillPrompt(title: "Open a feed", systemImage: "link"),
@@ -584,6 +586,8 @@ struct UpstreamCompatibilityTests {
 
         #expect(QuillSystemSymbol.compatibleName("lightbulb.circle.fill") == "info.circle")
         #expect(QuillSystemSymbol.compatibleName("textformat.abc") == "doc.text")
+        #expect(QuillSystemSymbol.compatibleName("keyboard.fill") == "doc.on.doc")
+        #expect(QuillSystemSymbol.compatibleName("x.circle.fill") == "xmark.circle.fill")
         #expect(QuillSystemSymbol.compatibleName("custom.symbol") == "custom.symbol")
     }
 

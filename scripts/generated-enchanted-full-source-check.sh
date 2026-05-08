@@ -693,6 +693,8 @@ SWIFT
 source_count="$(find "$SOURCE_COPY" -name '*.swift' | wc -l | tr -d ' ')"
 generated_count="$(find "$TARGET_DIR" -name '*.swift' | wc -l | tr -d ' ')"
 
+QUILLUI_SWIFT_PACKAGE_PATH="$PACKAGE_DIR" "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$WORK_ROOT/.build-check"
+
 swift build \
   --package-path "$PACKAGE_DIR" \
   --scratch-path "$WORK_ROOT/.build-check" \

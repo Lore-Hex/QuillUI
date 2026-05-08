@@ -19,10 +19,12 @@ public enum QuillSystemSymbol {
             return "info.circle"
         case "character.cursor.ibeam", "textformat", "textformat.abc":
             return "doc.text"
-        case "keyboard":
+        case "keyboard", "keyboard.fill":
             return "doc.on.doc"
         case "waveform":
             return "ellipsis.circle"
+        case "x.circle.fill":
+            return "xmark.circle.fill"
         default:
             return systemName
         }

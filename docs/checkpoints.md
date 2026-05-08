@@ -484,3 +484,16 @@ Status: passing for generated check mode and generated app mode on Linux.
 - Verified the generated `quill-chat-linux` executable survives a 6-second Xvfb smoke run; current warnings are GTK theme/accessibility noise and missing Material icon mappings, not startup failures.
 - `bash -n scripts/*.sh` and `git diff --check` passed.
 - Remaining honest gaps: this is shell build tooling, not yet a SwiftPM plugin; the generated app starts, but native Linux service behavior and screenshot-level visual parity still need the next passes.
+
+## Checkpoint 36: SwiftOpenUI Checkout Patching for Quill Chat Icons
+
+Status: passing for patch smoke, macOS tests, and generated Quill Chat Linux app smoke.
+
+- Extended `scripts/patch-swiftopenui-gtk-css.sh` into the common pinned-SwiftOpenUI checkout patch step. It still removes unsupported GTK `object-fit` CSS and now adds the Quill Chat SF Symbol names missing from SwiftOpenUI's Material symbol map.
+- Added mappings for Quill Chat symbols currently visible in the generated app path, including `textformat.abc`, `keyboard.fill`, `lightbulb.circle`, `waveform`, `sidebar.left`, `line.3.horizontal`, `paperplane.fill`, `photo.fill`, `speaker.wave.*`, `selection.pin.in.out`, and related stop/close/check variants.
+- Wired `scripts/generated-enchanted-full-source-check.sh` to patch its generated package scratch checkout before building, so `scripts/build-quill-chat-linux.sh` gets the same renderer/icon patching as the root GTK smoke path.
+- Expanded `QuillSystemSymbol.compatibleName(_:)` coverage for `keyboard.fill` and `x.circle.fill`, with regression expectations in `UpstreamCompatibilityTests`.
+- Verified a fresh patch smoke inserts `textformat.abc`, `keyboard.fill`, and `sidebar.left` into SwiftOpenUI's map and removes `object-fit` from the GTK renderer.
+- Verified `swift test --disable-automatic-resolution` passes on macOS with 58 tests in 9 suites.
+- Verified generated local `quill-chat-linux` builds from the 92-file Quill Chat tree and survives a 6-second Xvfb smoke without missing Material-symbol or GTK `object-fit` warnings. Remaining smoke output is the Lima/Xvfb DRI3 acceleration warning.
+- Remaining honest gaps: this is still a local checkout patch around a pinned dependency. The durable fix is to upstream the SF Symbol mappings to SwiftOpenUI or move QuillUI to a fork/revision containing them.
