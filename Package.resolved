@@ -1,0 +1,23 @@
+{
+  "originHash" : "32cecd7ae06099758b5986d7a4ea72c2eae5e0bbdc08977a7931a5d1c933dbb0",
+  "pins" : [
+    {
+      "identity" : "opencombine",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/OpenCombine/OpenCombine.git",
+      "state" : {
+        "revision" : "8576f0d579b27020beccbccc3ea6844f3ddfc2c2",
+        "version" : "0.14.0"
+      }
+    },
+    {
+      "identity" : "swiftopenui",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/codelynx/SwiftOpenUI",
+      "state" : {
+        "revision" : "6150b964a7cb1cf3a961770f6947ed55c1a31433"
+      }
+    }
+  ],
+  "version" : 3
+}

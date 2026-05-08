@@ -1,0 +1,840 @@
+import Foundation
+#if os(macOS) || os(iOS) || os(visionOS)
+import SwiftUI
+#else
+import SwiftOpenUI
+import QuillKit
+
+private func recordQuillUIFallback(_ operation: String, message: String) {
+    QuillCompatibilityDiagnostics.shared.record(
+        subsystem: "QuillUI",
+        operation: operation,
+        severity: .info,
+        message: message
+    )
+}
+
+private func recordQuillUIFallbackView<Content: View>(
+    _ view: Content,
+    operation: String,
+    message: String
+) -> Content {
+    recordQuillUIFallback(operation, message: message)
+    return view
+}
+
+public struct UTType: Hashable, Sendable {
+    public var identifier: String
+
+    public init(_ identifier: String) {
+        self.identifier = identifier
+    }
+
+    public static let image = UTType("public.image")
+    public static let jpeg = UTType("public.jpeg")
+    public static let png = UTType("public.png")
+    public static let tiff = UTType("public.tiff")
+
+    public func conforms(to other: UTType) -> Bool {
+        if self == other { return true }
+        return other == .image && Self.imageTypes.contains(identifier)
+    }
+
+    fileprivate func accepts(url: URL) -> Bool {
+        guard self != .image else { return Self.imageExtensions.contains(url.pathExtension.lowercased()) }
+        return Self.extensionsByIdentifier[identifier]?.contains(url.pathExtension.lowercased()) ?? false
+    }
+
+    fileprivate static func type(for url: URL) -> UTType? {
+        let pathExtension = url.pathExtension.lowercased()
+        return extensionsByIdentifier.first { _, extensions in
+            extensions.contains(pathExtension)
+        }.map { UTType($0.key) }
+    }
+
+    private static let extensionsByIdentifier: [String: Set<String>] = [
+        UTType.jpeg.identifier: ["jpeg", "jpg"],
+        UTType.png.identifier: ["png"],
+        UTType.tiff.identifier: ["tiff", "tif"]
+    ]
+
+    private static let imageExtensions = Set(extensionsByIdentifier.values.flatMap { $0 })
+    private static let imageTypes = Set(extensionsByIdentifier.keys)
+}
+
+public final class NSItemProvider: @unchecked Sendable {
+    private enum Representation {
+        case data(Data, UTType)
+        case file(URL, UTType?)
+    }
+
+    private let representations: [Representation]
+
+    public init() {
+        self.representations = []
+    }
+
+    public init(fileURL: URL) {
+        self.representations = [.file(fileURL, UTType.type(for: fileURL))]
+    }
+
+    public convenience init(contentsOf url: URL) {
+        self.init(fileURL: url)
+    }
+
+    public init(data: Data, type: UTType) {
+        self.representations = [.data(data, type)]
+    }
+
+    public func loadDataRepresentation(
+        for contentType: UTType,
+        completionHandler: @escaping (Data?, Error?) -> Void
+    ) -> Progress? {
+        for representation in representations {
+            switch representation {
+            case .data(let data, let type) where type.conforms(to: contentType):
+                completionHandler(data, nil)
+                return nil
+            case .file(let url, let type) where type?.conforms(to: contentType) == true || contentType.accepts(url: url):
+                do {
+                    completionHandler(try Data(contentsOf: url), nil)
+                } catch {
+                    completionHandler(nil, error)
+                }
+                return nil
+            default:
+                continue
+            }
+        }
+        completionHandler(nil, QuillCompatibilityError.representationUnavailable(contentType.identifier))
+        return nil
+    }
+}
+
+public enum QuillCompatibilityError: Error, LocalizedError, Equatable {
+    case representationUnavailable(String)
+    case fileSelectionUnavailable
+    case unsupportedFileSelection(URL, [UTType])
+
+    public var errorDescription: String? {
+        switch self {
+        case .representationUnavailable(let identifier):
+            return "No data representation is available for \(identifier)."
+        case .fileSelectionUnavailable:
+            return "No file selection provider is available."
+        case .unsupportedFileSelection(let url, let allowedTypes):
+            let allowed = allowedTypes.map(\.identifier).joined(separator: ", ")
+            return "\(url.path) is not one of the allowed file types: \(allowed)."
+        }
+    }
+}
+
+public enum QuillFileImporter {
+    private static let environmentKey = "QUILLUI_FILE_IMPORTER_SELECTION"
+    private static let testSelection = TestSelection()
+
+    public static func setTestSelection(_ url: URL?) {
+        testSelection.set(url)
+    }
+
+    public static func selectURL(allowedContentTypes: [UTType]) -> Result<URL, Error> {
+        if let testSelectionURL = testSelection.url {
+            return validate(testSelectionURL, allowedContentTypes: allowedContentTypes)
+        }
+
+        if let environmentValue = ProcessInfo.processInfo.environment[environmentKey],
+           !environmentValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return validate(URL(fileURLWithPath: environmentValue), allowedContentTypes: allowedContentTypes)
+        }
+
+        for command in fileSelectionCommands {
+            if let url = run(command: command) {
+                return validate(url, allowedContentTypes: allowedContentTypes)
+            }
+        }
+
+        return .failure(QuillCompatibilityError.fileSelectionUnavailable)
+    }
+
+    private final class TestSelection: @unchecked Sendable {
+        private let lock = NSLock()
+        private var selectedURL: URL?
+
+        var url: URL? {
+            lock.withLock { selectedURL }
+        }
+
+        func set(_ url: URL?) {
+            lock.withLock {
+                selectedURL = url
+            }
+        }
+    }
+
+    private static var fileSelectionCommands: [[String]] {
+        [
+            ["zenity", "--file-selection"],
+            ["kdialog", "--getopenfilename"],
+            ["yad", "--file-selection"]
+        ]
+    }
+
+    private static func validate(_ url: URL, allowedContentTypes: [UTType]) -> Result<URL, Error> {
+        guard allowedContentTypes.isEmpty || allowedContentTypes.contains(where: { $0.accepts(url: url) }) else {
+            return .failure(QuillCompatibilityError.unsupportedFileSelection(url, allowedContentTypes))
+        }
+        return .success(url)
+    }
+
+    private static func run(command: [String]) -> URL? {
+        guard let executable = command.first,
+              let executableURL = executableURL(named: executable) else {
+            return nil
+        }
+
+        let process = Process()
+        let pipe = Pipe()
+        process.executableURL = executableURL
+        process.arguments = Array(command.dropFirst())
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return nil
+        }
+
+        guard process.terminationStatus == 0 else { return nil }
+        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !output.isEmpty else { return nil }
+        return URL(fileURLWithPath: output)
+    }
+
+    private static func executableURL(named name: String) -> URL? {
+        let paths = (ProcessInfo.processInfo.environment["PATH"] ?? "/usr/local/bin:/usr/bin:/bin")
+            .split(separator: ":")
+            .map(String.init)
+        for path in paths {
+            let candidate = URL(fileURLWithPath: path).appendingPathComponent(name)
+            if FileManager.default.isExecutableFile(atPath: candidate.path) {
+                return candidate
+            }
+        }
+        return nil
+    }
+}
+
+public struct Material: Sendable {
+    public init() {}
+    public static let regularMaterial = Material()
+    public static let ultraThickMaterial = Material()
+}
+
+@propertyWrapper
+public struct Namespace: Sendable {
+    public struct ID: Hashable, Sendable {
+        private let rawValue = UUID()
+
+        public init() {}
+    }
+
+    private var id: ID
+
+    public init() {
+        self.id = ID()
+    }
+
+    public var wrappedValue: ID {
+        get { id }
+        set { id = newValue }
+    }
+}
+
+public struct SymbolEffect: Sendable {
+    public init() {}
+    public static let variableColor = SymbolEffect()
+    public var iterative: SymbolEffect { self }
+}
+
+public struct SymbolEffectOptions: Sendable {
+    public init() {}
+    public static let `default` = SymbolEffectOptions()
+    public static func `repeat`(_ count: Int) -> SymbolEffectOptions { SymbolEffectOptions() }
+}
+
+public struct ButtonStyleConfiguration {
+    public var label: Text
+    public var isPressed: Bool
+
+    public init(label: Text, isPressed: Bool) {
+        self.label = label
+        self.isPressed = isPressed
+    }
+}
+
+public protocol ButtonStyle {
+    associatedtype Body: View
+    typealias Configuration = ButtonStyleConfiguration
+
+    @ViewBuilder
+    func makeBody(configuration: Configuration) -> Body
+}
+
+public struct PlainButtonStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> Text {
+        configuration.label
+    }
+}
+
+public typealias ToolbarItemGroup<Content: View> = ToolbarItem<Content>
+
+public extension ToolbarItemPlacement {
+    static var automatic: ToolbarItemPlacement { .primaryAction }
+    static var navigation: ToolbarItemPlacement { .leading }
+    static var navigationBarTrailing: ToolbarItemPlacement { .trailing }
+    static var topBarLeading: ToolbarItemPlacement { .leading }
+}
+
+public extension CommandGroupPlacement {
+    static var appSettings: CommandGroupPlacement { .newItem }
+    static var appInfo: CommandGroupPlacement { .help }
+}
+
+public extension CommandGroup {
+    init(
+        after placement: CommandGroupPlacement,
+        @CommandMenuBuilder content: () -> [CommandMenuItem]
+    ) {
+        self.init(replacing: placement, content: content)
+    }
+}
+
+public extension WindowGroup {
+    func defaultSize(width: Double, height: Double) -> WindowGroup<Content> {
+        defaultWindowSize(width: width, height: height)
+    }
+}
+
+public extension CommandMenuBuilder {
+    static func buildExpression<Label: View>(_ button: Button<Label>) -> [CommandMenuItem] {
+        [
+            CommandMenuItem(
+                quillTextLabel(from: button.label),
+                action: button.action
+            )
+        ]
+    }
+
+    static func buildExpression<Label: View>(_ shortcutView: KeyboardShortcutView<Button<Label>>) -> [CommandMenuItem] {
+        [
+            CommandMenuItem(
+                quillTextLabel(from: shortcutView.content.label),
+                shortcut: shortcutView.shortcut,
+                action: shortcutView.content.action
+            )
+        ]
+    }
+
+    static func buildExpression<Content: View>(_ disabledView: DisabledView<Content>) -> [CommandMenuItem] {
+        quillCommandMenuItems(from: disabledView.content).map { $0.disabled(disabledView.isDisabled) }
+    }
+
+    static func buildExpression<Content: View>(_ view: Content) -> [CommandMenuItem] {
+        quillCommandMenuItems(from: view)
+    }
+}
+
+public extension Menu {
+    init<LabelContent: View>(
+        @MenuBuilder content: () -> [MenuElement],
+        @ViewBuilder label: () -> LabelContent
+    ) {
+        self.init(quillTextLabel(from: label()), content: content)
+    }
+}
+
+public extension MenuBuilder {
+    static func buildExpression<Label: View>(_ button: Button<Label>) -> [MenuElement] {
+        [.item(label: quillTextLabel(from: button.label), action: button.action)]
+    }
+
+    static func buildExpression<Label: View>(_ shortcutView: KeyboardShortcutView<Button<Label>>) -> [MenuElement] {
+        [.item(label: quillTextLabel(from: shortcutView.content.label), action: shortcutView.content.action)]
+    }
+
+    static func buildExpression<Content: View>(_ disabledView: DisabledView<Content>) -> [MenuElement] {
+        quillMenuElements(from: disabledView.content)
+            .map { quillMenuElement($0, disabled: disabledView.isDisabled) }
+    }
+
+    static func buildExpression(_ divider: Divider) -> [MenuElement] {
+        [.divider]
+    }
+
+    static func buildExpression<Content: View>(_ view: Content) -> [MenuElement] {
+        quillMenuElements(from: view)
+    }
+
+}
+
+public extension Label {
+    init<Title: View, Icon: View>(
+        @ViewBuilder title: () -> Title,
+        @ViewBuilder icon: () -> Icon
+    ) {
+        self.init(quillTextLabel(from: title()), systemImage: quillSystemImageName(from: icon()))
+    }
+}
+
+public extension PickerStyle {
+    static var menu: PickerStyle { .automatic }
+}
+
+public struct MenuPickerStyle: Sendable {
+    public init() {}
+}
+
+public extension Picker {
+    init<SelectionValue: Hashable, Content: View, LabelContent: View>(
+        selection: Binding<SelectionValue>,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder label: () -> LabelContent
+    ) {
+        let extracted = quillPickerOptions(from: content())
+        let tags = extracted.map(\.tag)
+        let labelText = quillTextLabel(from: label())
+        let indexSelection = Binding<Int>(
+            get: {
+                tags.firstIndex(of: AnyHashable(selection.wrappedValue)) ?? 0
+            },
+            set: { index in
+                guard tags.indices.contains(index),
+                      let value = tags[index].base as? SelectionValue,
+                      value != selection.wrappedValue
+                else { return }
+                selection.wrappedValue = value
+            }
+        )
+        self.init(labelText, selection: indexSelection, options: extracted.map(\.label))
+    }
+
+    func pickerStyle(_ style: MenuPickerStyle) -> Picker {
+        pickerStyle(.automatic)
+    }
+}
+
+public extension Section {
+    init<Header: View>(
+        header: Header,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.init(header: quillTextLabel(from: header), content: content)
+    }
+}
+
+public struct RoundedBorderTextFieldStyle: Sendable {
+    public init() {}
+}
+
+public struct PlainTextFieldStyle: Sendable {
+    public init() {}
+}
+
+public struct FormStyleType: Sendable {
+    public init() {}
+    public static let grouped = FormStyleType()
+}
+
+public struct GroupedFormStyle: Sendable {
+    public init() {}
+}
+
+public struct TextContentType: Hashable, Sendable {
+    public var rawValue: String
+
+    public init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public static let URL = TextContentType("URL")
+}
+
+public struct KeyboardType: Hashable, Sendable {
+    public var rawValue: String
+
+    public init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public static let URL = KeyboardType("URL")
+}
+
+public struct TextInputAutocapitalization: Hashable, Sendable {
+    public var rawValue: String
+
+    public init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public static let never = TextInputAutocapitalization("never")
+    public static let none = TextInputAutocapitalization("none")
+}
+
+public extension Image {
+    enum TemplateRenderingMode {
+        case original
+        case template
+    }
+
+    func renderingMode(_ mode: TemplateRenderingMode?) -> Image {
+        recordQuillUIFallback(
+            "renderingMode",
+            message: "Image renderingMode is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+}
+
+public extension URL {
+    func startAccessingSecurityScopedResource() -> Bool { true }
+    func stopAccessingSecurityScopedResource() {}
+}
+
+public extension Shape {
+    func fill(_ material: Material) -> FilledShape<Self> {
+        fill(Color.white.opacity(0.92))
+    }
+}
+
+public extension View {
+    func allowsHitTesting(_ enabled: Bool) -> some View {
+        disabled(!enabled)
+    }
+
+    func contentShape<S: Shape>(_ shape: S) -> Self {
+        recordQuillUIFallback(
+            "contentShape",
+            message: "contentShape is currently a hit-testing compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func fileImporter(
+        isPresented: Binding<Bool>,
+        allowedContentTypes: [UTType],
+        onCompletion: @escaping (Result<URL, Error>) -> Void
+    ) -> OnChangeView<Self, Bool> {
+        onChange(of: isPresented.wrappedValue) { presented in
+            guard presented else { return }
+            isPresented.wrappedValue = false
+            onCompletion(QuillFileImporter.selectURL(allowedContentTypes: allowedContentTypes))
+        }
+    }
+
+    @ViewBuilder
+    func foregroundStyle<Style>(_ style: Style) -> some View {
+        if let color = style as? Color {
+            foregroundColor(color)
+        } else if let gradient = style as? LinearGradient {
+            foregroundColor(gradient.gradient.quillAverageColor)
+        } else if let gradient = style as? RadialGradient {
+            foregroundColor(gradient.gradient.quillAverageColor)
+        } else {
+            recordQuillUIFallbackView(
+                self,
+                operation: "foregroundStyle",
+                message: "Unknown foregroundStyle values currently render through the original view on Linux."
+            )
+        }
+    }
+
+    func foregroundStyle(_ style: LinearGradient) -> some View {
+        foregroundColor(style.gradient.quillAverageColor)
+    }
+
+    func foregroundStyle(_ style: RadialGradient) -> some View {
+        foregroundColor(style.gradient.quillAverageColor)
+    }
+
+    func foregroundStyle(_ primary: Color, _ secondary: Color) -> some View {
+        foregroundColor(primary)
+    }
+
+    func mask<Mask: View>(_ mask: Mask) -> Self {
+        recordQuillUIFallback(
+            "mask",
+            message: "mask is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func mask<S: Shape>(_ shape: S) -> ClipShapeView<Self, S> {
+        recordQuillUIFallback(
+            "mask",
+            message: "Shape masks are approximated with clipShape on Linux."
+        )
+        return clipShape(shape)
+    }
+
+    func onDrop(
+        of supportedContentTypes: [UTType],
+        isTargeted: Binding<Bool>? = nil,
+        perform action: @escaping ([NSItemProvider]) -> Bool
+    ) -> DropDestinationView<Self> {
+        dropDestination(for: URL.self) { urls, _ in
+            let providers = urls
+                .filter { url in
+                    supportedContentTypes.isEmpty || supportedContentTypes.contains { $0.accepts(url: url) }
+                }
+                .map(NSItemProvider.init(fileURL:))
+            guard !providers.isEmpty else { return false }
+            return action(providers)
+        } isTargeted: { targeted in
+            isTargeted?.wrappedValue = targeted
+        }
+    }
+
+    func symbolEffect<Value: Equatable>(
+        _ effect: SymbolEffect,
+        options: SymbolEffectOptions = .default,
+        value: Value
+    ) -> AnimatedView<Self> {
+        recordQuillUIFallback(
+            "symbolEffect",
+            message: "symbolEffect is approximated with value-driven animation on Linux."
+        )
+        return animation(.easeInOut(duration: 0.2), value: value)
+    }
+
+    func matchedGeometryEffect<ID: Hashable>(
+        id: ID,
+        in namespace: Namespace.ID
+    ) -> AnimatedView<Self> {
+        recordQuillUIFallback(
+            "matchedGeometryEffect",
+            message: "matchedGeometryEffect is approximated with value-driven animation on Linux."
+        )
+        return animation(.easeInOut(duration: 0.2), value: AnyHashable(id))
+    }
+
+    @ViewBuilder
+    func buttonStyle<S: ButtonStyle>(_ style: S) -> some View {
+        recordQuillUIFallbackView(
+            buttonStyle(ButtonStyleType.plain),
+            operation: "buttonStyle",
+            message: "Custom ButtonStyle values currently fall back to a plain GTK button style on Linux."
+        )
+    }
+
+    func focusedSceneValue<K: FocusedValueKey>(
+        _ keyPath: WritableKeyPath<FocusedValues, K.Value?>,
+        _ value: K.Value
+    ) -> FocusedValueView<Self, K> {
+        focusedValue(keyPath, value)
+    }
+
+    func textFieldStyle(_ style: RoundedBorderTextFieldStyle) -> some View {
+        textFieldStyle(TextFieldStyleType.roundedBorder)
+    }
+
+    func textFieldStyle(_ style: PlainTextFieldStyle) -> some View {
+        textFieldStyle(TextFieldStyleType.plain)
+    }
+
+    func formStyle(_ style: FormStyleType) -> BackgroundView<PaddedView<Self>, Color> {
+        recordQuillUIFallback(
+            "formStyle",
+            message: "formStyle is approximated with grouped padding and background on Linux."
+        )
+        return padding(8)
+            .background(Color.gray5Custom)
+    }
+
+    func formStyle(_ style: GroupedFormStyle) -> BackgroundView<PaddedView<Self>, Color> {
+        recordQuillUIFallback(
+            "formStyle",
+            message: "GroupedFormStyle is approximated with grouped padding and background on Linux."
+        )
+        return padding(8)
+            .background(Color.gray5Custom)
+    }
+
+    func textContentType(_ contentType: TextContentType?) -> Self {
+        recordQuillUIFallback(
+            "textContentType",
+            message: "textContentType is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func disableAutocorrection(_ disabled: Bool?) -> Self {
+        recordQuillUIFallback(
+            "disableAutocorrection",
+            message: "disableAutocorrection is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func keyboardType(_ keyboardType: KeyboardType) -> Self {
+        recordQuillUIFallback(
+            "keyboardType",
+            message: "keyboardType is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func autocapitalization(_ autocapitalization: TextInputAutocapitalization) -> Self {
+        recordQuillUIFallback(
+            "autocapitalization",
+            message: "autocapitalization is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func onChange<V: Equatable>(
+        of value: V,
+        initial: Bool,
+        _ action: @escaping (V, V) -> Void
+    ) -> OnChangeTwoArgView<Self, V> {
+        onChange(of: value, action)
+    }
+
+}
+
+private extension Gradient {
+    var quillAverageColor: Color {
+        guard !stops.isEmpty else { return .primary }
+        let count = Double(stops.count)
+        let red = stops.reduce(0.0) { $0 + $1.color.red } / count
+        let green = stops.reduce(0.0) { $0 + $1.color.green } / count
+        let blue = stops.reduce(0.0) { $0 + $1.color.blue } / count
+        let alpha = stops.reduce(0.0) { $0 + $1.color.alpha } / count
+        return Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
+}
+
+private protocol QuillButtonRepresentable {
+    var quillButtonLabel: String { get }
+    var quillButtonAction: () -> Void { get }
+}
+
+extension Button: QuillButtonRepresentable {
+    fileprivate var quillButtonLabel: String { quillTextLabel(from: label) }
+    fileprivate var quillButtonAction: () -> Void { action }
+}
+
+private func quillTextLabel(from view: any View) -> String {
+    if let text = view as? Text {
+        return text.content
+    }
+
+    if let label = view as? Label {
+        return label.title
+    }
+
+    if let image = view as? Image {
+        return quillSystemImageName(from: image)
+    }
+
+    if let multi = view as? MultiChildView {
+        for child in multi.children {
+            let label = quillTextLabel(from: child)
+            if !label.isEmpty {
+                return label
+            }
+        }
+    }
+
+    return ""
+}
+
+private func quillSystemImageName(from view: any View) -> String {
+    guard let image = view as? Image else {
+        return "circle"
+    }
+
+    switch image.source {
+    case .systemName(let name), .materialSymbol(let name):
+        return QuillSystemSymbol.compatibleName(name)
+    case .filePath:
+        return "photo"
+    }
+}
+
+private func quillMenuElements(from view: any View) -> [MenuElement] {
+    if let button = view as? any QuillButtonRepresentable {
+        return [.item(label: button.quillButtonLabel, action: button.quillButtonAction)]
+    }
+
+    if let disabled = view as? DisabledView<Button<Text>> {
+        return quillMenuElements(from: disabled.content)
+            .map { quillMenuElement($0, disabled: disabled.isDisabled) }
+    }
+
+    if let shortcut = view as? KeyboardShortcutView<Button<Text>> {
+        return quillMenuElements(from: shortcut.content)
+    }
+
+    if let multi = view as? MultiChildView {
+        return multi.children.flatMap(quillMenuElements)
+    }
+
+    return []
+}
+
+private func quillMenuElement(_ element: MenuElement, disabled: Bool) -> MenuElement {
+    guard disabled else { return element }
+    switch element {
+    case .item(let label, _):
+        return .item(label: label, action: {})
+    case .divider:
+        return .divider
+    case .submenu(let label, let children):
+        return .submenu(label: label, children: children.map { quillMenuElement($0, disabled: true) })
+    }
+}
+
+private func quillCommandMenuItems(from view: any View) -> [CommandMenuItem] {
+    if let button = view as? any QuillButtonRepresentable {
+        return [CommandMenuItem(button.quillButtonLabel, action: button.quillButtonAction)]
+    }
+
+    if let shortcut = view as? KeyboardShortcutView<Button<Text>> {
+        return [
+            CommandMenuItem(
+                quillTextLabel(from: shortcut.content.label),
+                shortcut: shortcut.shortcut,
+                action: shortcut.content.action
+            )
+        ]
+    }
+
+    if let disabled = view as? DisabledView<Button<Text>> {
+        return quillCommandMenuItems(from: disabled.content).map { $0.disabled(disabled.isDisabled) }
+    }
+
+    if let multi = view as? MultiChildView {
+        return multi.children.flatMap(quillCommandMenuItems)
+    }
+
+    return []
+}
+
+private func quillPickerOptions(from view: any View) -> [(label: String, tag: AnyHashable)] {
+    if let tagged = view as? AnyTagView {
+        let label = quillTextLabel(from: tagged.anyTagContent)
+        return [(label.isEmpty ? String(describing: tagged.anyTagValue.base) : label, tagged.anyTagValue)]
+    }
+
+    if let multi = view as? MultiChildView {
+        return multi.children.flatMap(quillPickerOptions)
+    }
+
+    return []
+}
+#endif

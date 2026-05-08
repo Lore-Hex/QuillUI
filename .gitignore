@@ -1,0 +1,13 @@
+.build/
+.build-linux/
+.build-linux-cov/
+.qa/
+.upstream/
+.swiftpm/
+.DS_Store
+DerivedData/
+*.xcuserdata
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+swiftly-*.tar.gz

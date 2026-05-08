@@ -1,0 +1,321 @@
+# QuillUI Checkpoints
+
+Target app order is tracked in `docs/app-targets.md`: Enchanted first, IceCubes second, NetNewsWire third, then CodeEdit, Signal iOS, Telegram Swift, and IINA. WireGuard Apple is tracked as an opportunistic side target.
+
+## Checkpoint 1: Local App Shell
+
+Status: passing on macOS.
+
+- `QuillUI` facade re-exports SwiftUI on Apple platforms and SwiftOpenUI on Linux.
+- Linux `@AppStorage` shim supports primitive values and raw-representable enums.
+- Linux shims now include `openURL`, `presentationMode`, `Button(role:)`, `TextField(axis:)`, `TextField(onCommit:)`, `Image(data:)`, `Image("resource")`, and `Binding.animation(...)`.
+- `quill-enchanted` builds as a SwiftPM executable.
+- The app has a split-view desktop chat layout, model picker, endpoint field, local conversation list, and composer.
+- Ollama integration supports model discovery and streamed `/api/chat` responses with live assistant draft updates.
+- Conversation history now defaults to QuillData at `~/.quillui/enchanted/enchanted-quilldata.sqlite`.
+- Enchanted talks to a SwiftData-shaped persistence context with `fetch`, `insert`, `update`, `delete`, and `save` operations.
+- Assistant and system chat bubbles render a portable Markdown subset: headings, paragraphs, lists, quotes, fenced code blocks, and readable links.
+- The composer accepts Linux-safe image attachment stubs through typed file paths and dropped file URLs, shows removable attachment chips, and forwards base64 images to Ollama vision-capable models.
+- Linux visual QA now has a repeatable screenshot script that launches the GTK app under Xvfb and verifies the captured window is nonblank.
+- The upstream Enchanted audit runs against `gluonfield/enchanted` and records which APIs can stay near-source-compatible versus which need Linux adapters.
+- Tests cover SQLite conversation/message persistence, the persistence context facade, Ollama stream parsing, Markdown parsing, image attachment validation, and Linux-only upstream compatibility shims.
+
+## Checkpoint 2: Linux GTK Verification
+
+Status: passing in Lima Ubuntu 24.04.
+
+- Lima Ubuntu 24.04 VM config lives in `scripts/lima-ubuntu-swift.yaml`.
+- Linux build script lives in `scripts/linux-gtk-check.sh`.
+- Verified in a Lima Ubuntu 24.04 aarch64 VM with Swift 6.3.1: `swift test`, GTK build, and a 6-second Xvfb app-start smoke pass.
+
+## Checkpoint 3: Enchanted Parity
+
+Status: first upstream-shaped slice passing on macOS and Linux GTK.
+
+- `quill-enchanted-upstream-slice` builds a selected desktop chat surface in the shape of upstream Enchanted: sidebar, header, model switcher, empty prompts, message list, composer, attachment preview, drop/file-import hooks, and context menus.
+- QuillUI upstream compatibility shims now cover the first batch of SwiftUI/UniformTypeIdentifiers/AppKit-adjacent API used by that slice, including `NSItemProvider.loadDataRepresentation`, `UTType`, visual effects, button styles, file importer, drop targets, and security-scoped URL calls.
+- `scripts/linux-gtk-check.sh` now validates both `quill-enchanted` and `quill-enchanted-upstream-slice` with Linux tests, GTK builds, and Xvfb process smokes.
+- `scripts/linux-gtk-visual-check.sh` can capture either executable; the upstream slice has a nonblank 1180x760 GTK screenshot at `.qa/quill-enchanted-upstream-slice-gtk.png`.
+
+## Checkpoint 4: Upstream Slice Core Wiring
+
+Status: passing on macOS and Linux GTK.
+
+- `quill-enchanted-upstream-slice` now depends on `QuillEnchantedCore` instead of sample-only state for the root app.
+- The upstream-shaped sidebar, conversation list, model switcher, empty prompts, message list, and composer are backed by `EnchantedModel`, local conversation history, persisted endpoint storage, Ollama model discovery, and streamed Ollama sends.
+- `EnchantedModel` exposes the small adapter operations needed by upstream-shaped views: deleting a specific conversation and selecting a model by name.
+- The upstream slice now includes a visible Ollama endpoint field so its real adapter path can recover from an unreachable default endpoint.
+- Regression tests cover the adapter operations required by the upstream-shaped target.
+- Visual QA captured the core-wired upstream slice at `.qa/quill-enchanted-upstream-slice-core-endpoint-gtk.png`.
+
+## Checkpoint 5: Upstream Slice Vision Attachments
+
+Status: passing on macOS and Linux GTK.
+
+- `PendingImageAttachment` can now stage imported file URLs and dropped image data into `~/.quillui/enchanted/attachments` before sending, so attachment reads do not depend on transient picker/drop access.
+- The upstream-shaped composer stores both a preview `Image` and the real `PendingImageAttachment`, then sends the attachment through `EnchantedModel.send(prompt:attachments:)`.
+- Attachment staging errors now flow back into the model status line instead of silently failing.
+- Regression tests cover staged file imports and staged dropped image data.
+- Visual QA captured the attachment-wired upstream slice at `.qa/quill-enchanted-upstream-slice-attachments-gtk.png`.
+
+## Checkpoint 6: Markdown And Settings Surface
+
+Status: passing on macOS and Linux GTK.
+
+- `MarkdownMessageView` is now a public `QuillEnchantedCore` view so upstream-shaped targets can reuse the same portable Markdown renderer as the main app.
+- The upstream-shaped message list now renders assistant/system messages with the portable Markdown fallback instead of flat `Text`, covering headings, lists, quotes, links, and fenced code blocks without pulling in MarkdownUI/Splash on Linux.
+- The upstream-shaped sidebar now includes a Settings entry and a compact settings panel path for model refresh, model selection, and clearing conversation history, backed by the real `EnchantedModel`.
+- Visual QA captured the updated upstream slice at `.qa/quill-enchanted-upstream-slice-markdown-settings-gtk.png`.
+
+## Checkpoint 7: QuillData Library Pivot
+
+Status: initial QuillData target passing locally.
+
+- Added a reusable `QuillData` library product so SwiftData compatibility work moves out of Enchanted-specific code.
+- The first backend is a conservative SQLite JSON-row store with SwiftData-shaped `Schema`, `ModelConfiguration`, `ModelContainer`, `ModelContext`, `FetchDescriptor`, `PersistentModel`, `@Attribute`, and `@Relationship` APIs.
+- `ModelContext` supports insert, fetch, sort, closure filtering, delete, delete-all, save, and `saveChanges`, with class model tracking for mutation-before-save workflows.
+- Foundation `#Predicate` is supported for value models; class-backed predicates are explicitly rejected for this slow backend because Foundation predicate evaluation can trap outside SwiftData's macro/runtime path.
+- Documented the QuillData strategy and the future SQLiteData/schema-native backend path in `docs/quilldata.md`.
+
+## Checkpoint 8: Enchanted On QuillData
+
+Status: passing on macOS and Linux GTK.
+
+- Added `QuillDataConversationStore`, a reusable `ConversationPersistence` implementation backed by the new QuillData `ModelContext`.
+- Enchanted's default `EnchantedModelContext` now uses QuillData instead of the app-specific `SQLiteConversationStore`.
+- The legacy `SQLiteConversationStore` remains available for regression coverage, but it is no longer the default app path and is not a migration requirement because the port has no existing Linux users.
+- Enchanted persistence tests now exercise the QuillData path for insert, fetch, rename, delete, app model injection, and upstream-slice adapter operations.
+- Linux GTK verification passed with QuillData included in the app/test graph.
+
+## Checkpoint 9: Editable Message Trim Path
+
+Status: passing on macOS and Linux GTK.
+
+- Added a persistence-level message trimming operation that deletes the selected message and every later message in the same conversation.
+- Wired the upstream-shaped edit flow so resending an edited user message trims stale assistant replies before sending the replacement prompt.
+- QuillData is covered for the new edit-trim path; the legacy SQLite store keeps matching regression coverage only as a reference backend.
+- Added model-level coverage for trimming a selected conversation from an edited user message.
+- Linux GTK verification passed with 27 tests, both GTK products built, and both apps surviving the Xvfb smoke run.
+- Visual QA captured the updated upstream slice at `.qa/quill-enchanted-upstream-slice-edit-trim-gtk.png`.
+
+## Checkpoint 10: Generation Stop Control
+
+Status: passing on macOS and Linux GTK.
+
+- Added model-owned send task management so app surfaces can start generation through `EnchantedModel` instead of discarding local view tasks.
+- Added `stopGenerating()` and cancellation checks in the streaming send loop so the Stop control has a real cancellation path.
+- The primary Quill Enchanted surface now shows a Stop button during generation instead of a disabled Busy button.
+- The upstream-shaped slice now routes its square Stop control to the model cancellation path.
+- Added coverage for the model stop state used by toolbar/composer generation controls.
+- Linux GTK verification passed with 28 tests, both GTK products built, and both apps surviving the Xvfb smoke run.
+
+## Checkpoint 11: Reusable QuillUI Floating Icon Control
+
+Status: passing on macOS and Linux GTK.
+
+- Extracted the upstream-slice `SimpleFloatingButton` stand-in into reusable QuillUI API as `QuillFloatingIconButton`.
+- Added `QuillGrowingButtonStyle` to QuillUI so pressed icon-button behavior is not Enchanted-specific.
+- Updated the upstream-shaped composer to use the QuillUI control for attach, send, and stop actions.
+- Added Linux compatibility coverage that instantiates the reusable control alongside file import/drop and visual-effect shims.
+- Linux GTK verification passed with 28 tests, both GTK products built, and both apps surviving the Xvfb smoke run.
+
+## Checkpoint 12: Reusable QuillUI Prompt List
+
+Status: passing on macOS and Linux GTK.
+
+- Added reusable `QuillPrompt` and `QuillPromptList` controls to QuillUI for empty states and suggested-action rows.
+- Replaced the upstream-slice local `SamplePrompts` stand-in with `QuillPromptList`.
+- Swapped the upstream-slice prompt icons to SwiftOpenUI-mapped symbols so the GTK build renders real icons instead of placeholder glyphs.
+- Added Linux compatibility coverage that instantiates `QuillPromptList` alongside other upstream SwiftUI shims.
+- Linux GTK verification passed with 28 tests, both GTK products built, and both apps surviving the Xvfb smoke run.
+- Visual QA captured the updated upstream slice at `.qa/quill-enchanted-upstream-slice-prompt-list-gtk.png`.
+
+## Checkpoint 13: Header More Menu And Contract Matrix
+
+Status: passing on macOS and Linux GTK.
+
+- Added reusable `QuillMenuAction` and `QuillMenuButton` controls to QuillUI.
+- Wired a real upstream-slice header More menu for New Chat, Refresh Models, and Clear Conversations.
+- Added Linux compatibility coverage that instantiates `QuillMenuButton` with menu items, dividers, and disabled actions.
+- Added `CoreContractMatrixTests`, a parameterized regression matrix with 392 cases covering title compaction, Markdown inline cleanup, Markdown structural parsing, Ollama stream parsing, byte formatting, image media-type acceptance, unsupported image rejection, and attachment path normalization.
+- macOS verification passed with 34 top-level tests plus the 392-case contract matrix.
+- Linux GTK verification passed with 36 top-level tests plus the same 392-case contract matrix, both GTK products built, and both apps surviving the Xvfb smoke run.
+- Visual QA captured the updated upstream slice at `.qa/quill-enchanted-upstream-slice-menu-contracts-gtk.png`.
+
+## Checkpoint 14: Enchanted Visual Parity Pass
+
+Status: passing on macOS and Linux GTK.
+
+- Reworked the upstream-shaped Linux slice to read more like Enchanted on macOS: neutral sidebar, compact toolbar, centered Enchanted wordmark, four-card prompt empty state, and a wider pill composer.
+- Added reusable `QuillPromptGrid` to QuillUI for Enchanted-style empty states instead of list-only suggested prompts.
+- Added `QuillSystemSymbol.compatibleName(_:)` so upstream SF Symbol names such as `paperplane.fill`, `photo.fill`, and `lightbulb.circle` have GTK-safe fallbacks.
+- Added deterministic prompt-card line breaking for SwiftOpenUI/GTK, where `Text` does not yet wrap like SwiftUI.
+- macOS verification passed with 34 top-level tests plus the 392-case contract matrix.
+- Linux GTK verification passed with 36 top-level tests plus the same 392-case contract matrix, both GTK products built, and both apps surviving the Xvfb smoke run.
+- Visual QA captured the updated upstream slice at `.qa/quill-enchanted-upstream-slice-visual-parity-gtk.png`.
+
+## Checkpoint 15: Live Quill Chat Reference And Coverage Audit
+
+Status: passing on macOS and Linux GTK.
+
+- Inspected the running `co.lorehex.quillchat` app directly instead of using the generic upstream Enchanted reference.
+- Confirmed the live target surface: toolbar title `Quill Chat`, centered `Quill` wordmark, four prompt cards, date-grouped sidebar, bottom Completions/Shortcuts/Settings actions, pink unreachable banner, and rounded message composer.
+- Added `scripts/audit-quill-chat.sh`, which audits the actual `/Users/jperla/claude/quill/clients/quill-chat` source for Swift files, LOC, imports, SwiftUI/SwiftData/platform API surfaces, prototype slice size, and app-side change budget.
+- Moved more live-app UI pieces into reusable QuillUI controls: `QuillConversationHistoryList`, `QuillSidebarBottomNavigation`, `QuillStatusBanner`, and `QuillChatEmptyState`.
+- Updated the Linux slice to use the live Quill Chat names, prompts, sidebar shape, unreachable banner, and empty state instead of the older Enchanted-branded approximation.
+- Current audit baseline: 92 Swift files, 7,577 Swift LOC, clean Quill Chat working tree, 797-line prototype slice, and a target app-side compatibility shim budget of <= 100 lines.
+- Current honest coverage status: not 100%. The blocked areas are still macro-level SwiftData drop-in support, Apple platform services, and several third-party UI/service packages.
+- macOS `swift test` passed with 34 top-level tests plus the 392-case contract matrix.
+- Linux GTK verification passed with 36 top-level tests plus the same 392-case contract matrix, both GTK products built, and both apps surviving the Xvfb smoke run.
+- Visual QA captured the live-reference slice at `.qa/quill-chat-live-reference-slice-gtk.png`.
+
+Next implementation slice:
+
+- Replace the prototype slice with a source-compatibility harness against the real Quill Chat files, then drive app-side changes toward the <= 100-line budget.
+- Close the next missing QuillUI API cluster before adding app-specific code: focused scene/openWindow compatibility, sheet/dialog/menu behavior, and the real GTK file picker/drag-drop path.
+
+## Checkpoint 16: Compatibility Stub Reduction
+
+Status: passing on macOS and Linux GTK.
+
+- Replaced the old `NSItemProvider` data no-op with file/data representations, UTType conformance checks, extension-based file type detection, and real `loadDataRepresentation(for:)` callbacks.
+- Wired SwiftUI-shaped `.onDrop(of:isTargeted:perform:)` to SwiftOpenUI's GTK `dropDestination(for: URL.self)`, including file type filtering and provider creation for dropped file URLs.
+- Replaced the `.fileImporter` no-op with a deterministic importer path: test selection for regression coverage, `QUILLUI_FILE_IMPORTER_SELECTION` for scripted Linux runs, and desktop command fallbacks through `zenity`, `kdialog`, or `yad`.
+- Added `focusedSceneValue` over SwiftOpenUI `focusedValue`, so Quill Chat's focused scene values can compile without an app-local shim.
+- Added Linux compatibility for macOS-style system and asset colors used by Quill Chat: `Color(.label)`, `Color(.systemGray)`, `Color(.systemRed)`, `Color("label")`, `Color.grayCustom`, `Color.gray5Custom`, and related asset names.
+- Improved visible fallbacks for `foregroundStyle`: color styles now map to `foregroundColor`, gradient styles degrade to a deterministic averaged color, and two-color foreground styles compile for Markdown checkbox rendering.
+- Unknown custom SwiftUI `ButtonStyle`s now render as plain GTK buttons instead of falling back to default platform chrome; this keeps Enchanted's many `GrowingButton()` call sites closer to the macOS look while the exact pressed-scale animation remains a future SwiftOpenUI feature.
+- Added more source-compatibility shims used by Quill Chat: `preferredColorScheme`, `PlainListStyle`/`listStyle`, Linux `PlatformImage`, a minimal `ImageRenderer`, and a fallback `KeyboardReadable` protocol.
+- Added Linux-only regression coverage for file import validation, dropped-file data loading, system/asset color compatibility, two-color `foregroundStyle`, custom button style compilation, color-scheme/list-style modifiers, image renderer symbols, and `KeyboardReadable`.
+- macOS `swift test` passed with 34 top-level tests plus the 392-case contract matrix.
+- Linux GTK verification passed with 38 top-level tests plus the same 392-case contract matrix, both GTK products built, and both apps surviving the Xvfb smoke run.
+- Remaining honest gaps: native GTK file picker integration, exact gradient text masking, `symbolEffect`, `matchedGeometryEffect`, macro-level SwiftData drop-in support, Apple platform services, and third-party package compatibility.
+
+## Checkpoint 17: Command Menu Form Compatibility
+
+Status: passing on macOS and Linux GTK.
+
+- Added source-compatibility coverage for Quill Chat's real command/menu idioms: `CommandGroup(replacing:)`, `CommandGroup(after:)`, `.appSettings`, `.appInfo`, command `Button`s, disabled commands, and keyboard shortcut wrappers.
+- Added SwiftUI-style `Menu { ... } label: { ... }` support with extraction for `Button`, disabled buttons, dividers, `ForEach`-built menu items, and generic fallback labels.
+- Added toolbar and picker compatibility used by Quill Chat: `ToolbarItemGroup`, macOS/iOS placement aliases, `Picker(selection:content:label:)`, `.pickerStyle(.menu)`, and `Label { } icon: { }`.
+- Added form/input shims for `Section(header:)`, `.formStyle(.grouped)`, `RoundedBorderTextFieldStyle`, `PlainTextFieldStyle`, text content type, autocorrection, keyboard type, and autocapitalization modifiers.
+- Added `@Namespace`, `matchedGeometryEffect(id:in:)`, and `Material.ultraThickMaterial` fallbacks so animation-heavy and material-heavy source compiles without app-local edits.
+- Added Linux-only regression coverage that instantiates the new command, menu, picker, form, toolbar, text-field, namespace, matched-geometry, and `onChange(of:initial:)` surface together.
+- Updated the Quill Chat audit script to distinguish source-compatible partial-real surfaces from remaining native-behavior polish.
+- macOS `swift test` passed with 34 top-level tests plus the 392-case contract matrix.
+- Linux GTK verification passed with the same package graph, both GTK products built, and both apps surviving the Xvfb smoke run.
+- Remaining honest gaps: exact native GTK menu presentation metadata, `symbolEffect`, exact matched-geometry animation, macro-level SwiftData drop-in support, Apple platform services, and third-party package compatibility.
+
+## Checkpoint 18: QuillKit Platform Compatibility Layer
+
+Status: passing on macOS and Linux GTK.
+
+- Added a `QuillKit` library product for platform/service compatibility so QuillUI can stay focused on SwiftUI-shaped view APIs.
+- Added Linux source-compatibility modules for `SwiftUI`, `SwiftData`, `UniformTypeIdentifiers`, `Combine`, `AppKit`, `UIKit`, `AVFoundation`, `Speech`, `KeyboardShortcuts`, `Magnet`, `PhotosUI`, `Security`, `ServiceManagement`, `Sparkle`, `ApplicationServices`, `CoreGraphics`, `Alamofire`, `ActivityIndicatorView`, `Vortex`, and `WrappingHStack`.
+- Centralized reusable Linux service state in QuillKit: capability reporting, emulated clipboard storage, speech voice/synthesis hooks, launch-service state, trust/certificate placeholders, hotkey registration hooks, and accessibility status.
+- Moved AppKit/UIKit pasteboard shims onto QuillKit's clipboard backend, AVFoundation speech shims onto QuillKit's speech backend, and ServiceManagement launch-item state onto QuillKit's launch-service backend.
+- Added Linux import-module regression tests covering SwiftUI/SwiftData aliases, third-party UI shims, Apple service shims, Security/CoreGraphics/ApplicationServices/Alamofire shims, and Combine cancellation/timer compatibility.
+- Fixed a structural source-compatibility trap introduced by the Linux `SwiftUI` alias: QuillUI's own internals now use OS checks instead of `canImport(SwiftUI)`, so app targets can import the shim without making QuillUI recursively import itself.
+- Quill Chat itself remains untouched: the working tree at `/Users/jperla/claude/quill/clients/quill-chat` is still clean.
+- macOS `swift test` passed with 34 tests in 7 suites plus the contract matrix.
+- Linux `swift test` passed with 43 tests in 10 suites plus the contract matrix.
+- Linux GTK verification passed: both GTK products built and both apps survived the Xvfb smoke run.
+- Remaining honest gaps: native Linux implementations behind QuillKit for clipboard/secret-service/speech/global shortcuts/USB detection/updater behavior, `MarkdownUI`/`Splash` compatibility, macro-level SwiftData drop-in support, exact menu presentation, and exact animation behavior.
+
+## Checkpoint 19: Quality Baseline Pass
+
+Status: passing on macOS, Linux, GTK smoke, and GTK screenshot smoke.
+
+- Audited the current QuillUI/QuillKit base for concurrency hazards, silent fallback behavior, weak Linux-only compile coverage, and warning noise.
+- Added `QuillCompatibilityDiagnostics` so compatibility fallbacks record explicit diagnostic events instead of disappearing silently.
+- Made QuillKit service state safer: type-aware clipboard string/data storage, lock-protected launch-service state, lock-protected speech state, and workspace opening through `xdg-open` on Linux.
+- Moved AppKit/UIKit/Speech/CoreGraphics/Security fallback behavior onto diagnostics, so missing native Linux backends are visible during QA.
+- Strengthened the Combine shim with idempotent `AnyCancellable`, `store(in:)`, `Just`, `Empty`, `Fail`, `PassthroughSubject`, and a real two-input `Publishers.Merge`.
+- Removed the file importer's mutable static state by moving the test hook behind a locked `static let` box, which satisfies Linux Swift 6 concurrency checking.
+- Replaced the QuillData uninitialized attribute `fatalError` with an explicit precondition failure.
+- Added `QuillKitTests` for clipboard, diagnostics, and launch-service state, and expanded Linux compatibility-module tests for Combine subjects/merge.
+- Added `scripts/patch-swiftopenui-gtk-css.sh` and wired it into GTK smoke scripts to remove unsupported GTK `object-fit` CSS from the pinned SwiftOpenUI checkout during reproducible Linux QA.
+- The source/test hygiene scan for `nonisolated(unsafe)`, `fatalError`, `TODO`, `FIXME`, stub/no-op wording, and stray `print(` is clean.
+- macOS `swift test` passed with 37 tests in 8 suites.
+- Linux `swift test --scratch-path .build-linux` passed with 47 tests in 11 suites.
+- Linux GTK verification passed: both GTK products built and both apps survived the Xvfb smoke run.
+- GTK screenshot smoke passed for `quill-enchanted`: `.qa/quill-enchanted-gtk-quality.png` at 1180x760 with mean pixel value 62165.1.
+- Quality grade after this pass: A- for the foundation. The remaining downgrade is product coverage, not local code hygiene: native Linux service backends, full MarkdownUI/Splash compatibility, macro-level SwiftData drop-in strategy, exact menus, and exact animation parity still need real implementation work.
+
+## Checkpoint 20: Expanded Reuse Regression Suite
+
+Status: passing on macOS, Linux, and full Linux GTK smoke.
+
+- Added broad edge-case coverage for the reusable base: QuillData fetch/sort/limit/delete/upsert/persistence/relationship behavior, QuillKit clipboard/capability/speech/hotkey/trust behavior, AppStorage persistence/binding/raw-value behavior, upstream file/drop/UTType shims, and Linux compatibility modules.
+- Fixed QuillData chained sorting so multi-sort fetch descriptors use a single ordered comparator instead of relying on repeated sort passes.
+- Made process-wide fallback tests deterministic by serializing the AppStorage and Linux compatibility-module suites around `UserDefaults` and shared shim state.
+- Added diagnostic fallback smoke coverage for Apple service modules through `AppleCompatibilitySmoke`, keeping direct UIKit/AppKit/AVFoundation/Speech/Security/CoreGraphics imports out of Swift Testing-generated Linux test files.
+- macOS `swift test` passed with 49 top-level tests in 8 suites, including the large parameterized contract matrix.
+- Linux `swift test --scratch-path .build-linux` passed with 69 top-level tests in 11 suites.
+- Linux GTK verification passed: dependencies checked, both GTK products built, and both apps survived the 6-second Xvfb smoke run.
+- `bash -n scripts/*.sh`, the source/test hygiene scan, and `scripts/audit-quill-chat.sh` are clean.
+- Quill Chat itself remains untouched: the working tree at `/Users/jperla/claude/quill/clients/quill-chat` is still clean, and the prototype slice remains 797 lines of scaffolding rather than the intended final app-side port shape.
+- Remaining honest gaps: native Linux service backends, full MarkdownUI/Splash compatibility, macro-level SwiftData source compatibility, exact GTK menus, exact animation parity, and broad app-by-app validation beyond the current Enchanted/Quill Chat slice.
+
+## Checkpoint 21: Combine Behavior Upgrade
+
+Status: passing on macOS, Linux, and full Linux GTK smoke.
+
+- Upgraded the Linux `Combine` shim from compile-only timer/notification publishers to emitting publishers backed by `DispatchSourceTimer` and `NotificationCenter` observers.
+- Made `PassthroughSubject` completion terminal: existing subscribers receive completion, later values are ignored, and late subscribers immediately receive the terminal completion.
+- Added Linux regression tests for terminal subject completion and live timer/notification publisher emission.
+- Kept cancellation idempotent and scoped: timer sources cancel through `AnyCancellable`, notification observers are removed on cancel, and subject subscriber cancellation still removes only that subscriber.
+- macOS `swift test` still passed with 49 top-level tests in 8 suites.
+- Linux GTK verification passed with 71 top-level tests in 11 suites, both GTK products built, and both apps surviving the 6-second Xvfb smoke run.
+- `bash -n scripts/*.sh` and the source/test hygiene scan remain clean.
+- Compatibility grade impact: the Combine surface moves from compile-only C+/B- toward B for app portability. Remaining Combine gaps include schedulers, operators beyond `map`/`merge`, demand/backpressure, `CurrentValueSubject`, `Published`, and richer async bridging.
+
+## Checkpoint 22: OpenCombine And Coverage Baseline
+
+Status: passing on macOS, Linux, and Linux GTK smoke.
+
+- Replaced the local Linux `Combine` implementation with OpenCombine 0.14.0 re-exported from the `Combine` compatibility module.
+- Kept only thin source-compatibility veneers around OpenCombine for spellings used by target apps: `AnyPublisher()`, `NotificationCenter.publisher(for:object:)`, and `Publishers.Merge`.
+- Left Foundation as plain `import Foundation`, relying on Apple's swift-corelibs-foundation on Linux instead of creating a QuillKit wrapper for APIs already supplied by the official runtime.
+- Hardened QuillData so nonthrowing `insert(_:)` and `delete(_:)` record persistence failures and surface them through `save()`, and added locking around context state plus the shared SQLite handle/encoder/decoder.
+- Added QuillUI diagnostics for source-compatible fallback modifiers such as `symbolEffect`, `matchedGeometryEffect`, `mask`, text-input hints, form styles, custom button styles, and image rendering mode.
+- Added `docs/api-coverage-matrix.md` as the current API coverage matrix for compile, behavior, native, and tested status across QuillUI, QuillKit, QuillData, Combine, platform services, third-party packages, and Enchanted.
+- Added `scripts/coverage-summary.sh` and made GTK QA scripts faster by skipping apt when packages are present or `QUILLUI_SKIP_APT=1`; GTK smoke duration is now configurable with `QUILLUI_SMOKE_SECONDS`.
+- macOS `swift test` and `swift test --enable-code-coverage` passed with 51 tests in 8 suites.
+- Linux `swift test --scratch-path .build-linux-cov --enable-code-coverage` passed with 74 tests in 11 suites.
+- Linux GTK verification passed: both GTK products built and both apps survived the Xvfb smoke run.
+- Coverage baseline: Linux QuillUI 545/1458 lines (37.4%), Linux QuillKit 142/175 lines (81.1%); macOS QuillKit 121/135 lines (89.6%). macOS QuillUI reports 0/692 because the Linux compatibility shims are not compiled by the macOS test graph.
+- `bash -n scripts/*.sh` and the source/test hygiene scan remain clean.
+- Remaining long-term gap: true macro-level SwiftData drop-in and near-zero-change real Quill Chat source compilation remain the next major milestone, separate from this checkpoint's 1-4 fixes.
+
+## Checkpoint 23: P1/P2 Fixes And 90% QuillUI Coverage
+
+Status: passing on macOS and Linux, with Linux QuillUI coverage inside the 80-100% target band.
+
+- Fixed the P1 QuillData delete-all resurrection bug: `ModelContext.delete(model:)` now untracks class-backed model instances after deleting all rows, so later mutation plus `save()` cannot reinsert deleted objects.
+- Fixed the P1 Enchanted model actor-isolation issue by making `EnchantedModel` main-actor isolated and updating the Linux/macOS app entry points and upstream-shaped views to construct it through main-actor-safe paths.
+- Fixed the P2 Combine merge demand bug: the local `Publishers.Merge` veneer now buffers values beyond current downstream demand, waits for both inputs before finishing, and cancels both upstream subscriptions deterministically.
+- Fixed the P2 disabled menu behavior: disabled menu adapters now suppress item actions, command items preserve disabled state, and regression tests cover both paths.
+- Replaced several compile-only visual fallbacks with visible approximations: shape masks map to `clipShape`, `symbolEffect` and `matchedGeometryEffect` apply value-driven animations with diagnostics, and grouped form styles render grouped padding/background.
+- Made `.fileImporter` and `.onDrop` return concrete SwiftOpenUI wrapper types on Linux, which keeps caller source compatibility while letting tests exercise stored selection/drop closures directly.
+- Added high-signal Linux tests that materialize nested SwiftOpenUI view trees and exercise menu, command, picker, file importer, drop, color, environment, task, form, mask, and visual-effect compatibility paths.
+- Linux `swift test --scratch-path .build-linux` passed with 81 tests in 11 suites.
+- Linux `swift test --scratch-path .build-linux-cov --enable-code-coverage` passed with 81 tests in 11 suites.
+- Coverage after this pass: Linux QuillUI 1339/1488 lines (90.0%), functions 245/283 (86.6%), regions 374/457 (81.8%); Linux QuillKit 142/175 lines (81.1%), functions 50/56 (89.3%), regions 53/62 (85.5%).
+- File-level Linux QuillUI coverage: `AppStorage.swift` 96.9%, `Compatibility.swift` 90.7%, `Controls.swift` 98.1%, `UpstreamCompatibility.swift` 80.0%.
+- macOS `swift test` passed with 52 tests in 8 suites.
+- `bash -n scripts/*.sh` passed.
+- Remaining honest gaps are now native-depth rather than P1/P2 correctness: exact GTK/libadwaita menus, exact symbol/matched-geometry animation parity, native text-input hints, native Linux service backends, full MarkdownUI/Splash compatibility, and macro-level SwiftData source compatibility.
+
+## Checkpoint 24: Empty-State Visual Parity Pass
+
+Status: passing on macOS, Linux, and Linux GTK visual smoke.
+
+- Tightened the upstream-shaped Quill Chat GTK empty state against the macOS reference: the sidebar now requests a 330px split-view column instead of the narrow default, matching the Mac layout proportions more closely at the 1180x760 smoke size.
+- Hid the offline/reachability banner on the empty conversation state, so first launch keeps the clean Quill wordmark, prompt cards, and bottom composer layout. The warning remains available once a real conversation is selected.
+- Refreshed the Quill Chat audit script's visual-effects row to reflect the current partial-real state: shape masks, `symbolEffect`, and `matchedGeometryEffect` now have visible approximations rather than being future compile-only work.
+- Linux visual QA captured `.qa/heartbeat-gtk-visual-polish.png` for `quill-enchanted-upstream-slice`: 1180x760, mean pixel value 63496.4.
+- macOS `swift test` passed with 52 tests in 8 suites.
+- Linux `swift test --scratch-path .build-linux` passed with 81 tests in 11 suites.
+- `bash -n scripts/*.sh` and `scripts/audit-quill-chat.sh` passed.
+- The `@preconcurrency View` bridge remains intentionally in place for the two main-actor app roots. Removing it fails Linux Swift 6 conformance isolation against SwiftOpenUI's currently nonisolated `View` protocol; the remaining warning is a backend/protocol isolation cleanup item, not an app correctness failure.
