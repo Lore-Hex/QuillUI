@@ -314,6 +314,83 @@ final class PanelManager: NSObject {
 #endif
 SWIFT
 
+quill_updater="$LOWERED_COPY/Application/QuillUpdater.swift"
+if [[ -f "$quill_updater" ]]; then
+  cat > "$quill_updater" <<'SWIFT'
+#if os(macOS) || os(Linux)
+import SwiftUI
+
+final class QuillUpdater: ObservableObject {
+    static let shared = QuillUpdater()
+
+    @Published private(set) var canCheckForUpdates = false
+
+    private init() {}
+
+    func checkForUpdates() {}
+}
+
+struct CheckForUpdatesMenuItem: View {
+    @ObservedObject private var updater = QuillUpdater.shared
+
+    var body: some View {
+        Button("Check for Updates...") {
+            updater.checkForUpdates()
+        }
+        .disabled(!updater.canCheckForUpdates)
+    }
+}
+#endif
+SWIFT
+fi
+
+quill_usb_watcher="$LOWERED_COPY/Application/QuillUSBWatcher.swift"
+if [[ -f "$quill_usb_watcher" ]]; then
+  cat > "$quill_usb_watcher" <<'SWIFT'
+#if os(macOS) || os(Linux)
+import Foundation
+import QuillKit
+
+final class QuillUSBWatcher {
+    static let shared = QuillUSBWatcher()
+
+    private init() {}
+
+    func start() {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "QuillUSBWatcher.start",
+            severity: .unsupported,
+            message: "Quill USB watcher has no native Linux backend yet."
+        )
+    }
+
+    func stop() {}
+    func autoConfigureIfNeeded() {}
+}
+#endif
+SWIFT
+fi
+
+quill_usb_launcher="$LOWERED_COPY/Application/QuillUSBLauncher.swift"
+if [[ -f "$quill_usb_launcher" ]]; then
+  cat > "$quill_usb_launcher" <<'SWIFT'
+#if os(macOS) || os(Linux)
+import Foundation
+import os
+
+enum QuillUSBLauncher {
+    static let label = "co.lorehex.quillchat.usb-launcher"
+    private static let log = Logger(subsystem: "co.lorehex.quillchat", category: "usb-launcher")
+
+    static func install() {
+        log.info("Quill USB LaunchAgent install is unavailable on Linux.")
+    }
+}
+#endif
+SWIFT
+fi
+
 while IFS= read -r -d '' source_file; do
   relative_path="${source_file#$LOWERED_COPY/}"
   destination_file="$TARGET_DIR/$relative_path"
@@ -554,8 +631,14 @@ let package = Package(
                 .product(name: "Speech", package: "QuillUI"),
                 .product(name: "PhotosUI", package: "QuillUI"),
                 .product(name: "UIKit", package: "QuillUI"),
+                .product(name: "IOKit", package: "QuillUI"),
+                .product(name: "Security", package: "QuillUI"),
+                .product(name: "ServiceManagement", package: "QuillUI"),
+                .product(name: "Sparkle", package: "QuillUI"),
                 .product(name: "ApplicationServices", package: "QuillUI"),
-                .product(name: "CoreGraphics", package: "QuillUI")
+                .product(name: "CoreGraphics", package: "QuillUI"),
+                .product(name: "Alamofire", package: "QuillUI"),
+                .product(name: "os", package: "QuillUI")
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5)

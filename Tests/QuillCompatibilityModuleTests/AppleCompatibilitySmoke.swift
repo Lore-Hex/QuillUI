@@ -11,6 +11,7 @@ import Security
 import ApplicationServices
 import CoreGraphics
 import Alamofire
+import os
 
 enum AppleCompatibilitySmoke {
     struct AppleServiceResult {
@@ -34,6 +35,12 @@ enum AppleCompatibilitySmoke {
         var namedImagePlaceholder: Bool
         var bitmapRepresentationRoundTrip: Bool
         var operations: Set<String>
+    }
+
+    struct OSLogResult {
+        var operations: Set<String>
+        var renderedPublicValue: Bool
+        var redactedPrivateValue: Bool
     }
 
     static func runAppleServiceSmoke() throws -> AppleServiceResult {
@@ -175,6 +182,21 @@ enum AppleCompatibilitySmoke {
             namedImagePlaceholder: namedImage?.size == CGSize(width: 1, height: 1),
             bitmapRepresentationRoundTrip: rep?.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) == encoded,
             operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        )
+    }
+
+    static func runOSLogSmoke() -> OSLogResult {
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let logger = Logger(subsystem: "co.lorehex.quillchat", category: "usb-launcher")
+        logger.info("public value: \("visible", privacy: .public)")
+        logger.error("private value: \("hidden", privacy: .private)")
+
+        let messages = QuillCompatibilityDiagnostics.shared.events.map(\.message).joined(separator: "\n")
+        return OSLogResult(
+            operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation)),
+            renderedPublicValue: messages.contains("visible"),
+            redactedPrivateValue: messages.contains("<private>") && !messages.contains("hidden")
         )
     }
 }

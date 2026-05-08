@@ -186,6 +186,14 @@ struct CompatibilityModuleTests {
         #expect(values.last?.done == true)
         #expect(transport.requests.contains { $0.path == "/api/chat" && $0.authorization == "Bearer secret" })
         #expect(transport.chatBody?.contains(#""stream":true"#) == true)
+
+        let sessionBackedKit = OllamaKit(
+            baseURL: URL(string: "http://localhost:11434")!,
+            bearerToken: "secret",
+            session: "compat-session"
+        )
+        #expect(sessionBackedKit.baseURL.absoluteString == "http://localhost:11434")
+        #expect(sessionBackedKit.bearerToken == "secret")
     }
 
     @Test("OllamaKit compatibility reports HTTP and stream parse failures")
@@ -264,6 +272,15 @@ struct CompatibilityModuleTests {
     @Test("Security CoreGraphics Accessibility and Alamofire adapters compile")
     func lowerLevelServiceModulesCompile() throws {
         #expect(try AppleCompatibilitySmoke.runLowerLevelServiceSmoke())
+    }
+
+    @Test("os Logger compatibility records privacy-aware diagnostics")
+    func osLoggerCompatibilityRecordsDiagnostics() {
+        let result = AppleCompatibilitySmoke.runOSLogSmoke()
+        #expect(result.operations.contains("Logger.info"))
+        #expect(result.operations.contains("Logger.error"))
+        #expect(result.renderedPublicValue)
+        #expect(result.redactedPrivateValue)
     }
 
     @Test("Combine compatibility publishers support cancellation and timer sinks")

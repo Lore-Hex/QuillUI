@@ -99,6 +99,7 @@ let linuxCompatibilityModuleTargets: [Target] = [
     .target(name: "ApplicationServices", dependencies: ["QuillKit"]),
     .target(name: "CoreGraphics", dependencies: ["QuillKit"]),
     .target(name: "Alamofire", dependencies: ["Security", "QuillKit"]),
+    .target(name: "os", dependencies: ["QuillKit"]),
     .testTarget(
         name: "QuillCompatibilityModuleTests",
         dependencies: [
@@ -126,7 +127,8 @@ let linuxCompatibilityModuleTargets: [Target] = [
             "Sparkle",
             "ApplicationServices",
             "CoreGraphics",
-            "Alamofire"
+            "Alamofire",
+            "os"
         ]
     )
 ]
@@ -157,7 +159,8 @@ let linuxCompatibilityModuleNames = [
     "Sparkle",
     "ApplicationServices",
     "CoreGraphics",
-    "Alamofire"
+    "Alamofire",
+    "os"
 ]
 
 products += linuxCompatibilityModuleNames.map { .library(name: $0, targets: [$0]) }

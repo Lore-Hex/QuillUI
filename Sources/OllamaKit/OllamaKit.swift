@@ -48,6 +48,14 @@ public final class OllamaKit: @unchecked Sendable {
         self.transport = transport
     }
 
+    public convenience init<Session>(
+        baseURL: URL,
+        bearerToken: String? = nil,
+        session: Session
+    ) {
+        self.init(baseURL: baseURL, bearerToken: bearerToken)
+    }
+
     public func models() async throws -> OKModelsResponse {
         let (data, response) = try await transport.data(for: request(path: "api/tags"))
         try validate(response: response, data: data)

@@ -456,3 +456,18 @@ Status: passing on macOS, Linux, and Linux GTK smoke.
 - Generated full-source verification passed: 87 source Swift files copied, 89 generated Swift files compiled, and no generated-code warnings after lowering cleanup; remaining warnings are external SwiftPM/OpenCombine `-pthread` warnings.
 - Linux GTK verification passed: unit tests, generated Enchanted core build, chat-components build, macOS-chat build, full-source build, both GTK products built, and both apps survived the 4-second Xvfb smoke run.
 - Remaining honest gaps: this is 87/87 upstream Enchanted compile coverage, not yet the local 92-file Quill Chat rebrand as a production Linux app. The remaining work is turning the generated source pipeline into a maintained build plugin/tiny Linux entry point and replacing diagnostic service fallbacks with native Linux backends.
+
+## Checkpoint 34: Local Quill Chat Full-Source Build
+
+Status: passing on macOS, Linux, and Linux GTK smoke.
+
+- Extended the full-source generated harness to handle the local Quill Chat rebrand without editing the app source: `ENCHANTED_SOURCE_DIR=/Users/jperla/claude/quill/clients/quill-chat/Enchanted QUILLUI_GENERATED_ENCHANTED_FULL_WORKDIR=/tmp/quill-chat-full-source-check scripts/generated-enchanted-full-source-check.sh`.
+- Added a Linux `os` compatibility product with privacy-aware `Logger` interpolation, covering Quill Chat's USB launcher logging surface.
+- Added the Quill Chat `OllamaKit(baseURL:bearerToken:session:)` initializer shape so the app's pinned Alamofire session call sites compile through the compatibility package.
+- Added generated Linux bridges for Quill Chat's Sparkle updater menu item and macOS USB watcher/LaunchAgent services. These record or expose unavailable fallback behavior instead of running macOS launch services on Linux.
+- Updated the audit script and API coverage matrix so the local 92-file Quill Chat full-source check is a first-class repeatable QA target, not a one-off manual command.
+- Local Quill Chat generated full-source verification passed: 92 source Swift files copied and 94 generated Swift files compiled.
+- macOS verification passed: `swift test --disable-automatic-resolution` with 58 tests in 9 suites.
+- Linux GTK verification passed: 98 tests in 12 suites, generated Enchanted core build, chat-components build, macOS-chat build, upstream 87-file full-source build, both GTK products built, and both apps survived the 6-second Xvfb smoke run.
+- `bash -n scripts/*.sh` and `git diff --check` passed.
+- Remaining honest gaps: this is still generated-source compile coverage for the local Quill Chat app, not a packaged production Linux app. The next step is to turn the generated pipeline into a tiny maintained Linux target/build plugin and replace the updater/USB/platform-service fallbacks with native Linux backends where the app needs real behavior.
