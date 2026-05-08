@@ -12,6 +12,7 @@ MSG
 fi
 
 LOWERED_COPY="$1"
+TOOLING_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
 if [[ ! -d "$LOWERED_COPY" ]]; then
   echo "Lowered Enchanted source directory was not found: $LOWERED_COPY" >&2
@@ -27,6 +28,18 @@ find "$LOWERED_COPY" -name '*.swift' -print0 |
     s/_ = try await loadCompletions/_ = await loadCompletions/g;
     s/try\? await conversationStore\.deleteAllConversations\(\)/conversationStore.deleteAllConversations()/g;
   '
+
+"$TOOLING_DIR/ensure-swift-imports.sh" "$LOWERED_COPY" AppKit \
+  Application/EnchantedApp.swift \
+  Extensions/UIImage+Extension.swift \
+  UI/macOS/Chat/Components/InputFields_macOS.swift \
+  UI/macOS/Components/PromptPanelView.swift \
+  UI/macOS/MenuBar/MenuBarControlView_macOS.swift \
+  UI/Shared/Settings/SettingsView.swift
+
+"$TOOLING_DIR/ensure-swift-imports.sh" "$LOWERED_COPY" SwiftUI \
+  Services/Clipboard.swift \
+  UI/Shared/Chat/Components/Recorder/SpeechRecogniser.swift
 
 conversation_store="$LOWERED_COPY/Stores/ConversationStore.swift"
 if [[ -f "$conversation_store" ]]; then
@@ -56,15 +69,9 @@ fi
 clipboard="$LOWERED_COPY/Services/Clipboard.swift"
 if [[ -f "$clipboard" ]]; then
   perl -0pi -e '
-    s/import Foundation\n/import Foundation\nimport SwiftUI\n/;
     s/return NSImage\(data: imgData\)/return PlatformImage(data: imgData)/g;
     s/\n#endif\n[ \t]*return nil\n([ \t]*\})/\n#endif\n$1/s;
   ' "$clipboard"
-fi
-
-input_fields="$LOWERED_COPY/UI/macOS/Chat/Components/InputFields_macOS.swift"
-if [[ -f "$input_fields" ]]; then
-  perl -0pi -e 's/import SwiftUI/import SwiftUI\nimport AppKit/' "$input_fields"
 fi
 
 sidebar_button="$LOWERED_COPY/UI/Shared/Sidebar/Components/SidebarButton.swift"
@@ -93,24 +100,8 @@ fi
 enchanted_app="$LOWERED_COPY/Application/EnchantedApp.swift"
 if [[ -f "$enchanted_app" ]]; then
   perl -0pi -e '
-    s/import SwiftUI/import SwiftUI\nimport AppKit/;
     s/\@NSApplicationDelegateAdaptor\(PanelManager\.self\) var panelManager/\@State var panelManager = PanelManager()/g;
   ' "$enchanted_app"
-fi
-
-prompt_panel_view="$LOWERED_COPY/UI/macOS/Components/PromptPanelView.swift"
-if [[ -f "$prompt_panel_view" ]]; then
-  perl -0pi -e 's/import SwiftUI/import SwiftUI\nimport AppKit/' "$prompt_panel_view"
-fi
-
-menu_bar_control_view="$LOWERED_COPY/UI/macOS/MenuBar/MenuBarControlView_macOS.swift"
-if [[ -f "$menu_bar_control_view" ]]; then
-  perl -0pi -e 's/import SwiftUI/import SwiftUI\nimport AppKit/' "$menu_bar_control_view"
-fi
-
-settings_view="$LOWERED_COPY/UI/Shared/Settings/SettingsView.swift"
-if [[ -f "$settings_view" ]]; then
-  perl -0pi -e 's/import SwiftUI/import SwiftUI\nimport AppKit/' "$settings_view"
 fi
 
 header_view="$LOWERED_COPY/UI/Shared/Chat/Components/Header.swift"
@@ -293,11 +284,6 @@ struct ChatView: View {
 SWIFT
 fi
 
-ui_image_extension="$LOWERED_COPY/Extensions/UIImage+Extension.swift"
-if [[ -f "$ui_image_extension" ]]; then
-  perl -0pi -e 's/import SwiftUI/import SwiftUI\nimport AppKit/' "$ui_image_extension"
-fi
-
 view_extension="$LOWERED_COPY/Extensions/View+Extension.swift"
 if [[ -f "$view_extension" ]]; then
   perl -0pi -e '
@@ -316,7 +302,6 @@ fi
 speech_recogniser="$LOWERED_COPY/UI/Shared/Chat/Components/Recorder/SpeechRecogniser.swift"
 if [[ -f "$speech_recogniser" ]]; then
   perl -0pi -e '
-    s/import Speech/import Speech\nimport SwiftUI/;
     s/actor SpeechRecognizer/final class SpeechRecognizer/;
     s/Task \{[ \t]*\@MainActor[ \t]+in/Task {/g;
     s/Task \{[ \t]*\@MainActor[ \t]+\[errorMessage\][ \t]+in/Task { [errorMessage] in/g;
@@ -405,7 +390,7 @@ enum QuillUSBLauncher {
 }
 SWIFT
 
-"$(dirname "$0")/../../generate-hashable-identity-shims.sh" \
+"$TOOLING_DIR/generate-hashable-identity-shims.sh" \
   "$LOWERED_COPY/QuillGeneratedFullSourceShims.swift" \
   LanguageModelSD:name:id:String \
   ConversationSD:id \

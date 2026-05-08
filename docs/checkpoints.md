@@ -751,3 +751,17 @@ Status: passing for focused macOS/Linux source-lowering tests, generated upstrea
 - Verified generated check mode: `scripts/generated-enchanted-full-source-check.sh` compiled 87 source Swift files into 90 generated Swift files.
 - Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt 92 source Swift files into 95 generated Swift files and passed landmarks with header `73px`, toolbar `48-56`, prompt cards `395-1045`, and composer `750px@474`.
 - Remaining honest gap: the profile is still 413 lines because the large generated Quill Chat desktop view replacement and several actor/service rewrites remain app-specific. Next reductions should move more alias/service shims and import lowering into shared tooling or library APIs.
+
+## Checkpoint 55: Declarative Swift Import Lowering
+
+Status: passing for focused macOS/Linux source-lowering tests, generated upstream Enchanted compile, and generated Quill Chat visual smoke.
+
+- Added `scripts/ensure-swift-imports.sh`, a reusable build-tooling helper that inserts missing Swift compatibility imports idempotently and skips optional files.
+- Replaced repeated Enchanted profile import rewrites with two declarative calls for AppKit shim imports and SwiftUI shim imports.
+- Reduced `scripts/profiles/enchanted-full-source/lower-profile-source.sh` from 413 to 398 lines without editing app sources.
+- Added regression coverage for idempotent import insertion, no-import files, already-imported files, and missing optional files.
+- Verified macOS focused: `swift test --scratch-path .build-macos-lowering --disable-automatic-resolution --filter QuillDataSourceLoweringTests` passed with 3 tests.
+- Verified Linux focused: `swift test --scratch-path .build-linux --filter QuillDataSourceLoweringTests` passed with 3 tests.
+- Verified generated check mode: `scripts/generated-enchanted-full-source-check.sh` compiled 87 source Swift files into 90 generated Swift files.
+- Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt 92 source Swift files into 95 generated Swift files and passed landmarks with header `73px`, toolbar `48-56`, prompt cards `395-1045`, and composer `750px@474`.
+- Remaining honest gap: this only removes repeated import boilerplate. The large ChatView/empty-state replacements are still the dominant profile LOC and need either library-owned generated views or a declarative replacement-manifest runner next.

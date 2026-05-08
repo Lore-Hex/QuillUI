@@ -56,6 +56,8 @@ assembly:
 - `scripts/lower-swiftui-source-for-linux.sh` applies conservative in-place
   cleanup for generated SwiftUI source, including `@main`, previews,
   `@Observable`, `@MainActor`, and `os(macOS)` platform gates.
+- `scripts/ensure-swift-imports.sh` lets profiles declare compatibility module
+  imports for optional Swift files without open-coding one-off source rewrites.
 - `scripts/generate-hashable-identity-shims.sh` emits small generated Swift
   extensions that make lowered model classes `Hashable`/`Equatable` by stable
   identity properties, with optional `Identifiable.id` aliases for models whose

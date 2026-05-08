@@ -97,6 +97,70 @@ struct QuillDataSourceLoweringTests {
         #expect(generated.contains("hasher.combine(id)"))
     }
 
+    @Test("Swift import helper inserts missing imports idempotently")
+    func swiftImportHelperInsertsMissingImportsIdempotently() throws {
+        let root = try packageRoot()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillSwiftImportTests-\(UUID().uuidString)", isDirectory: true)
+        let source = directory.appendingPathComponent("Source", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+
+        let needsImport = source.appendingPathComponent("NeedsImport.swift")
+        try """
+        //
+        // NeedsImport.swift
+        //
+
+        import Foundation
+
+        struct NeedsImport {}
+        """.write(to: needsImport, atomically: true, encoding: .utf8)
+
+        let alreadyImported = source.appendingPathComponent("AlreadyImported.swift")
+        try """
+        import Foundation
+        import AppKit
+
+        struct AlreadyImported {}
+        """.write(to: alreadyImported, atomically: true, encoding: .utf8)
+
+        let noImport = source.appendingPathComponent("NoImport.swift")
+        try "struct NoImport {}\n".write(to: noImport, atomically: true, encoding: .utf8)
+
+        let script = root.appendingPathComponent("scripts/ensure-swift-imports.sh")
+        for _ in 0..<2 {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = [
+                script.path,
+                source.path,
+                "AppKit",
+                "NeedsImport.swift",
+                "AlreadyImported.swift",
+                "NoImport.swift",
+                "MissingOptional.swift"
+            ]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = pipe
+            try process.run()
+            process.waitUntilExit()
+
+            let log = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            #expect(process.terminationStatus == 0, Comment(rawValue: log))
+        }
+
+        let lowered = try String(contentsOf: needsImport, encoding: .utf8)
+        #expect(lowered.contains("import Foundation\nimport AppKit\n\nstruct NeedsImport"))
+
+        let existing = try String(contentsOf: alreadyImported, encoding: .utf8)
+        #expect(existing.components(separatedBy: "import AppKit").count == 2)
+
+        let prepended = try String(contentsOf: noImport, encoding: .utf8)
+        #expect(prepended.hasPrefix("import AppKit\nstruct NoImport"))
+    }
+
     private func packageRoot() throws -> URL {
         var directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
         for _ in 0..<8 {
