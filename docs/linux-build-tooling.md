@@ -48,6 +48,15 @@ reusable SwiftPM package shape: copying lowered sources, adding the QuillUI
 compatibility products, optionally generating the GTK `@main`, patching the
 pinned SwiftOpenUI checkout, and running `swift build`.
 
+Profiles can also reuse the generic source-lowering helpers before package
+assembly:
+
+- `scripts/lower-swiftdata-for-quilldata.sh` copies an app tree and lowers
+  SwiftData model syntax to QuillData-compatible source.
+- `scripts/lower-swiftui-source-for-linux.sh` applies conservative in-place
+  cleanup for generated SwiftUI source, including `@main`, previews,
+  `@Observable`, `@MainActor`, and `os(macOS)` platform gates.
+
 The package helper takes this stable environment contract:
 
 - `QUILLUI_GENERATED_SOURCES_DIR`

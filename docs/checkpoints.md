@@ -568,3 +568,15 @@ Status: passing on macOS and Linux test suites.
 - Verified macOS: `swift test --disable-automatic-resolution` passed with 73 tests in 10 suites.
 - Verified Linux: `swift test --scratch-path .build-linux` passed with 135 tests in 13 suites.
 - Remaining honest gap: this is API/semantic parity coverage, not visual parity. Next useful parity tests should compare generated view trees and eventually screenshot-level output against real SwiftUI references.
+
+## Checkpoint 42: Shared SwiftUI Source Lowering
+
+Status: passing for generated check mode, generic app mode, and Xvfb startup smoke after extraction.
+
+- Added `scripts/lower-swiftui-source-for-linux.sh` for app-agnostic cleanup of generated SwiftUI source before Linux builds.
+- Moved generic `@main`, `@Observable`, preview, `@MainActor`, `os(macOS)`, and `View, Sendable` rewrites out of the Enchanted full-source script.
+- Documented the generic SwiftData and SwiftUI source-lowering helpers in `docs/linux-build-tooling.md`.
+- Verified generated check mode against the local 92-file Quill Chat tree through the shared SwiftUI lowering helper.
+- Verified generic app mode through `scripts/build-swiftui-linux-app.sh --profile enchanted-full-source`: `quill-chat-linux` built and survived a 6-second Xvfb startup smoke.
+- `bash -n scripts/*.sh scripts/profiles/*.sh` and `git diff --check` passed.
+- Remaining honest gap: most of the Enchanted script is still app-specific actor/async/store/view patching. Future passes should convert those into named, testable profile phases and move more source-shape compatibility into library APIs.

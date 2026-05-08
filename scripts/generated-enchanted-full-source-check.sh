@@ -72,18 +72,10 @@ mkdir -p "$SOURCE_COPY"
 cp -R "$UPSTREAM_DIR"/. "$SOURCE_COPY"/
 
 "$ROOT_DIR/scripts/lower-swiftdata-for-quilldata.sh" "$SOURCE_COPY" "$LOWERED_COPY"
+"$ROOT_DIR/scripts/lower-swiftui-source-for-linux.sh" "$LOWERED_COPY"
 
 find "$LOWERED_COPY" -name '*.swift' -print0 |
   xargs -0 perl -0pi -e '
-    s/^[ \t]*\@main[ \t]*\n//gm;
-    s/^[ \t]*\@Observable[ \t]*\n//gm;
-    s/\n[ \t]*#Preview[\s\S]*?#endif\s*\z/\n#endif\n/s;
-    s/\n[ \t]*#Preview[\s\S]*\z/\n/s;
-    s/os\(macOS\)(?![ \t]*\|\|[ \t]*os\(Linux\))/os(macOS) || os(Linux)/g;
-    s/([:(,][ \t]*)\@MainActor[ \t]+/$1/g;
-    s/^[ \t]*\@MainActor[ \t]*\n//gm;
-    s/^[ \t]*\@MainActor[ \t]+//gm;
-    s/: View, Sendable/: View/g;
     s/await Haptics\.shared\.mediumTap\(\)/Haptics.shared.mediumTap()/g;
     s/await languageModelStore\.setModel\(/languageModelStore.setModel(/g;
     s/let messages = await ConversationStore\.shared\.messages/let messages = ConversationStore.shared.messages/g;
