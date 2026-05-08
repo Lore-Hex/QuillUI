@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
 install_packages() {
   if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
     return
@@ -51,6 +54,15 @@ scripts/generated-enchanted-core-check.sh
 scripts/generated-enchanted-chat-components-check.sh
 scripts/generated-enchanted-macos-chat-check.sh
 scripts/generated-enchanted-full-source-check.sh
+
+QUILL_CHAT_APP_DIR="${QUILL_CHAT_DIR:-$ROOT_DIR/../quill/clients/quill-chat}/Enchanted"
+QUILL_CHAT_WORK_ROOT="${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$ROOT_DIR/.build/quill-chat-linux}"
+if [[ "${QUILLUI_SKIP_QUILL_CHAT_BUILD:-0}" != "1" && -d "$QUILL_CHAT_APP_DIR" ]]; then
+  QUILLUI_QUILL_CHAT_BUILD_WORKDIR="$QUILL_CHAT_WORK_ROOT" scripts/build-quill-chat-linux.sh
+elif [[ "${QUILLUI_SKIP_QUILL_CHAT_BUILD:-0}" != "1" ]]; then
+  echo "Skipping local Quill Chat Linux app build; source not found at $QUILL_CHAT_APP_DIR"
+fi
+
 swift build --scratch-path .build-linux --product quill-enchanted
 swift build --scratch-path .build-linux --product quill-enchanted-upstream-slice
 BIN_PATH="$(swift build --scratch-path .build-linux --show-bin-path)"
@@ -83,10 +95,32 @@ run_smoke() {
 run_smoke quill-enchanted
 run_smoke quill-enchanted-upstream-slice
 
+if [[ "${QUILLUI_SKIP_QUILL_CHAT_BUILD:-0}" != "1" && -d "$QUILL_CHAT_APP_DIR" ]]; then
+  QUILL_CHAT_BIN_DIR="$(swift build \
+    --package-path "$QUILL_CHAT_WORK_ROOT/package" \
+    --scratch-path "$QUILL_CHAT_WORK_ROOT/.build-check" \
+    --show-bin-path)"
+  QUILL_CHAT_EXECUTABLE="$QUILL_CHAT_BIN_DIR/quill-chat-linux"
+  if [[ ! -x "$QUILL_CHAT_EXECUTABLE" ]]; then
+    echo "Built Quill Chat executable is missing or not executable: $QUILL_CHAT_EXECUTABLE" >&2
+    exit 1
+  fi
+
+  set +e
+  GTK_A11Y=none timeout "${SMOKE_SECONDS}s" xvfb-run -a "$QUILL_CHAT_EXECUTABLE"
+  quill_chat_smoke_status=$?
+  set -e
+
+  if [[ "$quill_chat_smoke_status" != "124" ]]; then
+    echo "quill-chat-linux GTK headless smoke failed with exit code $quill_chat_smoke_status" >&2
+    exit "$quill_chat_smoke_status"
+  fi
+fi
+
 cat <<MSG
 
 Linux GTK build completed.
-Headless GTK smoke completed; both apps stayed running for $SMOKE_SECONDS seconds under Xvfb.
+Headless GTK smoke completed; GTK apps stayed running for $SMOKE_SECONDS seconds under Xvfb.
 Run the app in a graphical session with:
 
   swift run quill-enchanted

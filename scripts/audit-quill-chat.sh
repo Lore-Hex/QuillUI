@@ -59,7 +59,8 @@ $status
 - Generated real-source macOS-chat check: \`scripts/generated-enchanted-macos-chat-check.sh\` compiles the real upstream \`UI/macOS/Chat\` path, including ChatView, InputFields, toolbar, recorder, unreachable banner, and DragAndDrop.
 - Generated real-source full-source check: \`scripts/generated-enchanted-full-source-check.sh\` copies all upstream Enchanted Swift files and compiles 87/87 through QuillUI/QuillData/QuillKit compatibility products with generated Linux-only lowering and bridges.
 - Generated local Quill Chat full-source check: \`ENCHANTED_SOURCE_DIR="$APP_DIR" QUILLUI_GENERATED_ENCHANTED_FULL_WORKDIR=/tmp/quill-chat-full-source-check scripts/generated-enchanted-full-source-check.sh\` copies this $swift_files-file Quill Chat tree and compiles it through the same generated Linux path.
-- Interpretation: the prototype slice is scaffolding, not the desired port shape. The real target is the full-source generated path plus a tiny Linux entry point and an app-side shim budget of <= 100 lines.
+- Generated local Quill Chat app build: \`scripts/build-quill-chat-linux.sh\` uses the same generated-source pipeline in app mode and emits a real \`quill-chat-linux\` GTK executable without editing this app tree.
+- Interpretation: the prototype slice is scaffolding, not the desired port shape. The generated app build is now the replacement path, with an app-side shim budget of 0 committed source lines.
 
 ## Imports
 

@@ -471,3 +471,16 @@ Status: passing on macOS, Linux, and Linux GTK smoke.
 - Linux GTK verification passed: 98 tests in 12 suites, generated Enchanted core build, chat-components build, macOS-chat build, upstream 87-file full-source build, both GTK products built, and both apps survived the 6-second Xvfb smoke run.
 - `bash -n scripts/*.sh` and `git diff --check` passed.
 - Remaining honest gaps: this is still generated-source compile coverage for the local Quill Chat app, not a packaged production Linux app. The next step is to turn the generated pipeline into a tiny maintained Linux target/build plugin and replace the updater/USB/platform-service fallbacks with native Linux backends where the app needs real behavior.
+
+## Checkpoint 35: Quill Chat Generated App Build Tooling
+
+Status: passing for generated check mode and generated app mode on Linux.
+
+- Parameterized `scripts/generated-enchanted-full-source-check.sh` with `QUILLUI_GENERATED_ENCHANTED_MODE=check|app`, keeping the old compile-check product while adding app mode for a GTK-backed executable target.
+- Added `scripts/build-quill-chat-linux.sh`, which points the generated-source pipeline at the local Quill Chat tree and emits `quill-chat-linux` without editing Quill Chat source.
+- Wired optional local Quill Chat app generation into `scripts/linux-gtk-check.sh` when `../quill/clients/quill-chat/Enchanted` exists, with `QUILLUI_SKIP_QUILL_CHAT_BUILD=1` available for CI or machines without the local app checkout.
+- Verified old check mode still builds the upstream 87-file generated product.
+- Verified app mode builds the local 92-file Quill Chat tree into `/tmp/quill-chat-linux-build/.build-check/aarch64-unknown-linux-gnu/debug/quill-chat-linux`.
+- Verified the generated `quill-chat-linux` executable survives a 6-second Xvfb smoke run; current warnings are GTK theme/accessibility noise and missing Material icon mappings, not startup failures.
+- `bash -n scripts/*.sh` and `git diff --check` passed.
+- Remaining honest gaps: this is shell build tooling, not yet a SwiftPM plugin; the generated app starts, but native Linux service behavior and screenshot-level visual parity still need the next passes.

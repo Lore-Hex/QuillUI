@@ -18,7 +18,26 @@ WORK_ROOT="${QUILLUI_GENERATED_ENCHANTED_FULL_WORKDIR:-$ROOT_DIR/.build/generate
 SOURCE_COPY="$WORK_ROOT/source/Enchanted"
 LOWERED_COPY="$WORK_ROOT/lowered/Enchanted"
 PACKAGE_DIR="$WORK_ROOT/package"
-TARGET_DIR="$PACKAGE_DIR/Sources/GeneratedEnchantedFullSource"
+MODE="${QUILLUI_GENERATED_ENCHANTED_MODE:-check}"
+
+case "$MODE" in
+  check)
+    PACKAGE_NAME="${QUILLUI_GENERATED_ENCHANTED_PACKAGE_NAME:-GeneratedEnchantedFullSourceCheck}"
+    PRODUCT_NAME="${QUILLUI_GENERATED_ENCHANTED_PRODUCT_NAME:-generated-enchanted-full-source}"
+    TARGET_NAME="${QUILLUI_GENERATED_ENCHANTED_TARGET_NAME:-GeneratedEnchantedFullSource}"
+    ;;
+  app)
+    PACKAGE_NAME="${QUILLUI_GENERATED_ENCHANTED_PACKAGE_NAME:-GeneratedEnchantedLinuxApp}"
+    PRODUCT_NAME="${QUILLUI_GENERATED_ENCHANTED_PRODUCT_NAME:-quill-chat-linux}"
+    TARGET_NAME="${QUILLUI_GENERATED_ENCHANTED_TARGET_NAME:-GeneratedEnchantedLinuxApp}"
+    ;;
+  *)
+    echo "Unsupported QUILLUI_GENERATED_ENCHANTED_MODE: $MODE" >&2
+    exit 64
+    ;;
+esac
+
+TARGET_DIR="$PACKAGE_DIR/Sources/$TARGET_NAME"
 
 if [[ -z "$WORK_ROOT" || "$WORK_ROOT" == "/" || "$WORK_ROOT" == "$ROOT_DIR" ]]; then
   echo "Refusing unsafe generated work directory: ${WORK_ROOT:-<empty>}" >&2
@@ -472,7 +491,19 @@ extension Image {
 }
 SWIFT
 
-cat > "$TARGET_DIR/GeneratedMain.swift" <<'SWIFT'
+if [[ "$MODE" == "app" ]]; then
+  cat > "$TARGET_DIR/GeneratedMain.swift" <<'SWIFT'
+import BackendGTK4
+
+@main
+struct GeneratedEnchantedLinuxMain {
+    static func main() {
+        GTK4Backend().run(EnchantedApp.self)
+    }
+}
+SWIFT
+else
+  cat > "$TARGET_DIR/GeneratedMain.swift" <<'SWIFT'
 import Foundation
 import SwiftData
 import SwiftUI
@@ -594,6 +625,16 @@ struct GeneratedEnchantedFullSourceCheck {
     }
 }
 SWIFT
+fi
+
+extra_package_dependencies=""
+extra_target_dependencies=""
+if [[ "$MODE" == "app" ]]; then
+  extra_package_dependencies=$',
+        .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433")'
+  extra_target_dependencies=$',
+                .product(name: "BackendGTK4", package: "SwiftOpenUI")'
+fi
 
 cat > "$PACKAGE_DIR/Package.swift" <<SWIFT
 // swift-tools-version: 6.0
@@ -601,16 +642,16 @@ cat > "$PACKAGE_DIR/Package.swift" <<SWIFT
 import PackageDescription
 
 let package = Package(
-    name: "GeneratedEnchantedFullSourceCheck",
+    name: "$PACKAGE_NAME",
     products: [
-        .executable(name: "generated-enchanted-full-source", targets: ["GeneratedEnchantedFullSource"])
+        .executable(name: "$PRODUCT_NAME", targets: ["$TARGET_NAME"])
     ],
     dependencies: [
-        .package(name: "QuillUI", path: "$ROOT_DIR")
+        .package(name: "QuillUI", path: "$ROOT_DIR")$extra_package_dependencies
     ],
     targets: [
         .executableTarget(
-            name: "GeneratedEnchantedFullSource",
+            name: "$TARGET_NAME",
             dependencies: [
                 .product(name: "SwiftUI", package: "QuillUI"),
                 .product(name: "SwiftData", package: "QuillUI"),
@@ -639,6 +680,7 @@ let package = Package(
                 .product(name: "CoreGraphics", package: "QuillUI"),
                 .product(name: "Alamofire", package: "QuillUI"),
                 .product(name: "os", package: "QuillUI")
+                $extra_target_dependencies
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5)
@@ -654,15 +696,17 @@ generated_count="$(find "$TARGET_DIR" -name '*.swift' | wc -l | tr -d ' ')"
 swift build \
   --package-path "$PACKAGE_DIR" \
   --scratch-path "$WORK_ROOT/.build-check" \
-  --product generated-enchanted-full-source
+  --product "$PRODUCT_NAME"
 
 cat <<MSG
 
-Generated Enchanted full-source check completed.
+Generated Enchanted full-source $MODE completed.
 Source copied from:
   $UPSTREAM_DIR
 Source Swift files copied: $source_count
 Generated Swift files compiled: $generated_count
+Product:
+  $PRODUCT_NAME
 Generated package:
   $PACKAGE_DIR
 
