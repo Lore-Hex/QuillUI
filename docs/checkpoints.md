@@ -708,3 +708,18 @@ Status: passing on macOS tests, Linux tests, generated Enchanted compile, genera
 - Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt the 92-file local Quill Chat app into 95 generated Swift files and passed landmarks with header `73px`, toolbar `51-56`, prompt cards `395-1045`, and composer `750px@474`.
 - Verified native GTK interaction mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke` clicked the GTK button and detected the opened panel with `29671` dark pixels in the expected ROI.
 - Remaining honest gap: CI now covers Linux compile, screenshot landmarks, and one native GTK click/repaint path, but it does not yet run perceptual comparisons against a stored macOS Quill Chat reference or exercise app-specific toolbar popover keyboard/click-outside behavior.
+
+## Checkpoint 52: Generated Quill Chat Toolbar Menu Interaction
+
+Status: passing on macOS tests, Linux tests, generated Quill Chat visual smoke, and generated Quill Chat toolbar-menu click smoke.
+
+- Changed `QuillToolbarIconButton` to render through a plain `Button` instead of a gesture-only HStack, so GTK receives reliable button click signals while Apple keeps the chrome-free SwiftUI appearance.
+- Changed `QuillToolbarMenuButton` on Linux to use SwiftOpenUI's native `Menu` renderer instead of the custom ZStack popover. The generic SwiftOpenUI `popover` primitive crashes in this toolbar context because GTK tries to create a popup surface from a non-native anchor; the native menu button path owns the popover safely.
+- Kept the custom icon popover path for Apple platforms, where SwiftUI popover/layout behavior is available.
+- Extended the GTK interaction verifier so the open-menu screenshot can reuse Quill Chat landmarks without applying the closed-toolbar vertical-spread assertion.
+- Added generated Quill Chat toolbar-menu interaction to GitHub Actions alongside the deterministic QuillUI GTK sample interaction.
+- Verified macOS: `swift test --disable-automatic-resolution` passed with 84 tests in 10 suites.
+- Verified Linux: `swift test --scratch-path .build-linux` passed with 153 tests in 13 suites.
+- Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` passed landmarks with header `73px`, toolbar `48-56`, prompt cards `395-1045`, and composer `750px@474`.
+- Verified generated app toolbar interaction: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux` opened the options menu and detected `3078` dark pixels in the expected menu ROI.
+- Remaining honest gap: the Linux toolbar menu is now native and clickable, but its closed-state button chrome is more GTK-like than the macOS reference. A later pass should add a first-class GTK toolbar menu widget with an icon child and plain CSS instead of the text labels `v` / `...`.

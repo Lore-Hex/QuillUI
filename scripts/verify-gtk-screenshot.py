@@ -134,7 +134,7 @@ def dark_pixel_count(image: Screenshot, x0: int, y0: int, x1: int, y1: int) -> i
     )
 
 
-def validate_quill_chat_landmarks(image: Screenshot) -> str:
+def validate_quill_chat_landmarks(image: Screenshot, allow_expanded_toolbar: bool = False) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -178,10 +178,11 @@ def validate_quill_chat_landmarks(image: Screenshot) -> str:
     ]
     require(toolbar_rows, "Quill Chat toolbar actions were not detected")
     toolbar_spread = toolbar_rows[-1] - toolbar_rows[0] + 1
-    require(
-        toolbar_spread <= 32,
-        f"Quill Chat toolbar actions appear vertically stacked: spread={toolbar_spread}px",
-    )
+    if not allow_expanded_toolbar:
+        require(
+            toolbar_spread <= 32,
+            f"Quill Chat toolbar actions appear vertically stacked: spread={toolbar_spread}px",
+        )
 
     prompt_row = -1
     prompt_segments: list[Segment] = []
@@ -235,7 +236,7 @@ def validate_quill_chat_landmarks(image: Screenshot) -> str:
 
 
 def validate_quill_chat_toolbar_menu(image: Screenshot) -> str:
-    landmarks = validate_quill_chat_landmarks(image)
+    landmarks = validate_quill_chat_landmarks(image, allow_expanded_toolbar=True)
     left, right, top, bottom = content_bounds(image)
 
     # The toolbar popover is a SwiftUI-level approximation today. The click

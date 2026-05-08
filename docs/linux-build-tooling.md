@@ -115,8 +115,18 @@ the view tree repainted:
 scripts/linux-gtk-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
 ```
 
+It can also exercise the generated Quill Chat toolbar menu:
+
+```bash
+scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
+```
+
+That path builds through the same generic app builder as the visual smoke,
+clicks the generated options menu in the top-right toolbar, and verifies that
+the GTK menu surface appears below the toolbar.
+
 GitHub Actions runs the public Linux path in `.github/workflows/linux-ci.yml`.
 It uses a Swift Linux container, installs GTK/Xvfb/ImageMagick/xdotool
 dependencies, fetches the upstream Enchanted fixture into `.upstream/enchanted`,
 runs Swift tests, compiles the generated upstream app, and uploads GTK
-screenshot/log artifacts from both visual and interaction smokes.
+screenshot/log artifacts from the visual and interaction smokes.

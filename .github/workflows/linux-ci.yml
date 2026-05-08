@@ -60,6 +60,9 @@ jobs:
       - name: GTK interaction smoke
         run: scripts/linux-gtk-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
 
+      - name: Generated Enchanted toolbar interaction smoke
+        run: scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
+
       - name: Upload GTK QA artifacts
         if: always()
         uses: actions/upload-artifact@v4

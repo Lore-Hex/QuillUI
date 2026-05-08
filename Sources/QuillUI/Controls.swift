@@ -628,25 +628,27 @@ public struct QuillToolbarIconButton: View {
     }
 
     public var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 17, height: 17)
-
-            if showsChevron {
-                Image(systemName: QuillSystemSymbol.compatibleName("chevron.down"))
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 10, height: 10)
+                    .frame(width: 17, height: 17)
+
+                if showsChevron {
+                    Image(systemName: QuillSystemSymbol.compatibleName("chevron.down"))
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 10, height: 10)
+                }
             }
         }
+        .buttonStyle(.plain)
         .foregroundColor(Color(hex: "#3A3A3C"))
         .frame(width: width, height: 30, alignment: .center)
         .contentShape(Rectangle())
-        .onTapGesture(perform: action)
     }
 }
 
@@ -673,6 +675,22 @@ public struct QuillToolbarMenuButton: View {
     }
 
     public var body: some View {
+        #if os(Linux)
+        Menu(linuxMenuTitle) {
+            for action in actions {
+                switch action.kind {
+                case .divider:
+                    MenuDivider()
+                case .item:
+                    MenuItem(action.title) {
+                        guard !action.isDisabled else { return }
+                        action.perform()
+                    }
+                }
+            }
+        }
+        .frame(width: width, height: 30, alignment: .center)
+        #else
         ZStack(alignment: .topTrailing) {
             QuillToolbarIconButton(systemImage: systemImage, showsChevron: showsChevron, width: width) {
                 isExpanded.toggle()
@@ -684,6 +702,7 @@ public struct QuillToolbarMenuButton: View {
             }
         }
         .frame(width: width, height: 30, alignment: .topTrailing)
+        #endif
     }
 
     private var menuPopover: some View {
@@ -706,25 +725,27 @@ public struct QuillToolbarMenuButton: View {
     }
 
     private func menuRow(for action: QuillMenuAction) -> some View {
-        HStack(spacing: 9) {
-            menuIcon(for: action)
+        Button(action: {
+            guard !action.isDisabled else { return }
+            isExpanded = false
+            action.perform()
+        }) {
+            HStack(spacing: 9) {
+                menuIcon(for: action)
 
-            Text(action.title)
-                .font(.system(size: 13))
-                .lineLimit(1)
+                Text(action.title)
+                    .font(.system(size: 13))
+                    .lineLimit(1)
 
-            Spacer()
+                Spacer()
+            }
         }
+        .buttonStyle(.plain)
         .foregroundColor(action.isDisabled ? Color(hex: "#9A9A9E") : Color(hex: "#2C2C2E"))
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .onTapGesture {
-            guard !action.isDisabled else { return }
-            isExpanded = false
-            action.perform()
-        }
     }
 
     @ViewBuilder
@@ -740,6 +761,19 @@ public struct QuillToolbarMenuButton: View {
                 .frame(width: 15, height: 15)
         }
     }
+
+    #if os(Linux)
+    private var linuxMenuTitle: String {
+        switch systemImage {
+        case "chevron.down":
+            return "v"
+        case "ellipsis", "ellipsis.circle":
+            return "..."
+        default:
+            return showsChevron ? "\(systemImage) v" : systemImage
+        }
+    }
+    #endif
 }
 
 public struct QuillMenuAction: Identifiable {
