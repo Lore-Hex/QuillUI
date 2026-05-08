@@ -50,9 +50,13 @@ enum AppleCompatibilitySmoke {
         NSPasteboard.general.setString("hello", forType: .string)
         let pasteboardString = NSPasteboard.general.string(forType: .string)
 
-        let imageData = Data([1, 2, 3])
-        let imagesRoundTrip = NSImage(data: imageData)?.tiffRepresentation == imageData
-            && UIImage(data: imageData)?.data == imageData
+        let imageData = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==")!
+        let nsImageTIFF = NSImage(data: imageData)?.tiffRepresentation
+        let nsImageTranscoded = nsImageTIFF.map { data in
+            let prefix = Array(data.prefix(4))
+            return prefix == [0x49, 0x49, 0x2A, 0x00] || prefix == [0x4D, 0x4D, 0x00, 0x2A]
+        } ?? false
+        let imagesRoundTrip = nsImageTranscoded && UIImage(data: imageData)?.data == imageData
 
         let synthesizer = AVSpeechSynthesizer()
         let utterance = AVSpeechUtterance(string: "hello")

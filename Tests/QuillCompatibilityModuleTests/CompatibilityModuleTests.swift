@@ -539,9 +539,10 @@ struct CompatibilityModuleTests {
         #expect(platformImage.aspectFittedToHeight(200).data == Data([1, 2, 3]))
         #expect(platformImage.compressImageData() == Data([1, 2, 3]))
 
-        // NSImage.tiffRepresentation: previously returned wrong bytes silently.
-        let nsImage = NSImage(data: Data([0x89, 0x50, 0x4E, 0x47]))
-        #expect(nsImage?.tiffRepresentation == Data([0x89, 0x50, 0x4E, 0x47]))
+        // NSImage.tiffRepresentation: corrupt PNG-like bytes now return nil
+        // with a warning instead of returning the original non-TIFF bytes.
+        let corruptPng = NSImage(data: Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))
+        #expect(corruptPng?.tiffRepresentation == nil)
 
         let events = QuillCompatibilityDiagnostics.shared.events
         let operations = Set(events.map(\.operation))
@@ -1227,6 +1228,155 @@ struct CompatibilityModuleTests {
             var body: some View { Text("x") }
         }
         #expect(QuillUI.quillPickerOptions(from: Unknown()).isEmpty)
+    }
+
+    // MARK: - NSImage.tiffRepresentation parity
+
+    @Test("QuillImageFormatDetector identifies the common container formats")
+    func quillImageFormatDetectorIdentifiesContainers() {
+        // TIFF little-endian and big-endian magic.
+        #expect(QuillImageFormatDetector.detect(Data([0x49, 0x49, 0x2A, 0x00])) == .tiff)
+        #expect(QuillImageFormatDetector.detect(Data([0x4D, 0x4D, 0x00, 0x2A, 0xAA])) == .tiff)
+
+        // PNG magic.
+        let pngMagic = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00])
+        #expect(QuillImageFormatDetector.detect(pngMagic) == .png)
+
+        // JPEG magic (SOI + APP0/APP1 marker).
+        #expect(QuillImageFormatDetector.detect(Data([0xFF, 0xD8, 0xFF, 0xE0])) == .jpeg)
+        #expect(QuillImageFormatDetector.detect(Data([0xFF, 0xD8, 0xFF, 0xE1])) == .jpeg)
+
+        // GIF87a / GIF89a.
+        #expect(QuillImageFormatDetector.detect(Data("GIF87a".utf8)) == .gif)
+        #expect(QuillImageFormatDetector.detect(Data("GIF89a".utf8)) == .gif)
+
+        // BMP.
+        #expect(QuillImageFormatDetector.detect(Data([0x42, 0x4D, 0x00])) == .bmp)
+
+        // WebP container needs both RIFF and WEBP markers.
+        let webp: [UInt8] = [
+            0x52, 0x49, 0x46, 0x46,  // "RIFF"
+            0x00, 0x00, 0x00, 0x00,  // size (any)
+            0x57, 0x45, 0x42, 0x50   // "WEBP"
+        ]
+        #expect(QuillImageFormatDetector.detect(Data(webp)) == .webp)
+
+        // Unknown / too short.
+        #expect(QuillImageFormatDetector.detect(Data([0xDE, 0xAD, 0xBE, 0xEF])) == .unknown)
+        #expect(QuillImageFormatDetector.detect(Data()) == .unknown)
+        #expect(QuillImageFormatDetector.detect(Data([0xFF])) == .unknown)
+    }
+
+    @Test("NSImage.tiffRepresentation: TIFF input passes through unchanged on Linux")
+    func nsImageTiffPassthroughIsDeterministic() {
+        // A minimal little-endian TIFF header. Apple promises valid TIFF bytes
+        // out for valid TIFF input, but not byte-for-byte equality. Linux keeps
+        // this deterministic and returns source TIFF bytes unchanged.
+        let tiffBytes = Data([0x49, 0x49, 0x2A, 0x00] + Array(repeating: 0xAA, count: 32))
+        let img = NSImage(data: tiffBytes)
+        #expect(img?.tiffRepresentation == tiffBytes)
+
+        // Big-endian TIFF magic also passes through.
+        let bigEndianTIFF = Data([0x4D, 0x4D, 0x00, 0x2A] + Array(repeating: 0xBB, count: 32))
+        let img2 = NSImage(data: bigEndianTIFF)
+        #expect(img2?.tiffRepresentation == bigEndianTIFF)
+    }
+
+    @Test("NSImage.tiffRepresentation: corrupt input returns nil and records a warning")
+    func nsImageTiffCorruptInputReturnsNil() {
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        // Corrupt PNG-like input should NOT come back labeled as TIFF.
+        let pngBytes = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] + Array(repeating: 0x00, count: 16))
+        let pngImage = NSImage(data: pngBytes)
+        #expect(pngImage?.tiffRepresentation == nil)
+
+        // Corrupt JPEG-like input returns nil.
+        let jpegBytes = Data([0xFF, 0xD8, 0xFF, 0xE0] + Array(repeating: 0x42, count: 16))
+        let jpegImage = NSImage(data: jpegBytes)
+        #expect(jpegImage?.tiffRepresentation == nil)
+
+        // Unknown bytes return nil with a separate diagnostic message.
+        let garbage = Data([0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE])
+        let garbageImage = NSImage(data: garbage)
+        #expect(garbageImage?.tiffRepresentation == nil)
+
+        // All three calls recorded warnings (severity .warning, not .info).
+        let warnings = QuillCompatibilityDiagnostics.shared.events
+            .filter { $0.operation == "NSImage.tiffRepresentation" && $0.severity == .warning }
+        #expect(warnings.count >= 3, "Expected at least 3 NSImage.tiffRepresentation warnings; got \(warnings.count)")
+    }
+
+    @Test("NSImage without bytes returns nil for TIFF")
+    func nsImageWithoutBytesReturnsNilTIFF() {
+        // The convenience init that takes only a size leaves data == nil.
+        let blank = NSImage(size: CGSize(width: 64, height: 64))
+        #expect(blank.tiffRepresentation == nil)
+    }
+
+    @Test("NSImage.tiffRepresentation transcodes a valid PNG to real TIFF via gdk-pixbuf")
+    func nsImageTiffPNGToTIFFTranscodes() {
+        // 67-byte 1x1 grayscale PNG. Same fixture as the cross-platform parity
+        // test in QuillParityTests. Passing here proves the gdk-pixbuf bridge
+        // produces TIFF output that's symmetric with what real Apple AppKit
+        // produces on macOS.
+        guard let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==") else {
+            Issue.record("Failed to decode reference PNG fixture")
+            return
+        }
+
+        guard let img = NSImage(data: png) else {
+            Issue.record("NSImage(data:) failed to construct from valid PNG fixture")
+            return
+        }
+
+        guard let tiff = img.tiffRepresentation else {
+            Issue.record("Linux NSImage.tiffRepresentation returned nil for valid PNG; the gdk-pixbuf bridge should transcode it")
+            return
+        }
+
+        #expect(tiff.count > 0, "TIFF output must not be empty")
+
+        // Verify TIFF magic bytes (II*\0 little-endian or MM\0* big-endian).
+        if tiff.count >= 4 {
+            let prefix = Array(tiff.prefix(4))
+            let isLittle = prefix == [0x49, 0x49, 0x2A, 0x00]
+            let isBig = prefix == [0x4D, 0x4D, 0x00, 0x2A]
+            #expect(isLittle || isBig, "Output must start with TIFF magic; got \(prefix)")
+        }
+
+        // Calling tiffRepresentation again must produce the same result (no
+        // hidden mutation in the getter).
+        let secondCall = img.tiffRepresentation
+        #expect(secondCall == tiff, "tiffRepresentation must be deterministic for the same instance")
+    }
+
+    @Test("quillTranscodeImageDataToTIFF returns nil for empty / invalid input but TIFF for valid")
+    func quillTranscodeImageDataToTIFFContract() {
+        // Empty input returns nil.
+        #expect(quillTranscodeImageDataToTIFF(Data()) == nil)
+
+        // Garbage bytes return nil.
+        let garbage = Data([0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE])
+        #expect(quillTranscodeImageDataToTIFF(garbage) == nil)
+
+        // Truncated PNG (just the magic) returns nil.
+        let truncated = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        #expect(quillTranscodeImageDataToTIFF(truncated) == nil)
+
+        // Valid PNG returns non-nil TIFF with correct magic.
+        guard let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==") else {
+            Issue.record("Failed to decode reference PNG fixture")
+            return
+        }
+        guard let tiff = quillTranscodeImageDataToTIFF(png) else {
+            Issue.record("Bridge returned nil for valid PNG fixture")
+            return
+        }
+        let prefix = Array(tiff.prefix(4))
+        let isLittle = prefix == [0x49, 0x49, 0x2A, 0x00]
+        let isBig = prefix == [0x4D, 0x4D, 0x00, 0x2A]
+        #expect(isLittle || isBig, "Bridge output must have TIFF magic; got \(prefix)")
     }
 
     @Test("QuillCompatibilityEvent equality covers all fields")

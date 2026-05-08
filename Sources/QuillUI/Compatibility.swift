@@ -237,16 +237,47 @@ public final class NSImage: @unchecked Sendable {
         self.init(size: CGSize(width: 1, height: 1))
     }
 
-    /// On Linux this returns the original input bytes regardless of the source
-    /// format. Apps that depend on actual TIFF encoding will receive
-    /// mislabeled bytes; the warning is recorded so callers see it in
-    /// `QuillCompatibilityDiagnostics.shared.events`.
+    /// Returns the receiver's image bytes as TIFF.
+    ///
+    /// On Apple platforms this decodes the source data (PNG/JPEG/etc.) into
+    /// pixel form and re-encodes it as TIFF. On Linux, QuillUI mirrors that
+    /// path through gdk-pixbuf when the platform codec is available.
+    ///
+    /// TIFF input is returned unchanged on Linux. Apple may re-encode valid
+    /// TIFF input, so callers should rely on "valid TIFF bytes out" rather than
+    /// byte-for-byte equality across platforms.
+    ///
     public var tiffRepresentation: Data? {
-        recordCompatibilityWarning(
-            "NSImage.tiffRepresentation",
-            message: "NSImage.tiffRepresentation returns the original input bytes (no TIFF encoding) on Linux. Downstream code expecting TIFF format may behave incorrectly."
-        )
-        return data
+        guard let data else { return nil }
+        switch QuillImageFormatDetector.detect(data) {
+        case .tiff:
+            // Already TIFF. Returning it unchanged is deterministic and avoids
+            // unnecessary decode/encode loss.
+            return data
+        case .png, .jpeg, .gif, .bmp, .webp:
+            // Transcode through gdk-pixbuf: decode the input format, then
+            // re-encode as TIFF. This is what Apple's NSImage does on macOS.
+            if let transcoded = quillTranscodeImageDataToTIFF(data) {
+                return transcoded
+            }
+            recordCompatibilityWarning(
+                "NSImage.tiffRepresentation",
+                message: "gdk-pixbuf failed to transcode the input image to TIFF. Apple would also return nil for unrecoverable decode failures; doing the same here."
+            )
+            return nil
+        case .unknown:
+            // Try gdk-pixbuf anyway in case it recognizes a format our magic
+            // sniffer doesn't (gdk-pixbuf supports many obscure container
+            // formats via loader plugins). Fall back to nil if it can't.
+            if let transcoded = quillTranscodeImageDataToTIFF(data) {
+                return transcoded
+            }
+            recordCompatibilityWarning(
+                "NSImage.tiffRepresentation",
+                message: "NSImage.tiffRepresentation could not identify or decode the input bytes. Apple would return nil for unknown / corrupt input; doing the same here."
+            )
+            return nil
+        }
     }
 
     public func lockFocus() {
@@ -274,6 +305,87 @@ public enum QuillImageCompositingOperation: Sendable {
     case copy
 }
 
+/// Identifies common image container formats from their magic-byte prefixes.
+/// Used by `NSImage.tiffRepresentation` to decide whether the receiver's bytes
+/// can be returned unchanged as TIFF or should be sent through the platform
+/// transcoder.
+@_spi(QuillTesting)
+public enum QuillImageFormat: Sendable, Equatable {
+    case tiff
+    case png
+    case jpeg
+    case gif
+    case bmp
+    case webp
+    case unknown
+}
+
+@_spi(QuillTesting)
+public enum QuillImageFormatDetector {
+    public static func detect(_ data: Data) -> QuillImageFormat {
+        // Sniff at most the first 12 bytes; every container format below
+        // identifies itself within that window.
+        let bytes = data.prefix(12)
+        guard bytes.count >= 2 else { return .unknown }
+        let b = Array(bytes)
+
+        // TIFF: little-endian "II*\0" or big-endian "MM\0*"
+        if b.count >= 4 {
+            if b[0] == 0x49, b[1] == 0x49, b[2] == 0x2A, b[3] == 0x00 { return .tiff }
+            if b[0] == 0x4D, b[1] == 0x4D, b[2] == 0x00, b[3] == 0x2A { return .tiff }
+        }
+
+        // PNG: \x89 P N G \r \n \x1a \n
+        if b.count >= 8,
+           b[0] == 0x89, b[1] == 0x50, b[2] == 0x4E, b[3] == 0x47,
+           b[4] == 0x0D, b[5] == 0x0A, b[6] == 0x1A, b[7] == 0x0A {
+            return .png
+        }
+
+        // JPEG: \xFF \xD8 \xFF
+        if b.count >= 3, b[0] == 0xFF, b[1] == 0xD8, b[2] == 0xFF {
+            return .jpeg
+        }
+
+        // GIF: "GIF87a" or "GIF89a"
+        if b.count >= 6,
+           b[0] == 0x47, b[1] == 0x49, b[2] == 0x46, b[3] == 0x38,
+           (b[4] == 0x37 || b[4] == 0x39), b[5] == 0x61 {
+            return .gif
+        }
+
+        // BMP: "BM"
+        if b.count >= 2, b[0] == 0x42, b[1] == 0x4D {
+            return .bmp
+        }
+
+        // WebP: "RIFF" .... "WEBP"
+        if b.count >= 12,
+           b[0] == 0x52, b[1] == 0x49, b[2] == 0x46, b[3] == 0x46,
+           b[8] == 0x57, b[9] == 0x45, b[10] == 0x42, b[11] == 0x50 {
+            return .webp
+        }
+
+        return .unknown
+    }
+}
+
+/// Renders a SwiftUI view tree to a bitmap image.
+///
+/// On Apple platforms `ImageRenderer` walks the SwiftUI view tree, lays it out,
+/// and rasterizes it via Core Graphics into a `UIImage` / `NSImage`.
+///
+/// True parity on Linux requires offscreen GTK rendering: hooking the
+/// SwiftOpenUI GTK4 backend to a `GdkSurface`-backed offscreen surface, asking
+/// GTK for a snapshot of the rendered widget tree, and encoding the resulting
+/// `cairo_surface_t` to PNG/JPEG. That pipeline is a 1-2 week project on its
+/// own and isn't wired up yet.
+///
+/// Until that pipeline lands, both `uiImage` and `nsImage` return `nil` and
+/// each access records a `.warning` diagnostic. This matches Apple's own
+/// failure mode (Apple's `ImageRenderer.uiImage` returns `nil` when rendering
+/// fails). The parity gap is *that the failure happens for every input on
+/// Linux*, not the failure type itself.
 public final class ImageRenderer<Content: View> {
     public var content: Content
     public var scale: CGFloat = 1.0
@@ -282,14 +394,14 @@ public final class ImageRenderer<Content: View> {
         self.content = content
         recordCompatibilityWarning(
             "ImageRenderer.init",
-            message: "ImageRenderer is not yet implemented on Linux; uiImage/nsImage will return nil and any image export paths will silently fail."
+            message: "ImageRenderer on Linux always returns nil. Closing the parity gap requires offscreen GTK rendering (GdkSurface + GtkWidget snapshot + Cairo encode), which is not yet wired into QuillUI."
         )
     }
 
     public var uiImage: PlatformImage? {
         recordCompatibilityWarning(
             "ImageRenderer.uiImage",
-            message: "ImageRenderer.uiImage returned nil on Linux; image export is not yet supported."
+            message: "ImageRenderer.uiImage returned nil on Linux. SwiftOpenUI's GTK4 backend has no offscreen-render pathway yet, so SwiftUI views cannot be rasterized."
         )
         return nil
     }
@@ -297,7 +409,7 @@ public final class ImageRenderer<Content: View> {
     public var nsImage: PlatformImage? {
         recordCompatibilityWarning(
             "ImageRenderer.nsImage",
-            message: "ImageRenderer.nsImage returned nil on Linux; image export is not yet supported."
+            message: "ImageRenderer.nsImage returned nil on Linux. SwiftOpenUI's GTK4 backend has no offscreen-render pathway yet, so SwiftUI views cannot be rasterized."
         )
         return nil
     }

@@ -23,7 +23,23 @@ var targets: [Target] = [
         name: "QuillUI",
         dependencies: [
             "QuillKit",
-            .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
+            .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
+            // Linux-only: CGdkPixbuf is a systemLibrary target backed by
+            // gdk-pixbuf-2.0 (already present as a transitive dependency of
+            // libgtk-4-dev). Used by NSImage.tiffRepresentation to transcode
+            // PNG/JPEG/etc. inputs to real TIFF bytes.
+            .target(name: "CGdkPixbuf", condition: .when(platforms: [.linux]))
+        ]
+    ),
+    // The CGdkPixbuf target itself is unconditionally declared. SPM only
+    // resolves the QuillUI dependency on it for Linux builds, so on macOS
+    // the link path doesn't pull it in. pkgConfig discovery happens lazily.
+    .systemLibrary(
+        name: "CGdkPixbuf",
+        path: "Sources/CGdkPixbuf",
+        pkgConfig: "gdk-pixbuf-2.0",
+        providers: [
+            .apt(["libgdk-pixbuf-2.0-dev"])
         ]
     ),
     .target(

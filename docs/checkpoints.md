@@ -593,3 +593,18 @@ Status: passing for shell checks, profile discovery, generated check mode, gener
 - Verified generated check mode against the local 92-file Quill Chat tree: 95 generated Swift files compiled.
 - Verified generic app mode through `scripts/build-swiftui-linux-app.sh --profile enchanted-full-source`: `quill-chat-linux` built and survived a 6-second Xvfb startup smoke.
 - Remaining honest gap: the profile-specific phase is now isolated but still mostly regex source rewriting. The next reduction should turn repeated rewrite categories into tested reusable lowering helpers, then push more behavior into QuillUI/QuillKit APIs so app profiles shrink toward descriptor-sized files.
+
+## Checkpoint 44: GdkPixbuf TIFF Transcoding for AppKit Images
+
+Status: passing on Linux tests, macOS parity tests, generated Enchanted check mode, generic app mode, and Xvfb startup smoke.
+
+- Added a Linux `CGdkPixbuf` system-library bridge and `quillTranscodeImageDataToTIFF(_:)` so QuillUI can decode image bytes through gdk-pixbuf and re-encode real TIFF data.
+- Changed Linux `NSImage.tiffRepresentation` from returning mislabeled source bytes to deterministic TIFF behavior: existing TIFF data passes through unchanged, valid PNG/JPEG/GIF/BMP/WebP input transcodes to TIFF, and corrupt or unknown input returns `nil` with a warning.
+- Added format-sniffing coverage for TIFF, PNG, JPEG, GIF, BMP, WebP, and unknown bytes; added Linux tests for valid PNG-to-TIFF transcoding, corrupt-input warnings, deterministic TIFF pass-through, and the direct gdk-pixbuf bridge.
+- Added macOS parity tests proving real AppKit returns TIFF data for valid TIFF/PNG inputs and nil for garbage input.
+- Updated the AppKit compatibility smoke and API coverage matrix so image behavior is now `partial-real` instead of pure fallback.
+- Verified Linux: `swift test --scratch-path .build-linux` passed with 141 tests in 13 suites.
+- Verified macOS: `swift test --disable-automatic-resolution` passed with 75 tests in 10 suites.
+- Verified generated check mode against the local 92-file Quill Chat tree: 95 generated Swift files compiled.
+- Verified generic app mode through `scripts/build-swiftui-linux-app.sh --profile enchanted-full-source`: `quill-chat-linux` built and survived a 6-second Xvfb startup smoke.
+- Remaining honest gap: `ImageRenderer` and SwiftUI view rasterization are still nil-returning fallbacks. The native follow-up is an offscreen GTK snapshot/Cairo encode path for SwiftUI views, not another `NSImage` byte-transcode shim.

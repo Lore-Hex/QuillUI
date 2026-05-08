@@ -17,6 +17,16 @@ import UniformTypeIdentifiers
 import QuillUI
 #endif
 
+// AppKit only exists on macOS. On Linux, `import AppKit` resolves to QuillUI's
+// AppKit shadow target, but the parity tests don't link against the shadow
+// modules directly (they run cross-platform without the Linux shadow targets).
+// So Linux parity assertions that need AppKit are gated to macOS only and
+// documented as such; the equivalent Linux test lives in
+// QuillCompatibilityModuleTests.
+#if os(macOS) && canImport(AppKit)
+import AppKit
+#endif
+
 /// QuillParity tests run on both macOS and Linux. They are deliberately written
 /// in pure cross-platform Swift, with `#if canImport(...)` import switching so
 /// the SAME assertion exercises Apple frameworks on macOS and Quill shadows on
@@ -289,6 +299,97 @@ struct QuillParityTests {
         }()
         #expect(url.pathExtension == expected, "path=\(path) ext=\(ext) seed=\(seed)")
     }
+
+    // MARK: - NSImage TIFF passthrough parity (macOS-only assertion)
+
+#if os(macOS) && canImport(AppKit)
+    /// On macOS, real Apple `NSImage(data:).tiffRepresentation` for a valid
+    /// TIFF input returns TIFF bytes that decode to the same image. Apple does
+    /// NOT promise byte-for-byte passthrough; the encoder may rewrite the
+    /// header. So the strongest cross-platform contract we can assert here is:
+    ///
+    ///   * Apple's NSImage with valid TIFF input produces a non-nil TIFF
+    ///     representation.
+    ///   * Apple's NSImage with garbage bytes produces nil.
+    ///
+    /// QuillUI's NSImage shim on Linux *does* promise byte-for-byte passthrough
+    /// for TIFF input (a stricter contract than Apple's). The Linux behavior is
+    /// asserted in `QuillCompatibilityModuleTests.nsImageTiffPassthroughParity`.
+    /// Together these two tests bound Quill's behavior between "no worse than
+    /// Apple" (returns Data when Apple does) and "stricter than Apple"
+    /// (deterministic byte equality).
+    @Test("Apple NSImage produces TIFF data for valid TIFF input and nil for garbage")
+    func appleNSImageTIFFContract() throws {
+        // Build a 4x4 RGB bitmap, encode it as TIFF, then verify NSImage can
+        // round-trip it. The bitmap representation gives us guaranteed-valid
+        // TIFF bytes without depending on a specific TIFF golden file.
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 4,
+            pixelsHigh: 4,
+            bitsPerSample: 8,
+            samplesPerPixel: 3,
+            hasAlpha: false,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 12,
+            bitsPerPixel: 24
+        )
+        guard let validTIFF = rep?.representation(using: .tiff, properties: [:]) else {
+            Issue.record("Failed to synthesize a TIFF reference fixture")
+            return
+        }
+
+        // Apple parity: valid TIFF in, non-nil TIFF out.
+        let validImage = NSImage(data: validTIFF)
+        #expect(validImage?.tiffRepresentation != nil)
+
+        // Apple parity: garbage in, nil image (or nil tiffRepresentation).
+        let garbage = Data([0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE])
+        let garbageImage = NSImage(data: garbage)
+        // Apple may either fail to construct NSImage (returns nil from init)
+        // or succeed with no usable representation. Either is acceptable;
+        // returning *non-nil bogus bytes* would be the bug.
+        #expect(garbageImage == nil || garbageImage?.tiffRepresentation == nil)
+    }
+#endif
+
+    // MARK: - NSImage PNG to TIFF transcoding parity
+
+#if os(macOS) && canImport(AppKit)
+    /// Apple parity: PNG bytes through `NSImage(data:).tiffRepresentation`
+    /// produce real TIFF bytes (decoded + re-encoded). On macOS this is the
+    /// real AppKit path. On Linux the same QuillUI test exists in
+    /// `QuillCompatibilityModuleTests.nsImageTiffPNGToTIFFTranscodes`, where
+    /// it exercises the gdk-pixbuf bridge.
+    ///
+    /// The cross-platform parity proof is: the assertion below passes on
+    /// macOS (against real AppKit) and the matching assertion passes on Linux
+    /// (against QuillUI's gdk-pixbuf-backed shim). Identical observable
+    /// behavior = parity.
+    @Test("Apple NSImage transcodes a valid PNG to real TIFF bytes")
+    func appleNSImagePNGToTIFFTranscode() throws {
+        // 67-byte 1x1 grayscale PNG. Stable, well-known fixture.
+        guard let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==") else {
+            Issue.record("Failed to decode reference PNG fixture")
+            return
+        }
+
+        guard let img = NSImage(data: png) else {
+            Issue.record("Apple NSImage(data:) failed to decode reference PNG")
+            return
+        }
+
+        let tiff = img.tiffRepresentation
+        #expect(tiff != nil, "Apple NSImage.tiffRepresentation must yield TIFF bytes for valid PNG")
+        if let tiff, tiff.count >= 4 {
+            let prefix = Array(tiff.prefix(4))
+            let isLittle = prefix == [0x49, 0x49, 0x2A, 0x00]  // "II*\0"
+            let isBig = prefix == [0x4D, 0x4D, 0x00, 0x2A]  // "MM\0*"
+            #expect(isLittle || isBig, "Output must start with TIFF magic; got \(prefix)")
+        }
+    }
+#endif
 
     // MARK: - QuillCompatibilityDiagnostics shape parity
 
