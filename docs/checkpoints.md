@@ -580,3 +580,16 @@ Status: passing for generated check mode, generic app mode, and Xvfb startup smo
 - Verified generic app mode through `scripts/build-swiftui-linux-app.sh --profile enchanted-full-source`: `quill-chat-linux` built and survived a 6-second Xvfb startup smoke.
 - `bash -n scripts/*.sh scripts/profiles/*.sh` and `git diff --check` passed.
 - Remaining honest gap: most of the Enchanted script is still app-specific actor/async/store/view patching. Future passes should convert those into named, testable profile phases and move more source-shape compatibility into library APIs.
+
+## Checkpoint 43: Enchanted Profile Lowering Phase
+
+Status: passing for shell checks, profile discovery, generated check mode, generic app mode, and Xvfb startup smoke after extraction.
+
+- Added `scripts/profiles/enchanted-full-source/lower-profile-source.sh` as the Enchanted/Quill Chat-specific source-lowering phase.
+- Moved the app-specific actor/async/store/view rewrites, replacement-file cleanup, generated profile aliases, and generated model hashability shims out of `scripts/generated-enchanted-full-source-check.sh`.
+- Reduced the legacy generated full-source script from 457 lines to 220 lines; the `enchanted-full-source` profile wrapper remains 33 lines, and the profile-owned lowering phase is now isolated at 258 lines.
+- Documented the convention that profile-specific lowering phases live under `scripts/profiles/<profile-name>/`.
+- Verified `bash -n scripts/*.sh scripts/profiles/*.sh scripts/profiles/*/*.sh`, `scripts/build-swiftui-linux-app.sh --list-profiles`, and `git diff --check`.
+- Verified generated check mode against the local 92-file Quill Chat tree: 95 generated Swift files compiled.
+- Verified generic app mode through `scripts/build-swiftui-linux-app.sh --profile enchanted-full-source`: `quill-chat-linux` built and survived a 6-second Xvfb startup smoke.
+- Remaining honest gap: the profile-specific phase is now isolated but still mostly regex source rewriting. The next reduction should turn repeated rewrite categories into tested reusable lowering helpers, then push more behavior into QuillUI/QuillKit APIs so app profiles shrink toward descriptor-sized files.

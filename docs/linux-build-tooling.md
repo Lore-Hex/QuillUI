@@ -57,6 +57,13 @@ assembly:
   cleanup for generated SwiftUI source, including `@main`, previews,
   `@Observable`, `@MainActor`, and `os(macOS)` platform gates.
 
+Profile-specific lowering phases should live next to the profile entry point
+under `scripts/profiles/<profile-name>/`. That keeps app source-shape fixes
+discoverable without growing the generic builder or the profile wrapper. The
+current Enchanted/Quill Chat profile uses
+`scripts/profiles/enchanted-full-source/lower-profile-source.sh` for those
+rules.
+
 The package helper takes this stable environment contract:
 
 - `QUILLUI_GENERATED_SOURCES_DIR`
