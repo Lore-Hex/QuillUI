@@ -56,6 +56,7 @@ $status
 - Current QuillUI prototype slice lines: $prototype_lines
 - Generated real-source core check: \`scripts/generated-enchanted-core-check.sh\` compiles upstream Models, Stores, SwiftData models, Ollama/SwiftData services, and the ModelContext extension through QuillUI/QuillData on Linux.
 - Generated real-source chat-components check: \`scripts/generated-enchanted-chat-components-check.sh\` compiles the shared chat message, empty state, status, model picker, image, menu, speech, clipboard, Markdown, Splash, and button components through QuillUI/QuillData on Linux.
+- Generated real-source macOS-chat check: \`scripts/generated-enchanted-macos-chat-check.sh\` compiles the real upstream \`UI/macOS/Chat\` path, including ChatView, InputFields, toolbar, recorder, unreachable banner, and DragAndDrop.
 - Interpretation: the prototype slice is scaffolding, not the desired port shape. The real target is compiling the Quill Chat source with QuillUI/QuillData adapters plus a tiny Linux entry point.
 
 ## Imports

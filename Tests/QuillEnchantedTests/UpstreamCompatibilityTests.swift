@@ -45,7 +45,10 @@ struct UpstreamCompatibilityTests {
         struct LinuxKeyboardReadable: KeyboardReadable {}
         _ = LinuxKeyboardReadable()
 
+        _ = RoundedRectangle(cornerRadius: 8).fill(.ultraThinMaterial)
         _ = RoundedRectangle(cornerRadius: 8).fill(.regularMaterial)
+        _ = RoundedRectangle(cornerRadius: 8)
+            .strokeBorder(style: StrokeStyle(lineWidth: 2, lineJoin: .round, dash: [10]))
         _ = Image(systemName: "photo.fill").renderingMode(.template)
         #expect(QuillSystemSymbol.compatibleName("paperplane.fill") == "arrow.forward.circle.fill")
         #expect(QuillSystemSymbol.compatibleName("photo.fill") == "folder.badge.plus")
@@ -153,6 +156,7 @@ struct UpstreamCompatibilityTests {
         _ = Text("Message")
             .listRowInsets(EdgeInsets())
             .listRowSeparator(.hidden)
+            .minimumScaleFactor(0.5)
             .padding(.vertical, 10.0)
             .padding(.horizontal, 10.0)
             .padding(EdgeInsets(top: 1, leading: 2, bottom: 3, trailing: 4))
@@ -618,6 +622,9 @@ struct UpstreamCompatibilityTests {
         _ = Color.systemGray2
         _ = Color.systemBlue
         _ = Color.systemRed
+        _ = Color(.pink)
+        _ = Color(.black)
+        _ = Color(.white)
         _ = Color.gray2Custom
         _ = Color.gray3Custom
         _ = Color.gray4Custom

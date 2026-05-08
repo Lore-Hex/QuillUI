@@ -1,6 +1,7 @@
 .build/
 .build-linux/
 .build-linux-cov/
+.build-linux-coverage/
 .qa/
 .upstream/
 .swiftpm/

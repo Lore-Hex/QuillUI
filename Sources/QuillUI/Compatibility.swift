@@ -81,10 +81,13 @@ public struct QuillPlatformColor: @unchecked Sendable {
     }
 
     public static var label: QuillPlatformColor { QuillPlatformColor(.black) }
+    public static var black: QuillPlatformColor { QuillPlatformColor(.black) }
+    public static var white: QuillPlatformColor { QuillPlatformColor(.white) }
     public static var systemGray: QuillPlatformColor { QuillPlatformColor(.gray) }
     public static var systemGray2: QuillPlatformColor { QuillPlatformColor(Color(red: 0.68, green: 0.68, blue: 0.70)) }
     public static var systemBlue: QuillPlatformColor { QuillPlatformColor(Color(red: 0.00, green: 0.48, blue: 1.00)) }
     public static var systemRed: QuillPlatformColor { QuillPlatformColor(Color(red: 1.00, green: 0.23, blue: 0.19)) }
+    public static var pink: QuillPlatformColor { QuillPlatformColor(.pink) }
 }
 
 public extension Color {

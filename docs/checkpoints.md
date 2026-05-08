@@ -423,3 +423,19 @@ Status: passing on macOS, Linux, and Linux GTK smoke.
 - Linux verification passed: `swift test --scratch-path .build-linux` with 93 tests in 12 suites.
 - Linux GTK verification passed: unit tests, generated Enchanted core build, generated Enchanted chat-components build, both GTK products built, and both apps survived the 4-second Xvfb smoke run.
 - Remaining honest gaps: this still uses generated-source lowering for SwiftData macros, previews, and SwiftOpenUI main-actor mismatches; it does not yet compile the full `UI/macOS/Chat` entry path or replace the prototype app with real Enchanted source plus a tiny Linux entry point.
+
+## Checkpoint 32: Generated Enchanted macOS Chat Build
+
+Status: passing on macOS, Linux, and Linux GTK smoke.
+
+- Added `scripts/generated-enchanted-macos-chat-check.sh`, a repeatable Linux-only harness that copies 45 real upstream Enchanted Swift files and compiles the actual `UI/macOS/Chat` path through QuillUI/QuillData.
+- The new harness covers `ChatView_macOS`, `InputFields_macOS`, `ToolbarView_macOS`, `DragAndDrop`, `UnreachableAPIView`, recorder UI, `SpeechRecognizer`, shared chat messages, model picker, options menu, selected/removable images, stores, services, SwiftData models, Markdown, Splash, ActivityIndicatorView, AppKit, AVFoundation, Speech, Combine, and OllamaKit.
+- Kept app-specific generated shims in the harness for hotkeys, a minimal `SidebarView`, a minimal `Settings` view, identity/hashability, and image rendering. Those are compile bridges, not edits to Enchanted or permanent QuillUI APIs.
+- Expanded reusable QuillUI compatibility for the macOS chat path: Linux platform colors for `.pink`, `.black`, and `.white`; material aliases including `.ultraThinMaterial`; `Shape.strokeBorder(style:)`; `View.minimumScaleFactor(_:)`; and `Image(nsImage: PlatformImage)` through the Linux `SwiftUI` facade.
+- Wired the generated macOS-chat check into `scripts/linux-gtk-check.sh` after the generated core and shared chat component checks.
+- Added Linux regression coverage for the new material, stroke-border, minimum-scale-factor, and platform-color compatibility calls.
+- macOS verification passed: `swift test --disable-automatic-resolution` with 58 tests in 9 suites.
+- Linux coverage after this pass: QuillUI 1516/1713 lines (88.5%), functions 291/346 (84.1%), regions 420/520 (80.8%); QuillKit 142/175 lines (81.1%), functions 50/56 (89.3%), regions 53/62 (85.5%); QuillData 608/676 lines (89.9%), functions 96/117 (82.1%), regions 212/249 (85.1%).
+- Linux GTK verification passed: unit tests, generated Enchanted core build, generated Enchanted chat-components build, generated Enchanted macOS-chat build, both GTK products built, and both apps survived the 4-second Xvfb smoke run.
+- `bash -n scripts/*.sh`, `git diff --check`, `scripts/audit-quill-chat.sh`, and `scripts/audit-upstream-enchanted.sh` passed.
+- Remaining honest gaps: this still uses generated source lowering for SwiftData macros, previews, actor/main-actor mismatches, and Enchanted-only hotkeys; it still uses a generated sidebar/settings bridge rather than the full real application entry/sidebar/settings source.

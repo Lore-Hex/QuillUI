@@ -229,7 +229,10 @@ public enum QuillFileImporter {
 
 public struct Material: Sendable {
     public init() {}
+    public static let ultraThinMaterial = Material()
+    public static let thinMaterial = Material()
     public static let regularMaterial = Material()
+    public static let thickMaterial = Material()
     public static let ultraThickMaterial = Material()
 }
 
@@ -733,6 +736,10 @@ public extension Shape {
     func fill(_ material: Material) -> FilledShape<Self> {
         fill(Color.white.opacity(0.92))
     }
+
+    func strokeBorder(style: StrokeStyle) -> StrokedShape<Self> {
+        strokeBorder(.primary, style: style)
+    }
 }
 
 public extension View {
@@ -801,6 +808,14 @@ public extension View {
         recordQuillUIFallback(
             "textSelection",
             message: "textSelection is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func minimumScaleFactor(_ factor: Double) -> Self {
+        recordQuillUIFallback(
+            "minimumScaleFactor",
+            message: "minimumScaleFactor is currently a source-compatibility fallback on Linux."
         )
         return self
     }

@@ -11,5 +11,13 @@ public extension Image {
             self.init(systemName: "photo")
         }
     }
+
+    init(nsImage: PlatformImage) {
+        if let data = nsImage.data {
+            self.init(data: data)
+        } else {
+            self.init(systemName: "photo")
+        }
+    }
 }
 #endif
