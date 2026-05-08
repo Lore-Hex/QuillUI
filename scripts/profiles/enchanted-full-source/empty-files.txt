@@ -1,0 +1,8 @@
+Helpers/Accessibility.swift
+Helpers/HotKeys.swift
+Services/HotkeyService.swift
+UI/macOS/PromptPanel/FloatingPanel.swift
+UI/macOS/PromptPanel/PanelManager.swift
+Application/QuillUpdater.swift
+Application/QuillUSBWatcher.swift
+Application/QuillUSBLauncher.swift

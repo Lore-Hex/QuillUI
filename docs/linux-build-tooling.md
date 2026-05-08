@@ -64,6 +64,8 @@ assembly:
 - `scripts/apply-profile-rewrites.sh` applies reviewable profile rewrite rules:
   `__all__.pl` runs across every Swift file and `*.swift.pl` rules map to
   matching source paths.
+- `scripts/truncate-profile-files.sh` blanks optional profile-listed files that
+  are replaced by QuillKit/QuillUI compatibility implementations.
 - `scripts/generate-hashable-identity-shims.sh` emits small generated Swift
   extensions that make lowered model classes `Hashable`/`Equatable` by stable
   identity properties, with optional `Identifiable.id` aliases for models whose

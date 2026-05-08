@@ -34,21 +34,7 @@ fi
 
 "$TOOLING_DIR/install-profile-templates.sh" "$PROFILE_DIR/templates" "$LOWERED_COPY"
 "$TOOLING_DIR/apply-profile-rewrites.sh" "$LOWERED_COPY" "$PROFILE_DIR/rewrite-rules"
-
-for profile_replaced_file in \
-  Helpers/Accessibility.swift \
-  Helpers/HotKeys.swift \
-  Services/HotkeyService.swift \
-  UI/macOS/PromptPanel/FloatingPanel.swift \
-  UI/macOS/PromptPanel/PanelManager.swift \
-  Application/QuillUpdater.swift \
-  Application/QuillUSBWatcher.swift \
-  Application/QuillUSBLauncher.swift
-do
-  if [[ -f "$LOWERED_COPY/$profile_replaced_file" ]]; then
-    : > "$LOWERED_COPY/$profile_replaced_file"
-  fi
-done
+"$TOOLING_DIR/truncate-profile-files.sh" "$LOWERED_COPY" "$PROFILE_DIR/empty-files.txt"
 
 "$TOOLING_DIR/generate-hashable-identity-shims.sh" \
   "$LOWERED_COPY/QuillGeneratedFullSourceShims.swift" \

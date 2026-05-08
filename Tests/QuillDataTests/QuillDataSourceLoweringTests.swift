@@ -273,6 +273,52 @@ struct QuillDataSourceLoweringTests {
         #expect(rewrittenOther.contains("Value.old()"))
     }
 
+    @Test("profile truncate helper empties listed optional files")
+    func profileTruncateHelperEmptiesListedOptionalFiles() throws {
+        let root = try packageRoot()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillProfileTruncateTests-\(UUID().uuidString)", isDirectory: true)
+        let source = directory.appendingPathComponent("Source", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let existing = source.appendingPathComponent("Services/Legacy.swift")
+        let nested = source.appendingPathComponent("UI/macOS/Panel.swift")
+        let unlisted = source.appendingPathComponent("Keep.swift")
+        for file in [existing, nested, unlisted] {
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try "keep me\n".write(to: file, atomically: true, encoding: .utf8)
+        }
+
+        let list = directory.appendingPathComponent("empty-files.txt")
+        try """
+        # optional generated stubs
+          Services/Legacy.swift
+        UI/macOS/Panel.swift # inline comments are ignored
+        Missing.swift
+
+        """.write(to: list, atomically: true, encoding: .utf8)
+
+        let script = root.appendingPathComponent("scripts/truncate-profile-files.sh")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [script.path, source.path, list.path]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        try process.run()
+        process.waitUntilExit()
+
+        let log = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        #expect(process.terminationStatus == 0, Comment(rawValue: log))
+
+        #expect(try String(contentsOf: existing, encoding: .utf8).isEmpty)
+        #expect(try String(contentsOf: nested, encoding: .utf8).isEmpty)
+        #expect(try String(contentsOf: unlisted, encoding: .utf8) == "keep me\n")
+    }
+
     private func packageRoot() throws -> URL {
         var directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
         for _ in 0..<8 {
