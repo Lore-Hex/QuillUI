@@ -386,30 +386,78 @@ public enum QuillImageFormatDetector {
 /// failure mode (Apple's `ImageRenderer.uiImage` returns `nil` when rendering
 /// fails). The parity gap is *that the failure happens for every input on
 /// Linux*, not the failure type itself.
+///
+// TODO(quill-parity): Render arbitrary SwiftUI view trees on Linux.
+//   Goal: produce a PlatformImage from any `Content: View`, matching what
+//   real Apple SwiftUI's ImageRenderer would emit.
+//   Approach: reach into SwiftOpenUI's GTK4 backend (`gtkRenderView` is
+//   already public), put the resulting widget in an offscreen container,
+//   build a `GskCairoRenderer` against a hidden `GdkSurface`, snapshot via
+//   `gtk_widget_snapshot` -> `gtk_snapshot_to_node`, render the node with
+//   `gsk_renderer_render_texture` into a cairo image surface, then encode
+//   with gdk-pixbuf.
+//   Estimated: 1–2 weeks. Touches QuillUI (this class), the SwiftOpenUI
+//   GTK backend (probably needs a new public hook for snapshotting), and a
+//   new `Sources/QuillUI/GtkOffscreenRender.swift` Linux-only file.
+//   Currently implemented subset: solid-color `Color` content, rendered
+//   via `quillRenderSolidColorImage`. Other view types still return nil
+//   with a `.warning` diagnostic.
 public final class ImageRenderer<Content: View> {
     public var content: Content
     public var scale: CGFloat = 1.0
 
+    /// Pixel size used when the content has no intrinsic layout. SwiftUI's
+    /// real ImageRenderer uses the view's idealSize / proposedSize; without
+    /// a layout pass on Linux we pick a fixed default that's large enough to
+    /// be useful but small enough to keep test fixtures cheap.
+    private static var defaultSize: (width: Int, height: Int) { (256, 256) }
+
     public init(content: Content) {
         self.content = content
-        recordCompatibilityWarning(
+        recordCompatibilityFallback(
             "ImageRenderer.init",
-            message: "ImageRenderer on Linux always returns nil. Closing the parity gap requires offscreen GTK rendering (GdkSurface + GtkWidget snapshot + Cairo encode), which is not yet wired into QuillUI."
+            message: "ImageRenderer is available on Linux, but currently only rasterizes solid Color content without a full offscreen GTK view pass."
         )
     }
 
     public var uiImage: PlatformImage? {
-        recordCompatibilityWarning(
-            "ImageRenderer.uiImage",
-            message: "ImageRenderer.uiImage returned nil on Linux. SwiftOpenUI's GTK4 backend has no offscreen-render pathway yet, so SwiftUI views cannot be rasterized."
-        )
-        return nil
+        renderToPlatformImage(operation: "ImageRenderer.uiImage")
     }
 
     public var nsImage: PlatformImage? {
+        renderToPlatformImage(operation: "ImageRenderer.nsImage")
+    }
+
+    /// Shared renderer for both `uiImage` and `nsImage`. Returns a
+    /// PlatformImage carrying PNG bytes when we can rasterize the content,
+    /// otherwise nil with a `.warning` diagnostic naming the unsupported case.
+    private func renderToPlatformImage(operation: String) -> PlatformImage? {
+        // Currently-supported subset: solid Color. Everything else falls
+        // through to the parity-gap warning.
+        if let color = content as? Color {
+            let (w, h) = Self.defaultSize
+            if let png = quillRenderSolidColorImage(
+                red: Double(color.red),
+                green: Double(color.green),
+                blue: Double(color.blue),
+                alpha: Double(color.alpha),
+                width: w,
+                height: h,
+                format: .png
+            ) {
+                return PlatformImage(data: png)
+            }
+            // Encoding failed (rare; gdk-pixbuf out of memory or similar).
+            recordCompatibilityWarning(
+                operation,
+                message: "\(operation): gdk-pixbuf failed to encode the synthesized Color image. Returning nil."
+            )
+            return nil
+        }
+
         recordCompatibilityWarning(
-            "ImageRenderer.nsImage",
-            message: "ImageRenderer.nsImage returned nil on Linux. SwiftOpenUI's GTK4 backend has no offscreen-render pathway yet, so SwiftUI views cannot be rasterized."
+            operation,
+            message: "\(operation) returned nil for content of type \(type(of: content)). QuillUI's ImageRenderer currently rasterizes Color content; arbitrary SwiftUI views require offscreen GTK rendering that is not yet wired up."
         )
         return nil
     }

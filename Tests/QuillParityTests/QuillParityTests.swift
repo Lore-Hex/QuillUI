@@ -27,6 +27,15 @@ import QuillUI
 import AppKit
 #endif
 
+// On macOS QuillUI re-exports SwiftUI (`@_exported import SwiftUI`), so
+// importing QuillUI here gives the parity tests access to `ImageRenderer`,
+// `Color`, `Text`, etc. — pointing at real Apple SwiftUI on macOS and Quill's
+// shims on Linux. The `#if canImport(...)` block above already imports
+// QuillUI on Linux; on macOS we add it explicitly here.
+#if canImport(SwiftUI)
+import QuillUI
+#endif
+
 /// QuillParity tests run on both macOS and Linux. They are deliberately written
 /// in pure cross-platform Swift, with `#if canImport(...)` import switching so
 /// the SAME assertion exercises Apple frameworks on macOS and Quill shadows on
@@ -390,6 +399,46 @@ struct QuillParityTests {
         }
     }
 #endif
+
+    // MARK: - ImageRenderer Color content parity
+
+    /// `ImageRenderer(content: Color.red).nsImage` (or `.uiImage`) must
+    /// produce a non-nil image on both platforms. On macOS this exercises real
+    /// Apple SwiftUI's `ImageRenderer`, which decodes the Color into a
+    /// CGImage-backed NSImage. On Linux it exercises QuillUI's shim, which
+    /// extracts RGBA components and synthesizes a PNG via gdk-pixbuf
+    /// (`quillRenderSolidColorImage`).
+    ///
+    /// We can't assert byte equality between platforms because the encoders
+    /// produce different (but equivalent) bytes. We CAN assert "non-nil
+    /// result" — that's the behavioral contract Apple devs depend on.
+    @Test("ImageRenderer rasterizes Color content to non-nil image bytes on both platforms")
+    @MainActor
+    func imageRendererColorContentParity() async {
+#if canImport(AppKit)
+        // macOS: Apple SwiftUI's ImageRenderer.nsImage is @MainActor-isolated
+        // because it touches AppKit / Core Graphics state. The @MainActor
+        // annotation on the test ensures we're already on the main actor when
+        // we read the property.
+        let renderer = ImageRenderer(content: Color.red)
+        let nsImage = renderer.nsImage
+        #expect(nsImage != nil, "Apple ImageRenderer should rasterize Color.red on macOS")
+#else
+        // Linux: QuillUI's ImageRenderer goes through quillRenderSolidColorImage.
+        let renderer = ImageRenderer(content: Color.red)
+        guard let image = renderer.nsImage else {
+            Issue.record("Linux ImageRenderer should rasterize Color.red via gdk-pixbuf")
+            return
+        }
+        // The Linux PlatformImage carries PNG bytes; verify the magic.
+        let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        if let data = image.data {
+            #expect(Array(data.prefix(8)) == pngMagic)
+        } else {
+            Issue.record("Linux PlatformImage should carry data bytes")
+        }
+#endif
+    }
 
     // MARK: - QuillCompatibilityDiagnostics shape parity
 

@@ -674,3 +674,19 @@ Status: passing on macOS tests, Linux tests, generated full-source build, and Li
 - Verified generated check mode: `scripts/generated-enchanted-full-source-check.sh` compiled the generated full-source product from 92 copied Swift files into 95 generated Swift files.
 - Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt the 92-file generated Quill Chat app and passed landmarks with header `73px`, toolbar `51-56`, prompt cards `395-1045`, and composer `750px@474`.
 - Remaining honest gap: the toolbar controls are visual tap targets for parity; the model/options affordances still need real native menu/popover behavior rather than simplified generated-profile actions.
+
+## Checkpoint 50: Toolbar Menus and Solid Color Rendering
+
+Status: passing on macOS tests, Linux tests, generated full-source build, and Linux GTK visual smoke.
+
+- Added reusable `QuillToolbarMenuButton`, keeping the chrome-free toolbar icon appearance while adding QuillUI-owned popover rows with icons, dividers, disabled actions, and action dispatch.
+- Updated the Enchanted full-source profile so the generated Linux Quill Chat toolbar model chevron opens model choices, including a checkmark for the selected model, and the options affordance opens Copy Chat / Copy Chat as JSON actions.
+- Kept the new behavior in library APIs plus generated profile descriptions; upstream Quill Chat sources remain unmodified.
+- Added structural coverage for `QuillToolbarMenuButton` in the QuillUI compatibility tests and desktop split layout materialization.
+- Moved `ImageRenderer` one step past a pure stub: Linux now rasterizes solid `Color` content to real PNG bytes through gdk-pixbuf, while non-Color view trees still return nil with explicit diagnostics. This also fixed current Linux C-import drift by casting gdk-pixbuf objects to `gpointer` before `g_object_unref`.
+- Added Linux tests for solid-color PNG/TIFF generation, `ImageRenderer(Color)` success, non-Color renderer diagnostics, and cross-platform parity that `ImageRenderer(content: Color.red).nsImage` is non-nil on both macOS and Linux.
+- Verified macOS: `swift test --disable-automatic-resolution` passed with 76 tests in 10 suites.
+- Verified Linux: `swift test --scratch-path .build-linux` passed with 145 tests in 13 suites.
+- Verified generated check mode: `scripts/generated-enchanted-full-source-check.sh` compiled the 87-file generated full-source check into 90 generated Swift files.
+- Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt the 92-file generated Quill Chat app into 95 generated Swift files and passed landmarks with header `73px`, toolbar `51-56`, prompt cards `395-1045`, and composer `750px@474`.
+- Remaining honest gap: `QuillToolbarMenuButton` is a SwiftUI-level popover approximation, not a native GTK/libadwaita menu yet; click-outside dismissal, keyboard navigation, and full offscreen SwiftUI view rasterization remain open.

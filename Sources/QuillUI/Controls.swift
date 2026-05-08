@@ -650,6 +650,98 @@ public struct QuillToolbarIconButton: View {
     }
 }
 
+public struct QuillToolbarMenuButton: View {
+    public var systemImage: String
+    public var showsChevron: Bool
+    public var width: CGFloat
+    public var menuWidth: CGFloat
+    public var actions: [QuillMenuAction]
+    @State private var isExpanded = false
+
+    public init(
+        systemImage: String,
+        showsChevron: Bool = false,
+        width: CGFloat = 30,
+        menuWidth: CGFloat = 190,
+        actions: [QuillMenuAction]
+    ) {
+        self.systemImage = systemImage
+        self.showsChevron = showsChevron
+        self.width = width
+        self.menuWidth = menuWidth
+        self.actions = actions
+    }
+
+    public var body: some View {
+        ZStack(alignment: .topTrailing) {
+            QuillToolbarIconButton(systemImage: systemImage, showsChevron: showsChevron, width: width) {
+                isExpanded.toggle()
+            }
+
+            if isExpanded {
+                menuPopover
+                    .offset(y: 32)
+            }
+        }
+        .frame(width: width, height: 30, alignment: .topTrailing)
+    }
+
+    private var menuPopover: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(actions) { action in
+                switch action.kind {
+                case .divider:
+                    Divider()
+                        .padding(.vertical, 4)
+                case .item:
+                    menuRow(for: action)
+                }
+            }
+        }
+        .padding(.vertical, 6)
+        .frame(width: menuWidth, alignment: .leading)
+        .background(Color(hex: "#FFFFFF"))
+        .cornerRadius(8)
+        .shadow(color: Color(red: 0, green: 0, blue: 0, opacity: 0.16), radius: 14, x: 0, y: 8)
+    }
+
+    private func menuRow(for action: QuillMenuAction) -> some View {
+        HStack(spacing: 9) {
+            menuIcon(for: action)
+
+            Text(action.title)
+                .font(.system(size: 13))
+                .lineLimit(1)
+
+            Spacer()
+        }
+        .foregroundColor(action.isDisabled ? Color(hex: "#9A9A9E") : Color(hex: "#2C2C2E"))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard !action.isDisabled else { return }
+            isExpanded = false
+            action.perform()
+        }
+    }
+
+    @ViewBuilder
+    private func menuIcon(for action: QuillMenuAction) -> some View {
+        if let systemImage = action.systemImage {
+            Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 15, height: 15)
+        } else {
+            Text("")
+                .frame(width: 15, height: 15)
+        }
+    }
+}
+
 public struct QuillMenuAction: Identifiable {
     public enum Kind {
         case item

@@ -547,6 +547,10 @@ struct CompatibilityModuleTests {
         let events = QuillCompatibilityDiagnostics.shared.events
         let operations = Set(events.map(\.operation))
 
+        // ImageRenderer.init still records the partial-renderer fallback
+        // contract, while the access path logs when content can't be
+        // rasterized. The Text("rendered") used above is a non-Color view,
+        // so uiImage/nsImage still warn.
         #expect(operations.isSuperset(of: Set([
             "Binding.animation",
             "listStyle(PlainListStyle)",
@@ -1349,6 +1353,111 @@ struct CompatibilityModuleTests {
         // hidden mutation in the getter).
         let secondCall = img.tiffRepresentation
         #expect(secondCall == tiff, "tiffRepresentation must be deterministic for the same instance")
+    }
+
+    @Test("quillRenderSolidColorImage produces a real PNG of the requested size and color")
+    func quillRenderSolidColorImageContract() {
+        // Zero-size dimensions reject early.
+        #expect(quillRenderSolidColorImage(red: 1, green: 0, blue: 0, alpha: 1, width: 0, height: 16) == nil)
+        #expect(quillRenderSolidColorImage(red: 1, green: 0, blue: 0, alpha: 1, width: 16, height: 0) == nil)
+        #expect(quillRenderSolidColorImage(red: 1, green: 0, blue: 0, alpha: 1, width: -1, height: 16) == nil)
+
+        // Valid red 4×4 PNG.
+        guard let png = quillRenderSolidColorImage(
+            red: 1, green: 0, blue: 0, alpha: 1,
+            width: 4, height: 4,
+            format: .png
+        ) else {
+            Issue.record("Expected non-nil PNG for valid solid-color render")
+            return
+        }
+        // PNG magic prefix: \x89 P N G \r \n \x1a \n (8 bytes).
+        let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        #expect(Array(png.prefix(8)) == pngMagic, "Output must have PNG magic; got \(Array(png.prefix(8)))")
+
+        // PNG IHDR chunk follows the magic and encodes width/height as
+        // big-endian Int32 at byte offsets 16..19 and 20..23.
+        if png.count >= 24 {
+            let bytes = Array(png)
+            let width = (UInt32(bytes[16]) << 24) | (UInt32(bytes[17]) << 16)
+                      | (UInt32(bytes[18]) << 8)  |  UInt32(bytes[19])
+            let height = (UInt32(bytes[20]) << 24) | (UInt32(bytes[21]) << 16)
+                       | (UInt32(bytes[22]) << 8)  |  UInt32(bytes[23])
+            #expect(width == 4, "PNG IHDR width should be 4; got \(width)")
+            #expect(height == 4, "PNG IHDR height should be 4; got \(height)")
+        }
+
+        // Same call as TIFF — verify the format option actually switches
+        // encoders (TIFF magic instead of PNG magic).
+        guard let tiff = quillRenderSolidColorImage(
+            red: 0, green: 1, blue: 0, alpha: 1,
+            width: 8, height: 8,
+            format: .tiff
+        ) else {
+            Issue.record("Expected non-nil TIFF for valid solid-color render")
+            return
+        }
+        let tiffPrefix = Array(tiff.prefix(4))
+        let isLittle = tiffPrefix == [0x49, 0x49, 0x2A, 0x00]
+        let isBig    = tiffPrefix == [0x4D, 0x4D, 0x00, 0x2A]
+        #expect(isLittle || isBig, "TIFF output must have TIFF magic; got \(tiffPrefix)")
+    }
+
+    @Test("ImageRenderer rasterizes Color content to PNG bytes via gdk-pixbuf")
+    func imageRendererRendersColorContent() {
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        // Color is one of the few content types we currently support without
+        // a full SwiftUI render pipeline; ImageRenderer should produce a real
+        // PlatformImage with PNG bytes for it.
+        let renderer = ImageRenderer(content: Color(red: 0.2, green: 0.4, blue: 0.6, opacity: 1.0))
+
+        guard let image = renderer.nsImage else {
+            Issue.record("Expected nsImage for Color content; got nil")
+            return
+        }
+        guard let pngData = image.data else {
+            Issue.record("PlatformImage produced by ImageRenderer must carry data")
+            return
+        }
+        let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        #expect(Array(pngData.prefix(8)) == pngMagic)
+
+        // uiImage path returns the same shape (just a different ObjC accessor
+        // name on Apple). Both paths share the underlying renderer.
+        guard let uiImage = renderer.uiImage else {
+            Issue.record("Expected uiImage for Color content; got nil")
+            return
+        }
+        #expect(uiImage.data?.prefix(8) == Data(pngMagic))
+
+        // No warnings should be recorded for the Color path — it's the
+        // supported subset.
+        let warnings = QuillCompatibilityDiagnostics.shared.events.filter {
+            $0.operation.hasPrefix("ImageRenderer") && $0.severity == .warning
+        }
+        #expect(warnings.isEmpty, "Color rendering should not record warnings; got \(warnings.map(\.message))")
+    }
+
+    @Test("ImageRenderer falls back to nil + warning for non-Color content")
+    func imageRendererStillFallsBackForOtherContent() {
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        // Text isn't currently supported by the partial parity implementation;
+        // this exercises the fallback path that names the unsupported type
+        // in the diagnostic message.
+        let renderer = ImageRenderer(content: Text("not yet rasterized"))
+        #expect(renderer.uiImage == nil)
+        #expect(renderer.nsImage == nil)
+
+        let warnings = QuillCompatibilityDiagnostics.shared.events.filter {
+            $0.operation.hasPrefix("ImageRenderer") && $0.severity == .warning
+        }
+        #expect(warnings.count >= 2)
+        // The warning message must surface the actual content type so a
+        // developer reading diagnostics can see exactly which view broke.
+        #expect(warnings.contains { $0.message.contains("Text") },
+                "Expected at least one warning to name the content type 'Text'; got \(warnings.map(\.message))")
     }
 
     @Test("quillTranscodeImageDataToTIFF returns nil for empty / invalid input but TIFF for valid")

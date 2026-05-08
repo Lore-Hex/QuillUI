@@ -95,6 +95,11 @@ struct UpstreamCompatibilityTests {
             .divider(),
             QuillMenuAction(title: "Clear", systemImage: "trash", isDisabled: true) {}
         ])
+        _ = QuillToolbarMenuButton(systemImage: "ellipsis", showsChevron: true, actions: [
+            QuillMenuAction(title: "Copy Chat", systemImage: "doc.on.doc") {},
+            .divider(),
+            QuillMenuAction(title: "Copy JSON", systemImage: "curlybraces") {}
+        ])
         _ = Menu {
             ForEach(["Copy", "Paste"], id: \.self) { title in
                 Button(title) {}
@@ -525,6 +530,11 @@ struct UpstreamCompatibilityTests {
             .divider(id: "divider"),
             QuillMenuAction(title: "Disabled", isDisabled: true) {}
         ]).body
+        _ = QuillToolbarMenuButton(systemImage: "ellipsis", showsChevron: true, actions: [
+            menuAction,
+            .divider(id: "toolbar-divider"),
+            QuillMenuAction(title: "Copy JSON", systemImage: "curlybraces") {}
+        ]).body
 
         #expect(iconTapped == false)
         #expect(selectedPrompt == nil)
@@ -571,8 +581,13 @@ struct UpstreamCompatibilityTests {
                 QuillConversationHistoryList(items: []) { _ in }
             } toolbar: {
                 QuillToolbarActionRow {
-                    QuillToolbarIconButton(systemImage: "chevron.down") {}
-                    QuillToolbarIconButton(systemImage: "ellipsis", showsChevron: true, width: 42) {}
+                    QuillToolbarMenuButton(systemImage: "chevron.down", actions: [
+                        QuillMenuAction(title: "Llama latest", systemImage: "checkmark") {}
+                    ])
+                    QuillToolbarMenuButton(systemImage: "ellipsis", showsChevron: true, width: 42, actions: [
+                        QuillMenuAction(title: "Copy Chat") {},
+                        QuillMenuAction(title: "Copy Chat as JSON") {}
+                    ])
                     QuillToolbarIconButton(systemImage: "square.and.pencil") {}
                 }
             } content: {

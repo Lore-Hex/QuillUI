@@ -194,6 +194,33 @@ struct ChatView: View {
     @State private var editMessage: MessageSD?
     @FocusState private var isFocusedInput: Bool
 
+    private var modelMenuActions: [QuillMenuAction] {
+        if modelsList.isEmpty {
+            return [
+                QuillMenuAction(title: "No models available", isDisabled: true) {}
+            ]
+        }
+
+        return modelsList.map { model in
+            let title = model.prettyVersion.isEmpty ? model.prettyName : "\(model.prettyName) \(model.prettyVersion)"
+            let icon = selectedModel?.name == model.name ? "checkmark" : nil
+            return QuillMenuAction(id: model.name, title: title, systemImage: icon) {
+                onSelectModel(model)
+            }
+        }
+    }
+
+    private var optionsMenuActions: [QuillMenuAction] {
+        [
+            QuillMenuAction(title: "Copy Chat", systemImage: "doc.on.doc") {
+                copyChat(false)
+            },
+            QuillMenuAction(title: "Copy Chat as JSON", systemImage: "curlybraces") {
+                copyChat(true)
+            }
+        ]
+    }
+
     var body: some View {
         QuillDesktopSplitLayout(title: "Quill Chat", sidebarWidth: 320) {
             SidebarView(
@@ -205,17 +232,19 @@ struct ChatView: View {
             )
         } toolbar: {
             QuillToolbarActionRow {
-                QuillToolbarIconButton(systemImage: "chevron.down") {
-                    if let selectedModel {
-                        onSelectModel(selectedModel)
-                    } else if let firstModel = modelsList.first {
-                        onSelectModel(firstModel)
-                    }
-                }
+                QuillToolbarMenuButton(
+                    systemImage: "chevron.down",
+                    menuWidth: 220,
+                    actions: modelMenuActions
+                )
 
-                QuillToolbarIconButton(systemImage: "ellipsis", showsChevron: true, width: 42) {
-                    copyChat(false)
-                }
+                QuillToolbarMenuButton(
+                    systemImage: "ellipsis",
+                    showsChevron: true,
+                    width: 42,
+                    menuWidth: 180,
+                    actions: optionsMenuActions
+                )
 
                 QuillToolbarIconButton(systemImage: "square.and.pencil", action: onNewConversationTap)
             }
