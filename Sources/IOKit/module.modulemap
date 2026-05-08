@@ -1,0 +1,9 @@
+module IOKit {
+  header "IOKit.h"
+  export *
+
+  module usb {
+    header "usb.h"
+    export *
+  }
+}

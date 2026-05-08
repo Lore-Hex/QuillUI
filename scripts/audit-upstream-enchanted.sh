@@ -27,8 +27,8 @@ Swift files: $swift_count
 ## Non-Apple/Linux Port Import Inventory
 MSG
 
-for pattern in SwiftData AppKit UIKit AVFoundation Speech KeyboardShortcuts Magnet Carbon MarkdownUI Splash PhotosUI ActivityIndicatorView Vortex WrappingHStack OllamaKit AsyncAlgorithms; do
-  count="$(rg --fixed-strings "import $pattern" "$UPSTREAM_DIR/Enchanted" -g '*.swift' | wc -l | tr -d ' ')"
+for pattern in SwiftData AppKit UIKit AVFoundation Speech KeyboardShortcuts Magnet Carbon IOKit MarkdownUI Splash PhotosUI ActivityIndicatorView Vortex WrappingHStack OllamaKit AsyncAlgorithms; do
+  count="$((rg --fixed-strings "import $pattern" "$UPSTREAM_DIR/Enchanted" -g '*.swift' || true) | wc -l | tr -d ' ')"
   if [[ "$count" != "0" ]]; then
     printf -- "- %s imports: %s\n" "$pattern" "$count"
   fi

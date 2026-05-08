@@ -13,6 +13,8 @@ import Splash
 import OllamaKit
 import AsyncAlgorithms
 import Carbon
+import IOKit
+import IOKit.usb
 import WrappingHStack
 import Vortex
 import KeyboardShortcuts
@@ -193,6 +195,35 @@ struct CompatibilityModuleTests {
 
         #expect(firstTick != nil)
         #expect(CarbonCompatibility.available == false)
+    }
+
+    @Test("IOKit USB compatibility covers Quill USB watcher imports")
+    func ioKitUSBContractsCompile() {
+        var iterator: io_iterator_t = 99
+        let port = IONotificationPortCreate(kIOMainPortDefault)
+        let callback: IOServiceMatchingCallback = { _, iterator in
+            _ = IOIteratorNext(iterator)
+        }
+
+        IONotificationPortSetDispatchQueue(port, nil)
+        let result = IOServiceAddMatchingNotification(
+            port,
+            kIOFirstMatchNotification,
+            nil,
+            callback,
+            nil,
+            &iterator
+        )
+
+        #expect(result == kIOReturnUnsupported)
+        #expect(iterator == 0)
+        #expect(IOIteratorNext(iterator) == 0)
+        #expect(IOObjectRelease(iterator) == kIOReturnSuccess)
+        #expect(kIOUSBDeviceClassName == "IOUSBDevice")
+        #expect(kUSBVendorID == "idVendor")
+        #expect(kUSBProductID == "idProduct")
+
+        IONotificationPortDestroy(port)
     }
 
     @Test("Apple service modules provide diagnostic Linux fallbacks")

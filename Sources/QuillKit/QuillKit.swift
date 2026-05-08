@@ -27,6 +27,7 @@ public enum QuillKitCapability: String, CaseIterable, Sendable {
     case accessibility
     case syntheticKeyboard
     case globalShortcuts
+    case deviceEvents
     case launchAtLogin
     case updater
     case certificateTrust
@@ -46,7 +47,7 @@ public enum QuillKitCapabilities {
         case .clipboard:
             return .emulated
         case .speechSynthesis, .speechRecognition, .haptics, .accessibility, .syntheticKeyboard,
-             .globalShortcuts, .launchAtLogin, .updater, .certificateTrust, .photoPicker:
+             .globalShortcuts, .deviceEvents, .launchAtLogin, .updater, .certificateTrust, .photoPicker:
             return .unavailable(reason: "No native Linux backend has been attached yet.")
         }
         #else

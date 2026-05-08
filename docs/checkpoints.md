@@ -350,3 +350,17 @@ Status: passing on macOS, Linux, and Linux GTK smoke.
 - Linux GTK verification passed: both GTK products built and both apps survived the 4-second Xvfb smoke run.
 - `bash -n scripts/*.sh`, `git diff --check`, `scripts/audit-quill-chat.sh`, and `scripts/audit-upstream-enchanted.sh` passed.
 - Remaining honest gaps: real Enchanted source is still not the build input, SwiftData macro/source compatibility remains the biggest app-side blocker, and native IOKit/USB device events are not implemented.
+
+## Checkpoint 27: IOKit USB Import Shell
+
+Status: passing on macOS, Linux, and Linux GTK smoke.
+
+- Added a Linux `IOKit` system-library compatibility target with a Clang module map and `IOKit.usb` submodule, covering `import IOKit` and `import IOKit.usb` at the module level.
+- Added no-op IOKit USB/device symbols used by Quill Chat's macOS USB watcher surface: `io_object_t`, `io_iterator_t`, `IONotificationPortRef`, `IOServiceMatchingCallback`, `IONotificationPortCreate`, `IONotificationPortDestroy`, `IONotificationPortSetDispatchQueue`, `IOServiceAddMatchingNotification`, `IOIteratorNext`, `IOObjectRelease`, `kIOMainPortDefault`, `kIOFirstMatchNotification`, `kIOTerminatedNotification`, `kIOUSBDeviceClassName`, `kUSBVendorID`, and `kUSBProductID`.
+- Added `QuillKitCapability.deviceEvents` so Linux device watching is tracked as a first-class platform-service gap instead of being hidden inside the app.
+- Added Linux regression coverage for `IOKit`/`IOKit.usb` imports, constants, callback types, iterator calls, and explicit unsupported notification registration.
+- macOS `swift test --disable-automatic-resolution` passed with 52 tests in 8 suites.
+- Linux `swift test --scratch-path .build-linux` passed with 86 tests in 11 suites.
+- Linux GTK verification passed: both GTK products built and both apps survived the 4-second Xvfb smoke run.
+- `bash -n scripts/*.sh`, `git diff --check`, `scripts/audit-quill-chat.sh`, and `scripts/audit-upstream-enchanted.sh` passed.
+- Remaining honest gap: Darwin's `IONotificationPortSetDispatchQueue(..., DispatchQueue.main)` bridging does not exist in Linux C Dispatch, and real device-arrival behavior should be implemented with a native QuillKit udev/libusb backend.
