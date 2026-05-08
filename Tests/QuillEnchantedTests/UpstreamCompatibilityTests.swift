@@ -74,6 +74,7 @@ struct UpstreamCompatibilityTests {
             QuillSidebarNavigationAction(title: "Shortcuts", systemImage: "keyboard") {},
             QuillSidebarNavigationAction(title: "Settings", systemImage: "gearshape.fill") {}
         ])
+        _ = QuillSidebarNavigationButton(title: "Completions", systemImage: "textformat.abc") {}
         _ = QuillStatusBanner(message: "Quill is unreachable.", actionTitle: "Settings") {}
         _ = QuillChatEmptyState(prompts: [
             QuillPrompt(title: "How to center div in HTML?", systemImage: "questionmark.circle")
@@ -570,8 +571,9 @@ struct UpstreamCompatibilityTests {
                 QuillConversationHistoryList(items: []) { _ in }
             } toolbar: {
                 QuillToolbarActionRow {
-                    QuillFloatingIconButton(systemImage: "ellipsis.circle") {}
-                    QuillFloatingIconButton(systemImage: "square.and.pencil") {}
+                    QuillToolbarIconButton(systemImage: "chevron.down") {}
+                    QuillToolbarIconButton(systemImage: "ellipsis", showsChevron: true, width: 42) {}
+                    QuillToolbarIconButton(systemImage: "square.and.pencil") {}
                 }
             } content: {
                 QuillChatEmptyState(brandTitle: "Quill", prompts: prompts, columns: 4) { _ in }

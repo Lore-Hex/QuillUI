@@ -659,3 +659,18 @@ Status: passing on macOS tests, Linux tests, generated full-source build, and Li
 - Verified generated check mode: `scripts/generated-enchanted-full-source-check.sh` compiled the generated full-source product.
 - Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt the 92-file generated Quill Chat app and passed landmarks with header `73px`, toolbar `47-59`, prompt cards `395-1045`, and composer `750px@474`.
 - Remaining honest gap: the toolbar is now correctly row-shaped, but its model/menu controls are still generic GTK menu buttons rather than macOS-like icon-only affordances. A native menu-button rendering pass should follow.
+
+## Checkpoint 49: Generated Quill Chat Icon Controls
+
+Status: passing on macOS tests, Linux tests, generated full-source build, and Linux GTK visual smoke.
+
+- Added reusable `QuillToolbarIconButton` for chrome-free compact toolbar actions and `QuillSidebarNavigationButton` for macOS-like sidebar footer rows.
+- Updated `QuillSidebarBottomNavigation` to use the shared sidebar button, so future app profiles can reuse the same no-GTK-button-chrome row behavior.
+- Updated the Enchanted full-source profile's generated Linux `ChatView_macOS.swift` replacement to use icon-only model/options/new-chat toolbar affordances, and replaced the generated `SidebarButton` with a thin wrapper over `QuillSidebarNavigationButton`.
+- Kept the app-source edits generated-only: the upstream 92 Swift files are still copied into the generated package, then profile-lowered without modifying the real checkout.
+- Extended structural view coverage to instantiate the new sidebar navigation button and toolbar icon button paths.
+- Verified macOS: `swift test --disable-automatic-resolution` passed with 75 tests in 10 suites.
+- Verified Linux: `swift test --scratch-path .build-linux` passed with 141 tests in 13 suites.
+- Verified generated check mode: `scripts/generated-enchanted-full-source-check.sh` compiled the generated full-source product from 92 copied Swift files into 95 generated Swift files.
+- Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt the 92-file generated Quill Chat app and passed landmarks with header `73px`, toolbar `51-56`, prompt cards `395-1045`, and composer `750px@474`.
+- Remaining honest gap: the toolbar controls are visual tap targets for parity; the model/options affordances still need real native menu/popover behavior rather than simplified generated-profile actions.

@@ -67,6 +67,29 @@ if [[ -f "$input_fields" ]]; then
   perl -0pi -e 's/import SwiftUI/import SwiftUI\nimport AppKit/' "$input_fields"
 fi
 
+sidebar_button="$LOWERED_COPY/UI/Shared/Sidebar/Components/SidebarButton.swift"
+if [[ -f "$sidebar_button" ]]; then
+  cat > "$sidebar_button" <<'SWIFT'
+//
+//  SidebarButton.swift
+//  Enchanted
+//
+
+import SwiftUI
+import QuillUI
+
+struct SidebarButton: View {
+    var title: String
+    var image: String
+    var onClick: () -> ()
+
+    var body: some View {
+        QuillSidebarNavigationButton(title: title, systemImage: image, action: onClick)
+    }
+}
+SWIFT
+fi
+
 enchanted_app="$LOWERED_COPY/Application/EnchantedApp.swift"
 if [[ -f "$enchanted_app" ]]; then
   perl -0pi -e '
@@ -182,26 +205,19 @@ struct ChatView: View {
             )
         } toolbar: {
             QuillToolbarActionRow {
-                ModelSelectorView(
-                    modelsList: modelsList,
-                    selectedModel: selectedModel,
-                    onSelectModel: onSelectModel,
-                    showChevron: false
-                )
-                .frame(height: 20)
-
-                MoreOptionsMenuView(copyChat: copyChat)
-
-                Button(action: onNewConversationTap) {
-                    Image(systemName: "square.and.pencil")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: 20)
-                        .padding(5)
+                QuillToolbarIconButton(systemImage: "chevron.down") {
+                    if let selectedModel {
+                        onSelectModel(selectedModel)
+                    } else if let firstModel = modelsList.first {
+                        onSelectModel(firstModel)
+                    }
                 }
-                .buttonStyle(PlainButtonStyle())
-                .keyboardShortcut(KeyEquivalent("n"), modifiers: .command)
+
+                QuillToolbarIconButton(systemImage: "ellipsis", showsChevron: true, width: 42) {
+                    copyChat(false)
+                }
+
+                QuillToolbarIconButton(systemImage: "square.and.pencil", action: onNewConversationTap)
             }
         } content: {
             VStack(alignment: .center, spacing: 0) {

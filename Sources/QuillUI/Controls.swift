@@ -355,18 +355,56 @@ public struct QuillSidebarBottomNavigation: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             ForEach(actions) { action in
-                Button(action: action.perform) {
-                    HStack(spacing: 10) {
-                        Image(systemName: QuillSystemSymbol.compatibleName(action.systemImage))
-                            .frame(width: 18)
-                        Text(action.title)
-                            .font(.system(size: 15))
-                            .foregroundColor(Color(hex: "#3A3A3C"))
-                        Spacer()
-                    }
-                }
-                .buttonStyle(.plain)
+                QuillSidebarNavigationButton(
+                    title: action.title,
+                    systemImage: action.systemImage,
+                    action: action.perform
+                )
             }
+        }
+    }
+}
+
+public struct QuillSidebarNavigationButton: View {
+    public var title: String
+    public var systemImage: String
+    private var action: () -> Void
+
+    public init(title: String, systemImage: String, action: @escaping () -> Void) {
+        self.title = title
+        self.systemImage = systemImage
+        self.action = action
+    }
+
+    public var body: some View {
+        HStack(spacing: 10) {
+            sidebarIcon
+                .frame(width: 24, height: 20, alignment: .leading)
+
+            Text(title)
+                .lineLimit(1)
+                .font(.system(size: 15))
+
+            Spacer()
+        }
+        .foregroundColor(Color(hex: "#3A3A3C"))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: action)
+    }
+
+    @ViewBuilder
+    private var sidebarIcon: some View {
+        switch systemImage {
+        case "character.cursor.ibeam", "textformat", "textformat.abc":
+            Text("Abc")
+                .font(.system(size: 11))
+        default:
+            Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 17, height: 17, alignment: .center)
         }
     }
 }
@@ -569,6 +607,47 @@ public struct QuillToolbarActionRow<Content: View>: View {
     #else
     private var stackSpacing: Int { spacing }
     #endif
+}
+
+public struct QuillToolbarIconButton: View {
+    public var systemImage: String
+    public var showsChevron: Bool
+    public var width: CGFloat
+    private var action: () -> Void
+
+    public init(
+        systemImage: String,
+        showsChevron: Bool = false,
+        width: CGFloat = 30,
+        action: @escaping () -> Void
+    ) {
+        self.systemImage = systemImage
+        self.showsChevron = showsChevron
+        self.width = width
+        self.action = action
+    }
+
+    public var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 17, height: 17)
+
+            if showsChevron {
+                Image(systemName: QuillSystemSymbol.compatibleName("chevron.down"))
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 10, height: 10)
+            }
+        }
+        .foregroundColor(Color(hex: "#3A3A3C"))
+        .frame(width: width, height: 30, alignment: .center)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: action)
+    }
 }
 
 public struct QuillMenuAction: Identifiable {
