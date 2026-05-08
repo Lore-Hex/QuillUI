@@ -619,3 +619,18 @@ Status: passing for generated app build and Xvfb screenshot smoke.
 - Documented the generated app visual command in `docs/linux-build-tooling.md` and updated the API coverage matrix QA row.
 - Verified in the Linux VM with `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux`: screenshot captured at 1180x760 with mean 62672.1 and standard deviation 4059.4.
 - Remaining honest gap: this is still a nonblank/variation smoke, not a perceptual comparison against the macOS Quill Chat screenshot. The next visual QA step should compute layout landmarks such as sidebar width, toolbar height, composer position, prompt card bounds, and dominant colors from the screenshot.
+
+## Checkpoint 46: Generated Quill Chat Layout Parity
+
+Status: passing on macOS tests, Linux generated full-source build, and Linux GTK visual smoke.
+
+- Added `QuillDesktopSplitLayout`, a reusable QuillUI desktop shell for apps whose SwiftUI `NavigationSplitView` source compiles but collapses visually under the current GTK backend.
+- Extended `QuillChatEmptyState` with explicit card geometry so generated Linux apps can render the same four-card Quill prompt grid shape as the macOS reference instead of relying on `LazyVGrid` behavior.
+- Updated the Enchanted full-source profile to rewrite only the generated Linux `ChatView_macOS.swift` and `EmptyConversaitonView.swift` copies, leaving upstream app sources untouched while avoiding the collapsed sidebar, vertical prompt-card layout, and narrow composer seen in the previous screenshot.
+- Serialized the cross-platform parity suite because it exercises global `UserDefaults.standard` state; this removes a Linux-only parallel test race without changing the API under test.
+- Added structural view-tree coverage for the desktop split shell and the fixed-geometry empty state.
+- Verified macOS: `swift test --disable-automatic-resolution` passed with 75 tests in 10 suites.
+- Verified Linux earlier in this checkpoint: `swift test --scratch-path .build-linux` passed with 141 tests in 13 suites.
+- Verified generated check mode: `scripts/generated-enchanted-full-source-check.sh` compiled 90 generated Swift files from the 87-file reduced check slice.
+- Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` captured a 1180x760 screenshot with mean 46702.9 and standard deviation 27302.8.
+- Remaining honest gap: this is now much closer to the supplied macOS screenshot, but it is still layout-directed parity rather than a true screenshot comparator. The next pass should add landmark assertions for sidebar width, header height, prompt-card positions, and composer width.

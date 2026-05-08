@@ -95,6 +95,144 @@ if [[ -f "$header_view" ]]; then
   perl -0pi -e 's/Text\(selectedModel\.name\)/Text("Model")/g' "$header_view"
 fi
 
+empty_conversation_view="$LOWERED_COPY/UI/Shared/Chat/Components/EmptyConversaitonView.swift"
+if [[ -f "$empty_conversation_view" ]]; then
+  cat > "$empty_conversation_view" <<'SWIFT'
+//
+//  EmptyConversaitonView.swift
+//  Enchanted
+//
+
+import SwiftUI
+import QuillUI
+
+struct EmptyConversaitonView: View, KeyboardReadable {
+    var sendPrompt: (String) -> Void
+
+    private var prompts: [QuillPrompt] {
+        SamplePrompts.samples.prefix(4).map { sample in
+            QuillPrompt(
+                id: sample.id,
+                title: sample.prompt,
+                systemImage: sample.type.icon
+            )
+        }
+    }
+
+    var body: some View {
+        QuillChatEmptyState(
+            brandTitle: "Quill",
+            prompts: prompts,
+            columns: 4,
+            cardWidth: 155,
+            cardHeight: 128,
+            spacing: 15
+        ) { prompt in
+            sendPrompt(prompt.title)
+        }
+    }
+}
+SWIFT
+fi
+
+chat_view_macos="$LOWERED_COPY/UI/macOS/Chat/ChatView_macOS.swift"
+if [[ -f "$chat_view_macos" ]]; then
+  cat > "$chat_view_macos" <<'SWIFT'
+//
+//  Chat.swift
+//  Enchanted
+//
+
+#if os(macOS) || os(Linux) || os(visionOS)
+import SwiftUI
+import QuillUI
+
+struct ChatView: View {
+    var selectedConversation: ConversationSD?
+    var conversations: [ConversationSD]
+    var messages: [MessageSD]
+    var modelsList: [LanguageModelSD]
+    var onMenuTap: () -> Void
+    var onNewConversationTap: () -> Void
+    var onSendMessageTap: (_ prompt: String, _ model: LanguageModelSD, _ image: Image?, _ trimmingMessageId: String?) -> Void
+    var onConversationTap: (_ conversation: ConversationSD) -> Void
+    var conversationState: ConversationState
+    var onStopGenerateTap: () -> Void
+    var reachable: Bool
+    var modelSupportsImages: Bool
+    var selectedModel: LanguageModelSD?
+    var onSelectModel: (_ model: LanguageModelSD?) -> Void
+    var onConversationDelete: (_ conversation: ConversationSD) -> Void
+    var onDeleteDailyConversations: (_ date: Date) -> Void
+    var userInitials: String
+    var copyChat: (_ json: Bool) -> Void
+
+    @State private var message = ""
+    @State private var editMessage: MessageSD?
+    @FocusState private var isFocusedInput: Bool
+
+    var body: some View {
+        QuillDesktopSplitLayout(title: "Quill Chat", sidebarWidth: 320) {
+            SidebarView(
+                selectedConversation: selectedConversation,
+                conversations: conversations,
+                onConversationTap: onConversationTap,
+                onConversationDelete: onConversationDelete,
+                onDeleteDailyConversations: onDeleteDailyConversations
+            )
+        } toolbar: {
+            ToolbarView(
+                modelsList: modelsList,
+                selectedModel: selectedModel,
+                onSelectModel: onSelectModel,
+                onNewConversationTap: onNewConversationTap,
+                copyChat: copyChat
+            )
+        } content: {
+            VStack(alignment: .center, spacing: 0) {
+                if selectedConversation != nil {
+                    MessageListView(
+                        messages: messages,
+                        conversationState: conversationState,
+                        userInitials: userInitials,
+                        editMessage: $editMessage
+                    )
+                } else {
+                    EmptyConversaitonView(sendPrompt: { selectedMessage in
+                        if let selectedModel = selectedModel {
+                            onSendMessageTap(selectedMessage, selectedModel, nil, nil)
+                        }
+                    })
+                }
+
+                if !reachable {
+                    UnreachableAPIView()
+                }
+
+                InputFieldsView(
+                    message: $message,
+                    conversationState: conversationState,
+                    onStopGenerateTap: onStopGenerateTap,
+                    selectedModel: selectedModel,
+                    onSendMessageTap: onSendMessageTap,
+                    editMessage: $editMessage
+                )
+                .padding()
+                .frame(width: 800)
+            }
+        }
+        .onChange(of: editMessage, initial: false) { _, newMessage in
+            if let newMessage = newMessage {
+                message = newMessage.content
+                isFocusedInput = true
+            }
+        }
+    }
+}
+#endif
+SWIFT
+fi
+
 ui_image_extension="$LOWERED_COPY/Extensions/UIImage+Extension.swift"
 if [[ -f "$ui_image_extension" ]]; then
   perl -0pi -e 's/import SwiftUI/import SwiftUI\nimport AppKit/' "$ui_image_extension"

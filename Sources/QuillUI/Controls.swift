@@ -419,31 +419,53 @@ public struct QuillChatEmptyState: View {
     public var brandTitle: String
     public var prompts: [QuillPrompt]
     public var columns: Int
+    public var cardWidth: CGFloat
+    public var cardHeight: CGFloat
+    public var spacing: Int
     public var action: (QuillPrompt) -> Void
 
     public init(
         brandTitle: String = "Quill",
         prompts: [QuillPrompt],
         columns: Int = 4,
+        cardWidth: CGFloat = 155,
+        cardHeight: CGFloat = 128,
+        spacing: Int = 15,
         action: @escaping (QuillPrompt) -> Void
     ) {
         self.brandTitle = brandTitle
         self.prompts = prompts
-        self.columns = columns
+        self.columns = max(1, columns)
+        self.cardWidth = cardWidth
+        self.cardHeight = cardHeight
+        self.spacing = spacing
         self.action = action
     }
 
     public var body: some View {
-        VStack(spacing: 26) {
+        VStack(spacing: 40) {
             Spacer()
             wordmark
 
-            QuillPromptGrid(prompts: prompts, columns: columns, action: action)
-                .padding()
+            QuillPromptGrid(
+                prompts: prompts,
+                columns: columns,
+                cardWidth: cardWidth,
+                cardHeight: cardHeight,
+                spacing: spacing,
+                action: action
+            )
+            .frame(width: gridWidth, alignment: .center)
 
             Spacer()
         }
         .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var gridWidth: CGFloat {
+        let visibleColumns = min(columns, max(1, prompts.count))
+        return (CGFloat(visibleColumns) * cardWidth) + CGFloat(max(0, visibleColumns - 1) * spacing)
     }
 
     @ViewBuilder
@@ -465,6 +487,64 @@ public struct QuillChatEmptyState: View {
             .font(Font.system(size: 46, weight: .thin))
             .multilineTextAlignment(.center)
         #endif
+    }
+}
+
+public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Content: View>: View {
+    public var title: String
+    public var sidebarWidth: CGFloat
+    public var toolbarHeight: CGFloat
+    private var sidebar: Sidebar
+    private var toolbarContent: ToolbarContent
+    private var content: Content
+
+    public init(
+        title: String,
+        sidebarWidth: CGFloat = 320,
+        toolbarHeight: CGFloat = 48,
+        @ViewBuilder sidebar: () -> Sidebar,
+        @ViewBuilder toolbar: () -> ToolbarContent,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.sidebarWidth = sidebarWidth
+        self.toolbarHeight = toolbarHeight
+        self.sidebar = sidebar()
+        self.toolbarContent = toolbar()
+        self.content = content()
+    }
+
+    public var body: some View {
+        HStack(spacing: 0) {
+            sidebar
+                .frame(width: sidebarWidth, alignment: .leading)
+                .background(Color(hex: "#E9E9E7"))
+
+            Divider()
+
+            VStack(spacing: 0) {
+                HStack(spacing: 16) {
+                    Text(title)
+                        .font(.system(size: 16))
+                        .fontWeight(.semibold)
+                        .foregroundColor(Color(hex: "#444446"))
+                    Spacer()
+                    HStack(spacing: 14) {
+                        toolbarContent
+                    }
+                }
+                .padding(.horizontal, 16)
+                .frame(height: toolbarHeight, alignment: .center)
+                .background(Color(hex: "#FAFAFA"))
+
+                Divider()
+
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(hex: "#FAFAFA"))
+            }
+        }
+        .background(Color(hex: "#FAFAFA"))
     }
 }
 

@@ -78,6 +78,17 @@ struct UpstreamCompatibilityTests {
         _ = QuillChatEmptyState(prompts: [
             QuillPrompt(title: "How to center div in HTML?", systemImage: "questionmark.circle")
         ]) { _ in }
+        _ = QuillChatEmptyState(
+            brandTitle: "Quill",
+            prompts: [
+                QuillPrompt(title: "How to center div in HTML?", systemImage: "questionmark.circle"),
+                QuillPrompt(title: "Explain supercomputers like I'm five years old", systemImage: "lightbulb.circle")
+            ],
+            columns: 4,
+            cardWidth: 155,
+            cardHeight: 128,
+            spacing: 15
+        ) { _ in }
         _ = QuillMenuButton(actions: [
             QuillMenuAction(title: "Refresh", systemImage: "arrow.clockwise") {},
             .divider(),
@@ -543,6 +554,25 @@ struct UpstreamCompatibilityTests {
         )
         materializeStructuralViewTree(
             QuillChatEmptyState(brandTitle: "Quill", prompts: prompts, columns: 2) { _ in }.body
+        )
+        materializeStructuralViewTree(
+            QuillChatEmptyState(
+                brandTitle: "Quill",
+                prompts: prompts,
+                columns: 4,
+                cardWidth: 155,
+                cardHeight: 128,
+                spacing: 15
+            ) { _ in }.body
+        )
+        materializeStructuralViewTree(
+            QuillDesktopSplitLayout(title: "Quill Chat") {
+                QuillConversationHistoryList(items: []) { _ in }
+            } toolbar: {
+                QuillFloatingIconButton(systemImage: "square.and.pencil") {}
+            } content: {
+                QuillChatEmptyState(brandTitle: "Quill", prompts: prompts, columns: 4) { _ in }
+            }.body
         )
 
         let now = Date()

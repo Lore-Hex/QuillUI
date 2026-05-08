@@ -31,7 +31,7 @@ import AppKit
 /// in pure cross-platform Swift, with `#if canImport(...)` import switching so
 /// the SAME assertion exercises Apple frameworks on macOS and Quill shadows on
 /// Linux. A test that passes on both platforms proves parity for that surface.
-@Suite("Quill Apple parity")
+@Suite("Quill Apple parity", .serialized)
 struct QuillParityTests {
 
     // MARK: - UTType identifiers
