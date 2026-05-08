@@ -31,6 +31,9 @@ The lowest-change strategy is:
   - `.symbolRenderingMode(...)`
   - `.imageScale(...)` after generic view styling
 - Third-party rendering modules now covered by Linux compatibility targets:
+  - `OllamaKit` model listing, reachability checks, bearer-token requests, and newline-streaming chat responses used by Enchanted's Ollama service and prompt completions
+  - `AsyncAlgorithms.AsyncTimerSequence` used by the prompt panel manager
+  - `Carbon` import shell used by the prompt panel path
   - `MarkdownUI` theme/style builders, `Markdown`, `CodeBlockConfiguration`, relative spacing/padding/frame helpers, table styles, and code syntax highlighter hooks
   - `Splash` themes, token colors, `SyntaxHighlighter`, `OutputFormat`, and `OutputBuilder`
 - Linux-safe file/drop compatibility shims for upstream Enchanted's composer surface:
@@ -51,21 +54,16 @@ The lowest-change strategy is:
 These are not good QuillUI shims because they are app behavior or Apple frameworks:
 
 - `SwiftData`: 10 importing files, plus `@Model`, `ModelContainer`, `ModelContext`, `FetchDescriptor`, `SortDescriptor`, and `#Predicate`.
-- Apple UI/framework services:
+- Apple UI/framework services that still need native Linux behavior, even when imports compile through module shells:
   - `AppKit`: 4 importing files
   - `UIKit`: 3 importing files
   - `AVFoundation`: 4 importing files
   - `Speech`: 1 importing file
   - `KeyboardShortcuts`: 2 importing files
   - `Magnet`: 2 importing files
-  - `Carbon`: 1 importing file
   - `PhotosUI`: 1 importing file
-- Third-party UI/rendering dependencies that either need Linux support or replacement:
-  - `ActivityIndicatorView`: 3 importing files
-  - `Vortex`: 1 importing file
-  - `WrappingHStack`: 1 importing file
 
-`MarkdownUI` and `Splash` are no longer compile blockers for Enchanted's currently audited usage, but their Linux shims intentionally render simplified Markdown instead of full MarkdownUI visual parity.
+`ActivityIndicatorView`, `MarkdownUI`, `Splash`, `Vortex`, `WrappingHStack`, `OllamaKit`, `AsyncAlgorithms`, and `Carbon` are no longer compile blockers for Enchanted's currently audited usage. The UI/rendering shims intentionally render simplified native-looking Linux views instead of exact package visual parity.
 
 ## Reproduce
 

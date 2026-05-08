@@ -24,10 +24,10 @@ Repository: $UPSTREAM_URL
 Commit: $commit
 Swift files: $swift_count
 
-## Non-Apple/Linux Port Blockers
+## Non-Apple/Linux Port Import Inventory
 MSG
 
-for pattern in SwiftData AppKit UIKit AVFoundation Speech KeyboardShortcuts Magnet Carbon MarkdownUI Splash PhotosUI ActivityIndicatorView Vortex WrappingHStack; do
+for pattern in SwiftData AppKit UIKit AVFoundation Speech KeyboardShortcuts Magnet Carbon MarkdownUI Splash PhotosUI ActivityIndicatorView Vortex WrappingHStack OllamaKit AsyncAlgorithms; do
   count="$(rg --fixed-strings "import $pattern" "$UPSTREAM_DIR/Enchanted" -g '*.swift' | wc -l | tr -d ' ')"
   if [[ "$count" != "0" ]]; then
     printf -- "- %s imports: %s\n" "$pattern" "$count"
@@ -42,4 +42,3 @@ MSG
 rg 'NavigationSplitView|ScrollViewReader|LazyVGrid|GridItem|@FocusState|fileImporter|onDrop|foregroundStyle|symbolEffect|confirmationDialog|contextMenu|ToolbarItem|Table\(' "$UPSTREAM_DIR/Enchanted" -g '*.swift' \
   | sed "s#$UPSTREAM_DIR/##" \
   | sort
-

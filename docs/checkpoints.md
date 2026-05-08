@@ -335,3 +335,18 @@ Status: passing on macOS and Linux.
 - Linux GTK verification passed: both GTK products built and both apps survived the Xvfb smoke run.
 - `bash -n scripts/*.sh` passed.
 - Remaining honest gaps: the real Enchanted source still is not the build input, SwiftData macro/source compatibility is still the biggest app-side blocker, and MarkdownUI/Splash behavior is simplified rather than full visual parity.
+
+## Checkpoint 26: Enchanted Ollama And Prompt Dependencies
+
+Status: passing on macOS, Linux, and Linux GTK smoke.
+
+- Added Linux compatibility targets and public products for `OllamaKit`, `AsyncAlgorithms`, and `Carbon`, closing the next real upstream Enchanted import blockers after MarkdownUI/Splash.
+- Implemented the Enchanted-used `OllamaKit` surface with real HTTP-backed `models()`, `reachable()`, and streaming `chat(data:)` behavior, including bearer-token headers, `/api/tags`, `/api/version`, `/api/chat`, and newline-delimited Ollama response parsing.
+- Added `OKModelsResponse`, `OKModelResponse`, `OKModelDetails`, `OKCompletionOptions`, `OKChatRequestData`, `OKChatRequestData.Message.Role`, and `OKChatResponse` contracts used by Enchanted's `OllamaService`, conversation store, and prompt completions view model.
+- Added a minimal `AsyncAlgorithms.AsyncTimerSequence` compatibility type for the prompt panel timer loop and a `Carbon` import shell that reports explicit unavailable state on Linux.
+- Added Linux regression tests covering Ollama model parsing, bearer-token propagation, chat request encoding, streamed response aggregation, `AsyncTimerSequence`, and the Carbon compatibility marker.
+- macOS `swift test --disable-automatic-resolution` passed with 52 tests in 8 suites.
+- Linux `swift test --scratch-path .build-linux` passed with 85 tests in 11 suites.
+- Linux GTK verification passed: both GTK products built and both apps survived the 4-second Xvfb smoke run.
+- `bash -n scripts/*.sh`, `git diff --check`, `scripts/audit-quill-chat.sh`, and `scripts/audit-upstream-enchanted.sh` passed.
+- Remaining honest gaps: real Enchanted source is still not the build input, SwiftData macro/source compatibility remains the biggest app-side blocker, and native IOKit/USB device events are not implemented.

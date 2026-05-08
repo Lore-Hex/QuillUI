@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Testing
 import SwiftUI
 import SwiftData
@@ -7,6 +10,9 @@ import QuillKit
 import ActivityIndicatorView
 import MarkdownUI
 import Splash
+import OllamaKit
+import AsyncAlgorithms
+import Carbon
 import WrappingHStack
 import Vortex
 import KeyboardShortcuts
@@ -94,6 +100,99 @@ struct CompatibilityModuleTests {
                 FontSize(.em(0.85))
             }
             .markdownMargin(top: .zero, bottom: .em(0.8))
+    }
+
+    @Test("OllamaKit compatibility covers Enchanted model and chat contracts")
+    func ollamaKitContractsCompileAndStream() async throws {
+        let transport = FakeOllamaTransport(routes: [
+            "/api/version": (200, #"{"version":"0.6.0"}"#),
+            "/api/tags": (200, #"{"models":[{"name":"llava:latest","details":{"families":["clip"]}},{"name":"llama3.2:latest"}]}"#),
+            "/api/chat": (
+                200,
+                """
+                {"message":{"role":"assistant","content":"Hel"},"done":false}
+                {"message":{"role":"assistant","content":"lo"},"done":false}
+                {"done":true}
+                """
+            )
+        ])
+        let kit = OllamaKit(
+            baseURL: URL(string: "http://localhost:11434")!,
+            bearerToken: "secret",
+            transport: transport
+        )
+
+        #expect(await kit.reachable())
+
+        let models = try await kit.models()
+        #expect(models.models.map(\.name) == ["llava:latest", "llama3.2:latest"])
+        #expect(models.models.first?.details.families == ["clip"])
+
+        var request = OKChatRequestData(
+            model: "llava:latest",
+            messages: [
+                .init(role: .system, content: "short"),
+                .init(role: .user, content: "describe", images: ["base64"])
+            ]
+        )
+        request.options = OKCompletionOptions(temperature: 0)
+
+        var values: [OKChatResponse] = []
+        var finished = false
+        var failure: Error?
+        let cancellable = kit.chat(data: request)
+            .sink { completion in
+                switch completion {
+                case .finished:
+                    finished = true
+                case .failure(let error):
+                    failure = error
+                }
+            } receiveValue: { response in
+                values.append(response)
+            }
+
+        let deadline = Date().addingTimeInterval(1)
+        while !finished && failure == nil && Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        cancellable.cancel()
+
+        #expect(failure == nil)
+        #expect(finished)
+        #expect(values.map { $0.message?.content ?? "" }.joined() == "Hello")
+        #expect(values.last?.done == true)
+        #expect(transport.requests.contains { $0.path == "/api/chat" && $0.authorization == "Bearer secret" })
+        #expect(transport.chatBody?.contains(#""stream":true"#) == true)
+    }
+
+    @Test("OllamaKit compatibility reports HTTP and stream parse failures")
+    func ollamaKitErrorContractsAreDeterministic() async throws {
+        let transport = FakeOllamaTransport(routes: [
+            "/api/version": (503, #"{"error":"down"}"#),
+            "/api/tags": (500, #"{"error":"boom"}"#)
+        ])
+        let kit = OllamaKit(
+            baseURL: URL(string: "http://localhost:11434")!,
+            transport: transport
+        )
+
+        #expect(await kit.reachable() == false)
+        await #expect(throws: OllamaKitError.self) {
+            _ = try await kit.models()
+        }
+        #expect(throws: (any Error).self) {
+            _ = try OllamaKit.decodeChatResponses(from: Data("not-json\n".utf8))
+        }
+    }
+
+    @Test("AsyncAlgorithms and Carbon compatibility cover prompt-panel imports")
+    func asyncAlgorithmsAndCarbonContractsCompile() async {
+        var iterator = AsyncTimerSequence(interval: .milliseconds(1), clock: .continuous).makeAsyncIterator()
+        let firstTick = await iterator.next()
+
+        #expect(firstTick != nil)
+        #expect(CarbonCompatibility.available == false)
     }
 
     @Test("Apple service modules provide diagnostic Linux fallbacks")
@@ -341,6 +440,55 @@ struct CompatibilityModuleTests {
 
 private struct CompatibilityModel: PersistentModel, Codable, Equatable {
     var id: String = UUID().uuidString
+}
+
+private final class FakeOllamaTransport: OllamaKitTransport, @unchecked Sendable {
+    struct CapturedRequest: Sendable {
+        var path: String
+        var authorization: String?
+    }
+
+    private let routes: [String: (status: Int, body: String)]
+    private let lock = NSLock()
+    private var capturedRequests: [CapturedRequest] = []
+    private var capturedChatBody: String?
+
+    init(routes: [String: (Int, String)]) {
+        self.routes = routes.mapValues { (status: $0.0, body: $0.1) }
+    }
+
+    var requests: [CapturedRequest] {
+        lock.withLock { capturedRequests }
+    }
+
+    var chatBody: String? {
+        lock.withLock { capturedChatBody }
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let path = request.url?.path ?? "/"
+        lock.withLock {
+            capturedRequests.append(
+                CapturedRequest(
+                    path: path,
+                    authorization: request.value(forHTTPHeaderField: "Authorization")
+                )
+            )
+            if path == "/api/chat", let httpBody = request.httpBody {
+                capturedChatBody = String(data: httpBody, encoding: .utf8)
+            }
+        }
+
+        let route = routes[path] ?? (404, #"{"error":"missing"}"#)
+        let url = request.url ?? URL(string: "http://localhost")!
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: route.status,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        return (Data(route.body.utf8), response)
+    }
 }
 
 private let markdownContractTheme = MarkdownUI.Theme()
