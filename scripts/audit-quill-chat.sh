@@ -97,7 +97,7 @@ row 'File/drop APIs' 'fileImporter|onDrop|NSItemProvider|UTType' 'partial-real' 
 row 'Visual effects' 'foregroundStyle|LinearGradient|Material|symbolEffect|matchedGeometryEffect|ViewThatFits|safeAreaInset|@Namespace' 'partial-real' 'Color/gradient foregrounds, material fallbacks, shape masks, symbolEffect, and matchedGeometryEffect now have visible approximations; exact animation parity remains future native work.'
 row 'SwiftData model layer' '@Model|@Attribute|@Relationship|ModelContainer|ModelContext|FetchDescriptor|SortDescriptor|#Predicate' 'partial' 'QuillData covers runtime types; macro-level drop-in still needs source-compatible strategy.'
 row 'Apple platform services' 'AppKit|UIKit|AVFoundation|Speech|KeyboardShortcuts|Magnet|Carbon|ApplicationServices|CoreGraphics|IOKit|PhotosUI|Security|ServiceManagement|Sparkle|Alamofire' 'partial-real' 'QuillKit now owns Linux module shells with diagnostic/emulated adapters for several Apple service imports; replace fallback backends with native Linux services where user-visible.'
-row 'Third-party UI packages' 'MarkdownUI|Splash|ActivityIndicatorView|Vortex|WrappingHStack' 'partial-real' 'ActivityIndicatorView, Vortex, and WrappingHStack have Linux compatibility modules; add MarkdownUI/Splash rendering compatibility next.'
+row 'Third-party UI packages' 'MarkdownUI|Splash|ActivityIndicatorView|Vortex|WrappingHStack' 'partial-real' 'ActivityIndicatorView, MarkdownUI, Splash, Vortex, and WrappingHStack have Linux compatibility modules; improve Markdown visual fidelity against real message views next.'
 
 cat <<'MSG'
 

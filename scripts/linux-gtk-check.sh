@@ -49,16 +49,19 @@ scripts/patch-swiftopenui-gtk-css.sh .build-linux
 swift test --scratch-path .build-linux
 swift build --scratch-path .build-linux --product quill-enchanted
 swift build --scratch-path .build-linux --product quill-enchanted-upstream-slice
+BIN_PATH="$(swift build --scratch-path .build-linux --show-bin-path)"
 
 SMOKE_SECONDS="${QUILLUI_SMOKE_SECONDS:-6}"
 
 run_smoke() {
   local product="$1"
-  local executable
-
-  executable="$(compgen -G ".build-linux/*/debug/$product" | head -n 1)"
+  local executable="$BIN_PATH/$product"
   if [[ -z "$executable" ]]; then
     echo "Could not find built executable for $product" >&2
+    exit 1
+  fi
+  if [[ ! -x "$executable" ]]; then
+    echo "Built executable is missing or not executable: $executable" >&2
     exit 1
   fi
 

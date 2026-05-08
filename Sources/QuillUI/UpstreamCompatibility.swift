@@ -491,10 +491,35 @@ public extension Image {
         case template
     }
 
+    enum SymbolRenderingMode {
+        case monochrome
+        case hierarchical
+        case palette
+        case multicolor
+    }
+
     func renderingMode(_ mode: TemplateRenderingMode?) -> Image {
         recordQuillUIFallback(
             "renderingMode",
             message: "Image renderingMode is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func symbolRenderingMode(_ mode: SymbolRenderingMode?) -> Image {
+        recordQuillUIFallback(
+            "symbolRenderingMode",
+            message: "Image symbolRenderingMode is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+}
+
+public extension View {
+    func imageScale(_ scale: ImageScale) -> some View {
+        recordQuillUIFallback(
+            "imageScale",
+            message: "View imageScale is currently a source-compatibility fallback on Linux."
         )
         return self
     }

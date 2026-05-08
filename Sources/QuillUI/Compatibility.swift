@@ -38,6 +38,19 @@ public extension Color {
             opacity: Double(a) / 255.0
         )
     }
+
+    init(rgba: UInt32) {
+        self.init(
+            red: Double((rgba >> 24) & 0xff) / 255.0,
+            green: Double((rgba >> 16) & 0xff) / 255.0,
+            blue: Double((rgba >> 8) & 0xff) / 255.0,
+            opacity: Double(rgba & 0xff) / 255.0
+        )
+    }
+
+    init(light: Color, dark: Color) {
+        self = light
+    }
 }
 
 public extension Image {
@@ -85,6 +98,19 @@ public extension Color {
 
     init(_ colorSpace: RGBColorSpace, red: Double, green: Double, blue: Double, opacity: Double = 1.0) {
         self.init(red: red, green: green, blue: blue, opacity: opacity)
+    }
+
+    init(rgba: UInt32) {
+        self.init(
+            red: Double((rgba >> 24) & 0xff) / 255.0,
+            green: Double((rgba >> 16) & 0xff) / 255.0,
+            blue: Double((rgba >> 8) & 0xff) / 255.0,
+            opacity: Double(rgba & 0xff) / 255.0
+        )
+    }
+
+    init(light: Color, dark: Color) {
+        self = light
     }
 
     init(_ assetName: String) {

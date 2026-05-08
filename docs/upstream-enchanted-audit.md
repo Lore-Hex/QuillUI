@@ -26,6 +26,13 @@ The lowest-change strategy is:
 - `openURL`, `presentationMode`, `ColorScheme`
 - `TextField(axis:)`, `Binding.animation(...)`, `Button(role:)`
 - Image construction from `Data`
+- `Color(rgba:)`, `Color(light:dark:)`
+- symbolic image rendering fallbacks:
+  - `.symbolRenderingMode(...)`
+  - `.imageScale(...)` after generic view styling
+- Third-party rendering modules now covered by Linux compatibility targets:
+  - `MarkdownUI` theme/style builders, `Markdown`, `CodeBlockConfiguration`, relative spacing/padding/frame helpers, table styles, and code syntax highlighter hooks
+  - `Splash` themes, token colors, `SyntaxHighlighter`, `OutputFormat`, and `OutputBuilder`
 - Linux-safe file/drop compatibility shims for upstream Enchanted's composer surface:
   - `UTType` values for `.image`, `.png`, `.jpeg`, `.tiff`
   - `NSItemProvider.loadDataRepresentation(...)`
@@ -54,11 +61,11 @@ These are not good QuillUI shims because they are app behavior or Apple framewor
   - `Carbon`: 1 importing file
   - `PhotosUI`: 1 importing file
 - Third-party UI/rendering dependencies that either need Linux support or replacement:
-  - `MarkdownUI`: 4 importing files
-  - `Splash`: 2 importing files
   - `ActivityIndicatorView`: 3 importing files
   - `Vortex`: 1 importing file
   - `WrappingHStack`: 1 importing file
+
+`MarkdownUI` and `Splash` are no longer compile blockers for Enchanted's currently audited usage, but their Linux shims intentionally render simplified Markdown instead of full MarkdownUI visual parity.
 
 ## Reproduce
 

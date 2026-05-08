@@ -5,6 +5,8 @@ import SwiftData
 import Combine
 import QuillKit
 import ActivityIndicatorView
+import MarkdownUI
+import Splash
 import WrappingHStack
 import Vortex
 import KeyboardShortcuts
@@ -56,6 +58,9 @@ struct CompatibilityModuleTests {
     func thirdPartyUIShimsCompile() {
         _ = ActivityIndicatorView(isVisible: .constant(true), type: .rotatingDots(count: 5))
         _ = ActivityIndicatorView(isVisible: .constant(true), type: .growingCircle)
+        _ = Markdown("# Heading\n\n```swift\nprint(\"Quill\")\n```")
+            .markdownCodeSyntaxHighlighter(PlainTextCodeSyntaxHighlighter())
+            .markdownTheme(markdownContractTheme)
         _ = WrappingHStack(alignment: .leading) {
             Text("One")
             Text("Two")
@@ -67,6 +72,28 @@ struct CompatibilityModuleTests {
         }
         _ = KeyboardShortcuts.Recorder("Keyboard shortcut", name: "togglePanelMode")
         _ = Text("Shortcut").onKeyboardShortcut("togglePanelMode", type: .keyDown) {}
+    }
+
+    @Test("MarkdownUI and Splash cover Enchanted markdown theme contracts")
+    func markdownAndSplashContractsCompile() {
+        let configuration = CodeBlockConfiguration(language: "swift", content: "let answer = 42")
+        let highlighted = ContractSplashCodeSyntaxHighlighter(theme: .sunset(withFont: .init(size: 16)))
+            .highlightCode(configuration.content, language: configuration.language)
+
+        #expect(Markdown.plainText(from: "**bold** [link](https://example.com)") == "bold link (https://example.com)")
+        #expect(configuration.language == "swift")
+        #expect(highlighted.content.contains("answer"))
+        #expect(Splash.Theme.wwdc17(withFont: .init(size: 16)).tokenColors[.keyword] != nil)
+
+        _ = markdownContractTheme
+        _ = Text("one") + Text(" two")
+        _ = configuration.label
+            .relativeLineSpacing(.em(0.225))
+            .markdownTextStyle {
+                FontFamilyVariant(.monospaced)
+                FontSize(.em(0.85))
+            }
+            .markdownMargin(top: .zero, bottom: .em(0.8))
     }
 
     @Test("Apple service modules provide diagnostic Linux fallbacks")
@@ -314,6 +341,143 @@ struct CompatibilityModuleTests {
 
 private struct CompatibilityModel: PersistentModel, Codable, Equatable {
     var id: String = UUID().uuidString
+}
+
+private let markdownContractTheme = MarkdownUI.Theme()
+    .text {
+        FontSize(14)
+    }
+    .code {
+        FontFamilyVariant(.monospaced)
+        FontSize(.em(0.85))
+        BackgroundColor(Color("bgCustom"))
+    }
+    .strong {
+        FontWeight(.semibold)
+    }
+    .link {
+        ForegroundColor(.blue)
+    }
+    .heading1 { configuration in
+        VStack(alignment: .leading, spacing: 0) {
+            configuration.label
+                .relativePadding(.bottom, length: .em(0.3))
+                .relativeLineSpacing(.em(0.125))
+                .markdownMargin(top: 24, bottom: 16)
+                .markdownTextStyle {
+                    FontWeight(.semibold)
+                    FontSize(.em(2))
+                }
+            Divider().overlay(Color.gray)
+        }
+    }
+    .paragraph { configuration in
+        configuration.label
+            .fixedSize(horizontal: false, vertical: true)
+            .relativeLineSpacing(.em(0.25))
+            .markdownMargin(top: 0, bottom: 16)
+    }
+    .blockquote { configuration in
+        HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.gray)
+                .relativeFrame(width: .em(0.2))
+            configuration.label
+                .markdownTextStyle { ForegroundColor(.secondary) }
+                .relativePadding(.horizontal, length: .em(1))
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .codeBlock { configuration in
+        VStack(spacing: 0) {
+            Text(configuration.language ?? "code")
+                .font(.system(size: 13, design: .monospaced))
+                .fontWeight(.semibold)
+            configuration.label
+                .relativeLineSpacing(.em(0.225))
+                .markdownTextStyle {
+                    FontFamilyVariant(.monospaced)
+                    FontSize(.em(0.85))
+                }
+        }
+        .markdownMargin(top: .zero, bottom: .em(0.8))
+    }
+    .listItem { configuration in
+        configuration.label.padding(.bottom, 10)
+    }
+    .taskListMarker { configuration in
+        Image(systemName: configuration.isCompleted ? "checkmark.square.fill" : "square")
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(Color.gray, Color("bgCustom"))
+            .imageScale(.small)
+            .relativeFrame(minWidth: .em(1.5), alignment: .trailing)
+    }
+    .table { configuration in
+        configuration.label
+            .markdownTableBorderStyle(.init(color: .gray))
+            .markdownTableBackgroundStyle(.alternatingRows(.white, Color("bgCustom")))
+            .markdownMargin(top: 0, bottom: 16)
+    }
+    .tableCell { configuration in
+        configuration.label
+            .markdownTextStyle {
+                if configuration.row == 0 {
+                    FontWeight(.semibold)
+                }
+                BackgroundColor(nil)
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 13)
+            .relativeLineSpacing(.em(0.25))
+    }
+    .thematicBreak {
+        Divider()
+            .relativeFrame(height: .em(0.25))
+            .overlay(Color.gray)
+            .markdownMargin(top: 24, bottom: 24)
+    }
+
+private struct ContractSplashCodeSyntaxHighlighter: CodeSyntaxHighlighter {
+    private let highlighter: SyntaxHighlighter<ContractTextOutputFormat>
+
+    init(theme: Splash.Theme) {
+        self.highlighter = SyntaxHighlighter(format: ContractTextOutputFormat(theme: theme))
+    }
+
+    func highlightCode(_ content: String, language: String?) -> Text {
+        guard language != nil else { return Text(content) }
+        return highlighter.highlight(content)
+    }
+}
+
+private struct ContractTextOutputFormat: OutputFormat {
+    var theme: Splash.Theme
+
+    func makeBuilder() -> Builder {
+        Builder(theme: theme)
+    }
+
+    struct Builder: OutputBuilder {
+        var theme: Splash.Theme
+        var accumulatedText: [Text] = []
+
+        mutating func addToken(_ token: String, ofType type: TokenType) {
+            let color = theme.tokenColors[type] ?? theme.plainTextColor
+            accumulatedText.append(Text(token).foregroundColor(.init(color)))
+        }
+
+        mutating func addPlainText(_ text: String) {
+            accumulatedText.append(Text(text).foregroundColor(.init(theme.plainTextColor)))
+        }
+
+        mutating func addWhitespace(_ whitespace: String) {
+            accumulatedText.append(Text(whitespace))
+        }
+
+        func build() -> Text {
+            accumulatedText.reduce(Text(""), +)
+        }
+    }
 }
 
 private enum CombineTestError: Error {

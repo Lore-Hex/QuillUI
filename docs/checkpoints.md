@@ -319,3 +319,19 @@ Status: passing on macOS, Linux, and Linux GTK visual smoke.
 - Linux `swift test --scratch-path .build-linux` passed with 81 tests in 11 suites.
 - `bash -n scripts/*.sh` and `scripts/audit-quill-chat.sh` passed.
 - The `@preconcurrency View` bridge remains intentionally in place for the two main-actor app roots. Removing it fails Linux Swift 6 conformance isolation against SwiftOpenUI's currently nonisolated `View` protocol; the remaining warning is a backend/protocol isolation cleanup item, not an app correctness failure.
+
+## Checkpoint 25: Enchanted MarkdownUI And Splash Compatibility
+
+Status: passing on macOS and Linux.
+
+- Added Linux compatibility targets and public products for `MarkdownUI` and `Splash`, closing two upstream Enchanted third-party import blockers.
+- Implemented the Enchanted-used MarkdownUI surface: `Markdown`, `Theme` builder methods, `CodeBlockConfiguration`, block/table/task-list configuration types, Markdown text style declarations, relative spacing/padding/frame helpers, margin/table style modifiers, `CodeSyntaxHighlighter`, and `Text + Text` composition.
+- Implemented the Enchanted-used Splash surface: `Theme.sunset`, `Theme.wwdc17`, token colors, `SyntaxHighlighter`, `OutputFormat`, `OutputBuilder`, and SwiftUI `Color` conversion from Splash colors.
+- Added source-compatible `Color(rgba:)`, `Color(light:dark:)`, `.symbolRenderingMode(...)`, and generic-view `.imageScale(...)` fallbacks for Enchanted's Markdown theme and task-list marker styling.
+- Added Linux regression tests that compile an Enchanted-shaped Markdown theme and Splash syntax highlighter contract, including headings, paragraphs, blockquotes, code blocks, task markers, tables, relative layout modifiers, and syntax-highlighted text.
+- Fixed the Linux GTK QA scripts to use SwiftPM's current `--show-bin-path` instead of globbing `.build-linux/*/debug`, preventing stale macOS scratch binaries from being selected when the same checkout is tested from both macOS and the Linux VM.
+- macOS `swift test` passed with 52 tests in 8 suites.
+- Linux `swift test --scratch-path .build-linux` passed with 82 tests in 11 suites.
+- Linux GTK verification passed: both GTK products built and both apps survived the Xvfb smoke run.
+- `bash -n scripts/*.sh` passed.
+- Remaining honest gaps: the real Enchanted source still is not the build input, SwiftData macro/source compatibility is still the biggest app-side blocker, and MarkdownUI/Splash behavior is simplified rather than full visual parity.

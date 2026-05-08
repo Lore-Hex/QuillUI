@@ -36,6 +36,7 @@ mkdir -p "$(dirname "$SCREENSHOT_PATH")"
 
 "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$ROOT_DIR/.build-linux"
 swift build --scratch-path "$ROOT_DIR/.build-linux" --product "$PRODUCT"
+BIN_PATH="$(swift build --scratch-path "$ROOT_DIR/.build-linux" --show-bin-path)"
 
 DISPLAY_ID=":94"
 Xvfb "$DISPLAY_ID" -screen 0 1180x760x24 >/tmp/quillui-xvfb.log 2>&1 &
@@ -50,7 +51,7 @@ cleanup() {
 trap cleanup EXIT
 
 sleep 1
-GTK_A11Y=none DISPLAY="$DISPLAY_ID" "$ROOT_DIR"/.build-linux/*/debug/"$PRODUCT" >/tmp/quillui-gtk-app.log 2>&1 &
+GTK_A11Y=none DISPLAY="$DISPLAY_ID" "$BIN_PATH/$PRODUCT" >/tmp/quillui-gtk-app.log 2>&1 &
 app_pid=$!
 
 sleep 4
