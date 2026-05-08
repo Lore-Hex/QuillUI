@@ -100,5 +100,7 @@ scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-c
 ```
 
 For `quill-chat-linux`, the script builds through the generic app builder,
-resolves the generated package executable, captures an Xvfb screenshot, and
-checks both brightness and pixel variation so blank white windows fail.
+resolves the generated package executable, captures an Xvfb screenshot, checks
+both brightness and pixel variation so blank white windows fail, and verifies
+Quill Chat-specific layout landmarks such as the sidebar width, header divider,
+prompt cards, and composer width.

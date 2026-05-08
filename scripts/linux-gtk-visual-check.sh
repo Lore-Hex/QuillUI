@@ -96,39 +96,4 @@ app_pid=$!
 sleep 4
 DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
 
-python3 - "$SCREENSHOT_PATH" <<'PY'
-import struct
-import subprocess
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-if not path.exists() or path.stat().st_size == 0:
-    raise SystemExit("Screenshot was not created")
-
-probe = subprocess.run(
-    ["identify", "-format", "%w %h %[mean] %[standard-deviation]", str(path)],
-    check=True,
-    text=True,
-    stdout=subprocess.PIPE,
-)
-width_text, height_text, mean_text, stddev_text = probe.stdout.split()
-width = int(width_text)
-height = int(height_text)
-mean = float(mean_text)
-stddev = float(stddev_text)
-
-if width < 900 or height < 600:
-    raise SystemExit(f"Screenshot is unexpectedly small: {width}x{height}")
-
-if mean <= 1000:
-    raise SystemExit(f"Screenshot appears blank or near-black: mean={mean}")
-
-if stddev <= 250:
-    raise SystemExit(f"Screenshot appears visually flat: standard-deviation={stddev:.1f}")
-
-sys.stdout.write(
-    f"Visual smoke screenshot: {path} "
-    f"({width}x{height}, mean={mean:.1f}, stddev={stddev:.1f})\n"
-)
-PY
+"$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$PRODUCT"

@@ -634,3 +634,14 @@ Status: passing on macOS tests, Linux generated full-source build, and Linux GTK
 - Verified generated check mode: `scripts/generated-enchanted-full-source-check.sh` compiled 90 generated Swift files from the 87-file reduced check slice.
 - Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` captured a 1180x760 screenshot with mean 46702.9 and standard deviation 27302.8.
 - Remaining honest gap: this is now much closer to the supplied macOS screenshot, but it is still layout-directed parity rather than a true screenshot comparator. The next pass should add landmark assertions for sidebar width, header height, prompt-card positions, and composer width.
+
+## Checkpoint 47: Quill Chat Visual Landmark QA
+
+Status: passing for script syntax, standalone screenshot verification, and fresh Linux GTK visual smoke.
+
+- Moved GTK screenshot validation into `scripts/verify-gtk-screenshot.py`, keeping the generic brightness/variation smoke while making product-specific visual checks easier to extend.
+- Added Quill Chat-specific landmark assertions for generated Linux screenshots: app bounds, fixed-width sidebar divider, header divider, four prompt cards in the detail pane, and wide bottom composer.
+- `scripts/linux-gtk-visual-check.sh` now runs the verifier after capture, so the old collapsed-sidebar or narrow-composer states fail even if the window is nonblank.
+- Verified existing screenshot directly in the Linux VM: `scripts/verify-gtk-screenshot.py .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` reported app `1121x600`, sidebar `320px`, header `109px`, prompt cards `395-1045`, and composer `750px@510`.
+- Verified fresh generated app visual mode in the Linux VM: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt the 92-file generated Quill Chat app, captured an 1180x760 screenshot, and passed the same landmark checks.
+- Remaining honest gap: these are deterministic landmark checks, not image-diff parity against a macOS reference. The next QA layer should compare against a stored macOS reference or a declarative layout spec with tolerance bands for each viewport.
