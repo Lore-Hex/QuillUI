@@ -104,3 +104,19 @@ resolves the generated package executable, captures an Xvfb screenshot, checks
 both brightness and pixel variation so blank white windows fail, and verifies
 Quill Chat-specific layout landmarks such as the sidebar width, header divider,
 prompt cards, and composer width.
+
+Native GTK interaction smoke is separate from Playwright because the app is a
+GTK executable, not a web page. The interaction check builds a small Linux-only
+QuillUI sample, starts it under Xvfb, clicks a native GTK button with
+`xdotool`, captures the opened window, and verifies that Swift state changed and
+the view tree repainted:
+
+```bash
+scripts/linux-gtk-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
+```
+
+GitHub Actions runs the public Linux path in `.github/workflows/linux-ci.yml`.
+It uses a Swift Linux container, installs GTK/Xvfb/ImageMagick/xdotool
+dependencies, fetches the upstream Enchanted fixture into `.upstream/enchanted`,
+runs Swift tests, compiles the generated upstream app, and uploads GTK
+screenshot/log artifacts from both visual and interaction smokes.

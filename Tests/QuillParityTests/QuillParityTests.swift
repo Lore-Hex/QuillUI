@@ -241,6 +241,112 @@ struct QuillParityTests {
         #expect(Set(fetched) == Set(inserted))
     }
 
+    // MARK: - Color parity
+
+    @Test("Color(hex:) parity for 6 and 8 digit strings")
+    func colorHexParity() {
+        // 6-digit hex (RGB, assumes alpha 1.0)
+        let redHex = Color(hex: "#FF0000")
+        #expect(redHex.red == 1.0)
+        #expect(redHex.green == 0.0)
+        #expect(redHex.blue == 0.0)
+        #expect(redHex.alpha == 1.0)
+
+        // 8-digit hex (RGBA)
+        let semiTransparentBlue = Color(hex: "0000FF7F") // ~50% opacity
+        #expect(semiTransparentBlue.red == 0.0)
+        #expect(semiTransparentBlue.green == 0.0)
+        #expect(semiTransparentBlue.blue == 1.0)
+        #expect(abs(semiTransparentBlue.alpha - 0.498) < 0.01) // 127/255
+
+        // Invalid hex should fallback safely (usually black or primary)
+        let invalid = Color(hex: "GIBBERISH")
+        #expect(invalid.red == 0.0)
+        #expect(invalid.green == 0.0)
+        #expect(invalid.blue == 0.0)
+    }
+
+    @Test("Color(rgba:) UInt32 parity")
+    func colorRGBAParity() {
+        // 0xRRGGBBAA
+        let green = Color(rgba: 0x00FF00FF)
+        #expect(green.red == 0.0)
+        #expect(green.green == 1.0)
+        #expect(green.blue == 0.0)
+        #expect(green.alpha == 1.0)
+
+        let semiWhite = Color(rgba: 0xFFFFFF80)
+        #expect(semiWhite.red == 1.0)
+        #expect(semiWhite.green == 1.0)
+        #expect(semiWhite.blue == 1.0)
+        #expect(abs(semiWhite.alpha - 0.5) < 0.01)
+    }
+
+    @Test("Color component access parity (RGB/Alpha)")
+    func colorComponentParity() {
+        let custom = Color(red: 0.1, green: 0.2, blue: 0.3, opacity: 0.4)
+        #expect(abs(custom.red - 0.1) < 0.001)
+        #expect(abs(custom.green - 0.2) < 0.001)
+        #expect(abs(custom.blue - 0.3) < 0.001)
+        #expect(abs(custom.alpha - 0.4) < 0.001)
+    }
+
+    // MARK: - Edge / Inset parity
+
+    @Test("Edge.Set constants match Apple bitmasks")
+    func edgeSetParity() {
+        #expect(Edge.Set.top.rawValue == 1 << 0)
+        #expect(Edge.Set.leading.rawValue == 1 << 1)
+        #expect(Edge.Set.bottom.rawValue == 1 << 2)
+        #expect(Edge.Set.trailing.rawValue == 1 << 3)
+        #expect(Edge.Set.all.contains(.top))
+        #expect(Edge.Set.horizontal.contains(.leading))
+        #expect(Edge.Set.horizontal.contains(.trailing))
+        #expect(!Edge.Set.horizontal.contains(.top))
+    }
+
+    @Test("EdgeInsets initialization parity")
+    func edgeInsetsParity() {
+        let insets = EdgeInsets(top: 10, leading: 20, bottom: 30, trailing: 40)
+        #expect(insets.top == 10)
+        #expect(insets.leading == 20)
+        #expect(insets.bottom == 30)
+        #expect(insets.trailing == 40)
+    }
+
+    // MARK: - Layout Primitives parity
+
+    @Test("Axis set membership parity")
+    func axisParity() {
+        #expect(Axis.horizontal != Axis.vertical)
+        #expect(Axis.Set.horizontal.contains(.horizontal))
+        #expect(Axis.Set.vertical.contains(.vertical))
+        #expect(!Axis.Set.horizontal.contains(.vertical))
+        #expect(!Axis.Set.vertical.contains(.horizontal))
+    }
+
+    @Test("LayoutPriority constants parity")
+    func layoutPriorityParity() {
+        #expect(LayoutPriority.default.rawValue == 0.0)
+        #expect(LayoutPriority.required.rawValue == 1000.0)
+        #expect(LayoutPriority(10).rawValue == 10.0)
+    }
+
+    // MARK: - Angle parity
+
+    @Test("Angle degrees and radians conversion parity")
+    func angleParity() {
+        let deg = Angle.degrees(180)
+        #expect(abs(deg.radians - .pi) < 0.001)
+        #expect(deg.degrees == 180.0)
+
+        let rad = Angle.radians(.pi / 2)
+        #expect(rad.degrees == 90.0)
+        #expect(rad.radians == .pi / 2)
+
+        #expect(Angle.zero.degrees == 0.0)
+    }
+
     // MARK: - Property-based fuzz: round-trip invariants
 
     @Test("Fuzz: any UUID string survives a UserDefaults round-trip", arguments: parityRandomSeeds(count: 32))

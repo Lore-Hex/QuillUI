@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="$ROOT_DIR/.qa"
-SCREENSHOT_PATH="${1:-$OUTPUT_DIR/quill-enchanted-gtk.png}"
-PRODUCT="${2:-quill-enchanted}"
+SCREENSHOT_PATH="${1:-$OUTPUT_DIR/quill-gtk-interaction-smoke-open.png}"
+PRODUCT="${2:-quill-gtk-interaction-smoke}"
 APP_EXECUTABLE=""
 
 install_packages() {
@@ -21,6 +21,7 @@ install_packages() {
     libsqlite3-dev
     pkg-config
     x11-apps
+    xdotool
     xvfb
   )
   local missing=()
@@ -36,10 +37,6 @@ install_packages() {
     sudo apt-get install -y "${missing[@]}"
   fi
 }
-
-install_packages
-
-mkdir -p "$(dirname "$SCREENSHOT_PATH")"
 
 build_and_resolve_executable() {
   if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
@@ -76,6 +73,8 @@ MSG
   fi
 }
 
+install_packages
+mkdir -p "$(dirname "$SCREENSHOT_PATH")"
 build_and_resolve_executable
 
 if [[ ! -x "$APP_EXECUTABLE" ]]; then
@@ -83,8 +82,13 @@ if [[ ! -x "$APP_EXECUTABLE" ]]; then
   exit 1
 fi
 
-DISPLAY_ID=":94"
-Xvfb "$DISPLAY_ID" -screen 0 1180x760x24 >/tmp/quillui-xvfb.log 2>&1 &
+if ! command -v xdotool >/dev/null 2>&1; then
+  echo "xdotool is required for GTK interaction smoke tests" >&2
+  exit 69
+fi
+
+DISPLAY_ID="${QUILLUI_GTK_INTERACTION_DISPLAY:-:95}"
+Xvfb "$DISPLAY_ID" -screen 0 1180x760x24 >/tmp/quillui-xvfb-interaction.log 2>&1 &
 xvfb_pid=$!
 
 cleanup() {
@@ -96,10 +100,34 @@ cleanup() {
 trap cleanup EXIT
 
 sleep 1
-GTK_A11Y=none DISPLAY="$DISPLAY_ID" "$APP_EXECUTABLE" >/tmp/quillui-gtk-app.log 2>&1 &
+GTK_A11Y=none DISPLAY="$DISPLAY_ID" "$APP_EXECUTABLE" >/tmp/quillui-gtk-interaction-app.log 2>&1 &
 app_pid=$!
 
 sleep 4
+
+case "$PRODUCT" in
+  quill-chat-linux)
+    click_x="${QUILLUI_GTK_CLICK_X:-1035}"
+    click_y="${QUILLUI_GTK_CLICK_Y:-54}"
+    ;;
+  quill-gtk-interaction-smoke)
+    click_x="${QUILLUI_GTK_CLICK_X:-558}"
+    click_y="${QUILLUI_GTK_CLICK_Y:-34}"
+    ;;
+  *)
+    click_x="${QUILLUI_GTK_CLICK_X:-980}"
+    click_y="${QUILLUI_GTK_CLICK_Y:-54}"
+    ;;
+esac
+
+DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$click_x" "$click_y" click 1
+sleep 1
 DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
 
-"$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$PRODUCT"
+if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
+  "$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" quill-chat-linux-toolbar-menu
+elif [[ "$PRODUCT" == "quill-gtk-interaction-smoke" ]]; then
+  "$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" quill-gtk-interaction-smoke-open
+else
+  "$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$PRODUCT"
+fi

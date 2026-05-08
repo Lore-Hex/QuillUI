@@ -52,6 +52,46 @@ public extension Color {
     init(light: Color, dark: Color) {
         self = light
     }
+
+    var red: Double {
+        var r: CGFloat = 0
+        #if canImport(AppKit)
+        NSColor(self).usingColorSpace(.deviceRGB)?.getRed(&r, green: nil, blue: nil, alpha: nil)
+        #elseif canImport(UIKit)
+        UIColor(self).getRed(&r, green: nil, blue: nil, alpha: nil)
+        #endif
+        return Double(r)
+    }
+
+    var green: Double {
+        var g: CGFloat = 0
+        #if canImport(AppKit)
+        NSColor(self).usingColorSpace(.deviceRGB)?.getRed(nil, green: &g, blue: nil, alpha: nil)
+        #elseif canImport(UIKit)
+        UIColor(self).getRed(nil, green: &g, blue: nil, alpha: nil)
+        #endif
+        return Double(g)
+    }
+
+    var blue: Double {
+        var b: CGFloat = 0
+        #if canImport(AppKit)
+        NSColor(self).usingColorSpace(.deviceRGB)?.getRed(nil, green: nil, blue: &b, alpha: nil)
+        #elseif canImport(UIKit)
+        UIColor(self).getRed(nil, green: nil, blue: &b, alpha: nil)
+        #endif
+        return Double(b)
+    }
+
+    var alpha: Double {
+        var a: CGFloat = 0
+        #if canImport(AppKit)
+        NSColor(self).usingColorSpace(.deviceRGB)?.getRed(nil, green: nil, blue: nil, alpha: &a)
+        #elseif canImport(UIKit)
+        UIColor(self).getRed(nil, green: nil, blue: nil, alpha: &a)
+        #endif
+        return Double(a)
+    }
 }
 
 public extension Image {
@@ -73,6 +113,16 @@ public extension Image {
         #endif
     }
 }
+
+public struct LayoutPriority: Equatable, Sendable, ExpressibleByFloatLiteral, ExpressibleByIntegerLiteral {
+    public var rawValue: Double
+    public init(_ value: Double) { self.rawValue = value }
+    public init(floatLiteral value: Double) { self.rawValue = value }
+    public init(integerLiteral value: Int) { self.rawValue = Double(value) }
+    public static let `default` = LayoutPriority(0.0)
+    public static let required = LayoutPriority(1000.0)
+}
+
 #else
 public struct QuillPlatformColor: @unchecked Sendable {
     public let color: Color
@@ -102,6 +152,33 @@ public extension Color {
 
     init(_ colorSpace: RGBColorSpace, red: Double, green: Double, blue: Double, opacity: Double = 1.0) {
         self.init(red: red, green: green, blue: blue, opacity: opacity)
+    }
+
+    init(hex: String) {
+        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var value: UInt64 = 0
+        Scanner(string: cleaned).scanHexInt64(&value)
+
+        let r, g, b, a: UInt64
+        switch cleaned.count {
+        case 8:
+            r = (value >> 24) & 0xff
+            g = (value >> 16) & 0xff
+            b = (value >> 8) & 0xff
+            a = value & 0xff
+        default:
+            r = (value >> 16) & 0xff
+            g = (value >> 8) & 0xff
+            b = value & 0xff
+            a = 255
+        }
+
+        self.init(
+            red: Double(r) / 255.0,
+            green: Double(g) / 255.0,
+            blue: Double(b) / 255.0,
+            opacity: Double(a) / 255.0
+        )
     }
 
     init(rgba: UInt32) {
@@ -375,33 +452,25 @@ public enum QuillImageFormatDetector {
 /// On Apple platforms `ImageRenderer` walks the SwiftUI view tree, lays it out,
 /// and rasterizes it via Core Graphics into a `UIImage` / `NSImage`.
 ///
-/// True parity on Linux requires offscreen GTK rendering: hooking the
-/// SwiftOpenUI GTK4 backend to a `GdkSurface`-backed offscreen surface, asking
-/// GTK for a snapshot of the rendered widget tree, and encoding the resulting
-/// `cairo_surface_t` to PNG/JPEG. That pipeline is a 1-2 week project on its
-/// own and isn't wired up yet.
+/// On Linux, QuillUI rasterizes via two paths:
 ///
-/// Until that pipeline lands, both `uiImage` and `nsImage` return `nil` and
-/// each access records a `.warning` diagnostic. This matches Apple's own
-/// failure mode (Apple's `ImageRenderer.uiImage` returns `nil` when rendering
-/// fails). The parity gap is *that the failure happens for every input on
-/// Linux*, not the failure type itself.
+///  1. **Solid `Color` content** is shortcut through `quillRenderSolidColorImage`,
+///     skipping the full GTK round-trip. Fast, and works without a display
+///     backend.
+///  2. **Any other view type** can opt into the experimental
+///     `quillRenderViewToImage` GTK path with
+///     `QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1`. That path uses SwiftOpenUI's
+///     `gtkRenderView` to translate the view tree into a GtkWidget hierarchy,
+///     parents the widget in an offscreen GtkWindow, forces a layout pass with
+///     `gtk_widget_size_allocate`, snapshots the child widget, draws the
+///     resulting `GskRenderNode` to a cairo image surface, and encodes the
+///     result via gdk-pixbuf.
 ///
-// TODO(quill-parity): Render arbitrary SwiftUI view trees on Linux.
-//   Goal: produce a PlatformImage from any `Content: View`, matching what
-//   real Apple SwiftUI's ImageRenderer would emit.
-//   Approach: reach into SwiftOpenUI's GTK4 backend (`gtkRenderView` is
-//   already public), put the resulting widget in an offscreen container,
-//   build a `GskCairoRenderer` against a hidden `GdkSurface`, snapshot via
-//   `gtk_widget_snapshot` -> `gtk_snapshot_to_node`, render the node with
-//   `gsk_renderer_render_texture` into a cairo image surface, then encode
-//   with gdk-pixbuf.
-//   Estimated: 1–2 weeks. Touches QuillUI (this class), the SwiftOpenUI
-//   GTK backend (probably needs a new public hook for snapshotting), and a
-//   new `Sources/QuillUI/GtkOffscreenRender.swift` Linux-only file.
-//   Currently implemented subset: solid-color `Color` content, rendered
-//   via `quillRenderSolidColorImage`. Other view types still return nil
-//   with a `.warning` diagnostic.
+/// Both paths return `nil` on failure (matching Apple's ImageRenderer
+/// failure-mode contract) and record a `.warning` diagnostic naming the
+/// failure cause. The opt-in general path requires GTK to be initializable
+/// under a controlled display backend such as Xvfb or a desktop Wayland/X11
+/// session; the default remains nil+warning for non-Color content.
 public final class ImageRenderer<Content: View> {
     public var content: Content
     public var scale: CGFloat = 1.0
@@ -416,7 +485,7 @@ public final class ImageRenderer<Content: View> {
         self.content = content
         recordCompatibilityFallback(
             "ImageRenderer.init",
-            message: "ImageRenderer is available on Linux, but currently only rasterizes solid Color content without a full offscreen GTK view pass."
+            message: "ImageRenderer is available on Linux; Color content rasterizes by default and arbitrary view rasterization is an experimental GTK offscreen path gated by QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1."
         )
     }
 
@@ -429,25 +498,26 @@ public final class ImageRenderer<Content: View> {
     }
 
     /// Shared renderer for both `uiImage` and `nsImage`. Returns a
-    /// PlatformImage carrying PNG bytes when we can rasterize the content,
-    /// otherwise nil with a `.warning` diagnostic naming the unsupported case.
+    /// PlatformImage carrying PNG bytes when rasterization succeeds,
+    /// otherwise nil with a `.warning` diagnostic.
     private func renderToPlatformImage(operation: String) -> PlatformImage? {
-        // Currently-supported subset: solid Color. Everything else falls
-        // through to the parity-gap warning.
+        let (width, height) = Self.defaultSize
+
+        // Fast path: solid Color content rasterizes via gdk-pixbuf without
+        // any GTK widget round-trip. Cheaper, and works in display-less
+        // environments (no xvfb required).
         if let color = content as? Color {
-            let (w, h) = Self.defaultSize
             if let png = quillRenderSolidColorImage(
                 red: Double(color.red),
                 green: Double(color.green),
                 blue: Double(color.blue),
                 alpha: Double(color.alpha),
-                width: w,
-                height: h,
+                width: width,
+                height: height,
                 format: .png
             ) {
                 return PlatformImage(data: png)
             }
-            // Encoding failed (rare; gdk-pixbuf out of memory or similar).
             recordCompatibilityWarning(
                 operation,
                 message: "\(operation): gdk-pixbuf failed to encode the synthesized Color image. Returning nil."
@@ -455,9 +525,18 @@ public final class ImageRenderer<Content: View> {
             return nil
         }
 
+        // Experimental general path: walk the SwiftUI view through
+        // SwiftOpenUI's GTK4 backend, snapshot the widget tree, draw it to a
+        // cairo surface, and encode via gdk-pixbuf. This is opt-in because
+        // GTK snapshotting can crash if initialized outside a controlled
+        // display/test harness.
+        if let png = quillRenderViewToImage(content, width: width, height: height, format: .png) {
+            return PlatformImage(data: png)
+        }
+
         recordCompatibilityWarning(
             operation,
-            message: "\(operation) returned nil for content of type \(type(of: content)). QuillUI's ImageRenderer currently rasterizes Color content; arbitrary SwiftUI views require offscreen GTK rendering that is not yet wired up."
+            message: "\(operation) returned nil for content of type \(type(of: content)). QuillUI currently rasterizes Color content by default; arbitrary SwiftUI view rasterization is an experimental GTK offscreen path gated by QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1."
         )
         return nil
     }
@@ -503,6 +582,30 @@ public extension TextField {
 
     init(_ title: String, text: Binding<String>, onCommit: @escaping () -> Void) {
         self.init(title, text: text)
+    }
+}
+
+public extension Axis {
+    struct Set: OptionSet, Sendable {
+        public let rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+        public static let horizontal = Set(rawValue: Axis.horizontal.rawValue)
+        public static let vertical = Set(rawValue: Axis.vertical.rawValue)
+    }
+}
+
+public struct LayoutPriority: Equatable, Sendable, ExpressibleByFloatLiteral, ExpressibleByIntegerLiteral {
+    public var rawValue: Double
+    public init(_ value: Double) { self.rawValue = value }
+    public init(floatLiteral value: Double) { self.rawValue = value }
+    public init(integerLiteral value: Int) { self.rawValue = Double(value) }
+    public static let `default` = LayoutPriority(0.0)
+    public static let required = LayoutPriority(1000.0)
+}
+
+public extension Angle {
+    var radians: Double {
+        degrees * .pi / 180.0
     }
 }
 

@@ -125,6 +125,15 @@ def line_row_score(image: Screenshot, y: int, x0: int, x1: int) -> int:
     return sum(1 for x in range(x0, x1) if gray_line_pixel(image.rgb(x, y)))
 
 
+def dark_pixel_count(image: Screenshot, x0: int, y0: int, x1: int, y1: int) -> int:
+    return sum(
+        1
+        for y in range(max(0, y0), min(image.height, y1))
+        for x in range(max(0, x0), min(image.width, x1))
+        if sum(image.rgb(x, y)) < 420
+    )
+
+
 def validate_quill_chat_landmarks(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -225,6 +234,54 @@ def validate_quill_chat_landmarks(image: Screenshot) -> str:
     )
 
 
+def validate_quill_chat_toolbar_menu(image: Screenshot) -> str:
+    landmarks = validate_quill_chat_landmarks(image)
+    left, right, top, bottom = content_bounds(image)
+
+    # The toolbar popover is a SwiftUI-level approximation today. The click
+    # smoke verifies it renders interactive content below the top-right toolbar
+    # instead of merely passing the closed-window visual landmarks.
+    x0 = max(left + 620, right - 320)
+    x1 = right + 1
+    y0 = top + 72
+    y1 = min(bottom, top + 210)
+    dark_pixels = dark_pixel_count(image, x0, y0, x1, y1)
+    require(
+        dark_pixels >= 80,
+        f"Quill Chat toolbar menu was not detected: dark_pixels={dark_pixels}, roi=({x0},{y0})-({x1},{y1})",
+    )
+
+    return (
+        landmarks
+        + "\nQuill Chat toolbar menu: "
+        f"dark_pixels={dark_pixels}, roi=({x0},{y0})-({x1},{y1})"
+    )
+
+
+def validate_quill_gtk_interaction_smoke(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(600 <= app_width <= 700, f"Interaction smoke window width is unexpected: {app_width}px")
+    require(380 <= app_height <= 460, f"Interaction smoke window height is unexpected: {app_height}px")
+
+    x0 = left + 32
+    x1 = min(right + 1, left + 430)
+    y0 = top + 145
+    y1 = min(bottom + 1, top + 310)
+    dark_pixels = dark_pixel_count(image, x0, y0, x1, y1)
+    require(
+        dark_pixels >= 10000,
+        f"Interaction smoke panel was not detected: dark_pixels={dark_pixels}, roi=({x0},{y0})-({x1},{y1})",
+    )
+
+    return (
+        "Quill GTK interaction smoke: "
+        f"app={app_width}x{app_height}, "
+        f"open_panel_dark_pixels={dark_pixels}, roi=({x0},{y0})-({x1},{y1})"
+    )
+
+
 def main() -> int:
     if len(sys.argv) != 3:
         print("Usage: verify-gtk-screenshot.py SCREENSHOT_PATH PRODUCT", file=sys.stderr)
@@ -253,6 +310,10 @@ def main() -> int:
 
     if product == "quill-chat-linux":
         print(validate_quill_chat_landmarks(image))
+    elif product == "quill-chat-linux-toolbar-menu":
+        print(validate_quill_chat_toolbar_menu(image))
+    elif product == "quill-gtk-interaction-smoke-open":
+        print(validate_quill_gtk_interaction_smoke(image))
 
     return 0
 

@@ -690,3 +690,21 @@ Status: passing on macOS tests, Linux tests, generated full-source build, and Li
 - Verified generated check mode: `scripts/generated-enchanted-full-source-check.sh` compiled the 87-file generated full-source check into 90 generated Swift files.
 - Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt the 92-file generated Quill Chat app into 95 generated Swift files and passed landmarks with header `73px`, toolbar `51-56`, prompt cards `395-1045`, and composer `750px@474`.
 - Remaining honest gap: `QuillToolbarMenuButton` is a SwiftUI-level popover approximation, not a native GTK/libadwaita menu yet; click-outside dismissal, keyboard navigation, and full offscreen SwiftUI view rasterization remain open.
+
+## Checkpoint 51: Linux CI and Native GTK Interaction Smoke
+
+Status: passing on macOS tests, Linux tests, generated Enchanted compile, generated Quill Chat visual smoke, and native GTK interaction smoke.
+
+- Added `.github/workflows/linux-ci.yml` for the public Linux path: Swift 6.0 container, GTK/Xvfb/ImageMagick/xdotool dependencies, upstream Enchanted fixture fetch, Swift tests, generated full-source compile, Quill Chat visual smoke, GTK interaction smoke, and screenshot/log artifact upload.
+- Added Linux-only `quill-gtk-interaction-smoke`, a deterministic QuillUI sample app that uses a native GTK button to mutate Swift state and repaint a visible panel.
+- Added `scripts/linux-gtk-interaction-check.sh`, which builds a SwiftPM product, launches it under Xvfb, clicks with `xdotool`, captures a screenshot, and verifies the interaction result with `scripts/verify-gtk-screenshot.py`.
+- Kept generated Quill Chat covered by app-specific landmark visual QA while moving generic event-loop verification into the reusable QuillUI sample instead of baking current Quill Chat toolbar behavior into CI.
+- Tightened Linux manifest gating so QuillUI depends on SwiftOpenUI's GTK products only when the manifest is evaluated on Linux; this keeps macOS package resolution working while allowing Linux offscreen/GTK code to compile.
+- Added an opt-in experimental GTK offscreen renderer path for arbitrary `ImageRenderer` content behind `QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1`; the default path still rasterizes `Color` content and returns nil+diagnostics for other views unless explicitly enabled.
+- Added parity coverage for `Color(hex:)`, `Color(rgba:)`, color components, edge/inset constants, `Axis.Set`, `LayoutPriority`, and `Angle.radians`.
+- Verified macOS: `swift test --disable-automatic-resolution` passed with 84 tests in 10 suites.
+- Verified Linux: `swift test --scratch-path .build-linux` passed with 153 tests in 13 suites.
+- Verified generated check mode: `scripts/generated-enchanted-full-source-check.sh` compiled the 87-file upstream Enchanted fixture into 90 generated Swift files.
+- Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt the 92-file local Quill Chat app into 95 generated Swift files and passed landmarks with header `73px`, toolbar `51-56`, prompt cards `395-1045`, and composer `750px@474`.
+- Verified native GTK interaction mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke` clicked the GTK button and detected the opened panel with `29671` dark pixels in the expected ROI.
+- Remaining honest gap: CI now covers Linux compile, screenshot landmarks, and one native GTK click/repaint path, but it does not yet run perceptual comparisons against a stored macOS Quill Chat reference or exercise app-specific toolbar popover keyboard/click-outside behavior.

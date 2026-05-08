@@ -10,6 +10,29 @@ var products: [Product] = [
     .executable(name: "quill-enchanted-upstream-slice", targets: ["QuillEnchantedUpstreamSlice"])
 ]
 
+// QuillUI's runtime dependency set diverges by platform: on Linux it pulls in
+// CGdkPixbuf (for image transcoding), CGTK (raw GTK + GSK + cairo symbols),
+// and BackendGTK4 (the SwiftOpenUI public render hook `gtkRenderView`). On
+// Apple platforms it only needs SwiftOpenUI for type definitions; the
+// SwiftUI re-export covers everything else. SPM resolves the package graph
+// eagerly across platforms, so we can't use `.condition: .when(...)` for
+// products that only exist on Linux — the gate has to be at manifest-eval
+// time instead.
+#if os(Linux)
+let quillUIDependencies: [Target.Dependency] = [
+    "QuillKit",
+    .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
+    "CGdkPixbuf",
+    .product(name: "CGTK", package: "SwiftOpenUI"),
+    .product(name: "BackendGTK4", package: "SwiftOpenUI")
+]
+#else
+let quillUIDependencies: [Target.Dependency] = [
+    "QuillKit",
+    .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
+]
+#endif
+
 var targets: [Target] = [
     .systemLibrary(
         name: "CSQLite",
@@ -21,15 +44,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillUI",
-        dependencies: [
-            "QuillKit",
-            .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
-            // Linux-only: CGdkPixbuf is a systemLibrary target backed by
-            // gdk-pixbuf-2.0 (already present as a transitive dependency of
-            // libgtk-4-dev). Used by NSImage.tiffRepresentation to transcode
-            // PNG/JPEG/etc. inputs to real TIFF bytes.
-            .target(name: "CGdkPixbuf", condition: .when(platforms: [.linux]))
-        ]
+        dependencies: quillUIDependencies
     ),
     // The CGdkPixbuf target itself is unconditionally declared. SPM only
     // resolves the QuillUI dependency on it for Linux builds, so on macOS
@@ -89,6 +104,8 @@ var targets: [Target] = [
 ]
 
 #if os(Linux)
+products.append(.executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]))
+
 let linuxCompatibilityModuleTargets: [Target] = [
     .target(name: "SwiftUI", dependencies: ["QuillUI"]),
     .target(name: "SwiftData", dependencies: ["QuillData"]),
@@ -204,6 +221,13 @@ targets += [
             "QuillEnchantedCore",
             "QuillUI",
             "UniformTypeIdentifiers",
+            .product(name: "BackendGTK4", package: "SwiftOpenUI")
+        ]
+    ),
+    .executableTarget(
+        name: "QuillGtkInteractionSmoke",
+        dependencies: [
+            "QuillUI",
             .product(name: "BackendGTK4", package: "SwiftOpenUI")
         ]
     )

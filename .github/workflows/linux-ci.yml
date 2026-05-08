@@ -1,0 +1,72 @@
+name: Linux CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  swift-gtk:
+    name: Swift GTK
+    runs-on: ubuntu-24.04
+    container:
+      image: swift:6.0-jammy
+    env:
+      QUILLUI_SKIP_APT: "1"
+      QUILLUI_SMOKE_SECONDS: "4"
+      QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates \
+            clang \
+            dbus-x11 \
+            git \
+            imagemagick \
+            libgdk-pixbuf-2.0-dev \
+            libgtk-4-dev \
+            libsqlite3-dev \
+            pkg-config \
+            x11-apps \
+            xdotool \
+            xvfb
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Fetch upstream Enchanted fixture
+        run: scripts/audit-upstream-enchanted.sh >/tmp/quillui-upstream-enchanted-audit.md
+
+      - name: Swift tests
+        run: swift test --scratch-path .build-linux
+
+      - name: Generated upstream Enchanted compile
+        run: scripts/generated-enchanted-full-source-check.sh
+
+      - name: Generated Enchanted GTK visual smoke
+        run: scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux
+
+      - name: GTK interaction smoke
+        run: scripts/linux-gtk-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
+
+      - name: Upload GTK QA artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-gtk-qa
+          if-no-files-found: ignore
+          path: |
+            .qa/*.png
+            /tmp/quillui-*.log
+            /tmp/quillui-upstream-enchanted-audit.md

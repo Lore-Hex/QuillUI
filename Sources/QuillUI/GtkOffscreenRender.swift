@@ -1,0 +1,204 @@
+// Linux-only: offscreen rasterization of arbitrary SwiftUI-shaped views.
+//
+// Closes the second half of the `ImageRenderer` parity gap: real Apple
+// SwiftUI's `ImageRenderer` rasterizes any view tree into a `UIImage` /
+// `NSImage`. On Linux we route a SwiftOpenUI-backed widget through GTK4's
+// snapshot system, draw the resulting render node into a cairo image surface,
+// then encode the surface via gdk-pixbuf.
+//
+// Pipeline:
+//   1. `gtk_init_check()`  (idempotent; safe to call repeatedly)
+//   2. `BackendGTK4.gtkRenderView(view)`  → GtkWidget*  (existing public API)
+//   3. Parent the widget in an offscreen GtkWindow + realize it so the
+//      widget tree has a layout. Without realization the widget hierarchy
+//      hasn't been measured/sized and `gtk_widget_snapshot` returns an
+//      empty render node.
+//   4. `gtk_widget_size_allocate(widget, alloc, -1)` to force a final size.
+//   5. `gtk_widget_snapshot(widget, snapshot)` → fills the snapshot.
+//   6. `gtk_snapshot_to_node(snapshot)` → root GskRenderNode.
+//   7. Create a `cairo_image_surface_t` of the requested size, get a `cairo_t`
+//      context, and draw the node via `gsk_render_node_draw(node, cr)`.
+//   8. `gdk_pixbuf_get_from_surface(surface, ...)` → GdkPixbuf with the
+//      ARGB32 pixels rearranged into a real RGB(A) image.
+//   9. `gdk_pixbuf_save_to_bufferv(pixbuf, ..., "png" | "tiff", ...)` →
+//      Swift-owned `Data` bytes; free the gdk-pixbuf-allocated buffer.
+//
+// Notes on parity coverage:
+//  - `gsk_render_node_draw` walks each node and asks it to paint itself into
+//    the cairo context. It works for the vast majority of widget output —
+//    rectangles, text via Pango, images — but a few advanced GSK node types
+//    (offscreen-effect nodes, blur, color-matrix) may fall back to a simpler
+//    path. For the purposes of "produce real pixels for typical SwiftUI
+//    views" this is sufficient; if pixel-perfect parity matters later, swap
+//    in `gsk_cairo_renderer_new()` + `gsk_renderer_render_texture()`.
+//  - GTK initialization needs a display backend. `gtk_init_check` succeeds
+//    under xvfb (which `scripts/linux-gtk-check.sh` already installs).
+//    Without xvfb / Wayland it returns false and we surface a diagnostic.
+
+#if os(Linux)
+import Foundation
+import CGTK
+import CGdkPixbuf
+import BackendGTK4
+
+/// Default offscreen canvas size used when callers don't specify one.
+private let defaultRenderSize: (width: Int, height: Int) = (512, 512)
+private let offscreenRenderFlag = "QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER"
+
+/// One-shot lock so concurrent first-time `quillRenderViewToImage` calls
+/// only race through `gtk_init_check` once.
+private let gtkInitLock = NSLock()
+
+private func gtkWidgetPointer(_ pointer: OpaquePointer) -> UnsafeMutablePointer<GtkWidget> {
+    UnsafeMutableRawPointer(pointer).assumingMemoryBound(to: GtkWidget.self)
+}
+
+private func gtkWindowPointer(_ widget: UnsafeMutablePointer<GtkWidget>) -> UnsafeMutablePointer<GtkWindow> {
+    UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GtkWindow.self)
+}
+
+private func isGTKOffscreenRenderEnabled() -> Bool {
+    let value = ProcessInfo.processInfo.environment[offscreenRenderFlag]?.lowercased()
+    return value == "1" || value == "true" || value == "yes"
+}
+
+@discardableResult
+private func ensureGTKInitialized() -> Bool {
+    gtkInitLock.withLock {
+        if gtk_is_initialized() != 0 {
+            return true
+        }
+        return gtk_init_check() != 0
+    }
+}
+
+/// Snapshot a SwiftUI-shaped view into encoded image bytes by way of
+/// SwiftOpenUI's GTK4 backend + cairo + gdk-pixbuf.
+///
+/// Returns `nil` when GTK can't be initialized (no display backend), when
+/// the snapshot/draw pipeline fails, or when the encoder rejects the result.
+/// Failures attempt to free any `GError` they produce.
+@_spi(QuillTesting)
+public func quillRenderViewToImage<V: View>(
+    _ view: V,
+    width: Int? = nil,
+    height: Int? = nil,
+    format: QuillEncodedImageFormat = .png
+) -> Data? {
+    let resolvedWidth = width ?? defaultRenderSize.width
+    let resolvedHeight = height ?? defaultRenderSize.height
+    guard resolvedWidth > 0, resolvedHeight > 0 else { return nil }
+    guard isGTKOffscreenRenderEnabled() else { return nil }
+    guard ensureGTKInitialized() else { return nil }
+
+    // 1. Translate the SwiftUI-shaped view into a GtkWidget tree via
+    //    SwiftOpenUI's public renderer entry point. The result is a borrowed
+    //    GtkWidget* — its initial ref count is owned by the caller.
+    let widget = gtkRenderView(view)
+    let widgetPtr = gtkWidgetPointer(widget)
+
+    // 2. Parent the widget in an offscreen window so realization triggers
+    //    layout. The window is never shown and is destroyed after the
+    //    snapshot. We hold an extra ref on the widget so it survives
+    //    `gtk_window_destroy` (which unparents and unrefs its child).
+    g_object_ref(UnsafeMutableRawPointer(widget))
+    defer { g_object_unref(UnsafeMutableRawPointer(widget)) }
+
+    guard let windowWidget = gtk_window_new() else { return nil }
+    let window = gtkWindowPointer(windowWidget)
+    defer { gtk_window_destroy(window) }
+
+    gtk_window_set_decorated(window, 0)
+    gtk_window_set_default_size(window, gint(resolvedWidth), gint(resolvedHeight))
+    gtk_window_set_child(window, widgetPtr)
+
+    // Force the widget to compute and apply a layout at the requested size.
+    // Without this, snapshotting may produce an empty render node because
+    // the widget hasn't been measured.
+    gtk_widget_set_size_request(widgetPtr, gint(resolvedWidth), gint(resolvedHeight))
+    gtk_widget_realize(windowWidget)
+
+    // Compute preferred size (returns minimum and natural requisitions) then
+    // do an explicit size_allocate. `-1` for the baseline tells GTK to use
+    // the widget's preferred baseline.
+    var minSize = GtkRequisition()
+    var natSize = GtkRequisition()
+    gtk_widget_get_preferred_size(widgetPtr, &minSize, &natSize)
+    var allocation = GdkRectangle(x: 0, y: 0, width: gint(resolvedWidth), height: gint(resolvedHeight))
+    gtk_widget_size_allocate(widgetPtr, &allocation, -1)
+
+    // 3. Snapshot the widget into a GskRenderNode. The current CGTK module
+    // exposes GTK's parent-side snapshot helper, so we snapshot the child
+    // from the offscreen parent window.
+    guard let snapshot = gtk_snapshot_new() else { return nil }
+    gtk_widget_snapshot_child(windowWidget, widgetPtr, snapshot)
+    let renderNodeOpt = gtk_snapshot_to_node(snapshot)
+    g_object_unref(UnsafeMutableRawPointer(snapshot))
+    guard let renderNode = renderNodeOpt else { return nil }
+    defer { gsk_render_node_unref(renderNode) }
+
+    // 4. Cairo image surface backed by a real ARGB32 pixel buffer.
+    guard let cairoSurface = cairo_image_surface_create(
+        CAIRO_FORMAT_ARGB32,
+        gint(resolvedWidth),
+        gint(resolvedHeight)
+    ) else { return nil }
+    defer { cairo_surface_destroy(cairoSurface) }
+
+    guard let cr = cairo_create(cairoSurface) else { return nil }
+    defer { cairo_destroy(cr) }
+
+    // 5. Walk the render-node tree, asking each node to draw itself to the
+    //    cairo context. Most node types support this directly.
+    gsk_render_node_draw(renderNode, cr)
+
+    // 6. Pull pixels back as a GdkPixbuf, then encode.
+    guard let pixbuf = gdk_pixbuf_get_from_surface(
+        cairoSurface,
+        0, 0,
+        gint(resolvedWidth),
+        gint(resolvedHeight)
+    ) else { return nil }
+    defer { g_object_unref(UnsafeMutableRawPointer(pixbuf)) }
+
+    var buffer: UnsafeMutablePointer<gchar>? = nil
+    var bufferSize: gsize = 0
+    var error: UnsafeMutablePointer<GError>? = nil
+    let saveOK = format.rawValue.withCString { typeCString -> Int32 in
+        gdk_pixbuf_save_to_bufferv(
+            pixbuf,
+            &buffer,
+            &bufferSize,
+            typeCString,
+            nil,
+            nil,
+            &error
+        )
+    }
+    if let error {
+        g_error_free(error)
+    }
+    guard saveOK != 0, let buffer else { return nil }
+
+    let result = Data(bytes: UnsafeRawPointer(buffer), count: Int(bufferSize))
+    g_free(buffer)
+    return result
+}
+#endif
+
+#if !os(Linux)
+import Foundation
+
+/// macOS stub so the symbol is reachable in cross-platform code paths.
+/// Real Apple SwiftUI's `ImageRenderer` is the canonical implementation
+/// on Apple platforms; this stub never gets invoked on macOS.
+@_spi(QuillTesting)
+public func quillRenderViewToImage<V>(
+    _ view: V,
+    width: Int? = nil,
+    height: Int? = nil,
+    format: QuillEncodedImageFormat = .png
+) -> Data? {
+    nil
+}
+#endif

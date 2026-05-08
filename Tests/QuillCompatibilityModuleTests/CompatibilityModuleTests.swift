@@ -1439,25 +1439,46 @@ struct CompatibilityModuleTests {
         #expect(warnings.isEmpty, "Color rendering should not record warnings; got \(warnings.map(\.message))")
     }
 
-    @Test("ImageRenderer falls back to nil + warning for non-Color content")
-    func imageRendererStillFallsBackForOtherContent() {
+    @Test("ImageRenderer guards non-Color content behind the GTK offscreen pipeline")
+    func imageRendererGuardsNonColorContentBehindGTKOptIn() {
         QuillCompatibilityDiagnostics.shared.clear()
 
-        // Text isn't currently supported by the partial parity implementation;
-        // this exercises the fallback path that names the unsupported type
-        // in the diagnostic message.
-        let renderer = ImageRenderer(content: Text("not yet rasterized"))
-        #expect(renderer.uiImage == nil)
-        #expect(renderer.nsImage == nil)
+        // Text content can take the experimental general path when
+        // QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1:
+        //   gtkRenderView → offscreen GtkWindow + size_allocate
+        //   → gtk_widget_snapshot → gsk_render_node_draw
+        //   → cairo_image_surface → gdk_pixbuf_get_from_surface
+        //   → gdk_pixbuf_save_to_bufferv
+        // The default remains the safe nil+warning path because GTK can crash
+        // if snapshotting starts outside a controlled display harness.
+        let renderer = ImageRenderer(content: Text("hello world"))
 
-        let warnings = QuillCompatibilityDiagnostics.shared.events.filter {
-            $0.operation.hasPrefix("ImageRenderer") && $0.severity == .warning
+        if let image = renderer.nsImage {
+            // GTK initialized and the snapshot pipeline succeeded — verify
+            // we got real PNG bytes back.
+            let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+            #expect(
+                image.data?.prefix(8) == Data(pngMagic),
+                "Expected PNG magic in offscreen-rendered image bytes; got \(image.data?.prefix(8) as Any)"
+            )
+
+            // Successful rendering should not record warnings.
+            let warnings = QuillCompatibilityDiagnostics.shared.events.filter {
+                $0.operation.hasPrefix("ImageRenderer") && $0.severity == .warning
+            }
+            #expect(warnings.isEmpty, "Successful rendering should not record warnings; got \(warnings.map(\.message))")
+        } else {
+            // The default path is gated off. Verify the warning surfaces the
+            // content type so the developer knows what did not render.
+            let warnings = QuillCompatibilityDiagnostics.shared.events.filter {
+                $0.operation.hasPrefix("ImageRenderer") && $0.severity == .warning
+            }
+            #expect(!warnings.isEmpty, "Expected a warning when ImageRenderer returns nil")
+            #expect(
+                warnings.contains { $0.message.contains("Text") },
+                "Expected the warning to name the content type 'Text'; got \(warnings.map(\.message))"
+            )
         }
-        #expect(warnings.count >= 2)
-        // The warning message must surface the actual content type so a
-        // developer reading diagnostics can see exactly which view broke.
-        #expect(warnings.contains { $0.message.contains("Text") },
-                "Expected at least one warning to name the content type 'Text'; got \(warnings.map(\.message))")
     }
 
     @Test("quillTranscodeImageDataToTIFF returns nil for empty / invalid input but TIFF for valid")
