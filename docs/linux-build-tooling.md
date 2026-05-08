@@ -66,6 +66,9 @@ assembly:
   matching source paths.
 - `scripts/truncate-profile-files.sh` blanks optional profile-listed files that
   are replaced by QuillKit/QuillUI compatibility implementations.
+- `scripts/audit-profile-budget.sh` checks app-lowering profile shell glue
+  against a small line-count budget; CI runs this before the heavier Linux
+  build and GTK smoke jobs.
 - `scripts/generate-hashable-identity-shims.sh` emits small generated Swift
   extensions that make lowered model classes `Hashable`/`Equatable` by stable
   identity properties, with optional `Identifiable.id` aliases for models whose

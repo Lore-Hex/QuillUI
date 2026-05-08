@@ -809,3 +809,18 @@ Status: passing from a clean temporary worktree with only the staged truncation-
 - Verified clean generated check mode: `QUILLUI_APP_SOURCE_DIR=/Users/jperla/claude/QuillUI/.upstream/enchanted/Enchanted scripts/generated-enchanted-full-source-check.sh` compiled 87 source Swift files into 90 generated Swift files.
 - Verified clean generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt 92 source Swift files into 95 generated Swift files and passed landmarks with header `73px`, toolbar `48-56`, prompt cards `395-1045`, and composer `750px@474`.
 - Remaining honest gap: this meets the profile-script size goal, but the project still needs real library/API work to replace the profile templates and rewrite rules rather than only organizing them.
+
+## Checkpoint 59: Profile Budget Guard
+
+Status: passing from a clean temporary worktree with only the staged profile-budget patch applied, plus generated upstream Enchanted compile and generated Quill Chat visual smoke.
+
+- Added `scripts/audit-profile-budget.sh`, a generic app-lowering profile audit that checks profile shell glue against a configurable line-count budget.
+- Wired the audit into Linux CI before upstream fixture fetch, Swift tests, generated Enchanted compile, and GTK smoke checks.
+- Added regression coverage that verifies the current profiles pass a 50-line shell budget and fail a deliberately tiny budget.
+- Current profile shell counts are `scripts/profiles/enchanted.sh` at 5 lines, `scripts/profiles/enchanted-full-source.sh` at 33 lines, and `scripts/profiles/enchanted-full-source/lower-profile-source.sh` at 44 lines.
+- Verified clean syntax and budget: `bash -n scripts/audit-profile-budget.sh ...` and `scripts/audit-profile-budget.sh --max-shell-lines 50` passed.
+- Verified clean macOS focused: `swift test --scratch-path .build-macos-budget --disable-automatic-resolution --filter QuillDataSourceLoweringTests` passed with 7 tests.
+- Verified clean Linux focused: `swift test --scratch-path .build-linux-budget --filter QuillDataSourceLoweringTests` passed with 7 tests.
+- Verified clean generated check mode: `QUILLUI_APP_SOURCE_DIR=/Users/jperla/claude/QuillUI/.upstream/enchanted/Enchanted scripts/generated-enchanted-full-source-check.sh` compiled 87 source Swift files into 90 generated Swift files.
+- Verified clean generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt 92 source Swift files into 95 generated Swift files and passed landmarks with header `73px`, toolbar `48-56`, prompt cards `395-1045`, and composer `750px@474`.
+- Remaining honest gap: this prevents profile shell bloat from returning, but the remaining template and rewrite-rule payload still needs to be retired into reusable QuillUI/QuillKit APIs.

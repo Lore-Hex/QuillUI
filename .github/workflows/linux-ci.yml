@@ -45,6 +45,9 @@ jobs:
       - name: Swift version
         run: swift --version
 
+      - name: Profile budget audit
+        run: scripts/audit-profile-budget.sh --max-shell-lines 50
+
       - name: Fetch upstream Enchanted fixture
         run: scripts/audit-upstream-enchanted.sh >/tmp/quillui-upstream-enchanted-audit.md
 

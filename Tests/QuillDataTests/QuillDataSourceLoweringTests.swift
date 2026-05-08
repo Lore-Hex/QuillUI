@@ -319,6 +319,34 @@ struct QuillDataSourceLoweringTests {
         #expect(try String(contentsOf: unlisted, encoding: .utf8) == "keep me\n")
     }
 
+    @Test("profile budget audit enforces small shell glue")
+    func profileBudgetAuditEnforcesSmallShellGlue() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/audit-profile-budget.sh")
+
+        let passing = try runScript(script, arguments: ["--max-shell-lines", "50"])
+        #expect(passing.status == 0, Comment(rawValue: passing.output))
+        #expect(passing.output.contains("scripts/profiles/enchanted-full-source/lower-profile-source.sh"))
+
+        let failing = try runScript(script, arguments: ["--profile", "enchanted-full-source", "--max-shell-lines", "1"])
+        #expect(failing.status != 0, Comment(rawValue: failing.output))
+        #expect(failing.output.contains("profile budget failed"))
+    }
+
+    private func runScript(_ script: URL, arguments: [String]) throws -> (status: Int32, output: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [script.path] + arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        try process.run()
+        process.waitUntilExit()
+
+        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        return (process.terminationStatus, output)
+    }
+
     private func packageRoot() throws -> URL {
         var directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
         for _ in 0..<8 {
