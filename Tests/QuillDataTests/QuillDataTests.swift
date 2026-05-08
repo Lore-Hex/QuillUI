@@ -239,6 +239,63 @@ struct QuillDataTests {
         #expect(matches.map(\.title) == ["High"])
     }
 
+    @Test("QuillPredicate supports class-backed relationship lookups")
+    func classBackedQuillPredicateRelationshipLookup() throws {
+        let url = temporarySQLiteURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let schema = Schema([PredicateConversation.self, PredicateMessage.self])
+        let context = try ModelContext(ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, url: url)]
+        ))
+        let selectedID = UUID()
+        let selected = PredicateConversation(id: selectedID, createdAt: Date(timeIntervalSince1970: 10))
+        let other = PredicateConversation(id: UUID(), createdAt: Date(timeIntervalSince1970: 20))
+
+        context.insert(selected)
+        context.insert(other)
+        context.insert(PredicateMessage(content: "Second", createdAt: Date(timeIntervalSince1970: 40), conversation: selected))
+        context.insert(PredicateMessage(content: "Other", createdAt: Date(timeIntervalSince1970: 30), conversation: other))
+        context.insert(PredicateMessage(content: "First", createdAt: Date(timeIntervalSince1970: 20), conversation: selected))
+
+        let predicate = QuillPredicate<PredicateMessage> { $0.conversation?.id == selectedID }
+        let messages = try context.fetch(FetchDescriptor<PredicateMessage>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.createdAt)]
+        ))
+
+        #expect(messages.map(\.content) == ["First", "Second"])
+    }
+
+    @Test("QuillPredicate delete supports class-backed date ranges")
+    func classBackedQuillPredicateDeleteRange() throws {
+        let url = temporarySQLiteURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let schema = Schema([PredicateConversation.self])
+        let context = try ModelContext(ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, url: url)]
+        ))
+
+        context.insert(PredicateConversation(id: UUID(), createdAt: Date(timeIntervalSince1970: 10)))
+        context.insert(PredicateConversation(id: UUID(), createdAt: Date(timeIntervalSince1970: 20)))
+        context.insert(PredicateConversation(id: UUID(), createdAt: Date(timeIntervalSince1970: 30)))
+
+        let dayStart = Date(timeIntervalSince1970: 15)
+        let dayEnd = Date(timeIntervalSince1970: 25)
+        try context.delete(
+            model: PredicateConversation.self,
+            where: QuillPredicate<PredicateConversation> { $0.createdAt >= dayStart && $0.createdAt <= dayEnd }
+        )
+
+        let remaining = try context.fetch(FetchDescriptor<PredicateConversation>(
+            sortBy: [SortDescriptor(\.createdAt)]
+        ))
+        #expect(remaining.map(\.createdAt.timeIntervalSince1970) == [10, 30])
+    }
+
     @Test("fetching class-backed models marks context changed for app saveChanges extensions")
     func classBackedFetchMarksPotentialChanges() throws {
         let url = temporarySQLiteURL()
@@ -279,6 +336,39 @@ struct QuillDataTests {
         let models = try context.fetch(FetchDescriptor<WrappedModel>())
         #expect(models.map(\.slug) == ["ollama"])
         #expect(models[0].enabled)
+    }
+
+    @Test("optional SwiftData-style attributes and relationships default to nil")
+    func optionalAttributeAndRelationshipDefaults() throws {
+        let url = temporarySQLiteURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let schema = Schema([OptionalWrapperModel.self, PredicateConversation.self])
+        let context = try ModelContext(ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, url: url)]
+        ))
+
+        let empty = OptionalWrapperModel(name: "empty")
+        #expect(empty.image == nil)
+        #expect(empty.conversation == nil)
+
+        let conversation = PredicateConversation(id: UUID(), createdAt: Date(timeIntervalSince1970: 40))
+        let filled = OptionalWrapperModel(name: "filled")
+        filled.image = Data([1, 2, 3])
+        filled.conversation = conversation
+        context.insert(empty)
+        context.insert(filled)
+        try context.save()
+
+        let models = try context.fetch(FetchDescriptor<OptionalWrapperModel>(
+            sortBy: [SortDescriptor(\.name)]
+        ))
+        #expect(models.map(\.name) == ["empty", "filled"])
+        #expect(models[0].image == nil)
+        #expect(models[0].conversation == nil)
+        #expect(models[1].image == Data([1, 2, 3]))
+        #expect(models[1].conversation?.id == conversation.id)
     }
 
     @Test("models without explicit id fall back to stable name identity")
@@ -437,6 +527,39 @@ private final class NamedModel: PersistentModel {
     init(name: String, enabled: Bool) {
         self.name = name
         self.enabled = enabled
+    }
+}
+
+private final class PredicateConversation: PersistentModel, Identifiable {
+    var id: UUID
+    var createdAt: Date
+
+    init(id: UUID, createdAt: Date) {
+        self.id = id
+        self.createdAt = createdAt
+    }
+}
+
+private final class PredicateMessage: PersistentModel, Identifiable {
+    var id = UUID()
+    var content: String
+    var createdAt: Date
+    @Relationship var conversation: PredicateConversation?
+
+    init(content: String, createdAt: Date, conversation: PredicateConversation? = nil) {
+        self.content = content
+        self.createdAt = createdAt
+        self.conversation = conversation
+    }
+}
+
+private final class OptionalWrapperModel: PersistentModel {
+    var name: String
+    @Attribute(.externalStorage) var image: Data?
+    @Relationship(deleteRule: .nullify) var conversation: PredicateConversation?
+
+    init(name: String) {
+        self.name = name
     }
 }
 

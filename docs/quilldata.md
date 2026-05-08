@@ -19,6 +19,7 @@ The first implementation is intentionally conservative. It provides a SwiftData-
 - `ModelContainer`
 - `ModelContext`
 - `FetchDescriptor`
+- `QuillPredicate`
 - `PersistentModel`
 - `@Attribute`
 - `@Relationship`
@@ -35,8 +36,11 @@ Works now:
 - Foundation `SortDescriptor`.
 - Foundation `#Predicate` for value models.
 - Closure filters for class models through `FetchDescriptor(filter:)`.
-- SwiftData-style `@Attribute(.unique)` syntax for stored properties.
+- `QuillPredicate`, a class-safe closure predicate used by the generated Linux lowering path for SwiftData `#Predicate` call sites.
+- SwiftData-style `@Attribute(.unique)` and optional `@Attribute(.externalStorage)` syntax for stored properties.
+- SwiftData-style optional `@Relationship` declarations with no explicit default value.
 - Class-backed identity-map tracking for fetched objects, so app-defined `saveChanges()` extensions that check `hasChanges` can persist later mutations.
+- `scripts/lower-swiftdata-for-quilldata.sh`, which creates a generated source copy that lowers `@Model`, `@Transient`, and `#Predicate<T>` into QuillData-compatible Swift without editing app sources.
 
 In-repo consumer:
 
@@ -44,8 +48,8 @@ In-repo consumer:
 
 Important gaps:
 
-- `@Model` is a Swift macro. QuillData does not yet provide a replacement macro, so current ports still need a small model declaration change.
-- Foundation `#Predicate` can trap before QuillData sees it when built against plain class models outside SwiftData's macro/runtime path. Ports should use `FetchDescriptor(filter:)` for class models until QuillData has a macro/native predicate lowering path.
+- `@Model` is a Swift macro. QuillData does not yet provide a compiler macro, so the current near-zero-change path is a generated Linux source copy rather than direct compilation of the pristine files.
+- Foundation `#Predicate` can trap before QuillData sees it when built against plain class models outside SwiftData's macro/runtime path. The lowering script rewrites those call sites to `QuillPredicate`; direct hand ports can also use `QuillPredicate` or `FetchDescriptor(filter:)`.
 - Relationships currently encode as model fields; delete rules and inverse maintenance are not schema-native yet.
 - There is no `@Query` observation layer yet.
 - Migrations are limited to the generic row table.
@@ -55,6 +59,6 @@ Important gaps:
 The next backend should use SQLiteData/GRDB-style table generation for models that opt into a schema-native path. The intended layering is:
 
 1. Keep the current JSON-row backend as the broad compatibility fallback.
-2. Add a QuillData macro or codegen path for source-compatible model declarations.
+2. Promote the current source-lowering script into a QuillData macro or SwiftPM build plugin for source-compatible model declarations.
 3. Lower supported `FetchDescriptor`/predicate/sort cases into SQLite queries.
 4. Keep falling back to the JSON-row backend for unsupported model shapes until the native path catches up.

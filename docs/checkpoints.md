@@ -379,3 +379,18 @@ Status: passing on macOS, Linux, and Linux GTK smoke.
 - Linux GTK verification passed: both GTK products built and both apps survived the 4-second Xvfb smoke run.
 - `bash -n scripts/*.sh`, `git diff --check`, `scripts/audit-quill-chat.sh`, and `scripts/audit-upstream-enchanted.sh` passed.
 - Remaining honest gap: Foundation `#Predicate` still cannot be used safely with plain class-backed models because it can trap before QuillData receives the descriptor. Enchanted's class `#Predicate` calls still need a macro/lowering strategy or small source rewrite to closure filters.
+
+## Checkpoint 29: QuillData Generated SwiftData Lowering
+
+Status: passing on macOS, Linux, and Linux GTK smoke.
+
+- Added `QuillPredicate`, a class-safe closure predicate with `FetchDescriptor(predicate:)` and `ModelContext.delete(model:where:)` overloads. This covers Enchanted's three class-backed `#Predicate` shapes without touching Foundation's unsafe class predicate evaluator.
+- Added optional `@Attribute` and `@Relationship` defaults so SwiftData declarations like `@Attribute(.externalStorage) var image: Data?` and `@Relationship(deleteRule: .nullify) var model: LanguageModelSD?` compile and read back as `nil` before assignment.
+- Added `scripts/lower-swiftdata-for-quilldata.sh`, which materializes a generated Linux source copy and rewrites `@Model` classes to `PersistentModel`, removes computed-property `@Transient`, and lowers `#Predicate<T>` to `QuillPredicate<T>`.
+- Verified the lowering script against the real Quill Chat source: 92 Swift files were copied, all four SwiftData model classes gained `PersistentModel`, and all three class `#Predicate` call sites were lowered to `QuillPredicate`.
+- Added regression tests for class relationship lookup predicates, date-range delete predicates, optional wrapper defaults, and the source-lowering script.
+- macOS verification passed: `swift test --disable-automatic-resolution` with 58 tests in 9 suites.
+- Linux verification passed: `swift test --scratch-path .build-linux` with 92 tests in 12 suites.
+- Linux GTK verification passed: both GTK products built and both apps survived the 4-second Xvfb smoke run.
+- `bash -n scripts/*.sh`, `git diff --check`, `scripts/audit-quill-chat.sh`, and `scripts/audit-upstream-enchanted.sh` passed.
+- Remaining honest gap: this is still generated-source lowering, not a first-class Swift compiler macro or SwiftPM build plugin. The next step is to wire the generated source into a real Enchanted Linux build target instead of the current prototype slice.

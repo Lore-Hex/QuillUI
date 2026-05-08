@@ -50,6 +50,17 @@ public struct FetchDescriptor<Model: PersistentModel> {
     }
 
     public init(
+        predicate: QuillPredicate<Model>,
+        sortBy: [SortDescriptor<Model>] = [],
+        fetchLimit: Int? = nil
+    ) {
+        self.predicate = nil
+        self.filter = predicate.evaluate
+        self.sortBy = sortBy
+        self.fetchLimit = fetchLimit
+    }
+
+    public init(
         filter: @escaping (Model) throws -> Bool,
         sortBy: [SortDescriptor<Model>] = [],
         fetchLimit: Int? = nil
@@ -58,6 +69,18 @@ public struct FetchDescriptor<Model: PersistentModel> {
         self.filter = filter
         self.sortBy = sortBy
         self.fetchLimit = fetchLimit
+    }
+}
+
+public struct QuillPredicate<Model: PersistentModel> {
+    private let body: (Model) throws -> Bool
+
+    public init(_ body: @escaping (Model) throws -> Bool) {
+        self.body = body
+    }
+
+    public func evaluate(_ model: Model) throws -> Bool {
+        try body(model)
     }
 }
 
@@ -152,6 +175,15 @@ public final class ModelContext: @unchecked Sendable {
     }
 
     public func delete<Model: PersistentModel>(model: Model.Type, where predicate: Predicate<Model>) throws {
+        let matches = try fetch(FetchDescriptor<Model>(predicate: predicate))
+        for match in matches {
+            try container.store.delete(match)
+            untrack(match)
+            markChanged()
+        }
+    }
+
+    public func delete<Model: PersistentModel>(model: Model.Type, where predicate: QuillPredicate<Model>) throws {
         let matches = try fetch(FetchDescriptor<Model>(predicate: predicate))
         for match in matches {
             try container.store.delete(match)
@@ -321,6 +353,18 @@ public struct Attribute<Value: Codable>: Codable {
     }
 }
 
+extension Attribute where Value: ExpressibleByNilLiteral {
+    public init() {
+        self.storage = Value(nilLiteral: ())
+        self.option = nil
+    }
+
+    public init(_ option: Option) {
+        self.storage = Value(nilLiteral: ())
+        self.option = option
+    }
+}
+
 @propertyWrapper
 public struct Relationship<Value: Codable>: Codable {
     public enum DeleteRule: Sendable {
@@ -358,6 +402,26 @@ public struct Relationship<Value: Codable>: Codable {
 
     public func encode(to encoder: Encoder) throws {
         try wrappedValue.encode(to: encoder)
+    }
+}
+
+extension Relationship where Value: ExpressibleByNilLiteral {
+    public init() {
+        self.wrappedValue = Value(nilLiteral: ())
+        self.deleteRule = .nullify
+    }
+
+    public init(deleteRule: DeleteRule) {
+        self.wrappedValue = Value(nilLiteral: ())
+        self.deleteRule = deleteRule
+    }
+
+    public init<Root, Inverse>(
+        deleteRule: DeleteRule = .nullify,
+        inverse: KeyPath<Root, Inverse>? = nil
+    ) {
+        self.wrappedValue = Value(nilLiteral: ())
+        self.deleteRule = deleteRule
     }
 }
 
