@@ -291,13 +291,202 @@ public final class QuillHotKeyRegistration: @unchecked Sendable {
     public func trigger() { action() }
 }
 
+public enum QuillKeyBase: CaseIterable, Sendable {
+    case option
+    case command
+    case shift
+    case control
+
+    public var isPressed: Bool { false }
+}
+
+public struct QuillHotkeyCombination {
+    public var keyBase: [QuillKeyBase]
+    public var key: UInt16
+    public var action: () -> Void
+
+    public init(keyBase: [QuillKeyBase], key: UInt16, action: @escaping () -> Void) {
+        self.keyBase = keyBase
+        self.key = key
+        self.action = action
+    }
+
+    public var keyBasePressed: Bool { false }
+}
+
+public final class QuillAccessibilityService: @unchecked Sendable {
+    public static let shared = QuillAccessibilityService()
+
+    public init() {}
+
+    public func checkAccessibility() -> Bool {
+        QuillAccessibility.isTrusted
+    }
+
+    public func showAccessibilityInstructionsWindow() {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "showAccessibilityInstructionsWindow",
+            severity: .unsupported,
+            message: "Accessibility permission instructions need a native Linux settings backend."
+        )
+    }
+
+    public func getSelectedText() -> String? {
+        getSelectedTextAX() ?? getSelectedTextViaCopy()
+    }
+
+    public func getSelectedTextAX() -> String? {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "getSelectedTextAX",
+            severity: .unsupported,
+            message: "Reading selected text through platform accessibility APIs is unavailable on Linux."
+        )
+        return nil
+    }
+
+    public func getSelectedTextViaCopy(retryAttempts: Int = 1) -> String? {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "getSelectedTextViaCopy",
+            severity: .unsupported,
+            message: "Reading selected text through synthetic copy is unavailable on Linux."
+        )
+        return nil
+    }
+
+    public func simulateCopyKeyPress() {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "simulateCopyKeyPress",
+            severity: .unsupported,
+            message: "Synthetic copy key presses need a native Linux input backend."
+        )
+    }
+
+    public func simulateTyping(for string: String) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "simulateTyping",
+            severity: .unsupported,
+            message: "Synthetic typing of \(string.count) characters needs a native Linux input backend."
+        )
+    }
+
+    public static func simulatePasteCommand() {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "simulatePasteCommand",
+            severity: .unsupported,
+            message: "Synthetic paste key presses need a native Linux input backend."
+        )
+    }
+}
+
 public enum QuillAccessibility {
+    public static let shared = QuillAccessibilityService.shared
+
     public static var isTrusted: Bool {
         #if os(Linux)
         false
         #else
         true
         #endif
+    }
+}
+
+public final class QuillFloatingPanel: @unchecked Sendable {
+    public var isVisible = false
+
+    public init() {}
+
+    public func orderOut(_ sender: Any?) {
+        isVisible = false
+    }
+
+    public func makeKeyAndOrderFront(_ sender: Any?) {
+        isVisible = true
+    }
+
+    public func close() {
+        isVisible = false
+    }
+}
+
+public final class QuillPanelManager: @unchecked Sendable {
+    public var panel = QuillFloatingPanel()
+
+    public init() {}
+
+    public func togglePanel() {
+        if panel.isVisible {
+            hidePanel()
+        } else {
+            showPanel()
+        }
+    }
+
+    public func hidePanel() {
+        panel.orderOut(nil)
+    }
+
+    public func showPanel() {
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    public func onSubmitMessage() {
+        hidePanel()
+    }
+
+    public func onSubmitCompletion(scheduledTyping: Bool) {
+        hidePanel()
+    }
+}
+
+public final class QuillUpdateService: @unchecked Sendable {
+    public static let shared = QuillUpdateService()
+
+    public private(set) var canCheckForUpdates = false
+
+    public init() {}
+
+    public func checkForUpdates() {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "checkForUpdates",
+            severity: .unsupported,
+            message: "Software update checks need a native Linux update backend."
+        )
+    }
+}
+
+public final class QuillDeviceWatcher: @unchecked Sendable {
+    public static let shared = QuillDeviceWatcher()
+
+    public init() {}
+
+    public func start() {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "deviceWatcher.start",
+            severity: .unsupported,
+            message: "USB/device watching needs a native Linux backend."
+        )
+    }
+
+    public func stop() {}
+    public func autoConfigureIfNeeded() {}
+}
+
+public enum QuillDeviceLauncher {
+    public static func install(label: String, subsystem: String) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: subsystem,
+            operation: "deviceLauncher.install",
+            severity: .unsupported,
+            message: "LaunchAgent-style device launcher '\(label)' is unavailable on Linux."
+        )
     }
 }
 

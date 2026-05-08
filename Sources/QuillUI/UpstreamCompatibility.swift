@@ -45,7 +45,7 @@ public struct UTType: Hashable, Sendable {
         return Self.extensionsByIdentifier[identifier]?.contains(url.pathExtension.lowercased()) ?? false
     }
 
-    fileprivate static func type(for url: URL) -> UTType? {
+    public static func type(for url: URL) -> UTType? {
         let pathExtension = url.pathExtension.lowercased()
         return extensionsByIdentifier.first { _, extensions in
             extensions.contains(pathExtension)

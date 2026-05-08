@@ -120,6 +120,60 @@ struct QuillKitTests {
         #expect(triggerCount.value == 2)
     }
 
+    @Test("profile fallback services expose reusable Linux behavior")
+    func profileFallbackServicesExposeReusableBehavior() {
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let accessibility = QuillAccessibilityService()
+        #expect(accessibility.checkAccessibility() == QuillAccessibility.isTrusted)
+        #expect(accessibility.getSelectedText() == nil)
+        accessibility.showAccessibilityInstructionsWindow()
+        accessibility.simulateCopyKeyPress()
+        accessibility.simulateTyping(for: "hello")
+        QuillAccessibilityService.simulatePasteCommand()
+
+        let panelManager = QuillPanelManager()
+        #expect(panelManager.panel.isVisible == false)
+        panelManager.showPanel()
+        #expect(panelManager.panel.isVisible)
+        panelManager.togglePanel()
+        #expect(panelManager.panel.isVisible == false)
+        panelManager.showPanel()
+        panelManager.onSubmitCompletion(scheduledTyping: false)
+        #expect(panelManager.panel.isVisible == false)
+
+        var hotkeyInvoked = false
+        let combination = QuillHotkeyCombination(keyBase: [.command], key: 0x09) {
+            hotkeyInvoked = true
+        }
+        #expect(combination.keyBase == [.command])
+        #expect(combination.key == 0x09)
+        #expect(combination.keyBasePressed == false)
+        combination.action()
+        #expect(hotkeyInvoked)
+
+        let updater = QuillUpdateService()
+        #expect(updater.canCheckForUpdates == false)
+        updater.checkForUpdates()
+
+        let watcher = QuillDeviceWatcher()
+        watcher.start()
+        watcher.stop()
+        watcher.autoConfigureIfNeeded()
+        QuillDeviceLauncher.install(label: "test.launcher", subsystem: "Test")
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("getSelectedTextAX"))
+        #expect(operations.contains("getSelectedTextViaCopy"))
+        #expect(operations.contains("showAccessibilityInstructionsWindow"))
+        #expect(operations.contains("simulateCopyKeyPress"))
+        #expect(operations.contains("simulateTyping"))
+        #expect(operations.contains("simulatePasteCommand"))
+        #expect(operations.contains("checkForUpdates"))
+        #expect(operations.contains("deviceWatcher.start"))
+        #expect(operations.contains("deviceLauncher.install"))
+    }
+
     @Test("trust and accessibility report platform-specific fallback state")
     func trustAndAccessibilityUsePlatformFallbacks() {
         let certificate = QuillCertificate(data: Data([1, 2, 3]))

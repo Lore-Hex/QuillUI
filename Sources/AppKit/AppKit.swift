@@ -120,3 +120,49 @@ public final class NSApplication: @unchecked Sendable {
 }
 
 public let NSApp = NSApplication()
+
+private final class NSWindowCompatibilityState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var allowsAutomaticWindowTabbingValue = true
+
+    var allowsAutomaticWindowTabbing: Bool {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return allowsAutomaticWindowTabbingValue
+        }
+        set {
+            lock.lock()
+            allowsAutomaticWindowTabbingValue = newValue
+            lock.unlock()
+        }
+    }
+}
+
+public final class NSWindow: @unchecked Sendable {
+    private static let compatibilityState = NSWindowCompatibilityState()
+
+    public static var allowsAutomaticWindowTabbing: Bool {
+        get { compatibilityState.allowsAutomaticWindowTabbing }
+        set { compatibilityState.allowsAutomaticWindowTabbing = newValue }
+    }
+}
+
+public final class QuillHotkeyService: @unchecked Sendable {
+    public static let shared = QuillHotkeyService()
+
+    public init() {}
+
+    public func registerSingleUseSpace(
+        modifiers: NSEvent.ModifierFlags,
+        completion: @escaping () -> ()?
+    ) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "AppKit",
+            operation: "registerSingleUseSpace",
+            severity: .unsupported,
+            message: "Single-use global hotkey registration needs a native Linux keyboard backend."
+        )
+        _ = completion()
+    }
+}

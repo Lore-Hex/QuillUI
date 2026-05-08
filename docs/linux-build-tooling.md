@@ -30,6 +30,11 @@ apps need different macro, platform, package, and service bridges. The generic
 builder gives those future profiles one stable CLI contract instead of adding a
 new app-specific build script for every target.
 
+Reusable fallback behavior should live in library targets, not in profiles.
+The current `enchanted-full-source` profile keeps only app/source-shape wiring
+for accessibility, hotkeys, updater, panel, and USB launcher names; the Linux
+fallback implementations live in `QuillKit` and `QuillUI`.
+
 `scripts/build-quill-chat-linux.sh` is now only a convenience wrapper:
 
 ```bash

@@ -228,202 +228,50 @@ if [[ -f "$upsert_completion_view" ]]; then
   ' "$upsert_completion_view"
 fi
 
-cat > "$LOWERED_COPY/Helpers/Accessibility.swift" <<'SWIFT'
-#if os(macOS) || os(Linux)
-import Foundation
+for profile_replaced_file in \
+  Helpers/Accessibility.swift \
+  Helpers/HotKeys.swift \
+  Services/HotkeyService.swift \
+  UI/macOS/PromptPanel/FloatingPanel.swift \
+  UI/macOS/PromptPanel/PanelManager.swift \
+  Application/QuillUpdater.swift \
+  Application/QuillUSBWatcher.swift \
+  Application/QuillUSBLauncher.swift
+do
+  if [[ -f "$LOWERED_COPY/$profile_replaced_file" ]]; then
+    : > "$LOWERED_COPY/$profile_replaced_file"
+  fi
+done
+
+cat > "$LOWERED_COPY/QuillGeneratedProfileAliases.swift" <<'SWIFT'
 import AppKit
-
-final class Accessibility {
-    static let shared = Accessibility()
-
-    func checkAccessibility() -> Bool { false }
-    func showAccessibilityInstructionsWindow() {}
-    func getSelectedText() -> String? { nil }
-    func getSelectedTextAX() -> String? { nil }
-    func getSelectedTextViaCopy(retryAttempts: Int = 1) -> String? { nil }
-    func simulateCopyKeyPress() {}
-    func simulateTyping(for string: String) {}
-    static func simulatePasteCommand() {}
-}
-#endif
-SWIFT
-
-cat > "$LOWERED_COPY/Helpers/HotKeys.swift" <<'SWIFT'
-#if os(macOS) || os(Linux)
-import Foundation
+import QuillKit
 import SwiftUI
 
-enum KeyBase: CaseIterable {
-    case option
-    case command
-    case shift
-    case control
-
-    var isPressed: Bool { false }
-}
-
+typealias Accessibility = QuillAccessibilityService
+typealias KeyBase = QuillKeyBase
+typealias HotkeyCombination = QuillHotkeyCombination
 typealias CGKeyCode = UInt16
-
-struct HotkeyCombination {
-    let keyBase: [KeyBase]
-    let key: CGKeyCode
-    let action: () -> Void
-
-    var keyBasePressed: Bool { false }
-}
+typealias FloatingPanel = QuillFloatingPanel
+typealias PanelManager = QuillPanelManager
+typealias QuillUpdater = QuillUpdateService
+typealias CheckForUpdatesMenuItem = QuillCheckForUpdatesMenuItem
+typealias QuillUSBWatcher = QuillDeviceWatcher
+typealias HotkeyService = QuillHotkeyService
 
 extension CGKeyCode {
     static let kVK_ANSI_V: CGKeyCode = 0x09
 }
 
-extension View {
-    func addCustomHotkeys(_ hotkeys: [HotkeyCombination]) -> Self {
-        self
-    }
-}
-#endif
-SWIFT
-
-cat > "$LOWERED_COPY/Services/HotkeyService.swift" <<'SWIFT'
-#if os(macOS) || os(Linux)
-import Foundation
-import AppKit
-
-final class HotkeyService {
-    static let shared = HotkeyService()
-
-    func registerSingleUseSpace(modifiers: NSEvent.ModifierFlags, completion: @escaping () -> ()?) {
-        _ = completion()
-    }
-}
-#endif
-SWIFT
-
-cat > "$LOWERED_COPY/UI/macOS/PromptPanel/FloatingPanel.swift" <<'SWIFT'
-#if os(macOS) || os(Linux)
-import Foundation
-
-final class FloatingPanel {
-    var isVisible = false
-
-    init() {}
-    func orderOut(_ sender: Any?) { isVisible = false }
-    func makeKeyAndOrderFront(_ sender: Any?) { isVisible = true }
-    func close() { isVisible = false }
-}
-#endif
-SWIFT
-
-cat > "$LOWERED_COPY/UI/macOS/PromptPanel/PanelManager.swift" <<'SWIFT'
-#if os(macOS) || os(Linux)
-import Foundation
-
-final class PanelManager: NSObject {
-    var panel = FloatingPanel()
-
-    func togglePanel() {
-        if panel.isVisible {
-            hidePanel()
-        } else {
-            showPanel()
-        }
-    }
-
-    func hidePanel() {
-        panel.orderOut(nil)
-    }
-
-    func showPanel() {
-        panel.makeKeyAndOrderFront(nil)
-    }
-
-    func onSubmitMessage() {
-        hidePanel()
-    }
-
-    func onSubmitCompletion(scheduledTyping: Bool) {
-        hidePanel()
-    }
-}
-#endif
-SWIFT
-
-quill_updater="$LOWERED_COPY/Application/QuillUpdater.swift"
-if [[ -f "$quill_updater" ]]; then
-  cat > "$quill_updater" <<'SWIFT'
-#if os(macOS) || os(Linux)
-import SwiftUI
-
-final class QuillUpdater: ObservableObject {
-    static let shared = QuillUpdater()
-
-    @Published private(set) var canCheckForUpdates = false
-
-    private init() {}
-
-    func checkForUpdates() {}
-}
-
-struct CheckForUpdatesMenuItem: View {
-    @ObservedObject private var updater = QuillUpdater.shared
-
-    var body: some View {
-        Button("Check for Updates...") {
-            updater.checkForUpdates()
-        }
-        .disabled(!updater.canCheckForUpdates)
-    }
-}
-#endif
-SWIFT
-fi
-
-quill_usb_watcher="$LOWERED_COPY/Application/QuillUSBWatcher.swift"
-if [[ -f "$quill_usb_watcher" ]]; then
-  cat > "$quill_usb_watcher" <<'SWIFT'
-#if os(macOS) || os(Linux)
-import Foundation
-import QuillKit
-
-final class QuillUSBWatcher {
-    static let shared = QuillUSBWatcher()
-
-    private init() {}
-
-    func start() {
-        QuillCompatibilityDiagnostics.shared.record(
-            subsystem: "QuillKit",
-            operation: "QuillUSBWatcher.start",
-            severity: .unsupported,
-            message: "Quill USB watcher has no native Linux backend yet."
+enum QuillUSBLauncher {
+    static func install() {
+        QuillDeviceLauncher.install(
+            label: "co.lorehex.quillchat.usb-launcher",
+            subsystem: "co.lorehex.quillchat"
         )
     }
-
-    func stop() {}
-    func autoConfigureIfNeeded() {}
 }
-#endif
 SWIFT
-fi
-
-quill_usb_launcher="$LOWERED_COPY/Application/QuillUSBLauncher.swift"
-if [[ -f "$quill_usb_launcher" ]]; then
-  cat > "$quill_usb_launcher" <<'SWIFT'
-#if os(macOS) || os(Linux)
-import Foundation
-import os
-
-enum QuillUSBLauncher {
-    static let label = "co.lorehex.quillchat.usb-launcher"
-    private static let log = Logger(subsystem: "co.lorehex.quillchat", category: "usb-launcher")
-
-    static func install() {
-        log.info("Quill USB LaunchAgent install is unavailable on Linux.")
-    }
-}
-#endif
-SWIFT
-fi
 
 while IFS= read -r -d '' source_file; do
   relative_path="${source_file#$LOWERED_COPY/}"
@@ -480,30 +328,6 @@ extension CompletionInstructionSD: Hashable {
     }
 }
 
-struct Window<Content: View>: Scene {
-    typealias Body = Never
-    let title: String
-    let id: String
-    let content: Content
-
-    init(_ title: String, id: String, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.id = id
-        self.content = content()
-    }
-
-    var body: Never { fatalError("Window is a generated compatibility scene") }
-}
-
-final class NSWindow {
-    static var allowsAutomaticWindowTabbing = true
-}
-
-extension Image {
-    func render() -> PlatformImage? {
-        nil
-    }
-}
 SWIFT
 
 if [[ "$MODE" == "app" ]]; then

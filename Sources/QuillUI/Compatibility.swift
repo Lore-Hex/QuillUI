@@ -193,6 +193,28 @@ public struct QuillPlatformImage: Sendable {
 
 public typealias PlatformImage = QuillPlatformImage
 
+public extension QuillPlatformImage {
+    func convertImageToBase64String() -> String {
+        data?.base64EncodedString() ?? ""
+    }
+
+    func aspectFittedToHeight(_ newHeight: CGFloat) -> QuillPlatformImage {
+        recordCompatibilityWarning(
+            "PlatformImage.aspectFittedToHeight",
+            message: "PlatformImage.aspectFittedToHeight returns the original image on Linux; bitmap resizing is not implemented yet."
+        )
+        return self
+    }
+
+    func compressImageData() -> Data? {
+        recordCompatibilityWarning(
+            "PlatformImage.compressImageData",
+            message: "PlatformImage.compressImageData returns original bytes on Linux; JPEG recompression is not implemented yet."
+        )
+        return data
+    }
+}
+
 public final class NSImage: @unchecked Sendable {
     public var data: Data?
     public var size: CGSize
@@ -276,6 +298,16 @@ public final class ImageRenderer<Content: View> {
         recordCompatibilityWarning(
             "ImageRenderer.nsImage",
             message: "ImageRenderer.nsImage returned nil on Linux; image export is not yet supported."
+        )
+        return nil
+    }
+}
+
+public extension Image {
+    func render() -> PlatformImage? {
+        recordCompatibilityWarning(
+            "Image.render",
+            message: "Image.render returned nil on Linux; rendering SwiftUI images to bitmap data is not yet supported."
         )
         return nil
     }

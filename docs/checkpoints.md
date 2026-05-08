@@ -514,3 +514,16 @@ Status: passing on macOS tests, direct generic Linux build, wrapper Linux build,
 - Verified `scripts/build-quill-chat-linux.sh` still builds as a wrapper over the generic command.
 - `bash -n scripts/*.sh` and `git diff --check` passed.
 - Remaining honest gap: the build CLI is generalized; the lowering backend is not yet universal. The next durable step is a profile/plugin system where IceCubes, NetNewsWire, CodeEdit, WireGuard, and other apps each add reusable compatibility/lowering rules instead of new bespoke app scripts.
+
+## Checkpoint 38: Move Profile Fallbacks into Libraries
+
+Status: passing on macOS tests, Linux GTK checks, generated full-source app build, and Xvfb smoke.
+
+- Moved reusable Enchanted/Quill Chat Linux fallbacks for accessibility, hotkey combinations, floating panels, panel manager, updater, device watcher/launcher, `Window`, `NSWindow`, one-shot hotkey registration, image rendering placeholders, and platform-image base64/compression helpers into QuillKit, QuillUI, and AppKit.
+- Replaced profile-embedded service heredocs with a small generated alias bridge, keeping app/source names while routing behavior through library APIs.
+- Reduced `scripts/generated-enchanted-full-source-check.sh` from 730 lines to 554 lines; the removed code now lives in tested compatibility modules instead of the profile.
+- Expanded QuillKit and Linux compatibility-module tests for the moved services, AppKit window/hotkey shape, image fallback diagnostics, AppStorage, file importer, symbol mapping, UTType inference, and NSItemProvider data/file flows.
+- Verified `swift test --disable-automatic-resolution` on macOS: 59 tests in 9 suites passed.
+- Verified Linux GTK QA: 107 tests in 12 suites passed, generated Enchanted core/chat/macOS/full-source checks passed, the generic local 92-file Quill Chat app built as `quill-chat-linux`, and GTK apps survived a 6-second Xvfb smoke run.
+- Verified no missing Material-symbol or GTK `object-fit` warnings in the final Linux smoke log; remaining smoke output is the Lima/Xvfb DRI3 acceleration warning.
+- Remaining honest gap: the profile still contains app-specific source-shape rewrites and generated compile-check construction. The next reduction should move the lowering rules into a real profile directory/build-plugin layer and keep only app-specific model conformances and names outside shared libraries.

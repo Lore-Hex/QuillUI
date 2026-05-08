@@ -34,6 +34,7 @@ enum AppleCompatibilitySmoke {
         var sizeRoundTrip: Bool
         var namedImagePlaceholder: Bool
         var bitmapRepresentationRoundTrip: Bool
+        var windowTabbingRoundTrip: Bool
         var operations: Set<String>
     }
 
@@ -146,6 +147,9 @@ enum AppleCompatibilitySmoke {
         _ = CGEventSource.keyState(.combinedSessionState, key: 42)
         CGEvent(keyboardEventSource: CGEventSource(stateID: .combinedSessionState), virtualKey: 42, keyDown: true)?
             .post(tap: .cghidEventTap)
+        QuillHotkeyService.shared.registerSingleUseSpace(modifiers: []) {
+            nil
+        }
 
         _ = SecTrustEvaluateWithError(SecTrust(), nil)
 
@@ -176,11 +180,15 @@ enum AppleCompatibilitySmoke {
         let namedImage = NSImage(named: "StatusBarIcon")
         let encoded = Data([0xFF, 0xD8, 0xFF, 0xD9])
         let rep = NSBitmapImageRep(data: encoded)
+        NSWindow.allowsAutomaticWindowTabbing = false
+        let windowTabbingRoundTrip = NSWindow.allowsAutomaticWindowTabbing == false
+        NSWindow.allowsAutomaticWindowTabbing = true
 
         return AppKitImageResult(
             sizeRoundTrip: sizeRoundTrip,
             namedImagePlaceholder: namedImage?.size == CGSize(width: 1, height: 1),
             bitmapRepresentationRoundTrip: rep?.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) == encoded,
+            windowTabbingRoundTrip: windowTabbingRoundTrip,
             operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
         )
     }

@@ -28,6 +28,9 @@ struct CompatibilityModuleTests {
             .matchedGeometryEffect(id: "title", in: Namespace().wrappedValue)
         _ = ModelConfiguration(isStoredInMemoryOnly: true)
         _ = FetchDescriptor<CompatibilityModel>()
+        _ = Window("Compatibility", id: "compatibility") {
+            Text("Compatibility")
+        }
     }
 
     @Test("QuillUI fallback modifiers record diagnostics")
@@ -94,6 +97,7 @@ struct CompatibilityModuleTests {
         #expect(result.sizeRoundTrip)
         #expect(result.namedImagePlaceholder)
         #expect(result.bitmapRepresentationRoundTrip)
+        #expect(result.windowTabbingRoundTrip)
         #expect(result.operations.isSuperset(of: Set([
             "NSImage.lockFocus",
             "NSImage.draw",
@@ -500,6 +504,7 @@ struct CompatibilityModuleTests {
             "recognitionTask",
             "keyState",
             "postEvent",
+            "registerSingleUseSpace",
             "trustEvaluation",
             "launchAtLogin"
         ])))
@@ -527,6 +532,11 @@ struct CompatibilityModuleTests {
         let renderer = ImageRenderer(content: Text("rendered"))
         #expect(renderer.uiImage == nil)
         #expect(renderer.nsImage == nil)
+        #expect(Image(systemName: "photo").render() == nil)
+        let platformImage = PlatformImage(data: Data([1, 2, 3]))
+        #expect(platformImage.convertImageToBase64String() == "AQID")
+        #expect(platformImage.aspectFittedToHeight(200).data == Data([1, 2, 3]))
+        #expect(platformImage.compressImageData() == Data([1, 2, 3]))
 
         // NSImage.tiffRepresentation: previously returned wrong bytes silently.
         let nsImage = NSImage(data: Data([0x89, 0x50, 0x4E, 0x47]))
@@ -544,6 +554,9 @@ struct CompatibilityModuleTests {
             "ImageRenderer.init",
             "ImageRenderer.uiImage",
             "ImageRenderer.nsImage",
+            "Image.render",
+            "PlatformImage.aspectFittedToHeight",
+            "PlatformImage.compressImageData",
             "NSImage.tiffRepresentation"
         ])))
 
@@ -563,6 +576,9 @@ struct CompatibilityModuleTests {
         #expect(severitiesByOperation["NSImage.tiffRepresentation"]?.contains(.warning) == true)
         #expect(severitiesByOperation["ImageRenderer.uiImage"]?.contains(.warning) == true)
         #expect(severitiesByOperation["ImageRenderer.nsImage"]?.contains(.warning) == true)
+        #expect(severitiesByOperation["Image.render"]?.contains(.warning) == true)
+        #expect(severitiesByOperation["PlatformImage.aspectFittedToHeight"]?.contains(.warning) == true)
+        #expect(severitiesByOperation["PlatformImage.compressImageData"]?.contains(.warning) == true)
     }
 
     @Test("Image(data:) deduplicates identical bytes within a process")
@@ -593,6 +609,317 @@ struct CompatibilityModuleTests {
         let afterSecond = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
         let addedSecond = Set(afterSecond).subtracting(Set(before))
         #expect(addedSecond.count == 2, "Image(data:) with new bytes should add a second PNG; saw \(addedSecond.count) total new files")
+    }
+
+    // MARK: - Symbol name remapping
+
+    @Test("QuillSystemSymbol remaps known SF Symbol names and passes unknown through")
+    func quillSystemSymbolMapsKnownAndPassesUnknown() {
+        let knownMappings: [(input: String, expected: String)] = [
+            ("paperplane.fill", "arrow.forward.circle.fill"),
+            ("photo", "folder.badge.plus"),
+            ("photo.fill", "folder.badge.plus"),
+            ("lightbulb", "info.circle"),
+            ("lightbulb.circle", "info.circle"),
+            ("lightbulb.circle.fill", "info.circle"),
+            ("character.cursor.ibeam", "doc.text"),
+            ("textformat", "doc.text"),
+            ("textformat.abc", "doc.text"),
+            ("keyboard", "doc.on.doc"),
+            ("waveform", "ellipsis.circle")
+        ]
+
+        for (input, expected) in knownMappings {
+            #expect(
+                QuillSystemSymbol.compatibleName(input) == expected,
+                "Expected \(input) -> \(expected); got \(QuillSystemSymbol.compatibleName(input))"
+            )
+        }
+
+        // Unknown names pass through unchanged so apps requesting symbols Quill
+        // hasn't aliased yet still render the original token.
+        #expect(QuillSystemSymbol.compatibleName("unknown.symbol.name") == "unknown.symbol.name")
+        #expect(QuillSystemSymbol.compatibleName("") == "")
+    }
+
+    // MARK: - AppStorage round-trip
+
+    @Test("AppStorage persists values across reads for every supported scalar type")
+    func appStorageRoundTripsScalarValues() {
+        let suffix = UUID().uuidString
+        let stringKey = "quill.test.string.\(suffix)"
+        let boolKey = "quill.test.bool.\(suffix)"
+        let intKey = "quill.test.int.\(suffix)"
+        let doubleKey = "quill.test.double.\(suffix)"
+
+        defer {
+            UserDefaults.standard.removeObject(forKey: stringKey)
+            UserDefaults.standard.removeObject(forKey: boolKey)
+            UserDefaults.standard.removeObject(forKey: intKey)
+            UserDefaults.standard.removeObject(forKey: doubleKey)
+        }
+
+        // Default values are returned when the key has never been written.
+        #expect(AppStorage(wrappedValue: "default-string", stringKey).wrappedValue == "default-string")
+        #expect(AppStorage(wrappedValue: true, boolKey).wrappedValue == true)
+        #expect(AppStorage(wrappedValue: 42, intKey).wrappedValue == 42)
+        #expect(AppStorage(wrappedValue: 3.14, doubleKey).wrappedValue == 3.14)
+
+        // Writing through one wrapper and reading from a fresh wrapper proves
+        // the value persisted to UserDefaults rather than just to local state.
+        let stringStorage = AppStorage(wrappedValue: "ignored", stringKey)
+        stringStorage.wrappedValue = "written"
+        #expect(AppStorage(wrappedValue: "fallback", stringKey).wrappedValue == "written")
+
+        let boolStorage = AppStorage(wrappedValue: false, boolKey)
+        boolStorage.wrappedValue = true
+        #expect(AppStorage(wrappedValue: false, boolKey).wrappedValue == true)
+        boolStorage.wrappedValue = false
+        // After explicit false write, value reads back as false (not the
+        // wrapped default). Tests the object-existence guard in the read path.
+        #expect(AppStorage(wrappedValue: true, boolKey).wrappedValue == false)
+
+        let intStorage = AppStorage(wrappedValue: 0, intKey)
+        intStorage.wrappedValue = 7
+        #expect(AppStorage(wrappedValue: 0, intKey).wrappedValue == 7)
+
+        let doubleStorage = AppStorage(wrappedValue: 0.0, doubleKey)
+        doubleStorage.wrappedValue = 2.5
+        #expect(AppStorage(wrappedValue: 0.0, doubleKey).wrappedValue == 2.5)
+    }
+
+    @Test("AppStorage encodes RawRepresentable enums via their raw value")
+    func appStorageEncodesRawRepresentableEnums() {
+        let key = "quill.test.mode.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+
+        // Default value when nothing is stored.
+        #expect(AppStorage(wrappedValue: AppStorageMode.classic, key).wrappedValue == .classic)
+
+        let storage = AppStorage(wrappedValue: AppStorageMode.classic, key)
+        storage.wrappedValue = .modern
+        #expect(AppStorage(wrappedValue: AppStorageMode.classic, key).wrappedValue == .modern)
+        // Underlying storage uses the rawValue, not Codable JSON.
+        #expect(UserDefaults.standard.string(forKey: key) == "modern")
+
+        // A garbage rawValue at the storage key falls back to the default.
+        UserDefaults.standard.set("not-a-case", forKey: key)
+        #expect(AppStorage(wrappedValue: AppStorageMode.classic, key).wrappedValue == .classic)
+    }
+
+    // MARK: - File importer
+
+    @Test("QuillFileImporter honors test-injected selection and validates types")
+    func quillFileImporterUsesTestSelection() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillFileImporterTests", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let pngURL = directory.appendingPathComponent("hello.png")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: pngURL)
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            QuillFileImporter.setTestSelection(nil)
+        }
+
+        QuillFileImporter.setTestSelection(pngURL)
+
+        // Happy path: PNG conforms to image / png.
+        switch QuillFileImporter.selectURL(allowedContentTypes: [.image]) {
+        case .success(let url):
+            #expect(url == pngURL)
+        case .failure(let error):
+            Issue.record("Expected success, got failure: \(error)")
+        }
+
+        switch QuillFileImporter.selectURL(allowedContentTypes: [.png]) {
+        case .success(let url):
+            #expect(url == pngURL)
+        case .failure(let error):
+            Issue.record("Expected png to match png allowedType: \(error)")
+        }
+
+        // Empty allowedContentTypes accepts any URL (matches SwiftUI behavior).
+        switch QuillFileImporter.selectURL(allowedContentTypes: []) {
+        case .success(let url):
+            #expect(url == pngURL)
+        case .failure(let error):
+            Issue.record("Expected empty allowedTypes to accept any URL: \(error)")
+        }
+
+        // Mismatched type fails with the right error case.
+        switch QuillFileImporter.selectURL(allowedContentTypes: [.jpeg]) {
+        case .success:
+            Issue.record("Expected jpeg-only allowedTypes to reject a .png URL")
+        case .failure(let error):
+            guard let quillError = error as? QuillCompatibilityError else {
+                Issue.record("Expected QuillCompatibilityError, got \(type(of: error)): \(error)")
+                return
+            }
+            switch quillError {
+            case .unsupportedFileSelection(let url, let allowed):
+                #expect(url == pngURL)
+                #expect(allowed == [.jpeg])
+            default:
+                Issue.record("Expected .unsupportedFileSelection, got \(quillError)")
+            }
+        }
+    }
+
+    // MARK: - UTType behavior
+
+    @Test("UTType infers types from file extensions and reports conformance")
+    func utTypeInfersAndConforms() {
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.png")) == .png)
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.PNG")) == .png)
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.jpeg")) == .jpeg)
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.jpg")) == .jpeg)
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.tiff")) == .tiff)
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.tif")) == .tiff)
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/document.txt")) == nil)
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/no-extension")) == nil)
+
+        // Identity conformance.
+        #expect(UTType.png.conforms(to: .png))
+        #expect(UTType.jpeg.conforms(to: .jpeg))
+
+        // png/jpeg/tiff conform to the image supertype but a custom type does not.
+        #expect(UTType.png.conforms(to: .image))
+        #expect(UTType.jpeg.conforms(to: .image))
+        #expect(UTType.tiff.conforms(to: .image))
+        #expect(UTType("public.text").conforms(to: .image) == false)
+
+        // Unrelated concrete types do not conform to each other.
+        #expect(UTType.png.conforms(to: .jpeg) == false)
+    }
+
+    // MARK: - NSItemProvider data flow
+
+    @Test("NSItemProvider delivers data and file representations matching content type")
+    func nsItemProviderDeliversMatchingRepresentations() throws {
+        let payload = Data([0xCA, 0xFE, 0xBA, 0xBE])
+
+        // Data-backed provider, matching type.
+        let dataProvider = NSItemProvider(data: payload, type: .png)
+        let dataCaptured = QuillTestBox<(Data?, Error?)>((nil, nil))
+        _ = dataProvider.loadDataRepresentation(for: .png) { data, error in
+            dataCaptured.value = (data, error)
+        }
+        #expect(dataCaptured.value?.0 == payload)
+        #expect(dataCaptured.value?.1 == nil)
+
+        // Data-backed provider, image supertype matches concrete png too.
+        let imgCaptured = QuillTestBox<(Data?, Error?)>((nil, nil))
+        _ = dataProvider.loadDataRepresentation(for: .image) { data, error in
+            imgCaptured.value = (data, error)
+        }
+        #expect(imgCaptured.value?.0 == payload)
+        #expect(imgCaptured.value?.1 == nil)
+
+        // Data-backed provider, mismatched type produces an error.
+        let mismatchCaptured = QuillTestBox<(Data?, Error?)>((nil, nil))
+        _ = dataProvider.loadDataRepresentation(for: .jpeg) { data, error in
+            mismatchCaptured.value = (data, error)
+        }
+        #expect(mismatchCaptured.value?.0 == nil)
+        #expect((mismatchCaptured.value?.1 as? QuillCompatibilityError) == .representationUnavailable("public.jpeg"))
+
+        // File-backed provider reads bytes from the URL.
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillItemProviderTests", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fileURL = directory.appendingPathComponent("payload.png")
+        try payload.write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let fileProvider = NSItemProvider(fileURL: fileURL)
+        let fileCaptured = QuillTestBox<(Data?, Error?)>((nil, nil))
+        _ = fileProvider.loadDataRepresentation(for: .png) { data, error in
+            fileCaptured.value = (data, error)
+        }
+        #expect(fileCaptured.value?.0 == payload)
+        #expect(fileCaptured.value?.1 == nil)
+
+        // Empty provider always errors.
+        let empty = NSItemProvider()
+        let emptyCaptured = QuillTestBox<(Data?, Error?)>((nil, nil))
+        _ = empty.loadDataRepresentation(for: .png) { data, error in
+            emptyCaptured.value = (data, error)
+        }
+        #expect(emptyCaptured.value?.0 == nil)
+        #expect(emptyCaptured.value?.1 != nil)
+    }
+
+    // MARK: - OpenURLAction custom handler
+
+    @Test("OpenURLAction routes URLs through the configured handler")
+    func openURLActionInvokesCustomHandler() {
+        let captured = QuillTestBox<URL>()
+        let action = OpenURLAction { url in
+            captured.value = url
+            return true
+        }
+
+        let url = URL(string: "https://quill.test/path?q=1")!
+        let result = action(url)
+        #expect(result == true)
+        #expect(captured.value == url)
+
+        // Returning false from the handler propagates.
+        let rejecting = OpenURLAction { _ in false }
+        #expect(rejecting(URL(string: "https://example.com")!) == false)
+    }
+
+    // MARK: - QuillMenuAction divider + disabled semantics
+
+    @Test("QuillMenuAction divider is a divider and disabled actions never run")
+    func quillMenuActionDividerAndDisabled() {
+        let divider = QuillMenuAction.divider()
+        #expect(divider.kind == .divider)
+        // Calling perform() on a divider must not crash; the synthesized
+        // empty closure is a no-op. Idempotent.
+        divider.perform()
+        divider.perform()
+
+        // Disabled action does not invoke its closure.
+        let disabledRan = QuillTestBox<Bool>(false)
+        let disabled = QuillMenuAction(
+            title: "Disabled",
+            isDisabled: true,
+            action: { disabledRan.value = true }
+        )
+        disabled.perform()
+        #expect(disabledRan.value == false)
+
+        // Enabled action invokes its closure exactly once per perform().
+        let enabledCount = QuillTestBox<Int>(0)
+        let enabled = QuillMenuAction(title: "Enabled") {
+            enabledCount.value = (enabledCount.value ?? 0) + 1
+        }
+        enabled.perform()
+        enabled.perform()
+        #expect(enabledCount.value == 2)
+
+        // Unspecified id falls back to the title.
+        #expect(enabled.id == "Enabled")
+        let withCustomID = QuillMenuAction(id: "explicit", title: "Title") {}
+        #expect(withCustomID.id == "explicit")
+    }
+}
+
+/// RawRepresentable enum for AppStorage round-trip tests. Defined at file
+/// scope so its `RawValue` (String) is stable across compilations.
+private enum AppStorageMode: String {
+    case classic
+    case modern
+}
+
+/// Tiny mutable reference container for capturing values out of closures in
+/// tests without fighting Swift Testing's capture-list rules.
+private final class QuillTestBox<Value>: @unchecked Sendable {
+    var value: Value?
+
+    init(_ value: Value? = nil) {
+        self.value = value
     }
 }
 
