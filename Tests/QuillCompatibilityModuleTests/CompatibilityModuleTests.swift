@@ -1439,6 +1439,37 @@ struct CompatibilityModuleTests {
         #expect(warnings.isEmpty, "Color rendering should not record warnings; got \(warnings.map(\.message))")
     }
 
+    @Test(
+        "ImageRenderer offscreen pipeline produces real PNG bytes when explicitly enabled",
+        .disabled(if: ProcessInfo.processInfo.environment["QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER"] != "1",
+                  "Set QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 (with xvfb / Wayland and GSK_RENDERER=cairo) to exercise the offscreen pipeline.")
+    )
+    func imageRendererOffscreenPipelineProducesRealPNG() throws {
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        // Drive the full pipeline: gtkRenderView -> offscreen GtkWindow +
+        // layout -> gtk_widget_snapshot -> gsk_render_node_draw -> cairo
+        // image surface -> gdk_pixbuf_get_from_surface ->
+        // gdk_pixbuf_save_to_bufferv.
+        let renderer = ImageRenderer(content: Text("hello world"))
+        guard let image = renderer.nsImage, let pngData = image.data else {
+            let warnings = QuillCompatibilityDiagnostics.shared.events.filter {
+                $0.operation.hasPrefix("ImageRenderer") && $0.severity == .warning
+            }
+            Issue.record("Offscreen pipeline returned nil with QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1; warnings: \(warnings.map(\.message))")
+            return
+        }
+
+        let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        #expect(Array(pngData.prefix(8)) == pngMagic, "Expected PNG magic; got \(Array(pngData.prefix(8)))")
+        #expect(pngData.count > 32, "PNG output suspiciously small: \(pngData.count) bytes")
+
+        let warnings = QuillCompatibilityDiagnostics.shared.events.filter {
+            $0.operation.hasPrefix("ImageRenderer") && $0.severity == .warning
+        }
+        #expect(warnings.isEmpty, "Successful offscreen rendering should not record warnings; got \(warnings.map(\.message))")
+    }
+
     @Test("ImageRenderer guards non-Color content behind the GTK offscreen pipeline")
     func imageRendererGuardsNonColorContentBehindGTKOptIn() {
         QuillCompatibilityDiagnostics.shared.clear()

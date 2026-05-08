@@ -125,6 +125,14 @@ That path builds through the same generic app builder as the visual smoke,
 clicks the generated options menu in the top-right toolbar, and verifies that
 the GTK menu surface appears below the toolbar.
 
+The opt-in `ImageRenderer` offscreen path also runs under Xvfb. It is kept
+separate from the normal test suite because it intentionally maps a temporary
+GTK window to get a real render node:
+
+```bash
+GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a swift test --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG
+```
+
 GitHub Actions runs the public Linux path in `.github/workflows/linux-ci.yml`.
 It uses a Swift Linux container, installs GTK/Xvfb/ImageMagick/xdotool
 dependencies, fetches the upstream Enchanted fixture into `.upstream/enchanted`,

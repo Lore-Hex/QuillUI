@@ -111,21 +111,29 @@ public func quillRenderViewToImage<V: View>(
     gtk_window_set_decorated(window, 0)
     gtk_window_set_default_size(window, gint(resolvedWidth), gint(resolvedHeight))
     gtk_window_set_child(window, widgetPtr)
+    gtk_widget_set_hexpand(widgetPtr, 1)
+    gtk_widget_set_vexpand(widgetPtr, 1)
+    gtk_widget_set_halign(widgetPtr, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(widgetPtr, GTK_ALIGN_FILL)
 
     // Force the widget to compute and apply a layout at the requested size.
-    // Without this, snapshotting may produce an empty render node because
-    // the widget hasn't been measured.
+    // Without this, snapshotting may produce an empty render node because the
+    // widget has not been measured, mapped, or allocated by GTK's layout
+    // machinery. Presenting happens only behind the explicit opt-in flag and
+    // normally runs under Xvfb in QA.
     gtk_widget_set_size_request(widgetPtr, gint(resolvedWidth), gint(resolvedHeight))
+    gtk_widget_set_size_request(windowWidget, gint(resolvedWidth), gint(resolvedHeight))
     gtk_widget_realize(windowWidget)
+    gtk_widget_set_visible(windowWidget, 1)
+    while g_main_context_iteration(nil, 0) != 0 {}
 
-    // Compute preferred size (returns minimum and natural requisitions) then
-    // do an explicit size_allocate. `-1` for the baseline tells GTK to use
-    // the widget's preferred baseline.
-    var minSize = GtkRequisition()
-    var natSize = GtkRequisition()
-    gtk_widget_get_preferred_size(widgetPtr, &minSize, &natSize)
+    // Do an explicit allocation using GTK4's public allocation entry point.
+    // `-1` for the baseline tells GTK to use the widget's preferred baseline.
     var allocation = GdkRectangle(x: 0, y: 0, width: gint(resolvedWidth), height: gint(resolvedHeight))
+    gtk_widget_allocate(windowWidget, gint(resolvedWidth), gint(resolvedHeight), -1, nil)
     gtk_widget_size_allocate(widgetPtr, &allocation, -1)
+    gtk_widget_allocate(widgetPtr, gint(resolvedWidth), gint(resolvedHeight), -1, nil)
+    while g_main_context_iteration(nil, 0) != 0 {}
 
     // 3. Snapshot the widget into a GskRenderNode. The current CGTK module
     // exposes GTK's parent-side snapshot helper, so we snapshot the child

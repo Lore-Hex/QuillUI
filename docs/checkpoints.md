@@ -723,3 +723,17 @@ Status: passing on macOS tests, Linux tests, generated Quill Chat visual smoke, 
 - Verified generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` passed landmarks with header `73px`, toolbar `48-56`, prompt cards `395-1045`, and composer `750px@474`.
 - Verified generated app toolbar interaction: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux` opened the options menu and detected `3078` dark pixels in the expected menu ROI.
 - Remaining honest gap: the Linux toolbar menu is now native and clickable, but its closed-state button chrome is more GTK-like than the macOS reference. A later pass should add a first-class GTK toolbar menu widget with an icon child and plain CSS instead of the text labels `v` / `...`.
+
+## Checkpoint 53: Offscreen ImageRenderer Pixels
+
+Status: passing on macOS tests, Linux tests, generated upstream Enchanted compile, and targeted Linux GTK offscreen render smoke.
+
+- Fixed the experimental Linux `ImageRenderer` offscreen path for non-`Color` content. The renderer now maps and allocates the temporary GTK window/widget tree under the explicit `QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1` gate before snapshotting, so `gtk_snapshot_to_node` produces a real render node instead of nil.
+- Added regression coverage that renders `Text("hello world")` through `ImageRenderer.nsImage` under Xvfb and verifies real PNG bytes with no warning diagnostics.
+- Added a dedicated GitHub Actions step for the opt-in offscreen renderer: `GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a swift test --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG`.
+- Updated the API coverage matrix: arbitrary SwiftUI-shaped `ImageRenderer` content is now `partial-real` under the explicit GTK/Xvfb opt-in instead of a nil-only fallback.
+- Verified macOS: `swift test --disable-automatic-resolution` passed with 84 tests in 10 suites.
+- Verified Linux: `swift test --scratch-path .build-linux` passed with 154 tests in 13 suites.
+- Verified targeted Linux offscreen render: `GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a swift test --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG` passed.
+- Verified generated check mode: `scripts/generated-enchanted-full-source-check.sh` compiled the 87-file upstream Enchanted fixture into 90 generated Swift files.
+- Remaining honest gap: this is still opt-in because it temporarily maps a GTK window and depends on a display backend. The next step is broader composed-view snapshot coverage and a less intrusive renderer path before making arbitrary view rasterization default behavior.
