@@ -2,12 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROFILE_DIR="$ROOT_DIR/scripts/profiles"
 PROFILE="${QUILLUI_APP_PROFILE:-enchanted-full-source}"
 SOURCE_DIR="${QUILLUI_APP_SOURCE_DIR:-}"
 APP_TYPE="${QUILLUI_APP_ENTRY_TYPE:-}"
 PRODUCT_NAME="${QUILLUI_APP_PRODUCT_NAME:-}"
 WORK_ROOT="${QUILLUI_APP_BUILD_WORKDIR:-}"
 RUN_AFTER_BUILD=0
+LIST_PROFILES=0
 
 usage() {
   cat <<MSG
@@ -17,7 +19,8 @@ Builds a SwiftUI-shaped app for Linux from generated sources without editing
 the app tree.
 
 Options:
-  --profile NAME        Lowering profile to use. Currently: enchanted-full-source.
+  --profile NAME        Lowering profile to use.
+  --list-profiles      Show installed lowering profiles and exit.
   --source-dir PATH     Directory containing the app's Swift sources.
   --app-type TYPE       Swift App type to pass to GTK4Backend().run(...).
   --product-name NAME   Output executable name. Defaults from --app-type.
@@ -32,6 +35,23 @@ Environment aliases:
   QUILLUI_APP_PRODUCT_NAME
   QUILLUI_APP_BUILD_WORKDIR
 MSG
+}
+
+list_profiles() {
+  local profile_script
+  local found=0
+
+  for profile_script in "$PROFILE_DIR"/*.sh; do
+    if [[ -f "$profile_script" && -x "$profile_script" ]]; then
+      found=1
+      basename "$profile_script" .sh
+    fi
+  done
+
+  if [[ "$found" == "0" ]]; then
+    echo "No profiles found in $PROFILE_DIR" >&2
+    exit 1
+  fi
 }
 
 default_product_name() {
@@ -61,6 +81,10 @@ while [[ $# -gt 0 ]]; do
     --profile)
       PROFILE="${2:-}"
       shift 2
+      ;;
+    --list-profiles)
+      LIST_PROFILES=1
+      shift
       ;;
     --source-dir)
       SOURCE_DIR="${2:-}"
@@ -93,6 +117,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$LIST_PROFILES" == "1" ]]; then
+  list_profiles
+  exit 0
+fi
 
 if [[ "$(uname -s)" != "Linux" ]]; then
   cat >&2 <<'MSG'
@@ -133,28 +162,26 @@ if [[ -z "$WORK_ROOT" ]]; then
   WORK_ROOT="$ROOT_DIR/.build/$PRODUCT_NAME"
 fi
 
-case "$PROFILE" in
-  enchanted|enchanted-full-source)
-    QUILLUI_APP_SOURCE_DIR="$SOURCE_DIR" \
-    QUILLUI_GENERATED_APP_WORKDIR="$WORK_ROOT" \
-    QUILLUI_GENERATED_APP_MODE=app \
-    QUILLUI_GENERATED_APP_PRODUCT_NAME="$PRODUCT_NAME" \
-    QUILLUI_GENERATED_APP_PACKAGE_NAME=GeneratedSwiftUILinuxApp \
-    QUILLUI_GENERATED_APP_TARGET_NAME=GeneratedSwiftUILinuxApp \
-    QUILLUI_GENERATED_APP_ENTRY_TYPE="$APP_TYPE" \
-    QUILLUI_GENERATED_APP_MAIN_TYPE=GeneratedSwiftUILinuxMain \
-    "$ROOT_DIR/scripts/generated-enchanted-full-source-check.sh"
-    ;;
-  *)
-    cat >&2 <<MSG
+PROFILE_SCRIPT="$PROFILE_DIR/$PROFILE.sh"
+if [[ ! -x "$PROFILE_SCRIPT" ]]; then
+  cat >&2 <<MSG
 Unsupported QuillUI app build profile: $PROFILE
 
 Available profiles:
-  enchanted-full-source
+$(list_profiles | sed 's/^/  /')
 MSG
-    exit 64
-    ;;
-esac
+  exit 64
+fi
+
+QUILLUI_PROFILE_SOURCE_DIR="$SOURCE_DIR" \
+QUILLUI_PROFILE_WORKDIR="$WORK_ROOT" \
+QUILLUI_PROFILE_MODE=app \
+QUILLUI_PROFILE_PRODUCT_NAME="$PRODUCT_NAME" \
+QUILLUI_PROFILE_PACKAGE_NAME=GeneratedSwiftUILinuxApp \
+QUILLUI_PROFILE_TARGET_NAME=GeneratedSwiftUILinuxApp \
+QUILLUI_PROFILE_ENTRY_TYPE="$APP_TYPE" \
+QUILLUI_PROFILE_MAIN_TYPE=GeneratedSwiftUILinuxMain \
+"$PROFILE_SCRIPT"
 
 BIN_DIR="$(swift build \
   --package-path "$WORK_ROOT/package" \

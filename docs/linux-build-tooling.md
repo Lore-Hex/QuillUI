@@ -21,14 +21,26 @@ lowering profiles:
 - `--app-type` is the Swift `App` type passed to `GTK4Backend().run(...)`.
 - `--product-name` controls the generated executable name.
 - `--workdir` controls where generated source and SwiftPM build state go.
-- `--profile` selects source lowering. Today the implemented profile is
-  `enchanted-full-source`.
+- `--profile` selects a source-lowering script from `scripts/profiles/`.
+- `--list-profiles` prints installed profiles.
 
 The profile boundary matters. QuillUI should become a broadly reusable
 compatibility library, but source lowering is not universal yet. Different
 apps need different macro, platform, package, and service bridges. The generic
 builder gives those future profiles one stable CLI contract instead of adding a
 new app-specific build script for every target.
+
+Profiles are plugin-style shell entry points. The builder passes them a stable
+environment contract:
+
+- `QUILLUI_PROFILE_SOURCE_DIR`
+- `QUILLUI_PROFILE_WORKDIR`
+- `QUILLUI_PROFILE_MODE`
+- `QUILLUI_PROFILE_PRODUCT_NAME`
+- `QUILLUI_PROFILE_PACKAGE_NAME`
+- `QUILLUI_PROFILE_TARGET_NAME`
+- `QUILLUI_PROFILE_ENTRY_TYPE`
+- `QUILLUI_PROFILE_MAIN_TYPE`
 
 Reusable fallback behavior should live in library targets, not in profiles.
 The current `enchanted-full-source` profile keeps only app/source-shape wiring

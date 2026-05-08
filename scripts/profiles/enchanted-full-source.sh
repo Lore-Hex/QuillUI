@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+SOURCE_DIR="${QUILLUI_PROFILE_SOURCE_DIR:-}"
+WORK_ROOT="${QUILLUI_PROFILE_WORKDIR:-}"
+MODE="${QUILLUI_PROFILE_MODE:-app}"
+PRODUCT_NAME="${QUILLUI_PROFILE_PRODUCT_NAME:-quill-chat-linux}"
+PACKAGE_NAME="${QUILLUI_PROFILE_PACKAGE_NAME:-GeneratedSwiftUILinuxApp}"
+TARGET_NAME="${QUILLUI_PROFILE_TARGET_NAME:-GeneratedSwiftUILinuxApp}"
+ENTRY_TYPE="${QUILLUI_PROFILE_ENTRY_TYPE:-EnchantedApp}"
+MAIN_TYPE="${QUILLUI_PROFILE_MAIN_TYPE:-GeneratedSwiftUILinuxMain}"
+
+if [[ -z "$SOURCE_DIR" ]]; then
+  echo "QUILLUI_PROFILE_SOURCE_DIR is required for the enchanted-full-source profile" >&2
+  exit 64
+fi
+
+if [[ -z "$WORK_ROOT" ]]; then
+  echo "QUILLUI_PROFILE_WORKDIR is required for the enchanted-full-source profile" >&2
+  exit 64
+fi
+
+QUILLUI_APP_SOURCE_DIR="$SOURCE_DIR" \
+QUILLUI_GENERATED_APP_WORKDIR="$WORK_ROOT" \
+QUILLUI_GENERATED_APP_MODE="$MODE" \
+QUILLUI_GENERATED_APP_PRODUCT_NAME="$PRODUCT_NAME" \
+QUILLUI_GENERATED_APP_PACKAGE_NAME="$PACKAGE_NAME" \
+QUILLUI_GENERATED_APP_TARGET_NAME="$TARGET_NAME" \
+QUILLUI_GENERATED_APP_ENTRY_TYPE="$ENTRY_TYPE" \
+QUILLUI_GENERATED_APP_MAIN_TYPE="$MAIN_TYPE" \
+"$ROOT_DIR/scripts/generated-enchanted-full-source-check.sh"

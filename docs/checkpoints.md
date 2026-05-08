@@ -527,3 +527,16 @@ Status: passing on macOS tests, Linux GTK checks, generated full-source app buil
 - Verified Linux GTK QA: 107 tests in 12 suites passed, generated Enchanted core/chat/macOS/full-source checks passed, the generic local 92-file Quill Chat app built as `quill-chat-linux`, and GTK apps survived a 6-second Xvfb smoke run.
 - Verified no missing Material-symbol or GTK `object-fit` warnings in the final Linux smoke log; remaining smoke output is the Lima/Xvfb DRI3 acceleration warning.
 - Remaining honest gap: the profile still contains app-specific source-shape rewrites and generated compile-check construction. The next reduction should move the lowering rules into a real profile directory/build-plugin layer and keep only app-specific model conformances and names outside shared libraries.
+
+## Checkpoint 39: Discoverable App Build Profiles
+
+Status: passing for profile discovery, direct generated Quill Chat build, alias build, and generated app smoke.
+
+- Added `scripts/profiles/` as the build-tooling profile directory so new app profiles can be added without editing the generic `scripts/build-swiftui-linux-app.sh` dispatcher.
+- Moved the Enchanted/Quill Chat app-build dispatch into `scripts/profiles/enchanted-full-source.sh`, with `scripts/profiles/enchanted.sh` preserving the previous short profile alias.
+- Added `--list-profiles` to the generic builder and documented the stable `QUILLUI_PROFILE_*` environment contract passed from the generic builder to profile scripts.
+- Verified `scripts/build-swiftui-linux-app.sh --list-profiles` reports `enchanted-full-source` and `enchanted`.
+- Verified the plugin-dispatched `enchanted-full-source` profile builds the local 92-file Quill Chat tree into `quill-chat-linux` and survives a 6-second Xvfb smoke run.
+- Verified the compatibility alias `--profile enchanted` still builds the local 92-file Quill Chat generated app.
+- `bash -n scripts/*.sh scripts/profiles/*.sh` and `git diff --check` passed.
+- Remaining honest gap: profile discovery is now generic, but the Enchanted lowering implementation still lives in the legacy generated full-source script. The next pass should split lowering phases into profile-owned files so the generic generated-package writer can be reused by IceCubes, NetNewsWire, CodeEdit, and WireGuard.
