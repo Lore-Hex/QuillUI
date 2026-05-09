@@ -824,3 +824,237 @@ Status: passing from a clean temporary worktree with only the staged profile-bud
 - Verified clean generated check mode: `QUILLUI_APP_SOURCE_DIR=/Users/jperla/claude/QuillUI/.upstream/enchanted/Enchanted scripts/generated-enchanted-full-source-check.sh` compiled 87 source Swift files into 90 generated Swift files.
 - Verified clean generated app visual mode: `QUILLUI_SKIP_APT=1 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux` rebuilt 92 source Swift files into 95 generated Swift files and passed landmarks with header `73px`, toolbar `48-56`, prompt cards `395-1045`, and composer `750px@474`.
 - Remaining honest gap: this prevents profile shell bloat from returning, but the remaining template and rewrite-rule payload still needs to be retired into reusable QuillUI/QuillKit APIs.
+
+## Checkpoint 60: Original Enchanted UI Template Removal
+
+Status: compiling from a clean temporary worktree with only the original-UI patch applied; strict visual parity is still failing on original-source lazy-grid/card/composer landmarks.
+
+- Removed the Enchanted profile's large generated replacements for `ChatView_macOS.swift`, `EmptyConversaitonView.swift`, and `SidebarButton.swift`; the profile now preserves those upstream SwiftUI files and relies on generic lowering plus QuillUI/SwiftOpenUI compatibility.
+- Extended the generic SwiftOpenUI GTK checkout patch to preserve composite toolbar item children after `AnyToolbarItem` type erasure, render `NavigationSplitView` detail toolbars, widen the default split sidebar, flatten single-item `LazyVGrid` tuple content, and add Quill Chat's missing SF Symbol mappings.
+- Added QuillKit capability markers for secure storage, notifications, network extensions, and VPN tunnels so future WireGuard/Apple-service ports can target explicit compatibility states instead of ad hoc checks.
+- Added regression coverage that builds a scratch SwiftOpenUI checkout shape and asserts the GTK toolbar, lazy-grid, sidebar, and symbol-map patches are applied by tooling rather than Enchanted source edits.
+- Tightened generic SwiftUI source lowering so positive `#if os(macOS)` desktop paths are widened for Linux while `!os(macOS)` fallback checks are preserved, with an idempotency regression test.
+- Updated the API coverage matrix with explicit done/not-done rows for SwiftUI lowering, QuillKit platform services, original-source Enchanted coverage, and the remaining gaps.
+- Verified syntax: `bash -n scripts/lower-swiftui-source-for-linux.sh && bash -n scripts/patch-swiftopenui-gtk-css.sh` passed.
+- Verified clean macOS focused: `swift test --scratch-path .build-macos-lowering --disable-automatic-resolution --filter 'QuillDataSourceLoweringTests|QuillKitTests'` passed with 18 tests.
+- Verified clean Linux focused: `swift test --scratch-path .build-linux-lowering --filter 'QuillDataSourceLoweringTests|QuillKitTests'` passed with 18 tests.
+- Verified clean generated upstream check: `QUILLUI_APP_SOURCE_DIR=/Users/jperla/claude/QuillUI/.upstream/enchanted/Enchanted scripts/generated-enchanted-full-source-check.sh` compiled 87 source Swift files into 90 generated Swift files.
+- Verified clean generated app build: the local 92-file Quill Chat rebrand compiled into 95 generated Swift files as `quill-chat-linux` after removing the UI templates.
+- Visual result: toolbar actions now render from original Enchanted `.toolbar` source, but the existing landmark verifier still fails because the original `LazyVGrid` flexible cells and composer are wider/differently positioned than the template-era visual target. That is the next renderer-level parity fix.
+
+## Checkpoint 61: Visual Parity Reset
+
+Status: focused tests pass on macOS and Linux; generated original-source Quill Chat still fails strict visual smoke.
+
+- Reclassified the original-source Linux UI as not visually close enough. Compile coverage and profile LOC reduction were real, but they hid that SwiftOpenUI GTK is missing key SwiftUI layout/runtime semantics.
+- Added a generic finite-`LazyVGrid` static GTK grid path for small expanded child lists, avoiding `GtkGridView` for the four-card prompt grid where virtualization creates oversized scrolling cells.
+- Patched shared frame layout so finite `maxWidth` frames expand expandable children up to the cap; this fixes the original-source composer from a tiny pill back to a wide input.
+- Suppressed duplicate split-view detail toolbar installation into window chrome and made split-view sidebar/detail widgets request vertical fill.
+- Captured the current failing original-source visual baseline at `.qa/quill-chat-linux-original-source-failing.png`.
+- Verified syntax: `bash -n scripts/lower-swiftui-source-for-linux.sh && bash -n scripts/patch-swiftopenui-gtk-css.sh` passed.
+- Verified clean macOS focused: `swift test --scratch-path .build-macos-visual-rethink --disable-automatic-resolution --filter 'QuillDataSourceLoweringTests|QuillKitTests'` passed with 18 tests.
+- Verified clean Linux focused: `swift test --scratch-path .build-linux-visual-rethink --filter 'QuillDataSourceLoweringTests|QuillKitTests'` passed with 18 tests.
+- Visual result: the composer width and duplicate toolbar are improved, but the visual check still fails. Current blockers are prompt-card animation/onAppear state settling, full-height/root window sizing, and exact card count/placement. The next work should be an allocation-aware renderer pass, not more app profile reshaping.
+
+## Checkpoint 62: Mac Reference Visual Spec
+
+Status: Mac-reference screenshot verifier passes on the supplied macOS Quill Chat screenshot; Linux original-source output still fails that strict reference gate.
+
+- Copied the supplied macOS Quill Chat screenshot into local QA as `.qa/quill-chat-mac-reference.png` for measurement.
+- Added a strict Quill Chat Mac-reference verifier mode to `scripts/verify-gtk-screenshot.py`.
+- The measured reference landmarks are now concrete: `2228x1498` app bounds, `602px` sidebar (`0.270` width ratio), `102px` header (`0.068` height ratio), toolbar pixels in the top-right, four prompt cards at `730-1057`, `1088-1415`, `1445-1772`, and `1803-2129`, a `1524px` unreachable alert, and a `1510px` composer.
+- Added `QUILLUI_GTK_MAC_REFERENCE=1` to `scripts/linux-gtk-visual-check.sh`, which switches Quill Chat visual QA to a large reference frame, exports `QUILLUI_GTK_DEFAULT_WINDOW_WIDTH/HEIGHT`, and verifies with `quill-chat-linux-mac-reference`.
+- Extended the generic SwiftOpenUI GTK checkout patch so automatic `WindowGroup` sizing can honor those `QUILLUI_GTK_DEFAULT_WINDOW_*` environment values.
+- Added regression coverage that keeps the strict reference mode wired into the visual smoke tooling.
+- Verified syntax: `python3 -m py_compile scripts/verify-gtk-screenshot.py` and `bash -n scripts/linux-gtk-visual-check.sh scripts/verify-gtk-screenshot.py` passed.
+- Verified reference image: `scripts/verify-gtk-screenshot.py .qa/quill-chat-mac-reference.png quill-chat-mac-reference` passed in the Linux VM.
+- Current Linux baseline now reaches the strict `2048x1380` reference frame and builds the 92-source generated Quill Chat app cleanly, but still fails at sidebar parity: the verifier reports `Mac-reference sidebar divider mismatch: x=471, ratio=0.230, score=1`. The next renderer work is split-view column allocation/painting, then prompt-card state, unreachable alert state, and composer/card placement.
+
+## Checkpoint 63: Mac Reference Layout Parity Pass
+
+Status: Linux Quill Chat passes the strict Mac-reference visual verifier and the toolbar-menu interaction verifier.
+
+- Tuned reusable QuillUI desktop primitives for the Mac-reference frame: split sidebar ratio, Quill empty-state vertical placement, prompt-card metrics, status banner sizing, and composer/plain text-field GTK styling.
+- Kept the Enchanted-specific surface small: the unreachable API view is still a profile template, but the layout behavior now lives mostly in `QuillStatusBanner`, `QuillChatEmptyState`, `QuillDesktopSplitLayout`, and the generic SwiftOpenUI GTK patch.
+- Patched SwiftOpenUI GTK text-field CSS so `.textFieldStyle(.plain)` removes the inner native entry rectangle, matching the macOS capsule composer much more closely.
+- Added regression coverage for the generic GTK patch surface, including transparent plain text fields and hidden GTK menubar labels.
+- Verified Linux focused: `swift test --scratch-path .build-linux-test-pass5 --filter QuillDataSourceLoweringTests` passed with 10 tests.
+- Verified Linux upstream compatibility focused: `swift test --scratch-path .build-linux-test-pass5 --filter QuillEnchantedTests.UpstreamCompatibilityTests` passed with 13 tests.
+- Verified Mac-reference visual: `QUILLUI_SKIP_APT=1 QUILLUI_GTK_MAC_REFERENCE=1 QUILLUI_QUILL_CHAT_BUILD_WORKDIR=.build/quill-chat-linux-mac-reference-pass6 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-mac-reference-pass9.png quill-chat-linux` passed with `sidebar=583px/0.285`, `header=93px/0.067`, `prompt_row=508px`, `alert=1408px@1059/120px`, and `composer=1338px@1257`.
+- Verified toolbar interaction: `QUILLUI_SKIP_APT=1 QUILLUI_GTK_MAC_REFERENCE=1 QUILLUI_GTK_INTERACTION_DISPLAY=:101 QUILLUI_QUILL_CHAT_BUILD_WORKDIR=.build/quill-chat-linux-mac-reference-pass6 scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-pass4.png quill-chat-linux` passed and detected the opened toolbar menu.
+- Remaining honest gap: this is a much closer empty-chat reference screen, not 100% Enchanted. The next checkpoints need real click-through coverage for prompt selection, message entry/send, Settings, Completions, conversation history selection, and Mac-vs-Linux side-by-side interaction parity.
+
+## Checkpoint 64: Composer Input Interaction Pass
+
+Status: Linux Quill Chat accepts typed text in the real Enchanted/Quill Chat composer, and the interaction is covered by automated GTK screenshot verification.
+
+- Reproduced the composer bug with Xvfb/xdotool: the primitive GTK `TextField` accepted input, but the Enchanted composer did not.
+- Added a text-entry control to `quill-gtk-interaction-smoke` so primitive `TextField` input can be checked separately from app composition.
+- Fixed the generic SwiftOpenUI GTK patch so decorative shape overlays are marked non-targetable. This matches SwiftUI behavior for common border overlays like `.overlay(RoundedRectangle().strokeBorder(...))` and stopped the composer border from intercepting clicks above the entry.
+- Added regression coverage in `QuillDataSourceLoweringTests` for the generic decorative overlay pass-through patch.
+- Added `QUILLUI_GTK_INTERACTION_MODE=composer-typed` to `scripts/linux-gtk-interaction-check.sh`.
+- Added `quill-chat-linux-mac-reference-composer-typed` verification to `scripts/verify-gtk-screenshot.py`; it verifies the Mac-reference layout and typed text pixels inside the composer.
+- Verified focused Linux tests: `swift test --scratch-path .build-linux-test-pass5 --filter QuillDataSourceLoweringTests` passed with 10 tests.
+- Verified Mac-reference visual still passes: `QUILLUI_SKIP_APT=1 QUILLUI_GTK_MAC_REFERENCE=1 QUILLUI_QUILL_CHAT_BUILD_WORKDIR=.build/quill-chat-linux-mac-reference-pass6 scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-mac-reference-pass11.png quill-chat-linux`.
+- Verified typed composer interaction: `QUILLUI_SKIP_APT=1 QUILLUI_GTK_MAC_REFERENCE=1 QUILLUI_GTK_INTERACTION_MODE=composer-typed QUILLUI_GTK_INTERACTION_DISPLAY=:108 QUILLUI_QUILL_CHAT_BUILD_WORKDIR=.build/quill-chat-linux-mac-reference-pass6 scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-composer-typed-pass2.png quill-chat-linux` passed with `text_pixels=33`.
+- Remaining honest gap: typing now works, but full Enchanted parity still needs automated Settings, Completions, history selection, prompt/model/send flows, and side-by-side Mac/Linux interaction comparison.
+
+## Checkpoint 65: Sidebar Interaction Coverage Pass
+
+Status: Linux Quill Chat now has automated click-through coverage for Settings, the alert Settings action, typed Settings endpoint input, Completions, and history selection.
+
+- Generalized `scripts/linux-gtk-interaction-check.sh` with `QUILLUI_GTK_SKIP_BUILD=1` and `QUILLUI_GTK_APP_EXECUTABLE` so repeated GTK interaction passes can reuse an existing built app instead of rebuilding the full generated package.
+- Added reusable interaction modes for `settings-panel`, `alert-settings-panel`, `settings-endpoint-typed`, `completions-panel`, and `history-selection`.
+- Added screenshot validators for the Settings panel, typed Settings endpoint field, Completions panel, and selected conversation history state.
+- Verified Settings from sidebar: `.qa/quill-chat-linux-settings-endpoint-typed-pass1.png` passed with `endpoint_text_pixels=574`.
+- Verified Settings from the unreachable alert button: `.qa/quill-chat-linux-alert-settings-panel-pass1.png` passed and detected the Settings form.
+- Verified Completions from sidebar: `.qa/quill-chat-linux-completions-panel-pass1.png` passed with seeded completion rows and list dividers.
+- Verified history selection: `.qa/quill-chat-linux-history-selection-pass1.png` passed with selected-row marker/text, prompt cards removed, alert retained, and composer retained.
+- Remaining honest gap: the Settings and Completions sheet presentation works but is still visually top-left/native GTK, not a polished macOS-like modal. Prompt card selection, send/model flows, richer message rendering, and live Mac-vs-Linux side-by-side interaction parity are still open.
+
+## Checkpoint 66: Fresh Linux Test Wrapper
+
+Status: fresh Linux focused tests pass through a reusable wrapper that patches the SwiftOpenUI/OpenCombine checkout before invoking SwiftPM.
+
+- Added `scripts/linux-swift-test.sh`, a small wrapper around `swift test` that preserves arbitrary test args, defaults to `.build-linux`, supports both `--scratch-path value` and `--scratch-path=value`, and runs `scripts/patch-swiftopenui-gtk-css.sh` on the selected scratch path first.
+- Updated Linux CI to use the wrapper for the main Swift test suite and the Xvfb `ImageRenderer` offscreen smoke. This removes the hidden dependency on a warmed local scratch checkout.
+- Documented the wrapper in `docs/linux-build-tooling.md`.
+- Added regression coverage that checks the wrapper and CI workflow stay wired together.
+- Verified syntax: `bash -n scripts/linux-swift-test.sh`, `bash -n scripts/linux-gtk-interaction-check.sh`, and `python3 -m py_compile scripts/verify-gtk-screenshot.py` passed.
+- Verified fresh Linux focused: `scripts/linux-swift-test.sh --scratch-path .build-linux-test-pass7 --filter QuillDataSourceLoweringTests` passed.
+- Remaining honest gap: this fixes QA reliability, not user-visible parity. The next app milestone should return to prompt/model/send interaction and the sheet presentation polish.
+
+## Checkpoint 67: Prompt Send Interaction Pass
+
+Status: Linux Quill Chat now sends a Mac-reference prompt card into a real conversation and passes automated GTK screenshot verification.
+
+- Added a Quill Chat reference-mode model fallback so prompt selection is testable without a live Ollama model list.
+- Added `QUILLUI_GTK_INTERACTION_MODE=prompt-send` and a `quill-chat-linux-mac-reference-prompt-send` verifier that checks the empty-state prompt cards disappear, a message bubble renders, and the unreachable banner/composer remain visible.
+- Kept `QuillPromptGrid` on the reusable SwiftUI-shaped path: prompt cards are normal `Button { promptCard }` controls, not profile-specific click hacks.
+- Fixed a real QuillData compatibility gap: inserting a class-backed model now graph-upserts related class-backed `PersistentModel` relationships, matching the SwiftData behavior Enchanted relies on when a new `MessageSD` points at a previously unsaved `ConversationSD`.
+- Added a QuillData regression test for unsaved related-root insertion.
+- Verified Linux focused: `scripts/linux-swift-test.sh --scratch-path .build-linux-test-pass10 --filter QuillDataTests` passed with 30 tests.
+- Verified prompt-send interaction: `QUILLUI_SKIP_APT=1 QUILLUI_GTK_SKIP_BUILD=1 QUILLUI_GTK_MAC_REFERENCE=1 QUILLUI_GTK_INTERACTION_MODE=prompt-send QUILLUI_GTK_INTERACTION_DISPLAY=:127 QUILLUI_QUILL_CHAT_BUILD_WORKDIR=.build/quill-chat-linux-mac-reference-pass14 scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-prompt-send-pass10.png quill-chat-linux` passed with `prompt_card_pixels=0`, `wordmark_pixels=0`, `message_pixels=415`, `alert=1408px@1119`, and `composer=1338px@1317`.
+- Verified syntax: `bash -n` passed for the Linux GTK/test scripts, `python3 -m py_compile` passed for verifier/seed/lowering helpers, and `perl -c` passed for the new LanguageModelStore rewrite rule.
+- Remaining honest gap: prompt-send now works, but the resulting message layout is still not as polished as macOS; the next parity pass should tune message bubble placement/spacing and then cover follow-up send/stop/retry interactions.
+
+## Checkpoint 68: Prompt Bubble Trailing Alignment
+
+Status: Linux Quill Chat prompt-send now preserves SwiftUI `HStack { Spacer(); bubble }` trailing alignment through wrapper views.
+
+- Fixed the generic SwiftOpenUI GTK checkout patch so single-child wrapper containers propagate layout markers for `Spacer` and `Divider`. This catches the real Enchanted shape where a `Spacer()` is wrapped in `Group { if ... }` before it reaches an `HStack`.
+- Kept the fix reusable: the change lives in the renderer patcher's marker propagation and row/scroll sizing behavior, not in Enchanted source rewrites.
+- Tightened prompt-send screenshot verification to require dark message pixels in the trailing message region, so a centered sent bubble no longer passes.
+- Verified syntax: `bash -n scripts/patch-swiftopenui-gtk-css.sh` and `python3 -m py_compile scripts/verify-gtk-screenshot.py` passed.
+- Verified fresh Linux focused: `scripts/linux-swift-test.sh --scratch-path .build-linux-test-pass14 --filter QuillDataSourceLoweringTests/swiftOpenUIGTKPatchKeepsEnchantedFixesGeneric` passed.
+- Verified prompt-send interaction: `QUILLUI_SKIP_APT=1 QUILLUI_GTK_MAC_REFERENCE=1 QUILLUI_GTK_INTERACTION_MODE=prompt-send QUILLUI_GTK_INTERACTION_DISPLAY=:131 QUILLUI_QUILL_CHAT_BUILD_WORKDIR=.build/quill-chat-linux-mac-reference-pass15 scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-prompt-send-pass14.png quill-chat-linux` passed, and the stricter verifier reports `right_message_pixels=432`.
+- Remaining honest gap: message placement is much closer, but this still is not full Enchanted parity. The next visual work should cover assistant-response rendering, conversation scrolling, sheets/modal polish, and Mac/Linux click-through comparison after each interaction.
+
+## Checkpoint 69: Seeded Transcript Rendering Pass
+
+Status: Linux Quill Chat now has automated click-through coverage for rendering a selected conversation with both user and assistant messages.
+
+- Extended the Quill Chat reference seed data with deterministic `MessageSD` rows for the existing `How to center div in HTML?` conversation. The rows use the same QuillData record shape as the generated app writes at runtime, including nested `conversation` payloads.
+- Added `QUILLUI_GTK_INTERACTION_MODE=transcript-selection`, which selects the seeded transcript from the sidebar instead of only verifying an empty selected conversation.
+- Added a stricter `quill-chat-linux-mac-reference-transcript-selection` screenshot verifier. It still checks selected history state, alert, and composer, and now also requires the user message on the trailing edge and assistant response on the leading edge.
+- Added regression coverage so the seed script, interaction mode, and verifier product stay wired into the reusable QA path.
+- Verified syntax: `bash -n scripts/linux-gtk-interaction-check.sh` and `python3 -m py_compile scripts/verify-gtk-screenshot.py` passed.
+- Verified focused Linux regression: `scripts/linux-swift-test.sh --scratch-path .build-linux-test-pass15 --filter QuillDataSourceLoweringTests/visualSmokeExposesOptInMacReferenceLandmarks` passed.
+- Verified transcript interaction: `QUILLUI_SKIP_APT=1 QUILLUI_GTK_SKIP_BUILD=1 QUILLUI_GTK_MAC_REFERENCE=1 QUILLUI_GTK_INTERACTION_MODE=transcript-selection QUILLUI_GTK_INTERACTION_DISPLAY=:133 QUILLUI_QUILL_CHAT_BUILD_WORKDIR=.build/quill-chat-linux-mac-reference-pass15 scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-transcript-selection-pass1.png quill-chat-linux` passed with `user_message_pixels=432` and `assistant_message_pixels=1186`.
+- Remaining honest gap: this proves short transcript rendering, not long transcript scrolling or rich Markdown/code-block parity. The next target should seed a longer transcript and make `ScrollViewReader.scrollTo(..., anchor: .bottom)` visibly land on the final message.
+
+## Checkpoint 70: Long Transcript ScrollViewReader Pass
+
+Status: Linux Quill Chat now selects the seeded long conversation and lands at the bottom of the transcript through the generic SwiftOpenUI GTK `ScrollViewReader` path.
+
+- Fixed SwiftOpenUI `ScrollViewProxy.scrollTo` lowering so optional hashable IDs unwrap before registration lookup. This covers Enchanted's `scrollTo(messages.last, anchor: .bottom)` call while keeping nil optional scroll targets as no-ops.
+- Changed the GTK scroll request path to keep the latest pending request, replay pending ID targets on the GTK idle loop after the newly rendered widget has been parented, and retain/release the raw `GtkWidget` around the idle callback to avoid stale-pointer crashes.
+- Kept the change reusable: the implementation lives in `scripts/patch-swiftopenui-gtk-css.sh` and applies to any generated SwiftOpenUI GTK app using `ScrollViewReader`, not to Enchanted source.
+- Tightened the long transcript verifier to require the dense bottom marker near the composer after selecting the seeded `Long transcript scroll test` conversation.
+- Verified focused Linux regression: `QUILLUI_SKIP_APT=1 scripts/linux-swift-test.sh --scratch-path .build-linux-test-pass23 --filter QuillDataSourceLoweringTests/swiftOpenUIGTKPatchKeepsEnchantedFixesGeneric` passed.
+- Verified long transcript interaction from a clean generated app: `QUILLUI_SKIP_APT=1 QUILLUI_GTK_MAC_REFERENCE=1 QUILLUI_GTK_INTERACTION_MODE=long-transcript-selection QUILLUI_GTK_INTERACTION_DISPLAY=:150 QUILLUI_QUILL_CHAT_BUILD_WORKDIR=.build/quill-chat-linux-mac-reference-pass21 scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-long-transcript-pass21.png quill-chat-linux` passed with `bottom_marker_pixels=3073`.
+- Remaining honest gap: bottom scrolling now works for seeded plain text transcripts. Full Enchanted parity still needs rich Markdown/code block parity, sheet/modal polish, follow-up send/stop/retry flows, and side-by-side Mac/Linux interaction comparison after each major action.
+
+## Checkpoint 71: Markdown Transcript Rendering Pass
+
+Status: Linux Quill Chat now renders a selected seeded transcript with structured Markdown, a fenced code block, quote, and list, while preserving trailing alignment for short user message bubbles.
+
+- Replaced the MarkdownUI compatibility fallback from flat `Text(plainText)` rendering with a reusable structured subset renderer for paragraphs, headings, unordered/ordered list rows, block quotes, and fenced code blocks.
+- Kept wide code panels without stretching ordinary Markdown: code blocks still fill the assistant transcript width, but the document wrapper no longer forces `maxWidth: .infinity`, so Enchanted's `HStack { Spacer(); userBubble }` layout stays right-aligned.
+- Seeded the `How to center div in HTML?` transcript with deterministic Markdown content containing a CSS fenced block, quote, and list.
+- Added `QUILLUI_GTK_INTERACTION_MODE=markdown-transcript-selection` and a `quill-chat-linux-mac-reference-markdown-transcript-selection` verifier that checks the selected history row, trailing user bubble, leading assistant response, code panel pixels, and code text pixels.
+- Hardened the transcript click harness with a short post-load wait and second click to avoid racing the async conversation list load.
+- Fixed a reusable QA/build issue in `scripts/patch-swiftopenui-gtk-css.sh`: optional Apple UI adapters in third-party checkouts now guard `canImport(SwiftUI/AppKit/UIKit/WatchKit)` with `!os(Linux)`, preventing data-only test graphs from accidentally importing QuillUI/CGTK through compatibility shims.
+- Verified syntax: `bash -n scripts/linux-gtk-interaction-check.sh scripts/linux-swift-test.sh scripts/patch-swiftopenui-gtk-css.sh` passed, and `python3 -m py_compile scripts/verify-gtk-screenshot.py scripts/seed-quill-chat-reference-data.py` passed.
+- Verified fresh Linux MarkdownUI focused: `QUILLUI_SKIP_APT=1 scripts/linux-swift-test.sh --scratch-path .build-linux-test-pass25 --filter CompatibilityModuleTests/markdownAndSplashContractsCompile` passed.
+- Verified visual-smoke wiring on a fresh scratch path: `QUILLUI_SKIP_APT=1 scripts/linux-swift-test.sh --scratch-path .build-linux-test-pass26 --filter QuillDataSourceLoweringTests/visualSmokeExposesOptInMacReferenceLandmarks` passed, and a repeat run on the same scratch path also passed after the optional Apple UI import guard.
+- Verified markdown transcript interaction: `QUILLUI_SKIP_APT=1 QUILLUI_GTK_SKIP_BUILD=1 QUILLUI_GTK_MAC_REFERENCE=1 QUILLUI_GTK_INTERACTION_MODE=markdown-transcript-selection QUILLUI_GTK_INTERACTION_DISPLAY=:155 QUILLUI_QUILL_CHAT_BUILD_WORKDIR=.build/quill-chat-linux-mac-reference-pass22 scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-markdown-transcript-pass5.png quill-chat-linux` passed with `user_message_pixels=474`, `assistant_message_pixels=1676`, `code_panel_pixels=116981`, and `code_text_pixels=940`.
+- Remaining honest gap: rich Markdown now has visible structure, but this is still a practical subset rather than full MarkdownUI parity. The next parity pass should cover inline emphasis/links/images/tables as needed by real transcripts, then continue into sheet/modal polish and follow-up send/stop/retry flows.
+
+## Checkpoint 72: Inline Markdown And Table Pass
+
+Status: Linux Quill Chat now renders the seeded Markdown transcript with practical inline Markdown and a visible pipe table, and the GTK smoke verifier covers the new table landmarks.
+
+- Extended the MarkdownUI compatibility renderer with inline runs for strong, emphasis, inline code, strikethrough, links, and image placeholders. Links are rendered as underlined blue text for now because the GTK `Link` widget expands awkwardly inside inline text rows.
+- Added pipe-table parsing and rendering with header rows, alternating row backgrounds, cell dividers, inline-code cells, and plain-text extraction for table content.
+- Seeded the `How to center div in HTML?` transcript with inline emphasis/code, an MDN-style link, and a deterministic `Property | Value` table.
+- Tightened the markdown transcript verifier to require table panel pixels and a long table divider segment. Also fixed the history-selection empty-state check so it looks for the four prompt-card row instead of misclassifying code/table backgrounds as empty prompt cards.
+- Added regression coverage for inline Markdown plain-text extraction, table plain text, seed content, and the screenshot verifier wiring.
+- Verified syntax: `bash -n scripts/linux-gtk-interaction-check.sh scripts/linux-swift-test.sh scripts/patch-swiftopenui-gtk-css.sh` passed, and `python3 -m py_compile scripts/verify-gtk-screenshot.py scripts/seed-quill-chat-reference-data.py` passed.
+- Verified focused Linux regressions: `QUILLUI_SKIP_APT=1 scripts/linux-swift-test.sh --scratch-path .build-linux-test-pass27 --filter "CompatibilityModuleTests/markdownAndSplashContractsCompile|QuillDataSourceLoweringTests/visualSmokeExposesOptInMacReferenceLandmarks"` passed with both selected tests.
+- Verified markdown transcript interaction after rebuild: `QUILLUI_SKIP_APT=1 QUILLUI_GTK_MAC_REFERENCE=1 QUILLUI_GTK_INTERACTION_MODE=markdown-transcript-selection QUILLUI_GTK_INTERACTION_DISPLAY=:156 QUILLUI_QUILL_CHAT_BUILD_WORKDIR=.build/quill-chat-linux-mac-reference-pass23 scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-markdown-inline-table-pass2.png quill-chat-linux` passed with `code_panel_pixels=163361`, `code_text_pixels=1739`, `table_panel_pixels=46266`, and `table_divider=1391px@448`.
+- Remaining honest gap: this is still a practical MarkdownUI subset, not a CommonMark-compatible implementation. Nested inline markup, HTML blocks, remote image loading, and truly clickable inline links still need design work before claiming broad MarkdownUI parity.
+
+## Checkpoint 73: Sheet Click Path Investigation
+
+Status: Enchanted still builds from all 92 upstream Swift files, but the seeded Completions sidebar sheet is not passing yet. This checkpoint moved the failure from “unknown click miss” to a concrete SwiftOpenUI state/host lifetime bug.
+
+- Added a generic GTK interaction harness focus-prime step for Quill Chat Mac-reference runs. Xvfb without a real window manager can swallow the first click even after `windowfocus`; the harness now primes focus on a harmless header point before the real interaction click.
+- Added a SwiftOpenUI descriptor-guard patch that rejects retained in-place mutation for `Button` nodes. Button action closures capture render-pass state storage, so a retained GTK button cannot be treated as a safely reusable leaf until the renderer can refresh closures in-place.
+- Removed the experimental `gtk_widget_set_can_target(scrolled, 0)` ScrollView patch from the patcher because it did not solve the sidebar sheet issue and could interfere with real scroll/hit-test behavior.
+- Added regression fixture coverage for the new descriptor-tree patch and kept the existing generic GTK patch regression passing.
+- Verified focused Linux regression: `QUILLUI_SKIP_APT=1 scripts/linux-swift-test.sh --scratch-path .build-linux-test-pass31 --filter QuillDataSourceLoweringTests/swiftOpenUIGTKPatchKeepsEnchantedFixesGeneric` passed.
+- Verified fresh Enchanted build still compiles all source: pass33 lowered 92 Swift files and built `quill-chat-linux` from 95 generated Swift files.
+- Current blocker: `QUILLUI_GTK_INTERACTION_MODE=completions-panel` on pass33 still fails screenshot verification. Scratch instrumentation shows the clicked button mutates a `showCompletions` storage instance, but subsequent sheet renders read a different/current storage instance and remain `presented=false`. That points to SwiftOpenUI preserving state values but not stable `@State` storage identity across retained GTK widgets/host rebuilds.
+- Next concrete fix target: make SwiftOpenUI's GTK state cache preserve logical storage identity or route stale-widget actions through the current state host for the same cache key. Until that is fixed, sidebar sheets can fail even though the click action itself fires.
+
+## Checkpoint 74: Package Unblockers And Sheet Repro
+
+Status: the Linux package/build blockers are fixed, and the sheet issue is now narrowed to retained GTK button/state behavior rather than generated Enchanted source.
+
+- Moved the sidebar sheet experiment into the generic SwiftOpenUI GTK patch path: stale `@State` storage instances can forward mutations to the current storage for the same logical cache slot after host rebuilds.
+- Fixed fresh generated-app package failures that were unrelated to Enchanted source: exported the Linux `IOKit` compatibility product, restored a drop-in `UIKit` module that re-exports `QuillUIKit`, and made the WireGuard Apple target platform-aware so upstream Apple `Network` imports do not poison Linux tests.
+- Kept WireGuard as future work without blocking the current target: Linux uses a lightweight `QuillWireGuardCore` placeholder; the upstream Apple `WireGuardKit` target stays Apple-side until a real Linux backend exists.
+- Added regression coverage for the package exports and the generic SwiftOpenUI state-forwarding patch.
+- Verified package manifests: `swift package describe --type json` passed on macOS and inside the Linux VM.
+- Verified focused Linux regressions: `QUILLUI_SKIP_APT=1 scripts/linux-swift-test.sh --scratch-path .build-linux-test-pass35 --filter "QuillDataSourceLoweringTests/packageExportsGeneratedAppCompatibilityProducts|QuillDataSourceLoweringTests/swiftOpenUIGTKPatchKeepsEnchantedFixesGeneric"` passed.
+- Verified fresh Enchanted build still compiles all source: pass36/pass37 lowered all 92 upstream Swift files, compiled 95 generated Swift files, and linked `quill-chat-linux`.
+- Important repro result: pass36 produced one successful Completions-sheet screenshot (`title_pixels=165`, `text_pixels=5644`, `divider_rows=3`, `wordmark_pixels=2310`), but repeat cached/incremental pass36 and fresh pass37 runs failed to open the sheet. That makes the previous success non-reproducible, not a parity milestone.
+- Remaining honest gap: the next fix must address retained GTK button closures or state identity more deeply. Coordinate tweaks are not enough; the same Completions and Settings buttons can be visibly present but fail to mutate the current sheet state on repeat runs.
+
+## Checkpoint 75: State Namespace And Package Graph Rework
+
+Status: the next generic state-identity patch is in place, but the focused Linux regression is not passing yet.
+
+- Changed the SwiftOpenUI GTK state identity patch so state counters are namespaced by the current `GTKViewHost` state cache key instead of one global type counter. This targets the retained-button sheet bug where a stale button action can mutate an old `@State` storage slot while the current render reads a different slot.
+- Added regression expectations for the namespaced `gtkStateTypeCounters`, `stateIdentityNamespace`, and host namespace installation in `QuillDataSourceLoweringTests`.
+- Reworked the package graph toward reusable Linux compatibility: the clean manifest removes incomplete vendored persistence targets, keeps `WireGuardKit` Apple-only, exports both `UIKit` and `QuillUIKit`, and points the Linux `Combine` compatibility target at OpenCombine.
+- Replaced the local hand-written `Combine` shim with an OpenCombine re-export facade after the old shim caused `combine-schedulers` to bind to the wrong `Scheduler` surface.
+- Verified manifests after the clean graph: `swift package describe --type json` passed on macOS and inside the Linux VM.
+- Focused Linux regression did not pass yet. Pass50 reached the remote SQLiteData/GRDB/OpenCombine build and cleared the previous WireGuard failure, but another local agent process rewrote `Sources/Combine/Combine.swift` back to the old shim during the build, causing `combine-schedulers` failures around `DispatchQueue.schedule`, `OperationQueue`, and `RunLoop` scheduler conformance.
+- Current blocker: avoid concurrent rewrites of `Package.swift` and `Sources/Combine/Combine.swift`, then rerun the focused package/state tests. The current workspace has the clean manifest and OpenCombine facade restored after the failed run.
+
+## Checkpoint 76: Clean Graph And Interaction Diagnostics
+
+Status: the reusable Linux package graph is stable again, focused Linux tests pass, and the remaining Enchanted sheet failure is isolated to unstable GTK state identity under app-level rebuild churn.
+
+- Restored the clean external package graph after stale background workers rewrote `Package.swift` and the Linux `Combine` facade. The manifest now keeps the remote `sqlite-data`/GRDB/OpenCombine path, exports `UIKit`/`QuillUIKit`, keeps WireGuard's Apple target platform-aware, and avoids the old flattened vendor graph.
+- Replaced the broken local Combine shim with an OpenCombine facade plus the small compatibility pieces Enchanted currently needs, including `AnyPublisher()` for `Failure == Never` and a `Publishers.Merge` adapter.
+- Fixed QuillData compile/runtime gaps hit by the generated Enchanted build: erased `fetchPersistentModels`, `delete(model:where:)`, SQL-or-closure predicate fallback, and all-row deletion.
+- Added a broader GTK interaction smoke app covering plain buttons, Quill sidebar buttons, Quill status banners, nested sheet presentation, sidebar-button sheets, and banner-action sheets.
+- Added opt-in `QUILLUI_GTK_DEBUG_ACTIONS=1` diagnostics in the SwiftOpenUI GTK patch path for button actions, sheet presentation, and state forwarding.
+- Verified focused Linux package/source-lowering tests: `QUILLUI_SKIP_APT=1 scripts/linux-swift-test.sh --scratch-path .build-linux-test-pass53-clean-graph --filter "QuillDataSourceLoweringTests/swiftOpenUIGTKPatchKeepsEnchantedFixesGeneric|QuillDataSourceLoweringTests/packageExportsGeneratedAppCompatibilityProducts"` passed.
+- Verified the generated Enchanted full-source build: pass56 lowered all 92 upstream Swift files, compiled 95 generated Swift files, and linked `quill-chat-linux`.
+- Verified generic GTK interactions: open-panel, sidebar-button, banner-button, nested-sheet, sidebar-sheet, and banner-sheet smoke modes passed after rebuilding the smoke app.
+- Remaining honest gap: Quill Chat's Settings/Completions sheets still fail in the full app. The button action fires, but debug logs show the `SheetModifierView` continues reading `isPresented=false`; repeated app-level rebuilds give `SidebarView`/`UnreachableAPIView` fresh cache keys like `root::...#105`, so stale closures do not forward into the current state storage yet.
+- Loop stopped: the recurring heartbeat automation was deleted and the stale Claude/Gemini background workers that were rewriting files were terminated before this checkpoint commit.

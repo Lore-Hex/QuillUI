@@ -1,4 +1,5 @@
 .build/
+.build-*/
 .build-linux/
 .build-linux-cov/
 .build-linux-coverage/
@@ -7,6 +8,10 @@
 .swiftpm/
 .DS_Store
 DerivedData/
+Package.swift.bak
+Package.swift.full
+Package.swift.orig
+scripts/__pycache__/
 *.xcuserdata
 *.sqlite
 *.sqlite-shm

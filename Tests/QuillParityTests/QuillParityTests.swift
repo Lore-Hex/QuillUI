@@ -347,6 +347,61 @@ struct QuillParityTests {
         #expect(Angle.zero.degrees == 0.0)
     }
 
+    // MARK: - UnitPoint parity
+
+    @Test("UnitPoint constants match Apple's coordinates")
+    func unitPointParity() {
+        #expect(UnitPoint.zero == UnitPoint(x: 0, y: 0))
+        #expect(UnitPoint.center == UnitPoint(x: 0.5, y: 0.5))
+        #expect(UnitPoint.topLeading == UnitPoint(x: 0, y: 0))
+        #expect(UnitPoint.top == UnitPoint(x: 0.5, y: 0))
+        #expect(UnitPoint.topTrailing == UnitPoint(x: 1, y: 0))
+        #expect(UnitPoint.leading == UnitPoint(x: 0, y: 0.5))
+        #expect(UnitPoint.trailing == UnitPoint(x: 1, y: 0.5))
+        #expect(UnitPoint.bottomLeading == UnitPoint(x: 0, y: 1))
+        #expect(UnitPoint.bottom == UnitPoint(x: 0.5, y: 1))
+        #expect(UnitPoint.bottomTrailing == UnitPoint(x: 1, y: 1))
+    }
+
+    // MARK: - Layout Enums parity
+
+    @Test("ContentMode case parity")
+    func contentModeParity() {
+        // Source compatibility check
+        let fit = ContentMode.fit
+        let fill = ContentMode.fill
+        #expect(fit != fill)
+    }
+
+    @Test("Visibility case parity")
+    func visibilityParity() {
+        #expect(Visibility.automatic != Visibility.visible)
+        #expect(Visibility.visible != Visibility.hidden)
+        #expect(Visibility.hidden != Visibility.automatic)
+    }
+
+    @Test("Alignment constants presence")
+    func alignmentParity() {
+        // These must exist for ZStack/frame alignment
+        _ = Alignment.center
+        _ = Alignment.leading
+        _ = Alignment.trailing
+        _ = Alignment.top
+        _ = Alignment.bottom
+        _ = Alignment.topLeading
+        _ = Alignment.topTrailing
+        _ = Alignment.bottomLeading
+        _ = Alignment.bottomTrailing
+
+        _ = HorizontalAlignment.center
+        _ = HorizontalAlignment.leading
+        _ = HorizontalAlignment.trailing
+
+        _ = VerticalAlignment.center
+        _ = VerticalAlignment.top
+        _ = VerticalAlignment.bottom
+    }
+
     // MARK: - Property-based fuzz: round-trip invariants
 
     @Test("Fuzz: any UUID string survives a UserDefaults round-trip", arguments: parityRandomSeeds(count: 32))
@@ -588,7 +643,7 @@ private extension UUID {
         while i < bytes.count {
             let chunk = rng.next()
             withUnsafeBytes(of: chunk) { raw in
-                let copyCount = min(8, bytes.count - i)
+                let copyCount = Swift.min(8, bytes.count - i)
                 for offset in 0..<copyCount {
                     bytes[i + offset] = raw[offset]
                 }

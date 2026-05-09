@@ -32,6 +32,10 @@ public enum QuillKitCapability: String, CaseIterable, Sendable {
     case updater
     case certificateTrust
     case photoPicker
+    case secureStorage
+    case notifications
+    case networkExtension
+    case vpnTunnel
 }
 
 public enum QuillKitCapabilityStatus: Equatable, Sendable {
@@ -47,7 +51,8 @@ public enum QuillKitCapabilities {
         case .clipboard:
             return .emulated
         case .speechSynthesis, .speechRecognition, .haptics, .accessibility, .syntheticKeyboard,
-             .globalShortcuts, .deviceEvents, .launchAtLogin, .updater, .certificateTrust, .photoPicker:
+             .globalShortcuts, .deviceEvents, .launchAtLogin, .updater, .certificateTrust, .photoPicker,
+             .secureStorage, .notifications, .networkExtension, .vpnTunnel:
             return .unavailable(reason: "No native Linux backend has been attached yet.")
         }
         #else

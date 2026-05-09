@@ -21,6 +21,7 @@ install_packages() {
     libsqlite3-dev
     pkg-config
     x11-apps
+    xdotool
     xvfb
   )
   local missing=()
@@ -83,8 +84,18 @@ if [[ ! -x "$APP_EXECUTABLE" ]]; then
   exit 1
 fi
 
+seed_quill_chat_reference_data() {
+  local qa_home="$1"
+  rm -rf "$qa_home"
+  python3 "$ROOT_DIR/scripts/seed-quill-chat-reference-data.py" "$qa_home"
+}
+
 DISPLAY_ID=":94"
-Xvfb "$DISPLAY_ID" -screen 0 1180x760x24 >/tmp/quillui-xvfb.log 2>&1 &
+SCREEN_SIZE="${QUILLUI_GTK_SCREEN_SIZE:-1180x760x24}"
+if [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+  SCREEN_SIZE="${QUILLUI_GTK_SCREEN_SIZE:-2048x1380x24}"
+fi
+Xvfb "$DISPLAY_ID" -screen 0 "$SCREEN_SIZE" >/tmp/quillui-xvfb.log 2>&1 &
 xvfb_pid=$!
 
 cleanup() {
@@ -96,10 +107,52 @@ cleanup() {
 trap cleanup EXIT
 
 sleep 1
-GTK_A11Y=none DISPLAY="$DISPLAY_ID" "$APP_EXECUTABLE" >/tmp/quillui-gtk-app.log 2>&1 &
+if ! kill -0 "$xvfb_pid" >/dev/null 2>&1; then
+  cat /tmp/quillui-xvfb.log >&2 || true
+  exit 70
+fi
+app_environment=(GTK_A11Y=none DISPLAY="$DISPLAY_ID")
+if [[ -n "${QUILLUI_GTK_LAYOUT_DEBUG:-}" ]]; then
+  app_environment+=(QUILLUI_GTK_LAYOUT_DEBUG="$QUILLUI_GTK_LAYOUT_DEBUG")
+fi
+if [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+  quill_chat_reference_home="$OUTPUT_DIR/quill-chat-linux-reference-home"
+  seed_quill_chat_reference_data "$quill_chat_reference_home"
+  app_environment+=(
+    HOME="$quill_chat_reference_home"
+    QUILLDATA_HOME="$quill_chat_reference_home"
+    QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=2048
+    QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT=1380
+    QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL=1
+    QUILLUI_QUILL_CHAT_REFERENCE_MODE=1
+    QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1
+  )
+fi
+env "${app_environment[@]}" "$APP_EXECUTABLE" >/tmp/quillui-gtk-app.log 2>&1 &
 app_pid=$!
 
 sleep 4
-DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
+capture_window="root"
+if [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+  window_id="$(
+    DISPLAY="$DISPLAY_ID" xdotool search --onlyvisible --name 'Quill Chat' 2>/dev/null | head -n 1 || true
+  )"
+  if [[ -z "$window_id" ]]; then
+    window_id="$(
+      DISPLAY="$DISPLAY_ID" xdotool search --onlyvisible --name '.*' 2>/dev/null | head -n 1 || true
+    )"
+  fi
+  if [[ -n "$window_id" ]]; then
+    DISPLAY="$DISPLAY_ID" xdotool windowmove "$window_id" 0 0
+    DISPLAY="$DISPLAY_ID" xdotool windowsize "$window_id" 2048 1380
+    capture_window="$window_id"
+    sleep 1
+  fi
+fi
+DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 
-"$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$PRODUCT"
+VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-$PRODUCT}"
+if [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+  VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference}"
+fi
+"$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"

@@ -89,3 +89,44 @@ public struct Logger: Sendable {
         )
     }
 }
+
+public struct OSLog: Sendable {
+    public var subsystem: String
+    public var category: String
+
+    public init(subsystem: String, category: String) {
+        self.subsystem = subsystem
+        self.category = category
+    }
+}
+
+public enum OSLogType: Sendable {
+    case `default`
+    case info
+    case debug
+    case error
+    case fault
+}
+
+public func os_log(
+    _ type: OSLogType,
+    dso: UnsafeRawPointer? = nil,
+    log: OSLog,
+    _ message: StaticString,
+    _ arguments: CVarArg...
+) {
+    QuillCompatibilityDiagnostics.shared.record(
+        subsystem: "os",
+        operation: "os_log",
+        severity: type == .fault || type == .error ? .warning : .info,
+        message: "[\(log.subsystem):\(log.category)] \(message)"
+    )
+}
+
+public struct mach_header {}
+
+public func _dyld_image_count() -> UInt32 { 0 }
+
+public func _dyld_get_image_name(_ imageIndex: UInt32) -> UnsafePointer<CChar>? { nil }
+
+public func _dyld_get_image_header(_ imageIndex: UInt32) -> UnsafePointer<mach_header>? { nil }

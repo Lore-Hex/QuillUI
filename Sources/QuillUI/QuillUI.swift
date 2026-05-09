@@ -3,6 +3,9 @@
 @_exported import Combine
 #else
 @_exported import SwiftOpenUI
+
+public typealias QuillObservableObject = SwiftOpenUI.ObservableObject
+public typealias QuillPublished = SwiftOpenUI.Published
 #endif
 
 import Foundation

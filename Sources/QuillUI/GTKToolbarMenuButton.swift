@@ -1,0 +1,194 @@
+#if os(Linux)
+import CGTK
+import Foundation
+import SwiftOpenUI
+import BackendGTK4
+
+private final class QuillGTKMenuClosureBox {
+    let closure: () -> Void
+
+    init(_ closure: @escaping () -> Void) {
+        self.closure = closure
+    }
+}
+
+private final class QuillGTKMenuActionBox {
+    var actions: [QuillGTKMenuClosureBox] = []
+}
+
+struct QuillGTKToolbarMenuButton: View, PrimitiveView, GTKRenderable {
+    typealias Body = Never
+
+    var systemImage: String
+    var showsChevron: Bool
+    var width: CGFloat
+    var actions: [QuillMenuAction]
+
+    var body: Never { fatalError("QuillGTKToolbarMenuButton is a primitive view") }
+
+    func gtkCreateWidget() -> OpaquePointer {
+        let button = gtk_menu_button_new()!
+        gtk_widget_set_size_request(button, gint(Int(width)), 30)
+        gtk_widget_set_halign(button, GTK_ALIGN_CENTER)
+        gtk_widget_set_valign(button, GTK_ALIGN_CENTER)
+        gtk_widget_add_css_class(button, "flat")
+        applyToolbarMenuCSS(to: button)
+        gtk_swift_menu_button_set_label(button, menuTitle)
+
+        let actionGroup = g_simple_action_group_new()!
+        let menuModel = gtk_swift_menu_new()!
+        let actionBox = QuillGTKMenuActionBox()
+        var actionIndex = 0
+
+        buildMenuModel(
+            actions: actions,
+            menu: menuModel,
+            actionGroup: actionGroup,
+            actionBox: actionBox,
+            actionIndex: &actionIndex
+        )
+
+        let popover = gtk_swift_popover_menu_new_from_model(menuModel)!
+        gtk_swift_menu_button_set_popover(button, popover)
+        gtk_swift_widget_insert_action_group(button, "menu", gpointer(actionGroup))
+
+        let retained = Unmanaged.passRetained(actionBox).toOpaque()
+        let gobject = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GObject.self)
+        g_object_set_data_full(gobject, "quill-toolbar-menu-actions", retained) { userData in
+            guard let userData else { return }
+            Unmanaged<QuillGTKMenuActionBox>.fromOpaque(userData).release()
+        }
+
+        return OpaquePointer(button)
+    }
+
+    private var menuTitle: String {
+        switch systemImage {
+        case "ellipsis":
+            return showsChevron ? "•••⌄" : "•••"
+        case "chevron.down":
+            return "⌄"
+        default:
+            return QuillSystemSymbol.compatibleName(systemImage)
+        }
+    }
+
+    private func buildMenuModel(
+        actions: [QuillMenuAction],
+        menu: gpointer,
+        actionGroup: UnsafeMutablePointer<GSimpleActionGroup>,
+        actionBox: QuillGTKMenuActionBox,
+        actionIndex: inout Int
+    ) {
+        var sections: [[QuillMenuAction]] = [[]]
+        for action in actions {
+            if case .divider = action.kind {
+                sections.append([])
+            } else {
+                sections[sections.count - 1].append(action)
+            }
+        }
+
+        if sections.count <= 1 {
+            for action in actions {
+                guard case .item = action.kind else { continue }
+                addMenuAction(
+                    action,
+                    to: menu,
+                    actionGroup: actionGroup,
+                    actionBox: actionBox,
+                    actionIndex: &actionIndex
+                )
+            }
+        } else {
+            for section in sections where !section.isEmpty {
+                let sectionMenu = gtk_swift_menu_new()!
+                for action in section {
+                    addMenuAction(
+                        action,
+                        to: sectionMenu,
+                        actionGroup: actionGroup,
+                        actionBox: actionBox,
+                        actionIndex: &actionIndex
+                    )
+                }
+                gtk_swift_menu_append_section(menu, nil, sectionMenu)
+            }
+        }
+    }
+
+    private func addMenuAction(
+        _ action: QuillMenuAction,
+        to menu: gpointer,
+        actionGroup: UnsafeMutablePointer<GSimpleActionGroup>,
+        actionBox: QuillGTKMenuActionBox,
+        actionIndex: inout Int
+    ) {
+        let actionName = "action\(actionIndex)"
+        actionIndex += 1
+
+        let gAction = g_simple_action_new(actionName, nil)!
+        gtk_swift_action_set_enabled(gpointer(gAction), action.isDisabled ? 0 : 1)
+
+        let box = QuillGTKMenuClosureBox {
+            action.perform()
+        }
+        actionBox.actions.append(box)
+        let boxPointer = Unmanaged.passUnretained(box).toOpaque()
+
+        g_signal_connect_data(
+            gpointer(gAction),
+            "activate",
+            unsafeBitCast({ (_: gpointer?, _: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                Unmanaged<QuillGTKMenuClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+            } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
+            boxPointer,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+
+        gtk_swift_action_map_add_action(gpointer(actionGroup), gpointer(gAction))
+        gtk_swift_menu_append(menu, action.title, "menu.\(actionName)")
+    }
+}
+
+private func applyToolbarMenuCSS(to widget: UnsafeMutablePointer<GtkWidget>) {
+    let className = "quill-toolbar-menu-button"
+    let css = """
+    .\(className),
+    button.\(className),
+    menubutton.\(className),
+    menubutton.\(className) > button,
+    menubutton.\(className) button {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0 2px;
+        min-height: 28px;
+        min-width: 28px;
+        color: #3A3A3C;
+    }
+    .\(className):hover,
+    button.\(className):hover,
+    menubutton.\(className):hover,
+    menubutton.\(className) > button:hover,
+    menubutton.\(className) button:hover {
+        background: rgba(0, 0, 0, 0.06);
+        border-radius: 5px;
+    }
+    """
+
+    let provider = gtk_css_provider_new()!
+    gtk_css_provider_load_from_string(provider, css)
+    if let display = gtk_widget_get_display(widget) {
+        gtk_swift_add_css_provider_to_display(
+            display,
+            provider,
+            UInt32(GTK_STYLE_PROVIDER_PRIORITY_USER)
+        )
+    }
+    gtk_widget_add_css_class(widget, className)
+    g_object_unref(gpointer(provider))
+}
+#endif

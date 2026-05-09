@@ -6,6 +6,14 @@ OUTPUT_DIR="$ROOT_DIR/.qa"
 SCREENSHOT_PATH="${1:-$OUTPUT_DIR/quill-gtk-interaction-smoke-open.png}"
 PRODUCT="${2:-quill-gtk-interaction-smoke}"
 APP_EXECUTABLE=""
+INTERACTION_MODE="${QUILLUI_GTK_INTERACTION_MODE:-}"
+if [[ -z "$INTERACTION_MODE" ]]; then
+  case "$PRODUCT" in
+    quill-chat-linux) INTERACTION_MODE="toolbar-menu" ;;
+    quill-gtk-interaction-smoke) INTERACTION_MODE="open-panel" ;;
+    *) INTERACTION_MODE="click" ;;
+  esac
+fi
 
 install_packages() {
   if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
@@ -39,6 +47,11 @@ install_packages() {
 }
 
 build_and_resolve_executable() {
+  if [[ -n "${QUILLUI_GTK_APP_EXECUTABLE:-}" ]]; then
+    APP_EXECUTABLE="$QUILLUI_GTK_APP_EXECUTABLE"
+    return
+  fi
+
   if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
     local quill_chat_app_dir="${QUILL_CHAT_DIR:-$ROOT_DIR/../quill/clients/quill-chat}/Enchanted"
     local quill_chat_work_root="${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$ROOT_DIR/.build/quill-chat-linux}"
@@ -54,6 +67,19 @@ MSG
       exit 66
     fi
 
+    if [[ "${QUILLUI_GTK_SKIP_BUILD:-0}" == "1" ]]; then
+      local cached_executable
+      cached_executable="$(
+        find "$quill_chat_work_root/.build-check" -path "*/debug/$PRODUCT" -type f -perm -111 2>/dev/null | head -n 1 || true
+      )"
+      if [[ -z "$cached_executable" ]]; then
+        echo "No cached executable found for $PRODUCT under $quill_chat_work_root/.build-check" >&2
+        exit 66
+      fi
+      APP_EXECUTABLE="$cached_executable"
+      return
+    fi
+
     QUILLUI_QUILL_CHAT_BUILD_WORKDIR="$quill_chat_work_root" \
     QUILLUI_QUILL_CHAT_PRODUCT_NAME="$PRODUCT" \
     "$ROOT_DIR/scripts/build-quill-chat-linux.sh"
@@ -65,11 +91,23 @@ MSG
       --show-bin-path)"
     APP_EXECUTABLE="$quill_chat_bin_path/$PRODUCT"
   else
-    "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$ROOT_DIR/.build-linux"
-    swift build --scratch-path "$ROOT_DIR/.build-linux" --product "$PRODUCT"
-    local bin_path
-    bin_path="$(swift build --scratch-path "$ROOT_DIR/.build-linux" --show-bin-path)"
-    APP_EXECUTABLE="$bin_path/$PRODUCT"
+    if [[ "${QUILLUI_GTK_SKIP_BUILD:-0}" == "1" ]]; then
+      local cached_executable
+      cached_executable="$(
+        find "$ROOT_DIR/.build-linux" -path "*/debug/$PRODUCT" -type f -perm -111 2>/dev/null | head -n 1 || true
+      )"
+      if [[ -z "$cached_executable" ]]; then
+        echo "No cached executable found for $PRODUCT under $ROOT_DIR/.build-linux" >&2
+        exit 66
+      fi
+      APP_EXECUTABLE="$cached_executable"
+    else
+      "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$ROOT_DIR/.build-linux"
+      swift build --scratch-path "$ROOT_DIR/.build-linux" --product "$PRODUCT"
+      local bin_path
+      bin_path="$(swift build --scratch-path "$ROOT_DIR/.build-linux" --show-bin-path)"
+      APP_EXECUTABLE="$bin_path/$PRODUCT"
+    fi
   fi
 }
 
@@ -87,8 +125,21 @@ if ! command -v xdotool >/dev/null 2>&1; then
   exit 69
 fi
 
+seed_quill_chat_reference_data() {
+  local qa_home="$1"
+  rm -rf "$qa_home"
+  python3 "$ROOT_DIR/scripts/seed-quill-chat-reference-data.py" "$qa_home"
+}
+
 DISPLAY_ID="${QUILLUI_GTK_INTERACTION_DISPLAY:-:95}"
-Xvfb "$DISPLAY_ID" -screen 0 1180x760x24 >/tmp/quillui-xvfb-interaction.log 2>&1 &
+SCREEN_SIZE="${QUILLUI_GTK_INTERACTION_SCREEN_SIZE:-1180x760x24}"
+if [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+  SCREEN_SIZE="${QUILLUI_GTK_INTERACTION_SCREEN_SIZE:-2048x1380x24}"
+fi
+screen_width="${SCREEN_SIZE%%x*}"
+screen_height_and_depth="${SCREEN_SIZE#*x}"
+screen_height="${screen_height_and_depth%%x*}"
+Xvfb "$DISPLAY_ID" -screen 0 "$SCREEN_SIZE" >/tmp/quillui-xvfb-interaction.log 2>&1 &
 xvfb_pid=$!
 
 cleanup() {
@@ -100,34 +151,269 @@ cleanup() {
 trap cleanup EXIT
 
 sleep 1
-GTK_A11Y=none DISPLAY="$DISPLAY_ID" "$APP_EXECUTABLE" >/tmp/quillui-gtk-interaction-app.log 2>&1 &
+if ! kill -0 "$xvfb_pid" >/dev/null 2>&1; then
+  cat /tmp/quillui-xvfb-interaction.log >&2 || true
+  exit 70
+fi
+app_environment=(GTK_A11Y=none DISPLAY="$DISPLAY_ID")
+if [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+  quill_chat_reference_home="$OUTPUT_DIR/quill-chat-linux-reference-home"
+  seed_quill_chat_reference_data "$quill_chat_reference_home"
+  app_environment+=(
+    HOME="$quill_chat_reference_home"
+    QUILLDATA_HOME="$quill_chat_reference_home"
+    QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=2048
+    QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT=1380
+    QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL=1
+    QUILLUI_QUILL_CHAT_REFERENCE_MODE=1
+    QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1
+  )
+fi
+env "${app_environment[@]}" "$APP_EXECUTABLE" >/tmp/quillui-gtk-interaction-app.log 2>&1 &
 app_pid=$!
 
 sleep 4
 
+capture_window="root"
+window_x=0
+window_y=0
+window_width="$screen_width"
+window_height="$screen_height"
+window_id="$(
+  DISPLAY="$DISPLAY_ID" xdotool search --onlyvisible --pid "$app_pid" 2>/dev/null | head -n 1 || true
+)"
+if [[ -z "$window_id" ]]; then
+  window_id="$(
+    DISPLAY="$DISPLAY_ID" xdotool search --onlyvisible --name '.*' 2>/dev/null | head -n 1 || true
+  )"
+fi
+if [[ -n "$window_id" ]]; then
+  DISPLAY="$DISPLAY_ID" xdotool windowmove "$window_id" 0 0
+  if [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+    DISPLAY="$DISPLAY_ID" xdotool windowsize "$window_id" 2048 1380
+    sleep 1
+  elif [[ "${QUILLUI_GTK_CAPTURE_ROOT:-0}" != "1" ]]; then
+    capture_window="$window_id"
+  fi
+  DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
+  DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+  while IFS='=' read -r key value; do
+    case "$key" in
+      X) window_x="$value" ;;
+      Y) window_y="$value" ;;
+      WIDTH) window_width="$value" ;;
+      HEIGHT) window_height="$value" ;;
+    esac
+  done < <(DISPLAY="$DISPLAY_ID" xdotool getwindowgeometry --shell "$window_id")
+fi
+
+click_at() {
+  local x="$1"
+  local y="$2"
+  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$x" "$y" click 1
+}
+
+type_text() {
+  DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$1"
+}
+
+post_click_sleep="${QUILLUI_GTK_POST_CLICK_SLEEP:-1}"
+if [[ "${QUILLUI_GTK_FOCUS_PRIME:-}" == "1" || ( "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ) ]]; then
+  focus_x="${QUILLUI_GTK_FOCUS_PRIME_X:-$((window_x + window_width / 2))}"
+  focus_y="${QUILLUI_GTK_FOCUS_PRIME_Y:-$((window_y + 54))}"
+  click_at "$focus_x" "$focus_y"
+  sleep "${QUILLUI_GTK_FOCUS_PRIME_SLEEP:-0.5}"
+fi
+
 case "$PRODUCT" in
   quill-chat-linux)
-    click_x="${QUILLUI_GTK_CLICK_X:-1035}"
-    click_y="${QUILLUI_GTK_CLICK_Y:-54}"
+    case "$INTERACTION_MODE" in
+      composer-typed)
+        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + (window_width * 34 / 100)))}"
+        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + window_height - 84))}"
+        click_at "$click_x" "$click_y"
+        sleep 1
+        type_text "${QUILLUI_GTK_TYPE_TEXT:-hello from linux}"
+        sleep 1
+        ;;
+      settings-panel)
+        if [[ "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+          click_x="${QUILLUI_GTK_CLICK_X:-52}"
+          click_y="${QUILLUI_GTK_CLICK_Y:-1366}"
+        else
+          click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 52))}"
+          click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + window_height - 14))}"
+        fi
+        click_at "$click_x" "$click_y"
+        sleep "$post_click_sleep"
+        ;;
+      alert-settings-panel)
+        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + window_width - 142))}"
+        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + window_height - 274))}"
+        click_at "$click_x" "$click_y"
+        sleep "$post_click_sleep"
+        ;;
+      settings-endpoint-typed)
+        if [[ "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+          settings_x="${QUILLUI_GTK_SETTINGS_CLICK_X:-52}"
+          settings_y="${QUILLUI_GTK_SETTINGS_CLICK_Y:-1366}"
+        else
+          settings_x="${QUILLUI_GTK_SETTINGS_CLICK_X:-$((window_x + 52))}"
+          settings_y="${QUILLUI_GTK_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
+        fi
+        endpoint_x="${QUILLUI_GTK_ENDPOINT_CLICK_X:-$((window_x + 120))}"
+        endpoint_y="${QUILLUI_GTK_ENDPOINT_CLICK_Y:-$((window_y + 104))}"
+        click_at "$settings_x" "$settings_y"
+        sleep 1
+        click_at "$endpoint_x" "$endpoint_y"
+        sleep 1
+        type_text "${QUILLUI_GTK_TYPE_TEXT:-http://127.0.0.1:11434}"
+        sleep 1
+        ;;
+      completions-panel)
+        if [[ "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+          click_x="${QUILLUI_GTK_CLICK_X:-90}"
+          click_y="${QUILLUI_GTK_CLICK_Y:-1244}"
+        else
+          click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 90))}"
+          click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + window_height - 136))}"
+        fi
+        click_at "$click_x" "$click_y"
+        sleep "$post_click_sleep"
+        ;;
+      history-selection)
+        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 190))}"
+        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 466))}"
+        click_at "$click_x" "$click_y"
+        sleep 1
+        ;;
+      transcript-selection|markdown-transcript-selection)
+        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 190))}"
+        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 466))}"
+        sleep 2
+        click_at "$click_x" "$click_y"
+        sleep 1
+        click_at "$click_x" "$click_y"
+        sleep 1
+        ;;
+      long-transcript-selection)
+        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 220))}"
+        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 514))}"
+        sleep 2
+        click_at "$click_x" "$click_y"
+        sleep 1
+        click_at "$click_x" "$click_y"
+        sleep 2
+        ;;
+      prompt-send)
+        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 820))}"
+        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 610))}"
+        click_at "$click_x" "$click_y"
+        sleep 3
+        ;;
+      *)
+        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + window_width - 84))}"
+        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 54))}"
+        click_at "$click_x" "$click_y"
+        sleep 1
+        ;;
+    esac
     ;;
-  quill-gtk-interaction-smoke)
-    click_x="${QUILLUI_GTK_CLICK_X:-558}"
-    click_y="${QUILLUI_GTK_CLICK_Y:-34}"
-    ;;
+	  quill-gtk-interaction-smoke)
+	    case "$INTERACTION_MODE" in
+	      sidebar-button)
+	        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 110))}"
+	        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 282))}"
+	        ;;
+	      banner-button)
+	        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 450))}"
+	        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 370))}"
+	        ;;
+	      nested-sheet)
+	        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 110))}"
+	        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 457))}"
+	        ;;
+	      sidebar-sheet)
+	        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 150))}"
+	        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 508))}"
+	        ;;
+	      banner-sheet)
+	        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 450))}"
+	        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 590))}"
+	        ;;
+	      open-panel|*)
+	        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + window_width - 84))}"
+	        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 34))}"
+	        ;;
+	    esac
+	    click_at "$click_x" "$click_y"
+	    sleep "$post_click_sleep"
+	    ;;
   *)
-    click_x="${QUILLUI_GTK_CLICK_X:-980}"
-    click_y="${QUILLUI_GTK_CLICK_Y:-54}"
+    click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + window_width - 200))}"
+    click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 54))}"
+    click_at "$click_x" "$click_y"
+    sleep 1
     ;;
 esac
-
-DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$click_x" "$click_y" click 1
-sleep 1
-DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
+DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 
 if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
-  "$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" quill-chat-linux-toolbar-menu
+  case "$INTERACTION_MODE" in
+    composer-typed)
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-composer-typed}"
+      ;;
+    settings-panel)
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-settings-panel}"
+      ;;
+    alert-settings-panel)
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-settings-panel}"
+      ;;
+    settings-endpoint-typed)
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-settings-endpoint-typed}"
+      ;;
+    completions-panel)
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-completions-panel}"
+      ;;
+    history-selection)
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-history-selection}"
+      ;;
+	    transcript-selection)
+	      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-transcript-selection}"
+	      ;;
+	    markdown-transcript-selection)
+	      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-markdown-transcript-selection}"
+	      ;;
+	    long-transcript-selection)
+	      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-long-transcript-selection}"
+	      ;;
+    prompt-send)
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-prompt-send}"
+      ;;
+    *)
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-toolbar-menu}"
+      if [[ "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+        VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-toolbar-menu}"
+      fi
+      ;;
+  esac
+  "$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"
 elif [[ "$PRODUCT" == "quill-gtk-interaction-smoke" ]]; then
-  "$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" quill-gtk-interaction-smoke-open
+  case "$INTERACTION_MODE" in
+    nested-sheet|sidebar-sheet|banner-sheet)
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-gtk-interaction-smoke-sheet}"
+      ;;
+    sidebar-button)
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-gtk-interaction-smoke-sidebar}"
+      ;;
+    banner-button)
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-gtk-interaction-smoke-banner}"
+      ;;
+    open-panel|*)
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-gtk-interaction-smoke-open}"
+      ;;
+  esac
+  "$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"
 else
   "$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$PRODUCT"
 fi

@@ -122,6 +122,24 @@ both brightness and pixel variation so blank white windows fail, and verifies
 Quill Chat-specific layout landmarks such as the sidebar width, header divider,
 prompt cards, and composer width.
 
+There is also an opt-in strict reference pass for the large macOS Quill Chat
+window screenshot. It resizes the Xvfb window to the same reference frame and
+verifies the Mac-derived landmarks instead of the older compact smoke layout:
+
+```bash
+QUILLUI_GTK_MAC_REFERENCE=1 \
+  scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-mac-reference.png quill-chat-linux
+```
+
+The current Mac reference is `2228x1498` with a `602px` sidebar, `102px`
+header, four prompt cards at `730-1057`, `1088-1415`, `1445-1772`, and
+`1803-2129`, a `1524px` unreachable alert, and a `1510px` composer. This
+strict pass is allowed to fail while renderer parity is still being closed; it
+exists so the remaining gap is measured against the real app, not a prototype.
+The strict path also sets `QUILLUI_GTK_DEFAULT_WINDOW_WIDTH` and
+`QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT`; the SwiftOpenUI GTK checkout patch honors
+those values for automatic window sizing.
+
 Native GTK interaction smoke is separate from Playwright because the app is a
 GTK executable, not a web page. The interaction check builds a small Linux-only
 QuillUI sample, starts it under Xvfb, clicks a native GTK button with
@@ -147,7 +165,17 @@ separate from the normal test suite because it intentionally maps a temporary
 GTK window to get a real render node:
 
 ```bash
-GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a swift test --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG
+GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG
+```
+
+Use `scripts/linux-swift-test.sh` instead of calling `swift test` directly on
+Linux. The wrapper applies the pinned SwiftOpenUI/OpenCombine checkout patch to
+the selected scratch directory before invoking SwiftPM, which keeps fresh CI
+scratch paths consistent with the GTK build scripts:
+
+```bash
+scripts/linux-swift-test.sh --scratch-path .build-linux
+scripts/linux-swift-test.sh --scratch-path .build-linux --filter QuillDataSourceLoweringTests
 ```
 
 GitHub Actions runs the public Linux path in `.github/workflows/linux-ci.yml`.

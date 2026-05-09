@@ -112,13 +112,49 @@ struct CompatibilityModuleTests {
         let configuration = CodeBlockConfiguration(language: "swift", content: "let answer = 42")
         let highlighted = ContractSplashCodeSyntaxHighlighter(theme: .sunset(withFont: .init(size: 16)))
             .highlightCode(configuration.content, language: configuration.language)
+        let richPlainText = Markdown.plainText(from: """
+        # Plan
 
-        #expect(Markdown.plainText(from: "**bold** [link](https://example.com)") == "bold link (https://example.com)")
+        - Render **Markdown**
+        > Keep code readable
+
+        ```swift
+        let answer = 42
+        ```
+        """)
+
+        let inlinePlainText = Markdown.plainText(
+            from: "Use **bold**, _italic_, `code`, ~~old~~, [link](https://example.com), and ![chart](chart.png)"
+        )
+        let tablePlainText = Markdown.plainText(from: """
+        | Property | Value |
+        | --- | --- |
+        | display | `flex` |
+        | align-items | `center` |
+        """)
+
+        #expect(inlinePlainText.contains("bold"))
+        #expect(inlinePlainText.contains("italic"))
+        #expect(inlinePlainText.contains("code"))
+        #expect(inlinePlainText.contains("old"))
+        #expect(inlinePlainText.contains("link (https://example.com)"))
+        #expect(inlinePlainText.contains("chart"))
+        #expect(tablePlainText.contains("Property | Value"))
+        #expect(tablePlainText.contains("display | flex"))
+        #expect(tablePlainText.contains("align-items | center"))
+        #expect(richPlainText.contains("Plan"))
+        #expect(richPlainText.contains("• Render Markdown"))
+        #expect(richPlainText.contains("Keep code readable"))
+        #expect(richPlainText.contains("let answer = 42"))
         #expect(configuration.language == "swift")
         #expect(highlighted.content.contains("answer"))
         #expect(Splash.Theme.wwdc17(withFont: .init(size: 16)).tokenColors[.keyword] != nil)
 
         _ = markdownContractTheme
+        _ = Markdown("```swift\nlet answer = 42\n```")
+            .markdownCodeSyntaxHighlighter(PlainTextCodeSyntaxHighlighter())
+            .markdownTheme(markdownContractTheme)
+        _ = Markdown("| Property | Value |\n| --- | --- |\n| display | `flex` |")
         _ = Text("one") + Text(" two")
         _ = configuration.label
             .relativeLineSpacing(.em(0.225))

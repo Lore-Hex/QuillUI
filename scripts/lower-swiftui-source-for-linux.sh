@@ -19,16 +19,18 @@ if [[ ! -d "$SOURCE_DIR" ]]; then
   exit 66
 fi
 
+"$(dirname "$0")/lower-observable-for-swiftopenui.py" "$SOURCE_DIR"
+
 find "$SOURCE_DIR" -name '*.swift' -print0 |
   xargs -0 perl -0pi -e '
     s/^[ \t]*\@main[ \t]*\n//gm;
     s/^[ \t]*\@Observable[ \t]*\n//gm;
     s/\n[ \t]*#Preview[\s\S]*?#endif\s*\z/\n#endif\n/s;
     s/\n[ \t]*#Preview[\s\S]*\z/\n/s;
-    s/os\(macOS\)(?![ \t]*\|\|[ \t]*os\(Linux\))/os(macOS) || os(Linux)/g;
+    s/(?<!!)\bos\(macOS\)(?![ \t]*\|\|[ \t]*os\(Linux\))/(os(macOS) || os(Linux))/g;
     s/([:(,][ \t]*)\@MainActor[ \t]+/$1/g;
     s/^[ \t]*\@MainActor[ \t]*\n//gm;
-    s/^[ \t]*\@MainActor[ \t]+//gm;
+    s/^([ \t]*)\@MainActor[ \t]+/$1/gm;
     s/: View, Sendable/: View/g;
   '
 

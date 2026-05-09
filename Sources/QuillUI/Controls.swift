@@ -111,6 +111,16 @@ private extension String {
     }
 }
 
+#if !(os(macOS) || os(iOS) || os(visionOS))
+private var quillGTKReferenceWindowWidth: Double? {
+    ProcessInfo.processInfo.environment["QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"].flatMap(Double.init)
+}
+
+private var quillGTKReferenceWindowHeight: Double? {
+    ProcessInfo.processInfo.environment["QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT"].flatMap(Double.init)
+}
+#endif
+
 public struct QuillPromptList: View {
     public var prompts: [QuillPrompt]
     public var rowWidth: CGFloat
@@ -201,21 +211,72 @@ public struct QuillPromptGrid: View {
         return Array(start..<end)
     }
 
+    @ViewBuilder
     private func promptButton(_ prompt: QuillPrompt) -> some View {
         Button(action: { action(prompt) }) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(prompt.title.quillPromptGridDisplayTitle)
-                    .font(.system(size: 15))
-                    .foregroundColor(Color(hex: "#1D1D1F"))
-                    .frame(width: max(40, cardWidth - 30), alignment: .leading)
-                Spacer()
-            }
-            .padding(15)
-            .frame(width: cardWidth, height: cardHeight, alignment: .leading)
-            .background(Color(hex: "#F4F4F6"))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            promptCard(prompt)
         }
         .buttonStyle(.plain)
+    }
+
+    private func promptCard(_ prompt: QuillPrompt) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(prompt.title.quillPromptGridDisplayTitle)
+                .font(.system(size: promptFontSize))
+                .foregroundColor(Color(hex: "#1D1D1F"))
+                .frame(width: max(40, cardWidth - (promptCardPaddingWidth * 2)), alignment: .leading)
+            Spacer()
+            HStack {
+                Spacer()
+                promptAccessory(for: prompt)
+            }
+        }
+        .padding(promptCardPadding)
+        .frame(width: cardWidth, height: cardHeight, alignment: .leading)
+        .background(cardBackgroundColor)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    #if os(Linux)
+    private var promptFontSize: CGFloat { 24 }
+    private var promptCardPadding: Int { 28 }
+    private var promptCardPaddingWidth: CGFloat { CGFloat(promptCardPadding) }
+    private var promptIconSize: CGFloat { 20 }
+    #else
+    private var promptFontSize: CGFloat { 15 }
+    private var promptCardPadding: CGFloat { 15 }
+    private var promptCardPaddingWidth: CGFloat { promptCardPadding }
+    private var promptIconSize: CGFloat { 16 }
+    #endif
+
+    private var cardBackgroundColor: Color {
+        #if os(Linux)
+        return Color(hex: "#E8E8EE")
+        #else
+        return Color(hex: "#F4F4F6")
+        #endif
+    }
+
+    @ViewBuilder
+    private func promptAccessory(for prompt: QuillPrompt) -> some View {
+        #if os(Linux)
+        ZStack {
+            Circle()
+                .stroke(Color(hex: "#2E2E31"), lineWidth: 2)
+                .frame(width: promptIconSize, height: promptIconSize)
+            Text(prompt.systemImage.contains("lightbulb") ? "!" : "?")
+                .font(.system(size: 12))
+                .fontWeight(.semibold)
+                .foregroundColor(Color(hex: "#2E2E31"))
+        }
+        #else
+        Image(systemName: QuillSystemSymbol.compatibleName(prompt.systemImage))
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: promptIconSize, height: promptIconSize)
+            .foregroundColor(Color(hex: "#2E2E31"))
+        #endif
     }
 }
 
@@ -256,26 +317,32 @@ public struct QuillConversationHistoryList: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(sections) { section in
-                    VStack(alignment: .leading, spacing: 13) {
+                    VStack(alignment: .leading, spacing: sectionSpacing) {
                         Text(section.title)
-                            .font(.system(size: 14))
+                            .font(.system(size: sectionFontSize))
                             .fontWeight(.semibold)
                             .foregroundColor(Color(hex: "#8E8E93"))
-                            .padding(.top, 12)
+                            .padding(.top, sectionTopPadding)
 
                         ForEach(section.items) { item in
-                            Button(action: { onSelect(item) }) {
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .frame(width: 6, height: 6)
+                                    .opacity(selectedID == item.id ? 1 : 0)
+
                                 Text(item.title)
-                                    .font(.system(size: 16))
+                                    .font(.system(size: rowFontSize))
                                     .lineLimit(1)
                                     .foregroundColor(Color(hex: "#3A3A3C"))
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .buttonStyle(.plain)
+                            .frame(height: rowHeight, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture { onSelect(item) }
                         }
 
                         Divider()
-                            .padding(.top, 10)
+                            .padding(.top, dividerTopPadding)
                     }
                 }
 
@@ -288,6 +355,22 @@ public struct QuillConversationHistoryList: View {
             }
         }
     }
+
+    #if os(Linux)
+    private var sectionFontSize: CGFloat { 18 }
+    private var rowFontSize: CGFloat { 20 }
+    private var rowHeight: CGFloat { 30 }
+    private var sectionSpacing: CGFloat { 6 }
+    private var sectionTopPadding: CGFloat { 18 }
+    private var dividerTopPadding: CGFloat { 16 }
+    #else
+    private var sectionFontSize: CGFloat { 14 }
+    private var rowFontSize: CGFloat { 16 }
+    private var rowHeight: CGFloat { 24 }
+    private var sectionSpacing: CGFloat { 13 }
+    private var sectionTopPadding: CGFloat { 12 }
+    private var dividerTopPadding: CGFloat { 10 }
+    #endif
 
     private var sections: [QuillConversationHistorySection] {
         var result: [QuillConversationHistorySection] = []
@@ -377,21 +460,31 @@ public struct QuillSidebarNavigationButton: View {
     }
 
     public var body: some View {
-        HStack(spacing: 10) {
-            sidebarIcon
-                .frame(width: 24, height: 20, alignment: .leading)
+        Button(action: action) {
+            HStack(spacing: 10) {
+                sidebarIcon
+                    .frame(width: 24, height: 20, alignment: .leading)
 
-            Text(title)
-                .lineLimit(1)
-                .font(.system(size: 15))
+                Text(title)
+                    .lineLimit(1)
+                    .font(.system(size: navigationFontSize))
 
-            Spacer()
+                Spacer()
+            }
+            .foregroundColor(Color(hex: "#3A3A3C"))
+            .frame(maxWidth: .infinity, minHeight: navigationRowHeight, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .foregroundColor(Color(hex: "#3A3A3C"))
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: action)
+        .buttonStyle(.plain)
     }
+
+    #if os(Linux)
+    private var navigationFontSize: CGFloat { 20 }
+    private var navigationRowHeight: CGFloat { 34 }
+    #else
+    private var navigationFontSize: CGFloat { 15 }
+    private var navigationRowHeight: CGFloat { 24 }
+    #endif
 
     @ViewBuilder
     private var sidebarIcon: some View {
@@ -399,6 +492,14 @@ public struct QuillSidebarNavigationButton: View {
         case "character.cursor.ibeam", "textformat", "textformat.abc":
             Text("Abc")
                 .font(.system(size: 11))
+        #if os(Linux)
+        case "keyboard", "keyboard.fill":
+            Text("⌨")
+                .font(.system(size: 18))
+        case "gearshape", "gearshape.fill", "gear":
+            Text("⚙")
+                .font(.system(size: 22))
+        #endif
         default:
             Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
                 .renderingMode(.template)
@@ -412,45 +513,113 @@ public struct QuillSidebarNavigationButton: View {
 public struct QuillStatusBanner: View {
     public var message: String
     public var actionTitle: String?
+    public var showsActivity: Bool
     private var action: (() -> Void)?
 
     public init(
         message: String,
         actionTitle: String? = nil,
+        showsActivity: Bool = false,
         action: (() -> Void)? = nil
     ) {
         self.message = message
         self.actionTitle = actionTitle
+        self.showsActivity = showsActivity
         self.action = action
     }
 
     public var body: some View {
         HStack(spacing: 14) {
             Text(message)
-                .font(.caption)
+                .font(.system(size: bannerFontSize))
                 .fontWeight(.semibold)
                 .foregroundColor(Color(hex: "#2E2E2E"))
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(nil)
+                .frame(width: messageWidth, alignment: .leading)
+
+            Spacer(minLength: 0)
+
+            if showsActivity {
+                Circle()
+                    .fill(Color(hex: "#2E2E31"))
+                    .frame(width: activitySize, height: activitySize)
+                    .padding(.horizontal, activityHorizontalPadding)
+            }
 
             if let actionTitle {
-                Button(actionTitle) {
+                Button(action: {
                     action?()
+                }) {
+                    Text(actionTitle)
+                        .font(.system(size: actionFontSize))
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, actionHorizontalPadding)
+                        .padding(.vertical, actionVerticalPadding)
+                        .background(Color.black)
+                        .cornerRadius(actionCornerRadius)
                 }
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
-                .padding(.horizontal, 13)
-                .padding(.vertical, 8)
-                .background(Color.black)
-                .cornerRadius(14)
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 13)
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, verticalPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(hex: "#F5C8D2"))
-        .cornerRadius(9)
+        .cornerRadius(cornerRadius)
     }
+
+    #if os(Linux)
+    private var bannerFontSize: CGFloat { 24 }
+    private var actionFontSize: CGFloat { 22 }
+    private var messageWidth: Double? {
+        guard let windowWidth = quillGTKReferenceWindowWidth, windowWidth >= 1600 else { return nil }
+        let sidebarWidth = max(320, min(620, windowWidth * 0.285))
+        let detailWidth = windowWidth - sidebarWidth - 1
+        let availableTextWidth = detailWidth - 56 - 60 - 230
+        return min(1180, max(760, availableTextWidth))
+    }
+    private var horizontalPadding: Int { 30 }
+    private var verticalPadding: Int { 31 }
+    private var cornerRadius: CGFloat { 16 }
+    private var actionHorizontalPadding: Int { 20 }
+    private var actionVerticalPadding: Int { 12 }
+    private var actionCornerRadius: CGFloat { 24 }
+    private var activitySize: CGFloat { 20 }
+    private var activityHorizontalPadding: Int { 8 }
+    #else
+    private var bannerFontSize: CGFloat { 12 }
+    private var actionFontSize: CGFloat { 12 }
+    private var messageWidth: CGFloat? { nil }
+    private var horizontalPadding: CGFloat { 16 }
+    private var verticalPadding: CGFloat { 13 }
+    private var cornerRadius: CGFloat { 9 }
+    private var actionHorizontalPadding: CGFloat { 13 }
+    private var actionVerticalPadding: CGFloat { 8 }
+    private var actionCornerRadius: CGFloat { 14 }
+    private var activitySize: CGFloat { 10 }
+    private var activityHorizontalPadding: CGFloat { 0 }
+    #endif
+}
+
+public struct QuillMacWindowControls: View {
+    public init() {}
+
+    public var body: some View {
+        HStack(spacing: 12) {
+            Circle().fill(Color(hex: "#FF605C"))
+            Circle().fill(Color(hex: "#FFBD44"))
+            Circle().fill(Color(hex: "#00CA4E"))
+        }
+        .frame(width: 82, height: 14, alignment: .leading)
+    }
+}
+
+private struct QuillPromptGridMetrics {
+    var cardWidth: CGFloat
+    var cardHeight: CGFloat
+    var spacing: Int
+    var gridWidth: CGFloat
 }
 
 public struct QuillChatEmptyState: View {
@@ -481,27 +650,106 @@ public struct QuillChatEmptyState: View {
     }
 
     public var body: some View {
-        VStack(spacing: 40) {
-            Spacer()
-            wordmark
-
-            QuillPromptGrid(
-                prompts: prompts,
-                columns: columns,
-                cardWidth: cardWidth,
-                cardHeight: cardHeight,
-                spacing: spacing,
-                action: action
-            )
-            .frame(width: gridWidth, alignment: .center)
-
-            Spacer()
+        #if os(Linux)
+        if let referenceHeight = Self.referenceHeight {
+            linuxReferenceEmptyStateContent
+                .frame(height: referenceHeight, alignment: .top)
+        } else {
+            emptyStateContent
+                .frame(maxHeight: 980)
         }
-        .padding(28)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #else
+        emptyStateContent
+        #endif
     }
 
-    private var gridWidth: CGFloat {
+    #if os(Linux)
+    private static var referenceHeight: CGFloat? {
+        guard let windowHeight = quillGTKReferenceWindowHeight, windowHeight >= 1200 else { return nil }
+        return CGFloat(min(900, max(740, windowHeight * 0.64)))
+    }
+
+    private var linuxReferenceEmptyStateContent: some View {
+        GeometryReader { geometry in
+            let metrics = promptGridMetrics(totalWidth: Double(geometry.size.width))
+            VStack(spacing: 78) {
+                wordmark
+
+                QuillPromptGrid(
+                    prompts: prompts,
+                    columns: columns,
+                    cardWidth: metrics.cardWidth,
+                    cardHeight: metrics.cardHeight,
+                    spacing: metrics.spacing,
+                    action: action
+                )
+                .frame(width: metrics.gridWidth, alignment: .center)
+
+                Spacer()
+            }
+            .padding(.top, 188)
+            .padding(.horizontal, 28)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+    }
+    #endif
+
+    private var emptyStateContent: some View {
+        GeometryReader { geometry in
+            let metrics = promptGridMetrics(totalWidth: Double(geometry.size.width))
+            VStack(spacing: emptyStateVerticalSpacing) {
+                Spacer()
+                wordmark
+
+                QuillPromptGrid(
+                    prompts: prompts,
+                    columns: columns,
+                    cardWidth: metrics.cardWidth,
+                    cardHeight: metrics.cardHeight,
+                    spacing: metrics.spacing,
+                    action: action
+                )
+                .frame(width: metrics.gridWidth, alignment: .center)
+
+                Spacer()
+            }
+            .padding(28)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    #if os(macOS) || os(iOS) || os(visionOS)
+    private var emptyStateVerticalSpacing: CGFloat { 40 }
+    #else
+    private var emptyStateVerticalSpacing: Int { 70 }
+    #endif
+
+    private func promptGridMetrics(totalWidth: Double) -> QuillPromptGridMetrics {
+        var resolvedCardWidth = cardWidth
+        var resolvedCardHeight = cardHeight
+        var resolvedSpacing = spacing
+
+        #if os(Linux)
+        if totalWidth >= 1200 {
+            let visible = CGFloat(min(columns, max(1, prompts.count)))
+            resolvedSpacing = 28
+            let availableGridWidth = CGFloat(totalWidth) * 0.86
+            let spacingWidth = CGFloat(max(0, Int(visible) - 1) * resolvedSpacing)
+            let candidateWidth = (availableGridWidth - spacingWidth) / visible
+            resolvedCardWidth = min(305, max(cardWidth, candidateWidth))
+            resolvedCardHeight = max(cardHeight, 280)
+        }
+        #endif
+
+        return QuillPromptGridMetrics(
+            cardWidth: resolvedCardWidth,
+            cardHeight: resolvedCardHeight,
+            spacing: resolvedSpacing,
+            gridWidth: gridWidth(cardWidth: resolvedCardWidth, spacing: resolvedSpacing)
+        )
+    }
+
+    private func gridWidth(cardWidth: CGFloat, spacing: Int) -> CGFloat {
         let visibleColumns = min(columns, max(1, prompts.count))
         return (CGFloat(visibleColumns) * cardWidth) + CGFloat(max(0, visibleColumns - 1) * spacing)
     }
@@ -522,7 +770,7 @@ public struct QuillChatEmptyState: View {
         #else
         Text(brandTitle)
             .foregroundColor(Color(hex: "#9B72CB"))
-            .font(Font.system(size: 46, weight: .thin))
+            .font(Font.system(size: 66, weight: .thin))
             .multilineTextAlignment(.center)
         #endif
     }
@@ -553,37 +801,71 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
     }
 
     public var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-                .frame(width: sidebarWidth, alignment: .leading)
-                .background(Color(hex: "#E9E9E7"))
-
-            Divider()
-
-            VStack(spacing: 0) {
-                HStack(spacing: 16) {
-                    Text(title)
-                        .font(.system(size: 16))
-                        .fontWeight(.semibold)
-                        .foregroundColor(Color(hex: "#444446"))
-                    Spacer()
-                    HStack(spacing: 14) {
-                        toolbarContent
+        GeometryReader { geometry in
+            let resolvedSidebarWidth = resolvedSidebarWidth(totalWidth: Double(geometry.size.width))
+            HStack(spacing: 0) {
+                sidebar
+                    .frame(width: resolvedSidebarWidth, alignment: .leading)
+                    .background(Color(hex: "#E9E9E7"))
+                    .overlay(alignment: .topLeading) {
+                        #if os(Linux)
+                        if Self.showsMacWindowControls {
+                            QuillMacWindowControls()
+                                .padding(.leading, 36)
+                                .padding(.top, 17)
+                        }
+                        #endif
                     }
-                }
-                .padding(.horizontal, 16)
-                .frame(height: toolbarHeight, alignment: .center)
-                .background(Color(hex: "#FAFAFA"))
 
                 Divider()
 
-                content
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 0) {
+                    HStack(spacing: 16) {
+                        Text(title)
+                            .font(.system(size: 16))
+                            .fontWeight(.semibold)
+                            .foregroundColor(Color(hex: "#444446"))
+                        Spacer()
+                        HStack(spacing: 14) {
+                            toolbarContent
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(height: resolvedToolbarHeight, alignment: .center)
                     .background(Color(hex: "#FAFAFA"))
+
+                    Divider()
+
+                    content
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(hex: "#FAFAFA"))
+                }
             }
+            .background(Color(hex: "#FAFAFA"))
         }
-        .background(Color(hex: "#FAFAFA"))
     }
+
+    private func resolvedSidebarWidth(totalWidth: Double) -> CGFloat {
+        #if os(Linux)
+        guard totalWidth > 0 else { return sidebarWidth }
+        return CGFloat(max(Double(sidebarWidth), min(620.0, totalWidth * 0.285)))
+        #else
+        return sidebarWidth
+        #endif
+    }
+
+    #if os(Linux)
+    private static var showsMacWindowControls: Bool {
+        guard let windowHeight = quillGTKReferenceWindowHeight else { return false }
+        return windowHeight >= 1200
+    }
+
+    private var resolvedToolbarHeight: CGFloat {
+        Self.showsMacWindowControls ? max(toolbarHeight, 68) : toolbarHeight
+    }
+    #else
+    private var resolvedToolbarHeight: CGFloat { toolbarHeight }
+    #endif
 }
 
 public struct QuillToolbarActionRow<Content: View>: View {
@@ -634,22 +916,34 @@ public struct QuillToolbarIconButton: View {
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 17, height: 17)
+                    .frame(width: iconSize, height: iconSize)
 
                 if showsChevron {
                     Image(systemName: QuillSystemSymbol.compatibleName("chevron.down"))
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 10, height: 10)
+                        .frame(width: chevronSize, height: chevronSize)
                 }
             }
         }
         .buttonStyle(.plain)
-        .foregroundColor(Color(hex: "#3A3A3C"))
-        .frame(width: width, height: 30, alignment: .center)
+        .foregroundColor(toolbarIconColor)
+        .frame(width: width, height: buttonHeight, alignment: .center)
         .contentShape(Rectangle())
     }
+
+    #if os(Linux)
+    private var iconSize: CGFloat { 24 }
+    private var chevronSize: CGFloat { 13 }
+    private var buttonHeight: CGFloat { 34 }
+    private var toolbarIconColor: Color { Color(hex: "#1F1F21") }
+    #else
+    private var iconSize: CGFloat { 17 }
+    private var chevronSize: CGFloat { 10 }
+    private var buttonHeight: CGFloat { 30 }
+    private var toolbarIconColor: Color { Color(hex: "#3A3A3C") }
+    #endif
 }
 
 public struct QuillToolbarMenuButton: View {
@@ -676,20 +970,12 @@ public struct QuillToolbarMenuButton: View {
 
     public var body: some View {
         #if os(Linux)
-        Menu(linuxMenuTitle) {
-            for action in actions {
-                switch action.kind {
-                case .divider:
-                    MenuDivider()
-                case .item:
-                    MenuItem(action.title) {
-                        guard !action.isDisabled else { return }
-                        action.perform()
-                    }
-                }
-            }
-        }
-        .frame(width: width, height: 30, alignment: .center)
+        QuillGTKToolbarMenuButton(
+            systemImage: systemImage,
+            showsChevron: showsChevron,
+            width: width,
+            actions: actions
+        )
         #else
         ZStack(alignment: .topTrailing) {
             QuillToolbarIconButton(systemImage: systemImage, showsChevron: showsChevron, width: width) {
@@ -762,18 +1048,6 @@ public struct QuillToolbarMenuButton: View {
         }
     }
 
-    #if os(Linux)
-    private var linuxMenuTitle: String {
-        switch systemImage {
-        case "chevron.down":
-            return "v"
-        case "ellipsis", "ellipsis.circle":
-            return "..."
-        default:
-            return showsChevron ? "\(systemImage) v" : systemImage
-        }
-    }
-    #endif
 }
 
 public struct QuillMenuAction: Identifiable {

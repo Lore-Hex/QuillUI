@@ -52,10 +52,10 @@ jobs:
         run: scripts/audit-upstream-enchanted.sh >/tmp/quillui-upstream-enchanted-audit.md
 
       - name: Swift tests
-        run: swift test --scratch-path .build-linux
+        run: scripts/linux-swift-test.sh --scratch-path .build-linux
 
       - name: GTK offscreen ImageRenderer smoke
-        run: GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a swift test --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG
+        run: GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG
 
       - name: Generated upstream Enchanted compile
         run: scripts/generated-enchanted-full-source-check.sh

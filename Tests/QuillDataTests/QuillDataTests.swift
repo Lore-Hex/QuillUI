@@ -31,7 +31,7 @@ struct QuillDataTests {
             sortBy: [SortDescriptor(\TodoItem.priority, order: .reverse)]
         ))
 
-        #expect(highPriority.map(\.title) == ["High"])
+        #expect(highPriority.map { $0.title } == ["High"])
 
         high.title = "Very high"
         try context.save()
@@ -40,11 +40,11 @@ struct QuillDataTests {
             sortBy: [SortDescriptor(\TodoItem.priority, order: .reverse)]
         ))
 
-        #expect(sorted.map(\.title) == ["Very high", "Low"])
+        #expect(sorted.map { $0.title } == ["Very high", "Low"])
 
         context.delete(high)
         try context.save()
-        #expect(try context.fetch(FetchDescriptor<TodoItem>()).map(\.title) == ["Low"])
+        #expect(try context.fetch(FetchDescriptor<TodoItem>()).map { $0.title } == ["Low"])
 
         try context.delete(model: TodoItem.self)
         #expect(try context.fetch(FetchDescriptor<TodoItem>()).isEmpty)
@@ -66,10 +66,10 @@ struct QuillDataTests {
         context.insert(ValueTodoItem(title: "Keep", priority: 3))
 
         let items = try context.fetch(FetchDescriptor<ValueTodoItem>(
-            predicate: #Predicate { $0.priority > 1 }
+            predicate: #QuillPredicate { $0.priority > 1 }
         ))
 
-        #expect(items.map(\.title) == ["Keep"])
+        #expect(items.map { $0.title } == ["Keep"])
     }
 
     @Test("applies chained sort descriptors before fetch limits")
@@ -97,7 +97,7 @@ struct QuillDataTests {
             fetchLimit: 3
         ))
 
-        #expect(firstThree.map(\.title) == ["Alpha", "Beta", "Delta"])
+        #expect(firstThree.map { $0.title } == ["Alpha", "Beta", "Delta"])
 
         let noItems = try context.fetch(FetchDescriptor<ValueTodoItem>(
             sortBy: [SortDescriptor(\.title)],
@@ -122,12 +122,12 @@ struct QuillDataTests {
         context.insert(ValueTodoItem(title: "Delete high", priority: 5))
         context.insert(ValueTodoItem(title: "Delete higher", priority: 7))
 
-        try context.delete(model: ValueTodoItem.self, where: #Predicate { $0.priority >= 5 })
+        try context.delete(model: ValueTodoItem.self, where: #QuillPredicate { $0.priority >= 5 })
 
         let remaining = try context.fetch(FetchDescriptor<ValueTodoItem>(
             sortBy: [SortDescriptor(\.title)]
         ))
-        #expect(remaining.map(\.title) == ["Keep low"])
+        #expect(remaining.map { $0.title } == ["Keep low"])
     }
 
     @Test("delete all untracks class-backed models before later saves")
@@ -172,7 +172,7 @@ struct QuillDataTests {
         context.insert(ValueTodoItem(id: id, title: "Final", priority: 9))
 
         let models = try context.fetch(FetchDescriptor<ValueTodoItem>())
-        #expect(models.map(\.title) == ["Final"])
+        #expect(models.map { $0.title } == ["Final"])
         #expect(models.map(\.priority) == [9])
     }
 
@@ -197,7 +197,7 @@ struct QuillDataTests {
         )
         let reloadedContext = ModelContext(reloadedContainer)
 
-        #expect(try reloadedContext.fetch(FetchDescriptor<ValueTodoItem>()).map(\.title) == ["Persisted"])
+        #expect(try reloadedContext.fetch(FetchDescriptor<ValueTodoItem>()).map { $0.title } == ["Persisted"])
     }
 
     @Test("in-memory containers do not share rows")
@@ -236,7 +236,7 @@ struct QuillDataTests {
             sortBy: [SortDescriptor(\.title)]
         ))
 
-        #expect(matches.map(\.title) == ["High"])
+        #expect(matches.map { $0.title } == ["High"])
     }
 
     @Test("QuillPredicate supports class-backed relationship lookups")
@@ -259,13 +259,43 @@ struct QuillDataTests {
         context.insert(PredicateMessage(content: "Other", createdAt: Date(timeIntervalSince1970: 30), conversation: other))
         context.insert(PredicateMessage(content: "First", createdAt: Date(timeIntervalSince1970: 20), conversation: selected))
 
-        let predicate = QuillPredicate<PredicateMessage> { $0.conversation?.id == selectedID }
+        let predicate = #QuillPredicate<PredicateMessage> { $0.conversation?.id == selectedID }
         let messages = try context.fetch(FetchDescriptor<PredicateMessage>(
             predicate: predicate,
             sortBy: [SortDescriptor(\.createdAt)]
         ))
 
-        #expect(messages.map(\.content) == ["First", "Second"])
+        #expect(messages.map { $0.content } == ["First", "Second"])
+    }
+
+    @Test("inserting a class-backed relationship persists the related root model")
+    func classBackedRelationshipInsertCascadesRootModel() throws {
+        let url = temporarySQLiteURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let schema = Schema([PredicateConversation.self, PredicateMessage.self])
+        let context = try ModelContext(ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, url: url)]
+        ))
+        let conversation = PredicateConversation(id: UUID(), createdAt: Date(timeIntervalSince1970: 70))
+        let message = PredicateMessage(
+            content: "How to center div in HTML?",
+            createdAt: Date(timeIntervalSince1970: 80),
+            conversation: conversation
+        )
+        let conversationID = conversation.id
+
+        context.insert(message)
+        try context.save()
+
+        let conversations = try context.fetch(FetchDescriptor<PredicateConversation>())
+        #expect(conversations.map(\.id) == [conversation.id])
+
+        let messages = try context.fetch(FetchDescriptor<PredicateMessage>(
+            predicate: #QuillPredicate { $0.conversation?.id == conversationID }
+        ))
+        #expect(messages.map(\.content) == ["How to center div in HTML?"])
     }
 
     @Test("QuillPredicate delete supports class-backed date ranges")
@@ -287,7 +317,7 @@ struct QuillDataTests {
         let dayEnd = Date(timeIntervalSince1970: 25)
         try context.delete(
             model: PredicateConversation.self,
-            where: QuillPredicate<PredicateConversation> { $0.createdAt >= dayStart && $0.createdAt <= dayEnd }
+            where: #QuillPredicate<PredicateConversation> { $0.createdAt >= dayStart && $0.createdAt <= dayEnd }
         )
 
         let remaining = try context.fetch(FetchDescriptor<PredicateConversation>(
@@ -315,7 +345,7 @@ struct QuillDataTests {
         fetched[0].title = "Edited"
         try context.save()
 
-        #expect(try context.fetch(FetchDescriptor<TodoItem>()).map(\.title) == ["Edited"])
+        #expect(try context.fetch(FetchDescriptor<TodoItem>()).map { $0.title } == ["Edited"])
     }
 
     @Test("supports SwiftData-style attribute wrappers on codable classes")
@@ -408,7 +438,7 @@ struct QuillDataTests {
 
         let folders = try context.fetch(FetchDescriptor<FolderModel>())
         #expect(folders.map(\.name) == ["Inbox"])
-        #expect(folders[0].items.map(\.title) == ["One", "Two"])
+        #expect(folders[0].items.map { $0.title } == ["One", "Two"])
     }
 
     @Test("nonthrowing inserts surface persistence errors on save")

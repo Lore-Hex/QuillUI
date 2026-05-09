@@ -74,6 +74,9 @@ struct QuillKitTests {
         #expect(statuses[.speechRecognition] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.deviceEvents] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.launchAtLogin] == .unavailable(reason: "No native Linux backend has been attached yet."))
+        #expect(statuses[.secureStorage] == .unavailable(reason: "No native Linux backend has been attached yet."))
+        #expect(statuses[.networkExtension] == .unavailable(reason: "No native Linux backend has been attached yet."))
+        #expect(statuses[.vpnTunnel] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #else
         #expect(statuses.values.allSatisfy { $0 == .available })
         #endif

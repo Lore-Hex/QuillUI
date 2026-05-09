@@ -518,7 +518,11 @@ struct UpstreamCompatibilityTests {
         _ = QuillStatusBanner(message: "Quill is unreachable.", actionTitle: "Settings") {
             bannerTapped = true
         }.body
+        _ = QuillStatusBanner(message: "Quill is unreachable.", actionTitle: "Settings", showsActivity: true) {
+            bannerTapped = true
+        }.body
         _ = QuillStatusBanner(message: "Ready").body
+        _ = QuillMacWindowControls().body
 
         var menuTapped = false
         let menuAction = QuillMenuAction(title: "Refresh", systemImage: "arrow.clockwise") {
@@ -624,7 +628,13 @@ struct UpstreamCompatibilityTests {
             QuillStatusBanner(message: "Disconnected", actionTitle: "Retry") {}.body
         )
         materializeStructuralViewTree(
+            QuillStatusBanner(message: "Disconnected", actionTitle: "Retry", showsActivity: true) {}.body
+        )
+        materializeStructuralViewTree(
             QuillStatusBanner(message: "Ready").body
+        )
+        materializeStructuralViewTree(
+            QuillMacWindowControls().body
         )
         materializeStructuralViewTree(
             QuillMenuButton(actions: [

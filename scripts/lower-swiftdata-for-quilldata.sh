@@ -10,7 +10,7 @@ lowering SwiftData-only syntax to QuillData-compatible Swift:
 
   @Model class Foo: Identifiable { ... }  -> class Foo: Identifiable, PersistentModel { ... }
   @Transient var value: T { ... }         -> var value: T { ... }
-  #Predicate<Foo> { ... }                 -> QuillPredicate<Foo> { ... }
+  #Predicate<Foo> { ... }                 -> #QuillPredicate<Foo> { ... }
 MSG
   exit 64
 fi
@@ -54,7 +54,35 @@ while IFS= read -r -d '' source_file; do
         }
       /gemx;
       s/^([ \t]*)\@Transient[ \t]+var\b/${1}var/gm;
-      s/#Predicate[ \t]*<[ \t]*([^>{]+?)[ \t]*>[ \t]*\{/QuillPredicate<$1> {/g;
+      s/#Predicate[ \t]*<[ \t]*([^>{]+?)[ \t]*>[ \t]*\{/#QuillPredicate<$1> {/g;
+    ' "$output_file"
+
+    perl -0pi -e '
+      my @relationships = /\@Relationship[^\n]*(?:\n\s*)?var\s+([A-Za-z_]\w*)\b/mg;
+      for my $name (@relationships) {
+        s{
+          (init\s*\((?:(?!\)\s*\{).)*\)\s*\{)
+          ([^{}]*?)
+          \bself\.\Q$name\E\s*=\s*\Q$name\E\s*;?\s*
+          ([^{}]*?\})
+        }{
+          my ($signature, $before, $after) = ($1, $2, $3);
+          $signature =~ /\b\Q$name\E\s*:/
+            ? "$signature$before" . "self.$name = $name; " . "$after"
+            : "$signature$before$after";
+        }gemsx;
+        s{
+          (init\s*\((?:(?!\)\s*\{).)*\)\s*\{)
+          (.*?)
+          (^ \s* \})
+        }{
+          my ($signature, $body, $end) = ($1, $2, $3);
+          if ($signature !~ /\b\Q$name\E\s*:/) {
+            $body =~ s/^[ \t]*self\.\Q$name\E[ \t]*=[ \t]*\Q$name\E[ \t]*\n//mg;
+          }
+          "$signature$body$end";
+        }gemsx;
+      }
     ' "$output_file"
   fi
 done < <(find "$SOURCE_DIR" -type f -print0)

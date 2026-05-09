@@ -1,23 +1,17 @@
 // swift-tools-version: 6.0
 
+import CompilerPluginSupport
 import PackageDescription
 
 var products: [Product] = [
     .library(name: "QuillUI", targets: ["QuillUI"]),
     .library(name: "QuillData", targets: ["QuillData"]),
     .library(name: "QuillKit", targets: ["QuillKit"]),
+    .executable(name: "quill-wireguard", targets: ["QuillWireGuard"]),
     .executable(name: "quill-enchanted", targets: ["QuillEnchanted"]),
     .executable(name: "quill-enchanted-upstream-slice", targets: ["QuillEnchantedUpstreamSlice"])
 ]
 
-// QuillUI's runtime dependency set diverges by platform: on Linux it pulls in
-// CGdkPixbuf (for image transcoding), CGTK (raw GTK + GSK + cairo symbols),
-// and BackendGTK4 (the SwiftOpenUI public render hook `gtkRenderView`). On
-// Apple platforms it only needs SwiftOpenUI for type definitions; the
-// SwiftUI re-export covers everything else. SPM resolves the package graph
-// eagerly across platforms, so we can't use `.condition: .when(...)` for
-// products that only exist on Linux — the gate has to be at manifest-eval
-// time instead.
 #if os(Linux)
 let quillUIDependencies: [Target.Dependency] = [
     "QuillKit",
@@ -42,13 +36,6 @@ var targets: [Target] = [
             .brew(["sqlite"])
         ]
     ),
-    .target(
-        name: "QuillUI",
-        dependencies: quillUIDependencies
-    ),
-    // The CGdkPixbuf target itself is unconditionally declared. SPM only
-    // resolves the QuillUI dependency on it for Linux builds, so on macOS
-    // the link path doesn't pull it in. pkgConfig discovery happens lazily.
     .systemLibrary(
         name: "CGdkPixbuf",
         path: "Sources/CGdkPixbuf",
@@ -58,14 +45,42 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "QuillUI",
+        dependencies: quillUIDependencies
+    ),
+    .target(
         name: "QuillData",
         dependencies: [
-            "CSQLite"
+            "CSQLite",
+            "QuillDataMacros",
+            .product(name: "SQLiteData", package: "sqlite-data"),
+            .product(name: "GRDB", package: "GRDB.swift")
+        ]
+    ),
+    .macro(
+        name: "QuillDataMacros",
+        dependencies: [
+            .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+            .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
         ]
     ),
     .target(
         name: "QuillKit",
         dependencies: []
+    ),
+    .target(
+        name: "QuillWireGuardCore",
+        dependencies: [
+            "QuillUI",
+            "QuillData"
+        ] + ( {
+            #if os(Linux)
+            return []
+            #else
+            return ["WireGuardKit"]
+            #endif
+        }() ),
+        path: "Sources/QuillWireGuardCore"
     ),
     .target(
         name: "QuillEnchantedCore",
@@ -100,6 +115,13 @@ var targets: [Target] = [
             "QuillKit",
             "QuillData"
         ]
+    ),
+    .testTarget(
+        name: "QuillPredicateTranslationTests",
+        dependencies: [
+            "QuillData",
+            .product(name: "SQLiteData", package: "sqlite-data")
+        ]
     )
 ]
 
@@ -116,7 +138,9 @@ let linuxCompatibilityModuleTargets: [Target] = [
             .product(name: "OpenCombine", package: "OpenCombine"),
             .product(name: "OpenCombineFoundation", package: "OpenCombine"),
             .product(name: "OpenCombineDispatch", package: "OpenCombine")
-        ]
+        ],
+        path: "Sources/Combine",
+        sources: ["Combine.swift"]
     ),
     .target(name: "ActivityIndicatorView", dependencies: ["SwiftUI"]),
     .target(name: "MarkdownUI", dependencies: ["SwiftUI"]),
@@ -132,7 +156,8 @@ let linuxCompatibilityModuleTargets: [Target] = [
     .target(name: "AVFoundation", dependencies: ["QuillKit"]),
     .target(name: "Speech", dependencies: ["AVFoundation"]),
     .target(name: "AppKit", dependencies: ["QuillUI", "QuillKit"]),
-    .target(name: "UIKit", dependencies: ["QuillKit"]),
+    .target(name: "QuillUIKit", dependencies: ["QuillKit"]),
+    .target(name: "UIKit", dependencies: ["QuillUIKit"]),
     .target(name: "PhotosUI", dependencies: ["SwiftUI"]),
     .target(name: "Security", dependencies: ["QuillKit"]),
     .target(name: "ServiceManagement", dependencies: ["QuillKit"]),
@@ -162,6 +187,7 @@ let linuxCompatibilityModuleTargets: [Target] = [
             "Speech",
             "AppKit",
             "UIKit",
+            "QuillUIKit",
             "PhotosUI",
             "Security",
             "ServiceManagement",
@@ -193,6 +219,7 @@ let linuxCompatibilityModuleNames = [
     "AVFoundation",
     "Speech",
     "AppKit",
+    "QuillUIKit",
     "UIKit",
     "PhotosUI",
     "Security",
@@ -208,6 +235,13 @@ products += linuxCompatibilityModuleNames.map { .library(name: $0, targets: [$0]
 
 targets += linuxCompatibilityModuleTargets
 targets += [
+    .executableTarget(
+        name: "QuillWireGuard",
+        dependencies: [
+            "QuillWireGuardCore",
+            .product(name: "BackendGTK4", package: "SwiftOpenUI")
+        ]
+    ),
     .executableTarget(
         name: "QuillEnchanted",
         dependencies: [
@@ -234,6 +268,16 @@ targets += [
 ]
 #else
 targets += [
+    .target(
+        name: "WireGuardKit",
+        path: ".upstream/wireguard-apple/Sources/WireGuardKit"
+    ),
+    .executableTarget(
+        name: "QuillWireGuard",
+        dependencies: [
+            "QuillWireGuardCore"
+        ]
+    ),
     .executableTarget(
         name: "QuillEnchanted",
         dependencies: [
@@ -251,7 +295,10 @@ targets += [
 #endif
 
 var packageDependencies: [Package.Dependency] = [
-    .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433")
+    .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433"),
+    .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
+    .package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.0.0"),
+    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
 ]
 
 #if os(Linux)
