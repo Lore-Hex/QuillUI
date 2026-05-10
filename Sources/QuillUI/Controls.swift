@@ -1,3 +1,7 @@
+// Buggy outer `#if !os(macOS) && !os(iOS) && !os(visionOS)` removed —
+// it was making every public type below (QuillFloatingIconButton,
+// QuillSystemSymbol, etc.) invisible on macOS even though the inner
+// branches looked correct.
 import Foundation
 #if os(macOS) || os(iOS) || os(visionOS)
 import SwiftUI
@@ -58,7 +62,7 @@ public struct QuillFloatingIconButton: View {
 public struct QuillGrowingButtonStyle: ButtonStyle {
     public init() {}
 
-    public func makeBody(configuration: Configuration) -> some View {
+    public func makeBody(configuration: ButtonStyleConfiguration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 1.12 : 1)
             .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
@@ -1146,3 +1150,5 @@ public extension MenuBuilder {
     }
 }
 #endif
+// (Removed dangling outer #endif — the buggy Linux-only wrapper at
+// the top of this file was deleted along with this closer.)

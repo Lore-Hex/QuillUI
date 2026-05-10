@@ -92,35 +92,7 @@ public final class EnchantedModelContext: @unchecked Sendable {
     }
 }
 
-extension SQLiteConversationStore: ConversationPersistence {
-    public func fetchConversations() throws -> [ConversationSummary] {
-        try loadConversations()
-    }
-
-    public func fetchMessages(for conversationID: String) throws -> [ChatMessage] {
-        try loadMessages(conversationID: conversationID)
-    }
-
-    @discardableResult
-    public func insertConversation(title: String) throws -> ConversationSummary {
-        try createConversation(title: title)
-    }
-
-    public func updateConversationTitle(id: String, title: String) throws {
-        try renameConversation(id: id, title: title)
-    }
-
-    public func insertMessage(_ message: ChatMessage) throws {
-        try append(message)
-    }
-
-    public func deleteMessages(in conversationID: String, from messageID: String) throws {
-        try trimMessages(conversationID: conversationID, from: messageID)
-    }
-
-    public func deleteAllConversations() throws {
-        try deleteAll()
-    }
-
-    public func save() throws {}
-}
+// SQLiteConversationStore is now a typealias for QuillDataConversationStore
+// (see SQLiteConversationStore.swift). The latter already conforms to
+// ConversationPersistence directly, so the extension previously defined here
+// has been removed to avoid invalid-redeclaration errors.

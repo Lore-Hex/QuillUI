@@ -1,5 +1,6 @@
 import SwiftUI
 
+#if os(Linux)
 public struct PhotosPickerItem: Hashable, Sendable {
     public init() {}
 }
@@ -17,4 +18,4 @@ public struct PhotosPicker<Label: View>: View {
         label
     }
 }
-
+#endif

@@ -2,7 +2,9 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+#if canImport(Combine)
 import Combine
+#endif
 
 public enum OllamaKitError: Error, LocalizedError, Sendable {
     case invalidResponse
@@ -72,6 +74,7 @@ public final class OllamaKit: @unchecked Sendable {
         }
     }
 
+    #if canImport(Combine)
     public func chat(data requestData: OKChatRequestData) -> AnyPublisher<OKChatResponse, Error> {
         Deferred { [self] in
             let box = OKChatSubjectBox()
@@ -98,6 +101,30 @@ public final class OllamaKit: @unchecked Sendable {
                 .eraseToAnyPublisher()
         }
         .eraseToAnyPublisher()
+    }
+    #endif
+
+    /// Async-stream variant available on every platform — returns an
+    /// `AsyncThrowingStream` so callers don't need Combine.
+    public func chat(data requestData: OKChatRequestData) -> AsyncThrowingStream<OKChatResponse, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let responses = try await self.performChat(data: requestData)
+                    for response in responses {
+                        guard !Task.isCancelled else {
+                            continuation.finish()
+                            return
+                        }
+                        continuation.yield(response)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 
     private func performChat(data requestData: OKChatRequestData) async throws -> [OKChatResponse] {
@@ -158,6 +185,7 @@ public final class OllamaKit: @unchecked Sendable {
     }
 }
 
+#if canImport(Combine)
 private final class OKChatSubjectBox: @unchecked Sendable {
     let publisher = PassthroughSubject<OKChatResponse, Error>()
 
@@ -169,6 +197,7 @@ private final class OKChatSubjectBox: @unchecked Sendable {
         publisher.send(completion: completion)
     }
 }
+#endif
 
 private final class OKChatTaskBox: @unchecked Sendable {
     private let lock = NSLock()

@@ -9,20 +9,6 @@ struct QuillWireGuardApp: App {
     }
 }
 
-struct ContentView: View {
-    var body: some View {
-        NavigationSplitView {
-            List {
-                Text("Tunnel 1")
-                Text("Tunnel 2")
-            }
-            .navigationTitle("Tunnels")
-        } detail: {
-            Text("Select a tunnel")
-        }
-    }
-}
-
 #if os(Linux)
 import BackendGTK4
 

@@ -45,7 +45,16 @@ public struct QuillModelMacro: MemberMacro, ExtensionMacro {
             varDecl.bindings.map { binding in
                 let name = binding.pattern.description
                 let type = binding.typeAnnotation?.type.description ?? "TEXT"
-                let sqlType = type == "Int" ? "INTEGER" : type == "Double" ? "REAL" : type == "Bool" ? "INTEGER" : type == "Date" ? "DATETIME" : "TEXT"
+                let sqlType: String
+                switch type {
+                case "Int", "Int64": sqlType = "INTEGER"
+                case "Double", "Float": sqlType = "REAL"
+                case "Bool": sqlType = "INTEGER"
+                case "Date": sqlType = "DATETIME"
+                case "Data": sqlType = "BLOB"
+                case "UUID": sqlType = "TEXT"
+                default: sqlType = "TEXT"
+                }
                 let pk = name == "id" ? " PRIMARY KEY ON CONFLICT REPLACE" : " NOT NULL"
                 return "\\\"\(name)\\\" \(sqlType)\(pk)"
             }
@@ -115,6 +124,8 @@ public struct QuillPredicateMacro: ExpressionMacro {
              }
         }
         if let tuple = expr.as(TupleExprSyntax.self) { return tuple.elements.first.flatMap { translateExpression($0.expression) } }
+        if let opt = expr.as(OptionalChainingExprSyntax.self) { return translateExpression(opt.expression) }
+        if let forced = expr.as(ForceUnwrapExprSyntax.self) { return translateExpression(forced.expression) }
         if let mem = expr.as(MemberAccessExprSyntax.self) {
             let name = mem.declName.baseName.text
             if let base = mem.base.map({ translateExpression($0) }), let b = base {

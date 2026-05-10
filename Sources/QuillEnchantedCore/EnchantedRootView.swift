@@ -1,5 +1,8 @@
 import Foundation
 import QuillUI
+#if canImport(SwiftUI)
+import SwiftUI
+#endif
 
 @MainActor
 public struct EnchantedRootView: @preconcurrency View {

@@ -1,11 +1,14 @@
 #if os(macOS) || os(iOS) || os(visionOS)
 @_exported import SwiftUI
 @_exported import Combine
+public typealias ButtonStyleConfiguration = SwiftUI.ButtonStyle.Configuration
 #else
 @_exported import SwiftOpenUI
 
 public typealias QuillObservableObject = SwiftOpenUI.ObservableObject
 public typealias QuillPublished = SwiftOpenUI.Published
+// ButtonStyleConfiguration is defined locally in UpstreamCompatibility.swift
+// for Linux — SwiftOpenUI doesn't ship one.
 #endif
 
 import Foundation

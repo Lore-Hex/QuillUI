@@ -37,19 +37,38 @@ struct ExhaustivePredicateTests {
         #expect((#QuillPredicate<FuzzUser> { $0.age < 5 || $0.age > 65 }).sqlFilter == "((age < 5) OR (age > 65))")
         #expect((#QuillPredicate<FuzzUser> { ($0.age > 10 && $0.name == "A") || $0.isActive }).sqlFilter == "(((age > 10) AND (name = 'A')) OR isActive)")
     }
+
+    @Test("Optional chaining and forced unwrap matrix")
+    func navigationMatrix() {
+        #expect((#QuillPredicate<FuzzUser> { $0.profile?.bio == "test" }).sqlFilter == "(profile_bio = 'test')")
+        #expect((#QuillPredicate<FuzzUser> { $0.profile!.bio == "test" }).sqlFilter == "(profile_bio = 'test')")
+    }
 }
 
 @QuillModel
-public final class FuzzUser: Identifiable {
+public final class FuzzProfile: Identifiable, @unchecked Sendable {
+    public var id: UUID
+    public var bio: String
+
+    public init(id: UUID, bio: String) {
+        self.id = id
+        self.bio = bio
+    }
+}
+
+@QuillModel
+public final class FuzzUser: Identifiable, @unchecked Sendable {
     public var id: String?
     public var name: String
     public var age: Int
     public var isActive: Bool
+    public var profile: FuzzProfile?
 
-    public init(id: String?, name: String, age: Int, isActive: Bool) {
+    public init(id: String?, name: String, age: Int, isActive: Bool, profile: FuzzProfile? = nil) {
         self.id = id
         self.name = name
         self.age = age
         self.isActive = isActive
+        self.profile = profile
     }
 }

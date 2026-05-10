@@ -1,0 +1,7 @@
+# QuillMainExtractPlugin config.
+# One package-root-relative path per line. Each listed Swift file is
+# copied into this target's compile sources with the `@main` attribute
+# stripped, so any side declarations (extensions, helper types,
+# constants) next to the upstream entry point compile in automatically.
+
+.upstream/enchanted/Enchanted/Application/EnchantedApp.swift

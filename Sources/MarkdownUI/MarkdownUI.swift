@@ -585,13 +585,13 @@ private struct MarkdownTableCell: Identifiable {
 private struct MarkdownInlineText: View {
     var raw: String
     var font: Font
-    var weight: SwiftUI.FontWeight?
+    var weight: SwiftUI.Font.Weight?
     var foregroundColor: Color?
 
     init(
         raw: String,
         font: Font,
-        weight: SwiftUI.FontWeight? = nil,
+        weight: SwiftUI.Font.Weight? = nil,
         foregroundColor: Color? = nil
     ) {
         self.raw = raw
@@ -874,7 +874,7 @@ public struct MarkdownFontFamilyVariant: Sendable {
 
 public func FontSize(_ size: MarkdownLength) {}
 public func FontFamilyVariant(_ variant: MarkdownFontFamilyVariant) {}
-public func FontWeight(_ weight: SwiftUI.FontWeight) {}
+public func FontWeight(_ weight: SwiftUI.Font.Weight) {}
 public func ForegroundColor(_ color: Color) {}
 public func BackgroundColor(_ color: Color?) {}
 

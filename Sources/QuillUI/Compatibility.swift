@@ -1,3 +1,7 @@
+// Buggy outer `#if !os(macOS) && !os(iOS) && !os(visionOS)` removed —
+// it was wrapping every macOS extension below in a Linux-only block,
+// which made `Color(hex:)` invisible on macOS even though the inner
+// `#if os(macOS) || ...` looked correct.
 import Foundation
 #if os(macOS) || os(iOS) || os(visionOS)
 import SwiftUI
@@ -154,32 +158,9 @@ public extension Color {
         self.init(red: red, green: green, blue: blue, opacity: opacity)
     }
 
-    init(hex: String) {
-        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var value: UInt64 = 0
-        Scanner(string: cleaned).scanHexInt64(&value)
-
-        let r, g, b, a: UInt64
-        switch cleaned.count {
-        case 8:
-            r = (value >> 24) & 0xff
-            g = (value >> 16) & 0xff
-            b = (value >> 8) & 0xff
-            a = value & 0xff
-        default:
-            r = (value >> 16) & 0xff
-            g = (value >> 8) & 0xff
-            b = value & 0xff
-            a = 255
-        }
-
-        self.init(
-            red: Double(r) / 255.0,
-            green: Double(g) / 255.0,
-            blue: Double(b) / 255.0,
-            opacity: Double(a) / 255.0
-        )
-    }
+    // SwiftOpenUI ships its own `Color.init(hex:)` — don't redeclare on
+    // Linux. (The macOS variant at the top of this file is gated to
+    // Apple platforms where SwiftUI lacks it.)
 
     init(rgba: UInt32) {
         self.init(
@@ -761,3 +742,5 @@ public extension View {
     }
 }
 #endif
+// (Removed dangling outer #endif — the buggy Linux-only outer wrapper
+// at the top of this file was deleted along with this closer.)

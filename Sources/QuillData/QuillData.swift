@@ -1,7 +1,49 @@
 import Foundation
-@_exported import GRDB
+// Don't `@_exported import GRDB` — GRDB.DatabaseQueue / DatabaseError
+// would then leak into every module that auto-imports QuillShims,
+// conflicting with NetNewsWire upstream's RSDatabase.DatabaseQueue /
+// DatabaseError. QuillData consumers that need GRDB should `import GRDB`
+// explicitly.
+import GRDB
 
 public protocol PersistentModel: Codable {}
+
+extension PersistentModel {
+    public var databaseValue: DatabaseValue {
+        let encoder = JSONEncoder()
+        guard let data = try? encoder.encode(self) else { return .null }
+        return data.databaseValue
+    }
+
+    public static func fromDatabaseValue(_ dbValue: DatabaseValue) -> Self? {
+        guard let data = Data.fromDatabaseValue(dbValue) else { return nil }
+        let decoder = JSONDecoder()
+        return try? decoder.decode(Self.self, from: data)
+    }
+}
+
+extension PersistentModel {
+    public static func decode(from data: Data) throws -> Self {
+        try JSONDecoder().decode(Self.self, from: data)
+    }
+}
+
+extension Array: @retroactive DatabaseValueConvertible where Element: Codable {
+    public var databaseValue: DatabaseValue {
+        let encoder = JSONEncoder()
+        guard let data = try? encoder.encode(self) else { return .null }
+        return data.databaseValue
+    }
+
+    public static func fromDatabaseValue(_ dbValue: DatabaseValue) -> [Element]? {
+        guard let data = Data.fromDatabaseValue(dbValue) else { return nil }
+        let decoder = JSONDecoder()
+        return try? decoder.decode([Element].self, from: data)
+    }
+}
+
+extension Array: @retroactive SQLExpressible where Element: Codable {}
+extension Array: @retroactive StatementBinding where Element: Codable {}
 
 public protocol QuillTableMappable {
     associatedtype TableStruct: Codable, Sendable, Identifiable, FetchableRecord, PersistableRecord

@@ -14,6 +14,18 @@ public enum KeyboardShortcuts {
             self.key = key
             self.modifiers = modifiers
         }
+
+        // Manual Hashable + Equatable conformance: SwiftUI's EventModifiers
+        // is an OptionSet whose Hashable derivation differs across Swift
+        // versions. Hash by its rawValue so this shim compiles cleanly on
+        // both macOS (real SwiftUI) and Linux (our SwiftUI shadow).
+        public func hash(into hasher: inout Hasher) {
+            hasher.combine(key)
+            hasher.combine(modifiers.rawValue)
+        }
+        public static func == (lhs: Shortcut, rhs: Shortcut) -> Bool {
+            lhs.key == rhs.key && lhs.modifiers.rawValue == rhs.modifiers.rawValue
+        }
     }
 
     public struct Name: Hashable, Sendable, ExpressibleByStringLiteral {

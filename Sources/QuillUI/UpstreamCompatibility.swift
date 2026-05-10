@@ -5,6 +5,7 @@ import SwiftUI
 import SwiftOpenUI
 import QuillKit
 
+#if !os(macOS) && !os(iOS) && !os(visionOS)
 private func recordQuillUIFallback(_ operation: String, message: String) {
     QuillCompatibilityDiagnostics.shared.record(
         subsystem: "QuillUI",
@@ -61,6 +62,7 @@ public struct UTType: Hashable, Sendable {
     private static let imageExtensions = Set(extensionsByIdentifier.values.flatMap { $0 })
     private static let imageTypes = Set(extensionsByIdentifier.keys)
 }
+#endif
 
 public final class NSItemProvider: @unchecked Sendable {
     private enum Representation {
@@ -379,6 +381,7 @@ public struct AngularGradient {
     }
 }
 
+#if !os(macOS) && !os(iOS) && !os(visionOS)
 public struct ButtonStyleConfiguration {
     public var label: Text
     public var isPressed: Bool
@@ -404,7 +407,9 @@ public struct PlainButtonStyle: ButtonStyle {
         configuration.label
     }
 }
+#endif
 
+#if !os(macOS) && !os(iOS) && !os(visionOS)
 public typealias ToolbarItemGroup<Content: View> = ToolbarItem<Content>
 
 public extension ToolbarItemPlacement {
@@ -446,6 +451,7 @@ public extension LazyVGrid where Data == Int {
         self.init(columns: columns, data: [0]) { _ in content() }
     }
 }
+#endif
 
 public extension Animation {
     static func snappy(duration: Double = 0.35) -> Animation {
