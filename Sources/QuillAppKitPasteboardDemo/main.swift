@@ -131,7 +131,7 @@ struct PasteboardDemo {
                 changeCount += 1
                 lastText = newText
             }
-            contentView.addSubviewGTK(entry)
+            // entry will be added via the .stack below
             entry.gtkEntrySetText("hello world")
             QuillGTK.iterate(times: 5)
             let entryReadback = entry.gtkEntryText ?? "<nil>"
@@ -209,6 +209,20 @@ struct PasteboardDemo {
             let r1Active = r1.gtkCheckButtonActive
             let r2Active = r2.gtkCheckButtonActive
             print("[gtk] radio group: r1=\(r1Active) r2=\(r2Active) \(r1Active == false && r2Active == true ? "✅" : "❌")")
+
+            // Pack everything into the contentView so they render
+            // visibly under matchbox-window-manager. addSubviewGTK
+            // appends to the GtkBox child list; the box auto-sizes.
+            contentView.addSubviewGTK(entry)
+            contentView.addSubviewGTK(slider)
+            contentView.addSubviewGTK(progress)
+            contentView.addSubviewGTK(popup)
+            contentView.addSubviewGTK(checkbox)
+            contentView.addSubviewGTK(r1)
+            contentView.addSubviewGTK(r2)
+            // Pump enough events so GTK lays out all the new children
+            // before the screenshot tool fires.
+            QuillGTK.iterate(times: 500)
 
             // Pump some events so the window renders if we're holding
             // it open for screenshot capture.
