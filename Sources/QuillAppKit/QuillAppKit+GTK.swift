@@ -54,6 +54,16 @@ public enum QuillGTK {
         ownsLoop = false
     }
 
+    /// Pumps a fixed number of pending events so callers can drive a
+    /// GUI synchronously without committing to a full main loop.
+    /// Useful for tests, screenshot capture, etc.
+    public static func iterate(times: Int = 1) {
+        guard ensureInitialized() else { return }
+        for _ in 0..<max(times, 0) {
+            _ = g_main_context_iteration(nil, 0)
+        }
+    }
+
     public static func quitMainLoop() {
         guard ownsLoop else { return }
         // Iterate one tick with a quit injection. Quick & dirty:
@@ -119,6 +129,28 @@ extension NSWindow {
         gtk_window_close(win)
         gtkWindowHandle = nil
         isVisible = false
+    }
+
+    /// Reads the title back from the underlying GtkWindow via
+    /// gtk_window_get_title. Returns nil if no GTK handle exists.
+    /// Phase B verification: proves the C-side widget actually
+    /// stored what Swift wrote.
+    public var gtkWindowTitle: String? {
+        guard let handle = gtkWindowHandle else { return nil }
+        let win = UnsafeMutableRawPointer(handle).assumingMemoryBound(to: GtkWindow.self)
+        guard let cstr = gtk_window_get_title(win) else { return nil }
+        return String(cString: cstr)
+    }
+
+    /// Reads default width/height back from GtkWindow (the values we
+    /// set via gtk_window_set_default_size). Returns (0, 0) if no handle.
+    public var gtkWindowDefaultSize: (Int32, Int32) {
+        guard let handle = gtkWindowHandle else { return (0, 0) }
+        let win = UnsafeMutableRawPointer(handle).assumingMemoryBound(to: GtkWindow.self)
+        var w: Int32 = 0
+        var h: Int32 = 0
+        gtk_window_get_default_size(win, &w, &h)
+        return (w, h)
     }
 }
 

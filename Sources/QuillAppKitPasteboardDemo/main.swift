@@ -80,7 +80,28 @@ struct PasteboardDemo {
         win.showAsGtkWindow()
         let gtkOK = QuillGTK.ensureInitialized()
         if gtkOK {
-            print("[gtk] initialized; gtkWindowHandle = \(win.gtkWindowHandle != nil ? "✓" : "✗")")
+            let hasHandle = win.gtkWindowHandle != nil
+            print("[gtk] initialized; gtkWindowHandle = \(hasHandle ? "✓" : "✗") title=\"\(win.title)\"")
+            // Phase B end-to-end proof: read state back from the
+            // underlying GtkWindow C struct via gtk_window_get_*.
+            // If our Swift NSWindow wrote it, GTK should have it.
+            let gtkTitle = win.gtkWindowTitle ?? "<nil>"
+            let (gw, gh) = win.gtkWindowDefaultSize
+            let titleOK = gtkTitle == win.title
+            let sizeOK = gw == 640 && gh == 480
+            print("[gtk] gtk_window_get_title → \"\(gtkTitle)\" \(titleOK ? "✅" : "❌")")
+            print("[gtk] gtk_window_get_default_size → \(gw)x\(gh) \(sizeOK ? "✅" : "❌")")
+            // Pump some events so the window renders if we're holding
+            // it open for screenshot capture.
+            QuillGTK.iterate(times: 50)
+            // Hold for QUILL_DEMO_HOLD seconds so external screenshot
+            // tools can capture the window. Default 0 = exit immediately.
+            if let hold = ProcessInfo.processInfo.environment["QUILL_DEMO_HOLD"],
+               let secs = Double(hold), secs > 0 {
+                print("[gtk] holding window open for \(secs)s")
+                Thread.sleep(forTimeInterval: secs)
+            }
+            win.closeGtkWindow()
         } else {
             print("[gtk] no display — NSWindow.showAsGtkWindow() was a no-op (correct headless behavior)")
         }
