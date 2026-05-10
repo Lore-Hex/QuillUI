@@ -29,7 +29,15 @@ public struct WrappingHStack<Content: View>: View {
     }
 
     public var body: some View {
-        HStack(alignment: .center, spacing: spacing ?? 8) {
+        // SwiftOpenUI's `HStack(spacing:)` takes `Int?` on Linux
+        // while real SwiftUI takes `CGFloat?`. Coerce to keep the
+        // public `spacing: CGFloat?` API stable for both backends.
+        #if os(Linux)
+        let resolvedSpacing: Int = spacing.map { Int($0) } ?? 8
+        #else
+        let resolvedSpacing: CGFloat = spacing ?? 8
+        #endif
+        return HStack(alignment: .center, spacing: resolvedSpacing) {
             content
         }
         .frame(maxWidth: .infinity, alignment: alignment == .leading ? .leading : .center)
