@@ -90,4 +90,19 @@ public final class AVAudioPCMBuffer: @unchecked Sendable {
     public var frameLength: UInt32 = 0
     public init() {}
 }
+
+// `AVAudioTime` carries audio timestamps in real AVFoundation.
+// The Linux stub stores a Foundation `Date` so callers can
+// compile and round-trip "when did this audio frame arrive"
+// without a CoreAudio backend.
+public final class AVAudioTime: @unchecked Sendable {
+    public var hostTime: UInt64
+    public var sampleTime: Int64
+    public var sampleRate: Double
+    public init(hostTime: UInt64 = 0, sampleTime: Int64 = 0, sampleRate: Double = 0) {
+        self.hostTime = hostTime
+        self.sampleTime = sampleTime
+        self.sampleRate = sampleRate
+    }
+}
 #endif
