@@ -54,6 +54,23 @@ struct PasteboardDemo {
         NSSound.beep()
         print("[sound] NSSound.beep() emitted")
 
+        // NSAlert — prints the message + buttons to stderr. With no
+        // interactive stdin we get .alertFirstButtonReturn back.
+        runAlertCheck()
+
         if !ok || !dataOK { exit(1) }
+    }
+
+    @MainActor
+    static func runAlertCheck() {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Phase B alert demo"
+        alert.informativeText = "This dialog was emitted from QuillAppKit's NSAlert backing."
+        _ = alert.addButton(withTitle: "OK")
+        _ = alert.addButton(withTitle: "Cancel")
+        let resp = alert.runModal()
+        let label = (resp == .alertFirstButtonReturn) ? "first" : "other"
+        print("[alert] runModal returned \(label) button response (\(resp.rawValue))")
     }
 }

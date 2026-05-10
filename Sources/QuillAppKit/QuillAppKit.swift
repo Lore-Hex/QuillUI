@@ -16,6 +16,7 @@
 
 @_exported import QuillFoundation
 @_exported import QuillUIKit
+import Glibc
 
 // MARK: - UndoManager (missing from Linux Foundation)
 
@@ -544,15 +545,17 @@ public extension NSWindowDelegate {
     public enum TerminateReply: UInt, Sendable {
         case terminateCancel = 0, terminateNow = 1, terminateLater = 2
     }
-    public enum ModalResponse: Int, Sendable {
-        case OK = 1
-        case cancel = 0
-        case stop = -1000
-        case abort = -1001
-        case continue_ = -1002
-        public static let alertFirstButtonReturn = ModalResponse(rawValue: 1000)!
-        public static let alertSecondButtonReturn = ModalResponse(rawValue: 1001)!
-        public static let alertThirdButtonReturn = ModalResponse(rawValue: 1002)!
+    public struct ModalResponse: RawRepresentable, Equatable, Sendable {
+        public var rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+        public static let OK = ModalResponse(rawValue: 1)
+        public static let cancel = ModalResponse(rawValue: 0)
+        public static let stop = ModalResponse(rawValue: -1000)
+        public static let abort = ModalResponse(rawValue: -1001)
+        public static let `continue` = ModalResponse(rawValue: -1002)
+        public static let alertFirstButtonReturn = ModalResponse(rawValue: 1000)
+        public static let alertSecondButtonReturn = ModalResponse(rawValue: 1001)
+        public static let alertThirdButtonReturn = ModalResponse(rawValue: 1002)
     }
 
     public func setActivationPolicy(_ p: ActivationPolicy) -> Bool { activationPolicy = p; return true }
@@ -1303,13 +1306,62 @@ public extension NSToolbarDelegate {
     public var accessoryView: NSView?
     public var showsSuppressionButton: Bool = false
     public var suppressionButton: NSButton?
+    private var _buttonTitles: [String] = []
 
     public enum Style: UInt, Sendable { case warning, informational, critical }
 
     public override init() { super.init() }
-    public func addButton(withTitle: String) -> NSButton { let b = NSButton(); buttons.append(b); return b }
-    public func runModal() -> NSApplication.ModalResponse { .OK }
-    public func beginSheetModal(for: NSWindow, completionHandler: ((NSApplication.ModalResponse) -> Void)? = nil) {}
+    public func addButton(withTitle title: String) -> NSButton {
+        let b = NSButton()
+        b.title = title
+        buttons.append(b)
+        _buttonTitles.append(title)
+        return b
+    }
+
+    /// Phase B: prints the alert to stderr and reads a digit from stdin
+    /// to pick a button. If stdin isn't a TTY, returns the first
+    /// button's response (matches Apple's "default" button semantics
+    /// for unattended runs).
+    public func runModal() -> NSApplication.ModalResponse {
+        let prefix: String
+        switch alertStyle {
+        case .critical:      prefix = "[!] "
+        case .warning:       prefix = "[?] "
+        case .informational: prefix = "[i] "
+        }
+        var lines = ["\n\(prefix)\(messageText)"]
+        if !informativeText.isEmpty { lines.append("    \(informativeText)") }
+        if _buttonTitles.isEmpty {
+            lines.append("    [press enter to continue]")
+        } else {
+            for (i, t) in _buttonTitles.enumerated() {
+                let marker = (i == 0) ? "*" : " "
+                lines.append("   \(marker) \(i + 1)) \(t)")
+            }
+            lines.append("    choose: ")
+        }
+        FileHandle.standardError.write(Data((lines.joined(separator: "\n") + "\n").utf8))
+
+        guard isatty(0) != 0,
+              let line = readLine(),
+              let pick = Int(line.trimmingCharacters(in: .whitespacesAndNewlines)),
+              pick >= 1, pick <= max(_buttonTitles.count, 1) else {
+            // No interactive stdin → default button (first one).
+            return .alertFirstButtonReturn
+        }
+        switch pick {
+        case 1: return .alertFirstButtonReturn
+        case 2: return .alertSecondButtonReturn
+        case 3: return .alertThirdButtonReturn
+        default: return .alertFirstButtonReturn
+        }
+    }
+
+    public func beginSheetModal(for window: NSWindow, completionHandler: ((NSApplication.ModalResponse) -> Void)? = nil) {
+        let response = runModal()
+        completionHandler?(response)
+    }
 }
 
 @MainActor open class NSSavePanel: NSWindow {
