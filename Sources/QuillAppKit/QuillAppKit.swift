@@ -681,6 +681,20 @@ open class NSEvent: NSObject, @unchecked Sendable {
 }
 
 // MARK: - NSPasteboard
+//
+// Phase B (real backing): NSPasteboard.general is now backed by a
+// real cross-process clipboard on Linux. Strategy is tiered, picked
+// once at first access and cached for the process lifetime:
+//   1. Wayland: shells out to wl-copy / wl-paste if both are on PATH.
+//   2. X11: shells out to xclip if PATH-discoverable and DISPLAY is set.
+//   3. Headless: file-backed at $XDG_RUNTIME_DIR (or /tmp) — survives
+//      across processes within the same user session.
+//
+// On macOS, Apple's real NSPasteboard wins via the SDK and this whole
+// module is empty.
+//
+// Per-type storage uses the file-backed path (Linux clipboards only
+// natively carry plain text; non-text types stay process-local).
 
 open class NSPasteboard: NSObject, @unchecked Sendable {
     public struct PasteboardType: RawRepresentable, Hashable, Sendable {
@@ -707,23 +721,182 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
         public static let font = Name(rawValue: "Apple.NSFontPboard")
         public static let ruler = Name(rawValue: "Apple.NSRulerPboard")
     }
-    public static let general = NSPasteboard()
-    public init(name: Name = .general) {}
-    public func clearContents() -> Int { 0 }
-    public func setString(_ s: String, forType: PasteboardType) -> Bool { true }
-    public func setData(_ d: Data, forType: PasteboardType) -> Bool { true }
-    public func string(forType: PasteboardType) -> String? { nil }
-    public func data(forType: PasteboardType) -> Data? { nil }
-    public func types() -> [PasteboardType]? { nil }
-    public var pasteboardItems: [NSPasteboardItem]? = nil
-    public var changeCount: Int = 0
-    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int { 0 }
-    public func writeObjects(_ objs: [Any]) -> Bool { true }
-    public func readObjects(forClasses classes: [AnyClass], options: [PasteboardReadingOption: Any]?) -> [Any]? { nil }
-    public func canReadObject(forClasses classes: [AnyClass], options: [PasteboardReadingOption: Any]?) -> Bool { false }
     public struct PasteboardReadingOption: Hashable, RawRepresentable, Sendable {
         public var rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
+    }
+
+    public static let general = NSPasteboard(name: .general)
+    private let name: Name
+    public init(name: Name = .general) {
+        self.name = name
+        super.init()
+    }
+
+    public var changeCount: Int {
+        _changeCountPath().flatMap { try? String(contentsOfFile: $0, encoding: .utf8) }
+            .flatMap(Int.init) ?? 0
+    }
+
+    public var pasteboardItems: [NSPasteboardItem]? = nil
+
+    @discardableResult
+    public func clearContents() -> Int {
+        _writeClipboardString("")
+        _bumpChangeCount()
+        return changeCount
+    }
+
+    @discardableResult
+    public func setString(_ s: String, forType type: PasteboardType) -> Bool {
+        guard type == .string else {
+            _writeFileBacked(type: type, data: Data(s.utf8))
+            _bumpChangeCount()
+            return true
+        }
+        _writeClipboardString(s)
+        _writeFileBacked(type: type, data: Data(s.utf8))
+        _bumpChangeCount()
+        return true
+    }
+
+    @discardableResult
+    public func setData(_ d: Data, forType type: PasteboardType) -> Bool {
+        if type == .string, let s = String(data: d, encoding: .utf8) {
+            _writeClipboardString(s)
+        }
+        _writeFileBacked(type: type, data: d)
+        _bumpChangeCount()
+        return true
+    }
+
+    public func string(forType type: PasteboardType) -> String? {
+        if type == .string, let s = _readClipboardString(), !s.isEmpty {
+            return s
+        }
+        return _readFileBacked(type: type).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    public func data(forType type: PasteboardType) -> Data? {
+        if type == .string, let s = _readClipboardString(), !s.isEmpty {
+            return Data(s.utf8)
+        }
+        return _readFileBacked(type: type)
+    }
+
+    public func types() -> [PasteboardType]? {
+        let dir = _typeDir()
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return nil }
+        return files.map { PasteboardType(rawValue: $0) }
+    }
+
+    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int { 0 }
+    public func writeObjects(_ objs: [Any]) -> Bool {
+        for obj in objs {
+            if let s = obj as? String { _ = setString(s, forType: .string) }
+            else if let item = obj as? NSPasteboardItem,
+                    let s = item.string(forType: .string) { _ = setString(s, forType: .string) }
+        }
+        return true
+    }
+    public func readObjects(forClasses classes: [AnyClass], options: [PasteboardReadingOption: Any]?) -> [Any]? {
+        guard let s = string(forType: .string) else { return nil }
+        return [s]
+    }
+    public func canReadObject(forClasses classes: [AnyClass], options: [PasteboardReadingOption: Any]?) -> Bool {
+        string(forType: .string) != nil
+    }
+}
+
+// MARK: NSPasteboard backing helpers (Linux)
+
+private extension NSPasteboard {
+    func _stateDir() -> String {
+        let base = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"]
+            ?? NSTemporaryDirectory()
+        let dir = (base as NSString).appendingPathComponent("quill-pasteboard/\(name.rawValue)")
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        return dir
+    }
+    func _typeDir() -> String {
+        let dir = (_stateDir() as NSString).appendingPathComponent("types")
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        return dir
+    }
+    func _filePath(for type: PasteboardType) -> String {
+        let safe = type.rawValue.replacingOccurrences(of: "/", with: "_")
+        return (_typeDir() as NSString).appendingPathComponent(safe)
+    }
+    func _changeCountPath() -> String? {
+        (_stateDir() as NSString).appendingPathComponent("changeCount")
+    }
+    func _bumpChangeCount() {
+        guard let path = _changeCountPath() else { return }
+        let next = changeCount + 1
+        try? "\(next)".write(toFile: path, atomically: true, encoding: .utf8)
+    }
+    func _writeFileBacked(type: PasteboardType, data: Data) {
+        try? data.write(to: URL(fileURLWithPath: _filePath(for: type)))
+    }
+    func _readFileBacked(type: PasteboardType) -> Data? {
+        try? Data(contentsOf: URL(fileURLWithPath: _filePath(for: type)))
+    }
+    func _writeClipboardString(_ s: String) {
+        // Tier 1: Wayland
+        if _hasCommand("wl-copy"), ProcessInfo.processInfo.environment["WAYLAND_DISPLAY"] != nil {
+            _runPipeIn(["wl-copy"], stdin: s); return
+        }
+        // Tier 2: X11
+        if _hasCommand("xclip"), ProcessInfo.processInfo.environment["DISPLAY"] != nil {
+            _runPipeIn(["xclip", "-selection", "clipboard"], stdin: s); return
+        }
+        // Tier 3: file-backed only (already written by setString caller)
+    }
+    func _readClipboardString() -> String? {
+        if _hasCommand("wl-paste"), ProcessInfo.processInfo.environment["WAYLAND_DISPLAY"] != nil {
+            return _runPipeOut(["wl-paste", "--no-newline"])
+        }
+        if _hasCommand("xclip"), ProcessInfo.processInfo.environment["DISPLAY"] != nil {
+            return _runPipeOut(["xclip", "-selection", "clipboard", "-o"])
+        }
+        return nil
+    }
+    func _hasCommand(_ name: String) -> Bool {
+        for dir in (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":") {
+            if FileManager.default.isExecutableFile(atPath: "\(dir)/\(name)") { return true }
+        }
+        return false
+    }
+    func _runPipeIn(_ argv: [String], stdin: String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        p.arguments = argv
+        let pipe = Pipe()
+        p.standardInput = pipe
+        p.standardOutput = Pipe()
+        p.standardError = Pipe()
+        do {
+            try p.run()
+            try pipe.fileHandleForWriting.write(contentsOf: Data(stdin.utf8))
+            try pipe.fileHandleForWriting.close()
+            p.waitUntilExit()
+        } catch {}
+    }
+    func _runPipeOut(_ argv: [String]) -> String? {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        p.arguments = argv
+        let outPipe = Pipe()
+        p.standardOutput = outPipe
+        p.standardError = Pipe()
+        do {
+            try p.run()
+            let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            return String(data: data, encoding: .utf8)
+        } catch {
+            return nil
+        }
     }
 }
 

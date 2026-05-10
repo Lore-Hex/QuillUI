@@ -422,6 +422,16 @@ targets.append(contentsOf: [
     // Linux. Phase A: type stubs only. Phase B will back the heavy
     // hitters (NSWindow, NSView, NSPasteboard, etc.) with GTK4.
     .target(name: "AppKit", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/QuillAppKit"),
+    // Runtime demo: exercises NSPasteboard.general's Phase B backing
+    // (Wayland / X11 / file-backed tier) end-to-end. Writes a string,
+    // reads it back, asserts the round-trip succeeded. Linux-only —
+    // on macOS the real NSPasteboard works without any QuillAppKit
+    // shim, so the demo target is unnecessary there.
+    .executableTarget(
+        name: "QuillAppKitPasteboardDemo",
+        dependencies: ["AppKit"],
+        path: "Sources/QuillAppKitPasteboardDemo"
+    ),
     // Smoke test for QuillAppKit. Exercises realistic AppKit usage
     // (NSWindowController, NSViewController, NSOutlineViewDelegate,
     // NSStatusItem, NSPasteboard, NSApplicationDelegate) so that
