@@ -87,18 +87,21 @@ public extension NSColor {
     static let highlightColor = NSColor()
     static let shadowColor = NSColor()
 
-    static let red = NSColor()
-    static let green = NSColor()
-    static let blue = NSColor()
-    static let yellow = NSColor()
-    static let purple = NSColor()
-    static let cyan = NSColor()
-    static let magenta = NSColor()
-    static let black = NSColor()
-    static let darkGray = NSColor()
-    static let gray = NSColor()
-    static let lightGray = NSColor()
-    static let brown = NSColor()
+    // Phase B: standard hue presets with real RGB values. NSColor.black,
+    // .white, .clear, .orange come from RSColor (QuillFoundation), so
+    // we only declare the rest here. Values match Apple's deviceRGB
+    // generic colors closely enough for common drawing.
+    static let red = NSColor(red: 1, green: 0, blue: 0, alpha: 1)
+    static let green = NSColor(red: 0, green: 1, blue: 0, alpha: 1)
+    static let blue = NSColor(red: 0, green: 0, blue: 1, alpha: 1)
+    static let yellow = NSColor(red: 1, green: 1, blue: 0, alpha: 1)
+    static let purple = NSColor(red: 0.5, green: 0, blue: 0.5, alpha: 1)
+    static let cyan = NSColor(red: 0, green: 1, blue: 1, alpha: 1)
+    static let magenta = NSColor(red: 1, green: 0, blue: 1, alpha: 1)
+    static let darkGray = NSColor(red: 0.33, green: 0.33, blue: 0.33, alpha: 1)
+    static let gray = NSColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1)
+    static let lightGray = NSColor(red: 0.66, green: 0.66, blue: 0.66, alpha: 1)
+    static let brown = NSColor(red: 0.6, green: 0.4, blue: 0.2, alpha: 1)
 
     struct Name: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
         public var rawValue: String
@@ -120,10 +123,10 @@ public extension NSColor {
     func withAlphaComponent(_ alpha: CGFloat) -> NSColor { self }
     func blended(withFraction f: CGFloat, of c: NSColor) -> NSColor? { self }
     func usingColorSpace(_ space: Any) -> NSColor? { self }
-    var redComponent: CGFloat { 0 }
-    var greenComponent: CGFloat { 0 }
-    var blueComponent: CGFloat { 0 }
-    var alphaComponent: CGFloat { 1 }
+    var redComponent: CGFloat { _red }
+    var greenComponent: CGFloat { _green }
+    var blueComponent: CGFloat { _blue }
+    var alphaComponent: CGFloat { _alpha }
     var hueComponent: CGFloat { 0 }
     var saturationComponent: CGFloat { 0 }
     var brightnessComponent: CGFloat { 0 }

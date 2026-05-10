@@ -58,6 +58,33 @@ struct PasteboardDemo {
         // interactive stdin we get .alertFirstButtonReturn back.
         runAlertCheck()
 
+        // NSColor real components round-trip
+        let c = NSColor(red: 0.25, green: 0.5, blue: 0.75, alpha: 1.0)
+        let r = c.redComponent, g = c.greenComponent, b = c.blueComponent
+        let colorOK = r == 0.25 && g == 0.5 && b == 0.75
+        print("[color] redComponent=\(r) green=\(g) blue=\(b) → \(colorOK ? "✅" : "❌")")
+
+        // NSScreen real-ish bounds (NSScreen.main is non-optional in
+        // the Linux shim; matches Apple's behavior in practice).
+        let screenBounds = NSScreen.main.bounds
+        print("[screen] main.bounds = \(Int(screenBounds.width))x\(Int(screenBounds.height))")
+
+        // NSWindow + GTK init probe (no-op when headless)
+        let win = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        win.title = "QuillAppKit Phase B Window"
+        win.showAsGtkWindow()
+        let gtkOK = QuillGTK.ensureInitialized()
+        if gtkOK {
+            print("[gtk] initialized; gtkWindowHandle = \(win.gtkWindowHandle != nil ? "✓" : "✗")")
+        } else {
+            print("[gtk] no display — NSWindow.showAsGtkWindow() was a no-op (correct headless behavior)")
+        }
+
         if !ok || !dataOK { exit(1) }
     }
 

@@ -123,6 +123,18 @@ var targets: [Target] = [
             .apt(["libgdk-pixbuf-2.0-dev"])
         ]
     ),
+    // GTK4 system library — Phase B backing for NSWindow / NSApplication.
+    // Wired only on Linux (the AppKit target depends on it conditionally
+    // below). On macOS GTK4 isn't present and we don't need it (Apple's
+    // real AppKit ships).
+    .systemLibrary(
+        name: "CGtk4",
+        path: "Sources/CGtk4",
+        pkgConfig: "gtk4",
+        providers: [
+            .apt(["libgtk-4-dev"])
+        ]
+    ),
     .target(
         name: "QuillData",
         dependencies: [
@@ -421,7 +433,7 @@ targets.append(contentsOf: [
     // so upstream `import AppKit` resolves to this swiftmodule on
     // Linux. Phase A: type stubs only. Phase B will back the heavy
     // hitters (NSWindow, NSView, NSPasteboard, etc.) with GTK4.
-    .target(name: "AppKit", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/QuillAppKit"),
+    .target(name: "AppKit", dependencies: ["QuillFoundation", "QuillUIKit", "CGtk4"], path: "Sources/QuillAppKit"),
     // Runtime demo: exercises NSPasteboard.general's Phase B backing
     // (Wayland / X11 / file-backed tier) end-to-end. Writes a string,
     // reads it back, asserts the round-trip succeeded. Linux-only —
