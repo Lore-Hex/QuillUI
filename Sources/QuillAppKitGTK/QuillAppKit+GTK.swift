@@ -261,4 +261,79 @@ extension NSTextField {
     }
 }
 
+// MARK: - NSButton: GtkButton backing with click signal
+
+/// Stable storage for per-NSButton closure handlers (closures aren't
+/// stored properties on NSObject subclasses without extra ceremony).
+@MainActor
+private var _buttonHandlers: [ObjectIdentifier: () -> Void] = [:]
+
+/// Map from g_signal_connect's user_data pointer back to the Swift
+/// click handler. We allocate one slot per button to keep the C-side
+/// pointer stable.
+private final class _ButtonClickContext {
+    let handler: () -> Void
+    init(_ h: @escaping () -> Void) { self.handler = h }
+}
+
+@MainActor
+private var _buttonContexts: [ObjectIdentifier: _ButtonClickContext] = [:]
+
+/// C trampoline: GTK calls this with our heap-allocated context as
+/// user_data. We invoke the stored closure.
+private let _quillButtonClickedTrampoline: @convention(c) (OpaquePointer?, UnsafeMutableRawPointer?) -> Void = { _, userData in
+    guard let userData else { return }
+    let ctx = Unmanaged<_ButtonClickContext>.fromOpaque(userData).takeUnretainedValue()
+    ctx.handler()
+}
+
+extension NSButton {
+    /// Set a closure to invoke when the button is clicked. On Linux
+    /// this is the practical alternative to target/action (which needs
+    /// the ObjC runtime that Swift on Linux doesn't ship).
+    public func setOnClick(_ handler: @escaping () -> Void) {
+        _buttonHandlers[ObjectIdentifier(self)] = handler
+    }
+
+    /// Phase B: create a GtkButton backing, set its label from .title,
+    /// and wire the "clicked" signal to invoke the click handler set
+    /// via setOnClick. Returns nil if GTK isn't initialized.
+    @discardableResult
+    public func ensureGtkButton() -> OpaquePointer? {
+        guard QuillGTK.ensureInitialized() else { return nil }
+        if let existing = gtkWidgetHandle { return existing }
+        let btn = title.withCString { gtk_button_new_with_label($0) }
+        gtkWidgetHandle = btn.map { OpaquePointer($0) }
+        if let widget = btn, let handler = _buttonHandlers[ObjectIdentifier(self)] {
+            let ctx = _ButtonClickContext(handler)
+            _buttonContexts[ObjectIdentifier(self)] = ctx
+            let userData = Unmanaged.passUnretained(ctx).toOpaque()
+            // g_signal_connect_data is the canonical entry point;
+            // g_signal_connect is a macro in C that we re-implement.
+            "clicked".withCString { signalName in
+                _ = g_signal_connect_data(
+                    widget,
+                    signalName,
+                    unsafeBitCast(_quillButtonClickedTrampoline, to: GCallback.self),
+                    userData,
+                    nil,
+                    GConnectFlags(rawValue: 0)
+                )
+            }
+        }
+        return gtkWidgetHandle
+    }
+
+    /// Programmatically simulate a click. Useful for tests.
+    /// In GTK4, gtk_widget_activate doesn't reliably emit "clicked"
+    /// for unrealized buttons. quill_signal_emit_clicked is a small
+    /// C helper in the CGtk4 shim that calls the variadic
+    /// g_signal_emit_by_name (which Swift can't call directly).
+    public func gtkClick() {
+        guard let handle = gtkWidgetHandle else { return }
+        let gobject = UnsafeMutableRawPointer(handle)
+        quill_signal_emit_clicked(gobject)
+    }
+}
+
 #endif

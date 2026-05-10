@@ -103,6 +103,24 @@ struct PasteboardDemo {
             let cvHasWidget = contentView.gtkWidgetHandle != nil
             let labelHasWidget = label.gtkWidgetHandle != nil
             print("[gtk] contentView GtkBox = \(cvHasWidget ? "✅" : "❌")  label GtkLabel = \(labelHasWidget ? "✅" : "❌")")
+
+            // NSButton with a Linux-friendly click closure → GtkButton
+            // with "clicked" signal connected. Clicking the GtkButton
+            // (programmatically here) fires the closure.
+            let btn = NSButton(title: "Click me", target: nil, action: nil)
+            var clickCount = 0
+            btn.setOnClick { clickCount += 1 }
+            _ = btn.ensureGtkButton()
+            contentView.addSubviewGTK(btn)
+            print("[gtk] button GtkButton = \(btn.gtkWidgetHandle != nil ? "✅" : "❌") title=\"\(btn.title)\"")
+            // Programmatically activate the button (gtk_widget_activate
+            // emits the "clicked" signal). Verify the closure ran.
+            btn.gtkClick()
+            btn.gtkClick()
+            btn.gtkClick()
+            QuillGTK.iterate(times: 10)
+            print("[gtk] gtkClick() x3 → handler ran \(clickCount) time\(clickCount == 1 ? "" : "s") \(clickCount == 3 ? "✅" : "❌")")
+
             // Pump some events so the window renders if we're holding
             // it open for screenshot capture.
             QuillGTK.iterate(times: 50)
