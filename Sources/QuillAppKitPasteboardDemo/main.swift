@@ -180,6 +180,36 @@ struct PasteboardDemo {
             _ = spinner.ensureGtkProgressIndicator()
             print("[gtk] progress (spinning) GtkSpinner = \(spinner.gtkWidgetHandle != nil ? "✅" : "❌")")
 
+            // NSPopUpButton → GtkDropDown
+            let popup = NSPopUpButton()
+            popup.menu = NSMenu()
+            popup.addItem(withTitle: "Apple")
+            popup.addItem(withTitle: "Banana")
+            popup.addItem(withTitle: "Cherry")
+            _ = popup.ensureGtkDropDown()
+            popup.gtkDropDownSelect(2)
+            let popupSel = popup.gtkDropDownSelectedIndex
+            print("[gtk] popup GtkDropDown = \(popup.gtkWidgetHandle != nil ? "✅" : "❌") selectedIndex=\(popupSel) \(popupSel == 2 ? "✅" : "❌")")
+
+            // Checkbox / radio (NSButton + ensureGtkCheckButton)
+            let checkbox = NSButton(title: "Remember me", target: nil, action: nil)
+            checkbox.state = .on
+            _ = checkbox.ensureGtkCheckButton()
+            let checkActive = checkbox.gtkCheckButtonActive
+            checkbox.gtkCheckButtonSetActive(false)
+            let checkAfter = checkbox.gtkCheckButtonActive
+            print("[gtk] checkbox GtkCheckButton = \(checkbox.gtkWidgetHandle != nil ? "✅" : "❌") initial=\(checkActive) afterToggle=\(checkAfter) \(checkActive && !checkAfter ? "✅" : "❌")")
+
+            // Radio group: 2 buttons sharing a group.
+            let r1 = NSButton(title: "Option A", target: nil, action: nil)
+            let r2 = NSButton(title: "Option B", target: nil, action: nil)
+            _ = r1.ensureGtkCheckButton()
+            _ = r2.ensureGtkCheckButton(group: r1)
+            r2.gtkCheckButtonSetActive(true)
+            let r1Active = r1.gtkCheckButtonActive
+            let r2Active = r2.gtkCheckButtonActive
+            print("[gtk] radio group: r1=\(r1Active) r2=\(r2Active) \(r1Active == false && r2Active == true ? "✅" : "❌")")
+
             // Pump some events so the window renders if we're holding
             // it open for screenshot capture.
             QuillGTK.iterate(times: 50)

@@ -523,4 +523,77 @@ extension NSProgressIndicator {
     }
 }
 
+// MARK: - NSPopUpButton: GtkDropDown backing
+
+extension NSPopUpButton {
+    @discardableResult
+    public func ensureGtkDropDown() -> OpaquePointer? {
+        guard QuillGTK.ensureInitialized() else { return nil }
+        if let existing = gtkWidgetHandle { return existing }
+        // Pull titles out of NSMenu items (already populated by callers
+        // via addItem(withTitle:)). Build a NULL-terminated char**
+        // suitable for gtk_drop_down_new_from_strings.
+        let titles = (menu?.items ?? []).map(\.title)
+        let cstrs: [UnsafePointer<CChar>?] = titles.map { UnsafePointer($0.withCString { strdup($0) }) }
+        var ptrs: [UnsafePointer<CChar>?] = cstrs + [nil]
+        let dd: UnsafeMutablePointer<GtkWidget>? = ptrs.withUnsafeMutableBufferPointer { buf in
+            return quill_drop_down_new_from_strings(buf.baseAddress)
+        }
+        gtkWidgetHandle = dd.map { OpaquePointer($0) }
+        // GtkDropDown copies the strings, safe to free.
+        for c in cstrs { if let c = c { free(UnsafeMutablePointer(mutating: c)) } }
+        return gtkWidgetHandle
+    }
+
+    public var gtkDropDownSelectedIndex: Int {
+        guard let handle = gtkWidgetHandle else { return -1 }
+        return Int(quill_drop_down_get_selected(UnsafeMutableRawPointer(handle)))
+    }
+
+    public func gtkDropDownSelect(_ idx: Int) {
+        guard let handle = gtkWidgetHandle else { return }
+        quill_drop_down_set_selected(UnsafeMutableRawPointer(handle), UInt32(idx))
+    }
+}
+
+// MARK: - GtkCheckButton backing for checkbox / radio buttons
+//
+// AppKit treats checkboxes and radio buttons as NSButtons with specific
+// bezel styles. NSButton.checkbox(...) and .radioButton(...) factory
+// methods are the preferred construction. We back them with
+// GtkCheckButton (GTK4 unified the checkbox + radio into one type;
+// radios are checkboxes that share a group).
+
+extension NSButton {
+    /// Create a GtkCheckButton instead of a GtkButton. Phase B alternative
+    /// for NSButton.checkbox(withTitle:) / .radioButton(withTitle:).
+    @discardableResult
+    public func ensureGtkCheckButton(group: NSButton? = nil) -> OpaquePointer? {
+        guard QuillGTK.ensureInitialized() else { return nil }
+        if let existing = gtkWidgetHandle { return existing }
+        let widget = title.withCString { gtk_check_button_new_with_label($0) }
+        gtkWidgetHandle = widget.map { OpaquePointer($0) }
+        if let widget = widget, let group = group, let groupHandle = group.gtkWidgetHandle {
+            quill_check_button_set_group(UnsafeMutableRawPointer(widget),
+                                         UnsafeMutableRawPointer(groupHandle))
+        }
+        // Apply current state.
+        if let widget = widget {
+            quill_check_button_set_active(UnsafeMutableRawPointer(widget),
+                                          (state == .on) ? 1 : 0)
+        }
+        return gtkWidgetHandle
+    }
+
+    public var gtkCheckButtonActive: Bool {
+        guard let handle = gtkWidgetHandle else { return false }
+        return quill_check_button_get_active(UnsafeMutableRawPointer(handle)) != 0
+    }
+
+    public func gtkCheckButtonSetActive(_ on: Bool) {
+        guard let handle = gtkWidgetHandle else { return }
+        quill_check_button_set_active(UnsafeMutableRawPointer(handle), on ? 1 : 0)
+    }
+}
+
 #endif

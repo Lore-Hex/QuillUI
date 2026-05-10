@@ -1706,16 +1706,29 @@ extension NSLayoutConstraint {
     public var titleOfSelectedItem: String?
     public var itemArray: [NSMenuItem] { menu?.items ?? [] }
     public var numberOfItems: Int { itemArray.count }
-    public func addItem(withTitle: String) {}
-    public func addItems(withTitles: [String]) {}
+    public func addItem(withTitle title: String) {
+        if menu == nil { menu = NSMenu() }
+        menu?.addItem(NSMenuItem(title: title, action: nil, keyEquivalent: ""))
+    }
+    public func addItems(withTitles titles: [String]) { for t in titles { addItem(withTitle: t) } }
     public func selectItem(at idx: Int) { indexOfSelectedItem = idx }
-    public func selectItem(withTitle: String) {}
+    public func selectItem(withTitle title: String) {
+        if let i = menu?.items.firstIndex(where: { $0.title == title }) { indexOfSelectedItem = i }
+    }
     public func selectItem(withTag: Int) -> Bool { false }
-    public func itemTitles() -> [String] { [] }
-    public func removeAllItems() {}
-    public func itemTitle(at idx: Int) -> String { "" }
-    public func removeItem(at idx: Int) {}
-    public func itemWithTitle(_ t: String) -> NSMenuItem? { nil }
+    public func itemTitles() -> [String] { menu?.items.map(\.title) ?? [] }
+    public func removeAllItems() { menu?.removeAllItems() }
+    public func itemTitle(at idx: Int) -> String {
+        guard let items = menu?.items, idx >= 0, idx < items.count else { return "" }
+        return items[idx].title
+    }
+    public func removeItem(at idx: Int) {
+        guard let items = menu?.items, idx >= 0, idx < items.count else { return }
+        menu?.removeItem(items[idx])
+    }
+    public func itemWithTitle(_ t: String) -> NSMenuItem? {
+        menu?.items.first { $0.title == t }
+    }
     public init(frame: NSRect, pullsDown: Bool) { super.init(); self.pullsDown = pullsDown }
     public override init() { super.init() }
 }

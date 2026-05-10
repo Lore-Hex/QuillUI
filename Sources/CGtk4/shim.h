@@ -32,3 +32,26 @@ static inline void quill_scrolled_window_set_child(gpointer scrolled, gpointer c
 static inline void quill_progress_bar_set_fraction(gpointer bar, double fraction) {
     gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(bar), fraction);
 }
+
+// GtkDropDown new_from_strings takes a NULL-terminated char**. Safer
+// to wrap in a helper that Swift can call with a pre-built array.
+static inline GtkWidget *quill_drop_down_new_from_strings(const char **strings) {
+    return gtk_drop_down_new_from_strings(strings);
+}
+static inline void quill_drop_down_set_selected(gpointer dropdown, unsigned int position) {
+    gtk_drop_down_set_selected(GTK_DROP_DOWN(dropdown), position);
+}
+static inline unsigned int quill_drop_down_get_selected(gpointer dropdown) {
+    return gtk_drop_down_get_selected(GTK_DROP_DOWN(dropdown));
+}
+
+// GtkCheckButton: active state + group membership.
+static inline void quill_check_button_set_active(gpointer cb, int active) {
+    gtk_check_button_set_active(GTK_CHECK_BUTTON(cb), (gboolean)active);
+}
+static inline int quill_check_button_get_active(gpointer cb) {
+    return gtk_check_button_get_active(GTK_CHECK_BUTTON(cb)) ? 1 : 0;
+}
+static inline void quill_check_button_set_group(gpointer cb, gpointer group) {
+    gtk_check_button_set_group(GTK_CHECK_BUTTON(cb), GTK_CHECK_BUTTON(group));
+}
