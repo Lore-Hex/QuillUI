@@ -121,6 +121,33 @@ struct PasteboardDemo {
             QuillGTK.iterate(times: 10)
             print("[gtk] gtkClick() x3 → handler ran \(clickCount) time\(clickCount == 1 ? "" : "s") \(clickCount == 3 ? "✅" : "❌")")
 
+            // Editable NSTextField → GtkEntry with text-changed signal.
+            let entry = NSTextField()
+            entry.stringValue = "initial"
+            _ = entry.ensureGtkEntry()
+            var changeCount = 0
+            var lastText = ""
+            entry.setOnTextChanged { newText in
+                changeCount += 1
+                lastText = newText
+            }
+            contentView.addSubviewGTK(entry)
+            entry.gtkEntrySetText("hello world")
+            QuillGTK.iterate(times: 5)
+            let entryReadback = entry.gtkEntryText ?? "<nil>"
+            print("[gtk] entry GtkEntry = \(entry.gtkWidgetHandle != nil ? "✅" : "❌") readback=\"\(entryReadback)\"")
+            print("[gtk] textChanged fired \(changeCount)x, lastText=\"\(lastText)\" \(lastText == "hello world" ? "✅" : "❌")")
+
+            // NSScrollView → GtkScrolledWindow + NSImageView → GtkImage
+            let scroll = NSScrollView()
+            let scrollContent = NSView()
+            scroll.documentView = scrollContent
+            _ = scroll.ensureGtkScrolledWindow()
+            let img = NSImageView()
+            _ = img.ensureGtkImage()
+            print("[gtk] scrollview GtkScrolledWindow = \(scroll.gtkWidgetHandle != nil ? "✅" : "❌")")
+            print("[gtk] imageview GtkImage = \(img.gtkWidgetHandle != nil ? "✅" : "❌")")
+
             // Pump some events so the window renders if we're holding
             // it open for screenshot capture.
             QuillGTK.iterate(times: 50)

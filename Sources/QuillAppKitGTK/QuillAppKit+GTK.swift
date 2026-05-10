@@ -336,4 +336,125 @@ extension NSButton {
     }
 }
 
+// MARK: - NSImageView: GtkImage backing
+//
+// Apple uses NSImage for both bitmap data and SF Symbol vectors.
+// Linux GTK has GtkImage (display widget) + GdkPixbuf (raster data).
+// We back NSImageView with a GtkImage; the actual NSImage's bitmap
+// would need to land in a GdkPixbuf via gdk_pixbuf_new_from_file or
+// from in-memory data. For now, we just create the widget — Mac apps
+// that just position image views get a GtkImage in the right place.
+
+extension NSImageView {
+    @discardableResult
+    public func ensureGtkImage() -> OpaquePointer? {
+        guard QuillGTK.ensureInitialized() else { return nil }
+        if let existing = gtkWidgetHandle { return existing }
+        let img = gtk_image_new()
+        gtkWidgetHandle = img.map { OpaquePointer($0) }
+        return gtkWidgetHandle
+    }
+}
+
+// MARK: - NSScrollView: GtkScrolledWindow backing
+
+extension NSScrollView {
+    @discardableResult
+    public func ensureGtkScrolledWindow() -> OpaquePointer? {
+        guard QuillGTK.ensureInitialized() else { return nil }
+        if let existing = gtkWidgetHandle { return existing }
+        let sw = gtk_scrolled_window_new()
+        gtkWidgetHandle = sw.map { OpaquePointer($0) }
+        // If documentView is set, attach it.
+        if let doc = documentView, let docHandle = doc.ensureGtkWidget(), let swHandle = gtkWidgetHandle {
+            quill_scrolled_window_set_child(
+                UnsafeMutableRawPointer(swHandle),
+                UnsafeMutableRawPointer(docHandle)
+            )
+        }
+        return gtkWidgetHandle
+    }
+}
+
+// MARK: - Editable NSTextField: GtkEntry backing
+//
+// labelWithString-style fields back to GtkLabel (above). Editable
+// fields back to GtkEntry, which has a text buffer and a "changed"
+// signal so apps can react to user typing. Phase B target/action
+// support is the same closure pattern as NSButton.
+
+@MainActor
+private var _entryHandlers: [ObjectIdentifier: (String) -> Void] = [:]
+
+private final class _EntryChangedContext {
+    let handler: (String) -> Void
+    weak var entry: NSTextField?
+    init(_ h: @escaping (String) -> Void, entry: NSTextField) {
+        self.handler = h
+        self.entry = entry
+    }
+}
+
+@MainActor
+private var _entryContexts: [ObjectIdentifier: _EntryChangedContext] = [:]
+
+private let _quillEntryChangedTrampoline: @convention(c) (OpaquePointer?, UnsafeMutableRawPointer?) -> Void = { editable, userData in
+    guard let userData, let editable else { return }
+    let ctx = Unmanaged<_EntryChangedContext>.fromOpaque(userData).takeUnretainedValue()
+    if let cstr = quill_editable_get_text(UnsafeMutableRawPointer(editable)) {
+        ctx.handler(String(cString: cstr))
+    }
+}
+
+extension NSTextField {
+    /// Phase B: create a GtkEntry backing for editable fields.
+    @discardableResult
+    public func ensureGtkEntry() -> OpaquePointer? {
+        guard QuillGTK.ensureInitialized() else { return nil }
+        if let existing = gtkWidgetHandle { return existing }
+        let entry = gtk_entry_new()
+        gtkWidgetHandle = entry.map { OpaquePointer($0) }
+        // Apply current stringValue.
+        if let widget = entry, !stringValue.isEmpty {
+            stringValue.withCString { quill_editable_set_text(UnsafeMutableRawPointer(widget), $0) }
+        }
+        return gtkWidgetHandle
+    }
+
+    /// Linux-friendly text-changed callback. Receives the latest text.
+    public func setOnTextChanged(_ handler: @escaping (String) -> Void) {
+        _entryHandlers[ObjectIdentifier(self)] = handler
+        // If the GtkEntry exists, connect now.
+        if let handle = gtkWidgetHandle {
+            let ctx = _EntryChangedContext(handler, entry: self)
+            _entryContexts[ObjectIdentifier(self)] = ctx
+            let userData = Unmanaged.passUnretained(ctx).toOpaque()
+            let raw = UnsafeMutableRawPointer(handle)
+            "changed".withCString { signalName in
+                _ = g_signal_connect_data(
+                    raw,
+                    signalName,
+                    unsafeBitCast(_quillEntryChangedTrampoline, to: GCallback.self),
+                    userData,
+                    nil,
+                    GConnectFlags(rawValue: 0)
+                )
+            }
+        }
+    }
+
+    /// Read current text from the GtkEntry (Phase B verification).
+    public var gtkEntryText: String? {
+        guard let handle = gtkWidgetHandle else { return nil }
+        guard let cstr = quill_editable_get_text(UnsafeMutableRawPointer(handle)) else { return nil }
+        return String(cString: cstr)
+    }
+
+    /// Set text on the GtkEntry programmatically. Fires "changed".
+    public func gtkEntrySetText(_ s: String) {
+        guard let handle = gtkWidgetHandle else { return }
+        s.withCString { quill_editable_set_text(UnsafeMutableRawPointer(handle), $0) }
+    }
+}
+
 #endif
