@@ -1,6 +1,14 @@
 @_exported import Foundation
 @_exported import Dispatch
 @_exported import SwiftOpenUI
+// Re-export QuillUI so `import SwiftUI` on Linux pulls in
+// QuillUI's compatibility surface: `QuillObservableObject`,
+// `QuillPublished`, `ButtonStyle` + `ButtonStyleConfiguration`,
+// `NSImage`, `QuillHotkeyService`, `QuillCheckForUpdatesMenuItem`,
+// etc. The Apple-platform branch of QuillUI.swift uses Apple's
+// real SwiftUI, so this re-export is conditional to avoid pulling
+// QuillUI into the macOS build path twice.
+@_exported import QuillUI
 
 #if os(Linux)
 // Upstream SwiftUI exposes `Font.Weight` as a nested type. SwiftOpenUI
