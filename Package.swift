@@ -92,12 +92,12 @@ let quillShimsDependencies: [Target.Dependency] = [
 #if os(Linux)
 let nnwLogicDependencies: [Target.Dependency] = [
     "RSCore", "Account", "Articles", "RSParser", "ArticlesDatabase",
-    "RSWeb", "RSTree", "QuillShims", "os"
+    "RSWeb", "RSTree", "QuillShims", "Zip", "os"
 ]
 #else
 let nnwLogicDependencies: [Target.Dependency] = [
     "RSCore", "Account", "Articles", "RSParser", "ArticlesDatabase",
-    "RSWeb", "RSTree", "QuillShims"
+    "RSWeb", "RSTree", "QuillShims", "Zip"
 ]
 #endif
 
@@ -108,9 +108,11 @@ let nnwLogicDependencies: [Target.Dependency] = [
 // the Swift source uses `#if canImport(WireGuardKit)` so it stays
 // compileable either way.
 var quillWireGuardCoreDependencies: [Target.Dependency] = ["QuillUI", "QuillData"]
+#if !os(Linux)
 if wireguardUpstreamPresent {
     quillWireGuardCoreDependencies.append("WireGuardKit")
 }
+#endif
 #if os(Linux)
 quillWireGuardCoreDependencies.append("SwiftUI")
 let quillWireGuardDependencies: [Target.Dependency] = ["QuillWireGuardCore", "SwiftUI"]
@@ -400,6 +402,15 @@ if nnwUpstreamPresent {
 // `.upstream/wireguard-apple/...` is populated. When absent we skip
 // both WireGuardKitC and WireGuardKit (and `QuillWireGuardCore`
 // drops its WireGuardKit dependency further down).
+//
+// Linux gate: WireGuardKitC.h uses Darwin-only types
+// (`u_int32_t`, `u_char`, `sockaddr_ctl`) and pulls in macOS
+// kernel-control APIs. CommonCryptoLinux covers x25519.c's
+// `<CommonCrypto/CommonRandom.h>` but not the header-side
+// Darwinisms. Per the prior checkpoint plan, Linux WireGuard
+// stays a `QuillWireGuardCore` placeholder until a real Linux
+// backend lands.
+#if !os(Linux)
 if wireguardUpstreamPresent {
     targets += [
         .target(
@@ -433,6 +444,7 @@ if wireguardUpstreamPresent {
         )
     ]
 }
+#endif
 
 // CodeEdit upstream — macOS-only (it's a pure AppKit/SwiftUI Mac app
 // using NSTextView, NSDocument, NSApplicationDelegateAdaptor, Sparkle,
