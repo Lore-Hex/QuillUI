@@ -81,7 +81,10 @@ products += [
     .library(name: "KeyboardShortcuts", targets: ["KeyboardShortcuts"]),
     .library(name: "PhotosUI", targets: ["PhotosUI"]),
     .library(name: "Magnet", targets: ["Magnet"]),
-    .library(name: "Combine", targets: ["Combine"])
+    .library(name: "Combine", targets: ["Combine"]),
+    .library(name: "OllamaKit", targets: ["OllamaKit"]),
+    .library(name: "Sparkle", targets: ["Sparkle"]),
+    .library(name: "IOKit", targets: ["IOKit"])
 ]
 #endif
 
@@ -600,6 +603,18 @@ targets.append(contentsOf: [
         ],
         path: "Sources/Combine"
     ),
+    // Combine-dependent shims.
+    .target(name: "OllamaKit", dependencies: ["Combine", "QuillKit"], path: "Sources/OllamaKit"),
+    .target(name: "Sparkle", dependencies: ["Combine"], path: "Sources/Sparkle"),
+    // IOKit: header-only C target. `module.modulemap` exposes
+    // `IOKit` and its `IOKit.usb` submodule; `dummy.c` is an empty
+    // translation unit so SwiftPM treats this as a buildable C
+    // target rather than a documentation-only directory.
+    .target(
+        name: "IOKit",
+        path: "Sources/IOKit",
+        publicHeadersPath: "."
+    ),
 ])
 // Linux-only target that compiles a hand-picked set of real
 // CodeEdit upstream files (the ones that import AppKit only,
@@ -695,7 +710,8 @@ let package = Package(
                 "AVFoundation", "Speech", "ApplicationServices",
                 "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
                 "ActivityIndicatorView", "WrappingHStack", "Vortex",
-                "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine"
+                "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
+                "OllamaKit", "Sparkle", "IOKit"
             ]
             #else
             let testDeps: [Target.Dependency] = ["QuillShims"]

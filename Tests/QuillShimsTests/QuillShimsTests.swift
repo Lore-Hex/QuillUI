@@ -75,6 +75,9 @@ import Vortex
 import KeyboardShortcuts
 import PhotosUI
 import Magnet
+import OllamaKit
+import Sparkle
+import IOKit
 
 final class LinuxCompatibilityProductsTests: XCTestCase {
     // The point of these tests is link-time: each `import` plus a
@@ -132,6 +135,13 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
         // the local extension `AnyPublisher.init()` resolved.
         let publisher: AnyPublisher<Int, Never> = AnyPublisher()
         _ = publisher
+    }
+
+    func testIOKitShim() {
+        // `kIOMainPortDefault` is a header-defined constant in
+        // `Sources/IOKit/IOKit.h`; reaching it from Swift proves
+        // the module map + header search path are wired in.
+        XCTAssertEqual(kIOMainPortDefault, 0)
     }
 }
 #endif
