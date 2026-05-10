@@ -438,9 +438,19 @@ targets.append(contentsOf: [
         dependencies: ["AppKit"],
         path: ".upstream/codeedit/CodeEdit",
         sources: [
+            // AppKit-specific extensions
             "Utils/Extensions/NSWindow/NSWindow+Child.swift",
-            "Features/SplitView/Model/CodeEditDividerStyle.swift"
-        ]
+            "Features/SplitView/Model/CodeEditDividerStyle.swift",
+            // Pure-Foundation utilities (compile against any platform)
+            "Utils/Extensions/Collection/Collection+subscript_safe.swift",
+            "Utils/Extensions/Array/Array+Index.swift",
+            "Utils/Extensions/URL/URL+absolutePath.swift",
+            "Utils/Extensions/URL/URL+Filename.swift",
+            "Utils/Extensions/URL/URL+Identifiable.swift",
+            // Stand-alone CodeEdit type
+            "SceneID.swift"
+        ],
+        swiftSettings: [.swiftLanguageMode(.v5)]
     )
 ])
 #endif
