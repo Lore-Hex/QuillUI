@@ -433,7 +433,12 @@ targets.append(contentsOf: [
     // so upstream `import AppKit` resolves to this swiftmodule on
     // Linux. Phase A: type stubs only. Phase B will back the heavy
     // hitters (NSWindow, NSView, NSPasteboard, etc.) with GTK4.
-    .target(name: "AppKit", dependencies: ["QuillFoundation", "QuillUIKit", "CGtk4"], path: "Sources/QuillAppKit"),
+    .target(name: "AppKit", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/QuillAppKit", exclude: ["QuillAppKit+GTK.swift"]),
+    // GTK4-backed runtime for QuillAppKit. Separate target so the
+    // bare AppKit module stays a clean shadow (no transitive CGtk4
+    // dep visible to clients like swift-sharing's `canImport(AppKit)`
+    // branch). Apps that want the runtime backing import QuillAppKitGTK.
+    .target(name: "QuillAppKitGTK", dependencies: ["AppKit", "CGtk4"], path: "Sources/QuillAppKitGTK"),
     // Runtime demo: exercises NSPasteboard.general's Phase B backing
     // (Wayland / X11 / file-backed tier) end-to-end. Writes a string,
     // reads it back, asserts the round-trip succeeded. Linux-only —
@@ -441,7 +446,7 @@ targets.append(contentsOf: [
     // shim, so the demo target is unnecessary there.
     .executableTarget(
         name: "QuillAppKitPasteboardDemo",
-        dependencies: ["AppKit"],
+        dependencies: ["AppKit", "QuillAppKitGTK"],
         path: "Sources/QuillAppKitPasteboardDemo"
     ),
     // Smoke test for QuillAppKit. Exercises realistic AppKit usage

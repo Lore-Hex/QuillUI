@@ -16,6 +16,7 @@
 #if os(Linux)
 
 import CGtk4
+import AppKit
 import QuillFoundation
 import Glibc
 
@@ -159,5 +160,81 @@ extension NSWindow {
 // NSObject + NSResponder inheritance chain with extra fields.
 @MainActor
 private var _windowHandles: [ObjectIdentifier: OpaquePointer] = [:]
+
+// MARK: - NSView: GtkBox-backed
+
+extension NSView {
+    /// GtkWidget pointer (typically a GtkBox container) backing this
+    /// NSView. Lazily created by `ensureGtkWidget()`.
+    public var gtkWidgetHandle: OpaquePointer? {
+        get { _viewHandles[ObjectIdentifier(self)] }
+        set { _viewHandles[ObjectIdentifier(self)] = newValue }
+    }
+
+    /// Create a GtkBox to back this view if one doesn't exist yet.
+    /// Returns the widget pointer, or nil if GTK isn't initialized.
+    @discardableResult
+    public func ensureGtkWidget() -> OpaquePointer? {
+        guard QuillGTK.ensureInitialized() else { return nil }
+        if let existing = gtkWidgetHandle { return existing }
+        // Default to vertical box. AppKit views don't enforce a layout
+        // axis, so vertical is a reasonable starting choice.
+        let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)
+        gtkWidgetHandle = box.map { OpaquePointer($0) }
+        return gtkWidgetHandle
+    }
+
+    /// Phase B: addSubview also appends to the GTK box if both views
+    /// have GTK widgets. Falls back to the AppKit-shaped subview list
+    /// (already maintained by the stub).
+    public func addSubviewGTK(_ child: NSView) {
+        addSubview(child)
+        guard let parentHandle = ensureGtkWidget() else { return }
+        guard let childHandle = child.ensureGtkWidget() else { return }
+        let parentBox = UnsafeMutableRawPointer(parentHandle).assumingMemoryBound(to: GtkBox.self)
+        let childWidget = UnsafeMutableRawPointer(childHandle).assumingMemoryBound(to: GtkWidget.self)
+        gtk_box_append(parentBox, childWidget)
+    }
+}
+
+@MainActor
+private var _viewHandles: [ObjectIdentifier: OpaquePointer] = [:]
+
+// MARK: - NSWindow.contentView ↔ GtkWindow.set_child
+
+extension NSWindow {
+    /// Phase B: set the window's GTK content widget to the contentView's
+    /// GTK widget. Called automatically from showAsGtkWindowWithContent.
+    public func attachContentViewToGtk() {
+        guard let winHandle = gtkWindowHandle else { return }
+        guard let cv = contentView else { return }
+        guard let viewHandle = cv.ensureGtkWidget() else { return }
+        let win = UnsafeMutableRawPointer(winHandle).assumingMemoryBound(to: GtkWindow.self)
+        let widget = UnsafeMutableRawPointer(viewHandle).assumingMemoryBound(to: GtkWidget.self)
+        gtk_window_set_child(win, widget)
+    }
+
+    /// Convenience: show the window with its contentView's GTK widget
+    /// already attached.
+    public func showAsGtkWindowWithContent() {
+        showAsGtkWindow()
+        attachContentViewToGtk()
+    }
+}
+
+// MARK: - NSTextField label-style: GtkLabel backing
+
+extension NSTextField {
+    /// Phase B: create a GtkLabel backing for labelWithString-style
+    /// fields (read-only single-line text).
+    @discardableResult
+    public func ensureGtkLabel() -> OpaquePointer? {
+        guard QuillGTK.ensureInitialized() else { return nil }
+        if let existing = gtkWidgetHandle { return existing }
+        let label = stringValue.withCString { gtk_label_new($0) }
+        gtkWidgetHandle = label.map { OpaquePointer($0) }
+        return gtkWidgetHandle
+    }
+}
 
 #endif

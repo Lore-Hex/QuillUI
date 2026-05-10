@@ -13,6 +13,7 @@
 // isn't built (it's gated to `os(Linux)` in Package.swift).
 
 import AppKit
+import QuillAppKitGTK
 import Foundation
 
 @main
@@ -91,6 +92,17 @@ struct PasteboardDemo {
             let sizeOK = gw == 640 && gh == 480
             print("[gtk] gtk_window_get_title → \"\(gtkTitle)\" \(titleOK ? "✅" : "❌")")
             print("[gtk] gtk_window_get_default_size → \(gw)x\(gh) \(sizeOK ? "✅" : "❌")")
+            // Build a content view + label and prove the widget tree
+            // exists in GTK after attaching.
+            let contentView = NSView()
+            let label = NSTextField.labelWithString("Hello from QuillAppKit on Linux")
+            _ = label.ensureGtkLabel()
+            contentView.addSubviewGTK(label)
+            win.contentView = contentView
+            win.attachContentViewToGtk()
+            let cvHasWidget = contentView.gtkWidgetHandle != nil
+            let labelHasWidget = label.gtkWidgetHandle != nil
+            print("[gtk] contentView GtkBox = \(cvHasWidget ? "✅" : "❌")  label GtkLabel = \(labelHasWidget ? "✅" : "❌")")
             // Pump some events so the window renders if we're holding
             // it open for screenshot capture.
             QuillGTK.iterate(times: 50)
