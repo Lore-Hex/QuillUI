@@ -40,7 +40,11 @@ var products: [Product] = [
     .executable(name: "quill-enchanted-upstream-slice", targets: ["QuillEnchantedUpstreamSlice"])
 ]
 
-#if os(Linux)
+// `quill-netnewswire` executable lives behind both the upstream
+// being fetched and the platform supporting NetNewsWire's ObjC
+// targets. Linux can't compile RSCoreObjC/RSDatabaseObjC against
+// swift-corelibs-foundation yet, so the product is macOS-only.
+#if !os(Linux)
 if nnwUpstreamPresent {
     products.append(.executable(name: "quill-netnewswire", targets: ["QuillNetNewsWire"]))
 }
@@ -282,6 +286,14 @@ var targets: [Target] = [
 // netnewswire/...` is populated (run `scripts/fetch-upstream.sh`).
 // On a fresh clone we skip the whole NetNewsWire graph and the
 // `QuillNetNewsWire` executable along with it.
+//
+// Linux gate: NetNewsWire ships `.m`/`.h` Objective-C sources
+// (RSCoreObjC, RSDatabaseObjC) that #import <Foundation/Foundation.h>
+// — that header doesn't exist on swift-corelibs-foundation, so
+// even the apt-clang-free toolchain can't build the ObjC pieces.
+// Until we provide a GNUstep-style header shim or rewrite the
+// ObjC bits in Swift, keep the NetNewsWire graph macOS-only.
+#if !os(Linux)
 if nnwUpstreamPresent {
     targets += [
         .target(
@@ -382,6 +394,7 @@ if nnwUpstreamPresent {
         )
     ]
 }
+#endif
 
 // WireGuard Apple upstream. The path-based targets only exist if
 // `.upstream/wireguard-apple/...` is populated. When absent we skip
