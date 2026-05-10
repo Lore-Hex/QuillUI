@@ -27,3 +27,8 @@ static inline void quill_scrolled_window_set_child(gpointer scrolled, gpointer c
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled),
                                   GTK_WIDGET(child));
 }
+
+// Same gpointer pattern for GtkProgressBar.
+static inline void quill_progress_bar_set_fraction(gpointer bar, double fraction) {
+    gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(bar), fraction);
+}

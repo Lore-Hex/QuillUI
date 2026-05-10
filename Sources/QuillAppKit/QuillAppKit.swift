@@ -1641,6 +1641,63 @@ public extension NSControl {
     }
 }
 
+@MainActor open class NSSlider: NSControl {
+    public var minValue: Double = 0
+    public var maxValue: Double = 1
+    public var altIncrementValue: Double = 0
+    public var allowsTickMarkValuesOnly: Bool = false
+    public var numberOfTickMarks: Int = 0
+    public var tickMarkPosition: TickMarkPosition = .below
+    public var sliderType: SliderType = .linear
+    public var isVertical: Bool = false
+    public var trackFillColor: NSColor?
+    public enum TickMarkPosition: UInt, Sendable { case below, above, leading, trailing }
+    public enum SliderType: UInt, Sendable { case linear, circular }
+    public override init() { super.init() }
+}
+
+@MainActor open class NSStackView: NSView {
+    public enum Orientation: Int, Sendable { case horizontal = 0, vertical = 1 }
+    public enum Distribution: Int, Sendable { case equalCentering, equalSpacing, fill, fillEqually, fillProportionally, gravityAreas }
+    public enum Gravity: Int, Sendable { case top, center, bottom, leading, trailing }
+    public var orientation: Orientation = .horizontal
+    public var alignment: NSLayoutConstraint.Attribute = .centerY
+    public var distribution: Distribution = .fill
+    public var spacing: CGFloat = 0
+    public var edgeInsets: NSEdgeInsets = (0, 0, 0, 0)
+    public var arrangedSubviews: [NSView] = []
+    public func addArrangedSubview(_ v: NSView) { arrangedSubviews.append(v); addSubview(v) }
+    public func insertArrangedSubview(_ v: NSView, at idx: Int) { arrangedSubviews.insert(v, at: idx); addSubview(v) }
+    public func removeArrangedSubview(_ v: NSView) {
+        arrangedSubviews.removeAll { $0 === v }
+    }
+    public override init() { super.init() }
+}
+
+extension NSLayoutConstraint {
+    public enum Attribute: Int, Sendable {
+        case left, right, top, bottom, leading, trailing
+        case width, height, centerX, centerY, lastBaseline, firstBaseline
+        case notAnAttribute
+    }
+}
+
+@MainActor open class NSProgressIndicator: NSView {
+    public var minValue: Double = 0
+    public var maxValue: Double = 100
+    public var doubleValue: Double = 0
+    public var isIndeterminate: Bool = false
+    public var style: Style = .bar
+    public var controlSize: NSControl.ControlSize = .regular
+    public var isDisplayedWhenStopped: Bool = true
+    public var usesThreadedAnimation: Bool = false
+    public enum Style: UInt, Sendable { case bar, spinning }
+    public func startAnimation(_ sender: Any?) {}
+    public func stopAnimation(_ sender: Any?) {}
+    public func incrementBy(_ delta: Double) { doubleValue += delta }
+    public override init() { super.init() }
+}
+
 @MainActor open class NSPopUpButton: NSButton {
     public var menu: NSMenu? = NSMenu()
     public var pullsDown: Bool = false

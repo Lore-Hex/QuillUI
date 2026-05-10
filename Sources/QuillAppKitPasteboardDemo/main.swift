@@ -148,6 +148,38 @@ struct PasteboardDemo {
             print("[gtk] scrollview GtkScrolledWindow = \(scroll.gtkWidgetHandle != nil ? "✅" : "❌")")
             print("[gtk] imageview GtkImage = \(img.gtkWidgetHandle != nil ? "✅" : "❌")")
 
+            // NSSlider → GtkScale: set value, read back through GTK.
+            let slider = NSSlider()
+            slider.minValue = 0
+            slider.maxValue = 100
+            slider.doubleValue = 42
+            _ = slider.ensureGtkScale()
+            slider.gtkScaleSetValue(73)
+            let sliderReadback = slider.gtkScaleValue
+            print("[gtk] slider GtkScale = \(slider.gtkWidgetHandle != nil ? "✅" : "❌") value=\(sliderReadback) \(sliderReadback == 73 ? "✅" : "❌")")
+
+            // NSStackView → GtkBox with explicit horizontal orientation.
+            let stack = NSStackView()
+            stack.orientation = .horizontal
+            stack.spacing = 8
+            _ = stack.ensureGtkStackBox()
+            print("[gtk] stackview GtkBox = \(stack.gtkWidgetHandle != nil ? "✅" : "❌")")
+
+            // NSProgressIndicator (bar): show fraction round-trip.
+            let progress = NSProgressIndicator()
+            progress.style = .bar
+            progress.minValue = 0
+            progress.maxValue = 100
+            progress.doubleValue = 50
+            _ = progress.ensureGtkProgressIndicator()
+            print("[gtk] progress (bar) GtkProgressBar = \(progress.gtkWidgetHandle != nil ? "✅" : "❌")")
+
+            // NSProgressIndicator (spinning): GtkSpinner.
+            let spinner = NSProgressIndicator()
+            spinner.style = .spinning
+            _ = spinner.ensureGtkProgressIndicator()
+            print("[gtk] progress (spinning) GtkSpinner = \(spinner.gtkWidgetHandle != nil ? "✅" : "❌")")
+
             // Pump some events so the window renders if we're holding
             // it open for screenshot capture.
             QuillGTK.iterate(times: 50)

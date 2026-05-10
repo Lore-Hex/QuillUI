@@ -457,4 +457,70 @@ extension NSTextField {
     }
 }
 
+// MARK: - NSSlider: GtkScale backing
+
+extension NSSlider {
+    @discardableResult
+    public func ensureGtkScale() -> OpaquePointer? {
+        guard QuillGTK.ensureInitialized() else { return nil }
+        if let existing = gtkWidgetHandle { return existing }
+        let orient: GtkOrientation = isVertical ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL
+        let widget = gtk_scale_new_with_range(orient, minValue, maxValue, max((maxValue - minValue) / 100, 0.01))
+        gtkWidgetHandle = widget.map { OpaquePointer($0) }
+        if let widget = widget {
+            gtk_range_set_value(UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GtkRange.self), doubleValue)
+        }
+        return gtkWidgetHandle
+    }
+
+    public var gtkScaleValue: Double {
+        guard let handle = gtkWidgetHandle else { return 0 }
+        return gtk_range_get_value(UnsafeMutableRawPointer(handle).assumingMemoryBound(to: GtkRange.self))
+    }
+
+    public func gtkScaleSetValue(_ v: Double) {
+        guard let handle = gtkWidgetHandle else { return }
+        gtk_range_set_value(UnsafeMutableRawPointer(handle).assumingMemoryBound(to: GtkRange.self), v)
+    }
+}
+
+// MARK: - NSStackView: GtkBox backing with explicit orientation
+
+extension NSStackView {
+    @discardableResult
+    public func ensureGtkStackBox() -> OpaquePointer? {
+        guard QuillGTK.ensureInitialized() else { return nil }
+        if let existing = gtkWidgetHandle { return existing }
+        let orient: GtkOrientation = (orientation == .vertical) ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL
+        let box = gtk_box_new(orient, Int32(spacing.rounded()))
+        gtkWidgetHandle = box.map { OpaquePointer($0) }
+        return gtkWidgetHandle
+    }
+}
+
+// MARK: - NSProgressIndicator: GtkProgressBar (bar) / GtkSpinner (spinning)
+
+extension NSProgressIndicator {
+    @discardableResult
+    public func ensureGtkProgressIndicator() -> OpaquePointer? {
+        guard QuillGTK.ensureInitialized() else { return nil }
+        if let existing = gtkWidgetHandle { return existing }
+        let widget: UnsafeMutablePointer<GtkWidget>? = (style == .spinning)
+            ? gtk_spinner_new()
+            : gtk_progress_bar_new()
+        gtkWidgetHandle = widget.map { OpaquePointer($0) }
+        // Apply current fraction for bar style.
+        if style == .bar, let widget = widget, maxValue > minValue {
+            let fraction = (doubleValue - minValue) / (maxValue - minValue)
+            quill_progress_bar_set_fraction(UnsafeMutableRawPointer(widget), fraction)
+        }
+        return gtkWidgetHandle
+    }
+
+    public func gtkProgressSetFraction(_ f: Double) {
+        guard let handle = gtkWidgetHandle, style == .bar else { return }
+        quill_progress_bar_set_fraction(UnsafeMutableRawPointer(handle), f)
+    }
+}
+
 #endif
