@@ -57,17 +57,32 @@ class MockTreeDelegate: TreeControllerDelegate {
 // assert anything beyond reachability.
 #if os(Linux)
 import AsyncAlgorithms
+import Carbon
 import CoreGraphics
 import Security
 import AVFoundation
 import Speech
+import ApplicationServices
+import ServiceManagement
+import Alamofire
+import MarkdownUI
+import Splash
+import ActivityIndicatorView
+import WrappingHStack
+import Vortex
+import KeyboardShortcuts
+import PhotosUI
+import Magnet
 
 final class LinuxCompatibilityProductsTests: XCTestCase {
     func testCompatibilityShimsLink() {
-        // Touch one public symbol from each shim so the linker
-        // can't dead-strip the import.
-        let flags = CGEventFlags(rawValue: 0)
-        XCTAssertEqual(flags.rawValue, 0)
+        // Touch a public symbol from each shim so the linker
+        // can't dead-strip the import. The assertions don't
+        // matter — the value of the test is that this file
+        // compiles + links at all.
+        XCTAssertEqual(CGEventFlags(rawValue: 0).rawValue, 0)
+        XCTAssertEqual(SFSpeechRecognizerAuthorizationStatus.denied, .denied)
+        XCTAssertEqual(AVAudioPCMBuffer().frameLength, 0)
     }
 }
 #endif

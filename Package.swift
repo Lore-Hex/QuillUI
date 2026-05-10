@@ -65,10 +65,22 @@ products += [
     .library(name: "QuillAppKitGTK", targets: ["QuillAppKitGTK"]),
     .library(name: "os", targets: ["os"]),
     .library(name: "AsyncAlgorithms", targets: ["AsyncAlgorithms"]),
+    .library(name: "Carbon", targets: ["Carbon"]),
     .library(name: "CoreGraphics", targets: ["CoreGraphics"]),
     .library(name: "Security", targets: ["Security"]),
     .library(name: "AVFoundation", targets: ["AVFoundation"]),
-    .library(name: "Speech", targets: ["Speech"])
+    .library(name: "Speech", targets: ["Speech"]),
+    .library(name: "ApplicationServices", targets: ["ApplicationServices"]),
+    .library(name: "ServiceManagement", targets: ["ServiceManagement"]),
+    .library(name: "Alamofire", targets: ["Alamofire"]),
+    .library(name: "MarkdownUI", targets: ["MarkdownUI"]),
+    .library(name: "Splash", targets: ["Splash"]),
+    .library(name: "ActivityIndicatorView", targets: ["ActivityIndicatorView"]),
+    .library(name: "WrappingHStack", targets: ["WrappingHStack"]),
+    .library(name: "Vortex", targets: ["Vortex"]),
+    .library(name: "KeyboardShortcuts", targets: ["KeyboardShortcuts"]),
+    .library(name: "PhotosUI", targets: ["PhotosUI"]),
+    .library(name: "Magnet", targets: ["Magnet"])
 ]
 #endif
 
@@ -560,10 +572,22 @@ targets.append(contentsOf: [
     // shadows a real Apple module on Linux; the matching products
     // are added below.
     .target(name: "AsyncAlgorithms", dependencies: [], path: "Sources/AsyncAlgorithms"),
+    .target(name: "Carbon", dependencies: [], path: "Sources/Carbon"),
     .target(name: "CoreGraphics", dependencies: ["QuillKit"], path: "Sources/CoreGraphics"),
     .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
     .target(name: "AVFoundation", dependencies: ["QuillKit"], path: "Sources/AVFoundation"),
     .target(name: "Speech", dependencies: ["QuillKit", "AVFoundation"], path: "Sources/Speech"),
+    .target(name: "ApplicationServices", dependencies: ["QuillKit"], path: "Sources/ApplicationServices"),
+    .target(name: "ServiceManagement", dependencies: ["QuillKit"], path: "Sources/ServiceManagement"),
+    .target(name: "Alamofire", dependencies: ["Security"], path: "Sources/Alamofire"),
+    .target(name: "MarkdownUI", dependencies: ["SwiftUI"], path: "Sources/MarkdownUI"),
+    .target(name: "Splash", dependencies: ["SwiftUI"], path: "Sources/Splash"),
+    .target(name: "ActivityIndicatorView", dependencies: ["SwiftUI"], path: "Sources/ActivityIndicatorView"),
+    .target(name: "WrappingHStack", dependencies: ["SwiftUI"], path: "Sources/WrappingHStack"),
+    .target(name: "Vortex", dependencies: ["SwiftUI"], path: "Sources/Vortex"),
+    .target(name: "KeyboardShortcuts", dependencies: ["SwiftUI"], path: "Sources/KeyboardShortcuts"),
+    .target(name: "PhotosUI", dependencies: ["SwiftUI"], path: "Sources/PhotosUI"),
+    .target(name: "Magnet", dependencies: ["AppKit"], path: "Sources/Magnet"),
 ])
 // Linux-only target that compiles a hand-picked set of real
 // CodeEdit upstream files (the ones that import AppKit only,
@@ -649,8 +673,11 @@ let package = Package(
             #if os(Linux)
             let testDeps: [Target.Dependency] = [
                 "QuillShims",
-                "AsyncAlgorithms", "CoreGraphics", "Security",
-                "AVFoundation", "Speech"
+                "AsyncAlgorithms", "Carbon", "CoreGraphics", "Security",
+                "AVFoundation", "Speech", "ApplicationServices",
+                "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
+                "ActivityIndicatorView", "WrappingHStack", "Vortex",
+                "KeyboardShortcuts", "PhotosUI", "Magnet"
             ]
             #else
             let testDeps: [Target.Dependency] = ["QuillShims"]
