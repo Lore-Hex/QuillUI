@@ -218,6 +218,16 @@ extension NSView {
         let parentBox = UnsafeMutableRawPointer(parentHandle).assumingMemoryBound(to: GtkBox.self)
         let childWidget = UnsafeMutableRawPointer(childHandle).assumingMemoryBound(to: GtkWidget.self)
         gtk_box_append(parentBox, childWidget)
+        // Late additions (after the box is already presented) need an
+        // explicit relayout request or GTK4 won't recompute size.
+        quill_widget_queue_resize(UnsafeMutableRawPointer(parentHandle))
+    }
+
+    /// Returns the number of GTK children of this view's box. Useful
+    /// for tests.
+    public var gtkChildCount: Int {
+        guard let handle = gtkWidgetHandle else { return 0 }
+        return Int(quill_widget_child_count(UnsafeMutableRawPointer(handle)))
     }
 }
 

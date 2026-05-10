@@ -28,6 +28,25 @@ static inline void quill_scrolled_window_set_child(gpointer scrolled, gpointer c
                                   GTK_WIDGET(child));
 }
 
+// Helper: count direct children of a GtkBox / GtkWidget. Iterates
+// gtk_widget_get_first_child / gtk_widget_get_next_sibling. Useful
+// for tests / debugging to verify the widget tree shape.
+static inline int quill_widget_child_count(gpointer parent) {
+    int n = 0;
+    GtkWidget *child = gtk_widget_get_first_child(GTK_WIDGET(parent));
+    while (child) {
+        n++;
+        child = gtk_widget_get_next_sibling(child);
+    }
+    return n;
+}
+
+// Force a widget to recompute its size + layout. Useful when adding
+// children after the parent has already been presented.
+static inline void quill_widget_queue_resize(gpointer w) {
+    gtk_widget_queue_resize(GTK_WIDGET(w));
+}
+
 // Same gpointer pattern for GtkProgressBar.
 static inline void quill_progress_bar_set_fraction(gpointer bar, double fraction) {
     gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(bar), fraction);

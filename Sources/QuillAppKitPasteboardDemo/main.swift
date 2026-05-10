@@ -223,6 +223,7 @@ struct PasteboardDemo {
             // Pump enough events so GTK lays out all the new children
             // before the screenshot tool fires.
             QuillGTK.iterate(times: 500)
+            print("[gtk] contentView GtkBox child count = \(contentView.gtkChildCount)")
 
             // Pump some events so the window renders if we're holding
             // it open for screenshot capture.
