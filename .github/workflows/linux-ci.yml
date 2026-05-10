@@ -37,6 +37,7 @@ jobs:
             libgtk-4-dev \
             libsqlite3-dev \
             pkg-config \
+            ripgrep \
             x11-apps \
             xdotool \
             xvfb
@@ -48,7 +49,10 @@ jobs:
       - name: Profile budget audit
         run: scripts/audit-profile-budget.sh --max-shell-lines 50
 
-      - name: Fetch upstream Enchanted fixture
+      - name: Fetch upstream sources
+        run: scripts/fetch-upstream.sh
+
+      - name: Upstream Enchanted audit report
         run: scripts/audit-upstream-enchanted.sh >/tmp/quillui-upstream-enchanted-audit.md
 
       - name: Swift tests

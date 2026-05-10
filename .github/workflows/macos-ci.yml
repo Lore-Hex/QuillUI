@@ -24,17 +24,22 @@ jobs:
           swift --version
           xcodebuild -version
 
+      # The NetNewsWire/WireGuard/CodeEdit upstreams live under
+      # `.upstream/` (gitignored). Fetch them so the matching
+      # Package.swift targets resolve. Without this step the
+      # gated targets are simply absent — QuillUI/QuillEnchanted
+      # still build.
+      - name: Fetch upstream sources
+        run: scripts/fetch-upstream.sh
+
       # Each Quill app is built individually so a failure in one doesn't
-      # prevent the others from being reported. CI fails if any of the four
-      # cannot build cleanly on macOS.
+      # prevent the others from being reported. CI fails if any cannot
+      # build cleanly on macOS.
       - name: Build QuillUI core library
         run: swift build --target QuillUI
 
       - name: Build QuillEnchanted
         run: swift build --target QuillEnchanted
-
-      - name: Build QuillIceCubes
-        run: swift build --target QuillIceCubes
 
       - name: Build QuillNetNewsWire
         run: swift build --target QuillNetNewsWire

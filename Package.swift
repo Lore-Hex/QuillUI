@@ -1,6 +1,31 @@
 // swift-tools-version: 6.0
 
 import PackageDescription
+import Foundation
+
+// The CodeEdit upstream slice depends on a locally vendored
+// `.upstream/codeeditsymbols` checkout (upstream CodeEditSymbols
+// 0.2.3's manifest is missing a `resources:` declaration for its
+// asset catalog — see the comment near the package dependency).
+// We only wire the CodeEdit deps + target in when that vendored
+// checkout is actually present so that a fresh `git clone` on
+// macOS still resolves and can build QuillUI/QuillEnchanted/etc.
+// Run `scripts/fetch-upstream-codeedit.sh` to populate the path
+// and enable the CodeEditUpstream target.
+// SwiftPM evaluates Package.swift with the package directory as
+// CWD. Resolve gated upstream paths against that — `#filePath`
+// can point at a sandbox copy under .swiftpm so it isn't reliable.
+let packageRoot: String = FileManager.default.currentDirectoryPath
+func upstreamPath(_ rel: String) -> String {
+    "\(packageRoot)/\(rel)"
+}
+func upstreamPresent(_ rel: String) -> Bool {
+    FileManager.default.fileExists(atPath: upstreamPath(rel))
+}
+let codeEditUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsymbols")
+let nnwUpstreamPresent: Bool = upstreamPresent(".upstream/netnewswire/Modules/RSCore")
+let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/Sources/WireGuardKit")
+let codeEditSourceUpstreamPresent: Bool = upstreamPresent(".upstream/codeedit/CodeEdit")
 
 var products: [Product] = [
     .library(name: "QuillUI", targets: ["QuillUI"]),
@@ -16,7 +41,9 @@ var products: [Product] = [
 ]
 
 #if os(Linux)
-products.append(.executable(name: "quill-netnewswire", targets: ["QuillNetNewsWire"]))
+if nnwUpstreamPresent {
+    products.append(.executable(name: "quill-netnewswire", targets: ["QuillNetNewsWire"]))
+}
 #endif
 
 #if os(Linux)
@@ -72,16 +99,18 @@ let nnwLogicDependencies: [Target.Dependency] = [
 
 // QuillWireGuard executable + core. On Linux they need the SwiftUI
 // shim target since `import SwiftUI` doesn't resolve to Apple's
-// SwiftUI (which doesn't ship on Linux).
+// SwiftUI (which doesn't ship on Linux). The WireGuardKit dep is
+// only declared when `.upstream/wireguard-apple/...` is fetched —
+// the Swift source uses `#if canImport(WireGuardKit)` so it stays
+// compileable either way.
+var quillWireGuardCoreDependencies: [Target.Dependency] = ["QuillUI", "QuillData"]
+if wireguardUpstreamPresent {
+    quillWireGuardCoreDependencies.append("WireGuardKit")
+}
 #if os(Linux)
-let quillWireGuardCoreDependencies: [Target.Dependency] = [
-    "QuillUI", "QuillData", "WireGuardKit", "SwiftUI"
-]
+quillWireGuardCoreDependencies.append("SwiftUI")
 let quillWireGuardDependencies: [Target.Dependency] = ["QuillWireGuardCore", "SwiftUI"]
 #else
-let quillWireGuardCoreDependencies: [Target.Dependency] = [
-    "QuillUI", "QuillData", "WireGuardKit"
-]
 let quillWireGuardDependencies: [Target.Dependency] = ["QuillWireGuardCore"]
 #endif
 
@@ -171,93 +200,13 @@ var targets: [Target] = [
         name: "QuillShims",
         dependencies: quillShimsDependencies
     ),
-    .target(
-        name: "RSCore",
-        dependencies: ["RSCoreObjC", "QuillShims"],
-        path: ".upstream/netnewswire/Modules/RSCore/Sources/RSCore",
-        exclude: ["AppKit", "UIKit", "SendToBlogEditorApp.swift"],
-        swiftSettings: nnwSwiftSettings
-    ),
-    .target(
-        name: "RSCoreObjC",
-        path: ".upstream/netnewswire/Modules/RSCore/Sources/RSCoreObjC"
-    ),
-    .target(
-        name: "RSParser",
-        dependencies: ["RSCore", "QuillShims", "Tidemark"],
-        path: ".upstream/netnewswire/Modules/RSParser/Sources/RSParser",
-        swiftSettings: standardSwiftSettings
-    ),
-    .target(
-        name: "Articles",
-        dependencies: ["RSCore", "QuillShims"],
-        path: ".upstream/netnewswire/Modules/Articles/Sources/Articles",
-        swiftSettings: nnwSwiftSettings
-    ),
-    .target(
-        name: "Account",
-        dependencies: ["RSCore", "Articles", "RSParser", "ArticlesDatabase", "RSWeb", "Secrets", "ErrorLog", "SyncDatabase", "CloudKitSync", "FeedFinder", "NewsBlur", "QuillShims"],
-        path: ".upstream/netnewswire/Modules/Account/Sources/Account",
-        swiftSettings: nnwSwiftSettings
-    ),
-    .target(
-        name: "ArticlesDatabase",
-        dependencies: ["RSCore", "RSParser", "Articles", "RSDatabase", "RSDatabaseObjC", "QuillShims"],
-        path: ".upstream/netnewswire/Modules/ArticlesDatabase/Sources/ArticlesDatabase",
-        swiftSettings: nnwSwiftSettings
-    ),
-    .target(
-        name: "RSWeb",
-        dependencies: ["RSParser", "RSCore", "QuillShims"],
-        path: ".upstream/netnewswire/Modules/RSWeb/Sources/RSWeb",
-        swiftSettings: nnwSwiftSettings
-    ),
-    .target(
-        name: "ErrorLog",
-        dependencies: ["RSCore", "RSDatabase", "RSDatabaseObjC", "QuillShims"],
-        path: ".upstream/netnewswire/Modules/ErrorLog/Sources/ErrorLog",
-        swiftSettings: nnwSwiftSettings
-    ),
-    .target(
-        name: "SyncDatabase",
-        dependencies: ["RSCore", "Articles", "RSDatabase", "RSDatabaseObjC", "QuillShims"],
-        path: ".upstream/netnewswire/Modules/SyncDatabase/Sources/SyncDatabase",
-        swiftSettings: nnwSwiftSettings
-    ),
-    .target(
-        name: "CloudKitSync",
-        dependencies: ["RSCore", "QuillShims"],
-        path: ".upstream/netnewswire/Modules/CloudKitSync/Sources/CloudKitSync",
-        swiftSettings: nnwSwiftSettings
-    ),
-    .target(
-        name: "FeedFinder",
-        dependencies: ["RSWeb", "RSParser", "RSCore", "QuillShims"],
-        path: ".upstream/netnewswire/Modules/FeedFinder/Sources/FeedFinder",
-        swiftSettings: nnwSwiftSettings
-    ),
-    .target(
-        name: "NewsBlur",
-        dependencies: ["RSWeb", "RSParser", "RSCore", "QuillShims"],
-        path: ".upstream/netnewswire/Modules/NewsBlur/Sources/NewsBlur",
-        swiftSettings: nnwSwiftSettings
-    ),
+    // RSTree lives in-tree (Sources/RSTree) so its target stays here
+    // regardless of which upstream is fetched.
     .target(
         name: "RSTree",
         dependencies: ["QuillShims"],
         path: "Sources/RSTree",
         swiftSettings: nnwSwiftSettings
-    ),
-    .target(
-        name: "RSDatabase",
-        dependencies: ["RSDatabaseObjC"],
-        path: ".upstream/netnewswire/Modules/RSDatabase/Sources/RSDatabase",
-        swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal"])]
-    ),
-    .target(
-        name: "RSDatabaseObjC",
-        path: ".upstream/netnewswire/Modules/RSDatabase/Sources/RSDatabaseObjC",
-        publicHeadersPath: "include"
     ),
     // CYCLE-BREAK: these are deps of QuillShims (Linux block) so they
     // can't depend on QuillShims back. Their *.swift sources have been
@@ -265,49 +214,6 @@ var targets: [Target] = [
     .target(name: "Secrets", dependencies: ["QuillFoundation"], path: "Sources/SecretsShim"),
     .target(name: "Tidemark", dependencies: ["QuillRS"], path: "Sources/TidemarkShim"),
     .target(name: "Zip", dependencies: ["QuillRS"], path: "Sources/ZipShim"),
-    .target(
-        name: "WireGuardKitC",
-        path: ".upstream/wireguard-apple/Sources/WireGuardKitC",
-        publicHeadersPath: ".",
-        // x25519.c includes <CommonCrypto/CommonRandom.h>. Sources/
-        // CommonCryptoLinux/include provides a Linux-only header-only
-        // shim that maps CCRandomGenerateBytes → getrandom(2). On macOS
-        // Apple's real CommonCrypto wins via the SDK; this header
-        // search path only fires on Linux. Zero modifications to
-        // upstream wireguard-apple source.
-        cSettings: [
-            .headerSearchPath("../../../../Sources/CommonCryptoLinux/include",
-                              .when(platforms: [.linux]))
-        ]
-    ),
-    .target(
-        name: "WireGuardKit",
-        dependencies: wireGuardKitDependencies,
-        path: ".upstream/wireguard-apple/Sources/WireGuardKit",
-        // WireGuardAdapter.swift needs the Go bridge (not built here).
-        // DNSResolver.swift / PacketTunnelSettingsGenerator.swift /
-        // IPAddress+AddrInfo.swift are platform-gated to iOS/macOS by
-        // upstream and emit `#error("Unimplemented")` on Linux. Exclude
-        // them so the rest of WireGuardKit (keypair generation, config
-        // parsing, IPv4/v6 helpers, the public API surface) compiles
-        // unmodified on Linux.
-        exclude: wireGuardKitExcludes,
-        swiftSettings: [.swiftLanguageMode(.v5)]
-    ),
-    .target(
-        name: "NetNewsWireLogic",
-        dependencies: nnwLogicDependencies,
-        path: ".upstream/netnewswire",
-        exclude: ["Shared/ExtensionPoints/SendToMarsEditCommand.swift", "Shared/ExtensionPoints/SendToMicroBlogCommand.swift", "Shared/DefaultAccountNames.xcstrings", "Shared/Article Rendering/newsfoot.js", "Shared/Resources/Biblioteca.nnwtheme", "Shared/Resources/GlobalKeyboardShortcuts.plist", "Shared/Article Rendering/stylesheet.css", "Shared/Article Rendering/core.css", "Shared/Importers/DefaultFeeds.opml", "Shared/Resources/NewsFax.nnwtheme", "Shared/Resources/Sepia.nnwtheme", "Shared/Resources/Appanoose.nnwtheme", "Shared/Resources/SidebarKeyboardShortcuts.plist", "Shared/Resources/Tiqoe Dark.nnwtheme", "Shared/Article Rendering/main.js", "Shared/Resources/Promenade.nnwtheme", "Shared/Resources/Verdana Revival.nnwtheme", "Shared/ShareExtension/SafariExt.js", "Shared/Resources/DetailKeyboardShortcuts.plist", "Shared/Resources/Hyperlegible.nnwtheme", "Shared/Resources/ContentRules.json", "Shared/Article Rendering/template.html", "Shared/Resources/TimelineKeyboardShortcuts.plist", "Shared/Widget/WidgetDataEncoder.swift", "Shared/Widget/WidgetDeepLinks.swift", "iOS/NetNewsWire-iOS-Bridging-Header.h", "iOS/UIKit Extensions/SFSafariViewController+Extras.h", "iOS/UIKit Extensions/SFSafariViewController+Extras.m", "iOS/Resources/Assets.xcassets", "iOS/Resources/Thanks.rtf", "iOS/Resources/blank.html", "iOS/Resources/page.html", "iOS/Resources/NetNewsWire.entitlements", "iOS/Resources/Dedication.rtf", "iOS/IntentsExtension/NetNewsWire_iOS_IntentsExtension.entitlements", "iOS/Resources/Info.plist", "iOS/Resources/NetNewsWire-dev.entitlements", "iOS/Settings/SettingsTableViewCell.xib", "iOS/ShareExtension/NetNewsWire_iOS_ShareExtension.entitlements", "iOS/Add/AddFeedSelectFolderTableViewCell.xib", "iOS/Settings/Settings.storyboard", "iOS/ShareExtension/ShareFolderPickerAccountCell.xib", "iOS/Resources/main_ios.js", "iOS/Add/Add.storyboard", "iOS/Resources/About.rtf", "iOS/ShareExtension/Info.plist", "iOS/ShareExtension/ShareFolderPickerFolderCell.xib", "iOS/Inspector/Inspector.storyboard", "iOS/IntentsExtension/Info.plist", "iOS/Account/Account.storyboard", "iOS/Resources/Credits.rtf", "iOS/Settings/SettingsComboTableViewCell.xib", "iOS/IntentsExtension", "iOS/Widget", "iOS/ShareExtension", "iOS/Base.lproj", "iOS/Resources/PrivacyInfo.xcprivacy"],
-        sources: ["Shared", "iOS"],
-        swiftSettings: nnwSwiftSettings
-    ),
-    .executableTarget(
-        name: "QuillNetNewsWire",
-        dependencies: ["QuillUI", "NetNewsWireLogic", "QuillShims"],
-        path: "Sources/QuillNetNewsWire",
-        swiftSettings: nnwSwiftSettings
-    ),
     // CYCLE-BREAK: same reasoning — re-export QuillFoundation/QuillUIKit.
     .target(name: "MessageUI", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/MessageUIShim"),
     .target(name: "SafariServices", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/SafariServicesShim"),
@@ -371,12 +277,158 @@ var targets: [Target] = [
     )
 ]
 
+// NetNewsWire upstream — modular RSS reader source (Ranchero-Software/
+// NetNewsWire). The path-based targets only exist if `.upstream/
+// netnewswire/...` is populated (run `scripts/fetch-upstream.sh`).
+// On a fresh clone we skip the whole NetNewsWire graph and the
+// `QuillNetNewsWire` executable along with it.
+if nnwUpstreamPresent {
+    targets += [
+        .target(
+            name: "RSCore",
+            dependencies: ["RSCoreObjC", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/RSCore/Sources/RSCore",
+            exclude: ["AppKit", "UIKit", "SendToBlogEditorApp.swift"],
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "RSCoreObjC",
+            path: ".upstream/netnewswire/Modules/RSCore/Sources/RSCoreObjC"
+        ),
+        .target(
+            name: "RSParser",
+            dependencies: ["RSCore", "QuillShims", "Tidemark"],
+            path: ".upstream/netnewswire/Modules/RSParser/Sources/RSParser",
+            swiftSettings: standardSwiftSettings
+        ),
+        .target(
+            name: "Articles",
+            dependencies: ["RSCore", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/Articles/Sources/Articles",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "Account",
+            dependencies: ["RSCore", "Articles", "RSParser", "ArticlesDatabase", "RSWeb", "Secrets", "ErrorLog", "SyncDatabase", "CloudKitSync", "FeedFinder", "NewsBlur", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/Account/Sources/Account",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "ArticlesDatabase",
+            dependencies: ["RSCore", "RSParser", "Articles", "RSDatabase", "RSDatabaseObjC", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/ArticlesDatabase/Sources/ArticlesDatabase",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "RSWeb",
+            dependencies: ["RSParser", "RSCore", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/RSWeb/Sources/RSWeb",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "ErrorLog",
+            dependencies: ["RSCore", "RSDatabase", "RSDatabaseObjC", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/ErrorLog/Sources/ErrorLog",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "SyncDatabase",
+            dependencies: ["RSCore", "Articles", "RSDatabase", "RSDatabaseObjC", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/SyncDatabase/Sources/SyncDatabase",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "CloudKitSync",
+            dependencies: ["RSCore", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/CloudKitSync/Sources/CloudKitSync",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "FeedFinder",
+            dependencies: ["RSWeb", "RSParser", "RSCore", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/FeedFinder/Sources/FeedFinder",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "NewsBlur",
+            dependencies: ["RSWeb", "RSParser", "RSCore", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/NewsBlur/Sources/NewsBlur",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "RSDatabase",
+            dependencies: ["RSDatabaseObjC"],
+            path: ".upstream/netnewswire/Modules/RSDatabase/Sources/RSDatabase",
+            swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal"])]
+        ),
+        .target(
+            name: "RSDatabaseObjC",
+            path: ".upstream/netnewswire/Modules/RSDatabase/Sources/RSDatabaseObjC",
+            publicHeadersPath: "include"
+        ),
+        .target(
+            name: "NetNewsWireLogic",
+            dependencies: nnwLogicDependencies,
+            path: ".upstream/netnewswire",
+            exclude: ["Shared/ExtensionPoints/SendToMarsEditCommand.swift", "Shared/ExtensionPoints/SendToMicroBlogCommand.swift", "Shared/DefaultAccountNames.xcstrings", "Shared/Article Rendering/newsfoot.js", "Shared/Resources/Biblioteca.nnwtheme", "Shared/Resources/GlobalKeyboardShortcuts.plist", "Shared/Article Rendering/stylesheet.css", "Shared/Article Rendering/core.css", "Shared/Importers/DefaultFeeds.opml", "Shared/Resources/NewsFax.nnwtheme", "Shared/Resources/Sepia.nnwtheme", "Shared/Resources/Appanoose.nnwtheme", "Shared/Resources/SidebarKeyboardShortcuts.plist", "Shared/Resources/Tiqoe Dark.nnwtheme", "Shared/Article Rendering/main.js", "Shared/Resources/Promenade.nnwtheme", "Shared/Resources/Verdana Revival.nnwtheme", "Shared/ShareExtension/SafariExt.js", "Shared/Resources/DetailKeyboardShortcuts.plist", "Shared/Resources/Hyperlegible.nnwtheme", "Shared/Resources/ContentRules.json", "Shared/Article Rendering/template.html", "Shared/Resources/TimelineKeyboardShortcuts.plist", "Shared/Widget/WidgetDataEncoder.swift", "Shared/Widget/WidgetDeepLinks.swift", "iOS/NetNewsWire-iOS-Bridging-Header.h", "iOS/UIKit Extensions/SFSafariViewController+Extras.h", "iOS/UIKit Extensions/SFSafariViewController+Extras.m", "iOS/Resources/Assets.xcassets", "iOS/Resources/Thanks.rtf", "iOS/Resources/blank.html", "iOS/Resources/page.html", "iOS/Resources/NetNewsWire.entitlements", "iOS/Resources/Dedication.rtf", "iOS/IntentsExtension/NetNewsWire_iOS_IntentsExtension.entitlements", "iOS/Resources/Info.plist", "iOS/Resources/NetNewsWire-dev.entitlements", "iOS/Settings/SettingsTableViewCell.xib", "iOS/ShareExtension/NetNewsWire_iOS_ShareExtension.entitlements", "iOS/Add/AddFeedSelectFolderTableViewCell.xib", "iOS/Settings/Settings.storyboard", "iOS/ShareExtension/ShareFolderPickerAccountCell.xib", "iOS/Resources/main_ios.js", "iOS/Add/Add.storyboard", "iOS/Resources/About.rtf", "iOS/ShareExtension/Info.plist", "iOS/ShareExtension/ShareFolderPickerFolderCell.xib", "iOS/Inspector/Inspector.storyboard", "iOS/IntentsExtension/Info.plist", "iOS/Account/Account.storyboard", "iOS/Resources/Credits.rtf", "iOS/Settings/SettingsComboTableViewCell.xib", "iOS/IntentsExtension", "iOS/Widget", "iOS/ShareExtension", "iOS/Base.lproj", "iOS/Resources/PrivacyInfo.xcprivacy"],
+            sources: ["Shared", "iOS"],
+            swiftSettings: nnwSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillNetNewsWire",
+            dependencies: ["QuillUI", "NetNewsWireLogic", "QuillShims"],
+            path: "Sources/QuillNetNewsWire",
+            swiftSettings: nnwSwiftSettings
+        )
+    ]
+}
+
+// WireGuard Apple upstream. The path-based targets only exist if
+// `.upstream/wireguard-apple/...` is populated. When absent we skip
+// both WireGuardKitC and WireGuardKit (and `QuillWireGuardCore`
+// drops its WireGuardKit dependency further down).
+if wireguardUpstreamPresent {
+    targets += [
+        .target(
+            name: "WireGuardKitC",
+            path: ".upstream/wireguard-apple/Sources/WireGuardKitC",
+            publicHeadersPath: ".",
+            // x25519.c includes <CommonCrypto/CommonRandom.h>. Sources/
+            // CommonCryptoLinux/include provides a Linux-only header-only
+            // shim that maps CCRandomGenerateBytes → getrandom(2). On macOS
+            // Apple's real CommonCrypto wins via the SDK; this header
+            // search path only fires on Linux. Zero modifications to
+            // upstream wireguard-apple source.
+            cSettings: [
+                .headerSearchPath("../../../../Sources/CommonCryptoLinux/include",
+                                  .when(platforms: [.linux]))
+            ]
+        ),
+        .target(
+            name: "WireGuardKit",
+            dependencies: wireGuardKitDependencies,
+            path: ".upstream/wireguard-apple/Sources/WireGuardKit",
+            // WireGuardAdapter.swift needs the Go bridge (not built here).
+            // DNSResolver.swift / PacketTunnelSettingsGenerator.swift /
+            // IPAddress+AddrInfo.swift are platform-gated to iOS/macOS by
+            // upstream and emit `#error("Unimplemented")` on Linux. Exclude
+            // them so the rest of WireGuardKit (keypair generation, config
+            // parsing, IPv4/v6 helpers, the public API surface) compiles
+            // unmodified on Linux.
+            exclude: wireGuardKitExcludes,
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        )
+    ]
+}
+
 // CodeEdit upstream — macOS-only (it's a pure AppKit/SwiftUI Mac app
 // using NSTextView, NSDocument, NSApplicationDelegateAdaptor, Sparkle,
 // and a stack of CodeEditApp's own packages). The Linux path can't
 // compile this without source modifications because so much of the
-// surface is non-conditional AppKit.
+// surface is non-conditional AppKit. Also gated on the vendored
+// CodeEditSymbols checkout being present (see top-of-file note).
 #if !os(Linux)
+if codeEditUpstreamPresent && codeEditSourceUpstreamPresent {
 targets += [
     .executableTarget(
         name: "CodeEditUpstream",
@@ -415,6 +467,7 @@ targets += [
         plugins: [.plugin(name: "QuillAssetSymbolsPlugin")]
     )
 ]
+}
 #endif
 
 #if os(Linux)
@@ -455,31 +508,36 @@ targets.append(contentsOf: [
     // missing types surface as compile errors here before they land
     // in a real upstream app.
     .target(name: "QuillAppKitSmoke", dependencies: ["AppKit"], path: "Sources/QuillAppKitSmoke"),
-    // Linux-only target that compiles a hand-picked set of real
-    // CodeEdit upstream files (the ones that import AppKit only,
-    // with no dependency on Sparkle/CodeEditSourceEditor/SwiftUI/etc.)
-    // to prove QuillAppKit's surface is sufficient for production
-    // Mac code with zero source modifications.
-    .target(
-        name: "CodeEditAppKitSlice",
-        dependencies: ["AppKit"],
-        path: ".upstream/codeedit/CodeEdit",
-        sources: [
-            // AppKit-specific extensions
-            "Utils/Extensions/NSWindow/NSWindow+Child.swift",
-            "Features/SplitView/Model/CodeEditDividerStyle.swift",
-            // Pure-Foundation utilities (compile against any platform)
-            "Utils/Extensions/Collection/Collection+subscript_safe.swift",
-            "Utils/Extensions/Array/Array+Index.swift",
-            "Utils/Extensions/URL/URL+absolutePath.swift",
-            "Utils/Extensions/URL/URL+Filename.swift",
-            "Utils/Extensions/URL/URL+Identifiable.swift",
-            // Stand-alone CodeEdit type
-            "SceneID.swift"
-        ],
-        swiftSettings: [.swiftLanguageMode(.v5)]
-    )
 ])
+// Linux-only target that compiles a hand-picked set of real
+// CodeEdit upstream files (the ones that import AppKit only,
+// with no dependency on Sparkle/CodeEditSourceEditor/SwiftUI/etc.)
+// to prove QuillAppKit's surface is sufficient for production
+// Mac code with zero source modifications. Gated on the upstream
+// being fetched (run `scripts/fetch-upstream.sh`).
+if codeEditSourceUpstreamPresent {
+    targets.append(
+        .target(
+            name: "CodeEditAppKitSlice",
+            dependencies: ["AppKit"],
+            path: ".upstream/codeedit/CodeEdit",
+            sources: [
+                // AppKit-specific extensions
+                "Utils/Extensions/NSWindow/NSWindow+Child.swift",
+                "Features/SplitView/Model/CodeEditDividerStyle.swift",
+                // Pure-Foundation utilities (compile against any platform)
+                "Utils/Extensions/Collection/Collection+subscript_safe.swift",
+                "Utils/Extensions/Array/Array+Index.swift",
+                "Utils/Extensions/URL/URL+absolutePath.swift",
+                "Utils/Extensions/URL/URL+Filename.swift",
+                "Utils/Extensions/URL/URL+Identifiable.swift",
+                // Stand-alone CodeEdit type
+                "SceneID.swift"
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        )
+    )
+}
 #endif
 
 // CodeEdit's SPM deps. macOS-only — Sparkle is Apple-platform auto-update,
@@ -493,6 +551,7 @@ var allPackageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
 ]
 #if !os(Linux)
+if codeEditUpstreamPresent {
 allPackageDependencies += [
     // CodeEditSymbols 0.2.3's upstream Package.swift never declares
     // `Symbols.xcassets` as a resource — Bundle.module is undefined
@@ -517,6 +576,7 @@ allPackageDependencies += [
     // upstream main has since renamed.
     .package(url: "https://github.com/thecoolwinter/SwiftTerm", branch: "codeedit")
 ]
+}
 #endif
 
 let package = Package(
