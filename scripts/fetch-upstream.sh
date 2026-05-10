@@ -108,7 +108,13 @@ PY
 
 want=("$@")
 if [[ ${#want[@]} -eq 0 ]]; then
-    want=(enchanted netnewswire wireguard codeedit codeeditsymbols)
+    # Default set excludes codeedit/codeeditsymbols. CodeEditSymbols
+    # 0.2.3 pulls in a SwiftLintPlugin prebuild command that SwiftPM
+    # 6 rejects ("a prebuild command cannot use executables built
+    # from source"). Until the upstream is patched or replaced,
+    # the CodeEdit work has to be opt-in via:
+    #   scripts/fetch-upstream.sh codeedit codeeditsymbols
+    want=(enchanted netnewswire wireguard)
 fi
 
 for name in "${want[@]}"; do

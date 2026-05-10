@@ -14,7 +14,10 @@ jobs:
     name: Swift GTK
     runs-on: ubuntu-24.04
     container:
-      image: swift:6.0-jammy
+      # GRDB.swift 7.10.0 requires swift-tools-version 6.1, so the
+      # 6.0 container fails package resolution. Track the latest
+      # patch line of Swift 6.x available as a jammy image.
+      image: swift:6.1-jammy
     env:
       QUILLUI_SKIP_APT: "1"
       QUILLUI_SMOKE_SECONDS: "4"
