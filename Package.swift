@@ -193,7 +193,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillRS",
-        dependencies: ["QuillFoundation", "QuillData"],
+        dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit", "QuillData"],
         path: "Sources/QuillRS"
     ),
     .target(

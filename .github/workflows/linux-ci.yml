@@ -30,9 +30,14 @@ jobs:
       - name: Install Linux dependencies
         run: |
           apt-get update
+          # NOTE: do NOT apt-install `clang` here. The Swift toolchain
+          # already ships its own clang and putting Ubuntu's clang in
+          # PATH makes SwiftPM 6.1's `-index-store-path` flag fail with
+          # "clang: error: unknown argument: '-index-store-path'" when
+          # compiling C/Objective-C targets like RSCoreObjC and
+          # _SwiftSyntaxCShims.
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             ca-certificates \
-            clang \
             dbus-x11 \
             git \
             imagemagick \
