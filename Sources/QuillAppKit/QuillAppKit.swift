@@ -569,7 +569,20 @@ public extension NSWindowDelegate {
     public func unhide(_ sender: Any?) {}
     public func terminate(_ sender: Any?) {}
     public func reply(toApplicationShouldTerminate: Bool) {}
-    public func run() {}
+
+    /// QuillAppKitGTK installs a real run() hook here at module init.
+    /// Unmodified Mac apps that call `NSApp.run()` get the GTK loop
+    /// for free if the GTK target is linked; otherwise this is a
+    /// no-op (matches Apple's behavior on a non-display launch).
+    public static var _runHook: (@MainActor () -> Void)?
+
+    public func run() {
+        if let hook = NSApplication._runHook {
+            hook()
+        }
+        // No hook → no-op stub. Headless tools that don't link GTK
+        // still get clean returns from NSApp.run().
+    }
     public func stop(_ sender: Any?) {}
     public func sendEvent(_ e: NSEvent) {}
     public func nextEvent(matching: UInt64, until: Date?, inMode: RunLoop.Mode, dequeue: Bool) -> NSEvent? { nil }

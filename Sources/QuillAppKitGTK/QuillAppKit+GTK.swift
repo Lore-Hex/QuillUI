@@ -91,6 +91,30 @@ extension NSApplication {
     }
 }
 
+/// Installs the GTK run() implementation on NSApplication at module
+/// load time. Unmodified Mac apps that just call `NSApp.run()` will
+/// now pump the GTK4 main loop — no source changes needed.
+@MainActor
+public func _quillAppKitGTKInstallRunHook() {
+    NSApplication._runHook = {
+        NSApplication.shared.runGTK()
+    }
+}
+
+// One-shot installer: any client that imports QuillAppKitGTK gets the
+// hook installed automatically the first time they touch a public
+// symbol from this module. We can't use a top-level expression here
+// (Swift doesn't run them at module init), so we hang the call off a
+// public extension property whose getter has a side effect on first
+// access, AND off a public init that real callers will trigger.
+public enum QuillAppKitGTKAutoInstall {
+    @MainActor
+    public static let didInstall: Bool = {
+        _quillAppKitGTKInstallRunHook()
+        return true
+    }()
+}
+
 // MARK: - NSWindow: GtkWindow-backed
 
 extension NSWindow {
