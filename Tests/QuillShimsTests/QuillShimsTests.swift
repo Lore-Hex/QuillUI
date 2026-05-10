@@ -49,3 +49,25 @@ class MockTreeDelegate: TreeControllerDelegate {
     }
 }
 #endif
+
+// Linux-only smoke for the compatibility-product shims declared
+// in Package.swift. Each `import` here will fail at link time if
+// the matching QuillUI library product is missing or its target
+// isn't actually compiling on Linux — the tests don't need to
+// assert anything beyond reachability.
+#if os(Linux)
+import AsyncAlgorithms
+import CoreGraphics
+import Security
+import AVFoundation
+import Speech
+
+final class LinuxCompatibilityProductsTests: XCTestCase {
+    func testCompatibilityShimsLink() {
+        // Touch one public symbol from each shim so the linker
+        // can't dead-strip the import.
+        let flags = CGEventFlags(rawValue: 0)
+        XCTAssertEqual(flags.rawValue, 0)
+    }
+}
+#endif

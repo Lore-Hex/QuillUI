@@ -1069,3 +1069,39 @@ Status: macOS and Linux CI can finish package resolution again, and a fresh `git
 - Linux CI now installs `ripgrep` in the `swift:6.0-jammy` container so `scripts/audit-upstream-enchanted.sh`'s `rg` invocations stop dying with `command not found`. Both Linux and macOS workflows run `scripts/fetch-upstream.sh` before the Swift build/test steps. Removed the `swift build --target QuillIceCubes` line from the macOS workflow — that target does not exist in `Package.swift` yet (IceCubes is the next-app target, not the current one).
 - Verified locally on macOS: `swift package describe --type json` parses, `swift build --target QuillUI`, `swift build --target QuillEnchanted`, and `swift build --target QuillWireGuard` all complete cleanly with no `.upstream/` checkouts present. After `scripts/fetch-upstream.sh`, the manifest exposes 48 targets including all NNW/WireGuard ones (CodeEdit stays gated until codeedit + codeeditsymbols are both fetched).
 - Remaining honest gap: this restores CI to a working baseline but does not advance app parity. The Settings/Completions sheet failure from Checkpoint 76 is still open, and the broader "all apps working" target requires real per-app work — Enchanted parity polish first, then IceCubes (no target yet), NetNewsWire, CodeEdit, Signal, Telegram, IINA in order.
+
+## Checkpoint 78: First Linux Compatibility Product Slice
+
+Status: in progress on the same PR. Adds the first five
+Linux-only compatibility-shim targets + library products so the
+generated Quill Chat / Enchanted package can start finding the
+Apple-shaped module names it imports.
+
+- Cleaned up the stale comment block at the top of `Package.swift`
+  (referenced a `scripts/fetch-upstream-codeedit.sh` that never
+  existed) and renamed `codeEditUpstreamPresent` →
+  `codeEditSymbolsUpstreamPresent` to match what it actually
+  checks (`.upstream/codeeditsymbols`).
+- Added Linux-only target declarations + matching `.library`
+  products for `AsyncAlgorithms`, `CoreGraphics`, `Security`,
+  `AVFoundation`, and `Speech`. These five had self-contained
+  `Sources/<Name>/*.swift` files with no third-party package
+  dependencies. The generated package's
+  `.product(name: "AsyncAlgorithms", package: "QuillUI")` style
+  references now resolve for this subset; the remaining ~20
+  (Combine, OllamaKit, MarkdownUI, Splash,
+  ActivityIndicatorView, WrappingHStack, Vortex,
+  KeyboardShortcuts, Magnet, Carbon, PhotosUI, IOKit,
+  ServiceManagement, Sparkle, ApplicationServices, Alamofire,
+  plus the SwiftUI/SwiftData/UIKit/AppKit/os ones that already
+  have targets but no products) are still missing and will land
+  in subsequent slices.
+- Added a `LinuxCompatibilityProductsTests` XCTest that imports
+  each new shim and touches one public symbol so the linker
+  can't dead-strip them. Wired the test target to depend on the
+  new shims on Linux via an immediately-invoked closure in
+  `Package.swift` so the dep list stays platform-conditional
+  without duplicating the `.testTarget(...)` declaration.
+- Verified locally on macOS: `swift package describe --type json`
+  parses cleanly, `swift build --target QuillUI` succeeds (44s).
+  The Linux side is verified via CI on the open PR.

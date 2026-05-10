@@ -3,29 +3,27 @@
 import PackageDescription
 import Foundation
 
-// The CodeEdit upstream slice depends on a locally vendored
-// `.upstream/codeeditsymbols` checkout (upstream CodeEditSymbols
-// 0.2.3's manifest is missing a `resources:` declaration for its
-// asset catalog — see the comment near the package dependency).
-// We only wire the CodeEdit deps + target in when that vendored
-// checkout is actually present so that a fresh `git clone` on
-// macOS still resolves and can build QuillUI/QuillEnchanted/etc.
-// Run `scripts/fetch-upstream-codeedit.sh` to populate the path
-// and enable the CodeEditUpstream target.
-// SwiftPM evaluates Package.swift with the package directory as
-// CWD. Resolve gated upstream paths against that — `#filePath`
-// can point at a sandbox copy under .swiftpm so it isn't reliable.
+// Upstream-checkout gating.
+//
+// Path-based `.upstream/...` targets (NetNewsWire, WireGuard-Apple,
+// CodeEdit, CodeEditSymbols) are gated on the matching directory
+// existing under `.upstream/`. A fresh `git clone` of QuillUI
+// resolves cleanly with no `.upstream/` populated and can still
+// build `QuillUI` / `QuillEnchanted` / `QuillWireGuard`. Run
+// `scripts/fetch-upstream.sh` to fetch the upstreams and enable
+// the gated targets.
+//
+// Path resolution: SwiftPM evaluates this manifest inside a
+// sandbox copy, so `#filePath` points at the sandbox staging
+// directory — not the package directory. CWD is reliable.
 let packageRoot: String = FileManager.default.currentDirectoryPath
-func upstreamPath(_ rel: String) -> String {
-    "\(packageRoot)/\(rel)"
+func upstreamPresent(_ relativePath: String) -> Bool {
+    FileManager.default.fileExists(atPath: "\(packageRoot)/\(relativePath)")
 }
-func upstreamPresent(_ rel: String) -> Bool {
-    FileManager.default.fileExists(atPath: upstreamPath(rel))
-}
-let codeEditUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsymbols")
 let nnwUpstreamPresent: Bool = upstreamPresent(".upstream/netnewswire/Modules/RSCore")
 let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/Sources/WireGuardKit")
 let codeEditSourceUpstreamPresent: Bool = upstreamPresent(".upstream/codeedit/CodeEdit")
+let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsymbols")
 
 var products: [Product] = [
     .library(name: "QuillUI", targets: ["QuillUI"]),
@@ -48,6 +46,30 @@ var products: [Product] = [
 if nnwUpstreamPresent {
     products.append(.executable(name: "quill-netnewswire", targets: ["QuillNetNewsWire"]))
 }
+#endif
+
+// Linux-only library products exposing the Apple-framework
+// compatibility shim targets to consumers (e.g. the generated
+// Quill Chat / Enchanted package built by
+// `scripts/generated-enchanted-full-source-check.sh`). On Apple
+// platforms `import SwiftUI`, `import AVFoundation` etc. resolve
+// to the real Apple frameworks via the SDK; on Linux they
+// resolve to these QuillUI-exported shims.
+#if os(Linux)
+products += [
+    .library(name: "SwiftUI", targets: ["SwiftUI"]),
+    .library(name: "UniformTypeIdentifiers", targets: ["UniformTypeIdentifiers"]),
+    .library(name: "Network", targets: ["Network"]),
+    .library(name: "NetworkExtension", targets: ["NetworkExtension"]),
+    .library(name: "AppKit", targets: ["AppKit"]),
+    .library(name: "QuillAppKitGTK", targets: ["QuillAppKitGTK"]),
+    .library(name: "os", targets: ["os"]),
+    .library(name: "AsyncAlgorithms", targets: ["AsyncAlgorithms"]),
+    .library(name: "CoreGraphics", targets: ["CoreGraphics"]),
+    .library(name: "Security", targets: ["Security"]),
+    .library(name: "AVFoundation", targets: ["AVFoundation"]),
+    .library(name: "Speech", targets: ["Speech"])
+]
 #endif
 
 #if os(Linux)
@@ -453,7 +475,7 @@ if wireguardUpstreamPresent {
 // surface is non-conditional AppKit. Also gated on the vendored
 // CodeEditSymbols checkout being present (see top-of-file note).
 #if !os(Linux)
-if codeEditUpstreamPresent && codeEditSourceUpstreamPresent {
+if codeEditSymbolsUpstreamPresent && codeEditSourceUpstreamPresent {
 targets += [
     .executableTarget(
         name: "CodeEditUpstream",
@@ -533,6 +555,15 @@ targets.append(contentsOf: [
     // missing types surface as compile errors here before they land
     // in a real upstream app.
     .target(name: "QuillAppKitSmoke", dependencies: ["AppKit"], path: "Sources/QuillAppKitSmoke"),
+    // Apple-framework compatibility shims that the generated
+    // Enchanted package references by canonical name. Each target
+    // shadows a real Apple module on Linux; the matching products
+    // are added below.
+    .target(name: "AsyncAlgorithms", dependencies: [], path: "Sources/AsyncAlgorithms"),
+    .target(name: "CoreGraphics", dependencies: ["QuillKit"], path: "Sources/CoreGraphics"),
+    .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
+    .target(name: "AVFoundation", dependencies: ["QuillKit"], path: "Sources/AVFoundation"),
+    .target(name: "Speech", dependencies: ["QuillKit", "AVFoundation"], path: "Sources/Speech"),
 ])
 // Linux-only target that compiles a hand-picked set of real
 // CodeEdit upstream files (the ones that import AppKit only,
@@ -576,7 +607,7 @@ var allPackageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
 ]
 #if !os(Linux)
-if codeEditUpstreamPresent {
+if codeEditSymbolsUpstreamPresent {
 allPackageDependencies += [
     // CodeEditSymbols 0.2.3's upstream Package.swift never declares
     // `Symbols.xcassets` as a resource — Bundle.module is undefined
@@ -611,6 +642,20 @@ let package = Package(
     products: products,
     dependencies: allPackageDependencies,
     targets: targets + [
-        .testTarget(name: "QuillShimsTests", dependencies: ["QuillShims"])
+        {
+            // QuillShimsTests links the Linux compatibility shims
+            // so the test file can `import AsyncAlgorithms` etc.
+            // and surface link errors fast.
+            #if os(Linux)
+            let testDeps: [Target.Dependency] = [
+                "QuillShims",
+                "AsyncAlgorithms", "CoreGraphics", "Security",
+                "AVFoundation", "Speech"
+            ]
+            #else
+            let testDeps: [Target.Dependency] = ["QuillShims"]
+            #endif
+            return .testTarget(name: "QuillShimsTests", dependencies: testDeps)
+        }()
     ]
 )
