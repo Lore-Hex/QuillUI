@@ -75,14 +75,53 @@ import PhotosUI
 import Magnet
 
 final class LinuxCompatibilityProductsTests: XCTestCase {
-    func testCompatibilityShimsLink() {
-        // Touch a public symbol from each shim so the linker
-        // can't dead-strip the import. The assertions don't
-        // matter — the value of the test is that this file
-        // compiles + links at all.
+    // The point of these tests is link-time: each `import` plus a
+    // public-symbol reference proves the matching QuillUI library
+    // product resolves on Linux. The assertion values are
+    // intentionally trivial — what fails is the build, not the
+    // expectation.
+
+    func testCoreGraphicsShim() {
         XCTAssertEqual(CGEventFlags(rawValue: 0).rawValue, 0)
-        XCTAssertEqual(SFSpeechRecognizerAuthorizationStatus.denied, .denied)
+    }
+
+    func testAVFoundationShim() {
         XCTAssertEqual(AVAudioPCMBuffer().frameLength, 0)
+    }
+
+    func testSpeechShim() {
+        XCTAssertEqual(SFSpeechRecognizerAuthorizationStatus.denied, .denied)
+    }
+
+    func testCarbonShim() {
+        // `Sources/Carbon/Carbon.swift` only exposes a placeholder
+        // enum so the module is non-empty.
+        _ = CarbonCompatibility.self
+    }
+
+    func testApplicationServicesShim() {
+        XCTAssertFalse(AXIsProcessTrustedWithOptions(nil))
+    }
+
+    func testServiceManagementShim() {
+        _ = SMAppService.self
+    }
+
+    func testAlamofireShim() {
+        XCTAssertEqual(HTTPMethod.get, .get)
+    }
+
+    func testMagnetShim() {
+        // `KeyCombo` is the workhorse type; its failable init returns
+        // a value when both pieces are present.
+        let combo = KeyCombo(key: .space, cocoaModifiers: _Modifiers(rawValue: 0))
+        XCTAssertNotNil(combo)
+    }
+
+    func testSwiftUISpacingShims() {
+        // Linux SwiftUI shim bridges baseline alignments to top/bottom.
+        XCTAssertEqual(VerticalAlignment.firstTextBaseline, .top)
+        XCTAssertEqual(VerticalAlignment.lastTextBaseline, .bottom)
     }
 }
 #endif
