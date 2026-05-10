@@ -8,8 +8,10 @@ import WireGuardKit
 #if os(Linux)
 // Linux variant: SwiftOpenUI doesn't ship List(_:selection:) / .listStyle(
 // .sidebar) / .buttonStyle(.borderless), so we use a simpler stack-based
-// view that demonstrates real WireGuardKit keypair generation. The full
-// macOS NavigationSplitView UI lives in `_macContentView` below.
+// view. WireGuardKit is currently macOS-only (the upstream
+// `WireGuardKitC.h` uses Darwin-specific BSD types), so the Linux
+// build shows a placeholder until a Linux backend exists.
+#if canImport(WireGuardKit)
 struct ContentView: View {
     @State private var tunnel: TunnelConfiguration?
 
@@ -41,6 +43,20 @@ struct ContentView: View {
         tunnel = TunnelConfiguration(name: "Quill Tunnel", interface: interface, peers: [peer])
     }
 }
+#else
+struct ContentView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Quill WireGuard (Linux)")
+                .font(.title)
+            Text("WireGuardKit is not yet available on Linux. Once a Linux backend exists, this view will generate Curve25519 keypairs through it.")
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+        }
+        .padding(20)
+    }
+}
+#endif
 #else
 struct ContentView: View {
     #if canImport(WireGuardKit)
