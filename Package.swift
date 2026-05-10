@@ -672,7 +672,7 @@ let package = Package(
             // and surface link errors fast.
             #if os(Linux)
             let testDeps: [Target.Dependency] = [
-                "QuillShims",
+                "QuillShims", "SwiftUI",
                 "AsyncAlgorithms", "Carbon", "CoreGraphics", "Security",
                 "AVFoundation", "Speech", "ApplicationServices",
                 "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",

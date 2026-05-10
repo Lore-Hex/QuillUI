@@ -56,6 +56,7 @@ class MockTreeDelegate: TreeControllerDelegate {
 // isn't actually compiling on Linux — the tests don't need to
 // assert anything beyond reachability.
 #if os(Linux)
+import SwiftUI
 import AsyncAlgorithms
 import Carbon
 import CoreGraphics
