@@ -79,4 +79,15 @@ public final class AVPlayer: @unchecked Sendable {
 public final class AVAudioEngine: @unchecked Sendable {
     public init() {}
 }
+
+// Bare-bones audio buffer type referenced by the Speech shim's
+// `SFSpeechAudioBufferRecognitionRequest.append(_:)`. Real Apple
+// `AVAudioPCMBuffer` exposes frame counts, channel formats, and
+// raw sample pointers — the Linux stub only needs to exist as a
+// type so callers can compile. Add real fields when a native
+// Linux audio backend lands.
+public final class AVAudioPCMBuffer: @unchecked Sendable {
+    public var frameLength: UInt32 = 0
+    public init() {}
+}
 #endif
