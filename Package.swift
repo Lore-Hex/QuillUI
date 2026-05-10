@@ -48,6 +48,20 @@ if nnwUpstreamPresent {
 }
 #endif
 
+// Cross-platform compatibility-product wrappers exposed by
+// QuillUI. These targets exist on both macOS and Linux (with
+// real Apple frameworks shadowed on Apple platforms or
+// stand-in re-exports), so the products are unconditional. The
+// generated Quill Chat / Enchanted package references them via
+// `.product(name: …, package: "QuillUI")`.
+products += [
+    .library(name: "SwiftData", targets: ["SwiftData"]),
+    .library(name: "UIKit", targets: ["UIKit"]),
+    .library(name: "MessageUI", targets: ["MessageUI"]),
+    .library(name: "SafariServices", targets: ["SafariServices"]),
+    .library(name: "MobileCoreServices", targets: ["MobileCoreServices"])
+]
+
 // Linux-only library products exposing the Apple-framework
 // compatibility shim targets to consumers (e.g. the generated
 // Quill Chat / Enchanted package built by
