@@ -1,11 +1,16 @@
 // QuillAppKitPasteboardDemo
 // =========================
-// Linux runtime demo proving NSPasteboard.general actually round-trips
-// real data through QuillAppKit's Phase B backing. Writes a string
-// with setString(_:forType:), reads it back, and reports the change
-// count. On macOS this hits Apple's real NSPasteboard so it works
-// identically. On Linux it goes through the wl-copy / xclip / file-
-// backed tier picked at runtime.
+// Linux runtime demo proving Phase B AppKit backings actually flow
+// real data on Linux:
+//
+//   • NSPasteboard.general — round-trips a string and binary data.
+//     Tier picked at runtime: wl-copy/wl-paste on Wayland, xclip on
+//     X11, file-backed at \$XDG_RUNTIME_DIR otherwise.
+//   • NSWorkspace.shared — xdg-open detection via xdg-mime.
+//   • NSSound.beep() — terminal bell.
+//
+// On macOS the real frameworks win via the SDK and this demo target
+// isn't built (it's gated to `os(Linux)` in Package.swift).
 
 import AppKit
 import Foundation
@@ -36,6 +41,18 @@ struct PasteboardDemo {
         let bytesBack = pb.data(forType: NSPasteboard.PasteboardType(rawValue: "com.quill.test"))
         let dataOK = bytesBack == bytes
         print("[binary] \(dataOK ? "✅ data round-trip" : "❌ data mismatch")")
+
+        // NSWorkspace tier-2 check: just probe that the API doesn't
+        // explode and that xdg-open detection runs. We don't actually
+        // dispatch a browser open because there's no display in the VM.
+        let ws = NSWorkspace.shared
+        let appURL = ws.urlForApplication(toOpen: URL(string: "https://example.com")!)
+        print("[workspace] urlForApplication(https) → \(appURL?.lastPathComponent ?? "<nil>")")
+
+        // NSSound.beep — emits BEL to stderr. Harmless; just prove the
+        // call executes without crashing.
+        NSSound.beep()
+        print("[sound] NSSound.beep() emitted")
 
         if !ok || !dataOK { exit(1) }
     }

@@ -915,24 +915,118 @@ public protocol NSPasteboardWriting {}
 public protocol NSPasteboardReading {}
 
 // MARK: - NSWorkspace
+//
+// Phase B (real backing): file/URL opening goes through xdg-open
+// (the freedesktop standard) when available. This matches Apple's
+// NSWorkspace.open semantics on Linux: pick the user's configured
+// default handler for the URL scheme or file MIME type. selectFile/
+// activateFileViewerSelecting open the parent directory in the user's
+// file manager (also via xdg-open). icon lookup remains stubbed —
+// that needs GIO bindings (GContentType + GIcon → file path) which
+// is a separate, slightly larger Phase B target.
 
 open class NSWorkspace: NSObject, @unchecked Sendable {
     public static let shared = NSWorkspace()
-    public func open(_ url: URL) -> Bool { false }
-    public func open(_ url: URL, configuration: OpenConfiguration, completionHandler: ((Any?, Error?) -> Void)? = nil) {}
-    public func openApplication(at url: URL, configuration: OpenConfiguration, completionHandler: ((Any?, Error?) -> Void)? = nil) {}
+    public var notificationCenter = NotificationCenter()
+
+    @discardableResult
+    public func open(_ url: URL) -> Bool {
+        _xdgOpen(url.absoluteString)
+    }
+
+    public func open(_ url: URL, configuration: OpenConfiguration, completionHandler: ((Any?, Error?) -> Void)? = nil) {
+        let ok = _xdgOpen(url.absoluteString)
+        completionHandler?(ok ? nil : nil, ok ? nil : NSError(domain: "QuillNSWorkspace", code: 1))
+    }
+
+    public func openApplication(at url: URL, configuration: OpenConfiguration, completionHandler: ((Any?, Error?) -> Void)? = nil) {
+        let ok = _xdgOpen(url.path)
+        completionHandler?(ok ? nil : nil, ok ? nil : NSError(domain: "QuillNSWorkspace", code: 1))
+    }
+
+    @discardableResult
+    public func selectFile(_ path: String?, inFileViewerRootedAtPath: String) -> Bool {
+        guard let p = path else { return _xdgOpen(inFileViewerRootedAtPath) }
+        let dir = (p as NSString).deletingLastPathComponent
+        return _xdgOpen(dir.isEmpty ? inFileViewerRootedAtPath : dir)
+    }
+
+    public func activateFileViewerSelecting(_ urls: [URL]) {
+        // On Apple this opens Finder with each URL highlighted. On
+        // Linux we just open the containing directory of the first url.
+        guard let first = urls.first else { return }
+        let parent = first.deletingLastPathComponent().path
+        _ = _xdgOpen(parent)
+    }
+
     public func icon(forFile path: String) -> NSImage { NSImage() }
     public func icon(forContentType type: Any) -> NSImage { NSImage() }
-    public func selectFile(_ path: String?, inFileViewerRootedAtPath: String) -> Bool { false }
-    public func activateFileViewerSelecting(_ urls: [URL]) {}
-    public func urlForApplication(toOpen: URL) -> URL? { nil }
-    public func urlForApplication(withBundleIdentifier: String) -> URL? { nil }
-    public var notificationCenter = NotificationCenter()
+
+    public func urlForApplication(toOpen: URL) -> URL? {
+        guard let cmd = _xdgMimeQueryDefault(toOpen) else { return nil }
+        return URL(fileURLWithPath: "/usr/share/applications/\(cmd)")
+    }
+    public func urlForApplication(withBundleIdentifier id: String) -> URL? {
+        // Not really applicable on Linux. Best-effort return.
+        URL(fileURLWithPath: "/usr/share/applications/\(id).desktop")
+    }
+
     public class OpenConfiguration: NSObject, @unchecked Sendable {
         public override init() {}
         public var arguments: [String] = []
         public var environment: [String: String] = [:]
         public var activates: Bool = true
+    }
+}
+
+private extension NSWorkspace {
+    @discardableResult
+    func _xdgOpen(_ target: String) -> Bool {
+        guard _hasCommand("xdg-open") else { return false }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        p.arguments = ["xdg-open", target]
+        p.standardOutput = Pipe()
+        p.standardError = Pipe()
+        do {
+            try p.run()
+            // Don't waitUntilExit() — xdg-open forks the real handler
+            // and may stay attached. Detach instead.
+            return true
+        } catch { return false }
+    }
+    func _xdgMimeQueryDefault(_ url: URL) -> String? {
+        if url.isFileURL {
+            return _runForOutput(["xdg-mime", "query", "default", _xdgMimeForFile(url.path) ?? ""])
+        }
+        if let scheme = url.scheme {
+            return _runForOutput(["xdg-mime", "query", "default", "x-scheme-handler/\(scheme)"])
+        }
+        return nil
+    }
+    func _xdgMimeForFile(_ path: String) -> String? {
+        _runForOutput(["xdg-mime", "query", "filetype", path])
+    }
+    func _hasCommand(_ name: String) -> Bool {
+        for dir in (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":") {
+            if FileManager.default.isExecutableFile(atPath: "\(dir)/\(name)") { return true }
+        }
+        return false
+    }
+    func _runForOutput(_ argv: [String]) -> String? {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        p.arguments = argv
+        let outPipe = Pipe()
+        p.standardOutput = outPipe
+        p.standardError = Pipe()
+        do {
+            try p.run()
+            let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            let s = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (s?.isEmpty == false) ? s : nil
+        } catch { return nil }
     }
 }
 
@@ -2019,7 +2113,14 @@ open class NSSound: NSObject, @unchecked Sendable {
     public init?(data: Data) {}
     public func play() -> Bool { false }
     public func stop() -> Bool { false }
-    public static func beep() {}
+
+    /// Phase B: emits the terminal bell character (BEL, \x07) to stderr.
+    /// Most terminal emulators map this to either a flash or an audible
+    /// tone depending on user preference, which is the closest Linux
+    /// analogue to Apple's NSSound.beep() system alert.
+    public static func beep() {
+        FileHandle.standardError.write(Data([0x07]))
+    }
 }
 
 @MainActor public protocol NSDraggingInfo: AnyObject {
