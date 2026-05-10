@@ -15,12 +15,12 @@ jobs:
     runs-on: ubuntu-24.04
     container:
       # SwiftOpenUI's `CGTK/shim.h` calls `gtk_picture_set_content_fit`
-      # which is GTK 4.8+; Ubuntu 22.04 jammy ships GTK 4.6. Use the
-      # Ubuntu 24.04 noble image (GTK 4.14+) so the SwiftOpenUI GTK
-      # backend builds against a modern enough libgtk-4-dev. Noble
-      # also satisfies GRDB.swift 7.10.0's swift-tools-version 6.1
-      # requirement.
-      image: swift:6.1-noble
+      # which is GTK 4.8+ (Ubuntu 24.04 noble ships GTK 4.14). The
+      # 6.1 Swift toolchain on noble has a `libswiftObservation.so`
+      # vs threading runtime mismatch ("undefined reference to
+      # swift::threading::fatal"); the 6.2 toolchain ships the
+      # fixed Observation runtime.
+      image: swift:6.2-noble
     env:
       QUILLUI_SKIP_APT: "1"
       QUILLUI_SMOKE_SECONDS: "4"
