@@ -80,7 +80,8 @@ products += [
     .library(name: "Vortex", targets: ["Vortex"]),
     .library(name: "KeyboardShortcuts", targets: ["KeyboardShortcuts"]),
     .library(name: "PhotosUI", targets: ["PhotosUI"]),
-    .library(name: "Magnet", targets: ["Magnet"])
+    .library(name: "Magnet", targets: ["Magnet"]),
+    .library(name: "Combine", targets: ["Combine"])
 ]
 #endif
 
@@ -588,6 +589,17 @@ targets.append(contentsOf: [
     .target(name: "KeyboardShortcuts", dependencies: ["SwiftUI"], path: "Sources/KeyboardShortcuts"),
     .target(name: "PhotosUI", dependencies: ["SwiftUI"], path: "Sources/PhotosUI"),
     .target(name: "Magnet", dependencies: ["AppKit"], path: "Sources/Magnet"),
+    // Linux `import Combine` resolves to this re-export over
+    // OpenCombine — Apple's Combine isn't part of swift-corelibs.
+    .target(
+        name: "Combine",
+        dependencies: [
+            .product(name: "OpenCombine", package: "OpenCombine"),
+            .product(name: "OpenCombineDispatch", package: "OpenCombine"),
+            .product(name: "OpenCombineFoundation", package: "OpenCombine")
+        ],
+        path: "Sources/Combine"
+    ),
 ])
 // Linux-only target that compiles a hand-picked set of real
 // CodeEdit upstream files (the ones that import AppKit only,
@@ -628,7 +640,13 @@ var allPackageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433"),
     .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
     .package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.0.0"),
-    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
+    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
+    // OpenCombine backs the Linux `Combine` compatibility shim
+    // (Sources/Combine re-exports OpenCombine /
+    // OpenCombineDispatch / OpenCombineFoundation). On macOS the
+    // real Apple Combine ships with the SDK so the package is
+    // resolved but the target/product is gated to Linux below.
+    .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0")
 ]
 #if !os(Linux)
 if codeEditSymbolsUpstreamPresent {
@@ -677,7 +695,7 @@ let package = Package(
                 "AVFoundation", "Speech", "ApplicationServices",
                 "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
                 "ActivityIndicatorView", "WrappingHStack", "Vortex",
-                "KeyboardShortcuts", "PhotosUI", "Magnet"
+                "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine"
             ]
             #else
             let testDeps: [Target.Dependency] = ["QuillShims"]

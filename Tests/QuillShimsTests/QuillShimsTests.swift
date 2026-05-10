@@ -57,6 +57,7 @@ class MockTreeDelegate: TreeControllerDelegate {
 // assert anything beyond reachability.
 #if os(Linux)
 import SwiftUI
+import Combine
 import AsyncAlgorithms
 import Carbon
 import CoreGraphics
@@ -123,6 +124,14 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
         // Linux SwiftUI shim bridges baseline alignments to top/bottom.
         XCTAssertEqual(VerticalAlignment.firstTextBaseline, .top)
         XCTAssertEqual(VerticalAlignment.lastTextBaseline, .bottom)
+    }
+
+    func testCombineShim() {
+        // The Combine shim re-exports OpenCombine. An empty
+        // `AnyPublisher<Int, Never>()` proves both the import and
+        // the local extension `AnyPublisher.init()` resolved.
+        let publisher: AnyPublisher<Int, Never> = AnyPublisher()
+        _ = publisher
     }
 }
 #endif
