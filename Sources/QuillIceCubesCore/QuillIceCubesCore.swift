@@ -67,8 +67,21 @@ public struct QuillIceCubesContentView: View {
         // `#SendableClosureCaptures`. Use `.onAppear` instead —
         // it's not `@Sendable` and still kicks off the fetch
         // after the view shows.
+        //
+        // `QUILLUI_DISABLE_FETCH=1` is a profile-mode escape
+        // hatch: it seeds fixture content + skips URLSession,
+        // so the Linux profile script can sample CPU on a
+        // fetched-content-but-no-network path and isolate
+        // whether the IceCubes CPU peg lives in the
+        // URLSession / decode / @Published path or in the
+        // SwiftOpenUI render-loop after the list populates.
         .onAppear {
-            Task { @MainActor in await fetchTimeline() }
+            let env = ProcessInfo.processInfo.environment
+            if env["QUILLUI_DISABLE_FETCH"] == "1" {
+                self.statuses = QuillIceCubesProfileFixtures.statuses
+            } else {
+                Task { @MainActor in await fetchTimeline() }
+            }
         }
     }
 
@@ -139,4 +152,35 @@ public struct QuillIceCubesContentView: View {
         }
         isLoading = false
     }
+}
+
+/// Static content used by the `QUILLUI_DISABLE_FETCH=1` profile
+/// path so the rendered timeline has a representative shape
+/// without a URLSession round-trip. Not used in production —
+/// production keeps fetching `mastodon.social/api/v1/timelines/public`.
+public enum QuillIceCubesProfileFixtures {
+    public static let statuses: [Status] = [
+        Status(
+            id: "1",
+            account: Account(
+                id: "1",
+                acct: "fixture",
+                username: "fixture",
+                displayName: "Fixture User"
+            ),
+            content: HTMLString(stringLiteral: "<p>Hello from a QuillIceCubes profile fixture.</p>"),
+            createdAt: "2026-01-01T00:00:00Z"
+        ),
+        Status(
+            id: "2",
+            account: Account(
+                id: "2",
+                acct: "deploybot",
+                username: "deploybot",
+                displayName: "Deploy Bot"
+            ),
+            content: HTMLString(stringLiteral: "<p>Canary rollout healthy after 30m.</p>"),
+            createdAt: "2026-01-01T00:01:00Z"
+        ),
+    ]
 }

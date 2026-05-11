@@ -154,4 +154,22 @@ struct QuillIceCubesCoreTests {
         #expect(client.oauthToken == nil)
         if case .v1 = client.version { } else { Issue.record("expected .v1") }
     }
+
+    // MARK: - Profile fixtures
+
+    @Test("Profile fixtures are non-empty with unique ids")
+    func profileFixturesShape() {
+        let statuses = QuillIceCubesProfileFixtures.statuses
+        #expect(!statuses.isEmpty)
+        let ids = Set(statuses.map(\.id))
+        #expect(ids.count == statuses.count)
+    }
+
+    @Test("Profile fixtures carry an account display name + non-empty content")
+    func profileFixturesContent() {
+        for status in QuillIceCubesProfileFixtures.statuses {
+            #expect(status.account.displayName?.isEmpty == false)
+            #expect(!status.content.asRawText.isEmpty)
+        }
+    }
 }

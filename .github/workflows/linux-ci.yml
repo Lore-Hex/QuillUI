@@ -138,6 +138,25 @@ jobs:
             done
           } | tee /tmp/quillui-profile.csv
 
+      # No-fetch profile experiment. QUILLUI_DISABLE_FETCH=1
+      # makes QuillIceCubes / QuillNetNewsWire seed fixture
+      # content instead of running URLSession on appear. If
+      # CPU drops to fixture-app levels (~3-7%) the spike is
+      # in the fetch / decode / @Published path; if it stays
+      # pegged (~100-130%) the spike is in the rendered-list /
+      # SwiftOpenUI-diff path.
+      - name: No-fetch profile experiment (IceCubes + NetNewsWire)
+        continue-on-error: true
+        env:
+          QUILLUI_DISABLE_FETCH: "1"
+        run: |
+          {
+            echo "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
+            for product in quill-icecubes quill-netnewswire; do
+              scripts/linux-gtk-profile.sh "$product" 5 20 || true
+            done
+          } | tee /tmp/quillui-profile-nofetch.csv
+
       - name: Stage QA outputs for upload
         if: always()
         run: |

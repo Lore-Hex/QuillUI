@@ -44,8 +44,20 @@ public struct QuillNetNewsWireContentView: View {
         } detail: {
             detail
         }
+        // `QUILLUI_DISABLE_FETCH=1` is a profile-mode escape
+        // hatch: it seeds fixture content + skips URLSession,
+        // so the Linux profile script can sample CPU on a
+        // fetched-content-but-no-network path and isolate
+        // whether the NetNewsWire CPU peg lives in the
+        // URLSession / XMLParser / @Published path or in the
+        // SwiftOpenUI render-loop after the list populates.
         .onAppear {
-            Task { @MainActor in await model.fetch(urlString: feedURL) }
+            let env = ProcessInfo.processInfo.environment
+            if env["QUILLUI_DISABLE_FETCH"] == "1" {
+                model.seedProfileFixtures()
+            } else {
+                Task { @MainActor in await model.fetch(urlString: feedURL) }
+            }
         }
     }
 
@@ -180,6 +192,34 @@ final class RSSReaderModel: ObservableObject {
         if isLoading { return "Fetching feed…" }
         if let error { return "Error: \(error)" }
         return "\(items.count) items"
+    }
+
+    /// Profile-mode bypass: populate `items` + `feedTitle` with
+    /// fixture content so the rendered timeline has shape, then
+    /// skip the URLSession round-trip entirely. Used by the
+    /// `QUILLUI_DISABLE_FETCH=1` path in `onAppear` so the
+    /// Linux profile script can isolate URLSession-cost vs
+    /// render-loop-cost.
+    func seedProfileFixtures() {
+        feedTitle = "Profile Fixture Feed"
+        items = [
+            RSSItem(
+                id: "1",
+                title: "Profile fixture article 1",
+                link: "https://example.test/1",
+                pubDate: "2026-01-01",
+                descriptionHTML: "<p>Body of the first fixture article.</p>"
+            ),
+            RSSItem(
+                id: "2",
+                title: "Profile fixture article 2",
+                link: "https://example.test/2",
+                pubDate: "2026-01-02",
+                descriptionHTML: "<p>Body of the second fixture article.</p>"
+            ),
+        ]
+        selectedID = items.first?.id
+        isLoading = false
     }
 
     func fetch(urlString: String) async {
