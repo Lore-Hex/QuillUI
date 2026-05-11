@@ -1021,6 +1021,18 @@ let package = Package(
                 .swiftLanguageMode(.v5),
                 .unsafeFlags(["-strict-concurrency=minimal"])
             ]
+        ),
+        // Pins QuillCodeEditCore: the `ProjectFile.extension`
+        // computed property (used by the sidebar's icon switch),
+        // ProjectFile identity / uniqueness, and the QuillSample
+        // fixture project's shape. Pure-Foundation deps.
+        .testTarget(
+            name: "QuillCodeEditCoreTests",
+            dependencies: ["QuillCodeEditCore"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"])
+            ]
         )
     ]
 )

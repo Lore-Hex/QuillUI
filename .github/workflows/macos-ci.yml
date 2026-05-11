@@ -73,6 +73,12 @@ jobs:
       - name: Build QuillNetNewsWireCoreTests
         run: swift build --target QuillNetNewsWireCoreTests
 
+      # Pins QuillCodeEditCore: ProjectFile.extension parsing
+      # (used by the sidebar icon switch), ID uniqueness, and
+      # the QuillSample fixture project shape.
+      - name: Build QuillCodeEditCoreTests
+        run: swift build --target QuillCodeEditCoreTests
+
       - name: Build QuillEnchanted
         run: swift build --target QuillEnchanted
 
