@@ -420,6 +420,12 @@ public extension NSWindowDelegate {
 
     public enum TitleVisibility: Int, Sendable { case visible, hidden }
 
+    // Static window-tabbing toggle — macOS Sierra+ groups windows
+    // into tab groups by default; apps that don't want this set
+    // `NSWindow.allowsAutomaticWindowTabbing = false`. No-op on
+    // Linux but stored so reads round-trip.
+    public static var allowsAutomaticWindowTabbing: Bool = true
+
     public struct CollectionBehavior: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
