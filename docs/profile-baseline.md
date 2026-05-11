@@ -42,40 +42,72 @@ CPU columns are averages of 5 one-second `top -b` samples.
 
 Both pegs hold at 25s after the first window appears — well
 past any reasonable fetch + decode budget for the Mastodon
-public timeline / daringfireball.net RSS feed. The CPU
-continues to burn while the app sits there with nothing
-visibly happening.
+public timeline / daringfireball.net RSS feed.
 
-Distinguishing characteristics:
+## Tear-out experiment (Linux run 25694297557, commit 1e07973)
 
-- Only apps using `URLSession.shared.data(for:)` on appear.
-- Only apps with `@StateObject` (NetNewsWire) or `@State`
-  collections that grow from empty to populated (IceCubes).
-- Both pass the GTK visual smoke (window renders, content is
-  visible) — this is a CPU smell, not a render-failure smell.
+`QUILLUI_DISABLE_FETCH=1` makes both apps seed representative
+fixture content instead of running URLSession on appear (see
+`QuillIceCubesProfileFixtures.statuses` and
+`RSSReaderModel.seedProfileFixtures()`). Production behavior is
+unchanged when the variable is unset — the experiment lives
+entirely behind one `onAppear` branch.
 
-The fixture-only apps prove the GTK4 baseline can idle
-cleanly. So the spike is in one of these layers, in order of
-likelihood:
+Same Linux run, both modes side-by-side:
 
-1. SwiftOpenUI's diff loop is firing on @Published / @State
-   updates that don't actually change rendered output.
-   `RSSReaderModel.fetch()` writes `isLoading` twice + items
-   + selectedID + error — each write hits a Published
-   notification.
-2. URLSession on swift-corelibs-foundation (Linux Swift)
-   keeps a poll loop alive even after the response data is
-   received. macOS Foundation's URLSession sleeps cleanly.
-3. The first-render-after-list-populates pass is expensive
-   and gets retried in a loop because of some animation +
-   layout invalidation interaction.
+| App              | fetch initial | fetch steady | no-fetch initial | no-fetch steady |
+|------------------|--------------:|-------------:|-----------------:|----------------:|
+| quill-icecubes   |         127.2 |        128.5 |         **40.1** |        **78.7** |
+| quill-netnewswire|         100.4 |         99.4 |         **52.5** |        **83.8** |
 
-Next investigation slice: tear `onAppear`'s `fetchTimeline()`
-out of IceCubes (or replace with a hardcoded fixture) and
-re-run profiling. If CPU drops to ~3% in both windows, the
-spike is in the fetch / decode / publish path. If CPU stays
-pegged, it's in the rendered-list / SwiftOpenUI-diff path.
-Either way the answer narrows the search.
+**Two-part split:**
+
+1. **About half the boot CPU was fetch-bound.** Both apps drop
+   ~80-90 percentage points in the initial window with the
+   fetch torn out (IceCubes 127→40, NNW 100→52). That's the
+   URLSession + decode + first batch of `@Published` /
+   `@State` writes settling.
+
+2. **The render-loop alone still burns ~40–84% CPU.** Even
+   with NO network and only 2 fixture rows shown, the
+   rendered list spins ~half a CPU core in steady-state
+   compared to fixture-only apps that idle at 3–6%.
+
+3. **Steady > initial in no-fetch mode** (IceCubes 40 → 79,
+   NNW 52 → 84). Something *grows* over the 20-second wait
+   window — allocations ramping, a redraw rate climbing, or
+   list-relayout work accumulating. The fixture-only apps
+   are stable in both windows (≤0.2% drift).
+
+## What differs between the busy-spin apps and the idle apps
+
+| Property         | Signal/Telegram/IINA/CodeEdit | IceCubes / NetNewsWire |
+|------------------|-------------------------------|------------------------|
+| Idle CPU         | 2.6–6.2%                      | 40–84% (no-fetch)      |
+| Navigation       | `NavigationSplitView`         | `NavigationStack` (Ice) / `NavigationSplitView` (NNW) |
+| State container  | `@State [Conversation]`       | `@State [Status]` (Ice) / `@StateObject RSSReaderModel` (NNW) |
+| List items       | 3–4 fixture rows              | 2 fixture rows (after tear-out) |
+| ProgressView     | none                          | both have one, gated on `isLoading` |
+| `.refreshable`   | no                            | both (non-Linux only)  |
+
+NavigationStack vs NavigationSplitView is the most visible
+delta on the IceCubes side. NNW's `@StateObject` adds another
+variable. Probable next experiments, in order of cheapness:
+
+1. Swap IceCubes' `NavigationStack` → `NavigationSplitView`
+   and re-profile. Settles "is `NavigationStack` on
+   SwiftOpenUI's GTK4 backend busy-spinning?".
+2. Remove the `ProgressView()` from the loading-placeholder
+   branch and re-profile. Settles "is `ProgressView`'s
+   animation timer firing even when the view isn't
+   instantiated?".
+3. Replace NNW's `@StateObject RSSReaderModel` with `@State
+   var items: [RSSItem]` directly and re-profile. Settles "is
+   `@StateObject` + `@Published` driving the render-loop in
+   SwiftOpenUI?".
+
+Each is a small, contained, reversible change — the same
+shape as the QUILLUI_DISABLE_FETCH bypass landed in 1e07973.
 
 ## Method
 
