@@ -577,13 +577,14 @@ public extension NSWindowDelegate {
 
 // MARK: - NSApplication
 
-@MainActor open class NSApplication: NSResponder {
-    // Real `NSApplication.shared` is reachable from nonisolated
-    // contexts on Apple platforms (the framework predates Swift
-    // concurrency). Mark the Linux stub `nonisolated(unsafe)` so
-    // call sites like `NSApp.currentEvent` (from a nonisolated
-    // SwiftUI closure) compile.
-    nonisolated(unsafe) public static let shared = NSApplication()
+// Drop `@MainActor` from the Linux NSApplication stub. Real
+// AppKit's NSApplication has main-actor isolation, but our
+// Linux stub is just compile-time scaffolding — generated
+// Enchanted source reads `NSApp.currentEvent` from nonisolated
+// SwiftUI closures, which the unannotated class allows without
+// the `nonisolated(unsafe)` patchwork that broke the init().
+open class NSApplication: NSResponder, @unchecked Sendable {
+    public static let shared = NSApplication()
     public weak var delegate: NSApplicationDelegate?
     public var mainMenu: NSMenu?
     public var windows: [NSWindow] = []
@@ -595,11 +596,7 @@ public extension NSWindowDelegate {
     public var activationPolicy: ActivationPolicy = .regular
     public var dockTile: NSDockTile = NSDockTile()
     public var presentationOptions: PresentationOptions = []
-    /// Generated Enchanted source reads `NSApp.currentEvent` from
-    /// nonisolated SwiftUI closures (`.onSubmit { … }`); the real
-    /// AppKit allows that path. Mark the stub as nonisolated so the
-    /// Linux build doesn't trip Swift 6 main-actor isolation checks.
-    nonisolated(unsafe) public var currentEvent: NSEvent?
+    public var currentEvent: NSEvent?
 
     public enum ActivationPolicy: Int, Sendable {
         case regular, accessory, prohibited
@@ -666,11 +663,10 @@ public extension NSWindowDelegate {
     public func unregisterForRemoteNotifications() {}
 }
 
-// Top-level globals. Real Apple AppKit lets call sites like
-// `NSApp.currentEvent` read from nonisolated SwiftUI closures
-// (`.onSubmit { … }`). Drop the `@MainActor` annotation on the
-// Linux stub so generated Enchanted source compiles unmodified.
-nonisolated(unsafe) public var NSApp: NSApplication { NSApplication.shared }
+// Top-level globals. NSApplication itself is no longer
+// `@MainActor` (see comment above) so the accessor doesn't
+// need any isolation override.
+public var NSApp: NSApplication { NSApplication.shared }
 
 open class NSDockTile: NSObject, @unchecked Sendable {
     public var badgeLabel: String?
