@@ -1057,6 +1057,19 @@ let package = Package(
                 .swiftLanguageMode(.v5),
                 .unsafeFlags(["-strict-concurrency=minimal"])
             ]
+        ),
+        // Pins QuillSignalCore: Message + Conversation identity,
+        // ChatMessage conformance (verifies the type still
+        // routes through QuillChatKit), and fixture invariants
+        // (non-empty conversations, non-empty messages, unique
+        // ids, self-messages tagged "Me", named conversations).
+        .testTarget(
+            name: "QuillSignalCoreTests",
+            dependencies: ["QuillSignalCore", "QuillChatKit"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"])
+            ]
         )
     ]
 )

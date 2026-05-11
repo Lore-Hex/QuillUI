@@ -92,6 +92,13 @@ jobs:
       - name: Build QuillIINACoreTests
         run: swift build --target QuillIINACoreTests
 
+      # Pins QuillSignalCore: Message + Conversation identity,
+      # ChatMessage conformance (still routes through
+      # QuillChatKit), and fixture invariants (non-empty,
+      # unique ids, "Me" sender on self-messages).
+      - name: Build QuillSignalCoreTests
+        run: swift build --target QuillSignalCoreTests
+
       - name: Build QuillEnchanted
         run: swift build --target QuillEnchanted
 
