@@ -145,6 +145,32 @@ public enum ChatDraft {
         draft = ""
         return body
     }
+
+    /// Canonical "send a chat message" path. Consumes the draft
+    /// (no-op if empty), finds the item identified by `id` in
+    /// `items`, and appends `makeMessage(trimmedBody)` to the
+    /// `[M]` stored at `messagesAt`. Returns `true` if a message
+    /// was actually appended.
+    ///
+    /// Signal and Telegram's `send()` shrink to a single call
+    /// against this helper — they only differ by which @State
+    /// collection holds the conversations and which ChatMessage
+    /// type the make-closure returns.
+    @discardableResult
+    public static func sendMessage<Item: Identifiable, M: ChatMessage>(
+        from draft: inout String,
+        toID id: Item.ID?,
+        in items: inout [Item],
+        messagesAt keyPath: WritableKeyPath<Item, [M]>,
+        makeMessage: (String) -> M
+    ) -> Bool {
+        guard let body = consume(&draft),
+              let id = id,
+              let idx = items.firstIndex(where: { $0.id == id })
+        else { return false }
+        items[idx][keyPath: keyPath].append(makeMessage(body))
+        return true
+    }
 }
 
 /// A composer row: text field bound to a draft string + Send

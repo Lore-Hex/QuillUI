@@ -186,4 +186,119 @@ struct QuillChatKitTests {
         // locale this catches a regression to .medium / .full styles.
         #expect(!formatted.contains("2023") && !formatted.contains("2024"))
     }
+
+    // MARK: - ChatDraft.sendMessage
+
+    /// A toy conversation type for testing the generic
+    /// sendMessage helper without dragging in Signal's or
+    /// Telegram's concrete chat models.
+    struct Thread: Identifiable {
+        let id: UUID
+        var messages: [Fake]
+    }
+
+    @Test("sendMessage appends the trimmed draft + clears it when id matches")
+    func sendMessageHappyPath() {
+        let id = UUID()
+        var threads = [Thread(id: id, messages: [])]
+        var draft = "  hi  "
+
+        let sent = ChatDraft.sendMessage(
+            from: &draft,
+            toID: id,
+            in: &threads,
+            messagesAt: \.messages
+        ) { body in
+            Fake(id: UUID(), sender: "Me", body: body, fromSelf: true)
+        }
+
+        #expect(sent)
+        #expect(draft == "")
+        #expect(threads[0].messages.count == 1)
+        #expect(threads[0].messages[0].body == "hi")
+    }
+
+    @Test("sendMessage returns false + leaves state untouched when draft empty")
+    func sendMessageEmptyDraftIsNoOp() {
+        let id = UUID()
+        var threads = [Thread(id: id, messages: [])]
+        var draft = "   "
+        let snapshot = draft
+
+        let sent = ChatDraft.sendMessage(
+            from: &draft,
+            toID: id,
+            in: &threads,
+            messagesAt: \.messages
+        ) { body in
+            Fake(id: UUID(), sender: "Me", body: body, fromSelf: true)
+        }
+
+        #expect(sent == false)
+        #expect(draft == snapshot)
+        #expect(threads[0].messages.isEmpty)
+    }
+
+    @Test("sendMessage returns false when id is nil")
+    func sendMessageNilIDIsNoOp() {
+        var threads = [Thread(id: UUID(), messages: [])]
+        var draft = "hi"
+
+        let sent = ChatDraft.sendMessage(
+            from: &draft,
+            toID: nil,
+            in: &threads,
+            messagesAt: \.messages
+        ) { body in
+            Fake(id: UUID(), sender: "Me", body: body, fromSelf: true)
+        }
+
+        #expect(sent == false)
+        #expect(draft == "hi")
+        #expect(threads[0].messages.isEmpty)
+    }
+
+    @Test("sendMessage returns false when id doesn't match any item")
+    func sendMessageUnknownIDIsNoOp() {
+        var threads = [Thread(id: UUID(), messages: [])]
+        var draft = "hi"
+
+        let sent = ChatDraft.sendMessage(
+            from: &draft,
+            toID: UUID(), // a different id
+            in: &threads,
+            messagesAt: \.messages
+        ) { body in
+            Fake(id: UUID(), sender: "Me", body: body, fromSelf: true)
+        }
+
+        #expect(sent == false)
+        #expect(draft == "hi")
+        #expect(threads[0].messages.isEmpty)
+    }
+
+    @Test("sendMessage appends to the right thread when multiple are present")
+    func sendMessageRoutesByID() {
+        let targetID = UUID()
+        var threads = [
+            Thread(id: UUID(), messages: []),
+            Thread(id: targetID, messages: []),
+            Thread(id: UUID(), messages: []),
+        ]
+        var draft = "hello"
+
+        _ = ChatDraft.sendMessage(
+            from: &draft,
+            toID: targetID,
+            in: &threads,
+            messagesAt: \.messages
+        ) { body in
+            Fake(id: UUID(), sender: "Me", body: body, fromSelf: true)
+        }
+
+        #expect(threads[0].messages.isEmpty)
+        #expect(threads[1].messages.count == 1)
+        #expect(threads[1].messages[0].body == "hello")
+        #expect(threads[2].messages.isEmpty)
+    }
 }

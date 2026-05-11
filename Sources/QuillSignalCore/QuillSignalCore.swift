@@ -77,13 +77,14 @@ public struct QuillSignalContentView: View {
     }
 
     private func send() {
-        guard let body = ChatDraft.consume(&draft),
-              let id = selectedID,
-              let idx = conversations.firstIndex(where: { $0.id == id })
-        else { return }
-        conversations[idx].messages.append(
+        ChatDraft.sendMessage(
+            from: &draft,
+            toID: selectedID,
+            in: &conversations,
+            messagesAt: \.messages
+        ) { body in
             Message(sender: "Me", body: body, fromSelf: true)
-        )
+        }
     }
 }
 
