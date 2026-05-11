@@ -72,6 +72,7 @@ products += [
 // resolve to these QuillUI-exported shims.
 #if os(Linux)
 products += [
+    .executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]),
     .library(name: "SwiftUI", targets: ["SwiftUI"]),
     .library(name: "UniformTypeIdentifiers", targets: ["UniformTypeIdentifiers"]),
     .library(name: "Network", targets: ["Network"]),
@@ -653,6 +654,19 @@ targets.append(contentsOf: [
             .swiftLanguageMode(.v5),
             .unsafeFlags(["-strict-concurrency=minimal"])
         ]
+    ),
+    // Generic GTK interaction smoke app. CI's
+    // `scripts/linux-gtk-interaction-check.sh` builds this
+    // executable to validate that QuillUI button taps and sheet
+    // presentations round-trip through SwiftOpenUI's GTK4
+    // backend (open-panel / sidebar / banner / sheet modes).
+    .executableTarget(
+        name: "QuillGtkInteractionSmoke",
+        dependencies: [
+            "QuillUI",
+            .product(name: "BackendGTK4", package: "SwiftOpenUI")
+        ],
+        path: "Sources/QuillGtkInteractionSmoke"
     ),
     // Apple-framework compatibility shims that the generated
     // Enchanted package references by canonical name. Each target
