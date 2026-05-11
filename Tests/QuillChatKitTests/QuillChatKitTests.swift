@@ -147,4 +147,43 @@ struct QuillChatKitTests {
         #expect(ChatDraft.consume(&draft) == nil)
         #expect(draft == "")
     }
+
+    // MARK: - ChatMessage.timestamp
+
+    /// Concrete type that carries a timestamp — exercises the
+    /// override path. `Fake` (defined at the top of the suite)
+    /// has no timestamp field and exercises the protocol-extension
+    /// default.
+    struct Timestamped: ChatMessage {
+        let id: UUID
+        let sender: String
+        let body: String
+        let fromSelf: Bool
+        let timestamp: Date?
+    }
+
+    @Test("ChatMessage.timestamp protocol extension defaults to nil")
+    func chatMessageTimestampDefaultsToNil() {
+        let msg = Fake(id: UUID(), sender: "Me", body: "hi", fromSelf: true)
+        #expect(msg.timestamp == nil)
+    }
+
+    @Test("ChatMessage conformances that supply a timestamp surface it via the protocol")
+    func chatMessageTimestampOverrideSurfaces() {
+        let when = Date(timeIntervalSince1970: 1_700_000_000)
+        let msg: any ChatMessage = Timestamped(
+            id: UUID(), sender: "Me", body: "hi", fromSelf: true, timestamp: when
+        )
+        #expect(msg.timestamp == when)
+    }
+
+    @Test("ChatTimestampFormatter returns a non-empty short-time string")
+    func chatTimestampFormatterReturnsTime() {
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let formatted = ChatTimestampFormatter.formatted(date)
+        #expect(!formatted.isEmpty)
+        // Short time output never contains a year. Regardless of
+        // locale this catches a regression to .medium / .full styles.
+        #expect(!formatted.contains("2023") && !formatted.contains("2024"))
+    }
 }

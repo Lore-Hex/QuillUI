@@ -16,6 +16,33 @@ public protocol ChatMessage: Identifiable, Hashable, Sendable {
     var sender: String { get }
     var body: String { get }
     var fromSelf: Bool { get }
+
+    /// When the message was sent. Optional — the bubble omits
+    /// the timestamp caption entirely when nil so existing
+    /// conformances stay valid without supplying a date.
+    var timestamp: Date? { get }
+}
+
+public extension ChatMessage {
+    /// Default: messages have no timestamp. Apps that want them
+    /// (Signal / Telegram) override this on their concrete type.
+    var timestamp: Date? { nil }
+}
+
+/// Cached time-only formatter used by `ChatBubble`. Static so the
+/// `ChatBubble` body doesn't allocate a new formatter every paint.
+@MainActor
+public enum ChatTimestampFormatter {
+    public static let shortTime: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .none
+        f.timeStyle = .short
+        return f
+    }()
+
+    public static func formatted(_ timestamp: Date) -> String {
+        shortTime.string(from: timestamp)
+    }
 }
 
 /// One message bubble. Self-messages right-align with a blue tint,
@@ -38,9 +65,14 @@ public struct ChatBubble<M: ChatMessage>: View {
                         : Color.gray.opacity(0.18)
                 )
                 .cornerRadius(12)
-            Text(message.sender)
-                .font(.caption2)
-                .foregroundColor(.secondary)
+            HStack(spacing: 6) {
+                Text(message.sender)
+                if let timestamp = message.timestamp {
+                    Text(ChatTimestampFormatter.formatted(timestamp))
+                }
+            }
+            .font(.caption2)
+            .foregroundColor(.secondary)
         }
         .frame(
             maxWidth: .infinity,

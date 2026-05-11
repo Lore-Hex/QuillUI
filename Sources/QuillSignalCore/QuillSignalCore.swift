@@ -94,12 +94,20 @@ public struct Message: ChatMessage {
     public let sender: String
     public let body: String
     public let fromSelf: Bool
+    public let timestamp: Date?
 
-    public init(id: UUID = UUID(), sender: String, body: String, fromSelf: Bool) {
+    public init(
+        id: UUID = UUID(),
+        sender: String,
+        body: String,
+        fromSelf: Bool,
+        timestamp: Date? = Date()
+    ) {
         self.id = id
         self.sender = sender
         self.body = body
         self.fromSelf = fromSelf
+        self.timestamp = timestamp
     }
 }
 
