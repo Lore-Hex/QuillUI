@@ -90,14 +90,11 @@ public struct QuillCodeEditContentView: View {
 
     private var content: some View {
         Group {
-            if let file = activeFile {
-                ScrollView {
-                    Text(file.contents)
-                        .font(.system(size: 13, design: .monospaced))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                        .padding(14)
-                }
+            if let id = activeID, activeFile != nil {
+                TextEditor(text: contentsBinding(for: id))
+                    .font(.system(size: 13, design: .monospaced))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(14)
             } else {
                 VStack(spacing: 8) {
                     Text("Quill CodeEdit").font(.title2)
@@ -108,6 +105,22 @@ public struct QuillCodeEditContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+    }
+
+    /// Binding into `project.files[idx].contents` so the
+    /// TextEditor's edits flow back to the project model
+    /// instead of being lost on the next view rebuild. Returns
+    /// an empty-string binding for unknown ids (the call site
+    /// only reaches this when `activeFile != nil` anyway).
+    private func contentsBinding(for fileID: ProjectFile.ID) -> Binding<String> {
+        Binding(
+            get: { project.files.first(where: { $0.id == fileID })?.contents ?? "" },
+            set: { newValue in
+                if let idx = project.files.firstIndex(where: { $0.id == fileID }) {
+                    project.files[idx].contents = newValue
+                }
+            }
+        )
     }
 
     private func open(_ file: ProjectFile) {
