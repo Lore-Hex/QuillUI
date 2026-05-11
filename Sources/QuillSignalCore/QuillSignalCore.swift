@@ -56,11 +56,12 @@ public struct QuillSignalContentView: View {
     private var detail: some View {
         Group {
             if let conversation = currentConversation {
-                VStack(spacing: 0) {
-                    ChatTimeline(title: conversation.name, messages: conversation.messages)
-                    Divider()
-                    ChatComposer(draft: $draft, onSend: send)
-                }
+                ChatPane(
+                    title: conversation.name,
+                    messages: conversation.messages,
+                    draft: $draft,
+                    onSend: send
+                )
             } else {
                 Text("Select a conversation")
                     .font(.title2)

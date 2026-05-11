@@ -167,3 +167,39 @@ public struct ChatTimeline<M: ChatMessage>: View {
         }
     }
 }
+
+/// `ChatTimeline` stacked over a `ChatComposer` with a `Divider`
+/// between them. The standard chat-app detail-pane idiom — what
+/// Signal, Telegram, and similar apps render once the user has
+/// picked a conversation. Hosts forward the draft binding and
+/// the send closure; everything else is layout.
+@MainActor
+public struct ChatPane<M: ChatMessage>: View {
+    public let title: String
+    public let messages: [M]
+    public let placeholder: String
+    @Binding public var draft: String
+    public let onSend: () -> Void
+
+    public init(
+        title: String,
+        messages: [M],
+        draft: Binding<String>,
+        placeholder: String = "Message",
+        onSend: @escaping () -> Void
+    ) {
+        self.title = title
+        self.messages = messages
+        self._draft = draft
+        self.placeholder = placeholder
+        self.onSend = onSend
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            ChatTimeline(title: title, messages: messages)
+            Divider()
+            ChatComposer(placeholder: placeholder, draft: $draft, onSend: onSend)
+        }
+    }
+}

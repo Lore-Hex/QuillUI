@@ -93,4 +93,33 @@ struct QuillChatKitTests {
         #expect(ChatDraft.trimmed("hi there") == "hi there")
         #expect(ChatDraft.trimmed("") == "")
     }
+
+    @Test("ChatPane carries title + messages + placeholder unchanged")
+    func chatPaneCarriesInputs() {
+        let messages = [
+            Fake(id: UUID(), sender: "Me", body: "hi", fromSelf: true),
+        ]
+        let pane = ChatPane(
+            title: "Family",
+            messages: messages,
+            draft: .constant(""),
+            placeholder: "Type something…",
+            onSend: { }
+        )
+        #expect(pane.title == "Family")
+        #expect(pane.messages.count == 1)
+        #expect(pane.messages[0].body == "hi")
+        #expect(pane.placeholder == "Type something…")
+    }
+
+    @Test("ChatPane defaults placeholder to \"Message\"")
+    func chatPaneDefaultPlaceholder() {
+        let pane: ChatPane<Fake> = ChatPane(
+            title: "x",
+            messages: [],
+            draft: .constant(""),
+            onSend: { }
+        )
+        #expect(pane.placeholder == "Message")
+    }
 }

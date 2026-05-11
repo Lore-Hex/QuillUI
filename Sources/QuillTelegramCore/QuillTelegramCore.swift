@@ -88,11 +88,12 @@ public struct QuillTelegramContentView: View {
     private var detail: some View {
         Group {
             if let chat = currentChat {
-                VStack(spacing: 0) {
-                    ChatTimeline(title: chat.title, messages: chat.messages)
-                    Divider()
-                    ChatComposer(draft: $draft, onSend: send)
-                }
+                ChatPane(
+                    title: chat.title,
+                    messages: chat.messages,
+                    draft: $draft,
+                    onSend: send
+                )
             } else {
                 Text("Select a chat")
                     .font(.title2)
