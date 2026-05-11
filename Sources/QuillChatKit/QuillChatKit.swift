@@ -146,11 +146,16 @@ public enum ChatDraft {
         return body
     }
 
-    /// Canonical "send a chat message" path. Consumes the draft
-    /// (no-op if empty), finds the item identified by `id` in
-    /// `items`, and appends `makeMessage(trimmedBody)` to the
-    /// `[M]` stored at `messagesAt`. Returns `true` if a message
-    /// was actually appended.
+    /// Canonical "send a chat message" path. Validates the
+    /// target item exists, the draft is sendable, then appends
+    /// `makeMessage(trimmedBody)` to the `[M]` stored at
+    /// `messagesAt` and clears the draft. Returns `true` if a
+    /// message was actually appended.
+    ///
+    /// Order matters: the id + lookup checks run BEFORE the
+    /// draft is cleared, so a "no conversation selected" tap on
+    /// Send leaves what the user has typed intact. Validating
+    /// after `consume` would silently eat their draft.
     ///
     /// Signal and Telegram's `send()` shrink to a single call
     /// against this helper — they only differ by which @State
@@ -164,11 +169,12 @@ public enum ChatDraft {
         messagesAt keyPath: WritableKeyPath<Item, [M]>,
         makeMessage: (String) -> M
     ) -> Bool {
-        guard let body = consume(&draft),
-              let id = id,
-              let idx = items.firstIndex(where: { $0.id == id })
+        guard let id = id,
+              let idx = items.firstIndex(where: { $0.id == id }),
+              isSendable(draft)
         else { return false }
-        items[idx][keyPath: keyPath].append(makeMessage(body))
+        items[idx][keyPath: keyPath].append(makeMessage(trimmed(draft)))
+        draft = ""
         return true
     }
 }
