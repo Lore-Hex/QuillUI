@@ -393,10 +393,10 @@ public extension ToolbarItemPlacement {
     static var topBarLeading: ToolbarItemPlacement { .leading }
 }
 
-public extension VerticalAlignment {
-    static var firstTextBaseline: VerticalAlignment { .bottom }
-    static var lastTextBaseline: VerticalAlignment { .bottom }
-}
+// `VerticalAlignment.firstTextBaseline` / `.lastTextBaseline`
+// live in the `Sources/SwiftUIShim` target (canonical home).
+// Re-declaring them here triggered "ambiguous use of
+// 'firstTextBaseline'" in code that imports both modules.
 
 public extension GridItem.Size {
     static func flexible(minimum: Double = 10, maximum: Double = .infinity) -> GridItem.Size {

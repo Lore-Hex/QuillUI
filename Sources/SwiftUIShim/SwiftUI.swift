@@ -20,9 +20,17 @@ public extension Font {
     typealias Weight = FontWeight
 }
 
-// NOTE: baseline-relative `VerticalAlignment` cases
-// (`.firstTextBaseline`, `.lastTextBaseline`) live in
-// QuillUI's `UpstreamCompatibility.swift`. Re-declaring them
-// here caused "ambiguous use of 'firstTextBaseline'" errors
-// when both modules were imported.
+// Baseline-relative `VerticalAlignment` cases live HERE — the
+// SwiftUI shim is the canonical home so that files importing
+// only SwiftUI (e.g. the MarkdownUI / Splash / Vortex shims)
+// can use them. QuillUI doesn't redeclare them; consumers that
+// also `import QuillUI` see exactly one definition. On Linux
+// SwiftOpenUI's `VerticalAlignment` only ships `.top`,
+// `.center`, `.bottom`, so we downgrade baseline alignments to
+// the nearest visual approximation until GTK Pango layout
+// integration lands.
+public extension VerticalAlignment {
+    static var firstTextBaseline: VerticalAlignment { .top }
+    static var lastTextBaseline: VerticalAlignment { .bottom }
+}
 #endif
