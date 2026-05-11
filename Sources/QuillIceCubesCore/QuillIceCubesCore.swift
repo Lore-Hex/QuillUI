@@ -51,7 +51,16 @@ public struct QuillIceCubesContentView: View {
             }
             .navigationTitle("Public Timeline")
         }
-        .task { await fetchTimeline() }
+        // SwiftOpenUI's `.task { … }` modifier takes a
+        // `@Sendable` closure; `QuillIceCubesContentView`
+        // isn't Sendable (SwiftUI views aren't), so capturing
+        // `self` for `fetchTimeline()` trips
+        // `#SendableClosureCaptures`. Use `.onAppear` instead —
+        // it's not `@Sendable` and still kicks off the fetch
+        // after the view shows.
+        .onAppear {
+            Task { @MainActor in await fetchTimeline() }
+        }
     }
 
     @ViewBuilder
