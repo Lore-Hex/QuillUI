@@ -1550,3 +1550,163 @@ instead of a placeholder text block. Real backends (libsignal
 encryption, MTProto, mpv playback, NSTextView-backed editor)
 remain follow-up slices behind a protocol so the views don't
 need to change when they land.
+
+## Checkpoint 90: QuillChatKit DRY Refactor
+
+Signal and Telegram each carried their own copies of
+`messageBubble`, sidebar `Row`, and conversation-timeline
+views. The bubble views were pixel-identical (12+ lines); the
+timeline views differed only in which message type they
+consumed; the sidebar rows differed only in whether they
+painted an unread badge.
+
+Extracted `Sources/QuillChatKit/QuillChatKit.swift`:
+
+- `ChatMessage` protocol (`id` / `sender` / `body` / `fromSelf`)
+- `ChatBubble<M: ChatMessage>` — generic bubble view
+- `ChatRow` — title + preview + optional `unread` badge
+- `ChatTimeline<M: ChatMessage>` — header + scroll of bubbles
+
+`Message` (Signal) and `TGMessage` (Telegram) now conform to
+`ChatMessage`. Their per-app shells dropped ~63 lines of
+duplicate view code and call the kit's generic views directly.
+
+New `QuillChatKitTests` (Swift Testing) exercises the public
+shape: protocol conformance, `Hashable` membership in `Set`,
+default unread = 0, timeline message-order preservation,
+bubble identity. Hard-gated on macOS CI so a regression here
+surfaces before the per-app Signal/Telegram builds.
+
+## Checkpoint 91: QuillKitTests Re-wired
+
+`Tests/QuillKitTests/QuillKitTests.swift` had been present on
+disk since before the Linux-compat rewrite but had no matching
+`.testTarget` entry in `Package.swift` — SwiftPM was silently
+ignoring it. Wired it back in (deps: `QuillKit` only) and
+hard-gated the build on macOS CI. Covers `QuillClipboard`,
+`QuillCompatibilityDiagnostics`, the capability matrix, the
+launch-service stub, and the speech backend.
+
+The six other orphan test directories (`QuillDataTests`,
+`QuillEnchantedTests`, `QuillPredicateTranslationTests`,
+`QuillCompatibilityModuleTests`, `QuillParityTests`,
+`QuillNetNewsWireTests`) currently pull in
+`pointfreeco/combine-schedulers` via QuillData/QuillRS; that
+dep's `UIKit.swift` references a `UIKit` module compiled for
+macOS 10.15, but QuillUI's local UIKit shim targets macOS 14,
+which SwiftPM rejects as a platform mismatch. Reviving those
+suites requires dropping the CombineSchedulers dep or patching
+its deployment-target story — tracked as future work.
+
+## Checkpoint 92: ChatComposer + ChatDraft
+
+Signal and Telegram both rendered a timeline but had no way to
+type new messages — the composer row is the natural next
+chat-app piece. Added two QuillChatKit primitives:
+
+- `ChatDraft.isSendable(_:)` / `.trimmed(_:)` — pure-Foundation
+  predicates. `isSendable` returns false for empty +
+  whitespace-only strings so the Send button can `.disabled(...)`
+  cleanly.
+- `ChatComposer(placeholder:draft:onSend:)` — `TextField` +
+  Send `Button` in an `HStack` with low-contrast background.
+  Send is `.disabled(!ChatDraft.isSendable(draft))`. The
+  composer itself never mutates a model — hosts own the
+  append step.
+
+Signal + Telegram each gained a `@State private var draft = ""`,
+stack the composer below `ChatTimeline`, and implement a
+~6-line `send()` that appends a `(sender: "Me", fromSelf: true)`
+message to the active conversation's `messages` array and
+clears the draft. Telegram previously read chats directly from
+`QuillTelegramFixtures.chats`; promoted to `@State` so `send()`
+can mutate them.
+
+Six new `QuillChatKitTests` cover the draft predicates
+(whitespace / newline / emoji cases).
+
+## Checkpoint 93: IceCubes Mastodon API Tests
+
+`IceCubesAPI.swift` is the self-contained re-implementation of
+Dimillian/IceCubesApp's `Models` / `NetworkClient` packages.
+Pure data + URL types that previously had no test coverage.
+Added `QuillIceCubesCoreTests`:
+
+- `HTMLString.asRawText` tag-stripping (simple, nested,
+  adjacent) and entity decoding
+  (`&amp;` / `&lt;` / `&gt;` / `&quot;` / `&#39;` / `&nbsp;`)
+- `HTMLString` round-trips through single-value codable
+- `Account` snake_case JSON decoding (`display_name`, avatar URL)
+- `Account.cachedDisplayName` username fallback
+- `Status` nested account + HTMLString content + `created_at`
+  snake_case decoding
+- `Timelines.pub` endpoint path + query construction
+  (always carries local/limit, only appends
+  since_id/max_id/min_id when non-nil, encodes local as
+  "true"/"false" strings)
+- `MastodonClient` default v1 + no oauth token
+
+Hard-gated on macOS CI. Like QuillKitTests, deps stay pure
+Foundation so the CombineSchedulers transitive mismatch
+doesn't bite.
+
+## Checkpoint 94: NetNewsWire RSS Parser Tests
+
+`QuillNetNewsWireCore.swift` carries a self-contained RSS 2.0
++ Atom parser backed by `Foundation.XMLParser` — driven by
+`URLSession` in the live app, but a pure data-in / model-out
+function in isolation. Previously the only signal the parser
+worked was hitting daringfireball.net in the running app.
+
+Promoted `RSSFeedParser` from `private` to `internal` so
+`@testable import QuillNetNewsWireCore` can call it directly
+with fixture XML strings, then added focused tests covering:
+
+- RSS 2.0 channel title + items
+  (title/link/pubDate/description)
+- CDATA description preservation
+- "Untitled" fallback when an item has no `<title>`
+- id fallback to `title+pubDate` when an item has no `<link>`
+- Atom 1.0 feed title + entries
+  (title/link[@href]/updated/summary)
+- Atom `published` accepted as an alternate date tag
+- `RSSItem.linkURL` (Optional<URL> from optional link string)
+- `RSSItem.publishedSummary` (pubDate or empty string)
+- `RSSItem.plainTextBody` tag-stripping + entity decoding
+  (covering `&amp; &nbsp; &lt; &gt; &quot; &#39; &#x27;`)
+- Empty XML data → empty `Result` (no crash)
+
+## Checkpoint 95: CodeEdit ProjectFile Tests
+
+QuillCodeEditCore's `ProjectFile.extension` does a small but
+real string-search (`lastIndex(of: ".")` + slice). The
+sidebar icon switch reads it directly — a regression would
+silently revert every file row to the default 📄 emoji. Added
+`QuillCodeEditCoreTests` pinning:
+
+- normal extensions ("main.swift" → "swift")
+- no-dot names ("Makefile" → "")
+- multi-dotted names ("archive.tar.gz" → "gz")
+- leading dots — dotfiles (".swiftformat" → "swiftformat")
+- trailing dot ("foo." → "")
+- ProjectFile UUID uniqueness across init() calls
+
+Also pins the QuillSample fixture project: four file names
+listed in `docs/app-targets.md`, the extension → icon mapping
+the sidebar relies on, non-empty contents, and UUID uniqueness
+across the fixture set.
+
+Cumulative test scorecard after checkpoints 90-95:
+
+```
+QuillShimsTests           (Linux compat shims, pre-existing)
+QuillChatKitTests         ✅ (CP90 + CP92)
+QuillKitTests             ✅ (CP91)
+QuillIceCubesCoreTests    ✅ (CP93)
+QuillNetNewsWireCoreTests ✅ (CP94)
+QuillCodeEditCoreTests    ✅ (CP95)
+```
+
+All hard-gated on macOS CI. None hit the CombineSchedulers
+transitive blocker that still keeps the six legacy orphan
+test directories quarantined.
