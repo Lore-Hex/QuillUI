@@ -4,6 +4,7 @@ import SwiftUI
 #else
 import SwiftOpenUI
 import QuillKit
+import QuillFoundation
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
 private func recordQuillUIFallback(_ operation: String, message: String) {
@@ -684,21 +685,18 @@ public struct TextInputAutocapitalization: Hashable, Sendable {
 
 public extension Image {
     /// Linux source-compatibility inits matching SwiftUI's
-    /// `Image(nsImage:)` / `Image(uiImage:)` / `Image(data:)`.
-    /// SwiftOpenUI's `Image` doesn't have a bitmap-decoding
-    /// initializer yet; fall through to the system-symbol
-    /// placeholder so call sites compile. When a real GTK
-    /// decoder lands, all three inits can route through
-    /// `image.data`.
+    /// `Image(nsImage:)` / `Image(uiImage:)`. SwiftOpenUI's
+    /// `Image` doesn't have bitmap-decoding initializers yet;
+    /// fall through to the system-symbol placeholder so call
+    /// sites compile. When a real GTK decoder lands, both can
+    /// route through `image.data`. (`init(data:)` is provided
+    /// separately in `Compatibility.swift` with a temp-file
+    /// implementation.)
     init(nsImage image: RSImage) {
         self.init(systemName: "photo")
     }
 
     init(uiImage image: RSImage) {
-        self.init(systemName: "photo")
-    }
-
-    init(data: Data) {
         self.init(systemName: "photo")
     }
 
