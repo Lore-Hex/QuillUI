@@ -146,31 +146,47 @@ array idles correctly on SwiftOpenUI's GTK4 backend. The cost
 is specifically in `statusRow`'s rich content
 (HStack + Circle + nested VStack + 3 Texts + .padding).
 
-### Literal-row bisection (next)
-
-Two remaining suspects inside `statusRow`:
-
-1. The two `.asRawText` reads (`Status.content.asRawText`,
-   `Account.cachedDisplayName.asRawText`) — both computed
-   properties that walk the HTML string + decode entities on
-   every read. If SwiftOpenUI's render loop reads them many
-   times per frame, that becomes a hot path.
-2. The layout structure itself — HStack containing a Circle
-   (Cairo-backed `gtk_drawing_area`) next to a nested VStack.
-   If SwiftOpenUI invalidates this layout repeatedly, GTK4
-   redraws it many times per second.
+### Literal-row result — ROOT CAUSE FOUND (Linux run 25699855677, commit 15a6417)
 
 `QUILLUI_PROFILE_LITERAL_ROW=1` keeps the FULL statusRow
 shape (HStack + Circle + nested VStack + 3 Texts + .padding)
 but with literal-string Text values (no computed properties).
 
-- If CPU stays at fixture baseline (~3%) → `.asRawText` /
-  `.cachedDisplayName.asRawText` are the spinner. Fix: cache
-  the computed result so the View body reads a stored
-  property instead of recomputing.
-- If CPU climbs (~40-80%) → the layout structure is the
-  spinner. Fix lives in SwiftOpenUI's GTK4 backend (Circle
-  draw_func invalidation, HStack expansion logic, etc.).
+| Mode                                        | initial | steady |
+|---------------------------------------------|--------:|-------:|
+| no-fetch (rich `statusRow`)                 |    44.2 |   83.6 |
+| no-fetch + plain-row (List+ForEach + Text)  |     3.0 |    2.6 |
+| **no-fetch + literal-row (full layout)**    | **2.6** | **2.6** |
+
+Literal-row idles at fixture baseline with the FULL
+HStack/Circle/nested-VStack/Text/.padding layout. The ONLY
+difference vs the busy-spin version is whether the Text
+values come from `.asRawText` / `.cachedDisplayName.asRawText`
+computed-property reads or from literal strings.
+
+**Root cause confirmed: HTMLString.asRawText was being
+recomputed on every GTK4 render-loop paint.**
+
+Each paint walked the HTML string character-by-character,
+allocated a new String, then ran 7 sequential
+`replacingOccurrences` calls. With SwiftOpenUI's render
+loop refreshing at GTK's frame rate × 2 rows × 2 Text reads
+per row, the per-CPU cost stacked up to ~80%.
+
+### Fix (commit ⟨this commit⟩)
+
+Promoted `HTMLString.asRawText` from a computed property to
+a stored `let`, computed once at init / decode. The View
+body now reads a cached `String`.
+
+Same pattern applied to `RSSItem.plainTextBody` (NetNewsWire's
+sibling: a String extension `stripBasicHTML()` that did regex
+HTML stripping + the same 6-entity decode on every Text read).
+
+After this fix, the next Linux profile run should show
+IceCubes + NetNewsWire's PRODUCTION numbers (fetch enabled,
+no QUILLUI_PROFILE_* env vars) drop from ~120/130% CPU to
+fixture-app baseline (~3-6%).
 
 ## Method
 

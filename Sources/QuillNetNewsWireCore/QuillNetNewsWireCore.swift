@@ -170,9 +170,31 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
     public let pubDate: String?
     public let descriptionHTML: String?
 
+    /// Stripped + entity-decoded plain text of `descriptionHTML`,
+    /// precomputed once at init so the GTK4 render loop doesn't
+    /// pay the strip + decode cost on every paint. Bisection on
+    /// QuillIceCubes (commits 2df694c → 15a6417) traced an
+    /// 80% CPU peg to a sibling computed property; same pattern
+    /// applies here.
+    public let plainTextBody: String
+
+    public init(
+        id: String,
+        title: String,
+        link: String?,
+        pubDate: String?,
+        descriptionHTML: String?
+    ) {
+        self.id = id
+        self.title = title
+        self.link = link
+        self.pubDate = pubDate
+        self.descriptionHTML = descriptionHTML
+        self.plainTextBody = (descriptionHTML ?? "").stripBasicHTML()
+    }
+
     public var linkURL: URL? { link.flatMap { URL(string: $0) } }
     public var publishedSummary: String { pubDate ?? "" }
-    public var plainTextBody: String { (descriptionHTML ?? "").stripBasicHTML() }
 }
 
 @MainActor
