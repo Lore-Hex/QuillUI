@@ -608,7 +608,10 @@ targets.append(contentsOf: [
         dependencies: ["QuillFoundation", "QuillUIKit"],
         path: "Sources/QuillAppKit",
         exclude: ["QuillAppKit+GTK.swift"],
-        swiftSettings: [.swiftLanguageMode(.v5)]
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
     ),
     // GTK4-backed runtime for QuillAppKit. Separate target so the
     // bare AppKit module stays a clean shadow (no transitive CGtk4
