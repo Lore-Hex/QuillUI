@@ -24,53 +24,81 @@ public struct QuillIceCubesContentView: View {
         NavigationStack {
             Group {
                 if isLoading && statuses.isEmpty {
-                    ProgressView("Loading Timeline...")
-                } else if let errorMessage = errorMessage {
+                    loadingPlaceholder
+                } else if let errorMessage {
                     VStack {
                         Text("Error: \(errorMessage)")
                             .foregroundColor(.red)
                         Button("Retry") {
-                            Task {
-                                await fetchTimeline()
-                            }
+                            Task { await fetchTimeline() }
                         }
                     }
                 } else {
                     List(statuses) { status in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                AsyncImage(url: status.account.avatar) { image in
-                                    image.resizable()
-                                } placeholder: {
-                                    Color.gray
-                                }
-                                .frame(width: 40, height: 40)
-                                .clipShape(Circle())
-
-                                VStack(alignment: .leading) {
-                                    Text(status.account.cachedDisplayName.asRawText)
-                                        .font(.headline)
-                                    Text("@\(status.account.acct)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-
-                            Text(status.content.asRawText)
-                                .font(.body)
-                        }
-                        .padding(.vertical, 4)
+                        statusRow(status)
                     }
-                    .refreshable {
-                        await fetchTimeline()
-                    }
+                    #if !os(Linux)
+                    .refreshable { await fetchTimeline() }
+                    #endif
                 }
             }
             .navigationTitle("Public Timeline")
         }
-        .task {
-            await fetchTimeline()
+        .task { await fetchTimeline() }
+    }
+
+    @ViewBuilder
+    private var loadingPlaceholder: some View {
+        // SwiftOpenUI's `ProgressView` initializer doesn't have
+        // the title-only `init(_ title:)` overload that
+        // Apple SwiftUI ships, so present the spinner alongside
+        // a plain `Text` label.
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("Loading Timeline…")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
         }
+    }
+
+    @ViewBuilder
+    private func statusRow(_ status: Status) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                avatarView(for: status.account)
+                VStack(alignment: .leading) {
+                    Text(status.account.cachedDisplayName.asRawText)
+                        .font(.headline)
+                    Text("@\(status.account.acct)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            Text(status.content.asRawText)
+                .font(.body)
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func avatarView(for account: Account) -> some View {
+        // SwiftUI's `AsyncImage` isn't part of SwiftOpenUI's GTK4
+        // backend yet — replace with a fixed circular placeholder.
+        // Real avatar decoding lands when the GTK image-loader
+        // shim grows URLSession-backed bitmap support.
+        #if os(Linux)
+        Circle()
+            .fill(Color.gray)
+            .frame(width: 40, height: 40)
+        #else
+        AsyncImage(url: account.avatar) { image in
+            image.resizable()
+        } placeholder: {
+            Color.gray
+        }
+        .frame(width: 40, height: 40)
+        .clipShape(Circle())
+        #endif
     }
 
     private func fetchTimeline() async {
