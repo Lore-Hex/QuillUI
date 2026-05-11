@@ -24,6 +24,13 @@ import QuillUI
 /// shape as the live-feed version that targeted upstream
 /// `FeedParser.parse(_:)`; future slices can swap the local
 /// parser back to upstream once `Shared`/`Mac` is split.
+///
+/// `@MainActor` is explicit because SwiftOpenUI's `View` protocol
+/// doesn't put `body` on the main actor (unlike Apple's SwiftUI),
+/// so without the annotation the body's access to the
+/// `@MainActor RSSReaderModel`'s `@Published` properties trips
+/// Swift 6's `#ActorIsolatedCall` even in Swift 5 language mode.
+@MainActor
 public struct QuillNetNewsWireContentView: View {
     @StateObject private var model = RSSReaderModel()
     @State private var feedURL: String = "https://daringfireball.net/feeds/main"
