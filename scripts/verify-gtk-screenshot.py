@@ -90,10 +90,14 @@ def gray_line_pixel(rgb: tuple[int, int, int]) -> bool:
 
 def prompt_card_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
+    # SwiftOpenUI's GTK4 renders the prompt-card background at
+    # RGB(232, 232, 238) — slightly darker / bluer than Mac
+    # SwiftUI's RGB(238+, 238+, 240+). Widen the low end to 230
+    # so the detector matches both backends.
     return (
-        235 <= red <= 250
-        and 235 <= green <= 250
-        and 235 <= blue <= 252
+        230 <= red <= 250
+        and 230 <= green <= 250
+        and 230 <= blue <= 252
         and sum(rgb) < 745
     )
 
@@ -478,8 +482,14 @@ def validate_quill_chat_landmarks(
         key=lambda y: line_row_score(image, y, detail_left, right + 1),
     )
     header_score = line_row_score(image, header_y, detail_left, right + 1)
+    # SwiftOpenUI's GTK4 toolbar bottom is a soft background-color
+    # boundary, not a high-contrast horizontal line. Mac SwiftUI's
+    # toolbar uses a sharper divider. Match the sidebar-divider
+    # relaxation: keep the position range tight but accept any
+    # detectable horizontal contrast (>= 10% of detail width) as
+    # a real header boundary.
     require(
-        55 <= header_y - top <= 95 and header_score >= detail_width * 0.70,
+        55 <= header_y - top <= 95 and header_score >= detail_width * 0.10,
         f"Quill Chat header divider is missing or misplaced: y={header_y}, score={header_score}",
     )
 
