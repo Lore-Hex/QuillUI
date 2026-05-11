@@ -98,30 +98,25 @@ jobs:
       # stddev) so "blank window" / "didn't render" / "tiny
       # window" regressions still fail CI. Per-app landmark
       # predicates are follow-up slices in docs/uitest-plan.md.
-      # Best-effort during the rollout phase so a single app's
-      # render regression doesn't block sibling reports.
+      #
+      # Promoted off `continue-on-error` after the first
+      # rollout run had every app pass baseline (ece79cb).
       - name: QuillSignal GTK visual smoke
-        continue-on-error: true
         run: scripts/linux-gtk-visual-check.sh .qa/quill-signal-gtk.png quill-signal
 
       - name: QuillTelegram GTK visual smoke
-        continue-on-error: true
         run: scripts/linux-gtk-visual-check.sh .qa/quill-telegram-gtk.png quill-telegram
 
       - name: QuillIINA GTK visual smoke
-        continue-on-error: true
         run: scripts/linux-gtk-visual-check.sh .qa/quill-iina-gtk.png quill-iina
 
       - name: QuillCodeEdit GTK visual smoke
-        continue-on-error: true
         run: scripts/linux-gtk-visual-check.sh .qa/quill-codeedit-gtk.png quill-codeedit
 
       - name: QuillIceCubes GTK visual smoke
-        continue-on-error: true
         run: scripts/linux-gtk-visual-check.sh .qa/quill-icecubes-gtk.png quill-icecubes
 
       - name: QuillNetNewsWire GTK visual smoke
-        continue-on-error: true
         run: scripts/linux-gtk-visual-check.sh .qa/quill-netnewswire-gtk.png quill-netnewswire
 
       - name: Stage QA outputs for upload
