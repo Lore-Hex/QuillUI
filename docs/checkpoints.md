@@ -1710,3 +1710,93 @@ QuillCodeEditCoreTests    ✅ (CP95)
 All hard-gated on macOS CI. None hit the CombineSchedulers
 transitive blocker that still keeps the six legacy orphan
 test directories quarantined.
+
+## Checkpoint 96: ChatPane composite
+
+Signal and Telegram's detail panes still carried the same
+`VStack(spacing: 0) { ChatTimeline; Divider; ChatComposer }`
+boilerplate — even after the kit was extracted. Tightened with
+`ChatPane<M>` in QuillChatKit, which bundles the three
+primitives and forwards `title`, `messages`, the `draft`
+binding, the `onSend` closure, and an optional `placeholder`.
+Each per-app detail view shrinks to a single
+`ChatPane(title:messages:draft:onSend:)` call.
+
+Two new QuillChatKitTests pin input preservation
+(title/messages/placeholder propagate through) and the default
+`placeholder = "Message"`.
+
+## Checkpoint 97: QuillTelegramCoreTests + TelegramFolderFilter
+
+QuillTelegramContentView carried a one-line `visibleChats`
+ternary on `selectedFolder`. Promoted to a static
+`TelegramFolderFilter` (`allFolderNames` + `apply(_:folder:)`)
+so the filter logic is unit-testable without spinning up the
+@MainActor view. The view now calls
+`TelegramFolderFilter.apply(chats, folder: selectedFolder)`
+and reads its pill list from `allFolderNames`.
+
+`QuillTelegramCoreTests` covers:
+
+- "All" passes every chat through unchanged
+- Folder names narrow to chats whose `folder` matches
+- Unknown folder returns an empty list
+- Order is preserved within the matching folder
+- `allFolderNames` is exactly the three pills the sidebar paints
+
+Plus fixture invariants:
+
+- Fixture chats cover both Personal and Work folders
+- Every fixture chat has at least one message
+- Every fixture chat's folder is a member of `allFolderNames`
+- Chat ids are unique across the fixture set
+- "All" filter on the fixture returns the full count
+
+## Checkpoint 98: QuillIINACoreTests
+
+Closes the next per-app-core test gap. Covers PlaylistItem
+identity (fresh UUID per init()) + fixture invariants:
+
+- Fixture playlist is non-empty
+- Every item carries non-empty title + duration
+- Item ids are unique
+- Durations are mm:ss form with numeric halves
+- The four Blender shorts named in CP89 are present
+  (Big Buck Bunny / Sintel / Tears of Steel / Charge)
+
+## Checkpoint 99: QuillSignalCoreTests
+
+QuillSignalCore was the last app-core target without an
+attached test target. Since the core has no non-fixture logic
+(the ChatComposer send() path is on the @MainActor view), this
+test target focuses on fixture invariants + a check that
+`Message` still routes through QuillChatKit's `ChatMessage`
+protocol:
+
+- Message / Conversation: fresh UUID per init()
+- Message conforms to ChatMessage (type + runtime check)
+- Fixture conversations are non-empty, named, with messages
+- Conversation ids are unique
+- Self-messages always carry sender "Me"
+- The three CP89-named conversations are present
+  (Family / Coworker / Notes To Self)
+
+Final test-target matrix after Checkpoints 96–99:
+
+```
+QuillShimsTests             (Linux compat shims, pre-existing)
+QuillChatKitTests           ✅ (CP90 + CP92 + CP96)
+QuillKitTests               ✅ (CP91)
+QuillIceCubesCoreTests      ✅ (CP93)
+QuillNetNewsWireCoreTests   ✅ (CP94)
+QuillCodeEditCoreTests      ✅ (CP95)
+QuillTelegramCoreTests      ✅ (CP97)
+QuillIINACoreTests          ✅ (CP98)
+QuillSignalCoreTests        ✅ (CP99)
+```
+
+Every app core in `docs/app-targets.md` (except
+QuillEnchantedCore, which transitively pulls in QuillData →
+combine-schedulers → UIKit-target mismatch) now has a
+hard-gated test target. The CombineSchedulers blocker remains
+the gate on reviving the six legacy orphan test directories.
