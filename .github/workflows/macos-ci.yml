@@ -79,6 +79,13 @@ jobs:
       - name: Build QuillCodeEditCoreTests
         run: swift build --target QuillCodeEditCoreTests
 
+      # Pins QuillTelegramCore: `TelegramFolderFilter` (the
+      # All/Personal/Work pill-row filter) + fixture invariants
+      # (folder coverage, non-empty messages, unique ids, pill
+      # membership).
+      - name: Build QuillTelegramCoreTests
+        run: swift build --target QuillTelegramCoreTests
+
       - name: Build QuillEnchanted
         run: swift build --target QuillEnchanted
 

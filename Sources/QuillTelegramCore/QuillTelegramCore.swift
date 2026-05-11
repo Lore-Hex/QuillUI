@@ -34,11 +34,10 @@ public struct QuillTelegramContentView: View {
         }
     }
 
-    private var folders: [String] { ["All", "Personal", "Work"] }
+    private var folders: [String] { TelegramFolderFilter.allFolderNames }
 
     private var visibleChats: [Chat] {
-        if selectedFolder == "All" { return chats }
-        return chats.filter { $0.folder == selectedFolder }
+        TelegramFolderFilter.apply(chats, folder: selectedFolder)
     }
 
     private var sidebar: some View {
@@ -117,6 +116,22 @@ public struct QuillTelegramContentView: View {
             TGMessage(sender: "Me", body: ChatDraft.trimmed(draft), fromSelf: true)
         )
         draft = ""
+    }
+}
+
+// MARK: - Folder filter
+
+/// Telegram organizes chats into folders. The pill row in the
+/// sidebar surfaces three: "All" (no filter) plus "Personal" and
+/// "Work" (each shows only chats whose `folder` matches). Pulled
+/// out as a static helper so the filter logic is unit-testable
+/// without touching the view.
+public enum TelegramFolderFilter {
+    public static let allFolderNames: [String] = ["All", "Personal", "Work"]
+
+    public static func apply(_ chats: [Chat], folder: String) -> [Chat] {
+        guard folder != "All" else { return chats }
+        return chats.filter { $0.folder == folder }
     }
 }
 

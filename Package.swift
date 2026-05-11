@@ -1033,6 +1033,18 @@ let package = Package(
                 .swiftLanguageMode(.v5),
                 .unsafeFlags(["-strict-concurrency=minimal"])
             ]
+        ),
+        // Pins QuillTelegramCore's `TelegramFolderFilter` —
+        // the All/Personal/Work pill-row filter behind the
+        // sidebar — plus fixture invariants (folder coverage,
+        // non-empty messages, unique ids, pill membership).
+        .testTarget(
+            name: "QuillTelegramCoreTests",
+            dependencies: ["QuillTelegramCore"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"])
+            ]
         )
     ]
 )
