@@ -596,7 +596,20 @@ targets.append(contentsOf: [
     // so upstream `import AppKit` resolves to this swiftmodule on
     // Linux. Phase A: type stubs only. Phase B will back the heavy
     // hitters (NSWindow, NSView, NSPasteboard, etc.) with GTK4.
-    .target(name: "AppKit", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/QuillAppKit", exclude: ["QuillAppKit+GTK.swift"]),
+    // AppKit shim: pin to Swift 5 language mode so the many
+    // static `let` cursor/color/etc. constants don't trip Swift
+    // 6's strict-concurrency check ("static property is not
+    // concurrency-safe because it is nonisolated global shared
+    // mutable state"). The shim is compile-time scaffolding for
+    // generated Enchanted source, not runtime-shared global
+    // state.
+    .target(
+        name: "AppKit",
+        dependencies: ["QuillFoundation", "QuillUIKit"],
+        path: "Sources/QuillAppKit",
+        exclude: ["QuillAppKit+GTK.swift"],
+        swiftSettings: [.swiftLanguageMode(.v5)]
+    ),
     // GTK4-backed runtime for QuillAppKit. Separate target so the
     // bare AppKit module stays a clean shadow (no transitive CGtk4
     // dep visible to clients like swift-sharing's `canImport(AppKit)`
