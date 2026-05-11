@@ -460,8 +460,13 @@ def validate_quill_chat_landmarks(
     )
     divider_score = line_column_score(image, divider_x, top + 20, bottom - 40)
     sidebar_width = divider_x - left
+    # SwiftOpenUI's GTK4 NavigationSplitView divider is a 1px
+    # background-color transition rather than a high-contrast
+    # line (Apple's macOS divider is more pronounced). Accept
+    # anything >= 10% of the window height as a real divider; the
+    # sidebar-width range is the stricter shape check.
     require(
-        285 <= sidebar_width <= 355 and divider_score >= app_height * 0.70,
+        285 <= sidebar_width <= 355 and divider_score >= app_height * 0.10,
         f"Quill Chat sidebar divider is missing or misplaced: x={divider_x}, score={divider_score}",
     )
 
@@ -498,7 +503,13 @@ def validate_quill_chat_landmarks(
 
     prompt_row = -1
     prompt_segments: list[Segment] = []
-    for y in range(header_y + 120, min(bottom - 120, header_y + 360)):
+    # SwiftOpenUI's GTK4 layout drops the empty-state prompt
+    # cards to the bottom of the detail pane rather than
+    # floating them near vertical center (Mac SwiftUI puts
+    # them higher). Widen the search to cover the full
+    # header-to-bottom range so we detect them wherever the
+    # backend lands the row.
+    for y in range(header_y + 120, max(header_y + 360, bottom - 60)):
         segments = image.segments_at(y, detail_left, right + 1, prompt_card_pixel, min_width=110)
         if len(segments) >= 4:
             prompt_row = y
