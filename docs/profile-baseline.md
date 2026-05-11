@@ -92,22 +92,42 @@ Same Linux run, both modes side-by-side:
 
 NavigationStack vs NavigationSplitView is the most visible
 delta on the IceCubes side. NNW's `@StateObject` adds another
-variable. Probable next experiments, in order of cheapness:
+variable. Three experiments queued, results below.
 
-1. Swap IceCubes' `NavigationStack` → `NavigationSplitView`
-   and re-profile. Settles "is `NavigationStack` on
-   SwiftOpenUI's GTK4 backend busy-spinning?".
-2. Remove the `ProgressView()` from the loading-placeholder
-   branch and re-profile. Settles "is `ProgressView`'s
-   animation timer firing even when the view isn't
-   instantiated?".
-3. Replace NNW's `@StateObject RSSReaderModel` with `@State
-   var items: [RSSItem]` directly and re-profile. Settles "is
-   `@StateObject` + `@Published` driving the render-loop in
-   SwiftOpenUI?".
+### NavigationStack hypothesis — REJECTED (Linux run 25696415311, commit 1807e71)
 
-Each is a small, contained, reversible change — the same
-shape as the QUILLUI_DISABLE_FETCH bypass landed in 1e07973.
+`QUILLUI_PROFILE_FLAT=1` returns `timelineContent` directly
+with no NavigationStack + .navigationTitle wrapper.
+
+| Mode                       | initial | steady |
+|----------------------------|--------:|-------:|
+| fetch (production)         |   133.7 |  134.4 |
+| no-fetch                   |    43.0 |   82.8 |
+| no-fetch + flat (this run) |    36.8 |   80.2 |
+
+Only ~5 pp drop. The busy-spin survives without the
+NavigationStack wrapper. **NavigationStack is not the cause.**
+
+### Bare-mode experiment (next)
+
+`QUILLUI_PROFILE_BARE=1` returns a single `Text` from `body`:
+no NavigationStack, no Group, no List, no ForEach, no
+`@State`-driven content. Decisive test:
+
+- If CPU stays ~80% → the busy-spin is in something
+  fundamental (the GTK4 host event loop, `@State`
+  subscription bookkeeping, or the SwiftOpenUI runtime
+  itself). All Quill apps that hold any `@State` would
+  carry the same cost.
+- If CPU drops to ~3-6% (fixture-app levels) → the
+  busy-spin lives somewhere in IceCubes' specific view tree
+  (the Group, List, ForEach, statusRow, or the
+  Status/Account content render). Next experiment narrows
+  further.
+
+Each experiment is a small, contained, reversible change —
+same shape as the QUILLUI_DISABLE_FETCH bypass in 1e07973
+and the QUILLUI_PROFILE_FLAT swap in 1807e71.
 
 ## Method
 

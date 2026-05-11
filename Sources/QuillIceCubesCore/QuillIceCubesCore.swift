@@ -30,13 +30,27 @@ public struct QuillIceCubesContentView: View {
     public init() {}
 
     public var body: some View {
-        // `QUILLUI_PROFILE_FLAT=1` skips the NavigationStack +
-        // navigationTitle wrapper for the profile experiment
-        // measuring whether SwiftOpenUI's NavigationStack
-        // contributes to the IceCubes CPU peg on GTK4.
-        // Production stays wrapped — matches upstream
-        // Dimillian/IceCubesApp's view shape.
-        if ProcessInfo.processInfo.environment["QUILLUI_PROFILE_FLAT"] == "1" {
+        // Profile experiments. Each env var swaps the body to a
+        // simpler shape, isolating where the IceCubes CPU peg
+        // lives on SwiftOpenUI's GTK4 backend. Production stays
+        // matched to upstream Dimillian/IceCubesApp.
+        //
+        //   QUILLUI_PROFILE_BARE=1  body returns a single Text.
+        //                           Tests "is the busy-spin
+        //                           something fundamental like
+        //                           @State subscription or the
+        //                           GTK host, or is it specific
+        //                           to IceCubes' view tree?"
+        //   QUILLUI_PROFILE_FLAT=1  body returns timelineContent
+        //                           directly (no NavigationStack
+        //                           wrapper). Already ran
+        //                           1807e71 — only ~5 pp drop,
+        //                           so NavigationStack is NOT
+        //                           the busy spinner.
+        let env = ProcessInfo.processInfo.environment
+        if env["QUILLUI_PROFILE_BARE"] == "1" {
+            Text("IceCubes profile bare-mode placeholder")
+        } else if env["QUILLUI_PROFILE_FLAT"] == "1" {
             timelineContent
         } else {
             NavigationStack {

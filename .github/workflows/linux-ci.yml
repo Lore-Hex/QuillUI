@@ -177,6 +177,24 @@ jobs:
             scripts/linux-gtk-profile.sh quill-icecubes 5 20 || true
           } | tee /tmp/quillui-profile-flat.csv
 
+      # Bare-mode profile experiment. Body returns a single
+      # Text — no NavigationStack, no List, no ForEach, no
+      # @State-driven content. If CPU is still elevated in this
+      # mode, the busy-spin is in something fundamental like
+      # @State subscription or the GTK4 host event loop. If
+      # CPU drops to fixture-app levels (~3-6%), the busy-spin
+      # lives in IceCubes' specific view tree.
+      - name: Bare-mode profile experiment (IceCubes only)
+        continue-on-error: true
+        env:
+          QUILLUI_DISABLE_FETCH: "1"
+          QUILLUI_PROFILE_BARE: "1"
+        run: |
+          {
+            echo "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
+            scripts/linux-gtk-profile.sh quill-icecubes 5 20 || true
+          } | tee /tmp/quillui-profile-bare.csv
+
       - name: Stage QA outputs for upload
         if: always()
         run: |
