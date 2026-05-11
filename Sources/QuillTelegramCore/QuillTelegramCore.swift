@@ -127,10 +127,17 @@ public struct QuillTelegramContentView: View {
 /// out as a static helper so the filter logic is unit-testable
 /// without touching the view.
 public enum TelegramFolderFilter {
-    public static let allFolderNames: [String] = ["All", "Personal", "Work"]
+    /// Sentinel folder name that means "no filter — show every
+    /// chat regardless of folder". Pulled out so the `apply` body
+    /// and the `allFolderNames` row stay in agreement; a typo on
+    /// either side previously meant an unfilterable / unselectable
+    /// pill.
+    public static let all = "All"
+
+    public static let allFolderNames: [String] = [all, "Personal", "Work"]
 
     public static func apply(_ chats: [Chat], folder: String) -> [Chat] {
-        guard folder != "All" else { return chats }
+        guard folder != all else { return chats }
         return chats.filter { $0.folder == folder }
     }
 }

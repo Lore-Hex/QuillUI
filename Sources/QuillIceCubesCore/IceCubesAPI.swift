@@ -12,6 +12,7 @@
 // app-side rewrites.
 
 import Foundation
+import QuillFoundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -53,13 +54,7 @@ public struct HTMLString: Codable, Hashable, Sendable {
                 output.append(character)
             }
         }
-        return output
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&nbsp;", with: " ")
+        return HTMLEntities.decode(output)
     }
 }
 

@@ -183,6 +183,20 @@ struct QuillNetNewsWireCoreTests {
         #expect(item.plainTextBody == "don't and don't")
     }
 
+    @Test("RSSItem.plainTextBody decodes &amp;lt; to the literal &lt;, not the < character")
+    func rssItemPlainTextBodyAvoidsDoubleDecode() {
+        // The old chain ran `&amp;` → `&` BEFORE `&lt;` → `<`, so
+        // `&amp;lt;` (a literal `&lt;` in the original payload)
+        // would decode all the way to `<`. The shared
+        // QuillFoundation.HTMLEntities.decode helper applies
+        // `&amp;` last to avoid that double-decode.
+        let item = RSSItem(
+            id: "1", title: "T", link: nil, pubDate: nil,
+            descriptionHTML: "&amp;lt;script&amp;gt;"
+        )
+        #expect(item.plainTextBody == "&lt;script&gt;")
+    }
+
     @Test("Empty XML yields an empty parse result, not a crash")
     func emptyXMLEmptyResult() {
         let result = RSSFeedParser.parse(data: Data())

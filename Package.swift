@@ -323,7 +323,7 @@ var targets: [Target] = [
     // Linux unmodified.
     .target(
         name: "QuillNetNewsWireCore",
-        dependencies: ["QuillUI"],
+        dependencies: ["QuillUI", "QuillFoundation"],
         swiftSettings: [
             .swiftLanguageMode(.v5),
             .unsafeFlags(["-strict-concurrency=minimal"])
@@ -352,7 +352,7 @@ var targets: [Target] = [
     // `QuillIceCubesContentView` struct.
     .target(
         name: "QuillIceCubesCore",
-        dependencies: ["QuillUI"],
+        dependencies: ["QuillUI", "QuillFoundation"],
         swiftSettings: [
             .swiftLanguageMode(.v5),
             .unsafeFlags(["-strict-concurrency=minimal"])

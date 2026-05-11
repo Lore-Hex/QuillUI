@@ -1,4 +1,5 @@
 import Foundation
+import QuillFoundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -239,6 +240,16 @@ struct RSSFeedParser {
         private var currentDescription = ""
         private var buffer = ""
 
+        /// The element that contains the one we just finished —
+        /// used to scope the feed-level `<title>` lookup (RSS
+        /// channels nest title under `<channel>`, Atom feeds
+        /// nest it under `<feed>`). On end-element the path
+        /// still includes the element we're closing, so the
+        /// parent is `path.dropLast().last`.
+        private var parentElement: String? {
+            path.dropLast().last
+        }
+
         func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String] = [:]) {
             path.append(elementName)
             buffer = ""
@@ -286,7 +297,7 @@ struct RSSFeedParser {
                     inItem = false
                 default: break
                 }
-            } else if (elementName == "title" && (path.dropLast().last == "channel" || path.dropLast().last == "feed")) {
+            } else if elementName == "title", parentElement == "channel" || parentElement == "feed" {
                 if feedTitle == nil { feedTitle = trimmed }
             }
             buffer = ""
@@ -300,14 +311,7 @@ private extension String {
         let withoutTags = self.replacingOccurrences(
             of: "<[^>]+>", with: "", options: .regularExpression
         )
-        return withoutTags
-            .replacingOccurrences(of: "&nbsp;", with: " ")
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&#x27;", with: "'")
+        return HTMLEntities.decode(withoutTags)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
