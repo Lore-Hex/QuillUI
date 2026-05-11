@@ -1,5 +1,6 @@
 import Foundation
 import QuillUI
+import QuillChatKit
 
 /// Quill Signal fixtures-only conversation shell.
 ///
@@ -12,9 +13,9 @@ import QuillUI
 /// work lands.
 ///
 /// Each `Conversation` owns a stable array of `Message`s. Selecting
-/// a sidebar row updates the right-pane timeline. No persistence,
-/// no network — same shape that the IceCubes / NetNewsWire
-/// timeline shells took before they grew real backends.
+/// a sidebar row updates the right-pane timeline. Bubble +
+/// sidebar-row + timeline chrome lives in `QuillChatKit`; this
+/// file only owns the fixture model + the split-view glue.
 @MainActor
 public struct QuillSignalContentView: View {
     @State private var conversations = QuillSignalFixtures.conversations
@@ -41,30 +42,20 @@ public struct QuillSignalContentView: View {
                     Button {
                         selectedID = conversation.id
                     } label: {
-                        sidebarRow(conversation)
+                        ChatRow(
+                            title: conversation.name,
+                            preview: conversation.messages.last?.body ?? ""
+                        )
                     }
                 }
             }
         }
     }
 
-    private func sidebarRow(_ conversation: Conversation) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(conversation.name)
-                .font(.headline)
-                .lineLimit(1)
-            Text(conversation.messages.last?.body ?? "")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-        }
-        .padding(.vertical, 4)
-    }
-
     private var detail: some View {
         Group {
             if let conversation = currentConversation {
-                conversationView(conversation)
+                ChatTimeline(title: conversation.name, messages: conversation.messages)
             } else {
                 Text("Select a conversation")
                     .font(.title2)
@@ -72,42 +63,6 @@ public struct QuillSignalContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-    }
-
-    private func conversationView(_ conversation: Conversation) -> some View {
-        VStack(spacing: 0) {
-            Text(conversation.name)
-                .font(.title2).bold()
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            Divider()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(conversation.messages) { message in
-                        messageBubble(message)
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-    }
-
-    private func messageBubble(_ message: Message) -> some View {
-        VStack(alignment: message.fromSelf ? .trailing : .leading, spacing: 2) {
-            Text(message.body)
-                .padding(10)
-                .background(
-                    message.fromSelf ? Color.blue.opacity(0.18) : Color.gray.opacity(0.18)
-                )
-                .cornerRadius(12)
-            Text(message.sender)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: message.fromSelf ? .trailing : .leading)
     }
 
     private var currentConversation: Conversation? {
@@ -118,7 +73,7 @@ public struct QuillSignalContentView: View {
 
 // MARK: - Fixture model
 
-public struct Message: Identifiable, Hashable, Sendable {
+public struct Message: ChatMessage {
     public let id: UUID
     public let sender: String
     public let body: String

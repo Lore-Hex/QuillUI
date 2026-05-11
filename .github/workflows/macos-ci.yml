@@ -38,6 +38,16 @@ jobs:
       - name: Build QuillUI core library
         run: swift build --target QuillUI
 
+      # QuillChatKit holds the shared chat chrome (ChatBubble,
+      # ChatRow, ChatTimeline) consumed by both QuillSignal and
+      # QuillTelegram. Hard-gated so a regression here surfaces
+      # before the per-app Signal/Telegram builds.
+      - name: Build QuillChatKit
+        run: swift build --target QuillChatKit
+
+      - name: Build QuillChatKitTests
+        run: swift build --target QuillChatKitTests
+
       - name: Build QuillEnchanted
         run: swift build --target QuillEnchanted
 

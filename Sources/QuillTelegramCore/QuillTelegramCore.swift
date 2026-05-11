@@ -1,5 +1,6 @@
 import Foundation
 import QuillUI
+import QuillChatKit
 
 /// Quill Telegram fixtures-only chat shell.
 ///
@@ -13,7 +14,9 @@ import QuillUI
 ///
 /// Three folders ("All", "Personal", "Work") each carrying a
 /// set of `Chat` rows; selecting a chat shows its message
-/// timeline in the detail pane.
+/// timeline in the detail pane. Bubble + sidebar-row + timeline
+/// chrome lives in `QuillChatKit`; this file owns the fixture
+/// model, the folder filter, and the unread-badge logic.
 @MainActor
 public struct QuillTelegramContentView: View {
     @State private var selectedFolder = "All"
@@ -69,40 +72,21 @@ public struct QuillTelegramContentView: View {
                     Button {
                         selectedChatID = chat.id
                     } label: {
-                        chatRow(chat)
+                        ChatRow(
+                            title: chat.title,
+                            preview: chat.messages.last?.body ?? "",
+                            unread: chat.unread
+                        )
                     }
                 }
             }
         }
     }
 
-    private func chatRow(_ chat: Chat) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text(chat.title).font(.headline).lineLimit(1)
-                Spacer()
-                if chat.unread > 0 {
-                    Text("\(chat.unread)")
-                        .font(.caption2).bold()
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-            }
-            Text(chat.messages.last?.body ?? "")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-        }
-        .padding(.vertical, 4)
-    }
-
     private var detail: some View {
         Group {
             if let chat = currentChat {
-                conversationView(chat)
+                ChatTimeline(title: chat.title, messages: chat.messages)
             } else {
                 Text("Select a chat")
                     .font(.title2)
@@ -110,38 +94,6 @@ public struct QuillTelegramContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-    }
-
-    private func conversationView(_ chat: Chat) -> some View {
-        VStack(spacing: 0) {
-            Text(chat.title)
-                .font(.title2).bold()
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(chat.messages) { message in
-                        messageBubble(message)
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-    }
-
-    private func messageBubble(_ message: TGMessage) -> some View {
-        VStack(alignment: message.fromSelf ? .trailing : .leading, spacing: 2) {
-            Text(message.body)
-                .padding(10)
-                .background(message.fromSelf ? Color.blue.opacity(0.18) : Color.gray.opacity(0.18))
-                .cornerRadius(12)
-            Text(message.sender)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: message.fromSelf ? .trailing : .leading)
     }
 
     private var currentChat: Chat? {
@@ -152,7 +104,7 @@ public struct QuillTelegramContentView: View {
 
 // MARK: - Fixture model
 
-public struct TGMessage: Identifiable, Hashable, Sendable {
+public struct TGMessage: ChatMessage {
     public let id: UUID
     public let sender: String
     public let body: String

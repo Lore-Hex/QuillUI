@@ -371,9 +371,21 @@ var targets: [Target] = [
     // shape that IceCubes had before its Mastodon API surface
     // landed; future slices fill in fixtures-only conversation
     // timelines / chat lists / playlists.
+    //
+    // QuillChatKit is shared chat chrome (bubble, sidebar row,
+    // timeline) that Signal + Telegram both consume so the per-app
+    // shells only carry their own model + folder/unread logic.
+    .target(
+        name: "QuillChatKit",
+        dependencies: ["QuillUI"],
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
     .target(
         name: "QuillSignalCore",
-        dependencies: ["QuillUI"],
+        dependencies: ["QuillUI", "QuillChatKit"],
         swiftSettings: [
             .swiftLanguageMode(.v5),
             .unsafeFlags(["-strict-concurrency=minimal"])
@@ -389,7 +401,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillTelegramCore",
-        dependencies: ["QuillUI"],
+        dependencies: ["QuillUI", "QuillChatKit"],
         swiftSettings: [
             .swiftLanguageMode(.v5),
             .unsafeFlags(["-strict-concurrency=minimal"])
@@ -949,6 +961,14 @@ let package = Package(
             let testDeps: [Target.Dependency] = ["QuillShims"]
             #endif
             return .testTarget(name: "QuillShimsTests", dependencies: testDeps)
-        }()
+        }(),
+        .testTarget(
+            name: "QuillChatKitTests",
+            dependencies: ["QuillChatKit"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"])
+            ]
+        )
     ]
 )
