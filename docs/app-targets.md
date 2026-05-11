@@ -4,7 +4,7 @@ QuillUI should prove itself against real open-source Swift apps that stress diff
 
 ## 1. Enchanted
 
-Status: active first port.
+Status: active first port. Compile-green hard-gated on macOS CI; full upstream gluonfield/enchanted source tree compiles + links + GTK-renders end-to-end on Linux via the QuillUI / SwiftOpenUI / QuillFoundation / QuillAppKit / QuillDataMacros + 22-shim compatibility layer (CP80).
 
 Why it matters:
 
@@ -18,7 +18,7 @@ Current approach:
 
 ## 2. IceCubes
 
-Status: next app after Enchanted reaches a strong checkpoint.
+Status: compile-green hard-gated. First-milestone Mastodon timeline shell shipped (CP82 + CP93) — `IceCubesAPI.swift` re-implements the Mastodon API surface (`Account`, `Status`, `HTMLString`, `Timelines.pub`, `MastodonClient`) locally since the upstream Models / NetworkClient packages pin iOS-18-only. Live public-timeline shell fetches via URLSession with snake_case JSON decoding. `QuillIceCubesCoreTests` (22 tests, hard-gated) pin the entire pure-data surface.
 
 Why it matters:
 
@@ -31,7 +31,7 @@ Likely first milestone:
 
 ## 3. NetNewsWire
 
-Status: third app target.
+Status: compile-green hard-gated. Self-contained two-pane RSS reader (sidebar + detail) shipped (CP84 + CP94) — `QuillNetNewsWireCore` ships a Foundation `XMLParser`-backed RSS 2.0 + Atom 1.0 parser + `URLSession` fetcher; defaults to fetching daringfireball.net on first launch. The upstream `NetNewsWireLogic` target's Shared/Mac tree (~1655 unresolved symbols on either platform) stays opt-in and unbuilt. `QuillNetNewsWireCoreTests` (12 tests) pin the parser via fixture XML strings. OPML import/export and three-pane layout are follow-ups.
 
 Why it matters:
 
@@ -50,7 +50,7 @@ Audit doc:
 
 ## Side Target: WireGuard Apple
 
-Status: opportunistic compatibility target.
+Status: compile-green hard-gated on macOS CI (CP87). `scripts/fetch-upstream.sh wireguard` patches `WireGuardKitC.h` to explicitly `#include <sys/types.h>` so the macOS 15+ modular-header check on `u_int32_t` / `u_char` / `u_int16_t` resolves through the right Darwin module. The configuration-manager UI shell remains a follow-up.
 
 Why it matters:
 
@@ -65,7 +65,7 @@ Likely first milestone:
 
 ## 4. CodeEdit
 
-Status: fourth main app target.
+Status: compile-green hard-gated. Fixtures-only IDE shell shipped (CP86 + CP89) — file-tree sidebar with emoji icons keyed off `ProjectFile.extension`, tab bar with close `×` per tab + active highlight, monospaced editor pane. Editor is now editable (CP100): `TextEditor` bound to `project.files[idx].contents` via a two-way Binding so edits flow back to the project model. `QuillCodeEditCoreTests` (10 tests) pin ProjectFile.extension parsing + fixture invariants. The vendored CodeEditUpstream target stays opt-in (its `CodeEditSymbols` SwiftLintPlugin prebuild command trips SwiftPM 6). Folder-open + save-to-disk are follow-ups.
 
 Why it matters:
 
@@ -79,7 +79,7 @@ Likely first milestone:
 
 ## 5. Signal iOS
 
-Status: fifth main app target.
+Status: compile-green hard-gated. Fixtures-only conversation shell shipped (CP85 + CP89 + CP92) — NavigationSplitView with sidebar list of seeded `Conversation`s, scrollable message timeline with rounded bubbles, and a functional `ChatComposer` (TextField + Send) that appends new self-messages to the active conversation. Bubble / sidebar-row / timeline / composer chrome shared with Telegram via `QuillChatKit` (CP90 + CP96). `QuillSignalCoreTests` (8 tests) pin fixture invariants + ChatMessage routing. The full libsignal / RingRTC / GRDB stack stays a follow-up.
 
 Why it matters:
 
@@ -93,7 +93,7 @@ Likely first milestone:
 
 ## 6. Telegram Swift
 
-Status: sixth main app target.
+Status: compile-green hard-gated. Fixtures-only folder-grouped chat shell shipped (CP85 + CP89 + CP92 + CP97) — pill row of All/Personal/Work folders above a `Chat` list with unread badges, scrollable timeline, and `ChatComposer` wired to `send()` that appends new self-messages. Folder filter logic extracted as `TelegramFolderFilter` for unit-testability. `QuillTelegramCoreTests` (10 tests) cover the filter + fixture invariants. The full MTProto / TDLib / SwiftSignalKit stack stays a follow-up.
 
 Why it matters:
 
@@ -107,7 +107,7 @@ Likely first milestone:
 
 ## 7. IINA
 
-Status: seventh main app target; assuming "INNA" means IINA.
+Status: compile-green hard-gated. Fixtures-only desktop-player shell shipped (CP85 + CP89) — top row: now-playing title + Play/Pause/Stop transport controls + duration; left sidebar: playlist with `+ Add file` button + four seeded Blender Foundation shorts (Big Buck Bunny / Sintel / Tears of Steel / Charge); right canvas: large ▶/⏸ indicator backed by `isPlaying`. `QuillIINACoreTests` (7 tests) pin PlaylistItem identity + fixture invariants (mm:ss duration format, named shorts present). Real mpv playback backend stays a follow-up.
 
 Why it matters:
 
