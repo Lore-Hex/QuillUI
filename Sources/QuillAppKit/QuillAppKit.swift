@@ -235,7 +235,7 @@ open class NSAppearance: NSObject, @unchecked Sendable {
 
 // MARK: - NSResponder / NSView / NSViewController / NSWindow
 
-@MainActor open class NSResponder: NSObject {
+open class NSResponder: NSObject {
     public override init() {}
     open var nextResponder: NSResponder? { nil }
     open func mouseDown(with event: NSEvent) {}
@@ -251,7 +251,7 @@ open class NSAppearance: NSObject, @unchecked Sendable {
     open func resignFirstResponder() -> Bool { true }
 }
 
-@MainActor open class NSView: NSResponder {
+open class NSView: NSResponder {
     public var frame: NSRect = .zero
     public var bounds: NSRect = .zero
     public var subviews: [NSView] = []
@@ -340,7 +340,7 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     public init(rect: NSRect, options: Options, owner: Any?, userInfo: [AnyHashable: Any]?) {}
 }
 
-@MainActor open class NSViewController: NSResponder {
+open class NSViewController: NSResponder {
     public var view: NSView = NSView()
     public var children: [NSViewController] = []
     public var representedObject: Any?
@@ -362,7 +362,7 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     public func dismiss(_ sender: Any?) {}
 }
 
-@MainActor open class NSWindowController: NSResponder {
+open class NSWindowController: NSResponder {
     public var window: NSWindow?
     public var contentViewController: NSViewController?
     public init(window: NSWindow?) { super.init(); self.window = window }
@@ -394,7 +394,7 @@ public extension NSWindowDelegate {
     func windowShouldClose(_ sender: NSWindow) -> Bool { true }
 }
 
-@MainActor open class NSWindow: NSResponder {
+open class NSWindow: NSResponder {
     public struct StyleMask: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -569,7 +569,7 @@ public extension NSWindowDelegate {
 
 // MARK: - NSPanel
 
-@MainActor open class NSPanel: NSWindow {
+open class NSPanel: NSWindow {
     public var isFloatingPanel: Bool = false
     public var becomesKeyOnlyIfNeeded: Bool = false
     public var worksWhenModal: Bool = false
@@ -1113,7 +1113,7 @@ private extension NSWorkspace {
 
 // MARK: - NSCursor
 
-@MainActor open class NSCursor: NSObject {
+open class NSCursor: NSObject {
     public static let arrow = NSCursor()
     public static let crosshair = NSCursor()
     public static let closedHand = NSCursor()
@@ -1198,7 +1198,7 @@ public enum NSWritingDirection: Int, Sendable {
 
 // MARK: - NSMenu / NSMenuItem
 
-@MainActor open class NSMenu: NSObject {
+open class NSMenu: NSObject {
     public var title: String = ""
     public var items: [NSMenuItem] = []
     public weak var delegate: NSMenuDelegate?
@@ -1227,7 +1227,7 @@ public enum NSWritingDirection: Int, Sendable {
     public static var menuBarVisible: Bool = true
 }
 
-@MainActor open class NSMenuItem: NSObject {
+open class NSMenuItem: NSObject {
     public var title: String = ""
     public var action: Selector?
     public weak var target: AnyObject?
@@ -1289,7 +1289,7 @@ public extension NSMenuDelegate {
 
 // MARK: - NSToolbar / NSToolbarItem
 
-@MainActor open class NSToolbar: NSObject {
+open class NSToolbar: NSObject {
     public var identifier: String = ""
     public weak var delegate: NSToolbarDelegate?
     public var displayMode: DisplayMode = .default
@@ -1315,7 +1315,7 @@ public extension NSMenuDelegate {
     public func validateVisibleItems() {}
 }
 
-@MainActor open class NSToolbarItem: NSObject {
+open class NSToolbarItem: NSObject {
     public struct Identifier: RawRepresentable, Hashable, Sendable {
         public var rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -1372,7 +1372,7 @@ public extension NSToolbarDelegate {
 
 // MARK: - NSAlert / NSSavePanel / NSOpenPanel
 
-@MainActor open class NSAlert: NSObject {
+open class NSAlert: NSObject {
     public var messageText: String = ""
     public var informativeText: String = ""
     public var icon: NSImage?
@@ -1442,7 +1442,7 @@ public extension NSToolbarDelegate {
     }
 }
 
-@MainActor open class NSSavePanel: NSWindow {
+open class NSSavePanel: NSWindow {
     public var url: URL?
     public var directoryURL: URL?
     public var nameFieldStringValue: String = ""
@@ -1462,7 +1462,7 @@ public extension NSToolbarDelegate {
     public func begin(completionHandler: @escaping (NSApplication.ModalResponse) -> Void) {}
 }
 
-@MainActor open class NSOpenPanel: NSSavePanel {
+open class NSOpenPanel: NSSavePanel {
     public var canChooseFiles: Bool = true
     public var canChooseDirectories: Bool = false
     public var allowsMultipleSelection: Bool = false
@@ -1472,7 +1472,7 @@ public extension NSToolbarDelegate {
 
 // MARK: - NSScrollView / NSScroller / NSTextField / NSTextView / NSImageView / NSButton / NSPopUpButton / NSSearchField / NSSplitView / NSSlider
 
-@MainActor open class NSScrollView: NSView {
+open class NSScrollView: NSView {
     public var documentView: NSView?
     public var contentView: NSClipView = NSClipView()
     public var hasVerticalScroller: Bool = false
@@ -1493,17 +1493,17 @@ public extension NSToolbarDelegate {
     public enum BorderType: UInt, Sendable { case noBorder, lineBorder, bezelBorder, grooveBorder }
 }
 
-@MainActor open class NSClipView: NSView {
+open class NSClipView: NSView {
     public var documentView: NSView?
     public var documentRect: NSRect = .zero
     public var documentVisibleRect: NSRect = .zero
 }
 
-@MainActor open class NSScroller: NSView {
+open class NSScroller: NSView {
     public enum Style: Int, Sendable { case legacy, overlay }
 }
 
-@MainActor open class NSTextField: NSControl {
+open class NSTextField: NSControl {
     public var placeholderString: String?
     public var placeholderAttributedString: NSAttributedString?
     public var isEditable: Bool = false
@@ -1550,11 +1550,11 @@ public extension NSTextFieldDelegate {
     func control(_ control: NSControl, textShouldEndEditing: NSText) -> Bool { true }
 }
 
-@MainActor open class NSText: NSView {
+open class NSText: NSView {
     public var string: String = ""
 }
 
-@MainActor open class NSTextView: NSText {
+open class NSTextView: NSText {
     public var textStorage: NSTextStorage? = NSTextStorage(string: "")
     public var layoutManager: NSLayoutManager? = NSLayoutManager()
     public var textContainer: NSTextContainer? = NSTextContainer()
@@ -1637,7 +1637,7 @@ public extension NSTextDelegate {
     func textDidEndEditing(_ notification: Notification) {}
 }
 
-@MainActor open class NSImageView: NSControl {
+open class NSImageView: NSControl {
     public var image: NSImage?
     public var imageScaling: ImageScaling = .scaleProportionallyDown
     public var imageAlignment: ImageAlignment = .alignCenter
@@ -1647,7 +1647,7 @@ public extension NSTextDelegate {
     public enum ImageAlignment: UInt, Sendable { case alignCenter, alignTop, alignTopLeft, alignTopRight, alignLeft, alignBottom, alignBottomLeft, alignBottomRight, alignRight }
 }
 
-@MainActor open class NSControl: NSView {
+open class NSControl: NSView {
     public weak var target: AnyObject?
     public var action: Selector?
     public var isEnabled: Bool = true
@@ -1666,7 +1666,7 @@ public extension NSTextDelegate {
     public enum ControlSize: UInt, Sendable { case regular, small, mini, large }
 }
 
-@MainActor open class NSButton: NSControl {
+open class NSButton: NSControl {
     public var title: String = ""
     public var attributedTitle: NSAttributedString = NSAttributedString(string: "")
     public var alternateTitle: String = ""
@@ -1703,7 +1703,7 @@ public extension NSControl {
     }
 }
 
-@MainActor open class NSSlider: NSControl {
+open class NSSlider: NSControl {
     public var minValue: Double = 0
     public var maxValue: Double = 1
     public var altIncrementValue: Double = 0
@@ -1718,7 +1718,7 @@ public extension NSControl {
     public override init() { super.init() }
 }
 
-@MainActor open class NSStackView: NSView {
+open class NSStackView: NSView {
     public enum Orientation: Int, Sendable { case horizontal = 0, vertical = 1 }
     public enum Distribution: Int, Sendable { case equalCentering, equalSpacing, fill, fillEqually, fillProportionally, gravityAreas }
     public enum Gravity: Int, Sendable { case top, center, bottom, leading, trailing }
@@ -1744,7 +1744,7 @@ extension NSLayoutConstraint {
     }
 }
 
-@MainActor open class NSProgressIndicator: NSView {
+open class NSProgressIndicator: NSView {
     public var minValue: Double = 0
     public var maxValue: Double = 100
     public var doubleValue: Double = 0
@@ -1760,7 +1760,7 @@ extension NSLayoutConstraint {
     public override init() { super.init() }
 }
 
-@MainActor open class NSPopUpButton: NSButton {
+open class NSPopUpButton: NSButton {
     public var menu: NSMenu? = NSMenu()
     public var pullsDown: Bool = false
     public var indexOfSelectedItem: Int = -1
@@ -1795,14 +1795,14 @@ extension NSLayoutConstraint {
     public override init() { super.init() }
 }
 
-@MainActor open class NSPopUpButtonCell: NSObject {
+open class NSPopUpButtonCell: NSObject {
     public var menu: NSMenu? = NSMenu()
     public var pullsDown: Bool = false
     public var arrowPosition: ArrowPosition = .arrowAtBottom
     public enum ArrowPosition: UInt, Sendable { case noArrow, arrowAtCenter, arrowAtBottom }
 }
 
-@MainActor open class NSSearchField: NSTextField {
+open class NSSearchField: NSTextField {
     public var searchMenuTemplate: NSMenu?
     public var sendsSearchStringImmediately: Bool = false
     public var sendsWholeSearchString: Bool = false
@@ -1821,7 +1821,7 @@ public extension NSSearchFieldDelegate {
     func searchFieldDidEndSearching(_ sender: NSSearchField) {}
 }
 
-@MainActor open class NSSplitView: NSView {
+open class NSSplitView: NSView {
     public weak var delegate: NSSplitViewDelegate?
     public var isVertical: Bool = false
     public var arrangedSubviews: [NSView] = []
@@ -1847,7 +1847,7 @@ public extension NSSplitViewDelegate {
 
 public typealias NSSplitViewDividerIndex = Int
 
-@MainActor open class NSSplitViewController: NSViewController {
+open class NSSplitViewController: NSViewController {
     public var splitViewItems: [NSSplitViewItem] = []
     public func addSplitViewItem(_ i: NSSplitViewItem) { splitViewItems.append(i) }
     public func insertSplitViewItem(_ i: NSSplitViewItem, at idx: Int) { splitViewItems.insert(i, at: idx) }
@@ -1855,7 +1855,7 @@ public typealias NSSplitViewDividerIndex = Int
     public var splitView: NSSplitView = NSSplitView()
 }
 
-@MainActor open class NSSplitViewItem: NSObject {
+open class NSSplitViewItem: NSObject {
     public var viewController: NSViewController = NSViewController()
     public var behavior: Behavior = .default
     public var collapseBehavior: CollapseBehavior = .default
@@ -1890,7 +1890,7 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
 
 // MARK: - NSOutlineView / NSTableView
 
-@MainActor open class NSTableView: NSControl {
+open class NSTableView: NSControl {
     public weak var delegate: NSTableViewDelegate?
     public weak var dataSource: NSTableViewDataSource?
     public var headerView: NSTableHeaderView? = NSTableHeaderView()
@@ -1972,13 +1972,13 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     public enum DropOperation: UInt, Sendable { case on, above }
 }
 
-@MainActor open class NSTableHeaderView: NSView {}
-@MainActor open class NSTableRowView: NSView {
+open class NSTableHeaderView: NSView {}
+open class NSTableRowView: NSView {
     public var isSelected: Bool = false
     public var isEmphasized: Bool = false
     public var isGroupRowStyle: Bool = false
 }
-@MainActor open class NSTableCellView: NSView {
+open class NSTableCellView: NSView {
     public var textField: NSTextField?
     public var imageView: NSImageView?
     public var objectValue: Any?
@@ -1987,7 +1987,7 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     public enum BackgroundStyle: Int, Sendable { case normal, emphasized, raised, lowered }
 }
 
-@MainActor open class NSTableColumn: NSObject {
+open class NSTableColumn: NSObject {
     public var identifier: NSUserInterfaceItemIdentifier
     public var title: String = ""
     public var width: CGFloat = 100
@@ -2039,7 +2039,7 @@ public extension NSTableViewDataSource {
     func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any? { nil }
 }
 
-@MainActor open class NSOutlineView: NSTableView {
+open class NSOutlineView: NSTableView {
     public var indentationPerLevel: CGFloat = 16
     public var indentationMarkerFollowsCell: Bool = true
     public var autoresizesOutlineColumn: Bool = true
@@ -2099,7 +2099,7 @@ public extension NSOutlineViewDataSource {
 
 // MARK: - Document support
 
-@MainActor open class NSDocument: NSObject {
+open class NSDocument: NSObject {
     public var fileURL: URL?
     public var fileType: String?
     public var fileModificationDate: Date?
@@ -2130,7 +2130,7 @@ public extension NSOutlineViewDataSource {
     public enum ChangeType: UInt, Sendable { case changeDone, changeUndone, changeRedone, changeCleared, changeReadOtherContents, changeAutosaved, changeDiscardable }
 }
 
-@MainActor open class NSDocumentController: NSObject {
+open class NSDocumentController: NSObject {
     public static let shared = NSDocumentController()
     public var documents: [NSDocument] = []
     public var currentDocument: NSDocument?
@@ -2173,7 +2173,7 @@ public struct NSViewControllerRepresentableContext<Coordinator> {
 
 // MARK: - NSStatusBar / NSStatusItem (menu-bar widgets)
 
-@MainActor open class NSStatusBar: NSObject {
+open class NSStatusBar: NSObject {
     public static let system = NSStatusBar()
     public func statusItem(withLength: CGFloat) -> NSStatusItem { NSStatusItem() }
     public func removeStatusItem(_ item: NSStatusItem) {}
@@ -2182,7 +2182,7 @@ public struct NSViewControllerRepresentableContext<Coordinator> {
     public var thickness: CGFloat = 22
 }
 
-@MainActor open class NSStatusItem: NSObject {
+open class NSStatusItem: NSObject {
     public var button: NSStatusBarButton? = NSStatusBarButton()
     public var menu: NSMenu?
     public var length: CGFloat = -1
@@ -2197,11 +2197,11 @@ public struct NSViewControllerRepresentableContext<Coordinator> {
     }
 }
 
-@MainActor open class NSStatusBarButton: NSButton {}
+open class NSStatusBarButton: NSButton {}
 
 // MARK: - NSPopover / NSPopoverDelegate
 
-@MainActor open class NSPopover: NSResponder {
+open class NSPopover: NSResponder {
     public var contentViewController: NSViewController?
     public var contentSize: NSSize = .zero
     public var behavior: Behavior = .applicationDefined
@@ -2236,7 +2236,7 @@ public enum NSRectEdge: UInt, Sendable {
 
 // MARK: - NSVisualEffectView / NSGlassEffectView
 
-@MainActor open class NSVisualEffectView: NSView {
+open class NSVisualEffectView: NSView {
     public var material: Material = .titlebar
     public var blendingMode: BlendingMode = .behindWindow
     public var state: State = .followsWindowActiveState
@@ -2251,7 +2251,7 @@ public enum NSRectEdge: UInt, Sendable {
     public enum State: Int, Sendable { case followsWindowActiveState, active, inactive }
 }
 
-@MainActor open class NSGlassEffectView: NSView {
+open class NSGlassEffectView: NSView {
     public var contentView: NSView?
     public var cornerRadius: CGFloat = 0
     public var tintColor: NSColor?
@@ -2259,7 +2259,7 @@ public enum NSRectEdge: UInt, Sendable {
 
 // MARK: - NSAnimationContext
 
-@MainActor open class NSAnimationContext: NSObject {
+open class NSAnimationContext: NSObject {
     public static var current: NSAnimationContext = NSAnimationContext()
     public var duration: TimeInterval = 0.25
     public var timingFunction: Any?
@@ -2278,7 +2278,7 @@ public enum NSRectEdge: UInt, Sendable {
 
 // MARK: - NSHapticFeedback
 
-@MainActor open class NSHapticFeedbackManager: NSObject {
+open class NSHapticFeedbackManager: NSObject {
     public static func defaultPerformer() -> NSHapticFeedbackPerformer { _DefaultPerformer() }
 }
 @MainActor public protocol NSHapticFeedbackPerformer: AnyObject {
@@ -2348,7 +2348,7 @@ public struct NSDragOperation: OptionSet, Sendable {
 
 // MARK: - Accessibility
 
-@MainActor open class NSAccessibility: NSObject {}
+open class NSAccessibility: NSObject {}
 public protocol NSAccessibilityProtocol {}
 
 // MARK: - NSUserInterfaceItemIdentifier
@@ -2385,7 +2385,7 @@ open class NSCell: NSObject, @unchecked Sendable {
 
 // MARK: - Selection-related types
 
-@MainActor open class NSResponderChain: NSObject {}
+open class NSResponderChain: NSObject {}
 
 // MARK: - NSXPCConnection (used by services)
 
