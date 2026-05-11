@@ -69,33 +69,25 @@ jobs:
       - name: Swift tests
         run: scripts/linux-swift-test.sh --scratch-path .build-linux
 
-      - name: GTK offscreen ImageRenderer smoke (best-effort)
-        continue-on-error: true
+      - name: GTK offscreen ImageRenderer smoke
         run: GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG
 
-      # Generated Enchanted full-source build relies on many
-      # compatibility products (Combine, OllamaKit, MarkdownUI,
-      # Splash, ActivityIndicatorView, KeyboardShortcuts, Magnet,
-      # Carbon, AsyncAlgorithms, AVFoundation, Speech, PhotosUI,
-      # IOKit, Security, ServiceManagement, Sparkle,
-      # ApplicationServices, CoreGraphics, Alamofire) that have
-      # Sources/ directories but no SwiftPM target/product
-      # declarations yet. Until those are wired in, run as
-      # best-effort.
-      - name: Generated upstream Enchanted compile (best-effort)
-        continue-on-error: true
+      # The full upstream gluonfield/enchanted source tree now
+      # compiles + links + GTK-renders end-to-end through the
+      # QuillUI / SwiftOpenUI / QuillFoundation / QuillAppKit /
+      # QuillDataMacros + 22-shim compatibility layer (Checkpoint
+      # 80). Promoted off `continue-on-error` so future
+      # regressions in the compat surface fail CI hard.
+      - name: Generated upstream Enchanted compile
         run: scripts/generated-enchanted-full-source-check.sh
 
-      - name: Generated Enchanted GTK visual smoke (best-effort)
-        continue-on-error: true
+      - name: Generated Enchanted GTK visual smoke
         run: scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux
 
-      - name: GTK interaction smoke (best-effort)
-        continue-on-error: true
+      - name: GTK interaction smoke
         run: scripts/linux-gtk-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
 
-      - name: Generated Enchanted toolbar interaction smoke (best-effort)
-        continue-on-error: true
+      - name: Generated Enchanted toolbar interaction smoke
         run: scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
 
       - name: Stage QA outputs for upload
