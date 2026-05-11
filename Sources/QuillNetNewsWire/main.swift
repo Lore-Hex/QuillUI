@@ -10,8 +10,8 @@
 // from git history, and finish wiring AppDefaults / UISplitViewController
 // shims in QuillShims.
 
-import SwiftUI
 import QuillNetNewsWireCore
+import QuillUI
 
 // `@MainActor` so the `WindowGroup` content closure can call the
 // `@MainActor` `QuillNetNewsWireContentView.init()` without
