@@ -86,6 +86,12 @@ jobs:
       - name: Build QuillTelegramCoreTests
         run: swift build --target QuillTelegramCoreTests
 
+      # Pins QuillIINACore: PlaylistItem identity + fixture
+      # invariants (non-empty playlist, mm:ss duration format,
+      # the four Blender shorts named in Checkpoint 89).
+      - name: Build QuillIINACoreTests
+        run: swift build --target QuillIINACoreTests
+
       - name: Build QuillEnchanted
         run: swift build --target QuillEnchanted
 

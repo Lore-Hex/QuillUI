@@ -1045,6 +1045,18 @@ let package = Package(
                 .swiftLanguageMode(.v5),
                 .unsafeFlags(["-strict-concurrency=minimal"])
             ]
+        ),
+        // Pins QuillIINACore: PlaylistItem identity + fixture
+        // invariants (non-empty playlist, title/duration shape,
+        // mm:ss duration format, the four Blender shorts named
+        // in Checkpoint 89).
+        .testTarget(
+            name: "QuillIINACoreTests",
+            dependencies: ["QuillIINACore"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"])
+            ]
         )
     ]
 )
