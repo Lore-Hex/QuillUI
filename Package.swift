@@ -617,7 +617,15 @@ targets.append(contentsOf: [
     // bare AppKit module stays a clean shadow (no transitive CGtk4
     // dep visible to clients like swift-sharing's `canImport(AppKit)`
     // branch). Apps that want the runtime backing import QuillAppKitGTK.
-    .target(name: "QuillAppKitGTK", dependencies: ["AppKit", "CGtk4"], path: "Sources/QuillAppKitGTK"),
+    .target(
+        name: "QuillAppKitGTK",
+        dependencies: ["AppKit", "CGtk4"],
+        path: "Sources/QuillAppKitGTK",
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
     // Runtime demo: exercises NSPasteboard.general's Phase B backing
     // (Wayland / X11 / file-backed tier) end-to-end. Writes a string,
     // reads it back, asserts the round-trip succeeded. Linux-only —
@@ -626,14 +634,26 @@ targets.append(contentsOf: [
     .executableTarget(
         name: "QuillAppKitPasteboardDemo",
         dependencies: ["AppKit", "QuillAppKitGTK"],
-        path: "Sources/QuillAppKitPasteboardDemo"
+        path: "Sources/QuillAppKitPasteboardDemo",
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
     ),
     // Smoke test for QuillAppKit. Exercises realistic AppKit usage
     // (NSWindowController, NSViewController, NSOutlineViewDelegate,
     // NSStatusItem, NSPasteboard, NSApplicationDelegate) so that
     // missing types surface as compile errors here before they land
     // in a real upstream app.
-    .target(name: "QuillAppKitSmoke", dependencies: ["AppKit"], path: "Sources/QuillAppKitSmoke"),
+    .target(
+        name: "QuillAppKitSmoke",
+        dependencies: ["AppKit"],
+        path: "Sources/QuillAppKitSmoke",
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
     // Apple-framework compatibility shims that the generated
     // Enchanted package references by canonical name. Each target
     // shadows a real Apple module on Linux; the matching products
