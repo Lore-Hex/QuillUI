@@ -58,6 +58,14 @@ jobs:
       - name: Build QuillKitTests
         run: swift build --target QuillKitTests
 
+      # Pins the IceCubesAPI Mastodon surface: HTMLString
+      # tag/entity stripping, Account/Status snake_case JSON
+      # decoding, Timelines query construction, MastodonClient
+      # defaults. All pure Foundation, no transitive
+      # CombineSchedulers pull-in.
+      - name: Build QuillIceCubesCoreTests
+        run: swift build --target QuillIceCubesCoreTests
+
       - name: Build QuillEnchanted
         run: swift build --target QuillEnchanted
 

@@ -992,6 +992,20 @@ let package = Package(
                 .swiftLanguageMode(.v5),
                 .unsafeFlags(["-strict-concurrency=minimal"])
             ]
+        ),
+        // Covers IceCubesAPI — the self-contained Mastodon API
+        // surface (HTMLString tag/entity stripping, Account +
+        // Status snake_case JSON decoding, Timelines endpoint
+        // query construction, MastodonClient defaults). All pure
+        // Foundation / URL types, no transitive
+        // CombineSchedulers pull-in.
+        .testTarget(
+            name: "QuillIceCubesCoreTests",
+            dependencies: ["QuillIceCubesCore"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"])
+            ]
         )
     ]
 )
