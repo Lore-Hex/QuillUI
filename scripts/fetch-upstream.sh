@@ -106,6 +106,46 @@ print("patched CodeEditSymbols target with Symbols.xcassets resource")
 PY
 }
 
+patch_wireguard_apple() {
+    # `WireGuardKitC.h` uses `u_int32_t` / `u_char` / `u_int16_t`
+    # / `sockaddr_ctl` from <sys/types.h> + <sys/kern_control.h>
+    # but doesn't include them. macOS 15+ enforces strict
+    # modular header imports — without explicit includes the
+    # build fails with `declaration of 'u_int32_t' must be
+    # imported from module 'DarwinFoundation.unsigned_types.u_int32_t'`.
+    # Add the explicit `#include <sys/types.h>` so the modular
+    # check sees them through the right module.
+    local header="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardKitC/WireGuardKitC.h"
+    if [[ ! -f "$header" ]]; then
+        return
+    fi
+    if grep -q '^#include <sys/types.h>' "$header"; then
+        echo "==> wireguard-apple WireGuardKitC.h already patched"
+        return
+    fi
+    echo "==> patching wireguard-apple WireGuardKitC.h to include <sys/types.h>"
+    python3 - "$header" <<'PY'
+import sys
+
+path = sys.argv[1]
+src = open(path).read()
+# Insert `#include <sys/types.h>` just after the copyright
+# comment block / before the first other include. Idempotent
+# because we already checked for the presence in the calling
+# shell.
+patched = src.replace(
+    '#include "key.h"',
+    '#include <sys/types.h>\n#include "key.h"',
+    1,
+)
+if patched == src:
+    # No anchor — prepend.
+    patched = '#include <sys/types.h>\n' + src
+open(path, "w").write(patched)
+print("patched WireGuardKitC.h to explicitly include <sys/types.h>")
+PY
+}
+
 want=("$@")
 if [[ ${#want[@]} -eq 0 ]]; then
     # Default set excludes codeedit/codeeditsymbols. CodeEditSymbols
@@ -127,6 +167,7 @@ for name in "${want[@]}"; do
             ;;
         wireguard)
             fetch_repo wireguard-apple https://github.com/WireGuard/wireguard-apple.git
+            patch_wireguard_apple
             ;;
         codeedit)
             fetch_repo codeedit https://github.com/CodeEditApp/CodeEdit.git
