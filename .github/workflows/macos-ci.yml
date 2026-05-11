@@ -73,10 +73,9 @@ jobs:
 
       # Whole-package build catches any deps wired up incorrectly that the
       # per-target builds missed (e.g. a target excluded from one app's tree
-      # but required by a different test target). Best-effort while
-      # NetNewsWire and CodeEdit upstream slices stabilize.
-      - name: Build entire package (best-effort)
-        continue-on-error: true
+      # but required by a different test target). All per-target gates above
+      # now pass, so this is also a hard gate.
+      - name: Build entire package
         run: swift build
 
       # Tests are still being re-stabilized after the in-tree NetNewsWire
