@@ -1,36 +1,171 @@
 import Foundation
 import QuillUI
 
-/// Quill Signal placeholder content view.
+/// Quill Signal fixtures-only conversation shell.
 ///
-/// The upstream `signalapp/Signal-iOS` is a UIKit app that pulls
-/// in CocoaPods + a large native crypto/database stack
-/// (libsignal-client, RingRTC, GRDB, MobileCoreServices). Wiring
-/// it as a SwiftPM target is multi-week work. For now QuillSignal
-/// renders a static scaffold so the SwiftPM target builds
-/// end-to-end through QuillUI's compatibility layer — same shape
-/// as the IceCubes/NetNewsWire scaffolds before their local API
-/// surface landed.
+/// Upstream `signalapp/Signal-iOS` is a UIKit + libsignal /
+/// RingRTC / GRDB stack that isn't SwiftPM-friendly. The
+/// chat-app shape (sidebar of conversations + message timeline
+/// + composer) is reproducible against a tiny local fixture
+/// model and proves the QuillUI compat layer carries Signal's
+/// view idioms even before the encrypted-storage and protocol
+/// work lands.
 ///
-/// Next slices: build a fixtures-only conversation timeline with
-/// `QuillData`-shaped local storage, then wire encrypted-at-rest
-/// SQLite + a fake-account "Quill Signal Linux" identity. Real
-/// libsignal protocol stays out of scope until the QuillData
-/// encrypted-key column work is done.
+/// Each `Conversation` owns a stable array of `Message`s. Selecting
+/// a sidebar row updates the right-pane timeline. No persistence,
+/// no network — same shape that the IceCubes / NetNewsWire
+/// timeline shells took before they grew real backends.
 @MainActor
 public struct QuillSignalContentView: View {
+    @State private var conversations = QuillSignalFixtures.conversations
+    @State private var selectedID: Conversation.ID? = QuillSignalFixtures.conversations.first?.id
+
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 16) {
+        NavigationSplitView {
+            sidebar
+        } detail: {
+            detail
+        }
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
             Text("Quill Signal")
-                .font(.title)
-            Text("Scaffold — conversation timeline + local fixture store coming next.")
-                .multilineTextAlignment(.center)
+                .font(.title2).bold()
+                .padding(14)
+
+            List {
+                ForEach(conversations) { conversation in
+                    Button {
+                        selectedID = conversation.id
+                    } label: {
+                        sidebarRow(conversation)
+                    }
+                }
+            }
+        }
+    }
+
+    private func sidebarRow(_ conversation: Conversation) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(conversation.name)
+                .font(.headline)
+                .lineLimit(1)
+            Text(conversation.messages.last?.body ?? "")
                 .font(.caption)
                 .foregroundColor(.secondary)
-                .padding(.horizontal, 24)
+                .lineLimit(1)
         }
-        .padding(20)
+        .padding(.vertical, 4)
     }
+
+    private var detail: some View {
+        Group {
+            if let conversation = currentConversation {
+                conversationView(conversation)
+            } else {
+                Text("Select a conversation")
+                    .font(.title2)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+
+    private func conversationView(_ conversation: Conversation) -> some View {
+        VStack(spacing: 0) {
+            Text(conversation.name)
+                .font(.title2).bold()
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(conversation.messages) { message in
+                        messageBubble(message)
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func messageBubble(_ message: Message) -> some View {
+        VStack(alignment: message.fromSelf ? .trailing : .leading, spacing: 2) {
+            Text(message.body)
+                .padding(10)
+                .background(
+                    message.fromSelf ? Color.blue.opacity(0.18) : Color.gray.opacity(0.18)
+                )
+                .cornerRadius(12)
+            Text(message.sender)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: message.fromSelf ? .trailing : .leading)
+    }
+
+    private var currentConversation: Conversation? {
+        guard let selectedID else { return nil }
+        return conversations.first(where: { $0.id == selectedID })
+    }
+}
+
+// MARK: - Fixture model
+
+public struct Message: Identifiable, Hashable, Sendable {
+    public let id: UUID
+    public let sender: String
+    public let body: String
+    public let fromSelf: Bool
+
+    public init(id: UUID = UUID(), sender: String, body: String, fromSelf: Bool) {
+        self.id = id
+        self.sender = sender
+        self.body = body
+        self.fromSelf = fromSelf
+    }
+}
+
+public struct Conversation: Identifiable, Hashable, Sendable {
+    public let id: UUID
+    public var name: String
+    public var messages: [Message]
+
+    public init(id: UUID = UUID(), name: String, messages: [Message]) {
+        self.id = id
+        self.name = name
+        self.messages = messages
+    }
+}
+
+public enum QuillSignalFixtures {
+    public static let conversations: [Conversation] = [
+        Conversation(
+            name: "Family",
+            messages: [
+                Message(sender: "Mom", body: "Don't forget Sunday dinner.", fromSelf: false),
+                Message(sender: "Me", body: "I'll bring dessert.", fromSelf: true),
+                Message(sender: "Mom", body: "❤️", fromSelf: false),
+            ]
+        ),
+        Conversation(
+            name: "Coworker",
+            messages: [
+                Message(sender: "Jamie", body: "PR ready for review.", fromSelf: false),
+                Message(sender: "Me", body: "Looking now.", fromSelf: true),
+            ]
+        ),
+        Conversation(
+            name: "Notes To Self",
+            messages: [
+                Message(sender: "Me", body: "Pick up groceries on the way home.", fromSelf: true),
+            ]
+        ),
+    ]
 }
