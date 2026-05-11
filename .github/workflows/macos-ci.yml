@@ -41,6 +41,9 @@ jobs:
       - name: Build QuillEnchanted
         run: swift build --target QuillEnchanted
 
+      - name: Build QuillIceCubes
+        run: swift build --target QuillIceCubes
+
       # NetNewsWire still has unresolved upstream-shim gaps (the
       # NetNewsWireLogic `Shared` + `iOS` source set needs more
       # UIKit-on-macOS coverage from QuillUIKit). Build it as

@@ -36,7 +36,8 @@ var products: [Product] = [
     .library(name: "QuillWebKit", targets: ["QuillWebKit"]),
     .library(name: "QuillShims", targets: ["QuillShims"]),
     .executable(name: "quill-enchanted", targets: ["QuillEnchanted"]),
-    .executable(name: "quill-enchanted-upstream-slice", targets: ["QuillEnchantedUpstreamSlice"])
+    .executable(name: "quill-enchanted-upstream-slice", targets: ["QuillEnchantedUpstreamSlice"]),
+    .executable(name: "quill-icecubes", targets: ["QuillIceCubes"])
 ]
 
 // `quill-netnewswire` executable lives behind both the upstream
@@ -308,6 +309,22 @@ var targets: [Target] = [
     .executableTarget(
         name: "QuillEnchanted",
         dependencies: ["QuillEnchantedCore"]
+    ),
+    // IceCubes app — second port per docs/app-targets.md.
+    // Currently renders a placeholder: the upstream
+    // Dimillian/IceCubesApp Packages (Models, NetworkClient,
+    // etc.) pin `platforms: [.iOS(.v18), .visionOS(.v1)]` so
+    // they don't resolve on macOS or Linux. Local target builds
+    // end-to-end through the QuillUI compat layer; next slice
+    // reimplements the Mastodon API surface locally so the
+    // placeholder becomes a working public-timeline shell.
+    .target(
+        name: "QuillIceCubesCore",
+        dependencies: ["QuillUI"]
+    ),
+    .executableTarget(
+        name: "QuillIceCubes",
+        dependencies: ["QuillIceCubesCore"]
     ),
     .executableTarget(
         name: "QuillEnchantedUpstreamSlice",
