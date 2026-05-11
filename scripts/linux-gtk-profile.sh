@@ -6,22 +6,45 @@
 # path leaking, GTK widget churn pushing RSS past sensible
 # bounds).
 #
+# Two CPU samples are taken:
+#   cpu_pct_initial  — 5s window starting at <settle>s after the
+#                      first window appears. Catches the boot
+#                      cost: fetch + decode + first render.
+#   cpu_pct_steady   — 5s window starting at <settle> + <steady>
+#                      seconds. Catches the long-term render-loop
+#                      cost after the boot cost has finished.
+#
 # Usage:
-#   scripts/linux-gtk-profile.sh <product-name> [settle-seconds]
+#   scripts/linux-gtk-profile.sh <product-name> [settle-seconds] [steady-delay]
 #
 # Emits one CSV line on stdout:
-#   product,build_ms,startup_ms,rss_kb,cpu_pct_5s,exit_status
+#   product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
 
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PRODUCT="${1:-}"
 SETTLE_SECONDS="${2:-${QUILLUI_GTK_PROFILE_SETTLE:-5}}"
+STEADY_DELAY_SECONDS="${3:-${QUILLUI_GTK_PROFILE_STEADY:-20}}"
 
 if [[ -z "$PRODUCT" ]]; then
-    echo "Usage: $0 <product-name> [settle-seconds]" >&2
+    echo "Usage: $0 <product-name> [settle-seconds] [steady-delay]" >&2
     exit 64
 fi
+
+sample_cpu_pct() {
+    local pid="$1"
+    top -b -d 1 -n 6 -p "$pid" 2>/dev/null \
+        | awk -v pid="$pid" '
+            $1 == pid { samples[++n] = $9 }
+            END {
+                if (n < 2) { print "-1"; exit }
+                sum = 0
+                for (i = 2; i <= n; i++) sum += samples[i]
+                printf "%.1f\n", sum / (n - 1)
+            }
+        '
+}
 
 # Build (timed). We don't include build cost in startup_ms — it's
 # captured separately so dependency caches don't pollute the
@@ -35,7 +58,7 @@ build_ms=$((build_end_ms - build_start_ms))
 bin_path="$(swift build --scratch-path "$ROOT_DIR/.build-linux" --show-bin-path)"
 exe="$bin_path/$PRODUCT"
 if [[ ! -x "$exe" ]]; then
-    echo "$PRODUCT,$build_ms,-1,-1,-1,build-missing"
+    echo "$PRODUCT,$build_ms,-1,-1,-1,-1,build-missing"
     exit 1
 fi
 
@@ -52,7 +75,7 @@ trap cleanup EXIT
 
 sleep 1
 if ! kill -0 "$xvfb_pid" >/dev/null 2>&1; then
-    echo "$PRODUCT,$build_ms,-1,-1,-1,xvfb-failed"
+    echo "$PRODUCT,$build_ms,-1,-1,-1,-1,xvfb-failed"
     exit 1
 fi
 
@@ -66,7 +89,7 @@ deadline_ms=$((startup_start_ms + 30000))
 while :; do
     now_ms=$(date +%s%3N)
     if (( now_ms > deadline_ms )); then
-        echo "$PRODUCT,$build_ms,-1,-1,-1,startup-timeout"
+        echo "$PRODUCT,$build_ms,-1,-1,-1,-1,startup-timeout"
         exit 1
     fi
     if DISPLAY="$display_id" xdotool search --onlyvisible "" 2>/dev/null | head -n 1 | grep -q .; then
@@ -81,28 +104,35 @@ startup_ms=$((startup_end_ms - startup_start_ms))
 sleep "$SETTLE_SECONDS"
 
 if ! kill -0 "$app_pid" >/dev/null 2>&1; then
-    echo "$PRODUCT,$build_ms,$startup_ms,-1,-1,died-during-settle"
+    echo "$PRODUCT,$build_ms,$startup_ms,-1,-1,-1,died-during-settle"
     exit 1
 fi
 
 # RSS in KB from /proc/PID/status:VmRSS — actual resident memory.
 rss_kb=$(awk '/^VmRSS:/ {print $2}' "/proc/$app_pid/status" 2>/dev/null || echo "-1")
 
-# CPU percent over a 5s window via top in batch mode. -d 1 -n 6
-# gives us 6 samples (first is initial, next 5 are deltas); we
-# average the 5 deltas. -p restricts to our PID; -b is batch
-# (non-interactive); -n is sample count.
-cpu_pct_5s=$(
-    top -b -d 1 -n 6 -p "$app_pid" 2>/dev/null \
-        | awk -v pid="$app_pid" '
-            $1 == pid { samples[++n] = $9 }
-            END {
-                if (n < 2) { print "-1"; exit }
-                sum = 0
-                for (i = 2; i <= n; i++) sum += samples[i]
-                printf "%.1f\n", sum / (n - 1)
-            }
-        '
-)
+# First CPU window: 5 seconds starting at <settle>. Captures the
+# boot cost — initial fetch, JSON/XML decode, first-frame paint.
+cpu_pct_initial=$(sample_cpu_pct "$app_pid")
 
-echo "$PRODUCT,$build_ms,$startup_ms,$rss_kb,$cpu_pct_5s,ok"
+if ! kill -0 "$app_pid" >/dev/null 2>&1; then
+    echo "$PRODUCT,$build_ms,$startup_ms,$rss_kb,$cpu_pct_initial,-1,died-after-initial"
+    exit 1
+fi
+
+# Wait further, then take a steady-state sample. If the app's
+# render loop is correctly idle when nothing's happening, this
+# should be near zero. If it stays pegged, something is busy-
+# looping (the IceCubes / NetNewsWire 99-132% CPU outliers in
+# the first baseline were on this signal — we want to know
+# whether they cool down or stay hot).
+sleep "$STEADY_DELAY_SECONDS"
+
+if ! kill -0 "$app_pid" >/dev/null 2>&1; then
+    echo "$PRODUCT,$build_ms,$startup_ms,$rss_kb,$cpu_pct_initial,-1,died-during-steady-wait"
+    exit 1
+fi
+
+cpu_pct_steady=$(sample_cpu_pct "$app_pid")
+
+echo "$PRODUCT,$build_ms,$startup_ms,$rss_kb,$cpu_pct_initial,$cpu_pct_steady,ok"

@@ -131,10 +131,10 @@ jobs:
         continue-on-error: true
         run: |
           {
-            echo "product,build_ms,startup_ms,rss_kb,cpu_pct_5s,exit_status"
+            echo "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
             for product in quill-signal quill-telegram quill-iina \
                            quill-codeedit quill-icecubes quill-netnewswire; do
-              scripts/linux-gtk-profile.sh "$product" 5 || true
+              scripts/linux-gtk-profile.sh "$product" 5 20 || true
             done
           } | tee /tmp/quillui-profile.csv
 
