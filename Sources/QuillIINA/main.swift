@@ -11,10 +11,4 @@ struct QuillIINAApp: App {
     }
 }
 
-#if os(Linux)
-import BackendGTK4
-
-GTK4Backend().run(QuillIINAApp.self)
-#else
-QuillIINAApp.main()
-#endif
+QuillApp.run(QuillIINAApp.self)

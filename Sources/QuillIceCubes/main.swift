@@ -23,10 +23,4 @@ struct QuillIceCubesApp: App {
     }
 }
 
-#if os(Linux)
-import BackendGTK4
-
-GTK4Backend().run(QuillIceCubesApp.self)
-#else
-QuillIceCubesApp.main()
-#endif
+QuillApp.run(QuillIceCubesApp.self)

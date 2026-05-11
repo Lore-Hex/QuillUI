@@ -27,10 +27,4 @@ struct QuillNetNewsWireApp: App {
     }
 }
 
-#if os(Linux)
-import BackendGTK4
-
-GTK4Backend().run(QuillNetNewsWireApp.self)
-#else
-QuillNetNewsWireApp.main()
-#endif
+QuillApp.run(QuillNetNewsWireApp.self)

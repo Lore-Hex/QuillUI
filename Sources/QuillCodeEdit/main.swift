@@ -11,10 +11,4 @@ struct QuillCodeEditApp: App {
     }
 }
 
-#if os(Linux)
-import BackendGTK4
-
-GTK4Backend().run(QuillCodeEditApp.self)
-#else
-QuillCodeEditApp.main()
-#endif
+QuillApp.run(QuillCodeEditApp.self)

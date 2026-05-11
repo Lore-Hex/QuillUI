@@ -13,10 +13,4 @@ struct QuillSignalApp: App {
     }
 }
 
-#if os(Linux)
-import BackendGTK4
-
-GTK4Backend().run(QuillSignalApp.self)
-#else
-QuillSignalApp.main()
-#endif
+QuillApp.run(QuillSignalApp.self)

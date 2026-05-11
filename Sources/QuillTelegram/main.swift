@@ -11,10 +11,4 @@ struct QuillTelegramApp: App {
     }
 }
 
-#if os(Linux)
-import BackendGTK4
-
-GTK4Backend().run(QuillTelegramApp.self)
-#else
-QuillTelegramApp.main()
-#endif
+QuillApp.run(QuillTelegramApp.self)
