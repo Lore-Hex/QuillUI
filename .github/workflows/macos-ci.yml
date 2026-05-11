@@ -48,6 +48,16 @@ jobs:
       - name: Build QuillChatKitTests
         run: swift build --target QuillChatKitTests
 
+      # QuillKitTests was orphaned from Package.swift after the
+      # Linux compatibility-base rewrite; the file (~10 tests
+      # covering clipboard / diagnostics / capability matrix /
+      # launch service / speech backend) is purely against
+      # QuillKit and now re-wired. Hard-gated so a regression in
+      # the QuillKit platform-services API surfaces at build
+      # time.
+      - name: Build QuillKitTests
+        run: swift build --target QuillKitTests
+
       - name: Build QuillEnchanted
         run: swift build --target QuillEnchanted
 

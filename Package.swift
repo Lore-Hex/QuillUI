@@ -969,6 +969,29 @@ let package = Package(
                 .swiftLanguageMode(.v5),
                 .unsafeFlags(["-strict-concurrency=minimal"])
             ]
+        ),
+        // QuillKitTests covers QuillClipboard / diagnostics /
+        // capability matrix / launch service / speech backend —
+        // pure-Foundation surface, no SwiftPM-cross-platform
+        // transitive deps. The other orphan test directories
+        // (QuillDataTests, QuillEnchantedTests,
+        // QuillPredicateTranslationTests,
+        // QuillCompatibilityModuleTests, QuillParityTests,
+        // QuillNetNewsWireTests) currently pull in
+        // `pointfreeco/combine-schedulers` via QuillData/QuillRS;
+        // that dep's UIKit.swift module references a `UIKit`
+        // module compiled for macOS 10.15, but QuillUI's local
+        // UIKit shim targets macOS 14, which SwiftPM rejects as a
+        // platform mismatch. Reviving those suites requires
+        // either dropping the CombineSchedulers dep or patching
+        // its deployment-target story; tracked separately.
+        .testTarget(
+            name: "QuillKitTests",
+            dependencies: ["QuillKit"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"])
+            ]
         )
     ]
 )
