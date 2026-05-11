@@ -173,20 +173,78 @@ allocated a new String, then ran 7 sequential
 loop refreshing at GTK's frame rate × 2 rows × 2 Text reads
 per row, the per-CPU cost stacked up to ~80%.
 
-### Fix (commit ⟨this commit⟩)
+### Cache-at-model attempted fix — DID NOT MOVE THE NEEDLE (commit 40c1ed4)
 
-Promoted `HTMLString.asRawText` from a computed property to
-a stored `let`, computed once at init / decode. The View
-body now reads a cached `String`.
+Promoted `HTMLString.asRawText` and `RSSItem.plainTextBody`
+from computed properties to stored `let`s computed once at
+init. Validated by Linux run 25700973380:
 
-Same pattern applied to `RSSItem.plainTextBody` (NetNewsWire's
-sibling: a String extension `stripBasicHTML()` that did regex
-HTML stripping + the same 6-entity decode on every Text read).
+| App              | before (1ca5e81) | after cache (40c1ed4) |
+|------------------|------------------|------------------------|
+| quill-icecubes (fetch)    |  134.7 / 134.2 |  137.8 / 137.5 |
+| quill-icecubes (no-fetch) |   43.0 /  82.8 |   43.5 /  83.0 |
+| quill-netnewswire (fetch) |  120.4 / 117.8 |  119.4 / 117.0 |
 
-After this fix, the next Linux profile run should show
-IceCubes + NetNewsWire's PRODUCTION numbers (fetch enabled,
-no QUILLUI_PROFILE_* env vars) drop from ~120/130% CPU to
-fixture-app baseline (~3-6%).
+Within noise — the cache didn't help. Reverted in
+⟨following commit⟩ since it adds init cost without
+observable benefit.
+
+### Why the cache didn't help
+
+Two things the bisection missed:
+
+1. `Account.cachedDisplayName` is itself a computed property
+   that constructs a fresh `HTMLString` on every read:
+   ```swift
+   public var cachedDisplayName: HTMLString {
+       HTMLString(stringLiteral: displayName ?? username)
+   }
+   ```
+   Caching `HTMLString.asRawText` at init means each call now
+   pays the strip-+-decode cost at construction time — same
+   total work, just moved.
+2. `Status.content.asRawText` DID become a cheap stored read
+   after the cache, but the production CPU didn't drop. That
+   suggests the per-paint cost isn't dominated by
+   `.asRawText`'s work — something else in the
+   computed-property reading path (View-tree diff,
+   String allocation in the Text init, etc.) burns the CPU.
+
+### What the literal-row result actually demonstrated
+
+The 80 pp drop from `statusRow` → literal-row was real, but
+the *cause* isn't HTMLString's computation. The remaining
+difference between cached-`statusRow` (still 137% CPU) and
+literal-row (3% CPU):
+
+- `Text(status.account.cachedDisplayName.asRawText)` reads two
+  computed properties + allocates a transient `HTMLString` per
+  paint.
+- `Text("@\(status.account.acct)")` allocates a new
+  interpolated `String` per paint.
+- `Text(status.content.asRawText)` (after fix) reads a stored
+  property — should be near-free.
+
+Even with `asRawText` cached, the `cachedDisplayName`
+construction + interpolation paths still allocate per paint.
+And SwiftOpenUI's render loop (`g_timeout_add(5, RunLoop.main.run)`
+at `Sources/Backend/GTK4/Rendering/GTK4Backend.swift:606`)
+fires at 200Hz, so per-paint allocations stack.
+
+### Next experiments (queued)
+
+1. Replace `Text(status.account.cachedDisplayName.asRawText)`
+   with `Text(status.account.username)` (stored property, no
+   chain). If CPU drops → the `cachedDisplayName` HTMLString
+   construction is the cost.
+2. Inspect SwiftOpenUI's 200Hz RunLoop pump — possibly the
+   `RunLoop.main.run(mode: .default, before: limit)` is doing
+   more work than expected when `@State` updates have
+   propagated. A throttle / event-driven pump might fix the
+   class of problem.
+3. Cache at the View level: wrap `statusRow` in a `LazyVStack`
+   row or extract as a separate `View` struct so SwiftOpenUI
+   can memoize.
 
 ## Method
 
