@@ -43,7 +43,16 @@ public final class AVSpeechSynthesisVoice: @unchecked Sendable {
         self.name = name
         self.quality = quality
     }
-    
+
+    /// Apple's real `AVSpeechSynthesisVoice` has a failable
+    /// `init?(identifier:)` that returns the matching system
+    /// voice or nil. Enchanted uses this shape for stored voice
+    /// IDs. The Linux stub returns a voice with the requested
+    /// identifier and empty defaults.
+    public convenience init?(identifier: String) {
+        self.init(identifier: identifier, name: identifier, quality: .low)
+    }
+
     public static func speechVoices() -> [AVSpeechSynthesisVoice] { [] }
     public static func currentLanguageCode() -> String { "en-US" }
 }
