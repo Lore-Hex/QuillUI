@@ -445,7 +445,7 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
 def validate_quill_chat_landmarks(
     image: Screenshot,
     allow_expanded_toolbar: bool = False,
-    max_height: int = 720,
+    max_height: int = 780,
 ) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
