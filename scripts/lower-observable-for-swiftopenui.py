@@ -105,8 +105,14 @@ def publish_var(line: str) -> str:
     )
 
 
-def ensure_swiftui_import(text: str) -> str:
-    if re.search(r"^import SwiftUI$", text, re.MULTILINE):
+def _ensure_import(text: str, module: str) -> str:
+    """Insert `import <module>` if not already present, just after
+    the file's last existing top-level import line.
+
+    Keeps the import grouping tidy and avoids duplicating imports
+    when the lowering script runs multiple times on the same file.
+    """
+    if re.search(rf"^\s*import {re.escape(module)}\b", text, re.MULTILINE):
         return text
 
     lines = text.splitlines(keepends=True)
@@ -115,9 +121,21 @@ def ensure_swiftui_import(text: str) -> str:
         if re.match(r"^\s*import\s+[A-Za-z_][A-Za-z0-9_]*\s*$", line):
             last_import = index
     if last_import >= 0:
-        lines.insert(last_import + 1, "import SwiftUI\n")
+        lines.insert(last_import + 1, f"import {module}\n")
         return "".join(lines)
-    return "import SwiftUI\n" + text
+    return f"import {module}\n" + text
+
+
+def ensure_swiftui_import(text: str) -> str:
+    # Lowered classes inherit from `QuillObservableObject` and use
+    # `@QuillPublished`, both of which live in the `QuillUI`
+    # module on Linux. Injecting `import QuillUI` here scopes
+    # those types per-file instead of via a global
+    # `@_exported import QuillUI` in the SwiftUI shim (which
+    # would collide with `AppKit`'s `NSImage` / `FocusState` etc.).
+    text = _ensure_import(text, "SwiftUI")
+    text = _ensure_import(text, "QuillUI")
+    return text
 
 
 def lower_source(text: str) -> str:
