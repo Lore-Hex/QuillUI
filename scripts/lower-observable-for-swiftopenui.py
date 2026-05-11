@@ -126,16 +126,6 @@ def _ensure_import(text: str, module: str) -> str:
     return f"import {module}\n" + text
 
 
-def ensure_swiftui_import(text: str) -> str:
-    # Lowered classes inherit from `QuillObservableObject` and use
-    # `@QuillPublished`, both of which live in the `QuillUI`
-    # module on Linux. Injecting `import QuillUI` here scopes
-    # those types per-file instead of via a global
-    # `@_exported import QuillUI` in the SwiftUI shim (which
-    # would collide with `AppKit`'s `NSImage` / `FocusState` etc.).
-    text = _ensure_import(text, "SwiftUI")
-    text = _ensure_import(text, "QuillUI")
-    return text
 
 
 def lower_source(text: str) -> str:
@@ -177,8 +167,15 @@ def lower_source(text: str) -> str:
         output.append("@Observable\n")
 
     lowered = "".join(output)
+    # Every generated Linux source needs QuillUI's compatibility
+    # surface in scope: `@AppStorage`, `PlainButtonStyle`,
+    # `NSImage`, `RoundedBorderTextFieldStyle`, `ButtonStyle`, the
+    # SwiftUI re-export, and the lowered `QuillObservableObject` /
+    # `@QuillPublished` types all live there. Inject the import
+    # unconditionally so we don't have to track per-file usage.
+    lowered = _ensure_import(lowered, "QuillUI")
     if lowered != text:
-        lowered = ensure_swiftui_import(lowered)
+        lowered = _ensure_import(lowered, "SwiftUI")
     return lowered
 
 
