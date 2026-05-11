@@ -35,20 +35,27 @@ public struct QuillIceCubesContentView: View {
         // lives on SwiftOpenUI's GTK4 backend. Production stays
         // matched to upstream Dimillian/IceCubesApp.
         //
-        //   QUILLUI_PROFILE_BARE=1       body returns a single Text.
-        //                                Result (83369b4): 2.8/2.8 —
-        //                                fixture-app baseline. Spin
-        //                                is NOT in GTK host or
-        //                                @State; it's in the view tree.
-        //   QUILLUI_PROFILE_PLAIN_ROW=1  Keep List + ForEach but use
-        //                                plain Text rows. Bisects
-        //                                whether the cost is in
-        //                                List iteration or in
-        //                                statusRow's rich content.
-        //   QUILLUI_PROFILE_FLAT=1       Skip NavigationStack only.
-        //                                Result (1807e71): only ~5 pp
-        //                                drop. NavigationStack is NOT
-        //                                the spinner.
+        //   QUILLUI_PROFILE_BARE=1         body returns a single Text.
+        //                                  Result (83369b4): 2.8/2.8 —
+        //                                  fixture-app baseline. Spin
+        //                                  is NOT in GTK host or
+        //                                  @State; it's in the view tree.
+        //   QUILLUI_PROFILE_PLAIN_ROW=1    Keep List + ForEach but use
+        //                                  plain Text rows. Bisects
+        //                                  whether the cost is in
+        //                                  List iteration or in
+        //                                  statusRow's rich content.
+        //   QUILLUI_PROFILE_STORED_PROPS=1 Full statusRow layout but
+        //                                  Text values read stored
+        //                                  properties (username,
+        //                                  htmlValue) — no computed
+        //                                  cachedDisplayName / asRawText
+        //                                  chain. Bisects whether the
+        //                                  cost is the chain itself.
+        //   QUILLUI_PROFILE_FLAT=1         Skip NavigationStack only.
+        //                                  Result (1807e71): only ~5 pp
+        //                                  drop. NavigationStack is NOT
+        //                                  the spinner.
         let env = ProcessInfo.processInfo.environment
         if env["QUILLUI_PROFILE_BARE"] == "1" {
             Text("IceCubes profile bare-mode placeholder")
@@ -56,6 +63,30 @@ public struct QuillIceCubesContentView: View {
             List {
                 ForEach(statuses) { status in
                     Text(status.id)
+                }
+            }
+        } else if env["QUILLUI_PROFILE_STORED_PROPS"] == "1" {
+            // Same shape as statusRow but Text values read STORED
+            // properties (status.account.username,
+            // status.content.htmlValue) instead of the computed
+            // cachedDisplayName.asRawText / content.asRawText chains.
+            // If CPU drops to fixture baseline, the computed chain
+            // is the spinner. If CPU climbs, the cost is elsewhere
+            // (likely SwiftOpenUI's render-loop diff handling
+            // computed-property dependencies).
+            List {
+                ForEach(statuses) { status in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            avatarView(for: status.account)
+                            VStack(alignment: .leading) {
+                                Text(status.account.username).font(.headline)
+                                Text("@\(status.account.acct)").font(.subheadline).foregroundColor(.secondary)
+                            }
+                        }
+                        Text(status.content.htmlValue).font(.body)
+                    }
+                    .padding(.vertical, 4)
                 }
             }
         } else if env["QUILLUI_PROFILE_LITERAL_ROW"] == "1" {

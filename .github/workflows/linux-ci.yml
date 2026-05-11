@@ -235,6 +235,27 @@ jobs:
             scripts/linux-gtk-profile.sh quill-icecubes 5 20 || true
           } | tee /tmp/quillui-profile-literalrow.csv
 
+      # Stored-property substitution. Same statusRow layout but
+      # Text values read stored properties (username,
+      # htmlValue) instead of the computed cachedDisplayName +
+      # asRawText chains. Bisects whether the production CPU
+      # peg is in the computed chain itself, vs SwiftOpenUI's
+      # render-loop diff handling for computed-property
+      # dependencies. The 40c1ed4 cache-at-model attempt
+      # already proved caching `.asRawText` at the model
+      # layer isn't enough; this experiment isolates the
+      # *call path* instead of the *computation*.
+      - name: Stored-prop profile experiment (IceCubes only)
+        continue-on-error: true
+        env:
+          QUILLUI_DISABLE_FETCH: "1"
+          QUILLUI_PROFILE_STORED_PROPS: "1"
+        run: |
+          {
+            echo "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
+            scripts/linux-gtk-profile.sh quill-icecubes 5 20 || true
+          } | tee /tmp/quillui-profile-storedprops.csv
+
       - name: Stage QA outputs for upload
         if: always()
         run: |
