@@ -372,7 +372,7 @@ open class NSWindowController: NSResponder {
     public var windowFrameAutosaveName: String = ""
 }
 
-@MainActor public protocol NSWindowDelegate: AnyObject {
+public protocol NSWindowDelegate: AnyObject {
     func windowWillClose(_ notification: Notification)
     func windowDidBecomeKey(_ notification: Notification)
     func windowDidResignKey(_ notification: Notification)
@@ -634,7 +634,7 @@ open class NSApplication: NSResponder, @unchecked Sendable {
     /// Unmodified Mac apps that call `NSApp.run()` get the GTK loop
     /// for free if the GTK target is linked; otherwise this is a
     /// no-op (matches Apple's behavior on a non-display launch).
-    public static var _runHook: (@MainActor () -> Void)?
+    public static var _runHook: (() -> Void)?
 
     public func run() {
         if let hook = NSApplication._runHook {
@@ -675,7 +675,7 @@ open class NSDockTile: NSObject, @unchecked Sendable {
     public func display() {}
 }
 
-@MainActor public protocol NSApplicationDelegate: AnyObject {
+public protocol NSApplicationDelegate: AnyObject {
     func applicationDidFinishLaunching(_ notification: Notification)
     func applicationWillTerminate(_ notification: Notification)
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool
@@ -1268,7 +1268,7 @@ open class NSMenuItem: NSObject {
     public static func separatorItem() -> NSMenuItem { NSMenuItem() }
 }
 
-@MainActor public protocol NSMenuDelegate: AnyObject {
+public protocol NSMenuDelegate: AnyObject {
     func menuWillOpen(_ menu: NSMenu)
     func menuDidClose(_ menu: NSMenu)
     func numberOfItems(in menu: NSMenu) -> Int
@@ -1283,7 +1283,7 @@ public extension NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {}
 }
 
-@MainActor public protocol NSMenuItemValidation: AnyObject {
+public protocol NSMenuItemValidation: AnyObject {
     func validateMenuItem(_ item: NSMenuItem) -> Bool
 }
 
@@ -1359,7 +1359,7 @@ open class NSToolbarItemGroup: NSToolbarItem {
     public enum ControlRepresentation: Int, Sendable { case automatic, expanded, collapsed }
 }
 
-@MainActor public protocol NSToolbarDelegate: AnyObject {
+public protocol NSToolbarDelegate: AnyObject {
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier]
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier]
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar: Bool) -> NSToolbarItem?
@@ -1535,7 +1535,7 @@ open class NSTextField: NSControl {
     }
 }
 
-@MainActor public protocol NSTextFieldDelegate: AnyObject {
+public protocol NSTextFieldDelegate: AnyObject {
     func controlTextDidChange(_ obj: Notification)
     func controlTextDidBeginEditing(_ obj: Notification)
     func controlTextDidEndEditing(_ obj: Notification)
@@ -1617,7 +1617,7 @@ open class NSTextContainer: NSObject, @unchecked Sendable {
     public weak var layoutManager: NSLayoutManager?
 }
 
-@MainActor public protocol NSTextViewDelegate: NSTextDelegate {
+public protocol NSTextViewDelegate: NSTextDelegate {
     func textViewDidChangeSelection(_ notification: Notification)
     func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool
 }
@@ -1626,7 +1626,7 @@ public extension NSTextViewDelegate {
     func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool { true }
 }
 
-@MainActor public protocol NSTextDelegate: AnyObject {
+public protocol NSTextDelegate: AnyObject {
     func textDidChange(_ notification: Notification)
     func textDidBeginEditing(_ notification: Notification)
     func textDidEndEditing(_ notification: Notification)
@@ -1812,7 +1812,7 @@ open class NSSearchField: NSTextField {
     public weak var searchDelegate: NSSearchFieldDelegate?
 }
 
-@MainActor public protocol NSSearchFieldDelegate: NSTextFieldDelegate {
+public protocol NSSearchFieldDelegate: NSTextFieldDelegate {
     func searchFieldDidStartSearching(_ sender: NSSearchField)
     func searchFieldDidEndSearching(_ sender: NSSearchField)
 }
@@ -1836,7 +1836,7 @@ open class NSSplitView: NSView {
     public enum DividerStyle: Int, Sendable { case thick = 1, thin = 2, paneSplitter = 3 }
 }
 
-@MainActor public protocol NSSplitViewDelegate: AnyObject {
+public protocol NSSplitViewDelegate: AnyObject {
     func splitView(_ splitView: NSSplitView, canCollapseSubview: NSView) -> Bool
     func splitViewDidResizeSubviews(_ notification: Notification)
 }
@@ -2009,7 +2009,7 @@ open class NSTableColumn: NSObject {
     }
 }
 
-@MainActor public protocol NSTableViewDelegate: AnyObject {
+public protocol NSTableViewDelegate: AnyObject {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView?
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat
@@ -2030,7 +2030,7 @@ public extension NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {}
 }
 
-@MainActor public protocol NSTableViewDataSource: AnyObject {
+public protocol NSTableViewDataSource: AnyObject {
     func numberOfRows(in tableView: NSTableView) -> Int
     func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any?
 }
@@ -2063,7 +2063,7 @@ open class NSOutlineView: NSTableView {
     public func isExpandable(_ item: Any?) -> Bool { false }
 }
 
-@MainActor public protocol NSOutlineViewDelegate: NSTableViewDelegate {
+public protocol NSOutlineViewDelegate: NSTableViewDelegate {
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView?
     func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool
@@ -2084,7 +2084,7 @@ public extension NSOutlineViewDelegate {
     func outlineViewItemDidCollapse(_ notification: Notification) {}
 }
 
-@MainActor public protocol NSOutlineViewDataSource: AnyObject {
+public protocol NSOutlineViewDataSource: AnyObject {
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool
@@ -2142,24 +2142,24 @@ open class NSDocumentController: NSObject {
 
 // MARK: - NSHostingView / NSHostingController / NSViewRepresentable bridges
 
-@MainActor public class NSHostingView<Content>: NSView {
+public class NSHostingView<Content>: NSView {
     public var rootView: Content
     public init(rootView: Content) { self.rootView = rootView; super.init() }
 }
 
-@MainActor public class NSHostingController<Content>: NSViewController {
+public class NSHostingController<Content>: NSViewController {
     public var rootView: Content
     public init(rootView: Content) { self.rootView = rootView; super.init() }
 }
 
 // SwiftUI bridging protocols (these get re-exported by the SwiftUI shim
 // too — declared here so `import AppKit` alone is enough).
-@MainActor public protocol NSViewRepresentable: AnyObject {
+public protocol NSViewRepresentable: AnyObject {
     associatedtype NSViewType: NSView
     func makeNSView(context: NSViewRepresentableContext<Self>) -> NSViewType
     func updateNSView(_ nsView: NSViewType, context: NSViewRepresentableContext<Self>)
 }
-@MainActor public protocol NSViewControllerRepresentable: AnyObject {
+public protocol NSViewControllerRepresentable: AnyObject {
     associatedtype NSViewControllerType: NSViewController
     func makeNSViewController(context: NSViewControllerRepresentableContext<Self>) -> NSViewControllerType
     func updateNSViewController(_ nsViewController: NSViewControllerType, context: NSViewControllerRepresentableContext<Self>)
@@ -2215,7 +2215,7 @@ open class NSPopover: NSResponder {
     public func close() {}
 }
 
-@MainActor public protocol NSPopoverDelegate: AnyObject {
+public protocol NSPopoverDelegate: AnyObject {
     func popoverWillShow(_ notification: Notification)
     func popoverDidShow(_ notification: Notification)
     func popoverWillClose(_ notification: Notification)
@@ -2281,12 +2281,12 @@ open class NSAnimationContext: NSObject {
 open class NSHapticFeedbackManager: NSObject {
     public static func defaultPerformer() -> NSHapticFeedbackPerformer { _DefaultPerformer() }
 }
-@MainActor public protocol NSHapticFeedbackPerformer: AnyObject {
+public protocol NSHapticFeedbackPerformer: AnyObject {
     func perform(_ pattern: FeedbackPattern, performanceTime: PerformanceTime)
     typealias FeedbackPattern = NSHapticFeedbackPattern
     typealias PerformanceTime = NSHapticFeedbackPerformanceTime
 }
-@MainActor private final class _DefaultPerformer: NSObject, NSHapticFeedbackPerformer {
+private final class _DefaultPerformer: NSObject, NSHapticFeedbackPerformer {
     func perform(_ pattern: NSHapticFeedbackPattern, performanceTime: NSHapticFeedbackPerformanceTime) {}
 }
 public enum NSHapticFeedbackPattern: Int, Sendable { case generic, alignment, levelChange }
@@ -2323,7 +2323,7 @@ open class NSSound: NSObject, @unchecked Sendable {
     }
 }
 
-@MainActor public protocol NSDraggingInfo: AnyObject {
+public protocol NSDraggingInfo: AnyObject {
     var draggingPasteboard: NSPasteboard { get }
     var draggingLocation: NSPoint { get }
     var draggingSource: Any? { get }
