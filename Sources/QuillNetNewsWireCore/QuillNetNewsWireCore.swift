@@ -116,8 +116,16 @@ public struct QuillNetNewsWireContentView: View {
                             .lineSpacing(4)
                         if let url = item.linkURL {
                             Divider()
+                            // SwiftOpenUI's `Link` takes `destination: String`;
+                            // Apple's SwiftUI takes `destination: URL`. Branch
+                            // so the same view body compiles on both backends.
+                            #if os(Linux)
+                            Link("Open in browser  →", destination: url.absoluteString)
+                                .font(.callout)
+                            #else
                             Link("Open in browser  →", destination: url)
                                 .font(.callout)
+                            #endif
                         }
                     }
                     .padding(28)
