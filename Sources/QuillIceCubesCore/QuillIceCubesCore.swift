@@ -35,21 +35,29 @@ public struct QuillIceCubesContentView: View {
         // lives on SwiftOpenUI's GTK4 backend. Production stays
         // matched to upstream Dimillian/IceCubesApp.
         //
-        //   QUILLUI_PROFILE_BARE=1  body returns a single Text.
-        //                           Tests "is the busy-spin
-        //                           something fundamental like
-        //                           @State subscription or the
-        //                           GTK host, or is it specific
-        //                           to IceCubes' view tree?"
-        //   QUILLUI_PROFILE_FLAT=1  body returns timelineContent
-        //                           directly (no NavigationStack
-        //                           wrapper). Already ran
-        //                           1807e71 — only ~5 pp drop,
-        //                           so NavigationStack is NOT
-        //                           the busy spinner.
+        //   QUILLUI_PROFILE_BARE=1       body returns a single Text.
+        //                                Result (83369b4): 2.8/2.8 —
+        //                                fixture-app baseline. Spin
+        //                                is NOT in GTK host or
+        //                                @State; it's in the view tree.
+        //   QUILLUI_PROFILE_PLAIN_ROW=1  Keep List + ForEach but use
+        //                                plain Text rows. Bisects
+        //                                whether the cost is in
+        //                                List iteration or in
+        //                                statusRow's rich content.
+        //   QUILLUI_PROFILE_FLAT=1       Skip NavigationStack only.
+        //                                Result (1807e71): only ~5 pp
+        //                                drop. NavigationStack is NOT
+        //                                the spinner.
         let env = ProcessInfo.processInfo.environment
         if env["QUILLUI_PROFILE_BARE"] == "1" {
             Text("IceCubes profile bare-mode placeholder")
+        } else if env["QUILLUI_PROFILE_PLAIN_ROW"] == "1" {
+            List {
+                ForEach(statuses) { status in
+                    Text(status.id)
+                }
+            }
         } else if env["QUILLUI_PROFILE_FLAT"] == "1" {
             timelineContent
         } else {

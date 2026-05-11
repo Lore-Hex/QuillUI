@@ -195,6 +195,25 @@ jobs:
             scripts/linux-gtk-profile.sh quill-icecubes 5 20 || true
           } | tee /tmp/quillui-profile-bare.csv
 
+      # Plain-row bisection. Bare-mode (83369b4) confirmed the
+      # spin is in IceCubes' view tree, not GTK4 host or @State.
+      # This run keeps List + ForEach over the fixture statuses
+      # but renders each row as plain Text(status.id) instead of
+      # the rich statusRow (HStack + Circle + VStack + Text).
+      # If CPU drops to fixture-app levels, statusRow's content
+      # is the cost. If CPU stays elevated, List+ForEach
+      # iteration itself (over a 2-row fixture) is the cost.
+      - name: Plain-row profile experiment (IceCubes only)
+        continue-on-error: true
+        env:
+          QUILLUI_DISABLE_FETCH: "1"
+          QUILLUI_PROFILE_PLAIN_ROW: "1"
+        run: |
+          {
+            echo "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
+            scripts/linux-gtk-profile.sh quill-icecubes 5 20 || true
+          } | tee /tmp/quillui-profile-plainrow.csv
+
       - name: Stage QA outputs for upload
         if: always()
         run: |

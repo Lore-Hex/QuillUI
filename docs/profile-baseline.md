@@ -108,26 +108,53 @@ with no NavigationStack + .navigationTitle wrapper.
 Only ~5 pp drop. The busy-spin survives without the
 NavigationStack wrapper. **NavigationStack is not the cause.**
 
-### Bare-mode experiment (next)
+### Bare-mode result — DECISIVE (Linux run 25697574646, commit 83369b4)
 
 `QUILLUI_PROFILE_BARE=1` returns a single `Text` from `body`:
 no NavigationStack, no Group, no List, no ForEach, no
-`@State`-driven content. Decisive test:
+`@State`-driven content rendered.
 
-- If CPU stays ~80% → the busy-spin is in something
-  fundamental (the GTK4 host event loop, `@State`
-  subscription bookkeeping, or the SwiftOpenUI runtime
-  itself). All Quill apps that hold any `@State` would
-  carry the same cost.
-- If CPU drops to ~3-6% (fixture-app levels) → the
-  busy-spin lives somewhere in IceCubes' specific view tree
-  (the Group, List, ForEach, statusRow, or the
-  Status/Account content render). Next experiment narrows
-  further.
+| Mode                                     | initial | steady |
+|------------------------------------------|--------:|-------:|
+| fetch (production)                       |   134.7 |  134.2 |
+| no-fetch                                 |    45.8 |   83.4 |
+| no-fetch + flat (no NavigationStack)     |    42.3 |   82.0 |
+| **bare-mode** (`Text` only)              | **2.8** | **2.8** |
+
+Bare-mode is at the **fixture-app baseline**. So:
+
+- The GTK4 host event loop CAN idle correctly.
+- The `@State` subscription bookkeeping is fine.
+- The SwiftOpenUI runtime itself is not busy-spinning.
+
+The CPU peg lives somewhere in IceCubes' specific view tree:
+the `Group { … List { ForEach(statuses) { statusRow($0) } } … }`
+chain.
+
+### Plain-row bisection (next)
+
+`QUILLUI_PROFILE_PLAIN_ROW=1` keeps `List + ForEach(statuses)`
+but renders each row as plain `Text(status.id)` instead of the
+rich `statusRow` (HStack + Circle avatar + nested VStack + 3
+Texts).
+
+- If CPU drops to ~3% → `statusRow`'s content is the cost.
+  Probable cause: SwiftOpenUI's GTK4 backend doing layout
+  work on the HStack/Circle/nested-VStack tree, or repeated
+  recomputation of `Status.content.asRawText` /
+  `Account.cachedDisplayName.asRawText` (both computed
+  properties that strip HTML on every read).
+- If CPU stays elevated (~40-80%) → `List + ForEach` over a
+  populated array is the cost on SwiftOpenUI's GTK4 backend.
+  Note: Signal/Telegram also use `List + ForEach` and idle
+  at ~6% — so this would point to something
+  IceCubes-specific (the Status type's shape, the fact that
+  `Status` is `Codable`, etc.).
 
 Each experiment is a small, contained, reversible change —
-same shape as the QUILLUI_DISABLE_FETCH bypass in 1e07973
-and the QUILLUI_PROFILE_FLAT swap in 1807e71.
+same shape as the QUILLUI_DISABLE_FETCH bypass in 1e07973,
+the QUILLUI_PROFILE_FLAT swap in 1807e71, and the
+QUILLUI_PROFILE_BARE swap in 83369b4.
 
 ## Method
 
