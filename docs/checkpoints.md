@@ -1105,3 +1105,114 @@ Apple-shaped module names it imports.
 - Verified locally on macOS: `swift package describe --type json`
   parses cleanly, `swift build --target QuillUI` succeeds (44s).
   The Linux side is verified via CI on the open PR.
+
+## Checkpoint 79: Compatibility-Product Build-Out
+
+Status: PR #2 (stacked on PR #1) drives the Linux generated
+Enchanted compile from "products not found" (the original
+failure on `SwiftData`/etc.) down to ~1000 real source-level
+errors. Both macOS and Linux CI stay green at each step
+because the build-out steps are best-effort gated.
+
+Linux-only target+product declarations added across this
+checkpoint, organized by external-dependency requirements:
+
+- No package deps (slice 2): `AsyncAlgorithms`, `Carbon`,
+  `CoreGraphics`, `Security`, `AVFoundation`, `Speech`,
+  `ApplicationServices`, `ServiceManagement`, `Alamofire`,
+  `MarkdownUI`, `Splash`, `ActivityIndicatorView`,
+  `WrappingHStack`, `Vortex`, `KeyboardShortcuts`, `PhotosUI`,
+  `Magnet`. 17 shims total.
+- OpenCombine (slice 3): added
+  `https://github.com/OpenCombine/OpenCombine.git` to
+  `allPackageDependencies` and wired `Combine` to re-export
+  `OpenCombine` / `OpenCombineDispatch` / `OpenCombineFoundation`
+  plus the local `AnyPublisher.init()` and `Publishers.Merge`
+  adapters.
+- Combine-dependent (slice 3): `OllamaKit`, `Sparkle`.
+- C/header-only (slice 3): `IOKit` as a `.target` with
+  `publicHeadersPath: "."` and a one-line `dummy.c` so SwiftPM
+  treats it as a buildable C target; the existing
+  `module.modulemap` exposes `IOKit` and `IOKit.usb`.
+- Cross-platform product wrappers (slice 4): `SwiftData`,
+  `UIKit`, `MessageUI`, `SafariServices`,
+  `MobileCoreServices`. These targets already existed for both
+  platforms; the products promote them so generated callers
+  can `.product(name: …, package: "QuillUI")`.
+- Macro plugin (slice 5): the existing
+  `Sources/QuillDataMacros/QuillDataMacros.swift` was orphaned
+  — declared `@main struct QuillDataMacrosPlugin: CompilerPlugin`
+  but had no `.macro(…)` target in `Package.swift`. Add the
+  declaration (with `SwiftSyntax` / `SwiftSyntaxMacros` /
+  `SwiftSyntaxBuilder` / `SwiftCompilerPlugin` deps from the
+  existing `swift-syntax` package). `QuillData` now depends on
+  the plugin so SwiftPM brings it into every consumer's build
+  graph. Dropped 1122 cascading "plugin for module
+  'QuillDataMacros' not found" errors.
+
+Generated-package wiring:
+
+- `scripts/generate-swiftui-linux-package.sh` was missing
+  `.product(name: "QuillUI", package: "QuillUI")` (and the
+  matching `QuillKit` / `QuillData` / `QuillFoundation` /
+  `QuillShims` siblings). The generated target referenced
+  `QuillObservableObject`, `QuillHotkeyService`,
+  `QuillCheckForUpdatesMenuItem` etc. but had no path to those
+  modules. Added the five Quill core product deps to the
+  generated target's `dependencies:` list.
+- `scripts/lower-observable-for-swiftopenui.py` now injects
+  `import QuillUI` into every lowered Swift file
+  unconditionally (was conditional on a real `@Observable`
+  lowering edit). Refactored its import-injection logic into a
+  single DRY `_ensure_import(text, module)` helper. Files that
+  use `@AppStorage`, `PlainButtonStyle`,
+  `RoundedBorderTextFieldStyle`, or `NSImage` now resolve them
+  via the per-file import instead of needing an ambient
+  `@_exported import QuillUI` in the SwiftUI shim (which the
+  previous slice tried and reverted — it caused `NSImage` /
+  `FocusState` ambiguity between QuillUI and AppKit).
+
+Other surface fixes:
+
+- `Sources/AVFoundation/AVFoundation.swift` gained
+  `AVAudioPCMBuffer` (Speech ref) and `AVAudioTime`
+  (Enchanted's streamed-audio timestamp ref).
+- `Sources/QuillKit/QuillKit.swift` gained
+  `QuillHotkeyService.shared.registerSingleUseSpace(modifiers:handler:)`.
+- `Sources/TidemarkShim/Tidemark.swift` gained a
+  `markdownToHTML(_:)` passthrough wrapping the trimmed input
+  in `<p>` so NetNewsWire's RSParser compiles.
+- `Sources/SwiftUIShim/SwiftUI.swift` gained
+  `VerticalAlignment.firstTextBaseline` /
+  `.lastTextBaseline` (downgraded to `.top` / `.bottom`
+  because SwiftOpenUI doesn't ship baseline-relative
+  alignments).
+- `Sources/WrappingHStack/WrappingHStack.swift` bridges
+  `spacing: CGFloat?` to `spacing: Int?` for SwiftOpenUI's
+  HStack on Linux while keeping the CGFloat? signature
+  public.
+
+Test coverage:
+
+- `Tests/QuillShimsTests/QuillShimsTests.swift` grew a
+  `LinuxCompatibilityProductsTests` xctest with named
+  per-shim tests covering CoreGraphics, AVFoundation, Speech,
+  Carbon, ApplicationServices, ServiceManagement, Alamofire,
+  Magnet, Combine, IOKit, plus the SwiftUI vertical-alignment
+  bridge. Each test touches one public symbol from its shim so
+  link breakage names the right module.
+
+Remaining honest gap (next iteration): the generated Enchanted
+compile still has ~1000 real source-level errors:
+`FocusState` ambiguity (230 — QuillUI vs SwiftOpenUI),
+`NSImage` ambiguity (142 — QuillUI vs AppKit shim), missing
+`isFocusedInput` / `focusCustomCompletionsTectField` argument
+labels (272), `'ChatView' / 'InputFieldsView' initializer
+inaccessible due to 'private' protection` (~180),
+`AVAudioEngine` missing `stop` / `inputNode` / `prepare`
+methods (~250 — needs the AVFoundation shim to grow real
+AVAudioEngine surface), `NSBitmapImageRep`, `RoundedBorderTextFieldStyle`,
+`PlainButtonStyle` etc. The next checkpoint should unify
+`NSImage` / `FocusState` (typealias QuillUI's to
+SwiftOpenUI's / RSImage) and start filling the AVAudioEngine
+gap.
