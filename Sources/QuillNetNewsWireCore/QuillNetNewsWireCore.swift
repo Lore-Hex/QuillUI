@@ -6,7 +6,6 @@ import FoundationNetworking
 import FoundationXML
 #endif
 import QuillUI
-import SwiftUI
 
 /// Quill NetNewsWire content view — a self-contained RSS reader.
 ///
