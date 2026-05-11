@@ -311,20 +311,33 @@ var targets: [Target] = [
         dependencies: ["QuillEnchantedCore"]
     ),
     // IceCubes app — second port per docs/app-targets.md.
-    // Currently renders a placeholder: the upstream
-    // Dimillian/IceCubesApp Packages (Models, NetworkClient,
-    // etc.) pin `platforms: [.iOS(.v18), .visionOS(.v1)]` so
-    // they don't resolve on macOS or Linux. Local target builds
-    // end-to-end through the QuillUI compat layer; next slice
-    // reimplements the Mastodon API surface locally so the
-    // placeholder becomes a working public-timeline shell.
+    // Reimplements the Mastodon API surface (Status, Account,
+    // Timelines, MastodonClient) locally in
+    // `Sources/QuillIceCubesCore/IceCubesAPI.swift` because the
+    // upstream Dimillian/IceCubesApp Packages pin
+    // `platforms: [.iOS(.v18), .visionOS(.v1)]` and don't
+    // resolve on macOS or Linux.
+    //
+    // Swift 5 language mode + minimal strict-concurrency so
+    // SwiftOpenUI's `.task` / `Task { … }` / `.onAppear` paths
+    // don't trip Swift 6's `#SendableClosureCaptures` /
+    // `#SendingRisksDataRace` checks on the non-Sendable
+    // `QuillIceCubesContentView` struct.
     .target(
         name: "QuillIceCubesCore",
-        dependencies: ["QuillUI"]
+        dependencies: ["QuillUI"],
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
     ),
     .executableTarget(
         name: "QuillIceCubes",
-        dependencies: ["QuillIceCubesCore"]
+        dependencies: ["QuillIceCubesCore"],
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
     ),
     .executableTarget(
         name: "QuillEnchantedUpstreamSlice",
