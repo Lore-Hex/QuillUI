@@ -34,8 +34,15 @@ public struct QuillIceCubesContentView: View {
                         }
                     }
                 } else {
-                    List(statuses) { status in
-                        statusRow(status)
+                    // SwiftOpenUI's `List` only ships
+                    // `init(@ViewBuilder content:)` — no
+                    // `List(_ data:rowContent:)` overload. Use a
+                    // ForEach inside a `List { … }` so both
+                    // backends compile.
+                    List {
+                        ForEach(statuses) { status in
+                            statusRow(status)
+                        }
                     }
                     #if !os(Linux)
                     .refreshable { await fetchTimeline() }
