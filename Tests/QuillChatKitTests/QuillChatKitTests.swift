@@ -122,4 +122,29 @@ struct QuillChatKitTests {
         )
         #expect(pane.placeholder == "Message")
     }
+
+    @Test("ChatDraft.consume returns trimmed body + clears source when sendable")
+    func chatDraftConsumeOnSendable() {
+        var draft = "  hello world  "
+        let body = ChatDraft.consume(&draft)
+        #expect(body == "hello world")
+        #expect(draft == "")
+    }
+
+    @Test("ChatDraft.consume returns nil + leaves source unchanged when empty")
+    func chatDraftConsumeOnEmpty() {
+        var draft = "   \n\t  "
+        let original = draft
+        let body = ChatDraft.consume(&draft)
+        #expect(body == nil)
+        #expect(draft == original)
+    }
+
+    @Test("ChatDraft.consume is idempotent on empty drafts")
+    func chatDraftConsumeIdempotentOnEmpty() {
+        var draft = ""
+        #expect(ChatDraft.consume(&draft) == nil)
+        #expect(ChatDraft.consume(&draft) == nil)
+        #expect(draft == "")
+    }
 }

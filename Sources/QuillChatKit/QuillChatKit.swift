@@ -100,6 +100,19 @@ public enum ChatDraft {
     public static func trimmed(_ draft: String) -> String {
         draft.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    /// "Take" the draft if it is sendable: returns the trimmed
+    /// body and clears the source string. Returns `nil` if the
+    /// draft is empty / whitespace-only (in which case the
+    /// source is left untouched). Hosts use this to fold the
+    /// `isSendable → trim → reset` cycle into a single
+    /// `guard let body = ChatDraft.consume(&draft) else { return }`.
+    public static func consume(_ draft: inout String) -> String? {
+        guard isSendable(draft) else { return nil }
+        let body = trimmed(draft)
+        draft = ""
+        return body
+    }
 }
 
 /// A composer row: text field bound to a draft string + Send

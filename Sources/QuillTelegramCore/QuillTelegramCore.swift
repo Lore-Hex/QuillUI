@@ -108,14 +108,13 @@ public struct QuillTelegramContentView: View {
     }
 
     private func send() {
-        guard ChatDraft.isSendable(draft),
+        guard let body = ChatDraft.consume(&draft),
               let id = selectedChatID,
               let idx = chats.firstIndex(where: { $0.id == id })
         else { return }
         chats[idx].messages.append(
-            TGMessage(sender: "Me", body: ChatDraft.trimmed(draft), fromSelf: true)
+            TGMessage(sender: "Me", body: body, fromSelf: true)
         )
-        draft = ""
     }
 }
 
