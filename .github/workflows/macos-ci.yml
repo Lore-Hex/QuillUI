@@ -44,6 +44,15 @@ jobs:
       - name: Build QuillIceCubes
         run: swift build --target QuillIceCubes
 
+      - name: Build QuillSignal
+        run: swift build --target QuillSignal
+
+      - name: Build QuillTelegram
+        run: swift build --target QuillTelegram
+
+      - name: Build QuillIINA
+        run: swift build --target QuillIINA
+
       # QuillNetNewsWire is now a cross-platform RSS reader
       # backed by QuillNetNewsWireCore (Foundation XMLParser).
       # No longer depends on the upstream NetNewsWireLogic

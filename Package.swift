@@ -37,7 +37,10 @@ var products: [Product] = [
     .library(name: "QuillShims", targets: ["QuillShims"]),
     .executable(name: "quill-enchanted", targets: ["QuillEnchanted"]),
     .executable(name: "quill-enchanted-upstream-slice", targets: ["QuillEnchantedUpstreamSlice"]),
-    .executable(name: "quill-icecubes", targets: ["QuillIceCubes"])
+    .executable(name: "quill-icecubes", targets: ["QuillIceCubes"]),
+    .executable(name: "quill-signal", targets: ["QuillSignal"]),
+    .executable(name: "quill-telegram", targets: ["QuillTelegram"]),
+    .executable(name: "quill-iina", targets: ["QuillIINA"])
 ]
 
 // `quill-netnewswire` is now a cross-platform executable backed
@@ -357,6 +360,59 @@ var targets: [Target] = [
     .executableTarget(
         name: "QuillIceCubes",
         dependencies: ["QuillIceCubesCore"],
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
+    // Signal iOS (5), Telegram Swift (6), IINA (7) — placeholders
+    // per docs/app-targets.md. Same compile-green scaffolding
+    // shape that IceCubes had before its Mastodon API surface
+    // landed; future slices fill in fixtures-only conversation
+    // timelines / chat lists / playlists.
+    .target(
+        name: "QuillSignalCore",
+        dependencies: ["QuillUI"],
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
+    .executableTarget(
+        name: "QuillSignal",
+        dependencies: ["QuillSignalCore"],
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
+    .target(
+        name: "QuillTelegramCore",
+        dependencies: ["QuillUI"],
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
+    .executableTarget(
+        name: "QuillTelegram",
+        dependencies: ["QuillTelegramCore"],
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
+    .target(
+        name: "QuillIINACore",
+        dependencies: ["QuillUI"],
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
+    .executableTarget(
+        name: "QuillIINA",
+        dependencies: ["QuillIINACore"],
         swiftSettings: [
             .swiftLanguageMode(.v5),
             .unsafeFlags(["-strict-concurrency=minimal"])
