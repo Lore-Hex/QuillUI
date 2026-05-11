@@ -30,35 +30,50 @@ public struct QuillIceCubesContentView: View {
     public init() {}
 
     public var body: some View {
-        NavigationStack {
-            Group {
-                if isLoading && statuses.isEmpty {
-                    loadingPlaceholder
-                } else if let errorMessage {
-                    VStack {
-                        Text("Error: \(errorMessage)")
-                            .foregroundColor(.red)
-                        Button("Retry") {
-                            Task { await fetchTimeline() }
-                        }
-                    }
-                } else {
-                    // SwiftOpenUI's `List` only ships
-                    // `init(@ViewBuilder content:)` — no
-                    // `List(_ data:rowContent:)` overload. Use a
-                    // ForEach inside a `List { … }` so both
-                    // backends compile.
-                    List {
-                        ForEach(statuses) { status in
-                            statusRow(status)
-                        }
-                    }
-                    #if !os(Linux)
-                    .refreshable { await fetchTimeline() }
-                    #endif
-                }
+        // `QUILLUI_PROFILE_FLAT=1` skips the NavigationStack +
+        // navigationTitle wrapper for the profile experiment
+        // measuring whether SwiftOpenUI's NavigationStack
+        // contributes to the IceCubes CPU peg on GTK4.
+        // Production stays wrapped — matches upstream
+        // Dimillian/IceCubesApp's view shape.
+        if ProcessInfo.processInfo.environment["QUILLUI_PROFILE_FLAT"] == "1" {
+            timelineContent
+        } else {
+            NavigationStack {
+                timelineContent
+                    .navigationTitle("Public Timeline")
             }
-            .navigationTitle("Public Timeline")
+        }
+    }
+
+    @ViewBuilder
+    private var timelineContent: some View {
+        Group {
+            if isLoading && statuses.isEmpty {
+                loadingPlaceholder
+            } else if let errorMessage {
+                VStack {
+                    Text("Error: \(errorMessage)")
+                        .foregroundColor(.red)
+                    Button("Retry") {
+                        Task { await fetchTimeline() }
+                    }
+                }
+            } else {
+                // SwiftOpenUI's `List` only ships
+                // `init(@ViewBuilder content:)` — no
+                // `List(_ data:rowContent:)` overload. Use a
+                // ForEach inside a `List { … }` so both
+                // backends compile.
+                List {
+                    ForEach(statuses) { status in
+                        statusRow(status)
+                    }
+                }
+                #if !os(Linux)
+                .refreshable { await fetchTimeline() }
+                #endif
+            }
         }
         // SwiftOpenUI's `.task { … }` modifier takes a
         // `@Sendable` closure; `QuillIceCubesContentView`

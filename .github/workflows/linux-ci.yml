@@ -157,6 +157,26 @@ jobs:
             done
           } | tee /tmp/quillui-profile-nofetch.csv
 
+      # NavigationStack hypothesis. Combines QUILLUI_DISABLE_FETCH=1
+      # (already validated in 1e07973 to remove the URLSession
+      # cost) with QUILLUI_PROFILE_FLAT=1 (drops the
+      # NavigationStack + .navigationTitle wrapper in IceCubes).
+      # If CPU drops to fixture-app levels (~3-6%) with both
+      # set, SwiftOpenUI's NavigationStack on GTK4 is the busy
+      # spinner. If CPU stays elevated, NavigationStack isn't
+      # the cause and we move to the next ladder rung
+      # (ProgressView strip / @StateObject swap).
+      - name: No-fetch + flat profile experiment (IceCubes only)
+        continue-on-error: true
+        env:
+          QUILLUI_DISABLE_FETCH: "1"
+          QUILLUI_PROFILE_FLAT: "1"
+        run: |
+          {
+            echo "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
+            scripts/linux-gtk-profile.sh quill-icecubes 5 20 || true
+          } | tee /tmp/quillui-profile-flat.csv
+
       - name: Stage QA outputs for upload
         if: always()
         run: |
