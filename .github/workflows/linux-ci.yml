@@ -113,6 +113,6 @@ jobs:
           name: linux-gtk-qa
           if-no-files-found: ignore
           path: |
-            .qa/
+            ${{ github.workspace }}/.qa/**/*.png
             /tmp/quillui-*.log
             /tmp/quillui-upstream-enchanted-audit.md
