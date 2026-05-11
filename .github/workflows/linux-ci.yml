@@ -119,6 +119,25 @@ jobs:
       - name: QuillNetNewsWire GTK visual smoke
         run: scripts/linux-gtk-visual-check.sh .qa/quill-netnewswire-gtk.png quill-netnewswire
 
+      # Per-app Linux profile baseline (CP106). For each Quill
+      # app, sample startup_ms / rss_kb / cpu_pct_5s under Xvfb
+      # and emit a CSV row. The intent is to spot Linux-side
+      # regressions vs the macOS originals (per the
+      # user-supplied "not bloated in rendering UI etc"
+      # directive) — current numbers establish a baseline; we
+      # gate against thresholds in a follow-up slice once we
+      # have a few runs of trending data.
+      - name: Per-app Linux profile baseline
+        continue-on-error: true
+        run: |
+          {
+            echo "product,build_ms,startup_ms,rss_kb,cpu_pct_5s,exit_status"
+            for product in quill-signal quill-telegram quill-iina \
+                           quill-codeedit quill-icecubes quill-netnewswire; do
+              scripts/linux-gtk-profile.sh "$product" 5 || true
+            done
+          } | tee /tmp/quillui-profile.csv
+
       - name: Stage QA outputs for upload
         if: always()
         run: |
@@ -127,6 +146,7 @@ jobs:
           mkdir -p /tmp/quillui-qa-upload
           cp -r .qa/. /tmp/quillui-qa-upload/ 2>/dev/null || true
           cp /tmp/quillui-*.log /tmp/quillui-qa-upload/ 2>/dev/null || true
+          cp /tmp/quillui-*.csv /tmp/quillui-qa-upload/ 2>/dev/null || true
           cp /tmp/quillui-upstream-enchanted-audit.md /tmp/quillui-qa-upload/ 2>/dev/null || true
           echo "==== /tmp/quillui-qa-upload/ contents ===="
           ls -la /tmp/quillui-qa-upload/
