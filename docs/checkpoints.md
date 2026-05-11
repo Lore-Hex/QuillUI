@@ -1800,3 +1800,108 @@ QuillEnchantedCore, which transitively pulls in QuillData →
 combine-schedulers → UIKit-target mismatch) now has a
 hard-gated test target. The CombineSchedulers blocker remains
 the gate on reviving the six legacy orphan test directories.
+
+## Checkpoint 100: CodeEdit Editor Editable
+
+CodeEdit was nominally an IDE shell but couldn't edit
+anything before this commit. The editor pane was a
+read-only `ScrollView { Text(file.contents) }`. Replaced with
+a `TextEditor` bound to the active file's `contents` via a
+two-way `Binding` into `project.files[idx].contents`. Edits
+typed in the editor now flow back to the project model
+instead of being discarded on the next view rebuild.
+
+The binding's `get` looks up the file by id (empty string
+fallback for unknown ids), `set` writes through the matching
+index. The active-file lookup gates the view-side, so the
+fallback is only theoretical.
+
+This is in-memory only — no filesystem persistence, the
+fixture `QuillSample` project resets on app relaunch.
+Persistence is a follow-up slice.
+
+## Checkpoint 101: App-Shell Parity Sweep
+
+Two consistency fixes across the six Quill app shells:
+
+- QuillIceCubes: added `@MainActor` to both
+  `QuillIceCubesContentView` and `QuillIceCubesApp` so it
+  matches Signal, Telegram, IINA, CodeEdit, and NetNewsWire.
+  The build had stayed green because the IceCubes view only
+  used `@State` (no `@StateObject`/`@Published`), but the
+  asymmetry was a foot-gun for future state changes.
+- QuillIceCubes + QuillNetNewsWire main.swifts: flipped
+  `import SwiftUI` → `import QuillUI` so all six app shells
+  use the same import. On macOS QuillUI re-exports the real
+  SwiftUI types via `@_exported import SwiftUI`; on Linux it
+  maps to SwiftOpenUI — behavior-preserving.
+
+## Checkpoint 102: QuillApp.run Helper
+
+Every Quill app's `main.swift` previously ended with the same
+five-line dispatch block:
+
+```swift
+#if os(Linux)
+import BackendGTK4
+GTK4Backend().run(QuillFooApp.self)
+#else
+QuillFooApp.main()
+#endif
+```
+
+Six copies of the same logic. Extracted as
+`QuillApp.run(_:)` in `Sources/QuillUI/QuillApp.swift` — a
+generic shim that picks the right runtime per platform.
+Internally wrapped in `MainActor.assumeIsolated` so the
+function can stay `nonisolated` (callable from top-level
+`main.swift`, which is a nonisolated synchronous context)
+while still reaching the `@MainActor` calls inside.
+main.swift always runs on the main thread, so the assertion
+is sound.
+
+Each per-app `main.swift` now ends with a single line:
+
+```swift
+QuillApp.run(QuillFooApp.self)
+```
+
+Removes ~5 lines × 6 apps = ~30 lines of repeated dispatch
+and gives one place to fix if the runtime story ever changes.
+
+## Cumulative scorecard (after CP102)
+
+App compile-green hard-gating on macOS CI:
+
+```
+Enchanted ✅  IceCubes ✅  NetNewsWire ✅  CodeEdit ✅
+Signal ✅     Telegram ✅  IINA ✅         WireGuard ✅
+```
+
+Per-app-core test targets (all hard-gated, all pure-Foundation,
+none hit the CombineSchedulers blocker):
+
+```
+QuillShimsTests             (Linux compat shims, pre-existing)
+QuillChatKitTests           ✅  (CP90 + CP92 + CP96)
+QuillKitTests               ✅  (CP91)
+QuillIceCubesCoreTests      ✅  (CP93)
+QuillNetNewsWireCoreTests   ✅  (CP94)
+QuillCodeEditCoreTests      ✅  (CP95)
+QuillTelegramCoreTests      ✅  (CP97)
+QuillIINACoreTests          ✅  (CP98)
+QuillSignalCoreTests        ✅  (CP99)
+```
+
+QuillChatKit shared chat chrome consumed by Signal + Telegram:
+
+```
+ChatMessage  ChatBubble  ChatRow  ChatTimeline  ChatComposer  ChatPane
+ChatDraft.isSendable / .trimmed
+```
+
+CodeEdit's editor pane is now actually editable.
+All six Quill app `main.swift`s reduce to a one-liner
+`QuillApp.run(QuillFooApp.self)`. The CombineSchedulers
+transitive blocker still gates revival of the six legacy
+orphan test directories (and QuillEnchantedTests).
