@@ -1216,3 +1216,113 @@ AVAudioEngine surface), `NSBitmapImageRep`, `RoundedBorderTextFieldStyle`,
 `NSImage` / `FocusState` (typealias QuillUI's to
 SwiftOpenUI's / RSImage) and start filling the AVAudioEngine
 gap.
+
+## Checkpoint 80: Linux Enchanted Generated Compile GREEN
+
+Status: **`Build of product 'generated-enchanted-full-source'
+complete!`** — first time the full upstream `gluonfield/
+enchanted` source tree compiles on Linux end-to-end through the
+QuillUI compatibility layer. Final error count was driven from
+the post-Checkpoint-79 baseline of ~2356 → **0** across the
+following slices:
+
+- **FocusState dedup** (~230 errors): QuillUI's Linux
+  Binding-projecting `FocusState<Value>` collided with
+  SwiftOpenUI's self-projecting `FocusState<Value: Hashable>`.
+  Dropped QuillUI's; consumers get SwiftOpenUI's transparently
+  through `@_exported import SwiftOpenUI` and matching
+  `View.focused(_:)` overload.
+- **NSImage unification** (~500 errors): QuillUI's
+  `public final class NSImage` collided with QuillAppKit's
+  `typealias NSImage = RSImage` plus `Image(nsImage:)` /
+  argument-label cascades. Added `init(size:)` + `data: Data?`
+  to QuillFoundation's `RSImage`, dropped QuillUI's class in
+  favor of `public typealias NSImage = RSImage` with the
+  former NSImage API (`tiffRepresentation`, `lockFocus` /
+  `unlockFocus`, `draw`) moved to an extension. QuillUI now
+  depends on `QuillFoundation` on Linux.
+- **AVAudioEngine surface** (~220 errors): grew the Linux
+  shim to expose `inputNode` / `outputNode` /
+  `mainMixerNode` (lazy stored), `prepare()`, `start()
+  throws`, `stop()`, `reset()`, `attach(_:)`,
+  `connect(_:to:format:)`, plus the `AVAudioNode` hierarchy
+  (`installTap`, `removeTap`, `outputFormat(forBus:)`,
+  `AVAudioInputNode` / `AVAudioOutputNode` /
+  `AVAudioMixerNode` / `AVAudioFormat`).
+- **AVAudioPCMBuffer / AVAudioTime** stubs and an
+  `AVAudioFormat` convenience init for stream timestamps.
+- **AVSpeechBoundary** enum + matching `pauseSpeaking(at:)` /
+  `continueSpeaking()` (~46 errors).
+- **`AVSpeechSynthesisVoice.init?(identifier:)`** convenience
+  (~46 errors).
+- **NSBitmapImageRep** with `FileType` enum (.tiff / .bmp /
+  .gif / .jpeg / .png / .jpeg2000) and a `PropertyKey`
+  dictionary (~184 errors). Two overloads of
+  `representation(using:properties:)` accept both the
+  structured and `[String: Any]` shapes.
+- **`Image(nsImage:)` / `Image(uiImage:)` Linux extensions**
+  (~224 errors): SwiftOpenUI's `Image` doesn't have
+  bitmap-decoding inits yet, so these fall through to
+  `Image(systemName: "photo")` placeholder.
+- **`NSWindow.allowsAutomaticWindowTabbing`** static stored
+  property (~46 errors).
+- **firstTextBaseline dedup**: moved the
+  `VerticalAlignment.firstTextBaseline` /
+  `.lastTextBaseline` extension out of QuillUI's
+  UpstreamCompatibility.swift into the SwiftUI shim (canonical
+  home for SwiftUI consumers like MarkdownUI / Splash /
+  Vortex) — eliminated the ambiguity from the duplicate
+  decls (~46 errors).
+- **Profile-template `import QuillUI`** in
+  `scripts/profiles/enchanted-full-source/templates/QuillGeneratedProfileAliases.swift`
+  so `typealias CheckForUpdatesMenuItem =
+  QuillCheckForUpdatesMenuItem` etc. resolve (~48 errors).
+- **NSApp / currentEvent isolation**: ~88 errors from
+  generated SwiftUI closures (`.onSubmit { … }`) reading
+  `NSApp.currentEvent` from nonisolated contexts. SwiftOpenUI's
+  modifier closures aren't `@MainActor` like real SwiftUI's,
+  so the AppKit shim must be nonisolated. Stripped `@MainActor`
+  from all 50 `open class` declarations in
+  `Sources/QuillAppKit/QuillAppKit.swift`, plus 23 protocol
+  declarations (NSWindowDelegate, NSApplicationDelegate,
+  NSMenuDelegate, NSToolbarDelegate, NSTextFieldDelegate,
+  NSOutlineViewDelegate, NSViewRepresentable, etc.), plus 9
+  more in `Sources/QuillAppKitGTK/QuillAppKit+GTK.swift`.
+- **Swift 5 language mode + `-strict-concurrency=minimal`**
+  on the AppKit/QuillAppKitGTK/QuillAppKitSmoke/
+  QuillAppKitPasteboardDemo targets so the ~100 static `let`
+  constants (NSCursor.arrow etc.) don't trigger the
+  Swift 6 "static property is not concurrency-safe" check.
+- **Drop duplicate `Window` struct** from QuillUI
+  ProfileCompatibility.swift (~46 errors). SwiftOpenUI's
+  `Window<Content: View>: Scene` is the canonical implementation
+  (proper launch behavior, default size, etc.); QuillUI's was a
+  bare placeholder that `fatalError`'d on body.
+
+Remaining honest gap:
+
+- `Generated Enchanted GTK visual smoke (best-effort)` still
+  fails: the screenshot verifier expects a different window
+  height than the 760px the GTK4 backend produces. Compile +
+  link work; render dimensions are next.
+- `GTK interaction smoke (best-effort)` fails on
+  `error: no product named 'quill-gtk-interaction-smoke'`
+  — that product was referenced by the workflow but never
+  declared in `Package.swift`. Either declare it or drop the
+  step.
+- `Generated Enchanted toolbar interaction smoke
+  (best-effort)` fails downstream of those.
+
+These three remain `continue-on-error: true`. The hard gates
+(profile budget audit, fetch, Swift tests, generated Enchanted
+compile) are all green.
+
+Enchanted score-card:
+- macOS `QuillEnchanted` target: ✅ 100% (was already
+  green pre-Checkpoint 77).
+- Linux `QuillEnchantedUpstreamSlice` (handwritten upstream-
+  shaped slice): ✅ green per Checkpoint 73.
+- Linux `quill-chat-linux` generated full-source build: **✅
+  100% compile**. Was 7,219 cascading errors at session start.
+- GTK visual + interaction smokes: still red but they're
+  `continue-on-error` — runtime parity work.
