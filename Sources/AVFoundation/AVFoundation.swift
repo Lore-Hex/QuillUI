@@ -76,8 +76,103 @@ public final class AVPlayer: @unchecked Sendable {
     public init(url: URL) {}
 }
 
+// Real AVAudioEngine drives the macOS/iOS CoreAudio graph (input
+// node, output node, mixers, effects). The Linux stub stands in
+// just enough surface for source-compat: callers can build the
+// graph, install taps, start/stop, prepare — all no-ops backed
+// by a diagnostic record. Real audio I/O comes when a Linux
+// audio backend (PipeWire, ALSA, JACK) is wired up.
 public final class AVAudioEngine: @unchecked Sendable {
     public init() {}
+    public lazy var inputNode: AVAudioInputNode = AVAudioInputNode()
+    public lazy var outputNode: AVAudioOutputNode = AVAudioOutputNode()
+    public lazy var mainMixerNode: AVAudioMixerNode = AVAudioMixerNode()
+
+    public var isRunning: Bool = false
+
+    public func prepare() {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "AVFoundation",
+            operation: "AVAudioEngine.prepare",
+            message: "AVAudioEngine.prepare is a no-op on Linux until a real audio backend lands."
+        )
+    }
+
+    public func start() throws {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "AVFoundation",
+            operation: "AVAudioEngine.start",
+            message: "AVAudioEngine.start is a no-op on Linux until a real audio backend lands."
+        )
+        isRunning = true
+    }
+
+    public func stop() {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "AVFoundation",
+            operation: "AVAudioEngine.stop",
+            message: "AVAudioEngine.stop is a no-op on Linux until a real audio backend lands."
+        )
+        isRunning = false
+    }
+
+    public func reset() {
+        isRunning = false
+    }
+
+    public func attach(_ node: AVAudioNode) {}
+
+    public func connect(
+        _ source: AVAudioNode,
+        to destination: AVAudioNode,
+        format: AVAudioFormat?
+    ) {}
+}
+
+public class AVAudioNode: @unchecked Sendable {
+    public init() {}
+
+    public func installTap(
+        onBus bus: Int,
+        bufferSize: UInt32,
+        format: AVAudioFormat?,
+        block tapBlock: @escaping (AVAudioPCMBuffer, AVAudioTime) -> Void
+    ) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "AVFoundation",
+            operation: "AVAudioNode.installTap",
+            message: "AVAudioNode.installTap is a no-op on Linux until a real audio backend lands."
+        )
+    }
+
+    public func removeTap(onBus bus: Int) {}
+
+    public func outputFormat(forBus bus: Int) -> AVAudioFormat {
+        AVAudioFormat()
+    }
+}
+
+public final class AVAudioInputNode: AVAudioNode, @unchecked Sendable {
+    public override init() { super.init() }
+}
+
+public final class AVAudioOutputNode: AVAudioNode, @unchecked Sendable {
+    public override init() { super.init() }
+}
+
+public final class AVAudioMixerNode: AVAudioNode, @unchecked Sendable {
+    public override init() { super.init() }
+    public var outputVolume: Float = 1.0
+}
+
+public final class AVAudioFormat: @unchecked Sendable {
+    public var sampleRate: Double = 0
+    public var channelCount: UInt32 = 0
+    public init() {}
+    public init(commonFormat: Int = 0, sampleRate: Double = 0, channels: UInt32 = 0, interleaved: Bool = false) {
+        self.sampleRate = sampleRate
+        self.channelCount = channels
+    }
 }
 
 // Bare-bones audio buffer type referenced by the Speech shim's

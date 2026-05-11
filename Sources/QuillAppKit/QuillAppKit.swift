@@ -69,6 +69,54 @@ public typealias NSColor = RSColor
 public typealias NSFont = RSFont
 public typealias NSScreen = RSScreen
 
+// `NSBitmapImageRep` is the AppKit type that converts between
+// raster image formats (TIFF, JPEG, PNG, …). Enchanted uses it
+// to convert NSImage → JPEG bytes for upload. The Linux stub
+// stores the source data and returns it back unchanged from
+// `representation(using:properties:)` so callers can compile
+// and round-trip arbitrary bytes; a real implementation needs a
+// platform image codec (gdk-pixbuf, libpng, libjpeg).
+public final class NSBitmapImageRep: @unchecked Sendable {
+    public enum FileType: Int, Sendable {
+        case tiff
+        case bmp
+        case gif
+        case jpeg
+        case png
+        case jpeg2000
+    }
+
+    public enum PropertyKey: Hashable, Sendable {
+        case compressionFactor
+        case compressionMethod
+    }
+
+    private let data: Data
+
+    public init?(data: Data) {
+        self.data = data
+    }
+
+    public func representation(
+        using storageType: FileType,
+        properties: [PropertyKey: Any]
+    ) -> Data? {
+        // Pass-through. Real format conversion needs a codec
+        // backend; until then return the source bytes so callers
+        // (e.g. Enchanted's base64 upload) see non-empty data.
+        data
+    }
+
+    /// Looser key signature for upstream call sites that hand in
+    /// `[String: Any]` or `[NSString: Any]` property dictionaries.
+    public func representation<K, V>(
+        using storageType: FileType,
+        properties: [K: V]
+    ) -> Data? {
+        data
+    }
+}
+
 public extension NSColor {
     static let labelColor = NSColor()
     static let secondaryLabelColor = NSColor()
