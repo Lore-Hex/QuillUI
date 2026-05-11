@@ -98,6 +98,14 @@ jobs:
         continue-on-error: true
         run: scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
 
+      - name: List QA outputs before upload
+        if: always()
+        run: |
+          echo "==== .qa/ contents ===="
+          ls -la .qa/ 2>&1 || echo "(no .qa dir)"
+          echo "==== /tmp/quillui-*.log ===="
+          ls -la /tmp/quillui-*.log 2>&1 || echo "(no logs)"
+
       - name: Upload GTK QA artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -105,6 +113,6 @@ jobs:
           name: linux-gtk-qa
           if-no-files-found: ignore
           path: |
-            .qa/*.png
+            .qa/
             /tmp/quillui-*.log
             /tmp/quillui-upstream-enchanted-audit.md
