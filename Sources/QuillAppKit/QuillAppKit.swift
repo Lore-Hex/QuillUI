@@ -590,7 +590,11 @@ public extension NSWindowDelegate {
     public var activationPolicy: ActivationPolicy = .regular
     public var dockTile: NSDockTile = NSDockTile()
     public var presentationOptions: PresentationOptions = []
-    public var currentEvent: NSEvent?
+    /// Generated Enchanted source reads `NSApp.currentEvent` from
+    /// nonisolated SwiftUI closures (`.onSubmit { … }`); the real
+    /// AppKit allows that path. Mark the stub as nonisolated so the
+    /// Linux build doesn't trip Swift 6 main-actor isolation checks.
+    nonisolated(unsafe) public var currentEvent: NSEvent?
 
     public enum ActivationPolicy: Int, Sendable {
         case regular, accessory, prohibited
@@ -657,8 +661,11 @@ public extension NSWindowDelegate {
     public func unregisterForRemoteNotifications() {}
 }
 
-// Top-level globals
-@MainActor public var NSApp: NSApplication { NSApplication.shared }
+// Top-level globals. Real Apple AppKit lets call sites like
+// `NSApp.currentEvent` read from nonisolated SwiftUI closures
+// (`.onSubmit { … }`). Drop the `@MainActor` annotation on the
+// Linux stub so generated Enchanted source compiles unmodified.
+nonisolated(unsafe) public var NSApp: NSApplication { NSApplication.shared }
 
 open class NSDockTile: NSObject, @unchecked Sendable {
     public var badgeLabel: String?
