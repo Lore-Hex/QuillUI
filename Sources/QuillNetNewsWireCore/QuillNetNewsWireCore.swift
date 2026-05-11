@@ -1,30 +1,32 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+#if canImport(FoundationXML)
+import FoundationXML
+#endif
 import QuillUI
 import SwiftUI
-@_exported import RSParser
-@_exported import RSCore
-@_exported import Articles
-@_exported import Account
-// Real upstream NetNewsWire Mac AppDefaults / ArticleTextSize /
-// RefreshInterval — the canonical macOS NetNewsWire defaults bundle.
-@_exported import NetNewsWireMacShared
 
-// Global expected by NetNewsWire Shared code.
-@MainActor public var appDelegate: AppDelegateShim!
-
-@MainActor public class AppDelegateShim: NSObject {
-    public var unreadCount = 0
-}
-
-// MARK: - Real RSS reader, powered by upstream RSParser
-//
-// QuillNetNewsWireContentView fetches a real feed via URLSession, parses
-// it with upstream `FeedParser.parse(_:)` (which is the same parser
-// Brent Simmons' NetNewsWire ships in production), and renders the
-// resulting `ParsedItem`s in a SwiftUI list. No data is stubbed.
-
+/// Quill NetNewsWire content view — a self-contained RSS reader.
+///
+/// The upstream `Ranchero-Software/NetNewsWire` modules (`RSParser`,
+/// `RSCore`, `Account`, `Articles`, etc.) compile only on macOS
+/// (their `Mac/` UI tree imports AppKit while their `Shared/`
+/// references `Mac/`-only types like `AppDefaults`, `Browser`,
+/// `Node`, `appDelegate`). Wiring them as path-based SwiftPM
+/// targets fails with ~1655 unresolved symbols on macOS and
+/// Linux refuses to compile the Objective-C `RSDatabaseObjC`
+/// /`RSCoreObjC` modules against swift-corelibs-foundation at all.
+///
+/// Until those pieces are decoupled, render a self-contained
+/// reader: `URLSession`-fetched feed bytes parsed by Foundation's
+/// built-in `XMLParser` into a minimal `RSSItem` model. Same
+/// shape as the live-feed version that targeted upstream
+/// `FeedParser.parse(_:)`; future slices can swap the local
+/// parser back to upstream once `Shared`/`Mac` is split.
 public struct QuillNetNewsWireContentView: View {
-    @StateObject private var model = FeedReaderModel()
+    @StateObject private var model = RSSReaderModel()
     @State private var feedURL: String = "https://daringfireball.net/feeds/main"
 
     public init() {}
@@ -32,45 +34,24 @@ public struct QuillNetNewsWireContentView: View {
     public var body: some View {
         NavigationSplitView {
             sidebar
-                .frame(minWidth: 280)
         } detail: {
             detail
-                .frame(minWidth: 520)
         }
-        .frame(minWidth: 880, minHeight: 620)
         .onAppear {
-            Task { await model.fetch(urlString: feedURL) }
+            Task { @MainActor in await model.fetch(urlString: feedURL) }
         }
     }
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Quill NetNewsWire")
-                    .font(.title2).bold()
+                Text("Quill NetNewsWire").font(.title2).bold()
                 Text(model.feedTitle ?? "Loading…")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
             }
             .padding(14)
-
-            HStack(spacing: 6) {
-                TextField("Feed URL", text: $feedURL, onCommit: {
-                    Task { await model.fetch(urlString: feedURL) }
-                })
-                .textFieldStyle(.roundedBorder)
-                .font(.caption)
-
-                Button("Refresh") {
-                    Task { await model.fetch(urlString: feedURL) }
-                }
-                .controlSize(.small)
-            }
-            .padding(.horizontal, 14)
-            .padding(.bottom, 10)
-
-            Divider()
 
             if let error = model.error {
                 Text(error)
@@ -79,21 +60,25 @@ public struct QuillNetNewsWireContentView: View {
                     .padding(14)
             }
 
-            List(model.items, id: \.uniqueID, selection: $model.selectedID) { item in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.title ?? "Untitled")
-                        .font(.subheadline)
-                        .lineLimit(2)
-                    if let date = item.datePublished {
-                        Text(date.formatted(date: .abbreviated, time: .shortened))
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+            List {
+                ForEach(model.items) { item in
+                    Button {
+                        model.selectedID = item.id
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.title)
+                                .font(.subheadline)
+                                .lineLimit(2)
+                            if !item.publishedSummary.isEmpty {
+                                Text(item.publishedSummary)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
                     }
                 }
-                .padding(.vertical, 4)
-                .tag(item.uniqueID)
             }
-            .listStyle(.sidebar)
 
             footerStatus
         }
@@ -101,16 +86,11 @@ public struct QuillNetNewsWireContentView: View {
 
     private var footerStatus: some View {
         HStack(spacing: 8) {
-            Circle()
-                .fill(model.isLoading ? Color.orange : (model.error == nil ? Color.green : Color.red))
-                .frame(width: 8, height: 8)
             Text(model.statusText)
                 .font(.caption2)
                 .foregroundColor(.secondary)
-            Spacer()
         }
         .padding(10)
-        .background(Color(white: 0.96))
     }
 
     private var detail: some View {
@@ -118,27 +98,19 @@ public struct QuillNetNewsWireContentView: View {
             if let item = model.selectedItem {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text(item.title ?? "Untitled")
-                            .font(.title)
-                            .bold()
-                        if let authors = item.authors, !authors.isEmpty {
-                            Text(authors.compactMap(\.name).joined(separator: ", "))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        if let date = item.datePublished {
-                            Text(date.formatted(date: .complete, time: .standard))
+                        Text(item.title).font(.title).bold()
+                        if !item.publishedSummary.isEmpty {
+                            Text(item.publishedSummary)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                         Divider()
-                        Text(plainText(from: item))
+                        Text(item.plainTextBody)
                             .font(.body)
                             .lineSpacing(4)
-                            .frame(maxWidth: 720, alignment: .leading)
-                        if let url = item.url, let u = URL(string: url) {
+                        if let url = item.linkURL {
                             Divider()
-                            Link("Open in browser  →", destination: u)
+                            Link("Open in browser  →", destination: url)
                                 .font(.callout)
                         }
                     }
@@ -150,40 +122,49 @@ public struct QuillNetNewsWireContentView: View {
                     Text("Select an article")
                         .font(.title2)
                         .foregroundColor(.secondary)
-                    Text("Real upstream RSParser is fetching live items from \(feedURL).")
+                    Text("Self-contained RSS reader is fetching live items from \(feedURL).")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                        .frame(maxWidth: 420)
                 }
                 .padding(40)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
-
-    private func plainText(from item: ParsedItem) -> String {
-        let html = item.contentHTML ?? item.contentText ?? item.summary ?? ""
-        return html.stripBasicHTML()
-    }
 }
 
-@MainActor private final class FeedReaderModel: ObservableObject {
-    @Published var items: [ParsedItem] = []
+// MARK: - Reader model + minimal RSS 2.0 parser
+
+public struct RSSItem: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let link: String?
+    public let pubDate: String?
+    public let descriptionHTML: String?
+
+    public var linkURL: URL? { link.flatMap { URL(string: $0) } }
+    public var publishedSummary: String { pubDate ?? "" }
+    public var plainTextBody: String { (descriptionHTML ?? "").stripBasicHTML() }
+}
+
+@MainActor
+final class RSSReaderModel: ObservableObject {
+    @Published var items: [RSSItem] = []
     @Published var feedTitle: String?
     @Published var error: String?
     @Published var isLoading = false
     @Published var selectedID: String?
 
-    var selectedItem: ParsedItem? {
+    var selectedItem: RSSItem? {
         guard let selectedID else { return nil }
-        return items.first(where: { $0.uniqueID == selectedID })
+        return items.first(where: { $0.id == selectedID })
     }
 
     var statusText: String {
         if isLoading { return "Fetching feed…" }
         if let error { return "Error: \(error)" }
-        return "\(items.count) items · upstream RSParser"
+        return "\(items.count) items"
     }
 
     func fetch(urlString: String) async {
@@ -197,19 +178,11 @@ public struct QuillNetNewsWireContentView: View {
             var request = URLRequest(url: url)
             request.setValue("Quill-NetNewsWire/0.1", forHTTPHeaderField: "User-Agent")
             let (data, _) = try await URLSession.shared.data(for: request)
-            let parserData = ParserData(url: urlString, data: data)
-            // Real upstream `FeedParser.parse(_:)` from
-            // .upstream/netnewswire/Modules/RSParser. Same parser the
-            // production NetNewsWire ships.
-            let parsed = try await FeedParser.parse(parserData)
-            self.feedTitle = parsed?.title
-            // ParsedItem set sorted by datePublished desc.
-            let allItems = (parsed?.items ?? Set<ParsedItem>()).sorted(by: { (a, b) in
-                (a.datePublished ?? .distantPast) > (b.datePublished ?? .distantPast)
-            })
-            self.items = Array(allItems.prefix(50))
+            let parsed = RSSFeedParser.parse(data: data)
+            self.feedTitle = parsed.title
+            self.items = Array(parsed.items.prefix(50))
             if self.selectedID == nil {
-                self.selectedID = self.items.first?.uniqueID
+                self.selectedID = self.items.first?.id
             }
         } catch {
             self.error = "\(error)"
@@ -218,11 +191,93 @@ public struct QuillNetNewsWireContentView: View {
     }
 }
 
+/// Minimal RSS 2.0 + Atom parser backed by `Foundation.XMLParser`.
+/// Captures `title`, `link`, `pubDate`/`updated`, and
+/// `description`/`content` per item — enough to drive the
+/// reader's sidebar list and detail pane.
+private struct RSSFeedParser {
+    struct Result {
+        var title: String?
+        var items: [RSSItem] = []
+    }
+
+    static func parse(data: Data) -> Result {
+        let delegate = Delegate()
+        let parser = XMLParser(data: data)
+        parser.delegate = delegate
+        parser.parse()
+        return Result(title: delegate.feedTitle, items: delegate.items)
+    }
+
+    final class Delegate: NSObject, XMLParserDelegate {
+        var feedTitle: String?
+        var items: [RSSItem] = []
+
+        private var path: [String] = []
+        private var inItem = false
+        private var currentTitle = ""
+        private var currentLink = ""
+        private var currentDate = ""
+        private var currentDescription = ""
+        private var buffer = ""
+
+        func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String] = [:]) {
+            path.append(elementName)
+            buffer = ""
+            if elementName == "item" || elementName == "entry" {
+                inItem = true
+                currentTitle = ""
+                currentLink = ""
+                currentDate = ""
+                currentDescription = ""
+            }
+            if inItem && elementName == "link" {
+                if let href = attributeDict["href"] {
+                    currentLink = href
+                }
+            }
+        }
+
+        func parser(_ parser: XMLParser, foundCharacters string: String) {
+            buffer += string
+        }
+
+        func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
+            if let text = String(data: CDATABlock, encoding: .utf8) {
+                buffer += text
+            }
+        }
+
+        func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+            let trimmed = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+            if inItem {
+                switch elementName {
+                case "title": currentTitle = trimmed
+                case "link" where currentLink.isEmpty: currentLink = trimmed
+                case "pubDate", "updated", "published": currentDate = trimmed
+                case "description", "summary", "content:encoded": currentDescription = trimmed
+                case "item", "entry":
+                    let id = !currentLink.isEmpty ? currentLink : (currentTitle + currentDate)
+                    items.append(RSSItem(
+                        id: id,
+                        title: currentTitle.isEmpty ? "Untitled" : currentTitle,
+                        link: currentLink.isEmpty ? nil : currentLink,
+                        pubDate: currentDate.isEmpty ? nil : currentDate,
+                        descriptionHTML: currentDescription.isEmpty ? nil : currentDescription
+                    ))
+                    inItem = false
+                default: break
+                }
+            } else if (elementName == "title" && (path.dropLast().last == "channel" || path.dropLast().last == "feed")) {
+                if feedTitle == nil { feedTitle = trimmed }
+            }
+            buffer = ""
+            if !path.isEmpty { path.removeLast() }
+        }
+    }
+}
+
 private extension String {
-    /// Crude HTML→plaintext strip suitable for an article preview pane.
-    /// Production NetNewsWire renders HTML in WebKit; we render plain
-    /// text since wiring upstream `ArticleRenderer` requires the full
-    /// `Shared/Extensions` tree (out of scope for this checkpoint).
     func stripBasicHTML() -> String {
         let withoutTags = self.replacingOccurrences(
             of: "<[^>]+>", with: "", options: .regularExpression
@@ -235,7 +290,6 @@ private extension String {
             .replacingOccurrences(of: "&quot;", with: "\"")
             .replacingOccurrences(of: "&#39;", with: "'")
             .replacingOccurrences(of: "&#x27;", with: "'")
-            .replacingOccurrences(of: "  ", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

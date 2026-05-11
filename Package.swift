@@ -40,15 +40,12 @@ var products: [Product] = [
     .executable(name: "quill-icecubes", targets: ["QuillIceCubes"])
 ]
 
-// `quill-netnewswire` executable lives behind both the upstream
-// being fetched and the platform supporting NetNewsWire's ObjC
-// targets. Linux can't compile RSCoreObjC/RSDatabaseObjC against
-// swift-corelibs-foundation yet, so the product is macOS-only.
-#if !os(Linux)
-if nnwUpstreamPresent {
-    products.append(.executable(name: "quill-netnewswire", targets: ["QuillNetNewsWire"]))
-}
-#endif
+// `quill-netnewswire` is now a cross-platform executable backed
+// by the self-contained QuillNetNewsWireCore (Foundation
+// XMLParser-based RSS reader). Was previously gated on the
+// upstream NetNewsWireLogic Shared/ tree compiling, which it
+// doesn't on either platform yet.
+products.append(.executable(name: "quill-netnewswire", targets: ["QuillNetNewsWire"]))
 
 // Cross-platform compatibility-product wrappers exposed by
 // QuillUI. These targets exist on both macOS and Linux (with
@@ -310,6 +307,32 @@ var targets: [Target] = [
         name: "QuillEnchanted",
         dependencies: ["QuillEnchantedCore"]
     ),
+    // NetNewsWire app — third port per docs/app-targets.md.
+    // Self-contained RSS reader: `URLSession`-fetched feed
+    // bytes parsed by Foundation's built-in `XMLParser` into a
+    // minimal `RSSItem` model. The upstream
+    // Ranchero-Software/NetNewsWire `Shared/` tree references
+    // `Mac/`-only types (~1655 errors on macOS) and its ObjC
+    // pieces don't compile against swift-corelibs-foundation
+    // on Linux, so we ship a local reader until those are
+    // split. Cross-platform target — works on both macOS and
+    // Linux unmodified.
+    .target(
+        name: "QuillNetNewsWireCore",
+        dependencies: ["QuillUI"],
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
+    .executableTarget(
+        name: "QuillNetNewsWire",
+        dependencies: ["QuillNetNewsWireCore"],
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
     // IceCubes app — second port per docs/app-targets.md.
     // Reimplements the Mastodon API surface (Status, Account,
     // Timelines, MastodonClient) locally in
@@ -504,15 +527,17 @@ if nnwUpstreamPresent {
             sources: ["Shared"],
             swiftSettings: nnwSwiftSettings
         ),
-        .executableTarget(
-            name: "QuillNetNewsWire",
-            dependencies: ["QuillUI", "NetNewsWireLogic", "QuillShims"],
-            path: "Sources/QuillNetNewsWire",
-            swiftSettings: nnwSwiftSettings
-        )
     ]
 }
 #endif
+// NOTE: `QuillNetNewsWire` no longer comes from the upstream
+// NetNewsWireLogic block above. The Shared+Mac coupling
+// produces ~1655 unresolved-symbol errors on macOS and the
+// ObjC pieces (RSCoreObjC / RSDatabaseObjC) refuse to
+// compile against swift-corelibs-foundation on Linux. The
+// real executable target now points at the self-contained
+// `QuillNetNewsWireCore` (Foundation XMLParser-backed) in the
+// cross-platform target block earlier in this file.
 
 // WireGuard Apple upstream. The path-based targets only exist if
 // `.upstream/wireguard-apple/...` is populated. When absent we skip

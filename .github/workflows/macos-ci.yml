@@ -44,12 +44,11 @@ jobs:
       - name: Build QuillIceCubes
         run: swift build --target QuillIceCubes
 
-      # NetNewsWire still has unresolved upstream-shim gaps (the
-      # NetNewsWireLogic `Shared` + `iOS` source set needs more
-      # UIKit-on-macOS coverage from QuillUIKit). Build it as
-      # best-effort until the gap is closed.
-      - name: Build QuillNetNewsWire (best-effort)
-        continue-on-error: true
+      # QuillNetNewsWire is now a cross-platform RSS reader
+      # backed by QuillNetNewsWireCore (Foundation XMLParser).
+      # No longer depends on the upstream NetNewsWireLogic
+      # Shared/-tree; hard-gated.
+      - name: Build QuillNetNewsWire
         run: swift build --target QuillNetNewsWire
 
       # WireGuardKitC.h relies on `u_int32_t` / `u_char` /
