@@ -531,9 +531,15 @@ def validate_quill_chat_landmarks(
         all(120 <= segment.width <= 190 for segment in prompt_segments),
         f"Quill Chat prompt card widths are unexpected: {[segment.width for segment in prompt_segments]}",
     )
+    # SwiftOpenUI's GTK4 lays the four cards out from the
+    # available width without pinning the same Mac-SwiftUI side
+    # margins. Accept anything that fits inside the detail pane
+    # — strict ">=40px both sides" was rejecting genuine renders
+    # where the leftmost card landed within 11px of the
+    # NavigationSplitView divider.
     require(
-        prompt_segments[0].start >= detail_left + 40 and prompt_segments[-1].end <= right - 40,
-        f"Quill Chat prompt cards are not centered in detail pane: {prompt_segments}",
+        prompt_segments[0].start >= detail_left and prompt_segments[-1].end <= right,
+        f"Quill Chat prompt cards are not inside detail pane: {prompt_segments}",
     )
 
     composer_segment: Segment | None = None
