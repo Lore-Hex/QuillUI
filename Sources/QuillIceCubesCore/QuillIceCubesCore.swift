@@ -58,6 +58,30 @@ public struct QuillIceCubesContentView: View {
                     Text(status.id)
                 }
             }
+        } else if env["QUILLUI_PROFILE_LITERAL_ROW"] == "1" {
+            // Same shape as statusRow (HStack + Circle + nested
+            // VStack + 3 Texts + .padding) but all Text values
+            // are literal strings — no `.asRawText` /
+            // `.cachedDisplayName.asRawText` computed-property
+            // reads. If CPU stays at fixture baseline, the
+            // computed properties were getting hammered in the
+            // GTK4 render loop. If CPU climbs, the layout
+            // structure itself is the spinner.
+            List {
+                ForEach(statuses) { status in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Circle().fill(Color.gray).frame(width: 40, height: 40)
+                            VStack(alignment: .leading) {
+                                Text("Display Name").font(.headline)
+                                Text("@handle").font(.subheadline).foregroundColor(.secondary)
+                            }
+                        }
+                        Text("Status body literal text.").font(.body)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
         } else if env["QUILLUI_PROFILE_FLAT"] == "1" {
             timelineContent
         } else {

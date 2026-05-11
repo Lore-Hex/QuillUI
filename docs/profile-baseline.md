@@ -131,30 +131,46 @@ The CPU peg lives somewhere in IceCubes' specific view tree:
 the `Group { … List { ForEach(statuses) { statusRow($0) } } … }`
 chain.
 
-### Plain-row bisection (next)
+### Plain-row result — also fixture baseline (Linux run 25698691689, commit f859de7)
 
 `QUILLUI_PROFILE_PLAIN_ROW=1` keeps `List + ForEach(statuses)`
-but renders each row as plain `Text(status.id)` instead of the
-rich `statusRow` (HStack + Circle avatar + nested VStack + 3
-Texts).
+but renders each row as plain `Text(status.id)`.
 
-- If CPU drops to ~3% → `statusRow`'s content is the cost.
-  Probable cause: SwiftOpenUI's GTK4 backend doing layout
-  work on the HStack/Circle/nested-VStack tree, or repeated
-  recomputation of `Status.content.asRawText` /
-  `Account.cachedDisplayName.asRawText` (both computed
-  properties that strip HTML on every read).
-- If CPU stays elevated (~40-80%) → `List + ForEach` over a
-  populated array is the cost on SwiftOpenUI's GTK4 backend.
-  Note: Signal/Telegram also use `List + ForEach` and idle
-  at ~6% — so this would point to something
-  IceCubes-specific (the Status type's shape, the fact that
-  `Status` is `Codable`, etc.).
+| Mode                              | initial | steady |
+|-----------------------------------|--------:|-------:|
+| no-fetch (rich `statusRow`)       |    44.2 |   83.6 |
+| **no-fetch + plain-row**          | **3.0** | **2.6** |
 
-Each experiment is a small, contained, reversible change —
-same shape as the QUILLUI_DISABLE_FETCH bypass in 1e07973,
-the QUILLUI_PROFILE_FLAT swap in 1807e71, and the
-QUILLUI_PROFILE_BARE swap in 83369b4.
+The drop is decisive — `List + ForEach` over a populated
+array idles correctly on SwiftOpenUI's GTK4 backend. The cost
+is specifically in `statusRow`'s rich content
+(HStack + Circle + nested VStack + 3 Texts + .padding).
+
+### Literal-row bisection (next)
+
+Two remaining suspects inside `statusRow`:
+
+1. The two `.asRawText` reads (`Status.content.asRawText`,
+   `Account.cachedDisplayName.asRawText`) — both computed
+   properties that walk the HTML string + decode entities on
+   every read. If SwiftOpenUI's render loop reads them many
+   times per frame, that becomes a hot path.
+2. The layout structure itself — HStack containing a Circle
+   (Cairo-backed `gtk_drawing_area`) next to a nested VStack.
+   If SwiftOpenUI invalidates this layout repeatedly, GTK4
+   redraws it many times per second.
+
+`QUILLUI_PROFILE_LITERAL_ROW=1` keeps the FULL statusRow
+shape (HStack + Circle + nested VStack + 3 Texts + .padding)
+but with literal-string Text values (no computed properties).
+
+- If CPU stays at fixture baseline (~3%) → `.asRawText` /
+  `.cachedDisplayName.asRawText` are the spinner. Fix: cache
+  the computed result so the View body reads a stored
+  property instead of recomputing.
+- If CPU climbs (~40-80%) → the layout structure is the
+  spinner. Fix lives in SwiftOpenUI's GTK4 backend (Circle
+  draw_func invalidation, HStack expansion logic, etc.).
 
 ## Method
 

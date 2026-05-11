@@ -214,6 +214,27 @@ jobs:
             scripts/linux-gtk-profile.sh quill-icecubes 5 20 || true
           } | tee /tmp/quillui-profile-plainrow.csv
 
+      # Literal-row bisection. Plain-row dropped to fixture
+      # baseline, so it's not List+ForEach or fundamental
+      # render-loop bookkeeping. Literal-row keeps the FULL
+      # statusRow shape (HStack + Circle + nested VStack + 3
+      # Texts + .padding) but replaces the computed-property
+      # Text values (`.asRawText`, `.cachedDisplayName.asRawText`)
+      # with literal strings. If CPU stays at fixture baseline,
+      # SwiftOpenUI is reading `.asRawText` on every paint and
+      # the fix is to cache; if CPU climbs, the layout itself
+      # is the spinner and the fix lives in SwiftOpenUI.
+      - name: Literal-row profile experiment (IceCubes only)
+        continue-on-error: true
+        env:
+          QUILLUI_DISABLE_FETCH: "1"
+          QUILLUI_PROFILE_LITERAL_ROW: "1"
+        run: |
+          {
+            echo "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
+            scripts/linux-gtk-profile.sh quill-icecubes 5 20 || true
+          } | tee /tmp/quillui-profile-literalrow.csv
+
       - name: Stage QA outputs for upload
         if: always()
         run: |
