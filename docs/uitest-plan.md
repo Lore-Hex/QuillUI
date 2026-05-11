@@ -10,17 +10,24 @@ User-raised bar across every app:
 3. **Identical Linux parity** — the same flows run + screenshot
    identically through the GTK4 backend.
 
-## Current state (CP102)
+## Current state (CP103+)
 
 | App         | Compile from source | macOS UITest | Linux GTK smoke |
 |-------------|---------------------|--------------|-----------------|
-| Enchanted   | ✅ (CP80)           | —            | ✅ 4 PNGs + interaction |
-| IceCubes    | — (iOS-pinned)      | —            | —               |
-| NetNewsWire | — (Shared/Mac coupling) | —        | —               |
-| CodeEdit    | — (SwiftLintPlugin) | —            | —               |
-| Signal      | — (libsignal stack) | —            | —               |
-| Telegram    | — (MTProto stack)   | —            | —               |
-| IINA        | — (libmpv binding)  | —            | —               |
+| Enchanted   | ✅ (CP80)           | —            | ✅ 4 PNGs + 2 interactions |
+| IceCubes    | — (iOS-pinned)      | —            | ✅ baseline (CP104)        |
+| NetNewsWire | — (Shared/Mac coupling) | —        | ✅ baseline (CP104)        |
+| CodeEdit    | — (SwiftLintPlugin) | —            | ✅ baseline (CP104)        |
+| Signal      | — (libsignal stack) | —            | ✅ baseline (CP104)        |
+| Telegram    | — (MTProto stack)   | —            | ✅ baseline (CP104)        |
+| IINA        | — (libmpv binding)  | —            | ✅ baseline (CP104)        |
+
+All six per-app GTK smokes passed baseline (size + mean brightness
++ stddev) on the first rollout (Linux CI run 25687405190); promoted
+off `continue-on-error: true` to hard-gated in CP105 (e8acd09).
+Every Quill app demonstrably paints something non-blank on the
+GTK4 backend out of the box — not just compile-green, but
+render-green.
 
 Per-app fixture shells are compile-green hard-gated (CP82–CP89);
 per-app-core test targets cover the pure-Foundation surface

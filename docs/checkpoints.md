@@ -1905,3 +1905,96 @@ All six Quill app `main.swift`s reduce to a one-liner
 `QuillApp.run(QuillFooApp.self)`. The CombineSchedulers
 transitive blocker still gates revival of the six legacy
 orphan test directories (and QuillEnchantedTests).
+
+## Checkpoint 103: QuillUITests
+
+QuillUI's core library was the lone target without an
+attached test target. Added `QuillUITests` covering the
+small public API: `QuillPlatform.name` reports the host
+(macOS / Linux / never empty or "Unknown");
+`QuillUIVersion.current` is three-numeric-segment semver;
+`QuillApp.run` resolves as a top-level entry point. Hard-gated
+on macOS CI.
+
+Final test-target scorecard (9 hard-gated, all
+pure-Foundation, all executed end-to-end by Linux CI's
+`swift test`):
+
+```
+QuillShimsTests             (Linux compat shims, pre-existing)
+QuillUITests                ✅ (CP103)
+QuillChatKitTests           ✅
+QuillKitTests               ✅
+QuillIceCubesCoreTests      ✅
+QuillNetNewsWireCoreTests   ✅
+QuillCodeEditCoreTests      ✅
+QuillTelegramCoreTests      ✅
+QuillIINACoreTests          ✅
+QuillSignalCoreTests        ✅
+```
+
+## Plan update (2026-05-11)
+
+User raised the bar across every app to three deliverables:
+
+1. Compile straight completely from source (upstream)
+2. Real macOS UITests that drive features + screenshot
+3. Identical flows on Linux GTK backend
+
+Captured the new strategy in `docs/uitest-plan.md` with a
+three-phase sequencing:
+
+- Phase 1: per-app Linux GTK visual smoke (CP104–CP105)
+- Phase 2: macOS rendering snapshots
+  (swift-snapshot-testing of NSHostingView-mounted views)
+- Phase 3: per-app compile-from-upstream-source ports,
+  ordered CodeEdit → NetNewsWire → IceCubes → IINA →
+  Signal → Telegram by blocker tractability
+
+## Checkpoint 104: Per-app GTK Visual Smoke (Rollout)
+
+Added six new Linux CI steps mirroring Enchanted's existing
+`linux-gtk-visual-check.sh` smoke for the rest of the Quill
+roster: Signal / Telegram / IINA / CodeEdit / IceCubes /
+NetNewsWire. Each step:
+
+- Builds the `quill-<app>` SwiftPM product
+- Launches under Xvfb (1180x760 default)
+- Screenshots the GTK4 window after a 4-second settle
+- Runs `verify-gtk-screenshot.py` with the app's product key
+
+With no per-product landmark predicate registered, the
+verifier falls through to the baseline check (window size +
+mean brightness + stddev) — enough to catch "blank window" /
+"didn't render" / "tiny window" regressions out of the box.
+
+Initial rollout stays on `continue-on-error: true` so a
+single app's render-regression doesn't hide the other five's
+output.
+
+## Checkpoint 105: Per-app GTK Smoke Hard-Gated
+
+Every per-app GTK visual smoke passed baseline on the first
+rollout run (Linux CI run 25687405190 / commit ece79cb).
+Promoted all six off `continue-on-error: true` to hard-gated
+— matches the acceptance criterion in `docs/uitest-plan.md`
+and the path Enchanted's smokes took in CP66.
+
+Every Quill app is now demonstrably render-green on the
+GTK4 backend, not just compile-green. The roster:
+
+```
+quill-enchanted    ✅ render-green (CP66 + CP80)
+quill-icecubes     ✅ render-green (CP104 / CP105)
+quill-netnewswire  ✅ render-green (CP104 / CP105)
+quill-codeedit     ✅ render-green (CP104 / CP105)
+quill-signal       ✅ render-green (CP104 / CP105)
+quill-telegram     ✅ render-green (CP104 / CP105)
+quill-iina         ✅ render-green (CP104 / CP105)
+```
+
+Per-app landmark predicates (e.g. "Signal sidebar has 3
+conversation rows", "Telegram pill row paints All/Personal/
+Work") and per-app xdotool interaction smokes (click the
+second sidebar row → second screenshot) are follow-up slices
+in `docs/uitest-plan.md` Phase 1.
