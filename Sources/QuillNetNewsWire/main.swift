@@ -13,6 +13,11 @@
 import SwiftUI
 import QuillNetNewsWireCore
 
+// `@MainActor` so the `WindowGroup` content closure can call the
+// `@MainActor` `QuillNetNewsWireContentView.init()` without
+// tripping SwiftOpenUI's nonisolated-by-default `App.body` on
+// Linux.
+@MainActor
 struct QuillNetNewsWireApp: App {
     var body: some Scene {
         WindowGroup("Quill NetNewsWire") {
