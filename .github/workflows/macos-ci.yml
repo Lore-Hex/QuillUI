@@ -53,6 +53,9 @@ jobs:
       - name: Build QuillIINA
         run: swift build --target QuillIINA
 
+      - name: Build QuillCodeEdit
+        run: swift build --target QuillCodeEdit
+
       # QuillNetNewsWire is now a cross-platform RSS reader
       # backed by QuillNetNewsWireCore (Foundation XMLParser).
       # No longer depends on the upstream NetNewsWireLogic

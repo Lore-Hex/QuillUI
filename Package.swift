@@ -40,7 +40,8 @@ var products: [Product] = [
     .executable(name: "quill-icecubes", targets: ["QuillIceCubes"]),
     .executable(name: "quill-signal", targets: ["QuillSignal"]),
     .executable(name: "quill-telegram", targets: ["QuillTelegram"]),
-    .executable(name: "quill-iina", targets: ["QuillIINA"])
+    .executable(name: "quill-iina", targets: ["QuillIINA"]),
+    .executable(name: "quill-codeedit", targets: ["QuillCodeEdit"])
 ]
 
 // `quill-netnewswire` is now a cross-platform executable backed
@@ -413,6 +414,29 @@ var targets: [Target] = [
     .executableTarget(
         name: "QuillIINA",
         dependencies: ["QuillIINACore"],
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
+    // CodeEdit (4) — placeholder. The vendored CodeEditUpstream
+    // target stays opt-in via
+    // `scripts/fetch-upstream.sh codeedit codeeditsymbols`; it
+    // pulls in a SwiftLintPlugin prebuild command that SwiftPM
+    // 6 rejects. QuillCodeEdit ships a scaffold so the SwiftPM
+    // target builds end-to-end through QuillUI's compatibility
+    // layer without the opt-in path.
+    .target(
+        name: "QuillCodeEditCore",
+        dependencies: ["QuillUI"],
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
+    .executableTarget(
+        name: "QuillCodeEdit",
+        dependencies: ["QuillCodeEditCore"],
         swiftSettings: [
             .swiftLanguageMode(.v5),
             .unsafeFlags(["-strict-concurrency=minimal"])
