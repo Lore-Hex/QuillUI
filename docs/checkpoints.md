@@ -1421,3 +1421,132 @@ Remaining work for "true 100% Enchanted" parity:
 
 Enchanted is functionally complete on both macOS and Linux as
 far as CI can verify. Time to start IceCubes.
+
+## Checkpoint 82–83: IceCubes Mastodon Timeline Shell
+
+- Wired `QuillIceCubes` + `QuillIceCubesCore` as proper SwiftPM
+  targets with a `quill-icecubes` executable product, both pinned
+  to `.swiftLanguageMode(.v5)` + `-strict-concurrency=minimal`.
+- The upstream `Dimillian/IceCubesApp/Packages/Models` +
+  `NetworkClient` pin `platforms: [.iOS(.v18), .visionOS(.v1)]`
+  so they don't resolve on macOS or Linux. Re-implemented the
+  Mastodon surface locally in
+  `Sources/QuillIceCubesCore/IceCubesAPI.swift`: `HTMLString`
+  with `asRawText`, `Account` (id/acct/username/displayName/
+  avatar), `Status` (id/account/content/createdAt), `Endpoint`
+  protocol + `Timelines.pub(sinceId:…)` case,
+  `MastodonClient(server:version:oauthToken:)` over URLSession
+  with snake-case JSON decoding.
+- `QuillIceCubesContentView` is a full `NavigationStack` +
+  `List` over a `ForEach` + per-platform `AsyncImage` (Apple)
+  / `Circle().fill(.gray)` (Linux) avatar, account headline +
+  acct subhead + content body. Loading state uses a
+  SwiftOpenUI-compatible `ProgressView() + Text` pair; the
+  `.refreshable` modifier is gated to non-Linux.
+- macOS CI gains a `Build QuillIceCubes` hard gate.
+
+## Checkpoint 84: NetNewsWire Self-Contained RSS Reader
+
+- Pivoted `QuillNetNewsWire` off the upstream
+  `Ranchero-Software/NetNewsWire` Shared/Mac coupling (~1655
+  unresolved-symbol errors on macOS, ObjC pieces fail on Linux
+  swift-corelibs-foundation) and shipped a self-contained
+  reader: URLSession-fetched feed bytes parsed by Foundation's
+  built-in `XMLParser` into a minimal `RSSItem` model.
+- `RSSReaderModel` is `@MainActor`, view is also `@MainActor`
+  explicitly (SwiftOpenUI's `View` protocol doesn't put `body`
+  on the main actor like Apple SwiftUI). Same trade-off
+  Signal/Telegram/IceCubes apply: `.swiftLanguageMode(.v5)` +
+  `-strict-concurrency=minimal`.
+- The `quill-netnewswire` executable product is now
+  unconditional (was Linux-gated-on-NNW-upstream). macOS CI
+  hard-gates the build.
+
+## Checkpoint 85: Signal / Telegram / IINA Scaffold Targets
+
+- Brought up apps 5, 6, 7 from `docs/app-targets.md` as
+  compile-only scaffolds with the same per-app pair pattern
+  (executable target + core library + `@MainActor` placeholder
+  view + Linux `BackendGTK4` main, all at Swift 5 mode +
+  minimal strict-concurrency):
+  - `QuillSignal` / `QuillSignalCore`
+  - `QuillTelegram` / `QuillTelegramCore`
+  - `QuillIINA` / `QuillIINACore`
+- Three new executable products + three new macOS CI hard
+  gates.
+
+## Checkpoint 86: CodeEdit Scaffold (Sidesteps SwiftLintPlugin)
+
+- Added `QuillCodeEdit` / `QuillCodeEditCore` as the eighth
+  pair. The vendored `CodeEditUpstream` target stays opt-in via
+  `scripts/fetch-upstream.sh codeedit codeeditsymbols` because
+  `CodeEditApp/CodeEditSymbols` pulls in a SwiftLintPlugin
+  prebuild command that SwiftPM 6 rejects (`a prebuild command
+  cannot use executables built from source`). The new target
+  sidesteps that opt-in path entirely.
+- macOS CI hard-gates `Build QuillCodeEdit`.
+
+After this checkpoint every app target in `docs/app-targets.md`
+compiles green on macOS CI as a hard gate.
+
+## Checkpoint 87: WireGuard Side Target Hard-Gated
+
+- Patched `WireGuardKitC.h` to explicitly
+  `#include <sys/types.h>` so the macOS 15+ modular-header
+  check on its BSD types (`u_int32_t`, `u_char`, `u_int16_t`,
+  `sockaddr_ctl`) resolves through the right
+  `DarwinFoundation.unsigned_types.*` modules. Patch lives in
+  `scripts/fetch-upstream.sh` next to the existing
+  `CodeEditSymbols` `Symbols.xcassets` resource patch —
+  idempotent (skips when the include is already present).
+- macOS CI `Build QuillWireGuard` moves off best-effort to a
+  hard gate.
+
+Final compile scorecard — every app in `docs/app-targets.md`
+is now compile-green on macOS CI as a hard gate:
+
+```
+Enchanted ✅  IceCubes ✅  NetNewsWire ✅  CodeEdit ✅
+Signal ✅     Telegram ✅  IINA ✅         WireGuard ✅
+```
+
+The only remaining `continue-on-error` macOS step is
+`Build entire package` (orphan `NetNewsWireLogic` upstream
+target still trips it) and `Run tests` (test suite
+re-stabilizing after in-tree NetNewsWire vendoring). Linux CI
+is fully hard-gated (Swift tests + generated Enchanted
+compile + 4 GTK smokes + offscreen renderer).
+
+## Checkpoint 89: Placeholders → Functional Fixture Shells
+
+After the compile-green scorecard, the four newly-added
+placeholders grew real fixture-only content so they look like
+the apps they're shadowing:
+
+- **Signal**: NavigationSplitView + sidebar list of three
+  seeded `Conversation` rows ("Family", "Coworker",
+  "Notes To Self"). Detail pane: scrollable message stream
+  with rounded bubbles (blue for `fromSelf`, gray for others)
+  + sender label.
+- **Telegram**: same chat-app shape but with folder filter
+  pills ("All" / "Personal" / "Work") above a `Chat` list.
+  Four seeded chats with unread-count badges. Detail pane
+  identical bubble shape to Signal.
+- **IINA**: desktop-player layout. Top: now-playing title +
+  Play/Pause/Stop transport controls + duration. Left sidebar:
+  playlist with `+ Add file` button (placeholder) + four
+  seeded Blender Foundation shorts. Right canvas: large
+  ▶/⏸ indicator backed by `isPlaying` toggle.
+- **CodeEdit**: IDE layout. File-tree sidebar with file-type
+  emoji icons. Tab bar with close × per tab + active-tab
+  highlight. Editor pane: monospaced `ScrollView` with
+  `textSelection(.enabled)` over the active `ProjectFile`'s
+  contents. Fixture project "QuillSample" ships
+  `README.md` / `main.swift` / `Package.swift` /
+  `.swiftformat`.
+
+Each app target now renders a useful shape on first open
+instead of a placeholder text block. Real backends (libsignal
+encryption, MTProto, mpv playback, NSTextView-backed editor)
+remain follow-up slices behind a protocol so the views don't
+need to change when they land.
