@@ -145,9 +145,18 @@ jobs:
         continue-on-error: true
         run: swift build
 
-      # Tests are still being re-stabilized after the in-tree NetNewsWire
-      # vendoring; skip on failure for now so green CI is achievable while
-      # tests are repaired. Remove `continue-on-error` once stable.
+      # `swift test` builds every declared target, including the
+      # orphan NetNewsWireLogic upstream target (gated by
+      # `nnwUpstreamPresent`) whose Shared/ tree references Mac-only
+      # types like `Node` and `AccountManager` that don't resolve
+      # without the rest of the upstream NetNewsWire app. That kills
+      # the macOS test invocation before our hard-gated test targets
+      # (QuillChatKitTests, QuillKitTests, the per-core suites) can
+      # be exercised. Linux CI runs `swift test` end-to-end and is
+      # the actual hard-gate on test PASS/FAIL — Linux caught the
+      # ChatDraft.sendMessage draft-loss bug in 40d2356, for example.
+      # This step stays best-effort until NetNewsWireLogic is split
+      # or removed.
       - name: Run tests (best-effort)
         continue-on-error: true
         run: swift test
