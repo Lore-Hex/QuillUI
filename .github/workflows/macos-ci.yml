@@ -66,6 +66,13 @@ jobs:
       - name: Build QuillIceCubesCoreTests
         run: swift build --target QuillIceCubesCoreTests
 
+      # Pins QuillNetNewsWireCore's local RSS 2.0 + Atom parser
+      # via fixture XML strings: title / link / pubDate /
+      # description decoding, CDATA, Untitled + id fallbacks,
+      # and RSSItem's derived URL + plain-text properties.
+      - name: Build QuillNetNewsWireCoreTests
+        run: swift build --target QuillNetNewsWireCoreTests
+
       - name: Build QuillEnchanted
         run: swift build --target QuillEnchanted
 

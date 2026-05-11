@@ -209,8 +209,12 @@ final class RSSReaderModel: ObservableObject {
 /// Captures `title`, `link`, `pubDate`/`updated`, and
 /// `description`/`content` per item — enough to drive the
 /// reader's sidebar list and detail pane.
-private struct RSSFeedParser {
-    struct Result {
+///
+/// Internal (not private) so QuillNetNewsWireCoreTests can pin
+/// the parse behavior via `@testable import` without going
+/// through `URLSession`.
+struct RSSFeedParser {
+    struct Result: Equatable {
         var title: String?
         var items: [RSSItem] = []
     }

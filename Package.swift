@@ -1006,6 +1006,21 @@ let package = Package(
                 .swiftLanguageMode(.v5),
                 .unsafeFlags(["-strict-concurrency=minimal"])
             ]
+        ),
+        // Pins the RSS 2.0 + Atom parser inside
+        // QuillNetNewsWireCore via @testable import — feeds it
+        // fixture XML strings (no URLSession), asserts title /
+        // link / pubDate / description decoding, CDATA support,
+        // Untitled + id fallbacks, and RSSItem's derived URL +
+        // plain-text properties (HTML tag stripping and the
+        // shared entity set).
+        .testTarget(
+            name: "QuillNetNewsWireCoreTests",
+            dependencies: ["QuillNetNewsWireCore"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"])
+            ]
         )
     ]
 )
