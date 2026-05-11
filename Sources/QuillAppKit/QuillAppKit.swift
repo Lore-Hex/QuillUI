@@ -578,7 +578,12 @@ public extension NSWindowDelegate {
 // MARK: - NSApplication
 
 @MainActor open class NSApplication: NSResponder {
-    public static let shared = NSApplication()
+    // Real `NSApplication.shared` is reachable from nonisolated
+    // contexts on Apple platforms (the framework predates Swift
+    // concurrency). Mark the Linux stub `nonisolated(unsafe)` so
+    // call sites like `NSApp.currentEvent` (from a nonisolated
+    // SwiftUI closure) compile.
+    nonisolated(unsafe) public static let shared = NSApplication()
     public weak var delegate: NSApplicationDelegate?
     public var mainMenu: NSMenu?
     public var windows: [NSWindow] = []
