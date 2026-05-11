@@ -1,6 +1,7 @@
 // swift-tools-version: 6.0
 
 import PackageDescription
+import CompilerPluginSupport
 import Foundation
 
 // Upstream-checkout gating.
@@ -222,9 +223,26 @@ var targets: [Target] = [
             .apt(["libgtk-4-dev"])
         ]
     ),
+    // QuillDataMacros declares the @QuillModel / @Attribute /
+    // @Relationship / @QuillPredicate / @Observable macros used
+    // by QuillData. The compiler loads it as an out-of-process
+    // build plugin; without a `.macro(…)` declaration here,
+    // `#externalMacro(module: "QuillDataMacros", …)` references
+    // fail with "plugin for module 'QuillDataMacros' not found".
+    .macro(
+        name: "QuillDataMacros",
+        dependencies: [
+            .product(name: "SwiftSyntax", package: "swift-syntax"),
+            .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+            .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
+            .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
+        ],
+        path: "Sources/QuillDataMacros"
+    ),
     .target(
         name: "QuillData",
         dependencies: [
+            "QuillDataMacros",
             "CSQLite",
             .product(name: "SQLiteData", package: "sqlite-data"),
             .product(name: "GRDB", package: "GRDB.swift")
