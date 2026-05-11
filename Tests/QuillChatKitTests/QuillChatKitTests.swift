@@ -70,4 +70,27 @@ struct QuillChatKitTests {
         #expect(bubble.message.id == msg.id)
         #expect(bubble.message.fromSelf)
     }
+
+    @Test("ChatDraft.isSendable rejects empty + whitespace-only drafts")
+    func chatDraftRejectsEmpty() {
+        #expect(ChatDraft.isSendable("") == false)
+        #expect(ChatDraft.isSendable("   ") == false)
+        #expect(ChatDraft.isSendable("\n\t  \n") == false)
+    }
+
+    @Test("ChatDraft.isSendable accepts drafts with any non-whitespace")
+    func chatDraftAcceptsContent() {
+        #expect(ChatDraft.isSendable("hi"))
+        #expect(ChatDraft.isSendable("  hi  "))
+        #expect(ChatDraft.isSendable("hi\n"))
+        #expect(ChatDraft.isSendable("👋"))
+    }
+
+    @Test("ChatDraft.trimmed strips leading + trailing whitespace and newlines")
+    func chatDraftTrims() {
+        #expect(ChatDraft.trimmed("  hello  ") == "hello")
+        #expect(ChatDraft.trimmed("\n\nhello\n") == "hello")
+        #expect(ChatDraft.trimmed("hi there") == "hi there")
+        #expect(ChatDraft.trimmed("") == "")
+    }
 }

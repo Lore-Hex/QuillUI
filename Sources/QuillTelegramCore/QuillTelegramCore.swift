@@ -19,8 +19,10 @@ import QuillChatKit
 /// model, the folder filter, and the unread-badge logic.
 @MainActor
 public struct QuillTelegramContentView: View {
+    @State private var chats = QuillTelegramFixtures.chats
     @State private var selectedFolder = "All"
     @State private var selectedChatID: Chat.ID? = QuillTelegramFixtures.chats.first?.id
+    @State private var draft = ""
 
     public init() {}
 
@@ -35,8 +37,8 @@ public struct QuillTelegramContentView: View {
     private var folders: [String] { ["All", "Personal", "Work"] }
 
     private var visibleChats: [Chat] {
-        if selectedFolder == "All" { return QuillTelegramFixtures.chats }
-        return QuillTelegramFixtures.chats.filter { $0.folder == selectedFolder }
+        if selectedFolder == "All" { return chats }
+        return chats.filter { $0.folder == selectedFolder }
     }
 
     private var sidebar: some View {
@@ -86,7 +88,11 @@ public struct QuillTelegramContentView: View {
     private var detail: some View {
         Group {
             if let chat = currentChat {
-                ChatTimeline(title: chat.title, messages: chat.messages)
+                VStack(spacing: 0) {
+                    ChatTimeline(title: chat.title, messages: chat.messages)
+                    Divider()
+                    ChatComposer(draft: $draft, onSend: send)
+                }
             } else {
                 Text("Select a chat")
                     .font(.title2)
@@ -99,6 +105,17 @@ public struct QuillTelegramContentView: View {
     private var currentChat: Chat? {
         guard let id = selectedChatID else { return nil }
         return visibleChats.first(where: { $0.id == id })
+    }
+
+    private func send() {
+        guard ChatDraft.isSendable(draft),
+              let id = selectedChatID,
+              let idx = chats.firstIndex(where: { $0.id == id })
+        else { return }
+        chats[idx].messages.append(
+            TGMessage(sender: "Me", body: ChatDraft.trimmed(draft), fromSelf: true)
+        )
+        draft = ""
     }
 }
 

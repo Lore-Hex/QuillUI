@@ -88,6 +88,54 @@ public struct ChatRow: View {
     }
 }
 
+/// Predicate for whether a draft string would actually produce a
+/// sendable message. Trims whitespace + newlines and requires the
+/// remainder to be non-empty. Hosts use this to drive the Send
+/// button's `.disabled` state and to short-circuit empty submits.
+public enum ChatDraft {
+    public static func isSendable(_ draft: String) -> Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    public static func trimmed(_ draft: String) -> String {
+        draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+/// A composer row: text field bound to a draft string + Send
+/// button that fires `onSend`. The composer itself does NOT
+/// append messages or mutate any model — hosts own that step so
+/// they can decide which conversation receives the message and
+/// how to render the resulting state.
+@MainActor
+public struct ChatComposer: View {
+    public let placeholder: String
+    @Binding public var draft: String
+    public let onSend: () -> Void
+
+    public init(
+        placeholder: String = "Message",
+        draft: Binding<String>,
+        onSend: @escaping () -> Void
+    ) {
+        self.placeholder = placeholder
+        self._draft = draft
+        self.onSend = onSend
+    }
+
+    public var body: some View {
+        HStack(spacing: 8) {
+            TextField(placeholder, text: $draft)
+            Button("Send") {
+                onSend()
+            }
+            .disabled(!ChatDraft.isSendable(draft))
+        }
+        .padding(10)
+        .background(Color.gray.opacity(0.06))
+    }
+}
+
 /// A header + scrolling stack of `ChatBubble`s. Used by Signal,
 /// Telegram, and any other app rendering a conversation timeline.
 @MainActor

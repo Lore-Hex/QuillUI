@@ -20,6 +20,7 @@ import QuillChatKit
 public struct QuillSignalContentView: View {
     @State private var conversations = QuillSignalFixtures.conversations
     @State private var selectedID: Conversation.ID? = QuillSignalFixtures.conversations.first?.id
+    @State private var draft = ""
 
     public init() {}
 
@@ -55,7 +56,11 @@ public struct QuillSignalContentView: View {
     private var detail: some View {
         Group {
             if let conversation = currentConversation {
-                ChatTimeline(title: conversation.name, messages: conversation.messages)
+                VStack(spacing: 0) {
+                    ChatTimeline(title: conversation.name, messages: conversation.messages)
+                    Divider()
+                    ChatComposer(draft: $draft, onSend: send)
+                }
             } else {
                 Text("Select a conversation")
                     .font(.title2)
@@ -68,6 +73,17 @@ public struct QuillSignalContentView: View {
     private var currentConversation: Conversation? {
         guard let selectedID else { return nil }
         return conversations.first(where: { $0.id == selectedID })
+    }
+
+    private func send() {
+        guard ChatDraft.isSendable(draft),
+              let id = selectedID,
+              let idx = conversations.firstIndex(where: { $0.id == id })
+        else { return }
+        conversations[idx].messages.append(
+            Message(sender: "Me", body: ChatDraft.trimmed(draft), fromSelf: true)
+        )
+        draft = ""
     }
 }
 
