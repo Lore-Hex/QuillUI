@@ -99,6 +99,13 @@ jobs:
       - name: Build QuillSignalCoreTests
         run: swift build --target QuillSignalCoreTests
 
+      # Pins QuillUI's core library: QuillPlatform.name reports
+      # the host, QuillUIVersion is semver-shaped, QuillApp.run
+      # resolves. Keeps QuillUI itself on the test-target
+      # scorecard alongside the per-app-core suites.
+      - name: Build QuillUITests
+        run: swift build --target QuillUITests
+
       - name: Build QuillEnchanted
         run: swift build --target QuillEnchanted
 

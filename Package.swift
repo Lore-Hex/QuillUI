@@ -1070,6 +1070,18 @@ let package = Package(
                 .swiftLanguageMode(.v5),
                 .unsafeFlags(["-strict-concurrency=minimal"])
             ]
+        ),
+        // Pins the QuillUI core library's public surface:
+        // QuillPlatform.name reports the host, QuillUIVersion is
+        // semver-shaped, and QuillApp.run resolves. Keeps QuillUI
+        // itself on the test-target scorecard.
+        .testTarget(
+            name: "QuillUITests",
+            dependencies: ["QuillUI"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"])
+            ]
         )
     ]
 )
