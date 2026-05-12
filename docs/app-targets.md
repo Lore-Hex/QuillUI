@@ -50,7 +50,7 @@ Audit doc:
 
 ## Side Target: WireGuard Apple
 
-Status: compile-green hard-gated on macOS CI (CP87). `scripts/fetch-upstream.sh wireguard` patches `WireGuardKitC.h` to explicitly `#include <sys/types.h>` so the macOS 15+ modular-header check on `u_int32_t` / `u_char` / `u_int16_t` resolves through the right Darwin module. The configuration-manager UI shell remains a follow-up.
+Status: compile-green hard-gated on macOS CI (CP87). `scripts/fetch-upstream.sh wireguard` patches `WireGuardKitC.h` to explicitly `#include <sys/types.h>` so the macOS 15+ modular-header check on `u_int32_t` / `u_char` / `u_int16_t` resolves through the right Darwin module. A Linux configuration-manager shell now renders deterministic tunnel fixtures with interface details, peer details, editable tunnel names, and `wg-quick` export text; privileged connect/disconnect remains behind a future backend adapter.
 
 Why it matters:
 
@@ -58,10 +58,10 @@ Why it matters:
 - It should be a relatively contained way to test QuillUI forms, lists, disclosure sections, file import/export, QR/config flows, and service-status UI.
 - The Linux app should not try to clone Apple's NetworkExtension stack. The likely Linux path is an adapter over installed WireGuard tooling or NetworkManager, with the Apple-specific tunnel implementation hidden behind a reusable service boundary.
 
-Likely first milestone:
+Next milestone:
 
-- Build a Linux configuration manager shell that can list, edit, import, and export tunnel configs while stubbing the privileged connect/disconnect path.
-- Then wire connect/disconnect through a Linux-specific backend when running on a real desktop with the right permissions.
+- Add import parsing for `.conf` text/files and persist edited tunnel fixtures through QuillData.
+- Wire connect/disconnect through a Linux-specific backend when running on a real desktop with the right permissions.
 
 ## 4. CodeEdit
 

@@ -612,9 +612,9 @@ if nnwUpstreamPresent {
 // (`u_int32_t`, `u_char`, `sockaddr_ctl`) and pulls in macOS
 // kernel-control APIs. CommonCryptoLinux covers x25519.c's
 // `<CommonCrypto/CommonRandom.h>` but not the header-side
-// Darwinisms. Per the prior checkpoint plan, Linux WireGuard
-// stays a `QuillWireGuardCore` placeholder until a real Linux
-// backend lands.
+// Darwinisms. Linux WireGuard therefore runs as a configuration
+// manager shell backed by `QuillWireGuardCore` fixtures until a
+// real privileged backend adapter lands.
 #if !os(Linux)
 if wireguardUpstreamPresent {
     targets += [
@@ -1021,6 +1021,14 @@ let package = Package(
         .testTarget(
             name: "QuillSignalCoreTests",
             dependencies: ["QuillSignalCore", "QuillChatKit"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Pins QuillWireGuardCore: deterministic tunnel fixtures,
+        // backend availability reporting, and wg-quick export text
+        // used by the Linux configuration-manager shell.
+        .testTarget(
+            name: "QuillWireGuardCoreTests",
+            dependencies: ["QuillWireGuardCore"],
             swiftSettings: appSwiftSettings
         ),
         // Pins the QuillUI core library's public surface:

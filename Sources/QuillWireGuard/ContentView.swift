@@ -1,4 +1,5 @@
 import QuillUI
+import QuillWireGuardCore
 import SwiftUI
 
 #if canImport(WireGuardKit)
@@ -6,57 +7,189 @@ import WireGuardKit
 #endif
 
 #if os(Linux)
-// Linux variant: SwiftOpenUI doesn't ship List(_:selection:) / .listStyle(
-// .sidebar) / .buttonStyle(.borderless), so we use a simpler stack-based
-// view. WireGuardKit is currently macOS-only (the upstream
-// `WireGuardKitC.h` uses Darwin-specific BSD types), so the Linux
-// build shows a placeholder until a Linux backend exists.
-#if canImport(WireGuardKit)
+// Linux variant: SwiftOpenUI doesn't ship List(_:selection:) /
+// .listStyle(.sidebar) / .buttonStyle(.borderless), so the app
+// uses explicit buttons inside a split layout. Privileged tunnel
+// activation stays behind a future backend adapter; this shell
+// keeps configuration list/edit/export UI rendering now.
+@MainActor
 struct ContentView: View {
-    @State private var tunnel: TunnelConfiguration?
+    @State private var tunnels = QuillWireGuardFixtures.tunnels
+    @State private var selectedTunnelID = QuillWireGuardFixtures.defaultTunnelID
 
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Quill WireGuard (Linux)")
-                .font(.title)
-            Text("Click the button to generate a real Curve25519 keypair via the upstream WireGuardKit Swift library.")
-                .multilineTextAlignment(.center)
+    nonisolated var body: some View {
+        QuillMainActorView.assumeIsolated {
+            HStack(spacing: 0) {
+                sidebar
+                    .frame(width: 280)
+                Divider()
+                detail
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(minWidth: 800, minHeight: 560)
+        }
+    }
 
-            Button(action: addTunnel) {
-                Text("Generate Keypair")
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Tunnels")
+                    .font(.title3)
+                    .bold()
+                Spacer()
+                Text("\(tunnels.count)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(14)
+
+            Divider()
+
+            List {
+                ForEach(tunnels) { tunnel in
+                    Button {
+                        selectedTunnelID = tunnel.id
+                    } label: {
+                        tunnelRow(tunnel)
+                    }
+                }
             }
 
-            if let tunnel = tunnel {
-                Text("Generated tunnel: \(tunnel.name ?? "Unnamed")")
-                Text("Public key: \(tunnel.interface.privateKey.publicKey.base64Key)")
-                    .font(.system(size: 11, design: .monospaced))
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Backend")
+                    .font(.caption)
+                    .bold()
+                    .foregroundColor(.secondary)
+                Text(QuillWireGuardBackend.statusText)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
+            .padding(12)
         }
-        .padding(20)
+        .background(Color.gray.opacity(0.06))
     }
 
-    private func addTunnel() {
-        let interfacePrivateKey = PrivateKey()
-        var interface = InterfaceConfiguration(privateKey: interfacePrivateKey)
-        interface.listenPort = 51820
-        let peer = PeerConfiguration(publicKey: PrivateKey().publicKey)
-        tunnel = TunnelConfiguration(name: "Quill Tunnel", interface: interface, peers: [peer])
-    }
-}
-#else
-struct ContentView: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Quill WireGuard (Linux)")
-                .font(.title)
-            Text("WireGuardKit is not yet available on Linux. Once a Linux backend exists, this view will generate Curve25519 keypairs through it.")
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 20)
+    private func tunnelRow(_ tunnel: QuillWireGuardTunnel) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(tunnel.name)
+                    .font(.subheadline)
+                Spacer()
+                Text(tunnel.status.rawValue)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            Text("\(tunnel.interface.addresses.joined(separator: ", ")) - \(tunnel.peerSummary)")
+                .font(.caption2)
+                .foregroundColor(.secondary)
         }
-        .padding(20)
+        .padding(.vertical, 5)
+    }
+
+    private var detail: some View {
+        Group {
+            if let tunnel = selectedTunnel {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(alignment: .firstTextBaseline) {
+                            TextField("Tunnel name", text: selectedTunnelName)
+                                .font(.title2)
+                            Spacer()
+                            Text(tunnel.status.rawValue)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        section(title: "Interface") {
+                            detailRow("Public key", tunnel.interface.publicKey, monospaced: true)
+                            detailRow("Addresses", tunnel.interface.addresses.joined(separator: ", "))
+                            detailRow("DNS", tunnel.interface.dnsServers.joined(separator: ", "))
+                            if let listenPort = tunnel.interface.listenPort {
+                                detailRow("Listen port", "\(listenPort)")
+                            }
+                        }
+
+                        ForEach(tunnel.peers) { peer in
+                            section(title: peer.name) {
+                                detailRow("Public key", peer.publicKey, monospaced: true)
+                                detailRow("Allowed IPs", peer.allowedIPs.joined(separator: ", "))
+                                if let endpoint = peer.endpoint {
+                                    detailRow("Endpoint", endpoint)
+                                }
+                                if let keepAlive = peer.persistentKeepAlive {
+                                    detailRow("Keepalive", "\(keepAlive)s")
+                                }
+                            }
+                        }
+
+                        section(title: "Export") {
+                            Text(tunnel.wgQuickConfig())
+                                .font(.system(size: 11, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(22)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                VStack(spacing: 8) {
+                    Text("Quill WireGuard")
+                        .font(.title2)
+                    Text("Select a tunnel to edit and export its configuration.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func section<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(.caption)
+                .bold()
+                .foregroundColor(.secondary)
+            content()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.gray.opacity(0.08))
+    }
+
+    private func detailRow(_ label: String, _ value: String, monospaced: Bool = false) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .frame(width: 92, alignment: .leading)
+            Text(value.isEmpty ? "None" : value)
+                .font(monospaced ? .system(size: 11, design: .monospaced) : .body)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var selectedTunnel: QuillWireGuardTunnel? {
+        guard let selectedTunnelID else { return nil }
+        return tunnels.first(where: { $0.id == selectedTunnelID })
+    }
+
+    private var selectedTunnelName: Binding<String> {
+        Binding(
+            get: { selectedTunnel?.name ?? "" },
+            set: { name in
+                guard let selectedTunnelID,
+                      let index = tunnels.firstIndex(where: { $0.id == selectedTunnelID }) else {
+                    return
+                }
+                tunnels[index].name = name
+            }
+        )
     }
 }
-#endif
 #else
 struct ContentView: View {
     #if canImport(WireGuardKit)

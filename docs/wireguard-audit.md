@@ -14,11 +14,11 @@ WireGuard Apple is a UIKit (iOS) and AppKit (macOS) application. To bring it to 
 - **Linux Strategy:** Reuse these models directly for parsing `.conf` files and managing state.
 
 ### 2. UI (SwiftUI Implementation)
-- **Status:** To be built from scratch using QuillUI.
+- **Status:** First Linux shell implemented with QuillUI.
 - **Required Views:**
-    - `TunnelListView`: List of available tunnels with status indicators (on/off).
-    - `TunnelDetailView`: Detailed configuration view (Form-based).
-    - `TunnelEditView`: Editor for tunnel settings (Interface, Peers).
+    - `TunnelListView`: List of available tunnels with status indicators.
+    - `TunnelDetailView`: Detailed configuration view for interface, peers, and export text.
+    - `TunnelEditView`: Editor for tunnel settings (first slice edits tunnel names; interface/peer editing remains next).
     - `ImportView`: File picker or QR code scanner (using QuillUI shims).
 
 ### 3. Backend (Linux Adapter)
@@ -30,6 +30,6 @@ WireGuard Apple is a UIKit (iOS) and AppKit (macOS) application. To bring it to 
 - **QR Code Scanning:** Requires camera access and a decoder. We may need to shim `AVFoundation` more deeply or use a Linux library.
 
 ## Next Steps
-1. Scaffold `QuillWireGuard` target in `Package.swift`.
-2. Implement basic `TunnelConfiguration` storage using `QuillData`.
-3. Build the `TunnelListView` using `QuillUI`.
+1. Add `.conf` import parsing and file picker wiring.
+2. Persist edited tunnels through QuillData instead of static fixtures.
+3. Wire the privileged Linux connect/disconnect path through a backend adapter.

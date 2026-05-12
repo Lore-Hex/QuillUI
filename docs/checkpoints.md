@@ -2325,3 +2325,19 @@ The IceCubes GTK profile bare mode now renders a real public-timeline
 title instead of user-visible placeholder wording. Tests pin the label
 so the profiling escape hatch remains suitable for screenshot and
 profile loops.
+
+## Checkpoint 124: WireGuard Configuration Shell
+
+Status: implemented locally; queued for CI.
+
+`QuillWireGuardCore` now ships deterministic tunnel, interface, and peer
+fixtures plus `wg-quick` export generation and explicit backend
+availability reporting. The Linux `quill-wireguard` executable renders a
+configuration-manager shell with a tunnel list, editable tunnel name,
+interface details, peer details, backend status, and export text instead
+of a missing-backend message.
+
+`QuillWireGuardCoreTests` pins fixture shape, backend reporting, and
+export text so WireGuard stays on the same fixture-backed app-shell track
+as Signal, Telegram, IINA, and CodeEdit while privileged connect and
+disconnect remain a backend follow-up.
