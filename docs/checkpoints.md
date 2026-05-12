@@ -2222,3 +2222,16 @@ source-lowering harnesses instead.
 Removing the orphaned plugin leaves `QuillAssetSymbolsPlugin` as the
 single build-tool plugin in the manifest and avoids compiling/testing
 dead build scaffolding on every local and CI run.
+
+## Checkpoint 115: Profile Runner Missing-Row Guard
+
+Status: implemented locally; queued for CI.
+
+The shared Linux GTK profile CSV runner now records an explicit failing
+row when a profiler exits before emitting product metrics. This closes a
+silent coverage hole where a missing product row could leave the budget
+checker with no evidence of that product's failure.
+
+`LinuxGTKAppMatrixTests` covers the case with a fake profiler that exits
+42 without stdout, verifies the synthesized `profiler-exit-42` row is
+written to the CSV, and confirms the budget checker rejects it.

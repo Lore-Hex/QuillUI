@@ -51,10 +51,25 @@ if [[ ! -x "$PROFILE_SCRIPT" ]]; then
   exit 66
 fi
 
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/quillui-profile-csv.XXXXXX")"
+cleanup() {
+  rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT
+
 {
   echo "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
   for product in "${PRODUCTS[@]}"; do
     [[ -n "$product" ]] || continue
-    "$PROFILE_SCRIPT" "$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS" || true
+    row_path="$TMP_DIR/${product//[^A-Za-z0-9_.-]/_}.csv"
+    status=0
+    "$PROFILE_SCRIPT" "$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS" >"$row_path" || status=$?
+    if [[ -s "$row_path" ]]; then
+      cat "$row_path"
+    elif [[ "$status" -eq 0 ]]; then
+      echo "$product,0,0,0,0.0,0.0,profiler-empty-output"
+    else
+      echo "$product,0,0,0,0.0,0.0,profiler-exit-$status"
+    fi
   done
 } | tee "$CSV_PATH"

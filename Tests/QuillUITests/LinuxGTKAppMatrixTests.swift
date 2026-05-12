@@ -129,6 +129,46 @@ struct LinuxGTKAppMatrixTests {
         #expect(writtenCSV == expected)
     }
 
+    @Test("profile CSV runner records profilers that fail before emitting rows")
+    func profileCSVRunnerRecordsSilentProfilerFailures() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/run-linux-gtk-profile-csv.sh")
+        let budgetScript = root.appendingPathComponent("scripts/check-linux-gtk-profile-budget.sh")
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-profile-silent-failure-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        let csv = temporaryDirectory.appendingPathComponent("profile.csv")
+        let fakeProfiler = temporaryDirectory.appendingPathComponent("silent-profiler.sh")
+        try """
+        #!/usr/bin/env bash
+        exit 42
+
+        """.write(to: fakeProfiler, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeProfiler.path)
+
+        let result = try runScript(
+            script,
+            arguments: [csv.path, "silent-product"],
+            environment: ["QUILLUI_GTK_PROFILE_COMMAND": fakeProfiler.path]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        let expected = """
+        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
+        silent-product,0,0,0,0.0,0.0,profiler-exit-42
+
+        """
+        #expect(result.output == expected)
+        #expect(try String(contentsOf: csv, encoding: .utf8) == expected)
+
+        let budget = try runScript(budgetScript, arguments: [csv.path, "--max-cpu-pct", "25"])
+        #expect(budget.status != 0)
+        #expect(budget.output.contains("silent-product exit_status=profiler-exit-42"))
+    }
+
     private func runScript(
         _ script: URL,
         arguments: [String] = [],
