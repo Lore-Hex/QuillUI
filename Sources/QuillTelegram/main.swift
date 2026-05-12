@@ -1,13 +1,11 @@
 import QuillTelegramCore
 import QuillUI
 
-@MainActor
 struct QuillTelegramApp: App {
     var body: some Scene {
-        WindowGroup("Quill Telegram") {
+        QuillAppWindow.scene("Quill Telegram", width: 1000, height: 720) {
             QuillTelegramContentView()
         }
-        .defaultSize(width: 1000, height: 720)
     }
 }
 

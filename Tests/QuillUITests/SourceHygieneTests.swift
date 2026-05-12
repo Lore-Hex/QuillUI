@@ -65,6 +65,39 @@ struct SourceHygieneTests {
         #expect(!workflows.contains("uses: actions/upload-artifact@v5"))
     }
 
+    @Test("App entry points use the shared Quill window scene")
+    func appEntryPointsUseSharedQuillWindowScene() throws {
+        let root = try packageRoot()
+        let helperSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillApp.swift"),
+            encoding: .utf8
+        )
+        let appEntryPointPaths = [
+            "Sources/QuillSignal/main.swift",
+            "Sources/QuillTelegram/main.swift",
+            "Sources/QuillIINA/main.swift",
+            "Sources/QuillCodeEdit/main.swift",
+            "Sources/QuillNetNewsWire/main.swift",
+            "Sources/QuillIceCubes/main.swift",
+            "Sources/QuillWireGuard/main.swift",
+            "Sources/QuillEnchantedCore/EnchantedApp.swift",
+            "Sources/QuillEnchantedUpstreamSlice/main.swift"
+        ]
+
+        #expect(helperSource.contains("public enum QuillAppWindow"))
+        #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
+        #expect(helperSource.contains(".defaultSize(width: width, height: height)"))
+
+        for path in appEntryPointPaths {
+            let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+
+            #expect(source.contains("QuillAppWindow.scene("), "\(path) should use the shared scene helper")
+            #expect(!source.contains("WindowGroup("), "\(path) should not hand-roll WindowGroup setup")
+            #expect(!source.contains(".defaultWindowSize("), "\(path) should not branch into Linux-only sizing")
+            #expect(!source.contains(".defaultSize("), "\(path) should let QuillAppWindow own default sizing")
+        }
+    }
+
     private func packageRoot() throws -> URL {
         var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let fileManager = FileManager.default

@@ -48,5 +48,6 @@ struct QuillUITests {
         // Keep the reference so unused-symbol pruning can't omit
         // QuillApp from the binary.
         _ = QuillApp.self
+        _ = QuillAppWindow.self
     }
 }

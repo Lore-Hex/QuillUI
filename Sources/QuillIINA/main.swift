@@ -1,13 +1,11 @@
 import QuillIINACore
 import QuillUI
 
-@MainActor
 struct QuillIINAApp: App {
     var body: some Scene {
-        WindowGroup("Quill IINA") {
+        QuillAppWindow.scene("Quill IINA", width: 960, height: 600) {
             QuillIINAContentView()
         }
-        .defaultSize(width: 960, height: 600)
     }
 }
 

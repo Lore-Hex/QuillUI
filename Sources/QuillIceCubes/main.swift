@@ -9,17 +9,11 @@
 import QuillIceCubesCore
 import QuillUI
 
-// `@MainActor` matches every other Quill app shell — SwiftOpenUI's
-// `App` body is nonisolated-by-default; the annotation lets the
-// `WindowGroup` content closure reach the `@MainActor`
-// `QuillIceCubesContentView.init()` without a hop.
-@MainActor
 struct QuillIceCubesApp: App {
     var body: some Scene {
-        WindowGroup("Quill IceCubes") {
+        QuillAppWindow.scene("Quill IceCubes", width: 800, height: 600) {
             QuillIceCubesContentView()
         }
-        .defaultSize(width: 800, height: 600)
     }
 }
 

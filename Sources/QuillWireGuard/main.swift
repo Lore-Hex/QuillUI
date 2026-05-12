@@ -2,12 +2,9 @@ import QuillUI
 
 struct QuillWireGuardApp: App {
     var body: some Scene {
-        WindowGroup("Quill WireGuard") {
-            QuillMainActorView.assumeIsolated {
-                ContentView()
-            }
+        QuillAppWindow.scene("Quill WireGuard", width: 800, height: 600) {
+            ContentView()
         }
-        .defaultSize(width: 800, height: 600)
     }
 }
 

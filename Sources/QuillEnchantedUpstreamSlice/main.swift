@@ -137,21 +137,9 @@ private extension String {
 
 struct UpstreamSliceApp: App {
     var body: some Scene {
-        #if canImport(SwiftUI)
-        WindowGroup("Quill Enchanted Upstream Slice") {
-            QuillMainActorView.assumeIsolated {
-                UpstreamSliceRoot()
-            }
+        QuillAppWindow.scene("Quill Enchanted Upstream Slice", width: 1180, height: 760) {
+            UpstreamSliceRoot()
         }
-        .defaultSize(width: 1180, height: 760)
-        #else
-        WindowGroup("Quill Enchanted Upstream Slice") {
-            QuillMainActorView.assumeIsolated {
-                UpstreamSliceRoot()
-            }
-        }
-        .defaultWindowSize(width: 1180, height: 760)
-        #endif
     }
 }
 

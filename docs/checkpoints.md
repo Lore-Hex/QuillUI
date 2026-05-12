@@ -2418,3 +2418,20 @@ that uses the Node 24 runtime.
 `SourceHygieneTests` now scan the workflow files to keep those pins from
 regressing back to the Node 20-backed `checkout@v4`,
 `upload-artifact@v4`, or `upload-artifact@v5` actions.
+
+## Checkpoint 130: Shared Quill App Window Scene
+
+Status: implemented locally; guarded by source hygiene tests.
+
+`QuillUI` now owns the shared app-window scene pattern through
+`QuillAppWindow.scene`. The helper wraps root content with the same
+main-actor bridge on every platform and applies QuillUI's normalized
+default sizing API, so executable entry points no longer hand-roll
+`WindowGroup`, Linux-specific `defaultWindowSize`, or per-app actor
+annotations and comments.
+
+Signal, Telegram, IINA, CodeEdit, NetNewsWire, IceCubes, WireGuard,
+Enchanted, and the Enchanted upstream slice now call the same scene
+helper. `SourceHygieneTests` pin those entry points to the helper and
+reject direct `WindowGroup` / default-size setup in the app shells so the
+Linux and native SwiftUI launch paths stay visually aligned.

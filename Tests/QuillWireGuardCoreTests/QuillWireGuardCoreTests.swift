@@ -69,14 +69,21 @@ struct QuillWireGuardCoreTests {
         #expect(!source.contains("Click + in the sidebar to generate a fresh\\nCurve25519 keypair via upstream WireGuardKit."))
     }
 
-    @Test("WireGuard app entry point crosses into the main actor before constructing content")
+    @Test("WireGuard app entry point uses the shared main-actor scene helper")
     func wireGuardAppEntryPointUsesMainActorViewHelper() throws {
-        let sourceURL = try packageRoot()
-            .appendingPathComponent("Sources/QuillWireGuard/main.swift")
-        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        let root = try packageRoot()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillWireGuard/main.swift"),
+            encoding: .utf8
+        )
+        let helperSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillApp.swift"),
+            encoding: .utf8
+        )
 
-        #expect(source.contains("QuillMainActorView.assumeIsolated"))
+        #expect(source.contains("QuillAppWindow.scene(\"Quill WireGuard\""))
         #expect(source.contains("ContentView()"))
+        #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
     }
 
     private func packageRoot() throws -> URL {
