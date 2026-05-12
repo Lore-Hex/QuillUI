@@ -6,10 +6,14 @@ struct LinuxGTKAppMatrixTests {
     @Test("covers each user-facing app product once")
     func coversEachUserFacingAppProductOnce() throws {
         let root = try packageRoot()
-        let matrixScript = root.appendingPathComponent("scripts/linux-gtk-app-products.sh")
+        let matrixScript = root.appendingPathComponent("scripts/quillui-backend-products.sh")
+        let legacyMatrixScript = root.appendingPathComponent("scripts/linux-gtk-app-products.sh")
 
-        let result = try runScript(matrixScript)
+        let result = try runScript(matrixScript, arguments: ["gtk-apps"])
         #expect(result.status == 0, Comment(rawValue: result.output))
+        let legacyResult = try runScript(legacyMatrixScript)
+        #expect(legacyResult.status == 0, Comment(rawValue: legacyResult.output))
+        #expect(legacyResult.output == result.output)
 
         let products = result.output
             .split(whereSeparator: \.isNewline)
@@ -38,8 +42,8 @@ struct LinuxGTKAppMatrixTests {
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
-        #expect(workflow.contains("scripts/linux-gtk-app-products.sh"))
-        #expect(workflow.contains("scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile.csv"))
+        #expect(workflow.contains("scripts/quillui-backend-products.sh gtk-apps"))
+        #expect(workflow.contains("scripts/quillui-backend-products.sh gtk-apps | scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("scripts/check-linux-gtk-profile-budget.sh /tmp/quillui-profile.csv"))
         #expect(!workflow.contains("QuillSignal GTK visual smoke"))
         #expect(!workflow.contains("for product in quill-signal quill-telegram"))
@@ -49,7 +53,7 @@ struct LinuxGTKAppMatrixTests {
             contentsOf: root.appendingPathComponent("scripts/linux-gtk-check.sh"),
             encoding: .utf8
         )
-        #expect(gtkCheck.contains("scripts/linux-gtk-app-products.sh"))
+        #expect(gtkCheck.contains("scripts/quillui-backend-products.sh gtk-apps"))
         #expect(gtkCheck.contains("for product in \"${APP_PRODUCTS[@]}\""))
         #expect(gtkCheck.contains("swift build --scratch-path .build-linux --product \"$product\""))
         #expect(gtkCheck.contains("run_smoke \"$product\""))
@@ -75,6 +79,35 @@ struct LinuxGTKAppMatrixTests {
         #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_COMMAND"))
         #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_SETTLE"))
         #expect(budgetScript.contains("QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT"))
+    }
+
+    @Test("backend product helper maps GTK and Qt defaults")
+    func backendProductHelperMapsDefaults() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/quillui-backend-products.sh")
+
+        let smokeProducts = try runScript(script, arguments: ["smoke-products"])
+        #expect(smokeProducts.status == 0, Comment(rawValue: smokeProducts.output))
+        #expect(smokeProducts.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "quill-gtk-interaction-smoke",
+            "quill-qt-interaction-smoke"
+        ])
+
+        let qtBackend = try runScript(script, arguments: ["backend-for-product", "quill-qt-interaction-smoke"])
+        #expect(qtBackend.status == 0, Comment(rawValue: qtBackend.output))
+        #expect(qtBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+
+        let gtkBackend = try runScript(script, arguments: ["backend-for-product", "quill-icecubes"])
+        #expect(gtkBackend.status == 0, Comment(rawValue: gtkBackend.output))
+        #expect(gtkBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+
+        let overrideBackend = try runScript(
+            script,
+            arguments: ["requested-backend", "quill-icecubes"],
+            environment: ["QUILLUI_BACKEND": "qt"]
+        )
+        #expect(overrideBackend.status == 0, Comment(rawValue: overrideBackend.output))
+        #expect(overrideBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
     }
 
     @Test("profile budget accepts current rows and rejects bad profile rows")

@@ -66,10 +66,10 @@ fi
 APP_PRODUCTS=()
 while IFS= read -r product; do
   [[ -n "$product" ]] && APP_PRODUCTS+=("$product")
-done < <(scripts/linux-gtk-app-products.sh)
+done < <(scripts/quillui-backend-products.sh gtk-apps)
 
 if (( ${#APP_PRODUCTS[@]} == 0 )); then
-  echo "No GTK app products listed by scripts/linux-gtk-app-products.sh" >&2
+  echo "No GTK app products listed by scripts/quillui-backend-products.sh gtk-apps" >&2
   exit 1
 fi
 

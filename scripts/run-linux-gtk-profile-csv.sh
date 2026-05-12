@@ -10,7 +10,7 @@ PRODUCTS=()
 
 usage() {
   echo "Usage: $(basename "$0") CSV [PRODUCT ...]" >&2
-  echo "       scripts/linux-gtk-app-products.sh | $(basename "$0") CSV" >&2
+  echo "       scripts/quillui-backend-products.sh gtk-apps | $(basename "$0") CSV" >&2
 }
 
 case "${1:-}" in
@@ -30,7 +30,7 @@ shift
 PRODUCTS=("$@")
 if [[ ${#PRODUCTS[@]} -eq 0 ]]; then
   if [[ -t 0 ]]; then
-    echo "No products supplied for GTK profile CSV" >&2
+    echo "No products supplied for backend profile CSV" >&2
     usage
     exit 64
   fi
@@ -41,13 +41,13 @@ if [[ ${#PRODUCTS[@]} -eq 0 ]]; then
 fi
 
 if [[ ${#PRODUCTS[@]} -eq 0 ]]; then
-  echo "No products supplied for GTK profile CSV" >&2
+  echo "No products supplied for backend profile CSV" >&2
   usage
   exit 64
 fi
 
 if [[ ! -x "$PROFILE_SCRIPT" ]]; then
-  echo "GTK profile command is not executable: $PROFILE_SCRIPT" >&2
+  echo "Backend profile command is not executable: $PROFILE_SCRIPT" >&2
   exit 66
 fi
 

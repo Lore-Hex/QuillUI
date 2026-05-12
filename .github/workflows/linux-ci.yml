@@ -94,8 +94,8 @@ jobs:
         run: scripts/linux-backend-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
 
       # Per-app GTK visual smoke. The product roster lives in
-      # `scripts/linux-gtk-app-products.sh` so visual and profile
-      # coverage cannot drift. Each product launches under Xvfb,
+      # `scripts/quillui-backend-products.sh gtk-apps` so visual and
+      # profile coverage cannot drift. Each product launches under Xvfb,
       # screenshots the GTK window, and runs the verifier. With no
       # per-product branch in `verify-gtk-screenshot.py`, the verifier
       # falls through to the baseline check (size + mean brightness +
@@ -104,7 +104,7 @@ jobs:
       # follow-up slices in docs/uitest-plan.md.
       - name: Quill app GTK visual smoke
         run: |
-          scripts/linux-gtk-app-products.sh | while IFS= read -r product; do
+          scripts/quillui-backend-products.sh gtk-apps | while IFS= read -r product; do
             [ -n "$product" ] || continue
             echo "==> GTK visual smoke: $product"
             scripts/linux-gtk-visual-check.sh ".qa/${product}-gtk.png" "$product"
@@ -121,7 +121,7 @@ jobs:
       # treating normal CI noise as a failure.
       - name: Per-app Linux profile baseline
         continue-on-error: true
-        run: scripts/linux-gtk-app-products.sh | scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile.csv
+        run: scripts/quillui-backend-products.sh gtk-apps | scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile.csv
 
       - name: Linux profile budget check
         run: scripts/check-linux-gtk-profile-budget.sh /tmp/quillui-profile.csv --max-cpu-pct 25 --max-rss-kb 300000 --max-startup-ms 5000

@@ -7,8 +7,9 @@ boot cost) and `cpu_pct_steady` (5s window starting 25s after,
 i.e. long-term render-loop cost).
 
 Current CI sources the app roster from
-`scripts/linux-gtk-app-products.sh`, the same list used by visual
-smoke coverage.
+`scripts/quillui-backend-products.sh gtk-apps`, the same list used by
+visual smoke coverage. The older `scripts/linux-gtk-app-products.sh`
+path remains as a compatibility wrapper.
 
 ## Current Matrix (Linux run 25716559081, commit d69a1f4)
 

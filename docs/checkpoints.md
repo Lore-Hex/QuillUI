@@ -2186,7 +2186,7 @@ and tee the result into `/tmp/quillui-profile*.csv`.
 
 Added `scripts/run-linux-gtk-profile-csv.sh` as that single helper.
 It accepts an explicit product list or reads products from stdin, so
-the full app roster still comes from `scripts/linux-gtk-app-products.sh`
+the full app roster comes from `scripts/quillui-backend-products.sh gtk-apps`
 while the focused IceCubes/NetNewsWire experiments stay one-line
 workflow calls with only their environment knobs left in YAML.
 
@@ -2296,7 +2296,7 @@ the implementation notes keep matching the current Linux rendering model.
 
 Status: implemented locally; queued for CI.
 
-`scripts/linux-gtk-check.sh` now consumes `scripts/linux-gtk-app-products.sh`
+`scripts/linux-gtk-check.sh` now consumes `scripts/quillui-backend-products.sh gtk-apps`
 for both build and headless smoke coverage, so the primary Linux GTK
 verification path exercises all user-facing app executables instead of
 only the two Enchanted roots.
@@ -2531,3 +2531,19 @@ The profile CSV runner and profile budget checker now accept
 `QUILLUI_GTK_PROFILE_*` names. That keeps existing CI stable while making the
 performance tooling backend-neutral enough for Qt profile rows when a native Qt
 renderer lands.
+
+## Checkpoint 137: Backend-Neutral App Roster CLI
+
+Status: implemented locally; guarded by matrix and source hygiene tests.
+
+`scripts/quillui-backend-products.sh` now owns the app roster as well as the
+default backend mapping. It exposes `gtk-apps`, `smoke-products`,
+`backend-for-product`, and `requested-backend` commands so CI, local build
+scripts, interaction checks, and profile tooling can share one backend-aware
+source of truth.
+
+The legacy `scripts/linux-gtk-app-products.sh` path now delegates to that
+helper, while Linux CI and `scripts/linux-gtk-check.sh` consume
+`scripts/quillui-backend-products.sh gtk-apps` directly. This removes the last
+copied app list between GTK matrix coverage and the Qt-ready backend selection
+tooling.

@@ -24,11 +24,13 @@ User-raised bar across every app:
 | WireGuard   | side target         | —            | ✅ baseline matrix         |
 
 The per-app GTK smoke/profile roster now lives in
-`scripts/linux-gtk-app-products.sh`, so Linux visual and profile
-coverage iterate the same user-facing app list: `quill-enchanted`,
-`quill-enchanted-upstream-slice`, `quill-icecubes`,
-`quill-netnewswire`, `quill-codeedit`, `quill-signal`,
-`quill-telegram`, `quill-iina`, and `quill-wireguard`.
+`scripts/quillui-backend-products.sh gtk-apps`, so Linux visual and
+profile coverage iterate the same user-facing app list:
+`quill-enchanted`, `quill-enchanted-upstream-slice`,
+`quill-icecubes`, `quill-netnewswire`, `quill-codeedit`,
+`quill-signal`, `quill-telegram`, `quill-iina`, and
+`quill-wireguard`. The older `scripts/linux-gtk-app-products.sh`
+path delegates to the same helper for compatibility.
 
 The six fixture app GTK smokes passed baseline (size + mean
 brightness + stddev) on the first rollout (Linux CI run
@@ -57,8 +59,9 @@ For every Quill app, add a Linux CI step that:
 Reuse `scripts/linux-gtk-visual-check.sh` (already proven for
 Enchanted's `quill-chat-linux` target) — accepts the app product
 name as `${2}`. Source the app list from
-`scripts/linux-gtk-app-products.sh` instead of hard-coding products
-in CI. The verifier `scripts/verify-gtk-screenshot.py` needs
+`scripts/quillui-backend-products.sh gtk-apps` instead of
+hard-coding products in CI. The verifier
+`scripts/verify-gtk-screenshot.py` needs
 per-app landmark predicates; CP78 added Enchanted's generated-app
 landmarks, while the root app shells still use the baseline
 nonblank verifier until each gets its own small predicate block.
