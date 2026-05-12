@@ -65,6 +65,10 @@ hard-coding products in CI. The verifier
 per-app landmark predicates; CP78 added Enchanted's generated-app
 landmarks, while the root app shells still use the baseline
 nonblank verifier until each gets its own small predicate block.
+Backend launch fixtures use the same visual runner from
+`scripts/quillui-backend-products.sh smoke-products`, which keeps the
+GTK and Qt launch surfaces under the same screenshot contract while the
+native Qt renderer is being brought up.
 
 For interaction tests, reuse `scripts/linux-backend-interaction-check.sh`
 (also proven for Enchanted) which drives the running app with

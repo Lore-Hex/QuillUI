@@ -17,6 +17,10 @@ quillui_gtk_app_products() {
 }
 
 quillui_backend_smoke_products() {
+  # Minimal backend launch fixtures shared by visual and interaction
+  # smoke checks. These are intentionally separate from user-facing
+  # app products so GTK/Qt backend parity can advance without changing
+  # the full app matrix.
   printf '%s\n' \
     quill-gtk-interaction-smoke \
     quill-qt-interaction-smoke
@@ -66,7 +70,7 @@ Usage: quillui-backend-products.sh COMMAND [ARG]
 
 Commands:
   gtk-apps                        List user-facing app products in the GTK parity matrix.
-  smoke-products                  List backend interaction smoke products.
+  smoke-products                  List backend launch smoke products.
   backend-for-product PRODUCT     Print the default requested backend for PRODUCT.
   requested-backend PRODUCT       Print QUILLUI_BACKEND override or PRODUCT default.
 MSG

@@ -165,6 +165,15 @@ the platform fallback runtime so the target graph and app scene stay buildable:
 scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke
 ```
 
+The GTK and Qt launch fixtures also run through the backend visual runner from
+the shared smoke-product roster:
+
+```bash
+scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product; do
+  scripts/linux-backend-visual-check.sh ".qa/${product}-visual.png" "$product"
+done
+```
+
 It can also exercise the generated Quill Chat toolbar menu:
 
 ```bash

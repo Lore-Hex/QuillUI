@@ -175,6 +175,8 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("quill-gtk-interaction-smoke|quill-chat-linux"))
         #expect(backendProducts.contains("echo \"gtk\""))
         #expect(legacyGtkScript.contains("linux-backend-interaction-check.sh"))
+        #expect(workflow.contains("scripts/quillui-backend-products.sh smoke-products"))
+        #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual.png\" \"$product\""))
         #expect(workflow.contains("scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke"))
         #expect(workflow.contains("scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke"))
     }

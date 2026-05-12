@@ -2581,3 +2581,19 @@ compatibility shim. The canonical runner still accepts the legacy
 `QUILLUI_GTK_*` environment names while making `QUILLUI_BACKEND_*` the
 documented path for visual display, screen size, Mac-reference, executable, and
 verification overrides.
+
+## Checkpoint 140: Qt Launch Visual Smoke Coverage
+
+Status: implemented locally; guarded by matrix and source hygiene tests.
+
+Linux CI now runs backend launch fixture screenshots from the shared
+`scripts/quillui-backend-products.sh smoke-products` roster. That adds the Qt
+launch smoke target to the visual pipeline through
+`scripts/linux-backend-visual-check.sh` instead of adding another Qt-specific
+workflow branch.
+
+The GTK and Qt launch fixtures now share the same product roster, backend
+selection helper, visual runner, and screenshot verifier baseline. Qt still
+uses the platform fallback runtime until the native renderer is linked, but the
+target graph and screenshot contract are now exercised by CI in both visual and
+interaction modes.

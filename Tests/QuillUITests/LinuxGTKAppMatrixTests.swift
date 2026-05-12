@@ -43,7 +43,9 @@ struct LinuxGTKAppMatrixTests {
             encoding: .utf8
         )
         #expect(workflow.contains("scripts/quillui-backend-products.sh gtk-apps"))
+        #expect(workflow.contains("scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product; do"))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux"))
+        #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual.png\" \"$product\""))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-gtk.png\" \"$product\""))
         #expect(workflow.contains("scripts/quillui-backend-products.sh gtk-apps | scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("scripts/check-linux-gtk-profile-budget.sh /tmp/quillui-profile.csv"))

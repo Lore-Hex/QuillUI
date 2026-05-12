@@ -84,6 +84,14 @@ jobs:
       - name: Generated Enchanted backend visual smoke
         run: scripts/linux-backend-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux
 
+      - name: Backend launch target visual smokes
+        run: |
+          scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product; do
+            [ -n "$product" ] || continue
+            echo "==> Backend launch visual smoke: $product"
+            scripts/linux-backend-visual-check.sh ".qa/${product}-visual.png" "$product"
+          done
+
       - name: GTK interaction smoke
         run: scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
 
