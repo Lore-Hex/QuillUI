@@ -101,11 +101,11 @@ jobs:
       # follow-up slices in docs/uitest-plan.md.
       - name: Quill app GTK visual smoke
         run: |
-          while IFS= read -r product; do
-            [[ -n "$product" ]] || continue
+          scripts/linux-gtk-app-products.sh | while IFS= read -r product; do
+            [ -n "$product" ] || continue
             echo "==> GTK visual smoke: $product"
             scripts/linux-gtk-visual-check.sh ".qa/${product}-gtk.png" "$product"
-          done < <(scripts/linux-gtk-app-products.sh)
+          done
 
       # Per-app Linux profile baseline (CP106). For each Quill
       # app, sample startup_ms / rss_kb / cpu_pct_5s under Xvfb
@@ -120,10 +120,10 @@ jobs:
         run: |
           {
             echo "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
-            while IFS= read -r product; do
-              [[ -n "$product" ]] || continue
+            scripts/linux-gtk-app-products.sh | while IFS= read -r product; do
+              [ -n "$product" ] || continue
               scripts/linux-gtk-profile.sh "$product" 5 20 || true
-            done < <(scripts/linux-gtk-app-products.sh)
+            done
           } | tee /tmp/quillui-profile.csv
 
       # No-fetch profile experiment. QUILLUI_DISABLE_FETCH=1

@@ -41,6 +41,7 @@ struct LinuxGTKAppMatrixTests {
         #expect(workflow.contains("scripts/linux-gtk-app-products.sh"))
         #expect(!workflow.contains("QuillSignal GTK visual smoke"))
         #expect(!workflow.contains("for product in quill-signal quill-telegram"))
+        #expect(!workflow.contains("< <("))
     }
 
     private func runScript(_ script: URL) throws -> (status: Int32, output: String) {

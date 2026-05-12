@@ -2071,3 +2071,23 @@ moving the plugins to the 6.1 URL-based API is straightforward, but
 it widened CI to Swift 6.2 before the actor-isolation fixes landed.
 Keep that as a separate cleanup slice after the Linux app matrix is
 green again.
+
+## Checkpoint 108: Linux Matrix Workflow Shell Portability
+
+Status: locally green; queued in Linux CI.
+
+Linux CI run 25713744903 confirmed the Swift 6.2 main-actor fixes:
+Swift tests, generated upstream Enchanted compile, GTK visual smoke,
+and the base interaction smoke all passed. The next failure was in
+the centralized app matrix step before any app launched:
+
+```
+Syntax error: redirection unexpected
+```
+
+The container runner executes workflow `run:` blocks with `sh -e`,
+but CP106 consumed the roster with Bash process substitution:
+`done < <(scripts/linux-gtk-app-products.sh)`. The visual and
+profile matrix steps now pipe the roster into a POSIX `while read`
+loop instead, and `LinuxGTKAppMatrixTests` rejects future workflow
+process substitution so the roster stays CI-shell portable.
