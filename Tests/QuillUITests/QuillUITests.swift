@@ -1,4 +1,5 @@
 import Foundation
+import QuillUIQt
 import Testing
 @testable import QuillUI
 
@@ -72,5 +73,18 @@ struct QuillUITests {
         let qtDescriptor = QuillBackendRegistry.descriptor(for: .qt)
         #expect(qtDescriptor.displayName == "Qt")
         #expect(qtDescriptor.isExperimental == true)
+
+        let preferredQtPlan = QuillBackendRegistry.launchPlan(preferred: .qt)
+        #expect(preferredQtPlan.selected == .qt)
+
+        #if os(Linux)
+        #expect(preferredQtPlan.runtime == .gtk)
+        #else
+        #expect(preferredQtPlan.runtime == .swiftUI)
+        #endif
+
+        #expect(preferredQtPlan.usesRuntimeFallback)
+        #expect(QuillQtBackend.launchPlan.preferred == .qt)
+        #expect(QuillQtBackend.status.mode == .platformFallback)
     }
 }

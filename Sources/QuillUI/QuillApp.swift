@@ -44,10 +44,13 @@ public enum QuillAppWindow {
 /// from the main thread; Apple platforms hand control to the
 /// native SwiftUI entry point directly.
 public enum QuillApp {
-    public static func run<A: App>(_: A.Type) {
+    public static func run<A: App>(
+        _ appType: A.Type,
+        preferredBackend: QuillBackendIdentifier? = nil
+    ) {
         MainActor.assumeIsolated {
             #if os(Linux)
-            QuillLinuxAppRuntime.run(A.self)
+            QuillLinuxAppRuntime.run(appType, preferredBackend: preferredBackend)
             #else
             A.main()
             #endif
@@ -57,10 +60,15 @@ public enum QuillApp {
 
 #if os(Linux)
 private enum QuillLinuxAppRuntime {
-    static func run<A: App>(_: A.Type) {
-        switch QuillBackendRegistry.launchBackend {
+    static func run<A: App>(
+        _ appType: A.Type,
+        preferredBackend: QuillBackendIdentifier?
+    ) {
+        let launchPlan = QuillBackendRegistry.launchPlan(preferred: preferredBackend)
+
+        switch launchPlan.runtime {
         case .swiftUI, .gtk, .qt:
-            GTK4Backend().run(A.self)
+            GTK4Backend().run(appType)
         }
     }
 }

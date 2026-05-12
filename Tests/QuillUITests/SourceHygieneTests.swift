@@ -87,7 +87,7 @@ struct SourceHygieneTests {
         ]
 
         #expect(helperSource.contains("public enum QuillAppWindow"))
-        #expect(helperSource.contains("QuillBackendRegistry.launchBackend"))
+        #expect(helperSource.contains("QuillBackendRegistry.launchPlan(preferred: preferredBackend)"))
         #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
         #expect(helperSource.contains(".defaultSize(width: width, height: height)"))
 
@@ -152,7 +152,8 @@ struct SourceHygieneTests {
         #expect(sharedView.contains("public struct QuillInteractionSmokeView"))
         #expect(qtBackend.contains("public enum QuillQtBackend"))
         #expect(qtBackend.contains("public enum QuillQtApp"))
-        #expect(qtBackend.contains("QuillApp.run(appType)"))
+        #expect(qtBackend.contains("QuillBackendRegistry.launchPlan(preferred: identifier)"))
+        #expect(qtBackend.contains("QuillApp.run(appType, preferredBackend: QuillQtBackend.identifier)"))
 
         #expect(backendScript.contains("QUILLUI_BACKEND_INTERACTION_MODE"))
         #expect(backendScript.contains("QUILLUI_BACKEND_VERIFY_PRODUCT"))

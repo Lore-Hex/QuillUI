@@ -45,6 +45,29 @@ public struct QuillBackendDescriptor: Equatable, Sendable {
     }
 }
 
+public struct QuillBackendLaunchPlan: Equatable, Sendable {
+    public let requested: QuillBackendIdentifier?
+    public let preferred: QuillBackendIdentifier?
+    public let selected: QuillBackendIdentifier
+    public let runtime: QuillBackendIdentifier
+
+    public var usesRuntimeFallback: Bool {
+        selected != runtime
+    }
+
+    public init(
+        requested: QuillBackendIdentifier?,
+        preferred: QuillBackendIdentifier?,
+        selected: QuillBackendIdentifier,
+        runtime: QuillBackendIdentifier
+    ) {
+        self.requested = requested
+        self.preferred = preferred
+        self.selected = selected
+        self.runtime = runtime
+    }
+}
+
 public protocol QuillBackend {
     static var identifier: QuillBackendIdentifier { get }
     static var descriptor: QuillBackendDescriptor { get }
@@ -72,11 +95,41 @@ public enum QuillBackendRegistry {
     }
 
     public static var launchBackend: QuillBackendIdentifier {
-        requested ?? platformDefault
+        launchPlan().selected
     }
 
     public static var knownBackends: [QuillBackendDescriptor] {
         QuillBackendIdentifier.allCases.map(descriptor(for:))
+    }
+
+    public static func launchPlan(
+        preferred preferredBackend: QuillBackendIdentifier? = nil
+    ) -> QuillBackendLaunchPlan {
+        let requestedBackend = requested
+        let selectedBackend = requestedBackend ?? preferredBackend ?? platformDefault
+
+        return QuillBackendLaunchPlan(
+            requested: requestedBackend,
+            preferred: preferredBackend,
+            selected: selectedBackend,
+            runtime: runtimeBackend(for: selectedBackend)
+        )
+    }
+
+    public static func runtimeBackend(
+        for selectedBackend: QuillBackendIdentifier
+    ) -> QuillBackendIdentifier {
+        #if os(Linux)
+        switch selectedBackend {
+        case .swiftUI, .gtk, .qt:
+            return .gtk
+        }
+        #else
+        switch selectedBackend {
+        case .swiftUI, .gtk, .qt:
+            return .swiftUI
+        }
+        #endif
     }
 
     public static func descriptor(for identifier: QuillBackendIdentifier) -> QuillBackendDescriptor {

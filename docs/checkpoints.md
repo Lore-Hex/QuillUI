@@ -2486,3 +2486,18 @@ checks while preserving the older `QUILLUI_GTK_*` names used by historical
 scripts and checkpoint commands. Linux CI now invokes the backend-neutral script
 for the GTK smoke app, the Qt smoke app, and the generated Quill Chat toolbar
 interaction.
+
+## Checkpoint 134: Preferred Backend Launch Plans
+
+Status: implemented locally; guarded by QuillUI API tests and source hygiene.
+
+`QuillBackendRegistry` now exposes `QuillBackendLaunchPlan`, which separates
+the requested/preferred backend from the runtime backend that is actually
+available on the host. This lets Qt targets declare `selected == .qt` while the
+current Linux runtime still falls back through GTK until a native Qt renderer is
+linked.
+
+`QuillApp.run` now accepts an optional preferred backend, and `QuillQtApp.run`
+passes `.qt` through that shared launch path instead of relying on the Linux
+platform default. The app shells still share one runtime entry point, but the
+backend target now owns backend selection in a way tests can assert directly.
