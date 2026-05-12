@@ -1,9 +1,4 @@
 import QuillEnchantedCore
+import QuillUI
 
-#if os(Linux)
-import BackendGTK4
-
-GTK4Backend().run(QuillEnchantedApp.self)
-#else
-QuillEnchantedApp.main()
-#endif
+QuillApp.run(QuillEnchantedApp.self)

@@ -51,19 +51,23 @@ var products: [Product] = [
 // doesn't on either platform yet.
 products.append(.executable(name: "quill-netnewswire", targets: ["QuillNetNewsWire"]))
 
-// Cross-platform compatibility-product wrappers exposed by
-// QuillUI. These targets exist on both macOS and Linux (with
-// real Apple frameworks shadowed on Apple platforms or
-// stand-in re-exports), so the products are unconditional. The
-// generated Quill Chat / Enchanted package references them via
-// `.product(name: …, package: "QuillUI")`.
+// SwiftData stays cross-platform: generated packages can depend on
+// this product explicitly, while Apple's SDK module remains available
+// through normal framework import resolution.
+products.append(.library(name: "SwiftData", targets: ["SwiftData"]))
+
+// Canonical iOS framework shims are Linux-only. Exposing a local
+// `UIKit` module on macOS poisons third-party `canImport(UIKit)`
+// checks and makes packages compile iOS-only branches against the
+// wrong module.
+#if os(Linux)
 products += [
-    .library(name: "SwiftData", targets: ["SwiftData"]),
     .library(name: "UIKit", targets: ["UIKit"]),
     .library(name: "MessageUI", targets: ["MessageUI"]),
     .library(name: "SafariServices", targets: ["SafariServices"]),
     .library(name: "MobileCoreServices", targets: ["MobileCoreServices"])
 ]
+#endif
 
 // Linux-only library products exposing the Apple-framework
 // compatibility shim targets to consumers (e.g. the generated
@@ -135,6 +139,11 @@ let standardSwiftSettings: [SwiftSetting] = [
     .unsafeFlags(["-strict-concurrency=minimal", "-Xfrontend", "-import-module", "-Xfrontend", "QuillShims"])
 ]
 
+let appSwiftSettings: [SwiftSetting] = [
+    .swiftLanguageMode(.v5),
+    .unsafeFlags(["-strict-concurrency=minimal"])
+]
+
 #if os(Linux)
 let quillShimsDependencies: [Target.Dependency] = [
     "QuillKit", "QuillData", "os",
@@ -175,9 +184,9 @@ if wireguardUpstreamPresent {
 #endif
 #if os(Linux)
 quillWireGuardCoreDependencies.append("SwiftUI")
-let quillWireGuardDependencies: [Target.Dependency] = ["QuillWireGuardCore", "SwiftUI"]
+let quillWireGuardDependencies: [Target.Dependency] = ["QuillWireGuardCore", "QuillUI", "SwiftUI"]
 #else
-let quillWireGuardDependencies: [Target.Dependency] = ["QuillWireGuardCore"]
+let quillWireGuardDependencies: [Target.Dependency] = ["QuillWireGuardCore", "QuillUI"]
 #endif
 
 // WireGuardKit deps + Linux-specific excludes.
@@ -297,11 +306,6 @@ var targets: [Target] = [
     .target(name: "Secrets", dependencies: ["QuillFoundation"], path: "Sources/SecretsShim"),
     .target(name: "Tidemark", dependencies: ["QuillRS"], path: "Sources/TidemarkShim"),
     .target(name: "Zip", dependencies: ["QuillRS"], path: "Sources/ZipShim"),
-    // CYCLE-BREAK: same reasoning — re-export QuillFoundation/QuillUIKit.
-    .target(name: "MessageUI", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/MessageUIShim"),
-    .target(name: "SafariServices", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/SafariServicesShim"),
-    .target(name: "MobileCoreServices", dependencies: ["QuillFoundation"], path: "Sources/MobileCoreServicesShim"),
-    .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/UIKitShim"),
     .target(name: "SwiftData", dependencies: ["QuillData"], path: "Sources/SwiftData"),
     .target(
         name: "QuillEnchantedCore",
@@ -309,7 +313,8 @@ var targets: [Target] = [
     ),
     .executableTarget(
         name: "QuillEnchanted",
-        dependencies: ["QuillEnchantedCore"]
+        dependencies: ["QuillEnchantedCore", "QuillUI"],
+        swiftSettings: appSwiftSettings
     ),
     // NetNewsWire app — third port per docs/app-targets.md.
     // Self-contained RSS reader: `URLSession`-fetched feed
@@ -324,18 +329,12 @@ var targets: [Target] = [
     .target(
         name: "QuillNetNewsWireCore",
         dependencies: ["QuillUI", "QuillFoundation"],
-        swiftSettings: [
-            .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
-        ]
+        swiftSettings: appSwiftSettings
     ),
     .executableTarget(
         name: "QuillNetNewsWire",
-        dependencies: ["QuillNetNewsWireCore"],
-        swiftSettings: [
-            .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
-        ]
+        dependencies: ["QuillNetNewsWireCore", "QuillUI"],
+        swiftSettings: appSwiftSettings
     ),
     // IceCubes app — second port per docs/app-targets.md.
     // Reimplements the Mastodon API surface (Status, Account,
@@ -353,18 +352,12 @@ var targets: [Target] = [
     .target(
         name: "QuillIceCubesCore",
         dependencies: ["QuillUI", "QuillFoundation"],
-        swiftSettings: [
-            .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
-        ]
+        swiftSettings: appSwiftSettings
     ),
     .executableTarget(
         name: "QuillIceCubes",
-        dependencies: ["QuillIceCubesCore"],
-        swiftSettings: [
-            .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
-        ]
+        dependencies: ["QuillIceCubesCore", "QuillUI"],
+        swiftSettings: appSwiftSettings
     ),
     // Signal iOS (5), Telegram Swift (6), IINA (7) — placeholders
     // per docs/app-targets.md. Same compile-green scaffolding
@@ -378,58 +371,37 @@ var targets: [Target] = [
     .target(
         name: "QuillChatKit",
         dependencies: ["QuillUI"],
-        swiftSettings: [
-            .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
-        ]
+        swiftSettings: appSwiftSettings
     ),
     .target(
         name: "QuillSignalCore",
         dependencies: ["QuillUI", "QuillChatKit"],
-        swiftSettings: [
-            .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
-        ]
+        swiftSettings: appSwiftSettings
     ),
     .executableTarget(
         name: "QuillSignal",
-        dependencies: ["QuillSignalCore"],
-        swiftSettings: [
-            .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
-        ]
+        dependencies: ["QuillSignalCore", "QuillUI"],
+        swiftSettings: appSwiftSettings
     ),
     .target(
         name: "QuillTelegramCore",
         dependencies: ["QuillUI", "QuillChatKit"],
-        swiftSettings: [
-            .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
-        ]
+        swiftSettings: appSwiftSettings
     ),
     .executableTarget(
         name: "QuillTelegram",
-        dependencies: ["QuillTelegramCore"],
-        swiftSettings: [
-            .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
-        ]
+        dependencies: ["QuillTelegramCore", "QuillUI"],
+        swiftSettings: appSwiftSettings
     ),
     .target(
         name: "QuillIINACore",
         dependencies: ["QuillUI"],
-        swiftSettings: [
-            .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
-        ]
+        swiftSettings: appSwiftSettings
     ),
     .executableTarget(
         name: "QuillIINA",
-        dependencies: ["QuillIINACore"],
-        swiftSettings: [
-            .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
-        ]
+        dependencies: ["QuillIINACore", "QuillUI"],
+        swiftSettings: appSwiftSettings
     ),
     // CodeEdit (4) — placeholder. The vendored CodeEditUpstream
     // target stays opt-in via
@@ -441,18 +413,12 @@ var targets: [Target] = [
     .target(
         name: "QuillCodeEditCore",
         dependencies: ["QuillUI"],
-        swiftSettings: [
-            .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
-        ]
+        swiftSettings: appSwiftSettings
     ),
     .executableTarget(
         name: "QuillCodeEdit",
-        dependencies: ["QuillCodeEditCore"],
-        swiftSettings: [
-            .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
-        ]
+        dependencies: ["QuillCodeEditCore", "QuillUI"],
+        swiftSettings: appSwiftSettings
     ),
     .executableTarget(
         name: "QuillEnchantedUpstreamSlice",
@@ -461,7 +427,7 @@ var targets: [Target] = [
         // trips Swift 6's per-expression type-check timeout (default
         // ~30s on macOS). Bump the threshold rather than restructure
         // the expression.
-        swiftSettings: [
+        swiftSettings: appSwiftSettings + [
             .unsafeFlags(["-Xfrontend", "-solver-expression-time-threshold=600"])
         ]
     ),
@@ -473,7 +439,8 @@ var targets: [Target] = [
     .executableTarget(
         name: "QuillWireGuard",
         dependencies: quillWireGuardDependencies,
-        path: "Sources/QuillWireGuard"
+        path: "Sources/QuillWireGuard",
+        swiftSettings: appSwiftSettings
     ),
     // Asset Catalog Symbol Generation tool + build plugin. Generates
     // Color/UIColor/NSColor extensions for every .colorset in a target's
@@ -819,6 +786,13 @@ targets.append(contentsOf: [
     // Enchanted package references by canonical name. Each target
     // shadows a real Apple module on Linux; the matching products
     // are added below.
+    // CYCLE-BREAK: these UI-adjacent shims re-export
+    // QuillFoundation/QuillUIKit directly instead of depending on
+    // QuillShims, because QuillShims depends on them.
+    .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/UIKitShim"),
+    .target(name: "MessageUI", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/MessageUIShim"),
+    .target(name: "SafariServices", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/SafariServicesShim"),
+    .target(name: "MobileCoreServices", dependencies: ["QuillFoundation"], path: "Sources/MobileCoreServicesShim"),
     .target(name: "AsyncAlgorithms", dependencies: [], path: "Sources/AsyncAlgorithms"),
     .target(name: "Carbon", dependencies: [], path: "Sources/Carbon"),
     .target(name: "CoreGraphics", dependencies: ["QuillKit"], path: "Sources/CoreGraphics"),
@@ -899,14 +873,16 @@ var allPackageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433"),
     .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
     .package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.0.0"),
-    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
-    // OpenCombine backs the Linux `Combine` compatibility shim
-    // (Sources/Combine re-exports OpenCombine /
-    // OpenCombineDispatch / OpenCombineFoundation). On macOS the
-    // real Apple Combine ships with the SDK so the package is
-    // resolved but the target/product is gated to Linux below.
-    .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0")
+    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
 ]
+#if os(Linux)
+// OpenCombine backs the Linux `Combine` compatibility shim
+// (Sources/Combine re-exports OpenCombine / OpenCombineDispatch /
+// OpenCombineFoundation). macOS uses the SDK Combine module.
+allPackageDependencies.append(
+    .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0")
+)
+#endif
 #if !os(Linux)
 if codeEditSymbolsUpstreamPresent {
 allPackageDependencies += [
@@ -965,33 +941,17 @@ let package = Package(
         .testTarget(
             name: "QuillChatKitTests",
             dependencies: ["QuillChatKit"],
-            swiftSettings: [
-                .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal"])
-            ]
+            swiftSettings: appSwiftSettings
         ),
         // QuillKitTests covers QuillClipboard / diagnostics /
         // capability matrix / launch service / speech backend —
-        // pure-Foundation surface, no SwiftPM-cross-platform
-        // transitive deps. The other orphan test directories
-        // (QuillDataTests, QuillEnchantedTests,
-        // QuillPredicateTranslationTests,
-        // QuillCompatibilityModuleTests, QuillParityTests,
-        // QuillNetNewsWireTests) currently pull in
-        // `pointfreeco/combine-schedulers` via QuillData/QuillRS;
-        // that dep's UIKit.swift module references a `UIKit`
-        // module compiled for macOS 10.15, but QuillUI's local
-        // UIKit shim targets macOS 14, which SwiftPM rejects as a
-        // platform mismatch. Reviving those suites requires
-        // either dropping the CombineSchedulers dep or patching
-        // its deployment-target story; tracked separately.
+        // pure-Foundation surface. Tests that need upstream
+        // packages or full generated apps stay explicitly listed
+        // here instead of being discovered accidentally.
         .testTarget(
             name: "QuillKitTests",
             dependencies: ["QuillKit"],
-            swiftSettings: [
-                .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal"])
-            ]
+            swiftSettings: appSwiftSettings
         ),
         // Covers IceCubesAPI — the self-contained Mastodon API
         // surface (HTMLString tag/entity stripping, Account +
@@ -1002,10 +962,7 @@ let package = Package(
         .testTarget(
             name: "QuillIceCubesCoreTests",
             dependencies: ["QuillIceCubesCore"],
-            swiftSettings: [
-                .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal"])
-            ]
+            swiftSettings: appSwiftSettings
         ),
         // Pins the RSS 2.0 + Atom parser inside
         // QuillNetNewsWireCore via @testable import — feeds it
@@ -1017,10 +974,7 @@ let package = Package(
         .testTarget(
             name: "QuillNetNewsWireCoreTests",
             dependencies: ["QuillNetNewsWireCore"],
-            swiftSettings: [
-                .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal"])
-            ]
+            swiftSettings: appSwiftSettings
         ),
         // Pins QuillCodeEditCore: the `ProjectFile.extension`
         // computed property (used by the sidebar's icon switch),
@@ -1029,10 +983,7 @@ let package = Package(
         .testTarget(
             name: "QuillCodeEditCoreTests",
             dependencies: ["QuillCodeEditCore"],
-            swiftSettings: [
-                .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal"])
-            ]
+            swiftSettings: appSwiftSettings
         ),
         // Pins QuillTelegramCore's `TelegramFolderFilter` —
         // the All/Personal/Work pill-row filter behind the
@@ -1041,10 +992,7 @@ let package = Package(
         .testTarget(
             name: "QuillTelegramCoreTests",
             dependencies: ["QuillTelegramCore"],
-            swiftSettings: [
-                .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal"])
-            ]
+            swiftSettings: appSwiftSettings
         ),
         // Pins QuillIINACore: PlaylistItem identity + fixture
         // invariants (non-empty playlist, title/duration shape,
@@ -1053,10 +1001,7 @@ let package = Package(
         .testTarget(
             name: "QuillIINACoreTests",
             dependencies: ["QuillIINACore"],
-            swiftSettings: [
-                .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal"])
-            ]
+            swiftSettings: appSwiftSettings
         ),
         // Pins QuillSignalCore: Message + Conversation identity,
         // ChatMessage conformance (verifies the type still
@@ -1066,10 +1011,7 @@ let package = Package(
         .testTarget(
             name: "QuillSignalCoreTests",
             dependencies: ["QuillSignalCore", "QuillChatKit"],
-            swiftSettings: [
-                .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal"])
-            ]
+            swiftSettings: appSwiftSettings
         ),
         // Pins the QuillUI core library's public surface:
         // QuillPlatform.name reports the host, QuillUIVersion is
@@ -1078,10 +1020,7 @@ let package = Package(
         .testTarget(
             name: "QuillUITests",
             dependencies: ["QuillUI"],
-            swiftSettings: [
-                .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal"])
-            ]
+            swiftSettings: appSwiftSettings
         )
     ]
 )

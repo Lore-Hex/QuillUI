@@ -4,9 +4,6 @@ import QuillUI
 #if canImport(SwiftUI)
 import UniformTypeIdentifiers
 #endif
-#if os(Linux)
-import BackendGTK4
-#endif
 
 // Adapted as a buildable Linux slice from Enchanted's Apache-2.0 upstream UI shape:
 // ChatView_macOS.swift, InputFields_macOS.swift, EmptyConversaitonView.swift,
@@ -159,7 +156,7 @@ struct UpstreamSliceApp: App {
 }
 
 @MainActor
-struct UpstreamSliceRoot: @preconcurrency View {
+struct UpstreamSliceRoot: View {
     @StateObject private var model = EnchantedModel()
     @AppStorage("quill.enchanted.ollamaEndpoint") private var endpoint = "http://localhost:11434"
 
@@ -796,8 +793,4 @@ struct RemovableImage: View {
     }
 }
 
-#if os(Linux)
-GTK4Backend().run(UpstreamSliceApp.self)
-#else
-UpstreamSliceApp.main()
-#endif
+QuillApp.run(UpstreamSliceApp.self)

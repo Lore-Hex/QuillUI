@@ -23,9 +23,10 @@ struct QuillAssetSymbolsPlugin: BuildToolPlugin {
     func createBuildCommands(context: PluginContext, target: Target) async throws -> [Command] {
         guard let sourceTarget = target as? SourceModuleTarget else { return [] }
 
-        // SwiftPM 5.6–5.10 expose `Path` (string-based); newer toolchains
-        // expose `URL`-based APIs. The string-based form works on both,
-        // so we stay on it until the URL APIs are stable everywhere.
+        // SwiftPM 5.6–6.0 expose `Path` (string-based); newer
+        // toolchains expose URL-based APIs. The string-based form
+        // works on all supported toolchains, so keep it until the
+        // package can move to swift-tools-version 6.1.
         let rootPath = sourceTarget.directory.string
         let assetCatalogPaths = collectAssetCatalogs(under: rootPath)
         guard !assetCatalogPaths.isEmpty else { return [] }
