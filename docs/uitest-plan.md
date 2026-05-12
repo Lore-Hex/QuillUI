@@ -68,7 +68,10 @@ nonblank verifier until each gets its own small predicate block.
 Backend launch fixtures use the same visual runner from
 `scripts/quillui-backend-products.sh smoke-products`, which keeps the
 GTK and Qt launch surfaces under the same screenshot contract while the
-native Qt renderer is being brought up.
+native Qt renderer is being brought up. Visual and interaction runners also
+share `scripts/quillui-linux-backend-smoke-lib.sh`, so package setup,
+executable resolution, and generated Quill Chat fixture state stay identical
+between GTK and Qt smoke paths.
 
 For interaction tests, reuse `scripts/linux-backend-interaction-check.sh`
 (also proven for Enchanted) which drives the running app with

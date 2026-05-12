@@ -2597,3 +2597,18 @@ selection helper, visual runner, and screenshot verifier baseline. Qt still
 uses the platform fallback runtime until the native renderer is linked, but the
 target graph and screenshot contract are now exercised by CI in both visual and
 interaction modes.
+
+## Checkpoint 141: Shared Backend Smoke Runner Helpers
+
+Status: implemented locally; guarded by matrix and source hygiene tests.
+
+The backend visual and interaction runners now source
+`scripts/quillui-linux-backend-smoke-lib.sh` for Linux package installation,
+root SwiftPM and generated Quill Chat executable resolution, and Quill Chat
+reference-data seeding. This keeps the GTK and Qt launch smoke paths on one
+build/setup contract instead of letting script-local helper copies drift.
+
+The visual and interaction runners still own their mode-specific Xvfb,
+capture, click, and screenshot verification behavior, but backend app setup now
+lives behind a single helper. Future Qt renderer work can extend that shared
+setup layer without adding another backend-specific smoke script.

@@ -144,6 +144,12 @@ for visual checks. The runner maps them to the older `QUILLUI_GTK_*`
 environment contract for compatibility, and `scripts/linux-gtk-visual-check.sh`
 remains as a thin compatibility shim.
 
+The backend visual and interaction runners both source
+`scripts/quillui-linux-backend-smoke-lib.sh` for apt package setup, root
+SwiftPM/generated Quill Chat executable resolution, and deterministic Quill
+Chat reference-data seeding. Backend-specific checks should extend that helper
+instead of copying GTK or Qt build glue into another smoke script.
+
 Native backend interaction smoke is separate from Playwright because these apps
 are Linux desktop executables, not web pages. The interaction check builds a
 small Linux-only QuillUI sample, starts it under Xvfb, clicks a native window

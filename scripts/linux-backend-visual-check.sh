@@ -7,7 +7,7 @@ SCREENSHOT_PATH="${1:-$OUTPUT_DIR/quill-enchanted-gtk.png}"
 PRODUCT="${2:-quill-enchanted}"
 APP_EXECUTABLE=""
 
-source "$ROOT_DIR/scripts/quillui-backend-products.sh"
+source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
 # Backend-neutral names are canonical for new GTK/Qt parity checks.
 # The legacy QUILLUI_GTK_* names stay supported so older docs and
@@ -24,118 +24,16 @@ quillui_alias_env QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT QUILLUI_GTK_DEFAULT_WIND
 quillui_alias_env QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL
 quillui_alias_env QUILLUI_BACKEND_VERIFY_PRODUCT QUILLUI_GTK_VERIFY_PRODUCT
 
-install_packages() {
-  if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
-    return
-  fi
-
-  local packages=(
-    clang
-    git
-    imagemagick
-    libgdk-pixbuf-2.0-dev
-    libgtk-4-dev
-    libsqlite3-dev
-    pkg-config
-    x11-apps
-    xdotool
-    xvfb
-  )
-  local missing=()
-
-  for package in "${packages[@]}"; do
-    if ! dpkg -s "$package" >/dev/null 2>&1; then
-      missing+=("$package")
-    fi
-  done
-
-  if (( ${#missing[@]} > 0 )); then
-    sudo apt-get update
-    sudo apt-get install -y "${missing[@]}"
-  fi
-}
-
-install_packages
+quillui_install_linux_backend_smoke_packages
 
 mkdir -p "$(dirname "$SCREENSHOT_PATH")"
 
-build_and_resolve_executable() {
-  if [[ -n "${QUILLUI_GTK_APP_EXECUTABLE:-}" ]]; then
-    APP_EXECUTABLE="$QUILLUI_GTK_APP_EXECUTABLE"
-    return
-  fi
-
-  if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
-    local quill_chat_app_dir="${QUILL_CHAT_DIR:-$ROOT_DIR/../quill/clients/quill-chat}/Enchanted"
-    local quill_chat_work_root="${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$ROOT_DIR/.build/quill-chat-linux}"
-
-    if [[ ! -d "$quill_chat_app_dir" ]]; then
-      cat >&2 <<MSG
-Quill Chat source was not found at:
-  $quill_chat_app_dir
-
-Set QUILL_CHAT_DIR=/path/to/quill/clients/quill-chat or pass a different
-SwiftPM product as the second argument.
-MSG
-      exit 66
-    fi
-
-    if [[ "${QUILLUI_GTK_SKIP_BUILD:-0}" == "1" ]]; then
-      local cached_executable
-      cached_executable="$(
-        find "$quill_chat_work_root/.build-check" -path "*/debug/$PRODUCT" -type f -perm -111 2>/dev/null | head -n 1 || true
-      )"
-      if [[ -z "$cached_executable" ]]; then
-        echo "No cached executable found for $PRODUCT under $quill_chat_work_root/.build-check" >&2
-        exit 66
-      fi
-      APP_EXECUTABLE="$cached_executable"
-      return
-    fi
-
-    QUILLUI_QUILL_CHAT_BUILD_WORKDIR="$quill_chat_work_root" \
-      QUILLUI_QUILL_CHAT_PRODUCT_NAME="$PRODUCT" \
-      "$ROOT_DIR/scripts/build-quill-chat-linux.sh"
-
-    local quill_chat_bin_path
-    quill_chat_bin_path="$(swift build \
-      --package-path "$quill_chat_work_root/package" \
-      --scratch-path "$quill_chat_work_root/.build-check" \
-      --show-bin-path)"
-    APP_EXECUTABLE="$quill_chat_bin_path/$PRODUCT"
-  else
-    if [[ "${QUILLUI_GTK_SKIP_BUILD:-0}" == "1" ]]; then
-      local cached_executable
-      cached_executable="$(
-        find "$ROOT_DIR/.build-linux" -path "*/debug/$PRODUCT" -type f -perm -111 2>/dev/null | head -n 1 || true
-      )"
-      if [[ -z "$cached_executable" ]]; then
-        echo "No cached executable found for $PRODUCT under $ROOT_DIR/.build-linux" >&2
-        exit 66
-      fi
-      APP_EXECUTABLE="$cached_executable"
-    else
-      "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$ROOT_DIR/.build-linux"
-      swift build --scratch-path "$ROOT_DIR/.build-linux" --product "$PRODUCT"
-      local bin_path
-      bin_path="$(swift build --scratch-path "$ROOT_DIR/.build-linux" --show-bin-path)"
-      APP_EXECUTABLE="$bin_path/$PRODUCT"
-    fi
-  fi
-}
-
-build_and_resolve_executable
+quillui_resolve_linux_backend_executable "$PRODUCT" APP_EXECUTABLE
 
 if [[ ! -x "$APP_EXECUTABLE" ]]; then
   echo "Built executable is missing or not executable: $APP_EXECUTABLE" >&2
   exit 1
 fi
-
-seed_quill_chat_reference_data() {
-  local qa_home="$1"
-  rm -rf "$qa_home"
-  python3 "$ROOT_DIR/scripts/seed-quill-chat-reference-data.py" "$qa_home"
-}
 
 is_quill_chat_mac_reference() {
   [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]
@@ -176,7 +74,7 @@ if [[ -n "${QUILLUI_GTK_LAYOUT_DEBUG:-}" ]]; then
 fi
 if is_quill_chat_mac_reference; then
   quill_chat_reference_home="$OUTPUT_DIR/quill-chat-linux-reference-home"
-  seed_quill_chat_reference_data "$quill_chat_reference_home"
+  quillui_seed_quill_chat_reference_data "$quill_chat_reference_home"
   app_environment+=(
     HOME="$quill_chat_reference_home"
     QUILLDATA_HOME="$quill_chat_reference_home"

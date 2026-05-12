@@ -125,6 +125,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"),
             encoding: .utf8
         )
+        let smokeLib = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-linux-backend-smoke-lib.sh"),
+            encoding: .utf8
+        )
         let backendProducts = try String(
             contentsOf: root.appendingPathComponent("scripts/quillui-backend-products.sh"),
             encoding: .utf8
@@ -162,9 +166,16 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("QUILLUI_BACKEND_INTERACTION_MODE"))
         #expect(backendScript.contains("QUILLUI_BACKEND_VERIFY_PRODUCT"))
         #expect(backendScript.contains("quill-gtk-interaction-smoke|quill-qt-interaction-smoke"))
-        #expect(backendScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(backendScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
+        #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(smokeLib.contains("quillui_install_linux_backend_smoke_packages()"))
+        #expect(smokeLib.contains("quillui_resolve_linux_backend_executable()"))
+        #expect(smokeLib.contains("quillui_seed_quill_chat_reference_data()"))
+        #expect(backendScript.contains("quillui_resolve_linux_backend_executable \"$PRODUCT\" APP_EXECUTABLE"))
         #expect(backendScript.contains("quillui_requested_backend_for_product \"$PRODUCT\""))
         #expect(backendScript.contains("app_environment+=(QUILLUI_BACKEND=\"$REQUESTED_BACKEND\")"))
+        #expect(!backendScript.contains("install_packages()"))
+        #expect(!backendScript.contains("build_and_resolve_executable()"))
         #expect(backendProducts.contains("quillui_gtk_app_products()"))
         #expect(backendProducts.contains("quillui_backend_smoke_products()"))
         #expect(backendProducts.contains("quillui_alias_env()"))

@@ -73,6 +73,10 @@ struct LinuxGTKAppMatrixTests {
             contentsOf: root.appendingPathComponent("scripts/linux-backend-visual-check.sh"),
             encoding: .utf8
         )
+        let smokeLib = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-linux-backend-smoke-lib.sh"),
+            encoding: .utf8
+        )
         let legacyVisualScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-gtk-visual-check.sh"),
             encoding: .utf8
@@ -88,7 +92,11 @@ struct LinuxGTKAppMatrixTests {
         let backendProducts = try String(contentsOf: matrixScript, encoding: .utf8)
         #expect(backendProducts.contains("quillui_alias_env()"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
-        #expect(visualScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(visualScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
+        #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(smokeLib.contains("quillui_install_linux_backend_smoke_packages()"))
+        #expect(smokeLib.contains("quillui_resolve_linux_backend_executable()"))
+        #expect(smokeLib.contains("quillui_seed_quill_chat_reference_data()"))
         #expect(legacyVisualScript.contains("scripts/linux-backend-visual-check.sh"))
         #expect(!legacyVisualScript.contains("quillui_alias_env"))
         #expect(profileScript.contains("quillui_requested_backend_for_product \"$PRODUCT\""))
@@ -96,8 +104,11 @@ struct LinuxGTKAppMatrixTests {
         #expect(profileScript.contains("QUILLUI_BACKEND_PROFILE_DISPLAY"))
         #expect(visualScript.contains("quillui_alias_env QUILLUI_BACKEND_VISUAL_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE"))
         #expect(visualScript.contains("quillui_alias_env QUILLUI_BACKEND_VERIFY_PRODUCT QUILLUI_GTK_VERIFY_PRODUCT"))
+        #expect(visualScript.contains("quillui_resolve_linux_backend_executable \"$PRODUCT\" APP_EXECUTABLE"))
         #expect(visualScript.contains("quillui_requested_backend_for_product \"$PRODUCT\""))
         #expect(visualScript.contains("app_environment+=(QUILLUI_BACKEND=\"$requested_backend\")"))
+        #expect(!visualScript.contains("install_packages()"))
+        #expect(!visualScript.contains("build_and_resolve_executable()"))
         #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_COMMAND"))
         #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_SETTLE"))
         #expect(budgetScript.contains("QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT"))
