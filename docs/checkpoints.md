@@ -2369,3 +2369,20 @@ main-actor isolated but `App.body` is nonisolated by default.
 `QuillWireGuardCoreTests` pins the entry-point helper call so future
 WireGuard UI refactors do not reintroduce the Linux actor-isolation
 compile failure.
+
+## Checkpoint 127: QuillChatKit Appearance Surface
+
+Status: implemented locally; queued for CI.
+
+`QuillChatKit` now exposes a public `ChatAppearance` token surface and
+passes it through rows, bubbles, timelines, composers, and panes. The
+standard values preserve the current shared Signal and Telegram Linux
+shell chrome, while iOS or other native SwiftUI clients can tune chat
+colors, spacing, corner radii, composer padding, and send-button title
+without forking the shared chat implementation.
+
+`QuillChatKitTests` pin the default shared-shell layout tokens and the
+customization path for each view. `SourceHygieneTests` also pin that the
+kit remains a native SwiftUI library with no `QuillUI`, `UIKit`, or
+`AppKit` import, keeping it suitable for iOS reuse as well as Linux GTK
+compatibility builds.

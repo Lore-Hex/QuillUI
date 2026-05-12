@@ -50,6 +50,31 @@ struct QuillChatKitTests {
         #expect(row.unread == 3)
     }
 
+    @Test("ChatAppearance standard preserves the shared shell layout tokens")
+    func chatAppearanceStandardLayoutTokens() {
+        let appearance = ChatAppearance.standard
+
+        #expect(appearance.bubbleCornerRadius == 12)
+        #expect(appearance.unreadBadgeCornerRadius == 8)
+        #expect(appearance.bubblePadding == 10)
+        #expect(appearance.rowVerticalPadding == 4)
+        #expect(appearance.timelinePadding == 16)
+        #expect(appearance.messageSpacing == 10)
+        #expect(appearance.composerPadding == 10)
+    }
+
+    @Test("ChatRow accepts custom appearance without changing row data")
+    func chatRowCarriesAppearance() {
+        let appearance = ChatAppearance(unreadBadgeCornerRadius: 3, rowVerticalPadding: 7)
+        let row = ChatRow(title: "DevOps", preview: "Build 1 ok", unread: 3, appearance: appearance)
+
+        #expect(row.title == "DevOps")
+        #expect(row.preview == "Build 1 ok")
+        #expect(row.unread == 3)
+        #expect(row.appearance.rowVerticalPadding == 7)
+        #expect(row.appearance.unreadBadgeCornerRadius == 3)
+    }
+
     @Test("ChatTimeline preserves message order")
     func chatTimelinePreservesOrder() {
         let messages = [
@@ -63,12 +88,31 @@ struct QuillChatKitTests {
         #expect(timeline.title == "Thread")
     }
 
+    @Test("ChatTimeline accepts custom appearance")
+    func chatTimelineCarriesAppearance() {
+        let appearance = ChatAppearance(timelinePadding: 22, messageSpacing: 6)
+        let timeline = ChatTimeline<Fake>(title: "Thread", messages: [], appearance: appearance)
+
+        #expect(timeline.appearance.timelinePadding == 22)
+        #expect(timeline.appearance.messageSpacing == 6)
+    }
+
     @Test("ChatBubble holds the message it was initialized with")
     func chatBubbleHoldsMessage() {
         let msg = Fake(id: UUID(), sender: "Me", body: "hello", fromSelf: true)
         let bubble = ChatBubble(msg)
         #expect(bubble.message.id == msg.id)
         #expect(bubble.message.fromSelf)
+    }
+
+    @Test("ChatBubble accepts custom appearance")
+    func chatBubbleCarriesAppearance() {
+        let msg = Fake(id: UUID(), sender: "Me", body: "hello", fromSelf: true)
+        let appearance = ChatAppearance(bubbleCornerRadius: 5, bubblePadding: 18)
+        let bubble = ChatBubble(msg, appearance: appearance)
+
+        #expect(bubble.appearance.bubbleCornerRadius == 5)
+        #expect(bubble.appearance.bubblePadding == 18)
     }
 
     @Test("ChatDraft.isSendable rejects empty + whitespace-only drafts")
@@ -121,6 +165,41 @@ struct QuillChatKitTests {
             onSend: { }
         )
         #expect(pane.placeholder == "Message")
+    }
+
+    @Test("ChatComposer carries send title and appearance")
+    func chatComposerCarriesCustomSendChrome() {
+        let appearance = ChatAppearance(composerPadding: 18)
+        let composer = ChatComposer(
+            placeholder: "Reply",
+            sendTitle: "Post",
+            appearance: appearance,
+            draft: .constant(""),
+            onSend: { }
+        )
+
+        #expect(composer.placeholder == "Reply")
+        #expect(composer.sendTitle == "Post")
+        #expect(composer.appearance.composerPadding == 18)
+    }
+
+    @Test("ChatPane carries send title and appearance")
+    func chatPaneCarriesCustomSendChrome() {
+        let appearance = ChatAppearance(timelinePadding: 24, composerPadding: 18)
+        let pane: ChatPane<Fake> = ChatPane(
+            title: "x",
+            messages: [],
+            draft: .constant(""),
+            placeholder: "Reply",
+            sendTitle: "Post",
+            appearance: appearance,
+            onSend: { }
+        )
+
+        #expect(pane.placeholder == "Reply")
+        #expect(pane.sendTitle == "Post")
+        #expect(pane.appearance.composerPadding == 18)
+        #expect(pane.appearance.timelinePadding == 24)
     }
 
     @Test("ChatDraft.consume returns trimmed body + clears source when sendable")

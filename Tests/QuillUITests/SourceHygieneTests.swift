@@ -26,7 +26,10 @@ struct SourceHygieneTests {
         #expect(manifest.contains(".library(name: \"QuillChatKit\", targets: [\"QuillChatKit\"])"))
         #expect(manifest.contains("platforms: [.macOS(.v14), .iOS(.v14)]"))
         #expect(source.contains("import SwiftUI"))
+        #expect(source.contains("public struct ChatAppearance"))
         #expect(!source.contains("import QuillUI"))
+        #expect(!source.contains("import UIKit"))
+        #expect(!source.contains("import AppKit"))
     }
 
     @Test("ImageRenderer comments describe the current GTK offscreen path")

@@ -41,6 +41,59 @@ public extension ChatMessage {
     var timestamp: Date? { nil }
 }
 
+/// Public styling tokens for the shared chat views.
+///
+/// Defaults match the original Signal/Telegram Linux shell chrome.
+/// iOS or app-specific clients can pass a custom value through
+/// `ChatBubble`, `ChatRow`, `ChatTimeline`, `ChatComposer`, or
+/// `ChatPane` without forking the view implementations.
+public struct ChatAppearance {
+    public var outgoingBubbleBackground: Color
+    public var incomingBubbleBackground: Color
+    public var unreadBadgeBackground: Color
+    public var unreadBadgeForeground: Color
+    public var composerBackground: Color
+    public var bubbleCornerRadius: CGFloat
+    public var unreadBadgeCornerRadius: CGFloat
+    public var bubblePadding: CGFloat
+    public var rowVerticalPadding: CGFloat
+    public var timelinePadding: CGFloat
+    public var messageSpacing: CGFloat
+    public var composerPadding: CGFloat
+
+    public init(
+        outgoingBubbleBackground: Color = Color.blue.opacity(0.18),
+        incomingBubbleBackground: Color = Color.gray.opacity(0.18),
+        unreadBadgeBackground: Color = .blue,
+        unreadBadgeForeground: Color = .white,
+        composerBackground: Color = Color.gray.opacity(0.06),
+        bubbleCornerRadius: CGFloat = 12,
+        unreadBadgeCornerRadius: CGFloat = 8,
+        bubblePadding: CGFloat = 10,
+        rowVerticalPadding: CGFloat = 4,
+        timelinePadding: CGFloat = 16,
+        messageSpacing: CGFloat = 10,
+        composerPadding: CGFloat = 10
+    ) {
+        self.outgoingBubbleBackground = outgoingBubbleBackground
+        self.incomingBubbleBackground = incomingBubbleBackground
+        self.unreadBadgeBackground = unreadBadgeBackground
+        self.unreadBadgeForeground = unreadBadgeForeground
+        self.composerBackground = composerBackground
+        self.bubbleCornerRadius = bubbleCornerRadius
+        self.unreadBadgeCornerRadius = unreadBadgeCornerRadius
+        self.bubblePadding = bubblePadding
+        self.rowVerticalPadding = rowVerticalPadding
+        self.timelinePadding = timelinePadding
+        self.messageSpacing = messageSpacing
+        self.composerPadding = composerPadding
+    }
+
+    public static var standard: ChatAppearance {
+        ChatAppearance()
+    }
+}
+
 /// Cached time-only formatter used by `ChatBubble`. Static so the
 /// `ChatBubble` body doesn't allocate a new formatter every paint.
 @MainActor
@@ -62,22 +115,24 @@ public enum ChatTimestampFormatter {
 @MainActor
 public struct ChatBubble<M: ChatMessage>: View {
     public let message: M
+    public let appearance: ChatAppearance
 
-    public init(_ message: M) {
+    public init(_ message: M, appearance: ChatAppearance = .standard) {
         self.message = message
+        self.appearance = appearance
     }
 
     nonisolated public var body: some View {
         ChatMainActorView.assumeIsolated {
             VStack(alignment: message.fromSelf ? .trailing : .leading, spacing: 2) {
                 Text(message.body)
-                    .padding(10)
+                    .padding(appearance.bubblePadding)
                     .background(
                         message.fromSelf
-                            ? Color.blue.opacity(0.18)
-                            : Color.gray.opacity(0.18)
+                            ? appearance.outgoingBubbleBackground
+                            : appearance.incomingBubbleBackground
                     )
-                    .cornerRadius(12)
+                    .cornerRadius(appearance.bubbleCornerRadius)
                 HStack(spacing: 6) {
                     Text(message.sender)
                     if let timestamp = message.timestamp {
@@ -103,11 +158,18 @@ public struct ChatRow: View {
     public let title: String
     public let preview: String
     public let unread: Int
+    public let appearance: ChatAppearance
 
-    public init(title: String, preview: String, unread: Int = 0) {
+    public init(
+        title: String,
+        preview: String,
+        unread: Int = 0,
+        appearance: ChatAppearance = .standard
+    ) {
         self.title = title
         self.preview = preview
         self.unread = unread
+        self.appearance = appearance
     }
 
     nonisolated public var body: some View {
@@ -121,9 +183,9 @@ public struct ChatRow: View {
                             .font(.caption2).bold()
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
+                            .background(appearance.unreadBadgeBackground)
+                            .foregroundColor(appearance.unreadBadgeForeground)
+                            .cornerRadius(appearance.unreadBadgeCornerRadius)
                     }
                 }
                 Text(preview)
@@ -131,7 +193,7 @@ public struct ChatRow: View {
                     .foregroundColor(.secondary)
                     .lineLimit(1)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, appearance.rowVerticalPadding)
         }
     }
 }
@@ -203,15 +265,21 @@ public enum ChatDraft {
 @MainActor
 public struct ChatComposer: View {
     public let placeholder: String
+    public let sendTitle: String
+    public let appearance: ChatAppearance
     @Binding public var draft: String
     public let onSend: () -> Void
 
     public init(
         placeholder: String = "Message",
+        sendTitle: String = "Send",
+        appearance: ChatAppearance = .standard,
         draft: Binding<String>,
         onSend: @escaping () -> Void
     ) {
         self.placeholder = placeholder
+        self.sendTitle = sendTitle
+        self.appearance = appearance
         self._draft = draft
         self.onSend = onSend
     }
@@ -220,13 +288,13 @@ public struct ChatComposer: View {
         ChatMainActorView.assumeIsolated {
             HStack(spacing: 8) {
                 TextField(placeholder, text: $draft)
-                Button("Send") {
+                Button(sendTitle) {
                     onSend()
                 }
                 .disabled(!ChatDraft.isSendable(draft))
             }
-            .padding(10)
-            .background(Color.gray.opacity(0.06))
+            .padding(appearance.composerPadding)
+            .background(appearance.composerBackground)
         }
     }
 }
@@ -237,10 +305,12 @@ public struct ChatComposer: View {
 public struct ChatTimeline<M: ChatMessage>: View {
     public let title: String
     public let messages: [M]
+    public let appearance: ChatAppearance
 
-    public init(title: String, messages: [M]) {
+    public init(title: String, messages: [M], appearance: ChatAppearance = .standard) {
         self.title = title
         self.messages = messages
+        self.appearance = appearance
     }
 
     nonisolated public var body: some View {
@@ -252,12 +322,12 @@ public struct ChatTimeline<M: ChatMessage>: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Divider()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: appearance.messageSpacing) {
                         ForEach(messages) { message in
-                            ChatBubble(message)
+                            ChatBubble(message, appearance: appearance)
                         }
                     }
-                    .padding(16)
+                    .padding(appearance.timelinePadding)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -275,6 +345,8 @@ public struct ChatPane<M: ChatMessage>: View {
     public let title: String
     public let messages: [M]
     public let placeholder: String
+    public let sendTitle: String
+    public let appearance: ChatAppearance
     @Binding public var draft: String
     public let onSend: () -> Void
 
@@ -283,21 +355,31 @@ public struct ChatPane<M: ChatMessage>: View {
         messages: [M],
         draft: Binding<String>,
         placeholder: String = "Message",
+        sendTitle: String = "Send",
+        appearance: ChatAppearance = .standard,
         onSend: @escaping () -> Void
     ) {
         self.title = title
         self.messages = messages
         self._draft = draft
         self.placeholder = placeholder
+        self.sendTitle = sendTitle
+        self.appearance = appearance
         self.onSend = onSend
     }
 
     nonisolated public var body: some View {
         ChatMainActorView.assumeIsolated {
             VStack(spacing: 0) {
-                ChatTimeline(title: title, messages: messages)
+                ChatTimeline(title: title, messages: messages, appearance: appearance)
                 Divider()
-                ChatComposer(placeholder: placeholder, draft: $draft, onSend: onSend)
+                ChatComposer(
+                    placeholder: placeholder,
+                    sendTitle: sendTitle,
+                    appearance: appearance,
+                    draft: $draft,
+                    onSend: onSend
+                )
             }
         }
     }
