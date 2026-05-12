@@ -22,7 +22,7 @@ Options:
   --profile NAME        Lowering profile to use.
   --list-profiles      Show installed lowering profiles and exit.
   --source-dir PATH     Directory containing the app's Swift sources.
-  --app-type TYPE       Swift App type to pass to GTK4Backend().run(...).
+  --app-type TYPE       Swift App type to launch through QuillApp.run(...).
   --product-name NAME   Output executable name. Defaults from --app-type.
   --workdir PATH        Generated build work directory.
   --run                Run the built executable after building.

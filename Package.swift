@@ -778,13 +778,11 @@ targets.append(contentsOf: [
     // `scripts/linux-gtk-interaction-check.sh` builds this
     // executable to validate that QuillUI button taps and sheet
     // presentations round-trip through SwiftOpenUI's GTK4
-    // backend (open-panel / sidebar / banner / sheet modes).
+    // backend through QuillApp (open-panel / sidebar / banner /
+    // sheet modes).
     .executableTarget(
         name: "QuillGtkInteractionSmoke",
-        dependencies: [
-            "QuillUI",
-            .product(name: "BackendGTK4", package: "SwiftOpenUI")
-        ],
+        dependencies: ["QuillUI"],
         path: "Sources/QuillGtkInteractionSmoke"
     ),
     // Apple-framework compatibility shims that the generated

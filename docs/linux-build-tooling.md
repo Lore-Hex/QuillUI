@@ -18,7 +18,7 @@ The command intentionally separates the generic build contract from source
 lowering profiles:
 
 - `--source-dir` points at the app source tree.
-- `--app-type` is the Swift `App` type passed to `GTK4Backend().run(...)`.
+- `--app-type` is the Swift `App` type launched through `QuillApp.run(...)`.
 - `--product-name` controls the generated executable name.
 - `--workdir` controls where generated source and SwiftPM build state go.
 - `--profile` selects a source-lowering script from `scripts/profiles/`.

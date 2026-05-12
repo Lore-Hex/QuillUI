@@ -81,7 +81,8 @@ struct SourceHygieneTests {
             "Sources/QuillIceCubes/main.swift",
             "Sources/QuillWireGuard/main.swift",
             "Sources/QuillEnchantedCore/EnchantedApp.swift",
-            "Sources/QuillEnchantedUpstreamSlice/main.swift"
+            "Sources/QuillEnchantedUpstreamSlice/main.swift",
+            "Sources/QuillGtkInteractionSmoke/main.swift"
         ]
 
         #expect(helperSource.contains("public enum QuillAppWindow"))
@@ -96,6 +97,22 @@ struct SourceHygieneTests {
             #expect(!source.contains(".defaultWindowSize("), "\(path) should not branch into Linux-only sizing")
             #expect(!source.contains(".defaultSize("), "\(path) should let QuillAppWindow own default sizing")
         }
+    }
+
+    @Test("Generated Linux app packages launch through QuillApp")
+    func generatedLinuxAppPackagesLaunchThroughQuillApp() throws {
+        let root = try packageRoot()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("scripts/generate-swiftui-linux-package.sh"),
+            encoding: .utf8
+        )
+
+        #expect(source.contains("import QuillUI"))
+        #expect(source.contains("QuillApp.run($APP_ENTRY_TYPE.self)"))
+        #expect(!source.contains("import BackendGTK4"))
+        #expect(!source.contains("GTK4Backend().run($APP_ENTRY_TYPE.self)"))
+        #expect(!source.contains("package(url: \"https://github.com/codelynx/SwiftOpenUI\""))
+        #expect(!source.contains(".product(name: \"BackendGTK4\", package: \"SwiftOpenUI\")"))
     }
 
     private func packageRoot() throws -> URL {

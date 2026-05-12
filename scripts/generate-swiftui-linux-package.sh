@@ -85,8 +85,6 @@ while IFS= read -r -d '' source_file; do
   cp "$source_file" "$destination_file"
 done < <(find "$SOURCE_DIR" -name '*.swift' -print0)
 
-extra_package_dependencies=""
-extra_target_dependencies=""
 if [[ "$INCLUDE_GTK_BACKEND" == "1" ]]; then
   if [[ -z "$APP_ENTRY_TYPE" ]]; then
     echo "QUILLUI_GENERATED_APP_ENTRY_TYPE is required when GTK backend generation is enabled" >&2
@@ -97,20 +95,15 @@ if [[ "$INCLUDE_GTK_BACKEND" == "1" ]]; then
   validate_swift_type "$APP_MAIN_TYPE" "QUILLUI_GENERATED_APP_MAIN_TYPE"
 
   cat > "$TARGET_DIR/GeneratedMain.swift" <<SWIFT
-import BackendGTK4
+import QuillUI
 
 @main
 struct $APP_MAIN_TYPE {
     static func main() {
-        GTK4Backend().run($APP_ENTRY_TYPE.self)
+        QuillApp.run($APP_ENTRY_TYPE.self)
     }
 }
 SWIFT
-
-  extra_package_dependencies=$',
-        .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433")'
-  extra_target_dependencies=$',
-                .product(name: "BackendGTK4", package: "SwiftOpenUI")'
 fi
 
 cat > "$PACKAGE_DIR/Package.swift" <<SWIFT
@@ -124,7 +117,7 @@ let package = Package(
         .executable(name: "$PRODUCT_NAME", targets: ["$TARGET_NAME"])
     ],
     dependencies: [
-        .package(name: "QuillUI", path: "$ROOT_DIR")$extra_package_dependencies
+        .package(name: "QuillUI", path: "$ROOT_DIR")
     ],
     targets: [
         .executableTarget(
@@ -167,7 +160,6 @@ let package = Package(
                 .product(name: "QuillData", package: "QuillUI"),
                 .product(name: "QuillFoundation", package: "QuillUI"),
                 .product(name: "QuillShims", package: "QuillUI")
-                $extra_target_dependencies
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5)

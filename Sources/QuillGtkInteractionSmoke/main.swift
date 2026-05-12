@@ -1,12 +1,10 @@
-import BackendGTK4
 import QuillUI
 
 private struct QuillGtkInteractionSmokeApp: App {
     var body: some Scene {
-        WindowGroup("Quill GTK Interaction") {
+        QuillAppWindow.scene("Quill GTK Interaction", width: 640, height: 760) {
             SmokeView()
         }
-        .defaultWindowSize(width: 640, height: 760)
     }
 }
 
@@ -180,4 +178,4 @@ private struct BannerSheetSmoke: View {
     }
 }
 
-GTK4Backend().run(QuillGtkInteractionSmokeApp.self)
+QuillApp.run(QuillGtkInteractionSmokeApp.self)

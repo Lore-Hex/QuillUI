@@ -2435,3 +2435,20 @@ Enchanted, and the Enchanted upstream slice now call the same scene
 helper. `SourceHygieneTests` pin those entry points to the helper and
 reject direct `WindowGroup` / default-size setup in the app shells so the
 Linux and native SwiftUI launch paths stay visually aligned.
+
+## Checkpoint 131: Centralized Generated App Launch
+
+Status: implemented locally; guarded by source hygiene tests.
+
+The GTK interaction smoke executable now uses `QuillAppWindow.scene`
+and `QuillApp.run`, matching the real app targets instead of importing
+`BackendGTK4`, hand-rolling `WindowGroup`, and applying
+`defaultWindowSize` directly.
+
+The generated Linux app package assembly now emits a tiny
+`GeneratedMain.swift` that imports `QuillUI` and launches the upstream
+`App` type through `QuillApp.run`. This removes the generated package's
+extra direct SwiftOpenUI dependency and keeps the generated-app runtime
+path under QuillUI's shared launch abstraction. `SourceHygieneTests`
+pin both the smoke executable and generated package builder to that
+centralized path.
