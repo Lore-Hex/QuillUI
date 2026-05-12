@@ -2255,3 +2255,16 @@ fixture-backed app shells instead of placeholders. The manifest summary
 matches the tested targets: chat timelines and foldered chat lists route
 through `QuillChatKit`, IINA renders playback chrome, and CodeEdit keeps
 the file tree, tabs, and editable text pane buildable through QuillUI.
+
+## Checkpoint 118: Predicate Macro Crash Guard
+
+Status: implemented locally; queued for CI.
+
+`#QuillPredicate` now rejects a missing closure by throwing a descriptive
+macro expansion error instead of calling `fatalError()` inside the
+compiler plugin. That turns malformed macro use into a compiler
+diagnostic path rather than a build-process crash.
+
+`SourceHygieneTests` pins the regression by scanning the QuillData macro
+implementation for recoverable `fatalError(` paths, keeping macro
+expansion failures aligned with QuillUI's Linux compile reliability goal.

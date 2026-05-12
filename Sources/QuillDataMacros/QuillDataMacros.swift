@@ -4,6 +4,17 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
+private enum QuillPredicateMacroError: Error, CustomStringConvertible {
+    case missingClosure
+
+    var description: String {
+        switch self {
+        case .missingClosure:
+            return "#QuillPredicate requires a closure argument"
+        }
+    }
+}
+
 public struct QuillModelMacro: MemberMacro, ExtensionMacro {
     public static func expansion(
         of node: AttributeSyntax,
@@ -83,7 +94,9 @@ public struct QuillModelMacro: MemberMacro, ExtensionMacro {
 
 public struct QuillPredicateMacro: ExpressionMacro {
     public static func expansion(of node: some FreestandingMacroExpansionSyntax, in context: some MacroExpansionContext) throws -> ExprSyntax {
-        let closure = node.trailingClosure ?? node.arguments.first?.expression.as(ClosureExprSyntax.self) ?? { fatalError() }()
+        guard let closure = node.trailingClosure ?? node.arguments.first?.expression.as(ClosureExprSyntax.self) else {
+            throw QuillPredicateMacroError.missingClosure
+        }
         let sql = translateToSQL(closure: closure) ?? "1=1"
         return "Predicate(sqlFilter: \"\(raw: sql)\") \(raw: closure.description)"
     }
