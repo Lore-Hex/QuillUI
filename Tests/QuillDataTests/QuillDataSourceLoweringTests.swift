@@ -379,8 +379,11 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains(".systemLibrary(name: \"IOKit\")"))
         #expect(manifest.contains(".target(name: \"UIKit\", dependencies: [\"QuillUIKit\"])"))
         #expect(manifest.contains(".target(name: \"QuillUIKit\", dependencies: [\"QuillKit\"])"))
-        #expect(manifest.contains(".target(\n        name: \"QuillWireGuardCore\",\n        dependencies: [\n            \"QuillUI\",\n            \"QuillData\"\n        ] + ( {"))
-        #expect(manifest.contains("#if os(Linux)\n            return []\n            #else\n            return [\"WireGuardKit\"]"))
+        #expect(manifest.contains(".executable(name: \"quill-wireguard\", targets: [\"QuillWireGuard\"])"))
+        #expect(manifest.contains("var quillWireGuardCoreDependencies: [Target.Dependency] = [\"QuillUI\", \"QuillData\"]"))
+        #expect(manifest.contains("quillWireGuardCoreDependencies.append(\"WireGuardKit\")"))
+        #expect(manifest.contains("quillWireGuardCoreDependencies.append(\"SwiftUI\")"))
+        #expect(manifest.contains("dependencies: quillWireGuardCoreDependencies"))
     }
 
     @Test("visual smoke exposes opt-in Mac reference landmarks")

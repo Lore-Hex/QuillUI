@@ -90,34 +90,22 @@ jobs:
       - name: Generated Enchanted toolbar interaction smoke
         run: scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
 
-      # Per-app GTK visual smoke. Each step launches the
-      # corresponding Quill app under Xvfb, screenshots the
-      # GTK window, and runs the verifier. With no per-product
-      # branch in `verify-gtk-screenshot.py`, the verifier falls
-      # through to the baseline check (size + mean brightness +
-      # stddev) so "blank window" / "didn't render" / "tiny
-      # window" regressions still fail CI. Per-app landmark
-      # predicates are follow-up slices in docs/uitest-plan.md.
-      #
-      # Promoted off `continue-on-error` after the first
-      # rollout run had every app pass baseline (ece79cb).
-      - name: QuillSignal GTK visual smoke
-        run: scripts/linux-gtk-visual-check.sh .qa/quill-signal-gtk.png quill-signal
-
-      - name: QuillTelegram GTK visual smoke
-        run: scripts/linux-gtk-visual-check.sh .qa/quill-telegram-gtk.png quill-telegram
-
-      - name: QuillIINA GTK visual smoke
-        run: scripts/linux-gtk-visual-check.sh .qa/quill-iina-gtk.png quill-iina
-
-      - name: QuillCodeEdit GTK visual smoke
-        run: scripts/linux-gtk-visual-check.sh .qa/quill-codeedit-gtk.png quill-codeedit
-
-      - name: QuillIceCubes GTK visual smoke
-        run: scripts/linux-gtk-visual-check.sh .qa/quill-icecubes-gtk.png quill-icecubes
-
-      - name: QuillNetNewsWire GTK visual smoke
-        run: scripts/linux-gtk-visual-check.sh .qa/quill-netnewswire-gtk.png quill-netnewswire
+      # Per-app GTK visual smoke. The product roster lives in
+      # `scripts/linux-gtk-app-products.sh` so visual and profile
+      # coverage cannot drift. Each product launches under Xvfb,
+      # screenshots the GTK window, and runs the verifier. With no
+      # per-product branch in `verify-gtk-screenshot.py`, the verifier
+      # falls through to the baseline check (size + mean brightness +
+      # stddev) so "blank window" / "didn't render" / "tiny window"
+      # regressions still fail CI. Per-app landmark predicates are
+      # follow-up slices in docs/uitest-plan.md.
+      - name: Quill app GTK visual smoke
+        run: |
+          while IFS= read -r product; do
+            [[ -n "$product" ]] || continue
+            echo "==> GTK visual smoke: $product"
+            scripts/linux-gtk-visual-check.sh ".qa/${product}-gtk.png" "$product"
+          done < <(scripts/linux-gtk-app-products.sh)
 
       # Per-app Linux profile baseline (CP106). For each Quill
       # app, sample startup_ms / rss_kb / cpu_pct_5s under Xvfb
@@ -132,10 +120,10 @@ jobs:
         run: |
           {
             echo "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
-            for product in quill-signal quill-telegram quill-iina \
-                           quill-codeedit quill-icecubes quill-netnewswire; do
+            while IFS= read -r product; do
+              [[ -n "$product" ]] || continue
               scripts/linux-gtk-profile.sh "$product" 5 20 || true
-            done
+            done < <(scripts/linux-gtk-app-products.sh)
           } | tee /tmp/quillui-profile.csv
 
       # No-fetch profile experiment. QUILLUI_DISABLE_FETCH=1

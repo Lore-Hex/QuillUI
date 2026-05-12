@@ -41,7 +41,8 @@ var products: [Product] = [
     .executable(name: "quill-signal", targets: ["QuillSignal"]),
     .executable(name: "quill-telegram", targets: ["QuillTelegram"]),
     .executable(name: "quill-iina", targets: ["QuillIINA"]),
-    .executable(name: "quill-codeedit", targets: ["QuillCodeEdit"])
+    .executable(name: "quill-codeedit", targets: ["QuillCodeEdit"]),
+    .executable(name: "quill-wireguard", targets: ["QuillWireGuard"])
 ]
 
 // `quill-netnewswire` is now a cross-platform executable backed

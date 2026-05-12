@@ -1998,3 +1998,32 @@ conversation rows", "Telegram pill row paints All/Personal/
 Work") and per-app xdotool interaction smokes (click the
 second sidebar row → second screenshot) are follow-up slices
 in `docs/uitest-plan.md` Phase 1.
+
+## Checkpoint 106: Centralized Linux App Matrix
+
+Status: queued in Linux CI.
+
+Added `scripts/linux-gtk-app-products.sh` as the single roster for
+user-facing Quill app products covered by the Linux GTK parity loop:
+
+```
+quill-enchanted
+quill-enchanted-upstream-slice
+quill-icecubes
+quill-netnewswire
+quill-codeedit
+quill-signal
+quill-telegram
+quill-iina
+quill-wireguard
+```
+
+Linux CI now consumes that roster from both the visual smoke step
+and the profile baseline step, replacing six hand-written visual
+steps plus a separate six-product profile loop. That closes the
+drift where Enchanted's native products and the WireGuard side app
+were not part of the per-app matrix.
+
+Also promoted WireGuard to the same lowercase executable-product
+shape as the rest of the app shells (`quill-wireguard`), instead
+of relying on SwiftPM's implicit capitalized target product.

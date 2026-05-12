@@ -10,24 +10,34 @@ User-raised bar across every app:
 3. **Identical Linux parity** — the same flows run + screenshot
    identically through the GTK4 backend.
 
-## Current state (CP103+)
+## Current state (CP106+)
 
 | App         | Compile from source | macOS UITest | Linux GTK smoke |
 |-------------|---------------------|--------------|-----------------|
-| Enchanted   | ✅ (CP80)           | —            | ✅ 4 PNGs + 2 interactions |
+| Enchanted   | ✅ (CP80)           | —            | ✅ generated + native matrix |
 | IceCubes    | — (iOS-pinned)      | —            | ✅ baseline (CP104)        |
 | NetNewsWire | — (Shared/Mac coupling) | —        | ✅ baseline (CP104)        |
 | CodeEdit    | — (SwiftLintPlugin) | —            | ✅ baseline (CP104)        |
 | Signal      | — (libsignal stack) | —            | ✅ baseline (CP104)        |
 | Telegram    | — (MTProto stack)   | —            | ✅ baseline (CP104)        |
 | IINA        | — (libmpv binding)  | —            | ✅ baseline (CP104)        |
+| WireGuard   | side target         | —            | ✅ baseline matrix         |
 
-All six per-app GTK smokes passed baseline (size + mean brightness
-+ stddev) on the first rollout (Linux CI run 25687405190); promoted
-off `continue-on-error: true` to hard-gated in CP105 (e8acd09).
-Every Quill app demonstrably paints something non-blank on the
-GTK4 backend out of the box — not just compile-green, but
-render-green.
+The per-app GTK smoke/profile roster now lives in
+`scripts/linux-gtk-app-products.sh`, so Linux visual and profile
+coverage iterate the same user-facing app list: `quill-enchanted`,
+`quill-enchanted-upstream-slice`, `quill-icecubes`,
+`quill-netnewswire`, `quill-codeedit`, `quill-signal`,
+`quill-telegram`, `quill-iina`, and `quill-wireguard`.
+
+The six fixture app GTK smokes passed baseline (size + mean
+brightness + stddev) on the first rollout (Linux CI run
+25687405190); promoted off `continue-on-error: true` to hard-gated
+in CP105 (e8acd09). CP106 widens the same hard gate to the native
+Enchanted products and the WireGuard side target through the shared
+matrix. Every Quill app product is now expected to paint something
+non-blank on the GTK4 backend out of the box — not just
+compile-green, but render-green.
 
 Per-app fixture shells are compile-green hard-gated (CP82–CP89);
 per-app-core test targets cover the pure-Foundation surface
@@ -46,9 +56,12 @@ For every Quill app, add a Linux CI step that:
 
 Reuse `scripts/linux-gtk-visual-check.sh` (already proven for
 Enchanted's `quill-chat-linux` target) — accepts the app product
-name as `${2}`. The verifier `scripts/verify-gtk-screenshot.py`
-needs per-app landmark predicates; CP78 added Enchanted's; the
-new apps each need a small block in the verifier.
+name as `${2}`. Source the app list from
+`scripts/linux-gtk-app-products.sh` instead of hard-coding products
+in CI. The verifier `scripts/verify-gtk-screenshot.py` needs
+per-app landmark predicates; CP78 added Enchanted's generated-app
+landmarks, while the root app shells still use the baseline
+nonblank verifier until each gets its own small predicate block.
 
 For interaction tests, reuse `scripts/linux-gtk-interaction-check.sh`
 (also proven for Enchanted) which drives the running app with

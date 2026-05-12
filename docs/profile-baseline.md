@@ -1,10 +1,17 @@
 # Linux Profile Baseline
 
-Output from `scripts/linux-gtk-profile.sh` over all six Quill app
+Output from `scripts/linux-gtk-profile.sh` over the Quill app
 shells in CI. Two CPU samples per app: `cpu_pct_initial` (5s
 window starting 5s after the first X11 window appears, i.e.
 boot cost) and `cpu_pct_steady` (5s window starting 25s after,
 i.e. long-term render-loop cost).
+
+Current CI sources the app roster from
+`scripts/linux-gtk-app-products.sh`, the same list used by visual
+smoke coverage. The historic numbers below are the original
+six-fixture baseline; the next Linux run will also emit rows for
+`quill-enchanted`, `quill-enchanted-upstream-slice`, and
+`quill-wireguard`.
 
 ## Numbers (Linux run 25692222317, commit 530232c)
 
