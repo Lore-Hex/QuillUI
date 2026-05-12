@@ -52,6 +52,10 @@ the baseline CSV with a loose 25% CPU ceiling. The threshold is meant
 to catch a return to the former 100%+ render-loop spin without
 flaking on normal CI variance.
 
+The baseline and focused experiment CSVs are emitted through
+`scripts/run-linux-gtk-profile-csv.sh`, which keeps the CSV header,
+product loop, and failure-tolerant artifact capture in one place.
+
 ## Previous Outlier Matrix (Linux run 25715271203, commit f6a27de)
 
 | App                            | build_ms | startup_ms | rss_kb  | cpu_initial | cpu_steady |

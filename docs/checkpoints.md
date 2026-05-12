@@ -2174,3 +2174,22 @@ but they will fail if IceCubes/NetNewsWire-style 100%+ render-loop
 spins return. Linux CI now runs this check immediately after the
 per-app baseline profiler, and `LinuxGTKAppMatrixTests` covers both a
 passing d69a1f4-shaped CSV and a rejected 135.2% steady-CPU row.
+
+## Checkpoint 112: Shared Linux Profile CSV Runner
+
+Status: implemented locally; queued for CI.
+
+The Linux workflow had seven copies of the same profile CSV loop:
+emit the common header, run `scripts/linux-gtk-profile.sh` for one or
+more products, tolerate row-level failures so artifacts still upload,
+and tee the result into `/tmp/quillui-profile*.csv`.
+
+Added `scripts/run-linux-gtk-profile-csv.sh` as that single helper.
+It accepts an explicit product list or reads products from stdin, so
+the full app roster still comes from `scripts/linux-gtk-app-products.sh`
+while the focused IceCubes/NetNewsWire experiments stay one-line
+workflow calls with only their environment knobs left in YAML.
+
+`LinuxGTKAppMatrixTests` now covers the helper with a fake profiler,
+including the failure-tolerant loop behavior, and the workflow test
+asserts the profile baseline uses the shared runner.

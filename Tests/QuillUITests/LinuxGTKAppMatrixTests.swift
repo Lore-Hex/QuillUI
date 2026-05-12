@@ -39,6 +39,7 @@ struct LinuxGTKAppMatrixTests {
             encoding: .utf8
         )
         #expect(workflow.contains("scripts/linux-gtk-app-products.sh"))
+        #expect(workflow.contains("scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("scripts/check-linux-gtk-profile-budget.sh /tmp/quillui-profile.csv"))
         #expect(!workflow.contains("QuillSignal GTK visual smoke"))
         #expect(!workflow.contains("for product in quill-signal quill-telegram"))
@@ -87,10 +88,56 @@ struct LinuxGTKAppMatrixTests {
         #expect(malformed.output.contains("startup_ms=nope is not a non-negative integer"))
     }
 
-    private func runScript(_ script: URL, arguments: [String] = []) throws -> (status: Int32, output: String) {
+    @Test("profile CSV runner shares header and failure-tolerant product loop")
+    func profileCSVRunnerSharesHeaderAndFailureTolerantProductLoop() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/run-linux-gtk-profile-csv.sh")
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-profile-runner-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        let csv = temporaryDirectory.appendingPathComponent("profile.csv")
+        let fakeProfiler = temporaryDirectory.appendingPathComponent("fake-profiler.sh")
+        try """
+        #!/usr/bin/env bash
+        product="$1"
+        echo "$product,1,2,3,4.0,5.0,ok"
+        if [[ "$product" == "second-product" ]]; then
+          exit 7
+        fi
+
+        """.write(to: fakeProfiler, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeProfiler.path)
+
+        let result = try runScript(
+            script,
+            arguments: [csv.path, "first-product", "second-product"],
+            environment: ["QUILLUI_GTK_PROFILE_COMMAND": fakeProfiler.path]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        let expected = """
+        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
+        first-product,1,2,3,4.0,5.0,ok
+        second-product,1,2,3,4.0,5.0,ok
+
+        """
+        #expect(result.output == expected)
+        let writtenCSV = try String(contentsOf: csv, encoding: .utf8)
+        #expect(writtenCSV == expected)
+    }
+
+    private func runScript(
+        _ script: URL,
+        arguments: [String] = [],
+        environment: [String: String] = [:]
+    ) throws -> (status: Int32, output: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path] + arguments
+        process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, override in override }
 
         let pipe = Pipe()
         process.standardOutput = pipe
