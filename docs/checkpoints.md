@@ -2027,3 +2027,24 @@ were not part of the per-app matrix.
 Also promoted WireGuard to the same lowercase executable-product
 shape as the rest of the app shells (`quill-wireguard`), instead
 of relying on SwiftPM's implicit capitalized target product.
+
+## Checkpoint 107: SwiftPM Plugin API Cleanup
+
+Status: verified locally.
+
+Raised the root package manifest from `swift-tools-version: 6.0`
+to `6.1`, matching the repo's current Swift 6.2 Linux CI image
+and Swift 6.3 local verification path. That unlocks SwiftPM's
+URL-based build-tool plugin API.
+
+Updated both local build-tool plugins to use the non-deprecated
+URL surface:
+
+- `QuillAssetSymbolsPlugin`: `directoryURL`,
+  `pluginWorkDirectoryURL`, `tool.url`, and URL input/output files.
+- `QuillMainExtractPlugin`: URL config/input/output resolution and
+  URL build-command inputs/outputs.
+
+This removes the repeated SwiftPM `Path` / `.string` /
+`pluginWorkDirectory` deprecation warnings from every `swift test`
+run without changing generated source outputs.

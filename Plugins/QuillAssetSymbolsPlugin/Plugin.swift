@@ -23,46 +23,41 @@ struct QuillAssetSymbolsPlugin: BuildToolPlugin {
     func createBuildCommands(context: PluginContext, target: Target) async throws -> [Command] {
         guard let sourceTarget = target as? SourceModuleTarget else { return [] }
 
-        // SwiftPM 5.6–6.0 expose `Path` (string-based); newer
-        // toolchains expose URL-based APIs. The string-based form
-        // works on all supported toolchains, so keep it until the
-        // package can move to swift-tools-version 6.1.
-        let rootPath = sourceTarget.directory.string
-        let assetCatalogPaths = collectAssetCatalogs(under: rootPath)
-        guard !assetCatalogPaths.isEmpty else { return [] }
+        let rootURL = sourceTarget.directoryURL
+        let assetCatalogURLs = collectAssetCatalogs(under: rootURL)
+        guard !assetCatalogURLs.isEmpty else { return [] }
 
         let tool = try context.tool(named: "QuillAssetSymbolsTool")
-        let workDir = context.pluginWorkDirectory.string
-        let outputPath = workDir + "/GeneratedAssetSymbols.swift"
+        let outputURL = context.pluginWorkDirectoryURL
+            .appendingPathComponent("GeneratedAssetSymbols.swift")
 
-        var arguments = ["--output", outputPath]
-        arguments.append(contentsOf: assetCatalogPaths)
+        var arguments = ["--output", outputURL.path]
+        arguments.append(contentsOf: assetCatalogURLs.map(\.path))
 
         return [
             .buildCommand(
                 displayName: "Generate asset symbols for \(target.name)",
-                executable: tool.path,
+                executable: tool.url,
                 arguments: arguments,
-                inputFiles: assetCatalogPaths.map { Path($0) },
-                outputFiles: [Path(outputPath)]
+                inputFiles: assetCatalogURLs,
+                outputFiles: [outputURL]
             )
         ]
     }
 
-    private func collectAssetCatalogs(under rootPath: String) -> [String] {
-        let url = URL(fileURLWithPath: rootPath)
+    private func collectAssetCatalogs(under rootURL: URL) -> [URL] {
         guard let enumerator = FileManager.default.enumerator(
-            at: url,
+            at: rootURL,
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         ) else {
             return []
         }
-        var catalogs: [String] = []
+        var catalogs: [URL] = []
         for case let candidate as URL in enumerator where candidate.pathExtension == "xcassets" {
-            catalogs.append(candidate.path)
+            catalogs.append(candidate)
             enumerator.skipDescendants()
         }
-        return catalogs.sorted()
+        return catalogs.sorted { $0.path < $1.path }
     }
 }
