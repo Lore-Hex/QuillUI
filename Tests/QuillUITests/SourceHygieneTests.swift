@@ -125,6 +125,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"),
             encoding: .utf8
         )
+        let backendProducts = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-backend-products.sh"),
+            encoding: .utf8
+        )
         let legacyGtkScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-gtk-interaction-check.sh"),
             encoding: .utf8
@@ -158,10 +162,13 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("QUILLUI_BACKEND_INTERACTION_MODE"))
         #expect(backendScript.contains("QUILLUI_BACKEND_VERIFY_PRODUCT"))
         #expect(backendScript.contains("quill-gtk-interaction-smoke|quill-qt-interaction-smoke"))
-        #expect(backendScript.contains("backend_for_product()"))
-        #expect(backendScript.contains("quill-gtk-interaction-smoke|quill-chat-linux) echo \"gtk\""))
-        #expect(backendScript.contains("quill-qt-interaction-smoke) echo \"qt\""))
+        #expect(backendScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(backendScript.contains("quillui_requested_backend_for_product \"$PRODUCT\""))
         #expect(backendScript.contains("app_environment+=(QUILLUI_BACKEND=\"$REQUESTED_BACKEND\")"))
+        #expect(backendProducts.contains("quill-qt-interaction-smoke)"))
+        #expect(backendProducts.contains("echo \"qt\""))
+        #expect(backendProducts.contains("quill-gtk-interaction-smoke|quill-chat-linux"))
+        #expect(backendProducts.contains("echo \"gtk\""))
         #expect(legacyGtkScript.contains("linux-backend-interaction-check.sh"))
         #expect(workflow.contains("scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke"))
         #expect(workflow.contains("scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke"))

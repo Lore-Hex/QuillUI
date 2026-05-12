@@ -55,6 +55,26 @@ struct LinuxGTKAppMatrixTests {
         #expect(gtkCheck.contains("run_smoke \"$product\""))
         #expect(!gtkCheck.contains("run_smoke quill-enchanted"))
         #expect(!gtkCheck.contains("run_smoke quill-enchanted-upstream-slice"))
+
+        let profileScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-gtk-profile.sh"),
+            encoding: .utf8
+        )
+        let csvRunner = try String(
+            contentsOf: root.appendingPathComponent("scripts/run-linux-gtk-profile-csv.sh"),
+            encoding: .utf8
+        )
+        let budgetScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/check-linux-gtk-profile-budget.sh"),
+            encoding: .utf8
+        )
+        #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(profileScript.contains("quillui_requested_backend_for_product \"$PRODUCT\""))
+        #expect(profileScript.contains("app_environment+=(QUILLUI_BACKEND=\"$requested_backend\")"))
+        #expect(profileScript.contains("QUILLUI_BACKEND_PROFILE_DISPLAY"))
+        #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_COMMAND"))
+        #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_SETTLE"))
+        #expect(budgetScript.contains("QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT"))
     }
 
     @Test("profile budget accepts current rows and rejects bad profile rows")
@@ -125,7 +145,7 @@ struct LinuxGTKAppMatrixTests {
         let result = try runScript(
             script,
             arguments: [csv.path, "first-product", "second-product"],
-            environment: ["QUILLUI_GTK_PROFILE_COMMAND": fakeProfiler.path]
+            environment: ["QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path]
         )
 
         #expect(result.status == 0, Comment(rawValue: result.output))

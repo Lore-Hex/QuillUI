@@ -7,6 +7,8 @@ SCREENSHOT_PATH="${1:-$OUTPUT_DIR/quill-gtk-interaction-smoke-open.png}"
 PRODUCT="${2:-quill-gtk-interaction-smoke}"
 APP_EXECUTABLE=""
 
+source "$ROOT_DIR/scripts/quillui-backend-products.sh"
+
 # Backend-neutral names are canonical for new GTK/Qt parity checks.
 # The legacy QUILLUI_GTK_* names stay supported so older docs and
 # local scripts do not break while callers migrate.
@@ -47,14 +49,6 @@ if [[ -z "$INTERACTION_MODE" ]]; then
     *) INTERACTION_MODE="click" ;;
   esac
 fi
-
-backend_for_product() {
-  case "$1" in
-    quill-gtk-interaction-smoke|quill-chat-linux) echo "gtk" ;;
-    quill-qt-interaction-smoke) echo "qt" ;;
-    *) echo "" ;;
-  esac
-}
 
 install_packages() {
   if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
@@ -197,10 +191,7 @@ if ! kill -0 "$xvfb_pid" >/dev/null 2>&1; then
   exit 70
 fi
 app_environment=(GTK_A11Y=none DISPLAY="$DISPLAY_ID")
-REQUESTED_BACKEND="${QUILLUI_BACKEND:-}"
-if [[ -z "$REQUESTED_BACKEND" ]]; then
-  REQUESTED_BACKEND="$(backend_for_product "$PRODUCT")"
-fi
+REQUESTED_BACKEND="$(quillui_requested_backend_for_product "$PRODUCT")"
 if [[ -n "$REQUESTED_BACKEND" ]]; then
   app_environment+=(QUILLUI_BACKEND="$REQUESTED_BACKEND")
 fi

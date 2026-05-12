@@ -24,8 +24,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PRODUCT="${1:-}"
-SETTLE_SECONDS="${2:-${QUILLUI_GTK_PROFILE_SETTLE:-5}}"
-STEADY_DELAY_SECONDS="${3:-${QUILLUI_GTK_PROFILE_STEADY:-20}}"
+SETTLE_SECONDS="${2:-${QUILLUI_BACKEND_PROFILE_SETTLE:-${QUILLUI_GTK_PROFILE_SETTLE:-5}}}"
+STEADY_DELAY_SECONDS="${3:-${QUILLUI_BACKEND_PROFILE_STEADY:-${QUILLUI_GTK_PROFILE_STEADY:-20}}}"
+
+source "$ROOT_DIR/scripts/quillui-backend-products.sh"
 
 if [[ -z "$PRODUCT" ]]; then
     echo "Usage: $0 <product-name> [settle-seconds] [steady-delay]" >&2
@@ -62,8 +64,8 @@ if [[ ! -x "$exe" ]]; then
     exit 1
 fi
 
-display_id=":${QUILLUI_GTK_PROFILE_DISPLAY:-95}"
-screen_size="${QUILLUI_GTK_PROFILE_SCREEN_SIZE:-1180x760x24}"
+display_id=":${QUILLUI_BACKEND_PROFILE_DISPLAY:-${QUILLUI_GTK_PROFILE_DISPLAY:-95}}"
+screen_size="${QUILLUI_BACKEND_PROFILE_SCREEN_SIZE:-${QUILLUI_GTK_PROFILE_SCREEN_SIZE:-1180x760x24}}"
 Xvfb "$display_id" -screen 0 "$screen_size" >/tmp/quillui-profile-xvfb.log 2>&1 &
 xvfb_pid=$!
 
@@ -80,7 +82,12 @@ if ! kill -0 "$xvfb_pid" >/dev/null 2>&1; then
 fi
 
 startup_start_ms=$(date +%s%3N)
-GTK_A11Y=none DISPLAY="$display_id" "$exe" >/tmp/quillui-profile-app.log 2>&1 &
+app_environment=(GTK_A11Y=none DISPLAY="$display_id")
+requested_backend="$(quillui_requested_backend_for_product "$PRODUCT")"
+if [[ -n "$requested_backend" ]]; then
+    app_environment+=(QUILLUI_BACKEND="$requested_backend")
+fi
+env "${app_environment[@]}" "$exe" >/tmp/quillui-profile-app.log 2>&1 &
 app_pid=$!
 
 # Wait for the X11 window to actually appear — that's the

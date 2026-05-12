@@ -2514,3 +2514,20 @@ override `QUILLUI_BACKEND` explicitly when probing fallback behavior.
 This makes the GTK and Qt smoke products exercise the same requested-backend
 path used by `QuillApp.run` and `QuillQtApp.run`, while preserving the existing
 single runner, legacy GTK compatibility shim, and visual interaction checks.
+
+## Checkpoint 136: Shared Backend Product Mapping
+
+Status: implemented locally; guarded by source hygiene and matrix tests.
+
+Backend product selection now lives in `scripts/quillui-backend-products.sh`
+instead of being copied into individual QA scripts. The interaction runner and
+Linux profile runner both use the shared helper, so GTK app products, generated
+Quill Chat, and the Qt interaction target enter through the same
+`QUILLUI_BACKEND` selection path while still honoring explicit caller
+overrides.
+
+The profile CSV runner and profile budget checker now accept
+`QUILLUI_BACKEND_PROFILE_*` environment names in addition to the legacy
+`QUILLUI_GTK_PROFILE_*` names. That keeps existing CI stable while making the
+performance tooling backend-neutral enough for Qt profile rows when a native Qt
+renderer lands.
