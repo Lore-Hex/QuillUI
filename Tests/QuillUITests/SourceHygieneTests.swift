@@ -82,10 +82,12 @@ struct SourceHygieneTests {
             "Sources/QuillWireGuard/main.swift",
             "Sources/QuillEnchantedCore/EnchantedApp.swift",
             "Sources/QuillEnchantedUpstreamSlice/main.swift",
-            "Sources/QuillGtkInteractionSmoke/main.swift"
+            "Sources/QuillGtkInteractionSmoke/main.swift",
+            "Sources/QuillQtInteractionSmoke/main.swift"
         ]
 
         #expect(helperSource.contains("public enum QuillAppWindow"))
+        #expect(helperSource.contains("QuillBackendRegistry.launchBackend"))
         #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
         #expect(helperSource.contains(".defaultSize(width: width, height: height)"))
 
@@ -97,6 +99,48 @@ struct SourceHygieneTests {
             #expect(!source.contains(".defaultWindowSize("), "\(path) should not branch into Linux-only sizing")
             #expect(!source.contains(".defaultSize("), "\(path) should let QuillAppWindow own default sizing")
         }
+    }
+
+    @Test("Linux interaction smoke targets share one view surface")
+    func linuxInteractionSmokeTargetsShareOneViewSurface() throws {
+        let root = try packageRoot()
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+        let gtkMain = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillGtkInteractionSmoke/main.swift"),
+            encoding: .utf8
+        )
+        let qtMain = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillQtInteractionSmoke/main.swift"),
+            encoding: .utf8
+        )
+        let sharedView = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillInteractionSmokeSupport/QuillInteractionSmokeView.swift"),
+            encoding: .utf8
+        )
+        let qtBackend = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUIQt/QuillUIQt.swift"),
+            encoding: .utf8
+        )
+
+        #expect(manifest.contains(".library(name: \"QuillUIQt\", targets: [\"QuillUIQt\"])"))
+        #expect(manifest.contains(".executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"])"))
+        #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
+        #expect(manifest.contains("name: \"QuillInteractionSmokeSupport\""))
+        #expect(manifest.contains("dependencies: [\"QuillUI\", \"QuillUIQt\", \"QuillInteractionSmokeSupport\"]"))
+
+        #expect(gtkMain.contains("import QuillInteractionSmokeSupport"))
+        #expect(gtkMain.contains("QuillApp.run(QuillGtkInteractionSmokeApp.self)"))
+        #expect(!gtkMain.contains("struct SmokeView"))
+
+        #expect(qtMain.contains("import QuillInteractionSmokeSupport"))
+        #expect(qtMain.contains("import QuillUIQt"))
+        #expect(qtMain.contains("QuillQtApp.run(QuillQtInteractionSmokeApp.self)"))
+        #expect(!qtMain.contains("struct SmokeView"))
+
+        #expect(sharedView.contains("public struct QuillInteractionSmokeView"))
+        #expect(qtBackend.contains("public enum QuillQtBackend"))
+        #expect(qtBackend.contains("public enum QuillQtApp"))
+        #expect(qtBackend.contains("QuillApp.run(appType)"))
     }
 
     @Test("Generated Linux app packages launch through QuillApp")

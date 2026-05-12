@@ -150,6 +150,15 @@ the view tree repainted:
 scripts/linux-gtk-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
 ```
 
+The Qt launch target uses the same interaction surface through
+`QuillInteractionSmokeSupport`, with `QuillUIQt` owning the backend-specific
+launcher. Until the native Qt renderer is linked, the CI smoke executes through
+the platform fallback runtime so the target graph and app scene stay buildable:
+
+```bash
+scripts/linux-gtk-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke
+```
+
 It can also exercise the generated Quill Chat toolbar menu:
 
 ```bash

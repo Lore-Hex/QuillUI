@@ -28,6 +28,7 @@ let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsy
 
 var products: [Product] = [
     .library(name: "QuillUI", targets: ["QuillUI"]),
+    .library(name: "QuillUIQt", targets: ["QuillUIQt"]),
     .library(name: "QuillData", targets: ["QuillData"]),
     .library(name: "QuillKit", targets: ["QuillKit"]),
     .library(name: "QuillChatKit", targets: ["QuillChatKit"]),
@@ -82,6 +83,7 @@ products += [
 #if os(Linux)
 products += [
     .executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]),
+    .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"]),
     .library(name: "SwiftUI", targets: ["SwiftUI"]),
     .library(name: "UniformTypeIdentifiers", targets: ["UniformTypeIdentifiers"]),
     .library(name: "Network", targets: ["Network"]),
@@ -228,6 +230,16 @@ var targets: [Target] = [
     .target(
         name: "QuillUI",
         dependencies: quillUIDependencies
+    ),
+    .target(
+        name: "QuillUIQt",
+        dependencies: ["QuillUI"],
+        path: "Sources/QuillUIQt"
+    ),
+    .target(
+        name: "QuillInteractionSmokeSupport",
+        dependencies: ["QuillUI"],
+        path: "Sources/QuillInteractionSmokeSupport"
     ),
     .systemLibrary(
         name: "CGdkPixbuf",
@@ -782,8 +794,17 @@ targets.append(contentsOf: [
     // sheet modes).
     .executableTarget(
         name: "QuillGtkInteractionSmoke",
-        dependencies: ["QuillUI"],
+        dependencies: ["QuillUI", "QuillInteractionSmokeSupport"],
         path: "Sources/QuillGtkInteractionSmoke"
+    ),
+    // Qt launch target for the same interaction surface. The
+    // QuillUIQt target owns backend selection while this executable
+    // shares the GTK smoke view code, keeping visual drift visible
+    // as soon as the native Qt renderer lands.
+    .executableTarget(
+        name: "QuillQtInteractionSmoke",
+        dependencies: ["QuillUI", "QuillUIQt", "QuillInteractionSmokeSupport"],
+        path: "Sources/QuillQtInteractionSmoke"
     ),
     // Apple-framework compatibility shims that the generated
     // Enchanted package references by canonical name. Each target

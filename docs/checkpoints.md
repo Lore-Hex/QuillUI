@@ -2452,3 +2452,21 @@ extra direct SwiftOpenUI dependency and keeps the generated-app runtime
 path under QuillUI's shared launch abstraction. `SourceHygieneTests`
 pin both the smoke executable and generated package builder to that
 centralized path.
+
+## Checkpoint 132: Qt Launch Target Skeleton
+
+Status: implemented locally; guarded by source hygiene tests and Linux CI.
+
+QuillUI now has a backend registry with SwiftUI, GTK, and Qt identifiers, plus
+a new `QuillUIQt` product that owns the Qt-specific launch surface. The first
+Qt executable, `quill-qt-interaction-smoke`, uses `QuillQtApp.run` so future
+native Qt host work can be isolated to the backend target instead of copied
+through app shells.
+
+The GTK and Qt interaction smoke apps now share
+`QuillInteractionSmokeSupport.QuillInteractionSmokeView`. This keeps the
+stateful button, text field, sidebar, banner, and sheet coverage in one place
+and lets CI compare backend launch behavior without duplicated SwiftUI view
+code. The Qt smoke currently runs through the platform fallback runtime until a
+native Qt renderer is linked, but the target graph, package product, and CI
+interaction check are now in place.

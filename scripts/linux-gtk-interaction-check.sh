@@ -10,7 +10,7 @@ INTERACTION_MODE="${QUILLUI_GTK_INTERACTION_MODE:-}"
 if [[ -z "$INTERACTION_MODE" ]]; then
   case "$PRODUCT" in
     quill-chat-linux) INTERACTION_MODE="toolbar-menu" ;;
-    quill-gtk-interaction-smoke) INTERACTION_MODE="open-panel" ;;
+    quill-gtk-interaction-smoke|quill-qt-interaction-smoke) INTERACTION_MODE="open-panel" ;;
     *) INTERACTION_MODE="click" ;;
   esac
 fi
@@ -319,35 +319,35 @@ case "$PRODUCT" in
         ;;
     esac
     ;;
-	  quill-gtk-interaction-smoke)
-	    case "$INTERACTION_MODE" in
-	      sidebar-button)
-	        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 110))}"
-	        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 282))}"
-	        ;;
-	      banner-button)
-	        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 450))}"
-	        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 370))}"
-	        ;;
-	      nested-sheet)
-	        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 110))}"
-	        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 457))}"
-	        ;;
-	      sidebar-sheet)
-	        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 150))}"
-	        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 508))}"
-	        ;;
-	      banner-sheet)
-	        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 450))}"
-	        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 590))}"
-	        ;;
-	      open-panel|*)
-	        click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + window_width - 84))}"
-	        click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 34))}"
-	        ;;
-	    esac
-	    click_at "$click_x" "$click_y"
-	    sleep "$post_click_sleep"
+    quill-gtk-interaction-smoke|quill-qt-interaction-smoke)
+      case "$INTERACTION_MODE" in
+        sidebar-button)
+          click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 110))}"
+          click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 282))}"
+          ;;
+        banner-button)
+          click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 450))}"
+          click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 370))}"
+          ;;
+        nested-sheet)
+          click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 110))}"
+          click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 457))}"
+          ;;
+        sidebar-sheet)
+          click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 150))}"
+          click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 508))}"
+          ;;
+        banner-sheet)
+          click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + 450))}"
+          click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 590))}"
+          ;;
+        open-panel|*)
+          click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + window_width - 84))}"
+          click_y="${QUILLUI_GTK_CLICK_Y:-$((window_y + 34))}"
+          ;;
+      esac
+      click_at "$click_x" "$click_y"
+      sleep "$post_click_sleep"
 	    ;;
   *)
     click_x="${QUILLUI_GTK_CLICK_X:-$((window_x + window_width - 200))}"
@@ -398,19 +398,20 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
       ;;
   esac
   "$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"
-elif [[ "$PRODUCT" == "quill-gtk-interaction-smoke" ]]; then
+elif [[ "$PRODUCT" == "quill-gtk-interaction-smoke" || "$PRODUCT" == "quill-qt-interaction-smoke" ]]; then
+  smoke_prefix="$PRODUCT"
   case "$INTERACTION_MODE" in
     nested-sheet|sidebar-sheet|banner-sheet)
-      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-gtk-interaction-smoke-sheet}"
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-${smoke_prefix}-sheet}"
       ;;
     sidebar-button)
-      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-gtk-interaction-smoke-sidebar}"
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-${smoke_prefix}-sidebar}"
       ;;
     banner-button)
-      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-gtk-interaction-smoke-banner}"
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-${smoke_prefix}-banner}"
       ;;
     open-panel|*)
-      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-gtk-interaction-smoke-open}"
+      VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-${smoke_prefix}-open}"
       ;;
   esac
   "$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"

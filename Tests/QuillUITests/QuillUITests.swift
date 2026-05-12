@@ -50,4 +50,27 @@ struct QuillUITests {
         _ = QuillApp.self
         _ = QuillAppWindow.self
     }
+
+    // MARK: - Backend registry
+
+    @Test("Backend registry exposes SwiftUI GTK and Qt")
+    func backendRegistryExposesKnownBackends() {
+        #expect(QuillBackendIdentifier(environmentValue: "swift-ui") == .swiftUI)
+        #expect(QuillBackendIdentifier(environmentValue: "gtk4") == .gtk)
+        #expect(QuillBackendIdentifier(environmentValue: "qt6") == .qt)
+        #expect(QuillBackendIdentifier(environmentValue: "unknown") == nil)
+
+        let identifiers = QuillBackendRegistry.knownBackends.map(\.identifier)
+        #expect(identifiers == [.swiftUI, .gtk, .qt])
+
+        #if os(Linux)
+        #expect(QuillBackendRegistry.platformDefault == .gtk)
+        #else
+        #expect(QuillBackendRegistry.platformDefault == .swiftUI)
+        #endif
+
+        let qtDescriptor = QuillBackendRegistry.descriptor(for: .qt)
+        #expect(qtDescriptor.displayName == "Qt")
+        #expect(qtDescriptor.isExperimental == true)
+    }
 }

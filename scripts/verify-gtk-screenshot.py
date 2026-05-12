@@ -1276,7 +1276,10 @@ def main() -> int:
         raise SystemExit("Screenshot was not created")
 
     image = Screenshot(path)
-    smoke_product = product.startswith("quill-gtk-interaction-smoke")
+    smoke_product = (
+        product.startswith("quill-gtk-interaction-smoke")
+        or product.startswith("quill-qt-interaction-smoke")
+    )
     minimum_width = 600 if smoke_product else 900
     minimum_height = 560 if smoke_product else 600
     require(
@@ -1320,13 +1323,13 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_prompt_send(image))
     elif product in {"quill-chat-mac-reference", "quill-chat-linux-mac-reference"}:
         print(validate_quill_chat_mac_reference(image))
-    elif product == "quill-gtk-interaction-smoke-open":
+    elif product in {"quill-gtk-interaction-smoke-open", "quill-qt-interaction-smoke-open"}:
         print(validate_quill_gtk_interaction_smoke(image))
-    elif product == "quill-gtk-interaction-smoke-sidebar":
+    elif product in {"quill-gtk-interaction-smoke-sidebar", "quill-qt-interaction-smoke-sidebar"}:
         print(validate_quill_gtk_interaction_sidebar(image))
-    elif product == "quill-gtk-interaction-smoke-banner":
+    elif product in {"quill-gtk-interaction-smoke-banner", "quill-qt-interaction-smoke-banner"}:
         print(validate_quill_gtk_interaction_banner(image))
-    elif product == "quill-gtk-interaction-smoke-sheet":
+    elif product in {"quill-gtk-interaction-smoke-sheet", "quill-qt-interaction-smoke-sheet"}:
         print(validate_quill_gtk_interaction_sheet(image))
 
     return 0

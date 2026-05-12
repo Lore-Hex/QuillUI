@@ -31,11 +31,13 @@ public enum QuillAppWindow {
 
 /// Standard entry-point shim every QuillUI app calls from its
 /// `main.swift`. Dispatches to the platform-appropriate runtime:
-/// on Linux that's `BackendGTK4.GTK4Backend().run(A.self)`; on
-/// Apple platforms it's the SwiftUI-native `App.main()`. Lets
+/// on Linux the default is `BackendGTK4.GTK4Backend().run(A.self)`;
+/// on Apple platforms it's the SwiftUI-native `App.main()`. Lets
 /// the per-app `main.swift` end with a single line —
 /// `QuillApp.run(QuillFooApp.self)` — instead of repeating the
 /// same `#if os(Linux) ... #else ... #endif` block six times.
+/// Specialized launch surfaces such as `QuillQtApp` live in their
+/// own backend targets while sharing `QuillBackendRegistry`.
 ///
 /// The function is plain synchronous so it can be called from
 /// top-level `main.swift`. Linux enters SwiftOpenUI's GTK backend
@@ -45,10 +47,21 @@ public enum QuillApp {
     public static func run<A: App>(_: A.Type) {
         MainActor.assumeIsolated {
             #if os(Linux)
-            GTK4Backend().run(A.self)
+            QuillLinuxAppRuntime.run(A.self)
             #else
             A.main()
             #endif
         }
     }
 }
+
+#if os(Linux)
+private enum QuillLinuxAppRuntime {
+    static func run<A: App>(_: A.Type) {
+        switch QuillBackendRegistry.launchBackend {
+        case .swiftUI, .gtk, .qt:
+            GTK4Backend().run(A.self)
+        }
+    }
+}
+#endif

@@ -87,6 +87,9 @@ jobs:
       - name: GTK interaction smoke
         run: scripts/linux-gtk-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
 
+      - name: Qt launch target interaction smoke
+        run: scripts/linux-gtk-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke
+
       - name: Generated Enchanted toolbar interaction smoke
         run: scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
 
