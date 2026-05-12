@@ -25,7 +25,7 @@ import Glibc
 /// Lazy GTK4 initialization. Runs `gtk_init()` once per process.
 /// Returns true if GTK is usable for widget creation, false otherwise
 /// (no display server, init failed, etc.).
-@MainActor
+
 public enum QuillGTK {
     private static var didInit = false
     private static var initOK = false
@@ -94,7 +94,7 @@ extension NSApplication {
 /// Installs the GTK run() implementation on NSApplication at module
 /// load time. Unmodified Mac apps that just call `NSApp.run()` will
 /// now pump the GTK4 main loop — no source changes needed.
-@MainActor
+
 public func _quillAppKitGTKInstallRunHook() {
     NSApplication._runHook = {
         NSApplication.shared.runGTK()
@@ -108,7 +108,6 @@ public func _quillAppKitGTKInstallRunHook() {
 // public extension property whose getter has a side effect on first
 // access, AND off a public init that real callers will trigger.
 public enum QuillAppKitGTKAutoInstall {
-    @MainActor
     public static let didInstall: Bool = {
         _quillAppKitGTKInstallRunHook()
         return true
@@ -182,7 +181,7 @@ extension NSWindow {
 // Storage for OpaquePointer-per-NSWindow. Keeping it here (not on
 // NSWindow as a stored property) avoids needing to pierce the
 // NSObject + NSResponder inheritance chain with extra fields.
-@MainActor
+
 private var _windowHandles: [ObjectIdentifier: OpaquePointer] = [:]
 
 // MARK: - NSView: GtkBox-backed
@@ -231,7 +230,7 @@ extension NSView {
     }
 }
 
-@MainActor
+
 private var _viewHandles: [ObjectIdentifier: OpaquePointer] = [:]
 
 // MARK: - NSWindow.contentView ↔ GtkWindow.set_child
@@ -275,7 +274,7 @@ extension NSTextField {
 
 /// Stable storage for per-NSButton closure handlers (closures aren't
 /// stored properties on NSObject subclasses without extra ceremony).
-@MainActor
+
 private var _buttonHandlers: [ObjectIdentifier: () -> Void] = [:]
 
 /// Map from g_signal_connect's user_data pointer back to the Swift
@@ -286,7 +285,7 @@ private final class _ButtonClickContext {
     init(_ h: @escaping () -> Void) { self.handler = h }
 }
 
-@MainActor
+
 private var _buttonContexts: [ObjectIdentifier: _ButtonClickContext] = [:]
 
 /// C trampoline: GTK calls this with our heap-allocated context as
@@ -393,7 +392,7 @@ extension NSScrollView {
 // signal so apps can react to user typing. Phase B target/action
 // support is the same closure pattern as NSButton.
 
-@MainActor
+
 private var _entryHandlers: [ObjectIdentifier: (String) -> Void] = [:]
 
 private final class _EntryChangedContext {
@@ -405,7 +404,7 @@ private final class _EntryChangedContext {
     }
 }
 
-@MainActor
+
 private var _entryContexts: [ObjectIdentifier: _EntryChangedContext] = [:]
 
 private let _quillEntryChangedTrampoline: @convention(c) (OpaquePointer?, UnsafeMutableRawPointer?) -> Void = { editable, userData in

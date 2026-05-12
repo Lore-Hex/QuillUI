@@ -9,10 +9,4 @@ struct QuillWireGuardApp: App {
     }
 }
 
-#if os(Linux)
-import BackendGTK4
-
-GTK4Backend().run(QuillWireGuardApp.self)
-#else
-QuillWireGuardApp.main()
-#endif
+QuillApp.run(QuillWireGuardApp.self)

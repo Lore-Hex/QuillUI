@@ -13,6 +13,7 @@ import UIKit
 #else
 import SwiftOpenUI
 import QuillKit
+import QuillFoundation
 #endif
 
 #if os(macOS) || os(iOS) || os(visionOS)
@@ -273,26 +274,28 @@ public extension QuillPlatformImage {
     }
 }
 
-public final class NSImage: @unchecked Sendable {
-    public var data: Data?
-    public var size: CGSize
+// `NSImage` was previously declared here as a standalone class,
+// but that collided with `QuillAppKit`'s `typealias NSImage = RSImage`
+// when both modules ended up in the same import scope (~500
+// "ambiguous for type lookup" + "extraneous argument label 'nsImage:'"
+// cascading errors on the generated Enchanted Linux build).
+//
+// Unify on `RSImage` from QuillFoundation. QuillUI's previous
+// `NSImage`-specific API (`tiffRepresentation` going through
+// gdk-pixbuf, `lockFocus` / `unlockFocus` / `draw` no-op stubs)
+// lives in the extension below so callers keep working without
+// `import QuillAppKit`.
+public typealias NSImage = RSImage
 
-    public init?(data: Data) {
-        self.data = data
-        self.size = CGSize(width: 1, height: 1)
-    }
-
-    public init(size: CGSize) {
-        self.data = nil
-        self.size = size
-    }
-
-    public convenience init?(named name: String) {
+public extension RSImage {
+    /// Convenience initializer matching the old `NSImage(named:)`
+    /// shim's warning-and-placeholder behavior.
+    static func quillNSImageNamed(_ name: String) -> RSImage {
         recordCompatibilityWarning(
             "NSImage(named:)",
             message: "NSImage(named:) returns a blank placeholder image for '\(name)' on Linux; app assets are not loaded through AppKit yet."
         )
-        self.init(size: CGSize(width: 1, height: 1))
+        return RSImage(size: CGSize(width: 1, height: 1))
     }
 
     /// Returns the receiver's image bytes as TIFF.
@@ -304,17 +307,12 @@ public final class NSImage: @unchecked Sendable {
     /// TIFF input is returned unchanged on Linux. Apple may re-encode valid
     /// TIFF input, so callers should rely on "valid TIFF bytes out" rather than
     /// byte-for-byte equality across platforms.
-    ///
-    public var tiffRepresentation: Data? {
+    var tiffRepresentation: Data? {
         guard let data else { return nil }
         switch QuillImageFormatDetector.detect(data) {
         case .tiff:
-            // Already TIFF. Returning it unchanged is deterministic and avoids
-            // unnecessary decode/encode loss.
             return data
         case .png, .jpeg, .gif, .bmp, .webp:
-            // Transcode through gdk-pixbuf: decode the input format, then
-            // re-encode as TIFF. This is what Apple's NSImage does on macOS.
             if let transcoded = quillTranscodeImageDataToTIFF(data) {
                 return transcoded
             }
@@ -324,9 +322,6 @@ public final class NSImage: @unchecked Sendable {
             )
             return nil
         case .unknown:
-            // Try gdk-pixbuf anyway in case it recognizes a format our magic
-            // sniffer doesn't (gdk-pixbuf supports many obscure container
-            // formats via loader plugins). Fall back to nil if it can't.
             if let transcoded = quillTranscodeImageDataToTIFF(data) {
                 return transcoded
             }
@@ -338,15 +333,15 @@ public final class NSImage: @unchecked Sendable {
         }
     }
 
-    public func lockFocus() {
+    func lockFocus() {
         recordCompatibilityFallback("NSImage.lockFocus")
     }
 
-    public func unlockFocus() {
+    func unlockFocus() {
         recordCompatibilityFallback("NSImage.unlockFocus")
     }
 
-    public func draw(
+    func draw(
         in destinationRect: CGRect,
         from sourceRect: CGRect,
         operation: QuillImageCompositingOperation,

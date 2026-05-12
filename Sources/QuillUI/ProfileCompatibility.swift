@@ -12,23 +12,11 @@ public extension View {
     }
 }
 
-public struct Window<Content: View>: Scene {
-    public typealias Body = Never
-
-    public let title: String
-    public let id: String
-    public let content: Content
-
-    public init(_ title: String, id: String, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.id = id
-        self.content = content()
-    }
-
-    public var body: Never {
-        fatalError("Window is a Linux source-compatibility scene placeholder")
-    }
-}
+// `Window` is provided by SwiftOpenUI on Linux (already re-
+// exported by QuillUI via `@_exported import SwiftOpenUI`).
+// A duplicate stub here caused "ambiguous use of
+// 'init(_:id:content:)'" in generated Enchanted source. Drop
+// it and rely on SwiftOpenUI's complete implementation.
 
 public struct QuillCheckForUpdatesMenuItem: View {
     public init() {}

@@ -4,6 +4,7 @@ import SwiftUI
 #else
 import SwiftOpenUI
 import QuillKit
+import QuillFoundation
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
 private func recordQuillUIFallback(_ operation: String, message: String) {
@@ -270,42 +271,15 @@ public struct SymbolEffectOptions: Sendable {
     public static func `repeat`(_ count: Int) -> SymbolEffectOptions { SymbolEffectOptions() }
 }
 
-@propertyWrapper
-public struct FocusState<Value> {
-    private final class Box {
-        var value: Value
-
-        init(_ value: Value) {
-            self.value = value
-        }
-    }
-
-    private var box: Box
-
-    public init() where Value == Bool {
-        self.box = Box(false)
-    }
-
-    public init<Wrapped>() where Value == Wrapped? {
-        self.box = Box(nil)
-    }
-
-    public init(wrappedValue: Value) {
-        self.box = Box(wrappedValue)
-    }
-
-    public var wrappedValue: Value {
-        get { box.value }
-        nonmutating set { box.value = newValue }
-    }
-
-    public var projectedValue: Binding<Value> {
-        Binding(
-            get: { box.value },
-            set: { box.value = $0 }
-        )
-    }
-}
+// `FocusState` was previously declared here as a Binding-projecting
+// shim, but SwiftOpenUI ships its own `FocusState<Value: Hashable>`
+// with `projectedValue: FocusState<Value>` and a matching
+// `View.focused(_:)` modifier overload. Having both visible to
+// `import QuillUI` consumers (via the @_exported SwiftOpenUI plus
+// QuillUI's own struct) caused ~230 "'FocusState' is ambiguous for
+// type lookup" errors in the generated Enchanted Linux build.
+// SwiftOpenUI's version is the canonical one going forward —
+// callers get it transparently through `@_exported import SwiftOpenUI`.
 
 public struct AnyTransition: Sendable {
     public init() {}
@@ -419,10 +393,10 @@ public extension ToolbarItemPlacement {
     static var topBarLeading: ToolbarItemPlacement { .leading }
 }
 
-public extension VerticalAlignment {
-    static var firstTextBaseline: VerticalAlignment { .bottom }
-    static var lastTextBaseline: VerticalAlignment { .bottom }
-}
+// `VerticalAlignment.firstTextBaseline` / `.lastTextBaseline`
+// live in the `Sources/SwiftUIShim` target (canonical home).
+// Re-declaring them here triggered "ambiguous use of
+// 'firstTextBaseline'" in code that imports both modules.
 
 public extension GridItem.Size {
     static func flexible(minimum: Double = 10, maximum: Double = .infinity) -> GridItem.Size {
@@ -710,6 +684,22 @@ public struct TextInputAutocapitalization: Hashable, Sendable {
 }
 
 public extension Image {
+    /// Linux source-compatibility inits matching SwiftUI's
+    /// `Image(nsImage:)` / `Image(uiImage:)`. SwiftOpenUI's
+    /// `Image` doesn't have bitmap-decoding initializers yet;
+    /// fall through to the system-symbol placeholder so call
+    /// sites compile. When a real GTK decoder lands, both can
+    /// route through `image.data`. (`init(data:)` is provided
+    /// separately in `Compatibility.swift` with a temp-file
+    /// implementation.)
+    init(nsImage image: RSImage) {
+        self.init(systemName: "photo")
+    }
+
+    init(uiImage image: RSImage) {
+        self.init(systemName: "photo")
+    }
+
     enum TemplateRenderingMode {
         case original
         case template

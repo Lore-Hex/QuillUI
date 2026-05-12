@@ -106,14 +106,26 @@ public class CGImage {}
 
 public class RSImage: NSObject, @unchecked Sendable {
     public override init() {}
-    public init?(data: Data) {}
+    public init?(data: Data) {
+        super.init()
+        self.data = data
+    }
     public init?(named: String) {}
     public init?(systemName: String, withConfiguration: Any? = nil) {}
+    public init(size: CGSize) {
+        super.init()
+        self.size = size
+    }
     public struct SymbolConfiguration {
         public init(pointSize: CGFloat, weight: Any) {}
         public init(textStyle: Any) {}
     }
     public var size: CGSize = CGSize(width: 0, height: 0)
+    /// Raw image bytes when the instance was constructed from
+    /// `init?(data:)`. Mirrors the `NSImage(data:)` source-
+    /// compatibility shape — readers reach back to the original
+    /// bytes for re-encoding (e.g. `tiffRepresentation`).
+    public var data: Data?
     public func pngData() -> Data? { nil }
     public func dataRepresentation() -> Data? { nil }
     public func tinted(with: Any) -> RSImage { self }

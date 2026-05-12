@@ -105,8 +105,14 @@ def publish_var(line: str) -> str:
     )
 
 
-def ensure_swiftui_import(text: str) -> str:
-    if re.search(r"^import SwiftUI$", text, re.MULTILINE):
+def _ensure_import(text: str, module: str) -> str:
+    """Insert `import <module>` if not already present, just after
+    the file's last existing top-level import line.
+
+    Keeps the import grouping tidy and avoids duplicating imports
+    when the lowering script runs multiple times on the same file.
+    """
+    if re.search(rf"^\s*import {re.escape(module)}\b", text, re.MULTILINE):
         return text
 
     lines = text.splitlines(keepends=True)
@@ -115,9 +121,11 @@ def ensure_swiftui_import(text: str) -> str:
         if re.match(r"^\s*import\s+[A-Za-z_][A-Za-z0-9_]*\s*$", line):
             last_import = index
     if last_import >= 0:
-        lines.insert(last_import + 1, "import SwiftUI\n")
+        lines.insert(last_import + 1, f"import {module}\n")
         return "".join(lines)
-    return "import SwiftUI\n" + text
+    return f"import {module}\n" + text
+
+
 
 
 def lower_source(text: str) -> str:
@@ -159,8 +167,15 @@ def lower_source(text: str) -> str:
         output.append("@Observable\n")
 
     lowered = "".join(output)
+    # Every generated Linux source needs QuillUI's compatibility
+    # surface in scope: `@AppStorage`, `PlainButtonStyle`,
+    # `NSImage`, `RoundedBorderTextFieldStyle`, `ButtonStyle`, the
+    # SwiftUI re-export, and the lowered `QuillObservableObject` /
+    # `@QuillPublished` types all live there. Inject the import
+    # unconditionally so we don't have to track per-file usage.
+    lowered = _ensure_import(lowered, "QuillUI")
     if lowered != text:
-        lowered = ensure_swiftui_import(lowered)
+        lowered = _ensure_import(lowered, "SwiftUI")
     return lowered
 
 

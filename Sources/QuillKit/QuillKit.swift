@@ -466,6 +466,31 @@ public final class QuillUpdateService: @unchecked Sendable {
     }
 }
 
+// Hotkey registration shim. Real implementations use Carbon's
+// RegisterEventHotKey on macOS or platform-native APIs (XKB,
+// libei, GTK accelerator groups). The Linux stub records a
+// diagnostic and returns the closure's deregistration token so
+// upstream code keeps compiling.
+public final class QuillHotkeyService: @unchecked Sendable {
+    public static let shared = QuillHotkeyService()
+
+    public init() {}
+
+    @discardableResult
+    public func registerSingleUseSpace<ModifierSet>(
+        modifiers: ModifierSet,
+        handler: () -> AnyObject?
+    ) -> AnyObject? {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "registerSingleUseSpace",
+            severity: .unsupported,
+            message: "Global hotkey registration needs a native Linux key-event backend."
+        )
+        return handler()
+    }
+}
+
 public final class QuillDeviceWatcher: @unchecked Sendable {
     public static let shared = QuillDeviceWatcher()
 

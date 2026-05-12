@@ -28,3 +28,19 @@ public enum QuillPlatform {
 public enum QuillUIVersion {
     public static let current = "0.1.0"
 }
+
+// `MainActor.assumeIsolated` requires a Sendable result on newer
+// toolchains, but SwiftUI / SwiftOpenUI view values are intentionally
+// not Sendable. Keep the unchecked conformance private and expose only
+// the typed view helper below.
+private struct QuillUncheckedSendableView<Content: View>: @unchecked Sendable {
+    let content: Content
+}
+
+public enum QuillMainActorView {
+    public static func assumeIsolated<Content: View>(_ content: @MainActor () -> Content) -> Content {
+        MainActor.assumeIsolated {
+            QuillUncheckedSendableView(content: content())
+        }.content
+    }
+}

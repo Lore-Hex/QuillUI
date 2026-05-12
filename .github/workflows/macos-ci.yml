@@ -38,37 +38,132 @@ jobs:
       - name: Build QuillUI core library
         run: swift build --target QuillUI
 
+      # QuillChatKit holds the shared chat chrome (ChatBubble,
+      # ChatRow, ChatTimeline) consumed by both QuillSignal and
+      # QuillTelegram. Hard-gated so a regression here surfaces
+      # before the per-app Signal/Telegram builds.
+      - name: Build QuillChatKit
+        run: swift build --target QuillChatKit
+
+      - name: Build QuillChatKitTests
+        run: swift build --target QuillChatKitTests
+
+      # QuillKitTests was orphaned from Package.swift after the
+      # Linux compatibility-base rewrite; the file (~10 tests
+      # covering clipboard / diagnostics / capability matrix /
+      # launch service / speech backend) is purely against
+      # QuillKit and now re-wired. Hard-gated so a regression in
+      # the QuillKit platform-services API surfaces at build
+      # time.
+      - name: Build QuillKitTests
+        run: swift build --target QuillKitTests
+
+      # Pins the IceCubesAPI Mastodon surface: HTMLString
+      # tag/entity stripping, Account/Status snake_case JSON
+      # decoding, Timelines query construction, MastodonClient
+      # defaults. All pure Foundation, no transitive
+      # CombineSchedulers pull-in.
+      - name: Build QuillIceCubesCoreTests
+        run: swift build --target QuillIceCubesCoreTests
+
+      # Pins QuillNetNewsWireCore's local RSS 2.0 + Atom parser
+      # via fixture XML strings: title / link / pubDate /
+      # description decoding, CDATA, Untitled + id fallbacks,
+      # and RSSItem's derived URL + plain-text properties.
+      - name: Build QuillNetNewsWireCoreTests
+        run: swift build --target QuillNetNewsWireCoreTests
+
+      # Pins QuillCodeEditCore: ProjectFile.extension parsing
+      # (used by the sidebar icon switch), ID uniqueness, and
+      # the QuillSample fixture project shape.
+      - name: Build QuillCodeEditCoreTests
+        run: swift build --target QuillCodeEditCoreTests
+
+      # Pins QuillTelegramCore: `TelegramFolderFilter` (the
+      # All/Personal/Work pill-row filter) + fixture invariants
+      # (folder coverage, non-empty messages, unique ids, pill
+      # membership).
+      - name: Build QuillTelegramCoreTests
+        run: swift build --target QuillTelegramCoreTests
+
+      # Pins QuillIINACore: PlaylistItem identity + fixture
+      # invariants (non-empty playlist, mm:ss duration format,
+      # the four Blender shorts named in Checkpoint 89).
+      - name: Build QuillIINACoreTests
+        run: swift build --target QuillIINACoreTests
+
+      # Pins QuillSignalCore: Message + Conversation identity,
+      # ChatMessage conformance (still routes through
+      # QuillChatKit), and fixture invariants (non-empty,
+      # unique ids, "Me" sender on self-messages).
+      - name: Build QuillSignalCoreTests
+        run: swift build --target QuillSignalCoreTests
+
+      # Pins QuillUI's core library: QuillPlatform.name reports
+      # the host, QuillUIVersion is semver-shaped, QuillApp.run
+      # resolves. Keeps QuillUI itself on the test-target
+      # scorecard alongside the per-app-core suites.
+      - name: Build QuillUITests
+        run: swift build --target QuillUITests
+
       - name: Build QuillEnchanted
         run: swift build --target QuillEnchanted
 
-      # NetNewsWire still has unresolved upstream-shim gaps (the
-      # NetNewsWireLogic `Shared` + `iOS` source set needs more
-      # UIKit-on-macOS coverage from QuillUIKit). Build it as
-      # best-effort until the gap is closed.
-      - name: Build QuillNetNewsWire (best-effort)
-        continue-on-error: true
+      - name: Build QuillIceCubes
+        run: swift build --target QuillIceCubes
+
+      - name: Build QuillSignal
+        run: swift build --target QuillSignal
+
+      - name: Build QuillTelegram
+        run: swift build --target QuillTelegram
+
+      - name: Build QuillIINA
+        run: swift build --target QuillIINA
+
+      - name: Build QuillCodeEdit
+        run: swift build --target QuillCodeEdit
+
+      # QuillNetNewsWire is now a cross-platform RSS reader
+      # backed by QuillNetNewsWireCore (Foundation XMLParser).
+      # No longer depends on the upstream NetNewsWireLogic
+      # Shared/-tree; hard-gated.
+      - name: Build QuillNetNewsWire
         run: swift build --target QuillNetNewsWire
 
-      # WireGuardKitC.h relies on `u_int32_t` / `u_char` /
-      # `sockaddr_ctl` which the macOS 15+ SDK now wants explicitly
-      # imported from `DarwinFoundation.unsigned_types.*` modules.
-      # Patching upstream `wireguard-apple` is out of scope for now;
-      # WireGuard is a "side target" per `docs/app-targets.md`.
-      - name: Build QuillWireGuard (best-effort)
-        continue-on-error: true
+      # `scripts/fetch-upstream.sh wireguard` patches
+      # `WireGuardKitC.h` to explicitly `#include <sys/types.h>`
+      # so the macOS 15+ modular-header check on `u_int32_t` /
+      # `u_char` / `u_int16_t` resolves through the right
+      # Darwin module. Hard-gated.
+      - name: Build QuillWireGuard
         run: swift build --target QuillWireGuard
 
-      # Whole-package build catches any deps wired up incorrectly that the
-      # per-target builds missed (e.g. a target excluded from one app's tree
-      # but required by a different test target). Best-effort while
-      # NetNewsWire and CodeEdit upstream slices stabilize.
+      # `swift build` builds every declared target, including the
+      # NetNewsWireLogic upstream target (declared inside the
+      # `nnwUpstreamPresent` block) that nothing depends on after
+      # the Checkpoint 84 refactor. NetNewsWireLogic's Shared/ tree
+      # references Mac/-only types (~1655 unresolved-symbol errors).
+      # Each per-target hard gate above is the canonical "this app
+      # compiles" signal; the whole-package catch-all stays
+      # best-effort until the upstream NNW graph is removed or
+      # split.
       - name: Build entire package (best-effort)
         continue-on-error: true
         run: swift build
 
-      # Tests are still being re-stabilized after the in-tree NetNewsWire
-      # vendoring; skip on failure for now so green CI is achievable while
-      # tests are repaired. Remove `continue-on-error` once stable.
+      # `swift test` builds every declared target, including the
+      # orphan NetNewsWireLogic upstream target (gated by
+      # `nnwUpstreamPresent`) whose Shared/ tree references Mac-only
+      # types like `Node` and `AccountManager` that don't resolve
+      # without the rest of the upstream NetNewsWire app. That kills
+      # the macOS test invocation before our hard-gated test targets
+      # (QuillChatKitTests, QuillKitTests, the per-core suites) can
+      # be exercised. Linux CI runs `swift test` end-to-end and is
+      # the actual hard-gate on test PASS/FAIL — Linux caught the
+      # ChatDraft.sendMessage draft-loss bug in 40d2356, for example.
+      # This step stays best-effort until NetNewsWireLogic is split
+      # or removed.
       - name: Run tests (best-effort)
         continue-on-error: true
         run: swift test

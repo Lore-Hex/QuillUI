@@ -5,30 +5,32 @@ import SwiftUI
 #endif
 
 @MainActor
-public struct EnchantedRootView: @preconcurrency View {
+public struct EnchantedRootView: View {
     @StateObject private var model = EnchantedModel()
     @AppStorage("quill.enchanted.ollamaEndpoint") private var endpoint = "http://localhost:11434"
 
     public init() {}
 
-    public var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-                .frame(width: 300)
-                .background(QuillColors.sidebar)
+    nonisolated public var body: some View {
+        QuillMainActorView.assumeIsolated {
+            HStack(spacing: 0) {
+                sidebar
+                    .frame(width: 300)
+                    .background(QuillColors.sidebar)
 
-            Divider()
+                Divider()
 
-            chatSurface
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(QuillColors.canvas)
-        }
-        .frame(minWidth: 980, minHeight: 680)
-        .onAppear {
-            model.boot(endpoint: endpoint)
-        }
-        .onChange(of: endpoint) { _, value in
-            model.configureEndpoint(value)
+                chatSurface
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(QuillColors.canvas)
+            }
+            .frame(minWidth: 980, minHeight: 680)
+            .onAppear {
+                model.boot(endpoint: endpoint)
+            }
+            .onChange(of: endpoint) { _, value in
+                model.configureEndpoint(value)
+            }
         }
     }
 

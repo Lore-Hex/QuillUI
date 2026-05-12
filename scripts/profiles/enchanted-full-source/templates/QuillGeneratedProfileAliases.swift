@@ -1,5 +1,6 @@
 import AppKit
 import QuillKit
+import QuillUI
 import SwiftUI
 
 typealias Accessibility = QuillAccessibilityService

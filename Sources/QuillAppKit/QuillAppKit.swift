@@ -69,6 +69,54 @@ public typealias NSColor = RSColor
 public typealias NSFont = RSFont
 public typealias NSScreen = RSScreen
 
+// `NSBitmapImageRep` is the AppKit type that converts between
+// raster image formats (TIFF, JPEG, PNG, …). Enchanted uses it
+// to convert NSImage → JPEG bytes for upload. The Linux stub
+// stores the source data and returns it back unchanged from
+// `representation(using:properties:)` so callers can compile
+// and round-trip arbitrary bytes; a real implementation needs a
+// platform image codec (gdk-pixbuf, libpng, libjpeg).
+public final class NSBitmapImageRep: @unchecked Sendable {
+    public enum FileType: Int, Sendable {
+        case tiff
+        case bmp
+        case gif
+        case jpeg
+        case png
+        case jpeg2000
+    }
+
+    public enum PropertyKey: Hashable, Sendable {
+        case compressionFactor
+        case compressionMethod
+    }
+
+    private let data: Data
+
+    public init?(data: Data) {
+        self.data = data
+    }
+
+    public func representation(
+        using storageType: FileType,
+        properties: [PropertyKey: Any]
+    ) -> Data? {
+        // Pass-through. Real format conversion needs a codec
+        // backend; until then return the source bytes so callers
+        // (e.g. Enchanted's base64 upload) see non-empty data.
+        data
+    }
+
+    /// Looser key signature for upstream call sites that hand in
+    /// `[String: Any]` or `[NSString: Any]` property dictionaries.
+    public func representation<K, V>(
+        using storageType: FileType,
+        properties: [K: V]
+    ) -> Data? {
+        data
+    }
+}
+
 public extension NSColor {
     static let labelColor = NSColor()
     static let secondaryLabelColor = NSColor()
@@ -187,7 +235,7 @@ open class NSAppearance: NSObject, @unchecked Sendable {
 
 // MARK: - NSResponder / NSView / NSViewController / NSWindow
 
-@MainActor open class NSResponder: NSObject {
+open class NSResponder: NSObject {
     public override init() {}
     open var nextResponder: NSResponder? { nil }
     open func mouseDown(with event: NSEvent) {}
@@ -203,7 +251,7 @@ open class NSAppearance: NSObject, @unchecked Sendable {
     open func resignFirstResponder() -> Bool { true }
 }
 
-@MainActor open class NSView: NSResponder {
+open class NSView: NSResponder {
     public var frame: NSRect = .zero
     public var bounds: NSRect = .zero
     public var subviews: [NSView] = []
@@ -292,7 +340,7 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     public init(rect: NSRect, options: Options, owner: Any?, userInfo: [AnyHashable: Any]?) {}
 }
 
-@MainActor open class NSViewController: NSResponder {
+open class NSViewController: NSResponder {
     public var view: NSView = NSView()
     public var children: [NSViewController] = []
     public var representedObject: Any?
@@ -314,7 +362,7 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     public func dismiss(_ sender: Any?) {}
 }
 
-@MainActor open class NSWindowController: NSResponder {
+open class NSWindowController: NSResponder {
     public var window: NSWindow?
     public var contentViewController: NSViewController?
     public init(window: NSWindow?) { super.init(); self.window = window }
@@ -324,7 +372,7 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     public var windowFrameAutosaveName: String = ""
 }
 
-@MainActor public protocol NSWindowDelegate: AnyObject {
+public protocol NSWindowDelegate: AnyObject {
     func windowWillClose(_ notification: Notification)
     func windowDidBecomeKey(_ notification: Notification)
     func windowDidResignKey(_ notification: Notification)
@@ -346,7 +394,7 @@ public extension NSWindowDelegate {
     func windowShouldClose(_ sender: NSWindow) -> Bool { true }
 }
 
-@MainActor open class NSWindow: NSResponder {
+open class NSWindow: NSResponder {
     public struct StyleMask: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -371,6 +419,12 @@ public extension NSWindowDelegate {
     public enum OrderingMode: Int, Sendable { case below, above, out }
 
     public enum TitleVisibility: Int, Sendable { case visible, hidden }
+
+    // Static window-tabbing toggle — macOS Sierra+ groups windows
+    // into tab groups by default; apps that don't want this set
+    // `NSWindow.allowsAutomaticWindowTabbing = false`. No-op on
+    // Linux but stored so reads round-trip.
+    public static var allowsAutomaticWindowTabbing: Bool = true
 
     public struct CollectionBehavior: OptionSet, Sendable {
         public let rawValue: UInt
@@ -515,7 +569,7 @@ public extension NSWindowDelegate {
 
 // MARK: - NSPanel
 
-@MainActor open class NSPanel: NSWindow {
+open class NSPanel: NSWindow {
     public var isFloatingPanel: Bool = false
     public var becomesKeyOnlyIfNeeded: Bool = false
     public var worksWhenModal: Bool = false
@@ -523,7 +577,13 @@ public extension NSWindowDelegate {
 
 // MARK: - NSApplication
 
-@MainActor open class NSApplication: NSResponder {
+// Drop `@MainActor` from the Linux NSApplication stub. Real
+// AppKit's NSApplication has main-actor isolation, but our
+// Linux stub is just compile-time scaffolding — generated
+// Enchanted source reads `NSApp.currentEvent` from nonisolated
+// SwiftUI closures, which the unannotated class allows without
+// the `nonisolated(unsafe)` patchwork that broke the init().
+open class NSApplication: NSResponder, @unchecked Sendable {
     public static let shared = NSApplication()
     public weak var delegate: NSApplicationDelegate?
     public var mainMenu: NSMenu?
@@ -574,7 +634,7 @@ public extension NSWindowDelegate {
     /// Unmodified Mac apps that call `NSApp.run()` get the GTK loop
     /// for free if the GTK target is linked; otherwise this is a
     /// no-op (matches Apple's behavior on a non-display launch).
-    public static var _runHook: (@MainActor () -> Void)?
+    public static var _runHook: (() -> Void)?
 
     public func run() {
         if let hook = NSApplication._runHook {
@@ -603,8 +663,10 @@ public extension NSWindowDelegate {
     public func unregisterForRemoteNotifications() {}
 }
 
-// Top-level globals
-@MainActor public var NSApp: NSApplication { NSApplication.shared }
+// Top-level globals. NSApplication itself is no longer
+// `@MainActor` (see comment above) so the accessor doesn't
+// need any isolation override.
+public var NSApp: NSApplication { NSApplication.shared }
 
 open class NSDockTile: NSObject, @unchecked Sendable {
     public var badgeLabel: String?
@@ -613,7 +675,7 @@ open class NSDockTile: NSObject, @unchecked Sendable {
     public func display() {}
 }
 
-@MainActor public protocol NSApplicationDelegate: AnyObject {
+public protocol NSApplicationDelegate: AnyObject {
     func applicationDidFinishLaunching(_ notification: Notification)
     func applicationWillTerminate(_ notification: Notification)
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool
@@ -1051,7 +1113,7 @@ private extension NSWorkspace {
 
 // MARK: - NSCursor
 
-@MainActor open class NSCursor: NSObject {
+open class NSCursor: NSObject {
     public static let arrow = NSCursor()
     public static let crosshair = NSCursor()
     public static let closedHand = NSCursor()
@@ -1136,7 +1198,7 @@ public enum NSWritingDirection: Int, Sendable {
 
 // MARK: - NSMenu / NSMenuItem
 
-@MainActor open class NSMenu: NSObject {
+open class NSMenu: NSObject {
     public var title: String = ""
     public var items: [NSMenuItem] = []
     public weak var delegate: NSMenuDelegate?
@@ -1165,7 +1227,7 @@ public enum NSWritingDirection: Int, Sendable {
     public static var menuBarVisible: Bool = true
 }
 
-@MainActor open class NSMenuItem: NSObject {
+open class NSMenuItem: NSObject {
     public var title: String = ""
     public var action: Selector?
     public weak var target: AnyObject?
@@ -1206,7 +1268,7 @@ public enum NSWritingDirection: Int, Sendable {
     public static func separatorItem() -> NSMenuItem { NSMenuItem() }
 }
 
-@MainActor public protocol NSMenuDelegate: AnyObject {
+public protocol NSMenuDelegate: AnyObject {
     func menuWillOpen(_ menu: NSMenu)
     func menuDidClose(_ menu: NSMenu)
     func numberOfItems(in menu: NSMenu) -> Int
@@ -1221,13 +1283,13 @@ public extension NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {}
 }
 
-@MainActor public protocol NSMenuItemValidation: AnyObject {
+public protocol NSMenuItemValidation: AnyObject {
     func validateMenuItem(_ item: NSMenuItem) -> Bool
 }
 
 // MARK: - NSToolbar / NSToolbarItem
 
-@MainActor open class NSToolbar: NSObject {
+open class NSToolbar: NSObject {
     public var identifier: String = ""
     public weak var delegate: NSToolbarDelegate?
     public var displayMode: DisplayMode = .default
@@ -1253,7 +1315,7 @@ public extension NSMenuDelegate {
     public func validateVisibleItems() {}
 }
 
-@MainActor open class NSToolbarItem: NSObject {
+open class NSToolbarItem: NSObject {
     public struct Identifier: RawRepresentable, Hashable, Sendable {
         public var rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -1297,7 +1359,7 @@ open class NSToolbarItemGroup: NSToolbarItem {
     public enum ControlRepresentation: Int, Sendable { case automatic, expanded, collapsed }
 }
 
-@MainActor public protocol NSToolbarDelegate: AnyObject {
+public protocol NSToolbarDelegate: AnyObject {
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier]
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier]
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar: Bool) -> NSToolbarItem?
@@ -1310,7 +1372,7 @@ public extension NSToolbarDelegate {
 
 // MARK: - NSAlert / NSSavePanel / NSOpenPanel
 
-@MainActor open class NSAlert: NSObject {
+open class NSAlert: NSObject {
     public var messageText: String = ""
     public var informativeText: String = ""
     public var icon: NSImage?
@@ -1380,7 +1442,7 @@ public extension NSToolbarDelegate {
     }
 }
 
-@MainActor open class NSSavePanel: NSWindow {
+open class NSSavePanel: NSWindow {
     public var url: URL?
     public var directoryURL: URL?
     public var nameFieldStringValue: String = ""
@@ -1400,7 +1462,7 @@ public extension NSToolbarDelegate {
     public func begin(completionHandler: @escaping (NSApplication.ModalResponse) -> Void) {}
 }
 
-@MainActor open class NSOpenPanel: NSSavePanel {
+open class NSOpenPanel: NSSavePanel {
     public var canChooseFiles: Bool = true
     public var canChooseDirectories: Bool = false
     public var allowsMultipleSelection: Bool = false
@@ -1410,7 +1472,7 @@ public extension NSToolbarDelegate {
 
 // MARK: - NSScrollView / NSScroller / NSTextField / NSTextView / NSImageView / NSButton / NSPopUpButton / NSSearchField / NSSplitView / NSSlider
 
-@MainActor open class NSScrollView: NSView {
+open class NSScrollView: NSView {
     public var documentView: NSView?
     public var contentView: NSClipView = NSClipView()
     public var hasVerticalScroller: Bool = false
@@ -1431,17 +1493,17 @@ public extension NSToolbarDelegate {
     public enum BorderType: UInt, Sendable { case noBorder, lineBorder, bezelBorder, grooveBorder }
 }
 
-@MainActor open class NSClipView: NSView {
+open class NSClipView: NSView {
     public var documentView: NSView?
     public var documentRect: NSRect = .zero
     public var documentVisibleRect: NSRect = .zero
 }
 
-@MainActor open class NSScroller: NSView {
+open class NSScroller: NSView {
     public enum Style: Int, Sendable { case legacy, overlay }
 }
 
-@MainActor open class NSTextField: NSControl {
+open class NSTextField: NSControl {
     public var placeholderString: String?
     public var placeholderAttributedString: NSAttributedString?
     public var isEditable: Bool = false
@@ -1473,7 +1535,7 @@ public extension NSToolbarDelegate {
     }
 }
 
-@MainActor public protocol NSTextFieldDelegate: AnyObject {
+public protocol NSTextFieldDelegate: AnyObject {
     func controlTextDidChange(_ obj: Notification)
     func controlTextDidBeginEditing(_ obj: Notification)
     func controlTextDidEndEditing(_ obj: Notification)
@@ -1488,11 +1550,11 @@ public extension NSTextFieldDelegate {
     func control(_ control: NSControl, textShouldEndEditing: NSText) -> Bool { true }
 }
 
-@MainActor open class NSText: NSView {
+open class NSText: NSView {
     public var string: String = ""
 }
 
-@MainActor open class NSTextView: NSText {
+open class NSTextView: NSText {
     public var textStorage: NSTextStorage? = NSTextStorage(string: "")
     public var layoutManager: NSLayoutManager? = NSLayoutManager()
     public var textContainer: NSTextContainer? = NSTextContainer()
@@ -1555,7 +1617,7 @@ open class NSTextContainer: NSObject, @unchecked Sendable {
     public weak var layoutManager: NSLayoutManager?
 }
 
-@MainActor public protocol NSTextViewDelegate: NSTextDelegate {
+public protocol NSTextViewDelegate: NSTextDelegate {
     func textViewDidChangeSelection(_ notification: Notification)
     func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool
 }
@@ -1564,7 +1626,7 @@ public extension NSTextViewDelegate {
     func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool { true }
 }
 
-@MainActor public protocol NSTextDelegate: AnyObject {
+public protocol NSTextDelegate: AnyObject {
     func textDidChange(_ notification: Notification)
     func textDidBeginEditing(_ notification: Notification)
     func textDidEndEditing(_ notification: Notification)
@@ -1575,7 +1637,7 @@ public extension NSTextDelegate {
     func textDidEndEditing(_ notification: Notification) {}
 }
 
-@MainActor open class NSImageView: NSControl {
+open class NSImageView: NSControl {
     public var image: NSImage?
     public var imageScaling: ImageScaling = .scaleProportionallyDown
     public var imageAlignment: ImageAlignment = .alignCenter
@@ -1585,7 +1647,7 @@ public extension NSTextDelegate {
     public enum ImageAlignment: UInt, Sendable { case alignCenter, alignTop, alignTopLeft, alignTopRight, alignLeft, alignBottom, alignBottomLeft, alignBottomRight, alignRight }
 }
 
-@MainActor open class NSControl: NSView {
+open class NSControl: NSView {
     public weak var target: AnyObject?
     public var action: Selector?
     public var isEnabled: Bool = true
@@ -1604,7 +1666,7 @@ public extension NSTextDelegate {
     public enum ControlSize: UInt, Sendable { case regular, small, mini, large }
 }
 
-@MainActor open class NSButton: NSControl {
+open class NSButton: NSControl {
     public var title: String = ""
     public var attributedTitle: NSAttributedString = NSAttributedString(string: "")
     public var alternateTitle: String = ""
@@ -1641,7 +1703,7 @@ public extension NSControl {
     }
 }
 
-@MainActor open class NSSlider: NSControl {
+open class NSSlider: NSControl {
     public var minValue: Double = 0
     public var maxValue: Double = 1
     public var altIncrementValue: Double = 0
@@ -1656,7 +1718,7 @@ public extension NSControl {
     public override init() { super.init() }
 }
 
-@MainActor open class NSStackView: NSView {
+open class NSStackView: NSView {
     public enum Orientation: Int, Sendable { case horizontal = 0, vertical = 1 }
     public enum Distribution: Int, Sendable { case equalCentering, equalSpacing, fill, fillEqually, fillProportionally, gravityAreas }
     public enum Gravity: Int, Sendable { case top, center, bottom, leading, trailing }
@@ -1682,7 +1744,7 @@ extension NSLayoutConstraint {
     }
 }
 
-@MainActor open class NSProgressIndicator: NSView {
+open class NSProgressIndicator: NSView {
     public var minValue: Double = 0
     public var maxValue: Double = 100
     public var doubleValue: Double = 0
@@ -1698,7 +1760,7 @@ extension NSLayoutConstraint {
     public override init() { super.init() }
 }
 
-@MainActor open class NSPopUpButton: NSButton {
+open class NSPopUpButton: NSButton {
     public var menu: NSMenu? = NSMenu()
     public var pullsDown: Bool = false
     public var indexOfSelectedItem: Int = -1
@@ -1733,14 +1795,14 @@ extension NSLayoutConstraint {
     public override init() { super.init() }
 }
 
-@MainActor open class NSPopUpButtonCell: NSObject {
+open class NSPopUpButtonCell: NSObject {
     public var menu: NSMenu? = NSMenu()
     public var pullsDown: Bool = false
     public var arrowPosition: ArrowPosition = .arrowAtBottom
     public enum ArrowPosition: UInt, Sendable { case noArrow, arrowAtCenter, arrowAtBottom }
 }
 
-@MainActor open class NSSearchField: NSTextField {
+open class NSSearchField: NSTextField {
     public var searchMenuTemplate: NSMenu?
     public var sendsSearchStringImmediately: Bool = false
     public var sendsWholeSearchString: Bool = false
@@ -1750,7 +1812,7 @@ extension NSLayoutConstraint {
     public weak var searchDelegate: NSSearchFieldDelegate?
 }
 
-@MainActor public protocol NSSearchFieldDelegate: NSTextFieldDelegate {
+public protocol NSSearchFieldDelegate: NSTextFieldDelegate {
     func searchFieldDidStartSearching(_ sender: NSSearchField)
     func searchFieldDidEndSearching(_ sender: NSSearchField)
 }
@@ -1759,7 +1821,7 @@ public extension NSSearchFieldDelegate {
     func searchFieldDidEndSearching(_ sender: NSSearchField) {}
 }
 
-@MainActor open class NSSplitView: NSView {
+open class NSSplitView: NSView {
     public weak var delegate: NSSplitViewDelegate?
     public var isVertical: Bool = false
     public var arrangedSubviews: [NSView] = []
@@ -1774,7 +1836,7 @@ public extension NSSearchFieldDelegate {
     public enum DividerStyle: Int, Sendable { case thick = 1, thin = 2, paneSplitter = 3 }
 }
 
-@MainActor public protocol NSSplitViewDelegate: AnyObject {
+public protocol NSSplitViewDelegate: AnyObject {
     func splitView(_ splitView: NSSplitView, canCollapseSubview: NSView) -> Bool
     func splitViewDidResizeSubviews(_ notification: Notification)
 }
@@ -1785,7 +1847,7 @@ public extension NSSplitViewDelegate {
 
 public typealias NSSplitViewDividerIndex = Int
 
-@MainActor open class NSSplitViewController: NSViewController {
+open class NSSplitViewController: NSViewController {
     public var splitViewItems: [NSSplitViewItem] = []
     public func addSplitViewItem(_ i: NSSplitViewItem) { splitViewItems.append(i) }
     public func insertSplitViewItem(_ i: NSSplitViewItem, at idx: Int) { splitViewItems.insert(i, at: idx) }
@@ -1793,7 +1855,7 @@ public typealias NSSplitViewDividerIndex = Int
     public var splitView: NSSplitView = NSSplitView()
 }
 
-@MainActor open class NSSplitViewItem: NSObject {
+open class NSSplitViewItem: NSObject {
     public var viewController: NSViewController = NSViewController()
     public var behavior: Behavior = .default
     public var collapseBehavior: CollapseBehavior = .default
@@ -1828,7 +1890,7 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
 
 // MARK: - NSOutlineView / NSTableView
 
-@MainActor open class NSTableView: NSControl {
+open class NSTableView: NSControl {
     public weak var delegate: NSTableViewDelegate?
     public weak var dataSource: NSTableViewDataSource?
     public var headerView: NSTableHeaderView? = NSTableHeaderView()
@@ -1910,13 +1972,13 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     public enum DropOperation: UInt, Sendable { case on, above }
 }
 
-@MainActor open class NSTableHeaderView: NSView {}
-@MainActor open class NSTableRowView: NSView {
+open class NSTableHeaderView: NSView {}
+open class NSTableRowView: NSView {
     public var isSelected: Bool = false
     public var isEmphasized: Bool = false
     public var isGroupRowStyle: Bool = false
 }
-@MainActor open class NSTableCellView: NSView {
+open class NSTableCellView: NSView {
     public var textField: NSTextField?
     public var imageView: NSImageView?
     public var objectValue: Any?
@@ -1925,7 +1987,7 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     public enum BackgroundStyle: Int, Sendable { case normal, emphasized, raised, lowered }
 }
 
-@MainActor open class NSTableColumn: NSObject {
+open class NSTableColumn: NSObject {
     public var identifier: NSUserInterfaceItemIdentifier
     public var title: String = ""
     public var width: CGFloat = 100
@@ -1947,7 +2009,7 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     }
 }
 
-@MainActor public protocol NSTableViewDelegate: AnyObject {
+public protocol NSTableViewDelegate: AnyObject {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView?
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat
@@ -1968,7 +2030,7 @@ public extension NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {}
 }
 
-@MainActor public protocol NSTableViewDataSource: AnyObject {
+public protocol NSTableViewDataSource: AnyObject {
     func numberOfRows(in tableView: NSTableView) -> Int
     func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any?
 }
@@ -1977,7 +2039,7 @@ public extension NSTableViewDataSource {
     func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any? { nil }
 }
 
-@MainActor open class NSOutlineView: NSTableView {
+open class NSOutlineView: NSTableView {
     public var indentationPerLevel: CGFloat = 16
     public var indentationMarkerFollowsCell: Bool = true
     public var autoresizesOutlineColumn: Bool = true
@@ -2001,7 +2063,7 @@ public extension NSTableViewDataSource {
     public func isExpandable(_ item: Any?) -> Bool { false }
 }
 
-@MainActor public protocol NSOutlineViewDelegate: NSTableViewDelegate {
+public protocol NSOutlineViewDelegate: NSTableViewDelegate {
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView?
     func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool
@@ -2022,7 +2084,7 @@ public extension NSOutlineViewDelegate {
     func outlineViewItemDidCollapse(_ notification: Notification) {}
 }
 
-@MainActor public protocol NSOutlineViewDataSource: AnyObject {
+public protocol NSOutlineViewDataSource: AnyObject {
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool
@@ -2037,7 +2099,7 @@ public extension NSOutlineViewDataSource {
 
 // MARK: - Document support
 
-@MainActor open class NSDocument: NSObject {
+open class NSDocument: NSObject {
     public var fileURL: URL?
     public var fileType: String?
     public var fileModificationDate: Date?
@@ -2068,7 +2130,7 @@ public extension NSOutlineViewDataSource {
     public enum ChangeType: UInt, Sendable { case changeDone, changeUndone, changeRedone, changeCleared, changeReadOtherContents, changeAutosaved, changeDiscardable }
 }
 
-@MainActor open class NSDocumentController: NSObject {
+open class NSDocumentController: NSObject {
     public static let shared = NSDocumentController()
     public var documents: [NSDocument] = []
     public var currentDocument: NSDocument?
@@ -2080,24 +2142,24 @@ public extension NSOutlineViewDataSource {
 
 // MARK: - NSHostingView / NSHostingController / NSViewRepresentable bridges
 
-@MainActor public class NSHostingView<Content>: NSView {
+public class NSHostingView<Content>: NSView {
     public var rootView: Content
     public init(rootView: Content) { self.rootView = rootView; super.init() }
 }
 
-@MainActor public class NSHostingController<Content>: NSViewController {
+public class NSHostingController<Content>: NSViewController {
     public var rootView: Content
     public init(rootView: Content) { self.rootView = rootView; super.init() }
 }
 
 // SwiftUI bridging protocols (these get re-exported by the SwiftUI shim
 // too — declared here so `import AppKit` alone is enough).
-@MainActor public protocol NSViewRepresentable: AnyObject {
+public protocol NSViewRepresentable: AnyObject {
     associatedtype NSViewType: NSView
     func makeNSView(context: NSViewRepresentableContext<Self>) -> NSViewType
     func updateNSView(_ nsView: NSViewType, context: NSViewRepresentableContext<Self>)
 }
-@MainActor public protocol NSViewControllerRepresentable: AnyObject {
+public protocol NSViewControllerRepresentable: AnyObject {
     associatedtype NSViewControllerType: NSViewController
     func makeNSViewController(context: NSViewControllerRepresentableContext<Self>) -> NSViewControllerType
     func updateNSViewController(_ nsViewController: NSViewControllerType, context: NSViewControllerRepresentableContext<Self>)
@@ -2111,7 +2173,7 @@ public struct NSViewControllerRepresentableContext<Coordinator> {
 
 // MARK: - NSStatusBar / NSStatusItem (menu-bar widgets)
 
-@MainActor open class NSStatusBar: NSObject {
+open class NSStatusBar: NSObject {
     public static let system = NSStatusBar()
     public func statusItem(withLength: CGFloat) -> NSStatusItem { NSStatusItem() }
     public func removeStatusItem(_ item: NSStatusItem) {}
@@ -2120,7 +2182,7 @@ public struct NSViewControllerRepresentableContext<Coordinator> {
     public var thickness: CGFloat = 22
 }
 
-@MainActor open class NSStatusItem: NSObject {
+open class NSStatusItem: NSObject {
     public var button: NSStatusBarButton? = NSStatusBarButton()
     public var menu: NSMenu?
     public var length: CGFloat = -1
@@ -2135,11 +2197,11 @@ public struct NSViewControllerRepresentableContext<Coordinator> {
     }
 }
 
-@MainActor open class NSStatusBarButton: NSButton {}
+open class NSStatusBarButton: NSButton {}
 
 // MARK: - NSPopover / NSPopoverDelegate
 
-@MainActor open class NSPopover: NSResponder {
+open class NSPopover: NSResponder {
     public var contentViewController: NSViewController?
     public var contentSize: NSSize = .zero
     public var behavior: Behavior = .applicationDefined
@@ -2153,7 +2215,7 @@ public struct NSViewControllerRepresentableContext<Coordinator> {
     public func close() {}
 }
 
-@MainActor public protocol NSPopoverDelegate: AnyObject {
+public protocol NSPopoverDelegate: AnyObject {
     func popoverWillShow(_ notification: Notification)
     func popoverDidShow(_ notification: Notification)
     func popoverWillClose(_ notification: Notification)
@@ -2174,7 +2236,7 @@ public enum NSRectEdge: UInt, Sendable {
 
 // MARK: - NSVisualEffectView / NSGlassEffectView
 
-@MainActor open class NSVisualEffectView: NSView {
+open class NSVisualEffectView: NSView {
     public var material: Material = .titlebar
     public var blendingMode: BlendingMode = .behindWindow
     public var state: State = .followsWindowActiveState
@@ -2189,7 +2251,7 @@ public enum NSRectEdge: UInt, Sendable {
     public enum State: Int, Sendable { case followsWindowActiveState, active, inactive }
 }
 
-@MainActor open class NSGlassEffectView: NSView {
+open class NSGlassEffectView: NSView {
     public var contentView: NSView?
     public var cornerRadius: CGFloat = 0
     public var tintColor: NSColor?
@@ -2197,7 +2259,7 @@ public enum NSRectEdge: UInt, Sendable {
 
 // MARK: - NSAnimationContext
 
-@MainActor open class NSAnimationContext: NSObject {
+open class NSAnimationContext: NSObject {
     public static var current: NSAnimationContext = NSAnimationContext()
     public var duration: TimeInterval = 0.25
     public var timingFunction: Any?
@@ -2216,15 +2278,15 @@ public enum NSRectEdge: UInt, Sendable {
 
 // MARK: - NSHapticFeedback
 
-@MainActor open class NSHapticFeedbackManager: NSObject {
+open class NSHapticFeedbackManager: NSObject {
     public static func defaultPerformer() -> NSHapticFeedbackPerformer { _DefaultPerformer() }
 }
-@MainActor public protocol NSHapticFeedbackPerformer: AnyObject {
+public protocol NSHapticFeedbackPerformer: AnyObject {
     func perform(_ pattern: FeedbackPattern, performanceTime: PerformanceTime)
     typealias FeedbackPattern = NSHapticFeedbackPattern
     typealias PerformanceTime = NSHapticFeedbackPerformanceTime
 }
-@MainActor private final class _DefaultPerformer: NSObject, NSHapticFeedbackPerformer {
+private final class _DefaultPerformer: NSObject, NSHapticFeedbackPerformer {
     func perform(_ pattern: NSHapticFeedbackPattern, performanceTime: NSHapticFeedbackPerformanceTime) {}
 }
 public enum NSHapticFeedbackPattern: Int, Sendable { case generic, alignment, levelChange }
@@ -2261,7 +2323,7 @@ open class NSSound: NSObject, @unchecked Sendable {
     }
 }
 
-@MainActor public protocol NSDraggingInfo: AnyObject {
+public protocol NSDraggingInfo: AnyObject {
     var draggingPasteboard: NSPasteboard { get }
     var draggingLocation: NSPoint { get }
     var draggingSource: Any? { get }
@@ -2286,7 +2348,7 @@ public struct NSDragOperation: OptionSet, Sendable {
 
 // MARK: - Accessibility
 
-@MainActor open class NSAccessibility: NSObject {}
+open class NSAccessibility: NSObject {}
 public protocol NSAccessibilityProtocol {}
 
 // MARK: - NSUserInterfaceItemIdentifier
@@ -2323,7 +2385,7 @@ open class NSCell: NSObject, @unchecked Sendable {
 
 // MARK: - Selection-related types
 
-@MainActor open class NSResponderChain: NSObject {}
+open class NSResponderChain: NSObject {}
 
 // MARK: - NSXPCConnection (used by services)
 
