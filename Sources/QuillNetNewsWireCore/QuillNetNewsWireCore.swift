@@ -56,7 +56,7 @@ public struct QuillNetNewsWireContentView: View {
                 if env["QUILLUI_DISABLE_FETCH"] == "1" {
                     model.seedProfileFixtures()
                 } else {
-                    Task { @MainActor in await model.fetch(urlString: feedURL) }
+                    Task { @MainActor in await model.loadIfNeeded(urlString: feedURL) }
                 }
             }
         }
@@ -81,9 +81,9 @@ public struct QuillNetNewsWireContentView: View {
             }
 
             List {
-                ForEach(model.items) { item in
+                ForEach(model.rows) { item in
                     Button {
-                        model.selectedID = item.id
+                        model.selectItem(id: item.id)
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.title)
@@ -115,7 +115,7 @@ public struct QuillNetNewsWireContentView: View {
 
     private var detail: some View {
         Group {
-            if let item = model.selectedItem {
+            if let item = model.selectedDetail {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         Text(item.title).font(.title).bold()
@@ -192,10 +192,59 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
     }
 }
 
+public struct RSSArticleRow: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let publishedSummary: String
+
+    public init(id: String, title: String, publishedSummary: String) {
+        self.id = id
+        self.title = title
+        self.publishedSummary = publishedSummary
+    }
+
+    public init(item: RSSItem) {
+        self.init(id: item.id, title: item.title, publishedSummary: item.publishedSummary)
+    }
+}
+
+public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let publishedSummary: String
+    public let plainTextBody: String
+    public let linkURL: URL?
+
+    public init(
+        id: String,
+        title: String,
+        publishedSummary: String,
+        plainTextBody: String,
+        linkURL: URL?
+    ) {
+        self.id = id
+        self.title = title
+        self.publishedSummary = publishedSummary
+        self.plainTextBody = plainTextBody
+        self.linkURL = linkURL
+    }
+
+    public init(item: RSSItem) {
+        self.init(
+            id: item.id,
+            title: item.title,
+            publishedSummary: item.publishedSummary,
+            plainTextBody: item.plainTextBody,
+            linkURL: item.linkURL
+        )
+    }
+}
+
 @MainActor
 final class RSSReaderModel: ObservableObject {
     @Published var items: [RSSItem] = [] {
         didSet {
+            updateRows()
             updateSelectedItem()
             updateStatusText()
         }
@@ -211,7 +260,10 @@ final class RSSReaderModel: ObservableObject {
         didSet { updateSelectedItem() }
     }
     @Published private(set) var selectedItem: RSSItem?
+    @Published private(set) var rows: [RSSArticleRow] = []
+    @Published private(set) var selectedDetail: RSSArticleDetail?
     @Published private(set) var statusText = "0 items"
+    private var didStartInitialLoad = false
 
     /// Profile-mode bypass: populate `items` + `feedTitle` with
     /// fixture content so the rendered timeline has shape, then
@@ -220,67 +272,126 @@ final class RSSReaderModel: ObservableObject {
     /// Linux profile script can isolate URLSession-cost vs
     /// render-loop-cost.
     func seedProfileFixtures() {
-        feedTitle = "Profile Fixture Feed"
-        items = [
-            RSSItem(
-                id: "1",
-                title: "Profile fixture article 1",
-                link: "https://example.test/1",
-                pubDate: "2026-01-01",
-                descriptionHTML: "<p>Body of the first fixture article.</p>"
-            ),
-            RSSItem(
-                id: "2",
-                title: "Profile fixture article 2",
-                link: "https://example.test/2",
-                pubDate: "2026-01-02",
-                descriptionHTML: "<p>Body of the second fixture article.</p>"
-            ),
-        ]
-        selectedID = items.first?.id
-        isLoading = false
+        didStartInitialLoad = true
+        setFeedTitle("Profile Fixture Feed")
+        setItems(Self.profileFixtureItems)
+        selectItem(id: items.first?.id)
+        setError(nil)
+        setLoading(false)
+    }
+
+    func loadIfNeeded(urlString: String) async {
+        guard !didStartInitialLoad else { return }
+        didStartInitialLoad = true
+        await fetch(urlString: urlString)
     }
 
     func fetch(urlString: String) async {
         guard let url = URL(string: urlString) else {
-            error = "Invalid URL"
+            setError("Invalid URL")
+            setLoading(false)
             return
         }
-        isLoading = true
-        error = nil
+        setLoading(true)
+        setError(nil)
         do {
             var request = URLRequest(url: url)
             request.setValue("Quill-NetNewsWire/0.1", forHTTPHeaderField: "User-Agent")
             let (data, _) = try await URLSession.shared.data(for: request)
             let parsed = RSSFeedParser.parse(data: data)
-            self.feedTitle = parsed.title
-            self.items = Array(parsed.items.prefix(50))
+            self.setFeedTitle(parsed.title)
+            self.setItems(Array(parsed.items.prefix(50)))
             if self.selectedID == nil {
-                self.selectedID = self.items.first?.id
+                self.selectItem(id: self.items.first?.id)
             }
         } catch {
-            self.error = "\(error)"
+            self.setError("\(error)")
         }
-        isLoading = false
+        setLoading(false)
+    }
+
+    func selectItem(id: String?) {
+        if selectedID != id {
+            selectedID = id
+        }
     }
 
     private func updateSelectedItem() {
-        guard let selectedID else {
-            selectedItem = nil
-            return
+        let item = selectedID.flatMap { selectedID in items.first(where: { $0.id == selectedID }) }
+        if selectedItem != item {
+            selectedItem = item
         }
-        selectedItem = items.first(where: { $0.id == selectedID })
+        let detail = item.map(RSSArticleDetail.init(item:))
+        if selectedDetail != detail {
+            selectedDetail = detail
+        }
+    }
+
+    private func updateRows() {
+        let nextRows = items.map(RSSArticleRow.init(item:))
+        if rows != nextRows {
+            rows = nextRows
+        }
     }
 
     private func updateStatusText() {
+        let nextStatusText: String
         if isLoading {
-            statusText = "Fetching feed…"
+            nextStatusText = "Fetching feed…"
         } else if let error {
-            statusText = "Error: \(error)"
+            nextStatusText = "Error: \(error)"
         } else {
-            statusText = "\(items.count) items"
+            nextStatusText = "\(items.count) items"
+        }
+        if statusText != nextStatusText {
+            statusText = nextStatusText
         }
     }
+
+    private func setItems(_ newItems: [RSSItem]) {
+        if items != newItems {
+            items = newItems
+        } else {
+            updateRows()
+            updateSelectedItem()
+            updateStatusText()
+        }
+    }
+
+    private func setFeedTitle(_ newTitle: String?) {
+        if feedTitle != newTitle {
+            feedTitle = newTitle
+        }
+    }
+
+    private func setError(_ newError: String?) {
+        if error != newError {
+            error = newError
+        }
+    }
+
+    private func setLoading(_ newIsLoading: Bool) {
+        if isLoading != newIsLoading {
+            isLoading = newIsLoading
+        }
+    }
+
+    private static let profileFixtureItems: [RSSItem] = [
+        RSSItem(
+            id: "1",
+            title: "Profile fixture article 1",
+            link: "https://example.test/1",
+            pubDate: "2026-01-01",
+            descriptionHTML: "<p>Body of the first fixture article.</p>"
+        ),
+        RSSItem(
+            id: "2",
+            title: "Profile fixture article 2",
+            link: "https://example.test/2",
+            pubDate: "2026-01-02",
+            descriptionHTML: "<p>Body of the second fixture article.</p>"
+        ),
+    ]
 }
 
 /// Minimal RSS 2.0 + Atom parser backed by `Foundation.XMLParser`.

@@ -2094,7 +2094,7 @@ process substitution so the roster stays CI-shell portable.
 
 ## Checkpoint 109: Stored Render Values For Linux CPU Outliers
 
-Status: locally green; queued in Linux CI.
+Status: landed, but Linux profile disproved it as sufficient.
 
 Linux CI run 25714178668 passed the full app matrix and uploaded the
 first complete nine-app profile roster. Seven app shells idled in the
@@ -2116,6 +2116,40 @@ render-facing values in body evaluation:
   published state instead of recomputing them from the view tree.
 
 Focused IceCubes and NetNewsWire tests cover the derived fields and
-model state cache. The next Linux profile run is the acceptance test:
-IceCubes and NetNewsWire should move toward the same steady idle band
-as the other seven app shells.
+model state cache.
+
+Follow-up CI run 25715271203 stayed green, but the profile artifact
+showed IceCubes still at ~135% steady CPU and NetNewsWire still at
+~100% steady CPU. Artifact inspection also found that the
+`QUILLUI_PROFILE_PLAIN_ROW`, `QUILLUI_PROFILE_LITERAL_ROW`, and
+`QUILLUI_PROFILE_STORED_PROPS` branches were rendering empty lists:
+they bypassed the `timelineContent.onAppear` fixture seeding path.
+The old stored-props measurement was therefore an empty-list baseline,
+not valid row-shape evidence.
+
+## Checkpoint 110: Correct Profile Shape + Idempotent Linux Loads
+
+Status: locally focused-tests green; queued for full package test and
+Linux profile validation.
+
+Fixed the IceCubes profiler branch shape before taking more CPU data:
+plain-row/literal-row/stored-props diagnostics now render fixture rows
+directly instead of relying on `timelineContent.onAppear`. Production
+IceCubes now renders `IceCubesTimelineRow` projections, keeping the
+QuillUI `List` over stored render strings and avatar URLs rather than
+full Mastodon `Status` trees.
+
+Both high-CPU apps now guard their initial load path:
+
+- IceCubes tracks `didStartTimelineLoad`, seeds profile fixtures only
+  once, and avoids rewriting equivalent timeline rows.
+- NetNewsWire uses `RSSArticleRow` and `RSSArticleDetail` projections,
+  drives the view from those cached records, and routes startup
+  through `RSSReaderModel.loadIfNeeded`.
+- NetNewsWire fixture seeding and state setters now skip equivalent
+  writes, reducing unnecessary SwiftOpenUI invalidations if GTK remaps
+  the root view.
+
+Focused tests cover fixture row projection and idempotent
+NetNewsWire fixture seeding. The next Linux profile artifact is the
+acceptance check for this slice.

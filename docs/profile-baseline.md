@@ -10,19 +10,19 @@ Current CI sources the app roster from
 `scripts/linux-gtk-app-products.sh`, the same list used by visual
 smoke coverage.
 
-## Current Matrix (Linux run 25714178668, commit 4c6343a)
+## Current Matrix (Linux run 25715271203, commit f6a27de)
 
 | App                            | build_ms | startup_ms | rss_kb  | cpu_initial | cpu_steady |
 |--------------------------------|---------:|-----------:|--------:|------------:|-----------:|
-| quill-enchanted                |   17,761 |          6 | 233,156 |         2.8 |        3.2 |
-| quill-enchanted-upstream-slice |   12,393 |          7 | 247,308 |         5.8 |        5.8 |
-| quill-icecubes                 |   12,807 |          7 | 230,548 |   **134.1** | **132.7**  |
-| quill-netnewswire              |   11,885 |          8 | 229,796 |    **99.4** |  **99.6**  |
-| quill-codeedit                 |   10,649 |          6 | 213,116 |         2.6 |        2.6 |
-| quill-signal                   |   11,072 |          6 | 219,468 |         5.8 |        5.8 |
-| quill-telegram                 |   10,937 |          6 | 221,572 |         5.8 |        5.8 |
-| quill-iina                     |   13,267 |          6 | 212,608 |         2.6 |        3.0 |
-| quill-wireguard                |   12,885 |          5 | 205,800 |         2.6 |        2.6 |
+| quill-enchanted                |   16,961 |          6 | 233,248 |         3.2 |        2.6 |
+| quill-enchanted-upstream-slice |   13,049 |          6 | 246,868 |         5.6 |        5.6 |
+| quill-icecubes                 |   12,266 |          6 | 241,476 |   **132.3** | **135.2**  |
+| quill-netnewswire              |   10,855 |          7 | 228,884 |   **100.2** | **100.4**  |
+| quill-codeedit                 |   11,057 |          6 | 221,812 |         2.8 |        2.8 |
+| quill-signal                   |   10,912 |          5 | 227,564 |         6.0 |        5.8 |
+| quill-telegram                 |   11,581 |          7 | 220,744 |         6.0 |        6.8 |
+| quill-iina                     |   12,685 |          6 | 212,224 |         2.6 |        2.6 |
+| quill-wireguard                |   14,946 |          6 | 206,004 |         2.8 |        2.8 |
 
 The expanded matrix confirms the problem is not general to QuillUI's
 Linux backend: seven app shells idle in the 2.6-5.8% band. The
@@ -32,28 +32,31 @@ remaining outliers are IceCubes and NetNewsWire.
 
 | Mode                           | App               | cpu_initial | cpu_steady |
 |--------------------------------|-------------------|------------:|-----------:|
-| no-fetch                       | quill-icecubes    |        42.6 |       83.4 |
-| no-fetch                       | quill-netnewswire |        54.7 |       88.0 |
-| no-fetch + flat                | quill-icecubes    |        34.7 |       80.0 |
+| no-fetch                       | quill-icecubes    |        44.9 |       83.0 |
+| no-fetch                       | quill-netnewswire |        56.8 |       89.8 |
+| no-fetch + flat                | quill-icecubes    |        37.2 |       79.8 |
 | no-fetch + bare                | quill-icecubes    |         2.6 |        2.8 |
-| no-fetch + plain-row           | quill-icecubes    |         2.6 |        2.8 |
+| no-fetch + plain-row           | quill-icecubes    |         2.8 |        2.8 |
 | no-fetch + literal-row         | quill-icecubes    |         2.6 |        2.8 |
-| no-fetch + stored-props row    | quill-icecubes    |         2.6 |        2.6 |
+| no-fetch + stored-props row    | quill-icecubes    |         3.0 |        2.8 |
 
-The stored-props row is the decisive data point for this slice:
-the full IceCubes row shape idles at baseline when the `Text`
-values are already materialized strings. Production now mirrors
-that shape by precomputing `Account.displayNameText`,
-`Account.handleText`, and `Status.contentText` once at decode/init
-time and reading those stored fields in `statusRow`.
+The f6a27de profile run disproved the stored-render-value slice as
+a sufficient fix: production IceCubes and NetNewsWire remained pegged.
+It also exposed an instrumentation bug. The `plain-row`,
+`literal-row`, and `stored-props row` IceCubes profile branches
+rendered empty `List`s because they bypassed `timelineContent` and
+therefore never seeded `QuillIceCubesProfileFixtures.statuses` under
+`QUILLUI_DISABLE_FETCH=1`. Those rows are valid only as empty-list
+baselines, not as row-shape evidence.
 
-NetNewsWire has the same class of row/detail issue: `linkURL`,
-`publishedSummary`, `plainTextBody`, selected item lookup, and footer
-status text were recomputed during render sampling. Production now
-caches those derived values on `RSSItem` / `RSSReaderModel`.
+The next slice corrects that profiler shape, renders IceCubes from
+`IceCubesTimelineRow` projections, and makes IceCubes/NetNewsWire
+initial load paths one-shot/idempotent so GTK remaps cannot keep
+writing equivalent state.
 
-The next Linux CI profile run should validate whether these stored
-render values bring both outliers into the fixture-app idle band.
+The next Linux CI profile run should validate whether corrected
+fixtures plus render projections reduce both outliers toward the
+fixture-app idle band.
 
 ## Original Baseline (Linux run 25692222317, commit 530232c)
 

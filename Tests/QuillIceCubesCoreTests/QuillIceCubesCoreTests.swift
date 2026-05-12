@@ -170,6 +170,7 @@ struct QuillIceCubesCoreTests {
         #expect(!statuses.isEmpty)
         let ids = Set(statuses.map(\.id))
         #expect(ids.count == statuses.count)
+        #expect(QuillIceCubesProfileFixtures.rows.count == statuses.count)
     }
 
     @Test("Profile fixtures carry an account display name + non-empty content")
@@ -180,6 +181,17 @@ struct QuillIceCubesCoreTests {
             #expect(status.account.displayNameText == status.account.cachedDisplayName.asRawText)
             #expect(status.account.handleText == "@\(status.account.acct)")
             #expect(status.contentText == status.content.asRawText)
+        }
+    }
+
+    @Test("Timeline rows project render-facing status fields once")
+    func timelineRowsProjectStoredStatusFields() {
+        for (status, row) in zip(QuillIceCubesProfileFixtures.statuses, QuillIceCubesProfileFixtures.rows) {
+            #expect(row.id == status.id)
+            #expect(row.displayNameText == status.account.displayNameText)
+            #expect(row.handleText == status.account.handleText)
+            #expect(row.contentText == status.contentText)
+            #expect(row.avatar == status.account.avatar)
         }
     }
 }

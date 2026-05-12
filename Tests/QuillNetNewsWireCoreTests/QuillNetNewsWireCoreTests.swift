@@ -213,10 +213,14 @@ struct QuillNetNewsWireCoreTests {
         model.seedProfileFixtures()
 
         #expect(model.statusText == "2 items")
+        #expect(model.rows.map(\.id) == ["1", "2"])
         #expect(model.selectedItem?.id == "1")
+        #expect(model.selectedDetail?.id == "1")
+        #expect(model.selectedDetail?.plainTextBody == "Body of the first fixture article.")
 
         model.selectedID = "2"
         #expect(model.selectedItem?.id == "2")
+        #expect(model.selectedDetail?.id == "2")
 
         model.isLoading = true
         #expect(model.statusText == "Fetching feed…")
@@ -224,5 +228,21 @@ struct QuillNetNewsWireCoreTests {
         model.isLoading = false
         model.error = "offline"
         #expect(model.statusText == "Error: offline")
+    }
+
+    @MainActor
+    @Test("RSSReaderModel fixture seeding is idempotent")
+    func readerModelFixtureSeedingIsIdempotent() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        let rows = model.rows
+        let detail = model.selectedDetail
+        let statusText = model.statusText
+
+        model.seedProfileFixtures()
+
+        #expect(model.rows == rows)
+        #expect(model.selectedDetail == detail)
+        #expect(model.statusText == statusText)
     }
 }
