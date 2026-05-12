@@ -25,48 +25,60 @@ import Foundation
 @main
 struct QuillMainExtractPlugin: BuildToolPlugin {
     func createBuildCommands(context: PluginContext, target: Target) async throws -> [Command] {
-        guard let sourceTarget = target as? SourceModuleTarget else { return [] }
+        guard let sourceDirectoryURL = sourceDirectoryURL(for: target) else { return [] }
 
         // Find the config file in the target's source directory.
-        let targetDir = sourceTarget.directory.string
-        let configPath = targetDir + "/MainExtractInputs.txt"
-        guard FileManager.default.fileExists(atPath: configPath) else { return [] }
+        let configURL = sourceDirectoryURL
+            .appendingPathComponent("MainExtractInputs.txt")
+        guard FileManager.default.fileExists(atPath: configURL.path) else { return [] }
 
         let configText: String
         do {
-            configText = try String(contentsOfFile: configPath, encoding: .utf8)
+            configText = try String(contentsOf: configURL, encoding: .utf8)
         } catch {
             return []
         }
 
         // Resolve each non-blank, non-comment line to a package-root-
         // relative path.
-        let packageRoot = context.package.directory.string
-        let inputPaths: [String] = configText
+        let packageRoot = context.package.directoryURL
+        let inputURLs: [URL] = configText
             .split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty && !$0.hasPrefix("#") }
             .map { rel in
-                rel.hasPrefix("/") ? rel : "\(packageRoot)/\(rel)"
+                rel.hasPrefix("/")
+                    ? URL(fileURLWithPath: rel)
+                    : packageRoot.appendingPathComponent(rel)
             }
 
-        guard !inputPaths.isEmpty else { return [] }
+        guard !inputURLs.isEmpty else { return [] }
 
         let tool = try context.tool(named: "QuillMainExtractTool")
-        let workDir = context.pluginWorkDirectory.string
+        let workDir = context.pluginWorkDirectoryURL
 
-        return inputPaths.map { input in
-            let basename = (input as NSString).lastPathComponent
+        return inputURLs.map { inputURL in
+            let basename = inputURL.lastPathComponent
             let stem = (basename as NSString).deletingPathExtension
-            let output = "\(workDir)/\(stem).MainStripped.swift"
+            let outputURL = workDir.appendingPathComponent("\(stem).MainStripped.swift")
 
             return .buildCommand(
                 displayName: "Extract @main side declarations from \(basename)",
-                executable: tool.path,
-                arguments: ["--output", output, input],
-                inputFiles: [Path(input)],
-                outputFiles: [Path(output)]
+                executable: tool.url,
+                arguments: ["--output", outputURL.path, inputURL.path],
+                inputFiles: [inputURL],
+                outputFiles: [outputURL]
             )
         }
+    }
+
+    private func sourceDirectoryURL(for target: Target) -> URL? {
+        if let swiftTarget = target as? SwiftSourceModuleTarget {
+            return swiftTarget.directoryURL
+        }
+        if let clangTarget = target as? ClangSourceModuleTarget {
+            return clangTarget.directoryURL
+        }
+        return nil
     }
 }

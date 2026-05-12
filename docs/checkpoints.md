@@ -2193,3 +2193,18 @@ workflow calls with only their environment knobs left in YAML.
 `LinuxGTKAppMatrixTests` now covers the helper with a fake profiler,
 including the failure-tolerant loop behavior, and the workflow test
 asserts the profile baseline uses the shared runner.
+
+## Checkpoint 113: SwiftPM Plugin API Cleanup
+
+Status: implemented locally; queued for CI.
+
+The two build-tool plugins now use SwiftPM's package-description 6.0
+URL-based APIs for tool executables, plugin work directories, inputs,
+and outputs. This removes the Path deprecation warnings from local
+`swift test` runs while preserving the package's declared
+`swift-tools-version: 6.0` boundary.
+
+The `Target.directoryURL` protocol witness is still 6.1-only, so the
+plugins resolve source directories through the concrete Swift and Clang
+source target types. That keeps the code warning-free on current
+toolchains without requiring a tools-version bump.
