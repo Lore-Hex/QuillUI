@@ -2316,3 +2316,12 @@ longer claims an unwired native Secret Service backend.
 
 `QuillShims` re-exports the module on Linux, and tests pin both the
 direct product API and the Linux compatibility-product reachability path.
+
+## Checkpoint 123: IceCubes Bare Profile Label Hygiene
+
+Status: implemented locally; queued for CI.
+
+The IceCubes GTK profile bare mode now renders a real public-timeline
+title instead of user-visible placeholder wording. Tests pin the label
+so the profiling escape hatch remains suitable for screenshot and
+profile loops.

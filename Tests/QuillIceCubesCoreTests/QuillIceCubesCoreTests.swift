@@ -173,6 +173,13 @@ struct QuillIceCubesCoreTests {
         #expect(QuillIceCubesProfileFixtures.rows.count == statuses.count)
     }
 
+    @Test("Profile bare mode title is user-facing app content")
+    func profileBareModeTitleIsUserFacingAppContent() {
+        #expect(QuillIceCubesProfileLabels.bareTimelineTitle == "IceCubes Public Timeline")
+        #expect(!QuillIceCubesProfileLabels.bareTimelineTitle.localizedCaseInsensitiveContains("placeholder"))
+        #expect(!QuillIceCubesProfileLabels.bareTimelineTitle.localizedCaseInsensitiveContains("stub"))
+    }
+
     @Test("Profile fixtures carry an account display name + non-empty content")
     func profileFixturesContent() {
         for status in QuillIceCubesProfileFixtures.statuses {

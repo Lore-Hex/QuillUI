@@ -1,6 +1,10 @@
 import Foundation
 import QuillUI
 
+enum QuillIceCubesProfileLabels {
+    static let bareTimelineTitle = "IceCubes Public Timeline"
+}
+
 /// Mastodon public-timeline shell. Mirrors the upstream
 /// IceCubes view shape so a future port of larger
 /// Dimillian/IceCubesApp views compiles unmodified against
@@ -61,7 +65,7 @@ public struct QuillIceCubesContentView: View {
         //                                  the spinner.
         let env = ProcessInfo.processInfo.environment
         if env["QUILLUI_PROFILE_BARE"] == "1" {
-            Text("IceCubes profile bare-mode placeholder")
+            Text(QuillIceCubesProfileLabels.bareTimelineTitle)
         } else if env["QUILLUI_PROFILE_PLAIN_ROW"] == "1" {
             List {
                 ForEach(QuillIceCubesProfileFixtures.rows) { row in
