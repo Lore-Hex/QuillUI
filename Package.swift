@@ -360,11 +360,11 @@ var targets: [Target] = [
         dependencies: ["QuillIceCubesCore", "QuillUI"],
         swiftSettings: appSwiftSettings
     ),
-    // Signal iOS (5), Telegram Swift (6), IINA (7) — placeholders
-    // per docs/app-targets.md. Same compile-green scaffolding
-    // shape that IceCubes had before its Mastodon API surface
-    // landed; future slices fill in fixtures-only conversation
-    // timelines / chat lists / playlists.
+    // Signal iOS (5), Telegram Swift (6), IINA (7) — fixture-backed
+    // app shells per docs/app-targets.md. These targets now render
+    // conversation timelines, foldered chat lists, and media-player
+    // chrome through QuillUI while future slices replace fixture
+    // models with real protocol/playback backends.
     //
     // QuillChatKit is shared chat chrome (bubble, sidebar row,
     // timeline) that Signal + Telegram both consume so the per-app
@@ -404,12 +404,12 @@ var targets: [Target] = [
         dependencies: ["QuillIINACore", "QuillUI"],
         swiftSettings: appSwiftSettings
     ),
-    // CodeEdit (4) — placeholder. The vendored CodeEditUpstream
+    // CodeEdit (4) — fixture-backed IDE shell. The vendored CodeEditUpstream
     // target stays opt-in via
     // `scripts/fetch-upstream.sh codeedit codeeditsymbols`; it
     // pulls in a SwiftLintPlugin prebuild command that SwiftPM
-    // 6 rejects. QuillCodeEdit ships a scaffold so the SwiftPM
-    // target builds end-to-end through QuillUI's compatibility
+    // 6 rejects. QuillCodeEditCore keeps the file tree, tabs, and
+    // editable text pane buildable through QuillUI's compatibility
     // layer without the opt-in path.
     .target(
         name: "QuillCodeEditCore",

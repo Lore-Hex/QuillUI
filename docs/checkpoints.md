@@ -2245,3 +2245,13 @@ their cores as generic stubs. Their comments now match the current
 implementation: IceCubes is a self-contained Mastodon public-timeline
 shell, and NetNewsWire is a self-contained RSS reader shell that stays
 buildable, renderable, and profile-covered on Linux.
+
+## Checkpoint 117: Manifest App-Shell Status Hygiene
+
+Status: implemented locally; queued for CI.
+
+`Package.swift` now describes Signal, Telegram, IINA, and CodeEdit as
+fixture-backed app shells instead of placeholders. The manifest summary
+matches the tested targets: chat timelines and foldered chat lists route
+through `QuillChatKit`, IINA renders playback chrome, and CodeEdit keeps
+the file tree, tabs, and editable text pane buildable through QuillUI.
