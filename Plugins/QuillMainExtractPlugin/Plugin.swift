@@ -28,46 +28,44 @@ struct QuillMainExtractPlugin: BuildToolPlugin {
         guard let sourceTarget = target as? SourceModuleTarget else { return [] }
 
         // Find the config file in the target's source directory.
-        let targetDirectory = sourceTarget.directoryURL
-        let configURL = targetDirectory.appendingPathComponent("MainExtractInputs.txt")
-        guard FileManager.default.fileExists(atPath: configURL.path) else { return [] }
+        let targetDir = sourceTarget.directory.string
+        let configPath = targetDir + "/MainExtractInputs.txt"
+        guard FileManager.default.fileExists(atPath: configPath) else { return [] }
 
         let configText: String
         do {
-            configText = try String(contentsOf: configURL, encoding: .utf8)
+            configText = try String(contentsOfFile: configPath, encoding: .utf8)
         } catch {
             return []
         }
 
         // Resolve each non-blank, non-comment line to a package-root-
         // relative path.
-        let packageRoot = context.package.directoryURL
-        let inputURLs: [URL] = configText
+        let packageRoot = context.package.directory.string
+        let inputPaths: [String] = configText
             .split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty && !$0.hasPrefix("#") }
             .map { rel in
-                rel.hasPrefix("/")
-                    ? URL(fileURLWithPath: rel)
-                    : packageRoot.appendingPathComponent(rel)
+                rel.hasPrefix("/") ? rel : "\(packageRoot)/\(rel)"
             }
 
-        guard !inputURLs.isEmpty else { return [] }
+        guard !inputPaths.isEmpty else { return [] }
 
         let tool = try context.tool(named: "QuillMainExtractTool")
-        let workDirectory = context.pluginWorkDirectoryURL
+        let workDir = context.pluginWorkDirectory.string
 
-        return inputURLs.map { input in
-            let basename = input.lastPathComponent
+        return inputPaths.map { input in
+            let basename = (input as NSString).lastPathComponent
             let stem = (basename as NSString).deletingPathExtension
-            let output = workDirectory.appendingPathComponent("\(stem).MainStripped.swift")
+            let output = "\(workDir)/\(stem).MainStripped.swift"
 
             return .buildCommand(
                 displayName: "Extract @main side declarations from \(basename)",
-                executable: tool.url,
-                arguments: ["--output", output.path, input.path],
-                inputFiles: [input],
-                outputFiles: [output]
+                executable: tool.path,
+                arguments: ["--output", output, input],
+                inputFiles: [Path(input)],
+                outputFiles: [Path(output)]
             )
         }
     }
