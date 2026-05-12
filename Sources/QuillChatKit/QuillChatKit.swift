@@ -94,6 +94,20 @@ public struct ChatAppearance {
     }
 }
 
+#if os(Linux)
+private typealias ChatLayoutLength = Int
+#else
+private typealias ChatLayoutLength = CGFloat
+#endif
+
+private extension ChatAppearance {
+    var chatBubblePadding: ChatLayoutLength { ChatLayoutLength(bubblePadding) }
+    var chatRowVerticalPadding: ChatLayoutLength { ChatLayoutLength(rowVerticalPadding) }
+    var chatTimelinePadding: ChatLayoutLength { ChatLayoutLength(timelinePadding) }
+    var chatMessageSpacing: ChatLayoutLength { ChatLayoutLength(messageSpacing) }
+    var chatComposerPadding: ChatLayoutLength { ChatLayoutLength(composerPadding) }
+}
+
 /// Cached time-only formatter used by `ChatBubble`. Static so the
 /// `ChatBubble` body doesn't allocate a new formatter every paint.
 @MainActor
@@ -126,7 +140,7 @@ public struct ChatBubble<M: ChatMessage>: View {
         ChatMainActorView.assumeIsolated {
             VStack(alignment: message.fromSelf ? .trailing : .leading, spacing: 2) {
                 Text(message.body)
-                    .padding(appearance.bubblePadding)
+                    .padding(appearance.chatBubblePadding)
                     .background(
                         message.fromSelf
                             ? appearance.outgoingBubbleBackground
@@ -193,7 +207,7 @@ public struct ChatRow: View {
                     .foregroundColor(.secondary)
                     .lineLimit(1)
             }
-            .padding(.vertical, appearance.rowVerticalPadding)
+            .padding(.vertical, appearance.chatRowVerticalPadding)
         }
     }
 }
@@ -293,7 +307,7 @@ public struct ChatComposer: View {
                 }
                 .disabled(!ChatDraft.isSendable(draft))
             }
-            .padding(appearance.composerPadding)
+            .padding(appearance.chatComposerPadding)
             .background(appearance.composerBackground)
         }
     }
@@ -322,12 +336,12 @@ public struct ChatTimeline<M: ChatMessage>: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Divider()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: appearance.messageSpacing) {
+                    VStack(alignment: .leading, spacing: appearance.chatMessageSpacing) {
                         ForEach(messages) { message in
                             ChatBubble(message, appearance: appearance)
                         }
                     }
-                    .padding(appearance.timelinePadding)
+                    .padding(appearance.chatTimelinePadding)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }

@@ -2385,4 +2385,6 @@ without forking the shared chat implementation.
 customization path for each view. `SourceHygieneTests` also pin that the
 kit remains a native SwiftUI library with no `QuillUI`, `UIKit`, or
 `AppKit` import, keeping it suitable for iOS reuse as well as Linux GTK
-compatibility builds.
+compatibility builds. A private backend length alias preserves the
+public `CGFloat` token surface for native SwiftUI while coercing to
+SwiftOpenUI's Linux `Int` padding and spacing overloads.
