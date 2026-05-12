@@ -6,14 +6,12 @@ import SwiftUI
 import WireGuardKit
 #endif
 
-#if os(Linux)
-// Linux variant: SwiftOpenUI doesn't ship List(_:selection:) /
-// .listStyle(.sidebar) / .buttonStyle(.borderless), so the app
-// uses explicit buttons inside a split layout. Privileged tunnel
-// activation stays behind a future backend adapter; this shell
-// keeps configuration list/edit/export UI rendering now.
+// Shared fallback used by Linux and by platforms where upstream
+// WireGuardKit is not linked. Privileged tunnel activation stays
+// behind a future backend adapter; this shell keeps configuration
+// list/edit/export UI rendering consistently now.
 @MainActor
-struct ContentView: View {
+struct WireGuardFallbackConfigurationView: View {
     @State private var tunnels = QuillWireGuardFixtures.tunnels
     @State private var selectedTunnelID = QuillWireGuardFixtures.defaultTunnelID
 
@@ -190,13 +188,13 @@ struct ContentView: View {
         )
     }
 }
+
+#if os(Linux)
+typealias ContentView = WireGuardFallbackConfigurationView
 #else
 struct ContentView: View {
     #if canImport(WireGuardKit)
     @State private var tunnels: [TunnelConfiguration] = []
-    #else
-    @State private var tunnels: [Any] = []
-    #endif
     @State private var selectedTunnelName: String?
 
     var body: some View {
@@ -229,7 +227,6 @@ struct ContentView: View {
 
             Divider()
 
-            #if canImport(WireGuardKit)
             if tunnels.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "shield.lefthalf.filled")
@@ -259,10 +256,6 @@ struct ContentView: View {
                 }
                 .listStyle(.sidebar)
             }
-            #else
-            Text("WireGuardKit not available")
-                .padding()
-            #endif
 
             Spacer(minLength: 0)
 
@@ -281,16 +274,12 @@ struct ContentView: View {
 
     private var detail: some View {
         Group {
-            #if canImport(WireGuardKit)
             if let selectedName = selectedTunnelName,
                let tunnel = tunnels.first(where: { $0.name == selectedName }) {
                 TunnelDetailView(tunnel: tunnel)
             } else {
                 emptyDetail
             }
-            #else
-            emptyDetail
-            #endif
         }
     }
 
@@ -301,7 +290,7 @@ struct ContentView: View {
                 .foregroundColor(.secondary)
             Text("Quill WireGuard")
                 .font(.title2).bold()
-            Text("Click + in the sidebar to generate a fresh\nCurve25519 keypair via upstream WireGuardKit.")
+            Text("Generate a tunnel from the sidebar to inspect its interface, peer, and export details.")
                 .font(.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -311,7 +300,6 @@ struct ContentView: View {
     }
 
     private func addTunnel() {
-        #if canImport(WireGuardKit)
         let interfacePrivateKey = PrivateKey()
         var interface = InterfaceConfiguration(privateKey: interfacePrivateKey)
         if let addr = IPAddressRange(from: "10.10.10.\(tunnels.count + 2)/32") {
@@ -336,8 +324,12 @@ struct ContentView: View {
         let config = TunnelConfiguration(name: name, interface: interface, peers: [peer])
         tunnels.append(config)
         selectedTunnelName = name
-        #endif
     }
+    #else
+    var body: some View {
+        WireGuardFallbackConfigurationView()
+    }
+    #endif
 }
 #endif // !os(Linux) — closes the macOS ContentView variant.
 

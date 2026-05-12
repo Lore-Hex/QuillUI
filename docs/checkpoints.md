@@ -2341,3 +2341,17 @@ of a missing-backend message.
 export text so WireGuard stays on the same fixture-backed app-shell track
 as Signal, Telegram, IINA, and CodeEdit while privileged connect and
 disconnect remain a backend follow-up.
+
+## Checkpoint 125: WireGuard Fallback View Parity
+
+Status: implemented locally; queued for CI.
+
+The fixture-backed WireGuard configuration manager is now the shared
+fallback shell for Linux and for any platform build that does not link
+upstream WireGuardKit. Native WireGuardKit builds keep their keypair
+generation path, while fallback builds no longer drift into a separate
+empty-state UI.
+
+`QuillWireGuardCoreTests` now pins the executable source to keep the
+shared fallback view wired in and to reject the old unavailable-backend
+copy.

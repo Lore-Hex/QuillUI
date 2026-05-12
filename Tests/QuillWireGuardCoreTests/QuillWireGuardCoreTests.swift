@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import QuillWireGuardCore
 
@@ -54,4 +55,35 @@ struct QuillWireGuardCoreTests {
         #endif
         #expect(!QuillWireGuardBackend.statusText.isEmpty)
     }
+
+    @Test("Fallback platforms share the fixture-backed configuration shell")
+    func fallbackPlatformsShareFixtureBackedConfigurationShell() throws {
+        let sourceURL = try packageRoot()
+            .appendingPathComponent("Sources/QuillWireGuard/ContentView.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        #expect(source.contains("struct WireGuardFallbackConfigurationView"))
+        #expect(source.contains("typealias ContentView = WireGuardFallbackConfigurationView"))
+        #expect(source.contains("WireGuardFallbackConfigurationView()"))
+        #expect(!source.contains("WireGuardKit not available"))
+        #expect(!source.contains("Click + in the sidebar to generate a fresh\\nCurve25519 keypair via upstream WireGuardKit."))
+    }
+
+    private func packageRoot() throws -> URL {
+        var url = URL(fileURLWithPath: #filePath)
+        url.deleteLastPathComponent()
+
+        while url.path != "/" {
+            if FileManager.default.fileExists(atPath: url.appendingPathComponent("Package.swift").path) {
+                return url
+            }
+            url.deleteLastPathComponent()
+        }
+
+        throw SourceHygieneError.packageRootNotFound
+    }
+}
+
+private enum SourceHygieneError: Error {
+    case packageRootNotFound
 }
