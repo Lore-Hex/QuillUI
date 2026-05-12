@@ -17,20 +17,22 @@ import QuillUI
 /// in-memory project so the layout compiles + renders without
 /// needing real filesystem reads.
 @MainActor
-public struct QuillCodeEditContentView: @MainActor View {
+public struct QuillCodeEditContentView: View {
     @State private var openTabs: [ProjectFile.ID] = []
     @State private var activeID: ProjectFile.ID?
     @State private var project = QuillCodeEditFixtures.project
 
     public init() {}
 
-    public var body: some View {
-        HStack(spacing: 0) {
-            fileTree
-                .frame(width: 240)
-            Divider()
-            editorPane
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+    nonisolated public var body: some View {
+        QuillMainActorView.assumeIsolated {
+            HStack(spacing: 0) {
+                fileTree
+                    .frame(width: 240)
+                Divider()
+                editorPane
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
     }
 

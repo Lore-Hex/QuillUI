@@ -2030,27 +2030,41 @@ of relying on SwiftPM's implicit capitalized target product.
 
 ## Checkpoint 107: Swift 6.2 MainActor View Isolation
 
-Status: queued in Linux CI.
+Status: locally green; queued in Linux CI.
 
 Linux CI on the `swift:6.2-noble` image escalated the
 main-actor `View` conformance for `EnchantedRootView` into a
-build failure. The app shells already run on the main actor; the
-missing piece was making the `View` conformance itself explicitly
-main-actor isolated.
+build failure. A first pass made the `View` conformances explicitly
+main-actor isolated, but that moved the failure to the
+`WindowGroup` boundary: SwiftOpenUI's nonisolated app construction
+cannot consume a type-isolated `View` conformance.
 
-Updated the shared app-facing views to use the Swift 6.2-safe
-shape:
+The app-facing views now use the Swift 6.2-safe shape:
 
 ```swift
 @MainActor
-public struct SomeAppView: @MainActor View
+public struct SomeAppView: View {
+    nonisolated public var body: some View {
+        QuillMainActorView.assumeIsolated {
+            actualMainActorViewTree
+        }
+    }
+}
 ```
 
 Covered the Enchanted root, the Signal/Telegram shared chat kit,
 the IceCubes/NetNewsWire/CodeEdit/IINA/Signal/Telegram content
-views, and the Enchanted upstream slice root. Added a focused test
-that scans `Sources` for future `@MainActor` `View` declarations
-that forget the isolated conformance.
+views, and the Enchanted upstream slice root. `QuillMainActorView`
+keeps the required `View.body` witness nonisolated while evaluating
+the body closure under the main actor; its private unchecked
+Sendable box is only there because Swift's `MainActor.assumeIsolated`
+requires a Sendable return value and view values are deliberately not
+Sendable.
+
+Added a focused test that scans `Sources` for future `@MainActor`
+`View` declarations that accidentally reintroduce `: @MainActor
+View`, omit a nonisolated `body`, or bypass the `QuillMainActorView`
+helper.
 
 The SwiftPM build-tool plugin API modernization remains deferred:
 moving the plugins to the 6.1 URL-based API is straightforward, but

@@ -13,19 +13,12 @@ import QuillUI
 /// `platforms: [.iOS(.v18), .visionOS(.v1)]` and don't resolve
 /// on macOS or Linux.
 ///
-/// The type and its `View` conformance are main-actor isolated.
-/// SwiftOpenUI's `View` protocol doesn't put `body` on the
-/// main actor (unlike Apple's SwiftUI), so without isolation
-/// the body's access to `@State` mutations from the
-/// `fetchTimeline()` callsite trips Swift 6 diagnostics once
-/// the rest of the view grows `@StateObject`s.
-///
-/// The isolated conformance (`: @MainActor View`) is required
-/// by Swift 6.2 on Linux; isolating only the type leaves the
-/// `View.body` witness crossing from a main-actor type into a
-/// nonisolated protocol requirement.
+/// The type is main-actor isolated, while the `View.body`
+/// witness remains nonisolated so SwiftOpenUI can instantiate it
+/// from `WindowGroup` on Swift 6.2 Linux without tripping
+/// isolated-conformance diagnostics.
 @MainActor
-public struct QuillIceCubesContentView: @MainActor View {
+public struct QuillIceCubesContentView: View {
     @State private var client = MastodonClient(server: "mastodon.social", version: .v1, oauthToken: nil)
     @State private var statuses: [Status] = []
     @State private var isLoading = false
@@ -33,7 +26,12 @@ public struct QuillIceCubesContentView: @MainActor View {
 
     public init() {}
 
-    public var body: some View {
+    nonisolated public var body: some View {
+        QuillMainActorView.assumeIsolated { profiledTimeline }
+    }
+
+    @ViewBuilder
+    private var profiledTimeline: some View {
         // Profile experiments. Each env var swaps the body to a
         // simpler shape, isolating where the IceCubes CPU peg
         // lives on SwiftOpenUI's GTK4 backend. Production stays

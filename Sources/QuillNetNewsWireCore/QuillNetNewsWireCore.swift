@@ -26,40 +26,38 @@ import QuillUI
 /// `FeedParser.parse(_:)`; future slices can swap the local
 /// parser back to upstream once `Shared`/`Mac` is split.
 ///
-/// The type and its `View` conformance are main-actor isolated.
-/// SwiftOpenUI's `View` protocol doesn't put `body` on the main
-/// actor (unlike Apple's SwiftUI), so without isolation the
-/// body's access to the `@MainActor RSSReaderModel`'s
-/// `@Published` properties trips Swift 6 diagnostics. The
-/// isolated conformance is required by Swift 6.2 on Linux so
-/// the `body` witness does not cross into nonisolated protocol
-/// requirements.
+/// The type is main-actor isolated, while the `View.body`
+/// witness remains nonisolated so SwiftOpenUI can instantiate it
+/// from `WindowGroup` on Swift 6.2 Linux without tripping
+/// isolated-conformance diagnostics.
 @MainActor
-public struct QuillNetNewsWireContentView: @MainActor View {
+public struct QuillNetNewsWireContentView: View {
     @StateObject private var model = RSSReaderModel()
     @State private var feedURL: String = "https://daringfireball.net/feeds/main"
 
     public init() {}
 
-    public var body: some View {
-        NavigationSplitView {
-            sidebar
-        } detail: {
-            detail
-        }
-        // `QUILLUI_DISABLE_FETCH=1` is a profile-mode escape
-        // hatch: it seeds fixture content + skips URLSession,
-        // so the Linux profile script can sample CPU on a
-        // fetched-content-but-no-network path and isolate
-        // whether the NetNewsWire CPU peg lives in the
-        // URLSession / XMLParser / @Published path or in the
-        // SwiftOpenUI render-loop after the list populates.
-        .onAppear {
-            let env = ProcessInfo.processInfo.environment
-            if env["QUILLUI_DISABLE_FETCH"] == "1" {
-                model.seedProfileFixtures()
-            } else {
-                Task { @MainActor in await model.fetch(urlString: feedURL) }
+    nonisolated public var body: some View {
+        QuillMainActorView.assumeIsolated {
+            NavigationSplitView {
+                sidebar
+            } detail: {
+                detail
+            }
+            // `QUILLUI_DISABLE_FETCH=1` is a profile-mode escape
+            // hatch: it seeds fixture content + skips URLSession,
+            // so the Linux profile script can sample CPU on a
+            // fetched-content-but-no-network path and isolate
+            // whether the NetNewsWire CPU peg lives in the
+            // URLSession / XMLParser / @Published path or in the
+            // SwiftOpenUI render-loop after the list populates.
+            .onAppear {
+                let env = ProcessInfo.processInfo.environment
+                if env["QUILLUI_DISABLE_FETCH"] == "1" {
+                    model.seedProfileFixtures()
+                } else {
+                    Task { @MainActor in await model.fetch(urlString: feedURL) }
+                }
             }
         }
     }

@@ -14,23 +14,25 @@ import QuillUI
 /// - Bottom-left: playlist sidebar with a "+ Add file" button
 ///   (no-op so far; future slice wires a real `.fileImporter`).
 @MainActor
-public struct QuillIINAContentView: @MainActor View {
+public struct QuillIINAContentView: View {
     @State private var playlist: [PlaylistItem] = QuillIINAFixtures.playlist
     @State private var selectedID: PlaylistItem.ID? = QuillIINAFixtures.playlist.first?.id
     @State private var isPlaying = false
 
     public init() {}
 
-    public var body: some View {
-        VStack(spacing: 0) {
-            nowPlaying
-            Divider()
-            HStack(spacing: 0) {
-                playlistSidebar
-                    .frame(width: 280)
+    nonisolated public var body: some View {
+        QuillMainActorView.assumeIsolated {
+            VStack(spacing: 0) {
+                nowPlaying
                 Divider()
-                playerCanvas
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                HStack(spacing: 0) {
+                    playlistSidebar
+                        .frame(width: 280)
+                    Divider()
+                    playerCanvas
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
         }
     }

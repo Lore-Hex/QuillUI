@@ -17,18 +17,20 @@ import QuillChatKit
 /// sidebar-row + timeline chrome lives in `QuillChatKit`; this
 /// file only owns the fixture model + the split-view glue.
 @MainActor
-public struct QuillSignalContentView: @MainActor View {
+public struct QuillSignalContentView: View {
     @State private var conversations = QuillSignalFixtures.conversations
     @State private var selectedID: Conversation.ID? = QuillSignalFixtures.conversations.first?.id
     @State private var draft = ""
 
     public init() {}
 
-    public var body: some View {
-        NavigationSplitView {
-            sidebar
-        } detail: {
-            detail
+    nonisolated public var body: some View {
+        QuillMainActorView.assumeIsolated {
+            NavigationSplitView {
+                sidebar
+            } detail: {
+                detail
+            }
         }
     }
 

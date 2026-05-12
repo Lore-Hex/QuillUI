@@ -48,36 +48,38 @@ public enum ChatTimestampFormatter {
 /// One message bubble. Self-messages right-align with a blue tint,
 /// peer messages left-align with a neutral tint.
 @MainActor
-public struct ChatBubble<M: ChatMessage>: @MainActor View {
+public struct ChatBubble<M: ChatMessage>: View {
     public let message: M
 
     public init(_ message: M) {
         self.message = message
     }
 
-    public var body: some View {
-        VStack(alignment: message.fromSelf ? .trailing : .leading, spacing: 2) {
-            Text(message.body)
-                .padding(10)
-                .background(
-                    message.fromSelf
-                        ? Color.blue.opacity(0.18)
-                        : Color.gray.opacity(0.18)
-                )
-                .cornerRadius(12)
-            HStack(spacing: 6) {
-                Text(message.sender)
-                if let timestamp = message.timestamp {
-                    Text(ChatTimestampFormatter.formatted(timestamp))
+    nonisolated public var body: some View {
+        QuillMainActorView.assumeIsolated {
+            VStack(alignment: message.fromSelf ? .trailing : .leading, spacing: 2) {
+                Text(message.body)
+                    .padding(10)
+                    .background(
+                        message.fromSelf
+                            ? Color.blue.opacity(0.18)
+                            : Color.gray.opacity(0.18)
+                    )
+                    .cornerRadius(12)
+                HStack(spacing: 6) {
+                    Text(message.sender)
+                    if let timestamp = message.timestamp {
+                        Text(ChatTimestampFormatter.formatted(timestamp))
+                    }
                 }
+                .font(.caption2)
+                .foregroundColor(.secondary)
             }
-            .font(.caption2)
-            .foregroundColor(.secondary)
+            .frame(
+                maxWidth: .infinity,
+                alignment: message.fromSelf ? .trailing : .leading
+            )
         }
-        .frame(
-            maxWidth: .infinity,
-            alignment: message.fromSelf ? .trailing : .leading
-        )
     }
 }
 
@@ -85,7 +87,7 @@ public struct ChatBubble<M: ChatMessage>: @MainActor View {
 /// and an optional unread-count badge. Signal omits the badge,
 /// Telegram surfaces it — both routes share the same row chrome.
 @MainActor
-public struct ChatRow: @MainActor View {
+public struct ChatRow: View {
     public let title: String
     public let preview: String
     public let unread: Int
@@ -96,27 +98,29 @@ public struct ChatRow: @MainActor View {
         self.unread = unread
     }
 
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text(title).font(.headline).lineLimit(1)
-                Spacer()
-                if unread > 0 {
-                    Text("\(unread)")
-                        .font(.caption2).bold()
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
+    nonisolated public var body: some View {
+        QuillMainActorView.assumeIsolated {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(title).font(.headline).lineLimit(1)
+                    Spacer()
+                    if unread > 0 {
+                        Text("\(unread)")
+                            .font(.caption2).bold()
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                    }
                 }
+                Text(preview)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
             }
-            Text(preview)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
+            .padding(.vertical, 4)
         }
-        .padding(.vertical, 4)
     }
 }
 
@@ -185,7 +189,7 @@ public enum ChatDraft {
 /// they can decide which conversation receives the message and
 /// how to render the resulting state.
 @MainActor
-public struct ChatComposer: @MainActor View {
+public struct ChatComposer: View {
     public let placeholder: String
     @Binding public var draft: String
     public let onSend: () -> Void
@@ -200,23 +204,25 @@ public struct ChatComposer: @MainActor View {
         self.onSend = onSend
     }
 
-    public var body: some View {
-        HStack(spacing: 8) {
-            TextField(placeholder, text: $draft)
-            Button("Send") {
-                onSend()
+    nonisolated public var body: some View {
+        QuillMainActorView.assumeIsolated {
+            HStack(spacing: 8) {
+                TextField(placeholder, text: $draft)
+                Button("Send") {
+                    onSend()
+                }
+                .disabled(!ChatDraft.isSendable(draft))
             }
-            .disabled(!ChatDraft.isSendable(draft))
+            .padding(10)
+            .background(Color.gray.opacity(0.06))
         }
-        .padding(10)
-        .background(Color.gray.opacity(0.06))
     }
 }
 
 /// A header + scrolling stack of `ChatBubble`s. Used by Signal,
 /// Telegram, and any other app rendering a conversation timeline.
 @MainActor
-public struct ChatTimeline<M: ChatMessage>: @MainActor View {
+public struct ChatTimeline<M: ChatMessage>: View {
     public let title: String
     public let messages: [M]
 
@@ -225,21 +231,23 @@ public struct ChatTimeline<M: ChatMessage>: @MainActor View {
         self.messages = messages
     }
 
-    public var body: some View {
-        VStack(spacing: 0) {
-            Text(title)
-                .font(.title2).bold()
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(messages) { message in
-                        ChatBubble(message)
+    nonisolated public var body: some View {
+        QuillMainActorView.assumeIsolated {
+            VStack(spacing: 0) {
+                Text(title)
+                    .font(.title2).bold()
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Divider()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(messages) { message in
+                            ChatBubble(message)
+                        }
                     }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -251,7 +259,7 @@ public struct ChatTimeline<M: ChatMessage>: @MainActor View {
 /// picked a conversation. Hosts forward the draft binding and
 /// the send closure; everything else is layout.
 @MainActor
-public struct ChatPane<M: ChatMessage>: @MainActor View {
+public struct ChatPane<M: ChatMessage>: View {
     public let title: String
     public let messages: [M]
     public let placeholder: String
@@ -272,11 +280,13 @@ public struct ChatPane<M: ChatMessage>: @MainActor View {
         self.onSend = onSend
     }
 
-    public var body: some View {
-        VStack(spacing: 0) {
-            ChatTimeline(title: title, messages: messages)
-            Divider()
-            ChatComposer(placeholder: placeholder, draft: $draft, onSend: onSend)
+    nonisolated public var body: some View {
+        QuillMainActorView.assumeIsolated {
+            VStack(spacing: 0) {
+                ChatTimeline(title: title, messages: messages)
+                Divider()
+                ChatComposer(placeholder: placeholder, draft: $draft, onSend: onSend)
+            }
         }
     }
 }

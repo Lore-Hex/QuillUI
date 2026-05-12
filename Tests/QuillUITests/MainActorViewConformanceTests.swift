@@ -1,10 +1,10 @@
 import Foundation
 import Testing
 
-@Suite("MainActor View conformance")
+@Suite("MainActor View isolation")
 struct MainActorViewConformanceTests {
-    @Test("isolates View conformances on main-actor view types")
-    func isolatesViewConformancesOnMainActorViewTypes() throws {
+    @Test("keeps main-actor View witnesses compatible with SwiftOpenUI")
+    func keepsMainActorViewWitnessesCompatibleWithSwiftOpenUI() throws {
         let root = try packageRoot()
         let sources = root.appendingPathComponent("Sources")
         let fileManager = FileManager.default
@@ -23,17 +23,19 @@ struct MainActorViewConformanceTests {
             }
 
             let source = try String(contentsOf: file, encoding: .utf8)
-            violations.append(contentsOf: findMainActorViewConformanceViolations(in: source, file: file, root: root))
+            violations.append(contentsOf: findMainActorViewWitnessViolations(in: source, file: file, root: root))
         }
 
         #expect(violations.isEmpty, Comment(rawValue: violations.joined(separator: "\n")))
     }
 
-    private func findMainActorViewConformanceViolations(in source: String, file: URL, root: URL) -> [String] {
+    private func findMainActorViewWitnessViolations(in source: String, file: URL, root: URL) -> [String] {
+        let lines = source.components(separatedBy: .newlines)
         var violations: [String] = []
         var pendingMainActorLine: Int?
+        let relativePath = file.path.replacingOccurrences(of: root.path + "/", with: "")
 
-        for (index, rawLine) in source.components(separatedBy: .newlines).enumerated() {
+        for (index, rawLine) in lines.enumerated() {
             let lineNumber = index + 1
             let line = rawLine.trimmingCharacters(in: .whitespaces)
 
@@ -55,17 +57,61 @@ struct MainActorViewConformanceTests {
 
             defer { pendingMainActorLine = nil }
 
-            guard line.contains(":"),
-                  line.contains("View"),
-                  !line.contains(": @MainActor View") else {
+            guard isViewStructDeclaration(line) else {
                 continue
             }
 
-            let relativePath = file.path.replacingOccurrences(of: root.path + "/", with: "")
-            violations.append("\(relativePath):\(mainActorLine): \(line)")
+            if line.contains(": @MainActor View") {
+                violations.append("\(relativePath):\(mainActorLine): isolated View conformance: \(line)")
+            }
+
+            guard let body = findBodyWitness(after: index, in: lines) else {
+                violations.append("\(relativePath):\(lineNumber): missing `body` witness for \(line)")
+                continue
+            }
+
+            if !body.text.contains("nonisolated") {
+                violations.append("\(relativePath):\(body.line): body witness must be nonisolated: \(body.text)")
+            }
+
+            if !usesMainActorViewHelper(after: body.index, in: lines) {
+                violations.append(
+                    "\(relativePath):\(body.line): nonisolated body must enter `QuillMainActorView.assumeIsolated`"
+                )
+            }
         }
 
         return violations
+    }
+
+    private func isViewStructDeclaration(_ line: String) -> Bool {
+        line.contains(":")
+            && line.contains("View")
+            && !line.contains(": App")
+            && !line.contains("ViewModifier")
+    }
+
+    private func findBodyWitness(after declarationIndex: Int, in lines: [String]) -> (index: Int, line: Int, text: String)? {
+        let end = min(lines.count, declarationIndex + 120)
+        guard declarationIndex + 1 < end else { return nil }
+
+        for index in (declarationIndex + 1)..<end {
+            let line = lines[index].trimmingCharacters(in: .whitespaces)
+            if line.contains("var body: some View") {
+                return (index: index, line: index + 1, text: line)
+            }
+        }
+
+        return nil
+    }
+
+    private func usesMainActorViewHelper(after bodyIndex: Int, in lines: [String]) -> Bool {
+        let end = min(lines.count, bodyIndex + 8)
+        guard bodyIndex + 1 < end else { return false }
+
+        return lines[(bodyIndex + 1)..<end].contains { line in
+            line.contains("QuillMainActorView.assumeIsolated")
+        }
     }
 
     private func packageRoot() throws -> URL {

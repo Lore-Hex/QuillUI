@@ -6,14 +6,14 @@ public struct QuillEnchantedApp: App {
     public var body: some Scene {
         #if os(macOS) || os(iOS) || os(visionOS)
         WindowGroup("Quill Enchanted") {
-            MainActor.assumeIsolated {
+            QuillMainActorView.assumeIsolated {
                 EnchantedRootView()
             }
         }
         .defaultSize(width: 1180, height: 760)
         #else
         WindowGroup("Quill Enchanted") {
-            MainActor.assumeIsolated {
+            QuillMainActorView.assumeIsolated {
                 EnchantedRootView()
             }
         }

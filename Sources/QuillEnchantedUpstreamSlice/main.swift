@@ -139,14 +139,14 @@ struct UpstreamSliceApp: App {
     var body: some Scene {
         #if canImport(SwiftUI)
         WindowGroup("Quill Enchanted Upstream Slice") {
-            MainActor.assumeIsolated {
+            QuillMainActorView.assumeIsolated {
                 UpstreamSliceRoot()
             }
         }
         .defaultSize(width: 1180, height: 760)
         #else
         WindowGroup("Quill Enchanted Upstream Slice") {
-            MainActor.assumeIsolated {
+            QuillMainActorView.assumeIsolated {
                 UpstreamSliceRoot()
             }
         }
@@ -156,7 +156,7 @@ struct UpstreamSliceApp: App {
 }
 
 @MainActor
-struct UpstreamSliceRoot: @MainActor View {
+struct UpstreamSliceRoot: View {
     @StateObject private var model = EnchantedModel()
     @AppStorage("quill.enchanted.ollamaEndpoint") private var endpoint = "http://localhost:11434"
 
@@ -182,61 +182,63 @@ struct UpstreamSliceRoot: @MainActor View {
         modelsList.first { $0.name == model.selectedModel }
     }
 
-    var body: some View {
-        ChatView(
-            endpoint: $endpoint,
-            selectedConversation: selectedConversation,
-            conversations: conversations,
-            messages: messages,
-            modelsList: modelsList,
-            onNewConversationTap: {
-                model.newConversation()
-            },
-            onRefreshModels: {
-                let model = model
-                Task {
-                    await model.refreshModels()
-                }
-            },
-            onSendMessageTap: { prompt, _, attachment, trimmingMessageId in
-                let attachments = attachment.map { [$0] } ?? []
-                model.startSend(prompt, attachments: attachments, trimmingMessageID: trimmingMessageId)
-            },
-            onConversationTap: { conversation in
-                if let selected = model.conversations.first(where: { $0.id == conversation.id }) {
-                    model.select(selected)
-                }
-            },
-            conversationState: model.isLoading ? .loading : .completed,
-            onStopGenerateTap: {
-                model.stopGenerating()
-            },
-            reachable: !model.models.isEmpty,
-            statusMessage: model.status,
-            modelSupportsImages: selectedModel?.supportsImages ?? false,
-            selectedModel: selectedModel,
-            onSelectModel: { model in
-                self.model.selectModel(named: model?.name)
-            },
-            onConversationDelete: { conversation in
-                if let selected = model.conversations.first(where: { $0.id == conversation.id }) {
-                    model.delete(selected)
-                }
-            },
-            onDeleteAllConversations: {
-                model.deleteAllConversations()
-            },
-            canDeleteAllConversations: !model.conversations.isEmpty,
-            onAttachmentError: { message in
-                model.status = message
-            },
-            userInitials: "Q"
-        )
-        .onAppear {
-            model.boot(endpoint: endpoint)
-        }
-        .onChange(of: endpoint) { _, value in
-            model.configureEndpoint(value)
+    nonisolated var body: some View {
+        QuillMainActorView.assumeIsolated {
+            ChatView(
+                endpoint: $endpoint,
+                selectedConversation: selectedConversation,
+                conversations: conversations,
+                messages: messages,
+                modelsList: modelsList,
+                onNewConversationTap: {
+                    model.newConversation()
+                },
+                onRefreshModels: {
+                    let model = model
+                    Task {
+                        await model.refreshModels()
+                    }
+                },
+                onSendMessageTap: { prompt, _, attachment, trimmingMessageId in
+                    let attachments = attachment.map { [$0] } ?? []
+                    model.startSend(prompt, attachments: attachments, trimmingMessageID: trimmingMessageId)
+                },
+                onConversationTap: { conversation in
+                    if let selected = model.conversations.first(where: { $0.id == conversation.id }) {
+                        model.select(selected)
+                    }
+                },
+                conversationState: model.isLoading ? .loading : .completed,
+                onStopGenerateTap: {
+                    model.stopGenerating()
+                },
+                reachable: !model.models.isEmpty,
+                statusMessage: model.status,
+                modelSupportsImages: selectedModel?.supportsImages ?? false,
+                selectedModel: selectedModel,
+                onSelectModel: { model in
+                    self.model.selectModel(named: model?.name)
+                },
+                onConversationDelete: { conversation in
+                    if let selected = model.conversations.first(where: { $0.id == conversation.id }) {
+                        model.delete(selected)
+                    }
+                },
+                onDeleteAllConversations: {
+                    model.deleteAllConversations()
+                },
+                canDeleteAllConversations: !model.conversations.isEmpty,
+                onAttachmentError: { message in
+                    model.status = message
+                },
+                userInitials: "Q"
+            )
+            .onAppear {
+                model.boot(endpoint: endpoint)
+            }
+            .onChange(of: endpoint) { _, value in
+                model.configureEndpoint(value)
+            }
         }
     }
 }
