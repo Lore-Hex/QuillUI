@@ -48,6 +48,14 @@ if [[ -z "$INTERACTION_MODE" ]]; then
   esac
 fi
 
+backend_for_product() {
+  case "$1" in
+    quill-gtk-interaction-smoke|quill-chat-linux) echo "gtk" ;;
+    quill-qt-interaction-smoke) echo "qt" ;;
+    *) echo "" ;;
+  esac
+}
+
 install_packages() {
   if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
     return
@@ -189,6 +197,13 @@ if ! kill -0 "$xvfb_pid" >/dev/null 2>&1; then
   exit 70
 fi
 app_environment=(GTK_A11Y=none DISPLAY="$DISPLAY_ID")
+REQUESTED_BACKEND="${QUILLUI_BACKEND:-}"
+if [[ -z "$REQUESTED_BACKEND" ]]; then
+  REQUESTED_BACKEND="$(backend_for_product "$PRODUCT")"
+fi
+if [[ -n "$REQUESTED_BACKEND" ]]; then
+  app_environment+=(QUILLUI_BACKEND="$REQUESTED_BACKEND")
+fi
 if [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
   quill_chat_reference_home="$OUTPUT_DIR/quill-chat-linux-reference-home"
   seed_quill_chat_reference_data "$quill_chat_reference_home"

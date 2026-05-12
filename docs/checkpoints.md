@@ -2501,3 +2501,16 @@ linked.
 passes `.qt` through that shared launch path instead of relying on the Linux
 platform default. The app shells still share one runtime entry point, but the
 backend target now owns backend selection in a way tests can assert directly.
+
+## Checkpoint 135: Explicit Backend Smoke Selection
+
+Status: implemented locally; guarded by source hygiene tests.
+
+The shared Linux interaction runner now infers `QUILLUI_BACKEND` from known
+products before launching the app under Xvfb: GTK smoke and generated Quill
+Chat runs select GTK, while the Qt smoke target selects Qt. Callers can still
+override `QUILLUI_BACKEND` explicitly when probing fallback behavior.
+
+This makes the GTK and Qt smoke products exercise the same requested-backend
+path used by `QuillApp.run` and `QuillQtApp.run`, while preserving the existing
+single runner, legacy GTK compatibility shim, and visual interaction checks.
