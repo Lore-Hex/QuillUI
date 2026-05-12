@@ -127,7 +127,7 @@ window screenshot. It resizes the Xvfb window to the same reference frame and
 verifies the Mac-derived landmarks instead of the older compact smoke layout:
 
 ```bash
-QUILLUI_GTK_MAC_REFERENCE=1 \
+QUILLUI_BACKEND_MAC_REFERENCE=1 \
   scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-mac-reference.png quill-chat-linux
 ```
 
@@ -138,7 +138,9 @@ strict pass is allowed to fail while renderer parity is still being closed; it
 exists so the remaining gap is measured against the real app, not a prototype.
 The strict path also sets `QUILLUI_GTK_DEFAULT_WINDOW_WIDTH` and
 `QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT`; the SwiftOpenUI GTK checkout patch honors
-those values for automatic window sizing.
+those values for automatic window sizing. New GTK/Qt parity scripts should use
+the `QUILLUI_BACKEND_*` names for visual checks, and the visual runner maps
+them to the older `QUILLUI_GTK_*` environment contract for compatibility.
 
 Native backend interaction smoke is separate from Playwright because these apps
 are Linux desktop executables, not web pages. The interaction check builds a

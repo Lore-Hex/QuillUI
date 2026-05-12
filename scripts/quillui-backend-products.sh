@@ -22,6 +22,15 @@ quillui_backend_smoke_products() {
     quill-qt-interaction-smoke
 }
 
+quillui_alias_env() {
+  local canonical="$1"
+  local legacy="$2"
+
+  if [[ -n "${!canonical:-}" ]]; then
+    printf -v "$legacy" "%s" "${!canonical}"
+  fi
+}
+
 quillui_backend_for_product() {
   case "$1" in
     quill-qt-interaction-smoke)

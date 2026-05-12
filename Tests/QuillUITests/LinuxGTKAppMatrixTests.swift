@@ -64,6 +64,10 @@ struct LinuxGTKAppMatrixTests {
             contentsOf: root.appendingPathComponent("scripts/linux-gtk-profile.sh"),
             encoding: .utf8
         )
+        let visualScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-gtk-visual-check.sh"),
+            encoding: .utf8
+        )
         let csvRunner = try String(
             contentsOf: root.appendingPathComponent("scripts/run-linux-gtk-profile-csv.sh"),
             encoding: .utf8
@@ -72,10 +76,17 @@ struct LinuxGTKAppMatrixTests {
             contentsOf: root.appendingPathComponent("scripts/check-linux-gtk-profile-budget.sh"),
             encoding: .utf8
         )
+        let backendProducts = try String(contentsOf: matrixScript, encoding: .utf8)
+        #expect(backendProducts.contains("quillui_alias_env()"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(visualScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(profileScript.contains("quillui_requested_backend_for_product \"$PRODUCT\""))
         #expect(profileScript.contains("app_environment+=(QUILLUI_BACKEND=\"$requested_backend\")"))
         #expect(profileScript.contains("QUILLUI_BACKEND_PROFILE_DISPLAY"))
+        #expect(visualScript.contains("quillui_alias_env QUILLUI_BACKEND_VISUAL_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE"))
+        #expect(visualScript.contains("quillui_alias_env QUILLUI_BACKEND_VERIFY_PRODUCT QUILLUI_GTK_VERIFY_PRODUCT"))
+        #expect(visualScript.contains("quillui_requested_backend_for_product \"$PRODUCT\""))
+        #expect(visualScript.contains("app_environment+=(QUILLUI_BACKEND=\"$requested_backend\")"))
         #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_COMMAND"))
         #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_SETTLE"))
         #expect(budgetScript.contains("QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT"))

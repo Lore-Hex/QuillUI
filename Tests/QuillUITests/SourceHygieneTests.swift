@@ -167,6 +167,7 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("app_environment+=(QUILLUI_BACKEND=\"$REQUESTED_BACKEND\")"))
         #expect(backendProducts.contains("quillui_gtk_app_products()"))
         #expect(backendProducts.contains("quillui_backend_smoke_products()"))
+        #expect(backendProducts.contains("quillui_alias_env()"))
         #expect(backendProducts.contains("gtk-apps)"))
         #expect(backendProducts.contains("backend-for-product)"))
         #expect(backendProducts.contains("quill-qt-interaction-smoke)"))

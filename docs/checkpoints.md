@@ -2547,3 +2547,20 @@ helper, while Linux CI and `scripts/linux-gtk-check.sh` consume
 `scripts/quillui-backend-products.sh gtk-apps` directly. This removes the last
 copied app list between GTK matrix coverage and the Qt-ready backend selection
 tooling.
+
+## Checkpoint 138: Backend-Neutral Visual Smoke Aliases
+
+Status: implemented locally; guarded by matrix and source hygiene tests.
+
+The Linux visual smoke runner now uses `scripts/quillui-backend-products.sh`
+before launching app products, so visual checks request the same backend as the
+interaction and profile runners. GTK app products still select GTK by default,
+the Qt smoke product can request Qt, and callers can override the selection
+with `QUILLUI_BACKEND`.
+
+The visual runner now accepts `QUILLUI_BACKEND_*` environment names for the
+visual display, screen size, app executable, skip-build mode, Mac reference
+mode, default window size, layout debug, and verifier product while preserving
+the legacy `QUILLUI_GTK_*` names. The interaction and visual runners use the
+same `quillui_alias_env` helper for those aliases, keeping the Qt work on a
+shared QA surface instead of adding another backend-specific script.
