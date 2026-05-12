@@ -2129,8 +2129,7 @@ not valid row-shape evidence.
 
 ## Checkpoint 110: Correct Profile Shape + Idempotent Linux Loads
 
-Status: locally focused-tests green; queued for full package test and
-Linux profile validation.
+Status: validated in Linux CI.
 
 Fixed the IceCubes profiler branch shape before taking more CPU data:
 plain-row/literal-row/stored-props diagnostics now render fixture rows
@@ -2150,6 +2149,28 @@ Both high-CPU apps now guard their initial load path:
   writes, reducing unnecessary SwiftOpenUI invalidations if GTK remaps
   the root view.
 
-Focused tests cover fixture row projection and idempotent
-NetNewsWire fixture seeding. The next Linux profile artifact is the
-acceptance check for this slice.
+Focused tests cover fixture row projection and idempotent NetNewsWire
+fixture seeding. Linux CI run 25716559081 on commit d69a1f4 passed
+the full GTK matrix and confirmed the outliers are gone:
+
+- IceCubes production CPU dropped from 132.3/135.2 to 3.0/2.8.
+- NetNewsWire production CPU dropped from 100.2/100.4 to 5.8/5.6.
+- Corrected IceCubes no-fetch, flat, plain-row, literal-row, and
+  stored-prop profile branches all render fixture rows and idle in the
+  2.6-3.4% range.
+
+## Checkpoint 111: Linux Profile Budget Guard
+
+Status: implemented locally; queued for CI.
+
+The profile data is now good enough to gate against severe regressions.
+Added `scripts/check-linux-gtk-profile-budget.sh`, which validates the
+CSV emitted by `scripts/linux-gtk-profile.sh` and fails on non-`ok`
+rows, startup time over 5s, RSS over 300 MB, or either CPU window over
+25%.
+
+The thresholds are intentionally loose: they are not a microbenchmark,
+but they will fail if IceCubes/NetNewsWire-style 100%+ render-loop
+spins return. Linux CI now runs this check immediately after the
+per-app baseline profiler, and `LinuxGTKAppMatrixTests` covers both a
+passing d69a1f4-shaped CSV and a rejected 135.2% steady-CPU row.

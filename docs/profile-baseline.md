@@ -10,7 +10,49 @@ Current CI sources the app roster from
 `scripts/linux-gtk-app-products.sh`, the same list used by visual
 smoke coverage.
 
-## Current Matrix (Linux run 25715271203, commit f6a27de)
+## Current Matrix (Linux run 25716559081, commit d69a1f4)
+
+| App                            | build_ms | startup_ms | rss_kb  | cpu_initial | cpu_steady |
+|--------------------------------|---------:|-----------:|--------:|------------:|-----------:|
+| quill-enchanted                |   17,560 |          6 | 233,368 |         2.8 |        3.0 |
+| quill-enchanted-upstream-slice |   13,398 |          6 | 244,940 |         6.2 |        5.8 |
+| quill-icecubes                 |   13,148 |          6 | 236,156 |         3.0 |        2.8 |
+| quill-netnewswire              |   13,105 |          6 | 235,852 |         5.8 |        5.6 |
+| quill-codeedit                 |   11,806 |          6 | 212,468 |         2.8 |        2.6 |
+| quill-signal                   |   11,666 |          5 | 230,052 |         5.6 |        5.8 |
+| quill-telegram                 |   12,724 |          6 | 231,236 |         5.8 |        5.8 |
+| quill-iina                     |   13,305 |          6 | 222,688 |         2.6 |        2.8 |
+| quill-wireguard                |   14,901 |          6 | 215,312 |         2.6 |        2.8 |
+
+The corrected render-projection/idempotent-load slice removed the
+two sustained CPU outliers: production IceCubes dropped from
+132.3/135.2 to 3.0/2.8, and production NetNewsWire dropped from
+100.2/100.4 to 5.8/5.6. All user-facing app shells now idle in the
+2.6-5.8% steady CPU band in CI.
+
+### Follow-up profiler rows from the same run
+
+| Mode                           | App               | cpu_initial | cpu_steady |
+|--------------------------------|-------------------|------------:|-----------:|
+| no-fetch                       | quill-icecubes    |         2.8 |        2.8 |
+| no-fetch                       | quill-netnewswire |         7.0 |        5.8 |
+| no-fetch + flat                | quill-icecubes    |         2.8 |        3.0 |
+| no-fetch + bare                | quill-icecubes    |         3.0 |        3.4 |
+| no-fetch + plain-row           | quill-icecubes    |         2.8 |        3.2 |
+| no-fetch + literal-row         | quill-icecubes    |         3.2 |        3.0 |
+| no-fetch + stored-props row    | quill-icecubes    |         3.0 |        2.6 |
+
+The corrected profile branches now render real fixture rows and still
+idle at fixture-app CPU levels. That confirms the high CPU was not a
+fundamental `List`/`ForEach`/row-layout issue; it was repeated
+equivalent state churn through render-facing model trees.
+
+Linux CI now runs `scripts/check-linux-gtk-profile-budget.sh` against
+the baseline CSV with a loose 25% CPU ceiling. The threshold is meant
+to catch a return to the former 100%+ render-loop spin without
+flaking on normal CI variance.
+
+## Previous Outlier Matrix (Linux run 25715271203, commit f6a27de)
 
 | App                            | build_ms | startup_ms | rss_kb  | cpu_initial | cpu_steady |
 |--------------------------------|---------:|-----------:|--------:|------------:|-----------:|
@@ -24,39 +66,11 @@ smoke coverage.
 | quill-iina                     |   12,685 |          6 | 212,224 |         2.6 |        2.6 |
 | quill-wireguard                |   14,946 |          6 | 206,004 |         2.8 |        2.8 |
 
-The expanded matrix confirms the problem is not general to QuillUI's
-Linux backend: seven app shells idle in the 2.6-5.8% band. The
-remaining outliers are IceCubes and NetNewsWire.
-
-### Follow-up profiler rows from the same run
-
-| Mode                           | App               | cpu_initial | cpu_steady |
-|--------------------------------|-------------------|------------:|-----------:|
-| no-fetch                       | quill-icecubes    |        44.9 |       83.0 |
-| no-fetch                       | quill-netnewswire |        56.8 |       89.8 |
-| no-fetch + flat                | quill-icecubes    |        37.2 |       79.8 |
-| no-fetch + bare                | quill-icecubes    |         2.6 |        2.8 |
-| no-fetch + plain-row           | quill-icecubes    |         2.8 |        2.8 |
-| no-fetch + literal-row         | quill-icecubes    |         2.6 |        2.8 |
-| no-fetch + stored-props row    | quill-icecubes    |         3.0 |        2.8 |
-
-The f6a27de profile run disproved the stored-render-value slice as
-a sufficient fix: production IceCubes and NetNewsWire remained pegged.
-It also exposed an instrumentation bug. The `plain-row`,
-`literal-row`, and `stored-props row` IceCubes profile branches
-rendered empty `List`s because they bypassed `timelineContent` and
-therefore never seeded `QuillIceCubesProfileFixtures.statuses` under
-`QUILLUI_DISABLE_FETCH=1`. Those rows are valid only as empty-list
-baselines, not as row-shape evidence.
-
-The next slice corrects that profiler shape, renders IceCubes from
-`IceCubesTimelineRow` projections, and makes IceCubes/NetNewsWire
-initial load paths one-shot/idempotent so GTK remaps cannot keep
-writing equivalent state.
-
-The next Linux CI profile run should validate whether corrected
-fixtures plus render projections reduce both outliers toward the
-fixture-app idle band.
+That run disproved the stored-render-value slice as a sufficient fix.
+It also exposed an instrumentation bug: the `plain-row`,
+`literal-row`, and `stored-props row` IceCubes branches rendered empty
+`List`s because they bypassed `timelineContent` and never seeded
+profile fixtures under `QUILLUI_DISABLE_FETCH=1`.
 
 ## Original Baseline (Linux run 25692222317, commit 530232c)
 
@@ -183,7 +197,7 @@ The CPU peg lives somewhere in IceCubes' specific view tree:
 the `Group { … List { ForEach(statuses) { statusRow($0) } } … }`
 chain.
 
-### Plain-row result — also fixture baseline (Linux run 25698691689, commit f859de7)
+### Historical plain-row result — superseded (Linux run 25698691689, commit f859de7)
 
 `QUILLUI_PROFILE_PLAIN_ROW=1` keeps `List + ForEach(statuses)`
 but renders each row as plain `Text(status.id)`.
@@ -193,12 +207,13 @@ but renders each row as plain `Text(status.id)`.
 | no-fetch (rich `statusRow`)       |    44.2 |   83.6 |
 | **no-fetch + plain-row**          | **3.0** | **2.6** |
 
-The drop is decisive — `List + ForEach` over a populated
-array idles correctly on SwiftOpenUI's GTK4 backend. The cost
-is specifically in `statusRow`'s rich content
-(HStack + Circle + nested VStack + 3 Texts + .padding).
+This looked decisive at the time, but later artifact inspection found
+the profile branch was bypassing fixture seeding and rendering an
+empty `List`. Treat this as historical evidence that an empty list can
+idle, not as row-shape evidence. The corrected d69a1f4 run above
+supersedes it.
 
-### Literal-row result — ROOT CAUSE FOUND (Linux run 25699855677, commit 15a6417)
+### Historical literal-row result — superseded (Linux run 25699855677, commit 15a6417)
 
 `QUILLUI_PROFILE_LITERAL_ROW=1` keeps the FULL statusRow
 shape (HStack + Circle + nested VStack + 3 Texts + .padding)
@@ -210,20 +225,12 @@ but with literal-string Text values (no computed properties).
 | no-fetch + plain-row (List+ForEach + Text)  |     3.0 |    2.6 |
 | **no-fetch + literal-row (full layout)**    | **2.6** | **2.6** |
 
-Literal-row idles at fixture baseline with the FULL
-HStack/Circle/nested-VStack/Text/.padding layout. The ONLY
-difference vs the busy-spin version is whether the Text
-values come from `.asRawText` / `.cachedDisplayName.asRawText`
-computed-property reads or from literal strings.
-
-**Root cause confirmed: HTMLString.asRawText was being
-recomputed on every GTK4 render-loop paint.**
-
-Each paint walked the HTML string character-by-character,
-allocated a new String, then ran 7 sequential
-`replacingOccurrences` calls. With SwiftOpenUI's render
-loop refreshing at GTK's frame rate × 2 rows × 2 Text reads
-per row, the per-CPU cost stacked up to ~80%.
+This result was also an empty-list baseline, not a valid full-layout
+row measurement. The corrected d69a1f4 run renders literal rows,
+stored-prop rows, and production rows with fixtures; all now idle at
+fixture-app CPU levels. The final fix is the combination of
+render-facing row/detail projections and idempotent startup state
+writes, not `HTMLString.asRawText` caching alone.
 
 ### Cache-at-model attempted fix — DID NOT MOVE THE NEEDLE (commit 40c1ed4)
 

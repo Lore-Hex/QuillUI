@@ -112,9 +112,10 @@ jobs:
       # and emit a CSV row. The intent is to spot Linux-side
       # regressions vs the macOS originals (per the
       # user-supplied "not bloated in rendering UI etc"
-      # directive) — current numbers establish a baseline; we
-      # gate against thresholds in a follow-up slice once we
-      # have a few runs of trending data.
+      # directive). The follow-up budget check uses deliberately
+      # loose thresholds: it catches render-loop spins like the
+      # former IceCubes/NetNewsWire 100%+ CPU outliers without
+      # treating normal CI noise as a failure.
       - name: Per-app Linux profile baseline
         continue-on-error: true
         run: |
@@ -125,6 +126,9 @@ jobs:
               scripts/linux-gtk-profile.sh "$product" 5 20 || true
             done
           } | tee /tmp/quillui-profile.csv
+
+      - name: Linux profile budget check
+        run: scripts/check-linux-gtk-profile-budget.sh /tmp/quillui-profile.csv --max-cpu-pct 25 --max-rss-kb 300000 --max-startup-ms 5000
 
       # No-fetch profile experiment. QUILLUI_DISABLE_FETCH=1
       # makes QuillIceCubes / QuillNetNewsWire seed fixture
