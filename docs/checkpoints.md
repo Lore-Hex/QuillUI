@@ -2235,3 +2235,13 @@ checker with no evidence of that product's failure.
 `LinuxGTKAppMatrixTests` covers the case with a fake profiler that exits
 42 without stdout, verifies the synthesized `profiler-exit-42` row is
 written to the CSV, and confirms the budget checker rejects it.
+
+## Checkpoint 116: App Entry-Point Comment Hygiene
+
+Status: implemented locally; queued for CI.
+
+The IceCubes and NetNewsWire executable entry points no longer describe
+their cores as generic stubs. Their comments now match the current
+implementation: IceCubes is a self-contained Mastodon public-timeline
+shell, and NetNewsWire is a self-contained RSS reader shell that stays
+buildable, renderable, and profile-covered on Linux.

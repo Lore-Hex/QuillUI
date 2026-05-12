@@ -1,10 +1,10 @@
 // Minimal Quill IceCubes app entry point.
 //
 // The full Ice Cubes view stack (Timeline, Env, AppAccountsManager, Theme,
-// RouterPath, etc.) is a 50+ target port. For now this entry point uses the
-// QuillIceCubesCore stub that exercises Models + NetworkClient — proving the
-// federation client + API surface works on QuillUI. Wiring the full upstream
-// view tree is a follow-up.
+// RouterPath, etc.) is a 50+ target port. This entry point uses
+// QuillIceCubesCore's self-contained public-timeline shell to exercise
+// Mastodon decoding, NavigationStack/List rendering, and the Linux GTK profile
+// path through QuillUI. Wiring the full upstream view tree is a follow-up.
 
 import QuillIceCubesCore
 import QuillUI
