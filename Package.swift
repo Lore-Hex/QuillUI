@@ -787,7 +787,7 @@ targets.append(contentsOf: [
         ]
     ),
     // Generic GTK interaction smoke app. CI's
-    // `scripts/linux-gtk-interaction-check.sh` builds this
+    // `scripts/linux-backend-interaction-check.sh` builds this
     // executable to validate that QuillUI button taps and sheet
     // presentations round-trip through SwiftOpenUI's GTK4
     // backend through QuillApp (open-panel / sidebar / banner /

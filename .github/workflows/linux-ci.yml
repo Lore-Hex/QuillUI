@@ -85,13 +85,13 @@ jobs:
         run: scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux
 
       - name: GTK interaction smoke
-        run: scripts/linux-gtk-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
+        run: scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
 
       - name: Qt launch target interaction smoke
-        run: scripts/linux-gtk-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke
+        run: scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke
 
       - name: Generated Enchanted toolbar interaction smoke
-        run: scripts/linux-gtk-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
+        run: scripts/linux-backend-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
 
       # Per-app GTK visual smoke. The product roster lives in
       # `scripts/linux-gtk-app-products.sh` so visual and profile

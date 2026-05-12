@@ -121,6 +121,18 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUIQt/QuillUIQt.swift"),
             encoding: .utf8
         )
+        let backendScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"),
+            encoding: .utf8
+        )
+        let legacyGtkScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-gtk-interaction-check.sh"),
+            encoding: .utf8
+        )
+        let workflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
+            encoding: .utf8
+        )
 
         #expect(manifest.contains(".library(name: \"QuillUIQt\", targets: [\"QuillUIQt\"])"))
         #expect(manifest.contains(".executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"])"))
@@ -141,6 +153,13 @@ struct SourceHygieneTests {
         #expect(qtBackend.contains("public enum QuillQtBackend"))
         #expect(qtBackend.contains("public enum QuillQtApp"))
         #expect(qtBackend.contains("QuillApp.run(appType)"))
+
+        #expect(backendScript.contains("QUILLUI_BACKEND_INTERACTION_MODE"))
+        #expect(backendScript.contains("QUILLUI_BACKEND_VERIFY_PRODUCT"))
+        #expect(backendScript.contains("quill-gtk-interaction-smoke|quill-qt-interaction-smoke"))
+        #expect(legacyGtkScript.contains("linux-backend-interaction-check.sh"))
+        #expect(workflow.contains("scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke"))
+        #expect(workflow.contains("scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke"))
     }
 
     @Test("Generated Linux app packages launch through QuillApp")

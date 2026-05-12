@@ -63,7 +63,7 @@ per-app landmark predicates; CP78 added Enchanted's generated-app
 landmarks, while the root app shells still use the baseline
 nonblank verifier until each gets its own small predicate block.
 
-For interaction tests, reuse `scripts/linux-gtk-interaction-check.sh`
+For interaction tests, reuse `scripts/linux-backend-interaction-check.sh`
 (also proven for Enchanted) which drives the running app with
 `xdotool`. Per-app interactions to start with:
 
@@ -146,5 +146,5 @@ App is "done" when ALL of:
 - [ ] The same flow renders identically on Linux GTK via
       `scripts/linux-gtk-visual-check.sh` and is hard-gated
 - [ ] At least one interaction (click / text input) is exercised
-      via `scripts/linux-gtk-interaction-check.sh` and produces a
+      via `scripts/linux-backend-interaction-check.sh` and produces a
       second screenshot

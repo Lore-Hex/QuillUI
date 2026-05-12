@@ -435,9 +435,19 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("Mac-reference prompt-send message content was not detected"))
 
         let interactionScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"),
+            encoding: .utf8
+        )
+        let legacyInteractionScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-gtk-interaction-check.sh"),
             encoding: .utf8
         )
+        #expect(legacyInteractionScript.contains("linux-backend-interaction-check.sh"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_INTERACTION_MODE"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_SKIP_BUILD"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_APP_EXECUTABLE"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_FOCUS_PRIME"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_VERIFY_PRODUCT"))
         #expect(interactionScript.contains("QUILLUI_GTK_INTERACTION_MODE"))
         #expect(interactionScript.contains("QUILLUI_GTK_SKIP_BUILD"))
         #expect(interactionScript.contains("QUILLUI_GTK_APP_EXECUTABLE"))

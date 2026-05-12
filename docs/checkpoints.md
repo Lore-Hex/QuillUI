@@ -2470,3 +2470,19 @@ and lets CI compare backend launch behavior without duplicated SwiftUI view
 code. The Qt smoke currently runs through the platform fallback runtime until a
 native Qt renderer is linked, but the target graph, package product, and CI
 interaction check are now in place.
+
+## Checkpoint 133: Backend-Neutral Interaction Runner
+
+Status: implemented locally; guarded by source hygiene tests and CI references.
+
+The Linux interaction smoke runner is now
+`scripts/linux-backend-interaction-check.sh` so GTK and Qt launch checks share a
+backend-neutral entry point. The old `scripts/linux-gtk-interaction-check.sh`
+script remains as an executable compatibility shim that delegates to the new
+runner.
+
+The backend runner accepts `QUILLUI_BACKEND_*` environment aliases for new
+checks while preserving the older `QUILLUI_GTK_*` names used by historical
+scripts and checkpoint commands. Linux CI now invokes the backend-neutral script
+for the GTK smoke app, the Qt smoke app, and the generated Quill Chat toolbar
+interaction.
