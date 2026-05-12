@@ -5,7 +5,7 @@ import SwiftUI
 #endif
 
 @MainActor
-public struct EnchantedRootView: View {
+public struct EnchantedRootView: @MainActor View {
     @StateObject private var model = EnchantedModel()
     @AppStorage("quill.enchanted.ollamaEndpoint") private var endpoint = "http://localhost:11434"
 

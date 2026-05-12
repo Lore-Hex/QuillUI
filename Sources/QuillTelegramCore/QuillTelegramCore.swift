@@ -18,7 +18,7 @@ import QuillChatKit
 /// chrome lives in `QuillChatKit`; this file owns the fixture
 /// model, the folder filter, and the unread-badge logic.
 @MainActor
-public struct QuillTelegramContentView: View {
+public struct QuillTelegramContentView: @MainActor View {
     @State private var chats = QuillTelegramFixtures.chats
     @State private var selectedFolder = "All"
     @State private var selectedChatID: Chat.ID? = QuillTelegramFixtures.chats.first?.id

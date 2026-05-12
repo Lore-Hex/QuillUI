@@ -13,15 +13,19 @@ import QuillUI
 /// `platforms: [.iOS(.v18), .visionOS(.v1)]` and don't resolve
 /// on macOS or Linux.
 ///
-/// `@MainActor` matches every other QuillUI app shell —
+/// The type and its `View` conformance are main-actor isolated.
 /// SwiftOpenUI's `View` protocol doesn't put `body` on the
-/// main actor (unlike Apple's SwiftUI), so without the
-/// annotation the body's access to `@State` mutations from
-/// the `fetchTimeline()` callsite trips Swift 6's
-/// `#ActorIsolatedCall` once the rest of the view grows
-/// `@StateObject`s.
+/// main actor (unlike Apple's SwiftUI), so without isolation
+/// the body's access to `@State` mutations from the
+/// `fetchTimeline()` callsite trips Swift 6 diagnostics once
+/// the rest of the view grows `@StateObject`s.
+///
+/// The isolated conformance (`: @MainActor View`) is required
+/// by Swift 6.2 on Linux; isolating only the type leaves the
+/// `View.body` witness crossing from a main-actor type into a
+/// nonisolated protocol requirement.
 @MainActor
-public struct QuillIceCubesContentView: View {
+public struct QuillIceCubesContentView: @MainActor View {
     @State private var client = MastodonClient(server: "mastodon.social", version: .v1, oauthToken: nil)
     @State private var statuses: [Status] = []
     @State private var isLoading = false

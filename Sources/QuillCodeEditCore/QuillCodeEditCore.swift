@@ -17,7 +17,7 @@ import QuillUI
 /// in-memory project so the layout compiles + renders without
 /// needing real filesystem reads.
 @MainActor
-public struct QuillCodeEditContentView: View {
+public struct QuillCodeEditContentView: @MainActor View {
     @State private var openTabs: [ProjectFile.ID] = []
     @State private var activeID: ProjectFile.ID?
     @State private var project = QuillCodeEditFixtures.project

@@ -156,7 +156,7 @@ struct UpstreamSliceApp: App {
 }
 
 @MainActor
-struct UpstreamSliceRoot: View {
+struct UpstreamSliceRoot: @MainActor View {
     @StateObject private var model = EnchantedModel()
     @AppStorage("quill.enchanted.ollamaEndpoint") private var endpoint = "http://localhost:11434"
 

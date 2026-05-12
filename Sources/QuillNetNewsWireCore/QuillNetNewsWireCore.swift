@@ -26,13 +26,16 @@ import QuillUI
 /// `FeedParser.parse(_:)`; future slices can swap the local
 /// parser back to upstream once `Shared`/`Mac` is split.
 ///
-/// `@MainActor` is explicit because SwiftOpenUI's `View` protocol
-/// doesn't put `body` on the main actor (unlike Apple's SwiftUI),
-/// so without the annotation the body's access to the
-/// `@MainActor RSSReaderModel`'s `@Published` properties trips
-/// Swift 6's `#ActorIsolatedCall` even in Swift 5 language mode.
+/// The type and its `View` conformance are main-actor isolated.
+/// SwiftOpenUI's `View` protocol doesn't put `body` on the main
+/// actor (unlike Apple's SwiftUI), so without isolation the
+/// body's access to the `@MainActor RSSReaderModel`'s
+/// `@Published` properties trips Swift 6 diagnostics. The
+/// isolated conformance is required by Swift 6.2 on Linux so
+/// the `body` witness does not cross into nonisolated protocol
+/// requirements.
 @MainActor
-public struct QuillNetNewsWireContentView: View {
+public struct QuillNetNewsWireContentView: @MainActor View {
     @StateObject private var model = RSSReaderModel()
     @State private var feedURL: String = "https://daringfireball.net/feeds/main"
 

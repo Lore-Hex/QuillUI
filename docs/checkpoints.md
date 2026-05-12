@@ -2027,3 +2027,33 @@ were not part of the per-app matrix.
 Also promoted WireGuard to the same lowercase executable-product
 shape as the rest of the app shells (`quill-wireguard`), instead
 of relying on SwiftPM's implicit capitalized target product.
+
+## Checkpoint 107: Swift 6.2 MainActor View Isolation
+
+Status: queued in Linux CI.
+
+Linux CI on the `swift:6.2-noble` image escalated the
+main-actor `View` conformance for `EnchantedRootView` into a
+build failure. The app shells already run on the main actor; the
+missing piece was making the `View` conformance itself explicitly
+main-actor isolated.
+
+Updated the shared app-facing views to use the Swift 6.2-safe
+shape:
+
+```swift
+@MainActor
+public struct SomeAppView: @MainActor View
+```
+
+Covered the Enchanted root, the Signal/Telegram shared chat kit,
+the IceCubes/NetNewsWire/CodeEdit/IINA/Signal/Telegram content
+views, and the Enchanted upstream slice root. Added a focused test
+that scans `Sources` for future `@MainActor` `View` declarations
+that forget the isolated conformance.
+
+The SwiftPM build-tool plugin API modernization remains deferred:
+moving the plugins to the 6.1 URL-based API is straightforward, but
+it widened CI to Swift 6.2 before the actor-isolation fixes landed.
+Keep that as a separate cleanup slice after the Linux app matrix is
+green again.
