@@ -30,6 +30,7 @@ var products: [Product] = [
     .library(name: "QuillUI", targets: ["QuillUI"]),
     .library(name: "QuillData", targets: ["QuillData"]),
     .library(name: "QuillKit", targets: ["QuillKit"]),
+    .library(name: "QuillChatKit", targets: ["QuillChatKit"]),
     .library(name: "QuillFoundation", targets: ["QuillFoundation"]),
     .library(name: "QuillRS", targets: ["QuillRS"]),
     .library(name: "QuillUIKit", targets: ["QuillUIKit"]),
@@ -128,6 +129,12 @@ let quillUIDependencies: [Target.Dependency] = [
     "QuillKit",
     .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
 ]
+#endif
+
+#if os(Linux)
+let quillChatKitDependencies: [Target.Dependency] = ["SwiftUI"]
+#else
+let quillChatKitDependencies: [Target.Dependency] = []
 #endif
 
 let nnwSwiftSettings: [SwiftSetting] = [
@@ -371,7 +378,7 @@ var targets: [Target] = [
     // shells only carry their own model + folder/unread logic.
     .target(
         name: "QuillChatKit",
-        dependencies: ["QuillUI"],
+        dependencies: quillChatKitDependencies,
         swiftSettings: appSwiftSettings
     ),
     .target(
@@ -906,7 +913,7 @@ allPackageDependencies += [
 let package = Package(
     name: "QuillUI",
     defaultLocalization: "en",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v14), .iOS(.v14)],
     products: products,
     dependencies: allPackageDependencies,
     targets: targets + [

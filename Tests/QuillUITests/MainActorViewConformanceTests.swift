@@ -76,7 +76,7 @@ struct MainActorViewConformanceTests {
 
             if !usesMainActorViewHelper(after: body.index, in: lines) {
                 violations.append(
-                    "\(relativePath):\(body.line): nonisolated body must enter `QuillMainActorView.assumeIsolated`"
+                    "\(relativePath):\(body.line): nonisolated body must enter an approved main-actor view helper"
                 )
             }
         }
@@ -109,8 +109,15 @@ struct MainActorViewConformanceTests {
         let end = min(lines.count, bodyIndex + 8)
         guard bodyIndex + 1 < end else { return false }
 
+        let approvedHelpers = [
+            "QuillMainActorView.assumeIsolated",
+            "ChatMainActorView.assumeIsolated",
+        ]
+
         return lines[(bodyIndex + 1)..<end].contains { line in
-            line.contains("QuillMainActorView.assumeIsolated")
+            approvedHelpers.contains { helper in
+                line.contains(helper)
+            }
         }
     }
 

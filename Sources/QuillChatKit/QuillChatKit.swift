@@ -1,5 +1,17 @@
 import Foundation
-import QuillUI
+import SwiftUI
+
+private struct ChatUncheckedSendableView<Content: View>: @unchecked Sendable {
+    let content: Content
+}
+
+private enum ChatMainActorView {
+    static func assumeIsolated<Content: View>(_ content: @MainActor () -> Content) -> Content {
+        MainActor.assumeIsolated {
+            ChatUncheckedSendableView(content: content())
+        }.content
+    }
+}
 
 /// Shared chat primitives used by QuillSignal, QuillTelegram, and
 /// any other QuillUI app that renders a "sidebar of conversations →
@@ -56,7 +68,7 @@ public struct ChatBubble<M: ChatMessage>: View {
     }
 
     nonisolated public var body: some View {
-        QuillMainActorView.assumeIsolated {
+        ChatMainActorView.assumeIsolated {
             VStack(alignment: message.fromSelf ? .trailing : .leading, spacing: 2) {
                 Text(message.body)
                     .padding(10)
@@ -99,7 +111,7 @@ public struct ChatRow: View {
     }
 
     nonisolated public var body: some View {
-        QuillMainActorView.assumeIsolated {
+        ChatMainActorView.assumeIsolated {
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Text(title).font(.headline).lineLimit(1)
@@ -205,7 +217,7 @@ public struct ChatComposer: View {
     }
 
     nonisolated public var body: some View {
-        QuillMainActorView.assumeIsolated {
+        ChatMainActorView.assumeIsolated {
             HStack(spacing: 8) {
                 TextField(placeholder, text: $draft)
                 Button("Send") {
@@ -232,7 +244,7 @@ public struct ChatTimeline<M: ChatMessage>: View {
     }
 
     nonisolated public var body: some View {
-        QuillMainActorView.assumeIsolated {
+        ChatMainActorView.assumeIsolated {
             VStack(spacing: 0) {
                 Text(title)
                     .font(.title2).bold()
@@ -281,7 +293,7 @@ public struct ChatPane<M: ChatMessage>: View {
     }
 
     nonisolated public var body: some View {
-        QuillMainActorView.assumeIsolated {
+        ChatMainActorView.assumeIsolated {
             VStack(spacing: 0) {
                 ChatTimeline(title: title, messages: messages)
                 Divider()
