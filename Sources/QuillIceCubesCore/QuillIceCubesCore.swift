@@ -199,14 +199,14 @@ public struct QuillIceCubesContentView: View {
             HStack {
                 avatarView(for: status.account)
                 VStack(alignment: .leading) {
-                    Text(status.account.cachedDisplayName.asRawText)
+                    Text(status.account.displayNameText)
                         .font(.headline)
-                    Text("@\(status.account.acct)")
+                    Text(status.account.handleText)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
             }
-            Text(status.content.asRawText)
+            Text(status.contentText)
                 .font(.body)
         }
         .padding(.vertical, 4)

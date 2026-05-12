@@ -170,30 +170,48 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
     public let link: String?
     public let pubDate: String?
     public let descriptionHTML: String?
+    public let linkURL: URL?
+    public let publishedSummary: String
+    public let plainTextBody: String
 
-    public var linkURL: URL? { link.flatMap { URL(string: $0) } }
-    public var publishedSummary: String { pubDate ?? "" }
-    public var plainTextBody: String { (descriptionHTML ?? "").stripBasicHTML() }
+    public init(
+        id: String,
+        title: String,
+        link: String?,
+        pubDate: String?,
+        descriptionHTML: String?
+    ) {
+        self.id = id
+        self.title = title
+        self.link = link
+        self.pubDate = pubDate
+        self.descriptionHTML = descriptionHTML
+        self.linkURL = link.flatMap { URL(string: $0) }
+        self.publishedSummary = pubDate ?? ""
+        self.plainTextBody = (descriptionHTML ?? "").stripBasicHTML()
+    }
 }
 
 @MainActor
 final class RSSReaderModel: ObservableObject {
-    @Published var items: [RSSItem] = []
+    @Published var items: [RSSItem] = [] {
+        didSet {
+            updateSelectedItem()
+            updateStatusText()
+        }
+    }
     @Published var feedTitle: String?
-    @Published var error: String?
-    @Published var isLoading = false
-    @Published var selectedID: String?
-
-    var selectedItem: RSSItem? {
-        guard let selectedID else { return nil }
-        return items.first(where: { $0.id == selectedID })
+    @Published var error: String? {
+        didSet { updateStatusText() }
     }
-
-    var statusText: String {
-        if isLoading { return "Fetching feed…" }
-        if let error { return "Error: \(error)" }
-        return "\(items.count) items"
+    @Published var isLoading = false {
+        didSet { updateStatusText() }
     }
+    @Published var selectedID: String? {
+        didSet { updateSelectedItem() }
+    }
+    @Published private(set) var selectedItem: RSSItem?
+    @Published private(set) var statusText = "0 items"
 
     /// Profile-mode bypass: populate `items` + `feedTitle` with
     /// fixture content so the rendered timeline has shape, then
@@ -244,6 +262,24 @@ final class RSSReaderModel: ObservableObject {
             self.error = "\(error)"
         }
         isLoading = false
+    }
+
+    private func updateSelectedItem() {
+        guard let selectedID else {
+            selectedItem = nil
+            return
+        }
+        selectedItem = items.first(where: { $0.id == selectedID })
+    }
+
+    private func updateStatusText() {
+        if isLoading {
+            statusText = "Fetching feed…"
+        } else if let error {
+            statusText = "Error: \(error)"
+        } else {
+            statusText = "\(items.count) items"
+        }
     }
 }
 

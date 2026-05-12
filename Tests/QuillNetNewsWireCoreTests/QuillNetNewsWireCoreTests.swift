@@ -143,7 +143,7 @@ struct QuillNetNewsWireCoreTests {
         #expect(second.pubDate == "2024-01-11T12:00:00Z")
     }
 
-    // MARK: - RSSItem computed properties
+    // MARK: - RSSItem derived properties
 
     @Test("RSSItem.linkURL parses link strings; nil link → nil URL")
     func rssItemLinkURL() {
@@ -202,5 +202,27 @@ struct QuillNetNewsWireCoreTests {
         let result = RSSFeedParser.parse(data: Data())
         #expect(result.title == nil)
         #expect(result.items.isEmpty)
+    }
+
+    // MARK: - Reader model derived state
+
+    @MainActor
+    @Test("RSSReaderModel keeps selected item + status text cached")
+    func readerModelDerivedState() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+
+        #expect(model.statusText == "2 items")
+        #expect(model.selectedItem?.id == "1")
+
+        model.selectedID = "2"
+        #expect(model.selectedItem?.id == "2")
+
+        model.isLoading = true
+        #expect(model.statusText == "Fetching feed…")
+
+        model.isLoading = false
+        model.error = "offline"
+        #expect(model.statusText == "Error: offline")
     }
 }

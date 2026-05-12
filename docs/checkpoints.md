@@ -2091,3 +2091,31 @@ but CP106 consumed the roster with Bash process substitution:
 profile matrix steps now pipe the roster into a POSIX `while read`
 loop instead, and `LinuxGTKAppMatrixTests` rejects future workflow
 process substitution so the roster stays CI-shell portable.
+
+## Checkpoint 109: Stored Render Values For Linux CPU Outliers
+
+Status: locally green; queued in Linux CI.
+
+Linux CI run 25714178668 passed the full app matrix and uploaded the
+first complete nine-app profile roster. Seven app shells idled in the
+2.6-5.8% CPU band, while IceCubes and NetNewsWire still held steady at
+~133% and ~100% CPU. The same run's profile experiments showed the
+full IceCubes row layout idles at baseline when each `Text` reads
+already-materialized strings (`QUILLUI_PROFILE_STORED_PROPS=1`).
+
+Production now follows that profile result instead of recomputing
+render-facing values in body evaluation:
+
+- `HTMLString.asRawText` is stored at decode/init time.
+- `Account` stores `cachedDisplayName`, `displayNameText`, and
+  `handleText`.
+- `Status` stores `contentText`, and `statusRow` reads
+  `displayNameText`, `handleText`, and `contentText`.
+- `RSSItem` stores `linkURL`, `publishedSummary`, and `plainTextBody`.
+- `RSSReaderModel` keeps `selectedItem` and `statusText` cached as
+  published state instead of recomputing them from the view tree.
+
+Focused IceCubes and NetNewsWire tests cover the derived fields and
+model state cache. The next Linux profile run is the acceptance test:
+IceCubes and NetNewsWire should move toward the same steady idle band
+as the other seven app shells.

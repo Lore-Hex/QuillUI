@@ -25,15 +25,18 @@ import FoundationNetworking
 /// tags + decodes a small set of HTML entities so the
 /// placeholder timeline shows readable text.
 public struct HTMLString: Codable, Hashable, Sendable {
-    public var htmlValue: String
+    public let htmlValue: String
+    public let asRawText: String
 
     public init(stringLiteral: String) {
         self.htmlValue = stringLiteral
+        self.asRawText = Self.makeRawText(from: stringLiteral)
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         self.htmlValue = try container.decode(String.self)
+        self.asRawText = Self.makeRawText(from: htmlValue)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -41,7 +44,7 @@ public struct HTMLString: Codable, Hashable, Sendable {
         try container.encode(htmlValue)
     }
 
-    public var asRawText: String {
+    private static func makeRawText(from htmlValue: String) -> String {
         var output = ""
         output.reserveCapacity(htmlValue.count)
         var insideTag = false
@@ -66,6 +69,9 @@ public struct Account: Codable, Identifiable, Hashable, Sendable {
     public let username: String
     public let displayName: String?
     public let avatar: URL?
+    public let cachedDisplayName: HTMLString
+    public let displayNameText: String
+    public let handleText: String
 
     public init(
         id: String,
@@ -79,10 +85,37 @@ public struct Account: Codable, Identifiable, Hashable, Sendable {
         self.username = username
         self.displayName = displayName
         self.avatar = avatar
+        let cachedDisplayName = HTMLString(stringLiteral: displayName ?? username)
+        self.cachedDisplayName = cachedDisplayName
+        self.displayNameText = cachedDisplayName.asRawText
+        self.handleText = "@\(acct)"
     }
 
-    public var cachedDisplayName: HTMLString {
-        HTMLString(stringLiteral: displayName ?? username)
+    enum CodingKeys: String, CodingKey {
+        case id
+        case acct
+        case username
+        case displayName
+        case avatar
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try container.decode(String.self, forKey: .id)
+        let acct = try container.decode(String.self, forKey: .acct)
+        let username = try container.decode(String.self, forKey: .username)
+        let displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        let avatar = try container.decodeIfPresent(URL.self, forKey: .avatar)
+        self.init(id: id, acct: acct, username: username, displayName: displayName, avatar: avatar)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(acct, forKey: .acct)
+        try container.encode(username, forKey: .username)
+        try container.encodeIfPresent(displayName, forKey: .displayName)
+        try container.encodeIfPresent(avatar, forKey: .avatar)
     }
 }
 
@@ -93,6 +126,7 @@ public struct Status: Codable, Identifiable, Hashable, Sendable {
     public let account: Account
     public let content: HTMLString
     public let createdAt: String
+    public let contentText: String
 
     public init(
         id: String,
@@ -104,6 +138,31 @@ public struct Status: Codable, Identifiable, Hashable, Sendable {
         self.account = account
         self.content = content
         self.createdAt = createdAt
+        self.contentText = content.asRawText
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case account
+        case content
+        case createdAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try container.decode(String.self, forKey: .id)
+        let account = try container.decode(Account.self, forKey: .account)
+        let content = try container.decode(HTMLString.self, forKey: .content)
+        let createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt) ?? ""
+        self.init(id: id, account: account, content: content, createdAt: createdAt)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(account, forKey: .account)
+        try container.encode(content, forKey: .content)
+        try container.encode(createdAt, forKey: .createdAt)
     }
 }
 

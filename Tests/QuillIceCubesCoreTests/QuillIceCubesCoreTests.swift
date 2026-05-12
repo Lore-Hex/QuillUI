@@ -68,7 +68,11 @@ struct QuillIceCubesCoreTests {
         let withName = Account(id: "1", acct: "a", username: "alex", displayName: "Alex")
         let withoutName = Account(id: "2", acct: "b", username: "bobby")
         #expect(withName.cachedDisplayName.htmlValue == "Alex")
+        #expect(withName.displayNameText == "Alex")
+        #expect(withName.handleText == "@a")
         #expect(withoutName.cachedDisplayName.htmlValue == "bobby")
+        #expect(withoutName.displayNameText == "bobby")
+        #expect(withoutName.handleText == "@b")
     }
 
     @Test("Status decodes nested account + HTMLString content + created_at")
@@ -95,9 +99,12 @@ struct QuillIceCubesCoreTests {
         #expect(status.id == "42")
         #expect(status.content.htmlValue == "<p>hello</p>")
         #expect(status.content.asRawText == "hello")
+        #expect(status.contentText == "hello")
         #expect(status.createdAt == "2024-01-15T12:00:00Z")
         #expect(status.account.id == "1")
         #expect(status.account.displayName == "Alex")
+        #expect(status.account.displayNameText == "Alex")
+        #expect(status.account.handleText == "@alex")
         #expect(status.account.avatar == nil)
     }
 
@@ -170,6 +177,9 @@ struct QuillIceCubesCoreTests {
         for status in QuillIceCubesProfileFixtures.statuses {
             #expect(status.account.displayName?.isEmpty == false)
             #expect(!status.content.asRawText.isEmpty)
+            #expect(status.account.displayNameText == status.account.cachedDisplayName.asRawText)
+            #expect(status.account.handleText == "@\(status.account.acct)")
+            #expect(status.contentText == status.content.asRawText)
         }
     }
 }
