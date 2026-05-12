@@ -78,6 +78,7 @@ import Magnet
 import OllamaKit
 import Sparkle
 import IOKit
+import KeychainSwift
 
 final class LinuxCompatibilityProductsTests: XCTestCase {
     // The point of these tests is link-time: each `import` plus a
@@ -142,6 +143,13 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
         // `Sources/IOKit/IOKit.h`; reaching it from Swift proves
         // the module map + header search path are wired in.
         XCTAssertEqual(kIOMainPortDefault, 0)
+    }
+
+    func testKeychainSwiftShim() {
+        let keychain = KeychainSwift(keyPrefix: "shims-\(UUID().uuidString)-")
+        XCTAssertTrue(keychain.set("token", forKey: "access-token"))
+        XCTAssertEqual(keychain.get("access-token"), "token")
+        XCTAssertTrue(keychain.clear())
     }
 }
 #endif

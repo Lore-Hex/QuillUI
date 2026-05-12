@@ -10,5 +10,6 @@
 @_exported import MobileCoreServices
 @_exported import Zip
 @_exported import Tidemark
+@_exported import KeychainSwift
 @_exported import os
 #endif

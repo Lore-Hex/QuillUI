@@ -36,6 +36,7 @@ var products: [Product] = [
     .library(name: "QuillUIKit", targets: ["QuillUIKit"]),
     .library(name: "QuillWebKit", targets: ["QuillWebKit"]),
     .library(name: "QuillShims", targets: ["QuillShims"]),
+    .library(name: "KeychainSwift", targets: ["KeychainSwift"]),
     .executable(name: "quill-enchanted", targets: ["QuillEnchanted"]),
     .executable(name: "quill-enchanted-upstream-slice", targets: ["QuillEnchantedUpstreamSlice"]),
     .executable(name: "quill-icecubes", targets: ["QuillIceCubes"]),
@@ -157,7 +158,8 @@ let quillShimsDependencies: [Target.Dependency] = [
     "QuillKit", "QuillData", "os",
     "QuillFoundation", "QuillWebKit", "QuillUIKit", "QuillRS",
     "UIKit", "MessageUI", "SafariServices", "MobileCoreServices",
-    "Zip", "Tidemark", "UniformTypeIdentifiers", "Network", "NetworkExtension"
+    "Zip", "Tidemark", "UniformTypeIdentifiers", "Network", "NetworkExtension",
+    "KeychainSwift"
 ]
 #else
 let quillShimsDependencies: [Target.Dependency] = [
@@ -299,6 +301,11 @@ var targets: [Target] = [
     .target(
         name: "QuillShims",
         dependencies: quillShimsDependencies
+    ),
+    .target(
+        name: "KeychainSwift",
+        dependencies: [],
+        path: "Sources/KeychainSwift"
     ),
     // RSTree lives in-tree (Sources/RSTree) so its target stays here
     // regardless of which upstream is fetched.
@@ -929,13 +936,18 @@ let package = Package(
                 "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
                 "ActivityIndicatorView", "WrappingHStack", "Vortex",
                 "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
-                "OllamaKit", "Sparkle", "IOKit"
+                "OllamaKit", "Sparkle", "IOKit", "KeychainSwift"
             ]
             #else
             let testDeps: [Target.Dependency] = ["QuillShims"]
             #endif
             return .testTarget(name: "QuillShimsTests", dependencies: testDeps)
         }(),
+        .testTarget(
+            name: "KeychainSwiftTests",
+            dependencies: ["KeychainSwift"],
+            swiftSettings: appSwiftSettings
+        ),
         .testTarget(
             name: "QuillChatKitTests",
             dependencies: ["QuillChatKit"],

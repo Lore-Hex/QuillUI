@@ -2303,3 +2303,16 @@ only the two Enchanted roots.
 
 `LinuxGTKAppMatrixTests` pins the shared roster wiring and rejects a
 regression back to hard-coded Enchanted-only smoke runs.
+
+## Checkpoint 122: KeychainSwift Compatibility Product
+
+Status: implemented locally; queued for CI.
+
+The previously orphaned `Sources/KeychainSwift` code is now a packaged
+`KeychainSwift` library product with deterministic process-local storage
+for strings, data, booleans, delete, prefix isolation, and prefix-scoped
+clear. The stale `CLibSecret` module map was removed so the repo no
+longer claims an unwired native Secret Service backend.
+
+`QuillShims` re-exports the module on Linux, and tests pin both the
+direct product API and the Linux compatibility-product reachability path.

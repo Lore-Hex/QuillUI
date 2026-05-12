@@ -1,5 +1,0 @@
-module CLibSecret [system] {
-    header "secret.h"
-    link "secret-1"
-    export *
-}

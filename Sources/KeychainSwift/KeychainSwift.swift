@@ -1,78 +1,107 @@
 import Foundation
-#if os(Linux)
-import CLibSecret
-#endif
 
-/// A secure Keychain shim for Linux using libsecret, and native Keychain on Apple platforms.
-public class KeychainSwift {
+/// Process-local KeychainSwift compatibility storage.
+///
+/// This module exists so upstream apps that import `KeychainSwift` can compile
+/// and exercise non-sensitive flows under QuillUI. It intentionally does not
+/// claim native secure persistence; `QuillKitCapabilities.secureStorage`
+/// remains unavailable on Linux until a real Secret Service backend is wired.
+public final class KeychainSwift: @unchecked Sendable {
+    private final class Storage: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: [String: String] = [:]
+
+        func set(_ value: String, forKey key: String) {
+            lock.lock()
+            defer { lock.unlock() }
+            values[key] = value
+        }
+
+        func get(_ key: String) -> String? {
+            lock.lock()
+            defer { lock.unlock() }
+            return values[key]
+        }
+
+        func delete(_ key: String) {
+            lock.lock()
+            defer { lock.unlock() }
+            values.removeValue(forKey: key)
+        }
+
+        func clear(prefix: String) {
+            lock.lock()
+            defer { lock.unlock() }
+            if prefix.isEmpty {
+                values.removeAll()
+            } else {
+                values = values.filter { !$0.key.hasPrefix(prefix) }
+            }
+        }
+    }
+
+    private static let storage = Storage()
+
     private let keyPrefix: String
-    
+
     public init() {
         self.keyPrefix = ""
     }
-    
+
     public init(keyPrefix: String) {
         self.keyPrefix = keyPrefix
     }
-    
+
     private func fullKey(_ key: String) -> String {
-        return keyPrefix + key
+        keyPrefix + key
     }
-    
+
     @discardableResult
     public func set(_ value: String, forKey key: String, withAccess: Any? = nil) -> Bool {
-        #if os(Linux)
-        // libsecret implementation (real secure storage)
-        // This is a placeholder for the actual C-interop calls to secret_password_store_sync
-        return true 
-        #else
-        // Fallback to real Keychain on Apple platforms if needed (though usually not used via shim)
+        Self.storage.set(value, forKey: fullKey(key))
         return true
-        #endif
     }
-    
+
     @discardableResult
     public func set(_ value: Data, forKey key: String, withAccess: Any? = nil) -> Bool {
-        return set(value.base64EncodedString(), forKey: key, withAccess: withAccess)
+        set(value.base64EncodedString(), forKey: key, withAccess: withAccess)
     }
-    
+
     @discardableResult
     public func set(_ value: Bool, forKey key: String, withAccess: Any? = nil) -> Bool {
-        return set(value ? "true" : "false", forKey: key, withAccess: withAccess)
+        set(value ? "true" : "false", forKey: key, withAccess: withAccess)
     }
-    
+
     public func get(_ key: String) -> String? {
-        #if os(Linux)
-        // secret_password_lookup_sync
-        return nil
-        #else
-        return nil
-        #endif
+        Self.storage.get(fullKey(key))
     }
-    
+
     public func getData(_ key: String) -> Data? {
         guard let s = get(key) else { return nil }
         return Data(base64Encoded: s)
     }
-    
+
     public func getBool(_ key: String) -> Bool? {
         guard let s = get(key) else { return nil }
-        return s == "true"
+        switch s {
+        case "true":
+            return true
+        case "false":
+            return false
+        default:
+            return nil
+        }
     }
-    
+
     @discardableResult
     public func delete(_ key: String) -> Bool {
-        #if os(Linux)
-        // secret_password_clear_sync
+        Self.storage.delete(fullKey(key))
         return true
-        #else
-        return true
-        #endif
     }
-    
+
     @discardableResult
     public func clear() -> Bool {
-        // Implementation for clearing all keys with prefix
+        Self.storage.clear(prefix: keyPrefix)
         return true
     }
 }
