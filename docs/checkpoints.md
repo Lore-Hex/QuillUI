@@ -2208,3 +2208,17 @@ The `Target.directoryURL` protocol witness is still 6.1-only, so the
 plugins resolve source directories through the concrete Swift and Clang
 source target types. That keeps the code warning-free on current
 toolchains without requiring a tools-version bump.
+
+## Checkpoint 114: Remove Orphaned Main-Extraction Plugin
+
+Status: implemented locally; queued for CI.
+
+The package no longer carries the unused `QuillMainExtractPlugin`,
+`QuillMainExtractTool`, or `Sources/EnchantedSupportShim` files. That
+old path was not referenced by `Package.swift`, scripts, or active app
+targets; generated Enchanted compatibility now lives in the repeatable
+source-lowering harnesses instead.
+
+Removing the orphaned plugin leaves `QuillAssetSymbolsPlugin` as the
+single build-tool plugin in the manifest and avoids compiling/testing
+dead build scaffolding on every local and CI run.

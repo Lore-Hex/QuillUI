@@ -456,19 +456,9 @@ var targets: [Target] = [
         dependencies: ["QuillAssetSymbolsTool"],
         path: "Plugins/QuillAssetSymbolsPlugin"
     ),
-    // @main extraction tool + plugin: strips the `@main` attribute from
-    // upstream entry-point files so their side declarations compile as
-    // ordinary library code (used by EnchantedSupportShim).
-    .executableTarget(
-        name: "QuillMainExtractTool",
-        path: "Sources/QuillMainExtractTool"
-    ),
-    .plugin(
-        name: "QuillMainExtractPlugin",
-        capability: .buildTool(),
-        dependencies: ["QuillMainExtractTool"],
-        path: "Plugins/QuillMainExtractPlugin"
-    )
+    // `QuillAssetSymbolsPlugin` is the only build plugin kept in the
+    // package manifest. Older `@main` extraction scaffolding was replaced
+    // by the generated Enchanted source-lowering scripts.
 ]
 
 // NetNewsWire upstream — modular RSS reader source (Ranchero-Software/
