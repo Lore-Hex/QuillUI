@@ -41,6 +41,22 @@ public extension ChatMessage {
     var timestamp: Date? { nil }
 }
 
+/// Summary shape for rows in a chat/conversation sidebar.
+///
+/// Apps keep their own conversation model while exposing only the
+/// title, preview, and optional unread count needed by the shared row
+/// chrome. This keeps Signal/Telegram-style sidebars visually
+/// identical without forcing a shared storage model.
+public protocol ChatListItem: Identifiable, Hashable, Sendable {
+    var title: String { get }
+    var preview: String { get }
+    var unreadCount: Int { get }
+}
+
+public extension ChatListItem {
+    var unreadCount: Int { 0 }
+}
+
 /// Public styling tokens for the shared chat views.
 ///
 /// Defaults match the original Signal/Telegram Linux shell chrome.
@@ -208,6 +224,48 @@ public struct ChatRow: View {
                     .lineLimit(1)
             }
             .padding(.vertical, appearance.chatRowVerticalPadding)
+        }
+    }
+}
+
+/// A reusable sidebar list for chat/conversation summaries.
+///
+/// Signal and Telegram both render a `List` of buttons wrapping
+/// `ChatRow`. Centralizing that pattern keeps the sidebar interaction
+/// and row chrome aligned while each app decides what selecting a row
+/// means for its own state.
+@MainActor
+public struct ChatSidebarList<Item: ChatListItem>: View {
+    public let items: [Item]
+    public let appearance: ChatAppearance
+    public let onSelect: (Item) -> Void
+
+    public init(
+        items: [Item],
+        appearance: ChatAppearance = .standard,
+        onSelect: @escaping (Item) -> Void
+    ) {
+        self.items = items
+        self.appearance = appearance
+        self.onSelect = onSelect
+    }
+
+    nonisolated public var body: some View {
+        ChatMainActorView.assumeIsolated {
+            List {
+                ForEach(items) { item in
+                    Button {
+                        onSelect(item)
+                    } label: {
+                        ChatRow(
+                            title: item.title,
+                            preview: item.preview,
+                            unread: item.unreadCount,
+                            appearance: appearance
+                        )
+                    }
+                }
+            }
         }
     }
 }

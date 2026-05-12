@@ -2388,3 +2388,19 @@ kit remains a native SwiftUI library with no `QuillUI`, `UIKit`, or
 compatibility builds. A private backend length alias preserves the
 public `CGFloat` token surface for native SwiftUI while coercing to
 SwiftOpenUI's Linux `Int` padding and spacing overloads.
+
+## Checkpoint 128: Shared Chat Sidebar List
+
+Status: implemented locally; queued for CI.
+
+`QuillChatKit` now owns the chat sidebar summary contract and list
+renderer through `ChatListItem` and `ChatSidebarList`. Signal and
+Telegram keep their domain-specific `Conversation` / `Chat` models, but
+both feed the same reusable list primitive that wraps `ChatRow`, so
+future chat-shaped app ports do not need to copy the sidebar `List` /
+`ForEach` / `Button` pattern.
+
+`QuillChatKitTests` pin unread-count defaults and the shared list input
+surface. `QuillSignalCoreTests` and `QuillTelegramCoreTests` pin each
+app model's sidebar-summary routing, preserving the existing row chrome
+while reducing duplicated app code.

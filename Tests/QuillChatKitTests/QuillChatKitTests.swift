@@ -12,6 +12,19 @@ struct QuillChatKitTests {
         let fromSelf: Bool
     }
 
+    struct Summary: ChatListItem {
+        let id: UUID
+        let title: String
+        let preview: String
+        let unreadCount: Int
+    }
+
+    struct QuietSummary: ChatListItem {
+        let id: UUID
+        let title: String
+        let preview: String
+    }
+
     @Test("ChatMessage refinement carries identity + sender/body/fromSelf")
     func chatMessageShape() {
         let id = UUID()
@@ -48,6 +61,31 @@ struct QuillChatKitTests {
     func chatRowCarriesUnread() {
         let row = ChatRow(title: "DevOps", preview: "Build 1 ok", unread: 3)
         #expect(row.unread == 3)
+    }
+
+    @Test("ChatListItem defaults unread count to zero")
+    func chatListItemDefaultsUnreadToZero() {
+        let item = QuietSummary(id: UUID(), title: "Family", preview: "Dinner?")
+        #expect(item.unreadCount == 0)
+    }
+
+    @Test("ChatSidebarList carries item summaries and appearance")
+    func chatSidebarListCarriesInputs() {
+        let appearance = ChatAppearance(unreadBadgeCornerRadius: 4, rowVerticalPadding: 9)
+        let item = Summary(
+            id: UUID(),
+            title: "DevOps",
+            preview: "Canary healthy",
+            unreadCount: 3
+        )
+        let list = ChatSidebarList(items: [item], appearance: appearance) { _ in }
+
+        #expect(list.items.count == 1)
+        #expect(list.items[0].title == "DevOps")
+        #expect(list.items[0].preview == "Canary healthy")
+        #expect(list.items[0].unreadCount == 3)
+        #expect(list.appearance.rowVerticalPadding == 9)
+        #expect(list.appearance.unreadBadgeCornerRadius == 4)
     }
 
     @Test("ChatAppearance standard preserves the shared shell layout tokens")

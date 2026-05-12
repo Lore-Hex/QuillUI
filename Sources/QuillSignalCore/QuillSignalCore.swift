@@ -40,17 +40,8 @@ public struct QuillSignalContentView: View {
                 .font(.title2).bold()
                 .padding(14)
 
-            List {
-                ForEach(conversations) { conversation in
-                    Button {
-                        selectedID = conversation.id
-                    } label: {
-                        ChatRow(
-                            title: conversation.name,
-                            preview: conversation.messages.last?.body ?? ""
-                        )
-                    }
-                }
+            ChatSidebarList(items: conversations) { conversation in
+                selectedID = conversation.id
             }
         }
     }
@@ -124,6 +115,11 @@ public struct Conversation: Identifiable, Hashable, Sendable {
         self.name = name
         self.messages = messages
     }
+}
+
+extension Conversation: ChatListItem {
+    public var title: String { name }
+    public var preview: String { messages.last?.body ?? "" }
 }
 
 public enum QuillSignalFixtures {

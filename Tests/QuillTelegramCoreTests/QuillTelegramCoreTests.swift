@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import QuillTelegramCore
+import QuillChatKit
 
 @Suite("QuillTelegramCore folder filter + fixtures")
 struct QuillTelegramCoreTests {
@@ -58,6 +59,24 @@ struct QuillTelegramCoreTests {
         #expect(TelegramFolderFilter.allFolderNames == ["All", "Personal", "Work"])
     }
 
+    @Test("Chat routes through QuillChatKit sidebar summaries")
+    func chatIsChatListItem() {
+        let chat = Chat(
+            title: "DevOps Channel",
+            folder: "Work",
+            unread: 3,
+            messages: [
+                TGMessage(sender: "@deploybot", body: "Build 4129 succeeded.", fromSelf: false),
+                TGMessage(sender: "@deploybot", body: "Canary healthy.", fromSelf: false),
+            ]
+        )
+        let item = Self.chatListItem(chat)
+
+        #expect(item.title == "DevOps Channel")
+        #expect(item.preview == "Canary healthy.")
+        #expect(item.unreadCount == 3)
+    }
+
     // MARK: - Fixture invariants
 
     @Test("Fixture chats cover both Personal and Work folders")
@@ -91,5 +110,9 @@ struct QuillTelegramCoreTests {
     func fixtureAllFolderReturnsAll() {
         let all = TelegramFolderFilter.apply(QuillTelegramFixtures.chats, folder: "All")
         #expect(all.count == QuillTelegramFixtures.chats.count)
+    }
+
+    private static func chatListItem<Item: ChatListItem>(_ item: Item) -> Item {
+        item
     }
 }

@@ -70,18 +70,8 @@ public struct QuillTelegramContentView: View {
             .padding(.horizontal, 14)
             .padding(.bottom, 10)
 
-            List {
-                ForEach(visibleChats) { chat in
-                    Button {
-                        selectedChatID = chat.id
-                    } label: {
-                        ChatRow(
-                            title: chat.title,
-                            preview: chat.messages.last?.body ?? "",
-                            unread: chat.unread
-                        )
-                    }
-                }
+            ChatSidebarList(items: visibleChats) { chat in
+                selectedChatID = chat.id
             }
         }
     }
@@ -182,6 +172,11 @@ public struct Chat: Identifiable, Hashable, Sendable {
         self.unread = unread
         self.messages = messages
     }
+}
+
+extension Chat: ChatListItem {
+    public var preview: String { messages.last?.body ?? "" }
+    public var unreadCount: Int { unread }
 }
 
 public enum QuillTelegramFixtures {

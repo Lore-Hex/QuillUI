@@ -79,7 +79,7 @@ Likely first milestone:
 
 ## 5. Signal iOS
 
-Status: compile-green hard-gated. Fixtures-only conversation shell shipped (CP85 + CP89 + CP92) — NavigationSplitView with sidebar list of seeded `Conversation`s, scrollable message timeline with rounded bubbles, and a functional `ChatComposer` (TextField + Send) that appends new self-messages to the active conversation. Bubble / sidebar-row / timeline / composer chrome shared with Telegram via `QuillChatKit` (CP90 + CP96). `QuillSignalCoreTests` (8 tests) pin fixture invariants + ChatMessage routing. The full libsignal / RingRTC / GRDB stack stays a follow-up.
+Status: compile-green hard-gated. Fixtures-only conversation shell shipped (CP85 + CP89 + CP92) — NavigationSplitView with sidebar list of seeded `Conversation`s, scrollable message timeline with rounded bubbles, and a functional `ChatComposer` (TextField + Send) that appends new self-messages to the active conversation. Bubble / sidebar-row / sidebar-list / timeline / composer chrome shared with Telegram via `QuillChatKit` (CP90 + CP96 + CP128). `QuillSignalCoreTests` (10 tests) pin fixture invariants, ChatMessage routing, and ChatListItem sidebar routing. The full libsignal / RingRTC / GRDB stack stays a follow-up.
 
 Why it matters:
 
@@ -93,7 +93,7 @@ Likely first milestone:
 
 ## 6. Telegram Swift
 
-Status: compile-green hard-gated. Fixtures-only folder-grouped chat shell shipped (CP85 + CP89 + CP92 + CP97) — pill row of All/Personal/Work folders above a `Chat` list with unread badges, scrollable timeline, and `ChatComposer` wired to `send()` that appends new self-messages. Folder filter logic extracted as `TelegramFolderFilter` for unit-testability. `QuillTelegramCoreTests` (10 tests) cover the filter + fixture invariants. The full MTProto / TDLib / SwiftSignalKit stack stays a follow-up.
+Status: compile-green hard-gated. Fixtures-only folder-grouped chat shell shipped (CP85 + CP89 + CP92 + CP97) — pill row of All/Personal/Work folders above a shared `ChatSidebarList` with unread badges, scrollable timeline, and `ChatComposer` wired to `send()` that appends new self-messages. Folder filter logic extracted as `TelegramFolderFilter` for unit-testability. `QuillTelegramCoreTests` (11 tests) cover the filter, fixture invariants, and ChatListItem sidebar routing. The full MTProto / TDLib / SwiftSignalKit stack stays a follow-up.
 
 Why it matters:
 

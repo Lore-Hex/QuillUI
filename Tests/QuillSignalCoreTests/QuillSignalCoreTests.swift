@@ -33,6 +33,22 @@ struct QuillSignalCoreTests {
         #expect(a.id != b.id)
     }
 
+    @Test("Conversation routes through QuillChatKit sidebar summaries")
+    func conversationIsChatListItem() {
+        let conversation = Conversation(
+            name: "Family",
+            messages: [
+                Message(sender: "Mom", body: "Dinner at 6.", fromSelf: false),
+                Message(sender: "Me", body: "I'll bring dessert.", fromSelf: true),
+            ]
+        )
+        let item = Self.chatListItem(conversation)
+
+        #expect(item.title == "Family")
+        #expect(item.preview == "I'll bring dessert.")
+        #expect(item.unreadCount == 0)
+    }
+
     // MARK: - Fixture conversations
 
     @Test("Fixture conversations are non-empty so the sidebar always has rows")
@@ -75,5 +91,9 @@ struct QuillSignalCoreTests {
         #expect(names.contains("Family"))
         #expect(names.contains("Coworker"))
         #expect(names.contains("Notes To Self"))
+    }
+
+    private static func chatListItem<Item: ChatListItem>(_ item: Item) -> Item {
+        item
     }
 }
