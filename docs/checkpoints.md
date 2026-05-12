@@ -2355,3 +2355,17 @@ empty-state UI.
 `QuillWireGuardCoreTests` now pins the executable source to keep the
 shared fallback view wired in and to reject the old unavailable-backend
 copy.
+
+## Checkpoint 126: WireGuard MainActor Entry Point
+
+Status: implemented locally; queued for CI.
+
+The WireGuard executable entry point now enters
+`QuillMainActorView.assumeIsolated` before constructing `ContentView`,
+matching the existing Linux-safe pattern used by the Enchanted shell.
+This fixes the SwiftOpenUI compile path where the fallback view is
+main-actor isolated but `App.body` is nonisolated by default.
+
+`QuillWireGuardCoreTests` pins the entry-point helper call so future
+WireGuard UI refactors do not reintroduce the Linux actor-isolation
+compile failure.
