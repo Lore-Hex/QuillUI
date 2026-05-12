@@ -109,11 +109,11 @@ scripts/build-quill-chat-linux.sh
 It supplies Quill Chat's source directory, app type, product name, and the
 current `enchanted-full-source` profile to the generic builder.
 
-The Linux visual smoke script can screenshot either root SwiftPM products or
+The Linux backend visual smoke script can screenshot either root SwiftPM products or
 the generated Quill Chat app product:
 
 ```bash
-scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux
+scripts/linux-backend-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux
 ```
 
 For `quill-chat-linux`, the script builds through the generic app builder,
@@ -128,7 +128,7 @@ verifies the Mac-derived landmarks instead of the older compact smoke layout:
 
 ```bash
 QUILLUI_BACKEND_MAC_REFERENCE=1 \
-  scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-mac-reference.png quill-chat-linux
+  scripts/linux-backend-visual-check.sh .qa/quill-chat-linux-mac-reference.png quill-chat-linux
 ```
 
 The current Mac reference is `2228x1498` with a `602px` sidebar, `102px`
@@ -138,9 +138,11 @@ strict pass is allowed to fail while renderer parity is still being closed; it
 exists so the remaining gap is measured against the real app, not a prototype.
 The strict path also sets `QUILLUI_GTK_DEFAULT_WINDOW_WIDTH` and
 `QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT`; the SwiftOpenUI GTK checkout patch honors
-those values for automatic window sizing. New GTK/Qt parity scripts should use
-the `QUILLUI_BACKEND_*` names for visual checks, and the visual runner maps
-them to the older `QUILLUI_GTK_*` environment contract for compatibility.
+those values for automatic window sizing. New GTK/Qt parity scripts should call
+`scripts/linux-backend-visual-check.sh` and use the `QUILLUI_BACKEND_*` names
+for visual checks. The runner maps them to the older `QUILLUI_GTK_*`
+environment contract for compatibility, and `scripts/linux-gtk-visual-check.sh`
+remains as a thin compatibility shim.
 
 Native backend interaction smoke is separate from Playwright because these apps
 are Linux desktop executables, not web pages. The interaction check builds a

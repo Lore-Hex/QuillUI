@@ -2564,3 +2564,20 @@ mode, default window size, layout debug, and verifier product while preserving
 the legacy `QUILLUI_GTK_*` names. The interaction and visual runners use the
 same `quillui_alias_env` helper for those aliases, keeping the Qt work on a
 shared QA surface instead of adding another backend-specific script.
+
+## Checkpoint 139: Backend-Neutral Visual Runner
+
+Status: implemented locally; guarded by matrix and source-lowering tests.
+
+The Linux visual smoke runner is now
+`scripts/linux-backend-visual-check.sh`, matching the backend-neutral
+interaction runner that already covers GTK and Qt launch paths. Linux CI calls
+the backend visual runner for generated Quill Chat and the shared GTK app
+roster, so future Qt visual coverage can reuse the same entry point instead of
+copying GTK-specific script glue.
+
+The old `scripts/linux-gtk-visual-check.sh` path remains executable as a thin
+compatibility shim. The canonical runner still accepts the legacy
+`QUILLUI_GTK_*` environment names while making `QUILLUI_BACKEND_*` the
+documented path for visual display, screen size, Mac-reference, executable, and
+verification overrides.

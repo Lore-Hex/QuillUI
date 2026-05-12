@@ -81,8 +81,8 @@ jobs:
       - name: Generated upstream Enchanted compile
         run: scripts/generated-enchanted-full-source-check.sh
 
-      - name: Generated Enchanted GTK visual smoke
-        run: scripts/linux-gtk-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux
+      - name: Generated Enchanted backend visual smoke
+        run: scripts/linux-backend-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux
 
       - name: GTK interaction smoke
         run: scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
@@ -93,21 +93,22 @@ jobs:
       - name: Generated Enchanted toolbar interaction smoke
         run: scripts/linux-backend-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
 
-      # Per-app GTK visual smoke. The product roster lives in
+      # Per-app backend visual smoke. The GTK product roster lives in
       # `scripts/quillui-backend-products.sh gtk-apps` so visual and
       # profile coverage cannot drift. Each product launches under Xvfb,
-      # screenshots the GTK window, and runs the verifier. With no
+      # requests its default backend, screenshots the window, and runs the
+      # verifier. With no
       # per-product branch in `verify-gtk-screenshot.py`, the verifier
       # falls through to the baseline check (size + mean brightness +
       # stddev) so "blank window" / "didn't render" / "tiny window"
       # regressions still fail CI. Per-app landmark predicates are
       # follow-up slices in docs/uitest-plan.md.
-      - name: Quill app GTK visual smoke
+      - name: Quill app backend visual smoke
         run: |
           scripts/quillui-backend-products.sh gtk-apps | while IFS= read -r product; do
             [ -n "$product" ] || continue
-            echo "==> GTK visual smoke: $product"
-            scripts/linux-gtk-visual-check.sh ".qa/${product}-gtk.png" "$product"
+            echo "==> Backend visual smoke: $product"
+            scripts/linux-backend-visual-check.sh ".qa/${product}-gtk.png" "$product"
           done
 
       # Per-app Linux profile baseline (CP106). For each Quill

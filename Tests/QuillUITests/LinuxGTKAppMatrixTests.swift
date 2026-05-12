@@ -43,10 +43,13 @@ struct LinuxGTKAppMatrixTests {
             encoding: .utf8
         )
         #expect(workflow.contains("scripts/quillui-backend-products.sh gtk-apps"))
+        #expect(workflow.contains("scripts/linux-backend-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux"))
+        #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-gtk.png\" \"$product\""))
         #expect(workflow.contains("scripts/quillui-backend-products.sh gtk-apps | scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("scripts/check-linux-gtk-profile-budget.sh /tmp/quillui-profile.csv"))
         #expect(!workflow.contains("QuillSignal GTK visual smoke"))
         #expect(!workflow.contains("for product in quill-signal quill-telegram"))
+        #expect(!workflow.contains("scripts/linux-gtk-visual-check.sh"))
         #expect(!workflow.contains("< <("))
 
         let gtkCheck = try String(
@@ -65,6 +68,10 @@ struct LinuxGTKAppMatrixTests {
             encoding: .utf8
         )
         let visualScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-backend-visual-check.sh"),
+            encoding: .utf8
+        )
+        let legacyVisualScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-gtk-visual-check.sh"),
             encoding: .utf8
         )
@@ -80,6 +87,8 @@ struct LinuxGTKAppMatrixTests {
         #expect(backendProducts.contains("quillui_alias_env()"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(visualScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(legacyVisualScript.contains("scripts/linux-backend-visual-check.sh"))
+        #expect(!legacyVisualScript.contains("quillui_alias_env"))
         #expect(profileScript.contains("quillui_requested_backend_for_product \"$PRODUCT\""))
         #expect(profileScript.contains("app_environment+=(QUILLUI_BACKEND=\"$requested_backend\")"))
         #expect(profileScript.contains("QUILLUI_BACKEND_PROFILE_DISPLAY"))

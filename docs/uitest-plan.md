@@ -56,7 +56,7 @@ For every Quill app, add a Linux CI step that:
 - Screenshots the GTK window via `import` / `gnome-screenshot`
 - Runs `scripts/verify-gtk-screenshot.py` against the PNG
 
-Reuse `scripts/linux-gtk-visual-check.sh` (already proven for
+Reuse `scripts/linux-backend-visual-check.sh` (already proven for
 Enchanted's `quill-chat-linux` target) — accepts the app product
 name as `${2}`. Source the app list from
 `scripts/quillui-backend-products.sh gtk-apps` instead of
@@ -147,7 +147,7 @@ App is "done" when ALL of:
 - [ ] At least one macOS image-snapshot test exists covering a
       meaningful flow and runs as a hard gate
 - [ ] The same flow renders identically on Linux GTK via
-      `scripts/linux-gtk-visual-check.sh` and is hard-gated
+      `scripts/linux-backend-visual-check.sh` and is hard-gated
 - [ ] At least one interaction (click / text input) is exercised
       via `scripts/linux-backend-interaction-check.sh` and produces a
       second screenshot

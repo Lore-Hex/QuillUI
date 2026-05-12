@@ -390,9 +390,14 @@ struct QuillDataSourceLoweringTests {
     func visualSmokeExposesOptInMacReferenceLandmarks() throws {
         let root = try packageRoot()
         let visualScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-backend-visual-check.sh"),
+            encoding: .utf8
+        )
+        let legacyVisualScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-gtk-visual-check.sh"),
             encoding: .utf8
         )
+        #expect(legacyVisualScript.contains("scripts/linux-backend-visual-check.sh"))
         #expect(visualScript.contains("QUILLUI_GTK_MAC_REFERENCE"))
         #expect(visualScript.contains("QUILLUI_BACKEND_MAC_REFERENCE"))
         #expect(visualScript.contains("${reference_window_width}x${reference_window_height}x24"))
