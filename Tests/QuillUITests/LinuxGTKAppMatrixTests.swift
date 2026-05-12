@@ -44,6 +44,17 @@ struct LinuxGTKAppMatrixTests {
         #expect(!workflow.contains("QuillSignal GTK visual smoke"))
         #expect(!workflow.contains("for product in quill-signal quill-telegram"))
         #expect(!workflow.contains("< <("))
+
+        let gtkCheck = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-gtk-check.sh"),
+            encoding: .utf8
+        )
+        #expect(gtkCheck.contains("scripts/linux-gtk-app-products.sh"))
+        #expect(gtkCheck.contains("for product in \"${APP_PRODUCTS[@]}\""))
+        #expect(gtkCheck.contains("swift build --scratch-path .build-linux --product \"$product\""))
+        #expect(gtkCheck.contains("run_smoke \"$product\""))
+        #expect(!gtkCheck.contains("run_smoke quill-enchanted"))
+        #expect(!gtkCheck.contains("run_smoke quill-enchanted-upstream-slice"))
     }
 
     @Test("profile budget accepts current rows and rejects bad profile rows")

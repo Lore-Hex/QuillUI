@@ -63,8 +63,19 @@ elif [[ "${QUILLUI_SKIP_QUILL_CHAT_BUILD:-0}" != "1" ]]; then
   echo "Skipping local Quill Chat Linux app build; source not found at $QUILL_CHAT_APP_DIR"
 fi
 
-swift build --scratch-path .build-linux --product quill-enchanted
-swift build --scratch-path .build-linux --product quill-enchanted-upstream-slice
+APP_PRODUCTS=()
+while IFS= read -r product; do
+  [[ -n "$product" ]] && APP_PRODUCTS+=("$product")
+done < <(scripts/linux-gtk-app-products.sh)
+
+if (( ${#APP_PRODUCTS[@]} == 0 )); then
+  echo "No GTK app products listed by scripts/linux-gtk-app-products.sh" >&2
+  exit 1
+fi
+
+for product in "${APP_PRODUCTS[@]}"; do
+  swift build --scratch-path .build-linux --product "$product"
+done
 BIN_PATH="$(swift build --scratch-path .build-linux --show-bin-path)"
 
 SMOKE_SECONDS="${QUILLUI_SMOKE_SECONDS:-6}"
@@ -92,8 +103,9 @@ run_smoke() {
   fi
 }
 
-run_smoke quill-enchanted
-run_smoke quill-enchanted-upstream-slice
+for product in "${APP_PRODUCTS[@]}"; do
+  run_smoke "$product"
+done
 
 if [[ "${QUILLUI_SKIP_QUILL_CHAT_BUILD:-0}" != "1" && -d "$QUILL_CHAT_APP_DIR" ]]; then
   QUILL_CHAT_BIN_DIR="$(swift build \
@@ -120,9 +132,9 @@ fi
 cat <<MSG
 
 Linux GTK build completed.
-Headless GTK smoke completed; GTK apps stayed running for $SMOKE_SECONDS seconds under Xvfb.
-Run the app in a graphical session with:
+Headless GTK smoke completed for ${#APP_PRODUCTS[@]} app products; GTK apps stayed running for $SMOKE_SECONDS seconds under Xvfb.
+Run an app in a graphical session with:
 
-  swift run quill-enchanted
+  swift run ${APP_PRODUCTS[0]}
 
 MSG

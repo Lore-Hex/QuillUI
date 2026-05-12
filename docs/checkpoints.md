@@ -2291,3 +2291,15 @@ The Linux solid-color gdk-pixbuf renderer comments now point arbitrary
 SwiftUI view trees at the existing opt-in GTK offscreen renderer instead
 of claiming that path is not wired up. Source hygiene pins the wording so
 the implementation notes keep matching the current Linux rendering model.
+
+## Checkpoint 121: Full Linux GTK Smoke Roster
+
+Status: implemented locally; queued for CI.
+
+`scripts/linux-gtk-check.sh` now consumes `scripts/linux-gtk-app-products.sh`
+for both build and headless smoke coverage, so the primary Linux GTK
+verification path exercises all user-facing app executables instead of
+only the two Enchanted roots.
+
+`LinuxGTKAppMatrixTests` pins the shared roster wiring and rejects a
+regression back to hard-coded Enchanted-only smoke runs.
