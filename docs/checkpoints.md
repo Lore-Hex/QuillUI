@@ -2161,7 +2161,7 @@ the full GTK matrix and confirmed the outliers are gone:
 
 ## Checkpoint 111: Linux Profile Budget Guard
 
-Status: implemented and verified locally; queued for CI.
+Status: implemented locally; queued for CI.
 
 The profile data is now good enough to gate against severe regressions.
 Added `scripts/check-linux-gtk-profile-budget.sh`, which validates the
@@ -2271,7 +2271,7 @@ expansion failures aligned with QuillUI's Linux compile reliability goal.
 
 ## Checkpoint 119: QuillChatKit Native SwiftUI Boundary
 
-Status: implemented locally; queued for CI.
+Status: implemented and verified locally; queued for CI.
 
 QuillChatKit is now a public library product and no longer imports
 QuillUI directly. Its shared chat primitives import SwiftUI, and the
@@ -2282,3 +2282,12 @@ A local main-actor view helper keeps the existing Swift 6-safe body
 isolation pattern without forcing downstream iOS apps to depend on
 QuillUI. Source hygiene now pins the product export and native SwiftUI
 import boundary.
+
+## Checkpoint 120: ImageRenderer Transcode Comment Hygiene
+
+Status: implemented locally; queued for CI.
+
+The Linux solid-color gdk-pixbuf renderer comments now point arbitrary
+SwiftUI view trees at the existing opt-in GTK offscreen renderer instead
+of claiming that path is not wired up. Source hygiene pins the wording so
+the implementation notes keep matching the current Linux rendering model.

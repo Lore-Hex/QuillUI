@@ -29,8 +29,8 @@ public enum QuillEncodedImageFormat: String, Sendable {
 /// This is the Linux backing for the subset of `ImageRenderer` we currently
 /// support: when `ImageRenderer.content` is a `Color`, we extract the RGBA
 /// components and render a real-pixels image at the requested size. More
-/// complex SwiftUI views still require offscreen GTK rasterization that is
-/// not yet wired up; see the TODO on `ImageRenderer`.
+/// complex SwiftUI view trees use the opt-in GTK offscreen rasterizer gated
+/// by `QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1`.
 ///
 /// Returns `nil` if `width` or `height` is non-positive, if `gdk_pixbuf_new`
 /// fails (low memory, hostile dimensions), or if the encoder fails. Each

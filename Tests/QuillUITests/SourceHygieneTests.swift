@@ -29,6 +29,18 @@ struct SourceHygieneTests {
         #expect(!source.contains("import QuillUI"))
     }
 
+    @Test("ImageRenderer comments describe the current GTK offscreen path")
+    func imageRendererCommentsDescribeCurrentOffscreenPath() throws {
+        let root = try packageRoot()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/GdkPixbufTranscode.swift"),
+            encoding: .utf8
+        )
+
+        #expect(source.contains("QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1"))
+        #expect(!source.contains("not yet wired up; see the TODO on `ImageRenderer`"))
+    }
+
     private func packageRoot() throws -> URL {
         var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let fileManager = FileManager.default
