@@ -46,6 +46,25 @@ struct SourceHygieneTests {
         #expect(!source.contains("not yet wired up; see the TODO on `ImageRenderer`"))
     }
 
+    @Test("GitHub workflows avoid Node 20 action pins")
+    func githubWorkflowsAvoidNode20ActionPins() throws {
+        let root = try packageRoot()
+        let workflowPaths = [
+            ".github/workflows/linux-ci.yml",
+            ".github/workflows/macos-ci.yml"
+        ]
+
+        let workflows = try workflowPaths
+            .map { try String(contentsOf: root.appendingPathComponent($0), encoding: .utf8) }
+            .joined(separator: "\n")
+
+        #expect(workflows.contains("uses: actions/checkout@v5"))
+        #expect(workflows.contains("uses: actions/upload-artifact@v6"))
+        #expect(!workflows.contains("uses: actions/checkout@v4"))
+        #expect(!workflows.contains("uses: actions/upload-artifact@v4"))
+        #expect(!workflows.contains("uses: actions/upload-artifact@v5"))
+    }
+
     private func packageRoot() throws -> URL {
         var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let fileManager = FileManager.default

@@ -2404,3 +2404,17 @@ future chat-shaped app ports do not need to copy the sidebar `List` /
 surface. `QuillSignalCoreTests` and `QuillTelegramCoreTests` pin each
 app model's sidebar-summary routing, preserving the existing row chrome
 while reducing duplicated app code.
+
+## Checkpoint 129: Node 24 Workflow Actions
+
+Status: implemented locally; guarded by source hygiene tests.
+
+The Linux and macOS workflows now avoid the Node 20 action pins that
+were producing deprecation annotations after otherwise-green app parity
+runs. Checkout moves to `actions/checkout@v5`; Linux artifact upload
+moves to `actions/upload-artifact@v6`, the first upload-artifact major
+that uses the Node 24 runtime.
+
+`SourceHygieneTests` now scan the workflow files to keep those pins from
+regressing back to the Node 20-backed `checkout@v4`,
+`upload-artifact@v4`, or `upload-artifact@v5` actions.
