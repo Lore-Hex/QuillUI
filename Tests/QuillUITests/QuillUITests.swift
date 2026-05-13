@@ -1,4 +1,5 @@
 import Foundation
+import QuillUIGtk
 import QuillUIQt
 import Testing
 @testable import QuillUI
@@ -73,6 +74,32 @@ struct QuillUITests {
         let qtDescriptor = QuillBackendRegistry.descriptor(for: .qt)
         #expect(qtDescriptor.displayName == "Qt")
         #expect(qtDescriptor.isExperimental == true)
+
+        let gtkDescriptor = QuillBackendRegistry.descriptor(for: .gtk)
+        #expect(gtkDescriptor.displayName == "GTK")
+        #expect(gtkDescriptor.isExperimental == false)
+
+        let preferredGtkPlan = QuillBackendRegistry.launchPlan(preferred: .gtk)
+        #expect(preferredGtkPlan.selected == .gtk)
+        #expect(preferredGtkPlan.selectedDescriptor == gtkDescriptor)
+
+        #if os(Linux)
+        #expect(preferredGtkPlan.runtime == .gtk)
+        #expect(preferredGtkPlan.runtimeDescriptor.identifier == .gtk)
+        #expect(preferredGtkPlan.runtimeMode == .native)
+        #else
+        #expect(preferredGtkPlan.runtime == .swiftUI)
+        #expect(preferredGtkPlan.runtimeDescriptor.identifier == .swiftUI)
+        #expect(preferredGtkPlan.runtimeMode == .platformFallback)
+        #endif
+
+        #expect(QuillGtkBackend.descriptor == gtkDescriptor)
+        #expect(QuillGtkBackend.launchPlan == preferredGtkPlan)
+        #expect(QuillGtkBackend.launchPlan.preferred == .gtk)
+        #expect(QuillGtkBackend.status.identifier == .gtk)
+        #expect(QuillGtkBackend.status.launchPlan == preferredGtkPlan)
+        #expect(QuillGtkBackend.status.mode == preferredGtkPlan.runtimeMode)
+        #expect(QuillGtkBackend.status.message == preferredGtkPlan.statusMessage)
 
         let preferredQtPlan = QuillBackendRegistry.launchPlan(preferred: .qt)
         #expect(preferredQtPlan.selected == .qt)

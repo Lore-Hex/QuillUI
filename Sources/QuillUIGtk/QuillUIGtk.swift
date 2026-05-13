@@ -1,0 +1,18 @@
+import QuillUI
+
+public typealias QuillGtkRuntimeMode = QuillBackendRuntimeMode
+public typealias QuillGtkBackendStatus = QuillBackendRuntimeStatus
+
+public enum QuillGtkBackend: QuillBackend {
+    public static let identifier: QuillBackendIdentifier = .gtk
+
+    public static var status: QuillGtkBackendStatus {
+        runtimeStatus
+    }
+}
+
+public enum QuillGtkApp {
+    public static func run<A: App>(_ appType: A.Type) {
+        QuillApp.run(appType, preferredBackend: QuillGtkBackend.identifier)
+    }
+}

@@ -128,6 +128,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillInteractionSmokeSupport/QuillInteractionSmokeView.swift"),
             encoding: .utf8
         )
+        let gtkBackend = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUIGtk/QuillUIGtk.swift"),
+            encoding: .utf8
+        )
         let qtBackend = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillUIQt/QuillUIQt.swift"),
             encoding: .utf8
@@ -161,15 +165,18 @@ struct SourceHygieneTests {
             encoding: .utf8
         )
 
+        #expect(manifest.contains(".library(name: \"QuillUIGtk\", targets: [\"QuillUIGtk\"])"))
         #expect(manifest.contains(".library(name: \"QuillUIQt\", targets: [\"QuillUIQt\"])"))
         #expect(manifest.contains(".executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"])"))
         #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
         #expect(manifest.contains("name: \"QuillInteractionSmokeSupport\""))
+        #expect(manifest.contains("dependencies: [\"QuillUI\", \"QuillUIGtk\", \"QuillInteractionSmokeSupport\"]"))
         #expect(manifest.contains("dependencies: [\"QuillUI\", \"QuillUIQt\", \"QuillInteractionSmokeSupport\"]"))
 
         #expect(gtkMain.contains("import QuillInteractionSmokeSupport"))
+        #expect(gtkMain.contains("import QuillUIGtk"))
         #expect(gtkMain.contains("QuillInteractionSmokeScene.scene(for: .gtk)"))
-        #expect(gtkMain.contains("QuillApp.run(QuillGtkInteractionSmokeApp.self)"))
+        #expect(gtkMain.contains("QuillGtkApp.run(QuillGtkInteractionSmokeApp.self)"))
         #expect(!gtkMain.contains("Quill GTK Interaction"))
         #expect(!gtkMain.contains("Native GTK click target"))
         #expect(!gtkMain.contains("struct SmokeView"))
@@ -190,6 +197,12 @@ struct SourceHygieneTests {
         #expect(sharedView.contains("Quill Backend Interaction"))
         #expect(sharedView.contains("Native backend click target"))
         #expect(sharedView.contains("native backend button click"))
+        #expect(gtkBackend.contains("public enum QuillGtkBackend"))
+        #expect(gtkBackend.contains("public enum QuillGtkApp"))
+        #expect(gtkBackend.contains("public typealias QuillGtkBackendStatus = QuillBackendRuntimeStatus"))
+        #expect(gtkBackend.contains("public static var status: QuillGtkBackendStatus"))
+        #expect(gtkBackend.contains("runtimeStatus"))
+        #expect(gtkBackend.contains("QuillApp.run(appType, preferredBackend: QuillGtkBackend.identifier)"))
         #expect(qtBackend.contains("public enum QuillQtBackend"))
         #expect(qtBackend.contains("public enum QuillQtApp"))
         #expect(qtBackend.contains("public typealias QuillQtBackendStatus = QuillBackendRuntimeStatus"))

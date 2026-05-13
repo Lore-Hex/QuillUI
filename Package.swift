@@ -28,6 +28,7 @@ let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsy
 
 var products: [Product] = [
     .library(name: "QuillUI", targets: ["QuillUI"]),
+    .library(name: "QuillUIGtk", targets: ["QuillUIGtk"]),
     .library(name: "QuillUIQt", targets: ["QuillUIQt"]),
     .library(name: "QuillData", targets: ["QuillData"]),
     .library(name: "QuillKit", targets: ["QuillKit"]),
@@ -230,6 +231,11 @@ var targets: [Target] = [
     .target(
         name: "QuillUI",
         dependencies: quillUIDependencies
+    ),
+    .target(
+        name: "QuillUIGtk",
+        dependencies: ["QuillUI"],
+        path: "Sources/QuillUIGtk"
     ),
     .target(
         name: "QuillUIQt",
@@ -794,7 +800,7 @@ targets.append(contentsOf: [
     // sheet modes).
     .executableTarget(
         name: "QuillGtkInteractionSmoke",
-        dependencies: ["QuillUI", "QuillInteractionSmokeSupport"],
+        dependencies: ["QuillUI", "QuillUIGtk", "QuillInteractionSmokeSupport"],
         path: "Sources/QuillGtkInteractionSmoke"
     ),
     // Qt launch target for the same interaction surface. The
@@ -1056,7 +1062,7 @@ let package = Package(
         // itself on the test-target scorecard.
         .testTarget(
             name: "QuillUITests",
-            dependencies: ["QuillUI", "QuillUIQt"],
+            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt"],
             swiftSettings: appSwiftSettings
         )
     ]

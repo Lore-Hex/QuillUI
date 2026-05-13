@@ -1,5 +1,6 @@
 import QuillInteractionSmokeSupport
 import QuillUI
+import QuillUIGtk
 
 private struct QuillGtkInteractionSmokeApp: App {
     var body: some Scene {
@@ -7,4 +8,4 @@ private struct QuillGtkInteractionSmokeApp: App {
     }
 }
 
-QuillApp.run(QuillGtkInteractionSmokeApp.self)
+QuillGtkApp.run(QuillGtkInteractionSmokeApp.self)
