@@ -33,6 +33,26 @@ quillui_backend_app_backends() {
     qt
 }
 
+quillui_backend_native_runtime_backends() {
+  # Mirrors QuillBackendRegistry on Linux. Keep this as a registry instead of
+  # branching in call sites so adding the native Qt host is a one-line change.
+  printf '%s\n' \
+    gtk
+}
+
+quillui_platform_runtime_fallback_backend() {
+  local backend
+
+  while IFS= read -r backend; do
+    [[ -n "$backend" ]] || continue
+    quillui_require_backend_identifier "$backend"
+    return 0
+  done < <(quillui_backend_native_runtime_backends)
+
+  echo "No QuillUI platform runtime fallback backend configured." >&2
+  return 70
+}
+
 quillui_backend_matrix_for_products() {
   local product
   local backend
@@ -250,6 +270,13 @@ quillui_is_backend_generated_app_product() {
   quillui_backend_product_list_contains "$1" quillui_backend_generated_app_products
 }
 
+quillui_backend_has_native_runtime() {
+  local requested_backend
+
+  requested_backend="$(quillui_require_backend_identifier "$1")" || return $?
+  quillui_backend_product_list_contains "$requested_backend" quillui_backend_native_runtime_backends
+}
+
 quillui_alias_env() {
   local canonical="$1"
   shift
@@ -411,17 +438,12 @@ quillui_runtime_backend_for_backend() {
   local requested_backend
 
   requested_backend="$(quillui_require_backend_identifier "$1")" || return $?
-  case "$requested_backend" in
-    gtk)
-      echo "gtk"
-      ;;
-    qt|swiftui)
-      # Mirrors QuillBackendRegistry on Linux: GTK is the only native runtime
-      # currently linked, so other selected backends launch through GTK until
-      # their native hosts are available.
-      echo "gtk"
-      ;;
-  esac
+  if quillui_backend_has_native_runtime "$requested_backend"; then
+    echo "$requested_backend"
+    return 0
+  fi
+
+  quillui_platform_runtime_fallback_backend
 }
 
 quillui_runtime_backend_for_product() {
@@ -446,6 +468,8 @@ Commands:
   generated-apps                  List generated external app products covered by backend parity smoke.
   generated-app-matrix            List PRODUCT<TAB>BACKEND rows for generated external apps.
   gtk-apps                        Legacy alias for backend-apps.
+  native-runtime-backends         List backends linked to native Linux runtime hosts.
+  platform-runtime-fallback       Print the runtime backend used when a selected backend has no native host.
   smoke-products                  List backend launch smoke products.
   smoke-matrix                    List PRODUCT<TAB>BACKEND rows for backend launch smoke products.
   smoke-interaction-modes         List interaction modes for backend launch smoke products.
@@ -461,6 +485,7 @@ Commands:
   require-backend BACKEND         Print the canonical backend identifier or fail for an unknown backend.
   is-smoke-product PRODUCT        Exit 0 when PRODUCT is a backend launch smoke product.
   is-generated-app PRODUCT        Exit 0 when PRODUCT is a generated external app product.
+  has-native-runtime BACKEND      Exit 0 when BACKEND is linked to a native Linux runtime host.
   backend-for-product PRODUCT     Print the default requested backend for PRODUCT.
   requested-backend PRODUCT       Print QUILLUI_BACKEND override or PRODUCT default.
   runtime-backend BACKEND         Print the native runtime backend used for a requested backend.
@@ -494,6 +519,12 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     gtk-apps)
       quillui_gtk_app_products
+      ;;
+    native-runtime-backends)
+      quillui_backend_native_runtime_backends
+      ;;
+    platform-runtime-fallback)
+      quillui_platform_runtime_fallback_backend
       ;;
     smoke-products)
       quillui_backend_smoke_products
@@ -557,6 +588,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         exit 64
       fi
       quillui_is_backend_generated_app_product "$2"
+      ;;
+    has-native-runtime)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_backend_has_native_runtime "$2"
       ;;
     backend-for-product)
       if [[ $# -ne 2 ]]; then

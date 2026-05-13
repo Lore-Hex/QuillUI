@@ -224,8 +224,14 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("normalize-backend)"))
         #expect(backendProducts.contains("require-backend)"))
         #expect(backendProducts.contains("is-generated-app)"))
+        #expect(backendProducts.contains("native-runtime-backends)"))
+        #expect(backendProducts.contains("platform-runtime-fallback)"))
+        #expect(backendProducts.contains("has-native-runtime)"))
         #expect(backendProducts.contains("runtime-backend)"))
         #expect(backendProducts.contains("runtime-backend-for-product)"))
+        #expect(backendProducts.contains("quillui_backend_native_runtime_backends()"))
+        #expect(backendProducts.contains("quillui_platform_runtime_fallback_backend()"))
+        #expect(backendProducts.contains("quillui_backend_has_native_runtime()"))
         #expect(backendProducts.contains("quillui_runtime_backend_for_backend()"))
         #expect(backendProducts.contains("quillui_runtime_backend_for_product()"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE"))
@@ -666,6 +672,20 @@ struct LinuxBackendAppMatrixTests {
         let requiredQtBackend = try runScript(script, arguments: ["require-backend", " Qt6 "])
         #expect(requiredQtBackend.status == 0, Comment(rawValue: requiredQtBackend.output))
         #expect(requiredQtBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+
+        let nativeRuntimeBackends = try runScript(script, arguments: ["native-runtime-backends"])
+        #expect(nativeRuntimeBackends.status == 0, Comment(rawValue: nativeRuntimeBackends.output))
+        #expect(nativeRuntimeBackends.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+
+        let platformRuntimeFallback = try runScript(script, arguments: ["platform-runtime-fallback"])
+        #expect(platformRuntimeFallback.status == 0, Comment(rawValue: platformRuntimeFallback.output))
+        #expect(platformRuntimeFallback.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+
+        let gtkHasNativeRuntime = try runScript(script, arguments: ["has-native-runtime", "GTK4"])
+        #expect(gtkHasNativeRuntime.status == 0, Comment(rawValue: gtkHasNativeRuntime.output))
+
+        let qtHasNativeRuntime = try runScript(script, arguments: ["has-native-runtime", "Qt6"])
+        #expect(qtHasNativeRuntime.status != 0)
 
         let runtimeGtkBackend = try runScript(script, arguments: ["runtime-backend", "GTK4"])
         #expect(runtimeGtkBackend.status == 0, Comment(rawValue: runtimeGtkBackend.output))

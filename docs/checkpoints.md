@@ -2942,3 +2942,14 @@ and `QuillUIGtk` / `QuillUIQt` re-export backend-specific aliases to the same
 type. This gives GTK and Qt one status contract while Qt remains a first-class
 launch surface that falls through the current platform runtime until its native
 host is linked.
+
+## Checkpoint 168: Shell Runtime Registry
+
+Status: implemented locally; guarded by backend matrix tests.
+
+The Linux backend product helper now exposes the shell-side runtime registry
+directly: `native-runtime-backends`, `platform-runtime-fallback`, and
+`has-native-runtime`. `runtime-backend` derives from that registry instead of a
+backend-specific case split, so profile and smoke tooling share the same GTK
+fallback model and can promote Qt to a native runtime by changing the registry
+rather than every consumer.
