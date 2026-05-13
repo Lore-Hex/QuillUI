@@ -157,10 +157,12 @@ struct SourceHygieneTests {
 
         #expect(profileBaseline.contains("`PRODUCT<TAB>BACKEND` rows"))
         #expect(profileBaseline.contains("canonicalized before launch"))
-        #expect(profileBaseline.contains("`requested_backend` and `runtime_backend` columns"))
-        #expect(profileBaseline.contains("`runtime_backend=gtk`"))
+        #expect(profileBaseline.contains("`requested_backend`, `runtime_backend`, and"))
+        #expect(profileBaseline.contains("`runtime_backend=gtk` and"))
+        #expect(profileBaseline.contains("`runtime_mode=platformFallback`"))
         #expect(profileBaseline.contains("scripts/linux-backend-profile.sh <product> [settle] [steady] [backend]"))
         #expect(!profileBaseline.contains("scripts/linux-backend-profile.sh <product> [settle] [steady]`:"))
+        #expect(linuxBuildTooling.contains("`runtime_mode` columns"))
 
         #expect(offscreenRenderer.contains("scripts/linux-backend-check.sh"))
         #expect(!offscreenRenderer.contains("scripts/linux-gtk-check.sh"))

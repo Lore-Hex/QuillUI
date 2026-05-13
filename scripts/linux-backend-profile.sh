@@ -18,7 +18,7 @@
 #   scripts/linux-backend-profile.sh <product-name> [settle-seconds] [steady-delay] [backend]
 #
 # Emits one CSV line on stdout:
-#   product,requested_backend,runtime_backend,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
+#   product,requested_backend,runtime_backend,runtime_mode,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
 
 set -euo pipefail
 
@@ -44,6 +44,7 @@ fi
 
 REQUESTED_BACKEND_LABEL="$(quillui_requested_backend_for_product "$PRODUCT")"
 RUNTIME_BACKEND_LABEL=""
+runtime_mode=""
 if [[ -n "$REQUESTED_BACKEND_LABEL" ]]; then
     runtime_availability="$(quillui_backend_runtime_availability_for_backend "$REQUESTED_BACKEND_LABEL")"
     IFS=$'\t' read -r REQUESTED_BACKEND_LABEL RUNTIME_BACKEND_LABEL runtime_mode <<<"$runtime_availability"
@@ -80,7 +81,7 @@ emit_profile_row() {
     local cpu_pct_steady="$4"
     local exit_status="$5"
 
-    echo "$PRODUCT,$REQUESTED_BACKEND_LABEL,$RUNTIME_BACKEND_LABEL,$build_ms,$startup_ms,$rss_kb,$cpu_pct_initial,$cpu_pct_steady,$exit_status"
+    echo "$PRODUCT,$REQUESTED_BACKEND_LABEL,$RUNTIME_BACKEND_LABEL,$runtime_mode,$build_ms,$startup_ms,$rss_kb,$cpu_pct_initial,$cpu_pct_steady,$exit_status"
 }
 
 if [[ ! -x "$exe" ]]; then

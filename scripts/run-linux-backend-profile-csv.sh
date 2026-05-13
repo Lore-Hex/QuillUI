@@ -132,36 +132,37 @@ quillui_profile_build_cache_key() {
 }
 
 {
-  echo "product,requested_backend,runtime_backend,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
+  echo "product,requested_backend,runtime_backend,runtime_mode,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
   for row in "${ROWS[@]}"; do
     product="$row"
     backend=""
     requested_backend=""
     runtime_backend=""
+    runtime_mode=""
     if [[ "$row" == *$'\t'* ]]; then
       product="${row%%$'\t'*}"
       backend="${row#*$'\t'}"
     fi
     [[ -n "$product" ]] || continue
     if [[ "$backend" == *$'\t'* ]]; then
-      echo "${product:-profile-row},malformed,unknown,0,0,0,0.0,0.0,profile-row-malformed"
+      echo "${product:-profile-row},malformed,unknown,unknown,0,0,0,0.0,0.0,profile-row-malformed"
       continue
     fi
     if [[ -n "$backend" ]] && ! backend="$(quillui_require_backend_identifier "$backend" 2>/dev/null)"; then
-      echo "$product,unsupported-backend,unknown,0,0,0,0.0,0.0,profile-row-unsupported-backend"
+      echo "$product,unsupported-backend,unknown,unknown,0,0,0,0.0,0.0,profile-row-unsupported-backend"
       continue
     fi
     if [[ -n "$backend" ]]; then
       requested_backend="$backend"
     else
       requested_backend="$(quillui_requested_backend_for_product "$product")" || {
-        echo "$product,unsupported-backend,unknown,0,0,0,0.0,0.0,profile-row-unsupported-backend"
+        echo "$product,unsupported-backend,unknown,unknown,0,0,0,0.0,0.0,profile-row-unsupported-backend"
         continue
       }
     fi
     if [[ -n "$requested_backend" ]]; then
       runtime_availability="$(quillui_backend_runtime_availability_for_backend "$requested_backend")" || {
-        echo "$product,$requested_backend,unknown,0,0,0,0.0,0.0,profile-row-unsupported-runtime-backend"
+        echo "$product,$requested_backend,unknown,unknown,0,0,0,0.0,0.0,profile-row-unsupported-runtime-backend"
         continue
       }
       IFS=$'\t' read -r requested_backend runtime_backend runtime_mode <<<"$runtime_availability"
@@ -198,6 +199,7 @@ quillui_profile_build_cache_key() {
         -v product="$product" \
         -v requested_backend="$requested_backend" \
         -v runtime_backend="$runtime_backend" \
+        -v runtime_mode="$runtime_mode" \
         -v profiler_status="$status" '
         BEGIN { FS = OFS = "," }
         NF == 7 {
@@ -205,17 +207,23 @@ quillui_profile_build_cache_key() {
           if (profiler_status != 0) {
             exit_status = "profiler-exit-" profiler_status
           }
-          print product, requested_backend, runtime_backend, $2, $3, $4, $5, $6, exit_status
+          print product, requested_backend, runtime_backend, runtime_mode, $2, $3, $4, $5, $6, exit_status
           next
         }
-        NF >= 9 {
-          $1 = product
-          $2 = requested_backend
-          $3 = runtime_backend
+        NF == 9 {
+          exit_status = $9
           if (profiler_status != 0) {
-            $9 = "profiler-exit-" profiler_status
+            exit_status = "profiler-exit-" profiler_status
           }
-          print
+          print product, requested_backend, runtime_backend, runtime_mode, $4, $5, $6, $7, $8, exit_status
+          next
+        }
+        NF >= 10 {
+          exit_status = $10
+          if (profiler_status != 0) {
+            exit_status = "profiler-exit-" profiler_status
+          }
+          print product, requested_backend, runtime_backend, runtime_mode, $5, $6, $7, $8, $9, exit_status
           next
         }
         NF > 0 {
@@ -223,13 +231,13 @@ quillui_profile_build_cache_key() {
           if (profiler_status != 0) {
             exit_status = "profiler-exit-" profiler_status
           }
-          print product, requested_backend, runtime_backend, 0, 0, 0, "0.0", "0.0", exit_status
+          print product, requested_backend, runtime_backend, runtime_mode, 0, 0, 0, "0.0", "0.0", exit_status
         }
       ' "$row_path"
     elif [[ "$status" -eq 0 ]]; then
-      echo "$product,$requested_backend,$runtime_backend,0,0,0,0.0,0.0,profiler-empty-output"
+      echo "$product,$requested_backend,$runtime_backend,$runtime_mode,0,0,0,0.0,0.0,profiler-empty-output"
     else
-      echo "$product,$requested_backend,$runtime_backend,0,0,0,0.0,0.0,profiler-exit-$status"
+      echo "$product,$requested_backend,$runtime_backend,$runtime_mode,0,0,0,0.0,0.0,profiler-exit-$status"
     fi
   done
 } | tee "$CSV_PATH"

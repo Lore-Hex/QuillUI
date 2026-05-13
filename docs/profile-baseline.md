@@ -12,10 +12,12 @@ Current CI expands the canonical `profile-matrix` roster through
 composes every user-facing app and generated external app with each requested
 backend plus the GTK and Qt backend launch smoke products. The roster emits
 `PRODUCT<TAB>BACKEND` rows, and backend aliases are canonicalized before launch.
-Profile CSV rows carry both `requested_backend` and `runtime_backend` columns
-so Qt-requested rows are not confused with native Qt runtime measurements. Until
-the native Qt renderer is linked on Linux, Qt-requested rows report
-`runtime_backend=gtk` because `QuillLinuxRuntimeHost` still falls back to GTK.
+Profile CSV rows carry `requested_backend`, `runtime_backend`, and
+`runtime_mode` columns so Qt-requested rows are not confused with native Qt
+runtime measurements. Until the native Qt renderer is linked on Linux,
+Qt-requested rows report `runtime_backend=gtk` and
+`runtime_mode=platformFallback` because `QuillLinuxRuntimeHost` still falls
+back to GTK.
 The older
 `scripts/linux-gtk-app-products.sh`,
 `scripts/linux-gtk-profile.sh`, `scripts/run-linux-gtk-profile-csv.sh`,
@@ -81,8 +83,8 @@ flaking on normal CI variance.
 
 The baseline and focused experiment CSVs are emitted through
 `scripts/run-linux-backend-profile-csv.sh`, which keeps the CSV header,
-product loop, repeated-product skip-build reuse, and failure-tolerant artifact
-capture in one place.
+runtime-mode projection, product loop, repeated-product skip-build reuse, and
+failure-tolerant artifact capture in one place.
 
 ## Previous Outlier Matrix (Linux run 25715271203, commit f6a27de)
 
@@ -357,4 +359,4 @@ fires at 200Hz, so per-paint allocations stack.
 7. Kill, emit one CSV row, exit.
 
 CSV row schema:
-`product,requested_backend,runtime_backend,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status`.
+`product,requested_backend,runtime_backend,runtime_mode,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status`.

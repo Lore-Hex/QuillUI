@@ -24,7 +24,7 @@ struct LinuxBackendAppMatrixTests {
         "quill-chat-linux"
     ]
 
-    private static let profileCSVHeader = "product,requested_backend,runtime_backend,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
+    private static let profileCSVHeader = "product,requested_backend,runtime_backend,runtime_mode,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
 
     @Test("covers each user-facing app product once")
     func coversEachUserFacingAppProductOnce() throws {
@@ -392,6 +392,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(csvRunner.contains("\"${profile_command[@]}\" \"$PROFILE_SCRIPT\" \"${profiler_arguments[@]}\""))
         #expect(csvRunner.contains("-v requested_backend=\"$requested_backend\""))
         #expect(csvRunner.contains("-v runtime_backend=\"$runtime_backend\""))
+        #expect(csvRunner.contains("-v runtime_mode=\"$runtime_mode\""))
         #expect(legacyCSVRunner.contains("run-linux-backend-profile-csv.sh"))
         #expect(budgetScript.contains("QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT"))
         #expect(budgetScript.contains("quillui_alias_backend_profile_env"))
@@ -400,6 +401,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(budgetScript.contains(Self.profileCSVHeader))
         #expect(budgetScript.contains("requested_backend = $2"))
         #expect(budgetScript.contains("runtime_backend = $3"))
+        #expect(budgetScript.contains("runtime_mode = $4"))
+        #expect(budgetScript.contains("build_ms = $5"))
+        #expect(budgetScript.contains("is_runtime_mode(value)"))
+        #expect(budgetScript.contains("expected_runtime_mode"))
         #expect(budgetScript.contains("done < <(quillui_backend_profile_matrix)"))
         #expect(budgetScript.contains("quillui_require_backend_identifier \"$expected_backend\""))
         #expect(budgetScript.contains("quillui_backend_runtime_matches_backend \"$requested_backend\" \"$runtime_backend\""))
@@ -893,8 +898,8 @@ struct LinuxBackendAppMatrixTests {
 
         try """
         \(Self.profileCSVHeader)
-        quill-icecubes,gtk,gtk,13148,6,236156,3.0,2.8,ok
-        quill-netnewswire,qt,gtk,13105,6,235852,5.8,5.6,ok
+        quill-icecubes,gtk,gtk,native,13148,6,236156,3.0,2.8,ok
+        quill-netnewswire,qt,gtk,platformFallback,13105,6,235852,5.8,5.6,ok
 
         """.write(to: csv, atomically: true, encoding: .utf8)
 
@@ -905,7 +910,7 @@ struct LinuxBackendAppMatrixTests {
 
         try """
         \(Self.profileCSVHeader)
-        quill-icecubes,gtk,gtk,13148,6,236156,3.0,135.2,ok
+        quill-icecubes,gtk,gtk,native,13148,6,236156,3.0,135.2,ok
 
         """.write(to: csv, atomically: true, encoding: .utf8)
 
@@ -915,7 +920,7 @@ struct LinuxBackendAppMatrixTests {
 
         try """
         \(Self.profileCSVHeader)
-        quill-icecubes,gtk,gtk,13148,nope,236156,3.0,2.8,ok
+        quill-icecubes,gtk,gtk,native,13148,nope,236156,3.0,2.8,ok
 
         """.write(to: csv, atomically: true, encoding: .utf8)
 
@@ -925,13 +930,23 @@ struct LinuxBackendAppMatrixTests {
 
         try """
         \(Self.profileCSVHeader)
-        quill-netnewswire,qt,qt,13105,6,235852,5.8,5.6,ok
+        quill-netnewswire,qt,qt,native,13105,6,235852,5.8,5.6,ok
 
         """.write(to: csv, atomically: true, encoding: .utf8)
 
         let wrongRuntime = try runScript(script, arguments: [csv.path, "--max-cpu-pct", "25"])
         #expect(wrongRuntime.status != 0)
         #expect(wrongRuntime.output.contains("runtime_backend=qt does not match requested_backend=qt expected_runtime=gtk"))
+
+        try """
+        \(Self.profileCSVHeader)
+        quill-netnewswire,qt,gtk,native,13105,6,235852,5.8,5.6,ok
+
+        """.write(to: csv, atomically: true, encoding: .utf8)
+
+        let wrongRuntimeMode = try runScript(script, arguments: [csv.path, "--max-cpu-pct", "25"])
+        #expect(wrongRuntimeMode.status != 0)
+        #expect(wrongRuntimeMode.output.contains("runtime_mode=native does not match requested_backend=qt expected_mode=platformFallback"))
 
         let profileMatrix = try runScript(matrixScript, arguments: ["profile-matrix"])
         #expect(profileMatrix.status == 0, Comment(rawValue: profileMatrix.output))
@@ -946,7 +961,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(!matrixLabels.isEmpty)
 
         let fullMatrixRows = matrixRows
-            .map { "\($0.product),\($0.backend),gtk,1,2,3,0.1,0.2,ok" }
+            .map { row in
+                let runtimeMode = row.backend == "gtk" ? "native" : "platformFallback"
+                return "\(row.product),\(row.backend),gtk,\(runtimeMode),1,2,3,0.1,0.2,ok"
+            }
             .joined(separator: "\n")
         try """
         \(Self.profileCSVHeader)
@@ -959,7 +977,10 @@ struct LinuxBackendAppMatrixTests {
 
         let missingFirstRow = matrixRows
             .dropFirst()
-            .map { "\($0.product),\($0.backend),gtk,1,2,3,0.1,0.2,ok" }
+            .map { row in
+                let runtimeMode = row.backend == "gtk" ? "native" : "platformFallback"
+                return "\(row.product),\(row.backend),gtk,\(runtimeMode),1,2,3,0.1,0.2,ok"
+            }
             .joined(separator: "\n")
         try """
         \(Self.profileCSVHeader)
@@ -1004,8 +1025,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.status == 0, Comment(rawValue: result.output))
         let expected = """
         \(Self.profileCSVHeader)
-        first-product,,,1,2,3,4.0,5.0,ok
-        second-product,,,1,2,3,4.0,5.0,profiler-exit-7
+        first-product,,,,1,2,3,4.0,5.0,ok
+        second-product,,,,1,2,3,4.0,5.0,profiler-exit-7
 
         """
         #expect(result.output == expected)
@@ -1042,7 +1063,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.status == 0, Comment(rawValue: result.output))
         let expected = """
         \(Self.profileCSVHeader)
-        silent-product,,,0,0,0,0.0,0.0,profiler-exit-42
+        silent-product,,,,0,0,0,0.0,0.0,profiler-exit-42
 
         """
         #expect(result.output == expected)
@@ -1111,11 +1132,11 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.status == 0, Comment(rawValue: result.output))
         let expected = """
         \(Self.profileCSVHeader)
-        quill-icecubes,gtk,gtk,1,2,3,0.0,5.0,ok
-        quill-icecubes,qt,gtk,1,2,3,1.0,5.0,ok
-        quill-chat-linux,gtk,gtk,1,2,3,0.0,5.0,ok
-        quill-chat-linux,qt,gtk,1,2,3,0.0,5.0,ok
-        quill-icecubes,unsupported-backend,unknown,0,0,0,0.0,0.0,profile-row-unsupported-backend
+        quill-icecubes,gtk,gtk,native,1,2,3,0.0,5.0,ok
+        quill-icecubes,qt,gtk,platformFallback,1,2,3,1.0,5.0,ok
+        quill-chat-linux,gtk,gtk,native,1,2,3,0.0,5.0,ok
+        quill-chat-linux,qt,gtk,platformFallback,1,2,3,0.0,5.0,ok
+        quill-icecubes,unsupported-backend,unknown,unknown,0,0,0,0.0,0.0,profile-row-unsupported-backend
 
         """
         #expect(result.output == expected)
@@ -1169,7 +1190,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.status == 0, Comment(rawValue: result.output))
         let expected = """
         \(Self.profileCSVHeader)
-        \(matrixRows.map { "\($0.product),\($0.backend),gtk,1,2,3,4.0,5.0,ok" }.joined(separator: "\n"))
+        \(matrixRows.map { row in
+            let runtimeMode = row.backend == "gtk" ? "native" : "platformFallback"
+            return "\(row.product),\(row.backend),gtk,\(runtimeMode),1,2,3,4.0,5.0,ok"
+        }.joined(separator: "\n"))
 
         """
         #expect(result.output == expected)

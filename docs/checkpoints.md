@@ -3043,3 +3043,13 @@ runtime backend labels through `quillui_backend_runtime_availability_for_backend
 Profile rows therefore share the same availability contract as smoke/profile
 matrix tooling, reducing the chance that Qt fallback reporting drifts from the
 central runtime registry.
+
+## Checkpoint 178: Profile Runtime Mode Column
+
+Status: implemented locally; guarded by backend matrix tests.
+
+Linux backend profile CSV rows now include `runtime_mode` next to requested and
+runtime backend labels. Budget checks validate that successful rows report the
+same native-vs-fallback mode as the shared runtime availability registry, while
+the CSV matrix runner still accepts older simple profiler rows from focused
+experiments.

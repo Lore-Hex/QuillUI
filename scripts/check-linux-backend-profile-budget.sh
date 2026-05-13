@@ -111,20 +111,25 @@ if [[ "$REQUIRE_BACKEND_MATRIX" -eq 1 ]]; then
   fi
 fi
 
-runtime_backend_mismatch=0
-while IFS=, read -r product requested_backend runtime_backend _build_ms _startup_ms _rss_kb _cpu_initial _cpu_steady exit_status; do
+runtime_availability_mismatch=0
+while IFS=, read -r product requested_backend runtime_backend runtime_mode _build_ms _startup_ms _rss_kb _cpu_initial _cpu_steady exit_status; do
   [[ -n "$product" && "$product" != "product" ]] || continue
   [[ "$exit_status" == "ok" ]] || continue
 
-  expected_runtime_backend="$(quillui_runtime_backend_for_backend "$requested_backend" 2>/dev/null)" || continue
+  runtime_availability="$(quillui_backend_runtime_availability_for_backend "$requested_backend" 2>/dev/null)" || continue
+  IFS=$'\t' read -r _expected_requested_backend expected_runtime_backend expected_runtime_mode <<<"$runtime_availability"
   quillui_require_backend_identifier "$runtime_backend" >/dev/null 2>&1 || continue
   if ! quillui_backend_runtime_matches_backend "$requested_backend" "$runtime_backend"; then
     echo "profile budget failed: $product runtime_backend=$runtime_backend does not match requested_backend=$requested_backend expected_runtime=$expected_runtime_backend" >&2
-    runtime_backend_mismatch=1
+    runtime_availability_mismatch=1
+  fi
+  if [[ "$runtime_mode" != "$expected_runtime_mode" ]]; then
+    echo "profile budget failed: $product runtime_mode=$runtime_mode does not match requested_backend=$requested_backend expected_mode=$expected_runtime_mode" >&2
+    runtime_availability_mismatch=1
   fi
 done < "$CSV_PATH"
 
-if [[ "$runtime_backend_mismatch" -ne 0 ]]; then
+if [[ "$runtime_availability_mismatch" -ne 0 ]]; then
   exit 1
 fi
 
@@ -135,7 +140,7 @@ awk \
 BEGIN {
   FS = ","
   status = 0
-  expected = "product,requested_backend,runtime_backend,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
+  expected = "product,requested_backend,runtime_backend,runtime_mode,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
 }
 function is_nonnegative_integer(value) {
   return value ~ /^[0-9]+$/
@@ -146,6 +151,9 @@ function is_nonnegative_number(value) {
 function is_backend_identifier(value) {
   return value ~ /^(swiftui|gtk|qt)$/
 }
+function is_runtime_mode(value) {
+  return value ~ /^(native|platformFallback)$/
+}
 NR == 1 {
   if ($0 != expected) {
     printf "profile budget failed: unexpected header: %s\n", $0 > "/dev/stderr"
@@ -154,7 +162,7 @@ NR == 1 {
   next
 }
 /^[[:space:]]*$/ { next }
-NF != 9 {
+NF != 10 {
   printf "profile budget failed: malformed row %d: %s\n", NR, $0 > "/dev/stderr"
   status = 1
   next
@@ -163,12 +171,13 @@ NF != 9 {
   product = $1
   requested_backend = $2
   runtime_backend = $3
-  build_ms = $4
-  startup_ms = $5
-  rss_kb = $6
-  cpu_initial = $7
-  cpu_steady = $8
-  exit_status = $9
+  runtime_mode = $4
+  build_ms = $5
+  startup_ms = $6
+  rss_kb = $7
+  cpu_initial = $8
+  cpu_steady = $9
+  exit_status = $10
 
   row_failed = 0
   if (product == "") {
@@ -207,6 +216,10 @@ NF != 9 {
       printf "profile budget failed: %s runtime_backend=%s is not supported\n", product, runtime_backend > "/dev/stderr"
       row_failed = 1
     }
+    if (!is_runtime_mode(runtime_mode)) {
+      printf "profile budget failed: %s runtime_mode=%s is not supported\n", product, runtime_mode > "/dev/stderr"
+      row_failed = 1
+    }
   }
 
   if (row_failed) {
@@ -239,7 +252,7 @@ NF != 9 {
   if (row_failed) {
     status = 1
   } else {
-    printf "profile budget ok: %s requested=%s runtime=%s startup_ms=%s rss_kb=%s cpu=%s/%s\n", product, requested_backend, runtime_backend, startup_ms, rss_kb, cpu_initial, cpu_steady
+    printf "profile budget ok: %s requested=%s runtime=%s mode=%s startup_ms=%s rss_kb=%s cpu=%s/%s\n", product, requested_backend, runtime_backend, runtime_mode, startup_ms, rss_kb, cpu_initial, cpu_steady
   }
 }
 END {
