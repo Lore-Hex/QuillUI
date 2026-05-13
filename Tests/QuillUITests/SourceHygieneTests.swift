@@ -138,6 +138,8 @@ struct SourceHygieneTests {
         #expect(linuxBuildTooling.contains("layout diagnostics behave the same across every runner"))
         #expect(linuxBuildTooling.contains("Native Qt product hosts use explicit entries"))
         #expect(linuxBuildTooling.contains("native-product-runtime-overrides"))
+        #expect(linuxBuildTooling.contains("scripts/build-linux-backend-products.sh --scratch-path .build-linux fixed-app-backends"))
+        #expect(linuxBuildTooling.contains("PRODUCT<TAB>BUILD_BACKEND"))
         #expect(linuxBuildTooling.contains("explicit positional backend argument"))
         #expect(linuxBuildTooling.contains("scripts/run-linux-backend-smoke-matrix.sh"))
         #expect(linuxBuildTooling.contains("--skip-repeated-products"))

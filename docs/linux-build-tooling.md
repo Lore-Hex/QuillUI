@@ -183,6 +183,18 @@ listed in `scripts/quillui-backend-products.sh fixed-app-backends` so matrix
 smoke and profile rows do not try to compile one executable through both native
 host stacks.
 
+CI build-gates those native app products through the shared roster instead of
+hand-writing per-product commands:
+
+```bash
+scripts/build-linux-backend-products.sh --scratch-path .build-linux fixed-app-backends
+```
+
+That helper prints or builds one `PRODUCT<TAB>BUILD_BACKEND` row per product
+and always selects the manifest backend with `QUILLUI_LINUX_BACKEND`, even when
+a runtime smoke matrix has both GTK and Qt requested-backend rows for a
+backend-neutral app.
+
 For `quill-chat-linux`, the script builds through the generic app builder,
 resolves the generated package executable, captures an Xvfb screenshot, checks
 both brightness and pixel variation so blank white windows fail, and verifies

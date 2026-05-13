@@ -79,6 +79,8 @@ struct LinuxBackendAppMatrixTests {
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
+        #expect(workflow.contains("Build native backend app products"))
+        #expect(workflow.contains("scripts/build-linux-backend-products.sh --scratch-path .build-linux fixed-app-backends"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
@@ -210,6 +212,10 @@ struct LinuxBackendAppMatrixTests {
             encoding: .utf8
         )
         let backendProducts = try String(contentsOf: matrixScript, encoding: .utf8)
+        let backendProductBuildScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/build-linux-backend-products.sh"),
+            encoding: .utf8
+        )
         #expect(backendProducts.contains("quillui_backend_app_products()"))
         #expect(backendProducts.contains("quillui_backend_app_backends()"))
         #expect(backendProducts.contains("quillui_backend_fixed_app_backend_overrides()"))
@@ -286,6 +292,13 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_profile_runtime_matrix()"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS QUILLUI_QT_PROFILE_MAX_STARTUP_MS\n  quillui_alias_backend_common_env"))
+        #expect(backendProductBuildScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(backendProductBuildScript.contains("fixed-app-backends)"))
+        #expect(backendProductBuildScript.contains("app-matrix)"))
+        #expect(backendProductBuildScript.contains("quillui_require_backend_for_product \"$product\""))
+        #expect(backendProductBuildScript.contains("QUILLUI_LINUX_BACKEND=\"$build_backend\""))
+        #expect(backendProductBuildScript.contains("swift build --scratch-path \"$SCRATCH_PATH\" --product \"$product\""))
+        #expect(backendProductBuildScript.contains("patch-swiftopenui-gtk-css.sh"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(profileScript.contains("quillui_install_linux_backend_smoke_packages"))
         #expect(profileScript.contains("quillui_resolve_linux_backend_executable \"$PRODUCT\" exe"))
@@ -797,6 +810,20 @@ struct LinuxBackendAppMatrixTests {
             "quill-wireguard\tgtk",
             "quill-wireguard-qt\tqt"
         ])
+
+        let buildScript = root.appendingPathComponent("scripts/build-linux-backend-products.sh")
+        let fixedAppBuildPlan = try runScript(buildScript, arguments: ["--dry-run", "fixed-app-backends"])
+        #expect(fixedAppBuildPlan.status == 0, Comment(rawValue: fixedAppBuildPlan.output))
+        #expect(fixedAppBuildPlan.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "quill-wireguard\tgtk",
+            "quill-wireguard-qt\tqt"
+        ])
+
+        let appBuildPlan = try runScript(buildScript, arguments: ["--dry-run", "app-matrix"])
+        #expect(appBuildPlan.status == 0, Comment(rawValue: appBuildPlan.output))
+        #expect(appBuildPlan.output.split(whereSeparator: \.isNewline).map(String.init) == Self.expectedAppProducts.map { product in
+            "\(product)\t\(product == "quill-wireguard-qt" ? "qt" : "gtk")"
+        })
 
         let nativeProductRuntimeOverrides = try runScript(script, arguments: ["native-product-runtime-overrides"])
         #expect(nativeProductRuntimeOverrides.status == 0, Comment(rawValue: nativeProductRuntimeOverrides.output))
