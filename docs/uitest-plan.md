@@ -23,8 +23,8 @@ User-raised bar across every app:
 | IINA        | — (libmpv binding)  | —            | ✅ baseline (CP104)        |
 | WireGuard   | side target         | —            | ✅ baseline matrix         |
 
-The per-app GTK smoke/profile roster now lives in
-`scripts/quillui-backend-products.sh gtk-apps`, so Linux visual and
+The per-app backend smoke/profile roster now lives in
+`scripts/quillui-backend-products.sh backend-apps`, so Linux visual and
 profile coverage iterate the same user-facing app list:
 `quill-enchanted`, `quill-enchanted-upstream-slice`,
 `quill-icecubes`, `quill-netnewswire`, `quill-codeedit`,
@@ -59,7 +59,7 @@ For every Quill app, add a Linux CI step that:
 Reuse `scripts/linux-backend-visual-check.sh` (already proven for
 Enchanted's `quill-chat-linux` target) — accepts the app product
 name as `${2}`. Source the app list from
-`scripts/quillui-backend-products.sh gtk-apps` instead of
+`scripts/quillui-backend-products.sh backend-apps` instead of
 hard-coding products in CI. The verifier
 `scripts/verify-backend-screenshot.py` needs
 per-app landmark predicates; CP78 added Enchanted's generated-app

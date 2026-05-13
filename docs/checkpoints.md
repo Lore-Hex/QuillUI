@@ -2537,16 +2537,16 @@ renderer lands.
 Status: implemented locally; guarded by matrix and source hygiene tests.
 
 `scripts/quillui-backend-products.sh` now owns the app roster as well as the
-default backend mapping. It exposes `gtk-apps`, `smoke-products`,
-`backend-for-product`, and `requested-backend` commands so CI, local build
-scripts, interaction checks, and profile tooling can share one backend-aware
-source of truth.
+default backend mapping. It exposes `backend-apps`, `gtk-apps`,
+`smoke-products`, `backend-for-product`, and `requested-backend` commands so
+CI, local build scripts, interaction checks, and profile tooling can share one
+backend-aware source of truth.
 
 The legacy `scripts/linux-gtk-app-products.sh` path now delegates to that
-helper, while Linux CI and `scripts/linux-gtk-check.sh` consume
-`scripts/quillui-backend-products.sh gtk-apps` directly. This removes the last
-copied app list between GTK matrix coverage and the Qt-ready backend selection
-tooling.
+helper, while Linux CI and the backend check scripts consume
+`scripts/quillui-backend-products.sh backend-apps` directly. This removes the
+last copied app list between GTK matrix coverage and the Qt-ready backend
+selection tooling.
 
 ## Checkpoint 138: Backend-Neutral Visual Smoke Aliases
 
@@ -2656,3 +2656,21 @@ backend-neutral verifier instead of a GTK-named implementation.
 `scripts/verify-gtk-screenshot.py` remains as an executable compatibility shim
 that delegates to the backend verifier. Existing local scripts and older docs
 can keep working while new automation and tests use the shared backend name.
+
+## Checkpoint 145: Backend Build Check Entry Point
+
+Status: implemented locally; guarded by matrix tests and shell syntax checks.
+
+The full Linux build/headless smoke driver now lives at
+`scripts/linux-backend-check.sh`. It sources
+`scripts/quillui-linux-backend-smoke-lib.sh` for shared package setup and
+backend product mapping, reads the canonical `backend-apps` roster, then
+launches each app with its requested backend so future Qt app rows can reuse
+the same local validation path.
+
+`scripts/linux-gtk-check.sh` remains as an executable shim to the backend check.
+The Lima setup message and Linux build tooling docs now point new users at the
+backend-neutral command.
+
+Linux CI's visible job and artifact names now use backend wording as well, so
+Qt launch coverage no longer appears under GTK-only QA labels.

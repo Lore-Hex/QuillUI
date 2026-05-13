@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   swift-gtk:
-    name: Swift GTK
+    name: Swift Linux Backends
     runs-on: ubuntu-24.04
     container:
       # SwiftOpenUI's `CGTK/shim.h` calls `gtk_picture_set_content_fit`
@@ -101,8 +101,8 @@ jobs:
       - name: Generated Enchanted toolbar interaction smoke
         run: scripts/linux-backend-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
 
-      # Per-app backend visual smoke. The GTK product roster lives in
-      # `scripts/quillui-backend-products.sh gtk-apps` so visual and
+      # Per-app backend visual smoke. The backend product roster lives in
+      # `scripts/quillui-backend-products.sh backend-apps` so visual and
       # profile coverage cannot drift. Each product launches under Xvfb,
       # requests its default backend, screenshots the window, and runs the
       # verifier. With no
@@ -113,7 +113,7 @@ jobs:
       # follow-up slices in docs/uitest-plan.md.
       - name: Quill app backend visual smoke
         run: |
-          scripts/quillui-backend-products.sh gtk-apps | while IFS= read -r product; do
+          scripts/quillui-backend-products.sh backend-apps | while IFS= read -r product; do
             [ -n "$product" ] || continue
             echo "==> Backend visual smoke: $product"
             scripts/linux-backend-visual-check.sh ".qa/${product}-gtk.png" "$product"
@@ -130,7 +130,7 @@ jobs:
       # treating normal CI noise as a failure.
       - name: Per-app Linux profile baseline
         continue-on-error: true
-        run: scripts/quillui-backend-products.sh gtk-apps | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv
+        run: scripts/quillui-backend-products.sh backend-apps | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv
 
       - name: Linux profile budget check
         run: scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv --max-cpu-pct 25 --max-rss-kb 300000 --max-startup-ms 5000
@@ -240,10 +240,10 @@ jobs:
           echo "==== /tmp/quillui-qa-upload/ contents ===="
           ls -la /tmp/quillui-qa-upload/
 
-      - name: Upload GTK QA artifacts
+      - name: Upload Linux backend QA artifacts
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: linux-gtk-qa
+          name: linux-backend-qa
           if-no-files-found: ignore
           path: /tmp/quillui-qa-upload/

@@ -201,7 +201,7 @@ GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run 
 Use `scripts/linux-swift-test.sh` instead of calling `swift test` directly on
 Linux. The wrapper applies the pinned SwiftOpenUI/OpenCombine checkout patch to
 the selected scratch directory before invoking SwiftPM, which keeps fresh CI
-scratch paths consistent with the GTK build scripts:
+scratch paths consistent with the backend build scripts:
 
 ```bash
 scripts/linux-swift-test.sh --scratch-path .build-linux
@@ -211,5 +211,13 @@ scripts/linux-swift-test.sh --scratch-path .build-linux --filter QuillDataSource
 GitHub Actions runs the public Linux path in `.github/workflows/linux-ci.yml`.
 It uses a Swift Linux container, installs GTK/Xvfb/ImageMagick/xdotool
 dependencies, fetches the upstream Enchanted fixture into `.upstream/enchanted`,
-runs Swift tests, compiles the generated upstream app, and uploads GTK
+runs Swift tests, compiles the generated upstream app, and uploads backend
 screenshot/log artifacts from the visual and interaction smokes.
+
+For a full local Linux validation pass, run:
+
+```bash
+scripts/linux-backend-check.sh
+```
+
+The legacy `scripts/linux-gtk-check.sh` path remains as a compatibility shim.

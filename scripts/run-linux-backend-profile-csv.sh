@@ -10,7 +10,7 @@ PRODUCTS=()
 
 usage() {
   echo "Usage: $(basename "$0") CSV [PRODUCT ...]" >&2
-  echo "       scripts/quillui-backend-products.sh gtk-apps | $(basename "$0") CSV" >&2
+  echo "       scripts/quillui-backend-products.sh backend-apps | $(basename "$0") CSV" >&2
 }
 
 case "${1:-}" in

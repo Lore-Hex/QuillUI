@@ -28,4 +28,4 @@ message: |
     ./swiftly init
 
     cd /Users/jperla/claude/QuillUI
-    scripts/linux-gtk-check.sh
+    scripts/linux-backend-check.sh

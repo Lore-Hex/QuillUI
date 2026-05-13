@@ -7,7 +7,7 @@ boot cost) and `cpu_pct_steady` (5s window starting 25s after,
 i.e. long-term render-loop cost).
 
 Current CI sources the app roster from
-`scripts/quillui-backend-products.sh gtk-apps`, the same list used by
+`scripts/quillui-backend-products.sh backend-apps`, the same list used by
 visual smoke coverage. The older `scripts/linux-gtk-app-products.sh`,
 `scripts/linux-gtk-profile.sh`, `scripts/run-linux-gtk-profile-csv.sh`,
 and `scripts/check-linux-gtk-profile-budget.sh` paths remain as

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 quillui_gtk_app_products() {
-  # User-facing Quill app executable products covered by the Linux GTK
-  # visual and profile parity loops. Support tools, generated external
-  # packages, smoke fixtures, and demos stay out of this roster.
+  # User-facing Quill app executable products first covered by the Linux GTK
+  # parity loops. Support tools, generated external packages, smoke fixtures,
+  # and demos stay out of this roster.
   printf '%s\n' \
     quill-enchanted \
     quill-enchanted-upstream-slice \
@@ -14,6 +14,12 @@ quillui_gtk_app_products() {
     quill-telegram \
     quill-iina \
     quill-wireguard
+}
+
+quillui_backend_app_products() {
+  # Canonical Linux backend app roster. It currently matches the GTK app
+  # matrix because app binaries select GTK/Qt through QUILLUI_BACKEND.
+  quillui_gtk_app_products
 }
 
 quillui_backend_smoke_products() {
@@ -50,7 +56,7 @@ quillui_backend_for_product() {
           echo "gtk"
           return
         fi
-      done < <(quillui_gtk_app_products)
+      done < <(quillui_backend_app_products)
       echo ""
       ;;
   esac
@@ -69,6 +75,7 @@ quillui_backend_products_usage() {
 Usage: quillui-backend-products.sh COMMAND [ARG]
 
 Commands:
+  backend-apps                    List user-facing app products in the backend parity matrix.
   gtk-apps                        List user-facing app products in the GTK parity matrix.
   smoke-products                  List backend launch smoke products.
   backend-for-product PRODUCT     Print the default requested backend for PRODUCT.
@@ -78,6 +85,9 @@ MSG
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   case "${1:-}" in
+    backend-apps)
+      quillui_backend_app_products
+      ;;
     gtk-apps)
       quillui_gtk_app_products
       ;;

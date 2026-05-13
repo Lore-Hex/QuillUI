@@ -9,8 +9,11 @@ struct LinuxGTKAppMatrixTests {
         let matrixScript = root.appendingPathComponent("scripts/quillui-backend-products.sh")
         let legacyMatrixScript = root.appendingPathComponent("scripts/linux-gtk-app-products.sh")
 
-        let result = try runScript(matrixScript, arguments: ["gtk-apps"])
+        let result = try runScript(matrixScript, arguments: ["backend-apps"])
         #expect(result.status == 0, Comment(rawValue: result.output))
+        let gtkResult = try runScript(matrixScript, arguments: ["gtk-apps"])
+        #expect(gtkResult.status == 0, Comment(rawValue: gtkResult.output))
+        #expect(gtkResult.output == result.output)
         let legacyResult = try runScript(legacyMatrixScript)
         #expect(legacyResult.status == 0, Comment(rawValue: legacyResult.output))
         #expect(legacyResult.output == result.output)
@@ -42,13 +45,19 @@ struct LinuxGTKAppMatrixTests {
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
-        #expect(workflow.contains("scripts/quillui-backend-products.sh gtk-apps"))
+        #expect(workflow.contains("scripts/quillui-backend-products.sh backend-apps"))
         #expect(workflow.contains("scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product; do"))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux"))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual.png\" \"$product\""))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-gtk.png\" \"$product\""))
-        #expect(workflow.contains("scripts/quillui-backend-products.sh gtk-apps | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
+        #expect(workflow.contains("scripts/quillui-backend-products.sh backend-apps | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv"))
+        #expect(workflow.contains("name: Swift Linux Backends"))
+        #expect(workflow.contains("Upload Linux backend QA artifacts"))
+        #expect(workflow.contains("name: linux-backend-qa"))
+        #expect(!workflow.contains("name: Swift GTK"))
+        #expect(!workflow.contains("Upload GTK QA artifacts"))
+        #expect(!workflow.contains("name: linux-gtk-qa"))
         #expect(!workflow.contains("scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile"))
         #expect(!workflow.contains("scripts/check-linux-gtk-profile-budget.sh /tmp/quillui-profile"))
         #expect(!workflow.contains("QuillSignal GTK visual smoke"))
@@ -56,16 +65,34 @@ struct LinuxGTKAppMatrixTests {
         #expect(!workflow.contains("scripts/linux-gtk-visual-check.sh"))
         #expect(!workflow.contains("< <("))
 
-        let gtkCheck = try String(
+        let backendCheck = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-backend-check.sh"),
+            encoding: .utf8
+        )
+        let legacyGtkCheck = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-gtk-check.sh"),
             encoding: .utf8
         )
-        #expect(gtkCheck.contains("scripts/quillui-backend-products.sh gtk-apps"))
-        #expect(gtkCheck.contains("for product in \"${APP_PRODUCTS[@]}\""))
-        #expect(gtkCheck.contains("swift build --scratch-path .build-linux --product \"$product\""))
-        #expect(gtkCheck.contains("run_smoke \"$product\""))
-        #expect(!gtkCheck.contains("run_smoke quill-enchanted"))
-        #expect(!gtkCheck.contains("run_smoke quill-enchanted-upstream-slice"))
+        let limaConfig = try String(
+            contentsOf: root.appendingPathComponent("scripts/lima-ubuntu-swift.yaml"),
+            encoding: .utf8
+        )
+        #expect(backendCheck.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
+        #expect(backendCheck.contains("quillui_install_linux_backend_smoke_packages"))
+        #expect(backendCheck.contains("done < <(quillui_backend_app_products)"))
+        #expect(backendCheck.contains("for product in \"${APP_PRODUCTS[@]}\""))
+        #expect(backendCheck.contains("swift build --scratch-path .build-linux --product \"$product\""))
+        #expect(backendCheck.contains("run_smoke \"$product\""))
+        #expect(backendCheck.contains("quillui_requested_backend_for_product \"$product\""))
+        #expect(backendCheck.contains("app_environment+=(QUILLUI_BACKEND=\"$requested_backend\")"))
+        #expect(backendCheck.contains("Linux backend build completed."))
+        #expect(!backendCheck.contains("install_packages()"))
+        #expect(!backendCheck.contains("run_smoke quill-enchanted"))
+        #expect(!backendCheck.contains("run_smoke quill-enchanted-upstream-slice"))
+        #expect(legacyGtkCheck.contains("linux-backend-check.sh"))
+        #expect(!legacyGtkCheck.contains("swift build --scratch-path .build-linux --product"))
+        #expect(limaConfig.contains("scripts/linux-backend-check.sh"))
+        #expect(!limaConfig.contains("scripts/linux-gtk-check.sh"))
 
         let profileScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-backend-profile.sh"),
@@ -104,6 +131,7 @@ struct LinuxGTKAppMatrixTests {
             encoding: .utf8
         )
         let backendProducts = try String(contentsOf: matrixScript, encoding: .utf8)
+        #expect(backendProducts.contains("quillui_backend_app_products()"))
         #expect(backendProducts.contains("quillui_alias_env()"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(legacyProfileScript.contains("linux-backend-profile.sh"))
