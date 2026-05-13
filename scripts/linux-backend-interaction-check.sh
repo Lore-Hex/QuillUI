@@ -217,6 +217,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ;;
     esac
 elif quillui_is_backend_smoke_product "$PRODUCT"; then
+    INTERACTION_MODE="$(quillui_normalize_backend_smoke_interaction_mode "$INTERACTION_MODE")"
     case "$INTERACTION_MODE" in
       sidebar-button)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 110))}"

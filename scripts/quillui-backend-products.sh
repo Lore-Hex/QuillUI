@@ -150,6 +150,49 @@ quillui_backend_smoke_interaction_modes() {
     banner-sheet
 }
 
+quillui_normalize_backend_smoke_interaction_mode() {
+  local candidate="$1"
+  local mode
+
+  case "$candidate" in
+    click)
+      echo "open-panel"
+      return 0
+      ;;
+  esac
+
+  while IFS= read -r mode; do
+    if [[ "$candidate" == "$mode" ]]; then
+      echo "$mode"
+      return 0
+    fi
+  done < <(quillui_backend_smoke_interaction_modes)
+
+  echo "Unsupported backend smoke interaction mode: $candidate" >&2
+  return 64
+}
+
+quillui_backend_smoke_interaction_verify_product() {
+  local product="$1"
+  local mode
+
+  mode="$(quillui_normalize_backend_smoke_interaction_mode "$2")" || return $?
+  case "$mode" in
+    nested-sheet|sidebar-sheet|banner-sheet)
+      printf '%s-sheet\n' "$product"
+      ;;
+    sidebar-button)
+      printf '%s-sidebar\n' "$product"
+      ;;
+    banner-button)
+      printf '%s-banner\n' "$product"
+      ;;
+    open-panel)
+      printf '%s-open\n' "$product"
+      ;;
+  esac
+}
+
 quillui_backend_smoke_interaction_matrix() {
   local product
   local backend
@@ -164,6 +207,19 @@ quillui_backend_smoke_interaction_matrix() {
       printf '%s\t%s\t%s\n' "$product" "$backend" "$mode"
     done < <(quillui_backend_smoke_interaction_modes)
   done < <(quillui_backend_smoke_products)
+}
+
+quillui_backend_smoke_interaction_verify_matrix() {
+  local product
+  local backend
+  local mode
+  local verify_product
+
+  while IFS=$'\t' read -r product backend mode; do
+    [[ -n "$product" && -n "$backend" && -n "$mode" ]] || continue
+    verify_product="$(quillui_backend_smoke_interaction_verify_product "$product" "$mode")" || return $?
+    printf '%s\t%s\t%s\t%s\n' "$product" "$backend" "$mode" "$verify_product"
+  done < <(quillui_backend_smoke_interaction_matrix)
 }
 
 quillui_backend_profile_products() {
@@ -342,6 +398,11 @@ Commands:
   smoke-matrix                    List PRODUCT<TAB>BACKEND rows for backend launch smoke products.
   smoke-interaction-modes         List interaction modes for backend launch smoke products.
   smoke-interaction-matrix        List PRODUCT<TAB>BACKEND<TAB>MODE rows for backend launch interaction smokes.
+  smoke-interaction-verify-matrix List PRODUCT<TAB>BACKEND<TAB>MODE<TAB>VERIFY_PRODUCT rows.
+  normalize-smoke-interaction-mode MODE
+                                  Print the canonical backend launch interaction mode.
+  smoke-interaction-verify-product PRODUCT MODE
+                                  Print the screenshot verifier product for a launch mode.
   profile-products                List app and launch-smoke products for profile budgets.
   profile-matrix                  List PRODUCT<TAB>BACKEND rows for profile budgets.
   normalize-backend BACKEND       Print the canonical backend identifier for a known backend alias.
@@ -388,6 +449,23 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     smoke-interaction-matrix)
       quillui_backend_smoke_interaction_matrix
+      ;;
+    smoke-interaction-verify-matrix)
+      quillui_backend_smoke_interaction_verify_matrix
+      ;;
+    normalize-smoke-interaction-mode)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_normalize_backend_smoke_interaction_mode "$2"
+      ;;
+    smoke-interaction-verify-product)
+      if [[ $# -ne 3 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_backend_smoke_interaction_verify_product "$2" "$3"
       ;;
     profile-products)
       quillui_backend_profile_products

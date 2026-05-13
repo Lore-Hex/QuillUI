@@ -198,6 +198,9 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_smoke_matrix()"))
         #expect(backendProducts.contains("quillui_backend_smoke_interaction_modes()"))
         #expect(backendProducts.contains("quillui_backend_smoke_interaction_matrix()"))
+        #expect(backendProducts.contains("quillui_normalize_backend_smoke_interaction_mode()"))
+        #expect(backendProducts.contains("quillui_backend_smoke_interaction_verify_product()"))
+        #expect(backendProducts.contains("quillui_backend_smoke_interaction_verify_matrix()"))
         #expect(backendProducts.contains("open-panel"))
         #expect(backendProducts.contains("banner-sheet"))
         #expect(backendProducts.contains("quillui_backend_profile_products()"))
@@ -271,6 +274,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeLib.contains("quillui_place_reference_window()"))
         #expect(smokeLib.contains("quillui_backend_visual_verify_product()"))
         #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
+        #expect(smokeLib.contains("quillui_backend_smoke_interaction_verify_product \"$product\" \"$interaction_mode\""))
         #expect(smokeLib.contains("quillui_append_backend_launch_environment()"))
         #expect(smokeLib.contains("quillui_append_backend_runtime_environment()"))
         #expect(smokeLib.contains("quillui_append_environment_assignment()"))
@@ -473,6 +477,45 @@ struct LinuxBackendAppMatrixTests {
                     expectedSmokeInteractionModes.map { "\(row)\t\($0)" }
                 }
         )
+
+        let expectedSmokeInteractionVerifyMatrix = expectedSmokeMatrix.flatMap { row in
+            let product = row.split(separator: "\t", omittingEmptySubsequences: false).first.map(String.init) ?? ""
+            return expectedSmokeInteractionModes.map { mode in
+                let suffix: String
+                switch mode {
+                case "nested-sheet", "sidebar-sheet", "banner-sheet":
+                    suffix = "sheet"
+                case "sidebar-button":
+                    suffix = "sidebar"
+                case "banner-button":
+                    suffix = "banner"
+                default:
+                    suffix = "open"
+                }
+                return "\(row)\t\(mode)\t\(product)-\(suffix)"
+            }
+        }
+        let smokeInteractionVerifyMatrix = try runScript(script, arguments: ["smoke-interaction-verify-matrix"])
+        #expect(smokeInteractionVerifyMatrix.status == 0, Comment(rawValue: smokeInteractionVerifyMatrix.output))
+        #expect(
+            smokeInteractionVerifyMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
+                == expectedSmokeInteractionVerifyMatrix
+        )
+
+        let normalizedClickMode = try runScript(script, arguments: ["normalize-smoke-interaction-mode", "click"])
+        #expect(normalizedClickMode.status == 0, Comment(rawValue: normalizedClickMode.output))
+        #expect(normalizedClickMode.output.trimmingCharacters(in: .whitespacesAndNewlines) == "open-panel")
+
+        let unknownMode = try runScript(script, arguments: ["normalize-smoke-interaction-mode", "unknown-mode"])
+        #expect(unknownMode.status != 0)
+        #expect(unknownMode.output.contains("Unsupported backend smoke interaction mode: unknown-mode"))
+
+        let sidebarVerifier = try runScript(
+            script,
+            arguments: ["smoke-interaction-verify-product", "quill-qt-interaction-smoke", "sidebar-button"]
+        )
+        #expect(sidebarVerifier.status == 0, Comment(rawValue: sidebarVerifier.output))
+        #expect(sidebarVerifier.output.trimmingCharacters(in: .whitespacesAndNewlines) == "quill-qt-interaction-smoke-sidebar")
 
         let profileProducts = try runScript(script, arguments: ["profile-products"])
         #expect(profileProducts.status == 0, Comment(rawValue: profileProducts.output))

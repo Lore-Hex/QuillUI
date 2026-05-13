@@ -171,20 +171,7 @@ quillui_backend_interaction_verify_product() {
         ;;
     esac
   elif quillui_is_backend_smoke_product "$product"; then
-    case "$interaction_mode" in
-      nested-sheet|sidebar-sheet|banner-sheet)
-        verify_product="${product}-sheet"
-        ;;
-      sidebar-button)
-        verify_product="${product}-sidebar"
-        ;;
-      banner-button)
-        verify_product="${product}-banner"
-        ;;
-      open-panel|*)
-        verify_product="${product}-open"
-        ;;
-    esac
+    verify_product="$(quillui_backend_smoke_interaction_verify_product "$product" "$interaction_mode")" || return $?
   fi
 
   if [[ -n "${QUILLUI_BACKEND_VERIFY_PRODUCT:-}" ]]; then
