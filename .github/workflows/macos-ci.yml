@@ -41,6 +41,15 @@ jobs:
       - name: Build QuillUI core library
         run: swift build --target QuillUI
 
+      # Keep the portable backend facade modules compile-gated on
+      # Darwin too. Linux CI owns the native smoke executables because
+      # those targets are Linux-only in Package.swift.
+      - name: Build QuillUIGtk facade
+        run: swift build --target QuillUIGtk
+
+      - name: Build QuillUIQt facade
+        run: swift build --target QuillUIQt
+
       # QuillChatKit holds the shared chat chrome (ChatBubble,
       # ChatRow, ChatTimeline) consumed by both QuillSignal and
       # QuillTelegram. Hard-gated so a regression here surfaces

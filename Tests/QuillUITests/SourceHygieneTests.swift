@@ -327,6 +327,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
+        let macOSWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/macos-ci.yml"),
+            encoding: .utf8
+        )
 
         #expect(manifest.contains(".library(name: \"QuillUIGtk\", targets: [\"QuillUIGtk\"])"))
         #expect(manifest.contains(".library(name: \"QuillUIQt\", targets: [\"QuillUIQt\"])"))
@@ -389,6 +393,10 @@ struct SourceHygieneTests {
         #expect(!qtBackend.contains("runtimeStatus"))
         #expect(!qtBackend.contains("static func run<A: App>"))
         #expect(!qtBackend.contains("QuillQtBackend.run(appType)"))
+        #expect(macOSWorkflow.contains("swift build --target QuillUIGtk"))
+        #expect(macOSWorkflow.contains("swift build --target QuillUIQt"))
+        #expect(!macOSWorkflow.contains("swift build --target QuillGtkInteractionSmoke"))
+        #expect(!macOSWorkflow.contains("swift build --target QuillQtInteractionSmoke"))
 
         #expect(backendScript.contains("REQUESTED_BACKEND=\"${3:-${QUILLUI_BACKEND:-}}\""))
         #expect(backendScript.contains("quillui_export_backend_argument \"${3:-}\""))
