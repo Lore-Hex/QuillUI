@@ -68,19 +68,12 @@ app_environment=()
 quillui_append_backend_launch_environment app_environment "$PRODUCT" "$DISPLAY_ID"
 if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   quill_chat_reference_home="$OUTPUT_DIR/quill-chat-linux-reference-home"
-  quillui_seed_quill_chat_reference_data "$quill_chat_reference_home"
-  app_environment+=(
-    HOME="$quill_chat_reference_home"
-    QUILLDATA_HOME="$quill_chat_reference_home"
-    QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH="$reference_window_width"
-    QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT="$reference_window_height"
-    QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL="$hide_window_menubar_label"
-    QUILLUI_GTK_DEFAULT_WINDOW_WIDTH="$reference_window_width"
-    QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT="$reference_window_height"
-    QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL="$hide_window_menubar_label"
-    QUILLUI_QUILL_CHAT_REFERENCE_MODE=1
-    QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1
-  )
+  quillui_append_quill_chat_reference_environment \
+    app_environment \
+    "$quill_chat_reference_home" \
+    "$reference_window_width" \
+    "$reference_window_height" \
+    "$hide_window_menubar_label"
 fi
 env "${app_environment[@]}" "$APP_EXECUTABLE" >/tmp/quillui-backend-interaction-app.log 2>&1 &
 app_pid=$!

@@ -56,6 +56,26 @@ quillui_append_backend_launch_environment() {
   fi
 }
 
+quillui_append_quill_chat_reference_environment() {
+  local output_array="$1"
+  local reference_home="$2"
+  local reference_window_width="$3"
+  local reference_window_height="$4"
+  local hide_window_menubar_label="$5"
+
+  quillui_seed_quill_chat_reference_data "$reference_home"
+  quillui_append_environment_assignment "$output_array" "HOME=$reference_home"
+  quillui_append_environment_assignment "$output_array" "QUILLDATA_HOME=$reference_home"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH=$reference_window_width"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT=$reference_window_height"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=$reference_window_width"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT=$reference_window_height"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"
+}
+
 quillui_install_linux_backend_smoke_packages() {
   if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
     return

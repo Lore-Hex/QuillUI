@@ -393,6 +393,10 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/linux-backend-visual-check.sh"),
             encoding: .utf8
         )
+        let smokeLib = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-linux-backend-smoke-lib.sh"),
+            encoding: .utf8
+        )
         let legacyVisualScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-gtk-visual-check.sh"),
             encoding: .utf8
@@ -401,10 +405,11 @@ struct QuillDataSourceLoweringTests {
         #expect(visualScript.contains("QUILLUI_BACKEND_MAC_REFERENCE"))
         #expect(visualScript.contains("${reference_window_width}x${reference_window_height}x24"))
         #expect(visualScript.contains("reference_window_width=\"${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}\""))
-        #expect(visualScript.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH=\"$reference_window_width\""))
-        #expect(visualScript.contains("QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=\"$reference_window_width\""))
-        #expect(visualScript.contains("QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=\"$hide_window_menubar_label\""))
-        #expect(visualScript.contains("QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL=\"$hide_window_menubar_label\""))
+        #expect(visualScript.contains("quillui_append_quill_chat_reference_environment"))
+        #expect(smokeLib.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH=$reference_window_width"))
+        #expect(smokeLib.contains("QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=$reference_window_width"))
+        #expect(smokeLib.contains("QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"))
+        #expect(smokeLib.contains("QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"))
         #expect(visualScript.contains("DISPLAY_ID=\"$(quillui_normalize_x_display_id \"${QUILLUI_BACKEND_VISUAL_DISPLAY:-:94}\")\""))
         #expect(visualScript.contains("VERIFY_PRODUCT=\"${QUILLUI_BACKEND_VERIFY_PRODUCT:-$PRODUCT}\""))
         #expect(!visualScript.contains("${QUILLUI_GTK_MAC_REFERENCE:-0}"))
@@ -412,8 +417,8 @@ struct QuillDataSourceLoweringTests {
         #expect(!visualScript.contains("${QUILLUI_GTK_VISUAL_DISPLAY:-"))
         #expect(!visualScript.contains("${QUILLUI_GTK_SCREEN_SIZE:-"))
         #expect(!visualScript.contains("${QUILLUI_GTK_VERIFY_PRODUCT:-"))
-        #expect(visualScript.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"))
-        #expect(visualScript.contains("seed-quill-chat-reference-data.py"))
+        #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"))
+        #expect(smokeLib.contains("seed-quill-chat-reference-data.py"))
         #expect(visualScript.contains("xdotool search --onlyvisible --name '.*'"))
         #expect(visualScript.contains("capture_window=\"$window_id\""))
         #expect(visualScript.contains("quill-chat-linux-mac-reference"))
@@ -453,6 +458,10 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"),
             encoding: .utf8
         )
+        let smokeLib = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-linux-backend-smoke-lib.sh"),
+            encoding: .utf8
+        )
         let legacyInteractionScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-gtk-interaction-check.sh"),
             encoding: .utf8
@@ -462,7 +471,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("QUILLUI_BACKEND_FOCUS_PRIME"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_VERIFY_PRODUCT"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH"))
-        #expect(interactionScript.contains("QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=\"$reference_window_width\""))
+        #expect(interactionScript.contains("quillui_append_quill_chat_reference_environment"))
+        #expect(smokeLib.contains("QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=$reference_window_width"))
         #expect(!interactionScript.contains("${QUILLUI_GTK_INTERACTION_MODE:-}"))
         #expect(!interactionScript.contains("${QUILLUI_GTK_FOCUS_PRIME"))
         #expect(!interactionScript.contains("${QUILLUI_GTK_CLICK_X:-"))
@@ -487,7 +497,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("markdown-transcript-selection"))
         #expect(interactionScript.contains("long-transcript-selection"))
         #expect(interactionScript.contains("prompt-send"))
-        #expect(interactionScript.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"))
+        #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_TYPE_TEXT"))
         #expect(interactionScript.contains("quill-chat-linux-mac-reference-composer-typed"))
         #expect(interactionScript.contains("quill-chat-linux-mac-reference-settings-panel"))
