@@ -91,6 +91,7 @@ fi
 startup_start_ms=$(date +%s%3N)
 app_environment=()
 quillui_append_backend_launch_environment app_environment "$PRODUCT" "$display_id"
+quillui_append_backend_layout_debug_environment app_environment "${QUILLUI_BACKEND_LAYOUT_DEBUG:-}"
 quillui_append_quill_chat_reference_environment_if_needed \
     app_environment \
     "$PRODUCT" \

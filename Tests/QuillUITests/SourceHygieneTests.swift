@@ -373,6 +373,7 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("quillui_seed_quill_chat_reference_data()"))
         #expect(backendScript.contains("quillui_resolve_linux_backend_executable \"$PRODUCT\" APP_EXECUTABLE"))
         #expect(backendScript.contains("quillui_append_backend_launch_environment app_environment \"$PRODUCT\" \"$DISPLAY_ID\""))
+        #expect(backendScript.contains("quillui_append_backend_layout_debug_environment app_environment \"${QUILLUI_BACKEND_LAYOUT_DEBUG:-}\""))
         #expect(backendScript.contains("quillui_start_xvfb \"$DISPLAY_ID\" \"$SCREEN_SIZE\" /tmp/quillui-xvfb-interaction.log xvfb_pid"))
         #expect(backendScript.contains("quillui_stop_process_if_running \"${app_pid:-}\""))
         #expect(backendScript.contains("quillui_stop_process_if_running \"$xvfb_pid\""))
