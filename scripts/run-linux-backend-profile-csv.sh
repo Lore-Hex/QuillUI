@@ -91,8 +91,10 @@ quillui_profile_product_was_built() {
       continue
     fi
     label="$product"
+    profiler_arguments=("$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS")
     if [[ -n "$backend" ]]; then
       label="$product@$backend"
+      profiler_arguments+=("$backend")
     fi
     row_path="$TMP_DIR/${label//[^A-Za-z0-9_.-]/_}.csv"
     profiler_environment=()
@@ -102,12 +104,12 @@ quillui_profile_product_was_built() {
     if quillui_profile_product_was_built "$product"; then
       profiler_environment+=("QUILLUI_BACKEND_SKIP_BUILD=1")
     fi
-    status=0
-    if [[ ${#profiler_environment[@]} -gt 0 ]]; then
-      env "${profiler_environment[@]}" "$PROFILE_SCRIPT" "$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS" >"$row_path" || status=$?
-    else
-      "$PROFILE_SCRIPT" "$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS" >"$row_path" || status=$?
+    profile_command=(env)
+    if (( ${#profiler_environment[@]} > 0 )); then
+      profile_command+=("${profiler_environment[@]}")
     fi
+    status=0
+    "${profile_command[@]}" "$PROFILE_SCRIPT" "${profiler_arguments[@]}" >"$row_path" || status=$?
     if [[ "$status" -eq 0 ]] && ! quillui_profile_product_was_built "$product"; then
       BUILT_PROFILE_PRODUCTS_LIST="${BUILT_PROFILE_PRODUCTS_LIST}${product}"$'\n'
     fi

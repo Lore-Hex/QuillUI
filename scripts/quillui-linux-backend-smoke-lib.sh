@@ -6,9 +6,6 @@ QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR="$(
 
 source "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh"
 
-quillui_alias_env QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_GTK_APP_EXECUTABLE QUILLUI_QT_APP_EXECUTABLE
-quillui_alias_env QUILLUI_BACKEND_SKIP_BUILD QUILLUI_GTK_SKIP_BUILD QUILLUI_QT_SKIP_BUILD
-
 quillui_normalize_x_display_id() {
   local value="$1"
   if [[ -z "$value" ]]; then
@@ -18,6 +15,20 @@ quillui_normalize_x_display_id() {
   else
     echo ":$value"
   fi
+}
+
+quillui_export_backend_argument() {
+  local requested_backend="${1:-}"
+
+  if [[ -n "$requested_backend" ]]; then
+    QUILLUI_BACKEND="$requested_backend"
+    export QUILLUI_BACKEND
+  fi
+}
+
+quillui_alias_backend_build_env() {
+  quillui_alias_env QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_GTK_APP_EXECUTABLE QUILLUI_QT_APP_EXECUTABLE
+  quillui_alias_env QUILLUI_BACKEND_SKIP_BUILD QUILLUI_GTK_SKIP_BUILD QUILLUI_QT_SKIP_BUILD
 }
 
 quillui_is_quill_chat_mac_reference_product() {

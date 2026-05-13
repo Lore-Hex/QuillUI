@@ -15,7 +15,7 @@
 #                      cost after the boot cost has finished.
 #
 # Usage:
-#   scripts/linux-backend-profile.sh <product-name> [settle-seconds] [steady-delay]
+#   scripts/linux-backend-profile.sh <product-name> [settle-seconds] [steady-delay] [backend]
 #
 # Emits one CSV line on stdout:
 #   product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
@@ -24,15 +24,21 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="$ROOT_DIR/.qa"
-source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
-quillui_alias_backend_profile_env
 
 PRODUCT="${1:-}"
+REQUESTED_BACKEND="${4:-${QUILLUI_BACKEND:-}}"
+
+source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
+
+quillui_export_backend_argument "${4:-}"
+quillui_alias_backend_build_env
+quillui_alias_backend_profile_env
+
 SETTLE_SECONDS="${2:-${QUILLUI_BACKEND_PROFILE_SETTLE:-5}}"
 STEADY_DELAY_SECONDS="${3:-${QUILLUI_BACKEND_PROFILE_STEADY:-20}}"
 
 if [[ -z "$PRODUCT" ]]; then
-    echo "Usage: $0 <product-name> [settle-seconds] [steady-delay]" >&2
+    echo "Usage: $0 <product-name> [settle-seconds] [steady-delay] [backend]" >&2
     exit 64
 fi
 
@@ -97,7 +103,8 @@ quillui_append_backend_runtime_environment \
     "$OUTPUT_DIR" \
     "$reference_window_width" \
     "$reference_window_height" \
-    "$hide_window_menubar_label"
+    "$hide_window_menubar_label" \
+    "$REQUESTED_BACKEND"
 env "${app_environment[@]}" "$exe" >/tmp/quillui-profile-app.log 2>&1 &
 app_pid=$!
 

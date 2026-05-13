@@ -64,14 +64,14 @@ struct LinuxBackendAppMatrixTests {
         #expect(workflow.contains("Quill app backend interaction smokes"))
         #expect(workflow.contains("backend-renders end-to-end"))
         #expect(!workflow.contains("GTK-renders end-to-end"))
-        #expect(workflow.contains("QUILLUI_BACKEND=\"$backend\" scripts/linux-backend-visual-check.sh \".qa/${product}-generated-${backend}.png\" \"$product\""))
-        #expect(workflow.contains("QUILLUI_BACKEND=\"$backend\" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh \".qa/${product}-generated-${backend}.png\" \"$product\""))
-        #expect(workflow.contains("QUILLUI_BACKEND=\"$backend\" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh \".qa/${product}-toolbar-menu-${backend}.png\" \"$product\""))
+        #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-generated-${backend}.png\" \"$product\" \"$backend\""))
+        #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh \".qa/${product}-generated-${backend}.png\" \"$product\" \"$backend\""))
+        #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh \".qa/${product}-toolbar-menu-${backend}.png\" \"$product\" \"$backend\""))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual.png\" \"$product\""))
         #expect(workflow.contains("built_products=\" \""))
-        #expect(workflow.contains("QUILLUI_BACKEND=\"$backend\" scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\""))
-        #expect(workflow.contains("QUILLUI_BACKEND=\"$backend\" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\""))
-        #expect(workflow.contains("QUILLUI_BACKEND=\"$backend\" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh \".qa/${product}-interaction-${backend}.png\" \"$product\""))
+        #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\" \"$backend\""))
+        #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\" \"$backend\""))
+        #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh \".qa/${product}-interaction-${backend}.png\" \"$product\" \"$backend\""))
         #expect(workflow.contains("scripts/quillui-backend-products.sh profile-matrix | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("name: Swift Linux Backends"))
@@ -200,11 +200,19 @@ struct LinuxBackendAppMatrixTests {
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(profileScript.contains("quillui_install_linux_backend_smoke_packages"))
         #expect(profileScript.contains("quillui_resolve_linux_backend_executable \"$PRODUCT\" exe"))
+        #expect(profileScript.contains("REQUESTED_BACKEND=\"${4:-${QUILLUI_BACKEND:-}}\""))
+        #expect(profileScript.contains("quillui_export_backend_argument \"${4:-}\""))
+        #expect(profileScript.contains("quillui_alias_backend_build_env"))
         #expect(!profileScript.contains("patch-swiftopenui-gtk-css.sh"))
         #expect(!profileScript.contains("swift build --scratch-path \"$ROOT_DIR/.build-linux\" --product \"$PRODUCT\""))
         #expect(legacyProfileScript.contains("linux-backend-profile.sh"))
         #expect(visualScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
+        #expect(visualScript.contains("REQUESTED_BACKEND=\"${3:-${QUILLUI_BACKEND:-}}\""))
+        #expect(visualScript.contains("quillui_export_backend_argument \"${3:-}\""))
+        #expect(visualScript.contains("quillui_alias_backend_build_env"))
         #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(smokeLib.contains("quillui_export_backend_argument()"))
+        #expect(smokeLib.contains("quillui_alias_backend_build_env()"))
         #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_GTK_APP_EXECUTABLE QUILLUI_QT_APP_EXECUTABLE"))
         #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_SKIP_BUILD QUILLUI_GTK_SKIP_BUILD QUILLUI_QT_SKIP_BUILD"))
         #expect(smokeLib.contains("quillui_assign_output()"))
@@ -246,6 +254,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(profileScript.contains("quillui_append_backend_runtime_environment"))
         #expect(profileScript.contains("\"$PRODUCT\""))
         #expect(profileScript.contains("\"$display_id\""))
+        #expect(profileScript.contains("\"$REQUESTED_BACKEND\""))
         #expect(profileScript.contains("quillui_normalize_x_display_id \"${QUILLUI_BACKEND_PROFILE_DISPLAY:-95}\""))
         #expect(profileScript.contains("quillui_backend_reference_window_defaults"))
         #expect(!profileScript.contains("reference_window_width=\"${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}\""))
@@ -274,6 +283,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(visualScript.contains("quillui_append_backend_runtime_environment"))
         #expect(visualScript.contains("\"$PRODUCT\""))
         #expect(visualScript.contains("\"$DISPLAY_ID\""))
+        #expect(visualScript.contains("\"$REQUESTED_BACKEND\""))
         #expect(visualScript.contains("quillui_backend_visual_verify_product \"$PRODUCT\" VERIFY_PRODUCT"))
         #expect(!visualScript.contains("${QUILLUI_GTK_VISUAL_DISPLAY:-"))
         #expect(!visualScript.contains("${QUILLUI_GTK_VERIFY_PRODUCT:-"))
@@ -292,6 +302,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(csvRunner.contains("quillui_profile_product_was_built()"))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND_SKIP_BUILD=1\")"))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND=$backend\")"))
+        #expect(csvRunner.contains("profiler_arguments+=(\"$backend\")"))
+        #expect(csvRunner.contains("profile_command=(env)"))
+        #expect(csvRunner.contains("profile_command+=(\"${profiler_environment[@]}\")"))
+        #expect(csvRunner.contains("\"${profile_command[@]}\" \"$PROFILE_SCRIPT\" \"${profiler_arguments[@]}\""))
         #expect(csvRunner.contains("awk -v label=\"$label\""))
         #expect(legacyCSVRunner.contains("run-linux-backend-profile-csv.sh"))
         #expect(budgetScript.contains("QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT"))
@@ -440,6 +454,22 @@ struct LinuxBackendAppMatrixTests {
         printf 'generated-entry=%s\\n' "$QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY"
         printf 'generated-entry-gtk=%s\\n' "$QUILLUI_GENERATED_INCLUDE_GTK_BACKEND"
 
+        unset QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_BACKEND_SKIP_BUILD
+        unset QUILLUI_GTK_APP_EXECUTABLE QUILLUI_QT_APP_EXECUTABLE
+        unset QUILLUI_GTK_SKIP_BUILD QUILLUI_QT_SKIP_BUILD
+        QUILLUI_BACKEND=gtk
+        QUILLUI_GTK_APP_EXECUTABLE=/tmp/gtk-app
+        QUILLUI_QT_APP_EXECUTABLE=/tmp/qt-app
+        QUILLUI_GTK_SKIP_BUILD=0
+        QUILLUI_QT_SKIP_BUILD=1
+        export QUILLUI_BACKEND QUILLUI_GTK_APP_EXECUTABLE QUILLUI_QT_APP_EXECUTABLE QUILLUI_GTK_SKIP_BUILD QUILLUI_QT_SKIP_BUILD
+        source "\(root.path)/scripts/quillui-linux-backend-smoke-lib.sh"
+        quillui_export_backend_argument qt
+        quillui_alias_backend_build_env
+        printf 'build-backend=%s\\n' "$QUILLUI_BACKEND"
+        printf 'build-exe=%s\\n' "$QUILLUI_BACKEND_APP_EXECUTABLE"
+        printf 'build-skip=%s\\n' "$QUILLUI_BACKEND_SKIP_BUILD"
+
         """.write(to: probe, atomically: true, encoding: .utf8)
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: probe.path)
 
@@ -457,6 +487,9 @@ struct LinuxBackendAppMatrixTests {
         cpu-qt=11
         generated-entry=1
         generated-entry-gtk=1
+        build-backend=qt
+        build-exe=/tmp/qt-app
+        build-skip=1
 
         """)
     }
@@ -599,16 +632,20 @@ struct LinuxBackendAppMatrixTests {
         try """
         #!/usr/bin/env bash
         product="$1"
+        backend="${4:-}"
         if [[ "$product" != "quill-icecubes" ]]; then
           exit 41
         fi
-        if [[ "${QUILLUI_BACKEND:-}" == "gtk" && "${QUILLUI_BACKEND_SKIP_BUILD:-0}" != "0" ]]; then
+        if [[ "$backend" != "${QUILLUI_BACKEND:-}" ]]; then
+          exit 44
+        fi
+        if [[ "$backend" == "gtk" && "${QUILLUI_BACKEND_SKIP_BUILD:-0}" != "0" ]]; then
           exit 42
         fi
-        if [[ "${QUILLUI_BACKEND:-}" == "qt" && "${QUILLUI_BACKEND_SKIP_BUILD:-0}" != "1" ]]; then
+        if [[ "$backend" == "qt" && "${QUILLUI_BACKEND_SKIP_BUILD:-0}" != "1" ]]; then
           exit 43
         fi
-        if [[ "${QUILLUI_BACKEND:-}" != "gtk" && "${QUILLUI_BACKEND:-}" != "qt" ]]; then
+        if [[ "$backend" != "gtk" && "$backend" != "qt" ]]; then
           exit 42
         fi
         echo "$product,1,2,3,${QUILLUI_BACKEND_SKIP_BUILD:-0}.0,5.0,ok"

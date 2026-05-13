@@ -5,10 +5,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="$ROOT_DIR/.qa"
 SCREENSHOT_PATH="${1:-$OUTPUT_DIR/quill-enchanted-backend.png}"
 PRODUCT="${2:-quill-enchanted}"
+REQUESTED_BACKEND="${3:-${QUILLUI_BACKEND:-}}"
 APP_EXECUTABLE=""
 
 source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
+quillui_export_backend_argument "${3:-}"
+quillui_alias_backend_build_env
 quillui_alias_backend_visual_env
 
 quillui_install_linux_backend_smoke_packages
@@ -56,7 +59,8 @@ quillui_append_backend_runtime_environment \
   "$OUTPUT_DIR" \
   "$reference_window_width" \
   "$reference_window_height" \
-  "$hide_window_menubar_label"
+  "$hide_window_menubar_label" \
+  "$REQUESTED_BACKEND"
 env "${app_environment[@]}" "$APP_EXECUTABLE" >/tmp/quillui-backend-app.log 2>&1 &
 app_pid=$!
 

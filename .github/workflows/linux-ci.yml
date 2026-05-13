@@ -90,10 +90,10 @@ jobs:
             [ -n "$backend" ] || continue
             echo "==> Generated Enchanted visual smoke: $product ($backend requested)"
             if [ "$first" = "1" ]; then
-              QUILLUI_BACKEND="$backend" scripts/linux-backend-visual-check.sh ".qa/${product}-generated-${backend}.png" "$product"
+              scripts/linux-backend-visual-check.sh ".qa/${product}-generated-${backend}.png" "$product" "$backend"
               first=0
             else
-              QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh ".qa/${product}-generated-${backend}.png" "$product"
+              QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh ".qa/${product}-generated-${backend}.png" "$product" "$backend"
             fi
           done
 
@@ -118,7 +118,7 @@ jobs:
             [ -n "$product" ] || continue
             [ -n "$backend" ] || continue
             echo "==> Generated Enchanted toolbar interaction smoke: $product ($backend requested)"
-            QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh ".qa/${product}-toolbar-menu-${backend}.png" "$product"
+            QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh ".qa/${product}-toolbar-menu-${backend}.png" "$product" "$backend"
           done
 
       # Per-app backend visual smoke. The backend product/backend roster lives
@@ -142,10 +142,10 @@ jobs:
             echo "==> Backend visual smoke: $product ($backend requested)"
             case "$built_products" in
               *" $product "*)
-                QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product"
+                QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product" "$backend"
                 ;;
               *)
-                QUILLUI_BACKEND="$backend" scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product"
+                scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product" "$backend"
                 built_products="${built_products}${product} "
                 ;;
             esac
@@ -163,7 +163,7 @@ jobs:
             [ -n "$product" ] || continue
             [ -n "$backend" ] || continue
             echo "==> Backend interaction smoke: $product ($backend requested)"
-            QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh ".qa/${product}-interaction-${backend}.png" "$product"
+            QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh ".qa/${product}-interaction-${backend}.png" "$product" "$backend"
           done
 
       # Linux profile baseline (CP106/CP149/CP152). For each Quill app,
