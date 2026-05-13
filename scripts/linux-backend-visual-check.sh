@@ -22,17 +22,13 @@ if [[ ! -x "$APP_EXECUTABLE" ]]; then
   exit 1
 fi
 
-is_quill_chat_mac_reference() {
-  [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_BACKEND_MAC_REFERENCE:-0}" == "1" ]]
-}
-
 reference_window_width="${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}"
 reference_window_height="${QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT:-1380}"
 hide_window_menubar_label="${QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL:-1}"
 
 DISPLAY_ID="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_VISUAL_DISPLAY:-:94}")"
 SCREEN_SIZE="${QUILLUI_BACKEND_SCREEN_SIZE:-1180x760x24}"
-if is_quill_chat_mac_reference; then
+if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   SCREEN_SIZE="${QUILLUI_BACKEND_SCREEN_SIZE:-${reference_window_width}x${reference_window_height}x24}"
 fi
 Xvfb "$DISPLAY_ID" -screen 0 "$SCREEN_SIZE" >/tmp/quillui-xvfb.log 2>&1 &
@@ -62,7 +58,7 @@ if [[ -n "${QUILLUI_BACKEND_LAYOUT_DEBUG:-}" ]]; then
     QUILLUI_GTK_LAYOUT_DEBUG="$QUILLUI_BACKEND_LAYOUT_DEBUG"
   )
 fi
-if is_quill_chat_mac_reference; then
+if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   quill_chat_reference_home="$OUTPUT_DIR/quill-chat-linux-reference-home"
   quillui_seed_quill_chat_reference_data "$quill_chat_reference_home"
   app_environment+=(
@@ -83,7 +79,7 @@ app_pid=$!
 
 sleep 4
 capture_window="root"
-if is_quill_chat_mac_reference; then
+if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   window_id="$(
     DISPLAY="$DISPLAY_ID" xdotool search --onlyvisible --name 'Quill Chat' 2>/dev/null | head -n 1 || true
   )"
@@ -102,7 +98,7 @@ fi
 DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 
 VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-$PRODUCT}"
-if is_quill_chat_mac_reference; then
+if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference}"
 fi
 "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"

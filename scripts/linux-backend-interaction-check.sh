@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="$ROOT_DIR/.qa"
-SCREENSHOT_PATH="${1:-$OUTPUT_DIR/quill-gtk-interaction-smoke-open.png}"
+SCREENSHOT_PATH="${1:-$OUTPUT_DIR/quill-backend-interaction-smoke-open.png}"
 PRODUCT="${2:-quill-gtk-interaction-smoke}"
 APP_EXECUTABLE=""
 
@@ -36,17 +36,13 @@ if ! command -v xdotool >/dev/null 2>&1; then
   exit 69
 fi
 
-is_quill_chat_mac_reference() {
-  [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_BACKEND_MAC_REFERENCE:-0}" == "1" ]]
-}
-
 reference_window_width="${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}"
 reference_window_height="${QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT:-1380}"
 hide_window_menubar_label="${QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL:-1}"
 
 DISPLAY_ID="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_INTERACTION_DISPLAY:-:95}")"
 SCREEN_SIZE="${QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE:-1180x760x24}"
-if is_quill_chat_mac_reference; then
+if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   SCREEN_SIZE="${QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE:-${reference_window_width}x${reference_window_height}x24}"
 fi
 screen_width="${SCREEN_SIZE%%x*}"
@@ -73,7 +69,7 @@ REQUESTED_BACKEND="$(quillui_requested_backend_for_product "$PRODUCT")"
 if [[ -n "$REQUESTED_BACKEND" ]]; then
   app_environment+=(QUILLUI_BACKEND="$REQUESTED_BACKEND")
 fi
-if is_quill_chat_mac_reference; then
+if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   quill_chat_reference_home="$OUTPUT_DIR/quill-chat-linux-reference-home"
   quillui_seed_quill_chat_reference_data "$quill_chat_reference_home"
   app_environment+=(
@@ -89,7 +85,7 @@ if is_quill_chat_mac_reference; then
     QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1
   )
 fi
-env "${app_environment[@]}" "$APP_EXECUTABLE" >/tmp/quillui-gtk-interaction-app.log 2>&1 &
+env "${app_environment[@]}" "$APP_EXECUTABLE" >/tmp/quillui-backend-interaction-app.log 2>&1 &
 app_pid=$!
 
 sleep 4
@@ -109,7 +105,7 @@ if [[ -z "$window_id" ]]; then
 fi
 if [[ -n "$window_id" ]]; then
   DISPLAY="$DISPLAY_ID" xdotool windowmove "$window_id" 0 0
-  if is_quill_chat_mac_reference; then
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     DISPLAY="$DISPLAY_ID" xdotool windowsize "$window_id" "$reference_window_width" "$reference_window_height"
     sleep 1
   elif [[ "${QUILLUI_BACKEND_CAPTURE_ROOT:-0}" != "1" ]]; then
@@ -138,7 +134,7 @@ type_text() {
 }
 
 post_click_sleep="${QUILLUI_BACKEND_POST_CLICK_SLEEP:-1}"
-if [[ "${QUILLUI_BACKEND_FOCUS_PRIME:-}" == "1" ]] || is_quill_chat_mac_reference; then
+if [[ "${QUILLUI_BACKEND_FOCUS_PRIME:-}" == "1" ]] || quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   focus_x="${QUILLUI_BACKEND_FOCUS_PRIME_X:-$((window_x + window_width / 2))}"
   focus_y="${QUILLUI_BACKEND_FOCUS_PRIME_Y:-$((window_y + 54))}"
   click_at "$focus_x" "$focus_y"
@@ -156,7 +152,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         ;;
       settings-panel)
-        if is_quill_chat_mac_reference; then
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           click_x="${QUILLUI_BACKEND_CLICK_X:-52}"
           click_y="${QUILLUI_BACKEND_CLICK_Y:-1366}"
         else
@@ -173,7 +169,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep "$post_click_sleep"
         ;;
       settings-endpoint-typed)
-        if is_quill_chat_mac_reference; then
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
           settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
         else
@@ -190,7 +186,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         ;;
       completions-panel)
-        if is_quill_chat_mac_reference; then
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           click_x="${QUILLUI_BACKEND_CLICK_X:-90}"
           click_y="${QUILLUI_BACKEND_CLICK_Y:-1244}"
         else
@@ -308,7 +304,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
       ;;
     *)
       VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-toolbar-menu}"
-      if is_quill_chat_mac_reference; then
+      if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
         VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-toolbar-menu}"
       fi
       ;;

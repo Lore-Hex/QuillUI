@@ -20,6 +20,11 @@ quillui_normalize_x_display_id() {
   fi
 }
 
+quillui_is_quill_chat_mac_reference_product() {
+  local product="$1"
+  [[ "$product" == "quill-chat-linux" && "${QUILLUI_BACKEND_MAC_REFERENCE:-0}" == "1" ]]
+}
+
 quillui_install_linux_backend_smoke_packages() {
   if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
     return
