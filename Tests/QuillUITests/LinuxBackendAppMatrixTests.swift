@@ -303,6 +303,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(csvRunner.contains("PRODUCT<TAB>BACKEND"))
         #expect(csvRunner.contains("BUILT_PROFILE_PRODUCTS_LIST=$'\\n'"))
         #expect(csvRunner.contains("quillui_profile_product_was_built()"))
+        #expect(csvRunner.contains("backend=\"$(quillui_backend_identifier_or_raw \"$backend\")\""))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND_SKIP_BUILD=1\")"))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND=$backend\")"))
         #expect(csvRunner.contains("profiler_arguments+=(\"$backend\")"))
@@ -688,7 +689,7 @@ struct LinuxBackendAppMatrixTests {
             script,
             arguments: [csv.path],
             environment: ["QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path],
-            stdin: "quill-icecubes\tgtk\nquill-icecubes\tqt\n"
+            stdin: "quill-icecubes\tGTK4\nquill-icecubes\t qt6 \n"
         )
 
         #expect(result.status == 0, Comment(rawValue: result.output))

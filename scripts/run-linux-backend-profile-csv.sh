@@ -84,6 +84,9 @@ quillui_profile_product_was_built() {
       product="${row%%$'\t'*}"
       backend="${row#*$'\t'}"
     fi
+    if [[ -n "$backend" ]]; then
+      backend="$(quillui_backend_identifier_or_raw "$backend")"
+    fi
     [[ -n "$product" ]] || continue
     if [[ "$backend" == *$'\t'* ]]; then
       label="${product:-profile-row}@malformed"
