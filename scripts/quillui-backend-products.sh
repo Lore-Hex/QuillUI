@@ -488,6 +488,42 @@ quillui_backend_runtime_availabilities() {
   done < <(quillui_backend_app_backends)
 }
 
+quillui_backend_validate_runtime_availability() {
+  local requested_backend
+  local runtime_backend
+  local runtime_mode="${3:-}"
+  local runtime_availability
+  local expected_requested_backend
+  local expected_runtime_backend
+  local expected_runtime_mode
+
+  requested_backend="$(quillui_require_backend_identifier "$1")" || return $?
+  runtime_backend="$(quillui_require_backend_identifier "$2")" || return $?
+  case "$runtime_mode" in
+    native|platformFallback)
+      ;;
+    *)
+      echo "runtime_mode=$runtime_mode is not supported" >&2
+      return 65
+      ;;
+  esac
+
+  runtime_availability="$(quillui_backend_runtime_availability_for_backend "$requested_backend")" || return $?
+  IFS=$'\t' read -r expected_requested_backend expected_runtime_backend expected_runtime_mode <<<"$runtime_availability"
+
+  if [[ "$runtime_backend" != "$expected_runtime_backend" ]]; then
+    echo "runtime_backend=$runtime_backend does not match requested_backend=$expected_requested_backend expected_runtime=$expected_runtime_backend" >&2
+    return 65
+  fi
+
+  if [[ "$runtime_mode" != "$expected_runtime_mode" ]]; then
+    echo "runtime_mode=$runtime_mode does not match requested_backend=$expected_requested_backend expected_mode=$expected_runtime_mode" >&2
+    return 65
+  fi
+
+  printf '%s\t%s\t%s\n' "$expected_requested_backend" "$expected_runtime_backend" "$expected_runtime_mode"
+}
+
 quillui_backend_runtime_matrix_for_rows() {
   local row
   local product
@@ -607,6 +643,8 @@ Commands:
   runtime-backend BACKEND         Print the native runtime backend used for a requested backend.
   runtime-mode BACKEND            Print native or platformFallback for a requested backend.
   runtime-availability BACKEND    Print BACKEND<TAB>RUNTIME<TAB>MODE for a requested backend.
+  validate-runtime-availability BACKEND RUNTIME MODE
+                                  Validate and print canonical BACKEND<TAB>RUNTIME<TAB>MODE.
   runtime-backend-for-product PRODUCT
                                   Print the native runtime backend used for PRODUCT.
   runtime-availabilities          List BACKEND<TAB>RUNTIME<TAB>MODE rows for requested app backends.
@@ -767,6 +805,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         exit 64
       fi
       quillui_backend_runtime_availability_for_backend "$2"
+      ;;
+    validate-runtime-availability)
+      if [[ $# -ne 4 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_backend_validate_runtime_availability "$2" "$3" "$4"
       ;;
     runtime-backend-for-product)
       if [[ $# -ne 2 ]]; then

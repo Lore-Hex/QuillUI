@@ -252,23 +252,11 @@ while IFS= read -r row; do
     echo "Backend runtime matrix row has an empty product, backend, runtime backend, or runtime mode: $row" >&2
     exit 65
   fi
-  if ! backend="$(quillui_require_backend_identifier "$backend")"; then
-    echo "Backend runtime matrix row has an unsupported backend: $row" >&2
+  if ! runtime_availability="$(quillui_backend_validate_runtime_availability "$backend" "$runtime_backend" "$runtime_mode")"; then
+    echo "Backend runtime matrix row has invalid runtime availability: $row" >&2
     exit 65
   fi
-  if ! runtime_backend="$(quillui_require_backend_identifier "$runtime_backend")"; then
-    echo "Backend runtime matrix row has an unsupported runtime backend: $row" >&2
-    exit 65
-  fi
-  if ! quillui_backend_runtime_matches_backend "$backend" "$runtime_backend"; then
-    echo "Backend runtime matrix row has mismatched runtime backend: $row" >&2
-    exit 65
-  fi
-  expected_runtime_mode="$(quillui_backend_runtime_mode_for_pair "$backend" "$runtime_backend")"
-  if [[ "$runtime_mode" != "$expected_runtime_mode" ]]; then
-    echo "Backend runtime matrix row has mismatched runtime mode: $row" >&2
-    exit 65
-  fi
+  IFS=$'\t' read -r backend runtime_backend runtime_mode <<<"$runtime_availability"
 
   quillui_run_smoke_row "$product" "$backend" "$runtime_backend" "$runtime_mode" "${mode:-}"
   ROW_COUNT=$((ROW_COUNT + 1))

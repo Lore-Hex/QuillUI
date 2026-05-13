@@ -116,15 +116,11 @@ while IFS=, read -r product requested_backend runtime_backend runtime_mode _buil
   [[ -n "$product" && "$product" != "product" ]] || continue
   [[ "$exit_status" == "ok" ]] || continue
 
-  runtime_availability="$(quillui_backend_runtime_availability_for_backend "$requested_backend" 2>/dev/null)" || continue
-  IFS=$'\t' read -r _expected_requested_backend expected_runtime_backend expected_runtime_mode <<<"$runtime_availability"
-  quillui_require_backend_identifier "$runtime_backend" >/dev/null 2>&1 || continue
-  if ! quillui_backend_runtime_matches_backend "$requested_backend" "$runtime_backend"; then
-    echo "profile budget failed: $product runtime_backend=$runtime_backend does not match requested_backend=$requested_backend expected_runtime=$expected_runtime_backend" >&2
-    runtime_availability_mismatch=1
-  fi
-  if [[ "$runtime_mode" != "$expected_runtime_mode" ]]; then
-    echo "profile budget failed: $product runtime_mode=$runtime_mode does not match requested_backend=$requested_backend expected_mode=$expected_runtime_mode" >&2
+  if ! validation_output="$(quillui_backend_validate_runtime_availability "$requested_backend" "$runtime_backend" "$runtime_mode" 2>&1)"; then
+    while IFS= read -r validation_line; do
+      [[ -n "$validation_line" ]] || continue
+      echo "profile budget failed: $product $validation_line" >&2
+    done <<<"$validation_output"
     runtime_availability_mismatch=1
   fi
 done < "$CSV_PATH"
