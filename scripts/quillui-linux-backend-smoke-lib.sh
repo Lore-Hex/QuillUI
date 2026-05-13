@@ -9,6 +9,17 @@ source "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.s
 quillui_alias_env QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_GTK_APP_EXECUTABLE
 quillui_alias_env QUILLUI_BACKEND_SKIP_BUILD QUILLUI_GTK_SKIP_BUILD
 
+quillui_normalize_x_display_id() {
+  local value="$1"
+  if [[ -z "$value" ]]; then
+    echo ""
+  elif [[ "$value" == :* ]]; then
+    echo "$value"
+  else
+    echo ":$value"
+  fi
+}
+
 quillui_install_linux_backend_smoke_packages() {
   if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
     return

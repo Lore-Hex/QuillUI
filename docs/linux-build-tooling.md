@@ -188,6 +188,10 @@ Like the visual runner, the interaction runner accepts backend-neutral
 `QUILLUI_BACKEND_*` controls, including `QUILLUI_BACKEND_MAC_REFERENCE`,
 `QUILLUI_BACKEND_SCREEN_SIZE`, and `QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE`,
 then maps them to the legacy `QUILLUI_GTK_*` names for compatibility.
+Display controls such as `QUILLUI_BACKEND_VISUAL_DISPLAY`,
+`QUILLUI_BACKEND_INTERACTION_DISPLAY`, and `QUILLUI_BACKEND_PROFILE_DISPLAY`
+accept either an X display id (`:95`) or a numeric display (`95`); the runners
+normalize both forms before starting Xvfb.
 
 ```bash
 scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke

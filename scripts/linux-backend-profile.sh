@@ -66,7 +66,7 @@ if [[ ! -x "$exe" ]]; then
     exit 1
 fi
 
-display_id=":${QUILLUI_BACKEND_PROFILE_DISPLAY:-95}"
+display_id="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_PROFILE_DISPLAY:-95}")"
 screen_size="${QUILLUI_BACKEND_PROFILE_SCREEN_SIZE:-1180x760x24}"
 Xvfb "$display_id" -screen 0 "$screen_size" >/tmp/quillui-profile-xvfb.log 2>&1 &
 xvfb_pid=$!

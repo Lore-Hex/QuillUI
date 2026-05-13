@@ -30,7 +30,7 @@ reference_window_width="${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}"
 reference_window_height="${QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT:-1380}"
 hide_window_menubar_label="${QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL:-1}"
 
-DISPLAY_ID="${QUILLUI_BACKEND_VISUAL_DISPLAY:-:94}"
+DISPLAY_ID="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_VISUAL_DISPLAY:-:94}")"
 SCREEN_SIZE="${QUILLUI_BACKEND_SCREEN_SIZE:-1180x760x24}"
 if is_quill_chat_mac_reference; then
   SCREEN_SIZE="${QUILLUI_BACKEND_SCREEN_SIZE:-${reference_window_width}x${reference_window_height}x24}"

@@ -405,7 +405,7 @@ struct QuillDataSourceLoweringTests {
         #expect(visualScript.contains("QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=\"$reference_window_width\""))
         #expect(visualScript.contains("QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=\"$hide_window_menubar_label\""))
         #expect(visualScript.contains("QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL=\"$hide_window_menubar_label\""))
-        #expect(visualScript.contains("DISPLAY_ID=\"${QUILLUI_BACKEND_VISUAL_DISPLAY:-:94}\""))
+        #expect(visualScript.contains("DISPLAY_ID=\"$(quillui_normalize_x_display_id \"${QUILLUI_BACKEND_VISUAL_DISPLAY:-:94}\")\""))
         #expect(visualScript.contains("VERIFY_PRODUCT=\"${QUILLUI_BACKEND_VERIFY_PRODUCT:-$PRODUCT}\""))
         #expect(!visualScript.contains("${QUILLUI_GTK_MAC_REFERENCE:-0}"))
         #expect(!visualScript.contains("${QUILLUI_GTK_DEFAULT_WINDOW_WIDTH:-2048}"))
