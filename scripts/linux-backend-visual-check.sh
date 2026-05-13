@@ -22,9 +22,13 @@ if [[ ! -x "$APP_EXECUTABLE" ]]; then
   exit 1
 fi
 
-reference_window_width="${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}"
-reference_window_height="${QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT:-1380}"
-hide_window_menubar_label="${QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL:-1}"
+reference_window_width=""
+reference_window_height=""
+hide_window_menubar_label=""
+quillui_backend_reference_window_defaults \
+  reference_window_width \
+  reference_window_height \
+  hide_window_menubar_label
 
 DISPLAY_ID="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_VISUAL_DISPLAY:-:94}")"
 SCREEN_SIZE="$(quillui_backend_screen_size "$PRODUCT" "${QUILLUI_BACKEND_SCREEN_SIZE:-}" "1180x760x24" "$reference_window_width" "$reference_window_height")"

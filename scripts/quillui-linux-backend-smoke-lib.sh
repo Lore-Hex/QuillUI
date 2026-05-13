@@ -41,6 +41,16 @@ quillui_backend_screen_size() {
   fi
 }
 
+quillui_backend_reference_window_defaults() {
+  local width_var="$1"
+  local height_var="$2"
+  local hide_menubar_label_var="$3"
+
+  quillui_assign_output "$width_var" "${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}" || return $?
+  quillui_assign_output "$height_var" "${QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT:-1380}" || return $?
+  quillui_assign_output "$hide_menubar_label_var" "${QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL:-1}" || return $?
+}
+
 quillui_assign_output() {
   local output_var="$1"
   local value="$2"
