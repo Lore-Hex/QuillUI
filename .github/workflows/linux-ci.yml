@@ -130,10 +130,10 @@ jobs:
       # treating normal CI noise as a failure.
       - name: Per-app Linux profile baseline
         continue-on-error: true
-        run: scripts/quillui-backend-products.sh gtk-apps | scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile.csv
+        run: scripts/quillui-backend-products.sh gtk-apps | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv
 
       - name: Linux profile budget check
-        run: scripts/check-linux-gtk-profile-budget.sh /tmp/quillui-profile.csv --max-cpu-pct 25 --max-rss-kb 300000 --max-startup-ms 5000
+        run: scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv --max-cpu-pct 25 --max-rss-kb 300000 --max-startup-ms 5000
 
       # No-fetch profile experiment. QUILLUI_DISABLE_FETCH=1
       # makes QuillIceCubes / QuillNetNewsWire seed fixture
@@ -146,7 +146,7 @@ jobs:
         continue-on-error: true
         env:
           QUILLUI_DISABLE_FETCH: "1"
-        run: scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile-nofetch.csv quill-icecubes quill-netnewswire
+        run: scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile-nofetch.csv quill-icecubes quill-netnewswire
 
       # NavigationStack hypothesis. Combines QUILLUI_DISABLE_FETCH=1
       # (already validated in 1e07973 to remove the URLSession
@@ -162,7 +162,7 @@ jobs:
         env:
           QUILLUI_DISABLE_FETCH: "1"
           QUILLUI_PROFILE_FLAT: "1"
-        run: scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile-flat.csv quill-icecubes
+        run: scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile-flat.csv quill-icecubes
 
       # Bare-mode profile experiment. Body returns a single
       # Text — no NavigationStack, no List, no ForEach, no
@@ -176,7 +176,7 @@ jobs:
         env:
           QUILLUI_DISABLE_FETCH: "1"
           QUILLUI_PROFILE_BARE: "1"
-        run: scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile-bare.csv quill-icecubes
+        run: scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile-bare.csv quill-icecubes
 
       # Plain-row bisection. Bare-mode (83369b4) confirmed the
       # spin is in IceCubes' view tree, not GTK4 host or @State.
@@ -191,7 +191,7 @@ jobs:
         env:
           QUILLUI_DISABLE_FETCH: "1"
           QUILLUI_PROFILE_PLAIN_ROW: "1"
-        run: scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile-plainrow.csv quill-icecubes
+        run: scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile-plainrow.csv quill-icecubes
 
       # Literal-row bisection. Plain-row dropped to fixture
       # baseline, so it's not List+ForEach or fundamental
@@ -208,7 +208,7 @@ jobs:
         env:
           QUILLUI_DISABLE_FETCH: "1"
           QUILLUI_PROFILE_LITERAL_ROW: "1"
-        run: scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile-literalrow.csv quill-icecubes
+        run: scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile-literalrow.csv quill-icecubes
 
       # Stored-property substitution. Same statusRow layout but
       # Text values read stored properties (username,
@@ -225,7 +225,7 @@ jobs:
         env:
           QUILLUI_DISABLE_FETCH: "1"
           QUILLUI_PROFILE_STORED_PROPS: "1"
-        run: scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile-storedprops.csv quill-icecubes
+        run: scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile-storedprops.csv quill-icecubes
 
       - name: Stage QA outputs for upload
         if: always()

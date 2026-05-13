@@ -2612,3 +2612,19 @@ The visual and interaction runners still own their mode-specific Xvfb,
 capture, click, and screenshot verification behavior, but backend app setup now
 lives behind a single helper. Future Qt renderer work can extend that shared
 setup layer without adding another backend-specific smoke script.
+
+## Checkpoint 142: Backend-Neutral Profile Tooling
+
+Status: implemented locally; guarded by matrix and profile-runner tests.
+
+The Linux profile implementation now lives behind backend-neutral entry points:
+`scripts/linux-backend-profile.sh`,
+`scripts/run-linux-backend-profile-csv.sh`, and
+`scripts/check-linux-backend-profile-budget.sh`. Linux CI uses those canonical
+names for the app profile baseline and focused profile experiments, so Qt
+profile rows can reuse the same CSV and budget contract as GTK.
+
+The legacy GTK-named profile scripts remain executable compatibility shims.
+They delegate to the backend-neutral scripts while preserving the existing
+`QUILLUI_GTK_PROFILE_*` environment aliases alongside the newer
+`QUILLUI_BACKEND_PROFILE_*` names.

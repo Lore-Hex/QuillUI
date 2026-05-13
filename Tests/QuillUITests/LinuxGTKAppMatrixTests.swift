@@ -47,8 +47,10 @@ struct LinuxGTKAppMatrixTests {
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux"))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual.png\" \"$product\""))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-gtk.png\" \"$product\""))
-        #expect(workflow.contains("scripts/quillui-backend-products.sh gtk-apps | scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile.csv"))
-        #expect(workflow.contains("scripts/check-linux-gtk-profile-budget.sh /tmp/quillui-profile.csv"))
+        #expect(workflow.contains("scripts/quillui-backend-products.sh gtk-apps | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
+        #expect(workflow.contains("scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv"))
+        #expect(!workflow.contains("scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile"))
+        #expect(!workflow.contains("scripts/check-linux-gtk-profile-budget.sh /tmp/quillui-profile"))
         #expect(!workflow.contains("QuillSignal GTK visual smoke"))
         #expect(!workflow.contains("for product in quill-signal quill-telegram"))
         #expect(!workflow.contains("scripts/linux-gtk-visual-check.sh"))
@@ -66,6 +68,10 @@ struct LinuxGTKAppMatrixTests {
         #expect(!gtkCheck.contains("run_smoke quill-enchanted-upstream-slice"))
 
         let profileScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-backend-profile.sh"),
+            encoding: .utf8
+        )
+        let legacyProfileScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-gtk-profile.sh"),
             encoding: .utf8
         )
@@ -82,16 +88,25 @@ struct LinuxGTKAppMatrixTests {
             encoding: .utf8
         )
         let csvRunner = try String(
+            contentsOf: root.appendingPathComponent("scripts/run-linux-backend-profile-csv.sh"),
+            encoding: .utf8
+        )
+        let legacyCSVRunner = try String(
             contentsOf: root.appendingPathComponent("scripts/run-linux-gtk-profile-csv.sh"),
             encoding: .utf8
         )
         let budgetScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/check-linux-backend-profile-budget.sh"),
+            encoding: .utf8
+        )
+        let legacyBudgetScript = try String(
             contentsOf: root.appendingPathComponent("scripts/check-linux-gtk-profile-budget.sh"),
             encoding: .utf8
         )
         let backendProducts = try String(contentsOf: matrixScript, encoding: .utf8)
         #expect(backendProducts.contains("quillui_alias_env()"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(legacyProfileScript.contains("linux-backend-profile.sh"))
         #expect(visualScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(smokeLib.contains("quillui_install_linux_backend_smoke_packages()"))
@@ -110,8 +125,11 @@ struct LinuxGTKAppMatrixTests {
         #expect(!visualScript.contains("install_packages()"))
         #expect(!visualScript.contains("build_and_resolve_executable()"))
         #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_COMMAND"))
+        #expect(csvRunner.contains("$ROOT_DIR/scripts/linux-backend-profile.sh"))
         #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_SETTLE"))
+        #expect(legacyCSVRunner.contains("run-linux-backend-profile-csv.sh"))
         #expect(budgetScript.contains("QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT"))
+        #expect(legacyBudgetScript.contains("check-linux-backend-profile-budget.sh"))
     }
 
     @Test("backend product helper maps GTK and Qt defaults")
@@ -146,7 +164,7 @@ struct LinuxGTKAppMatrixTests {
     @Test("profile budget accepts current rows and rejects bad profile rows")
     func profileBudgetAcceptsCurrentRowsAndRejectsBadRows() throws {
         let root = try packageRoot()
-        let script = root.appendingPathComponent("scripts/check-linux-gtk-profile-budget.sh")
+        let script = root.appendingPathComponent("scripts/check-linux-backend-profile-budget.sh")
         let fileManager = FileManager.default
         let csv = fileManager.temporaryDirectory
             .appendingPathComponent("quillui-profile-\(UUID().uuidString).csv")
@@ -188,7 +206,7 @@ struct LinuxGTKAppMatrixTests {
     @Test("profile CSV runner shares header and failure-tolerant product loop")
     func profileCSVRunnerSharesHeaderAndFailureTolerantProductLoop() throws {
         let root = try packageRoot()
-        let script = root.appendingPathComponent("scripts/run-linux-gtk-profile-csv.sh")
+        let script = root.appendingPathComponent("scripts/run-linux-backend-profile-csv.sh")
         let fileManager = FileManager.default
         let temporaryDirectory = fileManager.temporaryDirectory
             .appendingPathComponent("quillui-profile-runner-\(UUID().uuidString)")
@@ -229,8 +247,8 @@ struct LinuxGTKAppMatrixTests {
     @Test("profile CSV runner records profilers that fail before emitting rows")
     func profileCSVRunnerRecordsSilentProfilerFailures() throws {
         let root = try packageRoot()
-        let script = root.appendingPathComponent("scripts/run-linux-gtk-profile-csv.sh")
-        let budgetScript = root.appendingPathComponent("scripts/check-linux-gtk-profile-budget.sh")
+        let script = root.appendingPathComponent("scripts/run-linux-backend-profile-csv.sh")
+        let budgetScript = root.appendingPathComponent("scripts/check-linux-backend-profile-budget.sh")
         let fileManager = FileManager.default
         let temporaryDirectory = fileManager.temporaryDirectory
             .appendingPathComponent("quillui-profile-silent-failure-\(UUID().uuidString)")

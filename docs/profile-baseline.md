@@ -1,6 +1,6 @@
 # Linux Profile Baseline
 
-Output from `scripts/linux-gtk-profile.sh` over the Quill app
+Output from `scripts/linux-backend-profile.sh` over the Quill app
 shells in CI. Two CPU samples per app: `cpu_pct_initial` (5s
 window starting 5s after the first X11 window appears, i.e.
 boot cost) and `cpu_pct_steady` (5s window starting 25s after,
@@ -8,8 +8,10 @@ i.e. long-term render-loop cost).
 
 Current CI sources the app roster from
 `scripts/quillui-backend-products.sh gtk-apps`, the same list used by
-visual smoke coverage. The older `scripts/linux-gtk-app-products.sh`
-path remains as a compatibility wrapper.
+visual smoke coverage. The older `scripts/linux-gtk-app-products.sh`,
+`scripts/linux-gtk-profile.sh`, `scripts/run-linux-gtk-profile-csv.sh`,
+and `scripts/check-linux-gtk-profile-budget.sh` paths remain as
+compatibility wrappers.
 
 ## Current Matrix (Linux run 25716559081, commit d69a1f4)
 
@@ -48,13 +50,13 @@ idle at fixture-app CPU levels. That confirms the high CPU was not a
 fundamental `List`/`ForEach`/row-layout issue; it was repeated
 equivalent state churn through render-facing model trees.
 
-Linux CI now runs `scripts/check-linux-gtk-profile-budget.sh` against
+Linux CI now runs `scripts/check-linux-backend-profile-budget.sh` against
 the baseline CSV with a loose 25% CPU ceiling. The threshold is meant
 to catch a return to the former 100%+ render-loop spin without
 flaking on normal CI variance.
 
 The baseline and focused experiment CSVs are emitted through
-`scripts/run-linux-gtk-profile-csv.sh`, which keeps the CSV header,
+`scripts/run-linux-backend-profile-csv.sh`, which keeps the CSV header,
 product loop, and failure-tolerant artifact capture in one place.
 
 ## Previous Outlier Matrix (Linux run 25715271203, commit f6a27de)
@@ -312,7 +314,7 @@ fires at 200Hz, so per-paint allocations stack.
 
 ## Method
 
-`scripts/linux-gtk-profile.sh <product> [settle] [steady]`:
+`scripts/linux-backend-profile.sh <product> [settle] [steady]`:
 
 1. `swift build --product <product>` (build time captured
    separately so dep-cache state doesn't pollute startup).
