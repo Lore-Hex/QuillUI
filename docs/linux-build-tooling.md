@@ -96,8 +96,9 @@ The package helper takes this stable environment contract:
 - `QUILLUI_GENERATED_REPORT_LABEL`
 
 `QUILLUI_GENERATED_INCLUDE_GTK_BACKEND` remains accepted by the package helper
-as a compatibility alias for older profile callers, but new profiles should use
-the backend-neutral entry flag.
+as a compatibility alias for older profile callers, and
+`QUILLUI_GENERATED_INCLUDE_QT_BACKEND` is accepted for backend-scoped Qt
+profiles. New profiles should use the backend-neutral entry flag.
 
 Reusable fallback behavior should live in library targets, not in profiles.
 The current `enchanted-full-source` profile keeps only app/source-shape wiring

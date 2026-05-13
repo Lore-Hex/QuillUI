@@ -425,7 +425,10 @@ struct SourceHygieneTests {
         )
 
         #expect(source.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY"))
-        #expect(source.contains("${QUILLUI_GENERATED_INCLUDE_GTK_BACKEND:-0}"))
+        #expect(source.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(source.contains("quillui_alias_env QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY QUILLUI_GENERATED_INCLUDE_GTK_BACKEND QUILLUI_GENERATED_INCLUDE_QT_BACKEND"))
+        #expect(source.contains("INCLUDE_BACKEND_ENTRY=\"${QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY:-0}\""))
+        #expect(!source.contains("${QUILLUI_GENERATED_INCLUDE_GTK_BACKEND:-0}"))
         #expect(source.contains("backend entry generation is enabled"))
         #expect(source.contains("import QuillUI"))
         #expect(source.contains("QuillApp.run($APP_ENTRY_TYPE.self)"))

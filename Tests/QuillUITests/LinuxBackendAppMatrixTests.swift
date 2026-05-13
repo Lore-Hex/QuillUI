@@ -416,6 +416,15 @@ struct LinuxBackendAppMatrixTests {
         quillui_alias_backend_profile_env
         printf 'cpu-qt=%s\\n' "$QUILLUI_QT_PROFILE_MAX_CPU_PCT"
 
+        unset QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY QUILLUI_GENERATED_INCLUDE_GTK_BACKEND QUILLUI_GENERATED_INCLUDE_QT_BACKEND
+        QUILLUI_BACKEND=qt
+        QUILLUI_GENERATED_INCLUDE_GTK_BACKEND=0
+        QUILLUI_GENERATED_INCLUDE_QT_BACKEND=1
+        export QUILLUI_BACKEND QUILLUI_GENERATED_INCLUDE_GTK_BACKEND QUILLUI_GENERATED_INCLUDE_QT_BACKEND
+        quillui_alias_env QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY QUILLUI_GENERATED_INCLUDE_GTK_BACKEND QUILLUI_GENERATED_INCLUDE_QT_BACKEND
+        printf 'generated-entry=%s\\n' "$QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY"
+        printf 'generated-entry-gtk=%s\\n' "$QUILLUI_GENERATED_INCLUDE_GTK_BACKEND"
+
         """.write(to: probe, atomically: true, encoding: .utf8)
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: probe.path)
 
@@ -431,6 +440,8 @@ struct LinuxBackendAppMatrixTests {
         interaction=prompt-send
         interaction-qt=prompt-send
         cpu-qt=11
+        generated-entry=1
+        generated-entry-gtk=1
 
         """)
     }

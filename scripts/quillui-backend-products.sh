@@ -109,19 +109,22 @@ quillui_alias_env() {
   shift
   local alias
   local backend_prefix=""
+  local backend_marker=""
 
   case "${QUILLUI_BACKEND:-}" in
     gtk|gtk4|GTK|GTK4|Gtk|Gtk4)
       backend_prefix="QUILLUI_GTK_"
+      backend_marker="_GTK_"
       ;;
     qt|qt6|QT|QT6|Qt|Qt6)
       backend_prefix="QUILLUI_QT_"
+      backend_marker="_QT_"
       ;;
   esac
 
   if [[ -z "${!canonical:-}" && -n "$backend_prefix" ]]; then
     for alias in "$@"; do
-      if [[ "$alias" == "$backend_prefix"* && -n "${!alias:-}" ]]; then
+      if [[ ("$alias" == "$backend_prefix"* || "$alias" == *"$backend_marker"*) && -n "${!alias:-}" ]]; then
         printf -v "$canonical" "%s" "${!alias}"
         break
       fi
