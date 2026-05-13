@@ -82,6 +82,16 @@ public enum ChatInteractionProfile: String, CaseIterable, Sendable {
 
     /// Larger touch targets for iPhone, iPad, and other touch-first hosts.
     case touch
+
+    /// Native SwiftUI clients can use this when they want the chat chrome to
+    /// follow the host platform density without importing UIKit or AppKit.
+    public static var platformDefault: ChatInteractionProfile {
+        #if os(iOS) || os(tvOS) || os(visionOS)
+        .touch
+        #else
+        .desktop
+        #endif
+    }
 }
 
 public struct ChatAppearance {
@@ -137,6 +147,10 @@ public struct ChatAppearance {
 
     public static var standard: ChatAppearance {
         desktop
+    }
+
+    public static var platformDefault: ChatAppearance {
+        standard(for: ChatInteractionProfile.platformDefault)
     }
 
     public static var desktop: ChatAppearance {
@@ -540,6 +554,17 @@ public struct ChatTimeline<M: ChatMessage>: View {
         self.appearance = appearance
     }
 
+    public init<Thread: ChatThread>(
+        thread: Thread,
+        appearance: ChatAppearance = .standard
+    ) where Thread.Message == M {
+        self.init(
+            title: thread.title,
+            messages: thread.messages,
+            appearance: appearance
+        )
+    }
+
     nonisolated public var body: some View {
         ChatMainActorView.assumeIsolated {
             VStack(spacing: 0) {
@@ -593,6 +618,25 @@ public struct ChatPane<M: ChatMessage>: View {
         self.sendTitle = sendTitle
         self.appearance = appearance
         self.onSend = onSend
+    }
+
+    public init<Thread: ChatThread>(
+        thread: Thread,
+        draft: Binding<String>,
+        placeholder: String = "Message",
+        sendTitle: String = "Send",
+        appearance: ChatAppearance = .standard,
+        onSend: @escaping () -> Void
+    ) where Thread.Message == M {
+        self.init(
+            title: thread.title,
+            messages: thread.messages,
+            draft: draft,
+            placeholder: placeholder,
+            sendTitle: sendTitle,
+            appearance: appearance,
+            onSend: onSend
+        )
     }
 
     nonisolated public var body: some View {

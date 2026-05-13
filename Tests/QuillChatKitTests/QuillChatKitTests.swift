@@ -161,6 +161,17 @@ struct QuillChatKitTests {
         #expect(touch.composerPadding > desktop.composerPadding)
     }
 
+    @Test("ChatAppearance exposes platform default density without UIKit or AppKit")
+    func chatAppearancePlatformDefaultUsesHostDensity() {
+        #if os(iOS) || os(tvOS) || os(visionOS)
+        #expect(ChatInteractionProfile.platformDefault == .touch)
+        #expect(ChatAppearance.platformDefault.bubblePadding == ChatAppearance.touch.bubblePadding)
+        #else
+        #expect(ChatInteractionProfile.platformDefault == .desktop)
+        #expect(ChatAppearance.platformDefault.bubblePadding == ChatAppearance.desktop.bubblePadding)
+        #endif
+    }
+
     @Test("ChatRow accepts custom appearance without changing row data")
     func chatRowCarriesAppearance() {
         let appearance = ChatAppearance(unreadBadgeCornerRadius: 3, rowVerticalPadding: 7)
@@ -193,6 +204,22 @@ struct QuillChatKitTests {
 
         #expect(timeline.appearance.timelinePadding == 22)
         #expect(timeline.appearance.messageSpacing == 6)
+    }
+
+    @Test("ChatTimeline can initialize from a generic chat thread")
+    func chatTimelineInitializesFromThread() {
+        let thread = GenericThread(
+            id: UUID(),
+            title: "Inbox",
+            messages: [
+                Fake(id: UUID(), sender: "Me", body: "hello", fromSelf: true)
+            ]
+        )
+        let timeline = ChatTimeline(thread: thread, appearance: .touch)
+
+        #expect(timeline.title == "Inbox")
+        #expect(timeline.messages.map(\.body) == ["hello"])
+        #expect(timeline.appearance.bubblePadding == ChatAppearance.touch.bubblePadding)
     }
 
     @Test("ChatBubble holds the message it was initialized with")
@@ -298,6 +325,31 @@ struct QuillChatKitTests {
         #expect(pane.sendTitle == "Post")
         #expect(pane.appearance.composerPadding == 18)
         #expect(pane.appearance.timelinePadding == 24)
+    }
+
+    @Test("ChatPane can initialize from a generic chat thread")
+    func chatPaneInitializesFromThread() {
+        let thread = GenericThread(
+            id: UUID(),
+            title: "Inbox",
+            messages: [
+                Fake(id: UUID(), sender: "Alex", body: "ping", fromSelf: false)
+            ]
+        )
+        let pane = ChatPane(
+            thread: thread,
+            draft: .constant(""),
+            placeholder: "Reply",
+            sendTitle: "Post",
+            appearance: .touch,
+            onSend: { }
+        )
+
+        #expect(pane.title == "Inbox")
+        #expect(pane.messages.map(\.body) == ["ping"])
+        #expect(pane.placeholder == "Reply")
+        #expect(pane.sendTitle == "Post")
+        #expect(pane.appearance.composerPadding == ChatAppearance.touch.composerPadding)
     }
 
     @Test("ChatDraft.consume returns trimmed body + clears source when sendable")

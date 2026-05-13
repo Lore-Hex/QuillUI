@@ -2953,3 +2953,14 @@ directly: `native-runtime-backends`, `platform-runtime-fallback`, and
 backend-specific case split, so profile and smoke tooling share the same GTK
 fallback model and can promote Qt to a native runtime by changing the registry
 rather than every consumer.
+
+## Checkpoint 169: QuillChatKit Platform Defaults
+
+Status: implemented locally; guarded by QuillChatKit and source hygiene tests.
+
+`QuillChatKit` now exposes `ChatInteractionProfile.platformDefault` and
+`ChatAppearance.platformDefault`, selecting touch density on iOS/tvOS/visionOS
+and desktop density everywhere else without importing UIKit or AppKit. Generic
+`ChatThread` models can also initialize `ChatTimeline` and `ChatPane` directly,
+which keeps Signal, Telegram, and future iOS clients on the same chat chrome
+without forcing app-specific wrappers.
