@@ -58,7 +58,7 @@ quillui_backend_interaction_app_products() {
 }
 
 quillui_backend_interaction_app_matrix() {
-  quillui_backend_app_matrix
+  quillui_backend_interaction_app_products | quillui_backend_matrix_for_products
 }
 
 quillui_backend_generated_app_products() {
