@@ -213,6 +213,55 @@ public struct QuillWireGuardTunnelSnapshot: Codable, Equatable, Identifiable, Se
     }
 }
 
+public struct QuillWireGuardImportResponse: Codable, Equatable, Sendable {
+    public var tunnel: QuillWireGuardTunnelSnapshot?
+    public var errorText: String?
+
+    public init(tunnel: QuillWireGuardTunnelSnapshot? = nil, errorText: String? = nil) {
+        self.tunnel = tunnel
+        self.errorText = errorText
+    }
+
+    public static func success(tunnel: QuillWireGuardTunnel) -> QuillWireGuardImportResponse {
+        QuillWireGuardImportResponse(tunnel: QuillWireGuardTunnelSnapshot(tunnel: tunnel))
+    }
+
+    public static func failure(_ errorText: String) -> QuillWireGuardImportResponse {
+        QuillWireGuardImportResponse(errorText: errorText)
+    }
+}
+
+public enum QuillWireGuardImportService {
+    public static func tunnelID(existingTunnelCount: Int) -> String {
+        "imported-tunnel-\(existingTunnelCount + 1)"
+    }
+
+    public static func tunnelName(existingTunnelCount: Int) -> String {
+        "Imported Tunnel \(existingTunnelCount + 1)"
+    }
+
+    public static func importConfiguration(
+        _ configuration: String,
+        id: String,
+        name: String,
+        status: QuillWireGuardTunnelStatus = .needsBackend
+    ) -> QuillWireGuardImportResponse {
+        do {
+            let tunnel = try QuillWireGuardConfigParser.parse(
+                configuration,
+                id: id,
+                name: name,
+                status: status
+            )
+            return .success(tunnel: tunnel)
+        } catch let error as CustomStringConvertible {
+            return .failure(error.description)
+        } catch {
+            return .failure(String(describing: error))
+        }
+    }
+}
+
 public struct QuillWireGuardPresentationSnapshot: Codable, Equatable, Sendable {
     public var sidebarTitle: String
     public var backendTitle: String

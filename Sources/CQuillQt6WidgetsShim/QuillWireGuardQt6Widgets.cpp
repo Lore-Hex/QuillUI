@@ -2,6 +2,8 @@
 
 #include <QApplication>
 #include <QByteArray>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QFont>
 #include <QFrame>
@@ -19,6 +21,7 @@
 #include <QListWidgetItem>
 #include <QObject>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QScrollArea>
 #include <QSize>
 #include <QSplitter>
@@ -143,6 +146,13 @@ QWidget *tunnelRowWidget(const QJsonObject &tunnel) {
     layout->addWidget(summary);
 
     return row;
+}
+
+void addTunnelRow(QListWidget *list, const QJsonObject &tunnel) {
+    QListWidgetItem *item = new QListWidgetItem();
+    item->setSizeHint(QSize(240, 64));
+    list->addItem(item);
+    list->setItemWidget(item, tunnelRowWidget(tunnel));
 }
 
 void replaceTunnelName(QJsonArray *tunnels, int row, const QString &name) {
@@ -335,6 +345,152 @@ void renderDetail(
     detailLayout->addStretch();
 }
 
+void appendImportedTunnel(
+    QJsonArray *tunnels,
+    QListWidget *list,
+    QLabel *countLabel,
+    const QJsonObject &tunnel
+) {
+    if (tunnels == nullptr || list == nullptr) {
+        return;
+    }
+
+    tunnels->append(tunnel);
+    addTunnelRow(list, tunnel);
+    if (countLabel != nullptr) {
+        countLabel->setText(QString::number(tunnels->size()));
+    }
+    list->setCurrentRow(tunnels->size() - 1);
+}
+
+QJsonObject importResponseObject(
+    const QString &configuration,
+    QJsonArray *tunnels,
+    quill_wireguard_qt_import_config_callback importConfig,
+    quill_wireguard_qt_free_string_callback freeString,
+    QString *errorText
+) {
+    if (importConfig == nullptr || tunnels == nullptr) {
+        if (errorText != nullptr) {
+            *errorText = QStringLiteral("WireGuard import is unavailable in this build.");
+        }
+        return QJsonObject();
+    }
+
+    const QByteArray configurationBytes = configuration.toUtf8();
+
+    char *responsePointer = importConfig(
+        configurationBytes.constData(),
+        static_cast<int>(tunnels->size()),
+        nullptr
+    );
+    if (responsePointer == nullptr) {
+        if (errorText != nullptr) {
+            *errorText = QStringLiteral("WireGuard import did not return a response.");
+        }
+        return QJsonObject();
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument responseDocument = QJsonDocument::fromJson(
+        QByteArray(responsePointer),
+        &parseError
+    );
+    if (freeString != nullptr) {
+        freeString(responsePointer);
+    }
+
+    if (parseError.error != QJsonParseError::NoError || !responseDocument.isObject()) {
+        if (errorText != nullptr) {
+            *errorText = QStringLiteral("WireGuard import returned invalid JSON.");
+        }
+        return QJsonObject();
+    }
+
+    const QJsonObject response = responseDocument.object();
+    const QString responseError = stringValue(response, "errorText");
+    if (!responseError.isEmpty()) {
+        if (errorText != nullptr) {
+            *errorText = responseError;
+        }
+        return QJsonObject();
+    }
+
+    const QJsonValue tunnelValue = response.value(QStringLiteral("tunnel"));
+    if (!tunnelValue.isObject()) {
+        if (errorText != nullptr) {
+            *errorText = QStringLiteral("WireGuard import response did not include a tunnel.");
+        }
+        return QJsonObject();
+    }
+
+    if (errorText != nullptr) {
+        errorText->clear();
+    }
+    return tunnelValue.toObject();
+}
+
+void showImportDialog(
+    QWidget *parent,
+    QJsonArray *tunnels,
+    QListWidget *list,
+    QLabel *countLabel,
+    quill_wireguard_qt_import_config_callback importConfig,
+    quill_wireguard_qt_free_string_callback freeString
+) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle(QStringLiteral("Import WireGuard Configuration"));
+    dialog.setMinimumSize(560, 420);
+
+    QVBoxLayout *layout = new QVBoxLayout(&dialog);
+    layout->setSpacing(10);
+
+    QPlainTextEdit *editor = new QPlainTextEdit();
+    editor->setObjectName(QStringLiteral("importConfigText"));
+    editor->setPlaceholderText(QStringLiteral("[Interface]\nPrivateKey = ...\n\n[Peer]\nPublicKey = ..."));
+    QFont font(QStringLiteral("monospace"));
+    font.setStyleHint(QFont::Monospace);
+    font.setPointSize(10);
+    editor->setFont(font);
+    layout->addWidget(editor, 1);
+
+    QLabel *error = label(QString(), QStringLiteral("importError"));
+    error->setMinimumHeight(20);
+    layout->addWidget(error);
+
+    QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel);
+    QPushButton *confirm = buttons->addButton(QStringLiteral("Import"), QDialogButtonBox::AcceptRole);
+    confirm->setObjectName(QStringLiteral("importConfirmButton"));
+    layout->addWidget(buttons);
+
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    QObject::connect(confirm, &QPushButton::clicked, [&]() {
+        const QString configuration = editor->toPlainText().trimmed();
+        if (configuration.isEmpty()) {
+            error->setText(QStringLiteral("Paste a WireGuard configuration before importing."));
+            return;
+        }
+
+        QString importError;
+        const QJsonObject tunnel = importResponseObject(
+            configuration,
+            tunnels,
+            importConfig,
+            freeString,
+            &importError
+        );
+        if (!importError.isEmpty()) {
+            error->setText(importError);
+            return;
+        }
+
+        appendImportedTunnel(tunnels, list, countLabel, tunnel);
+        dialog.accept();
+    });
+
+    dialog.exec();
+}
+
 int selectedRow(const QJsonArray &tunnels, const QString &selectedTunnelID) {
     for (int index = 0; index < tunnels.size(); ++index) {
         if (stringValue(tunnels.at(index).toObject(), "id") == selectedTunnelID) {
@@ -360,6 +516,9 @@ void applyStyle(QApplication &app) {
         "QLabel#backendTitle { color: #6e6e73; font-weight: 700; font-size: 11px; }"
         "QLabel#emptyStateTitle { font-size: 22px; font-weight: 600; }"
         "QLabel#emptyStateMessage { color: #6e6e73; }"
+        "QLabel#importError { color: #a92222; }"
+        "QPushButton#importButton { background: #ffffff; border: 1px solid #d8d8dd; border-radius: 4px; padding: 4px 8px; }"
+        "QPushButton#importButton:pressed { background: #ececf0; }"
         "QLineEdit#detailTitle { background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 2px; font-size: 22px; font-weight: 600; }"
         "QLineEdit#detailTitle:focus { background: #ffffff; border-color: #93a4c7; }"
         "QGroupBox#detailSection { border: 0; background: #f4f4f5; margin-top: 18px; padding: 12px; font-weight: 700; color: #6e6e73; }"
@@ -373,7 +532,9 @@ void applyStyle(QApplication &app) {
 int quill_wireguard_qt_run_wireguard_json(
     int argc,
     char **argv,
-    const char *payload_json
+    const char *payload_json,
+    quill_wireguard_qt_import_config_callback import_config,
+    quill_wireguard_qt_free_string_callback free_string
 ) {
     if (payload_json == nullptr) {
         return 64;
@@ -418,16 +579,17 @@ int quill_wireguard_qt_run_wireguard_json(
         QStringLiteral("sidebarTitle")
     ));
     sidebarHeader->addStretch();
-    sidebarHeader->addWidget(label(QString::number(tunnels.size()), QStringLiteral("sidebarCount")));
+    QLabel *sidebarCount = label(QString::number(tunnels.size()), QStringLiteral("sidebarCount"));
+    sidebarHeader->addWidget(sidebarCount);
+    QPushButton *headerImportButton = new QPushButton(QStringLiteral("+"));
+    headerImportButton->setObjectName(QStringLiteral("importButton"));
+    headerImportButton->setToolTip(QStringLiteral("Import WireGuard configuration"));
+    sidebarHeader->addWidget(headerImportButton);
     sidebarLayout->addLayout(sidebarHeader);
 
     QListWidget *list = new QListWidget();
     for (const QJsonValue &value : tunnels) {
-        const QJsonObject tunnel = value.toObject();
-        QListWidgetItem *item = new QListWidgetItem();
-        item->setSizeHint(QSize(240, 64));
-        list->addItem(item);
-        list->setItemWidget(item, tunnelRowWidget(tunnel));
+        addTunnelRow(list, value.toObject());
     }
     sidebarLayout->addWidget(list, 1);
 
@@ -452,6 +614,16 @@ int quill_wireguard_qt_run_wireguard_json(
 
     QObject::connect(list, &QListWidget::currentRowChanged, [&](int row) {
         renderDetail(detailLayout, &tunnels, list, presentation, row);
+    });
+    QObject::connect(headerImportButton, &QPushButton::clicked, [&]() {
+        showImportDialog(
+            &window,
+            &tunnels,
+            list,
+            sidebarCount,
+            import_config,
+            free_string
+        );
     });
 
     const int initialRow = selectedRow(tunnels, selectedTunnelID);

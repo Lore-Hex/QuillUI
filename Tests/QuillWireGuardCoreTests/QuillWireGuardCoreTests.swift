@@ -128,6 +128,33 @@ struct QuillWireGuardCoreTests {
         #expect(error == .keyValueOutsideSection(line: 1, key: "PrivateKey"))
     }
 
+    @Test("Import service returns render-ready snapshots and parse errors")
+    func importServiceReturnsRenderReadySnapshotsAndParseErrors() throws {
+        let fixture = QuillWireGuardFixtures.tunnels[0]
+        let imported = QuillWireGuardImportService.importConfiguration(
+            fixture.wgQuickConfig(),
+            id: QuillWireGuardImportService.tunnelID(existingTunnelCount: 2),
+            name: QuillWireGuardImportService.tunnelName(existingTunnelCount: 2)
+        )
+
+        #expect(imported.errorText == nil)
+        #expect(imported.tunnel?.id == "imported-tunnel-3")
+        #expect(imported.tunnel?.name == "Imported Tunnel 3")
+        #expect(imported.tunnel?.statusText == QuillWireGuardTunnelStatus.needsBackend.rawValue)
+        #expect(imported.tunnel?.interface.addressesText == fixture.interface.addresses.joined(separator: ", "))
+        #expect(imported.tunnel?.peers.first?.publicKey == fixture.peers.first?.publicKey)
+        #expect(imported.tunnel?.wgQuickConfig.contains("[Interface]") == true)
+
+        let failed = QuillWireGuardImportService.importConfiguration(
+            "[Peer]\nPublicKey = peer",
+            id: "bad-import",
+            name: "Bad Import"
+        )
+
+        #expect(failed.tunnel == nil)
+        #expect(failed.errorText == QuillWireGuardConfigParseError.missingInterface.description)
+    }
+
     @Test("Backend availability is explicit per platform")
     func backendAvailabilityIsExplicitPerPlatform() {
         #if os(Linux)
@@ -174,6 +201,10 @@ struct QuillWireGuardCoreTests {
             contentsOf: root.appendingPathComponent("Sources/QuillWireGuardQtNativeRuntime/QuillWireGuardQtNativeRuntime.swift"),
             encoding: .utf8
         )
+        let nativeShimHeaderSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/include/CQuillQt6WidgetsShim.h"),
+            encoding: .utf8
+        )
         let nativeShimSource = try String(
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillWireGuardQt6Widgets.cpp"),
             encoding: .utf8
@@ -193,14 +224,25 @@ struct QuillWireGuardCoreTests {
         #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
         #expect(nativeRuntimeSource.contains("QuillWireGuardAppSnapshot.configurationManager"))
         #expect(nativeRuntimeSource.contains("quill_wireguard_qt_run_wireguard_json"))
+        #expect(nativeRuntimeSource.contains("@_cdecl(\"quill_wireguard_qt_import_config_json\")"))
+        #expect(nativeRuntimeSource.contains("QuillWireGuardImportService.importConfiguration"))
+        #expect(nativeRuntimeSource.contains("quill_wireguard_qt_free_string"))
+        #expect(nativeShimHeaderSource.contains("quill_wireguard_qt_import_config_callback"))
+        #expect(nativeShimHeaderSource.contains("quill_wireguard_qt_free_string_callback"))
         #expect(nativeShimSource.contains("QApplication"))
         #expect(nativeShimSource.contains("QLineEdit"))
         #expect(nativeShimSource.contains("QListWidget"))
         #expect(nativeShimSource.contains("QPlainTextEdit"))
+        #expect(nativeShimSource.contains("QPushButton"))
         #expect(nativeShimSource.contains("QWidget *tunnelRowWidget"))
+        #expect(nativeShimSource.contains("void addTunnelRow(QListWidget *list, const QJsonObject &tunnel)"))
         #expect(nativeShimSource.contains("void replaceTunnelName(QJsonArray *tunnels, int row, const QString &name)"))
         #expect(nativeShimSource.contains("void updateTunnelRowName(QListWidget *list, int row, const QString &name)"))
         #expect(nativeShimSource.contains("QObject::connect(name, &QLineEdit::textChanged"))
+        #expect(nativeShimSource.contains("void showImportDialog("))
+        #expect(nativeShimSource.contains("quill_wireguard_qt_import_config_callback import_config"))
+        #expect(nativeShimSource.contains("QPushButton#importButton"))
+        #expect(nativeShimSource.contains("appendImportedTunnel(tunnels, list, countLabel, tunnel)"))
         #expect(nativeShimSource.contains("stringValue(interfaceObject, \"addressesText\")"))
         #expect(nativeShimSource.contains("QLabel#tunnelStatus, QLabel#tunnelSummary"))
         #expect(nativeShimSource.contains("QLineEdit#detailTitle"))

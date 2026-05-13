@@ -50,7 +50,7 @@ Audit doc:
 
 ## Side Target: WireGuard Apple
 
-Status: compile-green hard-gated on macOS CI (CP87). `scripts/fetch-upstream.sh wireguard` patches `WireGuardKitC.h` to explicitly `#include <sys/types.h>` so the macOS 15+ modular-header check on `u_int32_t` / `u_char` / `u_int16_t` resolves through the right Darwin module. A Linux configuration-manager shell renders deterministic tunnel fixtures with interface details, peer details, editable tunnel names, `wg-quick` export text, and shared `.conf` parsing through the `QuillWireGuardCore` + `QuillWireGuardUI` targets. The native Qt experiment is now `quill-wireguard-qt` behind the explicit SwiftPM build selector `QUILLUI_LINUX_BACKEND=qt`; that target uses a Qt6 Widgets host fed by the same `QuillWireGuardCore` presentation snapshot instead of linking the GTK path. Privileged connect/disconnect remains behind a future backend adapter.
+Status: compile-green hard-gated on macOS CI (CP87). `scripts/fetch-upstream.sh wireguard` patches `WireGuardKitC.h` to explicitly `#include <sys/types.h>` so the macOS 15+ modular-header check on `u_int32_t` / `u_char` / `u_int16_t` resolves through the right Darwin module. A Linux configuration-manager shell renders deterministic tunnel fixtures with interface details, peer details, editable tunnel names, `wg-quick` export text, and shared `.conf` parsing through the `QuillWireGuardCore` + `QuillWireGuardUI` targets. The native Qt experiment is now `quill-wireguard-qt` behind the explicit SwiftPM build selector `QUILLUI_LINUX_BACKEND=qt`; that target uses a Qt6 Widgets host fed by the same `QuillWireGuardCore` presentation snapshot instead of linking the GTK path, and its import dialog calls back into Swift for the shared parser rather than duplicating WireGuard parsing in C++. Privileged connect/disconnect remains behind a future backend adapter.
 
 Why it matters:
 
@@ -60,7 +60,7 @@ Why it matters:
 
 Next milestone:
 
-- Wire `.conf` text/file import controls into the GTK and Qt configuration-manager shells, backed by `QuillWireGuardConfigParser`.
+- Add matching `.conf` text/file import controls to the GTK configuration-manager shell and promote the Qt import dialog into the shared UI acceptance checks.
 - Persist edited/imported tunnel fixtures through QuillData.
 - Promote the WireGuard Qt host pattern into a reusable QuillUI backend adapter once the broader Qt renderer shape is stable.
 - Wire connect/disconnect through a Linux-specific backend when running on a real desktop with the right permissions.
