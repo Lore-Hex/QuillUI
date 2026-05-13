@@ -2964,3 +2964,13 @@ and desktop density everywhere else without importing UIKit or AppKit. Generic
 `ChatThread` models can also initialize `ChatTimeline` and `ChatPane` directly,
 which keeps Signal, Telegram, and future iOS clients on the same chat chrome
 without forcing app-specific wrappers.
+
+## Checkpoint 170: Linux Runtime Host Descriptors
+
+Status: implemented locally; guarded by QuillUI API and source hygiene tests.
+
+Linux runtime hosts now publish explicit descriptors with the linked host,
+backend identifier, and display name. The QuillUI backend registry derives its
+native runtime backends and platform fallback from those descriptors instead of
+duplicating GTK-specific constants, so a future native Qt host can be promoted
+by adding one linked host descriptor and letting the shared registry expose it.

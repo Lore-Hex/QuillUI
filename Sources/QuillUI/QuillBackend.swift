@@ -285,7 +285,7 @@ public enum QuillBackendRegistry {
 
     public static var platformDefault: QuillBackendIdentifier {
         #if os(Linux)
-        return .gtk
+        return QuillLinuxRuntimeHost.platformFallbackBackend
         #else
         return .swiftUI
         #endif
@@ -301,7 +301,7 @@ public enum QuillBackendRegistry {
 
     public static var platformRuntimeFallback: QuillBackendIdentifier {
         #if os(Linux)
-        return .gtk
+        return QuillLinuxRuntimeHost.platformFallbackBackend
         #else
         return .swiftUI
         #endif

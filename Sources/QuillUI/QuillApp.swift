@@ -78,24 +78,49 @@ public extension QuillBackend {
 }
 
 #if os(Linux)
-enum QuillLinuxRuntimeHost: CaseIterable {
+struct QuillLinuxRuntimeHostDescriptor: Equatable, Sendable {
+    let host: QuillLinuxRuntimeHost
+    let backend: QuillBackendIdentifier
+    let displayName: String
+}
+
+enum QuillLinuxRuntimeHost: CaseIterable, Sendable {
     case gtk4
 
+    static let linkedHosts: [QuillLinuxRuntimeHost] = [.gtk4]
+
+    static var descriptors: [QuillLinuxRuntimeHostDescriptor] {
+        linkedHosts.map(\.descriptor)
+    }
+
     static var supportedBackends: [QuillBackendIdentifier] {
-        allCases.map(\.backendIdentifier)
+        descriptors.map(\.backend)
+    }
+
+    static var platformFallbackBackend: QuillBackendIdentifier {
+        guard let backend = supportedBackends.first else {
+            preconditionFailure("No Linux runtime host is linked.")
+        }
+
+        return backend
+    }
+
+    static func descriptor(
+        for backend: QuillBackendIdentifier
+    ) -> QuillLinuxRuntimeHostDescriptor? {
+        descriptors.first { $0.backend == backend }
     }
 
     static func supports(_ backend: QuillBackendIdentifier) -> Bool {
-        Self(backend: backend) != nil
+        descriptor(for: backend) != nil
     }
 
     init?(backend: QuillBackendIdentifier) {
-        switch backend {
-        case .gtk:
-            self = .gtk4
-        case .swiftUI, .qt:
+        guard let host = Self.descriptor(for: backend)?.host else {
             return nil
         }
+
+        self = host
     }
 
     init(launchPlan: QuillBackendLaunchPlan) {
@@ -108,11 +133,19 @@ enum QuillLinuxRuntimeHost: CaseIterable {
         self = host
     }
 
-    var backendIdentifier: QuillBackendIdentifier {
+    var descriptor: QuillLinuxRuntimeHostDescriptor {
         switch self {
         case .gtk4:
-            return .gtk
+            return QuillLinuxRuntimeHostDescriptor(
+                host: self,
+                backend: .gtk,
+                displayName: "GTK4"
+            )
         }
+    }
+
+    var backendIdentifier: QuillBackendIdentifier {
+        descriptor.backend
     }
 
     func run<A: App>(_ appType: A.Type) {
