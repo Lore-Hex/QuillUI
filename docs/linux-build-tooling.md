@@ -230,6 +230,10 @@ such as `gtk4`, `qt6`, and `swift-ui` before mapping
 backend-neutral values to the older `QUILLUI_GTK_*` environment contract and to
 scoped `QUILLUI_QT_*` controls for compatibility, and
 `scripts/linux-gtk-visual-check.sh` remains as a thin compatibility shim.
+When `QUILLUI_BACKEND` is set, scoped aliases are treated as path-specific
+inputs: a Qt run can use `QUILLUI_BACKEND_*` or `QUILLUI_QT_*` values, but it
+will not source a `QUILLUI_GTK_*` fallback, and the GTK path follows the same
+rule in reverse.
 
 The backend visual and interaction runners both source
 `scripts/quillui-linux-backend-smoke-lib.sh` for apt package setup, root

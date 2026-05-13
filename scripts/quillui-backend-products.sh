@@ -385,19 +385,13 @@ quillui_backend_has_native_runtime() {
   quillui_backend_product_list_contains "$requested_backend" quillui_backend_native_runtime_backends
 }
 
-quillui_alias_env() {
-  local canonical="$1"
-  shift
-  local alias
+quillui_alias_matches_backend() {
+  local alias="$1"
+  local backend="$2"
   local backend_prefix=""
   local backend_marker=""
-  local selected_backend=""
 
-  if [[ -n "${QUILLUI_BACKEND:-}" ]]; then
-    selected_backend="$(quillui_normalize_backend_identifier "$QUILLUI_BACKEND" || true)"
-  fi
-
-  case "$selected_backend" in
+  case "$backend" in
     gtk)
       backend_prefix="QUILLUI_GTK_"
       backend_marker="_GTK_"
@@ -406,11 +400,44 @@ quillui_alias_env() {
       backend_prefix="QUILLUI_QT_"
       backend_marker="_QT_"
       ;;
+    *)
+      return 1
+      ;;
   esac
 
-  if [[ -z "${!canonical:-}" && -n "$backend_prefix" ]]; then
+  [[ "$alias" == "$backend_prefix"* || "$alias" == *"$backend_marker"* ]]
+}
+
+quillui_alias_matches_other_backend() {
+  local alias="$1"
+  local selected_backend="$2"
+
+  case "$selected_backend" in
+    gtk)
+      quillui_alias_matches_backend "$alias" qt
+      ;;
+    qt)
+      quillui_alias_matches_backend "$alias" gtk
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+quillui_alias_env() {
+  local canonical="$1"
+  shift
+  local alias
+  local selected_backend=""
+
+  if [[ -n "${QUILLUI_BACKEND:-}" ]]; then
+    selected_backend="$(quillui_normalize_backend_identifier "$QUILLUI_BACKEND" || true)"
+  fi
+
+  if [[ -z "${!canonical:-}" && -n "$selected_backend" ]]; then
     for alias in "$@"; do
-      if [[ ("$alias" == "$backend_prefix"* || "$alias" == *"$backend_marker"*) && -n "${!alias:-}" ]]; then
+      if quillui_alias_matches_backend "$alias" "$selected_backend" && [[ -n "${!alias:-}" ]]; then
         printf -v "$canonical" "%s" "${!alias}"
         break
       fi
@@ -419,6 +446,9 @@ quillui_alias_env() {
 
   if [[ -z "${!canonical:-}" ]]; then
     for alias in "$@"; do
+      if [[ -n "$selected_backend" ]] && quillui_alias_matches_other_backend "$alias" "$selected_backend"; then
+        continue
+      fi
       if [[ -n "${!alias:-}" ]]; then
         printf -v "$canonical" "%s" "${!alias}"
         break
@@ -435,7 +465,8 @@ quillui_alias_env() {
 
 # Backend-neutral names are canonical for GTK/Qt parity checks. The
 # legacy QUILLUI_GTK_* names and scoped QUILLUI_QT_* names stay supported.
-# When multiple names are set, the backend-neutral value wins.
+# When a backend is explicitly selected, aliases scoped to the other backend are
+# never used as input. When multiple matching names are set, backend-neutral wins.
 quillui_alias_backend_common_env() {
   quillui_alias_env QUILLUI_BACKEND_MAC_REFERENCE QUILLUI_GTK_MAC_REFERENCE QUILLUI_QT_MAC_REFERENCE
   quillui_alias_env QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH QUILLUI_GTK_DEFAULT_WINDOW_WIDTH QUILLUI_QT_DEFAULT_WINDOW_WIDTH

@@ -1038,6 +1038,22 @@ struct LinuxBackendAppMatrixTests {
         printf 'interaction=%s\\n' "$QUILLUI_BACKEND_INTERACTION_MODE"
         printf 'interaction-qt=%s\\n' "$QUILLUI_QT_INTERACTION_MODE"
 
+        unset QUILLUI_BACKEND_INTERACTION_MODE QUILLUI_GTK_INTERACTION_MODE QUILLUI_QT_INTERACTION_MODE
+        QUILLUI_BACKEND=qt
+        QUILLUI_GTK_INTERACTION_MODE=wrong-backend
+        export QUILLUI_BACKEND QUILLUI_GTK_INTERACTION_MODE
+        quillui_alias_backend_interaction_env
+        printf 'qt-ignores-gtk-only=%s\\n' "${QUILLUI_BACKEND_INTERACTION_MODE-unset}"
+        printf 'qt-ignores-gtk-only-source=%s\\n' "$QUILLUI_GTK_INTERACTION_MODE"
+
+        unset QUILLUI_BACKEND_IMPORT_CONFIGURATION QUILLUI_GTK_IMPORT_CONFIGURATION QUILLUI_QT_IMPORT_CONFIGURATION
+        QUILLUI_BACKEND=gtk
+        QUILLUI_QT_IMPORT_CONFIGURATION=wrong-backend
+        export QUILLUI_BACKEND QUILLUI_QT_IMPORT_CONFIGURATION
+        quillui_alias_backend_interaction_env
+        printf 'gtk-ignores-qt-only=%s\\n' "${QUILLUI_BACKEND_IMPORT_CONFIGURATION-unset}"
+        printf 'gtk-ignores-qt-only-source=%s\\n' "$QUILLUI_QT_IMPORT_CONFIGURATION"
+
         unset QUILLUI_BACKEND_IMPORT_CONFIGURATION QUILLUI_GTK_IMPORT_CONFIGURATION QUILLUI_QT_IMPORT_CONFIGURATION
         unset QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE
         QUILLUI_BACKEND=qt
@@ -1126,6 +1142,10 @@ struct LinuxBackendAppMatrixTests {
         screen-qt=1440x900x24
         interaction=prompt-send
         interaction-qt=prompt-send
+        qt-ignores-gtk-only=unset
+        qt-ignores-gtk-only-source=wrong-backend
+        gtk-ignores-qt-only=unset
+        gtk-ignores-qt-only-source=wrong-backend
         import-config=qt-import
         import-config-qt=qt-import
         import-config-file=/tmp/qt.conf
