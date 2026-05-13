@@ -334,7 +334,8 @@ fires at 200Hz, so per-paint allocations stack.
 
 1. `swift build --product <product>` (build time captured
    separately so dep-cache state doesn't pollute startup).
-2. `Xvfb :95 -screen 0 1180x760x24` in background.
+2. Start Xvfb with the shared backend screen-size helper, defaulting to
+   `:95` and `1180x760x24`.
 3. Launch the app, poll `xdotool search --onlyvisible` until
    the first X11 window appears (the "rendered first frame"
    signal, not just "process exists").

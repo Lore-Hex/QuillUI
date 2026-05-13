@@ -23,6 +23,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUTPUT_DIR="$ROOT_DIR/.qa"
 source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 quillui_alias_backend_profile_env
 
@@ -64,8 +65,12 @@ if [[ ! -x "$exe" ]]; then
     exit 1
 fi
 
+reference_window_width="${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}"
+reference_window_height="${QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT:-1380}"
+hide_window_menubar_label="${QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL:-1}"
+
 display_id="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_PROFILE_DISPLAY:-95}")"
-screen_size="${QUILLUI_BACKEND_PROFILE_SCREEN_SIZE:-1180x760x24}"
+screen_size="$(quillui_backend_screen_size "$PRODUCT" "${QUILLUI_BACKEND_PROFILE_SCREEN_SIZE:-}" "1180x760x24" "$reference_window_width" "$reference_window_height")"
 xvfb_pid=""
 
 cleanup() {
@@ -82,6 +87,15 @@ fi
 startup_start_ms=$(date +%s%3N)
 app_environment=()
 quillui_append_backend_launch_environment app_environment "$PRODUCT" "$display_id"
+if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    quill_chat_reference_home="$OUTPUT_DIR/quill-chat-linux-reference-home"
+    quillui_append_quill_chat_reference_environment \
+        app_environment \
+        "$quill_chat_reference_home" \
+        "$reference_window_width" \
+        "$reference_window_height" \
+        "$hide_window_menubar_label"
+fi
 env "${app_environment[@]}" "$exe" >/tmp/quillui-profile-app.log 2>&1 &
 app_pid=$!
 

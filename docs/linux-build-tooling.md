@@ -192,6 +192,9 @@ Display controls such as `QUILLUI_BACKEND_VISUAL_DISPLAY`,
 `QUILLUI_BACKEND_INTERACTION_DISPLAY`, and `QUILLUI_BACKEND_PROFILE_DISPLAY`
 accept either an X display id (`:95`) or a numeric display (`95`); the runners
 normalize both forms before starting Xvfb.
+The visual, interaction, and profile runners also share the same Xvfb screen
+selection helper, so Mac-reference Quill Chat runs use the same seeded state and
+reference window dimensions across screenshot and performance checks.
 
 ```bash
 scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke

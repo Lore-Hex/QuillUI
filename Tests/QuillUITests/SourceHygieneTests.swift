@@ -346,6 +346,8 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("quillui_alias_backend_profile_env()"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_INTERACTION_MODE QUILLUI_GTK_INTERACTION_MODE"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_COMMAND QUILLUI_GTK_PROFILE_COMMAND"))
+        #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE"))
+        #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS\n  quillui_alias_backend_common_env"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_VERIFY_PRODUCT QUILLUI_GTK_VERIFY_PRODUCT"))
         #expect(backendProducts.contains("backend-apps)"))
         #expect(backendProducts.contains("app-backends)"))
