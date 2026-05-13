@@ -214,7 +214,11 @@ struct SourceHygieneTests {
         #expect(qtBackend.contains("QuillBackendApp<QuillQtBackend>.run(appType)"))
 
         #expect(backendScript.contains("quillui_alias_backend_interaction_env"))
-        #expect(backendScript.contains("reference_window_width=\"${QUILLUI_GTK_DEFAULT_WINDOW_WIDTH:-2048}\""))
+        #expect(backendScript.contains("reference_window_width=\"${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}\""))
+        #expect(backendScript.contains("QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=\"$reference_window_width\""))
+        #expect(!backendScript.contains("${QUILLUI_GTK_INTERACTION_MODE:-}"))
+        #expect(!backendScript.contains("${QUILLUI_GTK_CLICK_X:-"))
+        #expect(!backendScript.contains("${QUILLUI_GTK_VERIFY_PRODUCT:-"))
         #expect(backendScript.contains("xdotool is required for backend interaction smoke tests"))
         #expect(backendScript.contains("quillui_is_backend_smoke_product \"$PRODUCT\""))
         #expect(!backendScript.contains("quill-gtk-interaction-smoke|quill-qt-interaction-smoke"))
