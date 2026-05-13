@@ -245,6 +245,8 @@ struct SourceHygieneTests {
         #expect(sharedView.contains("Quill Backend Interaction"))
         #expect(sharedView.contains("Native backend click target"))
         #expect(sharedView.contains("native backend button click"))
+        #expect(sharedView.contains("private struct SmokeSheetContent"))
+        #expect(sharedView.contains("SmokeSheetContent("))
         #expect(backendCore.contains("static var status: QuillBackendRuntimeStatus"))
         #expect(appCore.contains("static func run<A: App>(_ appType: A.Type)"))
         #expect(appCore.contains("QuillBackendApp<Self>.run(appType)"))

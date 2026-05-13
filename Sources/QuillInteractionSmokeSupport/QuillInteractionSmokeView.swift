@@ -188,15 +188,12 @@ private struct NestedSheetSmoke: View {
             isPresented.toggle()
         }
         .sheet(isPresented: $isPresented) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Nested Sheet Open")
-                    .font(.system(size: 20, weight: .semibold))
-                Text("A child view presented this sheet from @State.")
-                    .font(.system(size: 14))
-            }
-            .padding(24)
-            .frame(width: 360, height: 180, alignment: .leading)
-            .background(Color(hex: "#ECECF2"))
+            SmokeSheetContent(
+                title: "Nested Sheet Open",
+                message: "A child view presented this sheet from @State.",
+                width: 360,
+                height: 180
+            )
         }
     }
 }
@@ -213,15 +210,12 @@ private struct SidebarSheetSmoke: View {
         }
         .frame(width: 260, alignment: .leading)
         .sheet(isPresented: $isPresented) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Sidebar Sheet Open")
-                    .font(.system(size: 20, weight: .semibold))
-                Text("A Quill sidebar button presented this sheet from @State.")
-                    .font(.system(size: 14))
-            }
-            .padding(24)
-            .frame(width: 420, height: 200, alignment: .leading)
-            .background(Color(hex: "#ECECF2"))
+            SmokeSheetContent(
+                title: "Sidebar Sheet Open",
+                message: "A Quill sidebar button presented this sheet from @State.",
+                width: 420,
+                height: 200
+            )
         }
     }
 }
@@ -238,15 +232,31 @@ private struct BannerSheetSmoke: View {
         }
         .frame(width: 520, alignment: .leading)
         .sheet(isPresented: $isPresented) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Banner Sheet Open")
-                    .font(.system(size: 20, weight: .semibold))
-                Text("A Quill status banner action presented this sheet from @State.")
-                    .font(.system(size: 14))
-            }
-            .padding(24)
-            .frame(width: 420, height: 200, alignment: .leading)
-            .background(Color(hex: "#ECECF2"))
+            SmokeSheetContent(
+                title: "Banner Sheet Open",
+                message: "A Quill status banner action presented this sheet from @State.",
+                width: 420,
+                height: 200
+            )
         }
+    }
+}
+
+private struct SmokeSheetContent: View {
+    let title: String
+    let message: String
+    let width: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 20, weight: .semibold))
+            Text(message)
+                .font(.system(size: 14))
+        }
+        .padding(24)
+        .frame(width: width, height: height, alignment: .leading)
+        .background(Color(hex: "#ECECF2"))
     }
 }
