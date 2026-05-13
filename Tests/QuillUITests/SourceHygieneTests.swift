@@ -408,6 +408,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("dependencies: [\"QuillUIQt\", \"QuillInteractionSmokeSupport\"]"))
         #expect(!manifest.contains("dependencies: [\"QuillUI\", \"QuillUIGtk\", \"QuillInteractionSmokeSupport\"]"))
         #expect(!manifest.contains("dependencies: [\"QuillUI\", \"QuillUIQt\", \"QuillInteractionSmokeSupport\"]"))
+        #expect(sharedView.contains("import Foundation"))
 
         #expect(gtkMain.contains("import QuillInteractionSmokeSupport"))
         #expect(gtkMain.contains("import QuillUIGtk"))
