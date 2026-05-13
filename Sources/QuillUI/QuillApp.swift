@@ -75,17 +75,40 @@ public extension QuillBackend {
 }
 
 #if os(Linux)
-private enum QuillLinuxRuntimeHost {
+enum QuillLinuxRuntimeHost: CaseIterable {
     case gtk4
 
-    init(launchPlan: QuillBackendLaunchPlan) {
-        switch launchPlan.runtime {
+    static var supportedBackends: [QuillBackendIdentifier] {
+        allCases.map(\.backendIdentifier)
+    }
+
+    static func supports(_ backend: QuillBackendIdentifier) -> Bool {
+        Self(backend: backend) != nil
+    }
+
+    init?(backend: QuillBackendIdentifier) {
+        switch backend {
         case .gtk:
             self = .gtk4
         case .swiftUI, .qt:
+            return nil
+        }
+    }
+
+    init(launchPlan: QuillBackendLaunchPlan) {
+        guard let host = Self(backend: launchPlan.runtime) else {
             preconditionFailure(
                 "No Linux runtime host is linked for \(launchPlan.runtime.rawValue); selected \(launchPlan.selected.rawValue)."
             )
+        }
+
+        self = host
+    }
+
+    var backendIdentifier: QuillBackendIdentifier {
+        switch self {
+        case .gtk4:
+            return .gtk
         }
     }
 

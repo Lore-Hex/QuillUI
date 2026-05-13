@@ -177,7 +177,7 @@ public enum QuillBackendRegistry {
 
     public static var nativeRuntimeBackends: [QuillBackendIdentifier] {
         #if os(Linux)
-        return [.gtk]
+        return QuillLinuxRuntimeHost.supportedBackends
         #else
         return [.swiftUI]
         #endif

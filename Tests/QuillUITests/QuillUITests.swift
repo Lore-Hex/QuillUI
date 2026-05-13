@@ -89,6 +89,11 @@ struct QuillUITests {
         #expect(QuillBackendRegistry.platformDefault == .gtk)
         #expect(QuillBackendRegistry.platformRuntimeFallback == .gtk)
         #expect(QuillBackendRegistry.nativeRuntimeBackends == [.gtk])
+        #expect(QuillBackendRegistry.nativeRuntimeBackends == QuillLinuxRuntimeHost.supportedBackends)
+        #expect(QuillLinuxRuntimeHost.supports(.gtk))
+        #expect(!QuillLinuxRuntimeHost.supports(.qt))
+        #expect(QuillLinuxRuntimeHost(backend: .gtk) != nil)
+        #expect(QuillLinuxRuntimeHost(backend: .qt) == nil)
         #expect(QuillBackendRegistry.hasNativeRuntime(for: .gtk))
         #expect(!QuillBackendRegistry.hasNativeRuntime(for: .qt))
         #else

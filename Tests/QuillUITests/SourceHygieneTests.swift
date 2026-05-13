@@ -188,6 +188,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillApp.swift"),
             encoding: .utf8
         )
+        let backendSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillBackend.swift"),
+            encoding: .utf8
+        )
         let appEntryPointPaths = [
             "Sources/QuillSignal/main.swift",
             "Sources/QuillTelegram/main.swift",
@@ -218,7 +222,9 @@ struct SourceHygieneTests {
         #expect(helperSource.contains("public enum QuillAppWindow"))
         #expect(helperSource.contains("public enum QuillBackendApp<Backend: QuillBackend>"))
         #expect(helperSource.contains("QuillBackendRegistry.launchPlan(preferred: preferredBackend)"))
-        #expect(helperSource.contains("private enum QuillLinuxRuntimeHost"))
+        #expect(helperSource.contains("enum QuillLinuxRuntimeHost: CaseIterable"))
+        #expect(helperSource.contains("static var supportedBackends: [QuillBackendIdentifier]"))
+        #expect(helperSource.contains("allCases.map(\\.backendIdentifier)"))
         #expect(helperSource.contains("init(launchPlan: QuillBackendLaunchPlan)"))
         #expect(helperSource.contains("case .gtk:"))
         #expect(helperSource.contains("case .swiftUI, .qt:"))
@@ -229,6 +235,8 @@ struct SourceHygieneTests {
         #expect(helperSource.contains("entry point"))
         #expect(helperSource.contains("launch-plan fallback"))
         #expect(!helperSource.contains("block six times"))
+        #expect(backendSource.contains("return QuillLinuxRuntimeHost.supportedBackends"))
+        #expect(!backendSource.contains("return [.gtk]"))
 
         for path in appEntryPointPaths {
             let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
