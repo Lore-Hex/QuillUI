@@ -87,14 +87,18 @@ struct QuillUITests {
         #expect(qtDescriptor.runtimeDescriptor.identifier == QuillBackendRegistry.platformRuntimeFallback)
         #expect(qtDescriptor.usesRuntimeFallback)
         #expect(qtDescriptor.runtimeMode == .platformFallback)
+        #expect(qtDescriptor.runtimeSummary == QuillBackendRegistry.runtimeSummary(selected: .qt))
+        #expect(qtDescriptor.runtimeSummary.contains("Qt selected"))
 
         let gtkDescriptor = QuillBackendRegistry.descriptor(for: .gtk)
         #expect(gtkDescriptor.displayName == "GTK")
         #expect(gtkDescriptor.isExperimental == false)
+        #expect(gtkDescriptor.runtimeSummary == QuillBackendRegistry.runtimeSummary(selected: .gtk))
 
         let preferredGtkPlan = QuillBackendRegistry.launchPlan(requested: nil, preferred: .gtk)
         #expect(preferredGtkPlan.selected == .gtk)
         #expect(preferredGtkPlan.selectedDescriptor == gtkDescriptor)
+        #expect(preferredGtkPlan.statusMessage == gtkDescriptor.runtimeSummary)
 
         #if os(Linux)
         #expect(gtkDescriptor.hasNativeRuntime)
@@ -102,6 +106,7 @@ struct QuillUITests {
         #expect(gtkDescriptor.runtimeDescriptor == gtkDescriptor)
         #expect(!gtkDescriptor.usesRuntimeFallback)
         #expect(gtkDescriptor.runtimeMode == .native)
+        #expect(gtkDescriptor.runtimeSummary == "GTK native renderer selected.")
         #expect(preferredGtkPlan.runtime == .gtk)
         #expect(preferredGtkPlan.runtimeDescriptor.identifier == .gtk)
         #expect(preferredGtkPlan.runtimeMode == .native)
@@ -111,6 +116,7 @@ struct QuillUITests {
         #expect(gtkDescriptor.runtimeDescriptor.identifier == .swiftUI)
         #expect(gtkDescriptor.usesRuntimeFallback)
         #expect(gtkDescriptor.runtimeMode == .platformFallback)
+        #expect(gtkDescriptor.runtimeSummary == "GTK selected, but the native renderer is not available yet; launches currently use SwiftUI.")
         #expect(preferredGtkPlan.runtime == .swiftUI)
         #expect(preferredGtkPlan.runtimeDescriptor.identifier == .swiftUI)
         #expect(preferredGtkPlan.runtimeMode == .platformFallback)
@@ -122,11 +128,20 @@ struct QuillUITests {
         #expect(requestedQtOverGtkPlan.selected == .qt)
         #expect(requestedQtOverGtkPlan.selectedDescriptor == qtDescriptor)
         #expect(requestedQtOverGtkPlan.usesRuntimeFallback)
+        #expect(
+            requestedQtOverGtkPlan.statusMessage
+                == QuillBackendRegistry.runtimeSummary(
+                    selected: requestedQtOverGtkPlan.selected,
+                    runtime: requestedQtOverGtkPlan.runtime
+                )
+        )
 
         #if os(Linux)
         #expect(requestedQtOverGtkPlan.runtime == .gtk)
+        #expect(requestedQtOverGtkPlan.statusMessage == "Qt selected, but the native renderer is not available yet; launches currently use GTK.")
         #else
         #expect(requestedQtOverGtkPlan.runtime == .swiftUI)
+        #expect(requestedQtOverGtkPlan.statusMessage == "Qt selected, but the native renderer is not available yet; launches currently use SwiftUI.")
         #endif
 
         let environmentGtkPlan = QuillBackendRegistry.launchPlan(preferred: .gtk)
@@ -153,6 +168,7 @@ struct QuillUITests {
 
         #expect(preferredQtPlan.usesRuntimeFallback)
         #expect(preferredQtPlan.statusMessage.contains("Qt selected"))
+        #expect(preferredQtPlan.statusMessage == qtDescriptor.runtimeSummary)
         let environmentQtPlan = QuillBackendRegistry.launchPlan(preferred: .qt)
         #expect(QuillQtBackend.descriptor == qtDescriptor)
         #expect(QuillQtBackend.launchPlan == environmentQtPlan)

@@ -50,6 +50,10 @@ public struct QuillBackendDescriptor: Equatable, Sendable {
         usesRuntimeFallback ? .platformFallback : .native
     }
 
+    public var runtimeSummary: String {
+        QuillBackendRegistry.runtimeSummary(selected: identifier)
+    }
+
     public init(
         identifier: QuillBackendIdentifier,
         displayName: String,
@@ -93,11 +97,7 @@ public struct QuillBackendLaunchPlan: Equatable, Sendable {
     }
 
     public var statusMessage: String {
-        if usesRuntimeFallback {
-            return "\(selectedDescriptor.displayName) selected, but the native renderer is not available yet; launches currently use \(runtimeDescriptor.displayName)."
-        }
-
-        return "\(runtimeDescriptor.displayName) native renderer selected."
+        QuillBackendRegistry.runtimeSummary(selected: selected, runtime: runtime)
     }
 
     public init(
@@ -235,6 +235,29 @@ public enum QuillBackendRegistry {
         for identifier: QuillBackendIdentifier
     ) -> Bool {
         nativeRuntimeBackends.contains(identifier)
+    }
+
+    public static func runtimeSummary(
+        selected selectedBackend: QuillBackendIdentifier
+    ) -> String {
+        runtimeSummary(
+            selected: selectedBackend,
+            runtime: runtimeBackend(for: selectedBackend)
+        )
+    }
+
+    public static func runtimeSummary(
+        selected selectedBackend: QuillBackendIdentifier,
+        runtime runtimeBackend: QuillBackendIdentifier
+    ) -> String {
+        let selectedDescriptor = descriptor(for: selectedBackend)
+        let runtimeDescriptor = descriptor(for: runtimeBackend)
+
+        if selectedBackend != runtimeBackend {
+            return "\(selectedDescriptor.displayName) selected, but the native renderer is not available yet; launches currently use \(runtimeDescriptor.displayName)."
+        }
+
+        return "\(runtimeDescriptor.displayName) native renderer selected."
     }
 
     public static func descriptor(for identifier: QuillBackendIdentifier) -> QuillBackendDescriptor {
