@@ -27,10 +27,7 @@ reference_window_height="${QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT:-1380}"
 hide_window_menubar_label="${QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL:-1}"
 
 DISPLAY_ID="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_VISUAL_DISPLAY:-:94}")"
-SCREEN_SIZE="${QUILLUI_BACKEND_SCREEN_SIZE:-1180x760x24}"
-if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-  SCREEN_SIZE="${QUILLUI_BACKEND_SCREEN_SIZE:-${reference_window_width}x${reference_window_height}x24}"
-fi
+SCREEN_SIZE="$(quillui_backend_screen_size "$PRODUCT" "${QUILLUI_BACKEND_SCREEN_SIZE:-}" "1180x760x24" "$reference_window_width" "$reference_window_height")"
 Xvfb "$DISPLAY_ID" -screen 0 "$SCREEN_SIZE" >/tmp/quillui-xvfb.log 2>&1 &
 xvfb_pid=$!
 

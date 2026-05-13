@@ -25,6 +25,22 @@ quillui_is_quill_chat_mac_reference_product() {
   [[ "$product" == "quill-chat-linux" && "${QUILLUI_BACKEND_MAC_REFERENCE:-0}" == "1" ]]
 }
 
+quillui_backend_screen_size() {
+  local product="$1"
+  local requested_screen_size="$2"
+  local default_screen_size="$3"
+  local reference_window_width="$4"
+  local reference_window_height="$5"
+
+  if [[ -n "$requested_screen_size" ]]; then
+    echo "$requested_screen_size"
+  elif quillui_is_quill_chat_mac_reference_product "$product"; then
+    echo "${reference_window_width}x${reference_window_height}x24"
+  else
+    echo "$default_screen_size"
+  fi
+}
+
 quillui_append_environment_assignment() {
   local output_array="$1"
   local assignment="$2"

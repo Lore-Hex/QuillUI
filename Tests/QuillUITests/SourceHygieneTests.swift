@@ -266,6 +266,7 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("/tmp/quillui-backend-interaction-app.log"))
         #expect(!backendScript.contains("/tmp/quillui-gtk-interaction-app.log"))
         #expect(backendScript.contains("reference_window_width=\"${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}\""))
+        #expect(backendScript.contains("quillui_backend_screen_size \"$PRODUCT\" \"${QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE:-}\""))
         #expect(backendScript.contains("quillui_append_quill_chat_reference_environment"))
         #expect(backendScript.contains("quillui_is_quill_chat_mac_reference_product \"$PRODUCT\""))
         #expect(!backendScript.contains("is_quill_chat_mac_reference()"))
