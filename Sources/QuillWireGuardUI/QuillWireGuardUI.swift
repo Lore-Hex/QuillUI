@@ -1,3 +1,4 @@
+import Foundation
 import QuillUI
 import QuillWireGuardCore
 import SwiftUI
@@ -33,6 +34,9 @@ public enum QuillWireGuardScene {
 public struct WireGuardFallbackConfigurationView: View {
     @State private var tunnels = QuillWireGuardFixtures.tunnels
     @State private var selectedTunnelID = QuillWireGuardFixtures.defaultTunnelID
+    @State private var isImportPanelVisible = false
+    @State private var importConfigurationText = ""
+    @State private var importErrorText: String?
 
     public init() {}
 
@@ -59,6 +63,11 @@ public struct WireGuardFallbackConfigurationView: View {
                 Text("\(tunnels.count)")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                Button(action: showImportPanel) {
+                    Text(QuillWireGuardPresentation.importButtonLabel)
+                        .font(.headline)
+                        .frame(width: 22, height: 22)
+                }
             }
             .padding(14)
 
@@ -112,6 +121,10 @@ public struct WireGuardFallbackConfigurationView: View {
             if let tunnel = selectedTunnel {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
+                        if isImportPanelVisible {
+                            importPanel
+                        }
+
                         HStack(alignment: .firstTextBaseline) {
                             TextField(QuillWireGuardPresentation.tunnelNamePlaceholder, text: selectedTunnelName)
                                 .font(.title2)
@@ -152,6 +165,14 @@ public struct WireGuardFallbackConfigurationView: View {
                     .padding(22)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+            } else if isImportPanelVisible {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        importPanel
+                    }
+                    .padding(22)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             } else {
                 VStack(spacing: 8) {
                     Text(QuillWireGuardPresentation.emptyStateTitle)
@@ -161,6 +182,29 @@ public struct WireGuardFallbackConfigurationView: View {
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+
+    private var importPanel: some View {
+        section(title: QuillWireGuardPresentation.importDialogTitle) {
+            VStack(alignment: .leading, spacing: 10) {
+                TextEditor(text: $importConfigurationText)
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(height: 180)
+
+                if let importErrorText, !importErrorText.isEmpty {
+                    Text(importErrorText)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+
+                HStack(spacing: 8) {
+                    Button(QuillWireGuardPresentation.importActionLabel, action: importPastedConfiguration)
+                    Button(QuillWireGuardPresentation.importFileActionLabel, action: importConfigurationFromFile)
+                    Spacer()
+                    Button(QuillWireGuardPresentation.importCancelActionLabel, action: hideImportPanel)
+                }
             }
         }
     }
@@ -191,6 +235,62 @@ public struct WireGuardFallbackConfigurationView: View {
         }
     }
 
+    private func showImportPanel() {
+        isImportPanelVisible = true
+        importErrorText = nil
+    }
+
+    private func hideImportPanel() {
+        isImportPanelVisible = false
+        importConfigurationText = ""
+        importErrorText = nil
+    }
+
+    private func importPastedConfiguration() {
+        importConfiguration(importConfigurationText)
+    }
+
+    private func importConfigurationFromFile() {
+        switch selectWireGuardConfigurationURL() {
+        case .success(let url):
+            do {
+                let configuration = try String(contentsOf: url, encoding: .utf8)
+                importConfigurationText = configuration
+                importConfiguration(configuration)
+            } catch {
+                importErrorText = error.localizedDescription
+            }
+        case .failure(let error):
+            importErrorText = error.localizedDescription
+        }
+    }
+
+    private func selectWireGuardConfigurationURL() -> Result<URL, Error> {
+        #if os(Linux)
+        QuillFileImporter.selectURL(allowedContentTypes: [])
+        #else
+        .failure(WireGuardFallbackImportError.fileSelectionUnavailable)
+        #endif
+    }
+
+    private func importConfiguration(_ configuration: String) {
+        do {
+            let count = tunnels.count
+            let tunnel = try QuillWireGuardImportService.importTunnel(
+                configuration,
+                id: QuillWireGuardImportService.tunnelID(existingTunnelCount: count),
+                name: QuillWireGuardImportService.tunnelName(existingTunnelCount: count)
+            )
+            tunnels.append(tunnel)
+            selectedTunnelID = tunnel.id
+            hideImportPanel()
+        } catch let error as CustomStringConvertible {
+            importErrorText = error.description
+        } catch {
+            importErrorText = String(describing: error)
+        }
+    }
+
     private var selectedTunnel: QuillWireGuardTunnel? {
         guard let selectedTunnelID else { return nil }
         return tunnels.first(where: { $0.id == selectedTunnelID })
@@ -207,6 +307,17 @@ public struct WireGuardFallbackConfigurationView: View {
                 tunnels[index].name = name
             }
         )
+    }
+}
+
+private enum WireGuardFallbackImportError: LocalizedError {
+    case fileSelectionUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .fileSelectionUnavailable:
+            "WireGuard configuration file selection is only available in the Linux fallback host."
+        }
     }
 }
 

@@ -29,6 +29,19 @@ public enum QuillWireGuardBackend {
 public enum QuillWireGuardPresentation {
     public static let sidebarTitle = "Tunnels"
     public static let backendTitle = "Backend"
+    public static let importButtonLabel = "+"
+    public static let importButtonTooltip = "Import WireGuard configuration"
+    public static let importActionLabel = "Import"
+    public static let importFileActionLabel = "Choose File"
+    public static let importCancelActionLabel = "Cancel"
+    public static let importDialogTitle = "Import WireGuard Configuration"
+    public static let importPlaceholder = "[Interface]\nPrivateKey = ...\n\n[Peer]\nPublicKey = ..."
+    public static let importEmptyConfigurationError = "Paste a WireGuard configuration before importing."
+    public static let importUnavailableError = "WireGuard import is unavailable in this build."
+    public static let importNoResponseError = "WireGuard import did not return a response."
+    public static let importInvalidResponseError = "WireGuard import returned invalid JSON."
+    public static let importMissingTunnelError = "WireGuard import response did not include a tunnel."
+    public static let importMissingConfigurationError = "Missing WireGuard configuration."
     public static let tunnelNamePlaceholder = "Tunnel name"
     public static let emptyStateTitle = QuillWireGuardAppMetadata.title
     public static let emptyStateMessage = "Select a tunnel to edit and export its configuration."
@@ -231,6 +244,17 @@ public struct QuillWireGuardImportResponse: Codable, Equatable, Sendable {
     }
 }
 
+public enum QuillWireGuardImportError: Equatable, Error, CustomStringConvertible, Sendable {
+    case emptyConfiguration
+
+    public var description: String {
+        switch self {
+        case .emptyConfiguration:
+            QuillWireGuardPresentation.importEmptyConfigurationError
+        }
+    }
+}
+
 public enum QuillWireGuardImportService {
     public static func tunnelID(existingTunnelCount: Int) -> String {
         "imported-tunnel-\(existingTunnelCount + 1)"
@@ -247,7 +271,7 @@ public enum QuillWireGuardImportService {
         status: QuillWireGuardTunnelStatus = .needsBackend
     ) -> QuillWireGuardImportResponse {
         do {
-            let tunnel = try QuillWireGuardConfigParser.parse(
+            let tunnel = try importTunnel(
                 configuration,
                 id: id,
                 name: name,
@@ -260,11 +284,43 @@ public enum QuillWireGuardImportService {
             return .failure(String(describing: error))
         }
     }
+
+    public static func importTunnel(
+        _ configuration: String,
+        id: String,
+        name: String,
+        status: QuillWireGuardTunnelStatus = .needsBackend
+    ) throws -> QuillWireGuardTunnel {
+        let trimmedConfiguration = configuration.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedConfiguration.isEmpty else {
+            throw QuillWireGuardImportError.emptyConfiguration
+        }
+
+        return try QuillWireGuardConfigParser.parse(
+            trimmedConfiguration,
+            id: id,
+            name: name,
+            status: status
+        )
+    }
 }
 
 public struct QuillWireGuardPresentationSnapshot: Codable, Equatable, Sendable {
     public var sidebarTitle: String
     public var backendTitle: String
+    public var importButtonLabel: String
+    public var importButtonTooltip: String
+    public var importActionLabel: String
+    public var importFileActionLabel: String
+    public var importCancelActionLabel: String
+    public var importDialogTitle: String
+    public var importPlaceholder: String
+    public var importEmptyConfigurationError: String
+    public var importUnavailableError: String
+    public var importNoResponseError: String
+    public var importInvalidResponseError: String
+    public var importMissingTunnelError: String
+    public var importMissingConfigurationError: String
     public var tunnelNamePlaceholder: String
     public var emptyStateTitle: String
     public var emptyStateMessage: String
@@ -279,9 +335,53 @@ public struct QuillWireGuardPresentationSnapshot: Codable, Equatable, Sendable {
     public var keepAliveLabel: String
     public var noneText: String
 
+    private enum CodingKeys: String, CodingKey {
+        case sidebarTitle
+        case backendTitle
+        case importButtonLabel
+        case importButtonTooltip
+        case importActionLabel
+        case importFileActionLabel
+        case importCancelActionLabel
+        case importDialogTitle
+        case importPlaceholder
+        case importEmptyConfigurationError
+        case importUnavailableError
+        case importNoResponseError
+        case importInvalidResponseError
+        case importMissingTunnelError
+        case importMissingConfigurationError
+        case tunnelNamePlaceholder
+        case emptyStateTitle
+        case emptyStateMessage
+        case interfaceSectionTitle
+        case exportSectionTitle
+        case publicKeyLabel
+        case addressesLabel
+        case dnsLabel
+        case listenPortLabel
+        case allowedIPsLabel
+        case endpointLabel
+        case keepAliveLabel
+        case noneText
+    }
+
     public init(
         sidebarTitle: String = QuillWireGuardPresentation.sidebarTitle,
         backendTitle: String = QuillWireGuardPresentation.backendTitle,
+        importButtonLabel: String = QuillWireGuardPresentation.importButtonLabel,
+        importButtonTooltip: String = QuillWireGuardPresentation.importButtonTooltip,
+        importActionLabel: String = QuillWireGuardPresentation.importActionLabel,
+        importFileActionLabel: String = QuillWireGuardPresentation.importFileActionLabel,
+        importCancelActionLabel: String = QuillWireGuardPresentation.importCancelActionLabel,
+        importDialogTitle: String = QuillWireGuardPresentation.importDialogTitle,
+        importPlaceholder: String = QuillWireGuardPresentation.importPlaceholder,
+        importEmptyConfigurationError: String = QuillWireGuardPresentation.importEmptyConfigurationError,
+        importUnavailableError: String = QuillWireGuardPresentation.importUnavailableError,
+        importNoResponseError: String = QuillWireGuardPresentation.importNoResponseError,
+        importInvalidResponseError: String = QuillWireGuardPresentation.importInvalidResponseError,
+        importMissingTunnelError: String = QuillWireGuardPresentation.importMissingTunnelError,
+        importMissingConfigurationError: String = QuillWireGuardPresentation.importMissingConfigurationError,
         tunnelNamePlaceholder: String = QuillWireGuardPresentation.tunnelNamePlaceholder,
         emptyStateTitle: String = QuillWireGuardPresentation.emptyStateTitle,
         emptyStateMessage: String = QuillWireGuardPresentation.emptyStateMessage,
@@ -298,6 +398,19 @@ public struct QuillWireGuardPresentationSnapshot: Codable, Equatable, Sendable {
     ) {
         self.sidebarTitle = sidebarTitle
         self.backendTitle = backendTitle
+        self.importButtonLabel = importButtonLabel
+        self.importButtonTooltip = importButtonTooltip
+        self.importActionLabel = importActionLabel
+        self.importFileActionLabel = importFileActionLabel
+        self.importCancelActionLabel = importCancelActionLabel
+        self.importDialogTitle = importDialogTitle
+        self.importPlaceholder = importPlaceholder
+        self.importEmptyConfigurationError = importEmptyConfigurationError
+        self.importUnavailableError = importUnavailableError
+        self.importNoResponseError = importNoResponseError
+        self.importInvalidResponseError = importInvalidResponseError
+        self.importMissingTunnelError = importMissingTunnelError
+        self.importMissingConfigurationError = importMissingConfigurationError
         self.tunnelNamePlaceholder = tunnelNamePlaceholder
         self.emptyStateTitle = emptyStateTitle
         self.emptyStateMessage = emptyStateMessage
@@ -311,6 +424,73 @@ public struct QuillWireGuardPresentationSnapshot: Codable, Equatable, Sendable {
         self.endpointLabel = endpointLabel
         self.keepAliveLabel = keepAliveLabel
         self.noneText = noneText
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        self.init(
+            sidebarTitle: try container.decodeIfPresent(String.self, forKey: .sidebarTitle)
+                ?? QuillWireGuardPresentation.sidebarTitle,
+            backendTitle: try container.decodeIfPresent(String.self, forKey: .backendTitle)
+                ?? QuillWireGuardPresentation.backendTitle,
+            importButtonLabel: try container.decodeIfPresent(String.self, forKey: .importButtonLabel)
+                ?? QuillWireGuardPresentation.importButtonLabel,
+            importButtonTooltip: try container.decodeIfPresent(String.self, forKey: .importButtonTooltip)
+                ?? QuillWireGuardPresentation.importButtonTooltip,
+            importActionLabel: try container.decodeIfPresent(String.self, forKey: .importActionLabel)
+                ?? QuillWireGuardPresentation.importActionLabel,
+            importFileActionLabel: try container.decodeIfPresent(String.self, forKey: .importFileActionLabel)
+                ?? QuillWireGuardPresentation.importFileActionLabel,
+            importCancelActionLabel: try container.decodeIfPresent(String.self, forKey: .importCancelActionLabel)
+                ?? QuillWireGuardPresentation.importCancelActionLabel,
+            importDialogTitle: try container.decodeIfPresent(String.self, forKey: .importDialogTitle)
+                ?? QuillWireGuardPresentation.importDialogTitle,
+            importPlaceholder: try container.decodeIfPresent(String.self, forKey: .importPlaceholder)
+                ?? QuillWireGuardPresentation.importPlaceholder,
+            importEmptyConfigurationError: try container.decodeIfPresent(
+                String.self,
+                forKey: .importEmptyConfigurationError
+            ) ?? QuillWireGuardPresentation.importEmptyConfigurationError,
+            importUnavailableError: try container.decodeIfPresent(String.self, forKey: .importUnavailableError)
+                ?? QuillWireGuardPresentation.importUnavailableError,
+            importNoResponseError: try container.decodeIfPresent(String.self, forKey: .importNoResponseError)
+                ?? QuillWireGuardPresentation.importNoResponseError,
+            importInvalidResponseError: try container.decodeIfPresent(String.self, forKey: .importInvalidResponseError)
+                ?? QuillWireGuardPresentation.importInvalidResponseError,
+            importMissingTunnelError: try container.decodeIfPresent(String.self, forKey: .importMissingTunnelError)
+                ?? QuillWireGuardPresentation.importMissingTunnelError,
+            importMissingConfigurationError: try container.decodeIfPresent(
+                String.self,
+                forKey: .importMissingConfigurationError
+            ) ?? QuillWireGuardPresentation.importMissingConfigurationError,
+            tunnelNamePlaceholder: try container.decodeIfPresent(String.self, forKey: .tunnelNamePlaceholder)
+                ?? QuillWireGuardPresentation.tunnelNamePlaceholder,
+            emptyStateTitle: try container.decodeIfPresent(String.self, forKey: .emptyStateTitle)
+                ?? QuillWireGuardPresentation.emptyStateTitle,
+            emptyStateMessage: try container.decodeIfPresent(String.self, forKey: .emptyStateMessage)
+                ?? QuillWireGuardPresentation.emptyStateMessage,
+            interfaceSectionTitle: try container.decodeIfPresent(String.self, forKey: .interfaceSectionTitle)
+                ?? QuillWireGuardPresentation.interfaceSectionTitle,
+            exportSectionTitle: try container.decodeIfPresent(String.self, forKey: .exportSectionTitle)
+                ?? QuillWireGuardPresentation.exportSectionTitle,
+            publicKeyLabel: try container.decodeIfPresent(String.self, forKey: .publicKeyLabel)
+                ?? QuillWireGuardPresentation.publicKeyLabel,
+            addressesLabel: try container.decodeIfPresent(String.self, forKey: .addressesLabel)
+                ?? QuillWireGuardPresentation.addressesLabel,
+            dnsLabel: try container.decodeIfPresent(String.self, forKey: .dnsLabel)
+                ?? QuillWireGuardPresentation.dnsLabel,
+            listenPortLabel: try container.decodeIfPresent(String.self, forKey: .listenPortLabel)
+                ?? QuillWireGuardPresentation.listenPortLabel,
+            allowedIPsLabel: try container.decodeIfPresent(String.self, forKey: .allowedIPsLabel)
+                ?? QuillWireGuardPresentation.allowedIPsLabel,
+            endpointLabel: try container.decodeIfPresent(String.self, forKey: .endpointLabel)
+                ?? QuillWireGuardPresentation.endpointLabel,
+            keepAliveLabel: try container.decodeIfPresent(String.self, forKey: .keepAliveLabel)
+                ?? QuillWireGuardPresentation.keepAliveLabel,
+            noneText: try container.decodeIfPresent(String.self, forKey: .noneText)
+                ?? QuillWireGuardPresentation.noneText
+        )
     }
 }
 

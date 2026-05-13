@@ -259,6 +259,15 @@ if wireguardUpstreamPresent {
 quillWireGuardUIDependencies.append("SwiftUI")
 #endif
 let quillWireGuardDependencies: [Target.Dependency] = ["QuillWireGuardUI", "QuillUI"]
+var quillParityTestDependencies: [Target.Dependency] = [
+    "QuillKit",
+    "QuillData",
+    "QuillUI",
+    "QuillWireGuardUI"
+]
+#if os(Linux)
+quillParityTestDependencies.append("SwiftUI")
+#endif
 #if os(Linux)
 let quillWireGuardQtDependencies: [Target.Dependency] = quillUILinuxBuildBackend == .qt
     ? ["QuillWireGuardQtNativeRuntime"]
@@ -1170,6 +1179,14 @@ let package = Package(
         .testTarget(
             name: "QuillWireGuardCoreTests",
             dependencies: ["QuillWireGuardCore"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Cross-platform Apple-framework and app rendering parity checks.
+        // Keeping this registered prevents the parity suite from drifting
+        // while QuillUI's GTK and Qt hosts evolve in parallel.
+        .testTarget(
+            name: "QuillParityTests",
+            dependencies: quillParityTestDependencies,
             swiftSettings: appSwiftSettings
         ),
         // Pins the QuillUI core library's public surface:

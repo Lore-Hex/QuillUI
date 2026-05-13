@@ -145,6 +145,23 @@ struct QuillWireGuardCoreTests {
         #expect(imported.tunnel?.peers.first?.publicKey == fixture.peers.first?.publicKey)
         #expect(imported.tunnel?.wgQuickConfig.contains("[Interface]") == true)
 
+        let importedTunnel = try QuillWireGuardImportService.importTunnel(
+            fixture.wgQuickConfig(),
+            id: "gtk-import",
+            name: "GTK Import"
+        )
+        #expect(importedTunnel.id == "gtk-import")
+        #expect(importedTunnel.name == "GTK Import")
+        #expect(importedTunnel.interface.privateKey == fixture.interface.privateKey)
+
+        #expect(throws: QuillWireGuardImportError.emptyConfiguration) {
+            try QuillWireGuardImportService.importTunnel(
+                "  \n\t",
+                id: "empty-import",
+                name: "Empty Import"
+            )
+        }
+
         let failed = QuillWireGuardImportService.importConfiguration(
             "[Peer]\nPublicKey = peer",
             id: "bad-import",
@@ -174,6 +191,11 @@ struct QuillWireGuardCoreTests {
         #expect(source.contains("public struct WireGuardFallbackConfigurationView"))
         #expect(source.contains("public typealias ContentView = WireGuardFallbackConfigurationView"))
         #expect(source.contains("WireGuardFallbackConfigurationView()"))
+        #expect(source.contains("TextEditor(text: $importConfigurationText)"))
+        #expect(source.contains("QuillFileImporter.selectURL(allowedContentTypes: [])"))
+        #expect(source.contains("QuillWireGuardImportService.importTunnel"))
+        #expect(source.contains("QuillWireGuardPresentation.importButtonLabel"))
+        #expect(source.contains("importErrorText"))
         #expect(!source.contains("WireGuardKit not available"))
         #expect(!source.contains("Click + in the sidebar to generate a fresh\\nCurve25519 keypair via upstream WireGuardKit."))
     }
@@ -227,6 +249,7 @@ struct QuillWireGuardCoreTests {
         #expect(nativeRuntimeSource.contains("@_cdecl(\"quill_wireguard_qt_import_config_json\")"))
         #expect(nativeRuntimeSource.contains("QuillWireGuardImportService.importConfiguration"))
         #expect(nativeRuntimeSource.contains("quill_wireguard_qt_free_string"))
+        #expect(nativeRuntimeSource.contains("QuillWireGuardPresentation.importMissingConfigurationError"))
         #expect(nativeShimHeaderSource.contains("quill_wireguard_qt_import_config_callback"))
         #expect(nativeShimHeaderSource.contains("quill_wireguard_qt_free_string_callback"))
         #expect(nativeShimSource.contains("QApplication"))
@@ -252,6 +275,16 @@ struct QuillWireGuardCoreTests {
         #expect(nativeShimSource.contains("presentationValue(presentation, \"interfaceSectionTitle\", \"Interface\")"))
         #expect(nativeShimSource.contains("presentationValue(presentation, \"tunnelNamePlaceholder\", \"Tunnel name\")"))
         #expect(nativeShimSource.contains("presentationValue(presentation, \"emptyStateTitle\", \"Quill WireGuard\")"))
+        #expect(nativeShimSource.contains("\"importButtonLabel\""))
+        #expect(nativeShimSource.contains("\"importButtonTooltip\""))
+        #expect(nativeShimSource.contains("\"Import WireGuard configuration\""))
+        #expect(nativeShimSource.contains("\"importDialogTitle\""))
+        #expect(nativeShimSource.contains("\"importPlaceholder\""))
+        #expect(nativeShimSource.contains("\"importEmptyConfigurationError\""))
+        #expect(nativeShimSource.contains("\"importUnavailableError\""))
+        #expect(nativeShimSource.contains("\"importNoResponseError\""))
+        #expect(nativeShimSource.contains("\"importInvalidResponseError\""))
+        #expect(nativeShimSource.contains("\"importMissingTunnelError\""))
         #expect(!nativeShimSource.contains("QStringList lines"))
         #expect(!nativeShimSource.contains("QLabel#detailTitle"))
         #expect(nativeShimSource.contains("QSize resolvedMinimumWindowSize"))
@@ -277,6 +310,11 @@ struct QuillWireGuardCoreTests {
         #expect(snapshot.minimumHeight == Int(QuillWireGuardAppMetadata.linuxMinimumHeight))
         #expect(snapshot.presentation.sidebarTitle == QuillWireGuardPresentation.sidebarTitle)
         #expect(snapshot.presentation.backendTitle == QuillWireGuardPresentation.backendTitle)
+        #expect(snapshot.presentation.importButtonLabel == QuillWireGuardPresentation.importButtonLabel)
+        #expect(snapshot.presentation.importActionLabel == QuillWireGuardPresentation.importActionLabel)
+        #expect(snapshot.presentation.importFileActionLabel == QuillWireGuardPresentation.importFileActionLabel)
+        #expect(snapshot.presentation.importEmptyConfigurationError == QuillWireGuardPresentation.importEmptyConfigurationError)
+        #expect(snapshot.presentation.importMissingTunnelError == QuillWireGuardPresentation.importMissingTunnelError)
         #expect(snapshot.presentation.interfaceSectionTitle == QuillWireGuardPresentation.interfaceSectionTitle)
         #expect(snapshot.presentation.exportSectionTitle == QuillWireGuardPresentation.exportSectionTitle)
         #expect(snapshot.presentation.noneText == QuillWireGuardPresentation.noneText)
@@ -305,6 +343,22 @@ struct QuillWireGuardCoreTests {
         let legacySnapshot = try JSONDecoder().decode(QuillWireGuardAppSnapshot.self, from: legacyPayload)
         #expect(legacySnapshot.presentation == QuillWireGuardPresentationSnapshot())
         #expect(legacySnapshot.tunnels.isEmpty)
+
+        let legacyPresentationPayload = """
+        {
+          "sidebarTitle": "Legacy Tunnels",
+          "backendTitle": "Legacy Backend",
+          "noneText": "Nothing"
+        }
+        """.data(using: .utf8)!
+        let legacyPresentation = try JSONDecoder().decode(
+            QuillWireGuardPresentationSnapshot.self,
+            from: legacyPresentationPayload
+        )
+        #expect(legacyPresentation.sidebarTitle == "Legacy Tunnels")
+        #expect(legacyPresentation.backendTitle == "Legacy Backend")
+        #expect(legacyPresentation.noneText == "Nothing")
+        #expect(legacyPresentation.importActionLabel == QuillWireGuardPresentation.importActionLabel)
     }
 
     @Test("Qt WireGuard manifest uses an explicit Linux backend graph selector")

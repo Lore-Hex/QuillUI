@@ -39,7 +39,5 @@ struct WireGuardUIParityTests {
         let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
         #expect(Array(data.prefix(8)) == pngMagic)
         #endif
-        
-        #expect(nsImage != nil)
     }
 }

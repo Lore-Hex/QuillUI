@@ -26,7 +26,7 @@ public func quill_wireguard_qt_import_config_json(
             name: tunnelName
         )
     } else {
-        response = .failure("Missing WireGuard configuration.")
+        response = .failure(QuillWireGuardPresentation.importMissingConfigurationError)
     }
 
     let encoder = JSONEncoder()
