@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="$ROOT_DIR/.qa"
-SCREENSHOT_PATH="${1:-$OUTPUT_DIR/quill-enchanted-gtk.png}"
+SCREENSHOT_PATH="${1:-$OUTPUT_DIR/quill-enchanted-backend.png}"
 PRODUCT="${2:-quill-enchanted}"
 APP_EXECUTABLE=""
 
@@ -78,7 +78,7 @@ if is_quill_chat_mac_reference; then
     QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1
   )
 fi
-env "${app_environment[@]}" "$APP_EXECUTABLE" >/tmp/quillui-gtk-app.log 2>&1 &
+env "${app_environment[@]}" "$APP_EXECUTABLE" >/tmp/quillui-backend-app.log 2>&1 &
 app_pid=$!
 
 sleep 4
