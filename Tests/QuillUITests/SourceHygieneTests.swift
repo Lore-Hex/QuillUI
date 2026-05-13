@@ -170,6 +170,17 @@ struct SourceHygieneTests {
             "Sources/QuillEnchantedCore/EnchantedApp.swift",
             "Sources/QuillEnchantedUpstreamSlice/main.swift"
         ]
+        let appLauncherPaths = [
+            "Sources/QuillSignal/main.swift": "QuillApp.run(QuillSignalApp.self)",
+            "Sources/QuillTelegram/main.swift": "QuillApp.run(QuillTelegramApp.self)",
+            "Sources/QuillIINA/main.swift": "QuillApp.run(QuillIINAApp.self)",
+            "Sources/QuillCodeEdit/main.swift": "QuillApp.run(QuillCodeEditApp.self)",
+            "Sources/QuillNetNewsWire/main.swift": "QuillApp.run(QuillNetNewsWireApp.self)",
+            "Sources/QuillIceCubes/main.swift": "QuillApp.run(QuillIceCubesApp.self)",
+            "Sources/QuillWireGuard/main.swift": "QuillApp.run(QuillWireGuardApp.self)",
+            "Sources/QuillEnchanted/main.swift": "QuillApp.run(QuillEnchantedApp.self)",
+            "Sources/QuillEnchantedUpstreamSlice/main.swift": "QuillApp.run(UpstreamSliceApp.self)"
+        ]
         let backendSmokeEntryPointPaths = [
             "Sources/QuillGtkInteractionSmoke/main.swift": "QuillBackendInteractionSmokeApp<QuillGtkBackend>",
             "Sources/QuillQtInteractionSmoke/main.swift": "QuillBackendInteractionSmokeApp<QuillQtBackend>"
@@ -197,6 +208,16 @@ struct SourceHygieneTests {
             #expect(!source.contains("WindowGroup("), "\(path) should not hand-roll WindowGroup setup")
             #expect(!source.contains(".defaultWindowSize("), "\(path) should not branch into Linux-only sizing")
             #expect(!source.contains(".defaultSize("), "\(path) should let QuillAppWindow own default sizing")
+        }
+
+        for (path, launcher) in appLauncherPaths {
+            let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+
+            #expect(source.contains(launcher), "\(path) should launch through QuillApp.run")
+            #expect(!source.contains("GTK4Backend().run"), "\(path) should not call the GTK runtime directly")
+            #expect(!source.contains("import BackendGTK4"), "\(path) should not import a backend implementation")
+            #expect(!source.contains("import QuillUIGtk"), "\(path) should not import a backend facade")
+            #expect(!source.contains("import QuillUIQt"), "\(path) should not import a backend facade")
         }
 
         for (path, appType) in backendSmokeEntryPointPaths {
