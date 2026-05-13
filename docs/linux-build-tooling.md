@@ -210,6 +210,9 @@ The Qt launch target uses the same interaction surface through
 `QuillInteractionSmokeSupport`, with `QuillUIQt` owning the backend-specific
 launcher. Until the native Qt renderer is linked, the CI smoke executes through
 the platform fallback runtime so the target graph and app scene stay buildable:
+when Qt becomes a native Linux runtime, it must add an explicit
+`QuillLinuxRuntimeHost` case before the registry marks Qt as native, so CI
+cannot silently report Qt while running the GTK host.
 
 ```bash
 scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke

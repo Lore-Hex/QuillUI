@@ -76,10 +76,14 @@ public extension QuillBackend {
 private enum QuillLinuxRuntimeHost {
     case gtk4
 
-    init(runtimeBackend: QuillBackendIdentifier) {
-        switch runtimeBackend {
-        case .swiftUI, .gtk, .qt:
+    init(launchPlan: QuillBackendLaunchPlan) {
+        switch launchPlan.runtime {
+        case .gtk:
             self = .gtk4
+        case .swiftUI, .qt:
+            preconditionFailure(
+                "No Linux runtime host is linked for \(launchPlan.runtime.rawValue); selected \(launchPlan.selected.rawValue)."
+            )
         }
     }
 
@@ -97,7 +101,7 @@ private enum QuillLinuxAppRuntime {
         preferredBackend: QuillBackendIdentifier?
     ) {
         let launchPlan = QuillBackendRegistry.launchPlan(preferred: preferredBackend)
-        QuillLinuxRuntimeHost(runtimeBackend: launchPlan.runtime).run(appType)
+        QuillLinuxRuntimeHost(launchPlan: launchPlan).run(appType)
     }
 }
 #endif

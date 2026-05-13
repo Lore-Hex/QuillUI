@@ -103,6 +103,8 @@ struct SourceHygieneTests {
 
         #expect(linuxBuildTooling.contains("QUILLUI_BACKEND_LAYOUT_DEBUG"))
         #expect(linuxBuildTooling.contains("layout diagnostics behave the same across every runner"))
+        #expect(linuxBuildTooling.contains("must add an explicit"))
+        #expect(linuxBuildTooling.contains("QuillLinuxRuntimeHost"))
 
         #expect(offscreenRenderer.contains("scripts/linux-backend-check.sh"))
         #expect(!offscreenRenderer.contains("scripts/linux-gtk-check.sh"))
@@ -154,7 +156,11 @@ struct SourceHygieneTests {
         #expect(helperSource.contains("public enum QuillBackendApp<Backend: QuillBackend>"))
         #expect(helperSource.contains("QuillBackendRegistry.launchPlan(preferred: preferredBackend)"))
         #expect(helperSource.contains("private enum QuillLinuxRuntimeHost"))
-        #expect(helperSource.contains("QuillLinuxRuntimeHost(runtimeBackend: launchPlan.runtime).run(appType)"))
+        #expect(helperSource.contains("init(launchPlan: QuillBackendLaunchPlan)"))
+        #expect(helperSource.contains("case .gtk:"))
+        #expect(helperSource.contains("case .swiftUI, .qt:"))
+        #expect(helperSource.contains("No Linux runtime host is linked for"))
+        #expect(helperSource.contains("QuillLinuxRuntimeHost(launchPlan: launchPlan).run(appType)"))
         #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
         #expect(helperSource.contains(".defaultSize(width: width, height: height)"))
 
