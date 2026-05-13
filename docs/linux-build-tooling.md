@@ -220,4 +220,7 @@ For a full local Linux validation pass, run:
 scripts/linux-backend-check.sh
 ```
 
+That script builds and smoke-launches the backend app roster plus the GTK and
+Qt backend launch fixtures under Xvfb.
+
 The legacy `scripts/linux-gtk-check.sh` path remains as a compatibility shim.

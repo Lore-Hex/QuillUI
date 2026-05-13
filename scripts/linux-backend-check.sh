@@ -43,12 +43,24 @@ while IFS= read -r product; do
   [[ -n "$product" ]] && APP_PRODUCTS+=("$product")
 done < <(quillui_backend_app_products)
 
+BACKEND_SMOKE_PRODUCTS=()
+while IFS= read -r product; do
+  [[ -n "$product" ]] && BACKEND_SMOKE_PRODUCTS+=("$product")
+done < <(quillui_backend_smoke_products)
+
 if (( ${#APP_PRODUCTS[@]} == 0 )); then
   echo "No backend app products listed by scripts/quillui-backend-products.sh backend-apps" >&2
   exit 1
 fi
 
-for product in "${APP_PRODUCTS[@]}"; do
+if (( ${#BACKEND_SMOKE_PRODUCTS[@]} == 0 )); then
+  echo "No backend launch smoke products listed by scripts/quillui-backend-products.sh smoke-products" >&2
+  exit 1
+fi
+
+ALL_PRODUCTS=("${APP_PRODUCTS[@]}" "${BACKEND_SMOKE_PRODUCTS[@]}")
+
+for product in "${ALL_PRODUCTS[@]}"; do
   swift build --scratch-path .build-linux --product "$product"
 done
 BIN_PATH="$(swift build --scratch-path .build-linux --show-bin-path)"
@@ -85,7 +97,7 @@ run_smoke() {
   fi
 }
 
-for product in "${APP_PRODUCTS[@]}"; do
+for product in "${ALL_PRODUCTS[@]}"; do
   run_smoke "$product"
 done
 
@@ -114,7 +126,7 @@ fi
 cat <<MSG
 
 Linux backend build completed.
-Headless backend smoke completed for ${#APP_PRODUCTS[@]} app products; apps stayed running for $SMOKE_SECONDS seconds under Xvfb.
+Headless backend smoke completed for ${#APP_PRODUCTS[@]} app products and ${#BACKEND_SMOKE_PRODUCTS[@]} backend launch fixtures; products stayed running for $SMOKE_SECONDS seconds under Xvfb.
 Run an app in a graphical session with:
 
   swift run ${APP_PRODUCTS[0]}

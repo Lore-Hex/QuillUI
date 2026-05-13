@@ -2674,3 +2674,14 @@ backend-neutral command.
 
 Linux CI's visible job and artifact names now use backend wording as well, so
 Qt launch coverage no longer appears under GTK-only QA labels.
+
+## Checkpoint 146: Full Backend Check Covers Launch Fixtures
+
+Status: implemented locally; guarded by matrix tests and shell syntax checks.
+
+`scripts/linux-backend-check.sh` now loads both the canonical backend app
+roster and `scripts/quillui-backend-products.sh smoke-products`. The full local
+Linux check builds and headless-smokes the GTK and Qt backend launch fixtures
+alongside the user-facing app executables, so local validation catches backend
+selection and launch regressions before CI-specific visual and interaction
+smokes run.
