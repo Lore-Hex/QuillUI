@@ -54,6 +54,7 @@ if [[ -n "${QUILLUI_BACKEND_LAYOUT_DEBUG:-}" ]]; then
   app_environment+=(
     QUILLUI_BACKEND_LAYOUT_DEBUG="$QUILLUI_BACKEND_LAYOUT_DEBUG"
     QUILLUI_GTK_LAYOUT_DEBUG="$QUILLUI_BACKEND_LAYOUT_DEBUG"
+    QUILLUI_QT_LAYOUT_DEBUG="$QUILLUI_BACKEND_LAYOUT_DEBUG"
   )
 fi
 quillui_append_quill_chat_reference_environment_if_needed \

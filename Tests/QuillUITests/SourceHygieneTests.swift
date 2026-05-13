@@ -311,6 +311,7 @@ struct SourceHygieneTests {
         #expect(backendVisualScript.contains("quillui_backend_visual_verify_product \"$PRODUCT\" VERIFY_PRODUCT"))
         #expect(backendVisualScript.contains("QUILLUI_BACKEND_LAYOUT_DEBUG=\"$QUILLUI_BACKEND_LAYOUT_DEBUG\""))
         #expect(backendVisualScript.contains("QUILLUI_GTK_LAYOUT_DEBUG=\"$QUILLUI_BACKEND_LAYOUT_DEBUG\""))
+        #expect(backendVisualScript.contains("QUILLUI_QT_LAYOUT_DEBUG=\"$QUILLUI_BACKEND_LAYOUT_DEBUG\""))
         #expect(!backendVisualScript.contains("${QUILLUI_GTK_MAC_REFERENCE:-0}"))
         #expect(!backendVisualScript.contains("${QUILLUI_GTK_VISUAL_DISPLAY:-"))
         #expect(!backendVisualScript.contains("${QUILLUI_GTK_SCREEN_SIZE:-"))
