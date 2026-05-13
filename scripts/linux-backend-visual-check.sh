@@ -23,17 +23,17 @@ if [[ ! -x "$APP_EXECUTABLE" ]]; then
 fi
 
 is_quill_chat_mac_reference() {
-  [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]
+  [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_BACKEND_MAC_REFERENCE:-0}" == "1" ]]
 }
 
-reference_window_width="${QUILLUI_GTK_DEFAULT_WINDOW_WIDTH:-2048}"
-reference_window_height="${QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT:-1380}"
-hide_window_menubar_label="${QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL:-1}"
+reference_window_width="${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}"
+reference_window_height="${QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT:-1380}"
+hide_window_menubar_label="${QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL:-1}"
 
-DISPLAY_ID="${QUILLUI_GTK_VISUAL_DISPLAY:-:94}"
-SCREEN_SIZE="${QUILLUI_GTK_SCREEN_SIZE:-1180x760x24}"
+DISPLAY_ID="${QUILLUI_BACKEND_VISUAL_DISPLAY:-:94}"
+SCREEN_SIZE="${QUILLUI_BACKEND_SCREEN_SIZE:-1180x760x24}"
 if is_quill_chat_mac_reference; then
-  SCREEN_SIZE="${QUILLUI_GTK_SCREEN_SIZE:-${reference_window_width}x${reference_window_height}x24}"
+  SCREEN_SIZE="${QUILLUI_BACKEND_SCREEN_SIZE:-${reference_window_width}x${reference_window_height}x24}"
 fi
 Xvfb "$DISPLAY_ID" -screen 0 "$SCREEN_SIZE" >/tmp/quillui-xvfb.log 2>&1 &
 xvfb_pid=$!
@@ -56,8 +56,11 @@ requested_backend="$(quillui_requested_backend_for_product "$PRODUCT")"
 if [[ -n "$requested_backend" ]]; then
   app_environment+=(QUILLUI_BACKEND="$requested_backend")
 fi
-if [[ -n "${QUILLUI_GTK_LAYOUT_DEBUG:-}" ]]; then
-  app_environment+=(QUILLUI_GTK_LAYOUT_DEBUG="$QUILLUI_GTK_LAYOUT_DEBUG")
+if [[ -n "${QUILLUI_BACKEND_LAYOUT_DEBUG:-}" ]]; then
+  app_environment+=(
+    QUILLUI_BACKEND_LAYOUT_DEBUG="$QUILLUI_BACKEND_LAYOUT_DEBUG"
+    QUILLUI_GTK_LAYOUT_DEBUG="$QUILLUI_BACKEND_LAYOUT_DEBUG"
+  )
 fi
 if is_quill_chat_mac_reference; then
   quill_chat_reference_home="$OUTPUT_DIR/quill-chat-linux-reference-home"
@@ -65,6 +68,9 @@ if is_quill_chat_mac_reference; then
   app_environment+=(
     HOME="$quill_chat_reference_home"
     QUILLDATA_HOME="$quill_chat_reference_home"
+    QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH="$reference_window_width"
+    QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT="$reference_window_height"
+    QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL="$hide_window_menubar_label"
     QUILLUI_GTK_DEFAULT_WINDOW_WIDTH="$reference_window_width"
     QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT="$reference_window_height"
     QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL="$hide_window_menubar_label"
@@ -95,8 +101,8 @@ if is_quill_chat_mac_reference; then
 fi
 DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 
-VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-$PRODUCT}"
+VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-$PRODUCT}"
 if is_quill_chat_mac_reference; then
-  VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference}"
+  VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference}"
 fi
 "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"

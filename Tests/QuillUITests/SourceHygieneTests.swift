@@ -143,6 +143,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"),
             encoding: .utf8
         )
+        let backendVisualScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-backend-visual-check.sh"),
+            encoding: .utf8
+        )
         let smokeLib = try String(
             contentsOf: root.appendingPathComponent("scripts/quillui-linux-backend-smoke-lib.sh"),
             encoding: .utf8
@@ -226,6 +230,17 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("verify-backend-screenshot.py"))
         #expect(!backendScript.contains("xdotool is required for GTK interaction smoke tests"))
         #expect(!backendScript.contains("verify-gtk-screenshot.py"))
+        #expect(backendVisualScript.contains("quillui_alias_backend_visual_env"))
+        #expect(backendVisualScript.contains("reference_window_width=\"${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}\""))
+        #expect(backendVisualScript.contains("DISPLAY_ID=\"${QUILLUI_BACKEND_VISUAL_DISPLAY:-:94}\""))
+        #expect(backendVisualScript.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH=\"$reference_window_width\""))
+        #expect(backendVisualScript.contains("QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=\"$reference_window_width\""))
+        #expect(backendVisualScript.contains("QUILLUI_BACKEND_LAYOUT_DEBUG=\"$QUILLUI_BACKEND_LAYOUT_DEBUG\""))
+        #expect(backendVisualScript.contains("QUILLUI_GTK_LAYOUT_DEBUG=\"$QUILLUI_BACKEND_LAYOUT_DEBUG\""))
+        #expect(!backendVisualScript.contains("${QUILLUI_GTK_MAC_REFERENCE:-0}"))
+        #expect(!backendVisualScript.contains("${QUILLUI_GTK_VISUAL_DISPLAY:-"))
+        #expect(!backendVisualScript.contains("${QUILLUI_GTK_SCREEN_SIZE:-"))
+        #expect(!backendVisualScript.contains("${QUILLUI_GTK_VERIFY_PRODUCT:-"))
         #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_GTK_APP_EXECUTABLE"))
         #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_SKIP_BUILD QUILLUI_GTK_SKIP_BUILD"))
