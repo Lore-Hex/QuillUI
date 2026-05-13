@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  swift-gtk:
+  swift-linux-backends:
     name: Swift Linux Backends
     runs-on: ubuntu-24.04
     container:
@@ -92,7 +92,7 @@ jobs:
             scripts/linux-backend-visual-check.sh ".qa/${product}-visual.png" "$product"
           done
 
-      - name: GTK interaction smoke
+      - name: GTK launch target interaction smoke
         run: scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
 
       - name: Qt launch target interaction smoke

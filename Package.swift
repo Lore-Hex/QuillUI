@@ -792,7 +792,7 @@ targets.append(contentsOf: [
             .unsafeFlags(["-strict-concurrency=minimal"])
         ]
     ),
-    // Generic GTK interaction smoke app. CI's
+    // Generic backend interaction smoke app. CI's
     // `scripts/linux-backend-interaction-check.sh` builds this
     // executable to validate that QuillUI button taps and sheet
     // presentations round-trip through SwiftOpenUI's GTK4
@@ -805,7 +805,7 @@ targets.append(contentsOf: [
     ),
     // Qt launch target for the same interaction surface. The
     // QuillUIQt target owns backend selection while this executable
-    // shares the GTK smoke view code, keeping visual drift visible
+    // shares the backend smoke view code, keeping visual drift visible
     // as soon as the native Qt renderer lands.
     .executableTarget(
         name: "QuillQtInteractionSmoke",

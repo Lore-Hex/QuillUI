@@ -2,7 +2,7 @@ import Foundation
 import Testing
 
 @Suite("Linux backend app matrix")
-struct LinuxGTKAppMatrixTests {
+struct LinuxBackendAppMatrixTests {
     private static let expectedAppProducts = [
         "quill-enchanted",
         "quill-enchanted-upstream-slice",
@@ -59,9 +59,14 @@ struct LinuxGTKAppMatrixTests {
         #expect(workflow.contains("scripts/quillui-backend-products.sh profile-matrix | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("name: Swift Linux Backends"))
+        #expect(workflow.contains("swift-linux-backends:"))
+        #expect(workflow.contains("GTK launch target interaction smoke"))
+        #expect(workflow.contains("Qt launch target interaction smoke"))
         #expect(workflow.contains("Upload Linux backend QA artifacts"))
         #expect(workflow.contains("name: linux-backend-qa"))
+        #expect(!workflow.contains("swift-gtk:"))
         #expect(!workflow.contains("name: Swift GTK"))
+        #expect(!workflow.contains("name: GTK interaction smoke"))
         #expect(!workflow.contains("Upload GTK QA artifacts"))
         #expect(!workflow.contains("name: linux-gtk-qa"))
         #expect(!workflow.contains("scripts/run-linux-gtk-profile-csv.sh /tmp/quillui-profile"))
@@ -470,7 +475,7 @@ struct LinuxGTKAppMatrixTests {
         }
 
         throw NSError(
-            domain: "LinuxGTKAppMatrixTests",
+            domain: "LinuxBackendAppMatrixTests",
             code: 1,
             userInfo: [NSLocalizedDescriptionKey: "Unable to locate package root from \(#filePath)"]
         )
