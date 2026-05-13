@@ -127,8 +127,28 @@ public struct QuillBackendLaunchPlan: Equatable, Sendable {
         QuillBackendRegistry.descriptor(for: runtime)
     }
 
+    public var requestStatusMessage: String? {
+        guard let invalidRawValue = request.invalidRawValue else {
+            return nil
+        }
+
+        return "Unsupported \(QuillBackendRegistry.environmentKey) value \"\(invalidRawValue)\"; using \(selectedDescriptor.displayName)."
+    }
+
     public var statusMessage: String {
         QuillBackendRegistry.runtimeSummary(selected: selected, runtime: runtime)
+    }
+
+    public var statusMessages: [String] {
+        if let requestStatusMessage {
+            return [requestStatusMessage, statusMessage]
+        }
+
+        return [statusMessage]
+    }
+
+    public var displayMessage: String {
+        statusMessages.joined(separator: " ")
     }
 
     public init(
@@ -150,6 +170,8 @@ public struct QuillBackendRuntimeStatus: Equatable, Sendable {
     public let identifier: QuillBackendIdentifier
     public let launchPlan: QuillBackendLaunchPlan
     public let mode: QuillBackendRuntimeMode
+    public let runtimeMessage: String
+    public let messages: [String]
     public let message: String
 
     public init(
@@ -159,7 +181,9 @@ public struct QuillBackendRuntimeStatus: Equatable, Sendable {
         self.identifier = identifier
         self.launchPlan = launchPlan
         self.mode = launchPlan.runtimeMode
-        self.message = launchPlan.statusMessage
+        self.runtimeMessage = launchPlan.statusMessage
+        self.messages = launchPlan.statusMessages
+        self.message = launchPlan.displayMessage
     }
 }
 

@@ -2856,3 +2856,13 @@ Status: implemented locally; guarded by QuillUI API tests.
 the optional resolved backend identifier. Invalid `QUILLUI_BACKEND` values
 therefore remain visible to app/status surfaces while the existing fallback
 selection behavior stays unchanged.
+
+## Checkpoint 160: Backend Status Includes Request Warnings
+
+Status: implemented locally; guarded by QuillUI API tests.
+
+`QuillBackendLaunchPlan` now exposes a request warning and combined display
+messages when `QUILLUI_BACKEND` contains an unsupported value. The runtime
+status facade carries both the raw runtime fallback message and the full
+user-facing message list, so GTK and Qt app surfaces can show invalid backend
+requests without re-parsing process environment state.

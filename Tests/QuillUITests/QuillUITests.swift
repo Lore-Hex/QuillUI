@@ -150,6 +150,12 @@ struct QuillUITests {
         #expect(invalidEnvironmentPlan.request == .invalid(rawValue: "bogus"))
         #expect(invalidEnvironmentPlan.requested == nil)
         #expect(invalidEnvironmentPlan.selected == .gtk)
+        #expect(invalidEnvironmentPlan.requestStatusMessage == "Unsupported QUILLUI_BACKEND value \"bogus\"; using GTK.")
+        #expect(invalidEnvironmentPlan.statusMessages == [
+            "Unsupported QUILLUI_BACKEND value \"bogus\"; using GTK.",
+            invalidEnvironmentPlan.statusMessage
+        ])
+        #expect(invalidEnvironmentPlan.displayMessage == invalidEnvironmentPlan.statusMessages.joined(separator: " "))
 
         let invalidRequestPlan = QuillBackendRegistry.launchPlan(
             request: .invalid(rawValue: "bogus"),
@@ -158,6 +164,7 @@ struct QuillUITests {
         #expect(invalidRequestPlan.request == .invalid(rawValue: "bogus"))
         #expect(invalidRequestPlan.requested == nil)
         #expect(invalidRequestPlan.selected == .qt)
+        #expect(invalidRequestPlan.requestStatusMessage == "Unsupported QUILLUI_BACKEND value \"bogus\"; using Qt.")
 
         #if os(Linux)
         #expect(gtkDescriptor.hasNativeRuntime)
@@ -211,7 +218,17 @@ struct QuillUITests {
         #expect(QuillGtkBackend.status.identifier == .gtk)
         #expect(QuillGtkBackend.status.launchPlan == environmentGtkPlan)
         #expect(QuillGtkBackend.status.mode == environmentGtkPlan.runtimeMode)
+        #expect(QuillGtkBackend.status.runtimeMessage == environmentGtkPlan.statusMessage)
+        #expect(QuillGtkBackend.status.messages == environmentGtkPlan.statusMessages)
         #expect(QuillGtkBackend.status.message == environmentGtkPlan.statusMessage)
+
+        let invalidGtkStatus = QuillBackendRuntimeStatus(
+            identifier: .gtk,
+            launchPlan: invalidEnvironmentPlan
+        )
+        #expect(invalidGtkStatus.runtimeMessage == invalidEnvironmentPlan.statusMessage)
+        #expect(invalidGtkStatus.messages == invalidEnvironmentPlan.statusMessages)
+        #expect(invalidGtkStatus.message == invalidEnvironmentPlan.displayMessage)
 
         let preferredQtPlan = QuillBackendRegistry.launchPlan(requested: nil, preferred: .qt)
         #expect(preferredQtPlan.selected == .qt)
@@ -236,6 +253,8 @@ struct QuillUITests {
         #expect(QuillQtBackend.status.identifier == .qt)
         #expect(QuillQtBackend.status.launchPlan == environmentQtPlan)
         #expect(QuillQtBackend.status.mode == environmentQtPlan.runtimeMode)
+        #expect(QuillQtBackend.status.runtimeMessage == environmentQtPlan.statusMessage)
+        #expect(QuillQtBackend.status.messages == environmentQtPlan.statusMessages)
         #expect(QuillQtBackend.status.message == environmentQtPlan.statusMessage)
     }
 }
