@@ -168,6 +168,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillBackend.swift"),
             encoding: .utf8
         )
+        let appCore = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillApp.swift"),
+            encoding: .utf8
+        )
         let gtkBackend = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillUIGtk/QuillUIGtk.swift"),
             encoding: .utf8
@@ -242,18 +246,20 @@ struct SourceHygieneTests {
         #expect(sharedView.contains("Native backend click target"))
         #expect(sharedView.contains("native backend button click"))
         #expect(backendCore.contains("static var status: QuillBackendRuntimeStatus"))
+        #expect(appCore.contains("static func run<A: App>(_ appType: A.Type)"))
+        #expect(appCore.contains("QuillBackendApp<Self>.run(appType)"))
         #expect(gtkBackend.contains("public enum QuillGtkBackend"))
         #expect(gtkBackend.contains("public enum QuillGtkApp"))
         #expect(gtkBackend.contains("public typealias QuillGtkBackendStatus = QuillBackendRuntimeStatus"))
         #expect(!gtkBackend.contains("public static var status"))
         #expect(!gtkBackend.contains("runtimeStatus"))
-        #expect(gtkBackend.contains("QuillBackendApp<QuillGtkBackend>.run(appType)"))
+        #expect(gtkBackend.contains("QuillGtkBackend.run(appType)"))
         #expect(qtBackend.contains("public enum QuillQtBackend"))
         #expect(qtBackend.contains("public enum QuillQtApp"))
         #expect(qtBackend.contains("public typealias QuillQtBackendStatus = QuillBackendRuntimeStatus"))
         #expect(!qtBackend.contains("public static var status"))
         #expect(!qtBackend.contains("runtimeStatus"))
-        #expect(qtBackend.contains("QuillBackendApp<QuillQtBackend>.run(appType)"))
+        #expect(qtBackend.contains("QuillQtBackend.run(appType)"))
 
         #expect(backendScript.contains("quillui_alias_backend_interaction_env"))
         #expect(backendScript.contains("quill-backend-interaction-smoke-open.png"))

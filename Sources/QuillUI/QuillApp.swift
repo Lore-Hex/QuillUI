@@ -66,6 +66,12 @@ public enum QuillBackendApp<Backend: QuillBackend> {
     }
 }
 
+public extension QuillBackend {
+    static func run<A: App>(_ appType: A.Type) {
+        QuillBackendApp<Self>.run(appType)
+    }
+}
+
 #if os(Linux)
 private enum QuillLinuxRuntimeHost {
     case gtk4
