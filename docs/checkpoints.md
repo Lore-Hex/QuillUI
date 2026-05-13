@@ -2911,3 +2911,13 @@ generated app smokes default to backend-specific work roots, so the GTK and Qt
 generated launchers can both compile during visual smoke and later interaction
 checks can reuse the matching cached executable instead of whichever facade was
 built last.
+
+## Checkpoint 165: Generated App Profile Facade Cache Keys
+
+Status: implemented locally; guarded by backend matrix and source hygiene tests.
+
+The backend profile CSV runner now uses backend-specific build cache keys for
+generated external apps and passes `QUILLUI_APP_BACKEND_FACADE` into those
+profile rows. Root app rows still reuse the same executable across GTK and Qt
+requests, but generated Quill Chat profile rows now mirror the visual smoke
+behavior by compiling and profiling the GTK and Qt launcher facades separately.

@@ -241,6 +241,19 @@ quillui_is_backend_smoke_product() {
   return 1
 }
 
+quillui_is_backend_generated_app_product() {
+  local candidate="$1"
+  local product
+
+  while IFS= read -r product; do
+    if [[ "$candidate" == "$product" ]]; then
+      return 0
+    fi
+  done < <(quillui_backend_generated_app_products)
+
+  return 1
+}
+
 quillui_alias_env() {
   local canonical="$1"
   shift
@@ -451,6 +464,7 @@ Commands:
   normalize-backend BACKEND       Print the canonical backend identifier for a known backend alias.
   require-backend BACKEND         Print the canonical backend identifier or fail for an unknown backend.
   is-smoke-product PRODUCT        Exit 0 when PRODUCT is a backend launch smoke product.
+  is-generated-app PRODUCT        Exit 0 when PRODUCT is a generated external app product.
   backend-for-product PRODUCT     Print the default requested backend for PRODUCT.
   requested-backend PRODUCT       Print QUILLUI_BACKEND override or PRODUCT default.
   runtime-backend BACKEND         Print the native runtime backend used for a requested backend.
@@ -540,6 +554,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         exit 64
       fi
       quillui_is_backend_smoke_product "$2"
+      ;;
+    is-generated-app)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_is_backend_generated_app_product "$2"
       ;;
     backend-for-product)
       if [[ $# -ne 2 ]]; then

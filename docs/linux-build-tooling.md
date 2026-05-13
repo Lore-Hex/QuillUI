@@ -299,7 +299,10 @@ comparable while making it clear that Qt-requested Linux rows currently execute
 through the GTK fallback runtime until the native Qt renderer is linked.
 When consecutive rows reuse the same executable product, the CSV runner sets
 `QUILLUI_BACKEND_SKIP_BUILD=1` after the first successful profile pass so GTK
-and Qt budget rows do not repeat the same SwiftPM build work.
+and Qt budget rows do not repeat the same SwiftPM build work. Generated app
+profile rows use backend-specific facade cache keys and
+`QUILLUI_APP_BACKEND_FACADE`, matching the visual smoke path so GTK and Qt
+launcher facades are profiled from separately compiled generated packages.
 
 The opt-in `ImageRenderer` offscreen path also runs under Xvfb. It is kept
 separate from the normal test suite because it intentionally maps a temporary

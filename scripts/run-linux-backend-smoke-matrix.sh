@@ -132,7 +132,7 @@ quillui_smoke_build_cache_key() {
   local product="$1"
   local backend="$2"
 
-  if [[ "$MATRIX_COMMAND" == "generated-app-matrix" ]]; then
+  if quillui_is_backend_generated_app_product "$product"; then
     printf '%s:%s\n' "$product" "$backend"
   else
     printf '%s\n' "$product"
@@ -167,7 +167,7 @@ quillui_run_smoke_row() {
     smoke_environment+=("QUILLUI_BACKEND_SKIP_BUILD=1")
     skip_build=1
   fi
-  if [[ "$MATRIX_COMMAND" == "generated-app-matrix" ]]; then
+  if quillui_is_backend_generated_app_product "$product"; then
     smoke_environment+=("QUILLUI_APP_BACKEND_FACADE=$backend")
   fi
   if [[ -n "$mode" ]]; then

@@ -120,6 +120,17 @@ quillui_profile_product_was_built() {
   esac
 }
 
+quillui_profile_build_cache_key() {
+  local product="$1"
+  local requested_backend="$2"
+
+  if [[ -n "$requested_backend" ]] && quillui_is_backend_generated_app_product "$product"; then
+    printf '%s:%s\n' "$product" "$requested_backend"
+  else
+    printf '%s\n' "$product"
+  fi
+}
+
 {
   echo "product,requested_backend,runtime_backend,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
   for row in "${ROWS[@]}"; do
@@ -160,12 +171,16 @@ quillui_profile_product_was_built() {
       row_label="$product@$backend"
       profiler_arguments+=("$backend")
     fi
+    build_cache_key="$(quillui_profile_build_cache_key "$product" "$requested_backend")"
     row_path="$TMP_DIR/${row_label//[^A-Za-z0-9_.-]/_}.csv"
     profiler_environment=()
     if [[ -n "$backend" ]]; then
       profiler_environment+=("QUILLUI_BACKEND=$backend")
     fi
-    if quillui_profile_product_was_built "$product"; then
+    if [[ -n "$requested_backend" ]] && quillui_is_backend_generated_app_product "$product"; then
+      profiler_environment+=("QUILLUI_APP_BACKEND_FACADE=$requested_backend")
+    fi
+    if quillui_profile_product_was_built "$build_cache_key"; then
       profiler_environment+=("QUILLUI_BACKEND_SKIP_BUILD=1")
     fi
     profile_command=(env)
@@ -174,8 +189,8 @@ quillui_profile_product_was_built() {
     fi
     status=0
     "${profile_command[@]}" "$PROFILE_SCRIPT" "${profiler_arguments[@]}" >"$row_path" || status=$?
-    if [[ "$status" -eq 0 ]] && ! quillui_profile_product_was_built "$product"; then
-      BUILT_PROFILE_PRODUCTS_LIST="${BUILT_PROFILE_PRODUCTS_LIST}${product}"$'\n'
+    if [[ "$status" -eq 0 ]] && ! quillui_profile_product_was_built "$build_cache_key"; then
+      BUILT_PROFILE_PRODUCTS_LIST="${BUILT_PROFILE_PRODUCTS_LIST}${build_cache_key}"$'\n'
     fi
     if [[ -s "$row_path" ]]; then
       awk \

@@ -212,6 +212,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_profile_matrix()"))
         #expect(backendProducts.contains("quillui_backend_app_matrix\n  quillui_backend_generated_app_matrix\n  quillui_backend_smoke_matrix"))
         #expect(backendProducts.contains("quillui_is_backend_smoke_product()"))
+        #expect(backendProducts.contains("quillui_is_backend_generated_app_product()"))
         #expect(backendProducts.contains("quillui_alias_env()"))
         #expect(backendProducts.contains("quillui_alias_backend_common_env()"))
         #expect(backendProducts.contains("quillui_alias_backend_visual_env()"))
@@ -221,6 +222,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("backend_prefix=\"QUILLUI_QT_\""))
         #expect(backendProducts.contains("normalize-backend)"))
         #expect(backendProducts.contains("require-backend)"))
+        #expect(backendProducts.contains("is-generated-app)"))
         #expect(backendProducts.contains("runtime-backend)"))
         #expect(backendProducts.contains("runtime-backend-for-product)"))
         #expect(backendProducts.contains("quillui_runtime_backend_for_backend()"))
@@ -243,6 +245,9 @@ struct LinuxBackendAppMatrixTests {
         #expect(csvRunner.contains("--matrix profile-matrix"))
         #expect(csvRunner.contains("Unsupported backend profile matrix command"))
         #expect(csvRunner.contains("\"$ROOT_DIR/scripts/quillui-backend-products.sh\" \"$MATRIX_COMMAND\""))
+        #expect(csvRunner.contains("quillui_profile_build_cache_key()"))
+        #expect(csvRunner.contains("quillui_is_backend_generated_app_product \"$product\""))
+        #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_APP_BACKEND_FACADE=$requested_backend\")"))
         #expect(legacyProfileScript.contains("linux-backend-profile.sh"))
         #expect(visualScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(visualScript.contains("REQUESTED_BACKEND=\"${3:-${QUILLUI_BACKEND:-}}\""))
@@ -258,6 +263,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeMatrixRunner.contains("Backend matrix row has an unexpected mode column"))
         #expect(smokeMatrixRunner.contains("quillui_require_backend_identifier \"$backend\""))
         #expect(smokeMatrixRunner.contains("Backend matrix row has an unsupported backend"))
+        #expect(smokeMatrixRunner.contains("quillui_is_backend_generated_app_product \"$product\""))
         #expect(smokeMatrixRunner.contains("smoke_environment+=(\"QUILLUI_BACKEND_INTERACTION_MODE=$mode\")"))
         #expect(smokeMatrixRunner.contains("QUILLUI_BACKEND_SKIP_BUILD=1"))
         #expect(smokeMatrixRunner.contains("env \"${smoke_environment[@]}\" \"$CHECK_SCRIPT\" \"$output_path\" \"$product\" \"$backend\""))
@@ -354,12 +360,15 @@ struct LinuxBackendAppMatrixTests {
         #expect(csvRunner.contains("PRODUCT<TAB>BACKEND"))
         #expect(csvRunner.contains("BUILT_PROFILE_PRODUCTS_LIST=$'\\n'"))
         #expect(csvRunner.contains("quillui_profile_product_was_built()"))
+        #expect(csvRunner.contains("quillui_profile_build_cache_key()"))
+        #expect(csvRunner.contains("quillui_is_backend_generated_app_product \"$product\""))
         #expect(csvRunner.contains("quillui_require_backend_identifier \"$backend\""))
         #expect(csvRunner.contains("requested_backend=\"$(quillui_requested_backend_for_product \"$product\")\""))
         #expect(csvRunner.contains("runtime_backend=\"$(quillui_runtime_backend_for_backend \"$requested_backend\")\""))
         #expect(csvRunner.contains("profile-row-unsupported-backend"))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND_SKIP_BUILD=1\")"))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND=$backend\")"))
+        #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_APP_BACKEND_FACADE=$requested_backend\")"))
         #expect(csvRunner.contains("profiler_arguments+=(\"$backend\")"))
         #expect(csvRunner.contains("profile_command=(env)"))
         #expect(csvRunner.contains("profile_command+=(\"${profiler_environment[@]}\")"))
@@ -584,6 +593,12 @@ struct LinuxBackendAppMatrixTests {
             generatedMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
                 == Self.expectedGeneratedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
         )
+
+        let knownGeneratedProduct = try runScript(script, arguments: ["is-generated-app", "quill-chat-linux"])
+        #expect(knownGeneratedProduct.status == 0, Comment(rawValue: knownGeneratedProduct.output))
+
+        let appGeneratedProduct = try runScript(script, arguments: ["is-generated-app", "quill-icecubes"])
+        #expect(appGeneratedProduct.status != 0)
 
         let knownSmokeProduct = try runScript(script, arguments: ["is-smoke-product", "quill-qt-interaction-smoke"])
         #expect(knownSmokeProduct.status == 0, Comment(rawValue: knownSmokeProduct.output))
@@ -993,21 +1008,33 @@ struct LinuxBackendAppMatrixTests {
         #!/usr/bin/env bash
         product="$1"
         backend="${4:-}"
-        if [[ "$product" != "quill-icecubes" ]]; then
-          exit 41
-        fi
         if [[ "$backend" != "${QUILLUI_BACKEND:-}" ]]; then
           exit 44
-        fi
-        if [[ "$backend" == "gtk" && "${QUILLUI_BACKEND_SKIP_BUILD:-0}" != "0" ]]; then
-          exit 42
-        fi
-        if [[ "$backend" == "qt" && "${QUILLUI_BACKEND_SKIP_BUILD:-0}" != "1" ]]; then
-          exit 43
         fi
         if [[ "$backend" != "gtk" && "$backend" != "qt" ]]; then
           exit 42
         fi
+        case "$product" in
+          quill-icecubes)
+            if [[ "$backend" == "gtk" && "${QUILLUI_BACKEND_SKIP_BUILD:-0}" != "0" ]]; then
+              exit 42
+            fi
+            if [[ "$backend" == "qt" && "${QUILLUI_BACKEND_SKIP_BUILD:-0}" != "1" ]]; then
+              exit 43
+            fi
+            ;;
+          quill-chat-linux)
+            if [[ "$backend" != "${QUILLUI_APP_BACKEND_FACADE:-}" ]]; then
+              exit 45
+            fi
+            if [[ "${QUILLUI_BACKEND_SKIP_BUILD:-0}" != "0" ]]; then
+              exit 46
+            fi
+            ;;
+          *)
+            exit 41
+            ;;
+        esac
         echo "$product,1,2,3,${QUILLUI_BACKEND_SKIP_BUILD:-0}.0,5.0,ok"
 
         """.write(to: fakeProfiler, atomically: true, encoding: .utf8)
@@ -1017,7 +1044,7 @@ struct LinuxBackendAppMatrixTests {
             script,
             arguments: [csv.path],
             environment: ["QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path],
-            stdin: "quill-icecubes\tGTK4\nquill-icecubes\t qt6 \nquill-icecubes\tqtx\n"
+            stdin: "quill-icecubes\tGTK4\nquill-icecubes\t qt6 \nquill-chat-linux\tgtk\nquill-chat-linux\tqt\nquill-icecubes\tqtx\n"
         )
 
         #expect(result.status == 0, Comment(rawValue: result.output))
@@ -1025,6 +1052,8 @@ struct LinuxBackendAppMatrixTests {
         \(Self.profileCSVHeader)
         quill-icecubes,gtk,gtk,1,2,3,0.0,5.0,ok
         quill-icecubes,qt,gtk,1,2,3,1.0,5.0,ok
+        quill-chat-linux,gtk,gtk,1,2,3,0.0,5.0,ok
+        quill-chat-linux,qt,gtk,1,2,3,0.0,5.0,ok
         quill-icecubes,unsupported-backend,unknown,0,0,0,0.0,0.0,profile-row-unsupported-backend
 
         """

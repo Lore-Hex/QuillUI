@@ -27,7 +27,9 @@ compatibility wrappers.
 interaction smoke runners. Profile passes therefore share the same root
 SwiftPM build path, generated Quill Chat build path, prebuilt executable
 override, skip-build behavior, and backend selection defaults as the rest of
-the Linux backend QA tooling.
+the Linux backend QA tooling. Root app profile rows reuse the backend-neutral
+executable across GTK and Qt requests, while generated app rows compile and
+cache backend-specific launcher facades through `QUILLUI_APP_BACKEND_FACADE`.
 
 Because `profile-matrix` includes root app, generated app, and
 `quill-qt-interaction-smoke` Qt rows, the Qt launch path now receives
