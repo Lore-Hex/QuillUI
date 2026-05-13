@@ -122,6 +122,25 @@ quillui_append_quill_chat_reference_environment() {
   quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"
 }
 
+quillui_append_quill_chat_reference_environment_if_needed() {
+  local output_array="$1"
+  local product="$2"
+  local output_dir="$3"
+  local reference_window_width="$4"
+  local reference_window_height="$5"
+  local hide_window_menubar_label="$6"
+
+  if quillui_is_quill_chat_mac_reference_product "$product"; then
+    local reference_home="$output_dir/quill-chat-linux-reference-home"
+    quillui_append_quill_chat_reference_environment \
+      "$output_array" \
+      "$reference_home" \
+      "$reference_window_width" \
+      "$reference_window_height" \
+      "$hide_window_menubar_label"
+  fi
+}
+
 quillui_install_linux_backend_smoke_packages() {
   if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
     return

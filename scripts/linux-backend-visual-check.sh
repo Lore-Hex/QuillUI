@@ -47,15 +47,13 @@ if [[ -n "${QUILLUI_BACKEND_LAYOUT_DEBUG:-}" ]]; then
     QUILLUI_GTK_LAYOUT_DEBUG="$QUILLUI_BACKEND_LAYOUT_DEBUG"
   )
 fi
-if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-  quill_chat_reference_home="$OUTPUT_DIR/quill-chat-linux-reference-home"
-  quillui_append_quill_chat_reference_environment \
-    app_environment \
-    "$quill_chat_reference_home" \
-    "$reference_window_width" \
-    "$reference_window_height" \
-    "$hide_window_menubar_label"
-fi
+quillui_append_quill_chat_reference_environment_if_needed \
+  app_environment \
+  "$PRODUCT" \
+  "$OUTPUT_DIR" \
+  "$reference_window_width" \
+  "$reference_window_height" \
+  "$hide_window_menubar_label"
 env "${app_environment[@]}" "$APP_EXECUTABLE" >/tmp/quillui-backend-app.log 2>&1 &
 app_pid=$!
 
