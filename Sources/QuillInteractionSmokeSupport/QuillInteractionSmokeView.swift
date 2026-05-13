@@ -55,7 +55,8 @@ public enum QuillInteractionSmokeScene {
         return QuillAppWindow.scene(
             configuration.windowTitle,
             width: configuration.width,
-            height: configuration.height
+            height: configuration.height,
+            defaultSizePolicy: .requested
         ) {
             QuillInteractionSmokeView(configuration: configuration)
         }

@@ -247,6 +247,9 @@ struct SourceHygieneTests {
         ]
 
         #expect(helperSource.contains("public enum QuillAppWindow"))
+        #expect(helperSource.contains("public enum QuillAppDefaultSizePolicy"))
+        #expect(helperSource.contains("case requested"))
+        #expect(helperSource.contains("case linuxAppMinimum"))
         #expect(helperSource.contains("public enum QuillBackendApp<Backend: QuillBackend>"))
         #expect(helperSource.contains("QuillBackendRegistry.launchPlan(preferred: preferredBackend)"))
         #expect(helperSource.contains("QuillBackendRuntimeContext.install(launchPlan)"))
@@ -271,7 +274,8 @@ struct SourceHygieneTests {
         #expect(helperSource.contains("QuillLinuxAppRuntime.run(appType, launchPlan: launchPlan)"))
         #expect(helperSource.contains("QuillLinuxRuntimeHost(launchPlan: launchPlan).run(appType)"))
         #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
-        #expect(helperSource.contains("let defaultSize = resolvedDefaultSize(width: width, height: height)"))
+        #expect(helperSource.contains("defaultSizePolicy: QuillAppDefaultSizePolicy = .linuxAppMinimum"))
+        #expect(helperSource.contains("policy: defaultSizePolicy"))
         #expect(helperSource.contains(".defaultSize(width: defaultSize.width, height: defaultSize.height)"))
         #expect(helperSource.contains("return (max(width, 900), max(height, 600))"))
         #expect(helperSource.contains("entry point"))
@@ -437,6 +441,7 @@ struct SourceHygieneTests {
         #expect(sharedView.contains("public enum QuillInteractionSmokeScene"))
         #expect(sharedView.contains("public struct QuillBackendInteractionSmokeApp<Backend: QuillBackend>: App"))
         #expect(sharedView.contains("QuillInteractionSmokeScene.scene(for: Backend.identifier)"))
+        #expect(sharedView.contains("defaultSizePolicy: .requested"))
         #expect(sharedView.contains("backendParitySurface"))
         #expect(sharedView.contains("QuillAppWindow.scene("))
         #expect(sharedView.contains("Quill Backend Interaction"))

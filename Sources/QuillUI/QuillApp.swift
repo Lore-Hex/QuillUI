@@ -13,14 +13,24 @@ import BackendGTK4
 /// Keeps app entry points visually aligned across native SwiftUI and
 /// SwiftOpenUI by using the same `WindowGroup`, main-actor content bridge,
 /// and platform-normalized default sizing helper everywhere.
+public enum QuillAppDefaultSizePolicy: Equatable, Sendable {
+    case requested
+    case linuxAppMinimum
+}
+
 public enum QuillAppWindow {
     public static func scene<Content: View>(
         _ title: String,
         width: Double,
         height: Double,
+        defaultSizePolicy: QuillAppDefaultSizePolicy = .linuxAppMinimum,
         @ViewBuilder content: @escaping @MainActor () -> Content
     ) -> some Scene {
-        let defaultSize = resolvedDefaultSize(width: width, height: height)
+        let defaultSize = resolvedDefaultSize(
+            width: width,
+            height: height,
+            policy: defaultSizePolicy
+        )
 
         return WindowGroup(title) {
             QuillMainActorView.assumeIsolated {
@@ -30,9 +40,18 @@ public enum QuillAppWindow {
         .defaultSize(width: defaultSize.width, height: defaultSize.height)
     }
 
-    private static func resolvedDefaultSize(width: Double, height: Double) -> (width: Double, height: Double) {
+    private static func resolvedDefaultSize(
+        width: Double,
+        height: Double,
+        policy: QuillAppDefaultSizePolicy
+    ) -> (width: Double, height: Double) {
         #if os(Linux)
-        return (max(width, 900), max(height, 600))
+        switch policy {
+        case .linuxAppMinimum:
+            return (max(width, 900), max(height, 600))
+        case .requested:
+            return (width, height)
+        }
         #else
         return (width, height)
         #endif
