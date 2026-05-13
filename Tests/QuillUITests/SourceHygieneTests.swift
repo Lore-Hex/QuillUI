@@ -103,7 +103,11 @@ struct SourceHygieneTests {
 
         #expect(uiTestPlan.contains("Linux backend smoke"))
         #expect(uiTestPlan.contains("requested Linux backend matrix"))
+        #expect(uiTestPlan.contains("backend-selected window"))
+        #expect(uiTestPlan.contains("through the Linux backend matrix"))
         #expect(!uiTestPlan.contains("Linux GTK smoke"))
+        #expect(!uiTestPlan.contains("Screenshots the GTK window"))
+        #expect(!uiTestPlan.contains("renders identically on Linux GTK"))
 
         #expect(linuxBuildTooling.contains("QUILLUI_BACKEND_LAYOUT_DEBUG"))
         #expect(linuxBuildTooling.contains("layout diagnostics behave the same across every runner"))

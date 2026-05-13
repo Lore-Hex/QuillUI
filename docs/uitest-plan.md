@@ -55,7 +55,7 @@ For every Quill app, add a Linux CI step that:
 
 - Builds and launches the Quill\*App executable under Xvfb
 - Waits `${QUILLUI_SMOKE_SECONDS:-4}` seconds
-- Screenshots the GTK window via `import` / `gnome-screenshot`
+- Screenshots the backend-selected window via `import` / `gnome-screenshot`
 - Runs `scripts/verify-backend-screenshot.py` against the PNG
 
 Reuse `scripts/linux-backend-visual-check.sh` (already proven for
@@ -163,7 +163,7 @@ App is "done" when ALL of:
       gate
 - [ ] At least one macOS image-snapshot test exists covering a
       meaningful flow and runs as a hard gate
-- [ ] The same flow renders identically on Linux GTK via
+- [ ] The same flow renders identically through the Linux backend matrix via
       `scripts/linux-backend-visual-check.sh` and is hard-gated
 - [ ] At least one interaction (click / text input) is exercised
       via `scripts/linux-backend-interaction-check.sh` and produces a
