@@ -21,7 +21,7 @@ quillui_export_backend_argument() {
   local requested_backend="${1:-}"
 
   if [[ -n "$requested_backend" ]]; then
-    QUILLUI_BACKEND="$requested_backend"
+    QUILLUI_BACKEND="$(quillui_backend_identifier_or_raw "$requested_backend")"
     export QUILLUI_BACKEND
   fi
 }
@@ -257,6 +257,8 @@ quillui_append_backend_launch_environment() {
   fi
   if [[ -z "$requested_backend" ]]; then
     requested_backend="$(quillui_requested_backend_for_product "$product")"
+  else
+    requested_backend="$(quillui_backend_identifier_or_raw "$requested_backend")"
   fi
   if [[ -n "$requested_backend" ]]; then
     quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND=$requested_backend" || return $?

@@ -178,6 +178,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_app_backends()"))
         #expect(backendProducts.contains("quillui_backend_matrix_for_products()"))
         #expect(backendProducts.contains("quillui_backend_app_matrix()"))
+        #expect(backendProducts.contains("quillui_normalize_backend_identifier()"))
+        #expect(backendProducts.contains("quillui_backend_identifier_or_raw()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_products()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_matrix()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_products | quillui_backend_matrix_for_products"))
@@ -195,6 +197,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_alias_backend_profile_env()"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_LAYOUT_DEBUG QUILLUI_GTK_LAYOUT_DEBUG QUILLUI_QT_LAYOUT_DEBUG\n  quillui_alias_env QUILLUI_BACKEND_VERIFY_PRODUCT"))
         #expect(backendProducts.contains("backend_prefix=\"QUILLUI_QT_\""))
+        #expect(backendProducts.contains("normalize-backend)"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS QUILLUI_QT_PROFILE_MAX_STARTUP_MS\n  quillui_alias_backend_common_env"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
@@ -390,6 +393,29 @@ struct LinuxBackendAppMatrixTests {
         )
         #expect(overrideBackend.status == 0, Comment(rawValue: overrideBackend.output))
         #expect(overrideBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+
+        let aliasOverrideBackend = try runScript(
+            script,
+            arguments: ["requested-backend", "quill-icecubes"],
+            environment: ["QUILLUI_BACKEND": " Qt6 "]
+        )
+        #expect(aliasOverrideBackend.status == 0, Comment(rawValue: aliasOverrideBackend.output))
+        #expect(aliasOverrideBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+
+        let normalizedQtBackend = try runScript(script, arguments: ["normalize-backend", " Qt6 "])
+        #expect(normalizedQtBackend.status == 0, Comment(rawValue: normalizedQtBackend.output))
+        #expect(normalizedQtBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+
+        let normalizedGtkBackend = try runScript(script, arguments: ["normalize-backend", "GTK4"])
+        #expect(normalizedGtkBackend.status == 0, Comment(rawValue: normalizedGtkBackend.output))
+        #expect(normalizedGtkBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+
+        let normalizedSwiftUIBackend = try runScript(script, arguments: ["normalize-backend", "swift-ui"])
+        #expect(normalizedSwiftUIBackend.status == 0, Comment(rawValue: normalizedSwiftUIBackend.output))
+        #expect(normalizedSwiftUIBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "swiftui")
+
+        let invalidBackend = try runScript(script, arguments: ["normalize-backend", "unknown"])
+        #expect(invalidBackend.status != 0)
     }
 
     @Test("backend alias helper accepts scoped GTK and Qt controls")
@@ -407,7 +433,7 @@ struct LinuxBackendAppMatrixTests {
         set -euo pipefail
         source "\(root.path)/scripts/quillui-backend-products.sh"
 
-        QUILLUI_BACKEND=qt
+        QUILLUI_BACKEND=Qt6
         QUILLUI_QT_PROFILE_COMMAND=/tmp/qt-profiler
         QUILLUI_GTK_PROFILE_COMMAND=/tmp/gtk-profiler
         export QUILLUI_BACKEND QUILLUI_QT_PROFILE_COMMAND QUILLUI_GTK_PROFILE_COMMAND
@@ -420,7 +446,7 @@ struct LinuxBackendAppMatrixTests {
         unset QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_BACKEND_PROFILE_SCREEN_SIZE
         unset QUILLUI_GTK_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE
         unset QUILLUI_QT_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE
-        QUILLUI_BACKEND=qt
+        QUILLUI_BACKEND=" qt6 "
         QUILLUI_QT_VISUAL_SCREEN_SIZE=1440x900x24
         export QUILLUI_BACKEND QUILLUI_QT_VISUAL_SCREEN_SIZE
         quillui_alias_backend_visual_env
@@ -429,7 +455,7 @@ struct LinuxBackendAppMatrixTests {
         printf 'screen-qt=%s\\n' "$QUILLUI_QT_SCREEN_SIZE"
 
         unset QUILLUI_BACKEND_INTERACTION_MODE QUILLUI_GTK_INTERACTION_MODE QUILLUI_QT_INTERACTION_MODE
-        QUILLUI_BACKEND=gtk
+        QUILLUI_BACKEND=GTK4
         QUILLUI_QT_INTERACTION_MODE=wrong-backend
         QUILLUI_GTK_INTERACTION_MODE=prompt-send
         export QUILLUI_BACKEND QUILLUI_QT_INTERACTION_MODE QUILLUI_GTK_INTERACTION_MODE
@@ -438,7 +464,7 @@ struct LinuxBackendAppMatrixTests {
         printf 'interaction-qt=%s\\n' "$QUILLUI_QT_INTERACTION_MODE"
 
         unset QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT QUILLUI_GTK_PROFILE_MAX_CPU_PCT QUILLUI_QT_PROFILE_MAX_CPU_PCT
-        QUILLUI_BACKEND=qt
+        QUILLUI_BACKEND=Qt
         QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT=11
         QUILLUI_QT_PROFILE_MAX_CPU_PCT=99
         export QUILLUI_BACKEND QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT QUILLUI_QT_PROFILE_MAX_CPU_PCT
@@ -446,7 +472,7 @@ struct LinuxBackendAppMatrixTests {
         printf 'cpu-qt=%s\\n' "$QUILLUI_QT_PROFILE_MAX_CPU_PCT"
 
         unset QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY QUILLUI_GENERATED_INCLUDE_GTK_BACKEND QUILLUI_GENERATED_INCLUDE_QT_BACKEND
-        QUILLUI_BACKEND=qt
+        QUILLUI_BACKEND=Qt6
         QUILLUI_GENERATED_INCLUDE_GTK_BACKEND=0
         QUILLUI_GENERATED_INCLUDE_QT_BACKEND=1
         export QUILLUI_BACKEND QUILLUI_GENERATED_INCLUDE_GTK_BACKEND QUILLUI_GENERATED_INCLUDE_QT_BACKEND
@@ -464,11 +490,15 @@ struct LinuxBackendAppMatrixTests {
         QUILLUI_QT_SKIP_BUILD=1
         export QUILLUI_BACKEND QUILLUI_GTK_APP_EXECUTABLE QUILLUI_QT_APP_EXECUTABLE QUILLUI_GTK_SKIP_BUILD QUILLUI_QT_SKIP_BUILD
         source "\(root.path)/scripts/quillui-linux-backend-smoke-lib.sh"
-        quillui_export_backend_argument qt
+        quillui_export_backend_argument " Qt6 "
         quillui_alias_backend_build_env
         printf 'build-backend=%s\\n' "$QUILLUI_BACKEND"
         printf 'build-exe=%s\\n' "$QUILLUI_BACKEND_APP_EXECUTABLE"
         printf 'build-skip=%s\\n' "$QUILLUI_BACKEND_SKIP_BUILD"
+
+        runtime_env=()
+        quillui_append_backend_launch_environment runtime_env quill-icecubes "" " GTK4 "
+        printf 'launch-backend=%s\\n' "${runtime_env[1]}"
 
         """.write(to: probe, atomically: true, encoding: .utf8)
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: probe.path)
@@ -490,6 +520,7 @@ struct LinuxBackendAppMatrixTests {
         build-backend=qt
         build-exe=/tmp/qt-app
         build-skip=1
+        launch-backend=QUILLUI_BACKEND=gtk
 
         """)
     }

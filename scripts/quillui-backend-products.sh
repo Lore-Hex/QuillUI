@@ -50,6 +50,48 @@ quillui_backend_app_matrix() {
   quillui_backend_app_products | quillui_backend_matrix_for_products
 }
 
+quillui_normalize_backend_identifier() {
+  # Keep shell tooling aligned with QuillBackendIdentifier(environmentValue:).
+  local raw_value="${1:-}"
+  local normalized
+
+  normalized="$(
+    printf '%s' "$raw_value" \
+      | tr '[:upper:]' '[:lower:]' \
+      | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+  )"
+
+  case "$normalized" in
+    swiftui|swift-ui|apple|native)
+      echo "swiftui"
+      ;;
+    gtk|gtk4)
+      echo "gtk"
+      ;;
+    qt|qt6)
+      echo "qt"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+quillui_backend_identifier_or_raw() {
+  local raw_value="${1:-}"
+  local normalized_backend=""
+
+  if [[ -n "$raw_value" ]]; then
+    normalized_backend="$(quillui_normalize_backend_identifier "$raw_value" || true)"
+  fi
+
+  if [[ -n "$normalized_backend" ]]; then
+    echo "$normalized_backend"
+  else
+    echo "$raw_value"
+  fi
+}
+
 quillui_backend_interaction_app_products() {
   # Root app interaction smokes intentionally share the same app roster as
   # visual/profile parity checks. Keep the function separate so interaction
@@ -112,13 +154,18 @@ quillui_alias_env() {
   local alias
   local backend_prefix=""
   local backend_marker=""
+  local selected_backend=""
 
-  case "${QUILLUI_BACKEND:-}" in
-    gtk|gtk4|GTK|GTK4|Gtk|Gtk4)
+  if [[ -n "${QUILLUI_BACKEND:-}" ]]; then
+    selected_backend="$(quillui_normalize_backend_identifier "$QUILLUI_BACKEND" || true)"
+  fi
+
+  case "$selected_backend" in
+    gtk)
       backend_prefix="QUILLUI_GTK_"
       backend_marker="_GTK_"
       ;;
-    qt|qt6|QT|QT6|Qt|Qt6)
+    qt)
       backend_prefix="QUILLUI_QT_"
       backend_marker="_QT_"
       ;;
@@ -239,7 +286,7 @@ quillui_backend_profile_matrix() {
 
 quillui_requested_backend_for_product() {
   if [[ -n "${QUILLUI_BACKEND:-}" ]]; then
-    echo "$QUILLUI_BACKEND"
+    quillui_backend_identifier_or_raw "$QUILLUI_BACKEND"
   else
     quillui_backend_for_product "$1"
   fi
@@ -261,6 +308,7 @@ Commands:
   smoke-products                  List backend launch smoke products.
   profile-products                List app and launch-smoke products for profile budgets.
   profile-matrix                  List PRODUCT<TAB>BACKEND rows for profile budgets.
+  normalize-backend BACKEND       Print the canonical backend identifier for a known backend alias.
   is-smoke-product PRODUCT        Exit 0 when PRODUCT is a backend launch smoke product.
   backend-for-product PRODUCT     Print the default requested backend for PRODUCT.
   requested-backend PRODUCT       Print QUILLUI_BACKEND override or PRODUCT default.
@@ -301,6 +349,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     profile-matrix)
       quillui_backend_profile_matrix
+      ;;
+    normalize-backend)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_normalize_backend_identifier "$2"
       ;;
     is-smoke-product)
       if [[ $# -ne 2 ]]; then
