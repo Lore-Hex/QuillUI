@@ -31,7 +31,7 @@ profile coverage iterate the same user-facing app list:
 `quill-enchanted`, `quill-enchanted-upstream-slice`,
 `quill-icecubes`, `quill-netnewswire`, `quill-codeedit`,
 `quill-signal`, `quill-telegram`, `quill-iina`, and
-`quill-wireguard`. The older `scripts/linux-gtk-app-products.sh`
+`quill-wireguard`, plus the Qt-specific `quill-wireguard-qt`. The older `scripts/linux-gtk-app-products.sh`
 path delegates to the same helper for compatibility.
 
 The six fixture app backend smokes passed baseline (size + mean

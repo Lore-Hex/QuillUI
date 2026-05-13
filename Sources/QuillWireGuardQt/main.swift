@@ -1,10 +1,10 @@
-import QuillUI
+import QuillUIQt
 import QuillWireGuardUI
 
-struct QuillWireGuardApp: App {
+struct QuillWireGuardQtApp: App {
     var body: some Scene {
         QuillWireGuardScene.scene()
     }
 }
 
-QuillApp.run(QuillWireGuardApp.self)
+QuillQtApp.run(QuillWireGuardQtApp.self)

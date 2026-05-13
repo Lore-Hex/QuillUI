@@ -59,21 +59,29 @@ struct QuillWireGuardCoreTests {
     @Test("Fallback platforms share the fixture-backed configuration shell")
     func fallbackPlatformsShareFixtureBackedConfigurationShell() throws {
         let sourceURL = try packageRoot()
-            .appendingPathComponent("Sources/QuillWireGuard/ContentView.swift")
+            .appendingPathComponent("Sources/QuillWireGuardUI/QuillWireGuardUI.swift")
         let source = try String(contentsOf: sourceURL, encoding: .utf8)
 
-        #expect(source.contains("struct WireGuardFallbackConfigurationView"))
-        #expect(source.contains("typealias ContentView = WireGuardFallbackConfigurationView"))
+        #expect(source.contains("public struct WireGuardFallbackConfigurationView"))
+        #expect(source.contains("public typealias ContentView = WireGuardFallbackConfigurationView"))
         #expect(source.contains("WireGuardFallbackConfigurationView()"))
         #expect(!source.contains("WireGuardKit not available"))
         #expect(!source.contains("Click + in the sidebar to generate a fresh\\nCurve25519 keypair via upstream WireGuardKit."))
     }
 
-    @Test("WireGuard app entry point uses the shared main-actor scene helper")
-    func wireGuardAppEntryPointUsesMainActorViewHelper() throws {
+    @Test("WireGuard app entry points share the UI scene helper")
+    func wireGuardAppEntryPointsShareUISceneHelper() throws {
         let root = try packageRoot()
         let source = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillWireGuard/main.swift"),
+            encoding: .utf8
+        )
+        let qtSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillWireGuardQt/main.swift"),
+            encoding: .utf8
+        )
+        let uiSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillWireGuardUI/QuillWireGuardUI.swift"),
             encoding: .utf8
         )
         let helperSource = try String(
@@ -81,8 +89,13 @@ struct QuillWireGuardCoreTests {
             encoding: .utf8
         )
 
-        #expect(source.contains("QuillAppWindow.scene(\"Quill WireGuard\""))
-        #expect(source.contains("ContentView()"))
+        #expect(source.contains("QuillWireGuardScene.scene()"))
+        #expect(source.contains("QuillApp.run(QuillWireGuardApp.self)"))
+        #expect(qtSource.contains("import QuillUIQt"))
+        #expect(qtSource.contains("QuillWireGuardScene.scene()"))
+        #expect(qtSource.contains("QuillQtApp.run(QuillWireGuardQtApp.self)"))
+        #expect(uiSource.contains("QuillAppWindow.scene(title"))
+        #expect(uiSource.contains("ContentView()"))
         #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
     }
 

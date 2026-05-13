@@ -382,10 +382,14 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains(".target(name: \"UIKit\", dependencies: [\"QuillFoundation\", \"QuillUIKit\"], path: \"Sources/UIKitShim\")"))
         #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: [\"QuillFoundation\"],\n        path: \"Sources/QuillUIKit\"\n    )"))
         #expect(manifest.contains(".executable(name: \"quill-wireguard\", targets: [\"QuillWireGuard\"])"))
-        #expect(manifest.contains("var quillWireGuardCoreDependencies: [Target.Dependency] = [\"QuillUI\", \"QuillData\"]"))
-        #expect(manifest.contains("quillWireGuardCoreDependencies.append(\"WireGuardKit\")"))
-        #expect(manifest.contains("quillWireGuardCoreDependencies.append(\"SwiftUI\")"))
+        #expect(manifest.contains(".executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"])"))
+        #expect(manifest.contains("let quillWireGuardCoreDependencies: [Target.Dependency] = []"))
+        #expect(manifest.contains("var quillWireGuardUIDependencies: [Target.Dependency] = [\"QuillWireGuardCore\", \"QuillUI\"]"))
+        #expect(manifest.contains("quillWireGuardUIDependencies.append(\"WireGuardKit\")"))
+        #expect(manifest.contains("quillWireGuardUIDependencies.append(\"SwiftUI\")"))
         #expect(manifest.contains("dependencies: quillWireGuardCoreDependencies"))
+        #expect(manifest.contains("dependencies: quillWireGuardUIDependencies"))
+        #expect(manifest.contains("dependencies: quillWireGuardQtDependencies"))
     }
 
     @Test("visual smoke exposes opt-in Mac reference landmarks")

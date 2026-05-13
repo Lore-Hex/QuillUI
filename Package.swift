@@ -10,7 +10,8 @@ import Foundation
 // CodeEdit, CodeEditSymbols) are gated on the matching directory
 // existing under `.upstream/`. A fresh `git clone` of QuillUI
 // resolves cleanly with no `.upstream/` populated and can still
-// build `QuillUI` / `QuillEnchanted` / `QuillWireGuard`. Run
+// build `QuillUI` / `QuillEnchanted` / `QuillWireGuard` /
+// `QuillWireGuardQt`. Run
 // `scripts/fetch-upstream.sh` to fetch the upstreams and enable
 // the gated targets.
 //
@@ -46,7 +47,8 @@ var products: [Product] = [
     .executable(name: "quill-telegram", targets: ["QuillTelegram"]),
     .executable(name: "quill-iina", targets: ["QuillIINA"]),
     .executable(name: "quill-codeedit", targets: ["QuillCodeEdit"]),
-    .executable(name: "quill-wireguard", targets: ["QuillWireGuard"])
+    .executable(name: "quill-wireguard", targets: ["QuillWireGuard"]),
+    .executable(name: "quill-wireguard-qt", targets: ["QuillWireGuardQt"])
 ]
 
 // `quill-netnewswire` is now a cross-platform executable backed
@@ -183,24 +185,21 @@ let nnwLogicDependencies: [Target.Dependency] = [
 ]
 #endif
 
-// QuillWireGuard executable + core. On Linux they need the SwiftUI
-// shim target since `import SwiftUI` doesn't resolve to Apple's
-// SwiftUI (which doesn't ship on Linux). The WireGuardKit dep is
-// only declared when `.upstream/wireguard-apple/...` is fetched —
-// the Swift source uses `#if canImport(WireGuardKit)` so it stays
-// compileable either way.
-var quillWireGuardCoreDependencies: [Target.Dependency] = ["QuillUI", "QuillData"]
+// QuillWireGuard is split into a pure model core, one shared UI
+// target, and backend-specific entry points. That keeps the default
+// GTK-selected app and the explicit Qt app on the same visual code path.
+let quillWireGuardCoreDependencies: [Target.Dependency] = []
+var quillWireGuardUIDependencies: [Target.Dependency] = ["QuillWireGuardCore", "QuillUI"]
 #if !os(Linux)
 if wireguardUpstreamPresent {
-    quillWireGuardCoreDependencies.append("WireGuardKit")
+    quillWireGuardUIDependencies.append("WireGuardKit")
 }
 #endif
 #if os(Linux)
-quillWireGuardCoreDependencies.append("SwiftUI")
-let quillWireGuardDependencies: [Target.Dependency] = ["QuillWireGuardCore", "QuillUI", "SwiftUI"]
-#else
-let quillWireGuardDependencies: [Target.Dependency] = ["QuillWireGuardCore", "QuillUI"]
+quillWireGuardUIDependencies.append("SwiftUI")
 #endif
+let quillWireGuardDependencies: [Target.Dependency] = ["QuillWireGuardUI", "QuillUI"]
+let quillWireGuardQtDependencies: [Target.Dependency] = ["QuillWireGuardUI", "QuillUIQt"]
 
 // WireGuardKit deps + Linux-specific excludes.
 #if os(Linux)
@@ -469,10 +468,22 @@ var targets: [Target] = [
         dependencies: quillWireGuardCoreDependencies,
         path: "Sources/QuillWireGuardCore"
     ),
+    .target(
+        name: "QuillWireGuardUI",
+        dependencies: quillWireGuardUIDependencies,
+        path: "Sources/QuillWireGuardUI",
+        swiftSettings: appSwiftSettings
+    ),
     .executableTarget(
         name: "QuillWireGuard",
         dependencies: quillWireGuardDependencies,
         path: "Sources/QuillWireGuard",
+        swiftSettings: appSwiftSettings
+    ),
+    .executableTarget(
+        name: "QuillWireGuardQt",
+        dependencies: quillWireGuardQtDependencies,
+        path: "Sources/QuillWireGuardQt",
         swiftSettings: appSwiftSettings
     ),
     // Asset Catalog Symbol Generation tool + build plugin. Generates

@@ -13,7 +13,8 @@ quillui_backend_app_products() {
     quill-signal \
     quill-telegram \
     quill-iina \
-    quill-wireguard
+    quill-wireguard \
+    quill-wireguard-qt
 }
 
 quillui_gtk_app_products() {
@@ -380,7 +381,7 @@ quillui_alias_backend_profile_env() {
 
 quillui_backend_for_product() {
   case "$1" in
-    quill-qt-interaction-smoke)
+    quill-qt-interaction-smoke|quill-wireguard-qt)
       echo "qt"
       ;;
     quill-gtk-interaction-smoke|quill-chat-linux)

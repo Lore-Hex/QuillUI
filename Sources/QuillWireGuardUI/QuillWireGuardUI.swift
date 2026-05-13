@@ -6,16 +6,31 @@ import SwiftUI
 import WireGuardKit
 #endif
 
+@MainActor
+public enum QuillWireGuardScene {
+    public static let title = "Quill WireGuard"
+    public static let defaultWidth = 800.0
+    public static let defaultHeight = 600.0
+
+    public static func scene() -> some Scene {
+        QuillAppWindow.scene(title, width: defaultWidth, height: defaultHeight) {
+            ContentView()
+        }
+    }
+}
+
 // Shared fallback used by Linux and by platforms where upstream
 // WireGuardKit is not linked. Privileged tunnel activation stays
 // behind a future backend adapter; this shell keeps configuration
 // list/edit/export UI rendering consistently now.
 @MainActor
-struct WireGuardFallbackConfigurationView: View {
+public struct WireGuardFallbackConfigurationView: View {
     @State private var tunnels = QuillWireGuardFixtures.tunnels
     @State private var selectedTunnelID = QuillWireGuardFixtures.defaultTunnelID
 
-    nonisolated var body: some View {
+    public init() {}
+
+    public nonisolated var body: some View {
         QuillMainActorView.assumeIsolated {
             HStack(spacing: 0) {
                 sidebar
@@ -190,14 +205,16 @@ struct WireGuardFallbackConfigurationView: View {
 }
 
 #if os(Linux)
-typealias ContentView = WireGuardFallbackConfigurationView
+public typealias ContentView = WireGuardFallbackConfigurationView
 #else
-struct ContentView: View {
+public struct ContentView: View {
+    public init() {}
+
     #if canImport(WireGuardKit)
     @State private var tunnels: [TunnelConfiguration] = []
     @State private var selectedTunnelName: String?
 
-    var body: some View {
+    public var body: some View {
         HStack(spacing: 0) {
             sidebar
                 .frame(width: 280)
@@ -326,7 +343,7 @@ struct ContentView: View {
         selectedTunnelName = name
     }
     #else
-    var body: some View {
+    public var body: some View {
         WireGuardFallbackConfigurationView()
     }
     #endif

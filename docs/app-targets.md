@@ -50,7 +50,7 @@ Audit doc:
 
 ## Side Target: WireGuard Apple
 
-Status: compile-green hard-gated on macOS CI (CP87). `scripts/fetch-upstream.sh wireguard` patches `WireGuardKitC.h` to explicitly `#include <sys/types.h>` so the macOS 15+ modular-header check on `u_int32_t` / `u_char` / `u_int16_t` resolves through the right Darwin module. A Linux configuration-manager shell now renders deterministic tunnel fixtures with interface details, peer details, editable tunnel names, and `wg-quick` export text; privileged connect/disconnect remains behind a future backend adapter.
+Status: compile-green hard-gated on macOS CI (CP87). `scripts/fetch-upstream.sh wireguard` patches `WireGuardKitC.h` to explicitly `#include <sys/types.h>` so the macOS 15+ modular-header check on `u_int32_t` / `u_char` / `u_int16_t` resolves through the right Darwin module. A Linux configuration-manager shell now renders deterministic tunnel fixtures with interface details, peer details, editable tunnel names, and `wg-quick` export text through the shared `QuillWireGuardUI` target. The default `quill-wireguard` executable and explicit `quill-wireguard-qt` executable share that scene; privileged connect/disconnect remains behind a future backend adapter.
 
 Why it matters:
 

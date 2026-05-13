@@ -12,7 +12,8 @@ struct LinuxBackendAppMatrixTests {
         "quill-signal",
         "quill-telegram",
         "quill-iina",
-        "quill-wireguard"
+        "quill-wireguard",
+        "quill-wireguard-qt"
     ]
 
     private static let expectedSmokeProducts = [
@@ -688,6 +689,10 @@ struct LinuxBackendAppMatrixTests {
         let qtBackend = try runScript(script, arguments: ["backend-for-product", "quill-qt-interaction-smoke"])
         #expect(qtBackend.status == 0, Comment(rawValue: qtBackend.output))
         #expect(qtBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+
+        let wireGuardQtBackend = try runScript(script, arguments: ["backend-for-product", "quill-wireguard-qt"])
+        #expect(wireGuardQtBackend.status == 0, Comment(rawValue: wireGuardQtBackend.output))
+        #expect(wireGuardQtBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
 
         let gtkBackend = try runScript(script, arguments: ["backend-for-product", "quill-icecubes"])
         #expect(gtkBackend.status == 0, Comment(rawValue: gtkBackend.output))

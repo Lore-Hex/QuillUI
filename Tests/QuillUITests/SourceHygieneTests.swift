@@ -205,6 +205,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillBackend.swift"),
             encoding: .utf8
         )
+        let wireGuardUISource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillWireGuardUI/QuillWireGuardUI.swift"),
+            encoding: .utf8
+        )
         let appEntryPointPaths = [
             "Sources/QuillSignal/main.swift",
             "Sources/QuillTelegram/main.swift",
@@ -226,6 +230,13 @@ struct SourceHygieneTests {
             "Sources/QuillWireGuard/main.swift": "QuillApp.run(QuillWireGuardApp.self)",
             "Sources/QuillEnchanted/main.swift": "QuillApp.run(QuillEnchantedApp.self)",
             "Sources/QuillEnchantedUpstreamSlice/main.swift": "QuillApp.run(UpstreamSliceApp.self)"
+        ]
+        let qtAppLauncherPaths = [
+            "Sources/QuillWireGuardQt/main.swift": "QuillQtApp.run(QuillWireGuardQtApp.self)"
+        ]
+        let sharedSceneEntryPoints = [
+            "Sources/QuillWireGuard/main.swift": "QuillWireGuardScene.scene()",
+            "Sources/QuillWireGuardQt/main.swift": "QuillWireGuardScene.scene()"
         ]
         let backendSmokeEntryPointPaths = [
             "Sources/QuillGtkInteractionSmoke/main.swift": "QuillBackendInteractionSmokeApp<QuillGtkBackend>",
@@ -264,11 +275,17 @@ struct SourceHygieneTests {
         #expect(backendSource.contains("return QuillLinuxRuntimeHost.supportedBackends"))
         #expect(backendSource.contains("return QuillLinuxRuntimeHost.platformFallbackBackend"))
         #expect(!backendSource.contains("return [.gtk]"))
+        #expect(wireGuardUISource.contains("public enum QuillWireGuardScene"))
+        #expect(wireGuardUISource.contains("QuillAppWindow.scene("))
 
         for path in appEntryPointPaths {
             let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
 
-            #expect(source.contains("QuillAppWindow.scene("), "\(path) should use the shared scene helper")
+            if let sharedScene = sharedSceneEntryPoints[path] {
+                #expect(source.contains(sharedScene), "\(path) should use the shared WireGuard scene")
+            } else {
+                #expect(source.contains("QuillAppWindow.scene("), "\(path) should use the shared scene helper")
+            }
             #expect(!source.contains("WindowGroup("), "\(path) should not hand-roll WindowGroup setup")
             #expect(!source.contains(".defaultWindowSize("), "\(path) should not branch into Linux-only sizing")
             #expect(!source.contains(".defaultSize("), "\(path) should let QuillAppWindow own default sizing")
@@ -282,6 +299,18 @@ struct SourceHygieneTests {
             #expect(!source.contains("import BackendGTK4"), "\(path) should not import a backend implementation")
             #expect(!source.contains("import QuillUIGtk"), "\(path) should not import a backend facade")
             #expect(!source.contains("import QuillUIQt"), "\(path) should not import a backend facade")
+        }
+
+        for (path, launcher) in qtAppLauncherPaths {
+            let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+            let sharedScene = try #require(sharedSceneEntryPoints[path])
+
+            #expect(source.contains(launcher), "\(path) should launch through QuillQtApp.run")
+            #expect(source.contains("import QuillUIQt"), "\(path) should import the Qt backend facade")
+            #expect(source.contains(sharedScene), "\(path) should reuse the shared WireGuard scene")
+            #expect(!source.contains("WindowGroup("), "\(path) should not hand-roll WindowGroup setup")
+            #expect(!source.contains(".defaultWindowSize("), "\(path) should not branch into Linux-only sizing")
+            #expect(!source.contains(".defaultSize("), "\(path) should let QuillAppWindow own default sizing")
         }
 
         for (path, appType) in backendSmokeEntryPointPaths {
@@ -622,7 +651,7 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("is-smoke-product)"))
         #expect(backendProducts.contains("is-generated-app)"))
         #expect(backendProducts.contains("backend-for-product)"))
-        #expect(backendProducts.contains("quill-qt-interaction-smoke)"))
+        #expect(backendProducts.contains("quill-qt-interaction-smoke|quill-wireguard-qt)"))
         #expect(backendProducts.contains("echo \"qt\""))
         #expect(backendProducts.contains("quill-gtk-interaction-smoke|quill-chat-linux"))
         #expect(backendProducts.contains("echo \"gtk\""))

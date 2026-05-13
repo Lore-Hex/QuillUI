@@ -30,6 +30,7 @@ Current backend parity app targets:
 7. `quill-telegram`
 8. `quill-iina`
 9. `quill-wireguard`
+10. `quill-wireguard-qt`
 
 Generated external app coverage also includes `quill-chat-linux` when the
 local Quill Chat checkout is available.
@@ -39,6 +40,7 @@ local Quill Chat checkout is available.
 - `QuillUI`: facade module that re-exports SwiftUI on Apple platforms and SwiftOpenUI elsewhere.
 - `quill-enchanted`: a desktop chat app with Ollama model discovery, streaming chat completion, and local QuillData conversation history.
 - `QuillUIGtk` / `QuillUIQt`: backend-specific launch targets sharing the same app scene and smoke-test contracts.
+- `quill-wireguard` / `quill-wireguard-qt`: default and Qt-specific WireGuard launch targets sharing `QuillWireGuardUI`.
 - `scripts/quillui-backend-products.sh`: canonical app, generated-app, smoke, and profile rosters for GTK/Qt parity loops.
 - `scripts/run-linux-backend-smoke-matrix.sh`: shared visual/interaction matrix runner so local and CI GTK/Qt smoke rows stay identical.
 

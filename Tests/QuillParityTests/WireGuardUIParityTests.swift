@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import SwiftUI
 @_spi(QuillTesting) import QuillUI
+import QuillWireGuardUI
 
 #if canImport(WireGuardKit)
 import WireGuardKit
@@ -13,9 +14,7 @@ struct WireGuardUIParityTests {
     @Test("WireGuard UI renders identically")
     @MainActor
     func testWireGuardUIRendersIdentically() async throws {
-        let tunnels: [TunnelConfiguration] = [] // Empty for baseline comparison
-        
-        let view = ContentView()
+        let view = WireGuardFallbackConfigurationView()
         
         // This is the cross-platform rendering bridge.
         // On macOS it uses real SwiftUI ImageRenderer.
