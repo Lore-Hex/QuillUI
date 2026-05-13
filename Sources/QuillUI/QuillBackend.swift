@@ -90,6 +90,14 @@ public struct QuillBackendRuntimeAvailability: Equatable, Sendable {
     public let selected: QuillBackendIdentifier
     public let runtime: QuillBackendIdentifier
 
+    public var selectedDescriptor: QuillBackendDescriptor {
+        QuillBackendRegistry.descriptor(for: selected)
+    }
+
+    public var runtimeDescriptor: QuillBackendDescriptor {
+        QuillBackendRegistry.descriptor(for: runtime)
+    }
+
     public var hasNativeRuntime: Bool {
         selected == runtime
     }
@@ -100,6 +108,22 @@ public struct QuillBackendRuntimeAvailability: Equatable, Sendable {
 
     public var mode: QuillBackendRuntimeMode {
         hasNativeRuntime ? .native : .platformFallback
+    }
+
+    public var summary: String {
+        QuillBackendRegistry.runtimeSummary(availability: self)
+    }
+
+    public var rowValues: [String] {
+        [
+            selected.rawValue,
+            runtime.rawValue,
+            mode.rawValue
+        ]
+    }
+
+    public var tabSeparatedRow: String {
+        rowValues.joined(separator: "\t")
     }
 
     public init(
@@ -172,7 +196,7 @@ public struct QuillBackendLaunchPlan: Equatable, Sendable {
     }
 
     public var statusMessage: String {
-        QuillBackendRegistry.runtimeSummary(selected: selected, runtime: runtime)
+        runtimeAvailability.summary
     }
 
     public var statusMessages: [String] {
@@ -292,6 +316,30 @@ public extension QuillBackend {
 
     static var status: QuillBackendRuntimeStatus {
         runtimeStatus
+    }
+
+    static var runtimeAvailability: QuillBackendRuntimeAvailability {
+        launchPlan.runtimeAvailability
+    }
+
+    static var runtimeBackend: QuillBackendIdentifier {
+        launchPlan.runtime
+    }
+
+    static var runtimeMode: QuillBackendRuntimeMode {
+        launchPlan.runtimeMode
+    }
+
+    static var hasNativeRuntime: Bool {
+        runtimeAvailability.hasNativeRuntime
+    }
+
+    static var usesRuntimeFallback: Bool {
+        launchPlan.usesRuntimeFallback
+    }
+
+    static var runtimeMessage: String {
+        launchPlan.statusMessage
     }
 }
 
@@ -494,24 +542,32 @@ public enum QuillBackendRegistry {
     public static func runtimeSummary(
         selected selectedBackend: QuillBackendIdentifier
     ) -> String {
-        runtimeSummary(
-            selected: selectedBackend,
-            runtime: runtimeBackend(for: selectedBackend)
-        )
+        runtimeAvailability(for: selectedBackend).summary
+    }
+
+    public static func runtimeSummary(
+        availability: QuillBackendRuntimeAvailability
+    ) -> String {
+        let selectedDescriptor = availability.selectedDescriptor
+        let runtimeDescriptor = availability.runtimeDescriptor
+
+        if availability.usesRuntimeFallback {
+            return "\(selectedDescriptor.displayName) selected, but the native renderer is not available yet; launches currently use \(runtimeDescriptor.displayName)."
+        }
+
+        return "\(runtimeDescriptor.displayName) native renderer selected."
     }
 
     public static func runtimeSummary(
         selected selectedBackend: QuillBackendIdentifier,
         runtime runtimeBackend: QuillBackendIdentifier
     ) -> String {
-        let selectedDescriptor = descriptor(for: selectedBackend)
-        let runtimeDescriptor = descriptor(for: runtimeBackend)
-
-        if selectedBackend != runtimeBackend {
-            return "\(selectedDescriptor.displayName) selected, but the native renderer is not available yet; launches currently use \(runtimeDescriptor.displayName)."
-        }
-
-        return "\(runtimeDescriptor.displayName) native renderer selected."
+        runtimeSummary(
+            availability: QuillBackendRuntimeAvailability(
+                selected: selectedBackend,
+                runtime: runtimeBackend
+            )
+        )
     }
 
     public static func descriptor(for identifier: QuillBackendIdentifier) -> QuillBackendDescriptor {
