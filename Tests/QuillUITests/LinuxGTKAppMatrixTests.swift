@@ -3,6 +3,23 @@ import Testing
 
 @Suite("Linux GTK app matrix")
 struct LinuxGTKAppMatrixTests {
+    private static let expectedAppProducts = [
+        "quill-enchanted",
+        "quill-enchanted-upstream-slice",
+        "quill-icecubes",
+        "quill-netnewswire",
+        "quill-codeedit",
+        "quill-signal",
+        "quill-telegram",
+        "quill-iina",
+        "quill-wireguard"
+    ]
+
+    private static let expectedSmokeProducts = [
+        "quill-gtk-interaction-smoke",
+        "quill-qt-interaction-smoke"
+    ]
+
     @Test("covers each user-facing app product once")
     func coversEachUserFacingAppProductOnce() throws {
         let root = try packageRoot()
@@ -21,19 +38,8 @@ struct LinuxGTKAppMatrixTests {
         let products = result.output
             .split(whereSeparator: \.isNewline)
             .map(String.init)
-        let expected = [
-            "quill-enchanted",
-            "quill-enchanted-upstream-slice",
-            "quill-icecubes",
-            "quill-netnewswire",
-            "quill-codeedit",
-            "quill-signal",
-            "quill-telegram",
-            "quill-iina",
-            "quill-wireguard"
-        ]
 
-        #expect(products == expected)
+        #expect(products == Self.expectedAppProducts)
         #expect(Set(products).count == products.count)
 
         let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
@@ -50,7 +56,7 @@ struct LinuxGTKAppMatrixTests {
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux"))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual.png\" \"$product\""))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-gtk.png\" \"$product\""))
-        #expect(workflow.contains("scripts/quillui-backend-products.sh backend-apps | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
+        #expect(workflow.contains("scripts/quillui-backend-products.sh profile-products | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("name: Swift Linux Backends"))
         #expect(workflow.contains("Upload Linux backend QA artifacts"))
@@ -135,6 +141,7 @@ struct LinuxGTKAppMatrixTests {
         )
         let backendProducts = try String(contentsOf: matrixScript, encoding: .utf8)
         #expect(backendProducts.contains("quillui_backend_app_products()"))
+        #expect(backendProducts.contains("quillui_backend_profile_products()"))
         #expect(backendProducts.contains("quillui_alias_env()"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(profileScript.contains("quillui_install_linux_backend_smoke_packages"))
@@ -178,10 +185,14 @@ struct LinuxGTKAppMatrixTests {
 
         let smokeProducts = try runScript(script, arguments: ["smoke-products"])
         #expect(smokeProducts.status == 0, Comment(rawValue: smokeProducts.output))
-        #expect(smokeProducts.output.split(whereSeparator: \.isNewline).map(String.init) == [
-            "quill-gtk-interaction-smoke",
-            "quill-qt-interaction-smoke"
-        ])
+        #expect(smokeProducts.output.split(whereSeparator: \.isNewline).map(String.init) == Self.expectedSmokeProducts)
+
+        let profileProducts = try runScript(script, arguments: ["profile-products"])
+        #expect(profileProducts.status == 0, Comment(rawValue: profileProducts.output))
+        #expect(
+            profileProducts.output.split(whereSeparator: \.isNewline).map(String.init)
+                == Self.expectedAppProducts + Self.expectedSmokeProducts
+        )
 
         let qtBackend = try runScript(script, arguments: ["backend-for-product", "quill-qt-interaction-smoke"])
         #expect(qtBackend.status == 0, Comment(rawValue: qtBackend.output))

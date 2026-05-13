@@ -32,6 +32,14 @@ quillui_backend_smoke_products() {
     quill-qt-interaction-smoke
 }
 
+quillui_backend_profile_products() {
+  # Performance budget rows cover both production-shaped app shells and the
+  # minimal backend launch fixtures. Keep this as a composed roster so the app
+  # matrix and smoke-product matrix remain independently reusable.
+  quillui_backend_app_products
+  quillui_backend_smoke_products
+}
+
 quillui_alias_env() {
   local canonical="$1"
   local legacy="$2"
@@ -78,6 +86,7 @@ Commands:
   backend-apps                    List user-facing app products in the backend parity matrix.
   gtk-apps                        List user-facing app products in the GTK parity matrix.
   smoke-products                  List backend launch smoke products.
+  profile-products                List app and launch-smoke products for profile budgets.
   backend-for-product PRODUCT     Print the default requested backend for PRODUCT.
   requested-backend PRODUCT       Print QUILLUI_BACKEND override or PRODUCT default.
 MSG
@@ -93,6 +102,9 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     smoke-products)
       quillui_backend_smoke_products
+      ;;
+    profile-products)
+      quillui_backend_profile_products
       ;;
     backend-for-product)
       if [[ $# -ne 2 ]]; then

@@ -119,18 +119,19 @@ jobs:
             scripts/linux-backend-visual-check.sh ".qa/${product}-gtk.png" "$product"
           done
 
-      # Per-app Linux profile baseline (CP106). For each Quill
-      # app, sample startup_ms / rss_kb / cpu_pct_5s under Xvfb
-      # and emit a CSV row. The intent is to spot Linux-side
-      # regressions vs the macOS originals (per the
-      # user-supplied "not bloated in rendering UI etc"
-      # directive). The follow-up budget check uses deliberately
-      # loose thresholds: it catches render-loop spins like the
-      # former IceCubes/NetNewsWire 100%+ CPU outliers without
-      # treating normal CI noise as a failure.
-      - name: Per-app Linux profile baseline
+      # Linux profile baseline (CP106/CP149). For each Quill app
+      # and backend launch fixture, sample startup_ms / rss_kb /
+      # cpu_pct_5s under Xvfb and emit a CSV row. The intent is
+      # to spot Linux-side regressions vs the macOS originals
+      # (per the user-supplied "not bloated in rendering UI etc"
+      # directive) and keep GTK/Qt launch paths under the same
+      # performance budget. The follow-up budget check uses
+      # deliberately loose thresholds: it catches render-loop spins
+      # like the former IceCubes/NetNewsWire 100%+ CPU outliers
+      # without treating normal CI noise as a failure.
+      - name: Linux backend profile baseline
         continue-on-error: true
-        run: scripts/quillui-backend-products.sh backend-apps | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv
+        run: scripts/quillui-backend-products.sh profile-products | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv
 
       - name: Linux profile budget check
         run: scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv --max-cpu-pct 25 --max-rss-kb 300000 --max-startup-ms 5000

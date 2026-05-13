@@ -184,6 +184,14 @@ scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product;
 done
 ```
 
+Profile baselines use the composed `profile-products` roster so the same budget
+check covers user-facing app shells and the backend launch fixtures:
+
+```bash
+scripts/quillui-backend-products.sh profile-products | \
+  scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv
+```
+
 It can also exercise the generated Quill Chat toolbar menu:
 
 ```bash

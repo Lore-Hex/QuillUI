@@ -1,14 +1,16 @@
 # Linux Profile Baseline
 
 Output from `scripts/linux-backend-profile.sh` over the Quill app
-shells in CI. Two CPU samples per app: `cpu_pct_initial` (5s
+shells and backend launch fixtures in CI. Two CPU samples per product:
+`cpu_pct_initial` (5s
 window starting 5s after the first X11 window appears, i.e.
 boot cost) and `cpu_pct_steady` (5s window starting 25s after,
 i.e. long-term render-loop cost).
 
-Current CI sources the app roster from
-`scripts/quillui-backend-products.sh backend-apps`, the same list used by
-visual smoke coverage. The older `scripts/linux-gtk-app-products.sh`,
+Current CI sources the profile roster from
+`scripts/quillui-backend-products.sh profile-products`, which composes the
+user-facing app roster with the GTK and Qt backend launch smoke products. The
+older `scripts/linux-gtk-app-products.sh`,
 `scripts/linux-gtk-profile.sh`, `scripts/run-linux-gtk-profile-csv.sh`,
 and `scripts/check-linux-gtk-profile-budget.sh` paths remain as
 compatibility wrappers.
@@ -19,6 +21,11 @@ interaction smoke runners. Profile passes therefore share the same root
 SwiftPM build path, generated Quill Chat build path, prebuilt executable
 override, skip-build behavior, and backend selection defaults as the rest of
 the Linux backend QA tooling.
+
+Because `profile-products` includes `quill-qt-interaction-smoke`, the Qt launch
+path now receives a startup/RSS/CPU budget row even before the native Qt renderer
+is linked. That keeps Qt target work visible in the same performance loop as the
+GTK app matrix.
 
 ## Current Matrix (Linux run 25716559081, commit d69a1f4)
 

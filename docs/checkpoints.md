@@ -2709,3 +2709,18 @@ SwiftOpenUI patch, SwiftPM build, and bin-path lookup sequence. Profile runs
 therefore resolve root app products, generated Quill Chat executables,
 `QUILLUI_BACKEND_APP_EXECUTABLE`, and skip-build flows through the same helper
 contract as visual, interaction, and full backend checks.
+
+## Checkpoint 149: Backend Profile Covers Launch Fixtures
+
+Status: implemented locally; guarded by matrix, source hygiene, and shell syntax
+checks.
+
+`scripts/quillui-backend-products.sh` now exposes a composed
+`profile-products` roster. It keeps `backend-apps` focused on user-facing app
+shells and `smoke-products` focused on launch fixtures, then combines both for
+the Linux performance budget path.
+
+Linux CI's backend profile baseline now reads `profile-products`, so GTK and Qt
+launch fixtures get startup/RSS/CPU rows alongside the app matrix. That brings
+the Qt target into the same performance loop before a native Qt renderer is
+linked, without duplicating product lists in workflow YAML.
