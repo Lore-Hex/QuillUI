@@ -139,7 +139,7 @@ requested backend, runtime backend, and native/fallback mode values as the
 profile tooling. The runner's `--dry-run` output includes
 `requested_backend`, `runtime_backend`, and `runtime_mode` columns before the
 output path and skip flag, matching profile CSV semantics and making Qt's
-current GTK fallback visible in matrix audits.
+native product rows distinct from generic Qt fallback rows in matrix audits.
 
 Generated products use the same GTK/Qt requested-backend matrix as the root app
 shells. The matrix runner still accepts `--skip-repeated-products`, but
@@ -178,7 +178,10 @@ QUILLUI_LINUX_BACKEND=qt swift run quill-wireguard-qt
 
 The default remains `gtk` so normal app-matrix smoke keeps resolving on fresh
 Linux containers without Qt packages. A `qt` build graph fails fast if the
-`Qt6Widgets` pkg-config package is missing.
+`Qt6Widgets` pkg-config package is missing. Backend-specific products are also
+listed in `scripts/quillui-backend-products.sh fixed-app-backends` so matrix
+smoke and profile rows do not try to compile one executable through both native
+host stacks.
 
 For `quill-chat-linux`, the script builds through the generic app builder,
 resolves the generated package executable, captures an Xvfb screenshot, checks
@@ -248,11 +251,12 @@ scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.
 
 The Qt launch target uses the same interaction surface through
 `QuillInteractionSmokeSupport`, with `QuillUIQt` owning the backend-specific
-launcher. Until the native Qt renderer is linked, the CI smoke executes through
-the platform fallback runtime so the target graph and app scene stay buildable:
-when Qt becomes a native Linux runtime, it must add an explicit
-`QuillLinuxRuntimeHost` descriptor and host entry before the registry marks Qt
-as native, so CI cannot silently report Qt while running the GTK host.
+launcher. Until that fixture has its own native Qt runtime host, the CI smoke
+executes through the platform fallback runtime so the target graph and app scene
+stay buildable. Native Qt product hosts use explicit entries in
+`native-product-runtime-overrides`; the shared runtime matrix reports those rows
+as `runtime_backend=qt` / `runtime_mode=native` only after the product has a
+real Qt host, so CI cannot silently report Qt while running the GTK host.
 
 ```bash
 scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke
@@ -317,9 +321,9 @@ scripts/run-linux-backend-profile-csv.sh --matrix profile-matrix /tmp/quillui-pr
 
 The CSV schema stays product-first for the budget checker but includes explicit
 `requested_backend`, `runtime_backend`, and `runtime_mode` columns. This keeps
-GTK and Qt rows comparable while making it clear that Qt-requested Linux rows
-currently execute through the GTK fallback runtime until the native Qt renderer
-is linked.
+GTK and Qt rows comparable while making it clear which Qt-requested Linux rows
+use the GTK fallback runtime and which product-specific rows use a native Qt
+host.
 When consecutive rows reuse the same executable product, the CSV runner sets
 `QUILLUI_BACKEND_SKIP_BUILD=1` after the first successful profile pass so GTK
 and Qt budget rows do not repeat the same SwiftPM build work. Generated app

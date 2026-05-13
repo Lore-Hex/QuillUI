@@ -4,7 +4,7 @@ QuillUI should prove itself against real open-source Swift apps that stress diff
 
 ## 1. Enchanted
 
-Status: active first port. Compile-green hard-gated on macOS CI; full upstream gluonfield/enchanted source tree compiles + links + backend-renders end-to-end on Linux via the QuillUI / SwiftOpenUI / QuillFoundation / QuillAppKit / QuillDataMacros + 22-shim compatibility layer (CP80). GTK is the current native Linux renderer; the Qt-requested row shares the launch-plan fallback until the native Qt renderer is linked.
+Status: active first port. Compile-green hard-gated on macOS CI; full upstream gluonfield/enchanted source tree compiles + links + backend-renders end-to-end on Linux via the QuillUI / SwiftOpenUI / QuillFoundation / QuillAppKit / QuillDataMacros + 22-shim compatibility layer (CP80). Enchanted's backend-neutral Qt-requested row still shares the GTK platform fallback until a native Qt SwiftOpenUI host is linked for that surface.
 
 Why it matters:
 

@@ -33,18 +33,39 @@ quillui_backend_app_backends() {
     qt
 }
 
+quillui_backend_fixed_app_backend_overrides() {
+  # PRODUCT<TAB>BACKEND rows for app products whose SwiftPM target links one
+  # native host stack at manifest time.
+  printf '%s\t%s\n' \
+    quill-wireguard gtk \
+    quill-wireguard-qt qt
+}
+
+quillui_backend_fixed_backend_for_app_product() {
+  local product="$1"
+  local override_product
+  local override_backend
+
+  while IFS=$'\t' read -r override_product override_backend; do
+    [[ -n "$override_product" ]] || continue
+    override_backend="$(quillui_require_backend_identifier "$override_backend")" || return $?
+    if [[ "$product" == "$override_product" ]]; then
+      echo "$override_backend"
+      return 0
+    fi
+  done < <(quillui_backend_fixed_app_backend_overrides)
+
+  return 1
+}
+
 quillui_backend_app_backends_for_product() {
-  case "$1" in
-    quill-wireguard)
-      printf '%s\n' gtk
-      ;;
-    quill-wireguard-qt)
-      printf '%s\n' qt
-      ;;
-    *)
-      quillui_backend_app_backends
-      ;;
-  esac
+  local fixed_backend
+
+  if fixed_backend="$(quillui_backend_fixed_backend_for_app_product "$1")"; then
+    echo "$fixed_backend"
+  else
+    quillui_backend_app_backends
+  fi
 }
 
 quillui_backend_native_runtime_backends() {
@@ -52,6 +73,34 @@ quillui_backend_native_runtime_backends() {
   # branching in call sites so adding the native Qt host is a one-line change.
   printf '%s\n' \
     gtk
+}
+
+quillui_backend_native_product_runtime_overrides() {
+  # PRODUCT<TAB>REQUESTED_BACKEND<TAB>RUNTIME_BACKEND rows for native hosts that
+  # exist only behind a product-specific SwiftPM graph today.
+  printf '%s\t%s\t%s\n' \
+    quill-wireguard-qt qt qt
+}
+
+quillui_backend_native_runtime_backend_for_product() {
+  local product="$1"
+  local requested_backend
+  local override_product
+  local override_requested_backend
+  local override_runtime_backend
+
+  requested_backend="$(quillui_require_backend_identifier "$2")" || return $?
+  while IFS=$'\t' read -r override_product override_requested_backend override_runtime_backend; do
+    [[ -n "$override_product" ]] || continue
+    override_requested_backend="$(quillui_require_backend_identifier "$override_requested_backend")" || return $?
+    override_runtime_backend="$(quillui_require_backend_identifier "$override_runtime_backend")" || return $?
+    if [[ "$product" == "$override_product" && "$requested_backend" == "$override_requested_backend" ]]; then
+      echo "$override_runtime_backend"
+      return 0
+    fi
+  done < <(quillui_backend_native_product_runtime_overrides)
+
+  return 1
 }
 
 quillui_platform_runtime_fallback_backend() {
@@ -394,7 +443,7 @@ quillui_alias_backend_profile_env() {
 
 quillui_backend_for_product() {
   case "$1" in
-    quill-qt-interaction-smoke|quill-wireguard-qt)
+    quill-qt-interaction-smoke)
       echo "qt"
       ;;
     quill-gtk-interaction-smoke|quill-chat-linux)
@@ -402,9 +451,14 @@ quillui_backend_for_product() {
       ;;
     *)
       local product
+      local backend
       while IFS= read -r product; do
         if [[ "$1" == "$product" ]]; then
-          echo "gtk"
+          while IFS= read -r backend; do
+            [[ -n "$backend" ]] || continue
+            echo "$backend"
+            return
+          done < <(quillui_backend_app_backends_for_product "$product")
           return
         fi
       done < <(quillui_backend_app_products)
@@ -496,16 +550,17 @@ quillui_backend_runtime_availability_for_backend() {
 quillui_backend_runtime_availability_for_product() {
   local product="$1"
   local requested_backend
+  local runtime_backend
+  local runtime_mode
 
   requested_backend="$(quillui_require_backend_identifier "$2")" || return $?
-  case "$product:$requested_backend" in
-    quill-wireguard-qt:qt)
-      printf '%s\t%s\t%s\n' qt qt native
-      ;;
-    *)
-      quillui_backend_runtime_availability_for_backend "$requested_backend"
-      ;;
-  esac
+  if runtime_backend="$(quillui_backend_native_runtime_backend_for_product "$product" "$requested_backend")"; then
+    runtime_mode="$(quillui_backend_runtime_mode_for_pair "$requested_backend" "$runtime_backend")" || return $?
+    printf '%s\t%s\t%s\n' "$requested_backend" "$runtime_backend" "$runtime_mode"
+    return 0
+  fi
+
+  quillui_backend_runtime_availability_for_backend "$requested_backend"
 }
 
 quillui_backend_runtime_availabilities() {
@@ -655,7 +710,10 @@ Commands:
   generated-app-matrix            List PRODUCT<TAB>BACKEND rows for generated external apps.
   generated-app-runtime-matrix    List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for generated external apps.
   gtk-apps                        Legacy alias for backend-apps.
+  fixed-app-backends              List PRODUCT<TAB>BACKEND rows constrained to one build backend.
   native-runtime-backends         List backends linked to native Linux runtime hosts.
+  native-product-runtime-overrides
+                                  List PRODUCT<TAB>BACKEND<TAB>RUNTIME rows for product-specific native hosts.
   platform-runtime-fallback       Print the runtime backend used when a selected backend has no native host.
   smoke-products                  List backend launch smoke products.
   smoke-matrix                    List PRODUCT<TAB>BACKEND rows for backend launch smoke products.
@@ -725,8 +783,14 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     gtk-apps)
       quillui_gtk_app_products
       ;;
+    fixed-app-backends)
+      quillui_backend_fixed_app_backend_overrides
+      ;;
     native-runtime-backends)
       quillui_backend_native_runtime_backends
+      ;;
+    native-product-runtime-overrides)
+      quillui_backend_native_product_runtime_overrides
       ;;
     platform-runtime-fallback)
       quillui_platform_runtime_fallback_backend

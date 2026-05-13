@@ -40,6 +40,14 @@ struct LinuxBackendAppMatrixTests {
         }
     }
 
+    private static func expectedRuntimeBackend(product: String, backend: String) -> String {
+        product == "quill-wireguard-qt" && backend == "qt" ? "qt" : "gtk"
+    }
+
+    private static func expectedRuntimeMode(product: String, backend: String) -> String {
+        expectedRuntimeBackend(product: product, backend: backend) == backend ? "native" : "platformFallback"
+    }
+
     @Test("covers each user-facing app product once")
     func coversEachUserFacingAppProductOnce() throws {
         let root = try packageRoot()
@@ -204,6 +212,8 @@ struct LinuxBackendAppMatrixTests {
         let backendProducts = try String(contentsOf: matrixScript, encoding: .utf8)
         #expect(backendProducts.contains("quillui_backend_app_products()"))
         #expect(backendProducts.contains("quillui_backend_app_backends()"))
+        #expect(backendProducts.contains("quillui_backend_fixed_app_backend_overrides()"))
+        #expect(backendProducts.contains("quillui_backend_fixed_backend_for_app_product()"))
         #expect(backendProducts.contains("quillui_backend_app_backends_for_product()"))
         #expect(backendProducts.contains("quillui_backend_matrix_for_products()"))
         #expect(backendProducts.contains("quillui_backend_app_matrix()"))
@@ -241,7 +251,9 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("normalize-backend)"))
         #expect(backendProducts.contains("require-backend)"))
         #expect(backendProducts.contains("is-generated-app)"))
+        #expect(backendProducts.contains("fixed-app-backends)"))
         #expect(backendProducts.contains("native-runtime-backends)"))
+        #expect(backendProducts.contains("native-product-runtime-overrides)"))
         #expect(backendProducts.contains("platform-runtime-fallback)"))
         #expect(backendProducts.contains("has-native-runtime)"))
         #expect(backendProducts.contains("runtime-backend)"))
@@ -251,6 +263,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("runtime-backend-for-product)"))
         #expect(backendProducts.contains("runtime-availabilities)"))
         #expect(backendProducts.contains("quillui_backend_native_runtime_backends()"))
+        #expect(backendProducts.contains("quillui_backend_native_product_runtime_overrides()"))
+        #expect(backendProducts.contains("quillui_backend_native_runtime_backend_for_product()"))
         #expect(backendProducts.contains("quillui_platform_runtime_fallback_backend()"))
         #expect(backendProducts.contains("quillui_backend_has_native_runtime()"))
         #expect(backendProducts.contains("quillui_runtime_backend_for_backend()"))
@@ -545,8 +559,8 @@ struct LinuxBackendAppMatrixTests {
                 let fields = row.split(separator: "\t", omittingEmptySubsequences: false)
                 let product = String(fields[0])
                 let backend = String(fields[1])
-                let runtimeBackend = product == "quill-wireguard-qt" && backend == "qt" ? "qt" : "gtk"
-                let runtimeMode = runtimeBackend == backend ? "native" : "platformFallback"
+                let runtimeBackend = Self.expectedRuntimeBackend(product: product, backend: backend)
+                let runtimeMode = Self.expectedRuntimeMode(product: product, backend: backend)
                 return "\(row)\t\(runtimeBackend)\t\(runtimeMode)"
             }
         }
@@ -776,6 +790,17 @@ struct LinuxBackendAppMatrixTests {
         let nativeRuntimeBackends = try runScript(script, arguments: ["native-runtime-backends"])
         #expect(nativeRuntimeBackends.status == 0, Comment(rawValue: nativeRuntimeBackends.output))
         #expect(nativeRuntimeBackends.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+
+        let fixedAppBackends = try runScript(script, arguments: ["fixed-app-backends"])
+        #expect(fixedAppBackends.status == 0, Comment(rawValue: fixedAppBackends.output))
+        #expect(fixedAppBackends.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "quill-wireguard\tgtk",
+            "quill-wireguard-qt\tqt"
+        ])
+
+        let nativeProductRuntimeOverrides = try runScript(script, arguments: ["native-product-runtime-overrides"])
+        #expect(nativeProductRuntimeOverrides.status == 0, Comment(rawValue: nativeProductRuntimeOverrides.output))
+        #expect(nativeProductRuntimeOverrides.output.trimmingCharacters(in: .whitespacesAndNewlines) == "quill-wireguard-qt\tqt\tqt")
 
         let platformRuntimeFallback = try runScript(script, arguments: ["platform-runtime-fallback"])
         #expect(platformRuntimeFallback.status == 0, Comment(rawValue: platformRuntimeFallback.output))
@@ -1062,8 +1087,8 @@ struct LinuxBackendAppMatrixTests {
 
         let fullMatrixRows = matrixRows
             .map { row in
-                let runtimeBackend = row.product == "quill-wireguard-qt" && row.backend == "qt" ? "qt" : "gtk"
-                let runtimeMode = runtimeBackend == row.backend ? "native" : "platformFallback"
+                let runtimeBackend = Self.expectedRuntimeBackend(product: row.product, backend: row.backend)
+                let runtimeMode = Self.expectedRuntimeMode(product: row.product, backend: row.backend)
                 return "\(row.product),\(row.backend),\(runtimeBackend),\(runtimeMode),1,2,3,0.1,0.2,ok"
             }
             .joined(separator: "\n")
@@ -1079,8 +1104,8 @@ struct LinuxBackendAppMatrixTests {
         let missingFirstRow = matrixRows
             .dropFirst()
             .map { row in
-                let runtimeBackend = row.product == "quill-wireguard-qt" && row.backend == "qt" ? "qt" : "gtk"
-                let runtimeMode = runtimeBackend == row.backend ? "native" : "platformFallback"
+                let runtimeBackend = Self.expectedRuntimeBackend(product: row.product, backend: row.backend)
+                let runtimeMode = Self.expectedRuntimeMode(product: row.product, backend: row.backend)
                 return "\(row.product),\(row.backend),\(runtimeBackend),\(runtimeMode),1,2,3,0.1,0.2,ok"
             }
             .joined(separator: "\n")
@@ -1297,8 +1322,8 @@ struct LinuxBackendAppMatrixTests {
         let expected = """
         \(Self.profileCSVHeader)
         \(matrixRows.map { row in
-            let runtimeBackend = row.product == "quill-wireguard-qt" && row.backend == "qt" ? "qt" : "gtk"
-            let runtimeMode = runtimeBackend == row.backend ? "native" : "platformFallback"
+            let runtimeBackend = Self.expectedRuntimeBackend(product: row.product, backend: row.backend)
+            let runtimeMode = Self.expectedRuntimeMode(product: row.product, backend: row.backend)
             return "\(row.product),\(row.backend),\(runtimeBackend),\(runtimeMode),1,2,3,4.0,5.0,ok"
         }.joined(separator: "\n"))
 

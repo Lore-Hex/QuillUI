@@ -69,19 +69,24 @@ landmarks, while the root app shells still use the baseline
 nonblank verifier until each gets its own small predicate block.
 Backend launch fixtures use the same visual runner from
 `scripts/quillui-backend-products.sh smoke-products`, which keeps the
-GTK and Qt launch surfaces under the same screenshot contract while the
-native Qt renderer is being brought up. Generated external app products use
+GTK and Qt launch surfaces under the same screenshot contract while native Qt
+runtime hosts are added product by product. Generated external app products use
 `scripts/quillui-backend-products.sh generated-app-matrix`, so Quill Chat's
-temporary SwiftPM package is also requested through both GTK and Qt. Visual and
-interaction runners share `scripts/quillui-linux-backend-smoke-lib.sh`, so
-package setup, executable resolution, and generated Quill Chat fixture state
-stay identical between GTK and Qt smoke paths.
+temporary SwiftPM package is requested through both GTK and Qt facade builds.
+Backend-specific app products, such as `quill-wireguard` and
+`quill-wireguard-qt`, are single-backend rows from
+`scripts/quillui-backend-products.sh fixed-app-backends` so CI never asks one
+executable to link both native host stacks. Visual and interaction runners
+share `scripts/quillui-linux-backend-smoke-lib.sh`, so package setup,
+executable resolution, and generated Quill Chat fixture state stay identical
+between GTK and Qt smoke paths.
 
 Root app interaction smokes now use
 `scripts/quillui-backend-products.sh interaction-matrix`, which mirrors the
-visual app matrix and requests both GTK and Qt for every app row. Those generic
-checks launch the already-built executable, click a stable toolbar-region
-point, and run post-click baseline screenshot verification.
+visual app matrix. Backend-neutral app rows request both GTK and Qt, while
+backend-specific products follow their fixed app backend entry. Those generic
+checks launch the already-built executable, click a stable toolbar-region point,
+and run post-click baseline screenshot verification.
 
 For semantic interaction predicates, extend
 `scripts/linux-backend-interaction-check.sh` (also proven for Enchanted), which
