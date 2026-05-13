@@ -20,12 +20,22 @@ public enum QuillAppWindow {
         height: Double,
         @ViewBuilder content: @escaping @MainActor () -> Content
     ) -> some Scene {
-        WindowGroup(title) {
+        let defaultSize = resolvedDefaultSize(width: width, height: height)
+
+        return WindowGroup(title) {
             QuillMainActorView.assumeIsolated {
                 content()
             }
         }
-        .defaultSize(width: width, height: height)
+        .defaultSize(width: defaultSize.width, height: defaultSize.height)
+    }
+
+    private static func resolvedDefaultSize(width: Double, height: Double) -> (width: Double, height: Double) {
+        #if os(Linux)
+        return (max(width, 900), max(height, 600))
+        #else
+        return (width, height)
+        #endif
     }
 }
 

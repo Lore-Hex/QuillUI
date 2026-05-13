@@ -66,12 +66,22 @@ app_pid=$!
 
 sleep 4
 capture_window="root"
+window_id=""
 if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   window_id="$(quillui_find_quill_chat_reference_window "$DISPLAY_ID")"
-  if [[ -n "$window_id" ]]; then
-    quillui_place_reference_window "$DISPLAY_ID" "$window_id" "$reference_window_width" "$reference_window_height"
-    capture_window="$window_id"
+else
+  window_id="$(quillui_find_visible_window_for_pid "$DISPLAY_ID" "$app_pid")"
+  if [[ -z "$window_id" ]]; then
+    window_id="$(quillui_find_visible_window_by_name "$DISPLAY_ID" ".*")"
   fi
+fi
+if [[ -n "$window_id" ]]; then
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    quillui_place_reference_window "$DISPLAY_ID" "$window_id" "$reference_window_width" "$reference_window_height"
+  else
+    quillui_move_window_to_origin "$DISPLAY_ID" "$window_id"
+  fi
+  capture_window="$window_id"
 fi
 DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 
