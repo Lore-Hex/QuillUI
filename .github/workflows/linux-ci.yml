@@ -135,11 +135,20 @@ jobs:
       - name: Quill app backend visual smoke
         run: |
           tab="$(printf '\t')"
+          built_products=" "
           scripts/quillui-backend-products.sh app-matrix | while IFS="$tab" read -r product backend; do
             [ -n "$product" ] || continue
             [ -n "$backend" ] || continue
             echo "==> Backend visual smoke: $product ($backend requested)"
-            QUILLUI_BACKEND="$backend" scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product"
+            case "$built_products" in
+              *" $product "*)
+                QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product"
+                ;;
+              *)
+                QUILLUI_BACKEND="$backend" scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product"
+                built_products="${built_products}${product} "
+                ;;
+            esac
           done
 
       # Per-app backend interaction smoke. Reuse the products built by the

@@ -119,6 +119,26 @@ scripts/quillui-backend-products.sh generated-app-matrix | while IFS="$(printf '
 done
 ```
 
+Root SwiftPM app products use `app-matrix`. The executable is backend-neutral,
+so CI builds each product once and uses `QUILLUI_BACKEND_SKIP_BUILD=1` for
+later backend rows:
+
+```bash
+built_products=" "
+scripts/quillui-backend-products.sh app-matrix | while IFS="$(printf '\t')" read -r product backend; do
+  case "$built_products" in
+    *" $product "*)
+      QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 \
+        scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product"
+      ;;
+    *)
+      QUILLUI_BACKEND="$backend" scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product"
+      built_products="${built_products}${product} "
+      ;;
+  esac
+done
+```
+
 For `quill-chat-linux`, the script builds through the generic app builder,
 resolves the generated package executable, captures an Xvfb screenshot, checks
 both brightness and pixel variation so blank white windows fail, and verifies
