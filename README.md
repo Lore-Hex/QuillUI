@@ -1,26 +1,40 @@
 # QuillUI
 
-QuillUI is an open-source Swift UI portability layer for bringing SwiftUI-shaped app code to Linux desktops.
+QuillUI is an open-source Swift UI portability layer for bringing
+SwiftUI-shaped app code to Linux desktops while keeping the same app scenes
+usable on Apple platforms.
 
-The first target app is an Enchanted-inspired Ollama chat client that runs through SwiftUI on macOS and through SwiftOpenUI's GTK4 backend on Linux.
+The Linux runtime is backend-selected. `QuillUIGtk` and `QuillUIQt` are
+parallel facade targets over the shared `QuillUI` app scene helpers; set
+`QUILLUI_BACKEND=gtk` or `QUILLUI_BACKEND=qt` to request a backend. GTK is
+the current native Linux renderer. Qt is wired as a first-class launch surface
+and currently falls through the shared runtime fallback until the native Qt
+renderer is linked.
 
-Current app targets:
+`QuillChatKit` is a reusable SwiftUI chat chrome library product for Signal,
+Telegram, and native SwiftUI clients on macOS/iOS.
 
-1. Enchanted
-2. IceCubes
-3. NetNewsWire
-4. CodeEdit
-5. Signal iOS
-6. Telegram Swift
-7. IINA
+Current backend parity app targets:
 
-Side target: WireGuard Apple.
+1. `quill-enchanted`
+2. `quill-enchanted-upstream-slice`
+3. `quill-icecubes`
+4. `quill-netnewswire`
+5. `quill-codeedit`
+6. `quill-signal`
+7. `quill-telegram`
+8. `quill-iina`
+9. `quill-wireguard`
+
+Generated external app coverage also includes `quill-chat-linux` when the
+local Quill Chat checkout is available.
 
 ## Current Checkpoint
 
 - `QuillUI`: facade module that re-exports SwiftUI on Apple platforms and SwiftOpenUI elsewhere.
 - `quill-enchanted`: a desktop chat app with Ollama model discovery, streaming chat completion, and local QuillData conversation history.
-- Linux path: SwiftOpenUI GTK4 backend, built when the package manifest is evaluated on Linux.
+- `QuillUIGtk` / `QuillUIQt`: backend-specific launch targets sharing the same app scene and smoke-test contracts.
+- `scripts/quillui-backend-products.sh`: canonical app, generated-app, smoke, and profile rosters for GTK/Qt parity loops.
 
 ## Run
 
@@ -30,15 +44,24 @@ On macOS:
 swift run quill-enchanted
 ```
 
-On Linux with GTK4 development packages installed:
+On Linux with backend smoke dependencies installed:
 
 ```sh
 curl -O "https://download.swift.org/swiftly/linux/swiftly-1.1.1-$(uname -m).tar.gz"
 tar -zxf "swiftly-1.1.1-$(uname -m).tar.gz"
 ./swiftly init
 sudo apt-get update
-sudo apt-get install -y clang libgtk-4-dev libsqlite3-dev pkg-config xvfb
+sudo apt-get install -y git imagemagick libgdk-pixbuf-2.0-dev libgtk-4-dev libsqlite3-dev pkg-config x11-apps xdotool xvfb
 swift run quill-enchanted
+QUILLUI_BACKEND=gtk swift run quill-signal
+QUILLUI_BACKEND=qt swift run quill-signal
 ```
 
 You also need an Ollama server reachable at `http://localhost:11434` or the endpoint configured in the app.
+
+Backend parity checks:
+
+```sh
+scripts/quillui-backend-products.sh app-matrix
+scripts/linux-backend-check.sh
+```

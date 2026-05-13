@@ -8,12 +8,14 @@ User-raised bar across every app:
 2. **Real UITests on macOS** that drive real actions across many
    features + screenshot the result.
 3. **Identical Linux parity** — the same flows run + screenshot
-   identically through the GTK4 backend.
+   identically through the backend matrix. GTK is the current native
+   Linux renderer; Qt is requested through the shared launch surface
+   while the native renderer is being brought up.
 
 ## Current state (CP106+)
 
-| App         | Compile from source | macOS UITest | Linux GTK smoke |
-|-------------|---------------------|--------------|-----------------|
+| App         | Compile from source | macOS UITest | Linux backend smoke |
+|-------------|---------------------|--------------|---------------------|
 | Enchanted   | ✅ (CP80)           | —            | ✅ generated + native matrix |
 | IceCubes    | — (iOS-pinned)      | —            | ✅ baseline (CP104)        |
 | NetNewsWire | — (Shared/Mac coupling) | —        | ✅ baseline (CP104)        |
@@ -32,14 +34,14 @@ profile coverage iterate the same user-facing app list:
 `quill-wireguard`. The older `scripts/linux-gtk-app-products.sh`
 path delegates to the same helper for compatibility.
 
-The six fixture app GTK smokes passed baseline (size + mean
+The six fixture app backend smokes passed baseline (size + mean
 brightness + stddev) on the first rollout (Linux CI run
 25687405190); promoted off `continue-on-error: true` to hard-gated
 in CP105 (e8acd09). CP106 widens the same hard gate to the native
 Enchanted products and the WireGuard side target through the shared
 matrix. Every Quill app product is now expected to paint something
-non-blank on the GTK4 backend out of the box — not just
-compile-green, but render-green.
+non-blank through the requested Linux backend matrix out of the box — not
+just compile-green, but render-green.
 
 Per-app fixture shells are compile-green hard-gated (CP82–CP89);
 per-app-core test targets cover the pure-Foundation surface
@@ -47,7 +49,7 @@ per-app-core test targets cover the pure-Foundation surface
 **rendering-time** coverage that proves the SwiftUI views actually
 paint correctly on both backends.
 
-## Phase 1 — Linux GTK visual smoke for each fixture shell
+## Phase 1 — Linux backend visual smoke for each fixture shell
 
 For every Quill app, add a Linux CI step that:
 
@@ -117,7 +119,7 @@ visual regression coverage.
 **Recommended: Option A** — gives both image regression coverage
 AND drives the same `swift test` pipeline that Linux CI already
 uses, so the same .swift file can mount the snapshot on macOS and
-delegate to the existing Linux GTK smoke on Linux via `#if`.
+delegate to the existing Linux backend smoke on Linux via `#if`.
 
 ## Phase 3 — Compile from upstream source
 

@@ -32,7 +32,7 @@
 //    views" this is sufficient; if pixel-perfect parity matters later, swap
 //    in `gsk_cairo_renderer_new()` + `gsk_renderer_render_texture()`.
 //  - GTK initialization needs a display backend. `gtk_init_check` succeeds
-//    under xvfb (which `scripts/linux-gtk-check.sh` already installs).
+//    under xvfb (which `scripts/linux-backend-check.sh` already installs).
 //    Without xvfb / Wayland it returns false and we surface a diagnostic.
 
 #if os(Linux)

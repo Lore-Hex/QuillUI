@@ -46,6 +46,39 @@ struct SourceHygieneTests {
         #expect(!source.contains("not yet wired up; see the TODO on `ImageRenderer`"))
     }
 
+    @Test("Public docs describe the backend-neutral app matrix")
+    func publicDocsDescribeBackendNeutralAppMatrix() throws {
+        let root = try packageRoot()
+        let readme = try String(contentsOf: root.appendingPathComponent("README.md"), encoding: .utf8)
+        let appTargets = try String(contentsOf: root.appendingPathComponent("docs/app-targets.md"), encoding: .utf8)
+        let uiTestPlan = try String(contentsOf: root.appendingPathComponent("docs/uitest-plan.md"), encoding: .utf8)
+        let offscreenRenderer = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/GtkOffscreenRender.swift"),
+            encoding: .utf8
+        )
+
+        #expect(readme.contains("QuillUIGtk"))
+        #expect(readme.contains("QuillUIQt"))
+        #expect(readme.contains("QUILLUI_BACKEND=qt"))
+        #expect(readme.contains("QuillChatKit"))
+        #expect(readme.contains("quill-wireguard"))
+        #expect(readme.contains("scripts/quillui-backend-products.sh app-matrix"))
+        #expect(readme.contains("scripts/linux-backend-check.sh"))
+        #expect(!readme.contains("The first target app"))
+        #expect(!readme.contains("scripts/linux-gtk-check.sh"))
+
+        #expect(appTargets.contains("backend-renders end-to-end on Linux"))
+        #expect(appTargets.contains("Qt-requested row"))
+        #expect(!appTargets.contains("GTK-renders end-to-end"))
+
+        #expect(uiTestPlan.contains("Linux backend smoke"))
+        #expect(uiTestPlan.contains("requested Linux backend matrix"))
+        #expect(!uiTestPlan.contains("Linux GTK smoke"))
+
+        #expect(offscreenRenderer.contains("scripts/linux-backend-check.sh"))
+        #expect(!offscreenRenderer.contains("scripts/linux-gtk-check.sh"))
+    }
+
     @Test("GitHub workflows avoid Node 20 action pins")
     func githubWorkflowsAvoidNode20ActionPins() throws {
         let root = try packageRoot()
