@@ -31,7 +31,14 @@ quillui_backend_reference_window_defaults \
   hide_window_menubar_label
 
 DISPLAY_ID="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_VISUAL_DISPLAY:-:94}")"
-SCREEN_SIZE="$(quillui_backend_screen_size "$PRODUCT" "${QUILLUI_BACKEND_SCREEN_SIZE:-}" "1180x760x24" "$reference_window_width" "$reference_window_height")"
+SCREEN_SIZE="$(
+  quillui_backend_screen_size \
+    "$PRODUCT" \
+    "${QUILLUI_BACKEND_VISUAL_SCREEN_SIZE:-${QUILLUI_BACKEND_SCREEN_SIZE:-}}" \
+    "1180x760x24" \
+    "$reference_window_width" \
+    "$reference_window_height"
+)"
 xvfb_pid=""
 quillui_start_xvfb "$DISPLAY_ID" "$SCREEN_SIZE" /tmp/quillui-xvfb.log xvfb_pid
 

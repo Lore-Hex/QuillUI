@@ -189,8 +189,9 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_alias_backend_visual_env()"))
         #expect(backendProducts.contains("quillui_alias_backend_interaction_env()"))
         #expect(backendProducts.contains("quillui_alias_backend_profile_env()"))
-        #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE"))
-        #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS\n  quillui_alias_backend_common_env"))
+        #expect(backendProducts.contains("backend_prefix=\"QUILLUI_QT_\""))
+        #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE"))
+        #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS QUILLUI_QT_PROFILE_MAX_STARTUP_MS\n  quillui_alias_backend_common_env"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(profileScript.contains("quillui_install_linux_backend_smoke_packages"))
         #expect(profileScript.contains("quillui_resolve_linux_backend_executable \"$PRODUCT\" exe"))
@@ -199,8 +200,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(legacyProfileScript.contains("linux-backend-profile.sh"))
         #expect(visualScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
-        #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_GTK_APP_EXECUTABLE"))
-        #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_SKIP_BUILD QUILLUI_GTK_SKIP_BUILD"))
+        #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_GTK_APP_EXECUTABLE QUILLUI_QT_APP_EXECUTABLE"))
+        #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_SKIP_BUILD QUILLUI_GTK_SKIP_BUILD QUILLUI_QT_SKIP_BUILD"))
         #expect(smokeLib.contains("quillui_assign_output()"))
         #expect(smokeLib.contains("printf -v \"$output_var\" \"%s\" \"$value\""))
         #expect(smokeLib.contains("quillui_start_xvfb()"))
@@ -250,7 +251,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(visualScript.contains("quillui_alias_backend_visual_env"))
         #expect(visualScript.contains("quillui_backend_reference_window_defaults"))
         #expect(!visualScript.contains("reference_window_width=\"${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}\""))
-        #expect(visualScript.contains("quillui_backend_screen_size \"$PRODUCT\" \"${QUILLUI_BACKEND_SCREEN_SIZE:-}\""))
+        #expect(visualScript.contains("\"${QUILLUI_BACKEND_VISUAL_SCREEN_SIZE:-${QUILLUI_BACKEND_SCREEN_SIZE:-}}\""))
         #expect(visualScript.contains("quillui_is_quill_chat_mac_reference_product \"$PRODUCT\""))
         #expect(visualScript.contains("quillui_find_quill_chat_reference_window \"$DISPLAY_ID\""))
         #expect(visualScript.contains("quillui_place_reference_window \"$DISPLAY_ID\" \"$window_id\""))
@@ -360,6 +361,78 @@ struct LinuxBackendAppMatrixTests {
         )
         #expect(overrideBackend.status == 0, Comment(rawValue: overrideBackend.output))
         #expect(overrideBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+    }
+
+    @Test("backend alias helper accepts scoped GTK and Qt controls")
+    func backendAliasHelperAcceptsScopedGTKAndQtControls() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-backend-aliases-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        let probe = temporaryDirectory.appendingPathComponent("alias-probe.sh")
+        try """
+        #!/usr/bin/env bash
+        set -euo pipefail
+        source "\(root.path)/scripts/quillui-backend-products.sh"
+
+        QUILLUI_BACKEND=qt
+        QUILLUI_QT_PROFILE_COMMAND=/tmp/qt-profiler
+        QUILLUI_GTK_PROFILE_COMMAND=/tmp/gtk-profiler
+        export QUILLUI_BACKEND QUILLUI_QT_PROFILE_COMMAND QUILLUI_GTK_PROFILE_COMMAND
+        quillui_alias_backend_profile_env
+        printf 'profile=%s\\n' "$QUILLUI_BACKEND_PROFILE_COMMAND"
+        printf 'profile-gtk=%s\\n' "$QUILLUI_GTK_PROFILE_COMMAND"
+        printf 'profile-qt=%s\\n' "$QUILLUI_QT_PROFILE_COMMAND"
+
+        unset QUILLUI_BACKEND_PROFILE_COMMAND
+        unset QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_BACKEND_PROFILE_SCREEN_SIZE
+        unset QUILLUI_GTK_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE
+        unset QUILLUI_QT_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE
+        QUILLUI_BACKEND=qt
+        QUILLUI_QT_VISUAL_SCREEN_SIZE=1440x900x24
+        export QUILLUI_BACKEND QUILLUI_QT_VISUAL_SCREEN_SIZE
+        quillui_alias_backend_visual_env
+        printf 'visual=%s\\n' "$QUILLUI_BACKEND_VISUAL_SCREEN_SIZE"
+        printf 'screen=%s\\n' "$QUILLUI_BACKEND_SCREEN_SIZE"
+        printf 'screen-qt=%s\\n' "$QUILLUI_QT_SCREEN_SIZE"
+
+        unset QUILLUI_BACKEND_INTERACTION_MODE QUILLUI_GTK_INTERACTION_MODE QUILLUI_QT_INTERACTION_MODE
+        QUILLUI_BACKEND=gtk
+        QUILLUI_QT_INTERACTION_MODE=wrong-backend
+        QUILLUI_GTK_INTERACTION_MODE=prompt-send
+        export QUILLUI_BACKEND QUILLUI_QT_INTERACTION_MODE QUILLUI_GTK_INTERACTION_MODE
+        quillui_alias_backend_interaction_env
+        printf 'interaction=%s\\n' "$QUILLUI_BACKEND_INTERACTION_MODE"
+        printf 'interaction-qt=%s\\n' "$QUILLUI_QT_INTERACTION_MODE"
+
+        unset QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT QUILLUI_GTK_PROFILE_MAX_CPU_PCT QUILLUI_QT_PROFILE_MAX_CPU_PCT
+        QUILLUI_BACKEND=qt
+        QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT=11
+        QUILLUI_QT_PROFILE_MAX_CPU_PCT=99
+        export QUILLUI_BACKEND QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT QUILLUI_QT_PROFILE_MAX_CPU_PCT
+        quillui_alias_backend_profile_env
+        printf 'cpu-qt=%s\\n' "$QUILLUI_QT_PROFILE_MAX_CPU_PCT"
+
+        """.write(to: probe, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: probe.path)
+
+        let result = try runScript(probe)
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(result.output == """
+        profile=/tmp/qt-profiler
+        profile-gtk=/tmp/qt-profiler
+        profile-qt=/tmp/qt-profiler
+        visual=1440x900x24
+        screen=1440x900x24
+        screen-qt=1440x900x24
+        interaction=prompt-send
+        interaction-qt=prompt-send
+        cpu-qt=11
+
+        """)
     }
 
     @Test("profile budget accepts current rows and rejects bad profile rows")

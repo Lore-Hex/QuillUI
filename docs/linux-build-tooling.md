@@ -167,9 +167,10 @@ The strict path also sets `QUILLUI_GTK_DEFAULT_WINDOW_WIDTH` and
 `QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT`; the SwiftOpenUI GTK checkout patch honors
 those values for automatic window sizing. New GTK/Qt parity scripts should call
 `scripts/linux-backend-visual-check.sh` and use the `QUILLUI_BACKEND_*` names
-for visual checks. The runner maps them to the older `QUILLUI_GTK_*`
-environment contract for compatibility, and `scripts/linux-gtk-visual-check.sh`
-remains as a thin compatibility shim.
+for visual checks. The runner maps backend-neutral values to the older
+`QUILLUI_GTK_*` environment contract and to scoped `QUILLUI_QT_*` controls for
+compatibility, and `scripts/linux-gtk-visual-check.sh` remains as a thin
+compatibility shim.
 
 The backend visual and interaction runners both source
 `scripts/quillui-linux-backend-smoke-lib.sh` for apt package setup, root
@@ -187,7 +188,8 @@ changed and the view tree repainted. New GTK/Qt checks should use
 Like the visual runner, the interaction runner accepts backend-neutral
 `QUILLUI_BACKEND_*` controls, including `QUILLUI_BACKEND_MAC_REFERENCE`,
 `QUILLUI_BACKEND_SCREEN_SIZE`, and `QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE`,
-then maps them to the legacy `QUILLUI_GTK_*` names for compatibility.
+then maps them to the legacy `QUILLUI_GTK_*` names and scoped `QUILLUI_QT_*`
+names for compatibility.
 Display controls such as `QUILLUI_BACKEND_VISUAL_DISPLAY`,
 `QUILLUI_BACKEND_INTERACTION_DISPLAY`, and `QUILLUI_BACKEND_PROFILE_DISPLAY`
 accept either an X display id (`:95`) or a numeric display (`95`); the runners
