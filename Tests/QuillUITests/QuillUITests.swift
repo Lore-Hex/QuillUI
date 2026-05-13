@@ -89,7 +89,11 @@ struct QuillUITests {
 
         #expect(preferredQtPlan.usesRuntimeFallback)
         #expect(preferredQtPlan.statusMessage.contains("Qt selected"))
+        #expect(QuillQtBackend.descriptor == qtDescriptor)
+        #expect(QuillQtBackend.launchPlan == preferredQtPlan)
         #expect(QuillQtBackend.launchPlan.preferred == .qt)
+        #expect(QuillQtBackend.status.identifier == .qt)
+        #expect(QuillQtBackend.status.launchPlan == preferredQtPlan)
         #expect(QuillQtBackend.status.mode == .platformFallback)
         #expect(QuillQtBackend.status.message == preferredQtPlan.statusMessage)
     }

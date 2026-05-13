@@ -2801,3 +2801,17 @@ logic.
 directly from the launch plan. This keeps the Qt target API stable while
 putting GTK and Qt on the same launch-status architecture for the native Qt
 renderer work that follows.
+
+## Checkpoint 155: Generic Backend Status Helpers
+
+Status: implemented locally; guarded by QuillUI API/source hygiene tests and a
+focused QuillUIQt target build.
+
+`QuillUI` now exposes `QuillBackendRuntimeStatus` plus default `QuillBackend`
+helpers for descriptor lookup, preferred launch plans, and runtime status. This
+removes backend-specific boilerplate from backend targets and gives future GTK
+and Qt native hosts the same status surface.
+
+`QuillUIQt` now aliases both runtime mode and backend status to the shared
+QuillUI types. The Qt target keeps its public `QuillQtBackend.status` entry
+point, but the underlying data now comes from the generic backend contract.

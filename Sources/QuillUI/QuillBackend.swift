@@ -93,9 +93,43 @@ public struct QuillBackendLaunchPlan: Equatable, Sendable {
     }
 }
 
+public struct QuillBackendRuntimeStatus: Equatable, Sendable {
+    public let identifier: QuillBackendIdentifier
+    public let launchPlan: QuillBackendLaunchPlan
+    public let mode: QuillBackendRuntimeMode
+    public let message: String
+
+    public init(
+        identifier: QuillBackendIdentifier,
+        launchPlan: QuillBackendLaunchPlan
+    ) {
+        self.identifier = identifier
+        self.launchPlan = launchPlan
+        self.mode = launchPlan.runtimeMode
+        self.message = launchPlan.statusMessage
+    }
+}
+
 public protocol QuillBackend {
     static var identifier: QuillBackendIdentifier { get }
     static var descriptor: QuillBackendDescriptor { get }
+}
+
+public extension QuillBackend {
+    static var descriptor: QuillBackendDescriptor {
+        QuillBackendRegistry.descriptor(for: identifier)
+    }
+
+    static var launchPlan: QuillBackendLaunchPlan {
+        QuillBackendRegistry.launchPlan(preferred: identifier)
+    }
+
+    static var runtimeStatus: QuillBackendRuntimeStatus {
+        QuillBackendRuntimeStatus(
+            identifier: identifier,
+            launchPlan: launchPlan
+        )
+    }
 }
 
 public enum QuillBackendRegistry {

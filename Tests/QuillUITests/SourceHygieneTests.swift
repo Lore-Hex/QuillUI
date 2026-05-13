@@ -192,7 +192,9 @@ struct SourceHygieneTests {
         #expect(sharedView.contains("native backend button click"))
         #expect(qtBackend.contains("public enum QuillQtBackend"))
         #expect(qtBackend.contains("public enum QuillQtApp"))
-        #expect(qtBackend.contains("QuillBackendRegistry.launchPlan(preferred: identifier)"))
+        #expect(qtBackend.contains("public typealias QuillQtBackendStatus = QuillBackendRuntimeStatus"))
+        #expect(qtBackend.contains("public static var status: QuillQtBackendStatus"))
+        #expect(qtBackend.contains("runtimeStatus"))
         #expect(qtBackend.contains("QuillApp.run(appType, preferredBackend: QuillQtBackend.identifier)"))
 
         #expect(backendScript.contains("QUILLUI_BACKEND_INTERACTION_MODE"))
