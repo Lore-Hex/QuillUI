@@ -625,6 +625,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/build-swiftui-linux-app.sh"),
             encoding: .utf8
         )
+        let quillChatBuildSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/build-quill-chat-linux.sh"),
+            encoding: .utf8
+        )
         let generatedEnchantedSource = try String(
             contentsOf: root.appendingPathComponent("scripts/generated-enchanted-full-source-check.sh"),
             encoding: .utf8
@@ -652,6 +656,9 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("--backend-facade"))
         #expect(buildSource.contains("QUILLUI_APP_BACKEND_FACADE"))
         #expect(buildSource.contains("QUILLUI_GENERATED_BACKEND_FACADE=\"$BACKEND_FACADE\""))
+        #expect(quillChatBuildSource.contains("--backend-facade"))
+        #expect(quillChatBuildSource.contains("QUILLUI_QUILL_CHAT_BACKEND_FACADE"))
+        #expect(quillChatBuildSource.contains("BACKEND_FACADE_ARGS=(--backend-facade \"$BACKEND_FACADE\")"))
         #expect(!source.contains("import BackendGTK4"))
         #expect(!source.contains("GTK4Backend().run($APP_ENTRY_TYPE.self)"))
         #expect(!source.contains("GTK backend generation is enabled"))

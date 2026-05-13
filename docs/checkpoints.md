@@ -2889,3 +2889,14 @@ The reusable generated Linux package builder now accepts
 entry through `QuillUI`, `QuillUIGtk`, or `QuillUIQt` without changing copied
 app sources, while the older generated include flags remain compatibility
 aliases only for deciding whether to emit the generated entry.
+
+## Checkpoint 163: Quill Chat Backend Facade Wrapper
+
+Status: implemented locally; guarded by source hygiene and shell syntax tests.
+
+`scripts/build-quill-chat-linux.sh` now forwards `--backend-facade` and
+`QUILLUI_QUILL_CHAT_BACKEND_FACADE` to the generic SwiftUI Linux app builder.
+The Quill Chat convenience entry point can therefore compile the generated
+launcher through `QuillUI`, `QuillUIGtk`, or `QuillUIQt` directly, keeping the
+app-specific wrapper aligned with the reusable generated-package backend
+facade path.

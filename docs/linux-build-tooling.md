@@ -118,10 +118,13 @@ fallback implementations live in `QuillKit` and `QuillUI`.
 
 ```bash
 scripts/build-quill-chat-linux.sh
+scripts/build-quill-chat-linux.sh --backend-facade qt
 ```
 
 It supplies Quill Chat's source directory, app type, product name, and the
-current `enchanted-full-source` profile to the generic builder.
+current `enchanted-full-source` profile to the generic builder. The optional
+backend facade flag forwards to the generated app entry so Qt or GTK facade
+imports can be compile-checked without changing the Quill Chat source tree.
 
 The Linux backend visual smoke script can screenshot either root SwiftPM
 products or generated app products. CI drives matrix jobs through
