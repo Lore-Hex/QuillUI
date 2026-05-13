@@ -120,8 +120,9 @@ quillui_manifest_backend_for_product_row() {
   local normalized_requested_backend
 
   manifest_backend="$(quillui_require_backend_for_product "$product")" || return $?
+  manifest_backend="$(quillui_require_linux_build_backend_identifier "$manifest_backend")" || return $?
   if [[ -n "$requested_backend" ]]; then
-    normalized_requested_backend="$(quillui_require_backend_identifier "$requested_backend")" || return $?
+    normalized_requested_backend="$(quillui_require_linux_build_backend_identifier "$requested_backend")" || return $?
     if [[ "$MATRIX_COMMAND" == "fixed-app-backends" && "$normalized_requested_backend" != "$manifest_backend" ]]; then
       echo "Backend product build matrix drifted for $product: listed $normalized_requested_backend, manifest requires $manifest_backend" >&2
       return 65

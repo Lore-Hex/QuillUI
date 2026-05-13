@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+QUILLUI_BACKEND_APP_BACKEND_IDS=(gtk qt)
+
 quillui_backend_app_products() {
   # Canonical user-facing Quill app executable products covered by the Linux
   # backend parity loops. Support tools, generated external packages, smoke
@@ -28,9 +30,7 @@ quillui_backend_app_backends() {
   # Backends each user-facing app must be able to request in parity smoke
   # loops. Backend-specific entry points narrow this set below so a product
   # never compiles or profiles through two mutually exclusive Linux host paths.
-  printf '%s\n' \
-    gtk \
-    qt
+  printf '%s\n' "${QUILLUI_BACKEND_APP_BACKEND_IDS[@]}"
 }
 
 quillui_backend_fixed_app_backend_overrides() {
@@ -48,7 +48,7 @@ quillui_backend_fixed_backend_for_app_product() {
 
   while IFS=$'\t' read -r override_product override_backend; do
     [[ -n "$override_product" ]] || continue
-    override_backend="$(quillui_require_backend_identifier "$override_backend")" || return $?
+    override_backend="$(quillui_require_linux_build_backend_identifier "$override_backend")" || return $?
     if [[ "$product" == "$override_product" ]]; then
       echo "$override_backend"
       return 0
@@ -116,21 +116,37 @@ quillui_platform_runtime_fallback_backend() {
   return 70
 }
 
-quillui_backend_matrix_for_products() {
+quillui_backend_emit_matrix_for_product_rows() {
+  local product_rows="$1"
   local product
   local backend
+  local fixed_backend
 
-  while IFS= read -r product; do
+  while IFS= read -r product || [[ -n "$product" ]]; do
     [[ -n "$product" ]] || continue
-    while IFS= read -r backend; do
-      [[ -n "$backend" ]] || continue
-      printf '%s\t%s\n' "$product" "$backend"
-    done < <(quillui_backend_app_backends_for_product "$product")
-  done
+    if fixed_backend="$(quillui_backend_fixed_backend_for_app_product "$product")"; then
+      printf '%s\t%s\n' "$product" "$fixed_backend"
+    else
+      for backend in "${QUILLUI_BACKEND_APP_BACKEND_IDS[@]}"; do
+        [[ -n "$backend" ]] || continue
+        printf '%s\t%s\n' "$product" "$backend"
+      done
+    fi
+  done <<< "$product_rows"
+}
+
+quillui_backend_matrix_for_products() {
+  local product_rows
+
+  product_rows="$(cat)" || return $?
+  quillui_backend_emit_matrix_for_product_rows "$product_rows"
 }
 
 quillui_backend_app_matrix() {
-  quillui_backend_app_products | quillui_backend_matrix_for_products
+  local product_rows
+
+  product_rows="$(quillui_backend_app_products)" || return $?
+  quillui_backend_emit_matrix_for_product_rows "$product_rows"
 }
 
 quillui_normalize_backend_identifier() {
@@ -171,6 +187,22 @@ quillui_require_backend_identifier() {
   echo "$normalized_backend"
 }
 
+quillui_require_linux_build_backend_identifier() {
+  local raw_value="${1:-}"
+  local normalized_backend
+
+  normalized_backend="$(quillui_require_backend_identifier "$raw_value")" || return $?
+  case "$normalized_backend" in
+    gtk|qt)
+      echo "$normalized_backend"
+      ;;
+    *)
+      echo "Unsupported QuillUI Linux build backend: $raw_value; expected gtk or qt." >&2
+      return 64
+      ;;
+  esac
+}
+
 quillui_backend_interaction_app_products() {
   # Root app interaction smokes intentionally share the same app roster as
   # visual/profile parity checks. Keep the function separate so interaction
@@ -179,7 +211,10 @@ quillui_backend_interaction_app_products() {
 }
 
 quillui_backend_interaction_app_matrix() {
-  quillui_backend_interaction_app_products | quillui_backend_matrix_for_products
+  local product_rows
+
+  product_rows="$(quillui_backend_interaction_app_products)" || return $?
+  quillui_backend_emit_matrix_for_product_rows "$product_rows"
 }
 
 quillui_backend_generated_app_products() {
@@ -191,7 +226,10 @@ quillui_backend_generated_app_products() {
 }
 
 quillui_backend_generated_app_matrix() {
-  quillui_backend_generated_app_products | quillui_backend_matrix_for_products
+  local product_rows
+
+  product_rows="$(quillui_backend_generated_app_products)" || return $?
+  quillui_backend_emit_matrix_for_product_rows "$product_rows"
 }
 
 quillui_backend_smoke_products() {
@@ -732,6 +770,8 @@ Commands:
   profile-runtime-matrix          List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for profile budgets.
   normalize-backend BACKEND       Print the canonical backend identifier for a known backend alias.
   require-backend BACKEND         Print the canonical backend identifier or fail for an unknown backend.
+  require-linux-build-backend BACKEND
+                                  Print the canonical manifest build backend or fail unless BACKEND is gtk/qt.
   is-smoke-product PRODUCT        Exit 0 when PRODUCT is a backend launch smoke product.
   is-generated-app PRODUCT        Exit 0 when PRODUCT is a generated external app product.
   has-native-runtime BACKEND      Exit 0 when BACKEND is linked to a native Linux runtime host.
@@ -852,6 +892,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         exit 64
       fi
       quillui_require_backend_identifier "$2"
+      ;;
+    require-linux-build-backend)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_require_linux_build_backend_identifier "$2"
       ;;
     is-smoke-product)
       if [[ $# -ne 2 ]]; then

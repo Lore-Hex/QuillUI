@@ -169,7 +169,10 @@ scripts/run-linux-backend-smoke-matrix.sh \
 Native backend-specific SwiftPM products use a separate manifest-time selector:
 `QUILLUI_LINUX_BACKEND=gtk|qt`. This is intentionally distinct from the
 runtime smoke selector `QUILLUI_BACKEND`, because the package graph must link
-exactly one host stack. For the first native Qt product, install Qt6 Widgets
+exactly one host stack. Shared build helpers validate this selector with the
+stricter Linux build-backend normalizer, so generated facade values such as
+`swiftui` remain valid for runtime entry points but cannot enter the
+manifest-time build graph. For the first native Qt product, install Qt6 Widgets
 development packages and run:
 
 ```bash
