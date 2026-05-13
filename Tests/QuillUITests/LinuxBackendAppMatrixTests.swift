@@ -229,11 +229,13 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("has-native-runtime)"))
         #expect(backendProducts.contains("runtime-backend)"))
         #expect(backendProducts.contains("runtime-backend-for-product)"))
+        #expect(backendProducts.contains("runtime-availabilities)"))
         #expect(backendProducts.contains("quillui_backend_native_runtime_backends()"))
         #expect(backendProducts.contains("quillui_platform_runtime_fallback_backend()"))
         #expect(backendProducts.contains("quillui_backend_has_native_runtime()"))
         #expect(backendProducts.contains("quillui_runtime_backend_for_backend()"))
         #expect(backendProducts.contains("quillui_runtime_backend_for_product()"))
+        #expect(backendProducts.contains("quillui_backend_runtime_availabilities()"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS QUILLUI_QT_PROFILE_MAX_STARTUP_MS\n  quillui_alias_backend_common_env"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
@@ -702,6 +704,13 @@ struct LinuxBackendAppMatrixTests {
         let runtimeProductBackend = try runScript(script, arguments: ["runtime-backend-for-product", "quill-qt-interaction-smoke"])
         #expect(runtimeProductBackend.status == 0, Comment(rawValue: runtimeProductBackend.output))
         #expect(runtimeProductBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+
+        let runtimeAvailabilities = try runScript(script, arguments: ["runtime-availabilities"])
+        #expect(runtimeAvailabilities.status == 0, Comment(rawValue: runtimeAvailabilities.output))
+        #expect(runtimeAvailabilities.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "gtk\tgtk\tnative",
+            "qt\tgtk\tplatformFallback"
+        ])
 
         let unknownRuntimeProductBackend = try runScript(script, arguments: ["runtime-backend-for-product", "unknown-product"])
         #expect(unknownRuntimeProductBackend.status != 0)

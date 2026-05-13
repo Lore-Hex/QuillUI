@@ -3003,3 +3003,13 @@ same overload family as launch plans, including explicit environment and invalid
 request paths. GTK and Qt facades delegate their status to that factory, so
 future backend facades inherit the same selected/runtime reporting without
 copying launch-plan wrapping logic.
+
+## Checkpoint 174: Shell Runtime Availability Rows
+
+Status: implemented locally; guarded by backend matrix tests.
+
+`quillui-backend-products.sh` now emits selected backend, runtime backend, and
+runtime mode rows through `runtime-availabilities`. Shell smoke/profile tooling
+can consume the same GTK/Qt runtime availability shape as the Swift registry:
+GTK reports `native`, while Qt reports the current GTK `platformFallback` until
+a native Qt runtime host is linked.

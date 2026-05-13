@@ -446,6 +446,23 @@ quillui_runtime_backend_for_backend() {
   quillui_platform_runtime_fallback_backend
 }
 
+quillui_backend_runtime_availabilities() {
+  local requested_backend
+  local runtime_backend
+  local runtime_mode
+
+  while IFS= read -r requested_backend; do
+    [[ -n "$requested_backend" ]] || continue
+    requested_backend="$(quillui_require_backend_identifier "$requested_backend")" || return $?
+    runtime_backend="$(quillui_runtime_backend_for_backend "$requested_backend")" || return $?
+    runtime_mode="platformFallback"
+    if [[ "$requested_backend" == "$runtime_backend" ]]; then
+      runtime_mode="native"
+    fi
+    printf '%s\t%s\t%s\n' "$requested_backend" "$runtime_backend" "$runtime_mode"
+  done < <(quillui_backend_app_backends)
+}
+
 quillui_runtime_backend_for_product() {
   local requested_backend
 
@@ -491,6 +508,7 @@ Commands:
   runtime-backend BACKEND         Print the native runtime backend used for a requested backend.
   runtime-backend-for-product PRODUCT
                                   Print the native runtime backend used for PRODUCT.
+  runtime-availabilities          List BACKEND<TAB>RUNTIME<TAB>MODE rows for requested app backends.
 MSG
 }
 
@@ -624,6 +642,9 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       fi
       requested_backend="$(quillui_require_requested_backend_for_product "$2")" || exit $?
       quillui_runtime_backend_for_backend "$requested_backend"
+      ;;
+    runtime-availabilities)
+      quillui_backend_runtime_availabilities
       ;;
     --help|-h)
       quillui_backend_products_usage
