@@ -411,7 +411,7 @@ struct QuillDataSourceLoweringTests {
         #expect(visualScript.contains("quill-chat-linux-mac-reference"))
 
         let verifier = try String(
-            contentsOf: root.appendingPathComponent("scripts/verify-gtk-screenshot.py"),
+            contentsOf: root.appendingPathComponent("scripts/verify-backend-screenshot.py"),
             encoding: .utf8
         )
         #expect(verifier.contains("validate_quill_chat_mac_reference"))

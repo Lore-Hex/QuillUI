@@ -112,4 +112,4 @@ VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-$PRODUCT}"
 if is_quill_chat_mac_reference; then
   VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference}"
 fi
-"$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"
+"$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"

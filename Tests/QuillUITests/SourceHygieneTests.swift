@@ -145,6 +145,10 @@ struct SourceHygieneTests {
             encoding: .utf8
         )
         let screenshotVerifier = try String(
+            contentsOf: root.appendingPathComponent("scripts/verify-backend-screenshot.py"),
+            encoding: .utf8
+        )
+        let legacyScreenshotVerifier = try String(
             contentsOf: root.appendingPathComponent("scripts/verify-gtk-screenshot.py"),
             encoding: .utf8
         )
@@ -195,6 +199,8 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("QUILLUI_BACKEND_VERIFY_PRODUCT"))
         #expect(backendScript.contains("quill-gtk-interaction-smoke|quill-qt-interaction-smoke"))
         #expect(backendScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
+        #expect(backendScript.contains("verify-backend-screenshot.py"))
+        #expect(!backendScript.contains("verify-gtk-screenshot.py"))
         #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(smokeLib.contains("quillui_install_linux_backend_smoke_packages()"))
         #expect(smokeLib.contains("quillui_resolve_linux_backend_executable()"))
@@ -215,7 +221,10 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("echo \"gtk\""))
         #expect(screenshotVerifier.contains("Quill backend interaction smoke"))
         #expect(screenshotVerifier.contains("validate_quill_backend_interaction_smoke"))
+        #expect(screenshotVerifier.contains("Usage: verify-backend-screenshot.py SCREENSHOT_PATH PRODUCT"))
         #expect(!screenshotVerifier.contains("Quill GTK interaction smoke"))
+        #expect(legacyScreenshotVerifier.contains("verify-backend-screenshot.py"))
+        #expect(!legacyScreenshotVerifier.contains("validate_quill_backend_interaction_smoke"))
         #expect(legacyGtkScript.contains("linux-backend-interaction-check.sh"))
         #expect(workflow.contains("scripts/quillui-backend-products.sh smoke-products"))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual.png\" \"$product\""))

@@ -122,6 +122,8 @@ struct LinuxGTKAppMatrixTests {
         #expect(visualScript.contains("quillui_resolve_linux_backend_executable \"$PRODUCT\" APP_EXECUTABLE"))
         #expect(visualScript.contains("quillui_requested_backend_for_product \"$PRODUCT\""))
         #expect(visualScript.contains("app_environment+=(QUILLUI_BACKEND=\"$requested_backend\")"))
+        #expect(visualScript.contains("verify-backend-screenshot.py"))
+        #expect(!visualScript.contains("verify-gtk-screenshot.py"))
         #expect(!visualScript.contains("install_packages()"))
         #expect(!visualScript.contains("build_and_resolve_executable()"))
         #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_COMMAND"))

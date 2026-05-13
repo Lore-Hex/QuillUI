@@ -325,7 +325,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
       fi
       ;;
   esac
-  "$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"
+  "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"
 elif [[ "$PRODUCT" == "quill-gtk-interaction-smoke" || "$PRODUCT" == "quill-qt-interaction-smoke" ]]; then
   smoke_prefix="$PRODUCT"
   case "$INTERACTION_MODE" in
@@ -342,7 +342,7 @@ elif [[ "$PRODUCT" == "quill-gtk-interaction-smoke" || "$PRODUCT" == "quill-qt-i
       VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-${smoke_prefix}-open}"
       ;;
   esac
-  "$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"
+  "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"
 else
-  "$ROOT_DIR/scripts/verify-gtk-screenshot.py" "$SCREENSHOT_PATH" "$PRODUCT"
+  "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$PRODUCT"
 fi

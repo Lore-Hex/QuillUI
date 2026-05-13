@@ -54,14 +54,14 @@ For every Quill app, add a Linux CI step that:
 - Builds and launches the Quill\*App executable under Xvfb
 - Waits `${QUILLUI_SMOKE_SECONDS:-4}` seconds
 - Screenshots the GTK window via `import` / `gnome-screenshot`
-- Runs `scripts/verify-gtk-screenshot.py` against the PNG
+- Runs `scripts/verify-backend-screenshot.py` against the PNG
 
 Reuse `scripts/linux-backend-visual-check.sh` (already proven for
 Enchanted's `quill-chat-linux` target) — accepts the app product
 name as `${2}`. Source the app list from
 `scripts/quillui-backend-products.sh gtk-apps` instead of
 hard-coding products in CI. The verifier
-`scripts/verify-gtk-screenshot.py` needs
+`scripts/verify-backend-screenshot.py` needs
 per-app landmark predicates; CP78 added Enchanted's generated-app
 landmarks, while the root app shells still use the baseline
 nonblank verifier until each gets its own small predicate block.

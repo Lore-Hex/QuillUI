@@ -1961,7 +1961,7 @@ NetNewsWire. Each step:
 - Builds the `quill-<app>` SwiftPM product
 - Launches under Xvfb (1180x760 default)
 - Screenshots the GTK4 window after a 4-second settle
-- Runs `verify-gtk-screenshot.py` with the app's product key
+- Runs `verify-backend-screenshot.py` with the app's product key
 
 With no per-product landmark predicate registered, the
 verifier falls through to the baseline check (window size +
@@ -2643,3 +2643,16 @@ The screenshot verifier still accepts the legacy GTK product names and the Qt
 smoke product names, but its interaction-smoke output now reports backend
 coverage instead of GTK-only wording. This keeps the next Qt renderer step on
 the same visual contract rather than growing another backend-specific fixture.
+
+## Checkpoint 144: Backend Screenshot Verifier Entry Point
+
+Status: implemented locally; guarded by source hygiene, matrix, and data tests.
+
+The canonical Linux screenshot verifier is now
+`scripts/verify-backend-screenshot.py`. Both backend visual and interaction
+smoke runners call that path directly, so new GTK/Qt parity checks extend one
+backend-neutral verifier instead of a GTK-named implementation.
+
+`scripts/verify-gtk-screenshot.py` remains as an executable compatibility shim
+that delegates to the backend verifier. Existing local scripts and older docs
+can keep working while new automation and tests use the shared backend name.

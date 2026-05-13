@@ -106,7 +106,7 @@ jobs:
       # profile coverage cannot drift. Each product launches under Xvfb,
       # requests its default backend, screenshots the window, and runs the
       # verifier. With no
-      # per-product branch in `verify-gtk-screenshot.py`, the verifier
+      # per-product branch in `verify-backend-screenshot.py`, the verifier
       # falls through to the baseline check (size + mean brightness +
       # stddev) so "blank window" / "didn't render" / "tiny window"
       # regressions still fail CI. Per-app landmark predicates are
