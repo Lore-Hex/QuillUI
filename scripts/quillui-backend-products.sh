@@ -22,6 +22,29 @@ quillui_backend_app_products() {
   quillui_gtk_app_products
 }
 
+quillui_backend_app_backends() {
+  # Backends each user-facing app must be able to request in parity smoke
+  # loops. Qt currently falls through the shared launch-plan fallback until
+  # the native renderer is linked, but keeping it in the app matrix now makes
+  # accidental GTK-only assumptions visible.
+  printf '%s\n' \
+    gtk \
+    qt
+}
+
+quillui_backend_app_matrix() {
+  local product
+  local backend
+
+  while IFS= read -r product; do
+    [[ -n "$product" ]] || continue
+    while IFS= read -r backend; do
+      [[ -n "$backend" ]] || continue
+      printf '%s\t%s\n' "$product" "$backend"
+    done < <(quillui_backend_app_backends)
+  done < <(quillui_backend_app_products)
+}
+
 quillui_backend_smoke_products() {
   # Minimal backend launch fixtures shared by visual and interaction
   # smoke checks. These are intentionally separate from user-facing
@@ -97,6 +120,8 @@ Usage: quillui-backend-products.sh COMMAND [ARG]
 
 Commands:
   backend-apps                    List user-facing app products in the backend parity matrix.
+  app-backends                    List backends requested for each user-facing app.
+  app-matrix                      List PRODUCT<TAB>BACKEND visual smoke rows for user-facing apps.
   gtk-apps                        List user-facing app products in the GTK parity matrix.
   smoke-products                  List backend launch smoke products.
   profile-products                List app and launch-smoke products for profile budgets.
@@ -110,6 +135,12 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   case "${1:-}" in
     backend-apps)
       quillui_backend_app_products
+      ;;
+    app-backends)
+      quillui_backend_app_backends
+      ;;
+    app-matrix)
+      quillui_backend_app_matrix
       ;;
     gtk-apps)
       quillui_gtk_app_products

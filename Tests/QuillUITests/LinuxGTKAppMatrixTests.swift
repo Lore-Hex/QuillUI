@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@Suite("Linux GTK app matrix")
+@Suite("Linux backend app matrix")
 struct LinuxGTKAppMatrixTests {
     private static let expectedAppProducts = [
         "quill-enchanted",
@@ -51,11 +51,11 @@ struct LinuxGTKAppMatrixTests {
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
-        #expect(workflow.contains("scripts/quillui-backend-products.sh backend-apps"))
+        #expect(workflow.contains("scripts/quillui-backend-products.sh app-matrix"))
         #expect(workflow.contains("scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product; do"))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux"))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual.png\" \"$product\""))
-        #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-gtk.png\" \"$product\""))
+        #expect(workflow.contains("QUILLUI_BACKEND=\"$backend\" scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\""))
         #expect(workflow.contains("scripts/quillui-backend-products.sh profile-products | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("name: Swift Linux Backends"))
@@ -141,6 +141,8 @@ struct LinuxGTKAppMatrixTests {
         )
         let backendProducts = try String(contentsOf: matrixScript, encoding: .utf8)
         #expect(backendProducts.contains("quillui_backend_app_products()"))
+        #expect(backendProducts.contains("quillui_backend_app_backends()"))
+        #expect(backendProducts.contains("quillui_backend_app_matrix()"))
         #expect(backendProducts.contains("quillui_backend_profile_products()"))
         #expect(backendProducts.contains("quillui_is_backend_smoke_product()"))
         #expect(backendProducts.contains("quillui_alias_env()"))
@@ -193,6 +195,17 @@ struct LinuxGTKAppMatrixTests {
         #expect(
             profileProducts.output.split(whereSeparator: \.isNewline).map(String.init)
                 == Self.expectedAppProducts + Self.expectedSmokeProducts
+        )
+
+        let appBackends = try runScript(script, arguments: ["app-backends"])
+        #expect(appBackends.status == 0, Comment(rawValue: appBackends.output))
+        #expect(appBackends.output.split(whereSeparator: \.isNewline).map(String.init) == ["gtk", "qt"])
+
+        let appMatrix = try runScript(script, arguments: ["app-matrix"])
+        #expect(appMatrix.status == 0, Comment(rawValue: appMatrix.output))
+        #expect(
+            appMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
+                == Self.expectedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
         )
 
         let knownSmokeProduct = try runScript(script, arguments: ["is-smoke-product", "quill-qt-interaction-smoke"])

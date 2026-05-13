@@ -101,11 +101,12 @@ jobs:
       - name: Generated Enchanted toolbar interaction smoke
         run: scripts/linux-backend-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
 
-      # Per-app backend visual smoke. The backend product roster lives in
-      # `scripts/quillui-backend-products.sh backend-apps` so visual and
+      # Per-app backend visual smoke. The backend product/backend roster lives
+      # in `scripts/quillui-backend-products.sh app-matrix` so visual and
       # profile coverage cannot drift. Each product launches under Xvfb,
-      # requests its default backend, screenshots the window, and runs the
-      # verifier. With no
+      # explicitly requests a backend, screenshots the window, and runs the
+      # verifier. Qt rows currently exercise the shared launch-plan fallback
+      # until the native renderer is linked for production apps. With no
       # per-product branch in `verify-backend-screenshot.py`, the verifier
       # falls through to the baseline check (size + mean brightness +
       # stddev) so "blank window" / "didn't render" / "tiny window"
@@ -113,10 +114,12 @@ jobs:
       # follow-up slices in docs/uitest-plan.md.
       - name: Quill app backend visual smoke
         run: |
-          scripts/quillui-backend-products.sh backend-apps | while IFS= read -r product; do
+          tab="$(printf '\t')"
+          scripts/quillui-backend-products.sh app-matrix | while IFS="$tab" read -r product backend; do
             [ -n "$product" ] || continue
-            echo "==> Backend visual smoke: $product"
-            scripts/linux-backend-visual-check.sh ".qa/${product}-gtk.png" "$product"
+            [ -n "$backend" ] || continue
+            echo "==> Backend visual smoke: $product ($backend requested)"
+            QUILLUI_BACKEND="$backend" scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product"
           done
 
       # Linux profile baseline (CP106/CP149). For each Quill app

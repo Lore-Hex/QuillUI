@@ -2739,3 +2739,18 @@ GTK/Qt smoke product pair in local cases.
 This keeps future backend launch fixtures on the same roster-driven path as Qt:
 adding a new smoke product updates one list, while visual, interaction, full
 check, and profile loops continue to consume shared product metadata.
+
+## Checkpoint 151: Requested Backend App Visual Matrix
+
+Status: implemented locally; guarded by matrix, source hygiene, and shell
+syntax checks.
+
+`scripts/quillui-backend-products.sh` now exposes `app-backends` and
+`app-matrix`, producing `PRODUCT<TAB>BACKEND` rows for every user-facing app
+across GTK and Qt requests. Linux CI's app visual loop consumes that matrix and
+sets `QUILLUI_BACKEND` per row, so the full app roster now smoke-renders under
+both default GTK and Qt-requested launch plans without duplicating app lists.
+
+This does not claim native Qt renderer parity yet; Qt still uses the shared
+launch-plan fallback where native Qt is unavailable. The matrix does make
+GTK-only launch assumptions visible while the native Qt target matures.
