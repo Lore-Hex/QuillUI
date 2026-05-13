@@ -81,8 +81,21 @@ jobs:
       - name: Generated upstream Enchanted compile
         run: scripts/generated-enchanted-full-source-check.sh
 
-      - name: Generated Enchanted backend visual smoke
-        run: scripts/linux-backend-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux
+      - name: Generated Enchanted backend visual smokes
+        run: |
+          tab="$(printf '\t')"
+          first=1
+          scripts/quillui-backend-products.sh generated-app-matrix | while IFS="$tab" read -r product backend; do
+            [ -n "$product" ] || continue
+            [ -n "$backend" ] || continue
+            echo "==> Generated Enchanted visual smoke: $product ($backend requested)"
+            if [ "$first" = "1" ]; then
+              QUILLUI_BACKEND="$backend" scripts/linux-backend-visual-check.sh ".qa/${product}-generated-${backend}.png" "$product"
+              first=0
+            else
+              QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh ".qa/${product}-generated-${backend}.png" "$product"
+            fi
+          done
 
       - name: Backend launch target visual smokes
         run: |
@@ -98,8 +111,15 @@ jobs:
       - name: Qt launch target interaction smoke
         run: scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke
 
-      - name: Generated Enchanted toolbar interaction smoke
-        run: scripts/linux-backend-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
+      - name: Generated Enchanted toolbar interaction smokes
+        run: |
+          tab="$(printf '\t')"
+          scripts/quillui-backend-products.sh generated-app-matrix | while IFS="$tab" read -r product backend; do
+            [ -n "$product" ] || continue
+            [ -n "$backend" ] || continue
+            echo "==> Generated Enchanted toolbar interaction smoke: $product ($backend requested)"
+            QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh ".qa/${product}-toolbar-menu-${backend}.png" "$product"
+          done
 
       # Per-app backend visual smoke. The backend product/backend roster lives
       # in `scripts/quillui-backend-products.sh app-matrix` so visual and

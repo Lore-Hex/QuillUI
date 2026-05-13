@@ -110,10 +110,13 @@ It supplies Quill Chat's source directory, app type, product name, and the
 current `enchanted-full-source` profile to the generic builder.
 
 The Linux backend visual smoke script can screenshot either root SwiftPM products or
-the generated Quill Chat app product:
+generated app products. CI drives generated products through the same GTK/Qt
+requested-backend matrix as the root app shells:
 
 ```bash
-scripts/linux-backend-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux
+scripts/quillui-backend-products.sh generated-app-matrix | while IFS="$(printf '\t')" read -r product backend; do
+  QUILLUI_BACKEND="$backend" scripts/linux-backend-visual-check.sh ".qa/${product}-generated-${backend}.png" "$product"
+done
 ```
 
 For `quill-chat-linux`, the script builds through the generic app builder,
@@ -197,15 +200,18 @@ The CSV schema stays product-first for the budget checker. Backend-requested
 matrix rows are labeled as `product@backend` in the emitted `product` column,
 so GTK and Qt rows can be compared without introducing a second CSV format.
 
-It can also exercise the generated Quill Chat toolbar menu:
+It can also exercise the generated Quill Chat toolbar menu across the generated
+app backend matrix:
 
 ```bash
-scripts/linux-backend-interaction-check.sh .qa/quill-chat-linux-toolbar-menu-gtk.png quill-chat-linux
+scripts/quillui-backend-products.sh generated-app-matrix | while IFS="$(printf '\t')" read -r product backend; do
+  QUILLUI_BACKEND="$backend" scripts/linux-backend-interaction-check.sh ".qa/${product}-toolbar-menu-${backend}.png" "$product"
+done
 ```
 
 That path builds through the same generic app builder as the visual smoke,
 clicks the generated options menu in the top-right toolbar, and verifies that
-the GTK menu surface appears below the toolbar.
+the menu surface appears below the toolbar.
 
 The opt-in `ImageRenderer` offscreen path also runs under Xvfb. It is kept
 separate from the normal test suite because it intentionally maps a temporary

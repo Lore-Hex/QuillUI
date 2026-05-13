@@ -46,6 +46,27 @@ quillui_backend_app_matrix() {
   done < <(quillui_backend_app_products)
 }
 
+quillui_backend_generated_app_products() {
+  # Generated external app products are not built from this package manifest,
+  # but they still need the same requested-backend parity coverage once
+  # assembled into their temporary SwiftPM packages.
+  printf '%s\n' \
+    quill-chat-linux
+}
+
+quillui_backend_generated_app_matrix() {
+  local product
+  local backend
+
+  while IFS= read -r product; do
+    [[ -n "$product" ]] || continue
+    while IFS= read -r backend; do
+      [[ -n "$backend" ]] || continue
+      printf '%s\t%s\n' "$product" "$backend"
+    done < <(quillui_backend_app_backends)
+  done < <(quillui_backend_generated_app_products)
+}
+
 quillui_backend_smoke_products() {
   # Minimal backend launch fixtures shared by visual and interaction
   # smoke checks. These are intentionally separate from user-facing
@@ -189,6 +210,8 @@ Commands:
   backend-apps                    List user-facing app products in the backend parity matrix.
   app-backends                    List backends requested for each user-facing app.
   app-matrix                      List PRODUCT<TAB>BACKEND visual smoke rows for user-facing apps.
+  generated-apps                  List generated external app products covered by backend parity smoke.
+  generated-app-matrix            List PRODUCT<TAB>BACKEND rows for generated external apps.
   gtk-apps                        Legacy alias for backend-apps.
   smoke-products                  List backend launch smoke products.
   profile-products                List app and launch-smoke products for profile budgets.
@@ -209,6 +232,12 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     app-matrix)
       quillui_backend_app_matrix
+      ;;
+    generated-apps)
+      quillui_backend_generated_app_products
+      ;;
+    generated-app-matrix)
+      quillui_backend_generated_app_matrix
       ;;
     gtk-apps)
       quillui_gtk_app_products
