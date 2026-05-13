@@ -77,21 +77,18 @@ window_x=0
 window_y=0
 window_width="$screen_width"
 window_height="$screen_height"
-window_id="$(
-  DISPLAY="$DISPLAY_ID" xdotool search --onlyvisible --pid "$app_pid" 2>/dev/null | head -n 1 || true
-)"
+window_id="$(quillui_find_visible_window_for_pid "$DISPLAY_ID" "$app_pid")"
 if [[ -z "$window_id" ]]; then
-  window_id="$(
-    DISPLAY="$DISPLAY_ID" xdotool search --onlyvisible --name '.*' 2>/dev/null | head -n 1 || true
-  )"
+  window_id="$(quillui_find_visible_window_by_name "$DISPLAY_ID" ".*")"
 fi
 if [[ -n "$window_id" ]]; then
-  DISPLAY="$DISPLAY_ID" xdotool windowmove "$window_id" 0 0
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    DISPLAY="$DISPLAY_ID" xdotool windowsize "$window_id" "$reference_window_width" "$reference_window_height"
-    sleep 1
+    quillui_place_reference_window "$DISPLAY_ID" "$window_id" "$reference_window_width" "$reference_window_height"
   elif [[ "${QUILLUI_BACKEND_CAPTURE_ROOT:-0}" != "1" ]]; then
+    quillui_move_window_to_origin "$DISPLAY_ID" "$window_id"
     capture_window="$window_id"
+  else
+    quillui_move_window_to_origin "$DISPLAY_ID" "$window_id"
   fi
   DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
   DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true

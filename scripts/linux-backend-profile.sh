@@ -110,7 +110,7 @@ while :; do
         echo "$PRODUCT,$build_ms,-1,-1,-1,-1,startup-timeout"
         exit 1
     fi
-    if DISPLAY="$display_id" xdotool search --onlyvisible "" 2>/dev/null | head -n 1 | grep -q .; then
+    if [[ -n "$(quillui_find_any_visible_window "$display_id")" ]]; then
         break
     fi
     sleep 0.05

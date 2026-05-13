@@ -62,19 +62,10 @@ app_pid=$!
 sleep 4
 capture_window="root"
 if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-  window_id="$(
-    DISPLAY="$DISPLAY_ID" xdotool search --onlyvisible --name 'Quill Chat' 2>/dev/null | head -n 1 || true
-  )"
-  if [[ -z "$window_id" ]]; then
-    window_id="$(
-      DISPLAY="$DISPLAY_ID" xdotool search --onlyvisible --name '.*' 2>/dev/null | head -n 1 || true
-    )"
-  fi
+  window_id="$(quillui_find_quill_chat_reference_window "$DISPLAY_ID")"
   if [[ -n "$window_id" ]]; then
-    DISPLAY="$DISPLAY_ID" xdotool windowmove "$window_id" 0 0
-    DISPLAY="$DISPLAY_ID" xdotool windowsize "$window_id" "$reference_window_width" "$reference_window_height"
+    quillui_place_reference_window "$DISPLAY_ID" "$window_id" "$reference_window_width" "$reference_window_height"
     capture_window="$window_id"
-    sleep 1
   fi
 fi
 DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"

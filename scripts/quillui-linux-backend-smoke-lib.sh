@@ -51,6 +51,57 @@ quillui_backend_reference_window_defaults() {
   quillui_assign_output "$hide_menubar_label_var" "${QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL:-1}" || return $?
 }
 
+quillui_find_visible_window_by_name() {
+  local display_id="$1"
+  local name="$2"
+
+  DISPLAY="$display_id" xdotool search --onlyvisible --name "$name" 2>/dev/null | head -n 1 || true
+}
+
+quillui_find_visible_window_for_pid() {
+  local display_id="$1"
+  local pid="$2"
+
+  DISPLAY="$display_id" xdotool search --onlyvisible --pid "$pid" 2>/dev/null | head -n 1 || true
+}
+
+quillui_find_any_visible_window() {
+  local display_id="$1"
+
+  DISPLAY="$display_id" xdotool search --onlyvisible "" 2>/dev/null | head -n 1 || true
+}
+
+quillui_find_quill_chat_reference_window() {
+  local display_id="$1"
+  local window_id
+
+  window_id="$(quillui_find_visible_window_by_name "$display_id" "Quill Chat")"
+  if [[ -n "$window_id" ]]; then
+    echo "$window_id"
+    return
+  fi
+
+  quillui_find_visible_window_by_name "$display_id" ".*"
+}
+
+quillui_move_window_to_origin() {
+  local display_id="$1"
+  local window_id="$2"
+
+  DISPLAY="$display_id" xdotool windowmove "$window_id" 0 0
+}
+
+quillui_place_reference_window() {
+  local display_id="$1"
+  local window_id="$2"
+  local width="$3"
+  local height="$4"
+
+  quillui_move_window_to_origin "$display_id" "$window_id"
+  DISPLAY="$display_id" xdotool windowsize "$window_id" "$width" "$height"
+  sleep 1
+}
+
 quillui_assign_output() {
   local output_var="$1"
   local value="$2"

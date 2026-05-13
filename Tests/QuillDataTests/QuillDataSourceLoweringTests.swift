@@ -421,7 +421,9 @@ struct QuillDataSourceLoweringTests {
         #expect(!visualScript.contains("${QUILLUI_GTK_VERIFY_PRODUCT:-"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"))
         #expect(smokeLib.contains("seed-quill-chat-reference-data.py"))
-        #expect(visualScript.contains("xdotool search --onlyvisible --name '.*'"))
+        #expect(visualScript.contains("quillui_find_quill_chat_reference_window \"$DISPLAY_ID\""))
+        #expect(smokeLib.contains("quillui_find_quill_chat_reference_window()"))
+        #expect(smokeLib.contains("quillui_place_reference_window()"))
         #expect(visualScript.contains("capture_window=\"$window_id\""))
         #expect(visualScript.contains("quill-chat-linux-mac-reference"))
 
