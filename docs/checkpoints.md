@@ -3013,3 +3013,12 @@ runtime mode rows through `runtime-availabilities`. Shell smoke/profile tooling
 can consume the same GTK/Qt runtime availability shape as the Swift registry:
 GTK reports `native`, while Qt reports the current GTK `platformFallback` until
 a native Qt runtime host is linked.
+
+## Checkpoint 175: Profile Runtime Pair Enforcement
+
+Status: implemented locally; guarded by backend matrix tests.
+
+The Linux backend profile budget checker now validates that each successful CSV
+row's `runtime_backend` matches the selected backend's registered runtime. This
+prevents Qt profile rows from accidentally reporting native Qt runtime behavior
+while the shared registry still routes Qt launches through GTK fallback.

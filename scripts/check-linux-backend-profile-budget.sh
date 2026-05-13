@@ -111,6 +111,23 @@ if [[ "$REQUIRE_BACKEND_MATRIX" -eq 1 ]]; then
   fi
 fi
 
+runtime_backend_mismatch=0
+while IFS=, read -r product requested_backend runtime_backend _build_ms _startup_ms _rss_kb _cpu_initial _cpu_steady exit_status; do
+  [[ -n "$product" && "$product" != "product" ]] || continue
+  [[ "$exit_status" == "ok" ]] || continue
+
+  expected_runtime_backend="$(quillui_runtime_backend_for_backend "$requested_backend" 2>/dev/null)" || continue
+  quillui_require_backend_identifier "$runtime_backend" >/dev/null 2>&1 || continue
+  if ! quillui_backend_runtime_matches_backend "$requested_backend" "$runtime_backend"; then
+    echo "profile budget failed: $product runtime_backend=$runtime_backend does not match requested_backend=$requested_backend expected_runtime=$expected_runtime_backend" >&2
+    runtime_backend_mismatch=1
+  fi
+done < "$CSV_PATH"
+
+if [[ "$runtime_backend_mismatch" -ne 0 ]]; then
+  exit 1
+fi
+
 awk \
   -v max_cpu="$MAX_CPU_PCT" \
   -v max_rss="$MAX_RSS_KB" \

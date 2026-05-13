@@ -236,6 +236,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_runtime_backend_for_backend()"))
         #expect(backendProducts.contains("quillui_runtime_backend_for_product()"))
         #expect(backendProducts.contains("quillui_backend_runtime_availabilities()"))
+        #expect(backendProducts.contains("quillui_backend_runtime_matches_backend()"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS QUILLUI_QT_PROFILE_MAX_STARTUP_MS\n  quillui_alias_backend_common_env"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
@@ -394,6 +395,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(budgetScript.contains("runtime_backend = $3"))
         #expect(budgetScript.contains("done < <(quillui_backend_profile_matrix)"))
         #expect(budgetScript.contains("quillui_require_backend_identifier \"$expected_backend\""))
+        #expect(budgetScript.contains("quillui_backend_runtime_matches_backend \"$requested_backend\" \"$runtime_backend\""))
         #expect(budgetScript.contains("missing required backend profile row"))
         #expect(!budgetScript.contains("${QUILLUI_GTK_PROFILE_MAX_CPU_PCT:-"))
         #expect(legacyBudgetScript.contains("check-linux-backend-profile-budget.sh"))
@@ -901,6 +903,16 @@ struct LinuxBackendAppMatrixTests {
         let malformed = try runScript(script, arguments: [csv.path, "--max-cpu-pct", "25"])
         #expect(malformed.status != 0)
         #expect(malformed.output.contains("startup_ms=nope is not a non-negative integer"))
+
+        try """
+        \(Self.profileCSVHeader)
+        quill-netnewswire,qt,qt,13105,6,235852,5.8,5.6,ok
+
+        """.write(to: csv, atomically: true, encoding: .utf8)
+
+        let wrongRuntime = try runScript(script, arguments: [csv.path, "--max-cpu-pct", "25"])
+        #expect(wrongRuntime.status != 0)
+        #expect(wrongRuntime.output.contains("runtime_backend=qt does not match requested_backend=qt expected_runtime=gtk"))
 
         let profileMatrix = try runScript(matrixScript, arguments: ["profile-matrix"])
         #expect(profileMatrix.status == 0, Comment(rawValue: profileMatrix.output))
