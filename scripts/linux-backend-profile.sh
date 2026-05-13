@@ -18,7 +18,7 @@
 #   scripts/linux-backend-profile.sh <product-name> [settle-seconds] [steady-delay] [backend]
 #
 # Emits one CSV line on stdout:
-#   product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
+#   product,requested_backend,runtime_backend,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
 
 set -euo pipefail
 
@@ -40,6 +40,12 @@ STEADY_DELAY_SECONDS="${3:-${QUILLUI_BACKEND_PROFILE_STEADY:-20}}"
 if [[ -z "$PRODUCT" ]]; then
     echo "Usage: $0 <product-name> [settle-seconds] [steady-delay] [backend]" >&2
     exit 64
+fi
+
+REQUESTED_BACKEND_LABEL="$(quillui_requested_backend_for_product "$PRODUCT")"
+RUNTIME_BACKEND_LABEL=""
+if [[ -n "$REQUESTED_BACKEND_LABEL" ]]; then
+    RUNTIME_BACKEND_LABEL="$(quillui_runtime_backend_for_backend "$REQUESTED_BACKEND_LABEL")"
 fi
 
 quillui_install_linux_backend_smoke_packages
@@ -66,8 +72,18 @@ quillui_resolve_linux_backend_executable "$PRODUCT" exe >/dev/null 2>&1
 build_end_ms=$(date +%s%3N)
 build_ms=$((build_end_ms - build_start_ms))
 
+emit_profile_row() {
+    local startup_ms="$1"
+    local rss_kb="$2"
+    local cpu_pct_initial="$3"
+    local cpu_pct_steady="$4"
+    local exit_status="$5"
+
+    echo "$PRODUCT,$REQUESTED_BACKEND_LABEL,$RUNTIME_BACKEND_LABEL,$build_ms,$startup_ms,$rss_kb,$cpu_pct_initial,$cpu_pct_steady,$exit_status"
+}
+
 if [[ ! -x "$exe" ]]; then
-    echo "$PRODUCT,$build_ms,-1,-1,-1,-1,build-missing"
+    emit_profile_row -1 -1 -1 -1 build-missing
     exit 1
 fi
 
@@ -90,7 +106,7 @@ cleanup() {
 trap cleanup EXIT
 
 if ! quillui_start_xvfb "$display_id" "$screen_size" /tmp/quillui-profile-xvfb.log xvfb_pid; then
-    echo "$PRODUCT,$build_ms,-1,-1,-1,-1,xvfb-failed"
+    emit_profile_row -1 -1 -1 -1 xvfb-failed
     exit 1
 fi
 
@@ -114,7 +130,7 @@ deadline_ms=$((startup_start_ms + 30000))
 while :; do
     now_ms=$(date +%s%3N)
     if (( now_ms > deadline_ms )); then
-        echo "$PRODUCT,$build_ms,-1,-1,-1,-1,startup-timeout"
+        emit_profile_row -1 -1 -1 -1 startup-timeout
         exit 1
     fi
     if [[ -n "$(quillui_find_any_visible_window "$display_id")" ]]; then
@@ -129,7 +145,7 @@ startup_ms=$((startup_end_ms - startup_start_ms))
 sleep "$SETTLE_SECONDS"
 
 if ! kill -0 "$app_pid" >/dev/null 2>&1; then
-    echo "$PRODUCT,$build_ms,$startup_ms,-1,-1,-1,died-during-settle"
+    emit_profile_row "$startup_ms" -1 -1 -1 died-during-settle
     exit 1
 fi
 
@@ -141,7 +157,7 @@ rss_kb=$(awk '/^VmRSS:/ {print $2}' "/proc/$app_pid/status" 2>/dev/null || echo 
 cpu_pct_initial=$(sample_cpu_pct "$app_pid")
 
 if ! kill -0 "$app_pid" >/dev/null 2>&1; then
-    echo "$PRODUCT,$build_ms,$startup_ms,$rss_kb,$cpu_pct_initial,-1,died-after-initial"
+    emit_profile_row "$startup_ms" "$rss_kb" "$cpu_pct_initial" -1 died-after-initial
     exit 1
 fi
 
@@ -154,10 +170,10 @@ fi
 sleep "$STEADY_DELAY_SECONDS"
 
 if ! kill -0 "$app_pid" >/dev/null 2>&1; then
-    echo "$PRODUCT,$build_ms,$startup_ms,$rss_kb,$cpu_pct_initial,-1,died-during-steady-wait"
+    emit_profile_row "$startup_ms" "$rss_kb" "$cpu_pct_initial" -1 died-during-steady-wait
     exit 1
 fi
 
 cpu_pct_steady=$(sample_cpu_pct "$app_pid")
 
-echo "$PRODUCT,$build_ms,$startup_ms,$rss_kb,$cpu_pct_initial,$cpu_pct_steady,ok"
+emit_profile_row "$startup_ms" "$rss_kb" "$cpu_pct_initial" "$cpu_pct_steady" ok

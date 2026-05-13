@@ -121,32 +121,46 @@ quillui_profile_product_was_built() {
 }
 
 {
-  echo "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
+  echo "product,requested_backend,runtime_backend,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
   for row in "${ROWS[@]}"; do
     product="$row"
     backend=""
+    requested_backend=""
+    runtime_backend=""
     if [[ "$row" == *$'\t'* ]]; then
       product="${row%%$'\t'*}"
       backend="${row#*$'\t'}"
     fi
     [[ -n "$product" ]] || continue
     if [[ "$backend" == *$'\t'* ]]; then
-      label="${product:-profile-row}@malformed"
-      echo "$label,0,0,0,0.0,0.0,profile-row-malformed"
+      echo "${product:-profile-row},malformed,unknown,0,0,0,0.0,0.0,profile-row-malformed"
       continue
     fi
     if [[ -n "$backend" ]] && ! backend="$(quillui_require_backend_identifier "$backend" 2>/dev/null)"; then
-      label="$product@unsupported-backend"
-      echo "$label,0,0,0,0.0,0.0,profile-row-unsupported-backend"
+      echo "$product,unsupported-backend,unknown,0,0,0,0.0,0.0,profile-row-unsupported-backend"
       continue
     fi
-    label="$product"
+    if [[ -n "$backend" ]]; then
+      requested_backend="$backend"
+    else
+      requested_backend="$(quillui_requested_backend_for_product "$product")" || {
+        echo "$product,unsupported-backend,unknown,0,0,0,0.0,0.0,profile-row-unsupported-backend"
+        continue
+      }
+    fi
+    if [[ -n "$requested_backend" ]]; then
+      runtime_backend="$(quillui_runtime_backend_for_backend "$requested_backend")" || {
+        echo "$product,$requested_backend,unknown,0,0,0,0.0,0.0,profile-row-unsupported-runtime-backend"
+        continue
+      }
+    fi
+    row_label="$product"
     profiler_arguments=("$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS")
     if [[ -n "$backend" ]]; then
-      label="$product@$backend"
+      row_label="$product@$backend"
       profiler_arguments+=("$backend")
     fi
-    row_path="$TMP_DIR/${label//[^A-Za-z0-9_.-]/_}.csv"
+    row_path="$TMP_DIR/${row_label//[^A-Za-z0-9_.-]/_}.csv"
     profiler_environment=()
     if [[ -n "$backend" ]]; then
       profiler_environment+=("QUILLUI_BACKEND=$backend")
@@ -164,20 +178,42 @@ quillui_profile_product_was_built() {
       BUILT_PROFILE_PRODUCTS_LIST="${BUILT_PROFILE_PRODUCTS_LIST}${product}"$'\n'
     fi
     if [[ -s "$row_path" ]]; then
-      awk -v label="$label" -v profiler_status="$status" '
+      awk \
+        -v product="$product" \
+        -v requested_backend="$requested_backend" \
+        -v runtime_backend="$runtime_backend" \
+        -v profiler_status="$status" '
         BEGIN { FS = OFS = "," }
-        NF > 0 {
-          $1 = label
-          if (profiler_status != 0 && NF >= 7) {
-            $7 = "profiler-exit-" profiler_status
+        NF == 7 {
+          exit_status = $7
+          if (profiler_status != 0) {
+            exit_status = "profiler-exit-" profiler_status
           }
+          print product, requested_backend, runtime_backend, $2, $3, $4, $5, $6, exit_status
+          next
         }
-        { print }
+        NF >= 9 {
+          $1 = product
+          $2 = requested_backend
+          $3 = runtime_backend
+          if (profiler_status != 0) {
+            $9 = "profiler-exit-" profiler_status
+          }
+          print
+          next
+        }
+        NF > 0 {
+          exit_status = "profiler-malformed-output"
+          if (profiler_status != 0) {
+            exit_status = "profiler-exit-" profiler_status
+          }
+          print product, requested_backend, runtime_backend, 0, 0, 0, "0.0", "0.0", exit_status
+        }
       ' "$row_path"
     elif [[ "$status" -eq 0 ]]; then
-      echo "$label,0,0,0,0.0,0.0,profiler-empty-output"
+      echo "$product,$requested_backend,$runtime_backend,0,0,0,0.0,0.0,profiler-empty-output"
     else
-      echo "$label,0,0,0,0.0,0.0,profiler-exit-$status"
+      echo "$product,$requested_backend,$runtime_backend,0,0,0,0.0,0.0,profiler-exit-$status"
     fi
   done
 } | tee "$CSV_PATH"

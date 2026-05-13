@@ -12,8 +12,11 @@ Current CI expands the canonical `profile-matrix` roster through
 composes every user-facing app and generated external app with each requested
 backend plus the GTK and Qt backend launch smoke products. The roster emits
 `PRODUCT<TAB>BACKEND` rows, and backend aliases are canonicalized before launch.
-Backend-requested app rows keep the existing CSV schema by labeling the product
-column as `product@backend`. The older
+Profile CSV rows carry both `requested_backend` and `runtime_backend` columns
+so Qt-requested rows are not confused with native Qt runtime measurements. Until
+the native Qt renderer is linked on Linux, Qt-requested rows report
+`runtime_backend=gtk` because `QuillLinuxRuntimeHost` still falls back to GTK.
+The older
 `scripts/linux-gtk-app-products.sh`,
 `scripts/linux-gtk-profile.sh`, `scripts/run-linux-gtk-profile-csv.sh`,
 and `scripts/check-linux-gtk-profile-budget.sh` paths remain as
@@ -352,4 +355,4 @@ fires at 200Hz, so per-paint allocations stack.
 7. Kill, emit one CSV row, exit.
 
 CSV row schema:
-`product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status`.
+`product,requested_backend,runtime_backend,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status`.

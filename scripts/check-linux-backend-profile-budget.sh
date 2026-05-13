@@ -86,9 +86,9 @@ fi
 
 if [[ "$REQUIRE_BACKEND_MATRIX" -eq 1 ]]; then
   actual_profile_rows=$'\n'
-  while IFS=, read -r product _; do
+  while IFS=, read -r product requested_backend _; do
     [[ -n "$product" && "$product" != "product" ]] || continue
-    actual_profile_rows="${actual_profile_rows}${product}"$'\n'
+    actual_profile_rows="${actual_profile_rows}${product}@${requested_backend}"$'\n'
   done < "$CSV_PATH"
 
   missing_required_row=0
@@ -118,13 +118,16 @@ awk \
 BEGIN {
   FS = ","
   status = 0
-  expected = "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
+  expected = "product,requested_backend,runtime_backend,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
 }
 function is_nonnegative_integer(value) {
   return value ~ /^[0-9]+$/
 }
 function is_nonnegative_number(value) {
   return value ~ /^[0-9]+([.][0-9]+)?$/
+}
+function is_backend_identifier(value) {
+  return value ~ /^(swiftui|gtk|qt)$/
 }
 NR == 1 {
   if ($0 != expected) {
@@ -134,43 +137,59 @@ NR == 1 {
   next
 }
 /^[[:space:]]*$/ { next }
-NF != 7 {
+NF != 9 {
   printf "profile budget failed: malformed row %d: %s\n", NR, $0 > "/dev/stderr"
   status = 1
   next
 }
 {
   product = $1
-  exit_status = $7
+  requested_backend = $2
+  runtime_backend = $3
+  build_ms = $4
+  startup_ms = $5
+  rss_kb = $6
+  cpu_initial = $7
+  cpu_steady = $8
+  exit_status = $9
 
   row_failed = 0
   if (product == "") {
     printf "profile budget failed: row %d has an empty product\n", NR > "/dev/stderr"
     row_failed = 1
   }
-  if (!is_nonnegative_integer($2)) {
-    printf "profile budget failed: %s build_ms=%s is not a non-negative integer\n", product, $2 > "/dev/stderr"
+  if (!is_nonnegative_integer(build_ms)) {
+    printf "profile budget failed: %s build_ms=%s is not a non-negative integer\n", product, build_ms > "/dev/stderr"
     row_failed = 1
   }
-  if (!is_nonnegative_integer($3)) {
-    printf "profile budget failed: %s startup_ms=%s is not a non-negative integer\n", product, $3 > "/dev/stderr"
+  if (!is_nonnegative_integer(startup_ms)) {
+    printf "profile budget failed: %s startup_ms=%s is not a non-negative integer\n", product, startup_ms > "/dev/stderr"
     row_failed = 1
   }
-  if (!is_nonnegative_integer($4)) {
-    printf "profile budget failed: %s rss_kb=%s is not a non-negative integer\n", product, $4 > "/dev/stderr"
+  if (!is_nonnegative_integer(rss_kb)) {
+    printf "profile budget failed: %s rss_kb=%s is not a non-negative integer\n", product, rss_kb > "/dev/stderr"
     row_failed = 1
   }
-  if (!is_nonnegative_number($5)) {
-    printf "profile budget failed: %s cpu_pct_initial=%s is not a non-negative number\n", product, $5 > "/dev/stderr"
+  if (!is_nonnegative_number(cpu_initial)) {
+    printf "profile budget failed: %s cpu_pct_initial=%s is not a non-negative number\n", product, cpu_initial > "/dev/stderr"
     row_failed = 1
   }
-  if (!is_nonnegative_number($6)) {
-    printf "profile budget failed: %s cpu_pct_steady=%s is not a non-negative number\n", product, $6 > "/dev/stderr"
+  if (!is_nonnegative_number(cpu_steady)) {
+    printf "profile budget failed: %s cpu_pct_steady=%s is not a non-negative number\n", product, cpu_steady > "/dev/stderr"
     row_failed = 1
   }
   if (exit_status != "ok") {
     printf "profile budget failed: %s exit_status=%s\n", product, exit_status > "/dev/stderr"
     row_failed = 1
+  } else {
+    if (!is_backend_identifier(requested_backend)) {
+      printf "profile budget failed: %s requested_backend=%s is not supported\n", product, requested_backend > "/dev/stderr"
+      row_failed = 1
+    }
+    if (!is_backend_identifier(runtime_backend)) {
+      printf "profile budget failed: %s runtime_backend=%s is not supported\n", product, runtime_backend > "/dev/stderr"
+      row_failed = 1
+    }
   }
 
   if (row_failed) {
@@ -178,32 +197,32 @@ NF != 7 {
     next
   }
 
-  startup_ms = $3 + 0
-  rss_kb = $4 + 0
-  cpu_initial = $5 + 0
-  cpu_steady = $6 + 0
+  startup_ms_value = startup_ms + 0
+  rss_kb_value = rss_kb + 0
+  cpu_initial_value = cpu_initial + 0
+  cpu_steady_value = cpu_steady + 0
 
-  if (startup_ms > max_startup) {
-    printf "profile budget failed: %s startup_ms=%s max=%s\n", product, $3, max_startup > "/dev/stderr"
+  if (startup_ms_value > max_startup) {
+    printf "profile budget failed: %s startup_ms=%s max=%s\n", product, startup_ms, max_startup > "/dev/stderr"
     row_failed = 1
   }
-  if (rss_kb > max_rss) {
-    printf "profile budget failed: %s rss_kb=%s max=%s\n", product, $4, max_rss > "/dev/stderr"
+  if (rss_kb_value > max_rss) {
+    printf "profile budget failed: %s rss_kb=%s max=%s\n", product, rss_kb, max_rss > "/dev/stderr"
     row_failed = 1
   }
-  if (cpu_initial > max_cpu) {
-    printf "profile budget failed: %s cpu_pct_initial=%s max=%s\n", product, $5, max_cpu > "/dev/stderr"
+  if (cpu_initial_value > max_cpu) {
+    printf "profile budget failed: %s cpu_pct_initial=%s max=%s\n", product, cpu_initial, max_cpu > "/dev/stderr"
     row_failed = 1
   }
-  if (cpu_steady > max_cpu) {
-    printf "profile budget failed: %s cpu_pct_steady=%s max=%s\n", product, $6, max_cpu > "/dev/stderr"
+  if (cpu_steady_value > max_cpu) {
+    printf "profile budget failed: %s cpu_pct_steady=%s max=%s\n", product, cpu_steady, max_cpu > "/dev/stderr"
     row_failed = 1
   }
 
   if (row_failed) {
     status = 1
   } else {
-    printf "profile budget ok: %s startup_ms=%s rss_kb=%s cpu=%s/%s\n", product, $3, $4, $5, $6
+    printf "profile budget ok: %s requested=%s runtime=%s startup_ms=%s rss_kb=%s cpu=%s/%s\n", product, requested_backend, runtime_backend, startup_ms, rss_kb, cpu_initial, cpu_steady
   }
 }
 END {

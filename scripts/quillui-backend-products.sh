@@ -377,6 +377,32 @@ quillui_requested_backend_for_product() {
   fi
 }
 
+quillui_runtime_backend_for_backend() {
+  local requested_backend
+
+  requested_backend="$(quillui_require_backend_identifier "$1")" || return $?
+  case "$requested_backend" in
+    gtk)
+      echo "gtk"
+      ;;
+    qt|swiftui)
+      # Mirrors QuillBackendRegistry on Linux: GTK is the only native runtime
+      # currently linked, so other selected backends launch through GTK until
+      # their native hosts are available.
+      echo "gtk"
+      ;;
+  esac
+}
+
+quillui_runtime_backend_for_product() {
+  local requested_backend
+
+  requested_backend="$(quillui_requested_backend_for_product "$1")" || return $?
+  if [[ -n "$requested_backend" ]]; then
+    quillui_runtime_backend_for_backend "$requested_backend"
+  fi
+}
+
 quillui_backend_products_usage() {
   cat >&2 <<'MSG'
 Usage: quillui-backend-products.sh COMMAND [ARG]
@@ -406,6 +432,9 @@ Commands:
   is-smoke-product PRODUCT        Exit 0 when PRODUCT is a backend launch smoke product.
   backend-for-product PRODUCT     Print the default requested backend for PRODUCT.
   requested-backend PRODUCT       Print QUILLUI_BACKEND override or PRODUCT default.
+  runtime-backend BACKEND         Print the native runtime backend used for a requested backend.
+  runtime-backend-for-product PRODUCT
+                                  Print the native runtime backend used for PRODUCT.
 MSG
 }
 
@@ -504,6 +533,20 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         exit 64
       fi
       quillui_requested_backend_for_product "$2"
+      ;;
+    runtime-backend)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_runtime_backend_for_backend "$2"
+      ;;
+    runtime-backend-for-product)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_runtime_backend_for_product "$2"
       ;;
     --help|-h)
       quillui_backend_products_usage

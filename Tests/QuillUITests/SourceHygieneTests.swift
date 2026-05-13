@@ -149,7 +149,8 @@ struct SourceHygieneTests {
 
         #expect(profileBaseline.contains("`PRODUCT<TAB>BACKEND` rows"))
         #expect(profileBaseline.contains("canonicalized before launch"))
-        #expect(profileBaseline.contains("`product@backend`"))
+        #expect(profileBaseline.contains("`requested_backend` and `runtime_backend` columns"))
+        #expect(profileBaseline.contains("`runtime_backend=gtk`"))
         #expect(profileBaseline.contains("scripts/linux-backend-profile.sh <product> [settle] [steady] [backend]"))
         #expect(!profileBaseline.contains("scripts/linux-backend-profile.sh <product> [settle] [steady]`:"))
 

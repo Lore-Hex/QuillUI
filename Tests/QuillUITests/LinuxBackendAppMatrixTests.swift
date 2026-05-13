@@ -24,6 +24,8 @@ struct LinuxBackendAppMatrixTests {
         "quill-chat-linux"
     ]
 
+    private static let profileCSVHeader = "product,requested_backend,runtime_backend,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
+
     @Test("covers each user-facing app product once")
     func coversEachUserFacingAppProductOnce() throws {
         let root = try packageRoot()
@@ -219,12 +221,20 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("backend_prefix=\"QUILLUI_QT_\""))
         #expect(backendProducts.contains("normalize-backend)"))
         #expect(backendProducts.contains("require-backend)"))
+        #expect(backendProducts.contains("runtime-backend)"))
+        #expect(backendProducts.contains("runtime-backend-for-product)"))
+        #expect(backendProducts.contains("quillui_runtime_backend_for_backend()"))
+        #expect(backendProducts.contains("quillui_runtime_backend_for_product()"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS QUILLUI_QT_PROFILE_MAX_STARTUP_MS\n  quillui_alias_backend_common_env"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(profileScript.contains("quillui_install_linux_backend_smoke_packages"))
         #expect(profileScript.contains("quillui_resolve_linux_backend_executable \"$PRODUCT\" exe"))
         #expect(profileScript.contains("REQUESTED_BACKEND=\"${4:-${QUILLUI_BACKEND:-}}\""))
+        #expect(profileScript.contains(Self.profileCSVHeader))
+        #expect(profileScript.contains("REQUESTED_BACKEND_LABEL=\"$(quillui_requested_backend_for_product \"$PRODUCT\")\""))
+        #expect(profileScript.contains("RUNTIME_BACKEND_LABEL=\"$(quillui_runtime_backend_for_backend \"$REQUESTED_BACKEND_LABEL\")\""))
+        #expect(profileScript.contains("emit_profile_row()"))
         #expect(profileScript.contains("quillui_export_backend_argument \"$REQUESTED_BACKEND\""))
         #expect(profileScript.contains("quillui_alias_backend_build_env"))
         #expect(!profileScript.contains("patch-swiftopenui-gtk-css.sh"))
@@ -306,7 +316,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(profileScript.contains("quillui_start_xvfb \"$display_id\" \"$screen_size\" /tmp/quillui-profile-xvfb.log xvfb_pid"))
         #expect(profileScript.contains("quillui_stop_process_if_running \"${app_pid:-}\""))
         #expect(profileScript.contains("quillui_stop_process_if_running \"${xvfb_pid:-}\""))
-        #expect(profileScript.contains("echo \"$PRODUCT,$build_ms,-1,-1,-1,-1,xvfb-failed\""))
+        #expect(profileScript.contains("emit_profile_row -1 -1 -1 -1 xvfb-failed"))
         #expect(!profileScript.contains("screen_size=\"${QUILLUI_BACKEND_PROFILE_SCREEN_SIZE:-1180x760x24}\""))
         #expect(!profileScript.contains("Xvfb \"$display_id\" -screen 0 \"$screen_size\""))
         #expect(!profileScript.contains("${QUILLUI_GTK_PROFILE_DISPLAY:-"))
@@ -338,12 +348,15 @@ struct LinuxBackendAppMatrixTests {
         #expect(csvRunner.contains("quillui_alias_backend_profile_env"))
         #expect(csvRunner.contains("$ROOT_DIR/scripts/linux-backend-profile.sh"))
         #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_SETTLE"))
+        #expect(csvRunner.contains(Self.profileCSVHeader))
         #expect(!csvRunner.contains("${QUILLUI_GTK_PROFILE_COMMAND:-"))
         #expect(!csvRunner.contains("${QUILLUI_GTK_PROFILE_SETTLE:-"))
         #expect(csvRunner.contains("PRODUCT<TAB>BACKEND"))
         #expect(csvRunner.contains("BUILT_PROFILE_PRODUCTS_LIST=$'\\n'"))
         #expect(csvRunner.contains("quillui_profile_product_was_built()"))
         #expect(csvRunner.contains("quillui_require_backend_identifier \"$backend\""))
+        #expect(csvRunner.contains("requested_backend=\"$(quillui_requested_backend_for_product \"$product\")\""))
+        #expect(csvRunner.contains("runtime_backend=\"$(quillui_runtime_backend_for_backend \"$requested_backend\")\""))
         #expect(csvRunner.contains("profile-row-unsupported-backend"))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND_SKIP_BUILD=1\")"))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND=$backend\")"))
@@ -351,12 +364,16 @@ struct LinuxBackendAppMatrixTests {
         #expect(csvRunner.contains("profile_command=(env)"))
         #expect(csvRunner.contains("profile_command+=(\"${profiler_environment[@]}\")"))
         #expect(csvRunner.contains("\"${profile_command[@]}\" \"$PROFILE_SCRIPT\" \"${profiler_arguments[@]}\""))
-        #expect(csvRunner.contains("awk -v label=\"$label\""))
+        #expect(csvRunner.contains("-v requested_backend=\"$requested_backend\""))
+        #expect(csvRunner.contains("-v runtime_backend=\"$runtime_backend\""))
         #expect(legacyCSVRunner.contains("run-linux-backend-profile-csv.sh"))
         #expect(budgetScript.contains("QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT"))
         #expect(budgetScript.contains("quillui_alias_backend_profile_env"))
         #expect(budgetScript.contains("REQUIRE_BACKEND_MATRIX=0"))
         #expect(budgetScript.contains("--require-backend-matrix)"))
+        #expect(budgetScript.contains(Self.profileCSVHeader))
+        #expect(budgetScript.contains("requested_backend = $2"))
+        #expect(budgetScript.contains("runtime_backend = $3"))
         #expect(budgetScript.contains("done < <(quillui_backend_profile_matrix)"))
         #expect(budgetScript.contains("quillui_require_backend_identifier \"$expected_backend\""))
         #expect(budgetScript.contains("missing required backend profile row"))
@@ -618,6 +635,22 @@ struct LinuxBackendAppMatrixTests {
         #expect(requiredQtBackend.status == 0, Comment(rawValue: requiredQtBackend.output))
         #expect(requiredQtBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
 
+        let runtimeGtkBackend = try runScript(script, arguments: ["runtime-backend", "GTK4"])
+        #expect(runtimeGtkBackend.status == 0, Comment(rawValue: runtimeGtkBackend.output))
+        #expect(runtimeGtkBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+
+        let runtimeQtBackend = try runScript(script, arguments: ["runtime-backend", " Qt6 "])
+        #expect(runtimeQtBackend.status == 0, Comment(rawValue: runtimeQtBackend.output))
+        #expect(runtimeQtBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+
+        let runtimeSwiftUIBackend = try runScript(script, arguments: ["runtime-backend", "swift-ui"])
+        #expect(runtimeSwiftUIBackend.status == 0, Comment(rawValue: runtimeSwiftUIBackend.output))
+        #expect(runtimeSwiftUIBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+
+        let runtimeProductBackend = try runScript(script, arguments: ["runtime-backend-for-product", "quill-qt-interaction-smoke"])
+        #expect(runtimeProductBackend.status == 0, Comment(rawValue: runtimeProductBackend.output))
+        #expect(runtimeProductBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+
         let normalizedSwiftUIBackend = try runScript(script, arguments: ["normalize-backend", "swift-ui"])
         #expect(normalizedSwiftUIBackend.status == 0, Comment(rawValue: normalizedSwiftUIBackend.output))
         #expect(normalizedSwiftUIBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "swiftui")
@@ -773,20 +806,20 @@ struct LinuxBackendAppMatrixTests {
         defer { try? fileManager.removeItem(at: csv) }
 
         try """
-        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
-        quill-icecubes,13148,6,236156,3.0,2.8,ok
-        quill-netnewswire,13105,6,235852,5.8,5.6,ok
+        \(Self.profileCSVHeader)
+        quill-icecubes,gtk,gtk,13148,6,236156,3.0,2.8,ok
+        quill-netnewswire,qt,gtk,13105,6,235852,5.8,5.6,ok
 
         """.write(to: csv, atomically: true, encoding: .utf8)
 
         let passing = try runScript(script, arguments: [csv.path, "--max-cpu-pct", "25"])
         #expect(passing.status == 0, Comment(rawValue: passing.output))
-        #expect(passing.output.contains("profile budget ok: quill-icecubes"))
-        #expect(passing.output.contains("profile budget ok: quill-netnewswire"))
+        #expect(passing.output.contains("profile budget ok: quill-icecubes requested=gtk runtime=gtk"))
+        #expect(passing.output.contains("profile budget ok: quill-netnewswire requested=qt runtime=gtk"))
 
         try """
-        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
-        quill-icecubes,13148,6,236156,3.0,135.2,ok
+        \(Self.profileCSVHeader)
+        quill-icecubes,gtk,gtk,13148,6,236156,3.0,135.2,ok
 
         """.write(to: csv, atomically: true, encoding: .utf8)
 
@@ -795,8 +828,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(failing.output.contains("cpu_pct_steady=135.2"))
 
         try """
-        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
-        quill-icecubes,13148,nope,236156,3.0,2.8,ok
+        \(Self.profileCSVHeader)
+        quill-icecubes,gtk,gtk,13148,nope,236156,3.0,2.8,ok
 
         """.write(to: csv, atomically: true, encoding: .utf8)
 
@@ -806,20 +839,21 @@ struct LinuxBackendAppMatrixTests {
 
         let profileMatrix = try runScript(matrixScript, arguments: ["profile-matrix"])
         #expect(profileMatrix.status == 0, Comment(rawValue: profileMatrix.output))
-        let matrixLabels = profileMatrix.output
+        let matrixRows = profileMatrix.output
             .split(whereSeparator: \.isNewline)
-            .compactMap { row -> String? in
+            .compactMap { row -> (product: String, backend: String)? in
                 let fields = row.split(separator: "\t")
                 guard fields.count == 2 else { return nil }
-                return "\(fields[0])@\(fields[1])"
+                return (String(fields[0]), String(fields[1]))
             }
+        let matrixLabels = matrixRows.map { "\($0.product)@\($0.backend)" }
         #expect(!matrixLabels.isEmpty)
 
-        let fullMatrixRows = matrixLabels
-            .map { "\($0),1,2,3,0.1,0.2,ok" }
+        let fullMatrixRows = matrixRows
+            .map { "\($0.product),\($0.backend),gtk,1,2,3,0.1,0.2,ok" }
             .joined(separator: "\n")
         try """
-        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
+        \(Self.profileCSVHeader)
         \(fullMatrixRows)
 
         """.write(to: csv, atomically: true, encoding: .utf8)
@@ -827,12 +861,12 @@ struct LinuxBackendAppMatrixTests {
         let strictPassing = try runScript(script, arguments: [csv.path, "--require-backend-matrix"])
         #expect(strictPassing.status == 0, Comment(rawValue: strictPassing.output))
 
-        let missingFirstRow = matrixLabels
+        let missingFirstRow = matrixRows
             .dropFirst()
-            .map { "\($0),1,2,3,0.1,0.2,ok" }
+            .map { "\($0.product),\($0.backend),gtk,1,2,3,0.1,0.2,ok" }
             .joined(separator: "\n")
         try """
-        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
+        \(Self.profileCSVHeader)
         \(missingFirstRow)
 
         """.write(to: csv, atomically: true, encoding: .utf8)
@@ -873,9 +907,9 @@ struct LinuxBackendAppMatrixTests {
 
         #expect(result.status == 0, Comment(rawValue: result.output))
         let expected = """
-        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
-        first-product,1,2,3,4.0,5.0,ok
-        second-product,1,2,3,4.0,5.0,profiler-exit-7
+        \(Self.profileCSVHeader)
+        first-product,,,1,2,3,4.0,5.0,ok
+        second-product,,,1,2,3,4.0,5.0,profiler-exit-7
 
         """
         #expect(result.output == expected)
@@ -911,8 +945,8 @@ struct LinuxBackendAppMatrixTests {
 
         #expect(result.status == 0, Comment(rawValue: result.output))
         let expected = """
-        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
-        silent-product,0,0,0,0.0,0.0,profiler-exit-42
+        \(Self.profileCSVHeader)
+        silent-product,,,0,0,0,0.0,0.0,profiler-exit-42
 
         """
         #expect(result.output == expected)
@@ -968,10 +1002,10 @@ struct LinuxBackendAppMatrixTests {
 
         #expect(result.status == 0, Comment(rawValue: result.output))
         let expected = """
-        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
-        quill-icecubes@gtk,1,2,3,0.0,5.0,ok
-        quill-icecubes@qt,1,2,3,1.0,5.0,ok
-        quill-icecubes@unsupported-backend,0,0,0,0.0,0.0,profile-row-unsupported-backend
+        \(Self.profileCSVHeader)
+        quill-icecubes,gtk,gtk,1,2,3,0.0,5.0,ok
+        quill-icecubes,qt,gtk,1,2,3,1.0,5.0,ok
+        quill-icecubes,unsupported-backend,unknown,0,0,0,0.0,0.0,profile-row-unsupported-backend
 
         """
         #expect(result.output == expected)
@@ -1008,13 +1042,13 @@ struct LinuxBackendAppMatrixTests {
 
         let matrix = try runScript(matrixScript, arguments: ["profile-matrix"])
         #expect(matrix.status == 0, Comment(rawValue: matrix.output))
-        let matrixLabels = matrix.output
+        let matrixRows = matrix.output
             .split(whereSeparator: \.isNewline)
-            .map { row -> String in
+            .map { row -> (product: String, backend: String) in
                 let fields = row.split(separator: "\t")
-                return "\(fields[0])@\(fields[1])"
+                return (String(fields[0]), String(fields[1]))
             }
-        #expect(!matrixLabels.isEmpty)
+        #expect(!matrixRows.isEmpty)
 
         let result = try runScript(
             script,
@@ -1024,8 +1058,8 @@ struct LinuxBackendAppMatrixTests {
 
         #expect(result.status == 0, Comment(rawValue: result.output))
         let expected = """
-        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
-        \(matrixLabels.map { "\($0),1,2,3,4.0,5.0,ok" }.joined(separator: "\n"))
+        \(Self.profileCSVHeader)
+        \(matrixRows.map { "\($0.product),\($0.backend),gtk,1,2,3,4.0,5.0,ok" }.joined(separator: "\n"))
 
         """
         #expect(result.output == expected)

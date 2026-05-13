@@ -277,9 +277,10 @@ before it launches the profiler:
 scripts/run-linux-backend-profile-csv.sh --matrix profile-matrix /tmp/quillui-profile.csv
 ```
 
-The CSV schema stays product-first for the budget checker. Backend-requested
-matrix rows are labeled as `product@backend` in the emitted `product` column,
-so GTK and Qt rows can be compared without introducing a second CSV format.
+The CSV schema stays product-first for the budget checker but includes explicit
+`requested_backend` and `runtime_backend` columns. This keeps GTK and Qt rows
+comparable while making it clear that Qt-requested Linux rows currently execute
+through the GTK fallback runtime until the native Qt renderer is linked.
 When consecutive rows reuse the same executable product, the CSV runner sets
 `QUILLUI_BACKEND_SKIP_BUILD=1` after the first successful profile pass so GTK
 and Qt budget rows do not repeat the same SwiftPM build work.

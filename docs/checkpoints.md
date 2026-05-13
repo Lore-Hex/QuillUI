@@ -2763,8 +2763,8 @@ shell syntax checks.
 `scripts/quillui-backend-products.sh` now exposes `profile-matrix`, producing
 `PRODUCT<TAB>BACKEND` rows for every user-facing app/backend request plus the
 GTK and Qt launch fixtures. The profile CSV runner accepts those matrix rows,
-sets `QUILLUI_BACKEND` per sample, and labels emitted rows as `product@backend`
-while preserving the existing CSV schema consumed by the budget checker.
+sets `QUILLUI_BACKEND` per sample, and records separate requested/runtime
+backend columns in the CSV consumed by the budget checker.
 
 Linux CI now profiles the same requested backend matrix that visual smoke uses,
 so Qt-requested app launches get startup/RSS/CPU rows instead of only the
