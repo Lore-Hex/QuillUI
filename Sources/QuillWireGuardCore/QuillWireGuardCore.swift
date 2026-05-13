@@ -4,6 +4,8 @@ public enum QuillWireGuardAppMetadata {
     public static let title = "Quill WireGuard"
     public static let defaultWidth = 800.0
     public static let defaultHeight = 600.0
+    public static let linuxMinimumWidth = 900.0
+    public static let linuxMinimumHeight = 600.0
 }
 
 public enum QuillWireGuardBackend {
@@ -197,6 +199,8 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
     public var title: String
     public var defaultWidth: Int
     public var defaultHeight: Int
+    public var minimumWidth: Int
+    public var minimumHeight: Int
     public var backendStatusText: String
     public var selectedTunnelID: QuillWireGuardTunnelSnapshot.ID?
     public var tunnels: [QuillWireGuardTunnelSnapshot]
@@ -205,6 +209,8 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
         title: String,
         defaultWidth: Int,
         defaultHeight: Int,
+        minimumWidth: Int = Int(QuillWireGuardAppMetadata.linuxMinimumWidth),
+        minimumHeight: Int = Int(QuillWireGuardAppMetadata.linuxMinimumHeight),
         backendStatusText: String,
         selectedTunnelID: QuillWireGuardTunnelSnapshot.ID?,
         tunnels: [QuillWireGuardTunnelSnapshot]
@@ -212,6 +218,8 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
         self.title = title
         self.defaultWidth = defaultWidth
         self.defaultHeight = defaultHeight
+        self.minimumWidth = minimumWidth
+        self.minimumHeight = minimumHeight
         self.backendStatusText = backendStatusText
         self.selectedTunnelID = selectedTunnelID
         self.tunnels = tunnels
@@ -222,6 +230,8 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
             title: QuillWireGuardAppMetadata.title,
             defaultWidth: Int(QuillWireGuardAppMetadata.defaultWidth),
             defaultHeight: Int(QuillWireGuardAppMetadata.defaultHeight),
+            minimumWidth: Int(QuillWireGuardAppMetadata.linuxMinimumWidth),
+            minimumHeight: Int(QuillWireGuardAppMetadata.linuxMinimumHeight),
             backendStatusText: QuillWireGuardBackend.statusText,
             selectedTunnelID: QuillWireGuardFixtures.defaultTunnelID,
             tunnels: QuillWireGuardFixtures.tunnels.map(QuillWireGuardTunnelSnapshot.init(tunnel:))

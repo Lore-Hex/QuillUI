@@ -16,6 +16,7 @@ import BackendGTK4
 public enum QuillAppDefaultSizePolicy: Equatable, Sendable {
     case requested
     case linuxAppMinimum
+    case linuxMinimum(width: Double, height: Double)
 }
 
 public enum QuillAppWindow {
@@ -49,6 +50,8 @@ public enum QuillAppWindow {
         switch policy {
         case .linuxAppMinimum:
             return (max(width, 900), max(height, 600))
+        case let .linuxMinimum(minimumWidth, minimumHeight):
+            return (max(width, minimumWidth), max(height, minimumHeight))
         case .requested:
             return (width, height)
         }

@@ -250,6 +250,7 @@ struct SourceHygieneTests {
         #expect(helperSource.contains("public enum QuillAppDefaultSizePolicy"))
         #expect(helperSource.contains("case requested"))
         #expect(helperSource.contains("case linuxAppMinimum"))
+        #expect(helperSource.contains("case linuxMinimum(width: Double, height: Double)"))
         #expect(helperSource.contains("public enum QuillBackendApp<Backend: QuillBackend>"))
         #expect(helperSource.contains("QuillBackendRegistry.launchPlan(preferred: preferredBackend)"))
         #expect(helperSource.contains("QuillBackendRuntimeContext.install(launchPlan)"))
@@ -278,6 +279,7 @@ struct SourceHygieneTests {
         #expect(helperSource.contains("policy: defaultSizePolicy"))
         #expect(helperSource.contains(".defaultSize(width: defaultSize.width, height: defaultSize.height)"))
         #expect(helperSource.contains("return (max(width, 900), max(height, 600))"))
+        #expect(helperSource.contains("return (max(width, minimumWidth), max(height, minimumHeight))"))
         #expect(helperSource.contains("entry point"))
         #expect(helperSource.contains("launch-plan fallback"))
         #expect(!helperSource.contains("block six times"))
@@ -286,6 +288,7 @@ struct SourceHygieneTests {
         #expect(!backendSource.contains("return [.gtk]"))
         #expect(wireGuardUISource.contains("public enum QuillWireGuardScene"))
         #expect(wireGuardUISource.contains("QuillAppWindow.scene("))
+        #expect(wireGuardUISource.contains("defaultSizePolicy: .linuxMinimum(width: minimumWidth, height: minimumHeight)"))
 
         for path in appEntryPointPaths {
             let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)

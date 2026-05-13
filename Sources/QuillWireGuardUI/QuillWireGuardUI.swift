@@ -10,9 +10,16 @@ public enum QuillWireGuardScene {
     public static let title = QuillWireGuardAppMetadata.title
     public static let defaultWidth = QuillWireGuardAppMetadata.defaultWidth
     public static let defaultHeight = QuillWireGuardAppMetadata.defaultHeight
+    public static let minimumWidth = QuillWireGuardAppMetadata.linuxMinimumWidth
+    public static let minimumHeight = QuillWireGuardAppMetadata.linuxMinimumHeight
 
     public static func scene() -> some Scene {
-        QuillAppWindow.scene(title, width: defaultWidth, height: defaultHeight) {
+        QuillAppWindow.scene(
+            title,
+            width: defaultWidth,
+            height: defaultHeight,
+            defaultSizePolicy: .linuxMinimum(width: minimumWidth, height: minimumHeight)
+        ) {
             ContentView()
         }
     }

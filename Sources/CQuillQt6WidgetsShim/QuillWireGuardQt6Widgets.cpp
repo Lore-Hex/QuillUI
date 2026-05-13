@@ -30,9 +30,6 @@
 
 namespace {
 
-constexpr int kMinimumAppWidth = 900;
-constexpr int kMinimumAppHeight = 600;
-
 QString stringValue(const QJsonObject &object, const char *key) {
     return object.value(QString::fromUtf8(key)).toString();
 }
@@ -43,9 +40,12 @@ int intValue(const QJsonObject &object, const char *key, int fallback) {
 }
 
 QSize resolvedDefaultWindowSize(const QJsonObject &payload) {
+    const int minimumWidth = intValue(payload, "minimumWidth", 900);
+    const int minimumHeight = intValue(payload, "minimumHeight", 600);
+
     return QSize(
-        std::max(intValue(payload, "defaultWidth", 800), kMinimumAppWidth),
-        std::max(intValue(payload, "defaultHeight", 600), kMinimumAppHeight)
+        std::max(intValue(payload, "defaultWidth", minimumWidth), minimumWidth),
+        std::max(intValue(payload, "defaultHeight", minimumHeight), minimumHeight)
     );
 }
 
