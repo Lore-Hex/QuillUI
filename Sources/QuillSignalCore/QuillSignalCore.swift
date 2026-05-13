@@ -73,8 +73,7 @@ public struct QuillSignalContentView: View {
         ChatDraft.sendMessage(
             from: &draft,
             toID: selectedID,
-            in: &conversations,
-            messagesAt: \.messages
+            in: &conversations
         ) { body in
             Message(sender: "Me", body: body, fromSelf: true)
         }
@@ -117,7 +116,7 @@ public struct Conversation: Identifiable, Hashable, Sendable {
     }
 }
 
-extension Conversation: ChatListItem {
+extension Conversation: ChatThread {
     public var title: String { name }
     public var preview: String { messages.last?.body ?? "" }
 }

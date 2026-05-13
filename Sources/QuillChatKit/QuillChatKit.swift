@@ -57,6 +57,18 @@ public extension ChatListItem {
     var unreadCount: Int { 0 }
 }
 
+/// Conversation/thread shape for chat models that own their messages.
+///
+/// Apps can conform their domain model directly, then use the higher-level
+/// `ChatDraft.sendMessage` overload without exposing a writable key path at
+/// every call site. The lower-level key-path overload remains available for
+/// models whose message storage is nested or named differently.
+public protocol ChatThread: ChatListItem {
+    associatedtype Message: ChatMessage
+
+    var messages: [Message] { get set }
+}
+
 /// Public styling tokens for the shared chat views.
 ///
 /// Defaults match the original Signal/Telegram Linux shell chrome.
@@ -326,6 +338,26 @@ public enum ChatDraft {
         items[idx][keyPath: keyPath].append(makeMessage(trimmed(draft)))
         draft = ""
         return true
+    }
+
+    /// Convenience overload for conversation models that conform to
+    /// `ChatThread`. This keeps app send paths generic and backend-agnostic
+    /// while still delegating the mutation rules to the canonical key-path
+    /// implementation above.
+    @discardableResult
+    public static func sendMessage<Thread: ChatThread>(
+        from draft: inout String,
+        toID id: Thread.ID?,
+        in threads: inout [Thread],
+        makeMessage: (String) -> Thread.Message
+    ) -> Bool {
+        sendMessage(
+            from: &draft,
+            toID: id,
+            in: &threads,
+            messagesAt: \.messages,
+            makeMessage: makeMessage
+        )
     }
 }
 

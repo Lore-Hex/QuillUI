@@ -314,6 +314,34 @@ struct QuillChatKitTests {
         var messages: [Fake]
     }
 
+    struct GenericThread: ChatThread {
+        let id: UUID
+        let title: String
+        var messages: [Fake]
+
+        var preview: String { messages.last?.body ?? "" }
+    }
+
+    @Test("sendMessage overload appends through ChatThread.messages")
+    func sendMessageUsesChatThreadStorage() {
+        let id = UUID()
+        var threads = [GenericThread(id: id, title: "Inbox", messages: [])]
+        var draft = "  ship it  "
+
+        let sent = ChatDraft.sendMessage(
+            from: &draft,
+            toID: id,
+            in: &threads
+        ) { body in
+            Fake(id: UUID(), sender: "Me", body: body, fromSelf: true)
+        }
+
+        #expect(sent)
+        #expect(draft == "")
+        #expect(threads[0].preview == "ship it")
+        #expect(threads[0].messages.count == 1)
+    }
+
     @Test("sendMessage appends the trimmed draft + clears it when id matches")
     func sendMessageHappyPath() {
         let id = UUID()

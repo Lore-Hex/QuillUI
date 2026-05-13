@@ -103,8 +103,7 @@ public struct QuillTelegramContentView: View {
         ChatDraft.sendMessage(
             from: &draft,
             toID: selectedChatID,
-            in: &chats,
-            messagesAt: \.messages
+            in: &chats
         ) { body in
             TGMessage(sender: "Me", body: body, fromSelf: true)
         }
@@ -174,7 +173,7 @@ public struct Chat: Identifiable, Hashable, Sendable {
     }
 }
 
-extension Chat: ChatListItem {
+extension Chat: ChatThread {
     public var preview: String { messages.last?.body ?? "" }
     public var unreadCount: Int { unread }
 }
