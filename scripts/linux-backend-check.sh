@@ -82,11 +82,14 @@ if (( ${#BACKEND_SMOKE_PRODUCTS[@]} == 0 )); then
 fi
 
 ALL_PRODUCTS=("${APP_PRODUCTS[@]}" "${BACKEND_SMOKE_PRODUCTS[@]}")
+BIN_PATH="$(swift build --scratch-path .build-linux --show-bin-path)"
 
 for product in "${ALL_PRODUCTS[@]}"; do
+  if [[ -x "$BIN_PATH/$product" ]]; then
+    continue
+  fi
   swift build --scratch-path .build-linux --product "$product"
 done
-BIN_PATH="$(swift build --scratch-path .build-linux --show-bin-path)"
 
 SMOKE_SECONDS="${QUILLUI_BACKEND_SMOKE_SECONDS:-${QUILLUI_SMOKE_SECONDS:-6}}"
 generated_app_smoke_count=0
