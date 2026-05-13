@@ -30,6 +30,22 @@ public struct QuillBackendDescriptor: Equatable, Sendable {
     public let isExperimental: Bool
     public let runtimeNotes: String
 
+    public var hasNativeRuntime: Bool {
+        QuillBackendRegistry.hasNativeRuntime(for: identifier)
+    }
+
+    public var runtimeBackend: QuillBackendIdentifier {
+        QuillBackendRegistry.runtimeBackend(for: identifier)
+    }
+
+    public var usesRuntimeFallback: Bool {
+        runtimeBackend != identifier
+    }
+
+    public var runtimeMode: QuillBackendRuntimeMode {
+        usesRuntimeFallback ? .platformFallback : .native
+    }
+
     public init(
         identifier: QuillBackendIdentifier,
         displayName: String,
