@@ -6,20 +6,28 @@ public enum QuillBackendIdentifier: String, CaseIterable, Sendable {
     case qt = "qt"
 
     public init?(environmentValue rawValue: String) {
-        let normalized = rawValue
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-
-        switch normalized {
-        case "swiftui", "swift-ui", "apple", "native":
-            self = .swiftUI
-        case "gtk", "gtk4":
-            self = .gtk
-        case "qt", "qt6":
-            self = .qt
-        default:
+        guard let identifier = Self.aliases[Self.normalizedEnvironmentValue(rawValue)] else {
             return nil
         }
+
+        self = identifier
+    }
+
+    private static let aliases: [String: QuillBackendIdentifier] = [
+        "swiftui": .swiftUI,
+        "swift-ui": .swiftUI,
+        "apple": .swiftUI,
+        "native": .swiftUI,
+        "gtk": .gtk,
+        "gtk4": .gtk,
+        "qt": .qt,
+        "qt6": .qt
+    ]
+
+    private static func normalizedEnvironmentValue(_ rawValue: String) -> String {
+        rawValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 }
 

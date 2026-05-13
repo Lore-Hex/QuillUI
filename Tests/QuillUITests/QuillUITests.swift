@@ -57,15 +57,29 @@ struct QuillUITests {
 
     @Test("Backend registry exposes SwiftUI GTK and Qt")
     func backendRegistryExposesKnownBackends() {
-        #expect(QuillBackendIdentifier(environmentValue: "swift-ui") == .swiftUI)
-        #expect(QuillBackendIdentifier(environmentValue: "gtk4") == .gtk)
-        #expect(QuillBackendIdentifier(environmentValue: "qt6") == .qt)
+        let aliases: [(String, QuillBackendIdentifier)] = [
+            ("swiftui", .swiftUI),
+            ("swift-ui", .swiftUI),
+            ("apple", .swiftUI),
+            ("native", .swiftUI),
+            ("gtk", .gtk),
+            ("gtk4", .gtk),
+            ("qt", .qt),
+            ("qt6", .qt),
+            (" Qt6 ", .qt),
+            ("\nGTK4\t", .gtk)
+        ]
+        for (rawValue, expectedBackend) in aliases {
+            #expect(QuillBackendIdentifier(environmentValue: rawValue) == expectedBackend)
+        }
         #expect(QuillBackendIdentifier(environmentValue: "unknown") == nil)
 
         #expect(QuillBackendRegistry.requestedBackend(from: [:]) == nil)
         #expect(QuillBackendRegistry.requestedBackend(from: ["QUILLUI_BACKEND": ""]) == nil)
         #expect(QuillBackendRegistry.requestedBackend(from: ["QUILLUI_BACKEND": "   "]) == nil)
         #expect(QuillBackendRegistry.requestedBackend(from: ["QUILLUI_BACKEND": "Qt6"]) == .qt)
+        #expect(QuillBackendRegistry.requestedBackend(from: ["QUILLUI_BACKEND": " GTK4 "]) == .gtk)
+        #expect(QuillBackendRegistry.requestedBackend(from: ["QUILLUI_BACKEND": "\nNative\t"]) == .swiftUI)
         #expect(QuillBackendRegistry.requestedBackend(from: ["QUILLUI_BACKEND": "unknown"]) == nil)
 
         let identifiers = QuillBackendRegistry.knownBackends.map(\.identifier)
