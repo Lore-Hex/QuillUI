@@ -4,6 +4,8 @@
 #include <QByteArray>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFile>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QFont>
 #include <QFrame>
@@ -447,6 +449,45 @@ QJsonObject importResponseObject(
     return tunnelValue.toObject();
 }
 
+bool importConfigurationIntoList(
+    const QString &configuration,
+    QJsonArray *tunnels,
+    QListWidget *list,
+    QLabel *countLabel,
+    const QJsonObject &presentation,
+    quill_wireguard_qt_import_config_callback importConfig,
+    quill_wireguard_qt_free_string_callback freeString,
+    QLabel *error
+) {
+    const QString trimmedConfiguration = configuration.trimmed();
+    if (trimmedConfiguration.isEmpty()) {
+        error->setText(presentationValue(
+            presentation,
+            "importEmptyConfigurationError",
+            "Paste a WireGuard configuration before importing."
+        ));
+        return false;
+    }
+
+    QString importError;
+    const QJsonObject tunnel = importResponseObject(
+        trimmedConfiguration,
+        tunnels,
+        presentation,
+        importConfig,
+        freeString,
+        &importError
+    );
+    if (!importError.isEmpty()) {
+        error->setText(importError);
+        return false;
+    }
+
+    appendImportedTunnel(tunnels, list, countLabel, tunnel);
+    error->clear();
+    return true;
+}
+
 void showImportDialog(
     QWidget *parent,
     QJsonArray *tunnels,
@@ -490,36 +531,60 @@ void showImportDialog(
         QDialogButtonBox::AcceptRole
     );
     confirm->setObjectName(QStringLiteral("importConfirmButton"));
+    QPushButton *chooseFile = buttons->addButton(
+        presentationValue(presentation, "importFileActionLabel", "Choose File"),
+        QDialogButtonBox::ActionRole
+    );
+    chooseFile->setObjectName(QStringLiteral("importChooseFileButton"));
     layout->addWidget(buttons);
 
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     QObject::connect(confirm, &QPushButton::clicked, [&]() {
-        const QString configuration = editor->toPlainText().trimmed();
-        if (configuration.isEmpty()) {
-            error->setText(presentationValue(
-                presentation,
-                "importEmptyConfigurationError",
-                "Paste a WireGuard configuration before importing."
-            ));
-            return;
-        }
-
-        QString importError;
-        const QJsonObject tunnel = importResponseObject(
-            configuration,
+        if (importConfigurationIntoList(
+            editor->toPlainText(),
             tunnels,
+            list,
+            countLabel,
             presentation,
             importConfig,
             freeString,
-            &importError
+            error
+        )) {
+            dialog.accept();
+        }
+    });
+
+    QObject::connect(chooseFile, &QPushButton::clicked, [&]() {
+        const QString fileName = QFileDialog::getOpenFileName(
+            &dialog,
+            presentationValue(presentation, "importDialogTitle", "Import WireGuard Configuration"),
+            QString(),
+            QStringLiteral("WireGuard configurations (*.conf *.txt);;All files (*)")
         );
-        if (!importError.isEmpty()) {
-            error->setText(importError);
+        if (fileName.isEmpty()) {
             return;
         }
 
-        appendImportedTunnel(tunnels, list, countLabel, tunnel);
-        dialog.accept();
+        QFile file(fileName);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            error->setText(file.errorString());
+            return;
+        }
+
+        const QString configuration = QString::fromUtf8(file.readAll());
+        editor->setPlainText(configuration);
+        if (importConfigurationIntoList(
+            configuration,
+            tunnels,
+            list,
+            countLabel,
+            presentation,
+            importConfig,
+            freeString,
+            error
+        )) {
+            dialog.accept();
+        }
     });
 
     dialog.exec();
