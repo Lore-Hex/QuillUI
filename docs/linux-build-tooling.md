@@ -256,7 +256,9 @@ the menu surface appears below the toolbar.
 
 Profile baselines use the composed `profile-matrix` roster so the same budget
 check covers each user-facing app and generated external app under every
-requested backend plus the backend launch fixtures:
+requested backend plus the backend launch fixtures. The roster emits
+`PRODUCT<TAB>BACKEND` rows, and the CSV runner canonicalizes backend aliases
+before it launches the profiler:
 
 ```bash
 scripts/quillui-backend-products.sh profile-matrix | \

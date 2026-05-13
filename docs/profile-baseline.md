@@ -10,8 +10,10 @@ i.e. long-term render-loop cost).
 Current CI sources the profile roster from
 `scripts/quillui-backend-products.sh profile-matrix`, which composes every
 user-facing app and generated external app with each requested backend plus the
-GTK and Qt backend launch smoke products. Backend-requested app rows keep the
-existing CSV schema by labeling the product column as `product@backend`. The older
+GTK and Qt backend launch smoke products. The roster emits
+`PRODUCT<TAB>BACKEND` rows, and backend aliases are canonicalized before launch.
+Backend-requested app rows keep the existing CSV schema by labeling the product
+column as `product@backend`. The older
 `scripts/linux-gtk-app-products.sh`,
 `scripts/linux-gtk-profile.sh`, `scripts/run-linux-gtk-profile-csv.sh`,
 and `scripts/check-linux-gtk-profile-budget.sh` paths remain as
@@ -332,13 +334,14 @@ fires at 200Hz, so per-paint allocations stack.
 
 ## Method
 
-`scripts/linux-backend-profile.sh <product> [settle] [steady]`:
+`scripts/linux-backend-profile.sh <product> [settle] [steady] [backend]`:
 
 1. `swift build --product <product>` (build time captured
    separately so dep-cache state doesn't pollute startup).
 2. Start Xvfb with the shared backend screen-size helper, defaulting to
    `:95` and `1180x760x24`.
-3. Launch the app, poll `xdotool search --onlyvisible` until
+3. Launch the app with the requested backend, poll
+   `xdotool search --onlyvisible` until
    the first X11 window appears (the "rendered first frame"
    signal, not just "process exists").
 4. Sleep `<settle>` seconds (default 5). Read `VmRSS`.

@@ -78,6 +78,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("docs/linux-build-tooling.md"),
             encoding: .utf8
         )
+        let profileBaseline = try String(
+            contentsOf: root.appendingPathComponent("docs/profile-baseline.md"),
+            encoding: .utf8
+        )
         let offscreenRenderer = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillUI/GtkOffscreenRender.swift"),
             encoding: .utf8
@@ -109,9 +113,17 @@ struct SourceHygieneTests {
         #expect(linuxBuildTooling.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\" \"$backend\""))
         #expect(linuxBuildTooling.contains("scripts/linux-backend-interaction-check.sh \".qa/${product}-interaction-${backend}.png\" \"$product\" \"$backend\""))
         #expect(linuxBuildTooling.contains("scripts/linux-backend-interaction-check.sh \".qa/${product}-toolbar-menu-${backend}.png\" \"$product\" \"$backend\""))
+        #expect(linuxBuildTooling.contains("`PRODUCT<TAB>BACKEND` rows"))
+        #expect(linuxBuildTooling.contains("canonicalizes backend aliases"))
         #expect(!linuxBuildTooling.contains("QUILLUI_BACKEND=\"$backend\" scripts/linux-backend-visual-check.sh"))
         #expect(!linuxBuildTooling.contains("QUILLUI_BACKEND=\"$backend\" QUILLUI_BACKEND_SKIP_BUILD=1"))
         #expect(linuxBuildTooling.contains("QuillLinuxRuntimeHost"))
+
+        #expect(profileBaseline.contains("`PRODUCT<TAB>BACKEND` rows"))
+        #expect(profileBaseline.contains("canonicalized before launch"))
+        #expect(profileBaseline.contains("`product@backend`"))
+        #expect(profileBaseline.contains("scripts/linux-backend-profile.sh <product> [settle] [steady] [backend]"))
+        #expect(!profileBaseline.contains("scripts/linux-backend-profile.sh <product> [settle] [steady]`:"))
 
         #expect(offscreenRenderer.contains("scripts/linux-backend-check.sh"))
         #expect(!offscreenRenderer.contains("scripts/linux-gtk-check.sh"))
