@@ -122,18 +122,15 @@ private func quillBackendEnvironmentDouble(
     qtScoped: String
 ) -> Double? {
     let environment = ProcessInfo.processInfo.environment
-    let selectedBackend = QuillBackendRegistry.requestedBackend(from: environment)
-        ?? QuillBackendRegistry.platformDefault
-    let scopedValue: String?
-
-    switch selectedBackend {
-    case .qt:
-        scopedValue = environment[qtScoped] ?? environment[gtkLegacy]
-    case .gtk, .swiftUI:
-        scopedValue = environment[gtkLegacy] ?? environment[qtScoped]
-    }
-
-    return (environment[canonical] ?? scopedValue).flatMap(Double.init)
+    return QuillBackendRegistry
+        .backendScopedEnvironmentValue(
+            canonical,
+            gtkLegacy: gtkLegacy,
+            qtScoped: qtScoped,
+            from: environment,
+            preferred: QuillBackendRuntimeContext.selectedBackend
+        )
+        .flatMap(Double.init)
 }
 
 private var quillBackendReferenceWindowWidth: Double? {

@@ -50,9 +50,12 @@ public enum QuillApp {
         _ appType: A.Type,
         preferredBackend: QuillBackendIdentifier? = nil
     ) {
+        let launchPlan = QuillBackendRegistry.launchPlan(preferred: preferredBackend)
+        QuillBackendRuntimeContext.install(launchPlan)
+
         MainActor.assumeIsolated {
             #if os(Linux)
-            QuillLinuxAppRuntime.run(appType, preferredBackend: preferredBackend)
+            QuillLinuxAppRuntime.run(appType, launchPlan: launchPlan)
             #else
             A.main()
             #endif
@@ -123,9 +126,8 @@ enum QuillLinuxRuntimeHost: CaseIterable {
 private enum QuillLinuxAppRuntime {
     static func run<A: App>(
         _ appType: A.Type,
-        preferredBackend: QuillBackendIdentifier?
+        launchPlan: QuillBackendLaunchPlan
     ) {
-        let launchPlan = QuillBackendRegistry.launchPlan(preferred: preferredBackend)
         QuillLinuxRuntimeHost(launchPlan: launchPlan).run(appType)
     }
 }

@@ -90,6 +90,50 @@ struct QuillUITests {
         #expect(QuillBackendRegistry.backendRequest(from: ["QUILLUI_BACKEND": " unknown "]).identifier == nil)
         #expect(QuillBackendRegistry.backendRequest(from: ["QUILLUI_BACKEND": "\nunknown\t"]).invalidRawValue == "unknown")
 
+        let backendWindowWidth = "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH"
+        let gtkWindowWidth = "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"
+        let qtWindowWidth = "QUILLUI_QT_DEFAULT_WINDOW_WIDTH"
+        let scopedWindowEnvironment = [
+            gtkWindowWidth: "1200",
+            qtWindowWidth: "1400"
+        ]
+        #expect(
+            QuillBackendRegistry.backendScopedEnvironmentValue(
+                backendWindowWidth,
+                gtkLegacy: gtkWindowWidth,
+                qtScoped: qtWindowWidth,
+                from: scopedWindowEnvironment,
+                preferred: .gtk
+            ) == "1200"
+        )
+        #expect(
+            QuillBackendRegistry.backendScopedEnvironmentValue(
+                backendWindowWidth,
+                gtkLegacy: gtkWindowWidth,
+                qtScoped: qtWindowWidth,
+                from: scopedWindowEnvironment,
+                preferred: .qt
+            ) == "1400"
+        )
+        #expect(
+            QuillBackendRegistry.backendScopedEnvironmentValue(
+                backendWindowWidth,
+                gtkLegacy: gtkWindowWidth,
+                qtScoped: qtWindowWidth,
+                from: scopedWindowEnvironment.merging(["QUILLUI_BACKEND": "gtk"], uniquingKeysWith: { lhs, _ in lhs }),
+                preferred: .qt
+            ) == "1200"
+        )
+        #expect(
+            QuillBackendRegistry.backendScopedEnvironmentValue(
+                backendWindowWidth,
+                gtkLegacy: gtkWindowWidth,
+                qtScoped: qtWindowWidth,
+                from: scopedWindowEnvironment.merging([backendWindowWidth: "1600"], uniquingKeysWith: { lhs, _ in lhs }),
+                preferred: .qt
+            ) == "1600"
+        )
+
         let identifiers = QuillBackendRegistry.knownBackends.map(\.identifier)
         #expect(identifiers == [.swiftUI, .gtk, .qt])
 

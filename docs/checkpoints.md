@@ -2866,3 +2866,14 @@ messages when `QUILLUI_BACKEND` contains an unsupported value. The runtime
 status facade carries both the raw runtime fallback message and the full
 user-facing message list, so GTK and Qt app surfaces can show invalid backend
 requests without re-parsing process environment state.
+
+## Checkpoint 161: Runtime Context Drives Backend-Scoped Controls
+
+Status: implemented locally; guarded by QuillUI API and source hygiene tests.
+
+`QuillApp.run` now installs the resolved launch plan into a locked runtime
+context before entering the platform host. Shared controls use the context as
+their preferred backend when reading backend-scoped environment values, so a
+`QuillQtApp` launch without an explicit `QUILLUI_BACKEND=qt` request still
+uses Qt-scoped control settings while explicit environment requests continue
+to win.

@@ -77,10 +77,8 @@ struct SourceHygieneTests {
             encoding: .utf8
         )
 
-        #expect(source.contains("QuillBackendRegistry.requestedBackend(from: environment)"))
-        #expect(source.contains("environment[canonical] ?? scopedValue"))
-        #expect(source.contains("environment[qtScoped] ?? environment[gtkLegacy]"))
-        #expect(source.contains("environment[gtkLegacy] ?? environment[qtScoped]"))
+        #expect(source.contains("QuillBackendRegistry\n        .backendScopedEnvironmentValue("))
+        #expect(source.contains("preferred: QuillBackendRuntimeContext.selectedBackend"))
         #expect(source.contains("gtkLegacy: \"QUILLUI_GTK_DEFAULT_WINDOW_WIDTH\""))
         #expect(source.contains("qtScoped: \"QUILLUI_QT_DEFAULT_WINDOW_WIDTH\""))
         #expect(source.contains("gtkLegacy: \"QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT\""))
@@ -228,6 +226,7 @@ struct SourceHygieneTests {
         #expect(helperSource.contains("public enum QuillAppWindow"))
         #expect(helperSource.contains("public enum QuillBackendApp<Backend: QuillBackend>"))
         #expect(helperSource.contains("QuillBackendRegistry.launchPlan(preferred: preferredBackend)"))
+        #expect(helperSource.contains("QuillBackendRuntimeContext.install(launchPlan)"))
         #expect(helperSource.contains("enum QuillLinuxRuntimeHost: CaseIterable"))
         #expect(helperSource.contains("static var supportedBackends: [QuillBackendIdentifier]"))
         #expect(helperSource.contains("allCases.map(\\.backendIdentifier)"))
@@ -235,6 +234,7 @@ struct SourceHygieneTests {
         #expect(helperSource.contains("case .gtk:"))
         #expect(helperSource.contains("case .swiftUI, .qt:"))
         #expect(helperSource.contains("No Linux runtime host is linked for"))
+        #expect(helperSource.contains("QuillLinuxAppRuntime.run(appType, launchPlan: launchPlan)"))
         #expect(helperSource.contains("QuillLinuxRuntimeHost(launchPlan: launchPlan).run(appType)"))
         #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
         #expect(helperSource.contains(".defaultSize(width: width, height: height)"))

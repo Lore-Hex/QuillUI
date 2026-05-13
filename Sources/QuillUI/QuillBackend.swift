@@ -187,6 +187,37 @@ public struct QuillBackendRuntimeStatus: Equatable, Sendable {
     }
 }
 
+private final class QuillBackendRuntimeContextStorage: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedLaunchPlan: QuillBackendLaunchPlan?
+
+    var launchPlan: QuillBackendLaunchPlan? {
+        lock.withLock { storedLaunchPlan }
+    }
+
+    func install(_ launchPlan: QuillBackendLaunchPlan?) {
+        lock.withLock {
+            storedLaunchPlan = launchPlan
+        }
+    }
+}
+
+public enum QuillBackendRuntimeContext {
+    private static let storage = QuillBackendRuntimeContextStorage()
+
+    public static var launchPlan: QuillBackendLaunchPlan? {
+        storage.launchPlan
+    }
+
+    public static var selectedBackend: QuillBackendIdentifier? {
+        launchPlan?.selected
+    }
+
+    static func install(_ launchPlan: QuillBackendLaunchPlan?) {
+        storage.install(launchPlan)
+    }
+}
+
 public protocol QuillBackend {
     static var identifier: QuillBackendIdentifier { get }
     static var descriptor: QuillBackendDescriptor { get }
@@ -294,6 +325,29 @@ public enum QuillBackendRegistry {
             selected: selectedBackend,
             runtime: runtimeBackend(for: selectedBackend)
         )
+    }
+
+    public static func backendScopedEnvironmentValue(
+        _ canonical: String,
+        gtkLegacy: String,
+        qtScoped: String,
+        from environment: [String: String],
+        preferred preferredBackend: QuillBackendIdentifier? = nil
+    ) -> String? {
+        let selectedBackend = launchPlan(
+            environment: environment,
+            preferred: preferredBackend
+        ).selected
+        let scopedValue: String?
+
+        switch selectedBackend {
+        case .qt:
+            scopedValue = environment[qtScoped] ?? environment[gtkLegacy]
+        case .gtk, .swiftUI:
+            scopedValue = environment[gtkLegacy] ?? environment[qtScoped]
+        }
+
+        return environment[canonical] ?? scopedValue
     }
 
     public static func requestedBackend(
