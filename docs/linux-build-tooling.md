@@ -277,6 +277,19 @@ real Qt host, so CI cannot silently report Qt while running the GTK host.
 scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke
 ```
 
+Native product interaction modes use the same backend-neutral runner. For
+example, WireGuard's Qt host can exercise its shared-parser import dialog
+without linking the GTK path:
+
+```bash
+QUILLUI_LINUX_BACKEND=qt \
+  QUILLUI_BACKEND_INTERACTION_MODE=import-paste \
+  scripts/linux-backend-interaction-check.sh \
+    .qa/quill-wireguard-qt-import.png \
+    quill-wireguard-qt \
+    qt
+```
+
 The GTK and Qt launch fixtures also run through the backend visual runner from
 the shared smoke matrix, and through a mode-aware interaction matrix that drives
 the root button, nested controls, and sheet presentations with one product build

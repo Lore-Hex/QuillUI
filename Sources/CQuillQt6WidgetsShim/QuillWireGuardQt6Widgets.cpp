@@ -18,6 +18,7 @@
 #include <QLabel>
 #include <QLayout>
 #include <QLayoutItem>
+#include <QKeySequence>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
@@ -25,6 +26,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QShortcut>
 #include <QSize>
 #include <QSplitter>
 #include <QString>
@@ -531,6 +533,8 @@ void showImportDialog(
         QDialogButtonBox::AcceptRole
     );
     confirm->setObjectName(QStringLiteral("importConfirmButton"));
+    confirm->setDefault(true);
+    confirm->setAutoDefault(true);
     QPushButton *chooseFile = buttons->addButton(
         presentationValue(presentation, "importFileActionLabel", "Choose File"),
         QDialogButtonBox::ActionRole
@@ -539,9 +543,9 @@ void showImportDialog(
     layout->addWidget(buttons);
 
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    QObject::connect(confirm, &QPushButton::clicked, [&]() {
+    auto attemptImport = [&](const QString &configuration) {
         if (importConfigurationIntoList(
-            editor->toPlainText(),
+            configuration,
             tunnels,
             list,
             countLabel,
@@ -551,7 +555,18 @@ void showImportDialog(
             error
         )) {
             dialog.accept();
+            return true;
         }
+        return false;
+    };
+    QObject::connect(confirm, &QPushButton::clicked, [&]() {
+        attemptImport(editor->toPlainText());
+    });
+
+    QShortcut *importShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Return")), &dialog);
+    importShortcut->setContext(Qt::WindowShortcut);
+    QObject::connect(importShortcut, &QShortcut::activated, [&]() {
+        attemptImport(editor->toPlainText());
     });
 
     QObject::connect(chooseFile, &QPushButton::clicked, [&]() {
@@ -573,18 +588,7 @@ void showImportDialog(
 
         const QString configuration = QString::fromUtf8(file.readAll());
         editor->setPlainText(configuration);
-        if (importConfigurationIntoList(
-            configuration,
-            tunnels,
-            list,
-            countLabel,
-            presentation,
-            importConfig,
-            freeString,
-            error
-        )) {
-            dialog.accept();
-        }
+        attemptImport(configuration);
     });
 
     dialog.exec();

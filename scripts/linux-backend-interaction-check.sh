@@ -117,6 +117,30 @@ type_text() {
   DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$1"
 }
 
+wireguard_qt_import_configuration() {
+  if [[ -n "${QUILLUI_BACKEND_IMPORT_CONFIGURATION:-}" ]]; then
+    printf '%s' "$QUILLUI_BACKEND_IMPORT_CONFIGURATION"
+    return 0
+  fi
+
+  cat <<'EOF'
+# Created outside Quill
+[Interface]
+PrivateKey = imported-private-key=
+PublicKey = imported-public-key=
+Address = 10.44.0.2/32, fd44::2/128
+DNS = 1.1.1.1, 2606:4700:4700::1111
+ListenPort = 51820
+
+[Peer]
+# Name = Imported Edge
+PublicKey = imported-peer-public-key=
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = vpn.example.com:51820
+PersistentKeepalive = 25
+EOF
+}
+
 quillui_is_backend_smoke_sheet_interaction() {
   case "$1" in
     nested-sheet|sidebar-sheet|banner-sheet)
@@ -271,6 +295,20 @@ elif [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
         sleep 0.5
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-Edited Tunnel}"
+        sleep "$post_click_sleep"
+        ;;
+      import-paste|paste-import)
+        import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 292))}"
+        import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
+        editor_x="${QUILLUI_BACKEND_IMPORT_EDITOR_X:-$((window_x + window_width / 2))}"
+        editor_y="${QUILLUI_BACKEND_IMPORT_EDITOR_Y:-$((window_y + 230))}"
+        click_at "$import_x" "$import_y"
+        sleep 0.8
+        click_at "$editor_x" "$editor_y"
+        sleep 0.2
+        type_text "$(wireguard_qt_import_configuration)"
+        sleep 0.4
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+Return
         sleep "$post_click_sleep"
         ;;
       *)

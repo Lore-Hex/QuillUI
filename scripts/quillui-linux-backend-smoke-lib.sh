@@ -203,6 +203,9 @@ quillui_backend_interaction_verify_product() {
       tunnel-name-edit|name-edit)
         verify_product="quill-wireguard-qt-name-edit"
         ;;
+      import-paste|paste-import)
+        verify_product="quill-wireguard-qt-import-paste"
+        ;;
     esac
   elif quillui_is_backend_smoke_product "$product"; then
     verify_product="$(quillui_backend_smoke_interaction_verify_product "$product" "$interaction_mode")" || return $?

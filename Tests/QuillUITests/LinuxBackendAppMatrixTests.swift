@@ -381,6 +381,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
         #expect(smokeLib.contains("quill-wireguard-qt-tunnel-selection"))
         #expect(smokeLib.contains("quill-wireguard-qt-name-edit"))
+        #expect(smokeLib.contains("quill-wireguard-qt-import-paste"))
         #expect(smokeLib.contains("quillui_backend_smoke_interaction_verify_product \"$product\" \"$interaction_mode\""))
         #expect(smokeLib.contains("quillui_append_backend_launch_environment()"))
         #expect(smokeLib.contains("quillui_append_backend_runtime_environment()"))
@@ -1003,6 +1004,15 @@ struct LinuxBackendAppMatrixTests {
         printf 'interaction=%s\\n' "$QUILLUI_BACKEND_INTERACTION_MODE"
         printf 'interaction-qt=%s\\n' "$QUILLUI_QT_INTERACTION_MODE"
 
+        unset QUILLUI_BACKEND_IMPORT_CONFIGURATION QUILLUI_GTK_IMPORT_CONFIGURATION QUILLUI_QT_IMPORT_CONFIGURATION
+        QUILLUI_BACKEND=qt
+        QUILLUI_GTK_IMPORT_CONFIGURATION=wrong-backend
+        QUILLUI_QT_IMPORT_CONFIGURATION=qt-import
+        export QUILLUI_BACKEND QUILLUI_GTK_IMPORT_CONFIGURATION QUILLUI_QT_IMPORT_CONFIGURATION
+        quillui_alias_backend_interaction_env
+        printf 'import-config=%s\\n' "$QUILLUI_BACKEND_IMPORT_CONFIGURATION"
+        printf 'import-config-qt=%s\\n' "$QUILLUI_QT_IMPORT_CONFIGURATION"
+
         unset QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT QUILLUI_GTK_PROFILE_MAX_CPU_PCT QUILLUI_QT_PROFILE_MAX_CPU_PCT
         QUILLUI_BACKEND=Qt
         QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT=11
@@ -1076,6 +1086,8 @@ struct LinuxBackendAppMatrixTests {
         screen-qt=1440x900x24
         interaction=prompt-send
         interaction-qt=prompt-send
+        import-config=qt-import
+        import-config-qt=qt-import
         cpu-qt=11
         generated-entry=1
         generated-entry-gtk=1

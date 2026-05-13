@@ -1526,6 +1526,8 @@ def main() -> int:
             minimum_selected_center_offset=100,
             require_focused_title=True,
         ))
+    elif product == "quill-wireguard-qt-import-paste":
+        print(validate_quill_wireguard_qt_native(image, minimum_selected_center_offset=145))
     elif product in {"quill-gtk-interaction-smoke-open", "quill-qt-interaction-smoke-open"}:
         print(validate_quill_backend_interaction_smoke(image))
     elif product in {"quill-gtk-interaction-smoke-sidebar", "quill-qt-interaction-smoke-sidebar"}:
