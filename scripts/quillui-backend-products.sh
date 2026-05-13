@@ -580,17 +580,6 @@ quillui_backend_profile_runtime_matrix() {
   quillui_backend_profile_matrix | quillui_backend_runtime_matrix_for_rows
 }
 
-quillui_backend_runtime_matches_backend() {
-  local requested_backend
-  local runtime_backend
-  local expected_runtime_backend
-
-  requested_backend="$(quillui_require_backend_identifier "$1")" || return $?
-  runtime_backend="$(quillui_require_backend_identifier "$2")" || return $?
-  expected_runtime_backend="$(quillui_runtime_backend_for_backend "$requested_backend")" || return $?
-  [[ "$runtime_backend" == "$expected_runtime_backend" ]]
-}
-
 quillui_runtime_backend_for_product() {
   local requested_backend
 

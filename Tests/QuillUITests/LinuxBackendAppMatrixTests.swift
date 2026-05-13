@@ -250,7 +250,6 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_smoke_runtime_matrix()"))
         #expect(backendProducts.contains("quillui_backend_smoke_interaction_runtime_matrix()"))
         #expect(backendProducts.contains("quillui_backend_profile_runtime_matrix()"))
-        #expect(backendProducts.contains("quillui_backend_runtime_matches_backend()"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS QUILLUI_QT_PROFILE_MAX_STARTUP_MS\n  quillui_alias_backend_common_env"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
@@ -394,9 +393,12 @@ struct LinuxBackendAppMatrixTests {
         #expect(csvRunner.contains("quillui_is_backend_generated_app_product \"$product\""))
         #expect(csvRunner.contains("quillui_require_backend_identifier \"$backend\""))
         #expect(csvRunner.contains("requested_backend=\"$(quillui_requested_backend_for_product \"$product\")\""))
+        #expect(csvRunner.contains("quillui_backend_validate_runtime_availability \"$requested_backend\" \"$provided_runtime_backend\" \"$provided_runtime_mode\""))
         #expect(csvRunner.contains("runtime_availability=\"$(quillui_backend_runtime_availability_for_backend \"$requested_backend\")\""))
         #expect(csvRunner.contains("IFS=$'\\t' read -r requested_backend runtime_backend runtime_mode <<<\"$runtime_availability\""))
         #expect(csvRunner.contains("profile-row-unsupported-backend"))
+        #expect(csvRunner.contains("profile-row-runtime-backend-mismatch"))
+        #expect(csvRunner.contains("profile-row-runtime-mode-mismatch"))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND_SKIP_BUILD=1\")"))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND=$backend\")"))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_APP_BACKEND_FACADE=$requested_backend\")"))
@@ -1192,7 +1194,7 @@ struct LinuxBackendAppMatrixTests {
             script,
             arguments: [csv.path],
             environment: ["QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path],
-            stdin: "quill-icecubes\tGTK4\nquill-icecubes\t qt6 \nquill-chat-linux\tgtk\nquill-chat-linux\tqt\nquill-icecubes\tqtx\n"
+            stdin: "quill-icecubes\tGTK4\tgtk\tnative\nquill-icecubes\t qt6 \tgtk\tplatformFallback\nquill-chat-linux\tgtk\tgtk\tnative\nquill-chat-linux\tqt\tgtk\tplatformFallback\nquill-icecubes\tgtk\tqt\tnative\nquill-icecubes\tqt\tgtk\tnative\nquill-icecubes\tgtk\tqtx\tnative\nquill-icecubes\tgtk\tgtk\tbogus\nquill-icecubes\tqtx\n"
         )
 
         #expect(result.status == 0, Comment(rawValue: result.output))
@@ -1202,6 +1204,10 @@ struct LinuxBackendAppMatrixTests {
         quill-icecubes,qt,gtk,platformFallback,1,2,3,1.0,5.0,ok
         quill-chat-linux,gtk,gtk,native,1,2,3,0.0,5.0,ok
         quill-chat-linux,qt,gtk,platformFallback,1,2,3,0.0,5.0,ok
+        quill-icecubes,gtk,qt,native,0,0,0,0.0,0.0,profile-row-runtime-backend-mismatch
+        quill-icecubes,qt,gtk,native,0,0,0,0.0,0.0,profile-row-runtime-mode-mismatch
+        quill-icecubes,gtk,unknown,unknown,0,0,0,0.0,0.0,profile-row-unsupported-runtime-backend
+        quill-icecubes,gtk,gtk,bogus,0,0,0,0.0,0.0,profile-row-runtime-mode-mismatch
         quill-icecubes,unsupported-backend,unknown,unknown,0,0,0,0.0,0.0,profile-row-unsupported-backend
 
         """
