@@ -61,6 +61,14 @@ public enum QuillInteractionSmokeScene {
     }
 }
 
+public struct QuillBackendInteractionSmokeApp<Backend: QuillBackend>: App {
+    public init() {}
+
+    public var body: some Scene {
+        QuillInteractionSmokeScene.scene(for: Backend.identifier)
+    }
+}
+
 public struct QuillInteractionSmokeView: View {
     private let title: String
     private let clickTargetTitle: String

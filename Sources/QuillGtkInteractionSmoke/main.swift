@@ -2,10 +2,6 @@ import QuillInteractionSmokeSupport
 import QuillUI
 import QuillUIGtk
 
-private struct QuillGtkInteractionSmokeApp: App {
-    var body: some Scene {
-        QuillInteractionSmokeScene.scene(for: .gtk)
-    }
-}
+private typealias QuillGtkInteractionSmokeApp = QuillBackendInteractionSmokeApp<QuillGtkBackend>
 
 QuillGtkApp.run(QuillGtkInteractionSmokeApp.self)

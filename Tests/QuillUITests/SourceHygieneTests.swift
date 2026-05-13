@@ -148,8 +148,8 @@ struct SourceHygieneTests {
             "Sources/QuillEnchantedUpstreamSlice/main.swift"
         ]
         let backendSmokeEntryPointPaths = [
-            "Sources/QuillGtkInteractionSmoke/main.swift": "QuillInteractionSmokeScene.scene(for: .gtk)",
-            "Sources/QuillQtInteractionSmoke/main.swift": "QuillInteractionSmokeScene.scene(for: .qt)"
+            "Sources/QuillGtkInteractionSmoke/main.swift": "QuillBackendInteractionSmokeApp<QuillGtkBackend>",
+            "Sources/QuillQtInteractionSmoke/main.swift": "QuillBackendInteractionSmokeApp<QuillQtBackend>"
         ]
 
         #expect(helperSource.contains("public enum QuillAppWindow"))
@@ -173,10 +173,10 @@ struct SourceHygieneTests {
             #expect(!source.contains(".defaultSize("), "\(path) should let QuillAppWindow own default sizing")
         }
 
-        for (path, sceneCall) in backendSmokeEntryPointPaths {
+        for (path, appType) in backendSmokeEntryPointPaths {
             let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
 
-            #expect(source.contains(sceneCall), "\(path) should use the shared interaction smoke scene")
+            #expect(source.contains(appType), "\(path) should use the shared generic interaction smoke app")
             #expect(!source.contains("WindowGroup("), "\(path) should not hand-roll WindowGroup setup")
             #expect(!source.contains(".defaultWindowSize("), "\(path) should not branch into Linux-only sizing")
             #expect(!source.contains(".defaultSize("), "\(path) should let QuillInteractionSmokeScene own default sizing")
@@ -258,16 +258,18 @@ struct SourceHygieneTests {
 
         #expect(gtkMain.contains("import QuillInteractionSmokeSupport"))
         #expect(gtkMain.contains("import QuillUIGtk"))
-        #expect(gtkMain.contains("QuillInteractionSmokeScene.scene(for: .gtk)"))
+        #expect(gtkMain.contains("private typealias QuillGtkInteractionSmokeApp = QuillBackendInteractionSmokeApp<QuillGtkBackend>"))
         #expect(gtkMain.contains("QuillGtkApp.run(QuillGtkInteractionSmokeApp.self)"))
+        #expect(!gtkMain.contains("QuillInteractionSmokeScene.scene(for: .gtk)"))
         #expect(!gtkMain.contains("Quill GTK Interaction"))
         #expect(!gtkMain.contains("Native GTK click target"))
         #expect(!gtkMain.contains("struct SmokeView"))
 
         #expect(qtMain.contains("import QuillInteractionSmokeSupport"))
         #expect(qtMain.contains("import QuillUIQt"))
-        #expect(qtMain.contains("QuillInteractionSmokeScene.scene(for: .qt)"))
+        #expect(qtMain.contains("private typealias QuillQtInteractionSmokeApp = QuillBackendInteractionSmokeApp<QuillQtBackend>"))
         #expect(qtMain.contains("QuillQtApp.run(QuillQtInteractionSmokeApp.self)"))
+        #expect(!qtMain.contains("QuillInteractionSmokeScene.scene(for: .qt)"))
         #expect(!qtMain.contains("Quill Qt Interaction"))
         #expect(!qtMain.contains("Native Qt click target"))
         #expect(!qtMain.contains("struct SmokeView"))
@@ -275,6 +277,8 @@ struct SourceHygieneTests {
         #expect(sharedView.contains("public struct QuillInteractionSmokeConfiguration"))
         #expect(sharedView.contains("public struct QuillInteractionSmokeView"))
         #expect(sharedView.contains("public enum QuillInteractionSmokeScene"))
+        #expect(sharedView.contains("public struct QuillBackendInteractionSmokeApp<Backend: QuillBackend>: App"))
+        #expect(sharedView.contains("QuillInteractionSmokeScene.scene(for: Backend.identifier)"))
         #expect(sharedView.contains("backendParitySurface"))
         #expect(sharedView.contains("QuillAppWindow.scene("))
         #expect(sharedView.contains("Quill Backend Interaction"))

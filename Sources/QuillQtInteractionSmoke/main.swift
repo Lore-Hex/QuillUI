@@ -2,10 +2,6 @@ import QuillInteractionSmokeSupport
 import QuillUI
 import QuillUIQt
 
-private struct QuillQtInteractionSmokeApp: App {
-    var body: some Scene {
-        QuillInteractionSmokeScene.scene(for: .qt)
-    }
-}
+private typealias QuillQtInteractionSmokeApp = QuillBackendInteractionSmokeApp<QuillQtBackend>
 
 QuillQtApp.run(QuillQtInteractionSmokeApp.self)
