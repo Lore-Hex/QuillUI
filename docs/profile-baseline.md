@@ -9,9 +9,9 @@ i.e. long-term render-loop cost).
 
 Current CI sources the profile roster from
 `scripts/quillui-backend-products.sh profile-matrix`, which composes every
-user-facing app with each requested backend plus the GTK and Qt backend launch
-smoke products. Backend-requested app rows keep the existing CSV schema by
-labeling the product column as `product@backend`. The older
+user-facing app and generated external app with each requested backend plus the
+GTK and Qt backend launch smoke products. Backend-requested app rows keep the
+existing CSV schema by labeling the product column as `product@backend`. The older
 `scripts/linux-gtk-app-products.sh`,
 `scripts/linux-gtk-profile.sh`, `scripts/run-linux-gtk-profile-csv.sh`,
 and `scripts/check-linux-gtk-profile-budget.sh` paths remain as
@@ -24,10 +24,11 @@ SwiftPM build path, generated Quill Chat build path, prebuilt executable
 override, skip-build behavior, and backend selection defaults as the rest of
 the Linux backend QA tooling.
 
-Because `profile-matrix` includes both `app@qt` rows and
-`quill-qt-interaction-smoke`, the Qt launch path now receives startup/RSS/CPU
-budget rows even before the native Qt renderer is linked. That keeps Qt target
-work visible in the same performance loop as the GTK app matrix.
+Because `profile-matrix` includes root app, generated app, and
+`quill-qt-interaction-smoke` Qt rows, the Qt launch path now receives
+startup/RSS/CPU budget rows even before the native Qt renderer is linked. That
+keeps Qt target work visible in the same performance loop as the GTK app
+matrix.
 
 ## Current Matrix (Linux run 25716559081, commit d69a1f4)
 

@@ -84,10 +84,12 @@ quillui_backend_smoke_products() {
 }
 
 quillui_backend_profile_products() {
-  # Performance budget rows cover both production-shaped app shells and the
-  # minimal backend launch fixtures. Keep this as a composed roster so the app
-  # matrix and smoke-product matrix remain independently reusable.
+  # Performance budget rows cover production-shaped app shells, generated
+  # external apps, and the minimal backend launch fixtures. Keep this as a
+  # composed roster so the app, generated-app, and smoke-product matrices
+  # remain independently reusable.
   quillui_backend_app_products
+  quillui_backend_generated_app_products
   quillui_backend_smoke_products
 }
 
@@ -226,6 +228,7 @@ quillui_backend_profile_matrix() {
   local backend
 
   quillui_backend_app_matrix
+  quillui_backend_generated_app_matrix
   while IFS= read -r product; do
     [[ -n "$product" ]] || continue
     backend="$(quillui_backend_for_product "$product")"

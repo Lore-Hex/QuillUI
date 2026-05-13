@@ -182,7 +182,9 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_generated_app_products()"))
         #expect(backendProducts.contains("quillui_backend_generated_app_matrix()"))
         #expect(backendProducts.contains("quillui_backend_profile_products()"))
+        #expect(backendProducts.contains("quillui_backend_generated_app_products\n  quillui_backend_smoke_products"))
         #expect(backendProducts.contains("quillui_backend_profile_matrix()"))
+        #expect(backendProducts.contains("quillui_backend_app_matrix\n  quillui_backend_generated_app_matrix"))
         #expect(backendProducts.contains("quillui_is_backend_smoke_product()"))
         #expect(backendProducts.contains("quillui_alias_env()"))
         #expect(backendProducts.contains("quillui_alias_backend_common_env()"))
@@ -306,18 +308,19 @@ struct LinuxBackendAppMatrixTests {
 
         let profileProducts = try runScript(script, arguments: ["profile-products"])
         #expect(profileProducts.status == 0, Comment(rawValue: profileProducts.output))
-        #expect(
-            profileProducts.output.split(whereSeparator: \.isNewline).map(String.init)
-                == Self.expectedAppProducts + Self.expectedSmokeProducts
-        )
+        let actualProfileProducts = profileProducts.output.split(whereSeparator: \.isNewline).map(String.init)
+        let expectedProfileProducts = Self.expectedAppProducts
+            + Self.expectedGeneratedAppProducts
+            + Self.expectedSmokeProducts
+        #expect(actualProfileProducts == expectedProfileProducts)
 
         let profileMatrix = try runScript(script, arguments: ["profile-matrix"])
         #expect(profileMatrix.status == 0, Comment(rawValue: profileMatrix.output))
-        #expect(
-            profileMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
-                == Self.expectedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
-                    + ["quill-gtk-interaction-smoke\tgtk", "quill-qt-interaction-smoke\tqt"]
-        )
+        let actualProfileMatrix = profileMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
+        let expectedProfileMatrix = Self.expectedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
+            + Self.expectedGeneratedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
+            + ["quill-gtk-interaction-smoke\tgtk", "quill-qt-interaction-smoke\tqt"]
+        #expect(actualProfileMatrix == expectedProfileMatrix)
 
         let appBackends = try runScript(script, arguments: ["app-backends"])
         #expect(appBackends.status == 0, Comment(rawValue: appBackends.output))

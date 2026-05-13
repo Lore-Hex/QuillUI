@@ -246,8 +246,8 @@ clicks the generated options menu in the top-right toolbar, and verifies that
 the menu surface appears below the toolbar.
 
 Profile baselines use the composed `profile-matrix` roster so the same budget
-check covers each user-facing app under every requested backend plus the backend
-launch fixtures:
+check covers each user-facing app and generated external app under every
+requested backend plus the backend launch fixtures:
 
 ```bash
 scripts/quillui-backend-products.sh profile-matrix | \
