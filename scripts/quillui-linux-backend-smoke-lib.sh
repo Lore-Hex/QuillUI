@@ -41,6 +41,18 @@ quillui_backend_screen_size() {
   fi
 }
 
+quillui_assign_output() {
+  local output_var="$1"
+  local value="$2"
+
+  if [[ ! "$output_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+    echo "Invalid output variable name: $output_var" >&2
+    return 64
+  fi
+
+  printf -v "$output_var" "%s" "$value"
+}
+
 quillui_append_environment_assignment() {
   local output_array="$1"
   local assignment="$2"
@@ -52,6 +64,24 @@ quillui_append_environment_assignment() {
     return 64
   fi
   eval "$output_array+=(\"\$assignment\")"
+}
+
+quillui_start_xvfb() {
+  local display_id="$1"
+  local screen_size="$2"
+  local log_path="$3"
+  local output_var="$4"
+
+  quillui_assign_output "$output_var" "" || return $?
+  Xvfb "$display_id" -screen 0 "$screen_size" >"$log_path" 2>&1 &
+  local pid=$!
+  quillui_assign_output "$output_var" "$pid" || return $?
+
+  sleep 1
+  if ! kill -0 "$pid" >/dev/null 2>&1; then
+    cat "$log_path" >&2 || true
+    return 70
+  fi
 }
 
 quillui_append_backend_launch_environment() {
@@ -128,7 +158,7 @@ quillui_resolve_linux_backend_executable() {
   local output_var="$2"
 
   if [[ -n "${QUILLUI_BACKEND_APP_EXECUTABLE:-}" ]]; then
-    printf -v "$output_var" "%s" "$QUILLUI_BACKEND_APP_EXECUTABLE"
+    quillui_assign_output "$output_var" "$QUILLUI_BACKEND_APP_EXECUTABLE" || return $?
     return
   fi
 
@@ -156,7 +186,7 @@ MSG
         echo "No cached executable found for $product under $quill_chat_work_root/.build-check" >&2
         exit 66
       fi
-      printf -v "$output_var" "%s" "$cached_executable"
+      quillui_assign_output "$output_var" "$cached_executable" || return $?
       return
     fi
 
@@ -169,7 +199,7 @@ MSG
       --package-path "$quill_chat_work_root/package" \
       --scratch-path "$quill_chat_work_root/.build-check" \
       --show-bin-path)"
-    printf -v "$output_var" "%s" "$quill_chat_bin_path/$product"
+    quillui_assign_output "$output_var" "$quill_chat_bin_path/$product" || return $?
   else
     if [[ "${QUILLUI_BACKEND_SKIP_BUILD:-0}" == "1" ]]; then
       local cached_executable
@@ -180,13 +210,13 @@ MSG
         echo "No cached executable found for $product under $QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" >&2
         exit 66
       fi
-      printf -v "$output_var" "%s" "$cached_executable"
+      quillui_assign_output "$output_var" "$cached_executable" || return $?
     else
       "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux"
       swift build --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --product "$product"
       local bin_path
       bin_path="$(swift build --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --show-bin-path)"
-      printf -v "$output_var" "%s" "$bin_path/$product"
+      quillui_assign_output "$output_var" "$bin_path/$product" || return $?
     fi
   fi
 }

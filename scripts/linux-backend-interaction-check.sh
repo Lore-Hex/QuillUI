@@ -45,8 +45,8 @@ SCREEN_SIZE="$(quillui_backend_screen_size "$PRODUCT" "${QUILLUI_BACKEND_INTERAC
 screen_width="${SCREEN_SIZE%%x*}"
 screen_height_and_depth="${SCREEN_SIZE#*x}"
 screen_height="${screen_height_and_depth%%x*}"
-Xvfb "$DISPLAY_ID" -screen 0 "$SCREEN_SIZE" >/tmp/quillui-xvfb-interaction.log 2>&1 &
-xvfb_pid=$!
+xvfb_pid=""
+quillui_start_xvfb "$DISPLAY_ID" "$SCREEN_SIZE" /tmp/quillui-xvfb-interaction.log xvfb_pid
 
 cleanup() {
   if [[ -n "${app_pid:-}" ]]; then
@@ -56,11 +56,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-sleep 1
-if ! kill -0 "$xvfb_pid" >/dev/null 2>&1; then
-  cat /tmp/quillui-xvfb-interaction.log >&2 || true
-  exit 70
-fi
 app_environment=()
 quillui_append_backend_launch_environment app_environment "$PRODUCT" "$DISPLAY_ID"
 if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
