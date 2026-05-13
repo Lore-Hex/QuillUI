@@ -2754,3 +2754,19 @@ both default GTK and Qt-requested launch plans without duplicating app lists.
 This does not claim native Qt renderer parity yet; Qt still uses the shared
 launch-plan fallback where native Qt is unavailable. The matrix does make
 GTK-only launch assumptions visible while the native Qt target matures.
+
+## Checkpoint 152: Requested Backend Profile Matrix
+
+Status: implemented locally; guarded by matrix, source hygiene, runner, and
+shell syntax checks.
+
+`scripts/quillui-backend-products.sh` now exposes `profile-matrix`, producing
+`PRODUCT<TAB>BACKEND` rows for every user-facing app/backend request plus the
+GTK and Qt launch fixtures. The profile CSV runner accepts those matrix rows,
+sets `QUILLUI_BACKEND` per sample, and labels emitted rows as `product@backend`
+while preserving the existing CSV schema consumed by the budget checker.
+
+Linux CI now profiles the same requested backend matrix that visual smoke uses,
+so Qt-requested app launches get startup/RSS/CPU rows instead of only the
+standalone Qt launch fixture. Product-only profiling remains supported for the
+focused no-fetch and IceCubes experiments.

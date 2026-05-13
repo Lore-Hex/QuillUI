@@ -56,7 +56,7 @@ struct LinuxGTKAppMatrixTests {
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh .qa/quill-chat-linux-generated-gtk.png quill-chat-linux"))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual.png\" \"$product\""))
         #expect(workflow.contains("QUILLUI_BACKEND=\"$backend\" scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\""))
-        #expect(workflow.contains("scripts/quillui-backend-products.sh profile-products | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
+        #expect(workflow.contains("scripts/quillui-backend-products.sh profile-matrix | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("name: Swift Linux Backends"))
         #expect(workflow.contains("Upload Linux backend QA artifacts"))
@@ -144,6 +144,7 @@ struct LinuxGTKAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_app_backends()"))
         #expect(backendProducts.contains("quillui_backend_app_matrix()"))
         #expect(backendProducts.contains("quillui_backend_profile_products()"))
+        #expect(backendProducts.contains("quillui_backend_profile_matrix()"))
         #expect(backendProducts.contains("quillui_is_backend_smoke_product()"))
         #expect(backendProducts.contains("quillui_alias_env()"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
@@ -176,6 +177,9 @@ struct LinuxGTKAppMatrixTests {
         #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_COMMAND"))
         #expect(csvRunner.contains("$ROOT_DIR/scripts/linux-backend-profile.sh"))
         #expect(csvRunner.contains("QUILLUI_BACKEND_PROFILE_SETTLE"))
+        #expect(csvRunner.contains("PRODUCT<TAB>BACKEND"))
+        #expect(csvRunner.contains("QUILLUI_BACKEND=\"$backend\""))
+        #expect(csvRunner.contains("awk -v label=\"$label\""))
         #expect(legacyCSVRunner.contains("run-linux-backend-profile-csv.sh"))
         #expect(budgetScript.contains("QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT"))
         #expect(legacyBudgetScript.contains("check-linux-backend-profile-budget.sh"))
@@ -195,6 +199,14 @@ struct LinuxGTKAppMatrixTests {
         #expect(
             profileProducts.output.split(whereSeparator: \.isNewline).map(String.init)
                 == Self.expectedAppProducts + Self.expectedSmokeProducts
+        )
+
+        let profileMatrix = try runScript(script, arguments: ["profile-matrix"])
+        #expect(profileMatrix.status == 0, Comment(rawValue: profileMatrix.output))
+        #expect(
+            profileMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
+                == Self.expectedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
+                    + ["quill-gtk-interaction-smoke\tgtk", "quill-qt-interaction-smoke\tqt"]
         )
 
         let appBackends = try runScript(script, arguments: ["app-backends"])
@@ -354,10 +366,51 @@ struct LinuxGTKAppMatrixTests {
         #expect(budget.output.contains("silent-product exit_status=profiler-exit-42"))
     }
 
+    @Test("profile CSV runner accepts backend matrix rows")
+    func profileCSVRunnerAcceptsBackendMatrixRows() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/run-linux-backend-profile-csv.sh")
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-profile-backend-matrix-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        let csv = temporaryDirectory.appendingPathComponent("profile.csv")
+        let fakeProfiler = temporaryDirectory.appendingPathComponent("backend-profiler.sh")
+        try """
+        #!/usr/bin/env bash
+        product="$1"
+        if [[ "${QUILLUI_BACKEND:-}" != "qt" ]]; then
+          exit 42
+        fi
+        echo "$product,1,2,3,4.0,5.0,ok"
+
+        """.write(to: fakeProfiler, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeProfiler.path)
+
+        let result = try runScript(
+            script,
+            arguments: [csv.path],
+            environment: ["QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path],
+            stdin: "quill-icecubes\tqt\n"
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        let expected = """
+        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
+        quill-icecubes@qt,1,2,3,4.0,5.0,ok
+
+        """
+        #expect(result.output == expected)
+        #expect(try String(contentsOf: csv, encoding: .utf8) == expected)
+    }
+
     private func runScript(
         _ script: URL,
         arguments: [String] = [],
-        environment: [String: String] = [:]
+        environment: [String: String] = [:],
+        stdin: String? = nil
     ) throws -> (status: Int32, output: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -367,7 +420,15 @@ struct LinuxGTKAppMatrixTests {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
-        try process.run()
+        if let stdin {
+            let inputPipe = Pipe()
+            process.standardInput = inputPipe
+            try process.run()
+            inputPipe.fileHandleForWriting.write(Data(stdin.utf8))
+            inputPipe.fileHandleForWriting.closeFile()
+        } else {
+            try process.run()
+        }
         process.waitUntilExit()
 
         let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""

@@ -6,11 +6,12 @@ PROFILE_SCRIPT="${QUILLUI_BACKEND_PROFILE_COMMAND:-${QUILLUI_GTK_PROFILE_COMMAND
 SETTLE_SECONDS="${QUILLUI_BACKEND_PROFILE_SETTLE:-${QUILLUI_GTK_PROFILE_SETTLE:-5}}"
 STEADY_DELAY_SECONDS="${QUILLUI_BACKEND_PROFILE_STEADY:-${QUILLUI_GTK_PROFILE_STEADY:-20}}"
 CSV_PATH=""
-PRODUCTS=()
+ROWS=()
 
 usage() {
   echo "Usage: $(basename "$0") CSV [PRODUCT ...]" >&2
-  echo "       scripts/quillui-backend-products.sh backend-apps | $(basename "$0") CSV" >&2
+  echo "       scripts/quillui-backend-products.sh profile-matrix | $(basename "$0") CSV" >&2
+  echo "       stdin rows may be PRODUCT or PRODUCT<TAB>BACKEND" >&2
 }
 
 case "${1:-}" in
@@ -27,20 +28,20 @@ esac
 CSV_PATH="$1"
 shift
 
-PRODUCTS=("$@")
-if [[ ${#PRODUCTS[@]} -eq 0 ]]; then
+ROWS=("$@")
+if [[ ${#ROWS[@]} -eq 0 ]]; then
   if [[ -t 0 ]]; then
     echo "No products supplied for backend profile CSV" >&2
     usage
     exit 64
   fi
-  while IFS= read -r product; do
-    [[ -n "$product" ]] || continue
-    PRODUCTS+=("$product")
+  while IFS= read -r row; do
+    [[ -n "$row" ]] || continue
+    ROWS+=("$row")
   done
 fi
 
-if [[ ${#PRODUCTS[@]} -eq 0 ]]; then
+if [[ ${#ROWS[@]} -eq 0 ]]; then
   echo "No products supplied for backend profile CSV" >&2
   usage
   exit 64
@@ -59,17 +60,36 @@ trap cleanup EXIT
 
 {
   echo "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
-  for product in "${PRODUCTS[@]}"; do
+  for row in "${ROWS[@]}"; do
+    product="$row"
+    backend=""
+    if [[ "$row" == *$'\t'* ]]; then
+      product="${row%%$'\t'*}"
+      backend="${row#*$'\t'}"
+    fi
     [[ -n "$product" ]] || continue
-    row_path="$TMP_DIR/${product//[^A-Za-z0-9_.-]/_}.csv"
+    if [[ "$backend" == *$'\t'* ]]; then
+      label="${product:-profile-row}@malformed"
+      echo "$label,0,0,0,0.0,0.0,profile-row-malformed"
+      continue
+    fi
+    label="$product"
+    if [[ -n "$backend" ]]; then
+      label="$product@$backend"
+    fi
+    row_path="$TMP_DIR/${label//[^A-Za-z0-9_.-]/_}.csv"
     status=0
-    "$PROFILE_SCRIPT" "$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS" >"$row_path" || status=$?
-    if [[ -s "$row_path" ]]; then
-      cat "$row_path"
-    elif [[ "$status" -eq 0 ]]; then
-      echo "$product,0,0,0,0.0,0.0,profiler-empty-output"
+    if [[ -n "$backend" ]]; then
+      QUILLUI_BACKEND="$backend" "$PROFILE_SCRIPT" "$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS" >"$row_path" || status=$?
     else
-      echo "$product,0,0,0,0.0,0.0,profiler-exit-$status"
+      "$PROFILE_SCRIPT" "$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS" >"$row_path" || status=$?
+    fi
+    if [[ -s "$row_path" ]]; then
+      awk -v label="$label" 'BEGIN { FS = OFS = "," } NF > 0 { $1 = label } { print }' "$row_path"
+    elif [[ "$status" -eq 0 ]]; then
+      echo "$label,0,0,0,0.0,0.0,profiler-empty-output"
+    else
+      echo "$label,0,0,0,0.0,0.0,profiler-exit-$status"
     fi
   done
 } | tee "$CSV_PATH"

@@ -184,13 +184,18 @@ scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product;
 done
 ```
 
-Profile baselines use the composed `profile-products` roster so the same budget
-check covers user-facing app shells and the backend launch fixtures:
+Profile baselines use the composed `profile-matrix` roster so the same budget
+check covers each user-facing app under every requested backend plus the backend
+launch fixtures:
 
 ```bash
-scripts/quillui-backend-products.sh profile-products | \
+scripts/quillui-backend-products.sh profile-matrix | \
   scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv
 ```
+
+The CSV schema stays product-first for the budget checker. Backend-requested
+matrix rows are labeled as `product@backend` in the emitted `product` column,
+so GTK and Qt rows can be compared without introducing a second CSV format.
 
 It can also exercise the generated Quill Chat toolbar menu:
 

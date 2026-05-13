@@ -106,6 +106,19 @@ quillui_backend_for_product() {
   esac
 }
 
+quillui_backend_profile_matrix() {
+  local product
+  local backend
+
+  quillui_backend_app_matrix
+  while IFS= read -r product; do
+    [[ -n "$product" ]] || continue
+    backend="$(quillui_backend_for_product "$product")"
+    [[ -n "$backend" ]] || continue
+    printf '%s\t%s\n' "$product" "$backend"
+  done < <(quillui_backend_smoke_products)
+}
+
 quillui_requested_backend_for_product() {
   if [[ -n "${QUILLUI_BACKEND:-}" ]]; then
     echo "$QUILLUI_BACKEND"
@@ -125,6 +138,7 @@ Commands:
   gtk-apps                        List user-facing app products in the GTK parity matrix.
   smoke-products                  List backend launch smoke products.
   profile-products                List app and launch-smoke products for profile budgets.
+  profile-matrix                  List PRODUCT<TAB>BACKEND rows for profile budgets.
   is-smoke-product PRODUCT        Exit 0 when PRODUCT is a backend launch smoke product.
   backend-for-product PRODUCT     Print the default requested backend for PRODUCT.
   requested-backend PRODUCT       Print QUILLUI_BACKEND override or PRODUCT default.
@@ -150,6 +164,9 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     profile-products)
       quillui_backend_profile_products
+      ;;
+    profile-matrix)
+      quillui_backend_profile_matrix
       ;;
     is-smoke-product)
       if [[ $# -ne 2 ]]; then

@@ -122,8 +122,8 @@ jobs:
             QUILLUI_BACKEND="$backend" scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product"
           done
 
-      # Linux profile baseline (CP106/CP149). For each Quill app
-      # and backend launch fixture, sample startup_ms / rss_kb /
+      # Linux profile baseline (CP106/CP149/CP152). For each Quill
+      # app/backend matrix row and backend launch fixture, sample startup_ms / rss_kb /
       # cpu_pct_5s under Xvfb and emit a CSV row. The intent is
       # to spot Linux-side regressions vs the macOS originals
       # (per the user-supplied "not bloated in rendering UI etc"
@@ -134,7 +134,7 @@ jobs:
       # without treating normal CI noise as a failure.
       - name: Linux backend profile baseline
         continue-on-error: true
-        run: scripts/quillui-backend-products.sh profile-products | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv
+        run: scripts/quillui-backend-products.sh profile-matrix | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv
 
       - name: Linux profile budget check
         run: scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv --max-cpu-pct 25 --max-rss-kb 300000 --max-startup-ms 5000
