@@ -25,6 +25,37 @@ quillui_is_quill_chat_mac_reference_product() {
   [[ "$product" == "quill-chat-linux" && "${QUILLUI_BACKEND_MAC_REFERENCE:-0}" == "1" ]]
 }
 
+quillui_append_environment_assignment() {
+  local output_array="$1"
+  local assignment="$2"
+
+  # Bash 3.2 ships on macOS and has no nameref support, so the shared
+  # launch-environment helper appends through the caller-provided array name.
+  if [[ ! "$output_array" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+    echo "Invalid environment array name: $output_array" >&2
+    return 64
+  fi
+  eval "$output_array+=(\"\$assignment\")"
+}
+
+quillui_append_backend_launch_environment() {
+  local output_array="$1"
+  local product="$2"
+  local display="${3:-}"
+  local requested_backend="${4:-}"
+
+  quillui_append_environment_assignment "$output_array" "GTK_A11Y=none"
+  if [[ -n "$display" ]]; then
+    quillui_append_environment_assignment "$output_array" "DISPLAY=$display"
+  fi
+  if [[ -z "$requested_backend" ]]; then
+    requested_backend="$(quillui_requested_backend_for_product "$product")"
+  fi
+  if [[ -n "$requested_backend" ]]; then
+    quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND=$requested_backend"
+  fi
+}
+
 quillui_install_linux_backend_smoke_packages() {
   if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
     return

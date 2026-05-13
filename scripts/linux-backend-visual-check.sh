@@ -47,11 +47,8 @@ if ! kill -0 "$xvfb_pid" >/dev/null 2>&1; then
   cat /tmp/quillui-xvfb.log >&2 || true
   exit 70
 fi
-app_environment=(GTK_A11Y=none DISPLAY="$DISPLAY_ID")
-requested_backend="$(quillui_requested_backend_for_product "$PRODUCT")"
-if [[ -n "$requested_backend" ]]; then
-  app_environment+=(QUILLUI_BACKEND="$requested_backend")
-fi
+app_environment=()
+quillui_append_backend_launch_environment app_environment "$PRODUCT" "$DISPLAY_ID"
 if [[ -n "${QUILLUI_BACKEND_LAYOUT_DEBUG:-}" ]]; then
   app_environment+=(
     QUILLUI_BACKEND_LAYOUT_DEBUG="$QUILLUI_BACKEND_LAYOUT_DEBUG"

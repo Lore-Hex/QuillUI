@@ -94,20 +94,25 @@ SMOKE_SECONDS="${QUILLUI_BACKEND_SMOKE_SECONDS:-${QUILLUI_SMOKE_SECONDS:-6}}"
 generated_app_smoke_count=0
 
 run_executable_smoke() {
-  local smoke_label="$1"
+  local product="$1"
   local executable="$2"
   local requested_backend="${3:-}"
+  local smoke_label="$product"
+  local effective_backend="$requested_backend"
 
   if [[ ! -x "$executable" ]]; then
     echo "Built executable is missing or not executable: $executable" >&2
     exit 1
   fi
 
-  local -a app_environment=(GTK_A11Y=none)
-  if [[ -n "$requested_backend" ]]; then
-    smoke_label="$smoke_label ($requested_backend requested)"
-    app_environment+=(QUILLUI_BACKEND="$requested_backend")
+  if [[ -z "$effective_backend" ]]; then
+    effective_backend="$(quillui_requested_backend_for_product "$product")"
   fi
+  if [[ -n "$effective_backend" ]]; then
+    smoke_label="$smoke_label ($effective_backend requested)"
+  fi
+  local -a app_environment=()
+  quillui_append_backend_launch_environment app_environment "$product" "" "$effective_backend"
 
   set +e
   timeout "${SMOKE_SECONDS}s" xvfb-run -a env "${app_environment[@]}" "$executable"

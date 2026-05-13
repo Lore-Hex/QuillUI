@@ -84,11 +84,8 @@ if ! kill -0 "$xvfb_pid" >/dev/null 2>&1; then
 fi
 
 startup_start_ms=$(date +%s%3N)
-app_environment=(GTK_A11Y=none DISPLAY="$display_id")
-requested_backend="$(quillui_requested_backend_for_product "$PRODUCT")"
-if [[ -n "$requested_backend" ]]; then
-    app_environment+=(QUILLUI_BACKEND="$requested_backend")
-fi
+app_environment=()
+quillui_append_backend_launch_environment app_environment "$PRODUCT" "$display_id"
 env "${app_environment[@]}" "$exe" >/tmp/quillui-profile-app.log 2>&1 &
 app_pid=$!
 

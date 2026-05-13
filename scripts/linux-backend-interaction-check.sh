@@ -64,11 +64,8 @@ if ! kill -0 "$xvfb_pid" >/dev/null 2>&1; then
   cat /tmp/quillui-xvfb-interaction.log >&2 || true
   exit 70
 fi
-app_environment=(GTK_A11Y=none DISPLAY="$DISPLAY_ID")
-REQUESTED_BACKEND="$(quillui_requested_backend_for_product "$PRODUCT")"
-if [[ -n "$REQUESTED_BACKEND" ]]; then
-  app_environment+=(QUILLUI_BACKEND="$REQUESTED_BACKEND")
-fi
+app_environment=()
+quillui_append_backend_launch_environment app_environment "$PRODUCT" "$DISPLAY_ID"
 if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   quill_chat_reference_home="$OUTPUT_DIR/quill-chat-linux-reference-home"
   quillui_seed_quill_chat_reference_data "$quill_chat_reference_home"
