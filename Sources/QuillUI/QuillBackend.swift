@@ -45,6 +45,11 @@ public struct QuillBackendDescriptor: Equatable, Sendable {
     }
 }
 
+public enum QuillBackendRuntimeMode: String, Sendable {
+    case native
+    case platformFallback
+}
+
 public struct QuillBackendLaunchPlan: Equatable, Sendable {
     public let requested: QuillBackendIdentifier?
     public let preferred: QuillBackendIdentifier?
@@ -53,6 +58,26 @@ public struct QuillBackendLaunchPlan: Equatable, Sendable {
 
     public var usesRuntimeFallback: Bool {
         selected != runtime
+    }
+
+    public var runtimeMode: QuillBackendRuntimeMode {
+        usesRuntimeFallback ? .platformFallback : .native
+    }
+
+    public var selectedDescriptor: QuillBackendDescriptor {
+        QuillBackendRegistry.descriptor(for: selected)
+    }
+
+    public var runtimeDescriptor: QuillBackendDescriptor {
+        QuillBackendRegistry.descriptor(for: runtime)
+    }
+
+    public var statusMessage: String {
+        if usesRuntimeFallback {
+            return "\(selectedDescriptor.displayName) selected, but the native renderer is not available yet; launches currently use \(runtimeDescriptor.displayName)."
+        }
+
+        return "\(runtimeDescriptor.displayName) native renderer selected."
     }
 
     public init(

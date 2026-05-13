@@ -76,15 +76,21 @@ struct QuillUITests {
 
         let preferredQtPlan = QuillBackendRegistry.launchPlan(preferred: .qt)
         #expect(preferredQtPlan.selected == .qt)
+        #expect(preferredQtPlan.selectedDescriptor == qtDescriptor)
+        #expect(preferredQtPlan.runtimeMode == .platformFallback)
 
         #if os(Linux)
         #expect(preferredQtPlan.runtime == .gtk)
+        #expect(preferredQtPlan.runtimeDescriptor.identifier == .gtk)
         #else
         #expect(preferredQtPlan.runtime == .swiftUI)
+        #expect(preferredQtPlan.runtimeDescriptor.identifier == .swiftUI)
         #endif
 
         #expect(preferredQtPlan.usesRuntimeFallback)
+        #expect(preferredQtPlan.statusMessage.contains("Qt selected"))
         #expect(QuillQtBackend.launchPlan.preferred == .qt)
         #expect(QuillQtBackend.status.mode == .platformFallback)
+        #expect(QuillQtBackend.status.message == preferredQtPlan.statusMessage)
     }
 }

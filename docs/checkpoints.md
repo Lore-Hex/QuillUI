@@ -2785,3 +2785,19 @@ This keeps the local full Linux check aligned with CI visual/profile coverage,
 so a developer running the one-shot backend check exercises both GTK and
 Qt-requested app launch paths without duplicating product lists or rebuilding
 the same executable for each backend request.
+
+## Checkpoint 154: Shared Backend Runtime Status
+
+Status: implemented locally; guarded by QuillUI API tests and a focused
+QuillUIQt target build.
+
+`QuillBackendLaunchPlan` now owns backend runtime mode, selected/runtime
+descriptors, and the user-facing fallback message. Backend targets can consume
+one shared status contract when a requested backend falls through to the
+available platform runtime, instead of duplicating Qt- or GTK-specific fallback
+logic.
+
+`QuillUIQt` now aliases the shared `QuillBackendRuntimeMode` and reports status
+directly from the launch plan. This keeps the Qt target API stable while
+putting GTK and Qt on the same launch-status architecture for the native Qt
+renderer work that follows.
