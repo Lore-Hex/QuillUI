@@ -89,6 +89,7 @@ struct SourceHygieneTests {
         ]
 
         #expect(helperSource.contains("public enum QuillAppWindow"))
+        #expect(helperSource.contains("public enum QuillBackendApp<Backend: QuillBackend>"))
         #expect(helperSource.contains("QuillBackendRegistry.launchPlan(preferred: preferredBackend)"))
         #expect(helperSource.contains("private enum QuillLinuxRuntimeHost"))
         #expect(helperSource.contains("QuillLinuxRuntimeHost(runtimeBackend: launchPlan.runtime).run(appType)"))
@@ -204,13 +205,13 @@ struct SourceHygieneTests {
         #expect(gtkBackend.contains("public typealias QuillGtkBackendStatus = QuillBackendRuntimeStatus"))
         #expect(gtkBackend.contains("public static var status: QuillGtkBackendStatus"))
         #expect(gtkBackend.contains("runtimeStatus"))
-        #expect(gtkBackend.contains("QuillApp.run(appType, preferredBackend: QuillGtkBackend.identifier)"))
+        #expect(gtkBackend.contains("QuillBackendApp<QuillGtkBackend>.run(appType)"))
         #expect(qtBackend.contains("public enum QuillQtBackend"))
         #expect(qtBackend.contains("public enum QuillQtApp"))
         #expect(qtBackend.contains("public typealias QuillQtBackendStatus = QuillBackendRuntimeStatus"))
         #expect(qtBackend.contains("public static var status: QuillQtBackendStatus"))
         #expect(qtBackend.contains("runtimeStatus"))
-        #expect(qtBackend.contains("QuillApp.run(appType, preferredBackend: QuillQtBackend.identifier)"))
+        #expect(qtBackend.contains("QuillBackendApp<QuillQtBackend>.run(appType)"))
 
         #expect(backendScript.contains("QUILLUI_BACKEND_INTERACTION_MODE"))
         #expect(backendScript.contains("QUILLUI_BACKEND_VERIFY_PRODUCT"))

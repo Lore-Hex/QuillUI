@@ -58,6 +58,14 @@ public enum QuillApp {
     }
 }
 
+/// Shared launcher for backend-specific facade targets such as
+/// `QuillUIGtk` and `QuillUIQt`.
+public enum QuillBackendApp<Backend: QuillBackend> {
+    public static func run<A: App>(_ appType: A.Type) {
+        QuillApp.run(appType, preferredBackend: Backend.identifier)
+    }
+}
+
 #if os(Linux)
 private enum QuillLinuxRuntimeHost {
     case gtk4

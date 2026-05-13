@@ -13,6 +13,6 @@ public enum QuillGtkBackend: QuillBackend {
 
 public enum QuillGtkApp {
     public static func run<A: App>(_ appType: A.Type) {
-        QuillApp.run(appType, preferredBackend: QuillGtkBackend.identifier)
+        QuillBackendApp<QuillGtkBackend>.run(appType)
     }
 }
