@@ -14,6 +14,7 @@
 #include <QLabel>
 #include <QLayout>
 #include <QLayoutItem>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QObject>
@@ -134,6 +135,32 @@ QWidget *tunnelRowWidget(const QJsonObject &tunnel) {
     return row;
 }
 
+void replaceTunnelName(QJsonArray *tunnels, int row, const QString &name) {
+    if (tunnels == nullptr || row < 0 || row >= tunnels->size()) {
+        return;
+    }
+
+    QJsonObject tunnel = tunnels->at(row).toObject();
+    tunnel.insert(QStringLiteral("name"), name);
+    tunnels->replace(row, QJsonValue(tunnel));
+}
+
+void updateTunnelRowName(QListWidget *list, int row, const QString &name) {
+    if (list == nullptr || row < 0 || row >= list->count()) {
+        return;
+    }
+
+    QWidget *rowWidget = list->itemWidget(list->item(row));
+    if (rowWidget == nullptr) {
+        return;
+    }
+
+    QLabel *nameLabel = rowWidget->findChild<QLabel *>(QStringLiteral("tunnelName"));
+    if (nameLabel != nullptr) {
+        nameLabel->setText(name);
+    }
+}
+
 void addInterfaceSection(QVBoxLayout *detailLayout, const QJsonObject &tunnel) {
     const QJsonObject interfaceObject = objectValue(tunnel, "interface");
     QGroupBox *section = sectionBox(QStringLiteral("Interface"));
@@ -185,20 +212,30 @@ void addExportSection(QVBoxLayout *detailLayout, const QJsonObject &tunnel) {
     detailLayout->addWidget(section);
 }
 
-void renderDetail(QVBoxLayout *detailLayout, const QJsonArray &tunnels, int row) {
+void renderDetail(
+    QVBoxLayout *detailLayout,
+    QJsonArray *tunnels,
+    QListWidget *list,
+    int row
+) {
     clearLayout(detailLayout);
 
-    if (row < 0 || row >= tunnels.size()) {
+    if (tunnels == nullptr || row < 0 || row >= tunnels->size()) {
         detailLayout->addStretch();
         detailLayout->addWidget(label(QStringLiteral("Select a tunnel to edit and export its configuration.")));
         detailLayout->addStretch();
         return;
     }
 
-    const QJsonObject tunnel = tunnels.at(row).toObject();
+    const QJsonObject tunnel = tunnels->at(row).toObject();
 
     QHBoxLayout *heading = new QHBoxLayout();
-    QLabel *name = label(stringValue(tunnel, "name"), QStringLiteral("detailTitle"));
+    QLineEdit *name = new QLineEdit(stringValue(tunnel, "name"));
+    name->setObjectName(QStringLiteral("detailTitle"));
+    QObject::connect(name, &QLineEdit::textChanged, [tunnels, list, row](const QString &updatedName) {
+        replaceTunnelName(tunnels, row, updatedName);
+        updateTunnelRowName(list, row, updatedName);
+    });
     QLabel *status = label(stringValue(tunnel, "statusText"), QStringLiteral("detailStatus"));
     heading->addWidget(name, 1);
     heading->addWidget(status, 0, Qt::AlignRight);
@@ -238,7 +275,8 @@ void applyStyle(QApplication &app) {
         "QLabel#sidebarTitle { font-weight: 700; font-size: 16px; }"
         "QLabel#sidebarCount, QLabel#backendText, QLabel#detailStatus, QLabel#detailKey { color: #6e6e73; }"
         "QLabel#backendTitle { color: #6e6e73; font-weight: 700; font-size: 11px; }"
-        "QLabel#detailTitle { font-size: 22px; font-weight: 600; }"
+        "QLineEdit#detailTitle { background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 2px; font-size: 22px; font-weight: 600; }"
+        "QLineEdit#detailTitle:focus { background: #ffffff; border-color: #93a4c7; }"
         "QGroupBox#detailSection { border: 0; background: #f4f4f5; margin-top: 18px; padding: 12px; font-weight: 700; color: #6e6e73; }"
         "QGroupBox#detailSection::title { subcontrol-origin: margin; left: 10px; padding: 0 3px; }"
         "QPlainTextEdit { background: #ffffff; border: 1px solid #d8d8dd; border-radius: 4px; }"
@@ -266,7 +304,7 @@ int quill_wireguard_qt_run_wireguard_json(
     applyStyle(app);
 
     const QJsonObject payload = document.object();
-    const QJsonArray tunnels = arrayValue(payload, "tunnels");
+    QJsonArray tunnels = arrayValue(payload, "tunnels");
     const QString selectedTunnelID = stringValue(payload, "selectedTunnelID");
 
     QWidget window;
@@ -321,14 +359,14 @@ int quill_wireguard_qt_run_wireguard_json(
     splitter->setStretchFactor(1, 1);
 
     QObject::connect(list, &QListWidget::currentRowChanged, [&](int row) {
-        renderDetail(detailLayout, tunnels, row);
+        renderDetail(detailLayout, &tunnels, list, row);
     });
 
     const int initialRow = selectedRow(tunnels, selectedTunnelID);
     if (initialRow >= 0) {
         list->setCurrentRow(initialRow);
     } else {
-        renderDetail(detailLayout, tunnels, initialRow);
+        renderDetail(detailLayout, &tunnels, list, initialRow);
     }
 
     window.show();
