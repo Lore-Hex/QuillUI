@@ -43,37 +43,34 @@ public struct QuillTelegramContentView: View {
     }
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Quill Telegram")
-                .font(.title2).bold()
-                .padding(14)
+        ChatSidebar(title: "Quill Telegram", items: visibleChats) {
+            folderControls
+        } onSelect: { chat in
+            selectedChatID = chat.id
+        }
+    }
 
-            // Folder pills
-            HStack(spacing: 8) {
-                ForEach(folders, id: \.self) { folder in
-                    Button {
-                        selectedFolder = folder
-                    } label: {
-                        Text(folder)
-                            .font(.caption)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(
-                                folder == selectedFolder
-                                    ? Color.blue.opacity(0.2)
-                                    : Color.gray.opacity(0.12)
-                            )
-                            .cornerRadius(10)
-                    }
+    private var folderControls: some View {
+        HStack(spacing: 8) {
+            ForEach(folders, id: \.self) { folder in
+                Button {
+                    selectedFolder = folder
+                } label: {
+                    Text(folder)
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            folder == selectedFolder
+                                ? Color.blue.opacity(0.2)
+                                : Color.gray.opacity(0.12)
+                        )
+                        .cornerRadius(10)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.bottom, 10)
-
-            ChatSidebarList(items: visibleChats) { chat in
-                selectedChatID = chat.id
-            }
         }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 10)
     }
 
     private var detail: some View {
@@ -86,10 +83,7 @@ public struct QuillTelegramContentView: View {
                     onSend: send
                 )
             } else {
-                Text("Select a chat")
-                    .font(.title2)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ChatSelectionPlaceholder("Select a chat")
             }
         }
     }

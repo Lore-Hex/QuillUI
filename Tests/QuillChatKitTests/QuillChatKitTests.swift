@@ -88,6 +88,46 @@ struct QuillChatKitTests {
         #expect(list.appearance.unreadBadgeCornerRadius == 4)
     }
 
+    @Test("ChatSidebar carries standard title, items, appearance, and no accessory by default")
+    func chatSidebarCarriesStandardShellInputs() {
+        let item = Summary(
+            id: UUID(),
+            title: "Family",
+            preview: "Dinner?",
+            unreadCount: 0
+        )
+        let sidebar = ChatSidebar(title: "Quill Signal", items: [item]) { _ in }
+
+        #expect(sidebar.title == "Quill Signal")
+        #expect(sidebar.items.count == 1)
+        #expect(sidebar.items[0].title == "Family")
+        #expect(sidebar.appearance.bubbleCornerRadius == ChatAppearance.standard.bubbleCornerRadius)
+    }
+
+    @Test("ChatSidebar carries app-specific accessory controls")
+    func chatSidebarCarriesAccessory() {
+        let appearance = ChatAppearance(rowVerticalPadding: 11)
+        let item = Summary(
+            id: UUID(),
+            title: "DevOps",
+            preview: "Canary healthy",
+            unreadCount: 3
+        )
+        let sidebar = ChatSidebar(title: "Quill Telegram", items: [item], appearance: appearance) {
+            ChatSelectionPlaceholder("Folders")
+        } onSelect: { _ in }
+
+        #expect(sidebar.title == "Quill Telegram")
+        #expect(sidebar.items[0].unreadCount == 3)
+        #expect(sidebar.appearance.rowVerticalPadding == 11)
+    }
+
+    @Test("ChatSelectionPlaceholder carries empty-state copy")
+    func chatSelectionPlaceholderCarriesTitle() {
+        let placeholder = ChatSelectionPlaceholder("Select a chat")
+        #expect(placeholder.title == "Select a chat")
+    }
+
     @Test("ChatAppearance standard preserves the shared shell layout tokens")
     func chatAppearanceStandardLayoutTokens() {
         let appearance = ChatAppearance.standard

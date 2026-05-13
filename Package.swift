@@ -398,7 +398,7 @@ var targets: [Target] = [
     // chrome through QuillUI while future slices replace fixture
     // models with real protocol/playback backends.
     //
-    // QuillChatKit is shared chat chrome (bubble, sidebar row,
+    // QuillChatKit is shared chat chrome (bubble, sidebar shell,
     // timeline) that Signal + Telegram both consume so the per-app
     // shells only carry their own model + folder/unread logic.
     .target(

@@ -35,14 +35,8 @@ public struct QuillSignalContentView: View {
     }
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Quill Signal")
-                .font(.title2).bold()
-                .padding(14)
-
-            ChatSidebarList(items: conversations) { conversation in
-                selectedID = conversation.id
-            }
+        ChatSidebar(title: "Quill Signal", items: conversations) { conversation in
+            selectedID = conversation.id
         }
     }
 
@@ -56,10 +50,7 @@ public struct QuillSignalContentView: View {
                     onSend: send
                 )
             } else {
-                Text("Select a conversation")
-                    .font(.title2)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ChatSelectionPlaceholder("Select a conversation")
             }
         }
     }

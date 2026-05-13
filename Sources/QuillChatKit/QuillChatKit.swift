@@ -73,8 +73,9 @@ public protocol ChatThread: ChatListItem {
 ///
 /// Defaults match the original Signal/Telegram Linux shell chrome.
 /// iOS or app-specific clients can pass a custom value through
-/// `ChatBubble`, `ChatRow`, `ChatTimeline`, `ChatComposer`, or
-/// `ChatPane` without forking the view implementations.
+/// `ChatBubble`, `ChatRow`, `ChatSidebar`, `ChatTimeline`,
+/// `ChatComposer`, or `ChatPane` without forking the view
+/// implementations.
 public struct ChatAppearance {
     public var outgoingBubbleBackground: Color
     public var incomingBubbleBackground: Color
@@ -278,6 +279,95 @@ public struct ChatSidebarList<Item: ChatListItem>: View {
                     }
                 }
             }
+        }
+    }
+}
+
+/// Standard sidebar chrome for chat-style apps: a title, optional
+/// app-owned accessory controls, then the shared `ChatSidebarList`.
+///
+/// Signal uses the empty-accessory initializer while Telegram passes
+/// folder pills as the accessory. Keeping that shell here means those
+/// apps share the same sidebar spacing and typography on GTK, Qt, and
+/// native SwiftUI hosts without making `QuillChatKit` depend on
+/// `QuillUI`.
+@MainActor
+public struct ChatSidebar<Item: ChatListItem, Accessory: View>: View {
+    public let title: String
+    public let items: [Item]
+    public let appearance: ChatAppearance
+    public let accessory: Accessory
+    public let onSelect: (Item) -> Void
+
+    public init(
+        title: String,
+        items: [Item],
+        appearance: ChatAppearance = .standard,
+        @ViewBuilder accessory: () -> Accessory,
+        onSelect: @escaping (Item) -> Void
+    ) {
+        self.title = title
+        self.items = items
+        self.appearance = appearance
+        self.accessory = accessory()
+        self.onSelect = onSelect
+    }
+
+    nonisolated public var body: some View {
+        ChatMainActorView.assumeIsolated {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title)
+                    .font(.title2).bold()
+                    .padding(14)
+
+                accessory
+
+                ChatSidebarList(
+                    items: items,
+                    appearance: appearance,
+                    onSelect: onSelect
+                )
+            }
+        }
+    }
+}
+
+public extension ChatSidebar where Accessory == EmptyView {
+    init(
+        title: String,
+        items: [Item],
+        appearance: ChatAppearance = .standard,
+        onSelect: @escaping (Item) -> Void
+    ) {
+        self.init(
+            title: title,
+            items: items,
+            appearance: appearance,
+            accessory: { EmptyView() },
+            onSelect: onSelect
+        )
+    }
+}
+
+/// Shared placeholder for a detail pane with no selected chat.
+///
+/// Apps provide the concrete copy ("Select a conversation",
+/// "Select a chat", etc.) while the empty-state layout stays aligned
+/// across chat targets.
+@MainActor
+public struct ChatSelectionPlaceholder: View {
+    public let title: String
+
+    public init(_ title: String) {
+        self.title = title
+    }
+
+    nonisolated public var body: some View {
+        ChatMainActorView.assumeIsolated {
+            Text(title)
+                .font(.title2)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
