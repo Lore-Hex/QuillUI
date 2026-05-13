@@ -23,14 +23,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "$ROOT_DIR/scripts/quillui-backend-products.sh"
+source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 quillui_alias_backend_profile_env
 
 PRODUCT="${1:-}"
 SETTLE_SECONDS="${2:-${QUILLUI_BACKEND_PROFILE_SETTLE:-5}}"
 STEADY_DELAY_SECONDS="${3:-${QUILLUI_BACKEND_PROFILE_STEADY:-20}}"
-
-source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
 if [[ -z "$PRODUCT" ]]; then
     echo "Usage: $0 <product-name> [settle-seconds] [steady-delay]" >&2
@@ -68,17 +66,15 @@ fi
 
 display_id="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_PROFILE_DISPLAY:-95}")"
 screen_size="${QUILLUI_BACKEND_PROFILE_SCREEN_SIZE:-1180x760x24}"
-Xvfb "$display_id" -screen 0 "$screen_size" >/tmp/quillui-profile-xvfb.log 2>&1 &
-xvfb_pid=$!
+xvfb_pid=""
 
 cleanup() {
     if [[ -n "${app_pid:-}" ]]; then kill "$app_pid" >/dev/null 2>&1 || true; fi
-    kill "$xvfb_pid" >/dev/null 2>&1 || true
+    if [[ -n "${xvfb_pid:-}" ]]; then kill "$xvfb_pid" >/dev/null 2>&1 || true; fi
 }
 trap cleanup EXIT
 
-sleep 1
-if ! kill -0 "$xvfb_pid" >/dev/null 2>&1; then
+if ! quillui_start_xvfb "$display_id" "$screen_size" /tmp/quillui-profile-xvfb.log xvfb_pid; then
     echo "$PRODUCT,$build_ms,-1,-1,-1,-1,xvfb-failed"
     exit 1
 fi
