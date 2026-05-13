@@ -133,10 +133,13 @@ products or generated app products. CI drives matrix jobs through
 then calls the single-row visual or interaction runner with the requested
 backend as an explicit positional argument. The output template must include
 `{product}` and `{backend}` so GTK/Qt artifacts never overwrite each other.
-The runner's `--dry-run` output includes `requested_backend`,
-`runtime_backend`, and `runtime_mode` columns before the output path and skip
-flag, matching profile CSV semantics and making Qt's current GTK fallback
-visible in matrix audits.
+Before launch, the runner expands that roster through the shared
+`*-runtime-matrix` helpers, so dry-run and execution paths use the same
+requested backend, runtime backend, and native/fallback mode values as the
+profile tooling. The runner's `--dry-run` output includes
+`requested_backend`, `runtime_backend`, and `runtime_mode` columns before the
+output path and skip flag, matching profile CSV semantics and making Qt's
+current GTK fallback visible in matrix audits.
 
 Generated products use the same GTK/Qt requested-backend matrix as the root app
 shells. The matrix runner still accepts `--skip-repeated-products`, but
@@ -190,8 +193,8 @@ parity scripts should use `scripts/run-linux-backend-smoke-matrix.sh` for
 matrix jobs, call `scripts/linux-backend-visual-check.sh` for a single product
 row, and use the `QUILLUI_BACKEND_*` names for visual checks. Matrix jobs pass
 the requested backend as the runner's explicit positional backend argument so
-the selected backend travels with each row. The runner canonicalizes supported
-backend aliases such as `gtk4`, `qt6`, and `swift-ui` before mapping
+the selected backend travels with each row. The runner canonicalizes backend aliases
+such as `gtk4`, `qt6`, and `swift-ui` before mapping
 backend-neutral values to the older `QUILLUI_GTK_*` environment contract and to
 scoped `QUILLUI_QT_*` controls for compatibility, and
 `scripts/linux-gtk-visual-check.sh` remains as a thin compatibility shim.
@@ -290,8 +293,9 @@ launchers do not overwrite each other.
 Profile baselines use the composed `profile-matrix` roster so the same budget
 check covers each user-facing app and generated external app under every
 requested backend plus the backend launch fixtures. The roster emits
-`PRODUCT<TAB>BACKEND` rows, and the CSV runner canonicalizes backend aliases
-before it launches the profiler:
+`PRODUCT<TAB>BACKEND` rows for compatibility, while the CSV runner expands the
+scheduled matrix through `profile-runtime-matrix` before it launches the
+profiler:
 
 ```bash
 scripts/run-linux-backend-profile-csv.sh --matrix profile-matrix /tmp/quillui-profile.csv

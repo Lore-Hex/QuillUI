@@ -19,6 +19,10 @@ MATRIX_COMMAND:
   smoke-matrix                   Backend launch fixture PRODUCT<TAB>BACKEND rows.
   smoke-interaction-matrix       Backend launch fixture PRODUCT<TAB>BACKEND<TAB>MODE rows.
 
+The runner expands these through the shared runtime matrix helpers before
+launching checks, so every row carries requested backend, runtime backend, and
+native/fallback mode from one registry.
+
 OUTPUT_TEMPLATE must include {product} and {backend}; mode matrices must also
 include {mode}.
 Use --skip-repeated-products when consecutive backend rows can reuse one build.
@@ -93,6 +97,31 @@ case "$MATRIX_COMMAND" in
     exit 64
     ;;
 esac
+
+quillui_smoke_runtime_matrix_command() {
+  case "$1" in
+    app-matrix)
+      echo "app-runtime-matrix"
+      ;;
+    interaction-matrix)
+      echo "interaction-runtime-matrix"
+      ;;
+    generated-app-matrix)
+      echo "generated-app-runtime-matrix"
+      ;;
+    smoke-matrix)
+      echo "smoke-runtime-matrix"
+      ;;
+    smoke-interaction-matrix)
+      echo "smoke-interaction-runtime-matrix"
+      ;;
+    *)
+      return 64
+      ;;
+  esac
+}
+
+RUNTIME_MATRIX_COMMAND="$(quillui_smoke_runtime_matrix_command "$MATRIX_COMMAND")"
 
 if [[ "$OUTPUT_TEMPLATE" != *"{product}"* || "$OUTPUT_TEMPLATE" != *"{backend}"* ]]; then
   echo "OUTPUT_TEMPLATE must include {product} and {backend}: $OUTPUT_TEMPLATE" >&2
@@ -205,39 +234,47 @@ while IFS= read -r row; do
     exit 65
   fi
 
-  IFS=$'\t' read -r product backend mode extra <<< "$row"
+  IFS=$'\t' read -r product backend runtime_backend runtime_mode mode extra <<< "$row"
   if [[ -n "${extra:-}" ]]; then
-    echo "Backend matrix row has too many columns: $row" >&2
+    echo "Backend runtime matrix row has too many columns: $row" >&2
     exit 65
   fi
   if [[ "$MATRIX_COMMAND" == "smoke-interaction-matrix" && -z "${mode:-}" ]]; then
-    echo "Backend mode matrix row has an empty mode: $row" >&2
+    echo "Backend mode runtime matrix row has an empty mode: $row" >&2
     exit 65
   fi
   if [[ "$MATRIX_COMMAND" != "smoke-interaction-matrix" && -n "${mode:-}" ]]; then
-    echo "Backend matrix row has an unexpected mode column: $row" >&2
+    echo "Backend runtime matrix row has an unexpected mode column: $row" >&2
     exit 65
   fi
 
-  if [[ -z "$product" || -z "$backend" ]]; then
-    echo "Backend matrix row has an empty product or backend: $row" >&2
+  if [[ -z "$product" || -z "$backend" || -z "$runtime_backend" || -z "$runtime_mode" ]]; then
+    echo "Backend runtime matrix row has an empty product, backend, runtime backend, or runtime mode: $row" >&2
     exit 65
   fi
   if ! backend="$(quillui_require_backend_identifier "$backend")"; then
-    echo "Backend matrix row has an unsupported backend: $row" >&2
+    echo "Backend runtime matrix row has an unsupported backend: $row" >&2
     exit 65
   fi
-  runtime_availability="$(quillui_backend_runtime_availability_for_backend "$backend")" || {
-    echo "Backend matrix row has unsupported runtime availability: $row" >&2
+  if ! runtime_backend="$(quillui_require_backend_identifier "$runtime_backend")"; then
+    echo "Backend runtime matrix row has an unsupported runtime backend: $row" >&2
     exit 65
-  }
-  IFS=$'\t' read -r backend runtime_backend runtime_mode <<< "$runtime_availability"
+  fi
+  if ! quillui_backend_runtime_matches_backend "$backend" "$runtime_backend"; then
+    echo "Backend runtime matrix row has mismatched runtime backend: $row" >&2
+    exit 65
+  fi
+  expected_runtime_mode="$(quillui_backend_runtime_mode_for_pair "$backend" "$runtime_backend")"
+  if [[ "$runtime_mode" != "$expected_runtime_mode" ]]; then
+    echo "Backend runtime matrix row has mismatched runtime mode: $row" >&2
+    exit 65
+  fi
 
   quillui_run_smoke_row "$product" "$backend" "$runtime_backend" "$runtime_mode" "${mode:-}"
   ROW_COUNT=$((ROW_COUNT + 1))
-done < <("$ROOT_DIR/scripts/quillui-backend-products.sh" "$MATRIX_COMMAND")
+done < <("$ROOT_DIR/scripts/quillui-backend-products.sh" "$RUNTIME_MATRIX_COMMAND")
 
 if [[ "$ROW_COUNT" -eq 0 ]]; then
-  echo "No backend smoke rows listed by scripts/quillui-backend-products.sh $MATRIX_COMMAND" >&2
+  echo "No backend smoke rows listed by scripts/quillui-backend-products.sh $RUNTIME_MATRIX_COMMAND" >&2
   exit 65
 fi

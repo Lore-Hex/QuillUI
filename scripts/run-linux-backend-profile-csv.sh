@@ -13,9 +13,9 @@ MATRIX_COMMAND=""
 ROWS=()
 
 usage() {
-  echo "Usage: $(basename "$0") [--matrix profile-matrix] CSV [PRODUCT ...]" >&2
+  echo "Usage: $(basename "$0") [--matrix profile-matrix|profile-runtime-matrix] CSV [PRODUCT ...]" >&2
   echo "       scripts/quillui-backend-products.sh profile-matrix | $(basename "$0") CSV" >&2
-  echo "       stdin rows may be PRODUCT or PRODUCT<TAB>BACKEND" >&2
+  echo "       stdin rows may be PRODUCT, PRODUCT<TAB>BACKEND, or PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -57,7 +57,7 @@ CSV_PATH="$1"
 shift
 
 case "$MATRIX_COMMAND" in
-  ""|profile-matrix)
+  ""|profile-matrix|profile-runtime-matrix)
     ;;
   *)
     echo "Unsupported backend profile matrix command: $MATRIX_COMMAND" >&2
@@ -68,6 +68,10 @@ esac
 
 ROWS=("$@")
 if [[ -n "$MATRIX_COMMAND" ]]; then
+  RUNTIME_MATRIX_COMMAND="$MATRIX_COMMAND"
+  if [[ "$RUNTIME_MATRIX_COMMAND" == "profile-matrix" ]]; then
+    RUNTIME_MATRIX_COMMAND="profile-runtime-matrix"
+  fi
   if [[ ${#ROWS[@]} -ne 0 ]]; then
     echo "--matrix cannot be combined with explicit product rows" >&2
     usage
@@ -76,7 +80,7 @@ if [[ -n "$MATRIX_COMMAND" ]]; then
   while IFS= read -r row; do
     [[ -n "$row" ]] || continue
     ROWS+=("$row")
-  done < <("$ROOT_DIR/scripts/quillui-backend-products.sh" "$MATRIX_COMMAND")
+  done < <("$ROOT_DIR/scripts/quillui-backend-products.sh" "$RUNTIME_MATRIX_COMMAND")
 elif [[ ${#ROWS[@]} -eq 0 ]]; then
   if [[ -t 0 ]]; then
     echo "No products supplied for backend profile CSV" >&2
@@ -139,12 +143,14 @@ quillui_profile_build_cache_key() {
     requested_backend=""
     runtime_backend=""
     runtime_mode=""
+    provided_runtime_backend=""
+    provided_runtime_mode=""
+    extra=""
     if [[ "$row" == *$'\t'* ]]; then
-      product="${row%%$'\t'*}"
-      backend="${row#*$'\t'}"
+      IFS=$'\t' read -r product backend provided_runtime_backend provided_runtime_mode extra <<<"$row"
     fi
     [[ -n "$product" ]] || continue
-    if [[ "$backend" == *$'\t'* ]]; then
+    if [[ -n "${extra:-}" ]]; then
       echo "${product:-profile-row},malformed,unknown,unknown,0,0,0,0.0,0.0,profile-row-malformed"
       continue
     fi
@@ -161,11 +167,33 @@ quillui_profile_build_cache_key() {
       }
     fi
     if [[ -n "$requested_backend" ]]; then
-      runtime_availability="$(quillui_backend_runtime_availability_for_backend "$requested_backend")" || {
-        echo "$product,$requested_backend,unknown,unknown,0,0,0,0.0,0.0,profile-row-unsupported-runtime-backend"
-        continue
-      }
-      IFS=$'\t' read -r requested_backend runtime_backend runtime_mode <<<"$runtime_availability"
+      if [[ -n "$provided_runtime_backend" || -n "$provided_runtime_mode" ]]; then
+        if [[ -z "$provided_runtime_backend" || -z "$provided_runtime_mode" ]]; then
+          echo "$product,$requested_backend,unknown,unknown,0,0,0,0.0,0.0,profile-row-malformed"
+          continue
+        fi
+        if ! provided_runtime_backend="$(quillui_require_backend_identifier "$provided_runtime_backend" 2>/dev/null)"; then
+          echo "$product,$requested_backend,unknown,unknown,0,0,0,0.0,0.0,profile-row-unsupported-runtime-backend"
+          continue
+        fi
+        if ! quillui_backend_runtime_matches_backend "$requested_backend" "$provided_runtime_backend"; then
+          echo "$product,$requested_backend,$provided_runtime_backend,$provided_runtime_mode,0,0,0,0.0,0.0,profile-row-runtime-backend-mismatch"
+          continue
+        fi
+        expected_runtime_mode="$(quillui_backend_runtime_mode_for_pair "$requested_backend" "$provided_runtime_backend")"
+        if [[ "$provided_runtime_mode" != "$expected_runtime_mode" ]]; then
+          echo "$product,$requested_backend,$provided_runtime_backend,$provided_runtime_mode,0,0,0,0.0,0.0,profile-row-runtime-mode-mismatch"
+          continue
+        fi
+        runtime_backend="$provided_runtime_backend"
+        runtime_mode="$provided_runtime_mode"
+      else
+        runtime_availability="$(quillui_backend_runtime_availability_for_backend "$requested_backend")" || {
+          echo "$product,$requested_backend,unknown,unknown,0,0,0,0.0,0.0,profile-row-unsupported-runtime-backend"
+          continue
+        }
+        IFS=$'\t' read -r requested_backend runtime_backend runtime_mode <<<"$runtime_availability"
+      fi
     fi
     row_label="$product"
     profiler_arguments=("$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS")

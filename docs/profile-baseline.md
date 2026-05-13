@@ -11,7 +11,10 @@ Current CI expands the canonical `profile-matrix` roster through
 `scripts/run-linux-backend-profile-csv.sh --matrix profile-matrix`, which
 composes every user-facing app and generated external app with each requested
 backend plus the GTK and Qt backend launch smoke products. The roster emits
-`PRODUCT<TAB>BACKEND` rows, and backend aliases are canonicalized before launch.
+`PRODUCT<TAB>BACKEND` rows for compatibility; the CSV runner expands the
+scheduled matrix through `profile-runtime-matrix` so requested backend,
+runtime backend, and native/fallback mode all come from the shared backend
+helper and are canonicalized before launch.
 Profile CSV rows carry `requested_backend`, `runtime_backend`, and
 `runtime_mode` columns so Qt-requested rows are not confused with native Qt
 runtime measurements. Until the native Qt renderer is linked on Linux,

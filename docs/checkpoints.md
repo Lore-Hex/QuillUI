@@ -3063,3 +3063,13 @@ backend, and native-vs-fallback runtime mode before the output path and build
 skip flag. Visual and interaction matrix audits therefore expose that Qt rows
 currently request the Qt facade while running through the GTK platform fallback,
 matching the profile CSV contract.
+
+## Checkpoint 180: Runtime Matrix Shell Helpers
+
+Status: implemented locally; guarded by backend matrix and source hygiene tests.
+
+`scripts/quillui-backend-products.sh` now exposes runtime-expanded app,
+generated-app, smoke, interaction, and profile matrices. The smoke matrix runner
+and scheduled profile CSV runner consume those helpers instead of recomputing
+requested/runtime/mode columns in each loop, keeping GTK and Qt parity rows tied
+to one backend availability registry.

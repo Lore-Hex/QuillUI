@@ -488,6 +488,62 @@ quillui_backend_runtime_availabilities() {
   done < <(quillui_backend_app_backends)
 }
 
+quillui_backend_runtime_matrix_for_rows() {
+  local row
+  local product
+  local requested_backend
+  local runtime_backend
+  local runtime_mode
+  local mode
+  local extra
+  local runtime_availability
+
+  while IFS= read -r row; do
+    [[ -n "$row" ]] || continue
+    IFS=$'\t' read -r product requested_backend mode extra <<< "$row"
+    if [[ -n "${extra:-}" ]]; then
+      echo "Backend runtime matrix row has too many columns: $row" >&2
+      return 65
+    fi
+    if [[ -z "$product" || -z "$requested_backend" ]]; then
+      echo "Backend runtime matrix row has an empty product or backend: $row" >&2
+      return 65
+    fi
+
+    runtime_availability="$(quillui_backend_runtime_availability_for_backend "$requested_backend")" || return $?
+    IFS=$'\t' read -r requested_backend runtime_backend runtime_mode <<< "$runtime_availability"
+    if [[ -n "${mode:-}" ]]; then
+      printf '%s\t%s\t%s\t%s\t%s\n' "$product" "$requested_backend" "$runtime_backend" "$runtime_mode" "$mode"
+    else
+      printf '%s\t%s\t%s\t%s\n' "$product" "$requested_backend" "$runtime_backend" "$runtime_mode"
+    fi
+  done
+}
+
+quillui_backend_app_runtime_matrix() {
+  quillui_backend_app_matrix | quillui_backend_runtime_matrix_for_rows
+}
+
+quillui_backend_interaction_app_runtime_matrix() {
+  quillui_backend_interaction_app_matrix | quillui_backend_runtime_matrix_for_rows
+}
+
+quillui_backend_generated_app_runtime_matrix() {
+  quillui_backend_generated_app_matrix | quillui_backend_runtime_matrix_for_rows
+}
+
+quillui_backend_smoke_runtime_matrix() {
+  quillui_backend_smoke_matrix | quillui_backend_runtime_matrix_for_rows
+}
+
+quillui_backend_smoke_interaction_runtime_matrix() {
+  quillui_backend_smoke_interaction_matrix | quillui_backend_runtime_matrix_for_rows
+}
+
+quillui_backend_profile_runtime_matrix() {
+  quillui_backend_profile_matrix | quillui_backend_runtime_matrix_for_rows
+}
+
 quillui_backend_runtime_matches_backend() {
   local requested_backend
   local runtime_backend
@@ -516,17 +572,23 @@ Commands:
   backend-apps                    List user-facing app products in the backend parity matrix.
   app-backends                    List backends requested for each user-facing app.
   app-matrix                      List PRODUCT<TAB>BACKEND visual smoke rows for user-facing apps.
+  app-runtime-matrix              List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for user-facing apps.
   interaction-apps                List user-facing app products covered by interaction smokes.
   interaction-matrix              List PRODUCT<TAB>BACKEND interaction smoke rows for user-facing apps.
+  interaction-runtime-matrix      List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for interaction smokes.
   generated-apps                  List generated external app products covered by backend parity smoke.
   generated-app-matrix            List PRODUCT<TAB>BACKEND rows for generated external apps.
+  generated-app-runtime-matrix    List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for generated external apps.
   gtk-apps                        Legacy alias for backend-apps.
   native-runtime-backends         List backends linked to native Linux runtime hosts.
   platform-runtime-fallback       Print the runtime backend used when a selected backend has no native host.
   smoke-products                  List backend launch smoke products.
   smoke-matrix                    List PRODUCT<TAB>BACKEND rows for backend launch smoke products.
+  smoke-runtime-matrix            List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE launch smoke rows.
   smoke-interaction-modes         List interaction modes for backend launch smoke products.
   smoke-interaction-matrix        List PRODUCT<TAB>BACKEND<TAB>MODE rows for backend launch interaction smokes.
+  smoke-interaction-runtime-matrix
+                                  List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE<TAB>INTERACTION rows.
   smoke-interaction-verify-matrix List PRODUCT<TAB>BACKEND<TAB>MODE<TAB>VERIFY_PRODUCT rows.
   normalize-smoke-interaction-mode MODE
                                   Print the canonical backend launch interaction mode.
@@ -534,6 +596,7 @@ Commands:
                                   Print the screenshot verifier product for a launch mode.
   profile-products                List app and launch-smoke products for profile budgets.
   profile-matrix                  List PRODUCT<TAB>BACKEND rows for profile budgets.
+  profile-runtime-matrix          List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for profile budgets.
   normalize-backend BACKEND       Print the canonical backend identifier for a known backend alias.
   require-backend BACKEND         Print the canonical backend identifier or fail for an unknown backend.
   is-smoke-product PRODUCT        Exit 0 when PRODUCT is a backend launch smoke product.
@@ -561,17 +624,26 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     app-matrix)
       quillui_backend_app_matrix
       ;;
+    app-runtime-matrix)
+      quillui_backend_app_runtime_matrix
+      ;;
     interaction-apps)
       quillui_backend_interaction_app_products
       ;;
     interaction-matrix)
       quillui_backend_interaction_app_matrix
       ;;
+    interaction-runtime-matrix)
+      quillui_backend_interaction_app_runtime_matrix
+      ;;
     generated-apps)
       quillui_backend_generated_app_products
       ;;
     generated-app-matrix)
       quillui_backend_generated_app_matrix
+      ;;
+    generated-app-runtime-matrix)
+      quillui_backend_generated_app_runtime_matrix
       ;;
     gtk-apps)
       quillui_gtk_app_products
@@ -588,11 +660,17 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     smoke-matrix)
       quillui_backend_smoke_matrix
       ;;
+    smoke-runtime-matrix)
+      quillui_backend_smoke_runtime_matrix
+      ;;
     smoke-interaction-modes)
       quillui_backend_smoke_interaction_modes
       ;;
     smoke-interaction-matrix)
       quillui_backend_smoke_interaction_matrix
+      ;;
+    smoke-interaction-runtime-matrix)
+      quillui_backend_smoke_interaction_runtime_matrix
       ;;
     smoke-interaction-verify-matrix)
       quillui_backend_smoke_interaction_verify_matrix
@@ -616,6 +694,9 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     profile-matrix)
       quillui_backend_profile_matrix
+      ;;
+    profile-runtime-matrix)
+      quillui_backend_profile_runtime_matrix
       ;;
     normalize-backend)
       if [[ $# -ne 2 ]]; then

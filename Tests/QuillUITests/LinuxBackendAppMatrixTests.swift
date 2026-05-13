@@ -241,6 +241,13 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_runtime_mode_for_backend()"))
         #expect(backendProducts.contains("quillui_backend_runtime_availability_for_backend()"))
         #expect(backendProducts.contains("quillui_backend_runtime_availabilities()"))
+        #expect(backendProducts.contains("quillui_backend_runtime_matrix_for_rows()"))
+        #expect(backendProducts.contains("quillui_backend_app_runtime_matrix()"))
+        #expect(backendProducts.contains("quillui_backend_interaction_app_runtime_matrix()"))
+        #expect(backendProducts.contains("quillui_backend_generated_app_runtime_matrix()"))
+        #expect(backendProducts.contains("quillui_backend_smoke_runtime_matrix()"))
+        #expect(backendProducts.contains("quillui_backend_smoke_interaction_runtime_matrix()"))
+        #expect(backendProducts.contains("quillui_backend_profile_runtime_matrix()"))
         #expect(backendProducts.contains("quillui_backend_runtime_matches_backend()"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS QUILLUI_QT_PROFILE_MAX_STARTUP_MS\n  quillui_alias_backend_common_env"))
@@ -258,9 +265,11 @@ struct LinuxBackendAppMatrixTests {
         #expect(!profileScript.contains("patch-swiftopenui-gtk-css.sh"))
         #expect(!profileScript.contains("swift build --scratch-path \"$ROOT_DIR/.build-linux\" --product \"$PRODUCT\""))
         #expect(csvRunner.contains("MATRIX_COMMAND=\"\""))
-        #expect(csvRunner.contains("--matrix profile-matrix"))
+        #expect(csvRunner.contains("--matrix profile-matrix|profile-runtime-matrix"))
         #expect(csvRunner.contains("Unsupported backend profile matrix command"))
-        #expect(csvRunner.contains("\"$ROOT_DIR/scripts/quillui-backend-products.sh\" \"$MATRIX_COMMAND\""))
+        #expect(csvRunner.contains("RUNTIME_MATRIX_COMMAND=\"$MATRIX_COMMAND\""))
+        #expect(csvRunner.contains("RUNTIME_MATRIX_COMMAND=\"profile-runtime-matrix\""))
+        #expect(csvRunner.contains("\"$ROOT_DIR/scripts/quillui-backend-products.sh\" \"$RUNTIME_MATRIX_COMMAND\""))
         #expect(csvRunner.contains("quillui_profile_build_cache_key()"))
         #expect(csvRunner.contains("quillui_is_backend_generated_app_product \"$product\""))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_APP_BACKEND_FACADE=$requested_backend\")"))
@@ -271,22 +280,25 @@ struct LinuxBackendAppMatrixTests {
         #expect(visualScript.contains("quillui_alias_backend_build_env"))
         #expect(smokeMatrixRunner.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(smokeMatrixRunner.contains("app-matrix|interaction-matrix|generated-app-matrix|smoke-matrix|smoke-interaction-matrix"))
+        #expect(smokeMatrixRunner.contains("quillui_smoke_runtime_matrix_command()"))
+        #expect(smokeMatrixRunner.contains("RUNTIME_MATRIX_COMMAND=\"$(quillui_smoke_runtime_matrix_command \"$MATRIX_COMMAND\")\""))
         #expect(smokeMatrixRunner.contains("CHECK_SCRIPT=\"$ROOT_DIR/scripts/linux-backend-visual-check.sh\""))
         #expect(smokeMatrixRunner.contains("CHECK_SCRIPT=\"$ROOT_DIR/scripts/linux-backend-interaction-check.sh\""))
         #expect(smokeMatrixRunner.contains("OUTPUT_TEMPLATE must include {product} and {backend}; mode matrices must also"))
         #expect(smokeMatrixRunner.contains("OUTPUT_TEMPLATE must include {mode} for $MATRIX_COMMAND"))
-        #expect(smokeMatrixRunner.contains("Backend mode matrix row has an empty mode"))
-        #expect(smokeMatrixRunner.contains("Backend matrix row has an unexpected mode column"))
+        #expect(smokeMatrixRunner.contains("Backend mode runtime matrix row has an empty mode"))
+        #expect(smokeMatrixRunner.contains("Backend runtime matrix row has an unexpected mode column"))
         #expect(smokeMatrixRunner.contains("quillui_require_backend_identifier \"$backend\""))
-        #expect(smokeMatrixRunner.contains("Backend matrix row has an unsupported backend"))
-        #expect(smokeMatrixRunner.contains("runtime_availability=\"$(quillui_backend_runtime_availability_for_backend \"$backend\")\""))
-        #expect(smokeMatrixRunner.contains("IFS=$'\\t' read -r backend runtime_backend runtime_mode <<< \"$runtime_availability\""))
+        #expect(smokeMatrixRunner.contains("Backend runtime matrix row has an unsupported backend"))
+        #expect(smokeMatrixRunner.contains("quillui_require_backend_identifier \"$runtime_backend\""))
+        #expect(smokeMatrixRunner.contains("quillui_backend_runtime_matches_backend \"$backend\" \"$runtime_backend\""))
+        #expect(smokeMatrixRunner.contains("expected_runtime_mode=\"$(quillui_backend_runtime_mode_for_pair \"$backend\" \"$runtime_backend\")\""))
         #expect(smokeMatrixRunner.contains("quillui_is_backend_generated_app_product \"$product\""))
         #expect(smokeMatrixRunner.contains("smoke_environment+=(\"QUILLUI_APP_BACKEND_FACADE=$requested_backend\")"))
         #expect(smokeMatrixRunner.contains("smoke_environment+=(\"QUILLUI_BACKEND_INTERACTION_MODE=$mode\")"))
         #expect(smokeMatrixRunner.contains("QUILLUI_BACKEND_SKIP_BUILD=1"))
         #expect(smokeMatrixRunner.contains("env \"${smoke_environment[@]}\" \"$CHECK_SCRIPT\" \"$output_path\" \"$product\" \"$requested_backend\""))
-        #expect(smokeMatrixRunner.contains("\"$ROOT_DIR/scripts/quillui-backend-products.sh\" \"$MATRIX_COMMAND\""))
+        #expect(smokeMatrixRunner.contains("\"$ROOT_DIR/scripts/quillui-backend-products.sh\" \"$RUNTIME_MATRIX_COMMAND\""))
         #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(smokeLib.contains("quillui_export_backend_argument()"))
         #expect(smokeLib.contains("quillui_alias_backend_build_env()"))
@@ -504,6 +516,14 @@ struct LinuxBackendAppMatrixTests {
     func backendProductHelperMapsDefaults() throws {
         let root = try packageRoot()
         let script = root.appendingPathComponent("scripts/quillui-backend-products.sh")
+        func runtimeRows(for matrixRows: [String]) -> [String] {
+            matrixRows.map { row in
+                let fields = row.split(separator: "\t", omittingEmptySubsequences: false)
+                let backend = String(fields[1])
+                let runtimeMode = backend == "gtk" ? "native" : "platformFallback"
+                return "\(row)\tgtk\t\(runtimeMode)"
+            }
+        }
 
         let smokeProducts = try runScript(script, arguments: ["smoke-products"])
         #expect(smokeProducts.status == 0, Comment(rawValue: smokeProducts.output))
@@ -513,6 +533,11 @@ struct LinuxBackendAppMatrixTests {
         let smokeMatrix = try runScript(script, arguments: ["smoke-matrix"])
         #expect(smokeMatrix.status == 0, Comment(rawValue: smokeMatrix.output))
         #expect(smokeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == expectedSmokeMatrix)
+
+        let expectedSmokeRuntimeMatrix = runtimeRows(for: expectedSmokeMatrix)
+        let smokeRuntimeMatrix = try runScript(script, arguments: ["smoke-runtime-matrix"])
+        #expect(smokeRuntimeMatrix.status == 0, Comment(rawValue: smokeRuntimeMatrix.output))
+        #expect(smokeRuntimeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == expectedSmokeRuntimeMatrix)
 
         let expectedSmokeInteractionModes = [
             "open-panel",
@@ -531,6 +556,15 @@ struct LinuxBackendAppMatrixTests {
         #expect(
             smokeInteractionMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
                 == expectedSmokeMatrix.flatMap { row in
+                    expectedSmokeInteractionModes.map { "\(row)\t\($0)" }
+                }
+        )
+
+        let smokeInteractionRuntimeMatrix = try runScript(script, arguments: ["smoke-interaction-runtime-matrix"])
+        #expect(smokeInteractionRuntimeMatrix.status == 0, Comment(rawValue: smokeInteractionRuntimeMatrix.output))
+        #expect(
+            smokeInteractionRuntimeMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
+                == expectedSmokeRuntimeMatrix.flatMap { row in
                     expectedSmokeInteractionModes.map { "\(row)\t\($0)" }
                 }
         )
@@ -590,16 +624,25 @@ struct LinuxBackendAppMatrixTests {
             + expectedSmokeMatrix
         #expect(actualProfileMatrix == expectedProfileMatrix)
 
+        let profileRuntimeMatrix = try runScript(script, arguments: ["profile-runtime-matrix"])
+        #expect(profileRuntimeMatrix.status == 0, Comment(rawValue: profileRuntimeMatrix.output))
+        #expect(profileRuntimeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == runtimeRows(for: expectedProfileMatrix))
+
         let appBackends = try runScript(script, arguments: ["app-backends"])
         #expect(appBackends.status == 0, Comment(rawValue: appBackends.output))
         #expect(appBackends.output.split(whereSeparator: \.isNewline).map(String.init) == ["gtk", "qt"])
 
         let appMatrix = try runScript(script, arguments: ["app-matrix"])
         #expect(appMatrix.status == 0, Comment(rawValue: appMatrix.output))
+        let expectedAppMatrix = Self.expectedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
         #expect(
             appMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
-                == Self.expectedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
+                == expectedAppMatrix
         )
+
+        let appRuntimeMatrix = try runScript(script, arguments: ["app-runtime-matrix"])
+        #expect(appRuntimeMatrix.status == 0, Comment(rawValue: appRuntimeMatrix.output))
+        #expect(appRuntimeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == runtimeRows(for: expectedAppMatrix))
 
         let interactionProducts = try runScript(script, arguments: ["interaction-apps"])
         #expect(interactionProducts.status == 0, Comment(rawValue: interactionProducts.output))
@@ -609,16 +652,25 @@ struct LinuxBackendAppMatrixTests {
         #expect(interactionMatrix.status == 0, Comment(rawValue: interactionMatrix.output))
         #expect(interactionMatrix.output == appMatrix.output)
 
+        let interactionRuntimeMatrix = try runScript(script, arguments: ["interaction-runtime-matrix"])
+        #expect(interactionRuntimeMatrix.status == 0, Comment(rawValue: interactionRuntimeMatrix.output))
+        #expect(interactionRuntimeMatrix.output == appRuntimeMatrix.output)
+
         let generatedProducts = try runScript(script, arguments: ["generated-apps"])
         #expect(generatedProducts.status == 0, Comment(rawValue: generatedProducts.output))
         #expect(generatedProducts.output.split(whereSeparator: \.isNewline).map(String.init) == Self.expectedGeneratedAppProducts)
 
         let generatedMatrix = try runScript(script, arguments: ["generated-app-matrix"])
         #expect(generatedMatrix.status == 0, Comment(rawValue: generatedMatrix.output))
+        let expectedGeneratedMatrix = Self.expectedGeneratedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
         #expect(
             generatedMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
-                == Self.expectedGeneratedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
+                == expectedGeneratedMatrix
         )
+
+        let generatedRuntimeMatrix = try runScript(script, arguments: ["generated-app-runtime-matrix"])
+        #expect(generatedRuntimeMatrix.status == 0, Comment(rawValue: generatedRuntimeMatrix.output))
+        #expect(generatedRuntimeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == runtimeRows(for: expectedGeneratedMatrix))
 
         let knownGeneratedProduct = try runScript(script, arguments: ["is-generated-app", "quill-chat-linux"])
         #expect(knownGeneratedProduct.status == 0, Comment(rawValue: knownGeneratedProduct.output))
