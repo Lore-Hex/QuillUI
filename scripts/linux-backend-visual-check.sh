@@ -70,8 +70,6 @@ if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
 fi
 DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 
-VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-$PRODUCT}"
-if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-  VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference}"
-fi
+VERIFY_PRODUCT=""
+quillui_backend_visual_verify_product "$PRODUCT" VERIFY_PRODUCT
 "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"

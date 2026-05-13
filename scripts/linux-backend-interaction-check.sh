@@ -249,63 +249,6 @@ else
 fi
 DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 
-if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
-  case "$INTERACTION_MODE" in
-    composer-typed)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-composer-typed}"
-      ;;
-    settings-panel)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-settings-panel}"
-      ;;
-    alert-settings-panel)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-settings-panel}"
-      ;;
-    settings-endpoint-typed)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-settings-endpoint-typed}"
-      ;;
-    completions-panel)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-completions-panel}"
-      ;;
-    history-selection)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-history-selection}"
-      ;;
-    transcript-selection)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-transcript-selection}"
-      ;;
-    markdown-transcript-selection)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-markdown-transcript-selection}"
-      ;;
-    long-transcript-selection)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-long-transcript-selection}"
-      ;;
-    prompt-send)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-prompt-send}"
-      ;;
-    *)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-toolbar-menu}"
-      if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-        VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-toolbar-menu}"
-      fi
-      ;;
-  esac
-  "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"
-elif quillui_is_backend_smoke_product "$PRODUCT"; then
-  smoke_prefix="$PRODUCT"
-  case "$INTERACTION_MODE" in
-    nested-sheet|sidebar-sheet|banner-sheet)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-${smoke_prefix}-sheet}"
-      ;;
-    sidebar-button)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-${smoke_prefix}-sidebar}"
-      ;;
-    banner-button)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-${smoke_prefix}-banner}"
-      ;;
-    open-panel|*)
-      VERIFY_PRODUCT="${QUILLUI_BACKEND_VERIFY_PRODUCT:-${smoke_prefix}-open}"
-      ;;
-  esac
-  "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"
-else
-  "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$PRODUCT"
-fi
+VERIFY_PRODUCT=""
+quillui_backend_interaction_verify_product "$PRODUCT" "$INTERACTION_MODE" VERIFY_PRODUCT
+"$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"

@@ -102,6 +102,87 @@ quillui_place_reference_window() {
   sleep 1
 }
 
+quillui_backend_visual_verify_product() {
+  local product="$1"
+  local output_var="$2"
+  local verify_product="$product"
+
+  if quillui_is_quill_chat_mac_reference_product "$product"; then
+    verify_product="quill-chat-linux-mac-reference"
+  fi
+  if [[ -n "${QUILLUI_BACKEND_VERIFY_PRODUCT:-}" ]]; then
+    verify_product="$QUILLUI_BACKEND_VERIFY_PRODUCT"
+  fi
+
+  quillui_assign_output "$output_var" "$verify_product"
+}
+
+quillui_backend_interaction_verify_product() {
+  local product="$1"
+  local interaction_mode="$2"
+  local output_var="$3"
+  local verify_product="$product"
+
+  if [[ "$product" == "quill-chat-linux" ]]; then
+    case "$interaction_mode" in
+      composer-typed)
+        verify_product="quill-chat-linux-mac-reference-composer-typed"
+        ;;
+      settings-panel|alert-settings-panel)
+        verify_product="quill-chat-linux-mac-reference-settings-panel"
+        ;;
+      settings-endpoint-typed)
+        verify_product="quill-chat-linux-mac-reference-settings-endpoint-typed"
+        ;;
+      completions-panel)
+        verify_product="quill-chat-linux-mac-reference-completions-panel"
+        ;;
+      history-selection)
+        verify_product="quill-chat-linux-mac-reference-history-selection"
+        ;;
+      transcript-selection)
+        verify_product="quill-chat-linux-mac-reference-transcript-selection"
+        ;;
+      markdown-transcript-selection)
+        verify_product="quill-chat-linux-mac-reference-markdown-transcript-selection"
+        ;;
+      long-transcript-selection)
+        verify_product="quill-chat-linux-mac-reference-long-transcript-selection"
+        ;;
+      prompt-send)
+        verify_product="quill-chat-linux-mac-reference-prompt-send"
+        ;;
+      *)
+        verify_product="quill-chat-linux-toolbar-menu"
+        if quillui_is_quill_chat_mac_reference_product "$product"; then
+          verify_product="quill-chat-linux-mac-reference-toolbar-menu"
+        fi
+        ;;
+    esac
+  elif quillui_is_backend_smoke_product "$product"; then
+    case "$interaction_mode" in
+      nested-sheet|sidebar-sheet|banner-sheet)
+        verify_product="${product}-sheet"
+        ;;
+      sidebar-button)
+        verify_product="${product}-sidebar"
+        ;;
+      banner-button)
+        verify_product="${product}-banner"
+        ;;
+      open-panel|*)
+        verify_product="${product}-open"
+        ;;
+    esac
+  fi
+
+  if [[ -n "${QUILLUI_BACKEND_VERIFY_PRODUCT:-}" ]]; then
+    verify_product="$QUILLUI_BACKEND_VERIFY_PRODUCT"
+  fi
+
+  quillui_assign_output "$output_var" "$verify_product"
+}
+
 quillui_assign_output() {
   local output_var="$1"
   local value="$2"

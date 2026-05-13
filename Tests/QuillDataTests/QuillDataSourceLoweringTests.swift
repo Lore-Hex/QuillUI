@@ -413,7 +413,7 @@ struct QuillDataSourceLoweringTests {
         #expect(smokeLib.contains("QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"))
         #expect(smokeLib.contains("QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"))
         #expect(visualScript.contains("DISPLAY_ID=\"$(quillui_normalize_x_display_id \"${QUILLUI_BACKEND_VISUAL_DISPLAY:-:94}\")\""))
-        #expect(visualScript.contains("VERIFY_PRODUCT=\"${QUILLUI_BACKEND_VERIFY_PRODUCT:-$PRODUCT}\""))
+        #expect(visualScript.contains("quillui_backend_visual_verify_product \"$PRODUCT\" VERIFY_PRODUCT"))
         #expect(!visualScript.contains("${QUILLUI_GTK_MAC_REFERENCE:-0}"))
         #expect(!visualScript.contains("${QUILLUI_GTK_DEFAULT_WINDOW_WIDTH:-2048}"))
         #expect(!visualScript.contains("${QUILLUI_GTK_VISUAL_DISPLAY:-"))
@@ -425,7 +425,8 @@ struct QuillDataSourceLoweringTests {
         #expect(smokeLib.contains("quillui_find_quill_chat_reference_window()"))
         #expect(smokeLib.contains("quillui_place_reference_window()"))
         #expect(visualScript.contains("capture_window=\"$window_id\""))
-        #expect(visualScript.contains("quill-chat-linux-mac-reference"))
+        #expect(smokeLib.contains("quillui_backend_visual_verify_product()"))
+        #expect(smokeLib.contains("quill-chat-linux-mac-reference"))
 
         let verifier = try String(
             contentsOf: root.appendingPathComponent("scripts/verify-backend-screenshot.py"),
@@ -462,10 +463,6 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"),
             encoding: .utf8
         )
-        let smokeLib = try String(
-            contentsOf: root.appendingPathComponent("scripts/quillui-linux-backend-smoke-lib.sh"),
-            encoding: .utf8
-        )
         let legacyInteractionScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-gtk-interaction-check.sh"),
             encoding: .utf8
@@ -473,7 +470,7 @@ struct QuillDataSourceLoweringTests {
         #expect(legacyInteractionScript.contains("linux-backend-interaction-check.sh"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_INTERACTION_MODE"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_FOCUS_PRIME"))
-        #expect(interactionScript.contains("QUILLUI_BACKEND_VERIFY_PRODUCT"))
+        #expect(smokeLib.contains("QUILLUI_BACKEND_VERIFY_PRODUCT"))
         #expect(interactionScript.contains("quillui_backend_reference_window_defaults"))
         #expect(!interactionScript.contains("reference_window_width=\"${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}\""))
         #expect(interactionScript.contains("quillui_append_quill_chat_reference_environment_if_needed"))
@@ -504,15 +501,17 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("prompt-send"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_TYPE_TEXT"))
-        #expect(interactionScript.contains("quill-chat-linux-mac-reference-composer-typed"))
-        #expect(interactionScript.contains("quill-chat-linux-mac-reference-settings-panel"))
-        #expect(interactionScript.contains("quill-chat-linux-mac-reference-settings-endpoint-typed"))
-        #expect(interactionScript.contains("quill-chat-linux-mac-reference-completions-panel"))
-        #expect(interactionScript.contains("quill-chat-linux-mac-reference-history-selection"))
-        #expect(interactionScript.contains("quill-chat-linux-mac-reference-transcript-selection"))
-        #expect(interactionScript.contains("quill-chat-linux-mac-reference-markdown-transcript-selection"))
-        #expect(interactionScript.contains("quill-chat-linux-mac-reference-long-transcript-selection"))
-        #expect(interactionScript.contains("quill-chat-linux-mac-reference-prompt-send"))
+        #expect(interactionScript.contains("quillui_backend_interaction_verify_product \"$PRODUCT\" \"$INTERACTION_MODE\" VERIFY_PRODUCT"))
+        #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
+        #expect(smokeLib.contains("quill-chat-linux-mac-reference-composer-typed"))
+        #expect(smokeLib.contains("quill-chat-linux-mac-reference-settings-panel"))
+        #expect(smokeLib.contains("quill-chat-linux-mac-reference-settings-endpoint-typed"))
+        #expect(smokeLib.contains("quill-chat-linux-mac-reference-completions-panel"))
+        #expect(smokeLib.contains("quill-chat-linux-mac-reference-history-selection"))
+        #expect(smokeLib.contains("quill-chat-linux-mac-reference-transcript-selection"))
+        #expect(smokeLib.contains("quill-chat-linux-mac-reference-markdown-transcript-selection"))
+        #expect(smokeLib.contains("quill-chat-linux-mac-reference-long-transcript-selection"))
+        #expect(smokeLib.contains("quill-chat-linux-mac-reference-prompt-send"))
 
         let seedScript = try String(
             contentsOf: root.appendingPathComponent("scripts/seed-quill-chat-reference-data.py"),
