@@ -127,7 +127,7 @@ quillui_backend_smoke_matrix() {
 
   while IFS= read -r product; do
     [[ -n "$product" ]] || continue
-    backend="$(quillui_backend_for_product "$product")"
+    backend="$(quillui_require_backend_for_product "$product")"
     [[ -n "$backend" ]] || continue
     printf '%s\t%s\n' "$product" "$backend"
   done < <(quillui_backend_smoke_products)
@@ -196,7 +196,7 @@ quillui_backend_smoke_interaction_matrix() {
 
   while IFS= read -r product; do
     [[ -n "$product" ]] || continue
-    backend="$(quillui_backend_for_product "$product")"
+    backend="$(quillui_require_backend_for_product "$product")"
     [[ -n "$backend" ]] || continue
     while IFS= read -r mode; do
       [[ -n "$mode" ]] || continue
@@ -363,6 +363,19 @@ quillui_backend_for_product() {
   esac
 }
 
+quillui_require_backend_for_product() {
+  local product="$1"
+  local backend
+
+  backend="$(quillui_backend_for_product "$product")"
+  if [[ -z "$backend" ]]; then
+    echo "Unsupported QuillUI backend product: $product" >&2
+    return 65
+  fi
+
+  echo "$backend"
+}
+
 quillui_backend_profile_matrix() {
   quillui_backend_app_matrix
   quillui_backend_generated_app_matrix
@@ -374,6 +387,14 @@ quillui_requested_backend_for_product() {
     quillui_require_backend_identifier "$QUILLUI_BACKEND"
   else
     quillui_backend_for_product "$1"
+  fi
+}
+
+quillui_require_requested_backend_for_product() {
+  if [[ -n "${QUILLUI_BACKEND:-}" ]]; then
+    quillui_require_backend_identifier "$QUILLUI_BACKEND"
+  else
+    quillui_require_backend_for_product "$1"
   fi
 }
 
@@ -525,14 +546,14 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         quillui_backend_products_usage
         exit 64
       fi
-      quillui_backend_for_product "$2"
+      quillui_require_backend_for_product "$2"
       ;;
     requested-backend)
       if [[ $# -ne 2 ]]; then
         quillui_backend_products_usage
         exit 64
       fi
-      quillui_requested_backend_for_product "$2"
+      quillui_require_requested_backend_for_product "$2"
       ;;
     runtime-backend)
       if [[ $# -ne 2 ]]; then
@@ -546,7 +567,8 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         quillui_backend_products_usage
         exit 64
       fi
-      quillui_runtime_backend_for_product "$2"
+      requested_backend="$(quillui_require_requested_backend_for_product "$2")" || exit $?
+      quillui_runtime_backend_for_backend "$requested_backend"
       ;;
     --help|-h)
       quillui_backend_products_usage

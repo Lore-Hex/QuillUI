@@ -599,6 +599,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(gtkBackend.status == 0, Comment(rawValue: gtkBackend.output))
         #expect(gtkBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
 
+        let unknownProductBackend = try runScript(script, arguments: ["backend-for-product", "unknown-product"])
+        #expect(unknownProductBackend.status != 0)
+        #expect(unknownProductBackend.output.contains("Unsupported QuillUI backend product: unknown-product"))
+
         let overrideBackend = try runScript(
             script,
             arguments: ["requested-backend", "quill-icecubes"],
@@ -614,6 +618,18 @@ struct LinuxBackendAppMatrixTests {
         )
         #expect(aliasOverrideBackend.status == 0, Comment(rawValue: aliasOverrideBackend.output))
         #expect(aliasOverrideBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+
+        let unknownProductOverrideBackend = try runScript(
+            script,
+            arguments: ["requested-backend", "unknown-product"],
+            environment: ["QUILLUI_BACKEND": "qt"]
+        )
+        #expect(unknownProductOverrideBackend.status == 0, Comment(rawValue: unknownProductOverrideBackend.output))
+        #expect(unknownProductOverrideBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+
+        let unknownProductRequestedBackend = try runScript(script, arguments: ["requested-backend", "unknown-product"])
+        #expect(unknownProductRequestedBackend.status != 0)
+        #expect(unknownProductRequestedBackend.output.contains("Unsupported QuillUI backend product: unknown-product"))
 
         let invalidOverrideBackend = try runScript(
             script,
@@ -650,6 +666,10 @@ struct LinuxBackendAppMatrixTests {
         let runtimeProductBackend = try runScript(script, arguments: ["runtime-backend-for-product", "quill-qt-interaction-smoke"])
         #expect(runtimeProductBackend.status == 0, Comment(rawValue: runtimeProductBackend.output))
         #expect(runtimeProductBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+
+        let unknownRuntimeProductBackend = try runScript(script, arguments: ["runtime-backend-for-product", "unknown-product"])
+        #expect(unknownRuntimeProductBackend.status != 0)
+        #expect(unknownRuntimeProductBackend.output.contains("Unsupported QuillUI backend product: unknown-product"))
 
         let normalizedSwiftUIBackend = try runScript(script, arguments: ["normalize-backend", "swift-ui"])
         #expect(normalizedSwiftUIBackend.status == 0, Comment(rawValue: normalizedSwiftUIBackend.output))

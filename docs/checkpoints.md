@@ -2836,3 +2836,14 @@ Status: implemented locally; guarded by QuillUI API tests.
 values. Existing launch plans keep the same fallback behavior for invalid
 values, while app launchers, CI checks, and future backend diagnostics can
 surface invalid backend requests without duplicating environment parsing.
+
+## Checkpoint 158: Strict Backend Product Defaults
+
+Status: implemented locally; guarded by backend matrix tests.
+
+`scripts/quillui-backend-products.sh backend-for-product`,
+`requested-backend`, and `runtime-backend-for-product` now fail loudly when a
+product has no registered default backend instead of returning an empty value.
+Explicit backend overrides still work for ad hoc products, so local experiments
+can request GTK or Qt directly while CI matrix rows keep strict product
+coverage.
