@@ -1062,7 +1062,7 @@ let package = Package(
         // itself on the test-target scorecard.
         .testTarget(
             name: "QuillUITests",
-            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt"],
+            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillInteractionSmokeSupport"],
             swiftSettings: appSwiftSettings
         )
     ]
