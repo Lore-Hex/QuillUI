@@ -2921,3 +2921,12 @@ generated external apps and passes `QUILLUI_APP_BACKEND_FACADE` into those
 profile rows. Root app rows still reuse the same executable across GTK and Qt
 requests, but generated Quill Chat profile rows now mirror the visual smoke
 behavior by compiling and profiling the GTK and Qt launcher facades separately.
+
+## Checkpoint 166: Shared Backend Product Membership
+
+Status: implemented locally; guarded by backend matrix and source hygiene tests.
+
+Backend product classification now uses a single shell membership helper for
+smoke products and generated external apps. That keeps future matrix-specific
+classifiers from copying the same list scan while preserving the existing
+`is-smoke-product` and `is-generated-app` CLI commands.

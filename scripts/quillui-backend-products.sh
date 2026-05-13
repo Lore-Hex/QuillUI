@@ -228,30 +228,26 @@ quillui_backend_profile_products() {
   quillui_backend_smoke_products
 }
 
-quillui_is_backend_smoke_product() {
+quillui_backend_product_list_contains() {
   local candidate="$1"
+  local list_command="$2"
   local product
 
   while IFS= read -r product; do
     if [[ "$candidate" == "$product" ]]; then
       return 0
     fi
-  done < <(quillui_backend_smoke_products)
+  done < <("$list_command")
 
   return 1
 }
 
+quillui_is_backend_smoke_product() {
+  quillui_backend_product_list_contains "$1" quillui_backend_smoke_products
+}
+
 quillui_is_backend_generated_app_product() {
-  local candidate="$1"
-  local product
-
-  while IFS= read -r product; do
-    if [[ "$candidate" == "$product" ]]; then
-      return 0
-    fi
-  done < <(quillui_backend_generated_app_products)
-
-  return 1
+  quillui_backend_product_list_contains "$1" quillui_backend_generated_app_products
 }
 
 quillui_alias_env() {

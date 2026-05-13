@@ -211,6 +211,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_generated_app_products\n  quillui_backend_smoke_products"))
         #expect(backendProducts.contains("quillui_backend_profile_matrix()"))
         #expect(backendProducts.contains("quillui_backend_app_matrix\n  quillui_backend_generated_app_matrix\n  quillui_backend_smoke_matrix"))
+        #expect(backendProducts.contains("quillui_backend_product_list_contains()"))
         #expect(backendProducts.contains("quillui_is_backend_smoke_product()"))
         #expect(backendProducts.contains("quillui_is_backend_generated_app_product()"))
         #expect(backendProducts.contains("quillui_alias_env()"))
