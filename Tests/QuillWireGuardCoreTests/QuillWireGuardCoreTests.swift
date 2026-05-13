@@ -119,14 +119,15 @@ struct QuillWireGuardCoreTests {
         #expect(nativeShimSource.contains("QLabel#tunnelStatus, QLabel#tunnelSummary"))
         #expect(nativeShimSource.contains("list->setItemWidget(item, tunnelRowWidget(tunnel))"))
         #expect(!nativeShimSource.contains("QStringList lines"))
+        #expect(nativeShimSource.contains("QSize resolvedMinimumWindowSize"))
         #expect(nativeShimSource.contains("QSize resolvedDefaultWindowSize"))
         #expect(nativeShimSource.contains("intValue(payload, \"minimumWidth\", 900)"))
         #expect(nativeShimSource.contains("intValue(payload, \"minimumHeight\", 600)"))
-        #expect(nativeShimSource.contains("std::max(intValue(payload, \"defaultWidth\", minimumWidth), minimumWidth)"))
-        #expect(nativeShimSource.contains("std::max(intValue(payload, \"defaultHeight\", minimumHeight), minimumHeight)"))
+        #expect(nativeShimSource.contains("std::max(intValue(payload, \"defaultWidth\", minimumSize.width()), minimumSize.width())"))
+        #expect(nativeShimSource.contains("std::max(intValue(payload, \"defaultHeight\", minimumSize.height()), minimumSize.height())"))
         #expect(!nativeShimSource.contains("kMinimumAppWidth"))
         #expect(!nativeShimSource.contains("kMinimumAppHeight"))
-        #expect(nativeShimSource.contains("window.setMinimumSize(defaultWindowSize)"))
+        #expect(nativeShimSource.contains("window.setMinimumSize(minimumWindowSize)"))
         #expect(nativeShimSource.contains("window.resize(defaultWindowSize)"))
     }
 

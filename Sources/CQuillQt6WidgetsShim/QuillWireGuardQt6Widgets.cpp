@@ -38,13 +38,17 @@ int intValue(const QJsonObject &object, const char *key, int fallback) {
     return value.isDouble() ? value.toInt(fallback) : fallback;
 }
 
-QSize resolvedDefaultWindowSize(const QJsonObject &payload) {
-    const int minimumWidth = intValue(payload, "minimumWidth", 900);
-    const int minimumHeight = intValue(payload, "minimumHeight", 600);
-
+QSize resolvedMinimumWindowSize(const QJsonObject &payload) {
     return QSize(
-        std::max(intValue(payload, "defaultWidth", minimumWidth), minimumWidth),
-        std::max(intValue(payload, "defaultHeight", minimumHeight), minimumHeight)
+        intValue(payload, "minimumWidth", 900),
+        intValue(payload, "minimumHeight", 600)
+    );
+}
+
+QSize resolvedDefaultWindowSize(const QJsonObject &payload, const QSize &minimumSize) {
+    return QSize(
+        std::max(intValue(payload, "defaultWidth", minimumSize.width()), minimumSize.width()),
+        std::max(intValue(payload, "defaultHeight", minimumSize.height()), minimumSize.height())
     );
 }
 
@@ -267,8 +271,9 @@ int quill_wireguard_qt_run_wireguard_json(
 
     QWidget window;
     window.setWindowTitle(stringValue(payload, "title"));
-    const QSize defaultWindowSize = resolvedDefaultWindowSize(payload);
-    window.setMinimumSize(defaultWindowSize);
+    const QSize minimumWindowSize = resolvedMinimumWindowSize(payload);
+    const QSize defaultWindowSize = resolvedDefaultWindowSize(payload, minimumWindowSize);
+    window.setMinimumSize(minimumWindowSize);
     window.resize(defaultWindowSize);
 
     QHBoxLayout *rootLayout = new QHBoxLayout(&window);
