@@ -27,12 +27,14 @@ PRODUCT="${1:-}"
 SETTLE_SECONDS="${2:-${QUILLUI_BACKEND_PROFILE_SETTLE:-${QUILLUI_GTK_PROFILE_SETTLE:-5}}}"
 STEADY_DELAY_SECONDS="${3:-${QUILLUI_BACKEND_PROFILE_STEADY:-${QUILLUI_GTK_PROFILE_STEADY:-20}}}"
 
-source "$ROOT_DIR/scripts/quillui-backend-products.sh"
+source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
 if [[ -z "$PRODUCT" ]]; then
     echo "Usage: $0 <product-name> [settle-seconds] [steady-delay]" >&2
     exit 64
 fi
+
+quillui_install_linux_backend_smoke_packages
 
 sample_cpu_pct() {
     local pid="$1"
@@ -48,17 +50,14 @@ sample_cpu_pct() {
         '
 }
 
-# Build (timed). We don't include build cost in startup_ms - it's
-# captured separately so dependency caches don't pollute the
+# Build or resolve the executable (timed). We don't include build cost in
+# startup_ms - it's captured separately so dependency caches don't pollute the
 # startup signal.
 build_start_ms=$(date +%s%3N)
-"$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$ROOT_DIR/.build-linux" >/dev/null 2>&1 || true
-swift build --scratch-path "$ROOT_DIR/.build-linux" --product "$PRODUCT" >/dev/null 2>&1
+quillui_resolve_linux_backend_executable "$PRODUCT" exe >/dev/null 2>&1
 build_end_ms=$(date +%s%3N)
 build_ms=$((build_end_ms - build_start_ms))
 
-bin_path="$(swift build --scratch-path "$ROOT_DIR/.build-linux" --show-bin-path)"
-exe="$bin_path/$PRODUCT"
 if [[ ! -x "$exe" ]]; then
     echo "$PRODUCT,$build_ms,-1,-1,-1,-1,build-missing"
     exit 1

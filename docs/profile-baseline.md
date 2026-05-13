@@ -13,6 +13,13 @@ visual smoke coverage. The older `scripts/linux-gtk-app-products.sh`,
 and `scripts/check-linux-gtk-profile-budget.sh` paths remain as
 compatibility wrappers.
 
+`scripts/linux-backend-profile.sh` now resolves executables through
+`scripts/quillui-linux-backend-smoke-lib.sh`, matching the visual and
+interaction smoke runners. Profile passes therefore share the same root
+SwiftPM build path, generated Quill Chat build path, prebuilt executable
+override, skip-build behavior, and backend selection defaults as the rest of
+the Linux backend QA tooling.
+
 ## Current Matrix (Linux run 25716559081, commit d69a1f4)
 
 | App                            | build_ms | startup_ms | rss_kb  | cpu_initial | cpu_steady |

@@ -2698,3 +2698,14 @@ contract. The backend interaction runner now also accepts
 `QUILLUI_BACKEND_MAC_REFERENCE`, generic/backend interaction screen sizing, and
 backend-neutral reference window controls before mapping them to the legacy GTK
 environment names.
+
+## Checkpoint 148: Backend Profile Reuses Smoke Helper
+
+Status: implemented locally; guarded by matrix tests and shell syntax checks.
+
+`scripts/linux-backend-profile.sh` now sources
+`scripts/quillui-linux-backend-smoke-lib.sh` instead of keeping its own
+SwiftOpenUI patch, SwiftPM build, and bin-path lookup sequence. Profile runs
+therefore resolve root app products, generated Quill Chat executables,
+`QUILLUI_BACKEND_APP_EXECUTABLE`, and skip-build flows through the same helper
+contract as visual, interaction, and full backend checks.
