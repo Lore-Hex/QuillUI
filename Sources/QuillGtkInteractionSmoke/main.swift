@@ -1,5 +1,4 @@
 import QuillInteractionSmokeSupport
-import QuillUI
 import QuillUIGtk
 
 private typealias QuillGtkInteractionSmokeApp = QuillBackendInteractionSmokeApp<QuillGtkBackend>

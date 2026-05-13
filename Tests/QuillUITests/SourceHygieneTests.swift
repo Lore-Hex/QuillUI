@@ -258,6 +258,7 @@ struct SourceHygieneTests {
 
         #expect(gtkMain.contains("import QuillInteractionSmokeSupport"))
         #expect(gtkMain.contains("import QuillUIGtk"))
+        #expect(!gtkMain.contains("import QuillUI\n"))
         #expect(gtkMain.contains("private typealias QuillGtkInteractionSmokeApp = QuillBackendInteractionSmokeApp<QuillGtkBackend>"))
         #expect(gtkMain.contains("QuillGtkApp.run(QuillGtkInteractionSmokeApp.self)"))
         #expect(!gtkMain.contains("QuillInteractionSmokeScene.scene(for: .gtk)"))
@@ -267,6 +268,7 @@ struct SourceHygieneTests {
 
         #expect(qtMain.contains("import QuillInteractionSmokeSupport"))
         #expect(qtMain.contains("import QuillUIQt"))
+        #expect(!qtMain.contains("import QuillUI\n"))
         #expect(qtMain.contains("private typealias QuillQtInteractionSmokeApp = QuillBackendInteractionSmokeApp<QuillQtBackend>"))
         #expect(qtMain.contains("QuillQtApp.run(QuillQtInteractionSmokeApp.self)"))
         #expect(!qtMain.contains("QuillInteractionSmokeScene.scene(for: .qt)"))
@@ -289,6 +291,7 @@ struct SourceHygieneTests {
         #expect(backendCore.contains("static var status: QuillBackendRuntimeStatus"))
         #expect(appCore.contains("static func run<A: App>(_ appType: A.Type)"))
         #expect(appCore.contains("QuillBackendApp<Self>.run(appType)"))
+        #expect(gtkBackend.contains("@_exported import QuillUI"))
         #expect(gtkBackend.contains("public enum QuillGtkBackend"))
         #expect(gtkBackend.contains("public typealias QuillGtkApp = QuillBackendApp<QuillGtkBackend>"))
         #expect(gtkBackend.contains("public typealias QuillGtkBackendStatus = QuillBackendRuntimeStatus"))
@@ -296,6 +299,7 @@ struct SourceHygieneTests {
         #expect(!gtkBackend.contains("runtimeStatus"))
         #expect(!gtkBackend.contains("static func run<A: App>"))
         #expect(!gtkBackend.contains("QuillGtkBackend.run(appType)"))
+        #expect(qtBackend.contains("@_exported import QuillUI"))
         #expect(qtBackend.contains("public enum QuillQtBackend"))
         #expect(qtBackend.contains("public typealias QuillQtApp = QuillBackendApp<QuillQtBackend>"))
         #expect(qtBackend.contains("public typealias QuillQtBackendStatus = QuillBackendRuntimeStatus"))
