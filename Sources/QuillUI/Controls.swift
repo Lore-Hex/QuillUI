@@ -116,12 +116,23 @@ private extension String {
 }
 
 #if !(os(macOS) || os(iOS) || os(visionOS))
-private var quillGTKReferenceWindowWidth: Double? {
-    ProcessInfo.processInfo.environment["QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"].flatMap(Double.init)
+private func quillBackendEnvironmentDouble(_ canonical: String, legacy: String) -> Double? {
+    let environment = ProcessInfo.processInfo.environment
+    return (environment[canonical] ?? environment[legacy]).flatMap(Double.init)
 }
 
-private var quillGTKReferenceWindowHeight: Double? {
-    ProcessInfo.processInfo.environment["QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT"].flatMap(Double.init)
+private var quillBackendReferenceWindowWidth: Double? {
+    quillBackendEnvironmentDouble(
+        "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH",
+        legacy: "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"
+    )
+}
+
+private var quillBackendReferenceWindowHeight: Double? {
+    quillBackendEnvironmentDouble(
+        "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT",
+        legacy: "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT"
+    )
 }
 #endif
 
@@ -577,7 +588,7 @@ public struct QuillStatusBanner: View {
     private var bannerFontSize: CGFloat { 24 }
     private var actionFontSize: CGFloat { 22 }
     private var messageWidth: Double? {
-        guard let windowWidth = quillGTKReferenceWindowWidth, windowWidth >= 1600 else { return nil }
+        guard let windowWidth = quillBackendReferenceWindowWidth, windowWidth >= 1600 else { return nil }
         let sidebarWidth = max(320, min(620, windowWidth * 0.285))
         let detailWidth = windowWidth - sidebarWidth - 1
         let availableTextWidth = detailWidth - 56 - 60 - 230
@@ -669,7 +680,7 @@ public struct QuillChatEmptyState: View {
 
     #if os(Linux)
     private static var referenceHeight: CGFloat? {
-        guard let windowHeight = quillGTKReferenceWindowHeight, windowHeight >= 1200 else { return nil }
+        guard let windowHeight = quillBackendReferenceWindowHeight, windowHeight >= 1200 else { return nil }
         return CGFloat(min(900, max(740, windowHeight * 0.64)))
     }
 
@@ -860,7 +871,7 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
 
     #if os(Linux)
     private static var showsMacWindowControls: Bool {
-        guard let windowHeight = quillGTKReferenceWindowHeight else { return false }
+        guard let windowHeight = quillBackendReferenceWindowHeight else { return false }
         return windowHeight >= 1200
     }
 

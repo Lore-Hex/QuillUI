@@ -525,6 +525,10 @@ struct QuillDataSourceLoweringTests {
         #expect(controls.contains("Button(action: action)"))
         #expect(controls.contains("Button(action: {\n                    action?()"))
         #expect(controls.contains(".buttonStyle(.plain)"))
+        #expect(controls.contains("quillBackendReferenceWindowWidth"))
+        #expect(controls.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH"))
+        #expect(controls.contains("legacy: \"QUILLUI_GTK_DEFAULT_WINDOW_WIDTH\""))
+        #expect(!controls.contains("quillGTKReferenceWindowWidth"))
 
         let modelStoreRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/Stores/LanguageModelStore.swift.pl"),
@@ -1530,7 +1534,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedSharedBinding.contains("#if false"))
 
         let patchedBackend = try String(contentsOf: backend, encoding: .utf8)
+        #expect(patchedBackend.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH"))
         #expect(patchedBackend.contains("QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"))
+        #expect(patchedBackend.contains("QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL"))
         #expect(patchedBackend.contains("QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL"))
         #expect(patchedBackend.contains("requestedWidth ?? defaultWindowWidth ?? defaultAutomaticWindowWidth"))
         #expect(patchedBackend.contains("gtk_widget_set_size_request(\n                contentWidget"))
@@ -1544,6 +1550,10 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedLayout.contains("expandsToFillHeight && height == nil ? maxHeight"))
 
         let patchedNavigation = try String(contentsOf: navigation, encoding: .utf8)
+        #expect(patchedNavigation.contains("gtkBackendEnvironmentValue(_ canonical"))
+        #expect(patchedNavigation.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT"))
+        #expect(patchedNavigation.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH"))
+        #expect(patchedNavigation.contains("QUILLUI_BACKEND_LAYOUT_DEBUG"))
         #expect(patchedNavigation.contains("gtkRenderToolbarItemWidgets(_ item: AnyToolbarItem)"))
         #expect(patchedNavigation.contains("gtkRequestedDefaultWindowHeight()"))
         #expect(patchedNavigation.contains("max(gtkExtractColumnWidth(from: sidebar) ?? 0, gtkResolvedDefaultSidebarWidth(fallback: Double(sidebarWidth)))"))
@@ -1566,6 +1576,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedNavigation.contains("gtk_widget_set_vexpand(widget, 1)"))
         #expect(patchedNavigation.contains("gtk_widget_set_size_request(widget, gint(width), gtkRequestedDefaultWindowHeight())"))
         #expect(patchedNavigation.contains("let resolvedSidebarW = max(sidebarMinW, sidebarW)"))
+        #expect(!patchedNavigation.contains("ProcessInfo.processInfo.environment[\"QUILLUI_GTK_LAYOUT_DEBUG\"] == \"1\""))
         #expect(!patchedNavigation.contains("gtkInstallToolbar(from: detail, on: paned)"))
 
         let patchedSymbols = try String(contentsOf: symbols, encoding: .utf8)

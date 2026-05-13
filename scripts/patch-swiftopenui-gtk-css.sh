@@ -2284,6 +2284,24 @@ old = '''        case .automatic:
 '''
 new = '''        case .automatic:
             let environment = ProcessInfo.processInfo.environment
+            func environmentDouble(_ canonical: String, legacy: String) -> Double? {
+                (environment[canonical] ?? environment[legacy]).flatMap(Double.init)
+            }
+            let requestedWidth = environmentDouble(
+                "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH",
+                legacy: "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"
+            )
+            let requestedHeight = environmentDouble(
+                "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT",
+                legacy: "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT"
+            )
+            return (
+                requestedWidth ?? defaultWindowWidth ?? defaultAutomaticWindowWidth,
+                requestedHeight ?? defaultWindowHeight ?? defaultAutomaticWindowHeight
+            )
+'''
+legacy_new = '''        case .automatic:
+            let environment = ProcessInfo.processInfo.environment
             let requestedWidth = environment["QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"].flatMap(Double.init)
             let requestedHeight = environment["QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT"].flatMap(Double.init)
             return (
@@ -2291,8 +2309,11 @@ new = '''        case .automatic:
                 requestedHeight ?? defaultWindowHeight ?? defaultAutomaticWindowHeight
             )
 '''
-if "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH" not in text:
-    text = text.replace(old, new, 1)
+if "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH" not in text:
+    if legacy_new in text:
+        text = text.replace(legacy_new, new, 1)
+    else:
+        text = text.replace(old, new, 1)
 old_default_size = '''        if let defaultSize = gtkResolvedDefaultWindowSize() {
             gtk_window_set_default_size(
                 winPtr,
@@ -2318,11 +2339,21 @@ if "gtk_widget_set_size_request(\n                contentWidget,\n              
     text = text.replace(old_default_size, new_default_size, 1)
 old_menubar_label = '''        gtk_swift_menu_append_submenu(menuModel, "File", fileMenu)
 '''
-new_menubar_label = '''        let topLevelMenuTitle = ProcessInfo.processInfo.environment["QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL"] == "1" ? " " : "File"
+new_menubar_label = '''        let environment = ProcessInfo.processInfo.environment
+        let topLevelMenuTitle = (
+            environment["QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL"]
+                ?? environment["QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL"]
+        ) == "1" ? " " : "File"
         gtk_swift_menu_append_submenu(menuModel, topLevelMenuTitle, fileMenu)
 '''
-if "QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL" not in text:
-    text = text.replace(old_menubar_label, new_menubar_label, 1)
+legacy_menubar_label = '''        let topLevelMenuTitle = ProcessInfo.processInfo.environment["QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL"] == "1" ? " " : "File"
+        gtk_swift_menu_append_submenu(menuModel, topLevelMenuTitle, fileMenu)
+'''
+if "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL" not in text:
+    if legacy_menubar_label in text:
+        text = text.replace(legacy_menubar_label, new_menubar_label, 1)
+    else:
+        text = text.replace(old_menubar_label, new_menubar_label, 1)
 path.write_text(text)
 PY
 
@@ -2599,10 +2630,27 @@ private func gtkRenderToolbarItemWidgets(_ item: AnyToolbarItem) -> [UnsafeMutab
     }
 }
 
+private func gtkBackendEnvironmentValue(_ canonical: String, legacy: String) -> String? {
+    let environment = ProcessInfo.processInfo.environment
+    return environment[canonical] ?? environment[legacy]
+}
+
+private func gtkBackendEnvironmentDouble(_ canonical: String, legacy: String) -> Double? {
+    gtkBackendEnvironmentValue(canonical, legacy: legacy).flatMap(Double.init)
+}
+
+private var gtkBackendLayoutDebugEnabled: Bool {
+    gtkBackendEnvironmentValue(
+        "QUILLUI_BACKEND_LAYOUT_DEBUG",
+        legacy: "QUILLUI_GTK_LAYOUT_DEBUG"
+    ) == "1"
+}
+
 private func gtkRequestedDefaultWindowHeight() -> gint {
-    guard let rawHeight = ProcessInfo.processInfo.environment["QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT"],
-          let height = Double(rawHeight),
-          height > 0
+    guard let height = gtkBackendEnvironmentDouble(
+        "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT",
+        legacy: "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT"
+    ), height > 0
     else {
         return -1
     }
@@ -2610,18 +2658,18 @@ private func gtkRequestedDefaultWindowHeight() -> gint {
 }
 
 private func gtkResolvedDefaultSidebarWidth(fallback: Double) -> Double {
-    let environment = ProcessInfo.processInfo.environment
-    guard let rawWidth = environment["QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"],
-          let width = Double(rawWidth),
-          width > 0
+    guard let width = gtkBackendEnvironmentDouble(
+        "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH",
+        legacy: "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"
+    ), width > 0
     else {
-        if environment["QUILLUI_GTK_LAYOUT_DEBUG"] == "1" {
+        if gtkBackendLayoutDebugEnabled {
             print("QuillUI GTK split fallback sidebar width=\\(max(320.0, fallback)) env=nil")
         }
         return max(320.0, fallback)
     }
     let resolved = max(320.0, min(600.0, width * 0.27))
-    if environment["QUILLUI_GTK_LAYOUT_DEBUG"] == "1" {
+    if gtkBackendLayoutDebugEnabled {
         print("QuillUI GTK split env width=\\(width) sidebar=\\(resolved)")
     }
     return resolved
@@ -2740,7 +2788,7 @@ private let gtkFixedSplitSidebarTickCallback: GtkTickCallback = { widget, _, use
     gtk_widget_set_size_request(sidebar, gint(sidebarW), gtkRequestedDefaultWindowHeight())
     gtk_widget_queue_resize(sidebar)
     gtk_widget_queue_resize(widget)
-    if ProcessInfo.processInfo.environment["QUILLUI_GTK_LAYOUT_DEBUG"] == "1" {
+    if gtkBackendLayoutDebugEnabled {
         print("QuillUI GTK split allocated width=\\(width) sidebar=\\(sidebarW)")
     }
     return 1
@@ -2823,8 +2871,52 @@ private func gtkApplyFixedSplitVisibility(
 }
 
 '''
+environment_helper = '''private func gtkBackendEnvironmentValue(_ canonical: String, legacy: String) -> String? {
+    let environment = ProcessInfo.processInfo.environment
+    return environment[canonical] ?? environment[legacy]
+}
+
+private func gtkBackendEnvironmentDouble(_ canonical: String, legacy: String) -> Double? {
+    gtkBackendEnvironmentValue(canonical, legacy: legacy).flatMap(Double.init)
+}
+
+private var gtkBackendLayoutDebugEnabled: Bool {
+    gtkBackendEnvironmentValue(
+        "QUILLUI_BACKEND_LAYOUT_DEBUG",
+        legacy: "QUILLUI_GTK_LAYOUT_DEBUG"
+    ) == "1"
+}
+
+'''
 if "gtkRenderToolbarWidgets<V: View>" not in text:
     text = text.replace("private func gtkInstallToolbar<V: View>", helper + "private func gtkInstallToolbar<V: View>")
+if "gtkBackendEnvironmentValue(_ canonical" not in text:
+    text = text.replace("private func gtkRequestedDefaultWindowHeight() -> gint", environment_helper + "private func gtkRequestedDefaultWindowHeight() -> gint", 1)
+text = text.replace(
+    '''    guard let rawHeight = ProcessInfo.processInfo.environment["QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT"],
+          let height = Double(rawHeight),
+          height > 0
+''',
+    '''    guard let height = gtkBackendEnvironmentDouble(
+        "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT",
+        legacy: "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT"
+    ), height > 0
+''',
+)
+text = text.replace(
+    '''    let environment = ProcessInfo.processInfo.environment
+    guard let rawWidth = environment["QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"],
+          let width = Double(rawWidth),
+          width > 0
+''',
+    '''    guard let width = gtkBackendEnvironmentDouble(
+        "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH",
+        legacy: "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"
+    ), width > 0
+''',
+)
+text = text.replace('ProcessInfo.processInfo.environment["QUILLUI_GTK_LAYOUT_DEBUG"] == "1"', "gtkBackendLayoutDebugEnabled")
+text = text.replace('environment["QUILLUI_GTK_LAYOUT_DEBUG"] == "1"', "gtkBackendLayoutDebugEnabled")
 if "gtkRenderToolbarItemWidgets(_ item: AnyToolbarItem)" not in text:
     text = text.replace(
         "private func gtkCreateToolbarRow<V: View>",
