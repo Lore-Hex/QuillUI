@@ -133,6 +133,10 @@ products or generated app products. CI drives matrix jobs through
 then calls the single-row visual or interaction runner with the requested
 backend as an explicit positional argument. The output template must include
 `{product}` and `{backend}` so GTK/Qt artifacts never overwrite each other.
+The runner's `--dry-run` output includes `requested_backend`,
+`runtime_backend`, and `runtime_mode` columns before the output path and skip
+flag, matching profile CSV semantics and making Qt's current GTK fallback
+visible in matrix audits.
 
 Generated products use the same GTK/Qt requested-backend matrix as the root app
 shells. The matrix runner still accepts `--skip-repeated-products`, but

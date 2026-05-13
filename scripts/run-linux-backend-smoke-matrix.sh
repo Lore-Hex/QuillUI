@@ -23,7 +23,8 @@ OUTPUT_TEMPLATE must include {product} and {backend}; mode matrices must also
 include {mode}.
 Use --skip-repeated-products when consecutive backend rows can reuse one build.
 Generated app rows reuse per backend facade so GTK and Qt launchers both build.
-Use --dry-run to print KIND<TAB>PRODUCT<TAB>BACKEND<TAB>OUTPUT<TAB>SKIP_BUILD
+Use --dry-run to print
+KIND<TAB>PRODUCT<TAB>REQUESTED_BACKEND<TAB>RUNTIME_BACKEND<TAB>RUNTIME_MODE<TAB>OUTPUT<TAB>SKIP_BUILD
 and, for mode rows, a trailing MODE column.
 MSG
 }
@@ -153,22 +154,24 @@ quillui_smoke_output_path() {
 
 quillui_run_smoke_row() {
   local product="$1"
-  local backend="$2"
-  local mode="${3:-}"
+  local requested_backend="$2"
+  local runtime_backend="$3"
+  local runtime_mode="$4"
+  local mode="${5:-}"
   local output_path
   local skip_build=0
   local build_cache_key
   local smoke_environment=()
 
-  output_path="$(quillui_smoke_output_path "$product" "$backend" "$mode")"
-  build_cache_key="$(quillui_smoke_build_cache_key "$product" "$backend")"
+  output_path="$(quillui_smoke_output_path "$product" "$requested_backend" "$mode")"
+  build_cache_key="$(quillui_smoke_build_cache_key "$product" "$requested_backend")"
 
   if [[ "$SKIP_REPEATED_PRODUCTS" == "1" ]] && quillui_smoke_product_was_built "$build_cache_key"; then
     smoke_environment+=("QUILLUI_BACKEND_SKIP_BUILD=1")
     skip_build=1
   fi
   if quillui_is_backend_generated_app_product "$product"; then
-    smoke_environment+=("QUILLUI_APP_BACKEND_FACADE=$backend")
+    smoke_environment+=("QUILLUI_APP_BACKEND_FACADE=$requested_backend")
   fi
   if [[ -n "$mode" ]]; then
     smoke_environment+=("QUILLUI_BACKEND_INTERACTION_MODE=$mode")
@@ -176,17 +179,17 @@ quillui_run_smoke_row() {
 
   if [[ "$DRY_RUN" == "1" ]]; then
     if [[ -n "$mode" ]]; then
-      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$KIND" "$product" "$backend" "$output_path" "$skip_build" "$mode"
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$KIND" "$product" "$requested_backend" "$runtime_backend" "$runtime_mode" "$output_path" "$skip_build" "$mode"
     else
-      printf '%s\t%s\t%s\t%s\t%s\n' "$KIND" "$product" "$backend" "$output_path" "$skip_build"
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$KIND" "$product" "$requested_backend" "$runtime_backend" "$runtime_mode" "$output_path" "$skip_build"
     fi
   else
     if [[ -n "$mode" ]]; then
-      echo "==> Backend $KIND smoke: $product ($backend requested, $mode mode)"
+      echo "==> Backend $KIND smoke: $product ($requested_backend requested, $runtime_backend runtime, $runtime_mode mode, $mode interaction)"
     else
-      echo "==> Backend $KIND smoke: $product ($backend requested)"
+      echo "==> Backend $KIND smoke: $product ($requested_backend requested, $runtime_backend runtime, $runtime_mode mode)"
     fi
-    env "${smoke_environment[@]}" "$CHECK_SCRIPT" "$output_path" "$product" "$backend"
+    env "${smoke_environment[@]}" "$CHECK_SCRIPT" "$output_path" "$product" "$requested_backend"
   fi
 
   if [[ "$SKIP_REPEATED_PRODUCTS" == "1" ]] && ! quillui_smoke_product_was_built "$build_cache_key"; then
@@ -224,8 +227,13 @@ while IFS= read -r row; do
     echo "Backend matrix row has an unsupported backend: $row" >&2
     exit 65
   fi
+  runtime_availability="$(quillui_backend_runtime_availability_for_backend "$backend")" || {
+    echo "Backend matrix row has unsupported runtime availability: $row" >&2
+    exit 65
+  }
+  IFS=$'\t' read -r backend runtime_backend runtime_mode <<< "$runtime_availability"
 
-  quillui_run_smoke_row "$product" "$backend" "${mode:-}"
+  quillui_run_smoke_row "$product" "$backend" "$runtime_backend" "$runtime_mode" "${mode:-}"
   ROW_COUNT=$((ROW_COUNT + 1))
 done < <("$ROOT_DIR/scripts/quillui-backend-products.sh" "$MATRIX_COMMAND")
 

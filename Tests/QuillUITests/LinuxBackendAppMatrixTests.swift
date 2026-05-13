@@ -279,10 +279,13 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeMatrixRunner.contains("Backend matrix row has an unexpected mode column"))
         #expect(smokeMatrixRunner.contains("quillui_require_backend_identifier \"$backend\""))
         #expect(smokeMatrixRunner.contains("Backend matrix row has an unsupported backend"))
+        #expect(smokeMatrixRunner.contains("runtime_availability=\"$(quillui_backend_runtime_availability_for_backend \"$backend\")\""))
+        #expect(smokeMatrixRunner.contains("IFS=$'\\t' read -r backend runtime_backend runtime_mode <<< \"$runtime_availability\""))
         #expect(smokeMatrixRunner.contains("quillui_is_backend_generated_app_product \"$product\""))
+        #expect(smokeMatrixRunner.contains("smoke_environment+=(\"QUILLUI_APP_BACKEND_FACADE=$requested_backend\")"))
         #expect(smokeMatrixRunner.contains("smoke_environment+=(\"QUILLUI_BACKEND_INTERACTION_MODE=$mode\")"))
         #expect(smokeMatrixRunner.contains("QUILLUI_BACKEND_SKIP_BUILD=1"))
-        #expect(smokeMatrixRunner.contains("env \"${smoke_environment[@]}\" \"$CHECK_SCRIPT\" \"$output_path\" \"$product\" \"$backend\""))
+        #expect(smokeMatrixRunner.contains("env \"${smoke_environment[@]}\" \"$CHECK_SCRIPT\" \"$output_path\" \"$product\" \"$requested_backend\""))
         #expect(smokeMatrixRunner.contains("\"$ROOT_DIR/scripts/quillui-backend-products.sh\" \"$MATRIX_COMMAND\""))
         #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(smokeLib.contains("quillui_export_backend_argument()"))
@@ -430,8 +433,8 @@ struct LinuxBackendAppMatrixTests {
         )
         #expect(generated.status == 0, Comment(rawValue: generated.output))
         #expect(generated.output.split(whereSeparator: \.isNewline).map(String.init) == [
-            "visual\tquill-chat-linux\tgtk\t.qa/quill-chat-linux-generated-gtk.png\t0",
-            "visual\tquill-chat-linux\tqt\t.qa/quill-chat-linux-generated-qt.png\t0"
+            "visual\tquill-chat-linux\tgtk\tgtk\tnative\t.qa/quill-chat-linux-generated-gtk.png\t0",
+            "visual\tquill-chat-linux\tqt\tgtk\tplatformFallback\t.qa/quill-chat-linux-generated-qt.png\t0"
         ])
 
         let smoke = try runScript(
@@ -445,8 +448,8 @@ struct LinuxBackendAppMatrixTests {
         )
         #expect(smoke.status == 0, Comment(rawValue: smoke.output))
         #expect(smoke.output.split(whereSeparator: \.isNewline).map(String.init) == [
-            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-open-gtk.png\t0",
-            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-open-qt.png\t0"
+            "interaction\tquill-gtk-interaction-smoke\tgtk\tgtk\tnative\t.qa/quill-gtk-interaction-smoke-open-gtk.png\t0",
+            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-open-qt.png\t0"
         ])
 
         let smokeInteractions = try runScript(
@@ -461,18 +464,18 @@ struct LinuxBackendAppMatrixTests {
         )
         #expect(smokeInteractions.status == 0, Comment(rawValue: smokeInteractions.output))
         #expect(smokeInteractions.output.split(whereSeparator: \.isNewline).map(String.init) == [
-            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-open-panel-gtk.png\t0\topen-panel",
-            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-sidebar-button-gtk.png\t1\tsidebar-button",
-            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-banner-button-gtk.png\t1\tbanner-button",
-            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-nested-sheet-gtk.png\t1\tnested-sheet",
-            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-sidebar-sheet-gtk.png\t1\tsidebar-sheet",
-            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-banner-sheet-gtk.png\t1\tbanner-sheet",
-            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-open-panel-qt.png\t0\topen-panel",
-            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-sidebar-button-qt.png\t1\tsidebar-button",
-            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-banner-button-qt.png\t1\tbanner-button",
-            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-nested-sheet-qt.png\t1\tnested-sheet",
-            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-sidebar-sheet-qt.png\t1\tsidebar-sheet",
-            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-banner-sheet-qt.png\t1\tbanner-sheet"
+            "interaction\tquill-gtk-interaction-smoke\tgtk\tgtk\tnative\t.qa/quill-gtk-interaction-smoke-open-panel-gtk.png\t0\topen-panel",
+            "interaction\tquill-gtk-interaction-smoke\tgtk\tgtk\tnative\t.qa/quill-gtk-interaction-smoke-sidebar-button-gtk.png\t1\tsidebar-button",
+            "interaction\tquill-gtk-interaction-smoke\tgtk\tgtk\tnative\t.qa/quill-gtk-interaction-smoke-banner-button-gtk.png\t1\tbanner-button",
+            "interaction\tquill-gtk-interaction-smoke\tgtk\tgtk\tnative\t.qa/quill-gtk-interaction-smoke-nested-sheet-gtk.png\t1\tnested-sheet",
+            "interaction\tquill-gtk-interaction-smoke\tgtk\tgtk\tnative\t.qa/quill-gtk-interaction-smoke-sidebar-sheet-gtk.png\t1\tsidebar-sheet",
+            "interaction\tquill-gtk-interaction-smoke\tgtk\tgtk\tnative\t.qa/quill-gtk-interaction-smoke-banner-sheet-gtk.png\t1\tbanner-sheet",
+            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-open-panel-qt.png\t0\topen-panel",
+            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-sidebar-button-qt.png\t1\tsidebar-button",
+            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-banner-button-qt.png\t1\tbanner-button",
+            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-nested-sheet-qt.png\t1\tnested-sheet",
+            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-sidebar-sheet-qt.png\t1\tsidebar-sheet",
+            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-banner-sheet-qt.png\t1\tbanner-sheet"
         ])
 
         let malformedTemplate = try runScript(

@@ -3053,3 +3053,13 @@ runtime backend labels. Budget checks validate that successful rows report the
 same native-vs-fallback mode as the shared runtime availability registry, while
 the CSV matrix runner still accepts older simple profiler rows from focused
 experiments.
+
+## Checkpoint 179: Runtime-Aware Smoke Matrix Dry Runs
+
+Status: implemented locally; guarded by backend matrix tests.
+
+Linux backend smoke matrix dry-runs now print requested backend, runtime
+backend, and native-vs-fallback runtime mode before the output path and build
+skip flag. Visual and interaction matrix audits therefore expose that Qt rows
+currently request the Qt facade while running through the GTK platform fallback,
+matching the profile CSV contract.
