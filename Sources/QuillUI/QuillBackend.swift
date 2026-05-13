@@ -105,6 +105,7 @@ public enum QuillBackendRequest: Equatable, Sendable {
 }
 
 public struct QuillBackendLaunchPlan: Equatable, Sendable {
+    public let request: QuillBackendRequest
     public let requested: QuillBackendIdentifier?
     public let preferred: QuillBackendIdentifier?
     public let selected: QuillBackendIdentifier
@@ -131,11 +132,13 @@ public struct QuillBackendLaunchPlan: Equatable, Sendable {
     }
 
     public init(
+        request: QuillBackendRequest = .unspecified,
         requested: QuillBackendIdentifier?,
         preferred: QuillBackendIdentifier?,
         selected: QuillBackendIdentifier,
         runtime: QuillBackendIdentifier
     ) {
+        self.request = request
         self.requested = requested
         self.preferred = preferred
         self.selected = selected
@@ -232,7 +235,7 @@ public enum QuillBackendRegistry {
     public static func launchPlan(
         preferred preferredBackend: QuillBackendIdentifier? = nil
     ) -> QuillBackendLaunchPlan {
-        launchPlan(requested: requested, preferred: preferredBackend)
+        launchPlan(request: environmentRequest, preferred: preferredBackend)
     }
 
     public static func launchPlan(
@@ -240,7 +243,7 @@ public enum QuillBackendRegistry {
         preferred preferredBackend: QuillBackendIdentifier? = nil
     ) -> QuillBackendLaunchPlan {
         launchPlan(
-            requested: requestedBackend(from: environment),
+            request: backendRequest(from: environment),
             preferred: preferredBackend
         )
     }
@@ -249,9 +252,19 @@ public enum QuillBackendRegistry {
         requested requestedBackend: QuillBackendIdentifier?,
         preferred preferredBackend: QuillBackendIdentifier? = nil
     ) -> QuillBackendLaunchPlan {
+        let request = requestedBackend.map { QuillBackendRequest.valid($0) } ?? .unspecified
+        return launchPlan(request: request, preferred: preferredBackend)
+    }
+
+    public static func launchPlan(
+        request backendRequest: QuillBackendRequest,
+        preferred preferredBackend: QuillBackendIdentifier? = nil
+    ) -> QuillBackendLaunchPlan {
+        let requestedBackend = backendRequest.identifier
         let selectedBackend = requestedBackend ?? preferredBackend ?? platformDefault
 
         return QuillBackendLaunchPlan(
+            request: backendRequest,
             requested: requestedBackend,
             preferred: preferredBackend,
             selected: selectedBackend,

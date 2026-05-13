@@ -129,6 +129,7 @@ struct QuillUITests {
         #expect(gtkDescriptor.runtimeSummary == QuillBackendRegistry.runtimeSummary(selected: .gtk))
 
         let preferredGtkPlan = QuillBackendRegistry.launchPlan(requested: nil, preferred: .gtk)
+        #expect(preferredGtkPlan.request == .unspecified)
         #expect(preferredGtkPlan.selected == .gtk)
         #expect(preferredGtkPlan.selectedDescriptor == gtkDescriptor)
         #expect(preferredGtkPlan.statusMessage == gtkDescriptor.runtimeSummary)
@@ -137,6 +138,7 @@ struct QuillUITests {
             environment: ["QUILLUI_BACKEND": "qt"],
             preferred: .gtk
         )
+        #expect(environmentQtOverGtkPlan.request == .valid(.qt))
         #expect(environmentQtOverGtkPlan.requested == .qt)
         #expect(environmentQtOverGtkPlan.preferred == .gtk)
         #expect(environmentQtOverGtkPlan.selected == .qt)
@@ -145,8 +147,17 @@ struct QuillUITests {
             environment: ["QUILLUI_BACKEND": "bogus"],
             preferred: .gtk
         )
+        #expect(invalidEnvironmentPlan.request == .invalid(rawValue: "bogus"))
         #expect(invalidEnvironmentPlan.requested == nil)
         #expect(invalidEnvironmentPlan.selected == .gtk)
+
+        let invalidRequestPlan = QuillBackendRegistry.launchPlan(
+            request: .invalid(rawValue: "bogus"),
+            preferred: .qt
+        )
+        #expect(invalidRequestPlan.request == .invalid(rawValue: "bogus"))
+        #expect(invalidRequestPlan.requested == nil)
+        #expect(invalidRequestPlan.selected == .qt)
 
         #if os(Linux)
         #expect(gtkDescriptor.hasNativeRuntime)
@@ -171,6 +182,7 @@ struct QuillUITests {
         #endif
 
         let requestedQtOverGtkPlan = QuillBackendRegistry.launchPlan(requested: .qt, preferred: .gtk)
+        #expect(requestedQtOverGtkPlan.request == .valid(.qt))
         #expect(requestedQtOverGtkPlan.requested == .qt)
         #expect(requestedQtOverGtkPlan.preferred == .gtk)
         #expect(requestedQtOverGtkPlan.selected == .qt)

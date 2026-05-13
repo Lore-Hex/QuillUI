@@ -2847,3 +2847,12 @@ product has no registered default backend instead of returning an empty value.
 Explicit backend overrides still work for ad hoc products, so local experiments
 can request GTK or Qt directly while CI matrix rows keep strict product
 coverage.
+
+## Checkpoint 159: Launch Plans Preserve Backend Requests
+
+Status: implemented locally; guarded by QuillUI API tests.
+
+`QuillBackendLaunchPlan` now carries the full `QuillBackendRequest`, not just
+the optional resolved backend identifier. Invalid `QUILLUI_BACKEND` values
+therefore remain visible to app/status surfaces while the existing fallback
+selection behavior stays unchanged.
