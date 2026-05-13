@@ -548,8 +548,10 @@ struct SourceHygieneTests {
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual.png\" \"$product\""))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-generated-${backend}.png\" \"$product\" \"$backend\""))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\" \"$backend\""))
-        #expect(workflow.contains("scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke"))
-        #expect(workflow.contains("scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke"))
+        #expect(workflow.contains("Backend launch target interaction smokes"))
+        #expect(workflow.contains("scripts/linux-backend-interaction-check.sh \".qa/${product}-open.png\" \"$product\""))
+        #expect(!workflow.contains("scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke"))
+        #expect(!workflow.contains("scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh \".qa/${product}-toolbar-menu-${backend}.png\" \"$product\" \"$backend\""))
     }
 

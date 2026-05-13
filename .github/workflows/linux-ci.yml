@@ -108,11 +108,13 @@ jobs:
             scripts/linux-backend-visual-check.sh ".qa/${product}-visual.png" "$product"
           done
 
-      - name: GTK launch target interaction smoke
-        run: scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
-
-      - name: Qt launch target interaction smoke
-        run: scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke
+      - name: Backend launch target interaction smokes
+        run: |
+          scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product; do
+            [ -n "$product" ] || continue
+            echo "==> Backend launch interaction smoke: $product"
+            scripts/linux-backend-interaction-check.sh ".qa/${product}-open.png" "$product"
+          done
 
       - name: Generated Enchanted toolbar interaction smokes
         run: |
