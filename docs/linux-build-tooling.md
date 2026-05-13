@@ -120,7 +120,7 @@ requested-backend matrix as the root app shells:
 
 ```bash
 scripts/quillui-backend-products.sh generated-app-matrix | while IFS="$(printf '\t')" read -r product backend; do
-  QUILLUI_BACKEND="$backend" scripts/linux-backend-visual-check.sh ".qa/${product}-generated-${backend}.png" "$product"
+  scripts/linux-backend-visual-check.sh ".qa/${product}-generated-${backend}.png" "$product" "$backend"
 done
 ```
 
@@ -133,11 +133,11 @@ built_products=" "
 scripts/quillui-backend-products.sh app-matrix | while IFS="$(printf '\t')" read -r product backend; do
   case "$built_products" in
     *" $product "*)
-      QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 \
-        scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product"
+      QUILLUI_BACKEND_SKIP_BUILD=1 \
+        scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product" "$backend"
       ;;
     *)
-      QUILLUI_BACKEND="$backend" scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product"
+      scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product" "$backend"
       built_products="${built_products}${product} "
       ;;
   esac
@@ -168,9 +168,12 @@ The strict path sets backend-neutral reference window values and exports both
 `QUILLUI_GTK_*` and `QUILLUI_QT_*` compatibility aliases. The SwiftOpenUI GTK
 checkout patch honors the GTK values for automatic window sizing. New GTK/Qt
 parity scripts should call `scripts/linux-backend-visual-check.sh` and use the
-`QUILLUI_BACKEND_*` names for visual checks. The runner maps backend-neutral
-values to the older `QUILLUI_GTK_*` environment contract and to scoped
-`QUILLUI_QT_*` controls for compatibility, and
+`QUILLUI_BACKEND_*` names for visual checks. Matrix loops should pass the
+requested backend as the runner's explicit positional backend argument so the
+selected backend travels with each row. The runner canonicalizes supported
+backend aliases such as `gtk4`, `qt6`, and `swift-ui` before mapping
+backend-neutral values to the older `QUILLUI_GTK_*` environment contract and to
+scoped `QUILLUI_QT_*` controls for compatibility, and
 `scripts/linux-gtk-visual-check.sh` remains as a thin compatibility shim.
 
 The backend visual and interaction runners both source
@@ -233,8 +236,8 @@ Run it after the visual matrix so the executables already built under
 
 ```bash
 scripts/quillui-backend-products.sh interaction-matrix | while IFS="$(printf '\t')" read -r product backend; do
-  QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 \
-    scripts/linux-backend-interaction-check.sh ".qa/${product}-interaction-${backend}.png" "$product"
+  QUILLUI_BACKEND_SKIP_BUILD=1 \
+    scripts/linux-backend-interaction-check.sh ".qa/${product}-interaction-${backend}.png" "$product" "$backend"
 done
 ```
 
@@ -242,8 +245,8 @@ The generated Quill Chat toolbar menu uses the generated app backend matrix:
 
 ```bash
 scripts/quillui-backend-products.sh generated-app-matrix | while IFS="$(printf '\t')" read -r product backend; do
-  QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 \
-    scripts/linux-backend-interaction-check.sh ".qa/${product}-toolbar-menu-${backend}.png" "$product"
+  QUILLUI_BACKEND_SKIP_BUILD=1 \
+    scripts/linux-backend-interaction-check.sh ".qa/${product}-toolbar-menu-${backend}.png" "$product" "$backend"
 done
 ```
 

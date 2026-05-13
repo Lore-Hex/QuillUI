@@ -104,6 +104,13 @@ struct SourceHygieneTests {
         #expect(linuxBuildTooling.contains("QUILLUI_BACKEND_LAYOUT_DEBUG"))
         #expect(linuxBuildTooling.contains("layout diagnostics behave the same across every runner"))
         #expect(linuxBuildTooling.contains("must add an explicit"))
+        #expect(linuxBuildTooling.contains("explicit positional backend argument"))
+        #expect(linuxBuildTooling.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-generated-${backend}.png\" \"$product\" \"$backend\""))
+        #expect(linuxBuildTooling.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\" \"$backend\""))
+        #expect(linuxBuildTooling.contains("scripts/linux-backend-interaction-check.sh \".qa/${product}-interaction-${backend}.png\" \"$product\" \"$backend\""))
+        #expect(linuxBuildTooling.contains("scripts/linux-backend-interaction-check.sh \".qa/${product}-toolbar-menu-${backend}.png\" \"$product\" \"$backend\""))
+        #expect(!linuxBuildTooling.contains("QUILLUI_BACKEND=\"$backend\" scripts/linux-backend-visual-check.sh"))
+        #expect(!linuxBuildTooling.contains("QUILLUI_BACKEND=\"$backend\" QUILLUI_BACKEND_SKIP_BUILD=1"))
         #expect(linuxBuildTooling.contains("QuillLinuxRuntimeHost"))
 
         #expect(offscreenRenderer.contains("scripts/linux-backend-check.sh"))
