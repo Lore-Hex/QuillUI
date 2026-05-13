@@ -2877,3 +2877,15 @@ their preferred backend when reading backend-scoped environment values, so a
 `QuillQtApp` launch without an explicit `QUILLUI_BACKEND=qt` request still
 uses Qt-scoped control settings while explicit environment requests continue
 to win.
+
+## Checkpoint 162: Generated App Backend Facades
+
+Status: implemented locally; guarded by source hygiene and shell syntax tests.
+
+The reusable generated Linux package builder now accepts
+`QUILLUI_GENERATED_BACKEND_FACADE=swiftui|gtk|qt`, and
+`scripts/build-swiftui-linux-app.sh` exposes the same choice as
+`--backend-facade`. Generated app packages can therefore compile their `@main`
+entry through `QuillUI`, `QuillUIGtk`, or `QuillUIQt` without changing copied
+app sources, while the older generated include flags remain compatibility
+aliases only for deciding whether to emit the generated entry.

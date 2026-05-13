@@ -18,9 +18,13 @@ The command intentionally separates the generic build contract from source
 lowering profiles:
 
 - `--source-dir` points at the app source tree.
-- `--app-type` is the Swift `App` type launched through `QuillApp.run(...)`.
+- `--app-type` is the Swift `App` type launched through the generated
+  QuillUI entry.
 - `--product-name` controls the generated executable name.
 - `--workdir` controls where generated source and SwiftPM build state go.
+- `--backend-facade` optionally compiles the generated entry through
+  `QuillUIGtk` or `QuillUIQt` instead of the backend-neutral `QuillUI`
+  launcher.
 - `--profile` selects a source-lowering script from `scripts/profiles/`.
 - `--list-profiles` prints installed profiles.
 
@@ -91,6 +95,7 @@ The package helper takes this stable environment contract:
 - `QUILLUI_GENERATED_PRODUCT_NAME`
 - `QUILLUI_GENERATED_TARGET_NAME`
 - `QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY`
+- `QUILLUI_GENERATED_BACKEND_FACADE`
 - `QUILLUI_GENERATED_APP_ENTRY_TYPE`
 - `QUILLUI_GENERATED_APP_MAIN_TYPE`
 - `QUILLUI_GENERATED_REPORT_LABEL`
@@ -99,6 +104,10 @@ The package helper takes this stable environment contract:
 as a compatibility alias for older profile callers, and
 `QUILLUI_GENERATED_INCLUDE_QT_BACKEND` is accepted for backend-scoped Qt
 profiles. New profiles should use the backend-neutral entry flag.
+Use `QUILLUI_GENERATED_BACKEND_FACADE=gtk` or `qt` only when the generated
+package should import and link the backend facade product directly; ordinary
+backend smoke/profile parity should continue to request the runtime backend
+with `QUILLUI_BACKEND`.
 
 Reusable fallback behavior should live in library targets, not in profiles.
 The current `enchanted-full-source` profile keeps only app/source-shape wiring

@@ -614,11 +614,15 @@ struct SourceHygieneTests {
         #expect(!workflow.contains("scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke"))
     }
 
-    @Test("Generated Linux app packages launch through QuillApp")
-    func generatedLinuxAppPackagesLaunchThroughQuillApp() throws {
+    @Test("Generated Linux app packages can launch through backend facades")
+    func generatedLinuxAppPackagesCanLaunchThroughBackendFacades() throws {
         let root = try packageRoot()
         let source = try String(
             contentsOf: root.appendingPathComponent("scripts/generate-swiftui-linux-package.sh"),
+            encoding: .utf8
+        )
+        let buildSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/build-swiftui-linux-app.sh"),
             encoding: .utf8
         )
         let generatedEnchantedSource = try String(
@@ -627,13 +631,27 @@ struct SourceHygieneTests {
         )
 
         #expect(source.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY"))
+        #expect(source.contains("QUILLUI_GENERATED_BACKEND_FACADE"))
         #expect(source.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(source.contains("quillui_alias_env QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY QUILLUI_GENERATED_INCLUDE_GTK_BACKEND QUILLUI_GENERATED_INCLUDE_QT_BACKEND"))
         #expect(source.contains("INCLUDE_BACKEND_ENTRY=\"${QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY:-0}\""))
         #expect(!source.contains("${QUILLUI_GENERATED_INCLUDE_GTK_BACKEND:-0}"))
         #expect(source.contains("backend entry generation is enabled"))
-        #expect(source.contains("import QuillUI"))
-        #expect(source.contains("QuillApp.run($APP_ENTRY_TYPE.self)"))
+        #expect(source.contains("validate_boolean_flag \"$INCLUDE_BACKEND_ENTRY\""))
+        #expect(source.contains("normalize_generated_backend_facade"))
+        #expect(source.contains("backend_import=\"QuillUI\""))
+        #expect(source.contains("backend_runner=\"QuillApp\""))
+        #expect(source.contains("backend_import=\"QuillUIGtk\""))
+        #expect(source.contains("backend_runner=\"QuillGtkApp\""))
+        #expect(source.contains("backend_import=\"QuillUIQt\""))
+        #expect(source.contains("backend_runner=\"QuillQtApp\""))
+        #expect(source.contains("import $backend_import"))
+        #expect(source.contains("$backend_runner.run($APP_ENTRY_TYPE.self)"))
+        #expect(source.contains(".product(name: \"QuillUIGtk\", package: \"QuillUI\")"))
+        #expect(source.contains(".product(name: \"QuillUIQt\", package: \"QuillUI\")"))
+        #expect(buildSource.contains("--backend-facade"))
+        #expect(buildSource.contains("QUILLUI_APP_BACKEND_FACADE"))
+        #expect(buildSource.contains("QUILLUI_GENERATED_BACKEND_FACADE=\"$BACKEND_FACADE\""))
         #expect(!source.contains("import BackendGTK4"))
         #expect(!source.contains("GTK4Backend().run($APP_ENTRY_TYPE.self)"))
         #expect(!source.contains("GTK backend generation is enabled"))

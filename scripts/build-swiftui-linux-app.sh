@@ -8,6 +8,7 @@ SOURCE_DIR="${QUILLUI_APP_SOURCE_DIR:-}"
 APP_TYPE="${QUILLUI_APP_ENTRY_TYPE:-}"
 PRODUCT_NAME="${QUILLUI_APP_PRODUCT_NAME:-}"
 WORK_ROOT="${QUILLUI_APP_BUILD_WORKDIR:-}"
+BACKEND_FACADE="${QUILLUI_APP_BACKEND_FACADE:-}"
 RUN_AFTER_BUILD=0
 LIST_PROFILES=0
 
@@ -22,9 +23,11 @@ Options:
   --profile NAME        Lowering profile to use.
   --list-profiles      Show installed lowering profiles and exit.
   --source-dir PATH     Directory containing the app's Swift sources.
-  --app-type TYPE       Swift App type to launch through QuillApp.run(...).
+  --app-type TYPE       Swift App type to launch through the generated entry.
   --product-name NAME   Output executable name. Defaults from --app-type.
   --workdir PATH        Generated build work directory.
+  --backend-facade NAME Import QuillUI, QuillUIGtk, or QuillUIQt in the
+                        generated entry. Allowed: swiftui, gtk, qt.
   --run                Run the built executable after building.
   -h, --help           Show this help.
 
@@ -34,6 +37,7 @@ Environment aliases:
   QUILLUI_APP_ENTRY_TYPE
   QUILLUI_APP_PRODUCT_NAME
   QUILLUI_APP_BUILD_WORKDIR
+  QUILLUI_APP_BACKEND_FACADE
 MSG
 }
 
@@ -100,6 +104,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --workdir)
       WORK_ROOT="${2:-}"
+      shift 2
+      ;;
+    --backend-facade)
+      BACKEND_FACADE="${2:-}"
       shift 2
       ;;
     --run)
@@ -181,6 +189,7 @@ QUILLUI_PROFILE_PACKAGE_NAME=GeneratedSwiftUILinuxApp \
 QUILLUI_PROFILE_TARGET_NAME=GeneratedSwiftUILinuxApp \
 QUILLUI_PROFILE_ENTRY_TYPE="$APP_TYPE" \
 QUILLUI_PROFILE_MAIN_TYPE=GeneratedSwiftUILinuxMain \
+QUILLUI_GENERATED_BACKEND_FACADE="$BACKEND_FACADE" \
 "$PROFILE_SCRIPT"
 
 BIN_DIR="$(swift build \

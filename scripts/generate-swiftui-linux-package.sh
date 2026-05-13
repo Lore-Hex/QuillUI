@@ -15,9 +15,24 @@ PRODUCT_NAME="${QUILLUI_GENERATED_PRODUCT_NAME:-swiftui-linux-app}"
 TARGET_NAME="${QUILLUI_GENERATED_TARGET_NAME:-GeneratedSwiftUILinuxApp}"
 BUILD_SCRATCH="${QUILLUI_GENERATED_BUILD_SCRATCH:-${WORK_ROOT:+$WORK_ROOT/.build-check}}"
 INCLUDE_BACKEND_ENTRY="${QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY:-0}"
+BACKEND_FACADE="${QUILLUI_GENERATED_BACKEND_FACADE:-swiftui}"
 APP_ENTRY_TYPE="${QUILLUI_GENERATED_APP_ENTRY_TYPE:-}"
 APP_MAIN_TYPE="${QUILLUI_GENERATED_APP_MAIN_TYPE:-GeneratedSwiftUILinuxMain}"
 REPORT_LABEL="${QUILLUI_GENERATED_REPORT_LABEL:-Generated SwiftUI Linux package}"
+
+validate_boolean_flag() {
+  local value="$1"
+  local label="$2"
+
+  case "$value" in
+    0|1)
+      ;;
+    *)
+      echo "$label must be 0 or 1, got: $value" >&2
+      exit 64
+      ;;
+  esac
+}
 
 validate_swift_identifier() {
   local value="$1"
@@ -49,6 +64,18 @@ validate_swift_type() {
   fi
 }
 
+normalize_generated_backend_facade() {
+  local value="${1:-swiftui}"
+  local normalized
+
+  if ! normalized="$(quillui_normalize_backend_identifier "$value")"; then
+    echo "QUILLUI_GENERATED_BACKEND_FACADE must be swiftui, gtk, or qt, got: $value" >&2
+    exit 64
+  fi
+
+  printf '%s\n' "$normalized"
+}
+
 if [[ "$(uname -s)" != "Linux" ]]; then
   cat >&2 <<'MSG'
 The generated SwiftUI Linux package builder must run on Linux because the
@@ -75,8 +102,13 @@ fi
 validate_package_token "$PACKAGE_NAME" "QUILLUI_GENERATED_PACKAGE_NAME"
 validate_package_token "$PRODUCT_NAME" "QUILLUI_GENERATED_PRODUCT_NAME"
 validate_swift_identifier "$TARGET_NAME" "QUILLUI_GENERATED_TARGET_NAME"
+validate_boolean_flag "$INCLUDE_BACKEND_ENTRY" "QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY"
+BACKEND_FACADE="$(normalize_generated_backend_facade "$BACKEND_FACADE")"
 
 TARGET_DIR="$PACKAGE_DIR/Sources/$TARGET_NAME"
+backend_facade_dependency=""
+backend_import="QuillUI"
+backend_runner="QuillApp"
 
 rm -rf "$PACKAGE_DIR"
 mkdir -p "$TARGET_DIR"
@@ -97,13 +129,28 @@ if [[ "$INCLUDE_BACKEND_ENTRY" == "1" ]]; then
   validate_swift_type "$APP_ENTRY_TYPE" "QUILLUI_GENERATED_APP_ENTRY_TYPE"
   validate_swift_type "$APP_MAIN_TYPE" "QUILLUI_GENERATED_APP_MAIN_TYPE"
 
+  case "$BACKEND_FACADE" in
+    swiftui)
+      ;;
+    gtk)
+      backend_facade_dependency='                .product(name: "QuillUIGtk", package: "QuillUI"),'
+      backend_import="QuillUIGtk"
+      backend_runner="QuillGtkApp"
+      ;;
+    qt)
+      backend_facade_dependency='                .product(name: "QuillUIQt", package: "QuillUI"),'
+      backend_import="QuillUIQt"
+      backend_runner="QuillQtApp"
+      ;;
+  esac
+
   cat > "$TARGET_DIR/GeneratedMain.swift" <<SWIFT
-import QuillUI
+import $backend_import
 
 @main
 struct $APP_MAIN_TYPE {
     static func main() {
-        QuillApp.run($APP_ENTRY_TYPE.self)
+        $backend_runner.run($APP_ENTRY_TYPE.self)
     }
 }
 SWIFT
@@ -159,6 +206,7 @@ let package = Package(
                 // QuillCheckForUpdatesMenuItem, etc.) live in the
                 // main `QuillUI` module.
                 .product(name: "QuillUI", package: "QuillUI"),
+$backend_facade_dependency
                 .product(name: "QuillKit", package: "QuillUI"),
                 .product(name: "QuillData", package: "QuillUI"),
                 .product(name: "QuillFoundation", package: "QuillUI"),
