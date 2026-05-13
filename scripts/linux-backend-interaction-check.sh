@@ -123,22 +123,13 @@ wireguard_qt_import_configuration() {
     return 0
   fi
 
-  cat <<'EOF'
-# Created outside Quill
-[Interface]
-PrivateKey = imported-private-key=
-PublicKey = imported-public-key=
-Address = 10.44.0.2/32, fd44::2/128
-DNS = 1.1.1.1, 2606:4700:4700::1111
-ListenPort = 51820
+  local fixture_path="${QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE:-$ROOT_DIR/Tests/Fixtures/WireGuard/imported-edge.conf}"
+  if [[ ! -f "$fixture_path" ]]; then
+    echo "WireGuard Qt import fixture is missing: $fixture_path" >&2
+    return 66
+  fi
 
-[Peer]
-# Name = Imported Edge
-PublicKey = imported-peer-public-key=
-AllowedIPs = 0.0.0.0/0, ::/0
-Endpoint = vpn.example.com:51820
-PersistentKeepalive = 25
-EOF
+  cat "$fixture_path"
 }
 
 quillui_is_backend_smoke_sheet_interaction() {
@@ -306,7 +297,8 @@ elif [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
         sleep 0.8
         click_at "$editor_x" "$editor_y"
         sleep 0.2
-        type_text "$(wireguard_qt_import_configuration)"
+        import_configuration="$(wireguard_qt_import_configuration)" || exit $?
+        type_text "$import_configuration"
         sleep 0.4
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+Return
         sleep "$post_click_sleep"

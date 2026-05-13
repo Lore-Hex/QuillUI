@@ -284,11 +284,16 @@ without linking the GTK path:
 ```bash
 QUILLUI_LINUX_BACKEND=qt \
   QUILLUI_BACKEND_INTERACTION_MODE=import-paste \
+  QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE=Tests/Fixtures/WireGuard/imported-edge.conf \
   scripts/linux-backend-interaction-check.sh \
     .qa/quill-wireguard-qt-import.png \
     quill-wireguard-qt \
     qt
 ```
+
+The fixture path defaults to `Tests/Fixtures/WireGuard/imported-edge.conf`; set
+`QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE` only when the import smoke needs a
+different `.conf` file.
 
 CI registers semantic native app interactions through
 `interaction-extra-mode-matrix`, which expands through the same runtime matrix

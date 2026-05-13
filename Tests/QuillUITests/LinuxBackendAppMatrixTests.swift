@@ -258,6 +258,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_alias_backend_interaction_env()"))
         #expect(backendProducts.contains("quillui_alias_backend_profile_env()"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_LAYOUT_DEBUG QUILLUI_GTK_LAYOUT_DEBUG QUILLUI_QT_LAYOUT_DEBUG\n  quillui_alias_env QUILLUI_BACKEND_VERIFY_PRODUCT"))
+        #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE"))
         #expect(backendProducts.contains("backend_prefix=\"QUILLUI_QT_\""))
         #expect(backendProducts.contains("normalize-backend)"))
         #expect(backendProducts.contains("require-backend)"))
@@ -1038,13 +1039,19 @@ struct LinuxBackendAppMatrixTests {
         printf 'interaction-qt=%s\\n' "$QUILLUI_QT_INTERACTION_MODE"
 
         unset QUILLUI_BACKEND_IMPORT_CONFIGURATION QUILLUI_GTK_IMPORT_CONFIGURATION QUILLUI_QT_IMPORT_CONFIGURATION
+        unset QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE
         QUILLUI_BACKEND=qt
         QUILLUI_GTK_IMPORT_CONFIGURATION=wrong-backend
         QUILLUI_QT_IMPORT_CONFIGURATION=qt-import
+        QUILLUI_GTK_IMPORT_CONFIGURATION_FILE=/tmp/wrong.conf
+        QUILLUI_QT_IMPORT_CONFIGURATION_FILE=/tmp/qt.conf
         export QUILLUI_BACKEND QUILLUI_GTK_IMPORT_CONFIGURATION QUILLUI_QT_IMPORT_CONFIGURATION
+        export QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE
         quillui_alias_backend_interaction_env
         printf 'import-config=%s\\n' "$QUILLUI_BACKEND_IMPORT_CONFIGURATION"
         printf 'import-config-qt=%s\\n' "$QUILLUI_QT_IMPORT_CONFIGURATION"
+        printf 'import-config-file=%s\\n' "$QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE"
+        printf 'import-config-file-qt=%s\\n' "$QUILLUI_QT_IMPORT_CONFIGURATION_FILE"
 
         unset QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT QUILLUI_GTK_PROFILE_MAX_CPU_PCT QUILLUI_QT_PROFILE_MAX_CPU_PCT
         QUILLUI_BACKEND=Qt
@@ -1121,6 +1128,8 @@ struct LinuxBackendAppMatrixTests {
         interaction-qt=prompt-send
         import-config=qt-import
         import-config-qt=qt-import
+        import-config-file=/tmp/qt.conf
+        import-config-file-qt=/tmp/qt.conf
         cpu-qt=11
         generated-entry=1
         generated-entry-gtk=1

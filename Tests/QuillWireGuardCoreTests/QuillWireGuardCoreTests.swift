@@ -72,22 +72,7 @@ struct QuillWireGuardCoreTests {
     @Test("wg-quick import handles comments and comma-separated values")
     func wgQuickImportHandlesCommentsAndCommaSeparatedValues() throws {
         let parsed = try QuillWireGuardConfigParser.parse(
-            """
-            # Created outside Quill
-            [Interface]
-            PrivateKey = local-private-key=
-            PublicKey = local-public-key=
-            Address = 10.0.0.2/32, fd00::2/128
-            DNS = 1.1.1.1, 2606:4700:4700::1111
-            ListenPort = 51820
-
-            [Peer]
-            # Name = Edge Gateway
-            PublicKey = peer-public-key=
-            AllowedIPs = 0.0.0.0/0, ::/0
-            Endpoint = vpn.example.com:51820
-            PersistentKeepalive = 25
-            """,
+            try sharedImportSmokeConfiguration(),
             id: "imported-home",
             name: "Imported Home",
             status: .needsBackend
@@ -96,15 +81,15 @@ struct QuillWireGuardCoreTests {
         #expect(parsed.id == "imported-home")
         #expect(parsed.name == "Imported Home")
         #expect(parsed.status == .needsBackend)
-        #expect(parsed.interface.privateKey == "local-private-key=")
-        #expect(parsed.interface.publicKey == "local-public-key=")
-        #expect(parsed.interface.addresses == ["10.0.0.2/32", "fd00::2/128"])
+        #expect(parsed.interface.privateKey == "imported-private-key=")
+        #expect(parsed.interface.publicKey == "imported-public-key=")
+        #expect(parsed.interface.addresses == ["10.44.0.2/32", "fd44::2/128"])
         #expect(parsed.interface.dnsServers == ["1.1.1.1", "2606:4700:4700::1111"])
         #expect(parsed.interface.listenPort == 51820)
         #expect(parsed.peers.count == 1)
         #expect(parsed.peers[0].id == "imported-home-peer-1")
-        #expect(parsed.peers[0].name == "Edge Gateway")
-        #expect(parsed.peers[0].publicKey == "peer-public-key=")
+        #expect(parsed.peers[0].name == "Imported Edge")
+        #expect(parsed.peers[0].publicKey == "imported-peer-public-key=")
         #expect(parsed.peers[0].allowedIPs == ["0.0.0.0/0", "::/0"])
         #expect(parsed.peers[0].endpoint == "vpn.example.com:51820")
         #expect(parsed.peers[0].persistentKeepAlive == 25)
@@ -398,6 +383,12 @@ struct QuillWireGuardCoreTests {
         }
 
         throw SourceHygieneError.packageRootNotFound
+    }
+
+    private func sharedImportSmokeConfiguration() throws -> String {
+        let fixtureURL = try packageRoot()
+            .appendingPathComponent("Tests/Fixtures/WireGuard/imported-edge.conf")
+        return try String(contentsOf: fixtureURL, encoding: .utf8)
     }
 
     private func parseError(for configuration: String) -> QuillWireGuardConfigParseError? {

@@ -93,9 +93,9 @@ and run post-click baseline screenshot verification.
 `quill-wireguard-qt` is the first semantic native Qt app interaction: the runner
 selects a tunnel row and verifies the selected-row highlight moves before taking
 the post-click screenshot. It also has an `import-paste` interaction mode that
-opens the Qt import dialog, types a seeded `.conf` fixture, submits with
-`Ctrl+Return`, and verifies the imported row becomes selected through the same
-native screenshot predicate. CI runs that extra semantic path through
+opens the Qt import dialog, types `Tests/Fixtures/WireGuard/imported-edge.conf`,
+submits with `Ctrl+Return`, and verifies the imported row becomes selected
+through the same native screenshot predicate. CI runs that extra semantic path through
 `scripts/quillui-backend-products.sh interaction-extra-mode-matrix`, so new
 per-app native interactions can join the same runner without hand-written
 workflow steps.
