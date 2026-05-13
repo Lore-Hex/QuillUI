@@ -72,6 +72,16 @@ jobs:
       - name: Swift tests
         run: scripts/linux-swift-test.sh --scratch-path .build-linux
 
+      # Keep the backend facade modules compile-gated directly on Linux too.
+      # The test suite imports both modules, but these explicit target builds
+      # make GTK/Qt launch-surface failures obvious before the long smoke and
+      # profile matrix.
+      - name: Build QuillUIGtk facade
+        run: swift build --scratch-path .build-linux --target QuillUIGtk
+
+      - name: Build QuillUIQt facade
+        run: swift build --scratch-path .build-linux --target QuillUIQt
+
       - name: GTK offscreen ImageRenderer smoke
         run: GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG
 

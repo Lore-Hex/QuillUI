@@ -403,6 +403,8 @@ struct SourceHygieneTests {
         #expect(!qtBackend.contains("runtimeStatus"))
         #expect(!qtBackend.contains("static func run<A: App>"))
         #expect(!qtBackend.contains("QuillQtBackend.run(appType)"))
+        #expect(workflow.contains("swift build --scratch-path .build-linux --target QuillUIGtk"))
+        #expect(workflow.contains("swift build --scratch-path .build-linux --target QuillUIQt"))
         #expect(macOSWorkflow.contains("swift build --target QuillUIGtk"))
         #expect(macOSWorkflow.contains("swift build --target QuillUIQt"))
         #expect(!macOSWorkflow.contains("swift build --target QuillGtkInteractionSmoke"))
