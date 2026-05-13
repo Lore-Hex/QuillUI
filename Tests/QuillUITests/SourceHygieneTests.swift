@@ -22,6 +22,15 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillChatKit/QuillChatKit.swift"),
             encoding: .utf8
         )
+        let iosCheck = try String(
+            contentsOf: root.appendingPathComponent("scripts/check-quillchatkit-ios.sh"),
+            encoding: .utf8
+        )
+        let macOSWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/macos-ci.yml"),
+            encoding: .utf8
+        )
+        let readme = try String(contentsOf: root.appendingPathComponent("README.md"), encoding: .utf8)
 
         #expect(manifest.contains(".library(name: \"QuillChatKit\", targets: [\"QuillChatKit\"])"))
         #expect(manifest.contains("platforms: [.macOS(.v14), .iOS(.v14)]"))
@@ -35,6 +44,14 @@ struct SourceHygieneTests {
         #expect(!source.contains("import QuillUI"))
         #expect(!source.contains("import UIKit"))
         #expect(!source.contains("import AppKit"))
+        #expect(iosCheck.contains("SDK_NAME=\"${QUILLCHATKIT_IOS_SDK:-iphonesimulator}\""))
+        #expect(iosCheck.contains("TARGET_TRIPLE=\"${QUILLCHATKIT_IOS_TARGET_TRIPLE:-arm64-apple-ios14.0-simulator}\""))
+        #expect(iosCheck.contains("swift build"))
+        #expect(iosCheck.contains("--sdk \"$SDK_PATH\""))
+        #expect(iosCheck.contains("--target QuillChatKit"))
+        #expect(macOSWorkflow.contains("scripts/check-quillchatkit-ios.sh"))
+        #expect(readme.contains("scripts/check-quillchatkit-ios.sh"))
+        #expect(readme.contains("iOS simulator SDK"))
     }
 
     @Test("ImageRenderer comments describe the current GTK offscreen path")

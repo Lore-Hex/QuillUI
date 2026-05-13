@@ -12,7 +12,9 @@ and currently falls through the shared runtime fallback until the native Qt
 renderer is linked.
 
 `QuillChatKit` is a reusable SwiftUI chat chrome library product for Signal,
-Telegram, and native SwiftUI clients on macOS/iOS.
+Telegram, and native SwiftUI clients on macOS/iOS. Its native SwiftUI boundary
+is checked with `scripts/check-quillchatkit-ios.sh`, which builds the library
+against the iOS simulator SDK at the package's iOS 14 floor.
 
 Current backend parity app targets:
 
