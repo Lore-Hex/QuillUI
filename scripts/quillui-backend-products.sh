@@ -127,6 +127,17 @@ quillui_alias_backend_interaction_env() {
   quillui_alias_backend_common_env
 }
 
+quillui_alias_backend_profile_env() {
+  quillui_alias_env QUILLUI_BACKEND_PROFILE_COMMAND QUILLUI_GTK_PROFILE_COMMAND
+  quillui_alias_env QUILLUI_BACKEND_PROFILE_SETTLE QUILLUI_GTK_PROFILE_SETTLE
+  quillui_alias_env QUILLUI_BACKEND_PROFILE_STEADY QUILLUI_GTK_PROFILE_STEADY
+  quillui_alias_env QUILLUI_BACKEND_PROFILE_DISPLAY QUILLUI_GTK_PROFILE_DISPLAY
+  quillui_alias_env QUILLUI_BACKEND_PROFILE_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE
+  quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT QUILLUI_GTK_PROFILE_MAX_CPU_PCT
+  quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_RSS_KB QUILLUI_GTK_PROFILE_MAX_RSS_KB
+  quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS
+}
+
 quillui_backend_for_product() {
   case "$1" in
     quill-qt-interaction-smoke)

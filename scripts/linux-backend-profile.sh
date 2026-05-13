@@ -23,9 +23,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/quillui-backend-products.sh"
+quillui_alias_backend_profile_env
+
 PRODUCT="${1:-}"
-SETTLE_SECONDS="${2:-${QUILLUI_BACKEND_PROFILE_SETTLE:-${QUILLUI_GTK_PROFILE_SETTLE:-5}}}"
-STEADY_DELAY_SECONDS="${3:-${QUILLUI_BACKEND_PROFILE_STEADY:-${QUILLUI_GTK_PROFILE_STEADY:-20}}}"
+SETTLE_SECONDS="${2:-${QUILLUI_BACKEND_PROFILE_SETTLE:-5}}"
+STEADY_DELAY_SECONDS="${3:-${QUILLUI_BACKEND_PROFILE_STEADY:-20}}"
 
 source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
@@ -63,8 +66,8 @@ if [[ ! -x "$exe" ]]; then
     exit 1
 fi
 
-display_id=":${QUILLUI_BACKEND_PROFILE_DISPLAY:-${QUILLUI_GTK_PROFILE_DISPLAY:-95}}"
-screen_size="${QUILLUI_BACKEND_PROFILE_SCREEN_SIZE:-${QUILLUI_GTK_PROFILE_SCREEN_SIZE:-1180x760x24}}"
+display_id=":${QUILLUI_BACKEND_PROFILE_DISPLAY:-95}"
+screen_size="${QUILLUI_BACKEND_PROFILE_SCREEN_SIZE:-1180x760x24}"
 Xvfb "$display_id" -screen 0 "$screen_size" >/tmp/quillui-profile-xvfb.log 2>&1 &
 xvfb_pid=$!
 
