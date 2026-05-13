@@ -114,14 +114,23 @@ scripts/build-quill-chat-linux.sh
 It supplies Quill Chat's source directory, app type, product name, and the
 current `enchanted-full-source` profile to the generic builder.
 
-The Linux backend visual smoke script can screenshot either root SwiftPM products or
-generated app products. CI drives generated products through the same GTK/Qt
-requested-backend matrix as the root app shells:
+The Linux backend visual smoke script can screenshot either root SwiftPM
+products or generated app products. CI drives matrix jobs through
+`scripts/run-linux-backend-smoke-matrix.sh`, which reads a
+`PRODUCT<TAB>BACKEND` roster from `scripts/quillui-backend-products.sh` and
+then calls the single-row visual or interaction runner with the requested
+backend as an explicit positional argument. The output template must include
+`{product}` and `{backend}` so GTK/Qt artifacts never overwrite each other.
+
+Generated products use the same GTK/Qt requested-backend matrix as the root app
+shells:
 
 ```bash
-scripts/quillui-backend-products.sh generated-app-matrix | while IFS="$(printf '\t')" read -r product backend; do
-  scripts/linux-backend-visual-check.sh ".qa/${product}-generated-${backend}.png" "$product" "$backend"
-done
+scripts/run-linux-backend-smoke-matrix.sh \
+  --skip-repeated-products \
+  visual \
+  generated-app-matrix \
+  '.qa/{product}-generated-{backend}.png'
 ```
 
 Root SwiftPM app products use `app-matrix`. The executable is backend-neutral,
@@ -129,19 +138,11 @@ so CI builds each product once and uses `QUILLUI_BACKEND_SKIP_BUILD=1` for
 later backend rows:
 
 ```bash
-built_products=" "
-scripts/quillui-backend-products.sh app-matrix | while IFS="$(printf '\t')" read -r product backend; do
-  case "$built_products" in
-    *" $product "*)
-      QUILLUI_BACKEND_SKIP_BUILD=1 \
-        scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product" "$backend"
-      ;;
-    *)
-      scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product" "$backend"
-      built_products="${built_products}${product} "
-      ;;
-  esac
-done
+scripts/run-linux-backend-smoke-matrix.sh \
+  --skip-repeated-products \
+  visual \
+  app-matrix \
+  '.qa/{product}-{backend}.png'
 ```
 
 For `quill-chat-linux`, the script builds through the generic app builder,
@@ -167,10 +168,11 @@ exists so the remaining gap is measured against the real app, not a prototype.
 The strict path sets backend-neutral reference window values and exports both
 `QUILLUI_GTK_*` and `QUILLUI_QT_*` compatibility aliases. The SwiftOpenUI GTK
 checkout patch honors the GTK values for automatic window sizing. New GTK/Qt
-parity scripts should call `scripts/linux-backend-visual-check.sh` and use the
-`QUILLUI_BACKEND_*` names for visual checks. Matrix loops should pass the
-requested backend as the runner's explicit positional backend argument so the
-selected backend travels with each row. The runner canonicalizes supported
+parity scripts should use `scripts/run-linux-backend-smoke-matrix.sh` for
+matrix jobs, call `scripts/linux-backend-visual-check.sh` for a single product
+row, and use the `QUILLUI_BACKEND_*` names for visual checks. Matrix jobs pass
+the requested backend as the runner's explicit positional backend argument so
+the selected backend travels with each row. The runner canonicalizes supported
 backend aliases such as `gtk4`, `qt6`, and `swift-ui` before mapping
 backend-neutral values to the older `QUILLUI_GTK_*` environment contract and to
 scoped `QUILLUI_QT_*` controls for compatibility, and
@@ -222,12 +224,13 @@ scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.p
 ```
 
 The GTK and Qt launch fixtures also run through the backend visual runner from
-the shared smoke-product roster:
+the shared smoke matrix:
 
 ```bash
-scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product; do
-  scripts/linux-backend-visual-check.sh ".qa/${product}-visual.png" "$product"
-done
+scripts/run-linux-backend-smoke-matrix.sh \
+  visual \
+  smoke-matrix \
+  '.qa/{product}-visual-{backend}.png'
 ```
 
 The root app interaction matrix uses the same app roster as the visual smoke.
@@ -235,19 +238,21 @@ Run it after the visual matrix so the executables already built under
 `.build-linux` can be reused:
 
 ```bash
-scripts/quillui-backend-products.sh interaction-matrix | while IFS="$(printf '\t')" read -r product backend; do
-  QUILLUI_BACKEND_SKIP_BUILD=1 \
-    scripts/linux-backend-interaction-check.sh ".qa/${product}-interaction-${backend}.png" "$product" "$backend"
-done
+QUILLUI_BACKEND_SKIP_BUILD=1 \
+  scripts/run-linux-backend-smoke-matrix.sh \
+    interaction \
+    interaction-matrix \
+    '.qa/{product}-interaction-{backend}.png'
 ```
 
 The generated Quill Chat toolbar menu uses the generated app backend matrix:
 
 ```bash
-scripts/quillui-backend-products.sh generated-app-matrix | while IFS="$(printf '\t')" read -r product backend; do
-  QUILLUI_BACKEND_SKIP_BUILD=1 \
-    scripts/linux-backend-interaction-check.sh ".qa/${product}-toolbar-menu-${backend}.png" "$product" "$backend"
-done
+QUILLUI_BACKEND_SKIP_BUILD=1 \
+  scripts/run-linux-backend-smoke-matrix.sh \
+    interaction \
+    generated-app-matrix \
+    '.qa/{product}-toolbar-menu-{backend}.png'
 ```
 
 That path builds through the same generic app builder as the visual smoke,

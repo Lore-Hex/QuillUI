@@ -37,6 +37,7 @@ local Quill Chat checkout is available.
 - `quill-enchanted`: a desktop chat app with Ollama model discovery, streaming chat completion, and local QuillData conversation history.
 - `QuillUIGtk` / `QuillUIQt`: backend-specific launch targets sharing the same app scene and smoke-test contracts.
 - `scripts/quillui-backend-products.sh`: canonical app, generated-app, smoke, and profile rosters for GTK/Qt parity loops.
+- `scripts/run-linux-backend-smoke-matrix.sh`: shared visual/interaction matrix runner so local and CI GTK/Qt smoke rows stay identical.
 
 ## Run
 
@@ -65,5 +66,6 @@ Backend parity checks:
 
 ```sh
 scripts/quillui-backend-products.sh app-matrix
+scripts/run-linux-backend-smoke-matrix.sh --dry-run visual app-matrix '.qa/{product}-{backend}.png'
 scripts/linux-backend-check.sh
 ```

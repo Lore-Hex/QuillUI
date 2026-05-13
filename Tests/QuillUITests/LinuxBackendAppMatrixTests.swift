@@ -55,25 +55,20 @@ struct LinuxBackendAppMatrixTests {
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
-        #expect(workflow.contains("scripts/quillui-backend-products.sh app-matrix"))
-        #expect(workflow.contains("scripts/quillui-backend-products.sh interaction-matrix"))
-        #expect(workflow.contains("scripts/quillui-backend-products.sh generated-app-matrix"))
-        #expect(workflow.contains("scripts/quillui-backend-products.sh smoke-matrix | while IFS=\"$tab\" read -r product backend; do"))
+        #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
+        #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
+        #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh interaction smoke-matrix '.qa/{product}-open-{backend}.png'"))
+        #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction generated-app-matrix '.qa/{product}-toolbar-menu-{backend}.png'"))
+        #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual app-matrix '.qa/{product}-{backend}.png'"))
+        #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-matrix '.qa/{product}-interaction-{backend}.png'"))
         #expect(workflow.contains("Generated Enchanted backend visual smokes"))
         #expect(workflow.contains("Generated Enchanted toolbar interaction smokes"))
         #expect(workflow.contains("Quill app backend interaction smokes"))
         #expect(workflow.contains("backend-renders end-to-end"))
         #expect(!workflow.contains("GTK-renders end-to-end"))
-        #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-generated-${backend}.png\" \"$product\" \"$backend\""))
-        #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh \".qa/${product}-generated-${backend}.png\" \"$product\" \"$backend\""))
-        #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh \".qa/${product}-toolbar-menu-${backend}.png\" \"$product\" \"$backend\""))
-        #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual-${backend}.png\" \"$product\" \"$backend\""))
         #expect(workflow.contains("Backend launch target interaction smokes"))
-        #expect(workflow.contains("scripts/linux-backend-interaction-check.sh \".qa/${product}-open-${backend}.png\" \"$product\" \"$backend\""))
-        #expect(workflow.contains("built_products=\" \""))
-        #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\" \"$backend\""))
-        #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\" \"$backend\""))
-        #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh \".qa/${product}-interaction-${backend}.png\" \"$product\" \"$backend\""))
+        #expect(!workflow.contains("built_products=\" \""))
+        #expect(!workflow.contains("while IFS=\"$tab\" read -r product backend; do"))
         #expect(workflow.contains("scripts/quillui-backend-products.sh profile-matrix | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("name: Swift Linux Backends"))
@@ -158,6 +153,10 @@ struct LinuxBackendAppMatrixTests {
             contentsOf: root.appendingPathComponent("scripts/linux-backend-visual-check.sh"),
             encoding: .utf8
         )
+        let smokeMatrixRunner = try String(
+            contentsOf: root.appendingPathComponent("scripts/run-linux-backend-smoke-matrix.sh"),
+            encoding: .utf8
+        )
         let smokeLib = try String(
             contentsOf: root.appendingPathComponent("scripts/quillui-linux-backend-smoke-lib.sh"),
             encoding: .utf8
@@ -224,6 +223,15 @@ struct LinuxBackendAppMatrixTests {
         #expect(visualScript.contains("REQUESTED_BACKEND=\"${3:-${QUILLUI_BACKEND:-}}\""))
         #expect(visualScript.contains("quillui_export_backend_argument \"${3:-}\""))
         #expect(visualScript.contains("quillui_alias_backend_build_env"))
+        #expect(smokeMatrixRunner.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(smokeMatrixRunner.contains("app-matrix|interaction-matrix|generated-app-matrix|smoke-matrix"))
+        #expect(smokeMatrixRunner.contains("CHECK_SCRIPT=\"$ROOT_DIR/scripts/linux-backend-visual-check.sh\""))
+        #expect(smokeMatrixRunner.contains("CHECK_SCRIPT=\"$ROOT_DIR/scripts/linux-backend-interaction-check.sh\""))
+        #expect(smokeMatrixRunner.contains("OUTPUT_TEMPLATE must include {product} and {backend}"))
+        #expect(smokeMatrixRunner.contains("quillui_backend_identifier_or_raw \"$backend\""))
+        #expect(smokeMatrixRunner.contains("QUILLUI_BACKEND_SKIP_BUILD=1"))
+        #expect(smokeMatrixRunner.contains("env \"${smoke_environment[@]}\" \"$CHECK_SCRIPT\" \"$output_path\" \"$product\" \"$backend\""))
+        #expect(smokeMatrixRunner.contains("\"$ROOT_DIR/scripts/quillui-backend-products.sh\" \"$MATRIX_COMMAND\""))
         #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(smokeLib.contains("quillui_export_backend_argument()"))
         #expect(smokeLib.contains("quillui_alias_backend_build_env()"))
@@ -327,6 +335,50 @@ struct LinuxBackendAppMatrixTests {
         #expect(budgetScript.contains("quillui_alias_backend_profile_env"))
         #expect(!budgetScript.contains("${QUILLUI_GTK_PROFILE_MAX_CPU_PCT:-"))
         #expect(legacyBudgetScript.contains("check-linux-backend-profile-budget.sh"))
+    }
+
+    @Test("backend smoke matrix runner expands rows and skips repeated product builds")
+    func backendSmokeMatrixRunnerExpandsRowsAndSkipsRepeatedProductBuilds() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/run-linux-backend-smoke-matrix.sh")
+
+        let generated = try runScript(
+            script,
+            arguments: [
+                "--dry-run",
+                "--skip-repeated-products",
+                "visual",
+                "generated-app-matrix",
+                ".qa/{product}-generated-{backend}.png"
+            ]
+        )
+        #expect(generated.status == 0, Comment(rawValue: generated.output))
+        #expect(generated.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "visual\tquill-chat-linux\tgtk\t.qa/quill-chat-linux-generated-gtk.png\t0",
+            "visual\tquill-chat-linux\tqt\t.qa/quill-chat-linux-generated-qt.png\t1"
+        ])
+
+        let smoke = try runScript(
+            script,
+            arguments: [
+                "--dry-run",
+                "interaction",
+                "smoke-matrix",
+                ".qa/{product}-open-{backend}.png"
+            ]
+        )
+        #expect(smoke.status == 0, Comment(rawValue: smoke.output))
+        #expect(smoke.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-open-gtk.png\t0",
+            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-open-qt.png\t0"
+        ])
+
+        let malformedTemplate = try runScript(
+            script,
+            arguments: ["--dry-run", "visual", "app-matrix", ".qa/{product}.png"]
+        )
+        #expect(malformedTemplate.status != 0)
+        #expect(malformedTemplate.output.contains("OUTPUT_TEMPLATE must include {product} and {backend}"))
     }
 
     @Test("backend product helper maps GTK and Qt defaults")

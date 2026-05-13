@@ -85,50 +85,16 @@ jobs:
         run: scripts/generated-enchanted-full-source-check.sh
 
       - name: Generated Enchanted backend visual smokes
-        run: |
-          tab="$(printf '\t')"
-          first=1
-          scripts/quillui-backend-products.sh generated-app-matrix | while IFS="$tab" read -r product backend; do
-            [ -n "$product" ] || continue
-            [ -n "$backend" ] || continue
-            echo "==> Generated Enchanted visual smoke: $product ($backend requested)"
-            if [ "$first" = "1" ]; then
-              scripts/linux-backend-visual-check.sh ".qa/${product}-generated-${backend}.png" "$product" "$backend"
-              first=0
-            else
-              QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh ".qa/${product}-generated-${backend}.png" "$product" "$backend"
-            fi
-          done
+        run: scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'
 
       - name: Backend launch target visual smokes
-        run: |
-          tab="$(printf '\t')"
-          scripts/quillui-backend-products.sh smoke-matrix | while IFS="$tab" read -r product backend; do
-            [ -n "$product" ] || continue
-            [ -n "$backend" ] || continue
-            echo "==> Backend launch visual smoke: $product ($backend requested)"
-            scripts/linux-backend-visual-check.sh ".qa/${product}-visual-${backend}.png" "$product" "$backend"
-          done
+        run: scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'
 
       - name: Backend launch target interaction smokes
-        run: |
-          tab="$(printf '\t')"
-          scripts/quillui-backend-products.sh smoke-matrix | while IFS="$tab" read -r product backend; do
-            [ -n "$product" ] || continue
-            [ -n "$backend" ] || continue
-            echo "==> Backend launch interaction smoke: $product ($backend requested)"
-            scripts/linux-backend-interaction-check.sh ".qa/${product}-open-${backend}.png" "$product" "$backend"
-          done
+        run: scripts/run-linux-backend-smoke-matrix.sh interaction smoke-matrix '.qa/{product}-open-{backend}.png'
 
       - name: Generated Enchanted toolbar interaction smokes
-        run: |
-          tab="$(printf '\t')"
-          scripts/quillui-backend-products.sh generated-app-matrix | while IFS="$tab" read -r product backend; do
-            [ -n "$product" ] || continue
-            [ -n "$backend" ] || continue
-            echo "==> Generated Enchanted toolbar interaction smoke: $product ($backend requested)"
-            QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh ".qa/${product}-toolbar-menu-${backend}.png" "$product" "$backend"
-          done
+        run: QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction generated-app-matrix '.qa/{product}-toolbar-menu-{backend}.png'
 
       # Per-app backend visual smoke. The backend product/backend roster lives
       # in `scripts/quillui-backend-products.sh app-matrix` so visual and
@@ -142,23 +108,7 @@ jobs:
       # regressions still fail CI. Per-app landmark predicates are
       # follow-up slices in docs/uitest-plan.md.
       - name: Quill app backend visual smoke
-        run: |
-          tab="$(printf '\t')"
-          built_products=" "
-          scripts/quillui-backend-products.sh app-matrix | while IFS="$tab" read -r product backend; do
-            [ -n "$product" ] || continue
-            [ -n "$backend" ] || continue
-            echo "==> Backend visual smoke: $product ($backend requested)"
-            case "$built_products" in
-              *" $product "*)
-                QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product" "$backend"
-                ;;
-              *)
-                scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product" "$backend"
-                built_products="${built_products}${product} "
-                ;;
-            esac
-          done
+        run: scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual app-matrix '.qa/{product}-{backend}.png'
 
       # Per-app backend interaction smoke. Reuse the products built by the
       # visual matrix above, then drive each app/backend row through the shared
@@ -166,14 +116,7 @@ jobs:
       # still get post-click screenshot baseline verification, which catches
       # dead windows, blank repaints, and backend selection regressions.
       - name: Quill app backend interaction smokes
-        run: |
-          tab="$(printf '\t')"
-          scripts/quillui-backend-products.sh interaction-matrix | while IFS="$tab" read -r product backend; do
-            [ -n "$product" ] || continue
-            [ -n "$backend" ] || continue
-            echo "==> Backend interaction smoke: $product ($backend requested)"
-            QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh ".qa/${product}-interaction-${backend}.png" "$product" "$backend"
-          done
+        run: QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-matrix '.qa/{product}-interaction-{backend}.png'
 
       # Linux profile baseline (CP106/CP149/CP152). For each Quill app,
       # generated app, and backend launch fixture matrix row, sample
