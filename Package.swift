@@ -800,7 +800,7 @@ targets.append(contentsOf: [
     // sheet modes).
     .executableTarget(
         name: "QuillGtkInteractionSmoke",
-        dependencies: ["QuillUI", "QuillUIGtk", "QuillInteractionSmokeSupport"],
+        dependencies: ["QuillUIGtk", "QuillInteractionSmokeSupport"],
         path: "Sources/QuillGtkInteractionSmoke"
     ),
     // Qt launch target for the same interaction surface. The
@@ -809,7 +809,7 @@ targets.append(contentsOf: [
     // as soon as the native Qt renderer lands.
     .executableTarget(
         name: "QuillQtInteractionSmoke",
-        dependencies: ["QuillUI", "QuillUIQt", "QuillInteractionSmokeSupport"],
+        dependencies: ["QuillUIQt", "QuillInteractionSmokeSupport"],
         path: "Sources/QuillQtInteractionSmoke"
     ),
     // Apple-framework compatibility shims that the generated

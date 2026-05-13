@@ -260,8 +260,10 @@ struct SourceHygieneTests {
         #expect(manifest.contains(".executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"])"))
         #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
         #expect(manifest.contains("name: \"QuillInteractionSmokeSupport\""))
-        #expect(manifest.contains("dependencies: [\"QuillUI\", \"QuillUIGtk\", \"QuillInteractionSmokeSupport\"]"))
-        #expect(manifest.contains("dependencies: [\"QuillUI\", \"QuillUIQt\", \"QuillInteractionSmokeSupport\"]"))
+        #expect(manifest.contains("dependencies: [\"QuillUIGtk\", \"QuillInteractionSmokeSupport\"]"))
+        #expect(manifest.contains("dependencies: [\"QuillUIQt\", \"QuillInteractionSmokeSupport\"]"))
+        #expect(!manifest.contains("dependencies: [\"QuillUI\", \"QuillUIGtk\", \"QuillInteractionSmokeSupport\"]"))
+        #expect(!manifest.contains("dependencies: [\"QuillUI\", \"QuillUIQt\", \"QuillInteractionSmokeSupport\"]"))
 
         #expect(gtkMain.contains("import QuillInteractionSmokeSupport"))
         #expect(gtkMain.contains("import QuillUIGtk"))
