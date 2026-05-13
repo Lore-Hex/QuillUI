@@ -22,7 +22,6 @@
 #include <QSize>
 #include <QSplitter>
 #include <QString>
-#include <QStringList>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -100,6 +99,35 @@ QGroupBox *sectionBox(const QString &title) {
     QGroupBox *box = new QGroupBox(title.toUpper());
     box->setObjectName(QStringLiteral("detailSection"));
     return box;
+}
+
+QWidget *tunnelRowWidget(const QJsonObject &tunnel) {
+    QWidget *row = new QWidget();
+    row->setObjectName(QStringLiteral("tunnelRow"));
+
+    QVBoxLayout *layout = new QVBoxLayout(row);
+    layout->setContentsMargins(8, 6, 8, 6);
+    layout->setSpacing(3);
+
+    QHBoxLayout *header = new QHBoxLayout();
+    header->setContentsMargins(0, 0, 0, 0);
+    QLabel *name = label(stringValue(tunnel, "name"), QStringLiteral("tunnelName"));
+    QLabel *status = label(stringValue(tunnel, "statusText"), QStringLiteral("tunnelStatus"));
+    header->addWidget(name, 1);
+    header->addWidget(status, 0, Qt::AlignRight);
+    layout->addLayout(header);
+
+    const QJsonObject interfaceObject = objectValue(tunnel, "interface");
+    QLabel *summary = label(
+        QStringLiteral("%1 - %2").arg(
+            stringValue(interfaceObject, "addressesText"),
+            stringValue(tunnel, "peerSummary")
+        ),
+        QStringLiteral("tunnelSummary")
+    );
+    layout->addWidget(summary);
+
+    return row;
 }
 
 void addInterfaceSection(QVBoxLayout *detailLayout, const QJsonObject &tunnel) {
@@ -197,8 +225,12 @@ void applyStyle(QApplication &app) {
         "QWidget { background: #ffffff; color: #1d1d1f; font-size: 13px; }"
         "QSplitter::handle { background: #d8d8dd; width: 1px; }"
         "QListWidget { background: #f7f7f8; border: 0; padding: 6px; }"
-        "QListWidget::item { padding: 9px 8px; border-radius: 4px; }"
+        "QListWidget::item { padding: 0; margin: 2px 0; border-radius: 4px; }"
         "QListWidget::item:selected { background: #e8eefc; color: #111111; }"
+        "QWidget#tunnelRow { background: transparent; }"
+        "QWidget#tunnelRow QLabel { background: transparent; }"
+        "QLabel#tunnelName { font-weight: 500; }"
+        "QLabel#tunnelStatus, QLabel#tunnelSummary { color: #6e6e73; font-size: 11px; }"
         "QLabel#sidebarTitle { font-weight: 700; font-size: 16px; }"
         "QLabel#sidebarCount, QLabel#backendText, QLabel#detailStatus, QLabel#detailKey { color: #6e6e73; }"
         "QLabel#backendTitle { color: #6e6e73; font-weight: 700; font-size: 11px; }"
@@ -260,15 +292,10 @@ int quill_wireguard_qt_run_wireguard_json(
     QListWidget *list = new QListWidget();
     for (const QJsonValue &value : tunnels) {
         const QJsonObject tunnel = value.toObject();
-        QStringList lines;
-        lines << stringValue(tunnel, "name");
-        lines << QStringLiteral("%1 - %2").arg(
-            stringValue(tunnel, "statusText"),
-            stringValue(tunnel, "peerSummary")
-        );
-        QListWidgetItem *item = new QListWidgetItem(lines.join(QStringLiteral("\n")));
-        item->setSizeHint(QSize(240, 54));
+        QListWidgetItem *item = new QListWidgetItem();
+        item->setSizeHint(QSize(240, 64));
         list->addItem(item);
+        list->setItemWidget(item, tunnelRowWidget(tunnel));
     }
     sidebarLayout->addWidget(list, 1);
 
