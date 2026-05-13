@@ -39,23 +39,27 @@ public struct QuillBackendDescriptor: Equatable, Sendable {
     public let runtimeNotes: String
 
     public var hasNativeRuntime: Bool {
-        QuillBackendRegistry.hasNativeRuntime(for: identifier)
+        runtimeAvailability.hasNativeRuntime
     }
 
     public var runtimeBackend: QuillBackendIdentifier {
-        QuillBackendRegistry.runtimeBackend(for: identifier)
+        runtimeAvailability.runtime
     }
 
     public var runtimeDescriptor: QuillBackendDescriptor {
         QuillBackendRegistry.descriptor(for: runtimeBackend)
     }
 
+    public var runtimeAvailability: QuillBackendRuntimeAvailability {
+        QuillBackendRegistry.runtimeAvailability(for: identifier)
+    }
+
     public var usesRuntimeFallback: Bool {
-        runtimeBackend != identifier
+        runtimeAvailability.usesRuntimeFallback
     }
 
     public var runtimeMode: QuillBackendRuntimeMode {
-        usesRuntimeFallback ? .platformFallback : .native
+        runtimeAvailability.mode
     }
 
     public var runtimeSummary: String {
@@ -80,6 +84,31 @@ public struct QuillBackendDescriptor: Equatable, Sendable {
 public enum QuillBackendRuntimeMode: String, Sendable {
     case native
     case platformFallback
+}
+
+public struct QuillBackendRuntimeAvailability: Equatable, Sendable {
+    public let selected: QuillBackendIdentifier
+    public let runtime: QuillBackendIdentifier
+
+    public var hasNativeRuntime: Bool {
+        selected == runtime
+    }
+
+    public var usesRuntimeFallback: Bool {
+        !hasNativeRuntime
+    }
+
+    public var mode: QuillBackendRuntimeMode {
+        hasNativeRuntime ? .native : .platformFallback
+    }
+
+    public init(
+        selected: QuillBackendIdentifier,
+        runtime: QuillBackendIdentifier
+    ) {
+        self.selected = selected
+        self.runtime = runtime
+    }
 }
 
 public enum QuillBackendRequest: Equatable, Sendable {
@@ -116,7 +145,7 @@ public struct QuillBackendLaunchPlan: Equatable, Sendable {
     }
 
     public var runtimeMode: QuillBackendRuntimeMode {
-        usesRuntimeFallback ? .platformFallback : .native
+        runtimeAvailability.mode
     }
 
     public var selectedDescriptor: QuillBackendDescriptor {
@@ -125,6 +154,13 @@ public struct QuillBackendLaunchPlan: Equatable, Sendable {
 
     public var runtimeDescriptor: QuillBackendDescriptor {
         QuillBackendRegistry.descriptor(for: runtime)
+    }
+
+    public var runtimeAvailability: QuillBackendRuntimeAvailability {
+        QuillBackendRuntimeAvailability(
+            selected: selected,
+            runtime: runtime
+        )
     }
 
     public var requestStatusMessage: String? {
@@ -287,6 +323,10 @@ public enum QuillBackendRegistry {
         QuillBackendIdentifier.allCases.map(descriptor(for:))
     }
 
+    public static var runtimeAvailabilities: [QuillBackendRuntimeAvailability] {
+        QuillBackendIdentifier.allCases.map(runtimeAvailability(for:))
+    }
+
     public static func launchPlan(
         preferred preferredBackend: QuillBackendIdentifier? = nil
     ) -> QuillBackendLaunchPlan {
@@ -376,11 +416,23 @@ public enum QuillBackendRegistry {
     public static func runtimeBackend(
         for selectedBackend: QuillBackendIdentifier
     ) -> QuillBackendIdentifier {
+        runtimeAvailability(for: selectedBackend).runtime
+    }
+
+    public static func runtimeAvailability(
+        for selectedBackend: QuillBackendIdentifier
+    ) -> QuillBackendRuntimeAvailability {
         if hasNativeRuntime(for: selectedBackend) {
-            return selectedBackend
+            return QuillBackendRuntimeAvailability(
+                selected: selectedBackend,
+                runtime: selectedBackend
+            )
         }
 
-        return platformRuntimeFallback
+        return QuillBackendRuntimeAvailability(
+            selected: selectedBackend,
+            runtime: platformRuntimeFallback
+        )
     }
 
     public static func hasNativeRuntime(

@@ -2930,3 +2930,15 @@ Backend product classification now uses a single shell membership helper for
 smoke products and generated external apps. That keeps future matrix-specific
 classifiers from copying the same list scan while preserving the existing
 `is-smoke-product` and `is-generated-app` CLI commands.
+
+## Checkpoint 167: Shared Runtime Availability Surface
+
+Status: implemented locally; guarded by QuillUI API and source hygiene tests.
+
+`QuillBackendRuntimeAvailability` is now the shared typed record for selected
+backend, linked runtime backend, and native-vs-fallback mode. Backend
+descriptors and launch plans both derive their runtime mode from that record,
+and `QuillUIGtk` / `QuillUIQt` re-export backend-specific aliases to the same
+type. This gives GTK and Qt one status contract while Qt remains a first-class
+launch surface that falls through the current platform runtime until its native
+host is linked.

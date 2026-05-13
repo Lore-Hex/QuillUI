@@ -10,11 +10,15 @@ struct BackendModuleReexportTests {
         let qtAppType: QuillBackendApp<QuillQtBackend>.Type = QuillQtApp.self
         let runtimeStatusType: QuillBackendRuntimeStatus.Type = QuillGtkBackendStatus.self
         let runtimeModeType: QuillBackendRuntimeMode.Type = QuillQtRuntimeMode.self
+        let gtkRuntimeAvailabilityType: QuillBackendRuntimeAvailability.Type = QuillGtkRuntimeAvailability.self
+        let qtRuntimeAvailabilityType: QuillBackendRuntimeAvailability.Type = QuillQtRuntimeAvailability.self
 
         #expect(gtkAppType == QuillBackendApp<QuillGtkBackend>.self)
         #expect(qtAppType == QuillBackendApp<QuillQtBackend>.self)
         #expect(runtimeStatusType == QuillBackendRuntimeStatus.self)
         #expect(runtimeModeType == QuillBackendRuntimeMode.self)
+        #expect(gtkRuntimeAvailabilityType == QuillBackendRuntimeAvailability.self)
+        #expect(qtRuntimeAvailabilityType == QuillBackendRuntimeAvailability.self)
         #expect(QuillGtkBackend.identifier == .gtk)
         #expect(QuillQtBackend.identifier == .qt)
     }

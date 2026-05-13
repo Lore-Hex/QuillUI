@@ -136,6 +136,7 @@ struct QuillUITests {
 
         let identifiers = QuillBackendRegistry.knownBackends.map(\.identifier)
         #expect(identifiers == [.swiftUI, .gtk, .qt])
+        #expect(QuillBackendRegistry.runtimeAvailabilities.map(\.selected) == identifiers)
 
         #if os(Linux)
         #expect(QuillBackendRegistry.platformDefault == .gtk)
@@ -160,6 +161,7 @@ struct QuillUITests {
         #expect(qtDescriptor.displayName == "Qt")
         #expect(qtDescriptor.isExperimental == true)
         #expect(!qtDescriptor.hasNativeRuntime)
+        #expect(qtDescriptor.runtimeAvailability == QuillBackendRegistry.runtimeAvailability(for: .qt))
         #expect(qtDescriptor.runtimeBackend == QuillBackendRegistry.platformRuntimeFallback)
         #expect(qtDescriptor.runtimeDescriptor.identifier == QuillBackendRegistry.platformRuntimeFallback)
         #expect(qtDescriptor.usesRuntimeFallback)
@@ -238,6 +240,7 @@ struct QuillUITests {
         #expect(requestedQtOverGtkPlan.preferred == .gtk)
         #expect(requestedQtOverGtkPlan.selected == .qt)
         #expect(requestedQtOverGtkPlan.selectedDescriptor == qtDescriptor)
+        #expect(requestedQtOverGtkPlan.runtimeAvailability == qtDescriptor.runtimeAvailability)
         #expect(requestedQtOverGtkPlan.usesRuntimeFallback)
         #expect(
             requestedQtOverGtkPlan.statusMessage
@@ -278,13 +281,24 @@ struct QuillUITests {
         #expect(preferredQtPlan.selected == .qt)
         #expect(preferredQtPlan.selectedDescriptor == qtDescriptor)
         #expect(preferredQtPlan.runtimeMode == .platformFallback)
+        #expect(preferredQtPlan.runtimeAvailability.mode == .platformFallback)
 
         #if os(Linux)
         #expect(preferredQtPlan.runtime == .gtk)
         #expect(preferredQtPlan.runtimeDescriptor.identifier == .gtk)
+        #expect(QuillBackendRegistry.runtimeAvailabilities == [
+            QuillBackendRuntimeAvailability(selected: .swiftUI, runtime: .gtk),
+            QuillBackendRuntimeAvailability(selected: .gtk, runtime: .gtk),
+            QuillBackendRuntimeAvailability(selected: .qt, runtime: .gtk)
+        ])
         #else
         #expect(preferredQtPlan.runtime == .swiftUI)
         #expect(preferredQtPlan.runtimeDescriptor.identifier == .swiftUI)
+        #expect(QuillBackendRegistry.runtimeAvailabilities == [
+            QuillBackendRuntimeAvailability(selected: .swiftUI, runtime: .swiftUI),
+            QuillBackendRuntimeAvailability(selected: .gtk, runtime: .swiftUI),
+            QuillBackendRuntimeAvailability(selected: .qt, runtime: .swiftUI)
+        ])
         #endif
 
         #expect(preferredQtPlan.usesRuntimeFallback)

@@ -3,6 +3,7 @@
 @_exported import QuillUI
 
 public typealias QuillQtRuntimeMode = QuillBackendRuntimeMode
+public typealias QuillQtRuntimeAvailability = QuillBackendRuntimeAvailability
 public typealias QuillQtBackendStatus = QuillBackendRuntimeStatus
 
 public enum QuillQtBackend: QuillBackend {
