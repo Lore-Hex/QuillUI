@@ -35,9 +35,11 @@ public enum QuillAppWindow {
 /// on Apple platforms it's the SwiftUI-native `App.main()`. Lets
 /// the per-app `main.swift` end with a single line —
 /// `QuillApp.run(QuillFooApp.self)` — instead of repeating the
-/// same `#if os(Linux) ... #else ... #endif` block six times.
+/// same `#if os(Linux) ... #else ... #endif` block in every app
+/// entry point.
 /// Specialized launch surfaces such as `QuillQtApp` live in their
-/// own backend targets while sharing `QuillBackendRegistry`.
+/// own backend targets while sharing the same launch-plan fallback
+/// decisions through `QuillBackendRegistry`.
 ///
 /// The function is plain synchronous so it can be called from
 /// top-level `main.swift`. Linux enters SwiftOpenUI's GTK backend

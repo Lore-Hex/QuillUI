@@ -186,6 +186,9 @@ struct SourceHygieneTests {
         #expect(helperSource.contains("QuillLinuxRuntimeHost(launchPlan: launchPlan).run(appType)"))
         #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
         #expect(helperSource.contains(".defaultSize(width: width, height: height)"))
+        #expect(helperSource.contains("entry point"))
+        #expect(helperSource.contains("launch-plan fallback"))
+        #expect(!helperSource.contains("block six times"))
 
         for path in appEntryPointPaths {
             let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
