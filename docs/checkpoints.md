@@ -3033,3 +3033,13 @@ The Linux backend product helper now exposes `runtime-mode` and
 tooling can query the same requested/runtime/mode contract at row or matrix
 granularity, keeping the eventual native Qt promotion contained to the shared
 runtime registry.
+
+## Checkpoint 177: Profile Runtime Availability Reuse
+
+Status: implemented locally; guarded by backend matrix tests.
+
+The Linux backend profiler and CSV profile runner now resolve requested and
+runtime backend labels through `quillui_backend_runtime_availability_for_backend`.
+Profile rows therefore share the same availability contract as smoke/profile
+matrix tooling, reducing the chance that Qt fallback reporting drifts from the
+central runtime registry.

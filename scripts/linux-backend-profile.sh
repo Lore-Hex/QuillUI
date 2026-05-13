@@ -45,7 +45,8 @@ fi
 REQUESTED_BACKEND_LABEL="$(quillui_requested_backend_for_product "$PRODUCT")"
 RUNTIME_BACKEND_LABEL=""
 if [[ -n "$REQUESTED_BACKEND_LABEL" ]]; then
-    RUNTIME_BACKEND_LABEL="$(quillui_runtime_backend_for_backend "$REQUESTED_BACKEND_LABEL")"
+    runtime_availability="$(quillui_backend_runtime_availability_for_backend "$REQUESTED_BACKEND_LABEL")"
+    IFS=$'\t' read -r REQUESTED_BACKEND_LABEL RUNTIME_BACKEND_LABEL runtime_mode <<<"$runtime_availability"
 fi
 
 quillui_install_linux_backend_smoke_packages

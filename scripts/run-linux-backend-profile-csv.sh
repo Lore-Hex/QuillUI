@@ -160,10 +160,11 @@ quillui_profile_build_cache_key() {
       }
     fi
     if [[ -n "$requested_backend" ]]; then
-      runtime_backend="$(quillui_runtime_backend_for_backend "$requested_backend")" || {
+      runtime_availability="$(quillui_backend_runtime_availability_for_backend "$requested_backend")" || {
         echo "$product,$requested_backend,unknown,0,0,0,0.0,0.0,profile-row-unsupported-runtime-backend"
         continue
       }
+      IFS=$'\t' read -r requested_backend runtime_backend runtime_mode <<<"$runtime_availability"
     fi
     row_label="$product"
     profiler_arguments=("$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS")
