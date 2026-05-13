@@ -22,6 +22,7 @@ MATRIX_COMMAND:
 OUTPUT_TEMPLATE must include {product} and {backend}; mode matrices must also
 include {mode}.
 Use --skip-repeated-products when consecutive backend rows can reuse one build.
+Generated app rows reuse per backend facade so GTK and Qt launchers both build.
 Use --dry-run to print KIND<TAB>PRODUCT<TAB>BACKEND<TAB>OUTPUT<TAB>SKIP_BUILD
 and, for mode rows, a trailing MODE column.
 MSG
@@ -127,6 +128,17 @@ quillui_smoke_product_was_built() {
   esac
 }
 
+quillui_smoke_build_cache_key() {
+  local product="$1"
+  local backend="$2"
+
+  if [[ "$MATRIX_COMMAND" == "generated-app-matrix" ]]; then
+    printf '%s:%s\n' "$product" "$backend"
+  else
+    printf '%s\n' "$product"
+  fi
+}
+
 quillui_smoke_output_path() {
   local product="$1"
   local backend="$2"
@@ -145,13 +157,18 @@ quillui_run_smoke_row() {
   local mode="${3:-}"
   local output_path
   local skip_build=0
+  local build_cache_key
   local smoke_environment=()
 
   output_path="$(quillui_smoke_output_path "$product" "$backend" "$mode")"
+  build_cache_key="$(quillui_smoke_build_cache_key "$product" "$backend")"
 
-  if [[ "$SKIP_REPEATED_PRODUCTS" == "1" ]] && quillui_smoke_product_was_built "$product"; then
+  if [[ "$SKIP_REPEATED_PRODUCTS" == "1" ]] && quillui_smoke_product_was_built "$build_cache_key"; then
     smoke_environment+=("QUILLUI_BACKEND_SKIP_BUILD=1")
     skip_build=1
+  fi
+  if [[ "$MATRIX_COMMAND" == "generated-app-matrix" ]]; then
+    smoke_environment+=("QUILLUI_APP_BACKEND_FACADE=$backend")
   fi
   if [[ -n "$mode" ]]; then
     smoke_environment+=("QUILLUI_BACKEND_INTERACTION_MODE=$mode")
@@ -172,8 +189,8 @@ quillui_run_smoke_row() {
     env "${smoke_environment[@]}" "$CHECK_SCRIPT" "$output_path" "$product" "$backend"
   fi
 
-  if [[ "$SKIP_REPEATED_PRODUCTS" == "1" ]] && ! quillui_smoke_product_was_built "$product"; then
-    BUILT_PRODUCTS_LIST="${BUILT_PRODUCTS_LIST}${product}"$'\n'
+  if [[ "$SKIP_REPEATED_PRODUCTS" == "1" ]] && ! quillui_smoke_product_was_built "$build_cache_key"; then
+    BUILT_PRODUCTS_LIST="${BUILT_PRODUCTS_LIST}${build_cache_key}"$'\n'
   fi
 }
 

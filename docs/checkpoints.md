@@ -2900,3 +2900,14 @@ The Quill Chat convenience entry point can therefore compile the generated
 launcher through `QuillUI`, `QuillUIGtk`, or `QuillUIQt` directly, keeping the
 app-specific wrapper aligned with the reusable generated-package backend
 facade path.
+
+## Checkpoint 164: Generated App Facade Matrix Builds
+
+Status: implemented locally; guarded by backend matrix and source hygiene tests.
+
+Generated app smoke rows now carry `QUILLUI_APP_BACKEND_FACADE` and the
+repeated-product cache keys include the requested backend facade. Quill Chat
+generated app smokes default to backend-specific work roots, so the GTK and Qt
+generated launchers can both compile during visual smoke and later interaction
+checks can reuse the matching cached executable instead of whichever facade was
+built last.

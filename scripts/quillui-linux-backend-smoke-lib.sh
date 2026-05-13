@@ -31,6 +31,20 @@ quillui_alias_backend_build_env() {
   quillui_alias_env QUILLUI_BACKEND_SKIP_BUILD QUILLUI_GTK_SKIP_BUILD QUILLUI_QT_SKIP_BUILD
 }
 
+quillui_generated_app_backend_facade() {
+  local candidate="${QUILLUI_QUILL_CHAT_BACKEND_FACADE:-${QUILLUI_APP_BACKEND_FACADE:-}}"
+
+  if [[ -z "$candidate" && -n "${QUILLUI_BACKEND:-}" ]]; then
+    candidate="$QUILLUI_BACKEND"
+  fi
+
+  if [[ -n "$candidate" ]]; then
+    quillui_require_backend_identifier "$candidate" || return $?
+  fi
+
+  return 0
+}
+
 quillui_is_quill_chat_mac_reference_product() {
   local product="$1"
   [[ "$product" == "quill-chat-linux" && "${QUILLUI_BACKEND_MAC_REFERENCE:-0}" == "1" ]]
@@ -370,7 +384,15 @@ quillui_resolve_linux_backend_executable() {
 
   if [[ "$product" == "quill-chat-linux" ]]; then
     local quill_chat_app_dir="${QUILL_CHAT_DIR:-$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/../quill/clients/quill-chat}/Enchanted"
-    local quill_chat_work_root="${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build/quill-chat-linux}"
+    local quill_chat_backend_facade
+    local quill_chat_default_work_root="$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build/quill-chat-linux"
+    local quill_chat_work_root
+
+    quill_chat_backend_facade="$(quillui_generated_app_backend_facade)" || return $?
+    if [[ -n "$quill_chat_backend_facade" ]]; then
+      quill_chat_default_work_root="$quill_chat_default_work_root-$quill_chat_backend_facade"
+    fi
+    quill_chat_work_root="${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$quill_chat_default_work_root}"
 
     if [[ ! -d "$quill_chat_app_dir" ]]; then
       cat >&2 <<MSG
@@ -398,6 +420,7 @@ MSG
 
     QUILLUI_QUILL_CHAT_BUILD_WORKDIR="$quill_chat_work_root" \
       QUILLUI_QUILL_CHAT_PRODUCT_NAME="$product" \
+      QUILLUI_QUILL_CHAT_BACKEND_FACADE="$quill_chat_backend_facade" \
       "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/build-quill-chat-linux.sh"
 
     local quill_chat_bin_path

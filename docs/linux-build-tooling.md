@@ -135,7 +135,9 @@ backend as an explicit positional argument. The output template must include
 `{product}` and `{backend}` so GTK/Qt artifacts never overwrite each other.
 
 Generated products use the same GTK/Qt requested-backend matrix as the root app
-shells:
+shells. The matrix runner still accepts `--skip-repeated-products`, but
+generated app cache keys include the requested backend facade so the GTK and Qt
+generated launchers both compile:
 
 ```bash
 scripts/run-linux-backend-smoke-matrix.sh \
@@ -145,9 +147,9 @@ scripts/run-linux-backend-smoke-matrix.sh \
   '.qa/{product}-generated-{backend}.png'
 ```
 
-Root SwiftPM app products use `app-matrix`. The executable is backend-neutral,
-so CI builds each product once and uses `QUILLUI_BACKEND_SKIP_BUILD=1` for
-later backend rows:
+Root SwiftPM app products use `app-matrix`. Those executables are
+backend-neutral, so CI builds each product once and uses
+`QUILLUI_BACKEND_SKIP_BUILD=1` for later backend rows:
 
 ```bash
 scripts/run-linux-backend-smoke-matrix.sh \
@@ -277,7 +279,9 @@ QUILLUI_BACKEND_SKIP_BUILD=1 \
 
 That path builds through the same generic app builder as the visual smoke,
 clicks the generated options menu in the top-right toolbar, and verifies that
-the menu surface appears below the toolbar.
+the menu surface appears below the toolbar. It reuses the backend-specific
+generated package work roots created by the visual smoke, so GTK and Qt facade
+launchers do not overwrite each other.
 
 Profile baselines use the composed `profile-matrix` roster so the same budget
 check covers each user-facing app and generated external app under every

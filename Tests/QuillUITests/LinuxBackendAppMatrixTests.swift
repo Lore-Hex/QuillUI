@@ -399,7 +399,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(generated.status == 0, Comment(rawValue: generated.output))
         #expect(generated.output.split(whereSeparator: \.isNewline).map(String.init) == [
             "visual\tquill-chat-linux\tgtk\t.qa/quill-chat-linux-generated-gtk.png\t0",
-            "visual\tquill-chat-linux\tqt\t.qa/quill-chat-linux-generated-qt.png\t1"
+            "visual\tquill-chat-linux\tqt\t.qa/quill-chat-linux-generated-qt.png\t0"
         ])
 
         let smoke = try runScript(
