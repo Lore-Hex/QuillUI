@@ -524,9 +524,25 @@ quillui_backend_profile_matrix() {
   quillui_backend_smoke_matrix
 }
 
+quillui_validate_requested_backend_for_product() {
+  local product="$1"
+  local requested_backend
+  local fixed_backend
+
+  requested_backend="$(quillui_require_backend_identifier "$2")" || return $?
+  if fixed_backend="$(quillui_backend_fixed_backend_for_app_product "$product")"; then
+    if [[ "$requested_backend" != "$fixed_backend" ]]; then
+      echo "Product $product is fixed to the $fixed_backend Linux backend; requested $requested_backend would mix manifest and runtime backend paths." >&2
+      return 65
+    fi
+  fi
+
+  echo "$requested_backend"
+}
+
 quillui_requested_backend_for_product() {
   if [[ -n "${QUILLUI_BACKEND:-}" ]]; then
-    quillui_require_backend_identifier "$QUILLUI_BACKEND"
+    quillui_validate_requested_backend_for_product "$1" "$QUILLUI_BACKEND"
   else
     quillui_backend_for_product "$1"
   fi
@@ -534,7 +550,7 @@ quillui_requested_backend_for_product() {
 
 quillui_require_requested_backend_for_product() {
   if [[ -n "${QUILLUI_BACKEND:-}" ]]; then
-    quillui_require_backend_identifier "$QUILLUI_BACKEND"
+    quillui_validate_requested_backend_for_product "$1" "$QUILLUI_BACKEND"
   else
     quillui_require_backend_for_product "$1"
   fi

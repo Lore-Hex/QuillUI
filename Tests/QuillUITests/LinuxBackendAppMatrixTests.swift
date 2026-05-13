@@ -780,6 +780,30 @@ struct LinuxBackendAppMatrixTests {
         #expect(aliasOverrideBackend.status == 0, Comment(rawValue: aliasOverrideBackend.output))
         #expect(aliasOverrideBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
 
+        let matchingFixedQtOverrideBackend = try runScript(
+            script,
+            arguments: ["requested-backend", "quill-wireguard-qt"],
+            environment: ["QUILLUI_BACKEND": " Qt6 "]
+        )
+        #expect(matchingFixedQtOverrideBackend.status == 0, Comment(rawValue: matchingFixedQtOverrideBackend.output))
+        #expect(matchingFixedQtOverrideBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+
+        let mismatchedFixedQtOverrideBackend = try runScript(
+            script,
+            arguments: ["requested-backend", "quill-wireguard-qt"],
+            environment: ["QUILLUI_BACKEND": "gtk"]
+        )
+        #expect(mismatchedFixedQtOverrideBackend.status != 0)
+        #expect(mismatchedFixedQtOverrideBackend.output.contains("Product quill-wireguard-qt is fixed to the qt Linux backend; requested gtk would mix manifest and runtime backend paths."))
+
+        let mismatchedFixedGtkOverrideBackend = try runScript(
+            script,
+            arguments: ["requested-backend", "quill-wireguard"],
+            environment: ["QUILLUI_BACKEND": "qt"]
+        )
+        #expect(mismatchedFixedGtkOverrideBackend.status != 0)
+        #expect(mismatchedFixedGtkOverrideBackend.output.contains("Product quill-wireguard is fixed to the gtk Linux backend; requested qt would mix manifest and runtime backend paths."))
+
         let unknownProductOverrideBackend = try runScript(
             script,
             arguments: ["requested-backend", "unknown-product"],
@@ -902,6 +926,14 @@ struct LinuxBackendAppMatrixTests {
         let runtimeWireGuardQtProductBackend = try runScript(script, arguments: ["runtime-backend-for-product", "quill-wireguard-qt"])
         #expect(runtimeWireGuardQtProductBackend.status == 0, Comment(rawValue: runtimeWireGuardQtProductBackend.output))
         #expect(runtimeWireGuardQtProductBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+
+        let mismatchedRuntimeWireGuardQtProductBackend = try runScript(
+            script,
+            arguments: ["runtime-backend-for-product", "quill-wireguard-qt"],
+            environment: ["QUILLUI_BACKEND": "gtk"]
+        )
+        #expect(mismatchedRuntimeWireGuardQtProductBackend.status != 0)
+        #expect(mismatchedRuntimeWireGuardQtProductBackend.output.contains("Product quill-wireguard-qt is fixed to the qt Linux backend; requested gtk would mix manifest and runtime backend paths."))
 
         let runtimeAvailabilities = try runScript(script, arguments: ["runtime-availabilities"])
         #expect(runtimeAvailabilities.status == 0, Comment(rawValue: runtimeAvailabilities.output))
