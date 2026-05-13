@@ -86,15 +86,28 @@ struct QuillLinuxRuntimeHostDescriptor: Equatable, Sendable {
 
 enum QuillLinuxRuntimeHost: CaseIterable, Sendable {
     case gtk4
+    case qt6
 
     static let linkedHosts: [QuillLinuxRuntimeHost] = [.gtk4]
 
-    static var descriptors: [QuillLinuxRuntimeHostDescriptor] {
+    static var knownHosts: [QuillLinuxRuntimeHost] {
+        allCases
+    }
+
+    static var knownDescriptors: [QuillLinuxRuntimeHostDescriptor] {
+        knownHosts.map(\.descriptor)
+    }
+
+    static var linkedDescriptors: [QuillLinuxRuntimeHostDescriptor] {
         linkedHosts.map(\.descriptor)
     }
 
+    static var descriptors: [QuillLinuxRuntimeHostDescriptor] {
+        linkedDescriptors
+    }
+
     static var supportedBackends: [QuillBackendIdentifier] {
-        descriptors.map(\.backend)
+        linkedDescriptors.map(\.backend)
     }
 
     static var platformFallbackBackend: QuillBackendIdentifier {
@@ -108,7 +121,13 @@ enum QuillLinuxRuntimeHost: CaseIterable, Sendable {
     static func descriptor(
         for backend: QuillBackendIdentifier
     ) -> QuillLinuxRuntimeHostDescriptor? {
-        descriptors.first { $0.backend == backend }
+        linkedDescriptors.first { $0.backend == backend }
+    }
+
+    static func knownDescriptor(
+        for backend: QuillBackendIdentifier
+    ) -> QuillLinuxRuntimeHostDescriptor? {
+        knownDescriptors.first { $0.backend == backend }
     }
 
     static func supports(_ backend: QuillBackendIdentifier) -> Bool {
@@ -141,6 +160,12 @@ enum QuillLinuxRuntimeHost: CaseIterable, Sendable {
                 backend: .gtk,
                 displayName: "GTK4"
             )
+        case .qt6:
+            return QuillLinuxRuntimeHostDescriptor(
+                host: self,
+                backend: .qt,
+                displayName: "Qt6"
+            )
         }
     }
 
@@ -152,6 +177,8 @@ enum QuillLinuxRuntimeHost: CaseIterable, Sendable {
         switch self {
         case .gtk4:
             GTK4Backend().run(appType)
+        case .qt6:
+            preconditionFailure("Native Qt6 Linux runtime host is declared but not linked.")
         }
     }
 }
