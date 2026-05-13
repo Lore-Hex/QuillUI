@@ -69,10 +69,14 @@ struct QuillUITests {
         #expect(QuillBackendRegistry.platformDefault == .gtk)
         #expect(QuillBackendRegistry.platformRuntimeFallback == .gtk)
         #expect(QuillBackendRegistry.nativeRuntimeBackends == [.gtk])
+        #expect(QuillBackendRegistry.hasNativeRuntime(for: .gtk))
+        #expect(!QuillBackendRegistry.hasNativeRuntime(for: .qt))
         #else
         #expect(QuillBackendRegistry.platformDefault == .swiftUI)
         #expect(QuillBackendRegistry.platformRuntimeFallback == .swiftUI)
         #expect(QuillBackendRegistry.nativeRuntimeBackends == [.swiftUI])
+        #expect(QuillBackendRegistry.hasNativeRuntime(for: .swiftUI))
+        #expect(!QuillBackendRegistry.hasNativeRuntime(for: .qt))
         #endif
 
         let qtDescriptor = QuillBackendRegistry.descriptor(for: .qt)
@@ -83,7 +87,7 @@ struct QuillUITests {
         #expect(gtkDescriptor.displayName == "GTK")
         #expect(gtkDescriptor.isExperimental == false)
 
-        let preferredGtkPlan = QuillBackendRegistry.launchPlan(preferred: .gtk)
+        let preferredGtkPlan = QuillBackendRegistry.launchPlan(requested: nil, preferred: .gtk)
         #expect(preferredGtkPlan.selected == .gtk)
         #expect(preferredGtkPlan.selectedDescriptor == gtkDescriptor)
 
@@ -97,15 +101,29 @@ struct QuillUITests {
         #expect(preferredGtkPlan.runtimeMode == .platformFallback)
         #endif
 
+        let requestedQtOverGtkPlan = QuillBackendRegistry.launchPlan(requested: .qt, preferred: .gtk)
+        #expect(requestedQtOverGtkPlan.requested == .qt)
+        #expect(requestedQtOverGtkPlan.preferred == .gtk)
+        #expect(requestedQtOverGtkPlan.selected == .qt)
+        #expect(requestedQtOverGtkPlan.selectedDescriptor == qtDescriptor)
+        #expect(requestedQtOverGtkPlan.usesRuntimeFallback)
+
+        #if os(Linux)
+        #expect(requestedQtOverGtkPlan.runtime == .gtk)
+        #else
+        #expect(requestedQtOverGtkPlan.runtime == .swiftUI)
+        #endif
+
+        let environmentGtkPlan = QuillBackendRegistry.launchPlan(preferred: .gtk)
         #expect(QuillGtkBackend.descriptor == gtkDescriptor)
-        #expect(QuillGtkBackend.launchPlan == preferredGtkPlan)
+        #expect(QuillGtkBackend.launchPlan == environmentGtkPlan)
         #expect(QuillGtkBackend.launchPlan.preferred == .gtk)
         #expect(QuillGtkBackend.status.identifier == .gtk)
-        #expect(QuillGtkBackend.status.launchPlan == preferredGtkPlan)
-        #expect(QuillGtkBackend.status.mode == preferredGtkPlan.runtimeMode)
-        #expect(QuillGtkBackend.status.message == preferredGtkPlan.statusMessage)
+        #expect(QuillGtkBackend.status.launchPlan == environmentGtkPlan)
+        #expect(QuillGtkBackend.status.mode == environmentGtkPlan.runtimeMode)
+        #expect(QuillGtkBackend.status.message == environmentGtkPlan.statusMessage)
 
-        let preferredQtPlan = QuillBackendRegistry.launchPlan(preferred: .qt)
+        let preferredQtPlan = QuillBackendRegistry.launchPlan(requested: nil, preferred: .qt)
         #expect(preferredQtPlan.selected == .qt)
         #expect(preferredQtPlan.selectedDescriptor == qtDescriptor)
         #expect(preferredQtPlan.runtimeMode == .platformFallback)
@@ -120,12 +138,13 @@ struct QuillUITests {
 
         #expect(preferredQtPlan.usesRuntimeFallback)
         #expect(preferredQtPlan.statusMessage.contains("Qt selected"))
+        let environmentQtPlan = QuillBackendRegistry.launchPlan(preferred: .qt)
         #expect(QuillQtBackend.descriptor == qtDescriptor)
-        #expect(QuillQtBackend.launchPlan == preferredQtPlan)
+        #expect(QuillQtBackend.launchPlan == environmentQtPlan)
         #expect(QuillQtBackend.launchPlan.preferred == .qt)
         #expect(QuillQtBackend.status.identifier == .qt)
-        #expect(QuillQtBackend.status.launchPlan == preferredQtPlan)
-        #expect(QuillQtBackend.status.mode == .platformFallback)
-        #expect(QuillQtBackend.status.message == preferredQtPlan.statusMessage)
+        #expect(QuillQtBackend.status.launchPlan == environmentQtPlan)
+        #expect(QuillQtBackend.status.mode == environmentQtPlan.runtimeMode)
+        #expect(QuillQtBackend.status.message == environmentQtPlan.statusMessage)
     }
 }

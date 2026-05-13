@@ -180,7 +180,13 @@ public enum QuillBackendRegistry {
     public static func launchPlan(
         preferred preferredBackend: QuillBackendIdentifier? = nil
     ) -> QuillBackendLaunchPlan {
-        let requestedBackend = requested
+        launchPlan(requested: requested, preferred: preferredBackend)
+    }
+
+    public static func launchPlan(
+        requested requestedBackend: QuillBackendIdentifier?,
+        preferred preferredBackend: QuillBackendIdentifier? = nil
+    ) -> QuillBackendLaunchPlan {
         let selectedBackend = requestedBackend ?? preferredBackend ?? platformDefault
 
         return QuillBackendLaunchPlan(
@@ -194,11 +200,17 @@ public enum QuillBackendRegistry {
     public static func runtimeBackend(
         for selectedBackend: QuillBackendIdentifier
     ) -> QuillBackendIdentifier {
-        if nativeRuntimeBackends.contains(selectedBackend) {
+        if hasNativeRuntime(for: selectedBackend) {
             return selectedBackend
         }
 
         return platformRuntimeFallback
+    }
+
+    public static func hasNativeRuntime(
+        for identifier: QuillBackendIdentifier
+    ) -> Bool {
+        nativeRuntimeBackends.contains(identifier)
     }
 
     public static func descriptor(for identifier: QuillBackendIdentifier) -> QuillBackendDescriptor {
