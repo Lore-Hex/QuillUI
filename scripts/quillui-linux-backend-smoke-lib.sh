@@ -44,8 +44,8 @@ quillui_resolve_linux_backend_executable() {
   local product="$1"
   local output_var="$2"
 
-  if [[ -n "${QUILLUI_GTK_APP_EXECUTABLE:-}" ]]; then
-    printf -v "$output_var" "%s" "$QUILLUI_GTK_APP_EXECUTABLE"
+  if [[ -n "${QUILLUI_BACKEND_APP_EXECUTABLE:-}" ]]; then
+    printf -v "$output_var" "%s" "$QUILLUI_BACKEND_APP_EXECUTABLE"
     return
   fi
 
@@ -64,7 +64,7 @@ MSG
       exit 66
     fi
 
-    if [[ "${QUILLUI_GTK_SKIP_BUILD:-0}" == "1" ]]; then
+    if [[ "${QUILLUI_BACKEND_SKIP_BUILD:-0}" == "1" ]]; then
       local cached_executable
       cached_executable="$(
         find "$quill_chat_work_root/.build-check" -path "*/debug/$product" -type f -perm -111 2>/dev/null | head -n 1 || true
@@ -88,7 +88,7 @@ MSG
       --show-bin-path)"
     printf -v "$output_var" "%s" "$quill_chat_bin_path/$product"
   else
-    if [[ "${QUILLUI_GTK_SKIP_BUILD:-0}" == "1" ]]; then
+    if [[ "${QUILLUI_BACKEND_SKIP_BUILD:-0}" == "1" ]]; then
       local cached_executable
       cached_executable="$(
         find "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" -path "*/debug/$product" -type f -perm -111 2>/dev/null | head -n 1 || true

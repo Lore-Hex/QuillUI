@@ -82,11 +82,14 @@ quillui_alias_env() {
 
   if [[ -n "${!canonical:-}" ]]; then
     printf -v "$legacy" "%s" "${!canonical}"
+  elif [[ -n "${!legacy:-}" ]]; then
+    printf -v "$canonical" "%s" "${!legacy}"
   fi
 }
 
 # Backend-neutral names are canonical for GTK/Qt parity checks. The
 # legacy QUILLUI_GTK_* names stay supported while local scripts migrate.
+# When both are set, the backend-neutral value wins.
 quillui_alias_backend_common_env() {
   quillui_alias_env QUILLUI_BACKEND_MAC_REFERENCE QUILLUI_GTK_MAC_REFERENCE
   quillui_alias_env QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH QUILLUI_GTK_DEFAULT_WINDOW_WIDTH
