@@ -184,13 +184,7 @@ public enum QuillBackendRegistry {
     }
 
     public static var requested: QuillBackendIdentifier? {
-        guard let rawValue = ProcessInfo.processInfo.environment[environmentKey],
-              !rawValue.isEmpty
-        else {
-            return nil
-        }
-
-        return QuillBackendIdentifier(environmentValue: rawValue)
+        requestedBackend(from: ProcessInfo.processInfo.environment)
     }
 
     public static var launchBackend: QuillBackendIdentifier {
@@ -208,6 +202,16 @@ public enum QuillBackendRegistry {
     }
 
     public static func launchPlan(
+        environment: [String: String],
+        preferred preferredBackend: QuillBackendIdentifier? = nil
+    ) -> QuillBackendLaunchPlan {
+        launchPlan(
+            requested: requestedBackend(from: environment),
+            preferred: preferredBackend
+        )
+    }
+
+    public static func launchPlan(
         requested requestedBackend: QuillBackendIdentifier?,
         preferred preferredBackend: QuillBackendIdentifier? = nil
     ) -> QuillBackendLaunchPlan {
@@ -219,6 +223,18 @@ public enum QuillBackendRegistry {
             selected: selectedBackend,
             runtime: runtimeBackend(for: selectedBackend)
         )
+    }
+
+    public static func requestedBackend(
+        from environment: [String: String]
+    ) -> QuillBackendIdentifier? {
+        guard let rawValue = environment[environmentKey],
+              !rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return nil
+        }
+
+        return QuillBackendIdentifier(environmentValue: rawValue)
     }
 
     public static func runtimeBackend(

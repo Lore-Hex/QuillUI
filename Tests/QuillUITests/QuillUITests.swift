@@ -62,6 +62,12 @@ struct QuillUITests {
         #expect(QuillBackendIdentifier(environmentValue: "qt6") == .qt)
         #expect(QuillBackendIdentifier(environmentValue: "unknown") == nil)
 
+        #expect(QuillBackendRegistry.requestedBackend(from: [:]) == nil)
+        #expect(QuillBackendRegistry.requestedBackend(from: ["QUILLUI_BACKEND": ""]) == nil)
+        #expect(QuillBackendRegistry.requestedBackend(from: ["QUILLUI_BACKEND": "   "]) == nil)
+        #expect(QuillBackendRegistry.requestedBackend(from: ["QUILLUI_BACKEND": "Qt6"]) == .qt)
+        #expect(QuillBackendRegistry.requestedBackend(from: ["QUILLUI_BACKEND": "unknown"]) == nil)
+
         let identifiers = QuillBackendRegistry.knownBackends.map(\.identifier)
         #expect(identifiers == [.swiftUI, .gtk, .qt])
 
@@ -99,6 +105,21 @@ struct QuillUITests {
         #expect(preferredGtkPlan.selected == .gtk)
         #expect(preferredGtkPlan.selectedDescriptor == gtkDescriptor)
         #expect(preferredGtkPlan.statusMessage == gtkDescriptor.runtimeSummary)
+
+        let environmentQtOverGtkPlan = QuillBackendRegistry.launchPlan(
+            environment: ["QUILLUI_BACKEND": "qt"],
+            preferred: .gtk
+        )
+        #expect(environmentQtOverGtkPlan.requested == .qt)
+        #expect(environmentQtOverGtkPlan.preferred == .gtk)
+        #expect(environmentQtOverGtkPlan.selected == .qt)
+
+        let invalidEnvironmentPlan = QuillBackendRegistry.launchPlan(
+            environment: ["QUILLUI_BACKEND": "bogus"],
+            preferred: .gtk
+        )
+        #expect(invalidEnvironmentPlan.requested == nil)
+        #expect(invalidEnvironmentPlan.selected == .gtk)
 
         #if os(Linux)
         #expect(gtkDescriptor.hasNativeRuntime)
