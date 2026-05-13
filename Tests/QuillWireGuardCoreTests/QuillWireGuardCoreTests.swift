@@ -356,6 +356,35 @@ struct QuillWireGuardCoreTests {
         #expect(legacyPresentation.importActionLabel == QuillWireGuardPresentation.importActionLabel)
     }
 
+    @Test("Native Qt host covers every shared WireGuard presentation key")
+    func nativeQtHostCoversEverySharedWireGuardPresentationKey() throws {
+        let presentationKeys = wireGuardPresentationPropertyNames()
+        #expect(!presentationKeys.isEmpty)
+
+        let encodedPresentation = try JSONDecoder().decode(
+            [String: String].self,
+            from: JSONEncoder().encode(QuillWireGuardPresentationSnapshot())
+        )
+        #expect(Set(encodedPresentation.keys) == Set(presentationKeys))
+
+        let root = try packageRoot()
+        let nativeRuntimeSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillWireGuardQtNativeRuntime/QuillWireGuardQtNativeRuntime.swift"),
+            encoding: .utf8
+        )
+        let nativeShimSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillWireGuardQt6Widgets.cpp"),
+            encoding: .utf8
+        )
+
+        for key in presentationKeys {
+            #expect(
+                nativeShimSource.contains("\"\(key)\"")
+                    || nativeRuntimeSource.contains("QuillWireGuardPresentation.\(key)")
+            )
+        }
+    }
+
     @Test("Qt WireGuard manifest uses an explicit Linux backend graph selector")
     func qtWireGuardManifestUsesExplicitLinuxBackendGraphSelector() throws {
         let manifest = try String(
@@ -389,6 +418,10 @@ struct QuillWireGuardCoreTests {
         let fixtureURL = try packageRoot()
             .appendingPathComponent("Tests/Fixtures/WireGuard/imported-edge.conf")
         return try String(contentsOf: fixtureURL, encoding: .utf8)
+    }
+
+    private func wireGuardPresentationPropertyNames() -> [String] {
+        Mirror(reflecting: QuillWireGuardPresentationSnapshot()).children.compactMap { $0.label }
     }
 
     private func parseError(for configuration: String) -> QuillWireGuardConfigParseError? {

@@ -528,6 +528,10 @@ void showImportDialog(
     layout->addWidget(error);
 
     QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel);
+    if (QPushButton *cancel = buttons->button(QDialogButtonBox::Cancel)) {
+        cancel->setObjectName(QStringLiteral("importCancelButton"));
+        cancel->setText(presentationValue(presentation, "importCancelActionLabel", "Cancel"));
+    }
     QPushButton *confirm = buttons->addButton(
         presentationValue(presentation, "importActionLabel", "Import"),
         QDialogButtonBox::AcceptRole
