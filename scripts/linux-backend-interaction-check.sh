@@ -13,10 +13,13 @@ source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 # The legacy QUILLUI_GTK_* names stay supported so older docs and
 # local scripts do not break while callers migrate.
 quillui_alias_env QUILLUI_BACKEND_INTERACTION_MODE QUILLUI_GTK_INTERACTION_MODE
-quillui_alias_env QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_GTK_APP_EXECUTABLE
-quillui_alias_env QUILLUI_BACKEND_SKIP_BUILD QUILLUI_GTK_SKIP_BUILD
 quillui_alias_env QUILLUI_BACKEND_INTERACTION_DISPLAY QUILLUI_GTK_INTERACTION_DISPLAY
+quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_INTERACTION_SCREEN_SIZE
 quillui_alias_env QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE QUILLUI_GTK_INTERACTION_SCREEN_SIZE
+quillui_alias_env QUILLUI_BACKEND_MAC_REFERENCE QUILLUI_GTK_MAC_REFERENCE
+quillui_alias_env QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH QUILLUI_GTK_DEFAULT_WINDOW_WIDTH
+quillui_alias_env QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT
+quillui_alias_env QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL
 quillui_alias_env QUILLUI_BACKEND_CAPTURE_ROOT QUILLUI_GTK_CAPTURE_ROOT
 quillui_alias_env QUILLUI_BACKEND_POST_CLICK_SLEEP QUILLUI_GTK_POST_CLICK_SLEEP
 quillui_alias_env QUILLUI_BACKEND_FOCUS_PRIME QUILLUI_GTK_FOCUS_PRIME
@@ -51,14 +54,22 @@ if [[ ! -x "$APP_EXECUTABLE" ]]; then
 fi
 
 if ! command -v xdotool >/dev/null 2>&1; then
-  echo "xdotool is required for GTK interaction smoke tests" >&2
+  echo "xdotool is required for backend interaction smoke tests" >&2
   exit 69
 fi
 
+is_quill_chat_mac_reference() {
+  [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]
+}
+
+reference_window_width="${QUILLUI_GTK_DEFAULT_WINDOW_WIDTH:-2048}"
+reference_window_height="${QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT:-1380}"
+hide_window_menubar_label="${QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL:-1}"
+
 DISPLAY_ID="${QUILLUI_GTK_INTERACTION_DISPLAY:-:95}"
 SCREEN_SIZE="${QUILLUI_GTK_INTERACTION_SCREEN_SIZE:-1180x760x24}"
-if [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
-  SCREEN_SIZE="${QUILLUI_GTK_INTERACTION_SCREEN_SIZE:-2048x1380x24}"
+if is_quill_chat_mac_reference; then
+  SCREEN_SIZE="${QUILLUI_GTK_INTERACTION_SCREEN_SIZE:-${reference_window_width}x${reference_window_height}x24}"
 fi
 screen_width="${SCREEN_SIZE%%x*}"
 screen_height_and_depth="${SCREEN_SIZE#*x}"
@@ -84,15 +95,15 @@ REQUESTED_BACKEND="$(quillui_requested_backend_for_product "$PRODUCT")"
 if [[ -n "$REQUESTED_BACKEND" ]]; then
   app_environment+=(QUILLUI_BACKEND="$REQUESTED_BACKEND")
 fi
-if [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+if is_quill_chat_mac_reference; then
   quill_chat_reference_home="$OUTPUT_DIR/quill-chat-linux-reference-home"
   quillui_seed_quill_chat_reference_data "$quill_chat_reference_home"
   app_environment+=(
     HOME="$quill_chat_reference_home"
     QUILLDATA_HOME="$quill_chat_reference_home"
-    QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=2048
-    QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT=1380
-    QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL=1
+    QUILLUI_GTK_DEFAULT_WINDOW_WIDTH="$reference_window_width"
+    QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT="$reference_window_height"
+    QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL="$hide_window_menubar_label"
     QUILLUI_QUILL_CHAT_REFERENCE_MODE=1
     QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1
   )
@@ -117,8 +128,8 @@ if [[ -z "$window_id" ]]; then
 fi
 if [[ -n "$window_id" ]]; then
   DISPLAY="$DISPLAY_ID" xdotool windowmove "$window_id" 0 0
-  if [[ "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
-    DISPLAY="$DISPLAY_ID" xdotool windowsize "$window_id" 2048 1380
+  if is_quill_chat_mac_reference; then
+    DISPLAY="$DISPLAY_ID" xdotool windowsize "$window_id" "$reference_window_width" "$reference_window_height"
     sleep 1
   elif [[ "${QUILLUI_GTK_CAPTURE_ROOT:-0}" != "1" ]]; then
     capture_window="$window_id"
@@ -146,7 +157,7 @@ type_text() {
 }
 
 post_click_sleep="${QUILLUI_GTK_POST_CLICK_SLEEP:-1}"
-if [[ "${QUILLUI_GTK_FOCUS_PRIME:-}" == "1" || ( "$PRODUCT" == "quill-chat-linux" && "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ) ]]; then
+if [[ "${QUILLUI_GTK_FOCUS_PRIME:-}" == "1" ]] || is_quill_chat_mac_reference; then
   focus_x="${QUILLUI_GTK_FOCUS_PRIME_X:-$((window_x + window_width / 2))}"
   focus_y="${QUILLUI_GTK_FOCUS_PRIME_Y:-$((window_y + 54))}"
   click_at "$focus_x" "$focus_y"
@@ -165,7 +176,7 @@ case "$PRODUCT" in
         sleep 1
         ;;
       settings-panel)
-        if [[ "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+        if is_quill_chat_mac_reference; then
           click_x="${QUILLUI_GTK_CLICK_X:-52}"
           click_y="${QUILLUI_GTK_CLICK_Y:-1366}"
         else
@@ -182,7 +193,7 @@ case "$PRODUCT" in
         sleep "$post_click_sleep"
         ;;
       settings-endpoint-typed)
-        if [[ "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+        if is_quill_chat_mac_reference; then
           settings_x="${QUILLUI_GTK_SETTINGS_CLICK_X:-52}"
           settings_y="${QUILLUI_GTK_SETTINGS_CLICK_Y:-1366}"
         else
@@ -199,7 +210,7 @@ case "$PRODUCT" in
         sleep 1
         ;;
       completions-panel)
-        if [[ "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+        if is_quill_chat_mac_reference; then
           click_x="${QUILLUI_GTK_CLICK_X:-90}"
           click_y="${QUILLUI_GTK_CLICK_Y:-1244}"
         else
@@ -320,7 +331,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
       ;;
     *)
       VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-toolbar-menu}"
-      if [[ "${QUILLUI_GTK_MAC_REFERENCE:-0}" == "1" ]]; then
+      if is_quill_chat_mac_reference; then
         VERIFY_PRODUCT="${QUILLUI_GTK_VERIFY_PRODUCT:-quill-chat-linux-mac-reference-toolbar-menu}"
       fi
       ;;

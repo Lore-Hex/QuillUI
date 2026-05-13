@@ -140,6 +140,8 @@ struct LinuxGTKAppMatrixTests {
         #expect(legacyProfileScript.contains("linux-backend-profile.sh"))
         #expect(visualScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_GTK_APP_EXECUTABLE"))
+        #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_SKIP_BUILD QUILLUI_GTK_SKIP_BUILD"))
         #expect(smokeLib.contains("quillui_install_linux_backend_smoke_packages()"))
         #expect(smokeLib.contains("quillui_resolve_linux_backend_executable()"))
         #expect(smokeLib.contains("quillui_seed_quill_chat_reference_data()"))

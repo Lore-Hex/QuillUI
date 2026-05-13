@@ -12,8 +12,6 @@ source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 # Backend-neutral names are canonical for new GTK/Qt parity checks.
 # The legacy QUILLUI_GTK_* names stay supported so older docs and
 # local scripts do not break while callers migrate.
-quillui_alias_env QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_GTK_APP_EXECUTABLE
-quillui_alias_env QUILLUI_BACKEND_SKIP_BUILD QUILLUI_GTK_SKIP_BUILD
 quillui_alias_env QUILLUI_BACKEND_VISUAL_DISPLAY QUILLUI_GTK_VISUAL_DISPLAY
 quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE
 quillui_alias_env QUILLUI_BACKEND_VISUAL_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE

@@ -157,6 +157,10 @@ with `xdotool`, captures the opened window, and verifies that Swift state
 changed and the view tree repainted. New GTK/Qt checks should use
 `scripts/linux-backend-interaction-check.sh`; the older
 `scripts/linux-gtk-interaction-check.sh` path is kept as a compatibility shim.
+Like the visual runner, the interaction runner accepts backend-neutral
+`QUILLUI_BACKEND_*` controls, including `QUILLUI_BACKEND_MAC_REFERENCE`,
+`QUILLUI_BACKEND_SCREEN_SIZE`, and `QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE`,
+then maps them to the legacy `QUILLUI_GTK_*` names for compatibility.
 
 ```bash
 scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke

@@ -2685,3 +2685,16 @@ Linux check builds and headless-smokes the GTK and Qt backend launch fixtures
 alongside the user-facing app executables, so local validation catches backend
 selection and launch regressions before CI-specific visual and interaction
 smokes run.
+
+## Checkpoint 147: Backend Interaction Env Parity
+
+Status: implemented locally; guarded by source hygiene, matrix tests, and shell
+syntax checks.
+
+The shared Linux backend smoke helper now owns the common
+`QUILLUI_BACKEND_APP_EXECUTABLE` and `QUILLUI_BACKEND_SKIP_BUILD` aliases so
+visual, interaction, and future Qt checks resolve executables through one
+contract. The backend interaction runner now also accepts
+`QUILLUI_BACKEND_MAC_REFERENCE`, generic/backend interaction screen sizing, and
+backend-neutral reference window controls before mapping them to the legacy GTK
+environment names.
