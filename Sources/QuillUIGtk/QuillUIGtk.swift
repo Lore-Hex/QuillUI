@@ -7,8 +7,4 @@ public enum QuillGtkBackend: QuillBackend {
     public static let identifier: QuillBackendIdentifier = .gtk
 }
 
-public enum QuillGtkApp {
-    public static func run<A: App>(_ appType: A.Type) {
-        QuillGtkBackend.run(appType)
-    }
-}
+public typealias QuillGtkApp = QuillBackendApp<QuillGtkBackend>

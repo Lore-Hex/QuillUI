@@ -7,8 +7,4 @@ public enum QuillQtBackend: QuillBackend {
     public static let identifier: QuillBackendIdentifier = .qt
 }
 
-public enum QuillQtApp {
-    public static func run<A: App>(_ appType: A.Type) {
-        QuillQtBackend.run(appType)
-    }
-}
+public typealias QuillQtApp = QuillBackendApp<QuillQtBackend>
