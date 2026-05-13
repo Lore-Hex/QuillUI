@@ -90,6 +90,8 @@ struct SourceHygieneTests {
 
         #expect(helperSource.contains("public enum QuillAppWindow"))
         #expect(helperSource.contains("QuillBackendRegistry.launchPlan(preferred: preferredBackend)"))
+        #expect(helperSource.contains("private enum QuillLinuxRuntimeHost"))
+        #expect(helperSource.contains("QuillLinuxRuntimeHost(runtimeBackend: launchPlan.runtime).run(appType)"))
         #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
         #expect(helperSource.contains(".defaultSize(width: width, height: height)"))
 

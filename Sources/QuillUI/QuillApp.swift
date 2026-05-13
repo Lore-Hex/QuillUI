@@ -59,17 +59,31 @@ public enum QuillApp {
 }
 
 #if os(Linux)
+private enum QuillLinuxRuntimeHost {
+    case gtk4
+
+    init(runtimeBackend: QuillBackendIdentifier) {
+        switch runtimeBackend {
+        case .swiftUI, .gtk, .qt:
+            self = .gtk4
+        }
+    }
+
+    func run<A: App>(_ appType: A.Type) {
+        switch self {
+        case .gtk4:
+            GTK4Backend().run(appType)
+        }
+    }
+}
+
 private enum QuillLinuxAppRuntime {
     static func run<A: App>(
         _ appType: A.Type,
         preferredBackend: QuillBackendIdentifier?
     ) {
         let launchPlan = QuillBackendRegistry.launchPlan(preferred: preferredBackend)
-
-        switch launchPlan.runtime {
-        case .swiftUI, .gtk, .qt:
-            GTK4Backend().run(appType)
-        }
+        QuillLinuxRuntimeHost(runtimeBackend: launchPlan.runtime).run(appType)
     }
 }
 #endif
