@@ -58,7 +58,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(workflow.contains("scripts/quillui-backend-products.sh app-matrix"))
         #expect(workflow.contains("scripts/quillui-backend-products.sh interaction-matrix"))
         #expect(workflow.contains("scripts/quillui-backend-products.sh generated-app-matrix"))
-        #expect(workflow.contains("scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product; do"))
+        #expect(workflow.contains("scripts/quillui-backend-products.sh smoke-matrix | while IFS=\"$tab\" read -r product backend; do"))
         #expect(workflow.contains("Generated Enchanted backend visual smokes"))
         #expect(workflow.contains("Generated Enchanted toolbar interaction smokes"))
         #expect(workflow.contains("Quill app backend interaction smokes"))
@@ -67,9 +67,9 @@ struct LinuxBackendAppMatrixTests {
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-generated-${backend}.png\" \"$product\" \"$backend\""))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh \".qa/${product}-generated-${backend}.png\" \"$product\" \"$backend\""))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh \".qa/${product}-toolbar-menu-${backend}.png\" \"$product\" \"$backend\""))
-        #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual.png\" \"$product\""))
+        #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual-${backend}.png\" \"$product\" \"$backend\""))
         #expect(workflow.contains("Backend launch target interaction smokes"))
-        #expect(workflow.contains("scripts/linux-backend-interaction-check.sh \".qa/${product}-open.png\" \"$product\""))
+        #expect(workflow.contains("scripts/linux-backend-interaction-check.sh \".qa/${product}-open-${backend}.png\" \"$product\" \"$backend\""))
         #expect(workflow.contains("built_products=\" \""))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\" \"$backend\""))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\" \"$backend\""))
@@ -115,7 +115,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendCheck.contains("done < <(quillui_backend_app_products)"))
         #expect(backendCheck.contains("done < <(quillui_backend_app_matrix)"))
         #expect(backendCheck.contains("done < <(quillui_backend_generated_app_matrix)"))
-        #expect(backendCheck.contains("done < <(quillui_backend_smoke_products)"))
+        #expect(backendCheck.contains("done < <(quillui_backend_smoke_matrix)"))
+        #expect(backendCheck.contains("BACKEND_SMOKE_ROWS=()"))
         #expect(backendCheck.contains("ALL_PRODUCTS=(\"${APP_PRODUCTS[@]}\" \"${BACKEND_SMOKE_PRODUCTS[@]}\")"))
         #expect(backendCheck.contains("BIN_PATH=\"$(swift build --scratch-path .build-linux --show-bin-path)\""))
         #expect(backendCheck.contains("for product in \"${ALL_PRODUCTS[@]}\""))
@@ -129,7 +130,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendCheck.contains("run_smoke \"$product\" \"$backend\""))
         #expect(backendCheck.contains("run_smoke \"$product\""))
         #expect(backendCheck.contains("run_executable_smoke \"$product\" \"$QUILL_CHAT_BIN_DIR/$product\" \"$backend\""))
-        #expect(backendCheck.contains("backend launch fixtures"))
+        #expect(backendCheck.contains("backend launch fixture/backend rows"))
         #expect(backendCheck.contains("generated app/backend rows"))
         #expect(backendCheck.contains("requested_backend=\"${2:-}\""))
         #expect(backendCheck.contains("effective_backend=\"$(quillui_requested_backend_for_product \"$product\")\""))
@@ -193,10 +194,12 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_interaction_app_products | quillui_backend_matrix_for_products"))
         #expect(backendProducts.contains("quillui_backend_generated_app_products()"))
         #expect(backendProducts.contains("quillui_backend_generated_app_matrix()"))
+        #expect(backendProducts.contains("quillui_backend_smoke_matrix()"))
         #expect(backendProducts.contains("quillui_backend_profile_products()"))
+        #expect(backendProducts.contains("done < <(quillui_backend_smoke_products)"))
         #expect(backendProducts.contains("quillui_backend_generated_app_products\n  quillui_backend_smoke_products"))
         #expect(backendProducts.contains("quillui_backend_profile_matrix()"))
-        #expect(backendProducts.contains("quillui_backend_app_matrix\n  quillui_backend_generated_app_matrix"))
+        #expect(backendProducts.contains("quillui_backend_app_matrix\n  quillui_backend_generated_app_matrix\n  quillui_backend_smoke_matrix"))
         #expect(backendProducts.contains("quillui_is_backend_smoke_product()"))
         #expect(backendProducts.contains("quillui_alias_env()"))
         #expect(backendProducts.contains("quillui_alias_backend_common_env()"))
@@ -335,6 +338,11 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeProducts.status == 0, Comment(rawValue: smokeProducts.output))
         #expect(smokeProducts.output.split(whereSeparator: \.isNewline).map(String.init) == Self.expectedSmokeProducts)
 
+        let expectedSmokeMatrix = ["quill-gtk-interaction-smoke\tgtk", "quill-qt-interaction-smoke\tqt"]
+        let smokeMatrix = try runScript(script, arguments: ["smoke-matrix"])
+        #expect(smokeMatrix.status == 0, Comment(rawValue: smokeMatrix.output))
+        #expect(smokeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == expectedSmokeMatrix)
+
         let profileProducts = try runScript(script, arguments: ["profile-products"])
         #expect(profileProducts.status == 0, Comment(rawValue: profileProducts.output))
         let actualProfileProducts = profileProducts.output.split(whereSeparator: \.isNewline).map(String.init)
@@ -348,7 +356,7 @@ struct LinuxBackendAppMatrixTests {
         let actualProfileMatrix = profileMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
         let expectedProfileMatrix = Self.expectedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
             + Self.expectedGeneratedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
-            + ["quill-gtk-interaction-smoke\tgtk", "quill-qt-interaction-smoke\tqt"]
+            + expectedSmokeMatrix
         #expect(actualProfileMatrix == expectedProfileMatrix)
 
         let appBackends = try runScript(script, arguments: ["app-backends"])

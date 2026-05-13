@@ -102,18 +102,22 @@ jobs:
 
       - name: Backend launch target visual smokes
         run: |
-          scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product; do
+          tab="$(printf '\t')"
+          scripts/quillui-backend-products.sh smoke-matrix | while IFS="$tab" read -r product backend; do
             [ -n "$product" ] || continue
-            echo "==> Backend launch visual smoke: $product"
-            scripts/linux-backend-visual-check.sh ".qa/${product}-visual.png" "$product"
+            [ -n "$backend" ] || continue
+            echo "==> Backend launch visual smoke: $product ($backend requested)"
+            scripts/linux-backend-visual-check.sh ".qa/${product}-visual-${backend}.png" "$product" "$backend"
           done
 
       - name: Backend launch target interaction smokes
         run: |
-          scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product; do
+          tab="$(printf '\t')"
+          scripts/quillui-backend-products.sh smoke-matrix | while IFS="$tab" read -r product backend; do
             [ -n "$product" ] || continue
-            echo "==> Backend launch interaction smoke: $product"
-            scripts/linux-backend-interaction-check.sh ".qa/${product}-open.png" "$product"
+            [ -n "$backend" ] || continue
+            echo "==> Backend launch interaction smoke: $product ($backend requested)"
+            scripts/linux-backend-interaction-check.sh ".qa/${product}-open-${backend}.png" "$product" "$backend"
           done
 
       - name: Generated Enchanted toolbar interaction smokes

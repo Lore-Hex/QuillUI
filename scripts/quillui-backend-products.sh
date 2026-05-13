@@ -125,6 +125,18 @@ quillui_backend_smoke_products() {
     quill-qt-interaction-smoke
 }
 
+quillui_backend_smoke_matrix() {
+  local product
+  local backend
+
+  while IFS= read -r product; do
+    [[ -n "$product" ]] || continue
+    backend="$(quillui_backend_for_product "$product")"
+    [[ -n "$backend" ]] || continue
+    printf '%s\t%s\n' "$product" "$backend"
+  done < <(quillui_backend_smoke_products)
+}
+
 quillui_backend_profile_products() {
   # Performance budget rows cover production-shaped app shells, generated
   # external apps, and the minimal backend launch fixtures. Keep this as a
@@ -271,17 +283,9 @@ quillui_backend_for_product() {
 }
 
 quillui_backend_profile_matrix() {
-  local product
-  local backend
-
   quillui_backend_app_matrix
   quillui_backend_generated_app_matrix
-  while IFS= read -r product; do
-    [[ -n "$product" ]] || continue
-    backend="$(quillui_backend_for_product "$product")"
-    [[ -n "$backend" ]] || continue
-    printf '%s\t%s\n' "$product" "$backend"
-  done < <(quillui_backend_smoke_products)
+  quillui_backend_smoke_matrix
 }
 
 quillui_requested_backend_for_product() {
@@ -306,6 +310,7 @@ Commands:
   generated-app-matrix            List PRODUCT<TAB>BACKEND rows for generated external apps.
   gtk-apps                        Legacy alias for backend-apps.
   smoke-products                  List backend launch smoke products.
+  smoke-matrix                    List PRODUCT<TAB>BACKEND rows for backend launch smoke products.
   profile-products                List app and launch-smoke products for profile budgets.
   profile-matrix                  List PRODUCT<TAB>BACKEND rows for profile budgets.
   normalize-backend BACKEND       Print the canonical backend identifier for a known backend alias.
@@ -343,6 +348,9 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     smoke-products)
       quillui_backend_smoke_products
+      ;;
+    smoke-matrix)
+      quillui_backend_smoke_matrix
       ;;
     profile-products)
       quillui_backend_profile_products

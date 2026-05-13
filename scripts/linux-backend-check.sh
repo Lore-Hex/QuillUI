@@ -56,10 +56,14 @@ while IFS="$tab" read -r product backend; do
   GENERATED_APP_SMOKE_ROWS+=("$product"$'\t'"$backend")
 done < <(quillui_backend_generated_app_matrix)
 
+BACKEND_SMOKE_ROWS=()
 BACKEND_SMOKE_PRODUCTS=()
-while IFS= read -r product; do
-  [[ -n "$product" ]] && BACKEND_SMOKE_PRODUCTS+=("$product")
-done < <(quillui_backend_smoke_products)
+while IFS="$tab" read -r product backend; do
+  [[ -n "$product" ]] || continue
+  [[ -n "$backend" ]] || continue
+  BACKEND_SMOKE_ROWS+=("$product"$'\t'"$backend")
+  BACKEND_SMOKE_PRODUCTS+=("$product")
+done < <(quillui_backend_smoke_matrix)
 
 if (( ${#APP_PRODUCTS[@]} == 0 )); then
   echo "No backend app products listed by scripts/quillui-backend-products.sh backend-apps" >&2
@@ -76,8 +80,8 @@ if (( ${#GENERATED_APP_SMOKE_ROWS[@]} == 0 )); then
   exit 1
 fi
 
-if (( ${#BACKEND_SMOKE_PRODUCTS[@]} == 0 )); then
-  echo "No backend launch smoke products listed by scripts/quillui-backend-products.sh smoke-products" >&2
+if (( ${#BACKEND_SMOKE_ROWS[@]} == 0 )); then
+  echo "No backend launch smoke rows listed by scripts/quillui-backend-products.sh smoke-matrix" >&2
   exit 1
 fi
 
@@ -143,8 +147,9 @@ for row in "${APP_SMOKE_ROWS[@]}"; do
   run_smoke "$product" "$backend"
 done
 
-for product in "${BACKEND_SMOKE_PRODUCTS[@]}"; do
-  run_smoke "$product"
+for row in "${BACKEND_SMOKE_ROWS[@]}"; do
+  IFS="$tab" read -r product backend <<< "$row"
+  run_smoke "$product" "$backend"
 done
 
 if [[ "${QUILLUI_SKIP_QUILL_CHAT_BUILD:-0}" != "1" && -d "$QUILL_CHAT_APP_DIR" ]]; then
@@ -163,7 +168,7 @@ fi
 cat <<MSG
 
 Linux backend build completed.
-Headless backend smoke completed for ${#APP_SMOKE_ROWS[@]} app/backend rows, ${#BACKEND_SMOKE_PRODUCTS[@]} backend launch fixtures, and $generated_app_smoke_count generated app/backend rows; products stayed running for $SMOKE_SECONDS seconds under Xvfb.
+Headless backend smoke completed for ${#APP_SMOKE_ROWS[@]} app/backend rows, ${#BACKEND_SMOKE_ROWS[@]} backend launch fixture/backend rows, and $generated_app_smoke_count generated app/backend rows; products stayed running for $SMOKE_SECONDS seconds under Xvfb.
 Run an app in a graphical session with:
 
   swift run ${APP_PRODUCTS[0]}
