@@ -1205,7 +1205,7 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
     )
 
 
-def validate_quill_gtk_interaction_smoke(image: Screenshot) -> str:
+def validate_quill_backend_interaction_smoke(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1223,13 +1223,13 @@ def validate_quill_gtk_interaction_smoke(image: Screenshot) -> str:
     )
 
     return (
-        "Quill GTK interaction smoke: "
+        "Quill backend interaction smoke: "
         f"app={app_width}x{app_height}, "
         f"open_panel_dark_pixels={dark_pixels}, roi=({x0},{y0})-({x1},{y1})"
     )
 
 
-def validate_quill_gtk_interaction_sidebar(image: Screenshot) -> str:
+def validate_quill_backend_interaction_sidebar(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1238,10 +1238,10 @@ def validate_quill_gtk_interaction_sidebar(image: Screenshot) -> str:
 
     dark_pixels = dark_pixel_count(image, left + 32, top + 260, left + 280, top + 315)
     require(dark_pixels >= 350, f"Sidebar smoke button state was not detected: dark_pixels={dark_pixels}")
-    return f"Quill GTK sidebar smoke: app={app_width}x{app_height}, dark_pixels={dark_pixels}"
+    return f"Quill backend sidebar smoke: app={app_width}x{app_height}, dark_pixels={dark_pixels}"
 
 
-def validate_quill_gtk_interaction_banner(image: Screenshot) -> str:
+def validate_quill_backend_interaction_banner(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1250,10 +1250,10 @@ def validate_quill_gtk_interaction_banner(image: Screenshot) -> str:
 
     dark_pixels = dark_pixel_count(image, left + 60, top + 330, left + 250, top + 392)
     require(dark_pixels >= 500, f"Banner smoke button state was not detected: dark_pixels={dark_pixels}")
-    return f"Quill GTK banner smoke: app={app_width}x{app_height}, dark_pixels={dark_pixels}"
+    return f"Quill backend banner smoke: app={app_width}x{app_height}, dark_pixels={dark_pixels}"
 
 
-def validate_quill_gtk_interaction_sheet(image: Screenshot) -> str:
+def validate_quill_backend_interaction_sheet(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1262,7 +1262,7 @@ def validate_quill_gtk_interaction_sheet(image: Screenshot) -> str:
 
     dark_pixels = dark_pixel_count(image, left + 20, top + 55, min(right + 1, left + 420), top + 126)
     require(dark_pixels >= 250, f"Interaction sheet text was not detected: dark_pixels={dark_pixels}")
-    return f"Quill GTK sheet smoke: sheet={app_width}x{app_height}, dark_pixels={dark_pixels}"
+    return f"Quill backend sheet smoke: sheet={app_width}x{app_height}, dark_pixels={dark_pixels}"
 
 
 def main() -> int:
@@ -1324,13 +1324,13 @@ def main() -> int:
     elif product in {"quill-chat-mac-reference", "quill-chat-linux-mac-reference"}:
         print(validate_quill_chat_mac_reference(image))
     elif product in {"quill-gtk-interaction-smoke-open", "quill-qt-interaction-smoke-open"}:
-        print(validate_quill_gtk_interaction_smoke(image))
+        print(validate_quill_backend_interaction_smoke(image))
     elif product in {"quill-gtk-interaction-smoke-sidebar", "quill-qt-interaction-smoke-sidebar"}:
-        print(validate_quill_gtk_interaction_sidebar(image))
+        print(validate_quill_backend_interaction_sidebar(image))
     elif product in {"quill-gtk-interaction-smoke-banner", "quill-qt-interaction-smoke-banner"}:
-        print(validate_quill_gtk_interaction_banner(image))
+        print(validate_quill_backend_interaction_banner(image))
     elif product in {"quill-gtk-interaction-smoke-sheet", "quill-qt-interaction-smoke-sheet"}:
-        print(validate_quill_gtk_interaction_sheet(image))
+        print(validate_quill_backend_interaction_sheet(image))
 
     return 0
 

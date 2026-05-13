@@ -1,12 +1,79 @@
 import QuillUI
 
+public struct QuillInteractionSmokeConfiguration: Equatable, Sendable {
+    public static let defaultWidth: Double = 640
+    public static let defaultHeight: Double = 760
+
+    public let backend: QuillBackendIdentifier
+    public let windowTitle: String
+    public let title: String
+    public let clickTargetTitle: String
+    public let panelMessage: String
+    public let width: Double
+    public let height: Double
+
+    public init(
+        backend: QuillBackendIdentifier,
+        windowTitle: String,
+        title: String,
+        clickTargetTitle: String,
+        panelMessage: String,
+        width: Double = Self.defaultWidth,
+        height: Double = Self.defaultHeight
+    ) {
+        self.backend = backend
+        self.windowTitle = windowTitle
+        self.title = title
+        self.clickTargetTitle = clickTargetTitle
+        self.panelMessage = panelMessage
+        self.width = width
+        self.height = height
+    }
+
+    public static func backendParitySurface(
+        for backend: QuillBackendIdentifier
+    ) -> QuillInteractionSmokeConfiguration {
+        QuillInteractionSmokeConfiguration(
+            backend: backend,
+            windowTitle: "Quill Backend Interaction",
+            title: "Quill Backend Interaction",
+            clickTargetTitle: "Native backend click target",
+            panelMessage: "QuillUI rendered this panel after a native backend button click."
+        )
+    }
+}
+
+public enum QuillInteractionSmokeScene {
+    public static func scene(
+        for backend: QuillBackendIdentifier
+    ) -> some Scene {
+        let configuration = QuillInteractionSmokeConfiguration.backendParitySurface(
+            for: backend
+        )
+
+        return QuillAppWindow.scene(
+            configuration.windowTitle,
+            width: configuration.width,
+            height: configuration.height
+        ) {
+            QuillInteractionSmokeView(configuration: configuration)
+        }
+    }
+}
+
 public struct QuillInteractionSmokeView: View {
     private let title: String
     private let clickTargetTitle: String
-    private let backendName: String
+    private let panelMessage: String
 
     @State private var isOpen = false
     @State private var typedText = ""
+
+    public init(configuration: QuillInteractionSmokeConfiguration) {
+        self.title = configuration.title
+        self.clickTargetTitle = configuration.clickTargetTitle
+        self.panelMessage = configuration.panelMessage
+    }
 
     public init(
         title: String,
@@ -15,7 +82,7 @@ public struct QuillInteractionSmokeView: View {
     ) {
         self.title = title
         self.clickTargetTitle = clickTargetTitle
-        self.backendName = backendName
+        self.panelMessage = "QuillUI rendered this panel after a \(backendName) button click."
     }
 
     public var body: some View {
@@ -62,7 +129,7 @@ public struct QuillInteractionSmokeView: View {
                                 .font(.system(size: 20, weight: .semibold))
                                 .foregroundColor(Color(hex: "#FFFFFF"))
 
-                            Text("QuillUI rendered this panel after a \(backendName) button click.")
+                            Text(panelMessage)
                                 .font(.system(size: 14))
                                 .foregroundColor(Color(hex: "#E8E8EA"))
                         }

@@ -2628,3 +2628,18 @@ The legacy GTK-named profile scripts remain executable compatibility shims.
 They delegate to the backend-neutral scripts while preserving the existing
 `QUILLUI_GTK_PROFILE_*` environment aliases alongside the newer
 `QUILLUI_BACKEND_PROFILE_*` names.
+
+## Checkpoint 143: Shared Backend Interaction Scene
+
+Status: implemented locally; guarded by source hygiene and QuillUI tests.
+
+The GTK and Qt interaction smoke executables now build their app body through
+`QuillInteractionSmokeScene.scene(for:)` instead of each hand-writing window
+titles, dimensions, and backend-specific strings. The shared configuration
+keeps the rendered fixture identical across requested backends while preserving
+the separate `QuillApp.run` and `QuillQtApp.run` launch paths.
+
+The screenshot verifier still accepts the legacy GTK product names and the Qt
+smoke product names, but its interaction-smoke output now reports backend
+coverage instead of GTK-only wording. This keeps the next Qt renderer step on
+the same visual contract rather than growing another backend-specific fixture.
