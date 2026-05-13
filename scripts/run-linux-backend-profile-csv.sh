@@ -9,30 +9,75 @@ PROFILE_SCRIPT="${QUILLUI_BACKEND_PROFILE_COMMAND:-$ROOT_DIR/scripts/linux-backe
 SETTLE_SECONDS="${QUILLUI_BACKEND_PROFILE_SETTLE:-5}"
 STEADY_DELAY_SECONDS="${QUILLUI_BACKEND_PROFILE_STEADY:-20}"
 CSV_PATH=""
+MATRIX_COMMAND=""
 ROWS=()
 
 usage() {
-  echo "Usage: $(basename "$0") CSV [PRODUCT ...]" >&2
+  echo "Usage: $(basename "$0") [--matrix profile-matrix] CSV [PRODUCT ...]" >&2
   echo "       scripts/quillui-backend-products.sh profile-matrix | $(basename "$0") CSV" >&2
   echo "       stdin rows may be PRODUCT or PRODUCT<TAB>BACKEND" >&2
 }
 
-case "${1:-}" in
-  --help|-h)
-    usage
-    exit 0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --matrix)
+      if [[ $# -lt 2 || -z "$2" ]]; then
+        echo "--matrix requires a matrix command" >&2
+        usage
+        exit 64
+      fi
+      MATRIX_COMMAND="$2"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 64
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [[ $# -lt 1 ]]; then
+  usage
+  exit 64
+fi
+
+CSV_PATH="$1"
+shift
+
+case "$MATRIX_COMMAND" in
+  ""|profile-matrix)
     ;;
-  "")
+  *)
+    echo "Unsupported backend profile matrix command: $MATRIX_COMMAND" >&2
     usage
     exit 64
     ;;
 esac
 
-CSV_PATH="$1"
-shift
-
 ROWS=("$@")
-if [[ ${#ROWS[@]} -eq 0 ]]; then
+if [[ -n "$MATRIX_COMMAND" ]]; then
+  if [[ ${#ROWS[@]} -ne 0 ]]; then
+    echo "--matrix cannot be combined with explicit product rows" >&2
+    usage
+    exit 64
+  fi
+  while IFS= read -r row; do
+    [[ -n "$row" ]] || continue
+    ROWS+=("$row")
+  done < <("$ROOT_DIR/scripts/quillui-backend-products.sh" "$MATRIX_COMMAND")
+elif [[ ${#ROWS[@]} -eq 0 ]]; then
   if [[ -t 0 ]]; then
     echo "No products supplied for backend profile CSV" >&2
     usage

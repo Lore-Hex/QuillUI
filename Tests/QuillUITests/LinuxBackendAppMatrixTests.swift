@@ -69,7 +69,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(workflow.contains("Backend launch target interaction smokes"))
         #expect(!workflow.contains("built_products=\" \""))
         #expect(!workflow.contains("while IFS=\"$tab\" read -r product backend; do"))
-        #expect(workflow.contains("scripts/quillui-backend-products.sh profile-matrix | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
+        #expect(workflow.contains("scripts/run-linux-backend-profile-csv.sh --matrix profile-matrix /tmp/quillui-profile.csv"))
+        #expect(!workflow.contains("scripts/quillui-backend-products.sh profile-matrix | scripts/run-linux-backend-profile-csv.sh"))
         #expect(workflow.contains("scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("--require-backend-matrix"))
         #expect(workflow.contains("name: Swift Linux Backends"))
@@ -219,6 +220,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(profileScript.contains("quillui_alias_backend_build_env"))
         #expect(!profileScript.contains("patch-swiftopenui-gtk-css.sh"))
         #expect(!profileScript.contains("swift build --scratch-path \"$ROOT_DIR/.build-linux\" --product \"$PRODUCT\""))
+        #expect(csvRunner.contains("MATRIX_COMMAND=\"\""))
+        #expect(csvRunner.contains("--matrix profile-matrix"))
+        #expect(csvRunner.contains("Unsupported backend profile matrix command"))
+        #expect(csvRunner.contains("\"$ROOT_DIR/scripts/quillui-backend-products.sh\" \"$MATRIX_COMMAND\""))
         #expect(legacyProfileScript.contains("linux-backend-profile.sh"))
         #expect(visualScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(visualScript.contains("REQUESTED_BACKEND=\"${3:-${QUILLUI_BACKEND:-}}\""))
@@ -812,6 +817,76 @@ struct LinuxBackendAppMatrixTests {
         """
         #expect(result.output == expected)
         #expect(try String(contentsOf: csv, encoding: .utf8) == expected)
+    }
+
+    @Test("profile CSV runner expands the canonical backend matrix")
+    func profileCSVRunnerExpandsCanonicalBackendMatrix() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/run-linux-backend-profile-csv.sh")
+        let matrixScript = root.appendingPathComponent("scripts/quillui-backend-products.sh")
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-profile-canonical-matrix-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        let csv = temporaryDirectory.appendingPathComponent("profile.csv")
+        let fakeProfiler = temporaryDirectory.appendingPathComponent("matrix-profiler.sh")
+        try """
+        #!/usr/bin/env bash
+        product="$1"
+        backend="${4:-}"
+        if [[ -z "$backend" ]]; then
+          exit 43
+        fi
+        if [[ "$backend" != "${QUILLUI_BACKEND:-}" ]]; then
+          exit 44
+        fi
+        echo "$product,1,2,3,4.0,5.0,ok"
+
+        """.write(to: fakeProfiler, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeProfiler.path)
+
+        let matrix = try runScript(matrixScript, arguments: ["profile-matrix"])
+        #expect(matrix.status == 0, Comment(rawValue: matrix.output))
+        let matrixLabels = matrix.output
+            .split(whereSeparator: \.isNewline)
+            .map { row -> String in
+                let fields = row.split(separator: "\t")
+                return "\(fields[0])@\(fields[1])"
+            }
+        #expect(!matrixLabels.isEmpty)
+
+        let result = try runScript(
+            script,
+            arguments: ["--matrix", "profile-matrix", csv.path],
+            environment: ["QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        let expected = """
+        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
+        \(matrixLabels.map { "\($0),1,2,3,4.0,5.0,ok" }.joined(separator: "\n"))
+
+        """
+        #expect(result.output == expected)
+        #expect(try String(contentsOf: csv, encoding: .utf8) == expected)
+
+        let unsupportedMatrix = try runScript(
+            script,
+            arguments: ["--matrix", "app-matrix", csv.path],
+            environment: ["QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path]
+        )
+        #expect(unsupportedMatrix.status != 0)
+        #expect(unsupportedMatrix.output.contains("Unsupported backend profile matrix command: app-matrix"))
+
+        let mixedArguments = try runScript(
+            script,
+            arguments: ["--matrix", "profile-matrix", csv.path, "quill-icecubes"],
+            environment: ["QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path]
+        )
+        #expect(mixedArguments.status != 0)
+        #expect(mixedArguments.output.contains("--matrix cannot be combined with explicit product rows"))
     }
 
     private func runScript(

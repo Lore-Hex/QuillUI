@@ -7,10 +7,10 @@ window starting 5s after the first X11 window appears, i.e.
 boot cost) and `cpu_pct_steady` (5s window starting 25s after,
 i.e. long-term render-loop cost).
 
-Current CI sources the profile roster from
-`scripts/quillui-backend-products.sh profile-matrix`, which composes every
-user-facing app and generated external app with each requested backend plus the
-GTK and Qt backend launch smoke products. The roster emits
+Current CI expands the canonical `profile-matrix` roster through
+`scripts/run-linux-backend-profile-csv.sh --matrix profile-matrix`, which
+composes every user-facing app and generated external app with each requested
+backend plus the GTK and Qt backend launch smoke products. The roster emits
 `PRODUCT<TAB>BACKEND` rows, and backend aliases are canonicalized before launch.
 Backend-requested app rows keep the existing CSV schema by labeling the product
 column as `product@backend`. The older

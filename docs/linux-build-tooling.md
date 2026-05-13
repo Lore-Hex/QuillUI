@@ -266,8 +266,7 @@ requested backend plus the backend launch fixtures. The roster emits
 before it launches the profiler:
 
 ```bash
-scripts/quillui-backend-products.sh profile-matrix | \
-  scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv
+scripts/run-linux-backend-profile-csv.sh --matrix profile-matrix /tmp/quillui-profile.csv
 ```
 
 The CSV schema stays product-first for the budget checker. Backend-requested
