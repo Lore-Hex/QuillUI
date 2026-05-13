@@ -164,14 +164,14 @@ header, four prompt cards at `730-1057`, `1088-1415`, `1445-1772`, and
 `1803-2129`, a `1524px` unreachable alert, and a `1510px` composer. This
 strict pass is allowed to fail while renderer parity is still being closed; it
 exists so the remaining gap is measured against the real app, not a prototype.
-The strict path also sets `QUILLUI_GTK_DEFAULT_WINDOW_WIDTH` and
-`QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT`; the SwiftOpenUI GTK checkout patch honors
-those values for automatic window sizing. New GTK/Qt parity scripts should call
-`scripts/linux-backend-visual-check.sh` and use the `QUILLUI_BACKEND_*` names
-for visual checks. The runner maps backend-neutral values to the older
-`QUILLUI_GTK_*` environment contract and to scoped `QUILLUI_QT_*` controls for
-compatibility, and `scripts/linux-gtk-visual-check.sh` remains as a thin
-compatibility shim.
+The strict path sets backend-neutral reference window values and exports both
+`QUILLUI_GTK_*` and `QUILLUI_QT_*` compatibility aliases. The SwiftOpenUI GTK
+checkout patch honors the GTK values for automatic window sizing. New GTK/Qt
+parity scripts should call `scripts/linux-backend-visual-check.sh` and use the
+`QUILLUI_BACKEND_*` names for visual checks. The runner maps backend-neutral
+values to the older `QUILLUI_GTK_*` environment contract and to scoped
+`QUILLUI_QT_*` controls for compatibility, and
+`scripts/linux-gtk-visual-check.sh` remains as a thin compatibility shim.
 
 The backend visual and interaction runners both source
 `scripts/quillui-linux-backend-smoke-lib.sh` for apt package setup, root

@@ -268,6 +268,9 @@ quillui_append_quill_chat_reference_environment() {
   quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=$reference_window_width"
   quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT=$reference_window_height"
   quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_DEFAULT_WINDOW_WIDTH=$reference_window_width"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_DEFAULT_WINDOW_HEIGHT=$reference_window_height"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"
   quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"
   quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"
 }
