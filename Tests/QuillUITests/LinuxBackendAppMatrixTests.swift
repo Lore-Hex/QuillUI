@@ -669,7 +669,7 @@ struct LinuxBackendAppMatrixTests {
         let expected = """
         product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
         first-product,1,2,3,4.0,5.0,ok
-        second-product,1,2,3,4.0,5.0,ok
+        second-product,1,2,3,4.0,5.0,profiler-exit-7
 
         """
         #expect(result.output == expected)

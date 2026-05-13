@@ -117,7 +117,16 @@ quillui_profile_product_was_built() {
       BUILT_PROFILE_PRODUCTS_LIST="${BUILT_PROFILE_PRODUCTS_LIST}${product}"$'\n'
     fi
     if [[ -s "$row_path" ]]; then
-      awk -v label="$label" 'BEGIN { FS = OFS = "," } NF > 0 { $1 = label } { print }' "$row_path"
+      awk -v label="$label" -v profiler_status="$status" '
+        BEGIN { FS = OFS = "," }
+        NF > 0 {
+          $1 = label
+          if (profiler_status != 0 && NF >= 7) {
+            $7 = "profiler-exit-" profiler_status
+          }
+        }
+        { print }
+      ' "$row_path"
     elif [[ "$status" -eq 0 ]]; then
       echo "$label,0,0,0,0.0,0.0,profiler-empty-output"
     else
