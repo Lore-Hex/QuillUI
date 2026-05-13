@@ -541,7 +541,14 @@ struct QuillDataSourceLoweringTests {
         #expect(controls.contains(".buttonStyle(.plain)"))
         #expect(controls.contains("quillBackendReferenceWindowWidth"))
         #expect(controls.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH"))
-        #expect(controls.contains("legacy: \"QUILLUI_GTK_DEFAULT_WINDOW_WIDTH\""))
+        #expect(controls.contains("QuillBackendRegistry.requestedBackend(from: environment)"))
+        #expect(controls.contains("environment[canonical] ?? scopedValue"))
+        #expect(controls.contains("environment[qtScoped] ?? environment[gtkLegacy]"))
+        #expect(controls.contains("environment[gtkLegacy] ?? environment[qtScoped]"))
+        #expect(controls.contains("gtkLegacy: \"QUILLUI_GTK_DEFAULT_WINDOW_WIDTH\""))
+        #expect(controls.contains("qtScoped: \"QUILLUI_QT_DEFAULT_WINDOW_WIDTH\""))
+        #expect(controls.contains("gtkLegacy: \"QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT\""))
+        #expect(controls.contains("qtScoped: \"QUILLUI_QT_DEFAULT_WINDOW_HEIGHT\""))
         #expect(!controls.contains("quillGTKReferenceWindowWidth"))
 
         let modelStoreRule = try String(

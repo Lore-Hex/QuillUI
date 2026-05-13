@@ -49,6 +49,25 @@ struct SourceHygieneTests {
         #expect(!source.contains("not yet wired up; see the TODO on `ImageRenderer`"))
     }
 
+    @Test("Linux controls read backend-scoped reference environment")
+    func linuxControlsReadBackendScopedReferenceEnvironment() throws {
+        let root = try packageRoot()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/Controls.swift"),
+            encoding: .utf8
+        )
+
+        #expect(source.contains("QuillBackendRegistry.requestedBackend(from: environment)"))
+        #expect(source.contains("environment[canonical] ?? scopedValue"))
+        #expect(source.contains("environment[qtScoped] ?? environment[gtkLegacy]"))
+        #expect(source.contains("environment[gtkLegacy] ?? environment[qtScoped]"))
+        #expect(source.contains("gtkLegacy: \"QUILLUI_GTK_DEFAULT_WINDOW_WIDTH\""))
+        #expect(source.contains("qtScoped: \"QUILLUI_QT_DEFAULT_WINDOW_WIDTH\""))
+        #expect(source.contains("gtkLegacy: \"QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT\""))
+        #expect(source.contains("qtScoped: \"QUILLUI_QT_DEFAULT_WINDOW_HEIGHT\""))
+        #expect(!source.contains("legacy: \"QUILLUI_GTK_DEFAULT_WINDOW_WIDTH\""))
+    }
+
     @Test("Public docs describe the backend-neutral app matrix")
     func publicDocsDescribeBackendNeutralAppMatrix() throws {
         let root = try packageRoot()

@@ -116,22 +116,39 @@ private extension String {
 }
 
 #if !(os(macOS) || os(iOS) || os(visionOS))
-private func quillBackendEnvironmentDouble(_ canonical: String, legacy: String) -> Double? {
+private func quillBackendEnvironmentDouble(
+    _ canonical: String,
+    gtkLegacy: String,
+    qtScoped: String
+) -> Double? {
     let environment = ProcessInfo.processInfo.environment
-    return (environment[canonical] ?? environment[legacy]).flatMap(Double.init)
+    let selectedBackend = QuillBackendRegistry.requestedBackend(from: environment)
+        ?? QuillBackendRegistry.platformDefault
+    let scopedValue: String?
+
+    switch selectedBackend {
+    case .qt:
+        scopedValue = environment[qtScoped] ?? environment[gtkLegacy]
+    case .gtk, .swiftUI:
+        scopedValue = environment[gtkLegacy] ?? environment[qtScoped]
+    }
+
+    return (environment[canonical] ?? scopedValue).flatMap(Double.init)
 }
 
 private var quillBackendReferenceWindowWidth: Double? {
     quillBackendEnvironmentDouble(
         "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH",
-        legacy: "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"
+        gtkLegacy: "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH",
+        qtScoped: "QUILLUI_QT_DEFAULT_WINDOW_WIDTH"
     )
 }
 
 private var quillBackendReferenceWindowHeight: Double? {
     quillBackendEnvironmentDouble(
         "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT",
-        legacy: "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT"
+        gtkLegacy: "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT",
+        qtScoped: "QUILLUI_QT_DEFAULT_WINDOW_HEIGHT"
     )
 }
 #endif
