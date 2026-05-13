@@ -18,6 +18,7 @@ INTERACTION_MODE="${QUILLUI_BACKEND_INTERACTION_MODE:-}"
 if [[ -z "$INTERACTION_MODE" ]]; then
   case "$PRODUCT" in
     quill-chat-linux) INTERACTION_MODE="toolbar-menu" ;;
+    quill-wireguard-qt) INTERACTION_MODE="tunnel-selection" ;;
     *) INTERACTION_MODE="click" ;;
   esac
   if quillui_is_backend_smoke_product "$PRODUCT"; then
@@ -251,6 +252,19 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         ;;
     esac
+elif [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
+    case "$INTERACTION_MODE" in
+      tunnel-selection|click)
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 150))}"
+        ;;
+      *)
+        echo "Unsupported WireGuard Qt interaction mode: $INTERACTION_MODE" >&2
+        exit 64
+        ;;
+    esac
+    click_at "$click_x" "$click_y"
+    sleep "$post_click_sleep"
 elif quillui_is_backend_smoke_product "$PRODUCT"; then
     INTERACTION_MODE="$(quillui_normalize_backend_smoke_interaction_mode "$INTERACTION_MODE")"
     case "$INTERACTION_MODE" in

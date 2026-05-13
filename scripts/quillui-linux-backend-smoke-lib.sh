@@ -195,6 +195,12 @@ quillui_backend_interaction_verify_product() {
         fi
         ;;
     esac
+  elif [[ "$product" == "quill-wireguard-qt" ]]; then
+    case "$interaction_mode" in
+      tunnel-selection|click)
+        verify_product="quill-wireguard-qt-tunnel-selection"
+        ;;
+    esac
   elif quillui_is_backend_smoke_product "$product"; then
     verify_product="$(quillui_backend_smoke_interaction_verify_product "$product" "$interaction_mode")" || return $?
   fi

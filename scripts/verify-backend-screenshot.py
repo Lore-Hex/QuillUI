@@ -215,6 +215,46 @@ def pixel_count(
     )
 
 
+def best_pixel_row_segment(
+    image: Screenshot,
+    x0: int,
+    y0: int,
+    x1: int,
+    y1: int,
+    predicate: Callable[[tuple[int, int, int]], bool],
+    min_row_pixels: int,
+) -> tuple[Segment, int] | None:
+    best: tuple[Segment, int] | None = None
+    start: int | None = None
+    last_y = 0
+    segment_pixels = 0
+
+    for y in range(max(0, y0), min(image.height, y1)):
+        row_pixels = sum(
+            1
+            for x in range(max(0, x0), min(image.width, x1))
+            if predicate(image.rgb(x, y))
+        )
+        if row_pixels >= min_row_pixels:
+            if start is None:
+                start = y
+                segment_pixels = 0
+            last_y = y
+            segment_pixels += row_pixels
+        elif start is not None:
+            candidate = (Segment(start, last_y), segment_pixels)
+            if best is None or candidate[1] > best[1]:
+                best = candidate
+            start = None
+
+    if start is not None:
+        candidate = (Segment(start, last_y), segment_pixels)
+        if best is None or candidate[1] > best[1]:
+            best = candidate
+
+    return best
+
+
 def mac_window_control_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return (
@@ -1232,7 +1272,10 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
     )
 
 
-def validate_quill_wireguard_qt_native(image: Screenshot) -> str:
+def validate_quill_wireguard_qt_native(
+    image: Screenshot,
+    minimum_selected_center_offset: int | None = None,
+) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1258,14 +1301,18 @@ def validate_quill_wireguard_qt_native(image: Screenshot) -> str:
         bottom + 1,
         wireguard_qt_sidebar_pixel,
     )
-    selected_row_pixels = pixel_count(
+    selected_row = best_pixel_row_segment(
         image,
         left + 4,
         top + 42,
         min(right + 1, left + 340),
         min(bottom + 1, top + 260),
         wireguard_qt_selected_row_pixel,
+        min_row_pixels=40,
     )
+    require(selected_row is not None, "WireGuard Qt selected tunnel row was not detected")
+    selected_row_segment, selected_row_pixels = selected_row
+    selected_row_center_offset = selected_row_segment.center - top
     section_pixels = pixel_count(
         image,
         divider_x + 16,
@@ -1297,6 +1344,13 @@ def validate_quill_wireguard_qt_native(image: Screenshot) -> str:
         selected_row_pixels >= 250,
         f"WireGuard Qt selected tunnel row was not detected: pixels={selected_row_pixels}",
     )
+    if minimum_selected_center_offset is not None:
+        require(
+            selected_row_center_offset >= minimum_selected_center_offset,
+            "WireGuard Qt tunnel selection did not move to the expected row: "
+            f"selected_center={selected_row_center_offset:.1f}px, "
+            f"minimum={minimum_selected_center_offset}px",
+        )
     require(
         section_pixels >= 12_000,
         f"WireGuard Qt detail section backgrounds were not detected: pixels={section_pixels}",
@@ -1316,6 +1370,7 @@ def validate_quill_wireguard_qt_native(image: Screenshot) -> str:
         f"divider={divider_x - left}px/{divider_score}, "
         f"sidebar_pixels={sidebar_pixels}, "
         f"selected_row_pixels={selected_row_pixels}, "
+        f"selected_row_y={selected_row_segment.start - top}-{selected_row_segment.end - top}, "
         f"section_pixels={section_pixels}, "
         f"sidebar_text_pixels={sidebar_text_pixels}, "
         f"detail_text_pixels={detail_text_pixels}"
@@ -1442,6 +1497,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference(image))
     elif product == "quill-wireguard-qt":
         print(validate_quill_wireguard_qt_native(image))
+    elif product == "quill-wireguard-qt-tunnel-selection":
+        print(validate_quill_wireguard_qt_native(image, minimum_selected_center_offset=100))
     elif product in {"quill-gtk-interaction-smoke-open", "quill-qt-interaction-smoke-open"}:
         print(validate_quill_backend_interaction_smoke(image))
     elif product in {"quill-gtk-interaction-smoke-sidebar", "quill-qt-interaction-smoke-sidebar"}:
