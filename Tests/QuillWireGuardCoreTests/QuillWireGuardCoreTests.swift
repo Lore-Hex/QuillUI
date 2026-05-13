@@ -123,6 +123,11 @@ struct QuillWireGuardCoreTests {
         #expect(nativeShimSource.contains("QLabel#tunnelStatus, QLabel#tunnelSummary"))
         #expect(nativeShimSource.contains("QLineEdit#detailTitle"))
         #expect(nativeShimSource.contains("list->setItemWidget(item, tunnelRowWidget(tunnel))"))
+        #expect(nativeShimSource.contains("const QJsonObject presentation = objectValue(payload, \"presentation\")"))
+        #expect(nativeShimSource.contains("presentationValue(presentation, \"sidebarTitle\", \"Tunnels\")"))
+        #expect(nativeShimSource.contains("presentationValue(presentation, \"interfaceSectionTitle\", \"Interface\")"))
+        #expect(nativeShimSource.contains("presentationValue(presentation, \"tunnelNamePlaceholder\", \"Tunnel name\")"))
+        #expect(nativeShimSource.contains("presentationValue(presentation, \"emptyStateTitle\", \"Quill WireGuard\")"))
         #expect(!nativeShimSource.contains("QStringList lines"))
         #expect(!nativeShimSource.contains("QLabel#detailTitle"))
         #expect(nativeShimSource.contains("QSize resolvedMinimumWindowSize"))
@@ -146,6 +151,11 @@ struct QuillWireGuardCoreTests {
         #expect(snapshot.defaultHeight == Int(QuillWireGuardAppMetadata.defaultHeight))
         #expect(snapshot.minimumWidth == Int(QuillWireGuardAppMetadata.linuxMinimumWidth))
         #expect(snapshot.minimumHeight == Int(QuillWireGuardAppMetadata.linuxMinimumHeight))
+        #expect(snapshot.presentation.sidebarTitle == QuillWireGuardPresentation.sidebarTitle)
+        #expect(snapshot.presentation.backendTitle == QuillWireGuardPresentation.backendTitle)
+        #expect(snapshot.presentation.interfaceSectionTitle == QuillWireGuardPresentation.interfaceSectionTitle)
+        #expect(snapshot.presentation.exportSectionTitle == QuillWireGuardPresentation.exportSectionTitle)
+        #expect(snapshot.presentation.noneText == QuillWireGuardPresentation.noneText)
         #expect(snapshot.selectedTunnelID == QuillWireGuardFixtures.defaultTunnelID)
         #expect(snapshot.tunnels.map(\.id) == QuillWireGuardFixtures.tunnels.map(\.id))
         #expect(snapshot.tunnels.first?.interface.addressesText == QuillWireGuardFixtures.tunnels.first?.interface.addresses.joined(separator: ", "))
@@ -155,6 +165,22 @@ struct QuillWireGuardCoreTests {
         let encoded = try JSONEncoder().encode(snapshot)
         let decoded = try JSONDecoder().decode(QuillWireGuardAppSnapshot.self, from: encoded)
         #expect(decoded == snapshot)
+
+        let legacyPayload = """
+        {
+          "title": "\(QuillWireGuardAppMetadata.title)",
+          "defaultWidth": \(Int(QuillWireGuardAppMetadata.defaultWidth)),
+          "defaultHeight": \(Int(QuillWireGuardAppMetadata.defaultHeight)),
+          "minimumWidth": \(Int(QuillWireGuardAppMetadata.linuxMinimumWidth)),
+          "minimumHeight": \(Int(QuillWireGuardAppMetadata.linuxMinimumHeight)),
+          "backendStatusText": "Legacy backend status",
+          "selectedTunnelID": null,
+          "tunnels": []
+        }
+        """.data(using: .utf8)!
+        let legacySnapshot = try JSONDecoder().decode(QuillWireGuardAppSnapshot.self, from: legacyPayload)
+        #expect(legacySnapshot.presentation == QuillWireGuardPresentationSnapshot())
+        #expect(legacySnapshot.tunnels.isEmpty)
     }
 
     @Test("Qt WireGuard manifest uses an explicit Linux backend graph selector")

@@ -26,6 +26,24 @@ public enum QuillWireGuardBackend {
     }
 }
 
+public enum QuillWireGuardPresentation {
+    public static let sidebarTitle = "Tunnels"
+    public static let backendTitle = "Backend"
+    public static let tunnelNamePlaceholder = "Tunnel name"
+    public static let emptyStateTitle = QuillWireGuardAppMetadata.title
+    public static let emptyStateMessage = "Select a tunnel to edit and export its configuration."
+    public static let interfaceSectionTitle = "Interface"
+    public static let exportSectionTitle = "Export"
+    public static let publicKeyLabel = "Public key"
+    public static let addressesLabel = "Addresses"
+    public static let dnsLabel = "DNS"
+    public static let listenPortLabel = "Listen port"
+    public static let allowedIPsLabel = "Allowed IPs"
+    public static let endpointLabel = "Endpoint"
+    public static let keepAliveLabel = "Keepalive"
+    public static let noneText = "None"
+}
+
 public enum QuillWireGuardTunnelStatus: String, Codable, Sendable {
     case inactive = "Inactive"
     case active = "Active"
@@ -195,6 +213,58 @@ public struct QuillWireGuardTunnelSnapshot: Codable, Equatable, Identifiable, Se
     }
 }
 
+public struct QuillWireGuardPresentationSnapshot: Codable, Equatable, Sendable {
+    public var sidebarTitle: String
+    public var backendTitle: String
+    public var tunnelNamePlaceholder: String
+    public var emptyStateTitle: String
+    public var emptyStateMessage: String
+    public var interfaceSectionTitle: String
+    public var exportSectionTitle: String
+    public var publicKeyLabel: String
+    public var addressesLabel: String
+    public var dnsLabel: String
+    public var listenPortLabel: String
+    public var allowedIPsLabel: String
+    public var endpointLabel: String
+    public var keepAliveLabel: String
+    public var noneText: String
+
+    public init(
+        sidebarTitle: String = QuillWireGuardPresentation.sidebarTitle,
+        backendTitle: String = QuillWireGuardPresentation.backendTitle,
+        tunnelNamePlaceholder: String = QuillWireGuardPresentation.tunnelNamePlaceholder,
+        emptyStateTitle: String = QuillWireGuardPresentation.emptyStateTitle,
+        emptyStateMessage: String = QuillWireGuardPresentation.emptyStateMessage,
+        interfaceSectionTitle: String = QuillWireGuardPresentation.interfaceSectionTitle,
+        exportSectionTitle: String = QuillWireGuardPresentation.exportSectionTitle,
+        publicKeyLabel: String = QuillWireGuardPresentation.publicKeyLabel,
+        addressesLabel: String = QuillWireGuardPresentation.addressesLabel,
+        dnsLabel: String = QuillWireGuardPresentation.dnsLabel,
+        listenPortLabel: String = QuillWireGuardPresentation.listenPortLabel,
+        allowedIPsLabel: String = QuillWireGuardPresentation.allowedIPsLabel,
+        endpointLabel: String = QuillWireGuardPresentation.endpointLabel,
+        keepAliveLabel: String = QuillWireGuardPresentation.keepAliveLabel,
+        noneText: String = QuillWireGuardPresentation.noneText
+    ) {
+        self.sidebarTitle = sidebarTitle
+        self.backendTitle = backendTitle
+        self.tunnelNamePlaceholder = tunnelNamePlaceholder
+        self.emptyStateTitle = emptyStateTitle
+        self.emptyStateMessage = emptyStateMessage
+        self.interfaceSectionTitle = interfaceSectionTitle
+        self.exportSectionTitle = exportSectionTitle
+        self.publicKeyLabel = publicKeyLabel
+        self.addressesLabel = addressesLabel
+        self.dnsLabel = dnsLabel
+        self.listenPortLabel = listenPortLabel
+        self.allowedIPsLabel = allowedIPsLabel
+        self.endpointLabel = endpointLabel
+        self.keepAliveLabel = keepAliveLabel
+        self.noneText = noneText
+    }
+}
+
 public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
     public var title: String
     public var defaultWidth: Int
@@ -202,8 +272,21 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
     public var minimumWidth: Int
     public var minimumHeight: Int
     public var backendStatusText: String
+    public var presentation: QuillWireGuardPresentationSnapshot
     public var selectedTunnelID: QuillWireGuardTunnelSnapshot.ID?
     public var tunnels: [QuillWireGuardTunnelSnapshot]
+
+    private enum CodingKeys: String, CodingKey {
+        case title
+        case defaultWidth
+        case defaultHeight
+        case minimumWidth
+        case minimumHeight
+        case backendStatusText
+        case presentation
+        case selectedTunnelID
+        case tunnels
+    }
 
     public init(
         title: String,
@@ -212,6 +295,7 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
         minimumWidth: Int = Int(QuillWireGuardAppMetadata.linuxMinimumWidth),
         minimumHeight: Int = Int(QuillWireGuardAppMetadata.linuxMinimumHeight),
         backendStatusText: String,
+        presentation: QuillWireGuardPresentationSnapshot = QuillWireGuardPresentationSnapshot(),
         selectedTunnelID: QuillWireGuardTunnelSnapshot.ID?,
         tunnels: [QuillWireGuardTunnelSnapshot]
     ) {
@@ -221,8 +305,29 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
         self.minimumWidth = minimumWidth
         self.minimumHeight = minimumHeight
         self.backendStatusText = backendStatusText
+        self.presentation = presentation
         self.selectedTunnelID = selectedTunnelID
         self.tunnels = tunnels
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        self.title = try container.decode(String.self, forKey: .title)
+        self.defaultWidth = try container.decode(Int.self, forKey: .defaultWidth)
+        self.defaultHeight = try container.decode(Int.self, forKey: .defaultHeight)
+        self.minimumWidth = try container.decode(Int.self, forKey: .minimumWidth)
+        self.minimumHeight = try container.decode(Int.self, forKey: .minimumHeight)
+        self.backendStatusText = try container.decode(String.self, forKey: .backendStatusText)
+        self.presentation = try container.decodeIfPresent(
+            QuillWireGuardPresentationSnapshot.self,
+            forKey: .presentation
+        ) ?? QuillWireGuardPresentationSnapshot()
+        self.selectedTunnelID = try container.decodeIfPresent(
+            QuillWireGuardTunnelSnapshot.ID.self,
+            forKey: .selectedTunnelID
+        )
+        self.tunnels = try container.decode([QuillWireGuardTunnelSnapshot].self, forKey: .tunnels)
     }
 
     public static var configurationManager: QuillWireGuardAppSnapshot {

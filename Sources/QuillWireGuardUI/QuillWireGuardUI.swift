@@ -52,7 +52,7 @@ public struct WireGuardFallbackConfigurationView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Tunnels")
+                Text(QuillWireGuardPresentation.sidebarTitle)
                     .font(.title3)
                     .bold()
                 Spacer()
@@ -77,7 +77,7 @@ public struct WireGuardFallbackConfigurationView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Backend")
+                Text(QuillWireGuardPresentation.backendTitle)
                     .font(.caption)
                     .bold()
                     .foregroundColor(.secondary)
@@ -113,7 +113,7 @@ public struct WireGuardFallbackConfigurationView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(alignment: .firstTextBaseline) {
-                            TextField("Tunnel name", text: selectedTunnelName)
+                            TextField(QuillWireGuardPresentation.tunnelNamePlaceholder, text: selectedTunnelName)
                                 .font(.title2)
                             Spacer()
                             Text(tunnel.status.rawValue)
@@ -121,29 +121,29 @@ public struct WireGuardFallbackConfigurationView: View {
                                 .foregroundColor(.secondary)
                         }
 
-                        section(title: "Interface") {
-                            detailRow("Public key", tunnel.interface.publicKey, monospaced: true)
-                            detailRow("Addresses", tunnel.interface.addresses.joined(separator: ", "))
-                            detailRow("DNS", tunnel.interface.dnsServers.joined(separator: ", "))
+                        section(title: QuillWireGuardPresentation.interfaceSectionTitle) {
+                            detailRow(QuillWireGuardPresentation.publicKeyLabel, tunnel.interface.publicKey, monospaced: true)
+                            detailRow(QuillWireGuardPresentation.addressesLabel, tunnel.interface.addresses.joined(separator: ", "))
+                            detailRow(QuillWireGuardPresentation.dnsLabel, tunnel.interface.dnsServers.joined(separator: ", "))
                             if let listenPort = tunnel.interface.listenPort {
-                                detailRow("Listen port", "\(listenPort)")
+                                detailRow(QuillWireGuardPresentation.listenPortLabel, "\(listenPort)")
                             }
                         }
 
                         ForEach(tunnel.peers) { peer in
                             section(title: peer.name) {
-                                detailRow("Public key", peer.publicKey, monospaced: true)
-                                detailRow("Allowed IPs", peer.allowedIPs.joined(separator: ", "))
+                                detailRow(QuillWireGuardPresentation.publicKeyLabel, peer.publicKey, monospaced: true)
+                                detailRow(QuillWireGuardPresentation.allowedIPsLabel, peer.allowedIPs.joined(separator: ", "))
                                 if let endpoint = peer.endpoint {
-                                    detailRow("Endpoint", endpoint)
+                                    detailRow(QuillWireGuardPresentation.endpointLabel, endpoint)
                                 }
                                 if let keepAlive = peer.persistentKeepAlive {
-                                    detailRow("Keepalive", "\(keepAlive)s")
+                                    detailRow(QuillWireGuardPresentation.keepAliveLabel, "\(keepAlive)s")
                                 }
                             }
                         }
 
-                        section(title: "Export") {
+                        section(title: QuillWireGuardPresentation.exportSectionTitle) {
                             Text(tunnel.wgQuickConfig())
                                 .font(.system(size: 11, design: .monospaced))
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -154,9 +154,9 @@ public struct WireGuardFallbackConfigurationView: View {
                 }
             } else {
                 VStack(spacing: 8) {
-                    Text("Quill WireGuard")
+                    Text(QuillWireGuardPresentation.emptyStateTitle)
                         .font(.title2)
-                    Text("Select a tunnel to edit and export its configuration.")
+                    Text(QuillWireGuardPresentation.emptyStateMessage)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -185,7 +185,7 @@ public struct WireGuardFallbackConfigurationView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .frame(width: 92, alignment: .leading)
-            Text(value.isEmpty ? "None" : value)
+            Text(value.isEmpty ? QuillWireGuardPresentation.noneText : value)
                 .font(monospaced ? .system(size: 11, design: .monospaced) : .body)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

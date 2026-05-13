@@ -34,6 +34,15 @@ QString stringValue(const QJsonObject &object, const char *key) {
     return object.value(QString::fromUtf8(key)).toString();
 }
 
+QString stringValue(const QJsonObject &object, const char *key, const QString &fallback) {
+    const QJsonValue value = object.value(QString::fromUtf8(key));
+    return value.isString() ? value.toString() : fallback;
+}
+
+QString presentationValue(const QJsonObject &presentation, const char *key, const char *fallback) {
+    return stringValue(presentation, key, QString::fromUtf8(fallback));
+}
+
 int intValue(const QJsonObject &object, const char *key, int fallback) {
     const QJsonValue value = object.value(QString::fromUtf8(key));
     return value.isDouble() ? value.toInt(fallback) : fallback;
@@ -87,10 +96,11 @@ void addDetailRow(
     QFormLayout *layout,
     const QString &title,
     const QString &value,
+    const QString &noneText,
     bool monospaced = false
 ) {
     QLabel *titleLabel = label(title, QStringLiteral("detailKey"));
-    QLabel *valueLabel = label(value.isEmpty() ? QStringLiteral("None") : value);
+    QLabel *valueLabel = label(value.isEmpty() ? noneText : value);
     if (monospaced) {
         QFont font(QStringLiteral("monospace"));
         font.setStyleHint(QFont::Monospace);
@@ -161,45 +171,101 @@ void updateTunnelRowName(QListWidget *list, int row, const QString &name) {
     }
 }
 
-void addInterfaceSection(QVBoxLayout *detailLayout, const QJsonObject &tunnel) {
+void addInterfaceSection(
+    QVBoxLayout *detailLayout,
+    const QJsonObject &tunnel,
+    const QJsonObject &presentation
+) {
+    const QString noneText = presentationValue(presentation, "noneText", "None");
     const QJsonObject interfaceObject = objectValue(tunnel, "interface");
-    QGroupBox *section = sectionBox(QStringLiteral("Interface"));
+    QGroupBox *section = sectionBox(presentationValue(presentation, "interfaceSectionTitle", "Interface"));
     QFormLayout *form = new QFormLayout(section);
     form->setLabelAlignment(Qt::AlignLeft);
-    addDetailRow(form, QStringLiteral("Public key"), stringValue(interfaceObject, "publicKey"), true);
-    addDetailRow(form, QStringLiteral("Addresses"), stringValue(interfaceObject, "addressesText"));
-    addDetailRow(form, QStringLiteral("DNS"), stringValue(interfaceObject, "dnsServersText"));
+    addDetailRow(
+        form,
+        presentationValue(presentation, "publicKeyLabel", "Public key"),
+        stringValue(interfaceObject, "publicKey"),
+        noneText,
+        true
+    );
+    addDetailRow(
+        form,
+        presentationValue(presentation, "addressesLabel", "Addresses"),
+        stringValue(interfaceObject, "addressesText"),
+        noneText
+    );
+    addDetailRow(
+        form,
+        presentationValue(presentation, "dnsLabel", "DNS"),
+        stringValue(interfaceObject, "dnsServersText"),
+        noneText
+    );
 
     const QString listenPort = stringValue(interfaceObject, "listenPortText");
     if (!listenPort.isEmpty()) {
-        addDetailRow(form, QStringLiteral("Listen port"), listenPort);
+        addDetailRow(
+            form,
+            presentationValue(presentation, "listenPortLabel", "Listen port"),
+            listenPort,
+            noneText
+        );
     }
 
     detailLayout->addWidget(section);
 }
 
-void addPeerSection(QVBoxLayout *detailLayout, const QJsonObject &peer) {
+void addPeerSection(
+    QVBoxLayout *detailLayout,
+    const QJsonObject &peer,
+    const QJsonObject &presentation
+) {
+    const QString noneText = presentationValue(presentation, "noneText", "None");
     QGroupBox *section = sectionBox(stringValue(peer, "name"));
     QFormLayout *form = new QFormLayout(section);
     form->setLabelAlignment(Qt::AlignLeft);
-    addDetailRow(form, QStringLiteral("Public key"), stringValue(peer, "publicKey"), true);
-    addDetailRow(form, QStringLiteral("Allowed IPs"), stringValue(peer, "allowedIPsText"));
+    addDetailRow(
+        form,
+        presentationValue(presentation, "publicKeyLabel", "Public key"),
+        stringValue(peer, "publicKey"),
+        noneText,
+        true
+    );
+    addDetailRow(
+        form,
+        presentationValue(presentation, "allowedIPsLabel", "Allowed IPs"),
+        stringValue(peer, "allowedIPsText"),
+        noneText
+    );
 
     const QString endpoint = stringValue(peer, "endpointText");
     if (!endpoint.isEmpty()) {
-        addDetailRow(form, QStringLiteral("Endpoint"), endpoint);
+        addDetailRow(
+            form,
+            presentationValue(presentation, "endpointLabel", "Endpoint"),
+            endpoint,
+            noneText
+        );
     }
 
     const QString keepAlive = stringValue(peer, "keepAliveText");
     if (!keepAlive.isEmpty()) {
-        addDetailRow(form, QStringLiteral("Keepalive"), keepAlive);
+        addDetailRow(
+            form,
+            presentationValue(presentation, "keepAliveLabel", "Keepalive"),
+            keepAlive,
+            noneText
+        );
     }
 
     detailLayout->addWidget(section);
 }
 
-void addExportSection(QVBoxLayout *detailLayout, const QJsonObject &tunnel) {
-    QGroupBox *section = sectionBox(QStringLiteral("Export"));
+void addExportSection(
+    QVBoxLayout *detailLayout,
+    const QJsonObject &tunnel,
+    const QJsonObject &presentation
+) {
+    QGroupBox *section = sectionBox(presentationValue(presentation, "exportSectionTitle", "Export"));
     QVBoxLayout *layout = new QVBoxLayout(section);
     QPlainTextEdit *config = new QPlainTextEdit(stringValue(tunnel, "wgQuickConfig"));
     config->setReadOnly(true);
@@ -216,13 +282,29 @@ void renderDetail(
     QVBoxLayout *detailLayout,
     QJsonArray *tunnels,
     QListWidget *list,
+    const QJsonObject &presentation,
     int row
 ) {
     clearLayout(detailLayout);
 
     if (tunnels == nullptr || row < 0 || row >= tunnels->size()) {
+        QLabel *title = label(
+            presentationValue(presentation, "emptyStateTitle", "Quill WireGuard"),
+            QStringLiteral("emptyStateTitle")
+        );
+        title->setAlignment(Qt::AlignCenter);
+        QLabel *message = label(
+            presentationValue(
+                presentation,
+                "emptyStateMessage",
+                "Select a tunnel to edit and export its configuration."
+            ),
+            QStringLiteral("emptyStateMessage")
+        );
+        message->setAlignment(Qt::AlignCenter);
         detailLayout->addStretch();
-        detailLayout->addWidget(label(QStringLiteral("Select a tunnel to edit and export its configuration.")));
+        detailLayout->addWidget(title);
+        detailLayout->addWidget(message);
         detailLayout->addStretch();
         return;
     }
@@ -232,6 +314,7 @@ void renderDetail(
     QHBoxLayout *heading = new QHBoxLayout();
     QLineEdit *name = new QLineEdit(stringValue(tunnel, "name"));
     name->setObjectName(QStringLiteral("detailTitle"));
+    name->setPlaceholderText(presentationValue(presentation, "tunnelNamePlaceholder", "Tunnel name"));
     QObject::connect(name, &QLineEdit::textChanged, [tunnels, list, row](const QString &updatedName) {
         replaceTunnelName(tunnels, row, updatedName);
         updateTunnelRowName(list, row, updatedName);
@@ -241,14 +324,14 @@ void renderDetail(
     heading->addWidget(status, 0, Qt::AlignRight);
     detailLayout->addLayout(heading);
 
-    addInterfaceSection(detailLayout, tunnel);
+    addInterfaceSection(detailLayout, tunnel, presentation);
 
     const QJsonArray peers = arrayValue(tunnel, "peers");
     for (const QJsonValue &value : peers) {
-        addPeerSection(detailLayout, value.toObject());
+        addPeerSection(detailLayout, value.toObject(), presentation);
     }
 
-    addExportSection(detailLayout, tunnel);
+    addExportSection(detailLayout, tunnel, presentation);
     detailLayout->addStretch();
 }
 
@@ -275,6 +358,8 @@ void applyStyle(QApplication &app) {
         "QLabel#sidebarTitle { font-weight: 700; font-size: 16px; }"
         "QLabel#sidebarCount, QLabel#backendText, QLabel#detailStatus, QLabel#detailKey { color: #6e6e73; }"
         "QLabel#backendTitle { color: #6e6e73; font-weight: 700; font-size: 11px; }"
+        "QLabel#emptyStateTitle { font-size: 22px; font-weight: 600; }"
+        "QLabel#emptyStateMessage { color: #6e6e73; }"
         "QLineEdit#detailTitle { background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 2px; font-size: 22px; font-weight: 600; }"
         "QLineEdit#detailTitle:focus { background: #ffffff; border-color: #93a4c7; }"
         "QGroupBox#detailSection { border: 0; background: #f4f4f5; margin-top: 18px; padding: 12px; font-weight: 700; color: #6e6e73; }"
@@ -304,6 +389,7 @@ int quill_wireguard_qt_run_wireguard_json(
     applyStyle(app);
 
     const QJsonObject payload = document.object();
+    const QJsonObject presentation = objectValue(payload, "presentation");
     QJsonArray tunnels = arrayValue(payload, "tunnels");
     const QString selectedTunnelID = stringValue(payload, "selectedTunnelID");
 
@@ -327,7 +413,10 @@ int quill_wireguard_qt_run_wireguard_json(
     sidebarLayout->setContentsMargins(14, 14, 14, 12);
 
     QHBoxLayout *sidebarHeader = new QHBoxLayout();
-    sidebarHeader->addWidget(label(QStringLiteral("Tunnels"), QStringLiteral("sidebarTitle")));
+    sidebarHeader->addWidget(label(
+        presentationValue(presentation, "sidebarTitle", "Tunnels"),
+        QStringLiteral("sidebarTitle")
+    ));
     sidebarHeader->addStretch();
     sidebarHeader->addWidget(label(QString::number(tunnels.size()), QStringLiteral("sidebarCount")));
     sidebarLayout->addLayout(sidebarHeader);
@@ -342,7 +431,10 @@ int quill_wireguard_qt_run_wireguard_json(
     }
     sidebarLayout->addWidget(list, 1);
 
-    sidebarLayout->addWidget(label(QStringLiteral("Backend"), QStringLiteral("backendTitle")));
+    sidebarLayout->addWidget(label(
+        presentationValue(presentation, "backendTitle", "Backend"),
+        QStringLiteral("backendTitle")
+    ));
     sidebarLayout->addWidget(label(stringValue(payload, "backendStatusText"), QStringLiteral("backendText")));
 
     QScrollArea *scrollArea = new QScrollArea();
@@ -359,14 +451,14 @@ int quill_wireguard_qt_run_wireguard_json(
     splitter->setStretchFactor(1, 1);
 
     QObject::connect(list, &QListWidget::currentRowChanged, [&](int row) {
-        renderDetail(detailLayout, &tunnels, list, row);
+        renderDetail(detailLayout, &tunnels, list, presentation, row);
     });
 
     const int initialRow = selectedRow(tunnels, selectedTunnelID);
     if (initialRow >= 0) {
         list->setCurrentRow(initialRow);
     } else {
-        renderDetail(detailLayout, &tunnels, list, initialRow);
+        renderDetail(detailLayout, &tunnels, list, presentation, initialRow);
     }
 
     window.show();
