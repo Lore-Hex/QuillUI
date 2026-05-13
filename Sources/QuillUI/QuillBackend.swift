@@ -287,10 +287,7 @@ public extension QuillBackend {
     }
 
     static var runtimeStatus: QuillBackendRuntimeStatus {
-        QuillBackendRuntimeStatus(
-            identifier: identifier,
-            launchPlan: launchPlan
-        )
+        QuillBackendRegistry.runtimeStatus(preferred: identifier)
     }
 
     static var status: QuillBackendRuntimeStatus {
@@ -343,6 +340,41 @@ public enum QuillBackendRegistry {
 
     public static var runtimeAvailabilities: [QuillBackendRuntimeAvailability] {
         QuillBackendIdentifier.allCases.map(runtimeAvailability(for:))
+    }
+
+    public static func runtimeStatus(
+        preferred preferredBackend: QuillBackendIdentifier? = nil
+    ) -> QuillBackendRuntimeStatus {
+        runtimeStatus(request: environmentRequest, preferred: preferredBackend)
+    }
+
+    public static func runtimeStatus(
+        environment: [String: String],
+        preferred preferredBackend: QuillBackendIdentifier? = nil
+    ) -> QuillBackendRuntimeStatus {
+        runtimeStatus(
+            request: backendRequest(from: environment),
+            preferred: preferredBackend
+        )
+    }
+
+    public static func runtimeStatus(
+        requested requestedBackend: QuillBackendIdentifier?,
+        preferred preferredBackend: QuillBackendIdentifier? = nil
+    ) -> QuillBackendRuntimeStatus {
+        let request = requestedBackend.map { QuillBackendRequest.valid($0) } ?? .unspecified
+        return runtimeStatus(request: request, preferred: preferredBackend)
+    }
+
+    public static func runtimeStatus(
+        request backendRequest: QuillBackendRequest,
+        preferred preferredBackend: QuillBackendIdentifier? = nil
+    ) -> QuillBackendRuntimeStatus {
+        let launchPlan = launchPlan(request: backendRequest, preferred: preferredBackend)
+        return QuillBackendRuntimeStatus(
+            identifier: preferredBackend ?? launchPlan.selected,
+            launchPlan: launchPlan
+        )
     }
 
     public static func launchPlan(

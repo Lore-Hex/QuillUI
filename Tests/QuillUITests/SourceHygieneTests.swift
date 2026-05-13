@@ -401,6 +401,8 @@ struct SourceHygieneTests {
         #expect(sharedView.contains("private struct SmokeSheetContent"))
         #expect(sharedView.contains("SmokeSheetContent("))
         #expect(backendCore.contains("static var status: QuillBackendRuntimeStatus"))
+        #expect(backendCore.contains("QuillBackendRegistry.runtimeStatus(preferred: identifier)"))
+        #expect(backendCore.contains("public static func runtimeStatus("))
         #expect(backendCore.contains("public struct QuillBackendRuntimeAvailability"))
         #expect(backendCore.contains("public static var runtimeAvailabilities: [QuillBackendRuntimeAvailability]"))
         #expect(backendCore.contains("public static func runtimeAvailability("))

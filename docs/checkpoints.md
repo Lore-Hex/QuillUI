@@ -2993,3 +2993,13 @@ runtime backend, descriptors, typed runtime availability, and native-vs-fallback
 flags directly. GTK and Qt facade consumers can read the same status surface
 without manually unpacking launch plans, while Qt still reports the current
 platform runtime fallback until a native Qt host is linked.
+
+## Checkpoint 173: Registry Runtime Status Factory
+
+Status: implemented locally; guarded by QuillUI API and source hygiene tests.
+
+`QuillBackendRegistry` now constructs `QuillBackendRuntimeStatus` through the
+same overload family as launch plans, including explicit environment and invalid
+request paths. GTK and Qt facades delegate their status to that factory, so
+future backend facades inherit the same selected/runtime reporting without
+copying launch-plan wrapping logic.
