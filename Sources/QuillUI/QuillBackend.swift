@@ -38,6 +38,10 @@ public struct QuillBackendDescriptor: Equatable, Sendable {
         QuillBackendRegistry.runtimeBackend(for: identifier)
     }
 
+    public var runtimeDescriptor: QuillBackendDescriptor {
+        QuillBackendRegistry.descriptor(for: runtimeBackend)
+    }
+
     public var usesRuntimeFallback: Bool {
         runtimeBackend != identifier
     }

@@ -84,6 +84,7 @@ struct QuillUITests {
         #expect(qtDescriptor.isExperimental == true)
         #expect(!qtDescriptor.hasNativeRuntime)
         #expect(qtDescriptor.runtimeBackend == QuillBackendRegistry.platformRuntimeFallback)
+        #expect(qtDescriptor.runtimeDescriptor.identifier == QuillBackendRegistry.platformRuntimeFallback)
         #expect(qtDescriptor.usesRuntimeFallback)
         #expect(qtDescriptor.runtimeMode == .platformFallback)
 
@@ -98,6 +99,7 @@ struct QuillUITests {
         #if os(Linux)
         #expect(gtkDescriptor.hasNativeRuntime)
         #expect(gtkDescriptor.runtimeBackend == .gtk)
+        #expect(gtkDescriptor.runtimeDescriptor == gtkDescriptor)
         #expect(!gtkDescriptor.usesRuntimeFallback)
         #expect(gtkDescriptor.runtimeMode == .native)
         #expect(preferredGtkPlan.runtime == .gtk)
@@ -106,6 +108,7 @@ struct QuillUITests {
         #else
         #expect(!gtkDescriptor.hasNativeRuntime)
         #expect(gtkDescriptor.runtimeBackend == .swiftUI)
+        #expect(gtkDescriptor.runtimeDescriptor.identifier == .swiftUI)
         #expect(gtkDescriptor.usesRuntimeFallback)
         #expect(gtkDescriptor.runtimeMode == .platformFallback)
         #expect(preferredGtkPlan.runtime == .swiftUI)
