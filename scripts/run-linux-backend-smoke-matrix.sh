@@ -252,7 +252,7 @@ while IFS= read -r row; do
     echo "Backend runtime matrix row has an empty product, backend, runtime backend, or runtime mode: $row" >&2
     exit 65
   fi
-  if ! runtime_availability="$(quillui_backend_validate_runtime_availability "$backend" "$runtime_backend" "$runtime_mode")"; then
+  if ! runtime_availability="$(quillui_backend_validate_runtime_availability_for_product "$product" "$backend" "$runtime_backend" "$runtime_mode")"; then
     echo "Backend runtime matrix row has invalid runtime availability: $row" >&2
     exit 65
   fi

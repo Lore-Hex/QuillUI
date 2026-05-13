@@ -27,6 +27,19 @@ struct LinuxBackendAppMatrixTests {
 
     private static let profileCSVHeader = "product,requested_backend,runtime_backend,runtime_mode,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
 
+    private static var expectedAppMatrix: [String] {
+        expectedAppProducts.flatMap { product in
+            switch product {
+            case "quill-wireguard":
+                ["quill-wireguard\tgtk"]
+            case "quill-wireguard-qt":
+                ["quill-wireguard-qt\tqt"]
+            default:
+                ["\(product)\tgtk", "\(product)\tqt"]
+            }
+        }
+    }
+
     @Test("covers each user-facing app product once")
     func coversEachUserFacingAppProductOnce() throws {
         let root = try packageRoot()
@@ -68,6 +81,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(workflow.contains("Generated Enchanted toolbar interaction smokes"))
         #expect(workflow.contains("Quill app backend interaction smokes"))
         #expect(workflow.contains("backend-renders end-to-end"))
+        #expect(workflow.contains("qt6-base-dev"))
         #expect(!workflow.contains("GTK-renders end-to-end"))
         #expect(workflow.contains("Backend launch target interaction smokes"))
         #expect(!workflow.contains("built_products=\" \""))
@@ -118,11 +132,12 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendCheck.contains("done < <(quillui_backend_smoke_matrix)"))
         #expect(backendCheck.contains("BACKEND_SMOKE_ROWS=()"))
         #expect(backendCheck.contains("ALL_PRODUCTS=(\"${APP_PRODUCTS[@]}\" \"${BACKEND_SMOKE_PRODUCTS[@]}\")"))
-        #expect(backendCheck.contains("BIN_PATH=\"$(swift build --scratch-path .build-linux --show-bin-path)\""))
+        #expect(backendCheck.contains("BIN_PATH=\"$(QUILLUI_LINUX_BACKEND=gtk swift build --scratch-path .build-linux --show-bin-path)\""))
         #expect(backendCheck.contains("for product in \"${ALL_PRODUCTS[@]}\""))
-        #expect(backendCheck.contains("if [[ -x \"$BIN_PATH/$product\" ]]; then"))
+        #expect(backendCheck.contains("build_backend=\"$(quillui_require_backend_for_product \"$product\")\""))
+        #expect(backendCheck.contains("if [[ \"$build_backend\" == \"gtk\" && -x \"$BIN_PATH/$product\" ]]; then"))
         #expect(backendCheck.contains("continue"))
-        #expect(backendCheck.contains("swift build --scratch-path .build-linux --product \"$product\""))
+        #expect(backendCheck.contains("QUILLUI_LINUX_BACKEND=\"$build_backend\" swift build --scratch-path .build-linux --product \"$product\""))
         #expect(!backendCheck.contains("done\nBIN_PATH=\"$(swift build --scratch-path .build-linux --show-bin-path)\""))
         #expect(backendCheck.contains("APP_SMOKE_ROWS=()"))
         #expect(backendCheck.contains("GENERATED_APP_SMOKE_ROWS=()"))
@@ -189,6 +204,7 @@ struct LinuxBackendAppMatrixTests {
         let backendProducts = try String(contentsOf: matrixScript, encoding: .utf8)
         #expect(backendProducts.contains("quillui_backend_app_products()"))
         #expect(backendProducts.contains("quillui_backend_app_backends()"))
+        #expect(backendProducts.contains("quillui_backend_app_backends_for_product()"))
         #expect(backendProducts.contains("quillui_backend_matrix_for_products()"))
         #expect(backendProducts.contains("quillui_backend_app_matrix()"))
         #expect(backendProducts.contains("quillui_normalize_backend_identifier()"))
@@ -242,8 +258,11 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_runtime_mode_for_pair()"))
         #expect(backendProducts.contains("quillui_backend_runtime_mode_for_backend()"))
         #expect(backendProducts.contains("quillui_backend_runtime_availability_for_backend()"))
+        #expect(backendProducts.contains("quillui_backend_runtime_availability_for_product()"))
         #expect(backendProducts.contains("quillui_backend_runtime_availabilities()"))
+        #expect(backendProducts.contains("quillui_backend_validate_runtime_availability_row()"))
         #expect(backendProducts.contains("quillui_backend_validate_runtime_availability()"))
+        #expect(backendProducts.contains("quillui_backend_validate_runtime_availability_for_product()"))
         #expect(backendProducts.contains("quillui_backend_runtime_matrix_for_rows()"))
         #expect(backendProducts.contains("quillui_backend_app_runtime_matrix()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_runtime_matrix()"))
@@ -259,7 +278,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(profileScript.contains("REQUESTED_BACKEND=\"${4:-${QUILLUI_BACKEND:-}}\""))
         #expect(profileScript.contains(Self.profileCSVHeader))
         #expect(profileScript.contains("REQUESTED_BACKEND_LABEL=\"$(quillui_requested_backend_for_product \"$PRODUCT\")\""))
-        #expect(profileScript.contains("runtime_availability=\"$(quillui_backend_runtime_availability_for_backend \"$REQUESTED_BACKEND_LABEL\")\""))
+        #expect(profileScript.contains("runtime_availability=\"$(quillui_backend_runtime_availability_for_product \"$PRODUCT\" \"$REQUESTED_BACKEND_LABEL\")\""))
         #expect(profileScript.contains("IFS=$'\\t' read -r REQUESTED_BACKEND_LABEL RUNTIME_BACKEND_LABEL runtime_mode <<<\"$runtime_availability\""))
         #expect(profileScript.contains("emit_profile_row()"))
         #expect(profileScript.contains("quillui_export_backend_argument \"$REQUESTED_BACKEND\""))
@@ -290,7 +309,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeMatrixRunner.contains("OUTPUT_TEMPLATE must include {mode} for $MATRIX_COMMAND"))
         #expect(smokeMatrixRunner.contains("Backend mode runtime matrix row has an empty mode"))
         #expect(smokeMatrixRunner.contains("Backend runtime matrix row has an unexpected mode column"))
-        #expect(smokeMatrixRunner.contains("quillui_backend_validate_runtime_availability \"$backend\" \"$runtime_backend\" \"$runtime_mode\""))
+        #expect(smokeMatrixRunner.contains("quillui_backend_validate_runtime_availability_for_product \"$product\" \"$backend\" \"$runtime_backend\" \"$runtime_mode\""))
         #expect(smokeMatrixRunner.contains("Backend runtime matrix row has invalid runtime availability"))
         #expect(smokeMatrixRunner.contains("quillui_is_backend_generated_app_product \"$product\""))
         #expect(smokeMatrixRunner.contains("smoke_environment+=(\"QUILLUI_APP_BACKEND_FACADE=$requested_backend\")"))
@@ -303,6 +322,9 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeLib.contains("quillui_alias_backend_build_env()"))
         #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_GTK_APP_EXECUTABLE QUILLUI_QT_APP_EXECUTABLE"))
         #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_SKIP_BUILD QUILLUI_GTK_SKIP_BUILD QUILLUI_QT_SKIP_BUILD"))
+        #expect(smokeLib.contains("qt6-base-dev"))
+        #expect(smokeLib.contains("linux_build_backend=\"$(quillui_require_backend_for_product \"$product\")\""))
+        #expect(smokeLib.contains("QUILLUI_LINUX_BACKEND=\"$linux_build_backend\""))
         #expect(smokeLib.contains("quillui_assign_output()"))
         #expect(smokeLib.contains("printf -v \"$output_var\" \"%s\" \"$value\""))
         #expect(smokeLib.contains("quillui_start_xvfb()"))
@@ -394,8 +416,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(csvRunner.contains("quillui_is_backend_generated_app_product \"$product\""))
         #expect(csvRunner.contains("quillui_require_backend_identifier \"$backend\""))
         #expect(csvRunner.contains("requested_backend=\"$(quillui_requested_backend_for_product \"$product\")\""))
-        #expect(csvRunner.contains("quillui_backend_validate_runtime_availability \"$requested_backend\" \"$provided_runtime_backend\" \"$provided_runtime_mode\""))
-        #expect(csvRunner.contains("runtime_availability=\"$(quillui_backend_runtime_availability_for_backend \"$requested_backend\")\""))
+        #expect(csvRunner.contains("quillui_backend_validate_runtime_availability_for_product \"$product\" \"$requested_backend\" \"$provided_runtime_backend\" \"$provided_runtime_mode\""))
+        #expect(csvRunner.contains("runtime_availability=\"$(quillui_backend_runtime_availability_for_product \"$product\" \"$requested_backend\")\""))
         #expect(csvRunner.contains("IFS=$'\\t' read -r requested_backend runtime_backend runtime_mode <<<\"$runtime_availability\""))
         #expect(csvRunner.contains("profile-row-unsupported-backend"))
         #expect(csvRunner.contains("profile-row-runtime-backend-mismatch"))
@@ -421,7 +443,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(budgetScript.contains("runtime_mode = $4"))
         #expect(budgetScript.contains("build_ms = $5"))
         #expect(budgetScript.contains("is_runtime_mode(value)"))
-        #expect(budgetScript.contains("validation_output=\"$(quillui_backend_validate_runtime_availability \"$requested_backend\" \"$runtime_backend\" \"$runtime_mode\" 2>&1)\""))
+        #expect(budgetScript.contains("validation_output=\"$(quillui_backend_validate_runtime_availability_for_product \"$product\" \"$requested_backend\" \"$runtime_backend\" \"$runtime_mode\" 2>&1)\""))
         #expect(budgetScript.contains("profile budget failed: $product $validation_line"))
         #expect(budgetScript.contains("done < <(quillui_backend_profile_matrix)"))
         #expect(budgetScript.contains("quillui_require_backend_identifier \"$expected_backend\""))
@@ -521,9 +543,11 @@ struct LinuxBackendAppMatrixTests {
         func runtimeRows(for matrixRows: [String]) -> [String] {
             matrixRows.map { row in
                 let fields = row.split(separator: "\t", omittingEmptySubsequences: false)
+                let product = String(fields[0])
                 let backend = String(fields[1])
-                let runtimeMode = backend == "gtk" ? "native" : "platformFallback"
-                return "\(row)\tgtk\t\(runtimeMode)"
+                let runtimeBackend = product == "quill-wireguard-qt" && backend == "qt" ? "qt" : "gtk"
+                let runtimeMode = runtimeBackend == backend ? "native" : "platformFallback"
+                return "\(row)\t\(runtimeBackend)\t\(runtimeMode)"
             }
         }
 
@@ -621,7 +645,7 @@ struct LinuxBackendAppMatrixTests {
         let profileMatrix = try runScript(script, arguments: ["profile-matrix"])
         #expect(profileMatrix.status == 0, Comment(rawValue: profileMatrix.output))
         let actualProfileMatrix = profileMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
-        let expectedProfileMatrix = Self.expectedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
+        let expectedProfileMatrix = Self.expectedAppMatrix
             + Self.expectedGeneratedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
             + expectedSmokeMatrix
         #expect(actualProfileMatrix == expectedProfileMatrix)
@@ -636,15 +660,14 @@ struct LinuxBackendAppMatrixTests {
 
         let appMatrix = try runScript(script, arguments: ["app-matrix"])
         #expect(appMatrix.status == 0, Comment(rawValue: appMatrix.output))
-        let expectedAppMatrix = Self.expectedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
         #expect(
             appMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
-                == expectedAppMatrix
+                == Self.expectedAppMatrix
         )
 
         let appRuntimeMatrix = try runScript(script, arguments: ["app-runtime-matrix"])
         #expect(appRuntimeMatrix.status == 0, Comment(rawValue: appRuntimeMatrix.output))
-        #expect(appRuntimeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == runtimeRows(for: expectedAppMatrix))
+        #expect(appRuntimeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == runtimeRows(for: Self.expectedAppMatrix))
 
         let interactionProducts = try runScript(script, arguments: ["interaction-apps"])
         #expect(interactionProducts.status == 0, Comment(rawValue: interactionProducts.output))
@@ -803,6 +826,10 @@ struct LinuxBackendAppMatrixTests {
         let runtimeProductBackend = try runScript(script, arguments: ["runtime-backend-for-product", "quill-qt-interaction-smoke"])
         #expect(runtimeProductBackend.status == 0, Comment(rawValue: runtimeProductBackend.output))
         #expect(runtimeProductBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+
+        let runtimeWireGuardQtProductBackend = try runScript(script, arguments: ["runtime-backend-for-product", "quill-wireguard-qt"])
+        #expect(runtimeWireGuardQtProductBackend.status == 0, Comment(rawValue: runtimeWireGuardQtProductBackend.output))
+        #expect(runtimeWireGuardQtProductBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
 
         let runtimeAvailabilities = try runScript(script, arguments: ["runtime-availabilities"])
         #expect(runtimeAvailabilities.status == 0, Comment(rawValue: runtimeAvailabilities.output))
@@ -1035,8 +1062,9 @@ struct LinuxBackendAppMatrixTests {
 
         let fullMatrixRows = matrixRows
             .map { row in
-                let runtimeMode = row.backend == "gtk" ? "native" : "platformFallback"
-                return "\(row.product),\(row.backend),gtk,\(runtimeMode),1,2,3,0.1,0.2,ok"
+                let runtimeBackend = row.product == "quill-wireguard-qt" && row.backend == "qt" ? "qt" : "gtk"
+                let runtimeMode = runtimeBackend == row.backend ? "native" : "platformFallback"
+                return "\(row.product),\(row.backend),\(runtimeBackend),\(runtimeMode),1,2,3,0.1,0.2,ok"
             }
             .joined(separator: "\n")
         try """
@@ -1051,8 +1079,9 @@ struct LinuxBackendAppMatrixTests {
         let missingFirstRow = matrixRows
             .dropFirst()
             .map { row in
-                let runtimeMode = row.backend == "gtk" ? "native" : "platformFallback"
-                return "\(row.product),\(row.backend),gtk,\(runtimeMode),1,2,3,0.1,0.2,ok"
+                let runtimeBackend = row.product == "quill-wireguard-qt" && row.backend == "qt" ? "qt" : "gtk"
+                let runtimeMode = runtimeBackend == row.backend ? "native" : "platformFallback"
+                return "\(row.product),\(row.backend),\(runtimeBackend),\(runtimeMode),1,2,3,0.1,0.2,ok"
             }
             .joined(separator: "\n")
         try """
@@ -1268,8 +1297,9 @@ struct LinuxBackendAppMatrixTests {
         let expected = """
         \(Self.profileCSVHeader)
         \(matrixRows.map { row in
-            let runtimeMode = row.backend == "gtk" ? "native" : "platformFallback"
-            return "\(row.product),\(row.backend),gtk,\(runtimeMode),1,2,3,4.0,5.0,ok"
+            let runtimeBackend = row.product == "quill-wireguard-qt" && row.backend == "qt" ? "qt" : "gtk"
+            let runtimeMode = runtimeBackend == row.backend ? "native" : "platformFallback"
+            return "\(row.product),\(row.backend),\(runtimeBackend),\(runtimeMode),1,2,3,4.0,5.0,ok"
         }.joined(separator: "\n"))
 
         """

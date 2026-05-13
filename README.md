@@ -4,12 +4,12 @@ QuillUI is an open-source Swift UI portability layer for bringing
 SwiftUI-shaped app code to Linux desktops while keeping the same app scenes
 usable on Apple platforms.
 
-The Linux runtime is backend-selected. `QuillUIGtk` and `QuillUIQt` are
-parallel facade targets over the shared `QuillUI` app scene helpers; set
-`QUILLUI_BACKEND=gtk` or `QUILLUI_BACKEND=qt` to request a backend. GTK is
-the current native Linux renderer. Qt is wired as a first-class launch surface
-and currently falls through the shared runtime fallback until the native Qt
-renderer is linked.
+The Linux runtime and build graph are selected separately. `QUILLUI_BACKEND`
+requests `gtk` or `qt` at launch for backend smoke/profile parity; GTK remains
+the current native SwiftUI-shaped renderer while generic Qt-requested rows make
+their fallback status visible. Native Qt targets use the SwiftPM manifest-time
+selector `QUILLUI_LINUX_BACKEND=qt`, which requires Qt6 Widgets and swaps the
+selected target graph to Qt dependencies instead of GTK dependencies.
 
 `QuillChatKit` is a reusable SwiftUI chat chrome library product for Signal,
 Telegram, and native SwiftUI clients on macOS/iOS. Its native SwiftUI boundary
@@ -40,7 +40,7 @@ local Quill Chat checkout is available.
 - `QuillUI`: facade module that re-exports SwiftUI on Apple platforms and SwiftOpenUI elsewhere.
 - `quill-enchanted`: a desktop chat app with Ollama model discovery, streaming chat completion, and local QuillData conversation history.
 - `QuillUIGtk` / `QuillUIQt`: backend-specific launch targets sharing the same app scene and smoke-test contracts.
-- `quill-wireguard` / `quill-wireguard-qt`: default and Qt-specific WireGuard launch targets sharing `QuillWireGuardUI`.
+- `quill-wireguard` / `quill-wireguard-qt`: GTK/default and native Qt WireGuard launch targets fed by the shared `QuillWireGuardCore` presentation snapshot.
 - `scripts/quillui-backend-products.sh`: canonical app, generated-app, smoke, and profile rosters for GTK/Qt parity loops.
 - `scripts/run-linux-backend-smoke-matrix.sh`: shared visual/interaction matrix runner so local and CI GTK/Qt smoke rows stay identical.
 
@@ -63,6 +63,8 @@ sudo apt-get install -y git imagemagick libgdk-pixbuf-2.0-dev libgtk-4-dev libsq
 swift run quill-enchanted
 QUILLUI_BACKEND=gtk swift run quill-signal
 QUILLUI_BACKEND=qt swift run quill-signal
+sudo apt-get install -y qt6-base-dev
+QUILLUI_LINUX_BACKEND=qt swift run quill-wireguard-qt
 ```
 
 You also need an Ollama server reachable at `http://localhost:11434` or the endpoint configured in the app.

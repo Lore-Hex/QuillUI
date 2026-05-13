@@ -22,6 +22,64 @@ let packageRoot: String = FileManager.default.currentDirectoryPath
 func upstreamPresent(_ relativePath: String) -> Bool {
     FileManager.default.fileExists(atPath: "\(packageRoot)/\(relativePath)")
 }
+
+enum QuillUILinuxBuildBackend: String {
+    case gtk
+    case qt
+
+    init?(environmentValue rawValue: String) {
+        switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "", "gtk", "gtk4":
+            self = .gtk
+        case "qt", "qt6":
+            self = .qt
+        default:
+            return nil
+        }
+    }
+}
+
+let quillUILinuxBuildBackendEnvironmentKey = "QUILLUI_LINUX_BACKEND"
+
+#if os(Linux)
+func pkgConfigPackagePresent(_ name: String) -> Bool {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["pkg-config", "--exists", name]
+    process.standardOutput = Pipe()
+    process.standardError = Pipe()
+
+    do {
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus == 0
+    } catch {
+        return false
+    }
+}
+
+let quillUILinuxBuildBackend: QuillUILinuxBuildBackend = {
+    let environment = ProcessInfo.processInfo.environment
+    guard let rawValue = environment[quillUILinuxBuildBackendEnvironmentKey] else {
+        return .gtk
+    }
+
+    guard let backend = QuillUILinuxBuildBackend(environmentValue: rawValue) else {
+        fatalError("Unsupported \(quillUILinuxBuildBackendEnvironmentKey) value \"\(rawValue.trimmingCharacters(in: .whitespacesAndNewlines))\"; expected gtk or qt.")
+    }
+
+    return backend
+}()
+
+let qt6WidgetsPresent: Bool = pkgConfigPackagePresent("Qt6Widgets")
+
+if quillUILinuxBuildBackend == .qt && !qt6WidgetsPresent {
+    fatalError("\(quillUILinuxBuildBackendEnvironmentKey)=qt requires the Qt6Widgets pkg-config package (install qt6-base-dev).")
+}
+#else
+let quillUILinuxBuildBackend: QuillUILinuxBuildBackend = .gtk
+let qt6WidgetsPresent: Bool = false
+#endif
 let nnwUpstreamPresent: Bool = upstreamPresent(".upstream/netnewswire/Modules/RSCore")
 let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/Sources/WireGuardKit")
 let codeEditSourceUpstreamPresent: Bool = upstreamPresent(".upstream/codeedit/CodeEdit")
@@ -185,9 +243,11 @@ let nnwLogicDependencies: [Target.Dependency] = [
 ]
 #endif
 
-// QuillWireGuard is split into a pure model core, one shared UI
-// target, and backend-specific entry points. That keeps the default
-// GTK-selected app and the explicit Qt app on the same visual code path.
+// QuillWireGuard is split into a pure model core, one shared SwiftUI-shaped UI
+// target, and backend-specific entry points. Linux chooses one host graph with
+// QUILLUI_LINUX_BACKEND=gtk|qt: the default GTK graph keeps the SwiftOpenUI
+// scene path, while the Qt graph swaps quill-wireguard-qt to a native Qt
+// Widgets host fed by the same core presentation snapshot.
 let quillWireGuardCoreDependencies: [Target.Dependency] = []
 var quillWireGuardUIDependencies: [Target.Dependency] = ["QuillWireGuardCore", "QuillUI"]
 #if !os(Linux)
@@ -199,7 +259,13 @@ if wireguardUpstreamPresent {
 quillWireGuardUIDependencies.append("SwiftUI")
 #endif
 let quillWireGuardDependencies: [Target.Dependency] = ["QuillWireGuardUI", "QuillUI"]
+#if os(Linux)
+let quillWireGuardQtDependencies: [Target.Dependency] = quillUILinuxBuildBackend == .qt
+    ? ["QuillWireGuardQtNativeRuntime"]
+    : ["QuillWireGuardUI", "QuillUIQt"]
+#else
 let quillWireGuardQtDependencies: [Target.Dependency] = ["QuillWireGuardUI", "QuillUIQt"]
+#endif
 
 // WireGuardKit deps + Linux-specific excludes.
 #if os(Linux)
@@ -903,6 +969,36 @@ if codeEditSourceUpstreamPresent {
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
     )
+}
+#endif
+
+#if os(Linux)
+if quillUILinuxBuildBackend == .qt {
+    targets += [
+        .systemLibrary(
+            name: "CQt6Widgets",
+            path: "Sources/CQt6Widgets",
+            pkgConfig: "Qt6Widgets",
+            providers: [
+                .apt(["qt6-base-dev"])
+            ]
+        ),
+        .target(
+            name: "CQuillQt6WidgetsShim",
+            dependencies: ["CQt6Widgets"],
+            path: "Sources/CQuillQt6WidgetsShim",
+            publicHeadersPath: "include",
+            cxxSettings: [
+                .unsafeFlags(["-std=c++17", "-fPIC"])
+            ]
+        ),
+        .target(
+            name: "QuillWireGuardQtNativeRuntime",
+            dependencies: ["QuillWireGuardCore", "CQuillQt6WidgetsShim"],
+            path: "Sources/QuillWireGuardQtNativeRuntime",
+            swiftSettings: appSwiftSettings
+        )
+    ]
 }
 #endif
 

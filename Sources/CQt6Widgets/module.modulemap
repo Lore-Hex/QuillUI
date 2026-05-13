@@ -1,0 +1,7 @@
+module CQt6Widgets [system] {
+    header "shim.h"
+    link "Qt6Widgets"
+    link "Qt6Gui"
+    link "Qt6Core"
+    export *
+}

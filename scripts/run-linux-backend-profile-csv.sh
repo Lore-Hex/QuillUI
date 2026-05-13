@@ -176,7 +176,7 @@ quillui_profile_build_cache_key() {
           echo "$product,$requested_backend,unknown,unknown,0,0,0,0.0,0.0,profile-row-unsupported-runtime-backend"
           continue
         fi
-        if ! runtime_availability="$(quillui_backend_validate_runtime_availability "$requested_backend" "$provided_runtime_backend" "$provided_runtime_mode" 2>&1)"; then
+        if ! runtime_availability="$(quillui_backend_validate_runtime_availability_for_product "$product" "$requested_backend" "$provided_runtime_backend" "$provided_runtime_mode" 2>&1)"; then
           if [[ "$runtime_availability" == runtime_backend=* ]]; then
             echo "$product,$requested_backend,$provided_runtime_backend,$provided_runtime_mode,0,0,0,0.0,0.0,profile-row-runtime-backend-mismatch"
           else
@@ -186,7 +186,7 @@ quillui_profile_build_cache_key() {
         fi
         IFS=$'\t' read -r requested_backend runtime_backend runtime_mode <<<"$runtime_availability"
       else
-        runtime_availability="$(quillui_backend_runtime_availability_for_backend "$requested_backend")" || {
+        runtime_availability="$(quillui_backend_runtime_availability_for_product "$product" "$requested_backend")" || {
           echo "$product,$requested_backend,unknown,unknown,0,0,0,0.0,0.0,profile-row-unsupported-runtime-backend"
           continue
         }

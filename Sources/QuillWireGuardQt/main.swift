@@ -1,3 +1,8 @@
+#if canImport(QuillWireGuardQtNativeRuntime)
+import QuillWireGuardQtNativeRuntime
+
+QuillWireGuardQtNativeApp.run()
+#else
 import QuillUIQt
 import QuillWireGuardUI
 
@@ -8,3 +13,4 @@ struct QuillWireGuardQtApp: App {
 }
 
 QuillQtApp.run(QuillWireGuardQtApp.self)
+#endif

@@ -355,6 +355,7 @@ quillui_install_linux_backend_smoke_packages() {
     libgtk-4-dev
     libsqlite3-dev
     pkg-config
+    qt6-base-dev
     x11-apps
     xdotool
     xvfb
@@ -430,6 +431,9 @@ MSG
       --show-bin-path)"
     quillui_assign_output "$output_var" "$quill_chat_bin_path/$product" || return $?
   else
+    local linux_build_backend
+    linux_build_backend="$(quillui_require_backend_for_product "$product")" || return $?
+
     if [[ "${QUILLUI_BACKEND_SKIP_BUILD:-0}" == "1" ]]; then
       local cached_executable
       cached_executable="$(
@@ -442,9 +446,13 @@ MSG
       quillui_assign_output "$output_var" "$cached_executable" || return $?
     else
       "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux"
-      swift build --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --product "$product"
+      QUILLUI_LINUX_BACKEND="$linux_build_backend" \
+        swift build --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --product "$product"
       local bin_path
-      bin_path="$(swift build --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --show-bin-path)"
+      bin_path="$(
+        QUILLUI_LINUX_BACKEND="$linux_build_backend" \
+          swift build --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --show-bin-path
+      )"
       quillui_assign_output "$output_var" "$bin_path/$product" || return $?
     fi
   fi

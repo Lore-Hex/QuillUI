@@ -86,13 +86,15 @@ if (( ${#BACKEND_SMOKE_ROWS[@]} == 0 )); then
 fi
 
 ALL_PRODUCTS=("${APP_PRODUCTS[@]}" "${BACKEND_SMOKE_PRODUCTS[@]}")
-BIN_PATH="$(swift build --scratch-path .build-linux --show-bin-path)"
+BIN_PATH="$(QUILLUI_LINUX_BACKEND=gtk swift build --scratch-path .build-linux --show-bin-path)"
 
 for product in "${ALL_PRODUCTS[@]}"; do
-  if [[ -x "$BIN_PATH/$product" ]]; then
+  build_backend="$(quillui_require_backend_for_product "$product")"
+  if [[ "$build_backend" == "gtk" && -x "$BIN_PATH/$product" ]]; then
     continue
   fi
-  swift build --scratch-path .build-linux --product "$product"
+  QUILLUI_LINUX_BACKEND="$build_backend" swift build --scratch-path .build-linux --product "$product"
+  BIN_PATH="$(QUILLUI_LINUX_BACKEND="$build_backend" swift build --scratch-path .build-linux --show-bin-path)"
 done
 
 SMOKE_SECONDS="${QUILLUI_BACKEND_SMOKE_SECONDS:-${QUILLUI_SMOKE_SECONDS:-6}}"

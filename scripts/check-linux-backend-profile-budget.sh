@@ -116,7 +116,7 @@ while IFS=, read -r product requested_backend runtime_backend runtime_mode _buil
   [[ -n "$product" && "$product" != "product" ]] || continue
   [[ "$exit_status" == "ok" ]] || continue
 
-  if ! validation_output="$(quillui_backend_validate_runtime_availability "$requested_backend" "$runtime_backend" "$runtime_mode" 2>&1)"; then
+  if ! validation_output="$(quillui_backend_validate_runtime_availability_for_product "$product" "$requested_backend" "$runtime_backend" "$runtime_mode" 2>&1)"; then
     while IFS= read -r validation_line; do
       [[ -n "$validation_line" ]] || continue
       echo "profile budget failed: $product $validation_line" >&2

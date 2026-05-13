@@ -13,8 +13,8 @@ WireGuard Apple is a UIKit (iOS) and AppKit (macOS) application. To bring it to 
 - **Components:** `TunnelConfiguration`, `PeerConfiguration`, `PrivateKey`, `Endpoint`.
 - **Linux Strategy:** Reuse these models directly for parsing `.conf` files and managing state.
 
-### 2. UI (SwiftUI Implementation)
-- **Status:** First Linux shell implemented with QuillUI.
+### 2. UI (SwiftUI + Qt Host Implementation)
+- **Status:** First Linux shell implemented with QuillUI, with a native Qt6 Widgets WireGuard host available through `QUILLUI_LINUX_BACKEND=qt swift run quill-wireguard-qt`.
 - **Required Views:**
     - `TunnelListView`: List of available tunnels with status indicators.
     - `TunnelDetailView`: Detailed configuration view for interface, peers, and export text.
@@ -24,6 +24,7 @@ WireGuard Apple is a UIKit (iOS) and AppKit (macOS) application. To bring it to 
 ### 3. Backend (Linux Adapter)
 - **Strategy:** Instead of `NetworkExtension`, we will interface with `wg` and `wg-quick` CLI tools or `NetworkManager` via DBus.
 - **Initial Milestone:** Stub the connection logic and focus on configuration management (CRUD).
+- **Backend Graph:** Linux build selection is explicit: `QUILLUI_LINUX_BACKEND=gtk` uses the shared QuillUI/SwiftOpenUI path, while `QUILLUI_LINUX_BACKEND=qt` builds the Qt-only WireGuard host from the same core presentation snapshot.
 
 ## Porting Challenges
 - **Privileged Operations:** Linux requires `sudo` or specific capabilities for `wg-quick`. We will likely need a helper service or specific permissions in the QuillOS environment.

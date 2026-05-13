@@ -8,9 +8,9 @@ import WireGuardKit
 
 @MainActor
 public enum QuillWireGuardScene {
-    public static let title = "Quill WireGuard"
-    public static let defaultWidth = 800.0
-    public static let defaultHeight = 600.0
+    public static let title = QuillWireGuardAppMetadata.title
+    public static let defaultWidth = QuillWireGuardAppMetadata.defaultWidth
+    public static let defaultHeight = QuillWireGuardAppMetadata.defaultHeight
 
     public static func scene() -> some Scene {
         QuillAppWindow.scene(title, width: defaultWidth, height: defaultHeight) {

@@ -1,5 +1,11 @@
 import Foundation
 
+public enum QuillWireGuardAppMetadata {
+    public static let title = "Quill WireGuard"
+    public static let defaultWidth = 800.0
+    public static let defaultHeight = 600.0
+}
+
 public enum QuillWireGuardBackend {
     public static var isAvailable: Bool {
         #if os(Linux)
@@ -18,13 +24,13 @@ public enum QuillWireGuardBackend {
     }
 }
 
-public enum QuillWireGuardTunnelStatus: String, Sendable {
+public enum QuillWireGuardTunnelStatus: String, Codable, Sendable {
     case inactive = "Inactive"
     case active = "Active"
     case needsBackend = "Needs Backend"
 }
 
-public struct QuillWireGuardInterface: Hashable, Sendable {
+public struct QuillWireGuardInterface: Codable, Hashable, Sendable {
     public var privateKey: String
     public var publicKey: String
     public var addresses: [String]
@@ -46,7 +52,7 @@ public struct QuillWireGuardInterface: Hashable, Sendable {
     }
 }
 
-public struct QuillWireGuardPeer: Identifiable, Hashable, Sendable {
+public struct QuillWireGuardPeer: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public var name: String
     public var publicKey: String
@@ -71,7 +77,7 @@ public struct QuillWireGuardPeer: Identifiable, Hashable, Sendable {
     }
 }
 
-public struct QuillWireGuardTunnel: Identifiable, Hashable, Sendable {
+public struct QuillWireGuardTunnel: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public var name: String
     public var status: QuillWireGuardTunnelStatus
@@ -134,6 +140,92 @@ public struct QuillWireGuardTunnel: Identifiable, Hashable, Sendable {
         }
 
         return lines.joined(separator: "\n")
+    }
+}
+
+public struct QuillWireGuardInterfaceSnapshot: Codable, Equatable, Sendable {
+    public var publicKey: String
+    public var addressesText: String
+    public var dnsServersText: String
+    public var listenPortText: String?
+
+    public init(interface: QuillWireGuardInterface) {
+        self.publicKey = interface.publicKey
+        self.addressesText = interface.addresses.joined(separator: ", ")
+        self.dnsServersText = interface.dnsServers.joined(separator: ", ")
+        self.listenPortText = interface.listenPort.map { String($0) }
+    }
+}
+
+public struct QuillWireGuardPeerSnapshot: Codable, Equatable, Sendable {
+    public var name: String
+    public var publicKey: String
+    public var allowedIPsText: String
+    public var endpointText: String?
+    public var keepAliveText: String?
+
+    public init(peer: QuillWireGuardPeer) {
+        self.name = peer.name
+        self.publicKey = peer.publicKey
+        self.allowedIPsText = peer.allowedIPs.joined(separator: ", ")
+        self.endpointText = peer.endpoint
+        self.keepAliveText = peer.persistentKeepAlive.map { "\($0)s" }
+    }
+}
+
+public struct QuillWireGuardTunnelSnapshot: Codable, Equatable, Identifiable, Sendable {
+    public var id: String
+    public var name: String
+    public var statusText: String
+    public var peerSummary: String
+    public var interface: QuillWireGuardInterfaceSnapshot
+    public var peers: [QuillWireGuardPeerSnapshot]
+    public var wgQuickConfig: String
+
+    public init(tunnel: QuillWireGuardTunnel) {
+        self.id = tunnel.id
+        self.name = tunnel.name
+        self.statusText = tunnel.status.rawValue
+        self.peerSummary = tunnel.peerSummary
+        self.interface = QuillWireGuardInterfaceSnapshot(interface: tunnel.interface)
+        self.peers = tunnel.peers.map(QuillWireGuardPeerSnapshot.init(peer:))
+        self.wgQuickConfig = tunnel.wgQuickConfig()
+    }
+}
+
+public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
+    public var title: String
+    public var defaultWidth: Int
+    public var defaultHeight: Int
+    public var backendStatusText: String
+    public var selectedTunnelID: QuillWireGuardTunnelSnapshot.ID?
+    public var tunnels: [QuillWireGuardTunnelSnapshot]
+
+    public init(
+        title: String,
+        defaultWidth: Int,
+        defaultHeight: Int,
+        backendStatusText: String,
+        selectedTunnelID: QuillWireGuardTunnelSnapshot.ID?,
+        tunnels: [QuillWireGuardTunnelSnapshot]
+    ) {
+        self.title = title
+        self.defaultWidth = defaultWidth
+        self.defaultHeight = defaultHeight
+        self.backendStatusText = backendStatusText
+        self.selectedTunnelID = selectedTunnelID
+        self.tunnels = tunnels
+    }
+
+    public static var configurationManager: QuillWireGuardAppSnapshot {
+        QuillWireGuardAppSnapshot(
+            title: QuillWireGuardAppMetadata.title,
+            defaultWidth: Int(QuillWireGuardAppMetadata.defaultWidth),
+            defaultHeight: Int(QuillWireGuardAppMetadata.defaultHeight),
+            backendStatusText: QuillWireGuardBackend.statusText,
+            selectedTunnelID: QuillWireGuardFixtures.defaultTunnelID,
+            tunnels: QuillWireGuardFixtures.tunnels.map(QuillWireGuardTunnelSnapshot.init(tunnel:))
+        )
     }
 }
 

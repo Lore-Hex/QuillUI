@@ -26,12 +26,25 @@ quillui_gtk_app_products() {
 
 quillui_backend_app_backends() {
   # Backends each user-facing app must be able to request in parity smoke
-  # loops. Qt currently falls through the shared launch-plan fallback until
-  # the native renderer is linked, but keeping it in the app matrix now makes
-  # accidental GTK-only assumptions visible.
+  # loops. Backend-specific entry points narrow this set below so a product
+  # never compiles or profiles through two mutually exclusive Linux host paths.
   printf '%s\n' \
     gtk \
     qt
+}
+
+quillui_backend_app_backends_for_product() {
+  case "$1" in
+    quill-wireguard)
+      printf '%s\n' gtk
+      ;;
+    quill-wireguard-qt)
+      printf '%s\n' qt
+      ;;
+    *)
+      quillui_backend_app_backends
+      ;;
+  esac
 }
 
 quillui_backend_native_runtime_backends() {
@@ -63,7 +76,7 @@ quillui_backend_matrix_for_products() {
     while IFS= read -r backend; do
       [[ -n "$backend" ]] || continue
       printf '%s\t%s\n' "$product" "$backend"
-    done < <(quillui_backend_app_backends)
+    done < <(quillui_backend_app_backends_for_product "$product")
   done
 }
 
@@ -480,6 +493,21 @@ quillui_backend_runtime_availability_for_backend() {
   printf '%s\t%s\t%s\n' "$requested_backend" "$runtime_backend" "$runtime_mode"
 }
 
+quillui_backend_runtime_availability_for_product() {
+  local product="$1"
+  local requested_backend
+
+  requested_backend="$(quillui_require_backend_identifier "$2")" || return $?
+  case "$product:$requested_backend" in
+    quill-wireguard-qt:qt)
+      printf '%s\t%s\t%s\n' qt qt native
+      ;;
+    *)
+      quillui_backend_runtime_availability_for_backend "$requested_backend"
+      ;;
+  esac
+}
+
 quillui_backend_runtime_availabilities() {
   local requested_backend
 
@@ -489,16 +517,14 @@ quillui_backend_runtime_availabilities() {
   done < <(quillui_backend_app_backends)
 }
 
-quillui_backend_validate_runtime_availability() {
-  local requested_backend
+quillui_backend_validate_runtime_availability_row() {
+  local runtime_availability="$1"
   local runtime_backend
   local runtime_mode="${3:-}"
-  local runtime_availability
   local expected_requested_backend
   local expected_runtime_backend
   local expected_runtime_mode
 
-  requested_backend="$(quillui_require_backend_identifier "$1")" || return $?
   runtime_backend="$(quillui_require_backend_identifier "$2")" || return $?
   case "$runtime_mode" in
     native|platformFallback)
@@ -509,7 +535,6 @@ quillui_backend_validate_runtime_availability() {
       ;;
   esac
 
-  runtime_availability="$(quillui_backend_runtime_availability_for_backend "$requested_backend")" || return $?
   IFS=$'\t' read -r expected_requested_backend expected_runtime_backend expected_runtime_mode <<<"$runtime_availability"
 
   if [[ "$runtime_backend" != "$expected_runtime_backend" ]]; then
@@ -523,6 +548,25 @@ quillui_backend_validate_runtime_availability() {
   fi
 
   printf '%s\t%s\t%s\n' "$expected_requested_backend" "$expected_runtime_backend" "$expected_runtime_mode"
+}
+
+quillui_backend_validate_runtime_availability() {
+  local requested_backend
+  local runtime_availability
+
+  requested_backend="$(quillui_require_backend_identifier "$1")" || return $?
+  runtime_availability="$(quillui_backend_runtime_availability_for_backend "$requested_backend")" || return $?
+  quillui_backend_validate_runtime_availability_row "$runtime_availability" "$2" "$3"
+}
+
+quillui_backend_validate_runtime_availability_for_product() {
+  local product="$1"
+  local requested_backend
+  local runtime_availability
+
+  requested_backend="$(quillui_require_backend_identifier "$2")" || return $?
+  runtime_availability="$(quillui_backend_runtime_availability_for_product "$product" "$requested_backend")" || return $?
+  quillui_backend_validate_runtime_availability_row "$runtime_availability" "$3" "$4"
 }
 
 quillui_backend_runtime_matrix_for_rows() {
@@ -547,7 +591,7 @@ quillui_backend_runtime_matrix_for_rows() {
       return 65
     fi
 
-    runtime_availability="$(quillui_backend_runtime_availability_for_backend "$requested_backend")" || return $?
+    runtime_availability="$(quillui_backend_runtime_availability_for_product "$product" "$requested_backend")" || return $?
     IFS=$'\t' read -r requested_backend runtime_backend runtime_mode <<< "$runtime_availability"
     if [[ -n "${mode:-}" ]]; then
       printf '%s\t%s\t%s\t%s\t%s\n' "$product" "$requested_backend" "$runtime_backend" "$runtime_mode" "$mode"
@@ -583,10 +627,15 @@ quillui_backend_profile_runtime_matrix() {
 
 quillui_runtime_backend_for_product() {
   local requested_backend
+  local runtime_availability
+  local runtime_backend
+  local runtime_mode
 
-  requested_backend="$(quillui_requested_backend_for_product "$1")" || return $?
+  requested_backend="$(quillui_require_requested_backend_for_product "$1")" || return $?
   if [[ -n "$requested_backend" ]]; then
-    quillui_runtime_backend_for_backend "$requested_backend"
+    runtime_availability="$(quillui_backend_runtime_availability_for_product "$1" "$requested_backend")" || return $?
+    IFS=$'\t' read -r requested_backend runtime_backend runtime_mode <<< "$runtime_availability"
+    echo "$runtime_backend"
   fi
 }
 
@@ -808,8 +857,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         quillui_backend_products_usage
         exit 64
       fi
-      requested_backend="$(quillui_require_requested_backend_for_product "$2")" || exit $?
-      quillui_runtime_backend_for_backend "$requested_backend"
+      quillui_runtime_backend_for_product "$2"
       ;;
     runtime-availabilities)
       quillui_backend_runtime_availabilities

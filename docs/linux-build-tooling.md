@@ -166,6 +166,20 @@ scripts/run-linux-backend-smoke-matrix.sh \
   '.qa/{product}-{backend}.png'
 ```
 
+Native backend-specific SwiftPM products use a separate manifest-time selector:
+`QUILLUI_LINUX_BACKEND=gtk|qt`. This is intentionally distinct from the
+runtime smoke selector `QUILLUI_BACKEND`, because the package graph must link
+exactly one host stack. For the first native Qt product, install Qt6 Widgets
+development packages and run:
+
+```bash
+QUILLUI_LINUX_BACKEND=qt swift run quill-wireguard-qt
+```
+
+The default remains `gtk` so normal app-matrix smoke keeps resolving on fresh
+Linux containers without Qt packages. A `qt` build graph fails fast if the
+`Qt6Widgets` pkg-config package is missing.
+
 For `quill-chat-linux`, the script builds through the generic app builder,
 resolves the generated package executable, captures an Xvfb screenshot, checks
 both brightness and pixel variation so blank white windows fail, and verifies

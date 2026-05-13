@@ -48,6 +48,7 @@ jobs:
             libgtk-4-dev \
             libsqlite3-dev \
             pkg-config \
+            qt6-base-dev \
             ripgrep \
             x11-apps \
             xdotool \

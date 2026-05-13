@@ -17,7 +17,7 @@ provision:
     script: |
       set -eux
       apt-get update
-      apt-get install -y clang curl git gnupg libgtk-4-dev libsqlite3-dev pkg-config unzip
+      apt-get install -y clang curl git gnupg libgtk-4-dev libsqlite3-dev pkg-config qt6-base-dev unzip
 
 message: |
   Ubuntu VM is ready.

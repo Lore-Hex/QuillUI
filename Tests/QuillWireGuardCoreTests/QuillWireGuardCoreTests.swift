@@ -88,15 +88,64 @@ struct QuillWireGuardCoreTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillApp.swift"),
             encoding: .utf8
         )
+        let nativeRuntimeSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillWireGuardQtNativeRuntime/QuillWireGuardQtNativeRuntime.swift"),
+            encoding: .utf8
+        )
+        let nativeShimSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillWireGuardQt6Widgets.cpp"),
+            encoding: .utf8
+        )
 
         #expect(source.contains("QuillWireGuardScene.scene()"))
         #expect(source.contains("QuillApp.run(QuillWireGuardApp.self)"))
+        #expect(qtSource.contains("#if canImport(QuillWireGuardQtNativeRuntime)"))
+        #expect(qtSource.contains("QuillWireGuardQtNativeApp.run()"))
         #expect(qtSource.contains("import QuillUIQt"))
         #expect(qtSource.contains("QuillWireGuardScene.scene()"))
         #expect(qtSource.contains("QuillQtApp.run(QuillWireGuardQtApp.self)"))
         #expect(uiSource.contains("QuillAppWindow.scene(title"))
         #expect(uiSource.contains("ContentView()"))
         #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
+        #expect(nativeRuntimeSource.contains("QuillWireGuardAppSnapshot.configurationManager"))
+        #expect(nativeRuntimeSource.contains("quill_wireguard_qt_run_wireguard_json"))
+        #expect(nativeShimSource.contains("QApplication"))
+        #expect(nativeShimSource.contains("QListWidget"))
+        #expect(nativeShimSource.contains("QPlainTextEdit"))
+        #expect(nativeShimSource.contains("intValue(payload, \"defaultWidth\", 800)"))
+        #expect(nativeShimSource.contains("intValue(payload, \"defaultHeight\", 600)"))
+    }
+
+    @Test("WireGuard snapshot preserves shared app presentation for native hosts")
+    func wireGuardSnapshotPreservesSharedAppPresentationForNativeHosts() throws {
+        let snapshot = QuillWireGuardAppSnapshot.configurationManager
+
+        #expect(snapshot.title == QuillWireGuardAppMetadata.title)
+        #expect(snapshot.defaultWidth == Int(QuillWireGuardAppMetadata.defaultWidth))
+        #expect(snapshot.defaultHeight == Int(QuillWireGuardAppMetadata.defaultHeight))
+        #expect(snapshot.selectedTunnelID == QuillWireGuardFixtures.defaultTunnelID)
+        #expect(snapshot.tunnels.map(\.id) == QuillWireGuardFixtures.tunnels.map(\.id))
+        #expect(snapshot.tunnels.first?.peerSummary == QuillWireGuardFixtures.tunnels.first?.peerSummary)
+        #expect(snapshot.tunnels.first?.wgQuickConfig == QuillWireGuardFixtures.tunnels.first?.wgQuickConfig())
+
+        let encoded = try JSONEncoder().encode(snapshot)
+        let decoded = try JSONDecoder().decode(QuillWireGuardAppSnapshot.self, from: encoded)
+        #expect(decoded == snapshot)
+    }
+
+    @Test("Qt WireGuard manifest uses an explicit Linux backend graph selector")
+    func qtWireGuardManifestUsesExplicitLinuxBackendGraphSelector() throws {
+        let manifest = try String(
+            contentsOf: try packageRoot().appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+
+        #expect(manifest.contains("QUILLUI_LINUX_BACKEND"))
+        #expect(manifest.contains("case \"qt\", \"qt6\""))
+        #expect(manifest.contains("if quillUILinuxBuildBackend == .qt && !qt6WidgetsPresent"))
+        #expect(manifest.contains("let quillWireGuardQtDependencies: [Target.Dependency] = quillUILinuxBuildBackend == .qt"))
+        #expect(manifest.contains("if quillUILinuxBuildBackend == .qt"))
+        #expect(!manifest.contains("let quillWireGuardQtDependencies: [Target.Dependency] = qt6WidgetsPresent"))
     }
 
     private func packageRoot() throws -> URL {
