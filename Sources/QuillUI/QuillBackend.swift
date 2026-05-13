@@ -594,7 +594,7 @@ public enum QuillBackendRegistry {
                 displayName: "Qt",
                 isPlatformDefault: platformDefault == .qt,
                 isExperimental: true,
-                runtimeNotes: "Experimental launch surface in QuillUIQt; native Qt renderer is not linked yet."
+                runtimeNotes: "Experimental QuillUIQt facade; generic SwiftUI-shaped apps use the platform fallback unless a product-specific Qt host is registered."
             )
         }
     }

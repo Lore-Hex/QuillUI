@@ -194,6 +194,8 @@ struct QuillUITests {
         #expect(qtDescriptor.runtimeSummary == qtDescriptor.runtimeAvailability.summary)
         #expect(qtDescriptor.runtimeSummary == QuillBackendRegistry.runtimeSummary(availability: qtDescriptor.runtimeAvailability))
         #expect(qtDescriptor.runtimeSummary.contains("Qt selected"))
+        #expect(qtDescriptor.runtimeNotes.contains("product-specific Qt host"))
+        #expect(!qtDescriptor.runtimeNotes.contains("not linked yet"))
 
         let gtkDescriptor = QuillBackendRegistry.descriptor(for: .gtk)
         #expect(gtkDescriptor.displayName == "GTK")
