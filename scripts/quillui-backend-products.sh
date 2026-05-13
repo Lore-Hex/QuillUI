@@ -446,20 +446,45 @@ quillui_runtime_backend_for_backend() {
   quillui_platform_runtime_fallback_backend
 }
 
-quillui_backend_runtime_availabilities() {
+quillui_backend_runtime_mode_for_pair() {
+  local requested_backend
+  local runtime_backend
+
+  requested_backend="$(quillui_require_backend_identifier "$1")" || return $?
+  runtime_backend="$(quillui_require_backend_identifier "$2")" || return $?
+  if [[ "$requested_backend" == "$runtime_backend" ]]; then
+    echo "native"
+  else
+    echo "platformFallback"
+  fi
+}
+
+quillui_backend_runtime_mode_for_backend() {
+  local requested_backend
+  local runtime_backend
+
+  requested_backend="$(quillui_require_backend_identifier "$1")" || return $?
+  runtime_backend="$(quillui_runtime_backend_for_backend "$requested_backend")" || return $?
+  quillui_backend_runtime_mode_for_pair "$requested_backend" "$runtime_backend"
+}
+
+quillui_backend_runtime_availability_for_backend() {
   local requested_backend
   local runtime_backend
   local runtime_mode
 
+  requested_backend="$(quillui_require_backend_identifier "$1")" || return $?
+  runtime_backend="$(quillui_runtime_backend_for_backend "$requested_backend")" || return $?
+  runtime_mode="$(quillui_backend_runtime_mode_for_pair "$requested_backend" "$runtime_backend")" || return $?
+  printf '%s\t%s\t%s\n' "$requested_backend" "$runtime_backend" "$runtime_mode"
+}
+
+quillui_backend_runtime_availabilities() {
+  local requested_backend
+
   while IFS= read -r requested_backend; do
     [[ -n "$requested_backend" ]] || continue
-    requested_backend="$(quillui_require_backend_identifier "$requested_backend")" || return $?
-    runtime_backend="$(quillui_runtime_backend_for_backend "$requested_backend")" || return $?
-    runtime_mode="platformFallback"
-    if [[ "$requested_backend" == "$runtime_backend" ]]; then
-      runtime_mode="native"
-    fi
-    printf '%s\t%s\t%s\n' "$requested_backend" "$runtime_backend" "$runtime_mode"
+    quillui_backend_runtime_availability_for_backend "$requested_backend" || return $?
   done < <(quillui_backend_app_backends)
 }
 
@@ -517,6 +542,8 @@ Commands:
   backend-for-product PRODUCT     Print the default requested backend for PRODUCT.
   requested-backend PRODUCT       Print QUILLUI_BACKEND override or PRODUCT default.
   runtime-backend BACKEND         Print the native runtime backend used for a requested backend.
+  runtime-mode BACKEND            Print native or platformFallback for a requested backend.
+  runtime-availability BACKEND    Print BACKEND<TAB>RUNTIME<TAB>MODE for a requested backend.
   runtime-backend-for-product PRODUCT
                                   Print the native runtime backend used for PRODUCT.
   runtime-availabilities          List BACKEND<TAB>RUNTIME<TAB>MODE rows for requested app backends.
@@ -645,6 +672,20 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         exit 64
       fi
       quillui_runtime_backend_for_backend "$2"
+      ;;
+    runtime-mode)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_backend_runtime_mode_for_backend "$2"
+      ;;
+    runtime-availability)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_backend_runtime_availability_for_backend "$2"
       ;;
     runtime-backend-for-product)
       if [[ $# -ne 2 ]]; then

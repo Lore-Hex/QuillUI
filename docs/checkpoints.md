@@ -3022,3 +3022,14 @@ The Linux backend profile budget checker now validates that each successful CSV
 row's `runtime_backend` matches the selected backend's registered runtime. This
 prevents Qt profile rows from accidentally reporting native Qt runtime behavior
 while the shared registry still routes Qt launches through GTK fallback.
+
+## Checkpoint 176: Single-Backend Runtime Availability
+
+Status: implemented locally; guarded by backend matrix tests.
+
+The Linux backend product helper now exposes `runtime-mode` and
+`runtime-availability` for one requested backend, and the full
+`runtime-availabilities` matrix reuses the same row builder. GTK/Qt shell
+tooling can query the same requested/runtime/mode contract at row or matrix
+granularity, keeping the eventual native Qt promotion contained to the shared
+runtime registry.

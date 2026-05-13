@@ -228,6 +228,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("platform-runtime-fallback)"))
         #expect(backendProducts.contains("has-native-runtime)"))
         #expect(backendProducts.contains("runtime-backend)"))
+        #expect(backendProducts.contains("runtime-mode)"))
+        #expect(backendProducts.contains("runtime-availability)"))
         #expect(backendProducts.contains("runtime-backend-for-product)"))
         #expect(backendProducts.contains("runtime-availabilities)"))
         #expect(backendProducts.contains("quillui_backend_native_runtime_backends()"))
@@ -235,6 +237,9 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_has_native_runtime()"))
         #expect(backendProducts.contains("quillui_runtime_backend_for_backend()"))
         #expect(backendProducts.contains("quillui_runtime_backend_for_product()"))
+        #expect(backendProducts.contains("quillui_backend_runtime_mode_for_pair()"))
+        #expect(backendProducts.contains("quillui_backend_runtime_mode_for_backend()"))
+        #expect(backendProducts.contains("quillui_backend_runtime_availability_for_backend()"))
         #expect(backendProducts.contains("quillui_backend_runtime_availabilities()"))
         #expect(backendProducts.contains("quillui_backend_runtime_matches_backend()"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE"))
@@ -698,6 +703,18 @@ struct LinuxBackendAppMatrixTests {
         let runtimeQtBackend = try runScript(script, arguments: ["runtime-backend", " Qt6 "])
         #expect(runtimeQtBackend.status == 0, Comment(rawValue: runtimeQtBackend.output))
         #expect(runtimeQtBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+
+        let runtimeGtkMode = try runScript(script, arguments: ["runtime-mode", "GTK4"])
+        #expect(runtimeGtkMode.status == 0, Comment(rawValue: runtimeGtkMode.output))
+        #expect(runtimeGtkMode.output.trimmingCharacters(in: .whitespacesAndNewlines) == "native")
+
+        let runtimeQtMode = try runScript(script, arguments: ["runtime-mode", " Qt6 "])
+        #expect(runtimeQtMode.status == 0, Comment(rawValue: runtimeQtMode.output))
+        #expect(runtimeQtMode.output.trimmingCharacters(in: .whitespacesAndNewlines) == "platformFallback")
+
+        let runtimeQtAvailability = try runScript(script, arguments: ["runtime-availability", " Qt6 "])
+        #expect(runtimeQtAvailability.status == 0, Comment(rawValue: runtimeQtAvailability.output))
+        #expect(runtimeQtAvailability.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt\tgtk\tplatformFallback")
 
         let runtimeSwiftUIBackend = try runScript(script, arguments: ["runtime-backend", "swift-ui"])
         #expect(runtimeSwiftUIBackend.status == 0, Comment(rawValue: runtimeSwiftUIBackend.output))
