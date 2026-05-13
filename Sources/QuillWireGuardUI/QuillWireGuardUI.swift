@@ -6,7 +6,6 @@ import SwiftUI
 import WireGuardKit
 #endif
 
-@MainActor
 public enum QuillWireGuardScene {
     public static let title = QuillWireGuardAppMetadata.title
     public static let defaultWidth = QuillWireGuardAppMetadata.defaultWidth

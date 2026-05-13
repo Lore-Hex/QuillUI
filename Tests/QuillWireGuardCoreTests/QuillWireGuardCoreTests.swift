@@ -104,6 +104,7 @@ struct QuillWireGuardCoreTests {
         #expect(qtSource.contains("import QuillUIQt"))
         #expect(qtSource.contains("QuillWireGuardScene.scene()"))
         #expect(qtSource.contains("QuillQtApp.run(QuillWireGuardQtApp.self)"))
+        #expect(!uiSource.contains("@MainActor\npublic enum QuillWireGuardScene"))
         #expect(uiSource.contains("QuillAppWindow.scene(title"))
         #expect(uiSource.contains("ContentView()"))
         #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
