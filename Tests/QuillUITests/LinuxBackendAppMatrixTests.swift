@@ -174,6 +174,7 @@ struct LinuxBackendAppMatrixTests {
         let backendProducts = try String(contentsOf: matrixScript, encoding: .utf8)
         #expect(backendProducts.contains("quillui_backend_app_products()"))
         #expect(backendProducts.contains("quillui_backend_app_backends()"))
+        #expect(backendProducts.contains("quillui_backend_matrix_for_products()"))
         #expect(backendProducts.contains("quillui_backend_app_matrix()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_products()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_matrix()"))

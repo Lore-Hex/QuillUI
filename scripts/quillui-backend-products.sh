@@ -33,7 +33,7 @@ quillui_backend_app_backends() {
     qt
 }
 
-quillui_backend_app_matrix() {
+quillui_backend_matrix_for_products() {
   local product
   local backend
 
@@ -43,7 +43,11 @@ quillui_backend_app_matrix() {
       [[ -n "$backend" ]] || continue
       printf '%s\t%s\n' "$product" "$backend"
     done < <(quillui_backend_app_backends)
-  done < <(quillui_backend_app_products)
+  done
+}
+
+quillui_backend_app_matrix() {
+  quillui_backend_app_products | quillui_backend_matrix_for_products
 }
 
 quillui_backend_interaction_app_products() {
@@ -66,16 +70,7 @@ quillui_backend_generated_app_products() {
 }
 
 quillui_backend_generated_app_matrix() {
-  local product
-  local backend
-
-  while IFS= read -r product; do
-    [[ -n "$product" ]] || continue
-    while IFS= read -r backend; do
-      [[ -n "$backend" ]] || continue
-      printf '%s\t%s\n' "$product" "$backend"
-    done < <(quillui_backend_app_backends)
-  done < <(quillui_backend_generated_app_products)
+  quillui_backend_generated_app_products | quillui_backend_matrix_for_products
 }
 
 quillui_backend_smoke_products() {
