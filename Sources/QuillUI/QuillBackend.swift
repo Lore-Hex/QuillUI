@@ -82,6 +82,28 @@ public enum QuillBackendRuntimeMode: String, Sendable {
     case platformFallback
 }
 
+public enum QuillBackendRequest: Equatable, Sendable {
+    case unspecified
+    case valid(QuillBackendIdentifier)
+    case invalid(rawValue: String)
+
+    public var identifier: QuillBackendIdentifier? {
+        guard case let .valid(identifier) = self else {
+            return nil
+        }
+
+        return identifier
+    }
+
+    public var invalidRawValue: String? {
+        guard case let .invalid(rawValue) = self else {
+            return nil
+        }
+
+        return rawValue
+    }
+}
+
 public struct QuillBackendLaunchPlan: Equatable, Sendable {
     public let requested: QuillBackendIdentifier?
     public let preferred: QuillBackendIdentifier?
@@ -195,6 +217,10 @@ public enum QuillBackendRegistry {
         requestedBackend(from: ProcessInfo.processInfo.environment)
     }
 
+    public static var environmentRequest: QuillBackendRequest {
+        backendRequest(from: ProcessInfo.processInfo.environment)
+    }
+
     public static var launchBackend: QuillBackendIdentifier {
         launchPlan().selected
     }
@@ -236,13 +262,24 @@ public enum QuillBackendRegistry {
     public static func requestedBackend(
         from environment: [String: String]
     ) -> QuillBackendIdentifier? {
+        backendRequest(from: environment).identifier
+    }
+
+    public static func backendRequest(
+        from environment: [String: String]
+    ) -> QuillBackendRequest {
         guard let rawValue = environment[environmentKey],
               !rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
-            return nil
+            return .unspecified
         }
 
-        return QuillBackendIdentifier(environmentValue: rawValue)
+        let normalizedRawValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let backend = QuillBackendIdentifier(environmentValue: rawValue) else {
+            return .invalid(rawValue: normalizedRawValue)
+        }
+
+        return .valid(backend)
     }
 
     public static func runtimeBackend(

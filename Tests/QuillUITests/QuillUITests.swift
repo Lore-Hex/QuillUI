@@ -82,6 +82,14 @@ struct QuillUITests {
         #expect(QuillBackendRegistry.requestedBackend(from: ["QUILLUI_BACKEND": "\nNative\t"]) == .swiftUI)
         #expect(QuillBackendRegistry.requestedBackend(from: ["QUILLUI_BACKEND": "unknown"]) == nil)
 
+        #expect(QuillBackendRegistry.backendRequest(from: [:]) == .unspecified)
+        #expect(QuillBackendRegistry.backendRequest(from: ["QUILLUI_BACKEND": ""]) == .unspecified)
+        #expect(QuillBackendRegistry.backendRequest(from: ["QUILLUI_BACKEND": "Qt6"]) == .valid(.qt))
+        #expect(QuillBackendRegistry.backendRequest(from: ["QUILLUI_BACKEND": " GTK4 "]) == .valid(.gtk))
+        #expect(QuillBackendRegistry.backendRequest(from: ["QUILLUI_BACKEND": "unknown"]) == .invalid(rawValue: "unknown"))
+        #expect(QuillBackendRegistry.backendRequest(from: ["QUILLUI_BACKEND": " unknown "]).identifier == nil)
+        #expect(QuillBackendRegistry.backendRequest(from: ["QUILLUI_BACKEND": "\nunknown\t"]).invalidRawValue == "unknown")
+
         let identifiers = QuillBackendRegistry.knownBackends.map(\.identifier)
         #expect(identifiers == [.swiftUI, .gtk, .qt])
 

@@ -2826,3 +2826,13 @@ and the existing iOS simulator build check.
 `ChatAppearance.standard` remains the desktop-density profile used by the GTK,
 Qt-requested, and macOS chat shells, while iOS clients can opt into larger
 touch targets without importing UIKit, QuillUI, or an app-specific wrapper.
+
+## Checkpoint 157: Backend Request Diagnostics
+
+Status: implemented locally; guarded by QuillUI API tests.
+
+`QuillBackendRegistry` now exposes `QuillBackendRequest`, a parse result for
+`QUILLUI_BACKEND` that distinguishes unset, valid, and invalid environment
+values. Existing launch plans keep the same fallback behavior for invalid
+values, while app launchers, CI checks, and future backend diagnostics can
+surface invalid backend requests without duplicating environment parsing.
