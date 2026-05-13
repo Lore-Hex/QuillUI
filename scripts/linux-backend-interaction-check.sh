@@ -116,6 +116,41 @@ type_text() {
   DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$1"
 }
 
+quillui_is_backend_smoke_sheet_interaction() {
+  case "$1" in
+    nested-sheet|sidebar-sheet|banner-sheet)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+refresh_capture_window_for_sheet_interaction() {
+  local attempt
+  local candidate_window
+
+  [[ "$capture_window" != "root" ]] || return 0
+  [[ -n "$window_id" ]] || return 0
+
+  for attempt in {1..20}; do
+    candidate_window="$(DISPLAY="$DISPLAY_ID" xdotool getactivewindow 2>/dev/null || true)"
+    if [[ -n "$candidate_window" && "$candidate_window" != "$window_id" ]]; then
+      capture_window="$candidate_window"
+      return 0
+    fi
+
+    candidate_window="$(quillui_find_visible_window_for_pid_except "$DISPLAY_ID" "$app_pid" "$window_id")"
+    if [[ -n "$candidate_window" ]]; then
+      capture_window="$candidate_window"
+      return 0
+    fi
+
+    sleep 0.1
+  done
+}
+
 post_click_sleep="${QUILLUI_BACKEND_POST_CLICK_SLEEP:-1}"
 if [[ "${QUILLUI_BACKEND_FOCUS_PRIME:-}" == "1" ]] || quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   focus_x="${QUILLUI_BACKEND_FOCUS_PRIME_X:-$((window_x + window_width / 2))}"
@@ -246,6 +281,9 @@ elif quillui_is_backend_smoke_product "$PRODUCT"; then
     esac
     click_at "$click_x" "$click_y"
     sleep "$post_click_sleep"
+    if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
+      refresh_capture_window_for_sheet_interaction
+    fi
 else
     click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 200))}"
     click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 54))}"

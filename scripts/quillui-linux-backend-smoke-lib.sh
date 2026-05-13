@@ -90,6 +90,17 @@ quillui_find_visible_window_for_pid() {
   DISPLAY="$display_id" xdotool search --onlyvisible --pid "$pid" 2>/dev/null | head -n 1 || true
 }
 
+quillui_find_visible_window_for_pid_except() {
+  local display_id="$1"
+  local pid="$2"
+  local excluded_window_id="$3"
+
+  DISPLAY="$display_id" xdotool search --onlyvisible --pid "$pid" 2>/dev/null \
+    | awk -v excluded_window_id="$excluded_window_id" \
+        '$0 != excluded_window_id { candidate = $0 } END { if (candidate != "") print candidate }' \
+    || true
+}
+
 quillui_find_any_visible_window() {
   local display_id="$1"
 
