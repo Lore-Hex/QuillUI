@@ -354,11 +354,23 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/generate-swiftui-linux-package.sh"),
             encoding: .utf8
         )
+        let generatedEnchantedSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/generated-enchanted-full-source-check.sh"),
+            encoding: .utf8
+        )
 
+        #expect(source.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY"))
+        #expect(source.contains("${QUILLUI_GENERATED_INCLUDE_GTK_BACKEND:-0}"))
+        #expect(source.contains("backend entry generation is enabled"))
         #expect(source.contains("import QuillUI"))
         #expect(source.contains("QuillApp.run($APP_ENTRY_TYPE.self)"))
         #expect(!source.contains("import BackendGTK4"))
         #expect(!source.contains("GTK4Backend().run($APP_ENTRY_TYPE.self)"))
+        #expect(!source.contains("GTK backend generation is enabled"))
+        #expect(generatedEnchantedSource.contains("include_backend_entry=0"))
+        #expect(generatedEnchantedSource.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY=\"$include_backend_entry\""))
+        #expect(!generatedEnchantedSource.contains("include_gtk_backend"))
+        #expect(!generatedEnchantedSource.contains("QUILLUI_GENERATED_INCLUDE_GTK_BACKEND"))
         #expect(!source.contains("package(url: \"https://github.com/codelynx/SwiftOpenUI\""))
         #expect(!source.contains(".product(name: \"BackendGTK4\", package: \"SwiftOpenUI\")"))
     }

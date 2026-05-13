@@ -2,7 +2,7 @@
 
 QuillUI's app build entry point is `scripts/build-swiftui-linux-app.sh`.
 It is the generic interface for building a SwiftUI-shaped app tree into a Linux
-GTK executable without editing the app source.
+backend-selected executable without editing the app source.
 
 Example:
 
@@ -45,8 +45,8 @@ environment contract:
 Profiles that produce a lowered Swift source tree should delegate package
 assembly to `scripts/generate-swiftui-linux-package.sh`. That helper owns the
 reusable SwiftPM package shape: copying lowered sources, adding the QuillUI
-compatibility products, optionally generating the GTK `@main`, patching the
-pinned SwiftOpenUI checkout, and running `swift build`.
+compatibility products, optionally generating the backend-selected `@main`,
+patching the pinned SwiftOpenUI checkout, and running `swift build`.
 
 Profiles can also reuse the generic source-lowering helpers before package
 assembly:
@@ -68,7 +68,7 @@ assembly:
   are replaced by QuillKit/QuillUI compatibility implementations.
 - `scripts/audit-profile-budget.sh` checks app-lowering profile shell glue
   against a small line-count budget; CI runs this before the heavier Linux
-  build and GTK smoke jobs.
+  build and backend smoke jobs.
 - `scripts/generate-hashable-identity-shims.sh` emits small generated Swift
   extensions that make lowered model classes `Hashable`/`Equatable` by stable
   identity properties, with optional `Identifiable.id` aliases for models whose
@@ -90,10 +90,14 @@ The package helper takes this stable environment contract:
 - `QUILLUI_GENERATED_PACKAGE_NAME`
 - `QUILLUI_GENERATED_PRODUCT_NAME`
 - `QUILLUI_GENERATED_TARGET_NAME`
-- `QUILLUI_GENERATED_INCLUDE_GTK_BACKEND`
+- `QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY`
 - `QUILLUI_GENERATED_APP_ENTRY_TYPE`
 - `QUILLUI_GENERATED_APP_MAIN_TYPE`
 - `QUILLUI_GENERATED_REPORT_LABEL`
+
+`QUILLUI_GENERATED_INCLUDE_GTK_BACKEND` remains accepted by the package helper
+as a compatibility alias for older profile callers, but new profiles should use
+the backend-neutral entry flag.
 
 Reusable fallback behavior should live in library targets, not in profiles.
 The current `enchanted-full-source` profile keeps only app/source-shape wiring

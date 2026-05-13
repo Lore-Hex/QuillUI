@@ -11,7 +11,7 @@ PACKAGE_NAME="${QUILLUI_GENERATED_PACKAGE_NAME:-GeneratedSwiftUILinuxApp}"
 PRODUCT_NAME="${QUILLUI_GENERATED_PRODUCT_NAME:-swiftui-linux-app}"
 TARGET_NAME="${QUILLUI_GENERATED_TARGET_NAME:-GeneratedSwiftUILinuxApp}"
 BUILD_SCRATCH="${QUILLUI_GENERATED_BUILD_SCRATCH:-${WORK_ROOT:+$WORK_ROOT/.build-check}}"
-INCLUDE_GTK_BACKEND="${QUILLUI_GENERATED_INCLUDE_GTK_BACKEND:-0}"
+INCLUDE_BACKEND_ENTRY="${QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY:-${QUILLUI_GENERATED_INCLUDE_GTK_BACKEND:-0}}"
 APP_ENTRY_TYPE="${QUILLUI_GENERATED_APP_ENTRY_TYPE:-}"
 APP_MAIN_TYPE="${QUILLUI_GENERATED_APP_MAIN_TYPE:-GeneratedSwiftUILinuxMain}"
 REPORT_LABEL="${QUILLUI_GENERATED_REPORT_LABEL:-Generated SwiftUI Linux package}"
@@ -85,9 +85,9 @@ while IFS= read -r -d '' source_file; do
   cp "$source_file" "$destination_file"
 done < <(find "$SOURCE_DIR" -name '*.swift' -print0)
 
-if [[ "$INCLUDE_GTK_BACKEND" == "1" ]]; then
+if [[ "$INCLUDE_BACKEND_ENTRY" == "1" ]]; then
   if [[ -z "$APP_ENTRY_TYPE" ]]; then
-    echo "QUILLUI_GENERATED_APP_ENTRY_TYPE is required when GTK backend generation is enabled" >&2
+    echo "QUILLUI_GENERATED_APP_ENTRY_TYPE is required when backend entry generation is enabled" >&2
     exit 64
   fi
 
