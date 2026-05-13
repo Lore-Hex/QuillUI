@@ -46,6 +46,88 @@ struct QuillWireGuardCoreTests {
         #expect(!config.localizedCaseInsensitiveContains("stub"))
     }
 
+    @Test("wg-quick import round-trips exported fixture configuration")
+    func wgQuickImportRoundTripsExportedFixtureConfiguration() throws {
+        let fixture = QuillWireGuardFixtures.tunnels[0]
+        let parsed = try QuillWireGuardConfigParser.parse(
+            fixture.wgQuickConfig(),
+            id: fixture.id,
+            name: fixture.name,
+            status: fixture.status,
+            interfacePublicKey: fixture.interface.publicKey
+        )
+
+        #expect(parsed.id == fixture.id)
+        #expect(parsed.name == fixture.name)
+        #expect(parsed.status == fixture.status)
+        #expect(parsed.interface == fixture.interface)
+        #expect(parsed.peers.map(\.name) == fixture.peers.map(\.name))
+        #expect(parsed.peers.map(\.publicKey) == fixture.peers.map(\.publicKey))
+        #expect(parsed.peers.map(\.allowedIPs) == fixture.peers.map(\.allowedIPs))
+        #expect(parsed.peers.map(\.endpoint) == fixture.peers.map(\.endpoint))
+        #expect(parsed.peers.map(\.persistentKeepAlive) == fixture.peers.map(\.persistentKeepAlive))
+        #expect(parsed.wgQuickConfig() == fixture.wgQuickConfig())
+    }
+
+    @Test("wg-quick import handles comments and comma-separated values")
+    func wgQuickImportHandlesCommentsAndCommaSeparatedValues() throws {
+        let parsed = try QuillWireGuardConfigParser.parse(
+            """
+            # Created outside Quill
+            [Interface]
+            PrivateKey = local-private-key=
+            PublicKey = local-public-key=
+            Address = 10.0.0.2/32, fd00::2/128
+            DNS = 1.1.1.1, 2606:4700:4700::1111
+            ListenPort = 51820
+
+            [Peer]
+            # Name = Edge Gateway
+            PublicKey = peer-public-key=
+            AllowedIPs = 0.0.0.0/0, ::/0
+            Endpoint = vpn.example.com:51820
+            PersistentKeepalive = 25
+            """,
+            id: "imported-home",
+            name: "Imported Home",
+            status: .needsBackend
+        )
+
+        #expect(parsed.id == "imported-home")
+        #expect(parsed.name == "Imported Home")
+        #expect(parsed.status == .needsBackend)
+        #expect(parsed.interface.privateKey == "local-private-key=")
+        #expect(parsed.interface.publicKey == "local-public-key=")
+        #expect(parsed.interface.addresses == ["10.0.0.2/32", "fd00::2/128"])
+        #expect(parsed.interface.dnsServers == ["1.1.1.1", "2606:4700:4700::1111"])
+        #expect(parsed.interface.listenPort == 51820)
+        #expect(parsed.peers.count == 1)
+        #expect(parsed.peers[0].id == "imported-home-peer-1")
+        #expect(parsed.peers[0].name == "Edge Gateway")
+        #expect(parsed.peers[0].publicKey == "peer-public-key=")
+        #expect(parsed.peers[0].allowedIPs == ["0.0.0.0/0", "::/0"])
+        #expect(parsed.peers[0].endpoint == "vpn.example.com:51820")
+        #expect(parsed.peers[0].persistentKeepAlive == 25)
+    }
+
+    @Test("wg-quick import reports structural errors")
+    func wgQuickImportReportsStructuralErrors() throws {
+        var error = parseError(for: "[Peer]\nPublicKey = peer")
+        #expect(error == .missingInterface)
+
+        error = parseError(for: "[Interface]\nAddress = 10.0.0.2/32")
+        #expect(error == .missingInterfacePrivateKey)
+
+        error = parseError(for: "[Interface]\nPrivateKey = key\n\n[Peer]\nAllowedIPs = 0.0.0.0/0")
+        #expect(error == .missingPeerPublicKey(index: 1))
+
+        error = parseError(for: "[Interface]\nPrivateKey = key\nListenPort = 999999")
+        #expect(error == .invalidInteger(field: "ListenPort", value: "999999", line: 3))
+
+        error = parseError(for: "PrivateKey = key\n[Interface]")
+        #expect(error == .keyValueOutsideSection(line: 1, key: "PrivateKey"))
+    }
+
     @Test("Backend availability is explicit per platform")
     func backendAvailabilityIsExplicitPerPlatform() {
         #if os(Linux)
@@ -210,6 +292,17 @@ struct QuillWireGuardCoreTests {
         }
 
         throw SourceHygieneError.packageRootNotFound
+    }
+
+    private func parseError(for configuration: String) -> QuillWireGuardConfigParseError? {
+        do {
+            _ = try QuillWireGuardConfigParser.parse(configuration)
+            return nil
+        } catch let parseError as QuillWireGuardConfigParseError {
+            return parseError
+        } catch {
+            return nil
+        }
     }
 }
 
