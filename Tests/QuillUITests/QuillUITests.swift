@@ -67,8 +67,12 @@ struct QuillUITests {
 
         #if os(Linux)
         #expect(QuillBackendRegistry.platformDefault == .gtk)
+        #expect(QuillBackendRegistry.platformRuntimeFallback == .gtk)
+        #expect(QuillBackendRegistry.nativeRuntimeBackends == [.gtk])
         #else
         #expect(QuillBackendRegistry.platformDefault == .swiftUI)
+        #expect(QuillBackendRegistry.platformRuntimeFallback == .swiftUI)
+        #expect(QuillBackendRegistry.nativeRuntimeBackends == [.swiftUI])
         #endif
 
         let qtDescriptor = QuillBackendRegistry.descriptor(for: .qt)

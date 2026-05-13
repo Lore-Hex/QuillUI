@@ -143,6 +143,22 @@ public enum QuillBackendRegistry {
         #endif
     }
 
+    public static var nativeRuntimeBackends: [QuillBackendIdentifier] {
+        #if os(Linux)
+        return [.gtk]
+        #else
+        return [.swiftUI]
+        #endif
+    }
+
+    public static var platformRuntimeFallback: QuillBackendIdentifier {
+        #if os(Linux)
+        return .gtk
+        #else
+        return .swiftUI
+        #endif
+    }
+
     public static var requested: QuillBackendIdentifier? {
         guard let rawValue = ProcessInfo.processInfo.environment[environmentKey],
               !rawValue.isEmpty
@@ -178,17 +194,11 @@ public enum QuillBackendRegistry {
     public static func runtimeBackend(
         for selectedBackend: QuillBackendIdentifier
     ) -> QuillBackendIdentifier {
-        #if os(Linux)
-        switch selectedBackend {
-        case .swiftUI, .gtk, .qt:
-            return .gtk
+        if nativeRuntimeBackends.contains(selectedBackend) {
+            return selectedBackend
         }
-        #else
-        switch selectedBackend {
-        case .swiftUI, .gtk, .qt:
-            return .swiftUI
-        }
-        #endif
+
+        return platformRuntimeFallback
     }
 
     public static func descriptor(for identifier: QuillBackendIdentifier) -> QuillBackendDescriptor {
