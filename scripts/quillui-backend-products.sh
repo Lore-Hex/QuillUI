@@ -88,21 +88,6 @@ quillui_require_backend_identifier() {
   echo "$normalized_backend"
 }
 
-quillui_backend_identifier_or_raw() {
-  local raw_value="${1:-}"
-  local normalized_backend=""
-
-  if [[ -n "$raw_value" ]]; then
-    normalized_backend="$(quillui_normalize_backend_identifier "$raw_value" || true)"
-  fi
-
-  if [[ -n "$normalized_backend" ]]; then
-    echo "$normalized_backend"
-  else
-    echo "$raw_value"
-  fi
-}
-
 quillui_backend_interaction_app_products() {
   # Root app interaction smokes intentionally share the same app roster as
   # visual/profile parity checks. Keep the function separate so interaction
@@ -386,7 +371,7 @@ quillui_backend_profile_matrix() {
 
 quillui_requested_backend_for_product() {
   if [[ -n "${QUILLUI_BACKEND:-}" ]]; then
-    quillui_backend_identifier_or_raw "$QUILLUI_BACKEND"
+    quillui_require_backend_identifier "$QUILLUI_BACKEND"
   else
     quillui_backend_for_product "$1"
   fi

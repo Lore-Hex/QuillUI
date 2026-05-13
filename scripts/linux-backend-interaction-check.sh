@@ -10,7 +10,7 @@ APP_EXECUTABLE=""
 
 source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
-quillui_export_backend_argument "${3:-}"
+quillui_export_backend_argument "$REQUESTED_BACKEND"
 quillui_alias_backend_build_env
 quillui_alias_backend_interaction_env
 

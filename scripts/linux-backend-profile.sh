@@ -30,7 +30,7 @@ REQUESTED_BACKEND="${4:-${QUILLUI_BACKEND:-}}"
 
 source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
-quillui_export_backend_argument "${4:-}"
+quillui_export_backend_argument "$REQUESTED_BACKEND"
 quillui_alias_backend_build_env
 quillui_alias_backend_profile_env
 

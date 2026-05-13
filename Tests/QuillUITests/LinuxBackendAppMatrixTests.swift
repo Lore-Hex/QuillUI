@@ -190,7 +190,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_app_matrix()"))
         #expect(backendProducts.contains("quillui_normalize_backend_identifier()"))
         #expect(backendProducts.contains("quillui_require_backend_identifier()"))
-        #expect(backendProducts.contains("quillui_backend_identifier_or_raw()"))
+        #expect(!backendProducts.contains("quillui_backend_identifier_or_raw()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_products()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_matrix()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_products | quillui_backend_matrix_for_products"))
@@ -225,7 +225,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(profileScript.contains("quillui_install_linux_backend_smoke_packages"))
         #expect(profileScript.contains("quillui_resolve_linux_backend_executable \"$PRODUCT\" exe"))
         #expect(profileScript.contains("REQUESTED_BACKEND=\"${4:-${QUILLUI_BACKEND:-}}\""))
-        #expect(profileScript.contains("quillui_export_backend_argument \"${4:-}\""))
+        #expect(profileScript.contains("quillui_export_backend_argument \"$REQUESTED_BACKEND\""))
         #expect(profileScript.contains("quillui_alias_backend_build_env"))
         #expect(!profileScript.contains("patch-swiftopenui-gtk-css.sh"))
         #expect(!profileScript.contains("swift build --scratch-path \"$ROOT_DIR/.build-linux\" --product \"$PRODUCT\""))
@@ -236,7 +236,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(legacyProfileScript.contains("linux-backend-profile.sh"))
         #expect(visualScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(visualScript.contains("REQUESTED_BACKEND=\"${3:-${QUILLUI_BACKEND:-}}\""))
-        #expect(visualScript.contains("quillui_export_backend_argument \"${3:-}\""))
+        #expect(visualScript.contains("quillui_export_backend_argument \"$REQUESTED_BACKEND\""))
         #expect(visualScript.contains("quillui_alias_backend_build_env"))
         #expect(smokeMatrixRunner.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(smokeMatrixRunner.contains("app-matrix|interaction-matrix|generated-app-matrix|smoke-matrix|smoke-interaction-matrix"))
@@ -598,6 +598,14 @@ struct LinuxBackendAppMatrixTests {
         #expect(aliasOverrideBackend.status == 0, Comment(rawValue: aliasOverrideBackend.output))
         #expect(aliasOverrideBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
 
+        let invalidOverrideBackend = try runScript(
+            script,
+            arguments: ["requested-backend", "quill-icecubes"],
+            environment: ["QUILLUI_BACKEND": "unknown"]
+        )
+        #expect(invalidOverrideBackend.status != 0)
+        #expect(invalidOverrideBackend.output.contains("Unsupported QuillUI backend: unknown"))
+
         let normalizedQtBackend = try runScript(script, arguments: ["normalize-backend", " Qt6 "])
         #expect(normalizedQtBackend.status == 0, Comment(rawValue: normalizedQtBackend.output))
         #expect(normalizedQtBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
@@ -704,6 +712,28 @@ struct LinuxBackendAppMatrixTests {
         quillui_append_backend_launch_environment runtime_env quill-icecubes "" " GTK4 "
         printf 'launch-backend=%s\\n' "${runtime_env[1]}"
 
+        if quillui_export_backend_argument "not-a-backend" 2>/dev/null; then
+          echo "unexpected-export-success"
+          exit 1
+        fi
+        printf 'strict-export=failed\\n'
+
+        invalid_runtime_env=()
+        if quillui_append_backend_launch_environment invalid_runtime_env quill-icecubes "" "not-a-backend" 2>/dev/null; then
+          echo "unexpected-launch-success"
+          exit 1
+        fi
+        printf 'strict-launch=failed\\n'
+
+        QUILLUI_BACKEND=not-a-backend
+        export QUILLUI_BACKEND
+        invalid_env_runtime=()
+        if quillui_append_backend_launch_environment invalid_env_runtime quill-icecubes "" "" 2>/dev/null; then
+          echo "unexpected-env-success"
+          exit 1
+        fi
+        printf 'strict-env=failed\\n'
+
         """.write(to: probe, atomically: true, encoding: .utf8)
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: probe.path)
 
@@ -725,6 +755,9 @@ struct LinuxBackendAppMatrixTests {
         build-exe=/tmp/qt-app
         build-skip=1
         launch-backend=QUILLUI_BACKEND=gtk
+        strict-export=failed
+        strict-launch=failed
+        strict-env=failed
 
         """)
     }
