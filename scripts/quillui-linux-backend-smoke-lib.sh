@@ -240,15 +240,15 @@ quillui_append_backend_launch_environment() {
   local display="${3:-}"
   local requested_backend="${4:-}"
 
-  quillui_append_environment_assignment "$output_array" "GTK_A11Y=none"
+  quillui_append_environment_assignment "$output_array" "GTK_A11Y=none" || return $?
   if [[ -n "$display" ]]; then
-    quillui_append_environment_assignment "$output_array" "DISPLAY=$display"
+    quillui_append_environment_assignment "$output_array" "DISPLAY=$display" || return $?
   fi
   if [[ -z "$requested_backend" ]]; then
     requested_backend="$(quillui_requested_backend_for_product "$product")"
   fi
   if [[ -n "$requested_backend" ]]; then
-    quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND=$requested_backend"
+    quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND=$requested_backend" || return $?
   fi
 }
 
@@ -260,9 +260,9 @@ quillui_append_backend_layout_debug_environment() {
     return
   fi
 
-  quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_LAYOUT_DEBUG=$layout_debug"
-  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_LAYOUT_DEBUG=$layout_debug"
-  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_LAYOUT_DEBUG=$layout_debug"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_LAYOUT_DEBUG=$layout_debug" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_LAYOUT_DEBUG=$layout_debug" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_LAYOUT_DEBUG=$layout_debug" || return $?
 }
 
 quillui_append_quill_chat_reference_environment() {
@@ -272,20 +272,20 @@ quillui_append_quill_chat_reference_environment() {
   local reference_window_height="$4"
   local hide_window_menubar_label="$5"
 
-  quillui_seed_quill_chat_reference_data "$reference_home"
-  quillui_append_environment_assignment "$output_array" "HOME=$reference_home"
-  quillui_append_environment_assignment "$output_array" "QUILLDATA_HOME=$reference_home"
-  quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH=$reference_window_width"
-  quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT=$reference_window_height"
-  quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"
-  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=$reference_window_width"
-  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT=$reference_window_height"
-  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"
-  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_DEFAULT_WINDOW_WIDTH=$reference_window_width"
-  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_DEFAULT_WINDOW_HEIGHT=$reference_window_height"
-  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"
-  quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"
-  quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"
+  quillui_seed_quill_chat_reference_data "$reference_home" || return $?
+  quillui_append_environment_assignment "$output_array" "HOME=$reference_home" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLDATA_HOME=$reference_home" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH=$reference_window_width" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT=$reference_window_height" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=$reference_window_width" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT=$reference_window_height" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_DEFAULT_WINDOW_WIDTH=$reference_window_width" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_DEFAULT_WINDOW_HEIGHT=$reference_window_height" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_REFERENCE_MODE=1" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1" || return $?
 }
 
 quillui_append_quill_chat_reference_environment_if_needed() {
@@ -303,8 +303,29 @@ quillui_append_quill_chat_reference_environment_if_needed() {
       "$reference_home" \
       "$reference_window_width" \
       "$reference_window_height" \
-      "$hide_window_menubar_label"
+      "$hide_window_menubar_label" || return $?
   fi
+}
+
+quillui_append_backend_runtime_environment() {
+  local output_array="$1"
+  local product="$2"
+  local display="${3:-}"
+  local output_dir="$4"
+  local reference_window_width="$5"
+  local reference_window_height="$6"
+  local hide_window_menubar_label="$7"
+  local requested_backend="${8:-}"
+
+  quillui_append_backend_launch_environment "$output_array" "$product" "$display" "$requested_backend" || return $?
+  quillui_append_backend_layout_debug_environment "$output_array" "${QUILLUI_BACKEND_LAYOUT_DEBUG:-}" || return $?
+  quillui_append_quill_chat_reference_environment_if_needed \
+    "$output_array" \
+    "$product" \
+    "$output_dir" \
+    "$reference_window_width" \
+    "$reference_window_height" \
+    "$hide_window_menubar_label" || return $?
 }
 
 quillui_install_linux_backend_smoke_packages() {

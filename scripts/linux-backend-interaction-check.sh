@@ -59,11 +59,10 @@ cleanup() {
 trap cleanup EXIT
 
 app_environment=()
-quillui_append_backend_launch_environment app_environment "$PRODUCT" "$DISPLAY_ID"
-quillui_append_backend_layout_debug_environment app_environment "${QUILLUI_BACKEND_LAYOUT_DEBUG:-}"
-quillui_append_quill_chat_reference_environment_if_needed \
+quillui_append_backend_runtime_environment \
   app_environment \
   "$PRODUCT" \
+  "$DISPLAY_ID" \
   "$OUTPUT_DIR" \
   "$reference_window_width" \
   "$reference_window_height" \
