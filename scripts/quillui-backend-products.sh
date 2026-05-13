@@ -40,6 +40,19 @@ quillui_backend_profile_products() {
   quillui_backend_smoke_products
 }
 
+quillui_is_backend_smoke_product() {
+  local candidate="$1"
+  local product
+
+  while IFS= read -r product; do
+    if [[ "$candidate" == "$product" ]]; then
+      return 0
+    fi
+  done < <(quillui_backend_smoke_products)
+
+  return 1
+}
+
 quillui_alias_env() {
   local canonical="$1"
   local legacy="$2"
@@ -87,6 +100,7 @@ Commands:
   gtk-apps                        List user-facing app products in the GTK parity matrix.
   smoke-products                  List backend launch smoke products.
   profile-products                List app and launch-smoke products for profile budgets.
+  is-smoke-product PRODUCT        Exit 0 when PRODUCT is a backend launch smoke product.
   backend-for-product PRODUCT     Print the default requested backend for PRODUCT.
   requested-backend PRODUCT       Print QUILLUI_BACKEND override or PRODUCT default.
 MSG
@@ -105,6 +119,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     profile-products)
       quillui_backend_profile_products
+      ;;
+    is-smoke-product)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_is_backend_smoke_product "$2"
       ;;
     backend-for-product)
       if [[ $# -ne 2 ]]; then

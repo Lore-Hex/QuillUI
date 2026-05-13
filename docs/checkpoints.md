@@ -2724,3 +2724,18 @@ Linux CI's backend profile baseline now reads `profile-products`, so GTK and Qt
 launch fixtures get startup/RSS/CPU rows alongside the app matrix. That brings
 the Qt target into the same performance loop before a native Qt renderer is
 linked, without duplicating product lists in workflow YAML.
+
+## Checkpoint 150: Shared Backend Smoke Product Predicate
+
+Status: implemented locally; guarded by matrix, source hygiene, and shell syntax
+checks.
+
+`scripts/quillui-backend-products.sh` now exposes
+`quillui_is_backend_smoke_product` and an `is-smoke-product` CLI command. The
+backend interaction runner uses that shared predicate for default interaction
+mode, click geometry, and screenshot verifier selection instead of repeating the
+GTK/Qt smoke product pair in local cases.
+
+This keeps future backend launch fixtures on the same roster-driven path as Qt:
+adding a new smoke product updates one list, while visual, interaction, full
+check, and profile loops continue to consume shared product metadata.

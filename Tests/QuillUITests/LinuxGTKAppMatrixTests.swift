@@ -142,6 +142,7 @@ struct LinuxGTKAppMatrixTests {
         let backendProducts = try String(contentsOf: matrixScript, encoding: .utf8)
         #expect(backendProducts.contains("quillui_backend_app_products()"))
         #expect(backendProducts.contains("quillui_backend_profile_products()"))
+        #expect(backendProducts.contains("quillui_is_backend_smoke_product()"))
         #expect(backendProducts.contains("quillui_alias_env()"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(profileScript.contains("quillui_install_linux_backend_smoke_packages"))
@@ -193,6 +194,12 @@ struct LinuxGTKAppMatrixTests {
             profileProducts.output.split(whereSeparator: \.isNewline).map(String.init)
                 == Self.expectedAppProducts + Self.expectedSmokeProducts
         )
+
+        let knownSmokeProduct = try runScript(script, arguments: ["is-smoke-product", "quill-qt-interaction-smoke"])
+        #expect(knownSmokeProduct.status == 0, Comment(rawValue: knownSmokeProduct.output))
+
+        let appProduct = try runScript(script, arguments: ["is-smoke-product", "quill-icecubes"])
+        #expect(appProduct.status != 0)
 
         let qtBackend = try runScript(script, arguments: ["backend-for-product", "quill-qt-interaction-smoke"])
         #expect(qtBackend.status == 0, Comment(rawValue: qtBackend.output))
