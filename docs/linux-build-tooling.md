@@ -257,6 +257,9 @@ scripts/quillui-backend-products.sh profile-matrix | \
 The CSV schema stays product-first for the budget checker. Backend-requested
 matrix rows are labeled as `product@backend` in the emitted `product` column,
 so GTK and Qt rows can be compared without introducing a second CSV format.
+When consecutive rows reuse the same executable product, the CSV runner sets
+`QUILLUI_BACKEND_SKIP_BUILD=1` after the first successful profile pass so GTK
+and Qt budget rows do not repeat the same SwiftPM build work.
 
 The opt-in `ImageRenderer` offscreen path also runs under Xvfb. It is kept
 separate from the normal test suite because it intentionally maps a temporary

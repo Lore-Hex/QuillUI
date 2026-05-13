@@ -73,7 +73,8 @@ flaking on normal CI variance.
 
 The baseline and focused experiment CSVs are emitted through
 `scripts/run-linux-backend-profile-csv.sh`, which keeps the CSV header,
-product loop, and failure-tolerant artifact capture in one place.
+product loop, repeated-product skip-build reuse, and failure-tolerant artifact
+capture in one place.
 
 ## Previous Outlier Matrix (Linux run 25715271203, commit f6a27de)
 

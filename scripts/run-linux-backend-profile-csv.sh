@@ -56,10 +56,24 @@ if [[ ! -x "$PROFILE_SCRIPT" ]]; then
 fi
 
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/quillui-profile-csv.XXXXXX")"
+BUILT_PROFILE_PRODUCTS_LIST=$'\n'
 cleanup() {
   rm -rf "$TMP_DIR"
 }
 trap cleanup EXIT
+
+quillui_profile_product_was_built() {
+  local candidate="$1"
+
+  case "$BUILT_PROFILE_PRODUCTS_LIST" in
+    *$'\n'"$candidate"$'\n'*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
 
 {
   echo "product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
@@ -81,11 +95,21 @@ trap cleanup EXIT
       label="$product@$backend"
     fi
     row_path="$TMP_DIR/${label//[^A-Za-z0-9_.-]/_}.csv"
-    status=0
+    profiler_environment=()
     if [[ -n "$backend" ]]; then
-      QUILLUI_BACKEND="$backend" "$PROFILE_SCRIPT" "$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS" >"$row_path" || status=$?
+      profiler_environment+=("QUILLUI_BACKEND=$backend")
+    fi
+    if quillui_profile_product_was_built "$product"; then
+      profiler_environment+=("QUILLUI_BACKEND_SKIP_BUILD=1")
+    fi
+    status=0
+    if [[ ${#profiler_environment[@]} -gt 0 ]]; then
+      env "${profiler_environment[@]}" "$PROFILE_SCRIPT" "$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS" >"$row_path" || status=$?
     else
       "$PROFILE_SCRIPT" "$product" "$SETTLE_SECONDS" "$STEADY_DELAY_SECONDS" >"$row_path" || status=$?
+    fi
+    if [[ "$status" -eq 0 ]] && ! quillui_profile_product_was_built "$product"; then
+      BUILT_PROFILE_PRODUCTS_LIST="${BUILT_PROFILE_PRODUCTS_LIST}${product}"$'\n'
     fi
     if [[ -s "$row_path" ]]; then
       awk -v label="$label" 'BEGIN { FS = OFS = "," } NF > 0 { $1 = label } { print }' "$row_path"

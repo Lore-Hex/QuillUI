@@ -283,7 +283,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(!csvRunner.contains("${QUILLUI_GTK_PROFILE_COMMAND:-"))
         #expect(!csvRunner.contains("${QUILLUI_GTK_PROFILE_SETTLE:-"))
         #expect(csvRunner.contains("PRODUCT<TAB>BACKEND"))
-        #expect(csvRunner.contains("QUILLUI_BACKEND=\"$backend\""))
+        #expect(csvRunner.contains("BUILT_PROFILE_PRODUCTS_LIST=$'\\n'"))
+        #expect(csvRunner.contains("quillui_profile_product_was_built()"))
+        #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND_SKIP_BUILD=1\")"))
+        #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND=$backend\")"))
         #expect(csvRunner.contains("awk -v label=\"$label\""))
         #expect(legacyCSVRunner.contains("run-linux-backend-profile-csv.sh"))
         #expect(budgetScript.contains("QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT"))
@@ -575,8 +578,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(budget.output.contains("silent-product exit_status=profiler-exit-42"))
     }
 
-    @Test("profile CSV runner accepts backend matrix rows")
-    func profileCSVRunnerAcceptsBackendMatrixRows() throws {
+    @Test("profile CSV runner accepts backend matrix rows and reuses repeated product builds")
+    func profileCSVRunnerAcceptsBackendMatrixRowsAndReusesRepeatedProductBuilds() throws {
         let root = try packageRoot()
         let script = root.appendingPathComponent("scripts/run-linux-backend-profile-csv.sh")
         let fileManager = FileManager.default
@@ -590,10 +593,19 @@ struct LinuxBackendAppMatrixTests {
         try """
         #!/usr/bin/env bash
         product="$1"
-        if [[ "${QUILLUI_BACKEND:-}" != "qt" ]]; then
+        if [[ "$product" != "quill-icecubes" ]]; then
+          exit 41
+        fi
+        if [[ "${QUILLUI_BACKEND:-}" == "gtk" && "${QUILLUI_BACKEND_SKIP_BUILD:-0}" != "0" ]]; then
           exit 42
         fi
-        echo "$product,1,2,3,4.0,5.0,ok"
+        if [[ "${QUILLUI_BACKEND:-}" == "qt" && "${QUILLUI_BACKEND_SKIP_BUILD:-0}" != "1" ]]; then
+          exit 43
+        fi
+        if [[ "${QUILLUI_BACKEND:-}" != "gtk" && "${QUILLUI_BACKEND:-}" != "qt" ]]; then
+          exit 42
+        fi
+        echo "$product,1,2,3,${QUILLUI_BACKEND_SKIP_BUILD:-0}.0,5.0,ok"
 
         """.write(to: fakeProfiler, atomically: true, encoding: .utf8)
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeProfiler.path)
@@ -602,13 +614,14 @@ struct LinuxBackendAppMatrixTests {
             script,
             arguments: [csv.path],
             environment: ["QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path],
-            stdin: "quill-icecubes\tqt\n"
+            stdin: "quill-icecubes\tgtk\nquill-icecubes\tqt\n"
         )
 
         #expect(result.status == 0, Comment(rawValue: result.output))
         let expected = """
         product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
-        quill-icecubes@qt,1,2,3,4.0,5.0,ok
+        quill-icecubes@gtk,1,2,3,0.0,5.0,ok
+        quill-icecubes@qt,1,2,3,1.0,5.0,ok
 
         """
         #expect(result.output == expected)
