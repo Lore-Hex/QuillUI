@@ -137,6 +137,35 @@ quillui_backend_smoke_matrix() {
   done < <(quillui_backend_smoke_products)
 }
 
+quillui_backend_smoke_interaction_modes() {
+  # Launch fixture interaction modes exercise the shared backend surface:
+  # root button, nested buttons, and sheet presentations. Keep this list in
+  # one place so GTK and Qt fixture coverage cannot drift.
+  printf '%s\n' \
+    open-panel \
+    sidebar-button \
+    banner-button \
+    nested-sheet \
+    sidebar-sheet \
+    banner-sheet
+}
+
+quillui_backend_smoke_interaction_matrix() {
+  local product
+  local backend
+  local mode
+
+  while IFS= read -r product; do
+    [[ -n "$product" ]] || continue
+    backend="$(quillui_backend_for_product "$product")"
+    [[ -n "$backend" ]] || continue
+    while IFS= read -r mode; do
+      [[ -n "$mode" ]] || continue
+      printf '%s\t%s\t%s\n' "$product" "$backend" "$mode"
+    done < <(quillui_backend_smoke_interaction_modes)
+  done < <(quillui_backend_smoke_products)
+}
+
 quillui_backend_profile_products() {
   # Performance budget rows cover production-shaped app shells, generated
   # external apps, and the minimal backend launch fixtures. Keep this as a
@@ -311,6 +340,8 @@ Commands:
   gtk-apps                        Legacy alias for backend-apps.
   smoke-products                  List backend launch smoke products.
   smoke-matrix                    List PRODUCT<TAB>BACKEND rows for backend launch smoke products.
+  smoke-interaction-modes         List interaction modes for backend launch smoke products.
+  smoke-interaction-matrix        List PRODUCT<TAB>BACKEND<TAB>MODE rows for backend launch interaction smokes.
   profile-products                List app and launch-smoke products for profile budgets.
   profile-matrix                  List PRODUCT<TAB>BACKEND rows for profile budgets.
   normalize-backend BACKEND       Print the canonical backend identifier for a known backend alias.
@@ -351,6 +382,12 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     smoke-matrix)
       quillui_backend_smoke_matrix
+      ;;
+    smoke-interaction-modes)
+      quillui_backend_smoke_interaction_modes
+      ;;
+    smoke-interaction-matrix)
+      quillui_backend_smoke_interaction_matrix
       ;;
     profile-products)
       quillui_backend_profile_products

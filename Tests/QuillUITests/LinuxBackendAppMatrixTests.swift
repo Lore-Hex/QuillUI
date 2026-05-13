@@ -57,7 +57,7 @@ struct LinuxBackendAppMatrixTests {
         )
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
-        #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh interaction smoke-matrix '.qa/{product}-open-{backend}.png'"))
+        #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction generated-app-matrix '.qa/{product}-toolbar-menu-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual app-matrix '.qa/{product}-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-matrix '.qa/{product}-interaction-{backend}.png'"))
@@ -196,6 +196,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_generated_app_products()"))
         #expect(backendProducts.contains("quillui_backend_generated_app_matrix()"))
         #expect(backendProducts.contains("quillui_backend_smoke_matrix()"))
+        #expect(backendProducts.contains("quillui_backend_smoke_interaction_modes()"))
+        #expect(backendProducts.contains("quillui_backend_smoke_interaction_matrix()"))
+        #expect(backendProducts.contains("open-panel"))
+        #expect(backendProducts.contains("banner-sheet"))
         #expect(backendProducts.contains("quillui_backend_profile_products()"))
         #expect(backendProducts.contains("done < <(quillui_backend_smoke_products)"))
         #expect(backendProducts.contains("quillui_backend_generated_app_products\n  quillui_backend_smoke_products"))
@@ -230,11 +234,15 @@ struct LinuxBackendAppMatrixTests {
         #expect(visualScript.contains("quillui_export_backend_argument \"${3:-}\""))
         #expect(visualScript.contains("quillui_alias_backend_build_env"))
         #expect(smokeMatrixRunner.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
-        #expect(smokeMatrixRunner.contains("app-matrix|interaction-matrix|generated-app-matrix|smoke-matrix"))
+        #expect(smokeMatrixRunner.contains("app-matrix|interaction-matrix|generated-app-matrix|smoke-matrix|smoke-interaction-matrix"))
         #expect(smokeMatrixRunner.contains("CHECK_SCRIPT=\"$ROOT_DIR/scripts/linux-backend-visual-check.sh\""))
         #expect(smokeMatrixRunner.contains("CHECK_SCRIPT=\"$ROOT_DIR/scripts/linux-backend-interaction-check.sh\""))
-        #expect(smokeMatrixRunner.contains("OUTPUT_TEMPLATE must include {product} and {backend}"))
+        #expect(smokeMatrixRunner.contains("OUTPUT_TEMPLATE must include {product} and {backend}; mode matrices must also"))
+        #expect(smokeMatrixRunner.contains("OUTPUT_TEMPLATE must include {mode} for $MATRIX_COMMAND"))
+        #expect(smokeMatrixRunner.contains("Backend mode matrix row has an empty mode"))
+        #expect(smokeMatrixRunner.contains("Backend matrix row has an unexpected mode column"))
         #expect(smokeMatrixRunner.contains("quillui_backend_identifier_or_raw \"$backend\""))
+        #expect(smokeMatrixRunner.contains("smoke_environment+=(\"QUILLUI_BACKEND_INTERACTION_MODE=$mode\")"))
         #expect(smokeMatrixRunner.contains("QUILLUI_BACKEND_SKIP_BUILD=1"))
         #expect(smokeMatrixRunner.contains("env \"${smoke_environment[@]}\" \"$CHECK_SCRIPT\" \"$output_path\" \"$product\" \"$backend\""))
         #expect(smokeMatrixRunner.contains("\"$ROOT_DIR/scripts/quillui-backend-products.sh\" \"$MATRIX_COMMAND\""))
@@ -383,12 +391,52 @@ struct LinuxBackendAppMatrixTests {
             "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-open-qt.png\t0"
         ])
 
+        let smokeInteractions = try runScript(
+            script,
+            arguments: [
+                "--dry-run",
+                "--skip-repeated-products",
+                "interaction",
+                "smoke-interaction-matrix",
+                ".qa/{product}-{mode}-{backend}.png"
+            ]
+        )
+        #expect(smokeInteractions.status == 0, Comment(rawValue: smokeInteractions.output))
+        #expect(smokeInteractions.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-open-panel-gtk.png\t0\topen-panel",
+            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-sidebar-button-gtk.png\t1\tsidebar-button",
+            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-banner-button-gtk.png\t1\tbanner-button",
+            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-nested-sheet-gtk.png\t1\tnested-sheet",
+            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-sidebar-sheet-gtk.png\t1\tsidebar-sheet",
+            "interaction\tquill-gtk-interaction-smoke\tgtk\t.qa/quill-gtk-interaction-smoke-banner-sheet-gtk.png\t1\tbanner-sheet",
+            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-open-panel-qt.png\t0\topen-panel",
+            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-sidebar-button-qt.png\t1\tsidebar-button",
+            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-banner-button-qt.png\t1\tbanner-button",
+            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-nested-sheet-qt.png\t1\tnested-sheet",
+            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-sidebar-sheet-qt.png\t1\tsidebar-sheet",
+            "interaction\tquill-qt-interaction-smoke\tqt\t.qa/quill-qt-interaction-smoke-banner-sheet-qt.png\t1\tbanner-sheet"
+        ])
+
         let malformedTemplate = try runScript(
             script,
             arguments: ["--dry-run", "visual", "app-matrix", ".qa/{product}.png"]
         )
         #expect(malformedTemplate.status != 0)
         #expect(malformedTemplate.output.contains("OUTPUT_TEMPLATE must include {product} and {backend}"))
+
+        let modeTemplateWithoutMode = try runScript(
+            script,
+            arguments: ["--dry-run", "interaction", "smoke-interaction-matrix", ".qa/{product}-{backend}.png"]
+        )
+        #expect(modeTemplateWithoutMode.status != 0)
+        #expect(modeTemplateWithoutMode.output.contains("OUTPUT_TEMPLATE must include {mode} for smoke-interaction-matrix"))
+
+        let modeMatrixWithVisualKind = try runScript(
+            script,
+            arguments: ["--dry-run", "visual", "smoke-interaction-matrix", ".qa/{product}-{mode}-{backend}.png"]
+        )
+        #expect(modeMatrixWithVisualKind.status != 0)
+        #expect(modeMatrixWithVisualKind.output.contains("smoke-interaction-matrix is only supported for interaction smokes"))
     }
 
     @Test("backend product helper maps GTK and Qt defaults")
@@ -404,6 +452,27 @@ struct LinuxBackendAppMatrixTests {
         let smokeMatrix = try runScript(script, arguments: ["smoke-matrix"])
         #expect(smokeMatrix.status == 0, Comment(rawValue: smokeMatrix.output))
         #expect(smokeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == expectedSmokeMatrix)
+
+        let expectedSmokeInteractionModes = [
+            "open-panel",
+            "sidebar-button",
+            "banner-button",
+            "nested-sheet",
+            "sidebar-sheet",
+            "banner-sheet"
+        ]
+        let smokeInteractionModes = try runScript(script, arguments: ["smoke-interaction-modes"])
+        #expect(smokeInteractionModes.status == 0, Comment(rawValue: smokeInteractionModes.output))
+        #expect(smokeInteractionModes.output.split(whereSeparator: \.isNewline).map(String.init) == expectedSmokeInteractionModes)
+
+        let smokeInteractionMatrix = try runScript(script, arguments: ["smoke-interaction-matrix"])
+        #expect(smokeInteractionMatrix.status == 0, Comment(rawValue: smokeInteractionMatrix.output))
+        #expect(
+            smokeInteractionMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
+                == expectedSmokeMatrix.flatMap { row in
+                    expectedSmokeInteractionModes.map { "\(row)\t\($0)" }
+                }
+        )
 
         let profileProducts = try runScript(script, arguments: ["profile-products"])
         #expect(profileProducts.status == 0, Comment(rawValue: profileProducts.output))

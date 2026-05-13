@@ -91,7 +91,7 @@ jobs:
         run: scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'
 
       - name: Backend launch target interaction smokes
-        run: scripts/run-linux-backend-smoke-matrix.sh interaction smoke-matrix '.qa/{product}-open-{backend}.png'
+        run: scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'
 
       - name: Generated Enchanted toolbar interaction smokes
         run: QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction generated-app-matrix '.qa/{product}-toolbar-menu-{backend}.png'

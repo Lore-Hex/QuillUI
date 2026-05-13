@@ -224,13 +224,21 @@ scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.p
 ```
 
 The GTK and Qt launch fixtures also run through the backend visual runner from
-the shared smoke matrix:
+the shared smoke matrix, and through a mode-aware interaction matrix that drives
+the root button, nested controls, and sheet presentations with one product build
+per backend facade:
 
 ```bash
 scripts/run-linux-backend-smoke-matrix.sh \
   visual \
   smoke-matrix \
   '.qa/{product}-visual-{backend}.png'
+
+scripts/run-linux-backend-smoke-matrix.sh \
+  --skip-repeated-products \
+  interaction \
+  smoke-interaction-matrix \
+  '.qa/{product}-{mode}-{backend}.png'
 ```
 
 The root app interaction matrix uses the same app roster as the visual smoke.

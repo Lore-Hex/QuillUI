@@ -17,10 +17,13 @@ MATRIX_COMMAND:
   interaction-matrix             User-facing interaction PRODUCT<TAB>BACKEND rows.
   generated-app-matrix           Generated external app PRODUCT<TAB>BACKEND rows.
   smoke-matrix                   Backend launch fixture PRODUCT<TAB>BACKEND rows.
+  smoke-interaction-matrix       Backend launch fixture PRODUCT<TAB>BACKEND<TAB>MODE rows.
 
-OUTPUT_TEMPLATE must include {product} and {backend}.
+OUTPUT_TEMPLATE must include {product} and {backend}; mode matrices must also
+include {mode}.
 Use --skip-repeated-products when consecutive backend rows can reuse one build.
-Use --dry-run to print KIND<TAB>PRODUCT<TAB>BACKEND<TAB>OUTPUT<TAB>SKIP_BUILD.
+Use --dry-run to print KIND<TAB>PRODUCT<TAB>BACKEND<TAB>OUTPUT<TAB>SKIP_BUILD
+and, for mode rows, a trailing MODE column.
 MSG
 }
 
@@ -80,7 +83,7 @@ case "$KIND" in
 esac
 
 case "$MATRIX_COMMAND" in
-  app-matrix|interaction-matrix|generated-app-matrix|smoke-matrix)
+  app-matrix|interaction-matrix|generated-app-matrix|smoke-matrix|smoke-interaction-matrix)
     ;;
   *)
     echo "Unsupported backend matrix command: $MATRIX_COMMAND" >&2
@@ -91,6 +94,16 @@ esac
 
 if [[ "$OUTPUT_TEMPLATE" != *"{product}"* || "$OUTPUT_TEMPLATE" != *"{backend}"* ]]; then
   echo "OUTPUT_TEMPLATE must include {product} and {backend}: $OUTPUT_TEMPLATE" >&2
+  exit 64
+fi
+
+if [[ "$MATRIX_COMMAND" == "smoke-interaction-matrix" && "$KIND" != "interaction" ]]; then
+  echo "smoke-interaction-matrix is only supported for interaction smokes" >&2
+  exit 64
+fi
+
+if [[ "$MATRIX_COMMAND" == "smoke-interaction-matrix" && "$OUTPUT_TEMPLATE" != *"{mode}"* ]]; then
+  echo "OUTPUT_TEMPLATE must include {mode} for $MATRIX_COMMAND: $OUTPUT_TEMPLATE" >&2
   exit 64
 fi
 
@@ -117,31 +130,45 @@ quillui_smoke_product_was_built() {
 quillui_smoke_output_path() {
   local product="$1"
   local backend="$2"
+  local mode="${3:-}"
   local output_path="$OUTPUT_TEMPLATE"
 
   output_path="${output_path//\{product\}/$product}"
   output_path="${output_path//\{backend\}/$backend}"
+  output_path="${output_path//\{mode\}/$mode}"
   printf '%s\n' "$output_path"
 }
 
 quillui_run_smoke_row() {
   local product="$1"
   local backend="$2"
+  local mode="${3:-}"
   local output_path
   local skip_build=0
   local smoke_environment=()
 
-  output_path="$(quillui_smoke_output_path "$product" "$backend")"
+  output_path="$(quillui_smoke_output_path "$product" "$backend" "$mode")"
 
   if [[ "$SKIP_REPEATED_PRODUCTS" == "1" ]] && quillui_smoke_product_was_built "$product"; then
     smoke_environment+=("QUILLUI_BACKEND_SKIP_BUILD=1")
     skip_build=1
   fi
+  if [[ -n "$mode" ]]; then
+    smoke_environment+=("QUILLUI_BACKEND_INTERACTION_MODE=$mode")
+  fi
 
   if [[ "$DRY_RUN" == "1" ]]; then
-    printf '%s\t%s\t%s\t%s\t%s\n' "$KIND" "$product" "$backend" "$output_path" "$skip_build"
+    if [[ -n "$mode" ]]; then
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$KIND" "$product" "$backend" "$output_path" "$skip_build" "$mode"
+    else
+      printf '%s\t%s\t%s\t%s\t%s\n' "$KIND" "$product" "$backend" "$output_path" "$skip_build"
+    fi
   else
-    echo "==> Backend $KIND smoke: $product ($backend requested)"
+    if [[ -n "$mode" ]]; then
+      echo "==> Backend $KIND smoke: $product ($backend requested, $mode mode)"
+    else
+      echo "==> Backend $KIND smoke: $product ($backend requested)"
+    fi
     env "${smoke_environment[@]}" "$CHECK_SCRIPT" "$output_path" "$product" "$backend"
   fi
 
@@ -158,10 +185,17 @@ while IFS= read -r row; do
     exit 65
   fi
 
-  product="${row%%$'\t'*}"
-  backend="${row#*$'\t'}"
-  if [[ "$backend" == *$'\t'* ]]; then
+  IFS=$'\t' read -r product backend mode extra <<< "$row"
+  if [[ -n "${extra:-}" ]]; then
     echo "Backend matrix row has too many columns: $row" >&2
+    exit 65
+  fi
+  if [[ "$MATRIX_COMMAND" == "smoke-interaction-matrix" && -z "${mode:-}" ]]; then
+    echo "Backend mode matrix row has an empty mode: $row" >&2
+    exit 65
+  fi
+  if [[ "$MATRIX_COMMAND" != "smoke-interaction-matrix" && -n "${mode:-}" ]]; then
+    echo "Backend matrix row has an unexpected mode column: $row" >&2
     exit 65
   fi
 
@@ -171,7 +205,7 @@ while IFS= read -r row; do
     exit 65
   fi
 
-  quillui_run_smoke_row "$product" "$backend"
+  quillui_run_smoke_row "$product" "$backend" "${mode:-}"
   ROW_COUNT=$((ROW_COUNT + 1))
 done < <("$ROOT_DIR/scripts/quillui-backend-products.sh" "$MATRIX_COMMAND")
 
