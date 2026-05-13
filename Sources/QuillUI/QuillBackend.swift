@@ -205,6 +205,15 @@ public struct QuillBackendLaunchPlan: Equatable, Sendable {
 public struct QuillBackendRuntimeStatus: Equatable, Sendable {
     public let identifier: QuillBackendIdentifier
     public let launchPlan: QuillBackendLaunchPlan
+    public let requested: QuillBackendIdentifier?
+    public let preferred: QuillBackendIdentifier?
+    public let selected: QuillBackendIdentifier
+    public let runtime: QuillBackendIdentifier
+    public let selectedDescriptor: QuillBackendDescriptor
+    public let runtimeDescriptor: QuillBackendDescriptor
+    public let runtimeAvailability: QuillBackendRuntimeAvailability
+    public let usesRuntimeFallback: Bool
+    public let hasNativeRuntime: Bool
     public let mode: QuillBackendRuntimeMode
     public let runtimeMessage: String
     public let messages: [String]
@@ -216,6 +225,15 @@ public struct QuillBackendRuntimeStatus: Equatable, Sendable {
     ) {
         self.identifier = identifier
         self.launchPlan = launchPlan
+        self.requested = launchPlan.requested
+        self.preferred = launchPlan.preferred
+        self.selected = launchPlan.selected
+        self.runtime = launchPlan.runtime
+        self.selectedDescriptor = launchPlan.selectedDescriptor
+        self.runtimeDescriptor = launchPlan.runtimeDescriptor
+        self.runtimeAvailability = launchPlan.runtimeAvailability
+        self.usesRuntimeFallback = launchPlan.usesRuntimeFallback
+        self.hasNativeRuntime = launchPlan.runtimeAvailability.hasNativeRuntime
         self.mode = launchPlan.runtimeMode
         self.runtimeMessage = launchPlan.statusMessage
         self.messages = launchPlan.statusMessages

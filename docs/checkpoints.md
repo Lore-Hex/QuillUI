@@ -2983,3 +2983,13 @@ Status: implemented locally; guarded by QuillData and source hygiene tests.
 test directory. The package manifest wires the SwiftData-shaped persistence,
 predicate-lowering, and compatibility-profile helper-script tests into normal
 SwiftPM discovery, and source hygiene now asserts the target remains listed.
+
+## Checkpoint 172: Facade Runtime Status Fields
+
+Status: implemented locally; guarded by QuillUI API and backend re-export tests.
+
+`QuillBackendRuntimeStatus` now exposes the selected backend, requested backend,
+runtime backend, descriptors, typed runtime availability, and native-vs-fallback
+flags directly. GTK and Qt facade consumers can read the same status surface
+without manually unpacking launch plans, while Qt still reports the current
+platform runtime fallback until a native Qt host is linked.
