@@ -50,13 +50,7 @@ trap cleanup EXIT
 
 app_environment=()
 quillui_append_backend_launch_environment app_environment "$PRODUCT" "$DISPLAY_ID"
-if [[ -n "${QUILLUI_BACKEND_LAYOUT_DEBUG:-}" ]]; then
-  app_environment+=(
-    QUILLUI_BACKEND_LAYOUT_DEBUG="$QUILLUI_BACKEND_LAYOUT_DEBUG"
-    QUILLUI_GTK_LAYOUT_DEBUG="$QUILLUI_BACKEND_LAYOUT_DEBUG"
-    QUILLUI_QT_LAYOUT_DEBUG="$QUILLUI_BACKEND_LAYOUT_DEBUG"
-  )
-fi
+quillui_append_backend_layout_debug_environment app_environment "${QUILLUI_BACKEND_LAYOUT_DEBUG:-}"
 quillui_append_quill_chat_reference_environment_if_needed \
   app_environment \
   "$PRODUCT" \

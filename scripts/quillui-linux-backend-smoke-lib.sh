@@ -252,6 +252,19 @@ quillui_append_backend_launch_environment() {
   fi
 }
 
+quillui_append_backend_layout_debug_environment() {
+  local output_array="$1"
+  local layout_debug="${2:-}"
+
+  if [[ -z "$layout_debug" ]]; then
+    return
+  fi
+
+  quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_LAYOUT_DEBUG=$layout_debug"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_LAYOUT_DEBUG=$layout_debug"
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_LAYOUT_DEBUG=$layout_debug"
+}
+
 quillui_append_quill_chat_reference_environment() {
   local output_array="$1"
   local reference_home="$2"

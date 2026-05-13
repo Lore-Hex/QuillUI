@@ -73,7 +73,7 @@ jobs:
         run: GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG
 
       # The full upstream gluonfield/enchanted source tree now
-      # compiles + links + GTK-renders end-to-end through the
+      # compiles + links + backend-renders end-to-end through the
       # QuillUI / SwiftOpenUI / QuillFoundation / QuillAppKit /
       # QuillDataMacros + 22-shim compatibility layer (Checkpoint
       # 80). Promoted off `continue-on-error` so future
