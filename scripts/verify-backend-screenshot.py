@@ -140,6 +140,33 @@ def alert_pixel(rgb: tuple[int, int, int]) -> bool:
     return 230 <= red <= 255 and 175 <= green <= 225 and 185 <= blue <= 230 and red - green >= 20
 
 
+def wireguard_qt_sidebar_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        238 <= red <= 252
+        and 238 <= green <= 252
+        and 239 <= blue <= 253
+        and max(rgb) - min(rgb) <= 8
+        and sum(rgb) < 755
+    )
+
+
+def wireguard_qt_selected_row_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 225 <= red <= 240 and 232 <= green <= 245 and 245 <= blue <= 255 and blue - red >= 8
+
+
+def wireguard_qt_section_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        238 <= red <= 248
+        and 238 <= green <= 248
+        and 239 <= blue <= 250
+        and max(rgb) - min(rgb) <= 8
+        and sum(rgb) < 745
+    )
+
+
 def content_bounds(image: Screenshot) -> tuple[int, int, int, int]:
     rows = [
         y
@@ -1205,6 +1232,96 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
     )
 
 
+def validate_quill_wireguard_qt_native(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(880 <= app_width <= 980, f"WireGuard Qt window width is unexpected: {app_width}px")
+    require(580 <= app_height <= 720, f"WireGuard Qt window height is unexpected: {app_height}px")
+
+    divider_search = range(left + 250, min(right + 1, left + 360))
+    divider_x = max(
+        divider_search,
+        key=lambda x: line_column_score(image, x, top + 20, bottom - 20),
+    )
+    divider_score = line_column_score(image, divider_x, top + 20, bottom - 20)
+    require(
+        divider_score >= int(app_height * 0.28),
+        f"WireGuard Qt sidebar splitter was not detected: x={divider_x}, score={divider_score}",
+    )
+
+    sidebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        min(right + 1, left + 340),
+        bottom + 1,
+        wireguard_qt_sidebar_pixel,
+    )
+    selected_row_pixels = pixel_count(
+        image,
+        left + 4,
+        top + 42,
+        min(right + 1, left + 340),
+        min(bottom + 1, top + 260),
+        wireguard_qt_selected_row_pixel,
+    )
+    section_pixels = pixel_count(
+        image,
+        divider_x + 16,
+        top + 66,
+        right + 1,
+        bottom + 1,
+        wireguard_qt_section_pixel,
+    )
+    sidebar_text_pixels = dark_pixel_count(
+        image,
+        left + 12,
+        top + 20,
+        min(right + 1, left + 340),
+        bottom - 20,
+    )
+    detail_text_pixels = dark_pixel_count(
+        image,
+        divider_x + 20,
+        top + 20,
+        right - 20,
+        bottom - 20,
+    )
+
+    require(
+        sidebar_pixels >= 25_000,
+        f"WireGuard Qt sidebar background was not detected: pixels={sidebar_pixels}",
+    )
+    require(
+        selected_row_pixels >= 250,
+        f"WireGuard Qt selected tunnel row was not detected: pixels={selected_row_pixels}",
+    )
+    require(
+        section_pixels >= 12_000,
+        f"WireGuard Qt detail section backgrounds were not detected: pixels={section_pixels}",
+    )
+    require(
+        sidebar_text_pixels >= 180,
+        f"WireGuard Qt sidebar tunnel text was not detected: pixels={sidebar_text_pixels}",
+    )
+    require(
+        detail_text_pixels >= 450,
+        f"WireGuard Qt detail text was not detected: pixels={detail_text_pixels}",
+    )
+
+    return (
+        "Quill WireGuard Qt native: "
+        f"app={app_width}x{app_height}, "
+        f"divider={divider_x - left}px/{divider_score}, "
+        f"sidebar_pixels={sidebar_pixels}, "
+        f"selected_row_pixels={selected_row_pixels}, "
+        f"section_pixels={section_pixels}, "
+        f"sidebar_text_pixels={sidebar_text_pixels}, "
+        f"detail_text_pixels={detail_text_pixels}"
+    )
+
+
 def validate_quill_backend_interaction_smoke(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1323,6 +1440,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_prompt_send(image))
     elif product in {"quill-chat-mac-reference", "quill-chat-linux-mac-reference"}:
         print(validate_quill_chat_mac_reference(image))
+    elif product == "quill-wireguard-qt":
+        print(validate_quill_wireguard_qt_native(image))
     elif product in {"quill-gtk-interaction-smoke-open", "quill-qt-interaction-smoke-open"}:
         print(validate_quill_backend_interaction_smoke(image))
     elif product in {"quill-gtk-interaction-smoke-sidebar", "quill-qt-interaction-smoke-sidebar"}:
