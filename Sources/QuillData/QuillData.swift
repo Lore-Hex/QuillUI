@@ -194,6 +194,7 @@ public enum QuillDataError: Error, CustomStringConvertible {
 
 final class QuillDataSQLiteStore: @unchecked Sendable {
     private let database: any DatabaseWriter
+    private static let genericTablePrefix = "_quilldata_json_"
 
     init(configuration: ModelConfiguration) throws {
         if configuration.isStoredInMemoryOnly {
@@ -210,16 +211,43 @@ final class QuillDataSQLiteStore: @unchecked Sendable {
             for modelType in schema.models {
                 if let mappable = modelType as? any QuillTableMappable.Type {
                     try db.execute(sql: mappable.createTableSQL)
+                } else {
+                    try Self.createGenericTable(for: modelType, in: db)
                 }
             }
         }
     }
 
     func upsert<Model: PersistentModel>(_ model: Model) throws {
+        try upsertAny(model)
+    }
+
+    func upsertAny(_ model: any PersistentModel) throws {
+        try database.write { db in
+            var visited: Set<String> = []
+            try upsert(model, in: db, visited: &visited)
+        }
+    }
+
+    private func upsert(
+        _ model: any PersistentModel,
+        in db: Database,
+        visited: inout Set<String>
+    ) throws {
+        let payload = try Self.encode(model)
+        let tableName = Self.storageTableName(for: model)
+        let identity = Self.identity(for: model, encodedPayload: payload)
+        let visitedKey = "\(tableName):\(identity)"
+        guard visited.insert(visitedKey).inserted else { return }
+
+        for relatedModel in Self.classBackedRelatedModels(in: model) {
+            try upsert(relatedModel, in: db, visited: &visited)
+        }
+
         if let mappable = model as? any QuillTableMappable {
-            try database.write { db in
-                try upsertColumnar(mappable, in: db)
-            }
+            try upsertColumnar(mappable, in: db)
+        } else {
+            try upsertGeneric(model, payload: payload, identity: identity, in: db)
         }
     }
 
@@ -232,7 +260,9 @@ final class QuillDataSQLiteStore: @unchecked Sendable {
     }
 
     func fetchAll<Model: PersistentModel>(_ model: Model.Type, filter: String? = nil) throws -> [Model] {
-        guard let mappable = model as? any QuillTableMappable.Type else { return [] }
+        guard let mappable = model as? any QuillTableMappable.Type else {
+            return try fetchGeneric(model)
+        }
         return try database.read { db in
             let sql = filter != nil ? "SELECT * FROM \(mappable.tableName) WHERE \(filter!)" : "SELECT * FROM \(mappable.tableName)"
             let records = try mappable.fetchPersistentModels(db, sql: sql)
@@ -241,7 +271,15 @@ final class QuillDataSQLiteStore: @unchecked Sendable {
     }
 
     func deleteAll<Model: PersistentModel>(_ model: Model.Type, filter: String? = nil) throws {
-        guard let mappable = model as? any QuillTableMappable.Type else { return }
+        guard let mappable = model as? any QuillTableMappable.Type else {
+            guard filter == nil else {
+                throw QuillDataError.unsupportedPredicate("SQL predicates are not supported for JSON-backed \(model)")
+            }
+            try database.write { db in
+                try db.execute(sql: "DELETE FROM \(Self.quotedIdentifier(Self.genericTableName(for: model)))")
+            }
+            return
+        }
         try database.write { db in
             let sql = filter != nil ? "DELETE FROM \(mappable.tableName) WHERE \(filter!)" : "DELETE FROM \(mappable.tableName)"
             try db.execute(sql: sql)
@@ -249,10 +287,190 @@ final class QuillDataSQLiteStore: @unchecked Sendable {
     }
 
     func delete<Model: PersistentModel>(_ model: Model) throws {
-        guard let mappable = model as? any QuillTableMappable else { return }
+        guard let mappable = model as? any QuillTableMappable else {
+            let payload = try Self.encode(model)
+            let identity = Self.identity(for: model, encodedPayload: payload)
+            try database.write { db in
+                try db.execute(
+                    sql: "DELETE FROM \(Self.quotedIdentifier(Self.genericTableName(for: type(of: model)))) WHERE id = ?",
+                    arguments: [identity]
+                )
+            }
+            return
+        }
         try database.write { db in
             _ = try mappable.toTableStruct().delete(db)
         }
+    }
+
+    func supportsSQLFilters<Model: PersistentModel>(_ model: Model.Type) -> Bool {
+        model is any QuillTableMappable.Type
+    }
+
+    func identity<Model: PersistentModel>(for model: Model) throws -> String {
+        try Self.identity(for: model, encodedPayload: Self.encode(model))
+    }
+
+    func encodedPayload(for model: any PersistentModel) throws -> Data {
+        try Self.encode(model)
+    }
+
+    private func fetchGeneric<Model: PersistentModel>(_ model: Model.Type) throws -> [Model] {
+        try database.read { db in
+            let tableName = Self.quotedIdentifier(Self.genericTableName(for: model))
+            let rows = try Row.fetchAll(db, sql: "SELECT payload FROM \(tableName) ORDER BY rowid")
+            return try rows.map { row in
+                let payload: Data = row["payload"]
+                do {
+                    return try JSONDecoder().decode(Model.self, from: payload)
+                } catch {
+                    throw QuillDataError.decodeFailed("\(model): \(error)")
+                }
+            }
+        }
+    }
+
+    private func upsertGeneric(
+        _ model: any PersistentModel,
+        payload: Data,
+        identity: String,
+        in db: Database
+    ) throws {
+        let tableName = Self.quotedIdentifier(Self.genericTableName(for: type(of: model)))
+        try Self.createGenericTable(for: type(of: model), in: db)
+        try db.execute(
+            sql: "INSERT OR REPLACE INTO \(tableName) (id, payload) VALUES (?, ?)",
+            arguments: [identity, payload]
+        )
+    }
+
+    private static func createGenericTable(
+        for modelType: any PersistentModel.Type,
+        in db: Database
+    ) throws {
+        let tableName = quotedIdentifier(genericTableName(for: modelType))
+        try db.execute(sql: """
+        CREATE TABLE IF NOT EXISTS \(tableName) (
+            id TEXT PRIMARY KEY ON CONFLICT REPLACE,
+            payload BLOB NOT NULL
+        )
+        """)
+    }
+
+    private static func storageTableName(for model: any PersistentModel) -> String {
+        if let mappable = type(of: model) as? any QuillTableMappable.Type {
+            return mappable.tableName
+        }
+        return genericTableName(for: type(of: model))
+    }
+
+    private static func genericTableName(for modelType: any PersistentModel.Type) -> String {
+        let rawName = String(reflecting: modelType)
+        let sanitizedName = rawName.map { character in
+            character.isLetter || character.isNumber ? character : "_"
+        }
+        return genericTablePrefix + String(sanitizedName)
+    }
+
+    private static func quotedIdentifier(_ identifier: String) -> String {
+        "\"\(identifier.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
+
+    private static func encode(_ model: any PersistentModel) throws -> Data {
+        do {
+            return try JSONEncoder().encode(model)
+        } catch {
+            throw QuillDataError.encodeFailed("\(type(of: model)): \(error)")
+        }
+    }
+
+    private static func identity(
+        for model: any PersistentModel,
+        encodedPayload payload: Data
+    ) -> String {
+        if let identity = mirroredIdentity(in: model, preferredNames: ["id", "slug", "name"]) {
+            return identity
+        }
+        return "payload:\(payload.base64EncodedString())"
+    }
+
+    private static func mirroredIdentity(
+        in value: Any,
+        preferredNames: [String]
+    ) -> String? {
+        var mirror: Mirror? = Mirror(reflecting: value)
+        while let currentMirror = mirror {
+            for child in currentMirror.children {
+                guard
+                    let label = child.label,
+                    preferredNames.contains(label),
+                    let identity = identityString(unwrapOptional(child.value))
+                else { continue }
+                return "\(label):\(identity)"
+            }
+            mirror = currentMirror.superclassMirror
+        }
+        return nil
+    }
+
+    private static func identityString(_ value: Any?) -> String? {
+        guard let value else { return nil }
+        switch value {
+        case let value as UUID:
+            return value.uuidString
+        case let value as String:
+            return value
+        case let value as Date:
+            return String(value.timeIntervalSince1970)
+        case let value as Bool:
+            return value ? "true" : "false"
+        case let value as Int:
+            return String(value)
+        case let value as Int64:
+            return String(value)
+        case let value as Double:
+            return String(value)
+        case let value as Float:
+            return String(value)
+        case let value as Data:
+            return value.base64EncodedString()
+        default:
+            return String(describing: value)
+        }
+    }
+
+    private static func classBackedRelatedModels(in model: any PersistentModel) -> [any PersistentModel] {
+        var relatedModels: [any PersistentModel] = []
+        var mirror: Mirror? = Mirror(reflecting: model)
+        while let currentMirror = mirror {
+            for child in currentMirror.children {
+                relatedModels.append(contentsOf: classBackedPersistentModels(in: child.value))
+            }
+            mirror = currentMirror.superclassMirror
+        }
+        return relatedModels
+    }
+
+    private static func classBackedPersistentModels(in value: Any) -> [any PersistentModel] {
+        guard let value = unwrapOptional(value) else { return [] }
+        if let model = value as? any PersistentModel,
+           Mirror(reflecting: model).displayStyle == .class {
+            return [model]
+        }
+
+        let mirror = Mirror(reflecting: value)
+        switch mirror.displayStyle {
+        case .collection, .set:
+            return mirror.children.flatMap { classBackedPersistentModels(in: $0.value) }
+        default:
+            return []
+        }
+    }
+
+    private static func unwrapOptional(_ value: Any) -> Any? {
+        let mirror = Mirror(reflecting: value)
+        guard mirror.displayStyle == .optional else { return value }
+        return mirror.children.first?.value
     }
 
     private static func defaultURL() throws -> URL {
@@ -267,9 +485,33 @@ final class QuillDataSQLiteStore: @unchecked Sendable {
 }
 
 public final class ModelContext: @unchecked Sendable {
+    private struct TrackedModelKey: Hashable {
+        let typeID: ObjectIdentifier
+        let identity: String
+    }
+
+    private struct TrackedModel {
+        let typeID: ObjectIdentifier
+        let identity: String
+        let model: any PersistentModel
+        let trackedPayload: Data
+        let order: Int
+
+        var key: TrackedModelKey {
+            TrackedModelKey(typeID: typeID, identity: identity)
+        }
+    }
+
+    private struct TrackedSaveCandidate {
+        let model: TrackedModel
+        let isChanged: Bool
+    }
+
     private let container: ModelContainer
     private let lock = NSRecursiveLock()
     private var recordedErrors: [Error] = []
+    private var trackedModels: [ObjectIdentifier: TrackedModel] = [:]
+    private var nextTrackingOrder = 0
     private var changed = false
 
     public var autosaveEnabled = true
@@ -279,15 +521,22 @@ public final class ModelContext: @unchecked Sendable {
 
     public func insert<Model: PersistentModel>(_ model: Model) {
         lock.withLock {
-            do { try container.store.upsert(model); markChanged() }
+            do {
+                try container.store.upsert(model)
+                trackIfClassBacked(model)
+                markChanged()
+            }
             catch { recordedErrors.append(error) }
         }
     }
 
     public func fetch<Model: PersistentModel>(_ descriptor: FetchDescriptor<Model>) throws -> [Model] {
         try lock.withLock {
-            let filter = descriptor.predicate?.sqlFilter
+            let filter = container.store.supportsSQLFilters(Model.self) ? descriptor.predicate?.sqlFilter : nil
             var result = try container.store.fetchAll(Model.self, filter: filter)
+            if let predicate = descriptor.predicate {
+                result = try result.filter { try predicate.evaluate($0) }
+            }
             if let closureFilter = descriptor.filter {
                 result = try result.filter { try closureFilter($0) }
             }
@@ -300,28 +549,39 @@ public final class ModelContext: @unchecked Sendable {
             if let fetchLimit = descriptor.fetchLimit {
                 sortedResult = fetchLimit <= 0 ? [] : Array(sortedResult.prefix(fetchLimit))
             }
+            var trackedClassBackedModel = false
+            for model in sortedResult {
+                trackedClassBackedModel = trackIfClassBacked(model) || trackedClassBackedModel
+            }
+            if trackedClassBackedModel {
+                markChanged()
+            }
             return sortedResult
         }
     }
 
     public func delete<Model: PersistentModel>(_ model: Model) {
         lock.withLock {
-            do { try container.store.delete(model); markChanged() }
+            do {
+                try container.store.delete(model)
+                untrack(model)
+                markChanged()
+            }
             catch { recordedErrors.append(error) }
         }
     }
 
     public func delete<Model: PersistentModel>(model: Model.Type, where predicate: Predicate<Model>? = nil) throws {
         try lock.withLock {
-            if let sqlFilter = predicate?.sqlFilter {
-                try container.store.deleteAll(Model.self, filter: sqlFilter)
-            } else if let predicate {
+            if let predicate {
                 let matchingModels = try container.store.fetchAll(Model.self).filter { try predicate.evaluate($0) }
                 for model in matchingModels {
                     try container.store.delete(model)
+                    untrack(model)
                 }
             } else {
                 try container.store.deleteAll(Model.self)
+                untrackAll(Model.self)
             }
             markChanged()
         }
@@ -332,11 +592,83 @@ public final class ModelContext: @unchecked Sendable {
             let errors = recordedErrors
             recordedErrors.removeAll()
             if !errors.isEmpty { throw QuillDataError.contextOperationFailed(errors.map { $0.localizedDescription }) }
+            for trackedModel in try trackedModelsForSave() {
+                try container.store.upsertAny(trackedModel.model)
+            }
             changed = false
         }
     }
 
     private func markChanged() { changed = true }
+
+    @discardableResult
+    private func trackIfClassBacked<Model: PersistentModel>(_ model: Model) -> Bool {
+        guard let objectID = Self.classObjectIdentifier(for: model) else { return false }
+        let payload = (try? container.store.encodedPayload(for: model)) ?? Data()
+        let identity = (try? container.store.identity(for: model)) ?? String(describing: objectID)
+        let typeID = ObjectIdentifier(Model.self)
+        nextTrackingOrder += 1
+        trackedModels[objectID] = TrackedModel(
+            typeID: typeID,
+            identity: identity,
+            model: model,
+            trackedPayload: payload,
+            order: nextTrackingOrder
+        )
+        return true
+    }
+
+    private func trackedModelsForSave() throws -> [TrackedModel] {
+        var candidates: [TrackedModelKey: TrackedSaveCandidate] = [:]
+        for trackedModel in trackedModels.values {
+            let currentPayload = try container.store.encodedPayload(for: trackedModel.model)
+            let candidate = TrackedSaveCandidate(
+                model: trackedModel,
+                isChanged: currentPayload != trackedModel.trackedPayload
+            )
+            guard let existing = candidates[trackedModel.key] else {
+                candidates[trackedModel.key] = candidate
+                continue
+            }
+            if Self.shouldReplaceTrackedSaveCandidate(existing, with: candidate) {
+                candidates[trackedModel.key] = candidate
+            }
+        }
+        return candidates.values.map(\.model)
+    }
+
+    private static func shouldReplaceTrackedSaveCandidate(
+        _ existing: TrackedSaveCandidate,
+        with candidate: TrackedSaveCandidate
+    ) -> Bool {
+        if existing.isChanged != candidate.isChanged {
+            return candidate.isChanged
+        }
+        return candidate.model.order > existing.model.order
+    }
+
+    private func untrack<Model: PersistentModel>(_ model: Model) {
+        if let objectID = Self.classObjectIdentifier(for: model) {
+            trackedModels.removeValue(forKey: objectID)
+        }
+        guard let identity = try? container.store.identity(for: model) else { return }
+        let typeID = ObjectIdentifier(Model.self)
+        trackedModels = trackedModels.filter { _, trackedModel in
+            trackedModel.typeID != typeID || trackedModel.identity != identity
+        }
+    }
+
+    private func untrackAll<Model: PersistentModel>(_ model: Model.Type) {
+        let typeID = ObjectIdentifier(model)
+        trackedModels = trackedModels.filter { _, trackedModel in
+            trackedModel.typeID != typeID
+        }
+    }
+
+    private static func classObjectIdentifier<Model: PersistentModel>(for model: Model) -> ObjectIdentifier? {
+        guard Mirror(reflecting: model).displayStyle == .class else { return nil }
+        return ObjectIdentifier(model as AnyObject)
+    }
 
     private static func compare<Model>(
         _ lhs: Model,

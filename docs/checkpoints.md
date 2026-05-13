@@ -2974,3 +2974,12 @@ backend identifier, and display name. The QuillUI backend registry derives its
 native runtime backends and platform fallback from those descriptors instead of
 duplicating GTK-specific constants, so a future native Qt host can be promoted
 by adding one linked host descriptor and letting the shared registry expose it.
+
+## Checkpoint 171: QuillData Test Target Wiring
+
+Status: implemented locally; guarded by QuillData and source hygiene tests.
+
+`QuillDataTests` is now an explicit package test target instead of an orphaned
+test directory. The package manifest wires the SwiftData-shaped persistence,
+predicate-lowering, and compatibility-profile helper-script tests into normal
+SwiftPM discovery, and source hygiene now asserts the target remains listed.

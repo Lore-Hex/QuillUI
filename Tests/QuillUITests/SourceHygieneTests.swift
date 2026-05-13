@@ -6,11 +6,14 @@ struct SourceHygieneTests {
     @Test("macro expansion paths report diagnostics instead of crashing")
     func macroExpansionPathsAvoidFatalError() throws {
         let root = try packageRoot()
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
         let macros = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillDataMacros/QuillDataMacros.swift"),
             encoding: .utf8
         )
 
+        #expect(manifest.contains("name: \"QuillDataTests\""))
+        #expect(manifest.contains("dependencies: [\"QuillData\"]"))
         #expect(!macros.contains("fatalError("))
     }
 

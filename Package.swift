@@ -978,6 +978,15 @@ let package = Package(
             dependencies: ["QuillChatKit"],
             swiftSettings: appSwiftSettings
         ),
+        // Pins the SwiftData-shaped persistence shim: model
+        // lifecycle operations, QuillPredicate lowering,
+        // relationship persistence, and generated-source helper
+        // scripts used by compatibility profiles.
+        .testTarget(
+            name: "QuillDataTests",
+            dependencies: ["QuillData"],
+            swiftSettings: appSwiftSettings
+        ),
         // QuillKitTests covers QuillClipboard / diagnostics /
         // capability matrix / launch service / speech backend —
         // pure-Foundation surface. Tests that need upstream
