@@ -156,6 +156,11 @@ def wireguard_qt_selected_row_pixel(rgb: tuple[int, int, int]) -> bool:
     return 225 <= red <= 240 and 232 <= green <= 245 and 245 <= blue <= 255 and blue - red >= 8
 
 
+def wireguard_qt_focused_title_border_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 115 <= red <= 180 and 130 <= green <= 190 and 165 <= blue <= 230 and blue - red >= 25
+
+
 def wireguard_qt_section_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return (
@@ -1275,6 +1280,7 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
 def validate_quill_wireguard_qt_native(
     image: Screenshot,
     minimum_selected_center_offset: int | None = None,
+    require_focused_title: bool = False,
 ) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1335,6 +1341,14 @@ def validate_quill_wireguard_qt_native(
         right - 20,
         bottom - 20,
     )
+    focused_title_border_pixels = pixel_count(
+        image,
+        divider_x + 18,
+        top + 18,
+        min(right + 1, divider_x + 520),
+        min(bottom + 1, top + 68),
+        wireguard_qt_focused_title_border_pixel,
+    )
 
     require(
         sidebar_pixels >= 25_000,
@@ -1363,6 +1377,12 @@ def validate_quill_wireguard_qt_native(
         detail_text_pixels >= 450,
         f"WireGuard Qt detail text was not detected: pixels={detail_text_pixels}",
     )
+    if require_focused_title:
+        require(
+            focused_title_border_pixels >= 40,
+            "WireGuard Qt focused editable tunnel title was not detected: "
+            f"pixels={focused_title_border_pixels}",
+        )
 
     return (
         "Quill WireGuard Qt native: "
@@ -1373,7 +1393,8 @@ def validate_quill_wireguard_qt_native(
         f"selected_row_y={selected_row_segment.start - top}-{selected_row_segment.end - top}, "
         f"section_pixels={section_pixels}, "
         f"sidebar_text_pixels={sidebar_text_pixels}, "
-        f"detail_text_pixels={detail_text_pixels}"
+        f"detail_text_pixels={detail_text_pixels}, "
+        f"focused_title_border_pixels={focused_title_border_pixels}"
     )
 
 
@@ -1499,6 +1520,12 @@ def main() -> int:
         print(validate_quill_wireguard_qt_native(image))
     elif product == "quill-wireguard-qt-tunnel-selection":
         print(validate_quill_wireguard_qt_native(image, minimum_selected_center_offset=100))
+    elif product == "quill-wireguard-qt-name-edit":
+        print(validate_quill_wireguard_qt_native(
+            image,
+            minimum_selected_center_offset=100,
+            require_focused_title=True,
+        ))
     elif product in {"quill-gtk-interaction-smoke-open", "quill-qt-interaction-smoke-open"}:
         print(validate_quill_backend_interaction_smoke(image))
     elif product in {"quill-gtk-interaction-smoke-sidebar", "quill-qt-interaction-smoke-sidebar"}:

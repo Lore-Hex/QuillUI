@@ -18,7 +18,7 @@ INTERACTION_MODE="${QUILLUI_BACKEND_INTERACTION_MODE:-}"
 if [[ -z "$INTERACTION_MODE" ]]; then
   case "$PRODUCT" in
     quill-chat-linux) INTERACTION_MODE="toolbar-menu" ;;
-    quill-wireguard-qt) INTERACTION_MODE="tunnel-selection" ;;
+    quill-wireguard-qt) INTERACTION_MODE="tunnel-name-edit" ;;
     *) INTERACTION_MODE="click" ;;
   esac
   if quillui_is_backend_smoke_product "$PRODUCT"; then
@@ -257,14 +257,27 @@ elif [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
       tunnel-selection|click)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
         click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 150))}"
+        click_at "$click_x" "$click_y"
+        sleep "$post_click_sleep"
+        ;;
+      tunnel-name-edit|name-edit)
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 150))}"
+        name_x="${QUILLUI_BACKEND_NAME_CLICK_X:-$((window_x + 360))}"
+        name_y="${QUILLUI_BACKEND_NAME_CLICK_Y:-$((window_y + 42))}"
+        click_at "$click_x" "$click_y"
+        sleep 0.5
+        click_at "$name_x" "$name_y"
+        sleep 0.5
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-Edited Tunnel}"
+        sleep "$post_click_sleep"
         ;;
       *)
         echo "Unsupported WireGuard Qt interaction mode: $INTERACTION_MODE" >&2
         exit 64
         ;;
     esac
-    click_at "$click_x" "$click_y"
-    sleep "$post_click_sleep"
 elif quillui_is_backend_smoke_product "$PRODUCT"; then
     INTERACTION_MODE="$(quillui_normalize_backend_smoke_interaction_mode "$INTERACTION_MODE")"
     case "$INTERACTION_MODE" in

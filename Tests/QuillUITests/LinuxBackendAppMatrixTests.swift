@@ -380,6 +380,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeLib.contains("quillui_backend_visual_verify_product()"))
         #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
         #expect(smokeLib.contains("quill-wireguard-qt-tunnel-selection"))
+        #expect(smokeLib.contains("quill-wireguard-qt-name-edit"))
         #expect(smokeLib.contains("quillui_backend_smoke_interaction_verify_product \"$product\" \"$interaction_mode\""))
         #expect(smokeLib.contains("quillui_append_backend_launch_environment()"))
         #expect(smokeLib.contains("quillui_append_backend_runtime_environment()"))
