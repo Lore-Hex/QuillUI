@@ -290,6 +290,17 @@ quillui_append_backend_layout_debug_environment() {
   quillui_append_environment_assignment "$output_array" "QUILLUI_QT_LAYOUT_DEBUG=$layout_debug" || return $?
 }
 
+quillui_append_quill_chat_fixture_data_environment() {
+  local output_array="$1"
+  local fixture_home="$2"
+
+  quillui_seed_quill_chat_reference_data "$fixture_home" || return $?
+  quillui_append_environment_assignment "$output_array" "HOME=$fixture_home" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLDATA_HOME=$fixture_home" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_REFERENCE_MODE=1" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1" || return $?
+}
+
 quillui_append_quill_chat_reference_environment() {
   local output_array="$1"
   local reference_home="$2"
@@ -297,9 +308,7 @@ quillui_append_quill_chat_reference_environment() {
   local reference_window_height="$4"
   local hide_window_menubar_label="$5"
 
-  quillui_seed_quill_chat_reference_data "$reference_home" || return $?
-  quillui_append_environment_assignment "$output_array" "HOME=$reference_home" || return $?
-  quillui_append_environment_assignment "$output_array" "QUILLDATA_HOME=$reference_home" || return $?
+  quillui_append_quill_chat_fixture_data_environment "$output_array" "$reference_home" || return $?
   quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH=$reference_window_width" || return $?
   quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT=$reference_window_height" || return $?
   quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label" || return $?
@@ -309,8 +318,6 @@ quillui_append_quill_chat_reference_environment() {
   quillui_append_environment_assignment "$output_array" "QUILLUI_QT_DEFAULT_WINDOW_WIDTH=$reference_window_width" || return $?
   quillui_append_environment_assignment "$output_array" "QUILLUI_QT_DEFAULT_WINDOW_HEIGHT=$reference_window_height" || return $?
   quillui_append_environment_assignment "$output_array" "QUILLUI_QT_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label" || return $?
-  quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_REFERENCE_MODE=1" || return $?
-  quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1" || return $?
 }
 
 quillui_append_quill_chat_reference_environment_if_needed() {
@@ -330,6 +337,22 @@ quillui_append_quill_chat_reference_environment_if_needed() {
       "$reference_window_height" \
       "$hide_window_menubar_label" || return $?
   fi
+}
+
+quillui_append_quill_chat_profile_fixture_environment_if_needed() {
+  local output_array="$1"
+  local product="$2"
+  local output_dir="$3"
+
+  if [[ "$product" != "quill-chat-linux" ]]; then
+    return 0
+  fi
+  if quillui_is_quill_chat_mac_reference_product "$product"; then
+    return 0
+  fi
+
+  local profile_home="$output_dir/quill-chat-linux-profile-home"
+  quillui_append_quill_chat_fixture_data_environment "$output_array" "$profile_home" || return $?
 }
 
 quillui_append_backend_runtime_environment() {

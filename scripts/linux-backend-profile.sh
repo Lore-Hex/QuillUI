@@ -123,6 +123,10 @@ quillui_append_backend_runtime_environment \
     "$reference_window_height" \
     "$hide_window_menubar_label" \
     "$REQUESTED_BACKEND"
+quillui_append_quill_chat_profile_fixture_environment_if_needed \
+    app_environment \
+    "$PRODUCT" \
+    "$OUTPUT_DIR"
 env "${app_environment[@]}" "$exe" >/tmp/quillui-profile-app.log 2>&1 &
 app_pid=$!
 
