@@ -84,6 +84,14 @@ quillui_start_xvfb() {
   fi
 }
 
+quillui_stop_process_if_running() {
+  local pid="${1:-}"
+
+  if [[ -n "$pid" ]]; then
+    kill "$pid" >/dev/null 2>&1 || true
+  fi
+}
+
 quillui_append_backend_launch_environment() {
   local output_array="$1"
   local product="$2"

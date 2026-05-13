@@ -74,8 +74,8 @@ screen_size="$(quillui_backend_screen_size "$PRODUCT" "${QUILLUI_BACKEND_PROFILE
 xvfb_pid=""
 
 cleanup() {
-    if [[ -n "${app_pid:-}" ]]; then kill "$app_pid" >/dev/null 2>&1 || true; fi
-    if [[ -n "${xvfb_pid:-}" ]]; then kill "$xvfb_pid" >/dev/null 2>&1 || true; fi
+    quillui_stop_process_if_running "${app_pid:-}"
+    quillui_stop_process_if_running "${xvfb_pid:-}"
 }
 trap cleanup EXIT
 

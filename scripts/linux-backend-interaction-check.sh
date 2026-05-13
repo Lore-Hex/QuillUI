@@ -49,10 +49,8 @@ xvfb_pid=""
 quillui_start_xvfb "$DISPLAY_ID" "$SCREEN_SIZE" /tmp/quillui-xvfb-interaction.log xvfb_pid
 
 cleanup() {
-  if [[ -n "${app_pid:-}" ]]; then
-    kill "$app_pid" >/dev/null 2>&1 || true
-  fi
-  kill "$xvfb_pid" >/dev/null 2>&1 || true
+  quillui_stop_process_if_running "${app_pid:-}"
+  quillui_stop_process_if_running "$xvfb_pid"
 }
 trap cleanup EXIT
 
