@@ -113,8 +113,11 @@ struct QuillWireGuardCoreTests {
         #expect(nativeShimSource.contains("QApplication"))
         #expect(nativeShimSource.contains("QListWidget"))
         #expect(nativeShimSource.contains("QPlainTextEdit"))
-        #expect(nativeShimSource.contains("intValue(payload, \"defaultWidth\", 800)"))
-        #expect(nativeShimSource.contains("intValue(payload, \"defaultHeight\", 600)"))
+        #expect(nativeShimSource.contains("QSize resolvedDefaultWindowSize"))
+        #expect(nativeShimSource.contains("std::max(intValue(payload, \"defaultWidth\", 800), kMinimumAppWidth)"))
+        #expect(nativeShimSource.contains("std::max(intValue(payload, \"defaultHeight\", 600), kMinimumAppHeight)"))
+        #expect(nativeShimSource.contains("window.setMinimumSize(defaultWindowSize)"))
+        #expect(nativeShimSource.contains("window.resize(defaultWindowSize)"))
     }
 
     @Test("WireGuard snapshot preserves shared app presentation for native hosts")

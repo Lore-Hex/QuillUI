@@ -26,7 +26,12 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <algorithm>
+
 namespace {
+
+constexpr int kMinimumAppWidth = 900;
+constexpr int kMinimumAppHeight = 600;
 
 QString stringValue(const QJsonObject &object, const char *key) {
     return object.value(QString::fromUtf8(key)).toString();
@@ -35,6 +40,13 @@ QString stringValue(const QJsonObject &object, const char *key) {
 int intValue(const QJsonObject &object, const char *key, int fallback) {
     const QJsonValue value = object.value(QString::fromUtf8(key));
     return value.isDouble() ? value.toInt(fallback) : fallback;
+}
+
+QSize resolvedDefaultWindowSize(const QJsonObject &payload) {
+    return QSize(
+        std::max(intValue(payload, "defaultWidth", 800), kMinimumAppWidth),
+        std::max(intValue(payload, "defaultHeight", 600), kMinimumAppHeight)
+    );
 }
 
 QJsonObject objectValue(const QJsonObject &object, const char *key) {
@@ -223,10 +235,9 @@ int quill_wireguard_qt_run_wireguard_json(
 
     QWidget window;
     window.setWindowTitle(stringValue(payload, "title"));
-    window.resize(
-        intValue(payload, "defaultWidth", 800),
-        intValue(payload, "defaultHeight", 600)
-    );
+    const QSize defaultWindowSize = resolvedDefaultWindowSize(payload);
+    window.setMinimumSize(defaultWindowSize);
+    window.resize(defaultWindowSize);
 
     QHBoxLayout *rootLayout = new QHBoxLayout(&window);
     rootLayout->setContentsMargins(0, 0, 0, 0);
