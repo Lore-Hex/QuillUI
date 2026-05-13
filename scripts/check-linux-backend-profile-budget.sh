@@ -8,10 +8,11 @@ quillui_alias_backend_profile_env
 MAX_CPU_PCT="${QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT:-25}"
 MAX_RSS_KB="${QUILLUI_BACKEND_PROFILE_MAX_RSS_KB:-300000}"
 MAX_STARTUP_MS="${QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS:-5000}"
+REQUIRE_BACKEND_MATRIX=0
 CSV_PATH=""
 
 usage() {
-  echo "Usage: $(basename "$0") CSV [--max-cpu-pct N] [--max-rss-kb N] [--max-startup-ms N]" >&2
+  echo "Usage: $(basename "$0") CSV [--max-cpu-pct N] [--max-rss-kb N] [--max-startup-ms N] [--require-backend-matrix]" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -42,6 +43,10 @@ while [[ $# -gt 0 ]]; do
       }
       MAX_STARTUP_MS="$2"
       shift 2
+      ;;
+    --require-backend-matrix)
+      REQUIRE_BACKEND_MATRIX=1
+      shift
       ;;
     --help|-h) usage; exit 0 ;;
     --*) echo "Unknown argument: $1" >&2; usage; exit 64 ;;
@@ -78,6 +83,33 @@ fi
   echo "Profile CSV was not found: $CSV_PATH" >&2
   exit 66
 }
+
+if [[ "$REQUIRE_BACKEND_MATRIX" -eq 1 ]]; then
+  actual_profile_rows=$'\n'
+  while IFS=, read -r product _; do
+    [[ -n "$product" && "$product" != "product" ]] || continue
+    actual_profile_rows="${actual_profile_rows}${product}"$'\n'
+  done < "$CSV_PATH"
+
+  missing_required_row=0
+  while IFS=$'\t' read -r expected_product expected_backend; do
+    [[ -n "$expected_product" && -n "$expected_backend" ]] || continue
+    expected_backend="$(quillui_backend_identifier_or_raw "$expected_backend")"
+    expected_label="$expected_product@$expected_backend"
+    case "$actual_profile_rows" in
+      *$'\n'"$expected_label"$'\n'*)
+        ;;
+      *)
+        echo "profile budget failed: missing required backend profile row: $expected_label" >&2
+        missing_required_row=1
+        ;;
+    esac
+  done < <(quillui_backend_profile_matrix)
+
+  if [[ "$missing_required_row" -ne 0 ]]; then
+    exit 1
+  fi
+fi
 
 awk \
   -v max_cpu="$MAX_CPU_PCT" \

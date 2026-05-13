@@ -71,6 +71,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(!workflow.contains("while IFS=\"$tab\" read -r product backend; do"))
         #expect(workflow.contains("scripts/quillui-backend-products.sh profile-matrix | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv"))
+        #expect(workflow.contains("--require-backend-matrix"))
         #expect(workflow.contains("name: Swift Linux Backends"))
         #expect(workflow.contains("swift-linux-backends:"))
         #expect(!workflow.contains("GTK launch target interaction smoke"))
@@ -333,6 +334,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(legacyCSVRunner.contains("run-linux-backend-profile-csv.sh"))
         #expect(budgetScript.contains("QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT"))
         #expect(budgetScript.contains("quillui_alias_backend_profile_env"))
+        #expect(budgetScript.contains("REQUIRE_BACKEND_MATRIX=0"))
+        #expect(budgetScript.contains("--require-backend-matrix)"))
+        #expect(budgetScript.contains("done < <(quillui_backend_profile_matrix)"))
+        #expect(budgetScript.contains("missing required backend profile row"))
         #expect(!budgetScript.contains("${QUILLUI_GTK_PROFILE_MAX_CPU_PCT:-"))
         #expect(legacyBudgetScript.contains("check-linux-backend-profile-budget.sh"))
     }
@@ -598,6 +603,7 @@ struct LinuxBackendAppMatrixTests {
     func profileBudgetAcceptsCurrentRowsAndRejectsBadRows() throws {
         let root = try packageRoot()
         let script = root.appendingPathComponent("scripts/check-linux-backend-profile-budget.sh")
+        let matrixScript = root.appendingPathComponent("scripts/quillui-backend-products.sh")
         let fileManager = FileManager.default
         let csv = fileManager.temporaryDirectory
             .appendingPathComponent("quillui-profile-\(UUID().uuidString).csv")
@@ -634,6 +640,43 @@ struct LinuxBackendAppMatrixTests {
         let malformed = try runScript(script, arguments: [csv.path, "--max-cpu-pct", "25"])
         #expect(malformed.status != 0)
         #expect(malformed.output.contains("startup_ms=nope is not a non-negative integer"))
+
+        let profileMatrix = try runScript(matrixScript, arguments: ["profile-matrix"])
+        #expect(profileMatrix.status == 0, Comment(rawValue: profileMatrix.output))
+        let matrixLabels = profileMatrix.output
+            .split(whereSeparator: \.isNewline)
+            .compactMap { row -> String? in
+                let fields = row.split(separator: "\t")
+                guard fields.count == 2 else { return nil }
+                return "\(fields[0])@\(fields[1])"
+            }
+        #expect(!matrixLabels.isEmpty)
+
+        let fullMatrixRows = matrixLabels
+            .map { "\($0),1,2,3,0.1,0.2,ok" }
+            .joined(separator: "\n")
+        try """
+        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
+        \(fullMatrixRows)
+
+        """.write(to: csv, atomically: true, encoding: .utf8)
+
+        let strictPassing = try runScript(script, arguments: [csv.path, "--require-backend-matrix"])
+        #expect(strictPassing.status == 0, Comment(rawValue: strictPassing.output))
+
+        let missingFirstRow = matrixLabels
+            .dropFirst()
+            .map { "\($0),1,2,3,0.1,0.2,ok" }
+            .joined(separator: "\n")
+        try """
+        product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
+        \(missingFirstRow)
+
+        """.write(to: csv, atomically: true, encoding: .utf8)
+
+        let strictMissing = try runScript(script, arguments: [csv.path, "--require-backend-matrix"])
+        #expect(strictMissing.status != 0)
+        #expect(strictMissing.output.contains("missing required backend profile row: \(matrixLabels[0])"))
     }
 
     @Test("profile CSV runner shares header and failure-tolerant product loop")
