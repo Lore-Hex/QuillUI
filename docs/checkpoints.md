@@ -2815,3 +2815,14 @@ and Qt native hosts the same status surface.
 `QuillUIQt` now aliases both runtime mode and backend status to the shared
 QuillUI types. The Qt target keeps its public `QuillQtBackend.status` entry
 point, but the underlying data now comes from the generic backend contract.
+
+## Checkpoint 156: QuillChatKit Touch Appearance Profile
+
+Status: implemented locally; guarded by QuillChatKit tests, source hygiene,
+and the existing iOS simulator build check.
+
+`QuillChatKit` now exposes `ChatInteractionProfile` plus
+`ChatAppearance.standard(for:)`, `.desktop`, and `.touch`. The default
+`ChatAppearance.standard` remains the desktop-density profile used by the GTK,
+Qt-requested, and macOS chat shells, while iOS clients can opt into larger
+touch targets without importing UIKit, QuillUI, or an app-specific wrapper.

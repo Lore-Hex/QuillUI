@@ -35,7 +35,9 @@ struct SourceHygieneTests {
         #expect(manifest.contains(".library(name: \"QuillChatKit\", targets: [\"QuillChatKit\"])"))
         #expect(manifest.contains("platforms: [.macOS(.v14), .iOS(.v14)]"))
         #expect(source.contains("import SwiftUI"))
+        #expect(source.contains("public enum ChatInteractionProfile"))
         #expect(source.contains("public struct ChatAppearance"))
+        #expect(source.contains("public static var touch: ChatAppearance"))
         #expect(source.contains("public struct ChatSidebar"))
         #expect(source.contains("public struct ChatSelectionPlaceholder"))
         #expect(source.contains("private typealias ChatLayoutLength = Int"))
@@ -52,6 +54,7 @@ struct SourceHygieneTests {
         #expect(macOSWorkflow.contains("scripts/check-quillchatkit-ios.sh"))
         #expect(readme.contains("scripts/check-quillchatkit-ios.sh"))
         #expect(readme.contains("iOS simulator SDK"))
+        #expect(readme.contains("ChatAppearance.touch"))
     }
 
     @Test("ImageRenderer comments describe the current GTK offscreen path")

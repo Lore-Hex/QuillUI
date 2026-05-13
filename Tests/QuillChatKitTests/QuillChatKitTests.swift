@@ -141,6 +141,26 @@ struct QuillChatKitTests {
         #expect(appearance.composerPadding == 10)
     }
 
+    @Test("ChatAppearance standard aliases the desktop profile")
+    func chatAppearanceStandardAliasesDesktopProfile() {
+        #expect(ChatInteractionProfile.allCases == [.desktop, .touch])
+        #expect(ChatAppearance.standard.bubblePadding == ChatAppearance.desktop.bubblePadding)
+        #expect(ChatAppearance.standard.composerPadding == ChatAppearance.standard(for: .desktop).composerPadding)
+        #expect(ChatAppearance.standard.timelinePadding == ChatAppearance.standard(for: .desktop).timelinePadding)
+    }
+
+    @Test("ChatAppearance touch profile expands hit targets")
+    func chatAppearanceTouchProfileExpandsDensity() {
+        let desktop = ChatAppearance.standard(for: .desktop)
+        let touch = ChatAppearance.standard(for: .touch)
+
+        #expect(touch.bubblePadding > desktop.bubblePadding)
+        #expect(touch.rowVerticalPadding > desktop.rowVerticalPadding)
+        #expect(touch.timelinePadding > desktop.timelinePadding)
+        #expect(touch.messageSpacing > desktop.messageSpacing)
+        #expect(touch.composerPadding > desktop.composerPadding)
+    }
+
     @Test("ChatRow accepts custom appearance without changing row data")
     func chatRowCarriesAppearance() {
         let appearance = ChatAppearance(unreadBadgeCornerRadius: 3, rowVerticalPadding: 7)

@@ -76,6 +76,14 @@ public protocol ChatThread: ChatListItem {
 /// `ChatBubble`, `ChatRow`, `ChatSidebar`, `ChatTimeline`,
 /// `ChatComposer`, or `ChatPane` without forking the view
 /// implementations.
+public enum ChatInteractionProfile: String, CaseIterable, Sendable {
+    /// Desktop-style density used by the Linux and macOS chat shells.
+    case desktop
+
+    /// Larger touch targets for iPhone, iPad, and other touch-first hosts.
+    case touch
+}
+
 public struct ChatAppearance {
     public var outgoingBubbleBackground: Color
     public var incomingBubbleBackground: Color
@@ -118,8 +126,33 @@ public struct ChatAppearance {
         self.composerPadding = composerPadding
     }
 
+    public static func standard(for profile: ChatInteractionProfile) -> ChatAppearance {
+        switch profile {
+        case .desktop:
+            return desktop
+        case .touch:
+            return touch
+        }
+    }
+
     public static var standard: ChatAppearance {
+        desktop
+    }
+
+    public static var desktop: ChatAppearance {
         ChatAppearance()
+    }
+
+    public static var touch: ChatAppearance {
+        ChatAppearance(
+            bubbleCornerRadius: 16,
+            unreadBadgeCornerRadius: 10,
+            bubblePadding: 14,
+            rowVerticalPadding: 8,
+            timelinePadding: 20,
+            messageSpacing: 12,
+            composerPadding: 14
+        )
     }
 }
 
