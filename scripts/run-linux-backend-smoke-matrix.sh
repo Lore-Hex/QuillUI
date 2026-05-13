@@ -199,9 +199,12 @@ while IFS= read -r row; do
     exit 65
   fi
 
-  backend="$(quillui_backend_identifier_or_raw "$backend")"
   if [[ -z "$product" || -z "$backend" ]]; then
     echo "Backend matrix row has an empty product or backend: $row" >&2
+    exit 65
+  fi
+  if ! backend="$(quillui_require_backend_identifier "$backend")"; then
+    echo "Backend matrix row has an unsupported backend: $row" >&2
     exit 65
   fi
 

@@ -77,6 +77,17 @@ quillui_normalize_backend_identifier() {
   esac
 }
 
+quillui_require_backend_identifier() {
+  local raw_value="${1:-}"
+  local normalized_backend
+
+  normalized_backend="$(quillui_normalize_backend_identifier "$raw_value")" || {
+    echo "Unsupported QuillUI backend: $raw_value" >&2
+    return 64
+  }
+  echo "$normalized_backend"
+}
+
 quillui_backend_identifier_or_raw() {
   local raw_value="${1:-}"
   local normalized_backend=""
@@ -406,6 +417,7 @@ Commands:
   profile-products                List app and launch-smoke products for profile budgets.
   profile-matrix                  List PRODUCT<TAB>BACKEND rows for profile budgets.
   normalize-backend BACKEND       Print the canonical backend identifier for a known backend alias.
+  require-backend BACKEND         Print the canonical backend identifier or fail for an unknown backend.
   is-smoke-product PRODUCT        Exit 0 when PRODUCT is a backend launch smoke product.
   backend-for-product PRODUCT     Print the default requested backend for PRODUCT.
   requested-backend PRODUCT       Print QUILLUI_BACKEND override or PRODUCT default.
@@ -479,6 +491,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         exit 64
       fi
       quillui_normalize_backend_identifier "$2"
+      ;;
+    require-backend)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_require_backend_identifier "$2"
       ;;
     is-smoke-product)
       if [[ $# -ne 2 ]]; then

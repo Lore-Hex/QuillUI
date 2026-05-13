@@ -94,7 +94,7 @@ if [[ "$REQUIRE_BACKEND_MATRIX" -eq 1 ]]; then
   missing_required_row=0
   while IFS=$'\t' read -r expected_product expected_backend; do
     [[ -n "$expected_product" && -n "$expected_backend" ]] || continue
-    expected_backend="$(quillui_backend_identifier_or_raw "$expected_backend")"
+    expected_backend="$(quillui_require_backend_identifier "$expected_backend")"
     expected_label="$expected_product@$expected_backend"
     case "$actual_profile_rows" in
       *$'\n'"$expected_label"$'\n'*)

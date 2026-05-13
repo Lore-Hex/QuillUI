@@ -129,13 +129,15 @@ quillui_profile_product_was_built() {
       product="${row%%$'\t'*}"
       backend="${row#*$'\t'}"
     fi
-    if [[ -n "$backend" ]]; then
-      backend="$(quillui_backend_identifier_or_raw "$backend")"
-    fi
     [[ -n "$product" ]] || continue
     if [[ "$backend" == *$'\t'* ]]; then
       label="${product:-profile-row}@malformed"
       echo "$label,0,0,0,0.0,0.0,profile-row-malformed"
+      continue
+    fi
+    if [[ -n "$backend" ]] && ! backend="$(quillui_require_backend_identifier "$backend" 2>/dev/null)"; then
+      label="$product@unsupported-backend"
+      echo "$label,0,0,0,0.0,0.0,profile-row-unsupported-backend"
       continue
     fi
     label="$product"

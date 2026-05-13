@@ -189,6 +189,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_matrix_for_products()"))
         #expect(backendProducts.contains("quillui_backend_app_matrix()"))
         #expect(backendProducts.contains("quillui_normalize_backend_identifier()"))
+        #expect(backendProducts.contains("quillui_require_backend_identifier()"))
         #expect(backendProducts.contains("quillui_backend_identifier_or_raw()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_products()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_matrix()"))
@@ -217,6 +218,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_LAYOUT_DEBUG QUILLUI_GTK_LAYOUT_DEBUG QUILLUI_QT_LAYOUT_DEBUG\n  quillui_alias_env QUILLUI_BACKEND_VERIFY_PRODUCT"))
         #expect(backendProducts.contains("backend_prefix=\"QUILLUI_QT_\""))
         #expect(backendProducts.contains("normalize-backend)"))
+        #expect(backendProducts.contains("require-backend)"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS QUILLUI_QT_PROFILE_MAX_STARTUP_MS\n  quillui_alias_backend_common_env"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
@@ -244,7 +246,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeMatrixRunner.contains("OUTPUT_TEMPLATE must include {mode} for $MATRIX_COMMAND"))
         #expect(smokeMatrixRunner.contains("Backend mode matrix row has an empty mode"))
         #expect(smokeMatrixRunner.contains("Backend matrix row has an unexpected mode column"))
-        #expect(smokeMatrixRunner.contains("quillui_backend_identifier_or_raw \"$backend\""))
+        #expect(smokeMatrixRunner.contains("quillui_require_backend_identifier \"$backend\""))
+        #expect(smokeMatrixRunner.contains("Backend matrix row has an unsupported backend"))
         #expect(smokeMatrixRunner.contains("smoke_environment+=(\"QUILLUI_BACKEND_INTERACTION_MODE=$mode\")"))
         #expect(smokeMatrixRunner.contains("QUILLUI_BACKEND_SKIP_BUILD=1"))
         #expect(smokeMatrixRunner.contains("env \"${smoke_environment[@]}\" \"$CHECK_SCRIPT\" \"$output_path\" \"$product\" \"$backend\""))
@@ -340,7 +343,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(csvRunner.contains("PRODUCT<TAB>BACKEND"))
         #expect(csvRunner.contains("BUILT_PROFILE_PRODUCTS_LIST=$'\\n'"))
         #expect(csvRunner.contains("quillui_profile_product_was_built()"))
-        #expect(csvRunner.contains("backend=\"$(quillui_backend_identifier_or_raw \"$backend\")\""))
+        #expect(csvRunner.contains("quillui_require_backend_identifier \"$backend\""))
+        #expect(csvRunner.contains("profile-row-unsupported-backend"))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND_SKIP_BUILD=1\")"))
         #expect(csvRunner.contains("profiler_environment+=(\"QUILLUI_BACKEND=$backend\")"))
         #expect(csvRunner.contains("profiler_arguments+=(\"$backend\")"))
@@ -354,6 +358,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(budgetScript.contains("REQUIRE_BACKEND_MATRIX=0"))
         #expect(budgetScript.contains("--require-backend-matrix)"))
         #expect(budgetScript.contains("done < <(quillui_backend_profile_matrix)"))
+        #expect(budgetScript.contains("quillui_require_backend_identifier \"$expected_backend\""))
         #expect(budgetScript.contains("missing required backend profile row"))
         #expect(!budgetScript.contains("${QUILLUI_GTK_PROFILE_MAX_CPU_PCT:-"))
         #expect(legacyBudgetScript.contains("check-linux-backend-profile-budget.sh"))
@@ -601,12 +606,20 @@ struct LinuxBackendAppMatrixTests {
         #expect(normalizedGtkBackend.status == 0, Comment(rawValue: normalizedGtkBackend.output))
         #expect(normalizedGtkBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
 
+        let requiredQtBackend = try runScript(script, arguments: ["require-backend", " Qt6 "])
+        #expect(requiredQtBackend.status == 0, Comment(rawValue: requiredQtBackend.output))
+        #expect(requiredQtBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+
         let normalizedSwiftUIBackend = try runScript(script, arguments: ["normalize-backend", "swift-ui"])
         #expect(normalizedSwiftUIBackend.status == 0, Comment(rawValue: normalizedSwiftUIBackend.output))
         #expect(normalizedSwiftUIBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "swiftui")
 
         let invalidBackend = try runScript(script, arguments: ["normalize-backend", "unknown"])
         #expect(invalidBackend.status != 0)
+
+        let unsupportedRequiredBackend = try runScript(script, arguments: ["require-backend", "unknown"])
+        #expect(unsupportedRequiredBackend.status != 0)
+        #expect(unsupportedRequiredBackend.output.contains("Unsupported QuillUI backend: unknown"))
     }
 
     @Test("backend alias helper accepts scoped GTK and Qt controls")
@@ -877,8 +890,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(budget.output.contains("silent-product exit_status=profiler-exit-42"))
     }
 
-    @Test("profile CSV runner accepts backend matrix rows and reuses repeated product builds")
-    func profileCSVRunnerAcceptsBackendMatrixRowsAndReusesRepeatedProductBuilds() throws {
+    @Test("profile CSV runner normalizes backend matrix rows and rejects unsupported backends")
+    func profileCSVRunnerNormalizesBackendMatrixRowsAndRejectsUnsupportedBackends() throws {
         let root = try packageRoot()
         let script = root.appendingPathComponent("scripts/run-linux-backend-profile-csv.sh")
         let fileManager = FileManager.default
@@ -917,7 +930,7 @@ struct LinuxBackendAppMatrixTests {
             script,
             arguments: [csv.path],
             environment: ["QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path],
-            stdin: "quill-icecubes\tGTK4\nquill-icecubes\t qt6 \n"
+            stdin: "quill-icecubes\tGTK4\nquill-icecubes\t qt6 \nquill-icecubes\tqtx\n"
         )
 
         #expect(result.status == 0, Comment(rawValue: result.output))
@@ -925,6 +938,7 @@ struct LinuxBackendAppMatrixTests {
         product,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status
         quill-icecubes@gtk,1,2,3,0.0,5.0,ok
         quill-icecubes@qt,1,2,3,1.0,5.0,ok
+        quill-icecubes@unsupported-backend,0,0,0,0.0,0.0,profile-row-unsupported-backend
 
         """
         #expect(result.output == expected)
