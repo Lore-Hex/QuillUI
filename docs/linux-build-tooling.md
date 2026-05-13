@@ -290,6 +290,18 @@ QUILLUI_LINUX_BACKEND=qt \
     qt
 ```
 
+CI registers semantic native app interactions through
+`interaction-extra-mode-matrix`, which expands through the same runtime matrix
+helper as the visual and default interaction rows:
+
+```bash
+QUILLUI_BACKEND_SKIP_BUILD=1 \
+  scripts/run-linux-backend-smoke-matrix.sh \
+    interaction \
+    interaction-extra-mode-matrix \
+    '.qa/{product}-{mode}-{backend}.png'
+```
+
 The GTK and Qt launch fixtures also run through the backend visual runner from
 the shared smoke matrix, and through a mode-aware interaction matrix that drives
 the root button, nested controls, and sheet presentations with one product build

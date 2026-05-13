@@ -217,6 +217,13 @@ quillui_backend_interaction_app_matrix() {
   quillui_backend_emit_matrix_for_product_rows "$product_rows"
 }
 
+quillui_backend_interaction_extra_mode_matrix() {
+  # Semantic app interactions that go past the default click/select smoke live
+  # here so CI can add product-specific coverage without forking the runner.
+  printf '%s\t%s\t%s\n' \
+    quill-wireguard-qt qt import-paste
+}
+
 quillui_backend_generated_app_products() {
   # Generated external app products are not built from this package manifest,
   # but they still need the same requested-backend parity coverage once
@@ -723,6 +730,10 @@ quillui_backend_interaction_app_runtime_matrix() {
   quillui_backend_interaction_app_matrix | quillui_backend_runtime_matrix_for_rows
 }
 
+quillui_backend_interaction_extra_mode_runtime_matrix() {
+  quillui_backend_interaction_extra_mode_matrix | quillui_backend_runtime_matrix_for_rows
+}
+
 quillui_backend_generated_app_runtime_matrix() {
   quillui_backend_generated_app_matrix | quillui_backend_runtime_matrix_for_rows
 }
@@ -765,6 +776,9 @@ Commands:
   interaction-apps                List user-facing app products covered by interaction smokes.
   interaction-matrix              List PRODUCT<TAB>BACKEND interaction smoke rows for user-facing apps.
   interaction-runtime-matrix      List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for interaction smokes.
+  interaction-extra-mode-matrix   List PRODUCT<TAB>BACKEND<TAB>MODE rows for semantic app interactions.
+  interaction-extra-mode-runtime-matrix
+                                  List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE<TAB>INTERACTION rows.
   generated-apps                  List generated external app products covered by backend parity smoke.
   generated-app-matrix            List PRODUCT<TAB>BACKEND rows for generated external apps.
   generated-app-runtime-matrix    List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for generated external apps.
@@ -831,6 +845,12 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     interaction-runtime-matrix)
       quillui_backend_interaction_app_runtime_matrix
+      ;;
+    interaction-extra-mode-matrix)
+      quillui_backend_interaction_extra_mode_matrix
+      ;;
+    interaction-extra-mode-runtime-matrix)
+      quillui_backend_interaction_extra_mode_runtime_matrix
       ;;
     generated-apps)
       quillui_backend_generated_app_products

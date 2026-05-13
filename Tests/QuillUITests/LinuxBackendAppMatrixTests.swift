@@ -87,6 +87,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction generated-app-matrix '.qa/{product}-toolbar-menu-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual app-matrix '.qa/{product}-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-matrix '.qa/{product}-interaction-{backend}.png'"))
+        #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-extra-mode-matrix '.qa/{product}-{mode}-{backend}.png'"))
         #expect(workflow.contains("native Qt products such as quill-wireguard-qt"))
         #expect(!workflow.contains("Qt rows currently exercise the shared launch-plan fallback"))
         #expect(!workflow.contains("With no per-product branch in `verify-backend-screenshot.py`"))
@@ -334,7 +335,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(visualScript.contains("quillui_export_backend_argument \"$REQUESTED_BACKEND\""))
         #expect(visualScript.contains("quillui_alias_backend_build_env"))
         #expect(smokeMatrixRunner.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
-        #expect(smokeMatrixRunner.contains("app-matrix|interaction-matrix|generated-app-matrix|smoke-matrix|smoke-interaction-matrix"))
+        #expect(smokeMatrixRunner.contains("app-matrix|interaction-matrix|interaction-extra-mode-matrix|generated-app-matrix|smoke-matrix|smoke-interaction-matrix"))
         #expect(smokeMatrixRunner.contains("quillui_smoke_runtime_matrix_command()"))
         #expect(smokeMatrixRunner.contains("RUNTIME_MATRIX_COMMAND=\"$(quillui_smoke_runtime_matrix_command \"$MATRIX_COMMAND\")\""))
         #expect(smokeMatrixRunner.contains("CHECK_SCRIPT=\"$ROOT_DIR/scripts/linux-backend-visual-check.sh\""))
@@ -554,6 +555,20 @@ struct LinuxBackendAppMatrixTests {
             "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-banner-sheet-qt.png\t1\tbanner-sheet"
         ])
 
+        let appExtraInteractions = try runScript(
+            script,
+            arguments: [
+                "--dry-run",
+                "interaction",
+                "interaction-extra-mode-matrix",
+                ".qa/{product}-{mode}-{backend}.png"
+            ]
+        )
+        #expect(appExtraInteractions.status == 0, Comment(rawValue: appExtraInteractions.output))
+        #expect(appExtraInteractions.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "interaction\tquill-wireguard-qt\tqt\tqt\tnative\t.qa/quill-wireguard-qt-import-paste-qt.png\t0\timport-paste"
+        ])
+
         let malformedTemplate = try runScript(
             script,
             arguments: ["--dry-run", "visual", "app-matrix", ".qa/{product}.png"]
@@ -574,6 +589,13 @@ struct LinuxBackendAppMatrixTests {
         )
         #expect(modeMatrixWithVisualKind.status != 0)
         #expect(modeMatrixWithVisualKind.output.contains("smoke-interaction-matrix is only supported for interaction smokes"))
+
+        let appModeTemplateWithoutMode = try runScript(
+            script,
+            arguments: ["--dry-run", "interaction", "interaction-extra-mode-matrix", ".qa/{product}-{backend}.png"]
+        )
+        #expect(appModeTemplateWithoutMode.status != 0)
+        #expect(appModeTemplateWithoutMode.output.contains("OUTPUT_TEMPLATE must include {mode} for interaction-extra-mode-matrix"))
     }
 
     @Test("backend product helper maps GTK and Qt defaults")
@@ -634,6 +656,17 @@ struct LinuxBackendAppMatrixTests {
                     expectedSmokeInteractionModes.map { "\(row)\t\($0)" }
                 }
         )
+
+        let expectedInteractionExtraModeMatrix = ["quill-wireguard-qt\tqt\timport-paste"]
+        let interactionExtraModeMatrix = try runScript(script, arguments: ["interaction-extra-mode-matrix"])
+        #expect(interactionExtraModeMatrix.status == 0, Comment(rawValue: interactionExtraModeMatrix.output))
+        #expect(interactionExtraModeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == expectedInteractionExtraModeMatrix)
+
+        let interactionExtraModeRuntimeMatrix = try runScript(script, arguments: ["interaction-extra-mode-runtime-matrix"])
+        #expect(interactionExtraModeRuntimeMatrix.status == 0, Comment(rawValue: interactionExtraModeRuntimeMatrix.output))
+        #expect(interactionExtraModeRuntimeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "quill-wireguard-qt\tqt\tqt\tnative\timport-paste"
+        ])
 
         let expectedSmokeInteractionVerifyMatrix = expectedSmokeMatrix.flatMap { row in
             let product = row.split(separator: "\t", omittingEmptySubsequences: false).first.map(String.init) ?? ""

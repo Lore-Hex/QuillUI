@@ -131,6 +131,12 @@ jobs:
       - name: Quill app backend interaction smokes
         run: QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-matrix '.qa/{product}-interaction-{backend}.png'
 
+      # Extra semantic app interactions. Keep these in a mode-aware product
+      # matrix so native Qt paths such as WireGuard import-paste are exercised
+      # by CI without duplicating runner or backend-selection logic.
+      - name: Quill app backend extra interaction smokes
+        run: QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-extra-mode-matrix '.qa/{product}-{mode}-{backend}.png'
+
       # Linux profile baseline (CP106/CP149/CP152). For each Quill app,
       # generated app, and backend launch fixture matrix row, sample
       # startup_ms / rss_kb / cpu_pct_5s under Xvfb and emit a CSV row. The intent is

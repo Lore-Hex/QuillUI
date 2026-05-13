@@ -15,6 +15,7 @@ KIND:
 MATRIX_COMMAND:
   app-matrix                     User-facing app PRODUCT<TAB>BACKEND rows.
   interaction-matrix             User-facing interaction PRODUCT<TAB>BACKEND rows.
+  interaction-extra-mode-matrix  Semantic app interaction PRODUCT<TAB>BACKEND<TAB>MODE rows.
   generated-app-matrix           Generated external app PRODUCT<TAB>BACKEND rows.
   smoke-matrix                   Backend launch fixture PRODUCT<TAB>BACKEND rows.
   smoke-interaction-matrix       Backend launch fixture PRODUCT<TAB>BACKEND<TAB>MODE rows.
@@ -89,7 +90,7 @@ case "$KIND" in
 esac
 
 case "$MATRIX_COMMAND" in
-  app-matrix|interaction-matrix|generated-app-matrix|smoke-matrix|smoke-interaction-matrix)
+  app-matrix|interaction-matrix|interaction-extra-mode-matrix|generated-app-matrix|smoke-matrix|smoke-interaction-matrix)
     ;;
   *)
     echo "Unsupported backend matrix command: $MATRIX_COMMAND" >&2
@@ -106,6 +107,9 @@ quillui_smoke_runtime_matrix_command() {
     interaction-matrix)
       echo "interaction-runtime-matrix"
       ;;
+    interaction-extra-mode-matrix)
+      echo "interaction-extra-mode-runtime-matrix"
+      ;;
     generated-app-matrix)
       echo "generated-app-runtime-matrix"
       ;;
@@ -121,6 +125,17 @@ quillui_smoke_runtime_matrix_command() {
   esac
 }
 
+quillui_smoke_matrix_has_mode_column() {
+  case "$1" in
+    interaction-extra-mode-matrix|smoke-interaction-matrix)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 RUNTIME_MATRIX_COMMAND="$(quillui_smoke_runtime_matrix_command "$MATRIX_COMMAND")"
 
 if [[ "$OUTPUT_TEMPLATE" != *"{product}"* || "$OUTPUT_TEMPLATE" != *"{backend}"* ]]; then
@@ -128,12 +143,12 @@ if [[ "$OUTPUT_TEMPLATE" != *"{product}"* || "$OUTPUT_TEMPLATE" != *"{backend}"*
   exit 64
 fi
 
-if [[ "$MATRIX_COMMAND" == "smoke-interaction-matrix" && "$KIND" != "interaction" ]]; then
-  echo "smoke-interaction-matrix is only supported for interaction smokes" >&2
+if quillui_smoke_matrix_has_mode_column "$MATRIX_COMMAND" && [[ "$KIND" != "interaction" ]]; then
+  echo "$MATRIX_COMMAND is only supported for interaction smokes" >&2
   exit 64
 fi
 
-if [[ "$MATRIX_COMMAND" == "smoke-interaction-matrix" && "$OUTPUT_TEMPLATE" != *"{mode}"* ]]; then
+if quillui_smoke_matrix_has_mode_column "$MATRIX_COMMAND" && [[ "$OUTPUT_TEMPLATE" != *"{mode}"* ]]; then
   echo "OUTPUT_TEMPLATE must include {mode} for $MATRIX_COMMAND: $OUTPUT_TEMPLATE" >&2
   exit 64
 fi
@@ -239,11 +254,11 @@ while IFS= read -r row; do
     echo "Backend runtime matrix row has too many columns: $row" >&2
     exit 65
   fi
-  if [[ "$MATRIX_COMMAND" == "smoke-interaction-matrix" && -z "${mode:-}" ]]; then
+  if quillui_smoke_matrix_has_mode_column "$MATRIX_COMMAND" && [[ -z "${mode:-}" ]]; then
     echo "Backend mode runtime matrix row has an empty mode: $row" >&2
     exit 65
   fi
-  if [[ "$MATRIX_COMMAND" != "smoke-interaction-matrix" && -n "${mode:-}" ]]; then
+  if ! quillui_smoke_matrix_has_mode_column "$MATRIX_COMMAND" && [[ -n "${mode:-}" ]]; then
     echo "Backend runtime matrix row has an unexpected mode column: $row" >&2
     exit 65
   fi
