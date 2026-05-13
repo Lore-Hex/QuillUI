@@ -43,6 +43,14 @@ while IFS= read -r product; do
   [[ -n "$product" ]] && APP_PRODUCTS+=("$product")
 done < <(quillui_backend_app_products)
 
+APP_SMOKE_ROWS=()
+tab="$(printf '\t')"
+while IFS="$tab" read -r product backend; do
+  [[ -n "$product" ]] || continue
+  [[ -n "$backend" ]] || continue
+  APP_SMOKE_ROWS+=("$product"$'\t'"$backend")
+done < <(quillui_backend_app_matrix)
+
 BACKEND_SMOKE_PRODUCTS=()
 while IFS= read -r product; do
   [[ -n "$product" ]] && BACKEND_SMOKE_PRODUCTS+=("$product")
@@ -50,6 +58,11 @@ done < <(quillui_backend_smoke_products)
 
 if (( ${#APP_PRODUCTS[@]} == 0 )); then
   echo "No backend app products listed by scripts/quillui-backend-products.sh backend-apps" >&2
+  exit 1
+fi
+
+if (( ${#APP_SMOKE_ROWS[@]} == 0 )); then
+  echo "No backend app smoke rows listed by scripts/quillui-backend-products.sh app-matrix" >&2
   exit 1
 fi
 
@@ -69,6 +82,8 @@ SMOKE_SECONDS="${QUILLUI_BACKEND_SMOKE_SECONDS:-${QUILLUI_SMOKE_SECONDS:-6}}"
 
 run_smoke() {
   local product="$1"
+  local requested_backend="${2:-}"
+  local smoke_label="$product"
   local executable="$BIN_PATH/$product"
   if [[ -z "$executable" ]]; then
     echo "Could not find built executable for $product" >&2
@@ -79,10 +94,12 @@ run_smoke() {
     exit 1
   fi
 
-  local requested_backend
   local -a app_environment=(GTK_A11Y=none)
-  requested_backend="$(quillui_requested_backend_for_product "$product")"
+  if [[ -z "$requested_backend" ]]; then
+    requested_backend="$(quillui_requested_backend_for_product "$product")"
+  fi
   if [[ -n "$requested_backend" ]]; then
+    smoke_label="$product ($requested_backend requested)"
     app_environment+=(QUILLUI_BACKEND="$requested_backend")
   fi
 
@@ -92,12 +109,17 @@ run_smoke() {
   set -e
 
   if [[ "$smoke_status" != "124" ]]; then
-    echo "$product backend headless smoke failed with exit code $smoke_status" >&2
+    echo "$smoke_label backend headless smoke failed with exit code $smoke_status" >&2
     exit "$smoke_status"
   fi
 }
 
-for product in "${ALL_PRODUCTS[@]}"; do
+for row in "${APP_SMOKE_ROWS[@]}"; do
+  IFS="$tab" read -r product backend <<< "$row"
+  run_smoke "$product" "$backend"
+done
+
+for product in "${BACKEND_SMOKE_PRODUCTS[@]}"; do
   run_smoke "$product"
 done
 
@@ -126,7 +148,7 @@ fi
 cat <<MSG
 
 Linux backend build completed.
-Headless backend smoke completed for ${#APP_PRODUCTS[@]} app products and ${#BACKEND_SMOKE_PRODUCTS[@]} backend launch fixtures; products stayed running for $SMOKE_SECONDS seconds under Xvfb.
+Headless backend smoke completed for ${#APP_SMOKE_ROWS[@]} app/backend rows and ${#BACKEND_SMOKE_PRODUCTS[@]} backend launch fixtures; products stayed running for $SMOKE_SECONDS seconds under Xvfb.
 Run an app in a graphical session with:
 
   swift run ${APP_PRODUCTS[0]}

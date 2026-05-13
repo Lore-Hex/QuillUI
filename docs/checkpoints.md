@@ -2770,3 +2770,18 @@ Linux CI now profiles the same requested backend matrix that visual smoke uses,
 so Qt-requested app launches get startup/RSS/CPU rows instead of only the
 standalone Qt launch fixture. Product-only profiling remains supported for the
 focused no-fetch and IceCubes experiments.
+
+## Checkpoint 153: Local Backend Check Uses App Matrix
+
+Status: implemented locally; guarded by matrix tests and shell syntax checks.
+
+`scripts/linux-backend-check.sh` now separates build products from smoke rows:
+it still builds each user-facing app executable once, then headless-smokes the
+`app-matrix` rows with an explicit `QUILLUI_BACKEND` per run. Backend launch
+fixtures continue to use their product defaults through the same `run_smoke`
+helper.
+
+This keeps the local full Linux check aligned with CI visual/profile coverage,
+so a developer running the one-shot backend check exercises both GTK and
+Qt-requested app launch paths without duplicating product lists or rebuilding
+the same executable for each backend request.
