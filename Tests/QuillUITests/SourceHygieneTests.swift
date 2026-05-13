@@ -161,9 +161,16 @@ struct SourceHygieneTests {
         let workflows = try workflowPaths
             .map { try String(contentsOf: root.appendingPathComponent($0), encoding: .utf8) }
             .joined(separator: "\n")
+        let shellSyntaxCheck = try String(
+            contentsOf: root.appendingPathComponent("scripts/check-shell-syntax.sh"),
+            encoding: .utf8
+        )
 
         #expect(workflows.contains("uses: actions/checkout@v5"))
         #expect(workflows.contains("uses: actions/upload-artifact@v6"))
+        #expect(workflows.contains("scripts/check-shell-syntax.sh"))
+        #expect(shellSyntaxCheck.contains("find scripts -type f -name '*.sh' | sort"))
+        #expect(shellSyntaxCheck.contains("bash -n \"$script\""))
         #expect(!workflows.contains("uses: actions/checkout@v4"))
         #expect(!workflows.contains("uses: actions/upload-artifact@v4"))
         #expect(!workflows.contains("uses: actions/upload-artifact@v5"))

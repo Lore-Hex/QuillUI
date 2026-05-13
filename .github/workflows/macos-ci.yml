@@ -24,6 +24,9 @@ jobs:
           swift --version
           xcodebuild -version
 
+      - name: Shell syntax
+        run: scripts/check-shell-syntax.sh
+
       # The NetNewsWire/WireGuard/CodeEdit upstreams live under
       # `.upstream/` (gitignored). Fetch them so the matching
       # Package.swift targets resolve. Without this step the

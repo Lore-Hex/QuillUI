@@ -57,6 +57,9 @@ jobs:
       - name: Swift version
         run: swift --version
 
+      - name: Shell syntax
+        run: scripts/check-shell-syntax.sh
+
       - name: Profile budget audit
         run: scripts/audit-profile-budget.sh --max-shell-lines 50
 
