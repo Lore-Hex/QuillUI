@@ -5,10 +5,6 @@ public typealias QuillQtBackendStatus = QuillBackendRuntimeStatus
 
 public enum QuillQtBackend: QuillBackend {
     public static let identifier: QuillBackendIdentifier = .qt
-
-    public static var status: QuillQtBackendStatus {
-        runtimeStatus
-    }
 }
 
 public enum QuillQtApp {

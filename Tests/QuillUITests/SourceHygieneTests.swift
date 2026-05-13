@@ -164,6 +164,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillInteractionSmokeSupport/QuillInteractionSmokeView.swift"),
             encoding: .utf8
         )
+        let backendCore = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillBackend.swift"),
+            encoding: .utf8
+        )
         let gtkBackend = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillUIGtk/QuillUIGtk.swift"),
             encoding: .utf8
@@ -237,17 +241,18 @@ struct SourceHygieneTests {
         #expect(sharedView.contains("Quill Backend Interaction"))
         #expect(sharedView.contains("Native backend click target"))
         #expect(sharedView.contains("native backend button click"))
+        #expect(backendCore.contains("static var status: QuillBackendRuntimeStatus"))
         #expect(gtkBackend.contains("public enum QuillGtkBackend"))
         #expect(gtkBackend.contains("public enum QuillGtkApp"))
         #expect(gtkBackend.contains("public typealias QuillGtkBackendStatus = QuillBackendRuntimeStatus"))
-        #expect(gtkBackend.contains("public static var status: QuillGtkBackendStatus"))
-        #expect(gtkBackend.contains("runtimeStatus"))
+        #expect(!gtkBackend.contains("public static var status"))
+        #expect(!gtkBackend.contains("runtimeStatus"))
         #expect(gtkBackend.contains("QuillBackendApp<QuillGtkBackend>.run(appType)"))
         #expect(qtBackend.contains("public enum QuillQtBackend"))
         #expect(qtBackend.contains("public enum QuillQtApp"))
         #expect(qtBackend.contains("public typealias QuillQtBackendStatus = QuillBackendRuntimeStatus"))
-        #expect(qtBackend.contains("public static var status: QuillQtBackendStatus"))
-        #expect(qtBackend.contains("runtimeStatus"))
+        #expect(!qtBackend.contains("public static var status"))
+        #expect(!qtBackend.contains("runtimeStatus"))
         #expect(qtBackend.contains("QuillBackendApp<QuillQtBackend>.run(appType)"))
 
         #expect(backendScript.contains("quillui_alias_backend_interaction_env"))

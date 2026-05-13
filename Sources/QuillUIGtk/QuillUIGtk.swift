@@ -5,10 +5,6 @@ public typealias QuillGtkBackendStatus = QuillBackendRuntimeStatus
 
 public enum QuillGtkBackend: QuillBackend {
     public static let identifier: QuillBackendIdentifier = .gtk
-
-    public static var status: QuillGtkBackendStatus {
-        runtimeStatus
-    }
 }
 
 public enum QuillGtkApp {

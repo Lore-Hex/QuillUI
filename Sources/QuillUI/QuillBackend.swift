@@ -130,6 +130,10 @@ public extension QuillBackend {
             launchPlan: launchPlan
         )
     }
+
+    static var status: QuillBackendRuntimeStatus {
+        runtimeStatus
+    }
 }
 
 public enum QuillBackendRegistry {
