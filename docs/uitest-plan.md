@@ -8,9 +8,11 @@ User-raised bar across every app:
 2. **Real UITests on macOS** that drive real actions across many
    features + screenshot the result.
 3. **Identical Linux parity** — the same flows run + screenshot
-   identically through the backend matrix. GTK is the current native
-   Linux renderer; Qt is requested through the shared launch surface
-   while the native renderer is being brought up.
+   identically through the backend matrix. GTK is the current generic
+   native Linux renderer; backend-neutral Qt rows currently expose the
+   platform fallback until a product-specific Qt host exists, while
+   native Qt rows such as `quill-wireguard-qt` are built with the
+   explicit Qt graph.
 
 ## Current state (CP106+)
 
@@ -23,7 +25,7 @@ User-raised bar across every app:
 | Signal      | — (libsignal stack) | —            | ✅ baseline (CP104)        |
 | Telegram    | — (MTProto stack)   | —            | ✅ baseline (CP104)        |
 | IINA        | — (libmpv binding)  | —            | ✅ baseline (CP104)        |
-| WireGuard   | side target         | —            | ✅ baseline matrix         |
+| WireGuard   | side target         | —            | ✅ GTK baseline + native Qt visual/selection smoke |
 
 The per-app backend smoke/profile roster now lives in
 `scripts/quillui-backend-products.sh backend-apps`, so Linux visual and
@@ -87,6 +89,10 @@ visual app matrix. Backend-neutral app rows request both GTK and Qt, while
 backend-specific products follow their fixed app backend entry. Those generic
 checks launch the already-built executable, click a stable toolbar-region point,
 and run post-click baseline screenshot verification.
+
+`quill-wireguard-qt` is the first semantic native Qt app interaction: the runner
+selects a tunnel row and verifies the selected-row highlight moves before taking
+the post-click screenshot.
 
 For semantic interaction predicates, extend
 `scripts/linux-backend-interaction-check.sh` (also proven for Enchanted), which

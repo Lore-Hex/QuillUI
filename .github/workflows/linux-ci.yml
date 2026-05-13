@@ -114,13 +114,12 @@ jobs:
       # in `scripts/quillui-backend-products.sh app-matrix` so visual and
       # profile coverage cannot drift. Each product launches under Xvfb,
       # explicitly requests a backend, screenshots the window, and runs the
-      # verifier. Qt rows currently exercise the shared launch-plan fallback
-      # until the native renderer is linked for production apps. With no
-      # per-product branch in `verify-backend-screenshot.py`, the verifier
-      # falls through to the baseline check (size + mean brightness +
-      # stddev) so "blank window" / "didn't render" / "tiny window"
-      # regressions still fail CI. Per-app landmark predicates are
-      # follow-up slices in docs/uitest-plan.md.
+      # verifier. Backend-neutral Qt rows still make the launch-plan fallback
+      # visible, while native Qt products such as quill-wireguard-qt are fixed
+      # to a single Qt build graph and can register per-product screenshot
+      # predicates. Products without a per-product branch fall through to the
+      # baseline check (size + mean brightness + stddev) so "blank window" /
+      # "didn't render" / "tiny window" regressions still fail CI.
       - name: Quill app backend visual smoke
         run: scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual app-matrix '.qa/{product}-{backend}.png'
 
