@@ -74,6 +74,10 @@ struct SourceHygieneTests {
         let readme = try String(contentsOf: root.appendingPathComponent("README.md"), encoding: .utf8)
         let appTargets = try String(contentsOf: root.appendingPathComponent("docs/app-targets.md"), encoding: .utf8)
         let uiTestPlan = try String(contentsOf: root.appendingPathComponent("docs/uitest-plan.md"), encoding: .utf8)
+        let linuxBuildTooling = try String(
+            contentsOf: root.appendingPathComponent("docs/linux-build-tooling.md"),
+            encoding: .utf8
+        )
         let offscreenRenderer = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillUI/GtkOffscreenRender.swift"),
             encoding: .utf8
@@ -96,6 +100,9 @@ struct SourceHygieneTests {
         #expect(uiTestPlan.contains("Linux backend smoke"))
         #expect(uiTestPlan.contains("requested Linux backend matrix"))
         #expect(!uiTestPlan.contains("Linux GTK smoke"))
+
+        #expect(linuxBuildTooling.contains("QUILLUI_BACKEND_LAYOUT_DEBUG"))
+        #expect(linuxBuildTooling.contains("layout diagnostics behave the same across every runner"))
 
         #expect(offscreenRenderer.contains("scripts/linux-backend-check.sh"))
         #expect(!offscreenRenderer.contains("scripts/linux-gtk-check.sh"))
