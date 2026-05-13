@@ -108,6 +108,8 @@ struct LinuxBackendAppMatrixTests {
         )
         #expect(backendCheck.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(backendCheck.contains("quillui_install_linux_backend_smoke_packages"))
+        #expect(backendCheck.contains("scripts/linux-swift-test.sh --scratch-path .build-linux"))
+        #expect(!backendCheck.contains("scripts/patch-swiftopenui-gtk-css.sh .build-linux\n\nswift test --scratch-path .build-linux"))
         #expect(backendCheck.contains("done < <(quillui_backend_app_products)"))
         #expect(backendCheck.contains("done < <(quillui_backend_app_matrix)"))
         #expect(backendCheck.contains("done < <(quillui_backend_generated_app_matrix)"))

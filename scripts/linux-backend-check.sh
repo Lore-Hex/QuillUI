@@ -22,9 +22,7 @@ MSG
   exit 1
 fi
 
-scripts/patch-swiftopenui-gtk-css.sh .build-linux
-
-swift test --scratch-path .build-linux
+scripts/linux-swift-test.sh --scratch-path .build-linux
 scripts/generated-enchanted-core-check.sh
 scripts/generated-enchanted-chat-components-check.sh
 scripts/generated-enchanted-macos-chat-check.sh
