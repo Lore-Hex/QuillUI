@@ -46,6 +46,17 @@ quillui_backend_app_matrix() {
   done < <(quillui_backend_app_products)
 }
 
+quillui_backend_interaction_app_products() {
+  # Root app interaction smokes intentionally share the same app roster as
+  # visual/profile parity checks. Keep the function separate so interaction
+  # coverage can grow without changing CI call sites.
+  quillui_backend_app_products
+}
+
+quillui_backend_interaction_app_matrix() {
+  quillui_backend_app_matrix
+}
+
 quillui_backend_generated_app_products() {
   # Generated external app products are not built from this package manifest,
   # but they still need the same requested-backend parity coverage once
@@ -210,6 +221,8 @@ Commands:
   backend-apps                    List user-facing app products in the backend parity matrix.
   app-backends                    List backends requested for each user-facing app.
   app-matrix                      List PRODUCT<TAB>BACKEND visual smoke rows for user-facing apps.
+  interaction-apps                List user-facing app products covered by interaction smokes.
+  interaction-matrix              List PRODUCT<TAB>BACKEND interaction smoke rows for user-facing apps.
   generated-apps                  List generated external app products covered by backend parity smoke.
   generated-app-matrix            List PRODUCT<TAB>BACKEND rows for generated external apps.
   gtk-apps                        Legacy alias for backend-apps.
@@ -232,6 +245,12 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     app-matrix)
       quillui_backend_app_matrix
+      ;;
+    interaction-apps)
+      quillui_backend_interaction_app_products
+      ;;
+    interaction-matrix)
+      quillui_backend_interaction_app_matrix
       ;;
     generated-apps)
       quillui_backend_generated_app_products

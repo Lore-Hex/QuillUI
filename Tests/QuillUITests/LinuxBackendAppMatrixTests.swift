@@ -56,15 +56,18 @@ struct LinuxBackendAppMatrixTests {
             encoding: .utf8
         )
         #expect(workflow.contains("scripts/quillui-backend-products.sh app-matrix"))
+        #expect(workflow.contains("scripts/quillui-backend-products.sh interaction-matrix"))
         #expect(workflow.contains("scripts/quillui-backend-products.sh generated-app-matrix"))
         #expect(workflow.contains("scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product; do"))
         #expect(workflow.contains("Generated Enchanted backend visual smokes"))
         #expect(workflow.contains("Generated Enchanted toolbar interaction smokes"))
+        #expect(workflow.contains("Quill app backend interaction smokes"))
         #expect(workflow.contains("QUILLUI_BACKEND=\"$backend\" scripts/linux-backend-visual-check.sh \".qa/${product}-generated-${backend}.png\" \"$product\""))
         #expect(workflow.contains("QUILLUI_BACKEND=\"$backend\" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-visual-check.sh \".qa/${product}-generated-${backend}.png\" \"$product\""))
         #expect(workflow.contains("QUILLUI_BACKEND=\"$backend\" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh \".qa/${product}-toolbar-menu-${backend}.png\" \"$product\""))
         #expect(workflow.contains("scripts/linux-backend-visual-check.sh \".qa/${product}-visual.png\" \"$product\""))
         #expect(workflow.contains("QUILLUI_BACKEND=\"$backend\" scripts/linux-backend-visual-check.sh \".qa/${product}-${backend}.png\" \"$product\""))
+        #expect(workflow.contains("QUILLUI_BACKEND=\"$backend\" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh \".qa/${product}-interaction-${backend}.png\" \"$product\""))
         #expect(workflow.contains("scripts/quillui-backend-products.sh profile-matrix | scripts/run-linux-backend-profile-csv.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv"))
         #expect(workflow.contains("name: Swift Linux Backends"))
@@ -170,6 +173,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_app_products()"))
         #expect(backendProducts.contains("quillui_backend_app_backends()"))
         #expect(backendProducts.contains("quillui_backend_app_matrix()"))
+        #expect(backendProducts.contains("quillui_backend_interaction_app_products()"))
+        #expect(backendProducts.contains("quillui_backend_interaction_app_matrix()"))
         #expect(backendProducts.contains("quillui_backend_generated_app_products()"))
         #expect(backendProducts.contains("quillui_backend_generated_app_matrix()"))
         #expect(backendProducts.contains("quillui_backend_profile_products()"))
@@ -266,6 +271,14 @@ struct LinuxBackendAppMatrixTests {
             appMatrix.output.split(whereSeparator: \.isNewline).map(String.init)
                 == Self.expectedAppProducts.flatMap { ["\($0)\tgtk", "\($0)\tqt"] }
         )
+
+        let interactionProducts = try runScript(script, arguments: ["interaction-apps"])
+        #expect(interactionProducts.status == 0, Comment(rawValue: interactionProducts.output))
+        #expect(interactionProducts.output.split(whereSeparator: \.isNewline).map(String.init) == Self.expectedAppProducts)
+
+        let interactionMatrix = try runScript(script, arguments: ["interaction-matrix"])
+        #expect(interactionMatrix.status == 0, Comment(rawValue: interactionMatrix.output))
+        #expect(interactionMatrix.output == appMatrix.output)
 
         let generatedProducts = try runScript(script, arguments: ["generated-apps"])
         #expect(generatedProducts.status == 0, Comment(rawValue: generatedProducts.output))

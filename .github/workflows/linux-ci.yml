@@ -142,6 +142,21 @@ jobs:
             QUILLUI_BACKEND="$backend" scripts/linux-backend-visual-check.sh ".qa/${product}-${backend}.png" "$product"
           done
 
+      # Per-app backend interaction smoke. Reuse the products built by the
+      # visual matrix above, then drive each app/backend row through the shared
+      # xdotool-based interaction runner. Products without semantic predicates
+      # still get post-click screenshot baseline verification, which catches
+      # dead windows, blank repaints, and backend selection regressions.
+      - name: Quill app backend interaction smokes
+        run: |
+          tab="$(printf '\t')"
+          scripts/quillui-backend-products.sh interaction-matrix | while IFS="$tab" read -r product backend; do
+            [ -n "$product" ] || continue
+            [ -n "$backend" ] || continue
+            echo "==> Backend interaction smoke: $product ($backend requested)"
+            QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 scripts/linux-backend-interaction-check.sh ".qa/${product}-interaction-${backend}.png" "$product"
+          done
+
       # Linux profile baseline (CP106/CP149/CP152). For each Quill
       # app/backend matrix row and backend launch fixture, sample startup_ms / rss_kb /
       # cpu_pct_5s under Xvfb and emit a CSV row. The intent is

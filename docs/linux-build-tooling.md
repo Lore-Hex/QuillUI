@@ -187,6 +187,30 @@ scripts/quillui-backend-products.sh smoke-products | while IFS= read -r product;
 done
 ```
 
+The root app interaction matrix uses the same app roster as the visual smoke.
+Run it after the visual matrix so the executables already built under
+`.build-linux` can be reused:
+
+```bash
+scripts/quillui-backend-products.sh interaction-matrix | while IFS="$(printf '\t')" read -r product backend; do
+  QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 \
+    scripts/linux-backend-interaction-check.sh ".qa/${product}-interaction-${backend}.png" "$product"
+done
+```
+
+The generated Quill Chat toolbar menu uses the generated app backend matrix:
+
+```bash
+scripts/quillui-backend-products.sh generated-app-matrix | while IFS="$(printf '\t')" read -r product backend; do
+  QUILLUI_BACKEND="$backend" QUILLUI_BACKEND_SKIP_BUILD=1 \
+    scripts/linux-backend-interaction-check.sh ".qa/${product}-toolbar-menu-${backend}.png" "$product"
+done
+```
+
+That path builds through the same generic app builder as the visual smoke,
+clicks the generated options menu in the top-right toolbar, and verifies that
+the menu surface appears below the toolbar.
+
 Profile baselines use the composed `profile-matrix` roster so the same budget
 check covers each user-facing app under every requested backend plus the backend
 launch fixtures:
@@ -199,19 +223,6 @@ scripts/quillui-backend-products.sh profile-matrix | \
 The CSV schema stays product-first for the budget checker. Backend-requested
 matrix rows are labeled as `product@backend` in the emitted `product` column,
 so GTK and Qt rows can be compared without introducing a second CSV format.
-
-It can also exercise the generated Quill Chat toolbar menu across the generated
-app backend matrix:
-
-```bash
-scripts/quillui-backend-products.sh generated-app-matrix | while IFS="$(printf '\t')" read -r product backend; do
-  QUILLUI_BACKEND="$backend" scripts/linux-backend-interaction-check.sh ".qa/${product}-toolbar-menu-${backend}.png" "$product"
-done
-```
-
-That path builds through the same generic app builder as the visual smoke,
-clicks the generated options menu in the top-right toolbar, and verifies that
-the menu surface appears below the toolbar.
 
 The opt-in `ImageRenderer` offscreen path also runs under Xvfb. It is kept
 separate from the normal test suite because it intentionally maps a temporary

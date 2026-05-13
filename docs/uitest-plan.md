@@ -77,9 +77,15 @@ interaction runners share `scripts/quillui-linux-backend-smoke-lib.sh`, so
 package setup, executable resolution, and generated Quill Chat fixture state
 stay identical between GTK and Qt smoke paths.
 
-For interaction tests, reuse `scripts/linux-backend-interaction-check.sh`
-(also proven for Enchanted) which drives the running app with
-`xdotool`. Per-app interactions to start with:
+Root app interaction smokes now use
+`scripts/quillui-backend-products.sh interaction-matrix`, which mirrors the
+visual app matrix and requests both GTK and Qt for every app row. Those generic
+checks launch the already-built executable, click a stable toolbar-region
+point, and run post-click baseline screenshot verification.
+
+For semantic interaction predicates, extend
+`scripts/linux-backend-interaction-check.sh` (also proven for Enchanted), which
+drives the running app with `xdotool`. Per-app predicates to add next:
 
 - Signal: click second sidebar conversation, verify timeline changes
 - Telegram: click "Work" folder pill, verify sidebar filters
