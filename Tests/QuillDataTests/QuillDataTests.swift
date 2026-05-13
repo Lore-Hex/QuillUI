@@ -32,6 +32,7 @@ struct QuillDataTests {
         ))
 
         #expect(highPriority.map { $0.title } == ["High"])
+        #expect(highPriority.first.map { $0 === high } == true)
 
         high.title = "Very high"
         try context.save()

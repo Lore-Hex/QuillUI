@@ -491,6 +491,7 @@ public final class ModelContext: @unchecked Sendable {
     }
 
     private struct TrackedModel {
+        let objectID: ObjectIdentifier
         let typeID: ObjectIdentifier
         let identity: String
         let model: any PersistentModel
@@ -507,10 +508,22 @@ public final class ModelContext: @unchecked Sendable {
         let isChanged: Bool
     }
 
+    private struct ClassBackedTrackingInfo {
+        let objectID: ObjectIdentifier
+        let typeID: ObjectIdentifier
+        let identity: String
+        let payload: Data
+
+        var key: TrackedModelKey {
+            TrackedModelKey(typeID: typeID, identity: identity)
+        }
+    }
+
     private let container: ModelContainer
     private let lock = NSRecursiveLock()
     private var recordedErrors: [Error] = []
     private var trackedModels: [ObjectIdentifier: TrackedModel] = [:]
+    private var trackedModelObjectIDsByKey: [TrackedModelKey: ObjectIdentifier] = [:]
     private var nextTrackingOrder = 0
     private var changed = false
 
@@ -534,6 +547,7 @@ public final class ModelContext: @unchecked Sendable {
         try lock.withLock {
             let filter = container.store.supportsSQLFilters(Model.self) ? descriptor.predicate?.sqlFilter : nil
             var result = try container.store.fetchAll(Model.self, filter: filter)
+            result = result.map { canonicalClassBackedModel(for: $0) }
             if let predicate = descriptor.predicate {
                 result = try result.filter { try predicate.evaluate($0) }
             }
@@ -603,19 +617,57 @@ public final class ModelContext: @unchecked Sendable {
 
     @discardableResult
     private func trackIfClassBacked<Model: PersistentModel>(_ model: Model) -> Bool {
-        guard let objectID = Self.classObjectIdentifier(for: model) else { return false }
-        let payload = (try? container.store.encodedPayload(for: model)) ?? Data()
-        let identity = (try? container.store.identity(for: model)) ?? String(describing: objectID)
-        let typeID = ObjectIdentifier(Model.self)
+        guard let trackingInfo = classBackedTrackingInfo(for: model) else { return false }
+        storeTrackedModel(model, trackingInfo: trackingInfo, replacingExistingIdentity: true)
+        return true
+    }
+
+    private func canonicalClassBackedModel<Model: PersistentModel>(for model: Model) -> Model {
+        guard let trackingInfo = classBackedTrackingInfo(for: model) else { return model }
+        if let objectID = trackedModelObjectIDsByKey[trackingInfo.key],
+           let trackedModel = trackedModels[objectID],
+           let canonicalModel = trackedModel.model as? Model {
+            return canonicalModel
+        }
+        storeTrackedModel(model, trackingInfo: trackingInfo, replacingExistingIdentity: false)
+        return model
+    }
+
+    private func storeTrackedModel<Model: PersistentModel>(
+        _ model: Model,
+        trackingInfo: ClassBackedTrackingInfo,
+        replacingExistingIdentity: Bool
+    ) {
         nextTrackingOrder += 1
-        trackedModels[objectID] = TrackedModel(
-            typeID: typeID,
-            identity: identity,
+        let trackedModel = TrackedModel(
+            objectID: trackingInfo.objectID,
+            typeID: trackingInfo.typeID,
+            identity: trackingInfo.identity,
             model: model,
-            trackedPayload: payload,
+            trackedPayload: trackingInfo.payload,
             order: nextTrackingOrder
         )
-        return true
+
+        if replacingExistingIdentity,
+           let existingObjectID = trackedModelObjectIDsByKey[trackedModel.key],
+           existingObjectID != trackedModel.objectID {
+            removeTrackedObject(existingObjectID)
+        }
+
+        trackedModels[trackedModel.objectID] = trackedModel
+        trackedModelObjectIDsByKey[trackedModel.key] = trackedModel.objectID
+    }
+
+    private func classBackedTrackingInfo<Model: PersistentModel>(for model: Model) -> ClassBackedTrackingInfo? {
+        guard let objectID = Self.classObjectIdentifier(for: model) else { return nil }
+        let payload = (try? container.store.encodedPayload(for: model)) ?? Data()
+        let identity = (try? container.store.identity(for: model)) ?? String(describing: objectID)
+        return ClassBackedTrackingInfo(
+            objectID: objectID,
+            typeID: ObjectIdentifier(Model.self),
+            identity: identity,
+            payload: payload
+        )
     }
 
     private func trackedModelsForSave() throws -> [TrackedModel] {
@@ -649,19 +701,29 @@ public final class ModelContext: @unchecked Sendable {
 
     private func untrack<Model: PersistentModel>(_ model: Model) {
         if let objectID = Self.classObjectIdentifier(for: model) {
-            trackedModels.removeValue(forKey: objectID)
+            removeTrackedObject(objectID)
         }
         guard let identity = try? container.store.identity(for: model) else { return }
-        let typeID = ObjectIdentifier(Model.self)
-        trackedModels = trackedModels.filter { _, trackedModel in
-            trackedModel.typeID != typeID || trackedModel.identity != identity
+        let key = TrackedModelKey(typeID: ObjectIdentifier(Model.self), identity: identity)
+        if let objectID = trackedModelObjectIDsByKey[key] {
+            removeTrackedObject(objectID)
         }
     }
 
     private func untrackAll<Model: PersistentModel>(_ model: Model.Type) {
         let typeID = ObjectIdentifier(model)
-        trackedModels = trackedModels.filter { _, trackedModel in
-            trackedModel.typeID != typeID
+        let objectIDs = trackedModels.values.compactMap { trackedModel in
+            trackedModel.typeID == typeID ? trackedModel.objectID : nil
+        }
+        for objectID in objectIDs {
+            removeTrackedObject(objectID)
+        }
+    }
+
+    private func removeTrackedObject(_ objectID: ObjectIdentifier) {
+        guard let removedModel = trackedModels.removeValue(forKey: objectID) else { return }
+        if trackedModelObjectIDsByKey[removedModel.key] == objectID {
+            trackedModelObjectIDsByKey.removeValue(forKey: removedModel.key)
         }
     }
 
