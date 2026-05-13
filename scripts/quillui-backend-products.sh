@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-quillui_gtk_app_products() {
-  # User-facing Quill app executable products first covered by the Linux GTK
-  # parity loops. Support tools, generated external packages, smoke fixtures,
-  # and demos stay out of this roster.
+quillui_backend_app_products() {
+  # Canonical user-facing Quill app executable products covered by the Linux
+  # backend parity loops. Support tools, generated external packages, smoke
+  # fixtures, and demos stay out of this roster.
   printf '%s\n' \
     quill-enchanted \
     quill-enchanted-upstream-slice \
@@ -16,10 +16,11 @@ quillui_gtk_app_products() {
     quill-wireguard
 }
 
-quillui_backend_app_products() {
-  # Canonical Linux backend app roster. It currently matches the GTK app
-  # matrix because app binaries select GTK/Qt through QUILLUI_BACKEND.
-  quillui_gtk_app_products
+quillui_gtk_app_products() {
+  # Legacy GTK-named entry point kept for older scripts. The backend app roster
+  # is the source of truth because app binaries select GTK/Qt through
+  # QUILLUI_BACKEND.
+  quillui_backend_app_products
 }
 
 quillui_backend_app_backends() {
@@ -188,7 +189,7 @@ Commands:
   backend-apps                    List user-facing app products in the backend parity matrix.
   app-backends                    List backends requested for each user-facing app.
   app-matrix                      List PRODUCT<TAB>BACKEND visual smoke rows for user-facing apps.
-  gtk-apps                        List user-facing app products in the GTK parity matrix.
+  gtk-apps                        Legacy alias for backend-apps.
   smoke-products                  List backend launch smoke products.
   profile-products                List app and launch-smoke products for profile budgets.
   profile-matrix                  List PRODUCT<TAB>BACKEND rows for profile budgets.

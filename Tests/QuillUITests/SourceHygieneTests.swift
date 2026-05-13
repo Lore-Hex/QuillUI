@@ -258,6 +258,8 @@ struct SourceHygieneTests {
         #expect(!backendScript.contains("build_and_resolve_executable()"))
         #expect(backendProducts.contains("quillui_gtk_app_products()"))
         #expect(backendProducts.contains("quillui_backend_app_products()"))
+        #expect(backendProducts.contains("quillui_gtk_app_products() {\n  # Legacy GTK-named entry point"))
+        #expect(backendProducts.contains("quillui_backend_app_products\n}"))
         #expect(backendProducts.contains("quillui_backend_app_backends()"))
         #expect(backendProducts.contains("quillui_backend_app_matrix()"))
         #expect(backendProducts.contains("quillui_backend_smoke_products()"))
