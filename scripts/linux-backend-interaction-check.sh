@@ -160,20 +160,11 @@ if [[ "$PRODUCT" == "quill-wireguard" ]]; then
       ;;
   esac
 fi
-if [[ "$SELECTED_BACKEND" == "qt" ]] && quillui_is_backend_generic_qt_app_product "$PRODUCT"; then
-  case "$INTERACTION_MODE" in
-    list-selection)
-      app_environment+=("QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-2}")
-      ;;
-  esac
-fi
-if [[ "$PRODUCT" == "quill-enchanted" && "$SELECTED_BACKEND" == "qt" ]]; then
-  case "$INTERACTION_MODE" in
-    list-selection)
-      app_environment+=("QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START:-2}")
-      ;;
-  esac
-fi
+quillui_append_backend_selection_start_environment \
+  app_environment \
+  "$PRODUCT" \
+  "$SELECTED_BACKEND" \
+  "$INTERACTION_MODE"
 env "${app_environment[@]}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
 app_pid=$!
 

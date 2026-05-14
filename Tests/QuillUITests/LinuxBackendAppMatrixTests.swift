@@ -453,6 +453,20 @@ struct LinuxBackendAppMatrixTests {
         printf 'generic-selected-gtk=%s\\n' "$QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"
         printf 'enchanted-selected-gtk=%s\\n' "$QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
 
+        unset QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START
+        selection_env=()
+        quillui_append_backend_selection_start_environment selection_env quill-signal qt list-selection
+        printf 'generic-selection-env=%s\\n' "$(printf '%s|' "${selection_env[@]}")"
+        selection_env=()
+        quillui_append_backend_selection_start_environment selection_env quill-enchanted qt list-selection
+        printf 'enchanted-selection-env=%s\\n' "$(printf '%s|' "${selection_env[@]}")"
+        selection_env=()
+        quillui_append_backend_selection_start_environment selection_env quill-signal gtk list-selection
+        printf 'gtk-selection-env=%s\\n' "$(printf '%s|' "${selection_env[@]}")"
+        selection_env=()
+        quillui_append_backend_selection_start_environment selection_env quill-signal qt click
+        printf 'click-selection-env=%s\\n' "$(printf '%s|' "${selection_env[@]}")"
+
         unset QUILLUI_BACKEND
         quillui_export_backend_argument "" quill-wireguard
         printf 'product-default=%s\\n' "$QUILLUI_BACKEND"
@@ -496,6 +510,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("enchanted-selected-qt=4"))
         #expect(result.output.contains("generic-selected-gtk=1"))
         #expect(result.output.contains("enchanted-selected-gtk=3"))
+        #expect(result.output.contains("generic-selection-env=QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=0|"))
+        #expect(result.output.contains("enchanted-selection-env=QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START=0|"))
+        #expect(result.output.contains("gtk-selection-env=|"))
+        #expect(result.output.contains("click-selection-env=|"))
         #expect(result.output.contains("product-default=gtk"))
         #expect(result.output.contains("product-explicit=qt"))
         #expect(result.output.contains("launch-env=GTK_A11Y=none|QUILLUI_BACKEND=qt|"))

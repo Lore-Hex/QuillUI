@@ -518,6 +518,30 @@ quillui_append_backend_runtime_environment() {
   quillui_unset_backend_scoped_app_environment
 }
 
+quillui_append_backend_selection_start_environment() {
+  local output_array="$1"
+  local product="$2"
+  local selected_backend="$3"
+  local interaction_mode="$4"
+
+  selected_backend="$(quillui_require_backend_identifier "$selected_backend")" || return $?
+  if [[ "$selected_backend" != "qt" || "$interaction_mode" != "list-selection" ]]; then
+    return 0
+  fi
+
+  if quillui_is_backend_generic_qt_app_product "$product"; then
+    quillui_append_environment_assignment \
+      "$output_array" \
+      "QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}" || return $?
+  elif [[ "$product" == "quill-enchanted" ]]; then
+    quillui_append_environment_assignment \
+      "$output_array" \
+      "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START:-0}" || return $?
+  fi
+
+  return 0
+}
+
 quillui_install_linux_backend_smoke_packages() {
   if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
     return
