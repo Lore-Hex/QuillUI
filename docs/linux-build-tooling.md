@@ -203,6 +203,12 @@ and always selects the manifest backend with `QUILLUI_LINUX_BACKEND`, even when
 a runtime smoke matrix has both GTK and Qt requested-backend rows for a
 backend-neutral app.
 
+Package product builds also write backend build stamps under the selected
+scratch path. Visual, interaction, and profile runners that set
+`QUILLUI_BACKEND_SKIP_BUILD=1` require the matching stamp before reusing a
+cached executable, so native GTK and native Qt products cannot silently launch
+a stale binary from the wrong manifest-time backend graph.
+
 For `quill-chat-linux`, the script builds through the generic app builder,
 resolves the generated package executable, captures an Xvfb screenshot, checks
 both brightness and pixel variation so blank white windows fail, and verifies

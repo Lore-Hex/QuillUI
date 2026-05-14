@@ -203,6 +203,95 @@ quillui_require_linux_build_backend_identifier() {
   esac
 }
 
+quillui_backend_build_stamp_product_name() {
+  local product="$1"
+
+  if [[ -z "$product" || "$product" == *[!A-Za-z0-9_.-]* ]]; then
+    echo "Unsupported QuillUI backend build stamp product: $product" >&2
+    return 65
+  fi
+
+  echo "$product"
+}
+
+quillui_backend_build_stamp_path() {
+  local scratch_path="$1"
+  local product
+
+  product="$(quillui_backend_build_stamp_product_name "$2")" || return $?
+  if [[ -z "$scratch_path" ]]; then
+    echo "Backend build stamp scratch path is required." >&2
+    return 65
+  fi
+
+  printf '%s/.quillui-backend-products/%s.backend.stamp\n' "$scratch_path" "$product"
+}
+
+quillui_record_backend_product_build() {
+  local scratch_path="$1"
+  local product
+  local backend
+  local stamp_path
+
+  product="$(quillui_backend_build_stamp_product_name "$2")" || return $?
+  backend="$(quillui_require_linux_build_backend_identifier "$3")" || return $?
+  stamp_path="$(quillui_backend_build_stamp_path "$scratch_path" "$product")" || return $?
+
+  mkdir -p "$(dirname "$stamp_path")"
+  {
+    printf 'product=%s\n' "$product"
+    printf 'backend=%s\n' "$backend"
+  } > "$stamp_path"
+}
+
+quillui_require_backend_product_build_stamp() {
+  local scratch_path="$1"
+  local product
+  local expected_backend
+  local stamp_path
+  local stamped_product=""
+  local stamped_backend=""
+  local key
+  local value
+
+  product="$(quillui_backend_build_stamp_product_name "$2")" || return $?
+  expected_backend="$(quillui_require_linux_build_backend_identifier "$3")" || return $?
+  stamp_path="$(quillui_backend_build_stamp_path "$scratch_path" "$product")" || return $?
+
+  if [[ ! -f "$stamp_path" ]]; then
+    echo "No cached backend build stamp for $product under $scratch_path; rerun without QUILLUI_BACKEND_SKIP_BUILD=1." >&2
+    return 66
+  fi
+
+  while IFS='=' read -r key value; do
+    case "$key" in
+      product)
+        stamped_product="$value"
+        ;;
+      backend)
+        stamped_backend="$value"
+        ;;
+    esac
+  done < "$stamp_path"
+
+  if [[ "$stamped_product" != "$product" ]]; then
+    echo "Cached backend build stamp for $product is malformed: $stamp_path" >&2
+    return 66
+  fi
+
+  stamped_backend="$(quillui_require_linux_build_backend_identifier "$stamped_backend")" || {
+    echo "Cached backend build stamp for $product is malformed: $stamp_path" >&2
+    return 66
+  }
+
+  if [[ "$stamped_backend" != "$expected_backend" ]]; then
+    echo "Cached backend build stamp for $product records QUILLUI_LINUX_BACKEND=$stamped_backend, expected $expected_backend; rerun without QUILLUI_BACKEND_SKIP_BUILD=1." >&2
+    return 66
+  fi
+
+  return 0
+}
+
 quillui_backend_interaction_app_products() {
   # Root app interaction smokes intentionally share the same app roster as
   # visual/profile parity checks. Keep the function separate so interaction

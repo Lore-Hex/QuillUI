@@ -90,10 +90,12 @@ BIN_PATH="$(QUILLUI_LINUX_BACKEND=gtk swift build --scratch-path .build-linux --
 
 for product in "${ALL_PRODUCTS[@]}"; do
   build_backend="$(quillui_require_backend_for_product "$product")"
-  if [[ "$build_backend" == "gtk" && -x "$BIN_PATH/$product" ]]; then
+  if [[ "$build_backend" == "gtk" && -x "$BIN_PATH/$product" ]] \
+    && quillui_require_backend_product_build_stamp "$ROOT_DIR/.build-linux" "$product" "$build_backend" >/dev/null 2>&1; then
     continue
   fi
   QUILLUI_LINUX_BACKEND="$build_backend" swift build --scratch-path .build-linux --product "$product"
+  quillui_record_backend_product_build "$ROOT_DIR/.build-linux" "$product" "$build_backend"
   BIN_PATH="$(QUILLUI_LINUX_BACKEND="$build_backend" swift build --scratch-path .build-linux --show-bin-path)"
 done
 

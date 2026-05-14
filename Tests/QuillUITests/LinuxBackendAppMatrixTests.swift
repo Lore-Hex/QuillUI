@@ -151,7 +151,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendCheck.contains("BIN_PATH=\"$(QUILLUI_LINUX_BACKEND=gtk swift build --scratch-path .build-linux --show-bin-path)\""))
         #expect(backendCheck.contains("for product in \"${ALL_PRODUCTS[@]}\""))
         #expect(backendCheck.contains("build_backend=\"$(quillui_require_backend_for_product \"$product\")\""))
-        #expect(backendCheck.contains("if [[ \"$build_backend\" == \"gtk\" && -x \"$BIN_PATH/$product\" ]]; then"))
+        #expect(backendCheck.contains("quillui_require_backend_product_build_stamp \"$ROOT_DIR/.build-linux\" \"$product\" \"$build_backend\""))
+        #expect(backendCheck.contains("quillui_record_backend_product_build \"$ROOT_DIR/.build-linux\" \"$product\" \"$build_backend\""))
         #expect(backendCheck.contains("continue"))
         #expect(backendCheck.contains("QUILLUI_LINUX_BACKEND=\"$build_backend\" swift build --scratch-path .build-linux --product \"$product\""))
         #expect(!backendCheck.contains("done\nBIN_PATH=\"$(swift build --scratch-path .build-linux --show-bin-path)\""))
@@ -232,6 +233,9 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_normalize_backend_identifier()"))
         #expect(backendProducts.contains("quillui_require_backend_identifier()"))
         #expect(backendProducts.contains("quillui_require_linux_build_backend_identifier()"))
+        #expect(backendProducts.contains("quillui_backend_build_stamp_path()"))
+        #expect(backendProducts.contains("quillui_record_backend_product_build()"))
+        #expect(backendProducts.contains("quillui_require_backend_product_build_stamp()"))
         #expect(!backendProducts.contains("quillui_backend_identifier_or_raw()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_products()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_matrix()"))
@@ -311,6 +315,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProductBuildScript.contains("quillui_require_linux_build_backend_identifier \"$requested_backend\""))
         #expect(backendProductBuildScript.contains("QUILLUI_LINUX_BACKEND=\"$build_backend\""))
         #expect(backendProductBuildScript.contains("swift build --scratch-path \"$SCRATCH_PATH\" --product \"$product\""))
+        #expect(backendProductBuildScript.contains("quillui_record_backend_product_build \"$(quillui_absolute_scratch_path)\" \"$product\" \"$build_backend\""))
         #expect(backendProductBuildScript.contains("patch-swiftopenui-gtk-css.sh"))
         #expect(profileScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(profileScript.contains("quillui_install_linux_backend_smoke_packages"))
@@ -372,6 +377,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeLib.contains("quillui_start_xvfb()"))
         #expect(smokeLib.contains("quillui_assign_output \"$output_var\" \"$QUILLUI_BACKEND_APP_EXECUTABLE\""))
         #expect(smokeLib.contains("${QUILLUI_BACKEND_SKIP_BUILD:-0}"))
+        #expect(smokeLib.contains("quillui_require_backend_product_build_stamp"))
+        #expect(smokeLib.contains("quillui_record_backend_product_build"))
         #expect(!smokeLib.contains("quillui_assign_output \"$output_var\" \"$QUILLUI_GTK_APP_EXECUTABLE\""))
         #expect(!smokeLib.contains("${QUILLUI_GTK_SKIP_BUILD:-0}"))
         #expect(smokeLib.contains("quillui_install_linux_backend_smoke_packages()"))
@@ -1135,6 +1142,21 @@ struct LinuxBackendAppMatrixTests {
         fi
         printf 'strict-fixed-launch=failed\\n'
 
+        stamp_root="\(temporaryDirectory.path)/stamp-cache"
+        if quillui_require_backend_product_build_stamp "$stamp_root" quill-wireguard-qt qt 2>/dev/null; then
+          echo "unexpected-missing-stamp-success"
+          exit 1
+        fi
+        printf 'missing-build-stamp=failed\\n'
+        quillui_record_backend_product_build "$stamp_root" quill-wireguard-qt qt
+        quillui_require_backend_product_build_stamp "$stamp_root" quill-wireguard-qt qt
+        printf 'matching-build-stamp=ok\\n'
+        if quillui_require_backend_product_build_stamp "$stamp_root" quill-wireguard-qt gtk 2>/dev/null; then
+          echo "unexpected-mismatched-stamp-success"
+          exit 1
+        fi
+        printf 'mismatched-build-stamp=failed\\n'
+
         runtime_env=()
         quillui_append_backend_launch_environment runtime_env quill-icecubes "" " GTK4 "
         printf 'launch-backend=%s\\n' "${runtime_env[1]}"
@@ -1192,6 +1214,9 @@ struct LinuxBackendAppMatrixTests {
         product-default-qt=qt
         strict-fixed-export=failed
         strict-fixed-launch=failed
+        missing-build-stamp=failed
+        matching-build-stamp=ok
+        mismatched-build-stamp=failed
         launch-backend=QUILLUI_BACKEND=gtk
         strict-export=failed
         strict-launch=failed

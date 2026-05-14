@@ -176,6 +176,7 @@ while IFS=$'\t' read -r product requested_backend extra; do
       QUILLUI_LINUX_BACKEND="$build_backend" \
         swift build --scratch-path "$SCRATCH_PATH" --product "$product"
     )
+    quillui_record_backend_product_build "$(quillui_absolute_scratch_path)" "$product" "$build_backend"
   fi
 done < <(quillui_manifest_product_rows "$MATRIX_COMMAND")
 

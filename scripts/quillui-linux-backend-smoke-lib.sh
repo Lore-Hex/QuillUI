@@ -494,6 +494,10 @@ MSG
 
     if [[ "${QUILLUI_BACKEND_SKIP_BUILD:-0}" == "1" ]]; then
       local cached_executable
+      quillui_require_backend_product_build_stamp \
+        "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" \
+        "$product" \
+        "$linux_build_backend" || return $?
       cached_executable="$(
         find "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" -path "*/debug/$product" -type f -perm -111 2>/dev/null | head -n 1 || true
       )"
@@ -506,6 +510,10 @@ MSG
       "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux"
       QUILLUI_LINUX_BACKEND="$linux_build_backend" \
         swift build --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --product "$product"
+      quillui_record_backend_product_build \
+        "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" \
+        "$product" \
+        "$linux_build_backend" || return $?
       local bin_path
       bin_path="$(
         QUILLUI_LINUX_BACKEND="$linux_build_backend" \
