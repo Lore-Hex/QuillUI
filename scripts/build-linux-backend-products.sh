@@ -114,6 +114,28 @@ quillui_absolute_scratch_path() {
   esac
 }
 
+quillui_build_backend_product() {
+  local product="$1"
+  local build_backend="$2"
+  local output
+
+  if ! output="$(
+    cd "$ROOT_DIR"
+    QUILLUI_LINUX_BACKEND="$build_backend" \
+      swift build --scratch-path "$SCRATCH_PATH" --product "$product" 2>&1
+  )"; then
+    printf '%s\n' "$output"
+    return 1
+  fi
+
+  printf '%s\n' "$output"
+
+  if [[ "$build_backend" == "qt" ]] && grep -Eq "warning:|prohibited flag|Invalid Exclude" <<<"$output"; then
+    echo "Qt backend build for $product emitted warnings; native Qt products must stay warning-clean." >&2
+    return 1
+  fi
+}
+
 SEEN_PRODUCTS=$'\n'
 ROW_COUNT=0
 BUILD_COUNT=0
@@ -142,11 +164,7 @@ while IFS=$'\t' read -r product requested_backend extra; do
     printf '%s\t%s\n' "$product" "$build_backend"
   else
     echo "==> Build $product (QUILLUI_LINUX_BACKEND=$build_backend)"
-    (
-      cd "$ROOT_DIR"
-      QUILLUI_LINUX_BACKEND="$build_backend" \
-        swift build --scratch-path "$SCRATCH_PATH" --product "$product"
-    )
+    quillui_build_backend_product "$product" "$build_backend"
     quillui_record_backend_product_build "$(quillui_absolute_scratch_path)" "$product" "$build_backend"
   fi
 done < <(quillui_backend_build_product_rows "$MATRIX_COMMAND")
