@@ -69,6 +69,7 @@ struct SourceHygieneTests {
         #expect(!manifest.contains("products = [\n        .executable(name: \"quill-enchanted-qt\""))
         #expect(manifest.contains("allPackageDependencies = []"))
         #expect(manifest.contains("let packageTestTargets: [Target] = {"))
+        #expect(manifest.contains("name: \"QuillQtBackendManifestTests\""))
         #expect(manifest.contains("name: \"QuillEnchantedTests\""))
         #expect(manifest.contains("dependencies: [\"QuillEnchantedCore\", \"QuillUI\"]"))
         #expect(manifest.contains("targets: targets + packageTestTargets"))

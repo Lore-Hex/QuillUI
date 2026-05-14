@@ -26,5 +26,23 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-"$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$SCRATCH_PATH"
+requested_backend="${QUILLUI_LINUX_BACKEND:-gtk}"
+requested_backend="${requested_backend//[$'\t\r\n ']}"
+requested_backend="$(printf '%s' "$requested_backend" | tr '[:upper:]' '[:lower:]')"
+
+case "$requested_backend" in
+  ""|gtk|gtk4)
+    "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$SCRATCH_PATH"
+    ;;
+  qt|qt6)
+    # The Qt manifest intentionally strips SwiftOpenUI/GTK from the package
+    # graph. Patching the GTK checkout here would force a dependency that Qt
+    # mode is specifically designed to avoid.
+    ;;
+  *)
+    echo "Unsupported QUILLUI_LINUX_BACKEND value: ${QUILLUI_LINUX_BACKEND:-}" >&2
+    exit 64
+    ;;
+esac
+
 swift test --scratch-path "$SCRATCH_PATH" "${SWIFT_TEST_ARGS[@]}"

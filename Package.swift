@@ -1255,7 +1255,16 @@ if quillUILinuxBuildBackend == .qt {
 let packageTestTargets: [Target] = {
     #if os(Linux)
     if quillUILinuxBuildBackend == .qt {
-        return []
+        return [
+            // Runs inside the stripped Qt graph itself. This keeps
+            // `QUILLUI_LINUX_BACKEND=qt swift test` useful without
+            // reintroducing the GTK/SwiftOpenUI dependency graph.
+            .testTarget(
+                name: "QuillQtBackendManifestTests",
+                dependencies: [],
+                swiftSettings: appSwiftSettings
+            )
+        ]
     }
     #endif
 
