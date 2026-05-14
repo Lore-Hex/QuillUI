@@ -272,8 +272,12 @@ quillParityTestDependencies.append("SwiftUI")
 let quillWireGuardQtDependencies: [Target.Dependency] = quillUILinuxBuildBackend == .qt
     ? ["QuillWireGuardQtNativeRuntime"]
     : ["QuillWireGuardUI", "QuillUIQt"]
+let quillQtInteractionSmokeDependencies: [Target.Dependency] = quillUILinuxBuildBackend == .qt
+    ? ["CQuillQt6WidgetsShim"]
+    : ["QuillUIQt", "QuillInteractionSmokeSupport"]
 #else
 let quillWireGuardQtDependencies: [Target.Dependency] = ["QuillWireGuardUI", "QuillUIQt"]
+let quillQtInteractionSmokeDependencies: [Target.Dependency] = ["QuillUIQt", "QuillInteractionSmokeSupport"]
 #endif
 
 // WireGuardKit deps + Linux-specific excludes.
@@ -890,12 +894,11 @@ targets.append(contentsOf: [
         path: "Sources/QuillGtkInteractionSmoke"
     ),
     // Qt launch target for the same interaction surface. The
-    // QuillUIQt target owns backend selection while this executable
-    // shares the backend smoke view code, keeping visual drift visible
-    // as soon as the native Qt renderer lands.
+    // GTK build graph uses the generic QuillUIQt facade/fallback,
+    // while the Qt graph swaps in a native Qt Widgets smoke host.
     .executableTarget(
         name: "QuillQtInteractionSmoke",
-        dependencies: ["QuillUIQt", "QuillInteractionSmokeSupport"],
+        dependencies: quillQtInteractionSmokeDependencies,
         path: "Sources/QuillQtInteractionSmoke"
     ),
     // Apple-framework compatibility shims that the generated

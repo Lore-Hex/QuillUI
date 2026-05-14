@@ -47,7 +47,9 @@ struct LinuxBackendAppMatrixTests {
     }
 
     private static func expectedRuntimeBackend(product: String, backend: String) -> String {
-        product == "quill-wireguard-qt" && backend == "qt" ? "qt" : "gtk"
+        (product == "quill-wireguard-qt" || product == "quill-qt-interaction-smoke") && backend == "qt"
+            ? "qt"
+            : "gtk"
     }
 
     private static func expectedRuntimeMode(product: String, backend: String) -> String {
@@ -568,7 +570,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(smoke.status == 0, Comment(rawValue: smoke.output))
         #expect(smoke.output.split(whereSeparator: \.isNewline).map(String.init) == [
             "interaction\tquill-gtk-interaction-smoke\tgtk\tgtk\tnative\t.qa/quill-gtk-interaction-smoke-open-gtk.png\t0",
-            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-open-qt.png\t0"
+            "interaction\tquill-qt-interaction-smoke\tqt\tqt\tnative\t.qa/quill-qt-interaction-smoke-open-qt.png\t0"
         ])
 
         let smokeInteractions = try runScript(
@@ -589,12 +591,12 @@ struct LinuxBackendAppMatrixTests {
             "interaction\tquill-gtk-interaction-smoke\tgtk\tgtk\tnative\t.qa/quill-gtk-interaction-smoke-nested-sheet-gtk.png\t1\tnested-sheet",
             "interaction\tquill-gtk-interaction-smoke\tgtk\tgtk\tnative\t.qa/quill-gtk-interaction-smoke-sidebar-sheet-gtk.png\t1\tsidebar-sheet",
             "interaction\tquill-gtk-interaction-smoke\tgtk\tgtk\tnative\t.qa/quill-gtk-interaction-smoke-banner-sheet-gtk.png\t1\tbanner-sheet",
-            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-open-panel-qt.png\t0\topen-panel",
-            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-sidebar-button-qt.png\t1\tsidebar-button",
-            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-banner-button-qt.png\t1\tbanner-button",
-            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-nested-sheet-qt.png\t1\tnested-sheet",
-            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-sidebar-sheet-qt.png\t1\tsidebar-sheet",
-            "interaction\tquill-qt-interaction-smoke\tqt\tgtk\tplatformFallback\t.qa/quill-qt-interaction-smoke-banner-sheet-qt.png\t1\tbanner-sheet"
+            "interaction\tquill-qt-interaction-smoke\tqt\tqt\tnative\t.qa/quill-qt-interaction-smoke-open-panel-qt.png\t0\topen-panel",
+            "interaction\tquill-qt-interaction-smoke\tqt\tqt\tnative\t.qa/quill-qt-interaction-smoke-sidebar-button-qt.png\t1\tsidebar-button",
+            "interaction\tquill-qt-interaction-smoke\tqt\tqt\tnative\t.qa/quill-qt-interaction-smoke-banner-button-qt.png\t1\tbanner-button",
+            "interaction\tquill-qt-interaction-smoke\tqt\tqt\tnative\t.qa/quill-qt-interaction-smoke-nested-sheet-qt.png\t1\tnested-sheet",
+            "interaction\tquill-qt-interaction-smoke\tqt\tqt\tnative\t.qa/quill-qt-interaction-smoke-sidebar-sheet-qt.png\t1\tsidebar-sheet",
+            "interaction\tquill-qt-interaction-smoke\tqt\tqt\tnative\t.qa/quill-qt-interaction-smoke-banner-sheet-qt.png\t1\tbanner-sheet"
         ])
 
         let appExtraInteractions = try runScript(
@@ -988,7 +990,10 @@ struct LinuxBackendAppMatrixTests {
 
         let nativeProductRuntimeOverrides = try runScript(script, arguments: ["native-product-runtime-overrides"])
         #expect(nativeProductRuntimeOverrides.status == 0, Comment(rawValue: nativeProductRuntimeOverrides.output))
-        #expect(nativeProductRuntimeOverrides.output.trimmingCharacters(in: .whitespacesAndNewlines) == "quill-wireguard-qt\tqt\tqt")
+        #expect(nativeProductRuntimeOverrides.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "quill-qt-interaction-smoke\tqt\tqt",
+            "quill-wireguard-qt\tqt\tqt"
+        ])
 
         let platformRuntimeFallback = try runScript(script, arguments: ["platform-runtime-fallback"])
         #expect(platformRuntimeFallback.status == 0, Comment(rawValue: platformRuntimeFallback.output))
@@ -1038,7 +1043,7 @@ struct LinuxBackendAppMatrixTests {
 
         let runtimeProductBackend = try runScript(script, arguments: ["runtime-backend-for-product", "quill-qt-interaction-smoke"])
         #expect(runtimeProductBackend.status == 0, Comment(rawValue: runtimeProductBackend.output))
-        #expect(runtimeProductBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
+        #expect(runtimeProductBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
 
         let runtimeWireGuardQtProductBackend = try runScript(script, arguments: ["runtime-backend-for-product", "quill-wireguard-qt"])
         #expect(runtimeWireGuardQtProductBackend.status == 0, Comment(rawValue: runtimeWireGuardQtProductBackend.output))

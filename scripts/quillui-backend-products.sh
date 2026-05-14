@@ -79,6 +79,7 @@ quillui_backend_native_product_runtime_overrides() {
   # PRODUCT<TAB>REQUESTED_BACKEND<TAB>RUNTIME_BACKEND rows for native hosts that
   # exist only behind a product-specific SwiftPM graph today.
   printf '%s\t%s\t%s\n' \
+    quill-qt-interaction-smoke qt qt \
     quill-wireguard-qt qt qt
 }
 
@@ -892,6 +893,21 @@ quillui_backend_validate_app_product_reference() {
   fi
 }
 
+quillui_backend_validate_runtime_product_reference() {
+  local product="$1"
+  local table_name="$2"
+
+  if [[ -z "$product" ]]; then
+    echo "$table_name contains an empty product." >&2
+    return 65
+  fi
+
+  if ! quillui_backend_product_list_contains "$product" quillui_backend_profile_products; then
+    echo "$table_name references unknown runtime product: $product" >&2
+    return 65
+  fi
+}
+
 quillui_backend_validate_app_backend_ids() {
   local backend
   local normalized_backend
@@ -956,7 +972,7 @@ quillui_backend_validate_native_product_runtime_overrides() {
       echo "native-product-runtime-overrides contains an empty backend: $product	$requested_backend	$runtime_backend" >&2
       return 65
     fi
-    quillui_backend_validate_app_product_reference "$product" "native-product-runtime-overrides" || return $?
+    quillui_backend_validate_runtime_product_reference "$product" "native-product-runtime-overrides" || return $?
     normalized_requested_backend="$(quillui_require_linux_build_backend_identifier "$requested_backend")" || return $?
     normalized_runtime_backend="$(quillui_require_linux_build_backend_identifier "$runtime_backend")" || return $?
     if [[ "$requested_backend" != "$normalized_requested_backend" || "$runtime_backend" != "$normalized_runtime_backend" ]]; then

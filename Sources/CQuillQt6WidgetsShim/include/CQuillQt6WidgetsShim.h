@@ -12,6 +12,8 @@ typedef char *(*quill_wireguard_qt_import_config_callback)(
 
 typedef void (*quill_wireguard_qt_free_string_callback)(char *string);
 
+int quill_qt_run_interaction_smoke(int argc, char **argv);
+
 int quill_wireguard_qt_run_wireguard_json(
     int argc,
     char **argv,

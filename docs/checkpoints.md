@@ -2459,17 +2459,17 @@ Status: implemented locally; guarded by source hygiene tests and Linux CI.
 
 QuillUI now has a backend registry with SwiftUI, GTK, and Qt identifiers, plus
 a new `QuillUIQt` product that owns the Qt-specific launch surface. The first
-Qt executable, `quill-qt-interaction-smoke`, uses `QuillQtApp.run` so future
-native Qt host work can be isolated to the backend target instead of copied
-through app shells.
+Qt executable, `quill-qt-interaction-smoke`, keeps the fallback SwiftUI launch
+path in `QuillQtApp.run` while the Qt build graph swaps in a native Qt6 Widgets
+smoke host.
 
 The GTK and Qt interaction smoke apps now share
 `QuillInteractionSmokeSupport.QuillInteractionSmokeView`. This keeps the
 stateful button, text field, sidebar, banner, and sheet coverage in one place
-and lets CI compare backend launch behavior without duplicated SwiftUI view
-code. The Qt smoke currently runs through the platform fallback runtime until a
-native Qt renderer is linked, but the target graph, package product, and CI
-interaction check are now in place.
+for the fallback graph and lets CI compare backend launch behavior without
+duplicated SwiftUI view code. The Qt smoke now has a native Qt runtime override,
+so `quill-qt-interaction-smoke` reports `runtime_backend=qt` /
+`runtime_mode=native` when the Qt graph is selected.
 
 ## Checkpoint 133: Backend-Neutral Interaction Runner
 
@@ -3011,8 +3011,9 @@ Status: implemented locally; guarded by backend matrix tests.
 `quillui-backend-products.sh` now emits selected backend, runtime backend, and
 runtime mode rows through `runtime-availabilities`. Shell smoke/profile tooling
 can consume the same GTK/Qt runtime availability shape as the Swift registry:
-GTK reports `native`, while Qt reports the current GTK `platformFallback` until
-a native Qt runtime host is linked.
+GTK reports `native`, generic Qt app rows report the current GTK
+`platformFallback`, and Qt products with native runtime overrides report
+`native`.
 
 ## Checkpoint 175: Profile Runtime Pair Enforcement
 

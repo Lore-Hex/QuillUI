@@ -298,14 +298,13 @@ reference window dimensions across screenshot and performance checks.
 scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.png quill-gtk-interaction-smoke
 ```
 
-The Qt launch target uses the same interaction surface through
-`QuillInteractionSmokeSupport`, with `QuillUIQt` owning the backend-specific
-launcher. Until that fixture has its own native Qt runtime host, the CI smoke
-executes through the platform fallback runtime so the target graph and app scene
-stay buildable. Native Qt product hosts use explicit entries in
+The Qt launch target uses the same Swift interaction surface through
+`QuillInteractionSmokeSupport` when built in the default GTK graph, and swaps to
+the native Qt6 Widgets smoke host when `QUILLUI_LINUX_BACKEND=qt` selects the Qt
+graph. Native Qt product hosts use explicit entries in
 `native-product-runtime-overrides`; the shared runtime matrix reports those rows
-as `runtime_backend=qt` / `runtime_mode=native` only after the product has a
-real Qt host, so CI cannot silently report Qt while running the GTK host.
+as `runtime_backend=qt` / `runtime_mode=native` only after the product has a real
+Qt host, so CI cannot silently report Qt while running the GTK host.
 
 ```bash
 scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke
