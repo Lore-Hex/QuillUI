@@ -127,9 +127,12 @@ quillui_profile_product_was_built() {
 quillui_profile_build_cache_key() {
   local product="$1"
   local requested_backend="$2"
+  local runtime_backend="${3:-}"
 
   if [[ -n "$requested_backend" ]] && quillui_is_backend_generated_app_product "$product"; then
     printf '%s:%s\n' "$product" "$requested_backend"
+  elif [[ -n "$runtime_backend" ]]; then
+    printf '%s:%s\n' "$product" "$runtime_backend"
   else
     printf '%s\n' "$product"
   fi
@@ -199,7 +202,7 @@ quillui_profile_build_cache_key() {
       row_label="$product@$backend"
       profiler_arguments+=("$backend")
     fi
-    build_cache_key="$(quillui_profile_build_cache_key "$product" "$requested_backend")"
+    build_cache_key="$(quillui_profile_build_cache_key "$product" "$requested_backend" "$runtime_backend")"
     row_path="$TMP_DIR/${row_label//[^A-Za-z0-9_.-]/_}.csv"
     profiler_environment=()
     if [[ -n "$backend" ]]; then

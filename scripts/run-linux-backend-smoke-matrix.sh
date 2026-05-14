@@ -175,10 +175,13 @@ quillui_smoke_product_was_built() {
 
 quillui_smoke_build_cache_key() {
   local product="$1"
-  local backend="$2"
+  local requested_backend="$2"
+  local runtime_backend="${3:-}"
 
   if quillui_is_backend_generated_app_product "$product"; then
-    printf '%s:%s\n' "$product" "$backend"
+    printf '%s:%s\n' "$product" "$requested_backend"
+  elif [[ -n "$runtime_backend" ]]; then
+    printf '%s:%s\n' "$product" "$runtime_backend"
   else
     printf '%s\n' "$product"
   fi
@@ -208,7 +211,7 @@ quillui_run_smoke_row() {
   local smoke_environment=()
 
   output_path="$(quillui_smoke_output_path "$product" "$requested_backend" "$mode")"
-  build_cache_key="$(quillui_smoke_build_cache_key "$product" "$requested_backend")"
+  build_cache_key="$(quillui_smoke_build_cache_key "$product" "$requested_backend" "$runtime_backend")"
 
   if [[ "$SKIP_REPEATED_PRODUCTS" == "1" ]] && quillui_smoke_product_was_built "$build_cache_key"; then
     smoke_environment+=("QUILLUI_BACKEND_SKIP_BUILD=1")
