@@ -480,9 +480,9 @@ public enum QuillBackendRegistry {
 
         switch selectedBackend {
         case .qt:
-            scopedValue = environment[qtScoped] ?? environment[gtkLegacy]
+            scopedValue = environment[qtScoped]
         case .gtk, .swiftUI:
-            scopedValue = environment[gtkLegacy] ?? environment[qtScoped]
+            scopedValue = environment[gtkLegacy]
         }
 
         return environment[canonical] ?? scopedValue

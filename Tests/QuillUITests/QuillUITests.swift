@@ -133,6 +133,42 @@ struct QuillUITests {
                 preferred: .qt
             ) == "1600"
         )
+        #expect(
+            QuillBackendRegistry.backendScopedEnvironmentValue(
+                backendWindowWidth,
+                gtkLegacy: gtkWindowWidth,
+                qtScoped: qtWindowWidth,
+                from: [gtkWindowWidth: "1200"],
+                preferred: .qt
+            ) == nil
+        )
+        #expect(
+            QuillBackendRegistry.backendScopedEnvironmentValue(
+                backendWindowWidth,
+                gtkLegacy: gtkWindowWidth,
+                qtScoped: qtWindowWidth,
+                from: [qtWindowWidth: "1400"],
+                preferred: .gtk
+            ) == nil
+        )
+        #expect(
+            QuillBackendRegistry.backendScopedEnvironmentValue(
+                backendWindowWidth,
+                gtkLegacy: gtkWindowWidth,
+                qtScoped: qtWindowWidth,
+                from: [gtkWindowWidth: "1200", "QUILLUI_BACKEND": "qt"],
+                preferred: .gtk
+            ) == nil
+        )
+        #expect(
+            QuillBackendRegistry.backendScopedEnvironmentValue(
+                backendWindowWidth,
+                gtkLegacy: gtkWindowWidth,
+                qtScoped: qtWindowWidth,
+                from: [qtWindowWidth: "1400", "QUILLUI_BACKEND": "gtk"],
+                preferred: .qt
+            ) == nil
+        )
 
         let identifiers = QuillBackendRegistry.knownBackends.map(\.identifier)
         #expect(identifiers == [.swiftUI, .gtk, .qt])
