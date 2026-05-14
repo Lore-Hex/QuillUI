@@ -32,6 +32,9 @@ struct SourceHygieneTests {
         #expect(manifest.contains("let qt6WidgetsLinkerFlags: [String] = pkgConfigArguments(\"Qt6Widgets\", [\"--libs-only-L\", \"--libs-only-l\"])"))
         #expect(manifest.contains("let qt6WidgetsCxxFlags: [String] = qt6WidgetsIncludeFlags + [\"-std=c++17\", \"-fPIC\", \"-Wno-deprecated-literal-operator\"]"))
         #expect(manifest.contains("name: \"CQt6Widgets\""))
+        #expect(manifest.occurrences(of: "name: \"CQt6Widgets\"") == 1)
+        #expect(manifest.occurrences(of: "name: \"CQuillQt6WidgetsShim\"") == 1)
+        #expect(manifest.occurrences(of: "name: \"QuillWireGuardQtNativeRuntime\"") == 1)
         #expect(!manifest.contains("pkgConfig: \"Qt6Widgets\""))
         #expect(manifest.contains(".unsafeFlags(qt6WidgetsCxxFlags)"))
         #expect(manifest.contains(".unsafeFlags(qt6WidgetsLinkerFlags)"))
@@ -978,5 +981,23 @@ struct SourceHygieneTests {
             code: 1,
             userInfo: [NSLocalizedDescriptionKey: "Unable to locate package root from \(#filePath)"]
         )
+    }
+}
+
+private extension String {
+    func occurrences(of needle: String) -> Int {
+        guard !needle.isEmpty else {
+            return 0
+        }
+
+        var count = 0
+        var searchStartIndex = startIndex
+
+        while let range = range(of: needle, range: searchStartIndex..<endIndex) {
+            count += 1
+            searchStartIndex = range.upperBound
+        }
+
+        return count
     }
 }

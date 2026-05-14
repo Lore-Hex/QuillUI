@@ -1032,38 +1032,6 @@ if codeEditSourceUpstreamPresent {
 }
 #endif
 
-#if os(Linux)
-if quillUILinuxBuildBackend == .qt {
-    targets += [
-        .systemLibrary(
-            name: "CQt6Widgets",
-            path: "Sources/CQt6Widgets",
-            providers: [
-                .apt(["qt6-base-dev"])
-            ]
-        ),
-        .target(
-            name: "CQuillQt6WidgetsShim",
-            dependencies: ["CQt6Widgets"],
-            path: "Sources/CQuillQt6WidgetsShim",
-            publicHeadersPath: "include",
-            cxxSettings: [
-                .unsafeFlags(qt6WidgetsCxxFlags)
-            ],
-            linkerSettings: [
-                .unsafeFlags(qt6WidgetsLinkerFlags)
-            ]
-        ),
-        .target(
-            name: "QuillWireGuardQtNativeRuntime",
-            dependencies: ["QuillWireGuardCore", "CQuillQt6WidgetsShim"],
-            path: "Sources/QuillWireGuardQtNativeRuntime",
-            swiftSettings: appSwiftSettings
-        )
-    ]
-}
-#endif
-
 // CodeEdit's SPM deps. macOS-only — Sparkle is Apple-platform auto-update,
 // CodeEditSourceEditor uses NSTextView, AboutWindow uses NSApplication,
 // etc. On Linux the upstream CodeEdit source itself can't compile (it's a
