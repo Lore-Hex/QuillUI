@@ -81,6 +81,18 @@ func pkgConfigArguments(_ name: String, _ arguments: [String]) -> [String] {
     }
 }
 
+func pkgConfigIncludeFlags(_ name: String) -> [String] {
+    pkgConfigArguments(name, ["--cflags-only-I"])
+}
+
+func pkgConfigSwiftImporterFlags(_ name: String) -> [String] {
+    pkgConfigIncludeFlags(name).flatMap { ["-Xcc", $0] }
+}
+
+func pkgConfigLinkerFlags(_ name: String) -> [String] {
+    pkgConfigArguments(name, ["--libs-only-L", "--libs-only-l"])
+}
+
 let quillUILinuxBuildBackend: QuillUILinuxBuildBackend = {
     let environment = ProcessInfo.processInfo.environment
     guard let rawValue = environment[quillUILinuxBuildBackendEnvironmentKey] else {
@@ -95,9 +107,13 @@ let quillUILinuxBuildBackend: QuillUILinuxBuildBackend = {
 }()
 
 let qt6WidgetsPresent: Bool = pkgConfigPackagePresent("Qt6Widgets")
-let qt6WidgetsIncludeFlags: [String] = pkgConfigArguments("Qt6Widgets", ["--cflags-only-I"])
-let qt6WidgetsLinkerFlags: [String] = pkgConfigArguments("Qt6Widgets", ["--libs-only-L", "--libs-only-l"])
+let qt6WidgetsIncludeFlags: [String] = pkgConfigIncludeFlags("Qt6Widgets")
+let qt6WidgetsLinkerFlags: [String] = pkgConfigLinkerFlags("Qt6Widgets")
 let qt6WidgetsCxxFlags: [String] = qt6WidgetsIncludeFlags + ["-std=c++17", "-fPIC", "-Wno-deprecated-literal-operator"]
+let gdkPixbufSwiftImporterFlags: [String] = pkgConfigSwiftImporterFlags("gdk-pixbuf-2.0")
+let gdkPixbufLinkerFlags: [String] = pkgConfigLinkerFlags("gdk-pixbuf-2.0")
+let gtk4SwiftImporterFlags: [String] = pkgConfigSwiftImporterFlags("gtk4")
+let gtk4LinkerFlags: [String] = pkgConfigLinkerFlags("gtk4")
 
 if quillUILinuxBuildBackend == .qt && !qt6WidgetsPresent {
     fatalError("\(quillUILinuxBuildBackendEnvironmentKey)=qt requires the Qt6Widgets pkg-config package (install qt6-base-dev).")
@@ -108,6 +124,10 @@ let qt6WidgetsPresent: Bool = false
 let qt6WidgetsIncludeFlags: [String] = []
 let qt6WidgetsLinkerFlags: [String] = []
 let qt6WidgetsCxxFlags: [String] = []
+let gdkPixbufSwiftImporterFlags: [String] = []
+let gdkPixbufLinkerFlags: [String] = []
+let gtk4SwiftImporterFlags: [String] = []
+let gtk4LinkerFlags: [String] = []
 #endif
 let nnwUpstreamPresent: Bool = upstreamPresent(".upstream/netnewswire/Modules/RSCore")
 let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/Sources/WireGuardKit")
@@ -371,7 +391,13 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillUI",
-        dependencies: quillUIDependencies
+        dependencies: quillUIDependencies,
+        swiftSettings: [
+            .unsafeFlags(gdkPixbufSwiftImporterFlags)
+        ],
+        linkerSettings: [
+            .unsafeFlags(gdkPixbufLinkerFlags)
+        ]
     ),
     .target(
         name: "QuillUIGtk",
@@ -391,7 +417,6 @@ var targets: [Target] = [
     .systemLibrary(
         name: "CGdkPixbuf",
         path: "Sources/CGdkPixbuf",
-        pkgConfig: "gdk-pixbuf-2.0",
         providers: [
             .apt(["libgdk-pixbuf-2.0-dev"])
         ]
@@ -403,7 +428,6 @@ var targets: [Target] = [
     .systemLibrary(
         name: "CGtk4",
         path: "Sources/CGtk4",
-        pkgConfig: "gtk4",
         providers: [
             .apt(["libgtk-4-dev"])
         ]
@@ -924,7 +948,11 @@ targets.append(contentsOf: [
         path: "Sources/QuillAppKitGTK",
         swiftSettings: [
             .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
+            .unsafeFlags(["-strict-concurrency=minimal"]),
+            .unsafeFlags(gtk4SwiftImporterFlags)
+        ],
+        linkerSettings: [
+            .unsafeFlags(gtk4LinkerFlags)
         ]
     ),
     // Runtime demo: exercises NSPasteboard.general's Phase B backing

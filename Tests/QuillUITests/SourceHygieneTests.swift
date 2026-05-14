@@ -28,8 +28,11 @@ struct SourceHygieneTests {
         )
 
         #expect(manifest.contains("func pkgConfigArguments("))
-        #expect(manifest.contains("let qt6WidgetsIncludeFlags: [String] = pkgConfigArguments(\"Qt6Widgets\", [\"--cflags-only-I\"])"))
-        #expect(manifest.contains("let qt6WidgetsLinkerFlags: [String] = pkgConfigArguments(\"Qt6Widgets\", [\"--libs-only-L\", \"--libs-only-l\"])"))
+        #expect(manifest.contains("func pkgConfigIncludeFlags("))
+        #expect(manifest.contains("func pkgConfigSwiftImporterFlags("))
+        #expect(manifest.contains("func pkgConfigLinkerFlags("))
+        #expect(manifest.contains("let qt6WidgetsIncludeFlags: [String] = pkgConfigIncludeFlags(\"Qt6Widgets\")"))
+        #expect(manifest.contains("let qt6WidgetsLinkerFlags: [String] = pkgConfigLinkerFlags(\"Qt6Widgets\")"))
         #expect(manifest.contains("let qt6WidgetsCxxFlags: [String] = qt6WidgetsIncludeFlags + [\"-std=c++17\", \"-fPIC\", \"-Wno-deprecated-literal-operator\"]"))
         #expect(manifest.contains("name: \"CQt6Widgets\""))
         #expect(manifest.occurrences(of: "name: \"CQt6Widgets\"") == 1)
@@ -49,6 +52,33 @@ struct SourceHygieneTests {
         #expect(!manifest.contains("dependencies: quillQtInteractionSmokeDependencies"))
         #expect(qtCarrierHeader.contains("Linker carrier for Qt6 Widgets"))
         #expect(!qtCarrierHeader.contains("Pkg-config and linker carrier"))
+    }
+
+    @Test("GTK manifest filters pkg-config prohibited flag warnings")
+    func gtkManifestFiltersPkgConfigProhibitedFlagWarnings() throws {
+        let root = try packageRoot()
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+        let gtkModuleMap = try String(
+            contentsOf: root.appendingPathComponent("Sources/CGtk4/module.modulemap"),
+            encoding: .utf8
+        )
+        let gdkPixbufModuleMap = try String(
+            contentsOf: root.appendingPathComponent("Sources/CGdkPixbuf/module.modulemap"),
+            encoding: .utf8
+        )
+
+        #expect(manifest.contains("let gdkPixbufSwiftImporterFlags: [String] = pkgConfigSwiftImporterFlags(\"gdk-pixbuf-2.0\")"))
+        #expect(manifest.contains("let gdkPixbufLinkerFlags: [String] = pkgConfigLinkerFlags(\"gdk-pixbuf-2.0\")"))
+        #expect(manifest.contains("let gtk4SwiftImporterFlags: [String] = pkgConfigSwiftImporterFlags(\"gtk4\")"))
+        #expect(manifest.contains("let gtk4LinkerFlags: [String] = pkgConfigLinkerFlags(\"gtk4\")"))
+        #expect(!manifest.contains("pkgConfig: \"gdk-pixbuf-2.0\""))
+        #expect(!manifest.contains("pkgConfig: \"gtk4\""))
+        #expect(manifest.contains(".unsafeFlags(gdkPixbufSwiftImporterFlags)"))
+        #expect(manifest.contains(".unsafeFlags(gdkPixbufLinkerFlags)"))
+        #expect(manifest.contains(".unsafeFlags(gtk4SwiftImporterFlags)"))
+        #expect(manifest.contains(".unsafeFlags(gtk4LinkerFlags)"))
+        #expect(gdkPixbufModuleMap.contains("module CGdkPixbuf [system]"))
+        #expect(gtkModuleMap.contains("module CGtk4 [system]"))
     }
 
     @Test("macro expansion paths report diagnostics instead of crashing")
