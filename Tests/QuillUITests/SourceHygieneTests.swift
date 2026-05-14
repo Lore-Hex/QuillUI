@@ -3,6 +3,21 @@ import Testing
 
 @Suite("Source hygiene")
 struct SourceHygieneTests {
+    @Test("Package manifest does not exclude moved QuillAppKit GTK sources")
+    func packageManifestDoesNotExcludeMovedQuillAppKitGTKSources() throws {
+        let root = try packageRoot()
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+
+        #expect(!manifest.contains("exclude: [\"QuillAppKit+GTK.swift\"]"))
+        #expect(manifest.contains("name: \"QuillAppKitGTK\""))
+        #expect(FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("Sources/QuillAppKitGTK/QuillAppKit+GTK.swift").path
+        ))
+        #expect(!FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("Sources/QuillAppKit/QuillAppKit+GTK.swift").path
+        ))
+    }
+
     @Test("macro expansion paths report diagnostics instead of crashing")
     func macroExpansionPathsAvoidFatalError() throws {
         let root = try packageRoot()

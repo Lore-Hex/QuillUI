@@ -858,7 +858,6 @@ targets.append(contentsOf: [
         name: "AppKit",
         dependencies: ["QuillFoundation", "QuillUIKit"],
         path: "Sources/QuillAppKit",
-        exclude: ["QuillAppKit+GTK.swift"],
         swiftSettings: [
             .swiftLanguageMode(.v5),
             .unsafeFlags(["-strict-concurrency=minimal"])
