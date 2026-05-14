@@ -96,8 +96,17 @@ quillui_backend_default_app_backend() {
 }
 
 quillui_backend_native_runtime_backends() {
-  # Mirrors QuillBackendRegistry on Linux. Keep this as a registry instead of
-  # branching in call sites so adding the native Qt host is a one-line change.
+  # Mirrors the native runtime hosts linked by generic QuillApp entry points.
+  # Product-specific Qt launchers are tracked separately because they bypass the
+  # generic runtime registry today.
+  printf '%s\n' \
+    gtk
+}
+
+quillui_backend_product_native_runtime_backends() {
+  # Manifest-selected app products can compile through these native runtime
+  # graphs. Keep this separate from the generic runtime registry so generated
+  # facade packages do not claim a native Qt host before QuillApp links one.
   printf '%s\n' \
     gtk \
     qt
@@ -127,6 +136,12 @@ quillui_backend_native_runtime_backend_for_product() {
       return 0
     fi
   done < <(quillui_backend_native_product_runtime_overrides)
+
+  if quillui_backend_product_list_contains "$product" quillui_backend_app_products \
+      && quillui_backend_product_has_native_runtime "$requested_backend"; then
+    echo "$requested_backend"
+    return 0
+  fi
 
   return 1
 }
@@ -546,6 +561,13 @@ quillui_backend_has_native_runtime() {
   quillui_backend_product_list_contains "$requested_backend" quillui_backend_native_runtime_backends
 }
 
+quillui_backend_product_has_native_runtime() {
+  local requested_backend
+
+  requested_backend="$(quillui_require_backend_identifier "$1")" || return $?
+  quillui_backend_product_list_contains "$requested_backend" quillui_backend_product_native_runtime_backends
+}
+
 quillui_alias_matches_backend() {
   local alias="$1"
   local backend="$2"
@@ -960,6 +982,23 @@ quillui_backend_validate_app_backend_ids() {
   done < <(quillui_backend_app_backends)
 }
 
+quillui_backend_validate_product_native_runtime_backends() {
+  local backend
+  local normalized_backend
+  local seen_keys=$'\n'
+
+  while IFS= read -r backend; do
+    [[ -n "$backend" ]] || continue
+    normalized_backend="$(quillui_require_linux_build_backend_identifier "$backend")" || return $?
+    if [[ "$backend" != "$normalized_backend" ]]; then
+      echo "native-product-runtime-backends must emit canonical backend identifiers; got $backend, expected $normalized_backend." >&2
+      return 65
+    fi
+    quillui_backend_validate_unique_key "$seen_keys" "$backend" "native-product-runtime-backends" || return $?
+    seen_keys="${seen_keys}${backend}"$'\n'
+  done < <(quillui_backend_product_native_runtime_backends)
+}
+
 quillui_backend_validate_fixed_app_backend_overrides() {
   local product
   local backend
@@ -1077,6 +1116,7 @@ quillui_backend_validate_interaction_extra_mode_matrix() {
 
 quillui_backend_validate_integrity() {
   quillui_backend_validate_app_backend_ids || return $?
+  quillui_backend_validate_product_native_runtime_backends || return $?
   quillui_backend_validate_fixed_app_backend_overrides || return $?
   quillui_backend_validate_native_product_runtime_overrides || return $?
   quillui_backend_validate_interaction_extra_mode_matrix || return $?
@@ -1187,6 +1227,7 @@ Commands:
   gtk-apps                        Legacy alias for backend-apps.
   fixed-app-backends              List PRODUCT<TAB>BACKEND rows constrained to one build backend.
   native-runtime-backends         List backends linked to native Linux runtime hosts.
+  native-product-runtime-backends List backends available through product-specific native runtime graphs.
   native-product-runtime-overrides
                                   List PRODUCT<TAB>BACKEND<TAB>RUNTIME rows for product-specific native hosts.
   platform-runtime-fallback       Print the runtime backend used when a selected backend has no native host.
@@ -1283,6 +1324,9 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     native-runtime-backends)
       quillui_backend_native_runtime_backends
+      ;;
+    native-product-runtime-backends)
+      quillui_backend_product_native_runtime_backends
       ;;
     native-product-runtime-overrides)
       quillui_backend_native_product_runtime_overrides

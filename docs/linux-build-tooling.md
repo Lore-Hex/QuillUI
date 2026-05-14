@@ -152,7 +152,10 @@ path.
 Generated products use the same GTK/Qt requested-backend matrix as the root app
 shells. The matrix runner still accepts `--skip-repeated-products`, but
 generated app cache keys include the requested backend facade so the GTK and Qt
-generated launchers both compile:
+generated launchers both compile. The generated Qt facade still enters through
+the generic QuillApp runtime registry, so its runtime matrix row reports
+`requested_backend=qt`, `runtime_backend=gtk`, and
+`runtime_mode=platformFallback` until generated packages gain a native Qt host:
 
 ```bash
 scripts/run-linux-backend-smoke-matrix.sh \

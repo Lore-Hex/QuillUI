@@ -88,6 +88,7 @@ struct LinuxBackendAppMatrixTests {
     }
 
     private static let expectedBackends = ["gtk", "qt"]
+    private static let expectedNativeRuntimeBackends = ["gtk"]
     private static let expectedGeneratedAppProducts = ["quill-chat-linux"]
     private static let expectedSmokeProducts = ["quill-gtk-interaction-smoke", "quill-qt-interaction-smoke"]
     private static let profileCSVHeader = "product,requested_backend,runtime_backend,runtime_mode,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
@@ -107,13 +108,22 @@ struct LinuxBackendAppMatrixTests {
 
     private static var expectedProfileRuntimeRows: [String] {
         expectedAppRuntimeRows
-            + expectedGeneratedAppProducts.flatMap { product in
-                expectedBackends.map { backend in "\(product)\t\(backend)\t\(backend)\tnative" }
-            }
+            + expectedGeneratedAppRuntimeRows
             + [
                 "quill-gtk-interaction-smoke\tgtk\tgtk\tnative",
                 "quill-qt-interaction-smoke\tqt\tqt\tnative"
             ]
+    }
+
+    private static var expectedGeneratedAppRuntimeRows: [String] {
+        expectedGeneratedAppProducts.flatMap { product in
+            expectedBackends.map { backend in
+                if backend == "qt" {
+                    return "\(product)\tqt\tgtk\tplatformFallback"
+                }
+                return "\(product)\tgtk\tgtk\tnative"
+            }
+        }
     }
 
     private static func expectedVisualVerifierProduct(product: String, backend: String) -> String {
@@ -266,14 +276,22 @@ struct LinuxBackendAppMatrixTests {
 
         let nativeRuntimes = try runScript(script, arguments: ["native-runtime-backends"])
         #expect(nativeRuntimes.status == 0, Comment(rawValue: nativeRuntimes.output))
-        #expect(Self.lines(nativeRuntimes.output) == Self.expectedBackends)
+        #expect(Self.lines(nativeRuntimes.output) == Self.expectedNativeRuntimeBackends)
+
+        let nativeProductRuntimes = try runScript(script, arguments: ["native-product-runtime-backends"])
+        #expect(nativeProductRuntimes.status == 0, Comment(rawValue: nativeProductRuntimes.output))
+        #expect(Self.lines(nativeProductRuntimes.output) == Self.expectedBackends)
 
         let runtimeAvailabilities = try runScript(script, arguments: ["runtime-availabilities"])
         #expect(runtimeAvailabilities.status == 0, Comment(rawValue: runtimeAvailabilities.output))
         #expect(Self.lines(runtimeAvailabilities.output) == [
             "gtk\tgtk\tnative",
-            "qt\tqt\tnative"
+            "qt\tgtk\tplatformFallback"
         ])
+
+        let generatedAppRuntimeRows = try runScript(script, arguments: ["generated-app-runtime-matrix"])
+        #expect(generatedAppRuntimeRows.status == 0, Comment(rawValue: generatedAppRuntimeRows.output))
+        #expect(Self.lines(generatedAppRuntimeRows.output) == Self.expectedGeneratedAppRuntimeRows)
 
         let nativeOverrides = try runScript(script, arguments: ["native-product-runtime-overrides"])
         #expect(nativeOverrides.status == 0, Comment(rawValue: nativeOverrides.output))
@@ -568,6 +586,7 @@ struct LinuxBackendAppMatrixTests {
         try """
         \(Self.profileCSVHeader)
         quill-netnewswire,qt,qt,native,1,2,3,0.1,0.1,ok
+        quill-chat-linux,qt,gtk,platformFallback,1,2,3,0.1,0.1,ok
         quill-qt-interaction-smoke,qt,qt,native,1,2,3,0.1,0.1,ok
 
         """.write(to: goodCSV, atomically: true, encoding: .utf8)
@@ -591,6 +610,20 @@ struct LinuxBackendAppMatrixTests {
         )
         #expect(bad.status != 0)
         #expect(bad.output.contains("runtime_backend=gtk does not match requested_backend=qt expected_runtime=qt"))
+
+        let badGeneratedCSV = temporaryDirectory.appendingPathComponent("bad-generated.csv")
+        try """
+        \(Self.profileCSVHeader)
+        quill-chat-linux,qt,qt,native,1,2,3,0.1,0.1,ok
+
+        """.write(to: badGeneratedCSV, atomically: true, encoding: .utf8)
+
+        let badGenerated = try runScript(
+            script,
+            arguments: [badGeneratedCSV.path, "--max-rss-kb", "400000", "--max-startup-ms", "10000", "--max-cpu-pct", "99"]
+        )
+        #expect(badGenerated.status != 0)
+        #expect(badGenerated.output.contains("runtime_backend=qt does not match requested_backend=qt expected_runtime=gtk"))
     }
 
     @Test("profile CSV runner expands canonical backend matrix")

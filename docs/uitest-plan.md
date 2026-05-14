@@ -76,7 +76,9 @@ Backend launch fixtures use the same visual runner from
 GTK and Qt launch surfaces under the same screenshot contract while native Qt
 runtime hosts are added product by product. Generated external app products use
 `scripts/quillui-backend-products.sh generated-app-matrix`, so Quill Chat's
-temporary SwiftPM package is requested through both GTK and Qt facade builds.
+temporary SwiftPM package is requested through both GTK and Qt facade builds;
+the runtime matrix keeps the Qt facade marked as a GTK platform fallback until
+the generated package path links a native Qt runtime host.
 Canonical app products compile once per requested manifest backend through
 `scripts/quillui-backend-products.sh app-matrix`, so CI proves every app has a
 GTK build and a Qt build without splitting the public product name. Visual and

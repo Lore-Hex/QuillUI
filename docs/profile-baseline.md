@@ -17,10 +17,13 @@ runtime backend, and native/fallback mode all come from the shared backend
 helper and are canonicalized before launch.
 Profile CSV rows carry `requested_backend`, `runtime_backend`, and
 `runtime_mode` columns so requested backend rows are not confused with the
-runtime actually measured. Canonical app and generated-app rows now compile
-through both explicit manifest graphs, so GTK rows report `runtime_backend=gtk`
-and Qt rows report `runtime_backend=qt`; both paths use `runtime_mode=native`
-when their selected backend has a native host.
+runtime actually measured. Canonical app rows compile through both explicit
+manifest graphs, so GTK rows report `runtime_backend=gtk`, Qt rows report
+`runtime_backend=qt`, and both paths use `runtime_mode=native`. Generated app
+rows compile backend-facade packages separately; the Qt facade currently reports
+`requested_backend=qt`, `runtime_backend=gtk`, and
+`runtime_mode=platformFallback` until the generic generated-app entry links a
+native Qt runtime host.
 The older
 `scripts/linux-gtk-app-products.sh`,
 `scripts/linux-gtk-profile.sh`, `scripts/run-linux-gtk-profile-csv.sh`,
@@ -32,9 +35,9 @@ compatibility wrappers.
 interaction smoke runners. Profile passes therefore share the same root
 SwiftPM build path, generated Quill Chat build path, prebuilt executable
 override, skip-build behavior, and backend selection defaults as the rest of
-the Linux backend QA tooling. Root app profile rows reuse the backend-neutral
-executable across GTK and Qt requests, while generated app rows compile and
-cache backend-specific launcher facades through `QUILLUI_APP_BACKEND_FACADE`.
+the Linux backend QA tooling. Root app profile rows build through the requested
+manifest backend, while generated app rows compile and cache backend-specific
+launcher facades through `QUILLUI_APP_BACKEND_FACADE`.
 
 Because `profile-matrix` includes root app, generated app, and
 `quill-qt-interaction-smoke` rows, the Qt launch path receives startup/RSS/CPU
