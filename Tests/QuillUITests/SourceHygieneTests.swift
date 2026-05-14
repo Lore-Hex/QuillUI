@@ -58,6 +58,10 @@ struct SourceHygieneTests {
         #expect(manifest.contains("qtRuntime: .enchantedQtNative"))
         #expect(manifest.contains("qtRuntime: .genericQtNative"))
         #expect(manifest.contains("qtRuntime: .wireGuardQtNative"))
+        #expect(manifest.contains("name: \"QuillQtNativeRuntimeSupport\""))
+        #expect(manifest.contains("path: \"Sources/QuillQtNativeRuntimeSupport\""))
+        #expect(manifest.contains("dependencies: [\"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
+        #expect(manifest.contains("dependencies: [\"QuillWireGuardCore\", \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
         #expect(manifest.contains("name: \"QuillGenericQtNativeRuntime\""))
         #expect(manifest.contains("path: \"Sources/QuillGenericQtNativeRuntime\""))
         #expect(manifest.contains("qtPath: \"Sources/QuillSignalQt\""))
@@ -536,6 +540,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillGenericQtNativeRuntime/QuillGenericQtNativeRuntime.swift"),
             encoding: .utf8
         )
+        let qtRuntimeSupport = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillQtNativeRuntimeSupport/QuillQtNativeRuntimeSupport.swift"),
+            encoding: .utf8
+        )
+        let wireGuardQtRuntime = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillWireGuardQtNativeRuntime/QuillWireGuardQtNativeRuntime.swift"),
+            encoding: .utf8
+        )
         let qtNativeSmokeHost = try String(
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillInteractionSmokeQt6Widgets.cpp"),
             encoding: .utf8
@@ -640,8 +652,20 @@ struct SourceHygieneTests {
         #expect(wireGuardQtHost.contains("int quill_wireguard_qt_run_wireguard_json"))
         #expect(!wireGuardQtHost.contains("quill_qt_run_interaction_smoke"))
         #expect(!wireGuardQtHost.contains("interactionSmoke"))
+        #expect(qtRuntimeSupport.contains("public static func runEncodedPayload<Payload: Encodable>"))
+        #expect(qtRuntimeSupport.contains("encoder.outputFormatting = [.sortedKeys]"))
+        #expect(qtRuntimeSupport.contains("fputs(\"\\(executableName): failed to encode Qt payload: \\(error)\\n\", stderr)"))
+        #expect(enchantedQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
         #expect(enchantedQtRuntime.contains("QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"))
         #expect(enchantedQtRuntime.contains("snapshot.selectedConversationID = snapshot.conversations[boundedIndex].id"))
+        #expect(enchantedQtRuntime.contains("QuillQtNativeRuntimeSupport.runEncodedPayload("))
+        #expect(genericQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
+        #expect(genericQtRuntime.contains("QuillQtNativeRuntimeSupport.runEncodedPayload("))
+        #expect(wireGuardQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
+        #expect(wireGuardQtRuntime.contains("QuillQtNativeRuntimeSupport.runEncodedPayload("))
+        #expect(!enchantedQtRuntime.contains("JSONEncoder()"))
+        #expect(!genericQtRuntime.contains("JSONEncoder()"))
+        #expect(!wireGuardQtRuntime.contains("JSONEncoder()"))
         #expect(enchantedQtHost.contains("QObject::connect(conversationList, &QListWidget::currentRowChanged"))
         #expect(genericQtHost.contains("QObject::connect(itemList, &QListWidget::currentRowChanged"))
         #expect(genericQtHost.contains("selectedDetailTitle(payload, items, row)"))

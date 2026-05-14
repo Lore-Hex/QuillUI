@@ -1,7 +1,7 @@
 #if os(Linux)
 import CQuillQt6WidgetsShim
 import Foundation
-import Glibc
+import QuillQtNativeRuntimeSupport
 
 struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var windowTitle: String
@@ -161,8 +161,7 @@ public enum QuillEnchantedQtNativeApp {
     private static func launchSnapshot() -> QuillEnchantedQtSnapshot {
         var snapshot = QuillEnchantedQtSnapshot.preview
         guard
-            let rawValuePointer = getenv(selectedConversationIndexEnvironmentKey),
-            let rawValue = String(validatingUTF8: rawValuePointer),
+            let rawValue = ProcessInfo.processInfo.environment[selectedConversationIndexEnvironmentKey],
             let requestedIndex = Int(rawValue),
             !snapshot.conversations.isEmpty
         else {
@@ -175,23 +174,15 @@ public enum QuillEnchantedQtNativeApp {
     }
 
     public static func run() -> Never {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-
-        do {
-            let data = try encoder.encode(launchSnapshot())
-            let payload = String(decoding: data, as: UTF8.self)
-            let exitCode = payload.withCString { payloadPointer in
-                quill_enchanted_qt_run_app_json(
-                    CommandLine.argc,
-                    CommandLine.unsafeArgv,
-                    payloadPointer
-                )
-            }
-            exit(Int32(exitCode))
-        } catch {
-            fputs("quill-enchanted-qt: failed to encode Qt payload: \(error)\n", stderr)
-            exit(70)
+        QuillQtNativeRuntimeSupport.runEncodedPayload(
+            launchSnapshot(),
+            executableName: "quill-enchanted-qt"
+        ) { payloadPointer in
+            quill_enchanted_qt_run_app_json(
+                CommandLine.argc,
+                CommandLine.unsafeArgv,
+                payloadPointer
+            )
         }
     }
 }

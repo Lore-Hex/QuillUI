@@ -1,7 +1,7 @@
 #if os(Linux)
 import CQuillQt6WidgetsShim
 import Foundation
-import Glibc
+import QuillQtNativeRuntimeSupport
 
 public struct QuillGenericQtAppSnapshot: Codable, Sendable {
     public var windowTitle: String
@@ -534,23 +534,15 @@ public enum QuillGenericQtNativeApp {
             launchSnapshot.selectedIndex = selectedIndex
         }
 
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-
-        do {
-            let data = try encoder.encode(launchSnapshot)
-            let payload = String(decoding: data, as: UTF8.self)
-            let exitCode = payload.withCString { payloadPointer in
-                quill_generic_qt_run_app_json(
-                    CommandLine.argc,
-                    CommandLine.unsafeArgv,
-                    payloadPointer
-                )
-            }
-            exit(Int32(exitCode))
-        } catch {
-            fputs("quill-generic-qt: failed to encode Qt payload: \(error)\n", stderr)
-            exit(70)
+        QuillQtNativeRuntimeSupport.runEncodedPayload(
+            launchSnapshot,
+            executableName: "quill-generic-qt"
+        ) { payloadPointer in
+            quill_generic_qt_run_app_json(
+                CommandLine.argc,
+                CommandLine.unsafeArgv,
+                payloadPointer
+            )
         }
     }
 

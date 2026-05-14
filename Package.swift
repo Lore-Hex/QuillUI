@@ -1223,20 +1223,25 @@ if quillUILinuxBuildBackend == .qt {
             ]
         ),
         .target(
+            name: "QuillQtNativeRuntimeSupport",
+            path: "Sources/QuillQtNativeRuntimeSupport",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
             name: "QuillGenericQtNativeRuntime",
-            dependencies: ["CQuillQt6WidgetsShim"],
+            dependencies: ["CQuillQt6WidgetsShim", "QuillQtNativeRuntimeSupport"],
             path: "Sources/QuillGenericQtNativeRuntime",
             swiftSettings: appSwiftSettings
         ),
         .target(
             name: "QuillEnchantedQtNativeRuntime",
-            dependencies: ["CQuillQt6WidgetsShim"],
+            dependencies: ["CQuillQt6WidgetsShim", "QuillQtNativeRuntimeSupport"],
             path: "Sources/QuillEnchantedQtNativeRuntime",
             swiftSettings: appSwiftSettings
         ),
         .target(
             name: "QuillWireGuardQtNativeRuntime",
-            dependencies: ["QuillWireGuardCore", "CQuillQt6WidgetsShim"],
+            dependencies: ["QuillWireGuardCore", "CQuillQt6WidgetsShim", "QuillQtNativeRuntimeSupport"],
             path: "Sources/QuillWireGuardQtNativeRuntime",
             swiftSettings: appSwiftSettings
         ),
