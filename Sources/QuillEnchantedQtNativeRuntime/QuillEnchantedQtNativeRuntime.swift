@@ -205,7 +205,7 @@ public enum QuillEnchantedQtNativeApp {
     public static func run() -> Never {
         QuillQtNativeRuntimeSupport.runEncodedPayload(
             launchSnapshot(),
-            executableName: "quill-enchanted-qt"
+            executableName: QuillQtNativeRuntimeSupport.executableName(fallback: "quill-enchanted-qt")
         ) { payloadPointer in
             quill_enchanted_qt_run_app_json(
                 CommandLine.argc,

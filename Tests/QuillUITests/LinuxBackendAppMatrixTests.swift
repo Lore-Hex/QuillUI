@@ -24,49 +24,49 @@ struct LinuxBackendAppMatrixTests {
             target: "QuillEnchantedUpstreamSlice",
             qtPath: "Sources/QuillEnchantedUpstreamSliceQt",
             qtRuntimeDependency: "QuillGenericQtNativeRuntime",
-            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.enchantedUpstreamSlice, executableName: \"quill-enchanted-upstream-slice\")"
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.enchantedUpstreamSlice)"
         ),
         AppTargetContract(
             product: "quill-icecubes",
             target: "QuillIceCubes",
             qtPath: "Sources/QuillIceCubesQt",
             qtRuntimeDependency: "QuillGenericQtNativeRuntime",
-            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.iceCubes, executableName: \"quill-icecubes\")"
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.iceCubes)"
         ),
         AppTargetContract(
             product: "quill-netnewswire",
             target: "QuillNetNewsWire",
             qtPath: "Sources/QuillNetNewsWireQt",
             qtRuntimeDependency: "QuillGenericQtNativeRuntime",
-            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.netNewsWire, executableName: \"quill-netnewswire\")"
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.netNewsWire)"
         ),
         AppTargetContract(
             product: "quill-codeedit",
             target: "QuillCodeEdit",
             qtPath: "Sources/QuillCodeEditQt",
             qtRuntimeDependency: "QuillGenericQtNativeRuntime",
-            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.codeEdit, executableName: \"quill-codeedit\")"
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.codeEdit)"
         ),
         AppTargetContract(
             product: "quill-signal",
             target: "QuillSignal",
             qtPath: "Sources/QuillSignalQt",
             qtRuntimeDependency: "QuillGenericQtNativeRuntime",
-            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.signal, executableName: \"quill-signal\")"
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.signal)"
         ),
         AppTargetContract(
             product: "quill-telegram",
             target: "QuillTelegram",
             qtPath: "Sources/QuillTelegramQt",
             qtRuntimeDependency: "QuillGenericQtNativeRuntime",
-            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.telegram, executableName: \"quill-telegram\")"
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.telegram)"
         ),
         AppTargetContract(
             product: "quill-iina",
             target: "QuillIINA",
             qtPath: "Sources/QuillIINAQt",
             qtRuntimeDependency: "QuillGenericQtNativeRuntime",
-            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.iina, executableName: \"quill-iina\")"
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.iina)"
         ),
         AppTargetContract(
             product: "quill-wireguard",

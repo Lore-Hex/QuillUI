@@ -53,7 +53,7 @@ struct QuillQtBackendManifestTests {
                 #expect(launcher.contains("#if QUILLUI_GENERIC_QT_NATIVE_BACKEND"))
                 #expect(launcher.contains("import QuillGenericQtNativeRuntime"))
                 #expect(launcher.contains("QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog."))
-                #expect(launcher.contains("executableName: \"\(spec.product)\""))
+                #expect(!launcher.contains("executableName:"))
                 #expect(!launcher.contains("import QuillUIQt"))
             case "enchantedQtNative":
                 #expect(launcher.contains("#if QUILLUI_ENCHANTED_QT_NATIVE_BACKEND"))

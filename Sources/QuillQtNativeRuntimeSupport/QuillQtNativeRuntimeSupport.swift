@@ -20,6 +20,17 @@ public enum QuillQtNativeRuntimeSupport {
         return min(max(requestedIndex, 0), count - 1)
     }
 
+    public static func executableName(arguments: [String] = CommandLine.arguments, fallback: String) -> String {
+        guard let rawExecutablePath = arguments.first?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawExecutablePath.isEmpty
+        else {
+            return fallback
+        }
+
+        let executableName = URL(fileURLWithPath: rawExecutablePath).lastPathComponent
+        return executableName.isEmpty ? fallback : executableName
+    }
+
     public static func runEncodedPayload<Payload: Encodable>(
         _ payload: Payload,
         executableName: String,

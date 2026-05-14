@@ -36,7 +36,7 @@ public enum QuillWireGuardQtNativeApp {
     public static func run() -> Never {
         QuillQtNativeRuntimeSupport.runEncodedPayload(
             QuillWireGuardAppSnapshot.configurationManager,
-            executableName: "quill-wireguard-qt"
+            executableName: QuillQtNativeRuntimeSupport.executableName(fallback: "quill-wireguard-qt")
         ) { payloadPointer in
             quill_wireguard_qt_run_wireguard_json(
                 CommandLine.argc,
