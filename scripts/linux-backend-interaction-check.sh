@@ -533,6 +533,25 @@ elif [[ "$SELECTED_BACKEND" == "gtk" && ( "$PRODUCT" == "quill-signal" || "$PROD
         exit 64
         ;;
     esac
+elif [[ "$SELECTED_BACKEND" == "gtk" ]] && quillui_is_backend_generic_gtk_list_selection_app_product "$PRODUCT"; then
+    case "$INTERACTION_MODE" in
+      list-selection)
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 160))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 350))}"
+        click_at "$click_x" "$click_y"
+        sleep "$post_click_sleep"
+        ;;
+      click)
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 200))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 54))}"
+        click_at "$click_x" "$click_y"
+        sleep 1
+        ;;
+      *)
+        echo "Unsupported generic GTK interaction mode: $INTERACTION_MODE" >&2
+        exit 64
+        ;;
+    esac
 elif [[ "$SELECTED_BACKEND" == "qt" ]] && quillui_is_backend_generic_qt_app_product "$PRODUCT"; then
     case "$INTERACTION_MODE" in
       list-selection)

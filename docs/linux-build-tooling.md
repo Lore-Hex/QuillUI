@@ -385,6 +385,12 @@ older `QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START` as a Qt
 compatibility fallback. Keep new app interaction knobs backend-neutral unless
 the control only exists in one native host.
 
+Shared GTK list-selection rows for CodeEdit, IceCubes, IINA, NetNewsWire, and
+the Enchanted upstream slice come from
+`scripts/quillui-backend-products.sh generic-gtk-list-selection-apps`; shared Qt
+rows come from `generic-qt-apps`. Add new shared app selection coverage to those
+rosters instead of adding one-off interaction branches.
+
 The GTK and Qt launch fixtures also run through the backend visual runner from
 the shared smoke matrix, and through a mode-aware interaction matrix that drives
 the root button, nested controls, and sheet presentations with one product build

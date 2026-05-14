@@ -87,6 +87,12 @@ struct LinuxBackendAppMatrixTests {
             .map(\.product)
     }
 
+    private static var expectedGenericGtkListSelectionAppProducts: [String] {
+        expectedGenericQtAppProducts.filter { product in
+            !["quill-signal", "quill-telegram"].contains(product)
+        }
+    }
+
     private static let expectedBackends = ["gtk", "qt"]
     private static let expectedNativeRuntimeBackends = ["gtk"]
     private static let expectedGeneratedAppProducts = ["quill-chat-linux"]
@@ -228,7 +234,14 @@ struct LinuxBackendAppMatrixTests {
                 mode: "list-selection",
                 verifyProduct: "quill-telegram-list-selection"
             )
-        ] + expectedGenericQtAppProducts.map { product in
+        ] + expectedGenericGtkListSelectionAppProducts.map { product in
+            Self.expectedInteractionExtraModeRow(
+                product: product,
+                backend: "gtk",
+                mode: "list-selection",
+                verifyProduct: "\(product)-gtk-list-selection"
+            )
+        } + expectedGenericQtAppProducts.map { product in
             Self.expectedInteractionExtraModeRow(
                 product: product,
                 backend: "qt",
@@ -262,11 +275,22 @@ struct LinuxBackendAppMatrixTests {
         #expect(Self.lines(genericQtProducts.output) == Self.expectedGenericQtAppProducts)
         #expect(Self.lines(genericQtProducts.output).allSatisfy { Self.expectedAppProducts.contains($0) })
 
+        let genericGtkProducts = try runScript(script, arguments: ["generic-gtk-list-selection-apps"])
+        #expect(genericGtkProducts.status == 0, Comment(rawValue: genericGtkProducts.output))
+        #expect(Self.lines(genericGtkProducts.output) == Self.expectedGenericGtkListSelectionAppProducts)
+        #expect(Self.lines(genericGtkProducts.output).allSatisfy { Self.expectedAppProducts.contains($0) })
+
         let genericQtMembership = try runScript(script, arguments: ["is-generic-qt-app", "quill-signal"])
         #expect(genericQtMembership.status == 0, Comment(rawValue: genericQtMembership.output))
 
         let nativeQtMembership = try runScript(script, arguments: ["is-generic-qt-app", "quill-wireguard"])
         #expect(nativeQtMembership.status != 0)
+
+        let genericGtkMembership = try runScript(script, arguments: ["is-generic-gtk-list-selection-app", "quill-codeedit"])
+        #expect(genericGtkMembership.status == 0, Comment(rawValue: genericGtkMembership.output))
+
+        let chatGtkMembership = try runScript(script, arguments: ["is-generic-gtk-list-selection-app", "quill-signal"])
+        #expect(chatGtkMembership.status != 0)
 
         let legacyProducts = try runScript(legacyMatrixScript)
         #expect(legacyProducts.status == 0, Comment(rawValue: legacyProducts.output))
@@ -572,6 +596,31 @@ struct LinuxBackendAppMatrixTests {
         quillui_append_backend_selection_start_environment selection_env quill-iina qt list-selection
         printf 'iina-qt-selection-env=%s\\n' "$(quillui_print_selection_env)"
         unset QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START
+        export QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START=3
+        selection_env=()
+        quillui_append_backend_selection_start_environment selection_env quill-icecubes gtk list-selection
+        printf 'icecubes-gtk-selection-env=%s\\n' "$(quillui_print_selection_env)"
+        unset QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START
+        export QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=4
+        selection_env=()
+        quillui_append_backend_selection_start_environment selection_env quill-netnewswire gtk list-selection
+        printf 'netnewswire-gtk-generic-selection-env=%s\\n' "$(quillui_print_selection_env)"
+        unset QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START
+        export QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START=1
+        selection_env=()
+        quillui_append_backend_selection_start_environment selection_env quill-codeedit gtk list-selection
+        printf 'codeedit-gtk-selection-env=%s\\n' "$(quillui_print_selection_env)"
+        unset QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START
+        export QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START=2
+        selection_env=()
+        quillui_append_backend_selection_start_environment selection_env quill-iina gtk list-selection
+        printf 'iina-gtk-selection-env=%s\\n' "$(quillui_print_selection_env)"
+        unset QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START
+        export QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=3
+        selection_env=()
+        quillui_append_backend_selection_start_environment selection_env quill-enchanted-upstream-slice gtk list-selection
+        printf 'upstream-slice-gtk-selection-env=%s\\n' "$(quillui_print_selection_env)"
+        unset QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START
         selection_env=()
         quillui_append_backend_selection_start_environment selection_env quill-enchanted qt list-selection "\(temporaryDirectory.path)/selection"
         printf 'enchanted-selection-env=%s\\n' "$(quillui_print_selection_env)"
@@ -668,6 +717,11 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("netnewswire-qt-selection-env=QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=1|"))
         #expect(result.output.contains("codeedit-qt-selection-env=QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=2|"))
         #expect(result.output.contains("iina-qt-selection-env=QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=2|"))
+        #expect(result.output.contains("icecubes-gtk-selection-env=QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START=3|"))
+        #expect(result.output.contains("netnewswire-gtk-generic-selection-env=QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START=4|"))
+        #expect(result.output.contains("codeedit-gtk-selection-env=QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START=1|"))
+        #expect(result.output.contains("iina-gtk-selection-env=QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START=2|"))
+        #expect(result.output.contains("upstream-slice-gtk-selection-env=QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=3|"))
         #expect(result.output.contains("enchanted-selection-env=QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=0|"))
         #expect(result.output.contains("enchanted-gtk-selection-env=HOME=\(temporaryDirectory.path)/selection/quill-enchanted-reference-home|QUILLDATA_HOME=\(temporaryDirectory.path)/selection/quill-enchanted-reference-home|QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=0|"))
         #expect(result.output.contains("enchanted-gtk-fixture=ok"))

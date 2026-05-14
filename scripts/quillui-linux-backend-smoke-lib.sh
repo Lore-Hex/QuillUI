@@ -280,6 +280,12 @@ quillui_backend_interaction_verify_product() {
         verify_product="quill-wireguard-import-invalid-file"
         ;;
     esac
+  elif [[ "$selected_backend" == "gtk" ]] && quillui_is_backend_generic_gtk_list_selection_app_product "$product"; then
+    case "$interaction_mode" in
+      list-selection)
+        verify_product="$product-gtk-list-selection"
+        ;;
+    esac
   elif [[ "$selected_backend" == "qt" ]] && quillui_is_backend_generic_qt_app_product "$product"; then
     case "$interaction_mode" in
       list-selection)
@@ -557,7 +563,7 @@ quillui_append_backend_runtime_environment() {
   quillui_unset_backend_scoped_app_environment
 }
 
-quillui_backend_generic_qt_selected_index_on_start() {
+quillui_backend_generic_selected_index_on_start() {
   case "$1" in
     quill-codeedit)
       printf '%s\n' "${QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}"
@@ -586,12 +592,41 @@ quillui_backend_generic_qt_selected_index_on_start() {
   esac
 }
 
+quillui_backend_generic_qt_selected_index_on_start() {
+  quillui_backend_generic_selected_index_on_start "$1"
+}
+
+quillui_backend_generic_gtk_selection_environment_key() {
+  case "$1" in
+    quill-codeedit)
+      printf '%s\n' QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START
+      ;;
+    quill-enchanted-upstream-slice)
+      printf '%s\n' QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START
+      ;;
+    quill-icecubes)
+      printf '%s\n' QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START
+      ;;
+    quill-iina)
+      printf '%s\n' QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START
+      ;;
+    quill-netnewswire)
+      printf '%s\n' QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START
+      ;;
+    *)
+      echo "Unsupported generic GTK list-selection product: $1" >&2
+      return 65
+      ;;
+  esac
+}
+
 quillui_append_backend_selection_start_environment() {
   local output_array="$1"
   local product="$2"
   local selected_backend="$3"
   local interaction_mode="$4"
   local output_dir="${5:-${QUILLUI_BACKEND_SELECTION_OUTPUT_DIR:-$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.qa}}"
+  local environment_key
   local selected_index
 
   selected_backend="$(quillui_require_backend_identifier "$selected_backend")" || return $?
@@ -604,6 +639,12 @@ quillui_append_backend_selection_start_environment() {
     quillui_append_environment_assignment \
       "$output_array" \
       "QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=$selected_index" || return $?
+  elif [[ "$selected_backend" == "gtk" ]] && quillui_is_backend_generic_gtk_list_selection_app_product "$product"; then
+    selected_index="$(quillui_backend_generic_selected_index_on_start "$product")" || return $?
+    environment_key="$(quillui_backend_generic_gtk_selection_environment_key "$product")" || return $?
+    quillui_append_environment_assignment \
+      "$output_array" \
+      "$environment_key=$selected_index" || return $?
   elif [[ "$product" == "quill-enchanted" ]]; then
     if [[ "$selected_backend" == "gtk" ]]; then
       quillui_append_enchanted_fixture_data_environment \

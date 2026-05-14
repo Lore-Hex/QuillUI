@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Callable
 
 
-def load_generic_qt_app_products() -> frozenset[str]:
+def load_backend_product_set(command: str, description: str) -> frozenset[str]:
     products_script = Path(__file__).with_name("quillui-backend-products.sh")
     output = subprocess.run(
-        ["bash", str(products_script), "generic-qt-apps"],
+        ["bash", str(products_script), command],
         check=True,
         text=True,
         stdout=subprocess.PIPE,
@@ -22,14 +22,27 @@ def load_generic_qt_app_products() -> frozenset[str]:
         if line.strip()
     )
     if not products:
-        raise RuntimeError("No generic Qt app products were reported by quillui-backend-products.sh")
+        raise RuntimeError(f"No {description} were reported by quillui-backend-products.sh")
     return products
+
+
+def load_generic_qt_app_products() -> frozenset[str]:
+    return load_backend_product_set("generic-qt-apps", "generic Qt app products")
+
+
+def load_generic_gtk_list_selection_app_products() -> frozenset[str]:
+    return load_backend_product_set("generic-gtk-list-selection-apps", "generic GTK list-selection app products")
 
 
 GENERIC_QT_APP_PRODUCTS = load_generic_qt_app_products()
 GENERIC_QT_LIST_SELECTION_PRODUCTS = frozenset(
     f"{product}-qt-list-selection"
     for product in GENERIC_QT_APP_PRODUCTS
+)
+GENERIC_GTK_LIST_SELECTION_APP_PRODUCTS = load_generic_gtk_list_selection_app_products()
+GENERIC_GTK_LIST_SELECTION_PRODUCTS = frozenset(
+    f"{product}-gtk-list-selection"
+    for product in GENERIC_GTK_LIST_SELECTION_APP_PRODUCTS
 )
 
 
@@ -253,6 +266,22 @@ def wireguard_gtk_section_pixel(rgb: tuple[int, int, int]) -> bool:
         and max(rgb) - min(rgb) <= 14
         and sum(rgb) < 755
     )
+
+
+def generic_gtk_sidebar_pixel(rgb: tuple[int, int, int]) -> bool:
+    return generic_qt_sidebar_pixel(rgb) or wireguard_gtk_sidebar_pixel(rgb)
+
+
+def generic_gtk_selected_row_pixel(rgb: tuple[int, int, int]) -> bool:
+    return chatkit_gtk_selected_row_pixel(rgb) or generic_qt_selected_row_pixel(rgb)
+
+
+def generic_gtk_detail_surface_pixel(rgb: tuple[int, int, int]) -> bool:
+    return generic_qt_detail_surface_pixel(rgb)
+
+
+def generic_gtk_card_pixel(rgb: tuple[int, int, int]) -> bool:
+    return generic_qt_card_pixel(rgb)
 
 
 def wireguard_qt_focused_title_border_pixel(rgb: tuple[int, int, int]) -> bool:
@@ -1606,6 +1635,102 @@ def validate_quill_chatkit_gtk_list_selection(image: Screenshot, product: str) -
     )
 
 
+def validate_quill_generic_gtk_list_selection(image: Screenshot, product: str) -> str:
+    app_label = product.removesuffix("-gtk-list-selection")
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(760 <= app_width <= 1240, f"Generic GTK window width is unexpected: {app_width}px")
+    require(560 <= app_height <= 840, f"Generic GTK window height is unexpected: {app_height}px")
+
+    divider_search = range(left + 230, min(right + 1, left + 390))
+    divider_x = max(
+        divider_search,
+        key=lambda x: line_column_score(image, x, top + 20, bottom - 20),
+    )
+    divider_score = line_column_score(image, divider_x, top + 20, bottom - 20)
+    if divider_score < int(app_height * 0.12):
+        divider_x = left + min(360, max(260, int(app_width * 0.34)))
+
+    sidebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        divider_x,
+        bottom + 1,
+        generic_gtk_sidebar_pixel,
+    )
+    selected_row = best_pixel_row_segment(
+        image,
+        left + 12,
+        top + 120,
+        max(left + 13, divider_x - 12),
+        min(bottom + 1, top + 560),
+        generic_gtk_selected_row_pixel,
+        min_row_pixels=28,
+    )
+    require(selected_row is not None, "Generic GTK selected list row was not detected")
+    selected_row_segment, selected_row_pixels = selected_row
+    selected_row_center_offset = selected_row_segment.center - top
+    require(
+        selected_row_center_offset >= 220,
+        "Generic GTK list selection did not move to the lower app row: "
+        f"selected_center={selected_row_center_offset:.1f}px",
+    )
+
+    detail_left = min(right - 40, divider_x + 16)
+    detail_surface_pixels = pixel_count(
+        image,
+        detail_left,
+        top,
+        right + 1,
+        bottom + 1,
+        generic_gtk_detail_surface_pixel,
+    )
+    card_pixels = pixel_count(
+        image,
+        detail_left + 4,
+        top + 72,
+        right - 20,
+        bottom - 20,
+        generic_gtk_card_pixel,
+    )
+    sidebar_text_pixels = dark_pixel_count(
+        image,
+        left + 16,
+        top + 18,
+        max(left + 17, divider_x - 12),
+        bottom - 20,
+    )
+    detail_text_pixels = dark_pixel_count(
+        image,
+        detail_left + 4,
+        top + 20,
+        right - 20,
+        bottom - 20,
+    )
+
+    require(sidebar_pixels >= 18_000, f"Generic GTK sidebar background was not detected: pixels={sidebar_pixels}")
+    require(selected_row_pixels >= 420, f"Generic GTK selected list row is too small: pixels={selected_row_pixels}")
+    require(
+        detail_surface_pixels >= 24_000,
+        f"Generic GTK detail surface was not detected: pixels={detail_surface_pixels}",
+    )
+    require(card_pixels >= 4_000, f"Generic GTK detail cards were not detected: pixels={card_pixels}")
+    require(sidebar_text_pixels >= 320, f"Generic GTK sidebar text was not detected: pixels={sidebar_text_pixels}")
+    require(detail_text_pixels >= 420, f"Generic GTK detail text was not detected: pixels={detail_text_pixels}")
+
+    return (
+        f"{app_label} GTK list selection: "
+        f"app={app_width}x{app_height}, "
+        f"divider_x={divider_x - left}, "
+        f"selected_row_pixels={selected_row_pixels}, "
+        f"selected_row_y={selected_row_segment.start - top}-{selected_row_segment.end - top}, "
+        f"sidebar_text_pixels={sidebar_text_pixels}, "
+        f"detail_text_pixels={detail_text_pixels}"
+    )
+
+
 def validate_quill_generic_qt_list_selection(image: Screenshot, product: str) -> str:
     app_label = product.removesuffix("-qt-list-selection")
     left, right, top, bottom = content_bounds(image)
@@ -2127,6 +2252,8 @@ def main() -> int:
         print(validate_quill_enchanted_gtk_list_selection(image))
     elif product in {"quill-signal-list-selection", "quill-telegram-list-selection"}:
         print(validate_quill_chatkit_gtk_list_selection(image, product))
+    elif product in GENERIC_GTK_LIST_SELECTION_PRODUCTS:
+        print(validate_quill_generic_gtk_list_selection(image, product))
     elif product in GENERIC_QT_LIST_SELECTION_PRODUCTS:
         print(validate_quill_generic_qt_list_selection(image, product))
     elif product == "quill-wireguard-qt":
