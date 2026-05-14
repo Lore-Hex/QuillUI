@@ -204,6 +204,18 @@ type_text() {
   DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$1"
 }
 
+type_multiline_text() {
+  local text="$1"
+  local line
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ -n "$line" ]]; then
+      type_text "$line"
+    fi
+    DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Return
+  done < <(printf '%s' "$text")
+}
+
 edit_wireguard_tunnel_name() {
   local name_x_offset="${1:-360}"
   local name_y_offset="${2:-42}"
@@ -397,7 +409,7 @@ elif [[ "$PRODUCT" == "quill-wireguard" ]]; then
         click_at "$editor_x" "$editor_y"
         sleep 0.2
         import_configuration="$(wireguard_import_configuration_for_mode "$INTERACTION_MODE")" || exit $?
-        type_text "$import_configuration"
+        type_multiline_text "$import_configuration"
         sleep 0.4
         click_at "$submit_x" "$submit_y"
         sleep "$post_click_sleep"
@@ -405,7 +417,7 @@ elif [[ "$PRODUCT" == "quill-wireguard" ]]; then
       import-file|file-import|import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
         import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 256))}"
         import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
-        file_x="${QUILLUI_BACKEND_IMPORT_FILE_CLICK_X:-$((window_x + 410))}"
+        file_x="${QUILLUI_BACKEND_IMPORT_FILE_CLICK_X:-$((window_x + 466))}"
         file_y="${QUILLUI_BACKEND_IMPORT_FILE_CLICK_Y:-$((window_y + 300))}"
         click_at "$import_x" "$import_y"
         sleep 0.8
@@ -429,7 +441,7 @@ elif [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
         edit_wireguard_tunnel_name
         ;;
       import-paste|paste-import|import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
-        import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 292))}"
+        import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 260))}"
         import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
         editor_x="${QUILLUI_BACKEND_IMPORT_EDITOR_X:-$((window_x + window_width / 2))}"
         editor_y="${QUILLUI_BACKEND_IMPORT_EDITOR_Y:-$((window_y + 230))}"
@@ -438,7 +450,7 @@ elif [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
         click_at "$editor_x" "$editor_y"
         sleep 0.2
         import_configuration="$(wireguard_import_configuration_for_mode "$INTERACTION_MODE")" || exit $?
-        type_text "$import_configuration"
+        type_multiline_text "$import_configuration"
         sleep 0.4
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+Return
         sleep "$post_click_sleep"
