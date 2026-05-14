@@ -45,6 +45,14 @@ struct GenericDetailPane {
     QVBoxLayout *contentLayout;
 };
 
+struct GenericSelection {
+    QString detailTitle;
+    QString detailSubtitle;
+    QString messagesTitle;
+    QJsonArray sections;
+    QJsonArray messages;
+};
+
 QString genericStyleSheet() {
     return QStringLiteral(R"(
         QWidget#genericRoot { background: #F7F8F4; color: #182027; font-size: 14px; }
@@ -82,53 +90,45 @@ QJsonObject selectedItem(const QJsonArray &items, int row) {
     return items.at(row).toObject();
 }
 
-QString selectedDetailTitle(const QJsonObject &payload, const QJsonArray &items, int row) {
+GenericSelection selectionForRow(const QJsonObject &payload, const QJsonArray &items, int row) {
     const QString baseTitle = stringValue(payload, "detailTitle", QStringLiteral("Qt preview"));
-    const QJsonObject item = selectedItem(items, row);
-    const QString itemDetailTitle = stringValue(item, "detailTitle");
-    if (!itemDetailTitle.isEmpty()) {
-        return itemDetailTitle;
-    }
-
-    const QString itemTitle = stringValue(item, "title");
-    if (itemTitle.isEmpty()) {
-        return baseTitle;
-    }
-    return baseTitle + QStringLiteral(": ") + itemTitle;
-}
-
-QString selectedDetailSubtitle(const QJsonObject &payload, const QJsonArray &items, int row) {
     const QString baseSubtitle = stringValue(payload, "detailSubtitle");
     const QJsonObject item = selectedItem(items, row);
-    const QString itemDetailSubtitle = stringValue(item, "detailSubtitle");
-    if (!itemDetailSubtitle.isEmpty()) {
-        return itemDetailSubtitle;
+
+    QString detailTitle = stringValue(item, "detailTitle");
+    if (detailTitle.isEmpty()) {
+        const QString itemTitle = stringValue(item, "title");
+        detailTitle = itemTitle.isEmpty()
+            ? baseTitle
+            : baseTitle + QStringLiteral(": ") + itemTitle;
     }
 
-    const QString itemSubtitle = stringValue(item, "subtitle");
-    if (baseSubtitle.isEmpty()) {
-        return itemSubtitle;
+    QString detailSubtitle = stringValue(item, "detailSubtitle");
+    if (detailSubtitle.isEmpty()) {
+        const QString itemSubtitle = stringValue(item, "subtitle");
+        if (baseSubtitle.isEmpty()) {
+            detailSubtitle = itemSubtitle;
+        } else if (itemSubtitle.isEmpty()) {
+            detailSubtitle = baseSubtitle;
+        } else {
+            detailSubtitle = baseSubtitle + QStringLiteral("\n") + itemSubtitle;
+        }
     }
-    if (itemSubtitle.isEmpty()) {
-        return baseSubtitle;
-    }
-    return baseSubtitle + QStringLiteral("\n") + itemSubtitle;
-}
 
-QJsonArray selectedSections(const QJsonObject &payload, const QJsonArray &items, int row) {
-    const QJsonObject item = selectedItem(items, row);
-    if (item.contains(QStringLiteral("sections"))) {
-        return jsonArrayValue(item, "sections");
-    }
-    return jsonArrayValue(payload, "sections");
-}
+    const QJsonArray sections = item.contains(QStringLiteral("sections"))
+        ? jsonArrayValue(item, "sections")
+        : jsonArrayValue(payload, "sections");
+    const QJsonArray messages = item.contains(QStringLiteral("messages"))
+        ? jsonArrayValue(item, "messages")
+        : jsonArrayValue(payload, "messages");
 
-QJsonArray selectedMessages(const QJsonObject &payload, const QJsonArray &items, int row) {
-    const QJsonObject item = selectedItem(items, row);
-    if (item.contains(QStringLiteral("messages"))) {
-        return jsonArrayValue(item, "messages");
-    }
-    return jsonArrayValue(payload, "messages");
+    return GenericSelection {
+        detailTitle,
+        detailSubtitle,
+        stringValue(payload, "messagesTitle", QStringLiteral("Activity")),
+        sections,
+        messages
+    };
 }
 
 QFrame *itemRowWidget(const QJsonObject &item) {
@@ -215,28 +215,30 @@ QFrame *messageCard(const QJsonObject &message) {
 
 void populateDetailContent(
     QVBoxLayout *layout,
-    const QJsonObject &payload,
-    const QJsonArray &items,
-    int row
+    const GenericSelection &selection
 ) {
     clearLayout(layout);
 
-    const QJsonArray sections = selectedSections(payload, items, row);
     int sectionIndex = 0;
-    for (const QJsonValue &value : sections) {
+    for (const QJsonValue &value : selection.sections) {
         layout->addWidget(detailCard(value.toObject(), sectionIndex == 0));
         sectionIndex += 1;
     }
 
-    const QJsonArray messages = selectedMessages(payload, items, row);
-    if (!messages.isEmpty()) {
-        layout->addWidget(label(stringValue(payload, "messagesTitle", QStringLiteral("Activity")), QStringLiteral("sectionTitle")));
-        for (const QJsonValue &value : messages) {
+    if (!selection.messages.isEmpty()) {
+        layout->addWidget(label(selection.messagesTitle, QStringLiteral("sectionTitle")));
+        for (const QJsonValue &value : selection.messages) {
             layout->addWidget(messageCard(value.toObject()));
         }
     }
 
     layout->addStretch(1);
+}
+
+void applySelection(GenericDetailPane &detailPane, const GenericSelection &selection) {
+    detailPane.titleLabel->setText(selection.detailTitle);
+    detailPane.subtitleLabel->setText(selection.detailSubtitle);
+    populateDetailContent(detailPane.contentLayout, selection);
 }
 
 GenericDetailPane detailWidget(const QJsonObject &payload, const QJsonArray &items, int selectedIndex) {
@@ -245,8 +247,9 @@ GenericDetailPane detailWidget(const QJsonObject &payload, const QJsonArray &ite
     layout->setContentsMargins(24, 22, 24, 22);
     layout->setSpacing(14);
 
-    QLabel *title = label(selectedDetailTitle(payload, items, selectedIndex), QStringLiteral("detailTitle"));
-    QLabel *subtitle = label(selectedDetailSubtitle(payload, items, selectedIndex), QStringLiteral("caption"));
+    const GenericSelection selection = selectionForRow(payload, items, selectedIndex);
+    QLabel *title = label(selection.detailTitle, QStringLiteral("detailTitle"));
+    QLabel *subtitle = label(selection.detailSubtitle, QStringLiteral("caption"));
     layout->addWidget(title);
     layout->addWidget(subtitle);
 
@@ -254,7 +257,7 @@ GenericDetailPane detailWidget(const QJsonObject &payload, const QJsonArray &ite
     contentLayout->setContentsMargins(0, 0, 0, 0);
     contentLayout->setSpacing(14);
     layout->addLayout(contentLayout, 1);
-    populateDetailContent(contentLayout, payload, items, selectedIndex);
+    populateDetailContent(contentLayout, selection);
 
     return GenericDetailPane { detail, title, subtitle, contentLayout };
 }
@@ -304,9 +307,7 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
     QListWidget *itemList = listWidget(items, selectedIndex);
     GenericDetailPane detailPane = detailWidget(payload, items, selectedIndex);
     QObject::connect(itemList, &QListWidget::currentRowChanged, [&](int row) {
-        detailPane.titleLabel->setText(selectedDetailTitle(payload, items, row));
-        detailPane.subtitleLabel->setText(selectedDetailSubtitle(payload, items, row));
-        populateDetailContent(detailPane.contentLayout, payload, items, row);
+        applySelection(detailPane, selectionForRow(payload, items, row));
     });
 
     QSplitter *splitter = new QSplitter(Qt::Horizontal);
