@@ -1659,7 +1659,10 @@ def main() -> int:
         product.startswith("quill-gtk-interaction-smoke")
         or product.startswith("quill-qt-interaction-smoke")
     )
-    compact_wireguard_dialog_product = product == "quill-wireguard-qt-import-invalid-paste"
+    compact_wireguard_dialog_product = product in {
+        "quill-wireguard-qt-import-invalid-paste",
+        "quill-wireguard-qt-import-invalid-file",
+    }
     if compact_wireguard_dialog_product:
         minimum_width = 500
         minimum_height = 360
@@ -1722,11 +1725,11 @@ def main() -> int:
         ))
     elif product in {"quill-wireguard-qt-import-paste", "quill-wireguard-qt-import-file"}:
         print(validate_quill_wireguard_qt_native(image, minimum_selected_center_offset=145))
-    elif product == "quill-wireguard-qt-import-invalid-paste":
+    elif product in {"quill-wireguard-qt-import-invalid-paste", "quill-wireguard-qt-import-invalid-file"}:
         print(validate_quill_wireguard_import_error(image, backend="qt"))
     elif product in {"quill-wireguard-import-paste", "quill-wireguard-import-file"}:
         print(validate_quill_wireguard_gtk_import(image))
-    elif product == "quill-wireguard-import-invalid-paste":
+    elif product in {"quill-wireguard-import-invalid-paste", "quill-wireguard-import-invalid-file"}:
         print(validate_quill_wireguard_import_error(image, backend="gtk"))
     elif product in {"quill-gtk-interaction-smoke-open", "quill-qt-interaction-smoke-open"}:
         print(validate_quill_backend_interaction_smoke(image))

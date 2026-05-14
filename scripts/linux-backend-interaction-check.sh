@@ -59,6 +59,67 @@ wireguard_import_configuration_file() {
   printf '%s\n' "$fixture_path"
 }
 
+wireguard_malformed_import_configuration() {
+  if [[ -n "${QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION:-}" ]]; then
+    printf '%s' "$QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION"
+    return 0
+  fi
+
+  printf '[Peer]\nPublicKey = peer\n'
+}
+
+wireguard_malformed_import_configuration_file() {
+  local fixture_path="${QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION_FILE:-}"
+  if [[ -n "$fixture_path" ]]; then
+    if [[ ! -f "$fixture_path" ]]; then
+      echo "WireGuard malformed import fixture is missing: $fixture_path" >&2
+      return 66
+    fi
+    printf '%s\n' "$fixture_path"
+    return 0
+  fi
+
+  fixture_path="$OUTPUT_DIR/wireguard-malformed-import.conf"
+  mkdir -p "$(dirname "$fixture_path")"
+  wireguard_malformed_import_configuration > "$fixture_path"
+  printf '%s\n' "$fixture_path"
+}
+
+quillui_is_wireguard_malformed_import_paste_interaction() {
+  case "$1" in
+    import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+quillui_is_wireguard_malformed_import_file_interaction() {
+  case "$1" in
+    import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+quillui_is_wireguard_malformed_import_interaction() {
+  quillui_is_wireguard_malformed_import_paste_interaction "$1" \
+    || quillui_is_wireguard_malformed_import_file_interaction "$1"
+}
+
+wireguard_import_configuration_file_for_mode() {
+  if quillui_is_wireguard_malformed_import_file_interaction "$1"; then
+    wireguard_malformed_import_configuration_file
+  else
+    wireguard_import_configuration_file
+  fi
+}
+
 DISPLAY_ID="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_INTERACTION_DISPLAY:-:95}")"
 SCREEN_SIZE="$(quillui_backend_screen_size "$PRODUCT" "${QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE:-}" "1180x760x24" "$reference_window_width" "$reference_window_height")"
 screen_width="${SCREEN_SIZE%%x*}"
@@ -85,10 +146,13 @@ quillui_append_backend_runtime_environment \
   "$REQUESTED_BACKEND"
 if [[ "$PRODUCT" == "quill-wireguard" || "$PRODUCT" == "quill-wireguard-qt" ]]; then
   case "$INTERACTION_MODE" in
-    import-file|file-import)
-      import_file="$(wireguard_import_configuration_file)" || exit $?
+    import-file|file-import|import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
+      import_file="$(wireguard_import_configuration_file_for_mode "$INTERACTION_MODE")" || exit $?
       if [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
         app_environment+=("QUILLUI_WIREGUARD_QT_IMPORT_CONFIGURATION_FILE_ON_START=$import_file")
+        if quillui_is_wireguard_malformed_import_file_interaction "$INTERACTION_MODE"; then
+          app_environment+=("QUILLUI_WIREGUARD_QT_IMPORT_DIALOG_ON_START=1")
+        fi
       else
         app_environment+=("QUILLUI_FILE_IMPORTER_SELECTION=$import_file")
       fi
@@ -152,28 +216,8 @@ wireguard_import_configuration() {
   cat "$fixture_path"
 }
 
-wireguard_malformed_import_configuration() {
-  if [[ -n "${QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION:-}" ]]; then
-    printf '%s' "$QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION"
-    return 0
-  fi
-
-  printf '[Peer]\nPublicKey = peer\n'
-}
-
-quillui_is_wireguard_malformed_import_interaction() {
-  case "$1" in
-    import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
 wireguard_import_configuration_for_mode() {
-  if quillui_is_wireguard_malformed_import_interaction "$1"; then
+  if quillui_is_wireguard_malformed_import_paste_interaction "$1"; then
     wireguard_malformed_import_configuration
   else
     wireguard_import_configuration
@@ -338,7 +382,7 @@ elif [[ "$PRODUCT" == "quill-wireguard" ]]; then
         click_at "$submit_x" "$submit_y"
         sleep "$post_click_sleep"
         ;;
-      import-file|file-import)
+      import-file|file-import|import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
         import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 256))}"
         import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
         file_x="${QUILLUI_BACKEND_IMPORT_FILE_CLICK_X:-$((window_x + 410))}"
@@ -392,8 +436,11 @@ elif [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
           refresh_capture_window_for_active_child_window
         fi
         ;;
-      import-file|file-import)
+      import-file|file-import|import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
         sleep "$post_click_sleep"
+        if quillui_is_wireguard_malformed_import_file_interaction "$INTERACTION_MODE"; then
+          refresh_capture_window_for_active_child_window
+        fi
         ;;
       *)
         echo "Unsupported WireGuard Qt interaction mode: $INTERACTION_MODE" >&2

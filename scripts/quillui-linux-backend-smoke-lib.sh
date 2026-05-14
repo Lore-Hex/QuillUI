@@ -221,6 +221,9 @@ quillui_backend_interaction_verify_product() {
       import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
         verify_product="quill-wireguard-qt-import-invalid-paste"
         ;;
+      import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
+        verify_product="quill-wireguard-qt-import-invalid-file"
+        ;;
     esac
   elif [[ "$product" == "quill-wireguard" ]]; then
     case "$interaction_mode" in
@@ -232,6 +235,9 @@ quillui_backend_interaction_verify_product() {
         ;;
       import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
         verify_product="quill-wireguard-import-invalid-paste"
+        ;;
+      import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
+        verify_product="quill-wireguard-import-invalid-file"
         ;;
     esac
   elif quillui_is_backend_smoke_product "$product"; then
@@ -305,6 +311,7 @@ quillui_backend_scoped_app_environment_names() {
     QUILLUI_GTK_IMPORT_CONFIGURATION QUILLUI_QT_IMPORT_CONFIGURATION \
     QUILLUI_GTK_MALFORMED_IMPORT_CONFIGURATION QUILLUI_QT_MALFORMED_IMPORT_CONFIGURATION \
     QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE \
+    QUILLUI_GTK_MALFORMED_IMPORT_CONFIGURATION_FILE QUILLUI_QT_MALFORMED_IMPORT_CONFIGURATION_FILE \
     QUILLUI_GTK_TYPE_TEXT QUILLUI_QT_TYPE_TEXT \
     QUILLUI_GTK_PROFILE_COMMAND QUILLUI_QT_PROFILE_COMMAND \
     QUILLUI_GTK_PROFILE_SETTLE QUILLUI_QT_PROFILE_SETTLE \

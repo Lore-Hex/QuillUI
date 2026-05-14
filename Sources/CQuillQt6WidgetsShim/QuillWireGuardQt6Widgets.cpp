@@ -567,6 +567,19 @@ QString startupImportConfigurationFile() {
     return QString::fromUtf8(fileName);
 }
 
+bool startupImportShouldOpenDialog() {
+    const char *value = std::getenv("QUILLUI_WIREGUARD_QT_IMPORT_DIALOG_ON_START");
+    if (value == nullptr || value[0] == '\0') {
+        return false;
+    }
+
+    const QString normalized = QString::fromUtf8(value).trimmed().toLower();
+    return normalized == QStringLiteral("1")
+        || normalized == QStringLiteral("true")
+        || normalized == QStringLiteral("yes")
+        || normalized == QStringLiteral("on");
+}
+
 void showImportDialog(
     QWidget *parent,
     QJsonArray *tunnels,
@@ -575,7 +588,9 @@ void showImportDialog(
     const QJsonObject &presentation,
     const QJsonObject &style,
     quill_wireguard_qt_import_config_callback importConfig,
-    quill_wireguard_qt_free_string_callback freeString
+    quill_wireguard_qt_free_string_callback freeString,
+    const QString &initialConfiguration = QString(),
+    bool submitInitialConfiguration = false
 ) {
     QDialog dialog(parent);
     dialog.setWindowTitle(presentationValue(
@@ -598,6 +613,9 @@ void showImportDialog(
         "importPlaceholder",
         "[Interface]\nPrivateKey = ...\n\n[Peer]\nPublicKey = ..."
     ));
+    if (!initialConfiguration.isEmpty()) {
+        editor->setPlainText(initialConfiguration);
+    }
     layout->addWidget(editor, 1);
 
     QLabel *error = label(QString(), QStringLiteral("importError"));
@@ -679,6 +697,11 @@ void showImportDialog(
     QTimer::singleShot(0, editor, [editor]() {
         editor->setFocus(Qt::OtherFocusReason);
     });
+    if (submitInitialConfiguration) {
+        QTimer::singleShot(0, &dialog, [&]() {
+            attemptImport(editor->toPlainText());
+        });
+    }
     dialog.exec();
 }
 
@@ -869,11 +892,27 @@ int quill_wireguard_qt_run_wireguard_json(
     window.show();
     const QString startupImportFile = startupImportConfigurationFile();
     if (!startupImportFile.isEmpty()) {
-        QTimer::singleShot(0, &window, [&, startupImportFile]() {
+        const bool openStartupImportDialog = startupImportShouldOpenDialog();
+        QTimer::singleShot(0, &window, [&, startupImportFile, openStartupImportDialog]() {
             QString configuration;
             QString fileError;
             if (!readImportConfigurationFile(startupImportFile, &configuration, &fileError)) {
                 reportStartupImportError(fileError);
+                return;
+            }
+            if (openStartupImportDialog) {
+                showImportDialog(
+                    &window,
+                    &tunnels,
+                    list,
+                    sidebarCount,
+                    presentation,
+                    style,
+                    import_config,
+                    free_string,
+                    configuration,
+                    true
+                );
                 return;
             }
             QString importError;
