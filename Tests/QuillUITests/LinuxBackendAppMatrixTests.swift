@@ -321,7 +321,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(profileScript.contains("runtime_availability=\"$(quillui_backend_runtime_availability_for_product \"$PRODUCT\" \"$REQUESTED_BACKEND_LABEL\")\""))
         #expect(profileScript.contains("IFS=$'\\t' read -r REQUESTED_BACKEND_LABEL RUNTIME_BACKEND_LABEL runtime_mode <<<\"$runtime_availability\""))
         #expect(profileScript.contains("emit_profile_row()"))
-        #expect(profileScript.contains("quillui_export_backend_argument \"$REQUESTED_BACKEND\""))
+        #expect(profileScript.contains("quillui_export_backend_argument \"$REQUESTED_BACKEND\" \"$PRODUCT\""))
         #expect(profileScript.contains("quillui_alias_backend_build_env"))
         #expect(!profileScript.contains("patch-swiftopenui-gtk-css.sh"))
         #expect(!profileScript.contains("swift build --scratch-path \"$ROOT_DIR/.build-linux\" --product \"$PRODUCT\""))
@@ -337,7 +337,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(legacyProfileScript.contains("linux-backend-profile.sh"))
         #expect(visualScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(visualScript.contains("REQUESTED_BACKEND=\"${3:-${QUILLUI_BACKEND:-}}\""))
-        #expect(visualScript.contains("quillui_export_backend_argument \"$REQUESTED_BACKEND\""))
+        #expect(visualScript.contains("quillui_export_backend_argument \"$REQUESTED_BACKEND\" \"$PRODUCT\""))
         #expect(visualScript.contains("quillui_alias_backend_build_env"))
         #expect(smokeMatrixRunner.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(smokeMatrixRunner.contains("app-matrix|interaction-matrix|interaction-extra-mode-matrix|generated-app-matrix|smoke-matrix|smoke-interaction-matrix"))
@@ -359,6 +359,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeMatrixRunner.contains("\"$ROOT_DIR/scripts/quillui-backend-products.sh\" \"$RUNTIME_MATRIX_COMMAND\""))
         #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(smokeLib.contains("quillui_export_backend_argument()"))
+        #expect(smokeLib.contains("requested_backend=\"$(quillui_require_requested_backend_for_product \"$product\")\""))
+        #expect(smokeLib.contains("requested_backend=\"$(quillui_validate_requested_backend_for_product \"$product\" \"$requested_backend\")\""))
         #expect(smokeLib.contains("quillui_alias_backend_build_env()"))
         #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_GTK_APP_EXECUTABLE QUILLUI_QT_APP_EXECUTABLE"))
         #expect(smokeLib.contains("quillui_alias_env QUILLUI_BACKEND_SKIP_BUILD QUILLUI_GTK_SKIP_BUILD QUILLUI_QT_SKIP_BUILD"))
@@ -1116,6 +1118,23 @@ struct LinuxBackendAppMatrixTests {
         printf 'build-exe=%s\\n' "$QUILLUI_BACKEND_APP_EXECUTABLE"
         printf 'build-skip=%s\\n' "$QUILLUI_BACKEND_SKIP_BUILD"
 
+        unset QUILLUI_BACKEND
+        quillui_export_backend_argument "" quill-wireguard-qt
+        printf 'product-default-qt=%s\\n' "$QUILLUI_BACKEND"
+
+        if quillui_export_backend_argument gtk quill-wireguard-qt 2>/dev/null; then
+          echo "unexpected-fixed-export-success"
+          exit 1
+        fi
+        printf 'strict-fixed-export=failed\\n'
+
+        fixed_runtime_env=()
+        if quillui_append_backend_launch_environment fixed_runtime_env quill-wireguard-qt "" gtk 2>/dev/null; then
+          echo "unexpected-fixed-launch-success"
+          exit 1
+        fi
+        printf 'strict-fixed-launch=failed\\n'
+
         runtime_env=()
         quillui_append_backend_launch_environment runtime_env quill-icecubes "" " GTK4 "
         printf 'launch-backend=%s\\n' "${runtime_env[1]}"
@@ -1170,6 +1189,9 @@ struct LinuxBackendAppMatrixTests {
         build-backend=qt
         build-exe=/tmp/qt-app
         build-skip=1
+        product-default-qt=qt
+        strict-fixed-export=failed
+        strict-fixed-launch=failed
         launch-backend=QUILLUI_BACKEND=gtk
         strict-export=failed
         strict-launch=failed
