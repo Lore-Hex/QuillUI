@@ -712,7 +712,7 @@ struct SourceHygieneTests {
         #expect(enchantedQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
         #expect(enchantedQtRuntime.contains("QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"))
         #expect(enchantedQtRuntime.contains("var messages: [Message]? = nil"))
-        #expect(enchantedQtRuntime.contains("messages: parityConversationMessages"))
+        #expect(enchantedQtRuntime.contains("messages: launchConversationMessages"))
         #expect(enchantedQtRuntime.contains("messages: attachmentConversationMessages"))
         #expect(enchantedQtRuntime.contains("QuillQtNativeRuntimeSupport.boundedIndexOverride("))
         #expect(enchantedQtRuntime.contains("snapshot.selectedConversationID = snapshot.conversations[boundedIndex].id"))
@@ -752,13 +752,39 @@ struct SourceHygieneTests {
         #expect(genericQtHost.contains("item.contains(QStringLiteral(\"messages\"))"))
         #expect(genericQtRuntime.contains("public var sections: [Section]?"))
         #expect(genericQtRuntime.contains("public var messages: [Message]?"))
-        #expect(genericQtRuntime.contains("detailSubtitle: \"Timeline interaction fixture with the lower row selected.\""))
-        #expect(genericQtRuntime.contains("detailSubtitle: \"Media-heavy chat fixture for the lower selected row.\""))
-        #expect(genericQtRuntime.contains("detailSubtitle: \"Language practice fixture with the lower row selected.\""))
-        #expect(genericQtRuntime.contains("detailSubtitle: \"Linux compatibility report fixture with the lower row selected.\""))
-        #expect(genericQtRuntime.contains("detailSubtitle: \"Backend registry fixture with the lower file row selected.\""))
+        #expect(genericQtRuntime.contains("detailSubtitle: \"Open conversation with replies and boosts.\""))
+        #expect(genericQtRuntime.contains("detailSubtitle: \"Weekend photo thread with media previews.\""))
+        #expect(genericQtRuntime.contains("detailSubtitle: \"Language practice with the lower row selected.\""))
+        #expect(genericQtRuntime.contains("detailSubtitle: \"Desktop compatibility article selected for reading.\""))
+        #expect(genericQtRuntime.contains("detailSubtitle: \"Project navigator source file selected.\""))
         #expect(genericQtRuntime.contains("detailSubtitle: \"Core engineering channel with the lower row selected.\""))
-        #expect(genericQtRuntime.contains("detailSubtitle: \"Audio-only playlist fixture with the lower row selected.\""))
+        #expect(genericQtRuntime.contains("detailSubtitle: \"Audio-only playlist item selected.\""))
+
+        let qtVisiblePayloadSources = [
+            ("Enchanted Qt runtime", enchantedQtRuntime),
+            ("Generic Qt runtime", genericQtRuntime)
+        ]
+        let internalVisibleCopyFragments = [
+            "QUILLUI_LINUX_BACKEND",
+            "SwiftPM",
+            "Qt backend",
+            "Qt graph",
+            "GTK path",
+            "GTK shell",
+            "GTK preview",
+            "screenshot smoke",
+            "smoke target",
+            "smoke capture",
+            "fixture",
+            "backend parity",
+            "QuillUI is rendering",
+            "Codable snapshot"
+        ]
+        for (sourceName, source) in qtVisiblePayloadSources {
+            for fragment in internalVisibleCopyFragments {
+                #expect(!source.contains(fragment), "\(sourceName) should not expose internal test/backend copy: \(fragment)")
+            }
+        }
 
         #expect(sharedView.contains("public struct QuillInteractionSmokeConfiguration"))
         #expect(sharedView.contains("public struct QuillInteractionSmokeView"))

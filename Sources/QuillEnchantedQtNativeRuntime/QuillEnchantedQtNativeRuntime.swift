@@ -66,21 +66,21 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var messageMaxWidth: Int
     }
 
-    private static let parityConversationMessages = [
+    private static let launchConversationMessages = [
         Message(
             id: "system-1",
             role: "system",
-            content: "You are chatting with a local Ollama model through QuillUI."
+            content: "You are chatting with a local Ollama model in Enchanted."
         ),
         Message(
             id: "user-1",
             role: "user",
-            content: "Show the Enchanted layout that Qt needs to match."
+            content: "Turn my meeting notes into a short launch checklist."
         ),
         Message(
             id: "assistant-1",
             role: "assistant",
-            content: "The Qt shell keeps the 300px sidebar, conversation list, model picker, transcript, attachment row, and composer controls aligned with the GTK preview."
+            content: "Confirm the owner, send the revised timeline, collect final screenshots, and ask design for approval before Friday."
         )
     ]
 
@@ -88,12 +88,12 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         Message(
             id: "local-user-1",
             role: "user",
-            content: "What has to stay visible while I switch local models?"
+            content: "What should I check before switching models for a longer draft?"
         ),
         Message(
             id: "local-assistant-1",
             role: "assistant",
-            content: "The endpoint, selected model, model refresh action, and readiness status remain in the sidebar so GTK and Qt expose the same controls."
+            content: "Keep the endpoint reachable, choose the model with the right context window, and run a short prompt before pasting the full draft."
         )
     ]
 
@@ -101,12 +101,12 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         Message(
             id: "attachment-user-1",
             role: "user",
-            content: "Can the native Linux shell keep image attachment affordances?"
+            content: "Can you help turn this screenshot into release-note copy?"
         ),
         Message(
             id: "attachment-assistant-1",
             role: "assistant",
-            content: "Yes. The Qt host keeps the attachment path row, attach action, multiline prompt editor, and send button visible with the selected attachment conversation."
+            content: "Use a concise caption, mention what changed, and keep the note focused on the user-facing setup flow."
         )
     ]
 
@@ -117,7 +117,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         defaultWidth: 1180,
         defaultHeight: 760,
         sidebarTitle: "Enchanted",
-        sidebarSubtitle: "QuillUI Linux preview",
+        sidebarSubtitle: "Local AI workspace",
         endpointLabel: "Ollama endpoint",
         modelLabel: "Model",
         conversationsTitle: "Conversations",
@@ -131,7 +131,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         status: "Ready for local inference",
         endpoint: "http://localhost:11434",
         selectedModel: "llama3.1:8b",
-        selectedConversationID: "parity-brief",
+        selectedConversationID: "daily-brief",
         models: [
             "llama3.1:8b",
             "mistral:7b",
@@ -139,25 +139,25 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         ],
         conversations: [
             Conversation(
-                id: "parity-brief",
-                title: "QuillUI backend parity",
-                lastMessage: "Compare the GTK and Qt Enchanted shells.",
-                messages: parityConversationMessages
+                id: "daily-brief",
+                title: "Launch checklist",
+                lastMessage: "Four next steps before Friday.",
+                messages: launchConversationMessages
             ),
             Conversation(
                 id: "local-models",
                 title: "Local model setup",
-                lastMessage: "Keep endpoint and model controls visible.",
+                lastMessage: "Pick the right model before drafting.",
                 messages: localModelConversationMessages
             ),
             Conversation(
                 id: "attachments",
                 title: "Image attachment flow",
-                lastMessage: "Preserve attachment affordances in native hosts.",
+                lastMessage: "Turn a screenshot into release-note copy.",
                 messages: attachmentConversationMessages
             )
         ],
-        messages: parityConversationMessages,
+        messages: launchConversationMessages,
         prompts: [
             "Summarize the current conversation",
             "Explain this screenshot",
