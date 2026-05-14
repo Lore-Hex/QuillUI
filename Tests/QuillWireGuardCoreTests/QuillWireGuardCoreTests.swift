@@ -237,6 +237,26 @@ struct QuillWireGuardCoreTests {
         #expect(!source.contains("Click + in the sidebar to generate a fresh\\nCurve25519 keypair via upstream WireGuardKit."))
     }
 
+    @Test("Linux WireGuard import smokes seed GTK and Qt file selection separately")
+    func linuxWireGuardImportSmokesSeedBackendFileSelectionSeparately() throws {
+        let root = try packageRoot()
+        let interactionScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"),
+            encoding: .utf8
+        )
+        let matrixScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-backend-products.sh"),
+            encoding: .utf8
+        )
+
+        #expect(interactionScript.contains("wireguard_import_configuration_file()"))
+        #expect(interactionScript.contains("QUILLUI_FILE_IMPORTER_SELECTION=$import_file"))
+        #expect(interactionScript.contains("QUILLUI_WIREGUARD_QT_IMPORT_CONFIGURATION_FILE_ON_START=$import_file"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_IMPORT_FILE_CLICK_X"))
+        #expect(matrixScript.contains("quill-wireguard gtk import-file"))
+        #expect(matrixScript.contains("quill-wireguard-qt qt import-file"))
+    }
+
     @Test("WireGuard app entry points share the UI scene helper")
     func wireGuardAppEntryPointsShareUISceneHelper() throws {
         let root = try packageRoot()

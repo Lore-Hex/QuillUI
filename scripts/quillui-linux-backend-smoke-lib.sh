@@ -219,6 +219,12 @@ quillui_backend_interaction_verify_product() {
         verify_product="quill-wireguard-qt-import-file"
         ;;
     esac
+  elif [[ "$product" == "quill-wireguard" ]]; then
+    case "$interaction_mode" in
+      import-file|file-import)
+        verify_product="quill-wireguard-import-file"
+        ;;
+    esac
   elif quillui_is_backend_smoke_product "$product"; then
     verify_product="$(quillui_backend_smoke_interaction_verify_product "$product" "$interaction_mode")" || return $?
   fi
