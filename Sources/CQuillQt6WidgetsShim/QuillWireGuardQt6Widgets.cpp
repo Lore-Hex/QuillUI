@@ -52,6 +52,10 @@ QString presentationValue(const QJsonObject &presentation, const char *key, cons
     return stringValue(presentation, key, QString::fromUtf8(fallback));
 }
 
+QString styleValue(const QJsonObject &style, const char *key, const char *fallback) {
+    return stringValue(style, key, QString::fromUtf8(fallback));
+}
+
 int intValue(const QJsonObject &object, const char *key, int fallback) {
     const QJsonValue value = object.value(QString::fromUtf8(key));
     return value.isDouble() ? value.toInt(fallback) : fallback;
@@ -540,6 +544,7 @@ void showImportDialog(
     QListWidget *list,
     QLabel *countLabel,
     const QJsonObject &presentation,
+    const QJsonObject &style,
     quill_wireguard_qt_import_config_callback importConfig,
     quill_wireguard_qt_free_string_callback freeString
 ) {
@@ -549,7 +554,10 @@ void showImportDialog(
         "importDialogTitle",
         "Import WireGuard Configuration"
     ));
-    dialog.setMinimumSize(560, 420);
+    dialog.setMinimumSize(
+        intValue(style, "importDialogWidth", 560),
+        intValue(style, "importDialogHeight", 420)
+    );
 
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
     layout->setSpacing(10);
@@ -651,31 +659,59 @@ int selectedRow(const QJsonArray &tunnels, const QString &selectedTunnelID) {
     return tunnels.isEmpty() ? -1 : 0;
 }
 
-void applyStyle(QApplication &app) {
-    app.setStyleSheet(QStringLiteral(
-        "QWidget { background: #ffffff; color: #1d1d1f; font-size: 13px; }"
-        "QSplitter::handle { background: #d8d8dd; width: 1px; }"
-        "QListWidget { background: #f7f7f8; border: 0; padding: 6px; }"
-        "QListWidget::item { padding: 0; margin: 2px 0; border-radius: 4px; }"
-        "QListWidget::item:selected { background: #e8eefc; color: #111111; }"
+void applyStyle(QApplication &app, const QJsonObject &style) {
+    QString styleSheet = QStringLiteral(
+        "QWidget { background: %1; color: %2; font-size: %3px; }"
+        "QSplitter::handle { background: %4; width: 1px; }"
+        "QListWidget { background: %5; border: 0; padding: 6px; }"
+        "QListWidget::item { padding: 0; margin: 2px 0; border-radius: %6px; }"
+        "QListWidget::item:selected { background: %7; color: %8; }"
         "QWidget#tunnelRow { background: transparent; }"
         "QWidget#tunnelRow QLabel { background: transparent; }"
         "QLabel#tunnelName { font-weight: 500; }"
-        "QLabel#tunnelStatus, QLabel#tunnelSummary { color: #6e6e73; font-size: 11px; }"
-        "QLabel#sidebarTitle { font-weight: 700; font-size: 16px; }"
-        "QLabel#sidebarCount, QLabel#backendText, QLabel#detailStatus, QLabel#detailKey { color: #6e6e73; }"
-        "QLabel#backendTitle { color: #6e6e73; font-weight: 700; font-size: 11px; }"
-        "QLabel#emptyStateTitle { font-size: 22px; font-weight: 600; }"
-        "QLabel#emptyStateMessage { color: #6e6e73; }"
-        "QLabel#importError { color: #a92222; }"
-        "QPushButton#importButton { background: #ffffff; border: 1px solid #d8d8dd; border-radius: 4px; padding: 4px 8px; }"
-        "QPushButton#importButton:pressed { background: #ececf0; }"
-        "QLineEdit#detailTitle { background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 2px; font-size: 22px; font-weight: 600; }"
-        "QLineEdit#detailTitle:focus { background: #ffffff; border-color: #93a4c7; }"
-        "QGroupBox#detailSection { border: 0; background: #f4f4f5; margin-top: 18px; padding: 12px; font-weight: 700; color: #6e6e73; }"
+        "QLabel#tunnelStatus, QLabel#tunnelSummary { color: %9; font-size: %10px; }"
+        "QLabel#sidebarTitle { font-weight: 700; font-size: %11px; }"
+        "QLabel#sidebarCount, QLabel#backendText, QLabel#detailStatus, QLabel#detailKey { color: %9; }"
+        "QLabel#backendTitle { color: %9; font-weight: 700; font-size: %12px; }"
+        "QLabel#emptyStateTitle { font-size: %13px; font-weight: 600; }"
+        "QLabel#emptyStateMessage { color: %9; }"
+        "QLabel#importError { color: %14; }"
+        "QPushButton#importButton { background: %1; border: 1px solid %4; border-radius: %15px; padding: %16px %17px; }"
+        "QPushButton#importButton:pressed { background: %18; }"
+        "QLineEdit#detailTitle { background: transparent; border: 1px solid transparent; border-radius: %19px; padding: 2px; font-size: %20px; font-weight: 600; }"
+        "QLineEdit#detailTitle:focus { background: %1; border-color: %21; }"
+        "QGroupBox#detailSection { border: 0; background: %22; margin-top: %23px; padding: %24px; font-weight: 700; color: %9; }"
         "QGroupBox#detailSection::title { subcontrol-origin: margin; left: 10px; padding: 0 3px; }"
-        "QPlainTextEdit { background: #ffffff; border: 1px solid #d8d8dd; border-radius: 4px; }"
-    ));
+        "QPlainTextEdit { background: %1; border: 1px solid %4; border-radius: %15px; }"
+    );
+
+    styleSheet = styleSheet
+        .arg(styleValue(style, "windowBackgroundColor", "#ffffff"))
+        .arg(styleValue(style, "primaryTextColor", "#1d1d1f"))
+        .arg(intValue(style, "rootFontSize", 13))
+        .arg(styleValue(style, "dividerColor", "#d8d8dd"))
+        .arg(styleValue(style, "sidebarBackgroundColor", "#f7f7f8"))
+        .arg(intValue(style, "listItemCornerRadius", 4))
+        .arg(styleValue(style, "selectedRowBackgroundColor", "#e8eefc"))
+        .arg(styleValue(style, "selectedRowTextColor", "#111111"))
+        .arg(styleValue(style, "secondaryTextColor", "#6e6e73"))
+        .arg(intValue(style, "captionFontSize", 11))
+        .arg(intValue(style, "sidebarTitleFontSize", 16))
+        .arg(intValue(style, "backendTitleFontSize", 11))
+        .arg(intValue(style, "emptyStateTitleFontSize", 22))
+        .arg(styleValue(style, "errorTextColor", "#a92222"))
+        .arg(intValue(style, "importButtonCornerRadius", 4))
+        .arg(intValue(style, "importButtonVerticalPadding", 4))
+        .arg(intValue(style, "importButtonHorizontalPadding", 8))
+        .arg(styleValue(style, "pressedButtonBackgroundColor", "#ececf0"))
+        .arg(intValue(style, "detailTitleCornerRadius", 3))
+        .arg(intValue(style, "detailTitleFontSize", 22))
+        .arg(styleValue(style, "focusBorderColor", "#93a4c7"))
+        .arg(styleValue(style, "detailSectionBackgroundColor", "#f4f4f5"))
+        .arg(intValue(style, "detailSectionTopMargin", 18))
+        .arg(intValue(style, "detailSectionPadding", 12));
+
+    app.setStyleSheet(styleSheet);
 }
 
 } // namespace
@@ -697,13 +733,14 @@ int quill_wireguard_qt_run_wireguard_json(
         return 65;
     }
 
-    QApplication app(argc, argv);
-    applyStyle(app);
-
     const QJsonObject payload = document.object();
     const QJsonObject presentation = objectValue(payload, "presentation");
+    const QJsonObject style = objectValue(payload, "style");
     QJsonArray tunnels = arrayValue(payload, "tunnels");
     const QString selectedTunnelID = stringValue(payload, "selectedTunnelID");
+
+    QApplication app(argc, argv);
+    applyStyle(app, style);
 
     QWidget window;
     window.setWindowTitle(stringValue(payload, "title"));
@@ -719,10 +756,16 @@ int quill_wireguard_qt_run_wireguard_json(
     rootLayout->addWidget(splitter);
 
     QWidget *sidebar = new QWidget();
-    sidebar->setMinimumWidth(280);
-    sidebar->setMaximumWidth(320);
+    sidebar->setMinimumWidth(intValue(style, "sidebarWidth", 280));
+    sidebar->setMaximumWidth(intValue(style, "sidebarMaximumWidth", 320));
     QVBoxLayout *sidebarLayout = new QVBoxLayout(sidebar);
-    sidebarLayout->setContentsMargins(14, 14, 14, 12);
+    const int sidebarPadding = intValue(style, "sidebarPadding", 14);
+    sidebarLayout->setContentsMargins(
+        sidebarPadding,
+        sidebarPadding,
+        sidebarPadding,
+        intValue(style, "sidebarBottomPadding", 12)
+    );
 
     QHBoxLayout *sidebarHeader = new QHBoxLayout();
     sidebarHeader->addWidget(label(
@@ -758,8 +801,9 @@ int quill_wireguard_qt_run_wireguard_json(
     scrollArea->setWidgetResizable(true);
     QWidget *detail = new QWidget();
     QVBoxLayout *detailLayout = new QVBoxLayout(detail);
-    detailLayout->setContentsMargins(22, 22, 22, 22);
-    detailLayout->setSpacing(16);
+    const int detailPadding = intValue(style, "detailPadding", 22);
+    detailLayout->setContentsMargins(detailPadding, detailPadding, detailPadding, detailPadding);
+    detailLayout->setSpacing(intValue(style, "detailSpacing", 16));
     scrollArea->setWidget(detail);
 
     splitter->addWidget(sidebar);
@@ -777,6 +821,7 @@ int quill_wireguard_qt_run_wireguard_json(
             list,
             sidebarCount,
             presentation,
+            style,
             import_config,
             free_string
         );

@@ -269,10 +269,19 @@ struct QuillWireGuardCoreTests {
         #expect(nativeShimSource.contains("QLineEdit#detailTitle"))
         #expect(nativeShimSource.contains("list->setItemWidget(item, tunnelRowWidget(tunnel))"))
         #expect(nativeShimSource.contains("const QJsonObject presentation = objectValue(payload, \"presentation\")"))
+        #expect(nativeShimSource.contains("const QJsonObject style = objectValue(payload, \"style\")"))
+        #expect(nativeShimSource.contains("applyStyle(app, style)"))
         #expect(nativeShimSource.contains("presentationValue(presentation, \"sidebarTitle\", \"Tunnels\")"))
         #expect(nativeShimSource.contains("presentationValue(presentation, \"interfaceSectionTitle\", \"Interface\")"))
         #expect(nativeShimSource.contains("presentationValue(presentation, \"tunnelNamePlaceholder\", \"Tunnel name\")"))
         #expect(nativeShimSource.contains("presentationValue(presentation, \"emptyStateTitle\", \"Quill WireGuard\")"))
+        #expect(nativeShimSource.contains("styleValue(style, \"windowBackgroundColor\", \"#ffffff\")"))
+        #expect(nativeShimSource.contains("styleValue(style, \"primaryTextColor\", \"#1d1d1f\")"))
+        #expect(nativeShimSource.contains("intValue(style, \"sidebarWidth\", 280)"))
+        #expect(nativeShimSource.contains("intValue(style, \"sidebarMaximumWidth\", 320)"))
+        #expect(nativeShimSource.contains("intValue(style, \"detailPadding\", 22)"))
+        #expect(nativeShimSource.contains("intValue(style, \"detailSpacing\", 16)"))
+        #expect(nativeShimSource.contains("intValue(style, \"importDialogWidth\", 560)"))
         #expect(nativeShimSource.contains("\"importButtonLabel\""))
         #expect(nativeShimSource.contains("\"importButtonTooltip\""))
         #expect(nativeShimSource.contains("\"Import WireGuard configuration\""))
@@ -317,6 +326,14 @@ struct QuillWireGuardCoreTests {
         #expect(snapshot.presentation.interfaceSectionTitle == QuillWireGuardPresentation.interfaceSectionTitle)
         #expect(snapshot.presentation.exportSectionTitle == QuillWireGuardPresentation.exportSectionTitle)
         #expect(snapshot.presentation.noneText == QuillWireGuardPresentation.noneText)
+        #expect(snapshot.style.windowBackgroundColor == QuillWireGuardStyle.windowBackgroundColor)
+        #expect(snapshot.style.primaryTextColor == QuillWireGuardStyle.primaryTextColor)
+        #expect(snapshot.style.secondaryTextColor == QuillWireGuardStyle.secondaryTextColor)
+        #expect(snapshot.style.sidebarWidth == QuillWireGuardStyle.sidebarWidth)
+        #expect(snapshot.style.sidebarMaximumWidth == QuillWireGuardStyle.sidebarMaximumWidth)
+        #expect(snapshot.style.detailPadding == QuillWireGuardStyle.detailPadding)
+        #expect(snapshot.style.detailSpacing == QuillWireGuardStyle.detailSpacing)
+        #expect(snapshot.style.importDialogWidth == QuillWireGuardStyle.importDialogWidth)
         #expect(snapshot.selectedTunnelID == QuillWireGuardFixtures.defaultTunnelID)
         #expect(snapshot.tunnels.map(\.id) == QuillWireGuardFixtures.tunnels.map(\.id))
         #expect(snapshot.tunnels.first?.interface.addressesText == QuillWireGuardFixtures.tunnels.first?.interface.addresses.joined(separator: ", "))
@@ -341,6 +358,7 @@ struct QuillWireGuardCoreTests {
         """.data(using: .utf8)!
         let legacySnapshot = try JSONDecoder().decode(QuillWireGuardAppSnapshot.self, from: legacyPayload)
         #expect(legacySnapshot.presentation == QuillWireGuardPresentationSnapshot())
+        #expect(legacySnapshot.style == QuillWireGuardStyleSnapshot())
         #expect(legacySnapshot.tunnels.isEmpty)
 
         let legacyPresentationPayload = """
@@ -358,6 +376,21 @@ struct QuillWireGuardCoreTests {
         #expect(legacyPresentation.backendTitle == "Legacy Backend")
         #expect(legacyPresentation.noneText == "Nothing")
         #expect(legacyPresentation.importActionLabel == QuillWireGuardPresentation.importActionLabel)
+
+        let legacyStylePayload = """
+        {
+          "windowBackgroundColor": "#101010",
+          "sidebarWidth": 300
+        }
+        """.data(using: .utf8)!
+        let legacyStyle = try JSONDecoder().decode(
+            QuillWireGuardStyleSnapshot.self,
+            from: legacyStylePayload
+        )
+        #expect(legacyStyle.windowBackgroundColor == "#101010")
+        #expect(legacyStyle.sidebarWidth == 300)
+        #expect(legacyStyle.primaryTextColor == QuillWireGuardStyle.primaryTextColor)
+        #expect(legacyStyle.importDialogHeight == QuillWireGuardStyle.importDialogHeight)
     }
 
     @Test("Native Qt host covers every shared WireGuard presentation key")
@@ -386,6 +419,28 @@ struct QuillWireGuardCoreTests {
                 nativeShimSource.contains("\"\(key)\"")
                     || nativeRuntimeSource.contains("QuillWireGuardPresentation.\(key)")
             )
+        }
+    }
+
+    @Test("Native Qt host covers every shared WireGuard style key")
+    func nativeQtHostCoversEverySharedWireGuardStyleKey() throws {
+        let styleKeys = wireGuardStylePropertyNames()
+        #expect(!styleKeys.isEmpty)
+
+        let encodedStyleObject = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(QuillWireGuardStyleSnapshot())
+        ) as? [String: Any]
+        let encodedStyleKeys = encodedStyleObject.map { Set($0.keys) } ?? []
+        #expect(encodedStyleKeys == Set(styleKeys))
+
+        let nativeShimSource = try String(
+            contentsOf: try packageRoot()
+                .appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillWireGuardQt6Widgets.cpp"),
+            encoding: .utf8
+        )
+
+        for key in styleKeys {
+            #expect(nativeShimSource.contains("\"\(key)\""))
         }
     }
 
@@ -426,6 +481,10 @@ struct QuillWireGuardCoreTests {
 
     private func wireGuardPresentationPropertyNames() -> [String] {
         Mirror(reflecting: QuillWireGuardPresentationSnapshot()).children.compactMap { $0.label }
+    }
+
+    private func wireGuardStylePropertyNames() -> [String] {
+        Mirror(reflecting: QuillWireGuardStyleSnapshot()).children.compactMap { $0.label }
     }
 
     private func parseError(for configuration: String) -> QuillWireGuardConfigParseError? {

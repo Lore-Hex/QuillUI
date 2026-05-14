@@ -57,6 +57,44 @@ public enum QuillWireGuardPresentation {
     public static let noneText = "None"
 }
 
+public enum QuillWireGuardStyle {
+    public static let windowBackgroundColor = "#ffffff"
+    public static let primaryTextColor = "#1d1d1f"
+    public static let secondaryTextColor = "#6e6e73"
+    public static let dividerColor = "#d8d8dd"
+    public static let sidebarBackgroundColor = "#f7f7f8"
+    public static let selectedRowBackgroundColor = "#e8eefc"
+    public static let selectedRowTextColor = "#111111"
+    public static let pressedButtonBackgroundColor = "#ececf0"
+    public static let focusBorderColor = "#93a4c7"
+    public static let detailSectionBackgroundColor = "#f4f4f5"
+    public static let errorTextColor = "#a92222"
+
+    public static let rootFontSize = 13
+    public static let captionFontSize = 11
+    public static let sidebarTitleFontSize = 16
+    public static let backendTitleFontSize = 11
+    public static let detailTitleFontSize = 22
+    public static let emptyStateTitleFontSize = 22
+
+    public static let listItemCornerRadius = 4
+    public static let importButtonCornerRadius = 4
+    public static let detailTitleCornerRadius = 3
+    public static let importButtonVerticalPadding = 4
+    public static let importButtonHorizontalPadding = 8
+    public static let detailSectionPadding = 12
+    public static let detailSectionTopMargin = 18
+
+    public static let sidebarWidth = 280
+    public static let sidebarMaximumWidth = 320
+    public static let sidebarPadding = 14
+    public static let sidebarBottomPadding = 12
+    public static let detailPadding = 22
+    public static let detailSpacing = 16
+    public static let importDialogWidth = 560
+    public static let importDialogHeight = 420
+}
+
 public enum QuillWireGuardTunnelStatus: String, Codable, Sendable {
     case inactive = "Inactive"
     case active = "Active"
@@ -494,6 +532,225 @@ public struct QuillWireGuardPresentationSnapshot: Codable, Equatable, Sendable {
     }
 }
 
+public struct QuillWireGuardStyleSnapshot: Codable, Equatable, Sendable {
+    public var windowBackgroundColor: String
+    public var primaryTextColor: String
+    public var secondaryTextColor: String
+    public var dividerColor: String
+    public var sidebarBackgroundColor: String
+    public var selectedRowBackgroundColor: String
+    public var selectedRowTextColor: String
+    public var pressedButtonBackgroundColor: String
+    public var focusBorderColor: String
+    public var detailSectionBackgroundColor: String
+    public var errorTextColor: String
+    public var rootFontSize: Int
+    public var captionFontSize: Int
+    public var sidebarTitleFontSize: Int
+    public var backendTitleFontSize: Int
+    public var detailTitleFontSize: Int
+    public var emptyStateTitleFontSize: Int
+    public var listItemCornerRadius: Int
+    public var importButtonCornerRadius: Int
+    public var detailTitleCornerRadius: Int
+    public var importButtonVerticalPadding: Int
+    public var importButtonHorizontalPadding: Int
+    public var detailSectionPadding: Int
+    public var detailSectionTopMargin: Int
+    public var sidebarWidth: Int
+    public var sidebarMaximumWidth: Int
+    public var sidebarPadding: Int
+    public var sidebarBottomPadding: Int
+    public var detailPadding: Int
+    public var detailSpacing: Int
+    public var importDialogWidth: Int
+    public var importDialogHeight: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case windowBackgroundColor
+        case primaryTextColor
+        case secondaryTextColor
+        case dividerColor
+        case sidebarBackgroundColor
+        case selectedRowBackgroundColor
+        case selectedRowTextColor
+        case pressedButtonBackgroundColor
+        case focusBorderColor
+        case detailSectionBackgroundColor
+        case errorTextColor
+        case rootFontSize
+        case captionFontSize
+        case sidebarTitleFontSize
+        case backendTitleFontSize
+        case detailTitleFontSize
+        case emptyStateTitleFontSize
+        case listItemCornerRadius
+        case importButtonCornerRadius
+        case detailTitleCornerRadius
+        case importButtonVerticalPadding
+        case importButtonHorizontalPadding
+        case detailSectionPadding
+        case detailSectionTopMargin
+        case sidebarWidth
+        case sidebarMaximumWidth
+        case sidebarPadding
+        case sidebarBottomPadding
+        case detailPadding
+        case detailSpacing
+        case importDialogWidth
+        case importDialogHeight
+    }
+
+    public init(
+        windowBackgroundColor: String = QuillWireGuardStyle.windowBackgroundColor,
+        primaryTextColor: String = QuillWireGuardStyle.primaryTextColor,
+        secondaryTextColor: String = QuillWireGuardStyle.secondaryTextColor,
+        dividerColor: String = QuillWireGuardStyle.dividerColor,
+        sidebarBackgroundColor: String = QuillWireGuardStyle.sidebarBackgroundColor,
+        selectedRowBackgroundColor: String = QuillWireGuardStyle.selectedRowBackgroundColor,
+        selectedRowTextColor: String = QuillWireGuardStyle.selectedRowTextColor,
+        pressedButtonBackgroundColor: String = QuillWireGuardStyle.pressedButtonBackgroundColor,
+        focusBorderColor: String = QuillWireGuardStyle.focusBorderColor,
+        detailSectionBackgroundColor: String = QuillWireGuardStyle.detailSectionBackgroundColor,
+        errorTextColor: String = QuillWireGuardStyle.errorTextColor,
+        rootFontSize: Int = QuillWireGuardStyle.rootFontSize,
+        captionFontSize: Int = QuillWireGuardStyle.captionFontSize,
+        sidebarTitleFontSize: Int = QuillWireGuardStyle.sidebarTitleFontSize,
+        backendTitleFontSize: Int = QuillWireGuardStyle.backendTitleFontSize,
+        detailTitleFontSize: Int = QuillWireGuardStyle.detailTitleFontSize,
+        emptyStateTitleFontSize: Int = QuillWireGuardStyle.emptyStateTitleFontSize,
+        listItemCornerRadius: Int = QuillWireGuardStyle.listItemCornerRadius,
+        importButtonCornerRadius: Int = QuillWireGuardStyle.importButtonCornerRadius,
+        detailTitleCornerRadius: Int = QuillWireGuardStyle.detailTitleCornerRadius,
+        importButtonVerticalPadding: Int = QuillWireGuardStyle.importButtonVerticalPadding,
+        importButtonHorizontalPadding: Int = QuillWireGuardStyle.importButtonHorizontalPadding,
+        detailSectionPadding: Int = QuillWireGuardStyle.detailSectionPadding,
+        detailSectionTopMargin: Int = QuillWireGuardStyle.detailSectionTopMargin,
+        sidebarWidth: Int = QuillWireGuardStyle.sidebarWidth,
+        sidebarMaximumWidth: Int = QuillWireGuardStyle.sidebarMaximumWidth,
+        sidebarPadding: Int = QuillWireGuardStyle.sidebarPadding,
+        sidebarBottomPadding: Int = QuillWireGuardStyle.sidebarBottomPadding,
+        detailPadding: Int = QuillWireGuardStyle.detailPadding,
+        detailSpacing: Int = QuillWireGuardStyle.detailSpacing,
+        importDialogWidth: Int = QuillWireGuardStyle.importDialogWidth,
+        importDialogHeight: Int = QuillWireGuardStyle.importDialogHeight
+    ) {
+        self.windowBackgroundColor = windowBackgroundColor
+        self.primaryTextColor = primaryTextColor
+        self.secondaryTextColor = secondaryTextColor
+        self.dividerColor = dividerColor
+        self.sidebarBackgroundColor = sidebarBackgroundColor
+        self.selectedRowBackgroundColor = selectedRowBackgroundColor
+        self.selectedRowTextColor = selectedRowTextColor
+        self.pressedButtonBackgroundColor = pressedButtonBackgroundColor
+        self.focusBorderColor = focusBorderColor
+        self.detailSectionBackgroundColor = detailSectionBackgroundColor
+        self.errorTextColor = errorTextColor
+        self.rootFontSize = rootFontSize
+        self.captionFontSize = captionFontSize
+        self.sidebarTitleFontSize = sidebarTitleFontSize
+        self.backendTitleFontSize = backendTitleFontSize
+        self.detailTitleFontSize = detailTitleFontSize
+        self.emptyStateTitleFontSize = emptyStateTitleFontSize
+        self.listItemCornerRadius = listItemCornerRadius
+        self.importButtonCornerRadius = importButtonCornerRadius
+        self.detailTitleCornerRadius = detailTitleCornerRadius
+        self.importButtonVerticalPadding = importButtonVerticalPadding
+        self.importButtonHorizontalPadding = importButtonHorizontalPadding
+        self.detailSectionPadding = detailSectionPadding
+        self.detailSectionTopMargin = detailSectionTopMargin
+        self.sidebarWidth = sidebarWidth
+        self.sidebarMaximumWidth = sidebarMaximumWidth
+        self.sidebarPadding = sidebarPadding
+        self.sidebarBottomPadding = sidebarBottomPadding
+        self.detailPadding = detailPadding
+        self.detailSpacing = detailSpacing
+        self.importDialogWidth = importDialogWidth
+        self.importDialogHeight = importDialogHeight
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        self.init(
+            windowBackgroundColor: try container.decodeIfPresent(
+                String.self,
+                forKey: .windowBackgroundColor
+            ) ?? QuillWireGuardStyle.windowBackgroundColor,
+            primaryTextColor: try container.decodeIfPresent(String.self, forKey: .primaryTextColor)
+                ?? QuillWireGuardStyle.primaryTextColor,
+            secondaryTextColor: try container.decodeIfPresent(String.self, forKey: .secondaryTextColor)
+                ?? QuillWireGuardStyle.secondaryTextColor,
+            dividerColor: try container.decodeIfPresent(String.self, forKey: .dividerColor)
+                ?? QuillWireGuardStyle.dividerColor,
+            sidebarBackgroundColor: try container.decodeIfPresent(String.self, forKey: .sidebarBackgroundColor)
+                ?? QuillWireGuardStyle.sidebarBackgroundColor,
+            selectedRowBackgroundColor: try container.decodeIfPresent(
+                String.self,
+                forKey: .selectedRowBackgroundColor
+            ) ?? QuillWireGuardStyle.selectedRowBackgroundColor,
+            selectedRowTextColor: try container.decodeIfPresent(String.self, forKey: .selectedRowTextColor)
+                ?? QuillWireGuardStyle.selectedRowTextColor,
+            pressedButtonBackgroundColor: try container.decodeIfPresent(
+                String.self,
+                forKey: .pressedButtonBackgroundColor
+            ) ?? QuillWireGuardStyle.pressedButtonBackgroundColor,
+            focusBorderColor: try container.decodeIfPresent(String.self, forKey: .focusBorderColor)
+                ?? QuillWireGuardStyle.focusBorderColor,
+            detailSectionBackgroundColor: try container.decodeIfPresent(
+                String.self,
+                forKey: .detailSectionBackgroundColor
+            ) ?? QuillWireGuardStyle.detailSectionBackgroundColor,
+            errorTextColor: try container.decodeIfPresent(String.self, forKey: .errorTextColor)
+                ?? QuillWireGuardStyle.errorTextColor,
+            rootFontSize: try container.decodeIfPresent(Int.self, forKey: .rootFontSize)
+                ?? QuillWireGuardStyle.rootFontSize,
+            captionFontSize: try container.decodeIfPresent(Int.self, forKey: .captionFontSize)
+                ?? QuillWireGuardStyle.captionFontSize,
+            sidebarTitleFontSize: try container.decodeIfPresent(Int.self, forKey: .sidebarTitleFontSize)
+                ?? QuillWireGuardStyle.sidebarTitleFontSize,
+            backendTitleFontSize: try container.decodeIfPresent(Int.self, forKey: .backendTitleFontSize)
+                ?? QuillWireGuardStyle.backendTitleFontSize,
+            detailTitleFontSize: try container.decodeIfPresent(Int.self, forKey: .detailTitleFontSize)
+                ?? QuillWireGuardStyle.detailTitleFontSize,
+            emptyStateTitleFontSize: try container.decodeIfPresent(Int.self, forKey: .emptyStateTitleFontSize)
+                ?? QuillWireGuardStyle.emptyStateTitleFontSize,
+            listItemCornerRadius: try container.decodeIfPresent(Int.self, forKey: .listItemCornerRadius)
+                ?? QuillWireGuardStyle.listItemCornerRadius,
+            importButtonCornerRadius: try container.decodeIfPresent(Int.self, forKey: .importButtonCornerRadius)
+                ?? QuillWireGuardStyle.importButtonCornerRadius,
+            detailTitleCornerRadius: try container.decodeIfPresent(Int.self, forKey: .detailTitleCornerRadius)
+                ?? QuillWireGuardStyle.detailTitleCornerRadius,
+            importButtonVerticalPadding: try container.decodeIfPresent(Int.self, forKey: .importButtonVerticalPadding)
+                ?? QuillWireGuardStyle.importButtonVerticalPadding,
+            importButtonHorizontalPadding: try container.decodeIfPresent(
+                Int.self,
+                forKey: .importButtonHorizontalPadding
+            ) ?? QuillWireGuardStyle.importButtonHorizontalPadding,
+            detailSectionPadding: try container.decodeIfPresent(Int.self, forKey: .detailSectionPadding)
+                ?? QuillWireGuardStyle.detailSectionPadding,
+            detailSectionTopMargin: try container.decodeIfPresent(Int.self, forKey: .detailSectionTopMargin)
+                ?? QuillWireGuardStyle.detailSectionTopMargin,
+            sidebarWidth: try container.decodeIfPresent(Int.self, forKey: .sidebarWidth)
+                ?? QuillWireGuardStyle.sidebarWidth,
+            sidebarMaximumWidth: try container.decodeIfPresent(Int.self, forKey: .sidebarMaximumWidth)
+                ?? QuillWireGuardStyle.sidebarMaximumWidth,
+            sidebarPadding: try container.decodeIfPresent(Int.self, forKey: .sidebarPadding)
+                ?? QuillWireGuardStyle.sidebarPadding,
+            sidebarBottomPadding: try container.decodeIfPresent(Int.self, forKey: .sidebarBottomPadding)
+                ?? QuillWireGuardStyle.sidebarBottomPadding,
+            detailPadding: try container.decodeIfPresent(Int.self, forKey: .detailPadding)
+                ?? QuillWireGuardStyle.detailPadding,
+            detailSpacing: try container.decodeIfPresent(Int.self, forKey: .detailSpacing)
+                ?? QuillWireGuardStyle.detailSpacing,
+            importDialogWidth: try container.decodeIfPresent(Int.self, forKey: .importDialogWidth)
+                ?? QuillWireGuardStyle.importDialogWidth,
+            importDialogHeight: try container.decodeIfPresent(Int.self, forKey: .importDialogHeight)
+                ?? QuillWireGuardStyle.importDialogHeight
+        )
+    }
+}
+
 public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
     public var title: String
     public var defaultWidth: Int
@@ -502,6 +759,7 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
     public var minimumHeight: Int
     public var backendStatusText: String
     public var presentation: QuillWireGuardPresentationSnapshot
+    public var style: QuillWireGuardStyleSnapshot
     public var selectedTunnelID: QuillWireGuardTunnelSnapshot.ID?
     public var tunnels: [QuillWireGuardTunnelSnapshot]
 
@@ -513,6 +771,7 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
         case minimumHeight
         case backendStatusText
         case presentation
+        case style
         case selectedTunnelID
         case tunnels
     }
@@ -525,6 +784,7 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
         minimumHeight: Int = Int(QuillWireGuardAppMetadata.linuxMinimumHeight),
         backendStatusText: String,
         presentation: QuillWireGuardPresentationSnapshot = QuillWireGuardPresentationSnapshot(),
+        style: QuillWireGuardStyleSnapshot = QuillWireGuardStyleSnapshot(),
         selectedTunnelID: QuillWireGuardTunnelSnapshot.ID?,
         tunnels: [QuillWireGuardTunnelSnapshot]
     ) {
@@ -535,6 +795,7 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
         self.minimumHeight = minimumHeight
         self.backendStatusText = backendStatusText
         self.presentation = presentation
+        self.style = style
         self.selectedTunnelID = selectedTunnelID
         self.tunnels = tunnels
     }
@@ -552,6 +813,10 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
             QuillWireGuardPresentationSnapshot.self,
             forKey: .presentation
         ) ?? QuillWireGuardPresentationSnapshot()
+        self.style = try container.decodeIfPresent(
+            QuillWireGuardStyleSnapshot.self,
+            forKey: .style
+        ) ?? QuillWireGuardStyleSnapshot()
         self.selectedTunnelID = try container.decodeIfPresent(
             QuillWireGuardTunnelSnapshot.ID.self,
             forKey: .selectedTunnelID
