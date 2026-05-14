@@ -4,7 +4,7 @@ QuillUI should prove itself against real open-source Swift apps that stress diff
 
 ## 1. Enchanted
 
-Status: active first port. Compile-green hard-gated on macOS CI; full upstream gluonfield/enchanted source tree compiles + links + backend-renders end-to-end on Linux via the QuillUI / SwiftOpenUI / QuillFoundation / QuillAppKit / QuillDataMacros + 22-shim compatibility layer (CP80). Enchanted's canonical Qt row now compiles through the explicit Qt manifest graph and generic Qt native host while the full SwiftUI tree remains on the GTK path.
+Status: active first port. Compile-green hard-gated on macOS CI; full upstream gluonfield/enchanted source tree compiles + links + backend-renders end-to-end on Linux via the QuillUI / SwiftOpenUI / QuillFoundation / QuillAppKit / QuillDataMacros + 22-shim compatibility layer (CP80). Enchanted's canonical Qt row now compiles through the explicit Qt manifest graph and dedicated Enchanted Qt native host while the full SwiftUI tree remains on the GTK path.
 
 Why it matters:
 

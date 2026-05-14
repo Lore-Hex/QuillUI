@@ -322,7 +322,8 @@ struct SourceHygieneTests {
 
         #expect(appTargets.contains("backend-renders end-to-end on Linux"))
         #expect(appTargets.contains("explicit Qt manifest graph"))
-        #expect(appTargets.contains("generic Qt native host"))
+        #expect(appTargets.contains("dedicated Enchanted Qt native host"))
+        #expect(!appTargets.contains("generic Qt native host while the full SwiftUI tree remains on the GTK path"))
         #expect(!appTargets.contains("GTK-renders end-to-end"))
 
         #expect(uiTestPlan.contains("Linux backend smoke"))
@@ -376,6 +377,8 @@ struct SourceHygieneTests {
         #expect(profileBaseline.contains("scripts/linux-backend-profile.sh <product> [settle] [steady] [backend]"))
         #expect(!profileBaseline.contains("scripts/linux-backend-profile.sh <product> [settle] [steady]`:"))
         #expect(linuxBuildTooling.contains("`runtime_mode` columns"))
+        #expect(linuxBuildTooling.contains("shared generic Qt native rows"))
+        #expect(!linuxBuildTooling.contains("generic Qt fallback rows"))
 
         #expect(offscreenRenderer.contains("scripts/linux-backend-check.sh"))
         #expect(!offscreenRenderer.contains("scripts/linux-gtk-check.sh"))
