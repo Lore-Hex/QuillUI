@@ -43,25 +43,23 @@ namespace {
 using QuillQtWidgets::label;
 
 QString stringValue(const QJsonObject &object, const char *key) {
-    return object.value(QString::fromUtf8(key)).toString();
+    return QuillQtWidgets::jsonStringValue(object, key);
 }
 
 QString stringValue(const QJsonObject &object, const char *key, const QString &fallback) {
-    const QJsonValue value = object.value(QString::fromUtf8(key));
-    return value.isString() ? value.toString() : fallback;
+    return QuillQtWidgets::jsonStringValue(object, key, fallback);
 }
 
 QString presentationValue(const QJsonObject &presentation, const char *key, const char *fallback) {
-    return stringValue(presentation, key, QString::fromUtf8(fallback));
+    return QuillQtWidgets::jsonPresentationValue(presentation, key, fallback);
 }
 
 QString styleValue(const QJsonObject &style, const char *key, const char *fallback) {
-    return stringValue(style, key, QString::fromUtf8(fallback));
+    return QuillQtWidgets::jsonStyleValue(style, key, fallback);
 }
 
 int intValue(const QJsonObject &object, const char *key, int fallback) {
-    const QJsonValue value = object.value(QString::fromUtf8(key));
-    return value.isDouble() ? value.toInt(fallback) : fallback;
+    return QuillQtWidgets::jsonIntValue(object, key, fallback);
 }
 
 QFont monospacedFont(const QJsonObject &style) {
@@ -98,11 +96,11 @@ QSize resolvedDefaultWindowSize(const QJsonObject &payload, const QSize &minimum
 }
 
 QJsonObject objectValue(const QJsonObject &object, const char *key) {
-    return object.value(QString::fromUtf8(key)).toObject();
+    return QuillQtWidgets::jsonObjectValue(object, key);
 }
 
 QJsonArray arrayValue(const QJsonObject &object, const char *key) {
-    return object.value(QString::fromUtf8(key)).toArray();
+    return QuillQtWidgets::jsonArrayValue(object, key);
 }
 
 void clearLayout(QLayout *layout) {

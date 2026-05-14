@@ -1,6 +1,9 @@
 #pragma once
 
 #include <QFrame>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QLabel>
 #include <QPushButton>
 #include <QRect>
@@ -26,6 +29,48 @@ inline bool environmentFlag(const char *name) {
         || value == QStringLiteral("true")
         || value == QStringLiteral("yes")
         || value == QStringLiteral("on");
+}
+
+inline QString jsonStringValue(const QJsonObject &object, const char *key) {
+    return object.value(QString::fromUtf8(key)).toString();
+}
+
+inline QString jsonStringValue(
+    const QJsonObject &object,
+    const char *key,
+    const QString &fallback
+) {
+    const QJsonValue value = object.value(QString::fromUtf8(key));
+    return value.isString() ? value.toString() : fallback;
+}
+
+inline QString jsonPresentationValue(
+    const QJsonObject &presentation,
+    const char *key,
+    const char *fallback
+) {
+    return jsonStringValue(presentation, key, QString::fromUtf8(fallback));
+}
+
+inline QString jsonStyleValue(
+    const QJsonObject &style,
+    const char *key,
+    const char *fallback
+) {
+    return jsonStringValue(style, key, QString::fromUtf8(fallback));
+}
+
+inline int jsonIntValue(const QJsonObject &object, const char *key, int fallback) {
+    const QJsonValue value = object.value(QString::fromUtf8(key));
+    return value.isDouble() ? value.toInt(fallback) : fallback;
+}
+
+inline QJsonObject jsonObjectValue(const QJsonObject &object, const char *key) {
+    return object.value(QString::fromUtf8(key)).toObject();
+}
+
+inline QJsonArray jsonArrayValue(const QJsonObject &object, const char *key) {
+    return object.value(QString::fromUtf8(key)).toArray();
 }
 
 inline QLabel *label(
