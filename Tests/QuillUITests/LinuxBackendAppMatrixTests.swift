@@ -595,6 +595,13 @@ struct LinuxBackendAppMatrixTests {
         quillui_append_backend_selection_start_environment selection_env quill-signal qt click
         printf 'click-selection-env=%s\\n' "$(quillui_print_selection_env)"
 
+        quillui_unset_backend_scoped_app_environment
+        printf 'scoped-generic-after-unset=%s/%s\\n' "${QUILLUI_GTK_GENERIC_SELECTED_INDEX_ON_START-unset}" "${QUILLUI_QT_GENERIC_SELECTED_INDEX_ON_START-unset}"
+        printf 'scoped-icecubes-after-unset=%s/%s\\n' "${QUILLUI_GTK_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START-unset}" "${QUILLUI_QT_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START-unset}"
+        printf 'scoped-netnewswire-after-unset=%s/%s\\n' "${QUILLUI_GTK_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START-unset}" "${QUILLUI_QT_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START-unset}"
+        printf 'scoped-codeedit-after-unset=%s/%s\\n' "${QUILLUI_GTK_CODEEDIT_SELECTED_FILE_INDEX_ON_START-unset}" "${QUILLUI_QT_CODEEDIT_SELECTED_FILE_INDEX_ON_START-unset}"
+        printf 'scoped-iina-after-unset=%s/%s\\n' "${QUILLUI_GTK_IINA_SELECTED_PLAYLIST_INDEX_ON_START-unset}" "${QUILLUI_QT_IINA_SELECTED_PLAYLIST_INDEX_ON_START-unset}"
+
         unset QUILLUI_BACKEND
         quillui_export_backend_argument "" quill-wireguard
         printf 'product-default=%s\\n' "$QUILLUI_BACKEND"
@@ -668,6 +675,11 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("telegram-gtk-selection-env=QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START=1|"))
         #expect(result.output.contains("shared-chat-selection-env=QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START=2|"))
         #expect(result.output.contains("click-selection-env=\n"))
+        #expect(result.output.contains("scoped-generic-after-unset=unset/unset"))
+        #expect(result.output.contains("scoped-icecubes-after-unset=unset/unset"))
+        #expect(result.output.contains("scoped-netnewswire-after-unset=unset/unset"))
+        #expect(result.output.contains("scoped-codeedit-after-unset=unset/unset"))
+        #expect(result.output.contains("scoped-iina-after-unset=unset/unset"))
         #expect(result.output.contains("product-default=gtk"))
         #expect(result.output.contains("product-explicit=qt"))
         #expect(result.output.contains("launch-env=GTK_A11Y=none|QUILLUI_BACKEND=qt|"))
