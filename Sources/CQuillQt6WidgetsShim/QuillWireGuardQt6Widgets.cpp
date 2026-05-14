@@ -1,4 +1,5 @@
 #include "CQuillQt6WidgetsShim.h"
+#include "QuillQtWidgetsSupport.hpp"
 
 #include <QApplication>
 #include <QByteArray>
@@ -36,9 +37,10 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <cstdlib>
 
 namespace {
+
+using QuillQtWidgets::label;
 
 QString stringValue(const QJsonObject &object, const char *key) {
     return object.value(QString::fromUtf8(key)).toString();
@@ -113,15 +115,6 @@ void clearLayout(QLayout *layout) {
         }
         delete item;
     }
-}
-
-QLabel *label(const QString &text, const QString &objectName = QString()) {
-    QLabel *view = new QLabel(text);
-    view->setWordWrap(true);
-    if (!objectName.isEmpty()) {
-        view->setObjectName(objectName);
-    }
-    return view;
 }
 
 void addDetailRow(
@@ -578,24 +571,11 @@ bool importConfigurationIntoList(
 }
 
 QString startupImportConfigurationFile() {
-    const char *fileName = std::getenv("QUILLUI_WIREGUARD_QT_IMPORT_CONFIGURATION_FILE_ON_START");
-    if (fileName == nullptr || fileName[0] == '\0') {
-        return QString();
-    }
-    return QString::fromUtf8(fileName);
+    return QuillQtWidgets::environmentValue("QUILLUI_WIREGUARD_QT_IMPORT_CONFIGURATION_FILE_ON_START");
 }
 
 bool startupImportShouldOpenDialog() {
-    const char *value = std::getenv("QUILLUI_WIREGUARD_QT_IMPORT_DIALOG_ON_START");
-    if (value == nullptr || value[0] == '\0') {
-        return false;
-    }
-
-    const QString normalized = QString::fromUtf8(value).trimmed().toLower();
-    return normalized == QStringLiteral("1")
-        || normalized == QStringLiteral("true")
-        || normalized == QStringLiteral("yes")
-        || normalized == QStringLiteral("on");
+    return QuillQtWidgets::environmentFlag("QUILLUI_WIREGUARD_QT_IMPORT_DIALOG_ON_START");
 }
 
 void showImportDialog(

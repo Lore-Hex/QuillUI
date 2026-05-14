@@ -353,6 +353,14 @@ struct QuillWireGuardCoreTests {
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillWireGuardQt6Widgets.cpp"),
             encoding: .utf8
         )
+        let nativeShimSupportSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillQtWidgetsSupport.hpp"),
+            encoding: .utf8
+        )
+        let nativeInteractionSmokeSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillInteractionSmokeQt6Widgets.cpp"),
+            encoding: .utf8
+        )
 
         #expect(source.contains("QuillWireGuardScene.scene()"))
         #expect(source.contains("QuillApp.run(QuillWireGuardApp.self)"))
@@ -384,6 +392,19 @@ struct QuillWireGuardCoreTests {
         #expect(nativeShimSource.contains("QPushButton"))
         #expect(nativeShimSource.contains("QFileDialog"))
         #expect(nativeShimSource.contains("QShortcut"))
+        #expect(nativeShimSource.contains("#include \"QuillQtWidgetsSupport.hpp\""))
+        #expect(nativeShimSupportSource.contains("namespace QuillQtWidgets"))
+        #expect(nativeShimSupportSource.contains("inline bool environmentFlag(const char *name)"))
+        #expect(nativeShimSupportSource.contains("inline QLabel *label("))
+        #expect(nativeShimSupportSource.contains("inline QLabel *positionedLabel("))
+        #expect(nativeShimSupportSource.contains("inline QPushButton *positionedButton("))
+        #expect(nativeShimSupportSource.contains("inline void repolish(QWidget *widget)"))
+        #expect(nativeInteractionSmokeSource.contains("#include \"QuillQtWidgetsSupport.hpp\""))
+        #expect(nativeInteractionSmokeSource.contains("QuillQtWidgets::positionedLabel("))
+        #expect(nativeInteractionSmokeSource.contains("QuillQtWidgets::positionedButton("))
+        #expect(nativeInteractionSmokeSource.contains("QuillQtWidgets::repolish(sidebarButton)"))
+        #expect(!nativeInteractionSmokeSource.contains("interactionSmokeButton("))
+        #expect(!nativeInteractionSmokeSource.contains("interactionSmokeLabel("))
         #expect(nativeShimSource.contains("QFont monospacedFont(const QJsonObject &style)"))
         #expect(nativeShimSource.contains("QPlainTextEdit *configurationTextEditor("))
         #expect(nativeShimSource.contains("editor->setFont(monospacedFont(style))"))
@@ -404,6 +425,8 @@ struct QuillWireGuardCoreTests {
         #expect(nativeShimSource.contains("readImportConfigurationFile("))
         #expect(nativeShimSource.contains("startupImportConfigurationFile()"))
         #expect(nativeShimSource.contains("startupImportShouldOpenDialog()"))
+        #expect(nativeShimSource.contains("QuillQtWidgets::environmentValue(\"QUILLUI_WIREGUARD_QT_IMPORT_CONFIGURATION_FILE_ON_START\")"))
+        #expect(nativeShimSource.contains("QuillQtWidgets::environmentFlag(\"QUILLUI_WIREGUARD_QT_IMPORT_DIALOG_ON_START\")"))
         #expect(nativeShimSource.contains("QUILLUI_WIREGUARD_QT_IMPORT_CONFIGURATION_FILE_ON_START"))
         #expect(nativeShimSource.contains("QUILLUI_WIREGUARD_QT_IMPORT_DIALOG_ON_START"))
         #expect(nativeShimSource.contains("QString *errorText = nullptr"))
