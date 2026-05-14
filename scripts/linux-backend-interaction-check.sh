@@ -7,6 +7,7 @@ SCREENSHOT_PATH="${1:-$OUTPUT_DIR/quill-backend-interaction-smoke-open.png}"
 PRODUCT="${2:-quill-gtk-interaction-smoke}"
 REQUESTED_BACKEND="${3:-${QUILLUI_BACKEND:-}}"
 APP_EXECUTABLE=""
+APP_LOG_PATH="${QUILLUI_BACKEND_INTERACTION_APP_LOG:-/tmp/quillui-backend-interaction-app.log}"
 
 source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
@@ -58,6 +59,15 @@ wireguard_qt_import_configuration_file() {
   printf '%s\n' "$fixture_path"
 }
 
+print_app_log_on_verifier_failure() {
+  if [[ ! -s "$APP_LOG_PATH" ]]; then
+    return 0
+  fi
+
+  echo "Backend interaction app log ($APP_LOG_PATH):" >&2
+  tail -n "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}" "$APP_LOG_PATH" >&2 || true
+}
+
 DISPLAY_ID="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_INTERACTION_DISPLAY:-:95}")"
 SCREEN_SIZE="$(quillui_backend_screen_size "$PRODUCT" "${QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE:-}" "1180x760x24" "$reference_window_width" "$reference_window_height")"
 screen_width="${SCREEN_SIZE%%x*}"
@@ -90,7 +100,7 @@ if [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
       ;;
   esac
 fi
-env "${app_environment[@]}" "$APP_EXECUTABLE" >/tmp/quillui-backend-interaction-app.log 2>&1 &
+env "${app_environment[@]}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
 app_pid=$!
 
 sleep 4
@@ -369,4 +379,10 @@ DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 
 VERIFY_PRODUCT=""
 quillui_backend_interaction_verify_product "$PRODUCT" "$INTERACTION_MODE" VERIFY_PRODUCT
-"$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"
+if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"; then
+  :
+else
+  verify_status=$?
+  print_app_log_on_verifier_failure
+  exit "$verify_status"
+fi

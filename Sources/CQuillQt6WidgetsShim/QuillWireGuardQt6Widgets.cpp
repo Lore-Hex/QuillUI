@@ -35,6 +35,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 
 namespace {
@@ -469,6 +470,15 @@ void clearImportError(QLabel *error) {
     }
 }
 
+void reportStartupImportError(const QString &message) {
+    if (message.isEmpty()) {
+        return;
+    }
+
+    const QByteArray bytes = message.toUtf8();
+    std::fprintf(stderr, "quill-wireguard-qt: startup import failed: %s\n", bytes.constData());
+}
+
 bool readImportConfigurationFile(
     const QString &fileName,
     QString *configuration,
@@ -499,16 +509,24 @@ bool importConfigurationIntoList(
     const QJsonObject &presentation,
     quill_wireguard_qt_import_config_callback importConfig,
     quill_wireguard_qt_free_string_callback freeString,
-    QLabel *error
+    QLabel *error,
+    QString *errorText = nullptr
 ) {
+    auto fail = [&](const QString &message) {
+        setImportError(error, message);
+        if (errorText != nullptr) {
+            *errorText = message;
+        }
+        return false;
+    };
+
     const QString trimmedConfiguration = configuration.trimmed();
     if (trimmedConfiguration.isEmpty()) {
-        setImportError(error, presentationValue(
+        return fail(presentationValue(
             presentation,
             "importEmptyConfigurationError",
             "Paste a WireGuard configuration before importing."
         ));
-        return false;
     }
 
     QString importError;
@@ -521,12 +539,14 @@ bool importConfigurationIntoList(
         &importError
     );
     if (!importError.isEmpty()) {
-        setImportError(error, importError);
-        return false;
+        return fail(importError);
     }
 
     appendImportedTunnel(tunnels, list, countLabel, tunnel);
     clearImportError(error);
+    if (errorText != nullptr) {
+        errorText->clear();
+    }
     return true;
 }
 
@@ -841,9 +861,11 @@ int quill_wireguard_qt_run_wireguard_json(
             QString configuration;
             QString fileError;
             if (!readImportConfigurationFile(startupImportFile, &configuration, &fileError)) {
+                reportStartupImportError(fileError);
                 return;
             }
-            importConfigurationIntoList(
+            QString importError;
+            if (!importConfigurationIntoList(
                 configuration,
                 &tunnels,
                 list,
@@ -851,8 +873,11 @@ int quill_wireguard_qt_run_wireguard_json(
                 presentation,
                 import_config,
                 free_string,
-                nullptr
-            );
+                nullptr,
+                &importError
+            )) {
+                reportStartupImportError(importError);
+            }
         });
     }
     return app.exec();
