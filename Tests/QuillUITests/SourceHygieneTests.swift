@@ -520,6 +520,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillGenericQt6Widgets.cpp"),
             encoding: .utf8
         )
+        let genericQtRuntime = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillGenericQtNativeRuntime/QuillGenericQtNativeRuntime.swift"),
+            encoding: .utf8
+        )
         let qtNativeSmokeHost = try String(
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillInteractionSmokeQt6Widgets.cpp"),
             encoding: .utf8
@@ -630,6 +634,13 @@ struct SourceHygieneTests {
         #expect(genericQtHost.contains("QObject::connect(itemList, &QListWidget::currentRowChanged"))
         #expect(genericQtHost.contains("selectedDetailTitle(payload, items, row)"))
         #expect(genericQtHost.contains("selectedDetailSubtitle(payload, items, row)"))
+        #expect(genericQtHost.contains("populateDetailContent(detailPane.contentLayout, payload, items, row)"))
+        #expect(genericQtHost.contains("selectedSections(payload, items, row)"))
+        #expect(genericQtHost.contains("selectedMessages(payload, items, row)"))
+        #expect(genericQtRuntime.contains("public var sections: [Section]?"))
+        #expect(genericQtRuntime.contains("public var messages: [Message]?"))
+        #expect(genericQtRuntime.contains("detailSubtitle: \"Timeline interaction fixture with the lower row selected.\""))
+        #expect(genericQtRuntime.contains("detailSubtitle: \"Media-heavy chat fixture for the lower selected row.\""))
 
         #expect(sharedView.contains("public struct QuillInteractionSmokeConfiguration"))
         #expect(sharedView.contains("public struct QuillInteractionSmokeView"))

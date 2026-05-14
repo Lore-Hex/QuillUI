@@ -30,12 +30,29 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         public var subtitle: String
         public var badge: String
         public var height: Int
+        public var detailTitle: String?
+        public var detailSubtitle: String?
+        public var sections: [Section]?
+        public var messages: [Message]?
 
-        public init(title: String, subtitle: String, badge: String = "", height: Int = 76) {
+        public init(
+            title: String,
+            subtitle: String,
+            badge: String = "",
+            height: Int = 76,
+            detailTitle: String? = nil,
+            detailSubtitle: String? = nil,
+            sections: [Section]? = nil,
+            messages: [Message]? = nil
+        ) {
             self.title = title
             self.subtitle = subtitle
             self.badge = badge
             self.height = height
+            self.detailTitle = detailTitle
+            self.detailSubtitle = detailSubtitle
+            self.sections = sections
+            self.messages = messages
         }
     }
 
@@ -142,9 +159,36 @@ public enum QuillGenericQtAppCatalog {
         detailTitle: "Timeline item",
         detailSubtitle: "Fixture-backed Mastodon shell compiled through Qt without SwiftOpenUI.",
         items: [
-            .init(title: "QuillUI", subtitle: "Backend parity update", badge: "2m"),
-            .init(title: "Swift on Linux", subtitle: "GTK and Qt builds stay explicit", badge: "8m"),
-            .init(title: "Mastodon", subtitle: "Timeline cards, replies, and boosts", badge: "14m")
+            .init(
+                title: "QuillUI",
+                subtitle: "Backend parity update",
+                badge: "2m",
+                detailSubtitle: "Backend parity notes from the QuillUI account.",
+                sections: [
+                    .init(title: "Post", body: "The Qt list now drives the same detail surface for every generic app target."),
+                    .init(title: "Actions", body: "Reply, boost, favorite, and share affordances stay in the same hierarchy as the GTK shell.")
+                ]
+            ),
+            .init(
+                title: "Swift on Linux",
+                subtitle: "GTK and Qt builds stay explicit",
+                badge: "8m",
+                detailSubtitle: "Toolchain update focused on Linux app packaging.",
+                sections: [
+                    .init(title: "Thread", body: "The canonical product name selects exactly one backend graph through QUILLUI_LINUX_BACKEND."),
+                    .init(title: "Build note", body: "SwiftPM stays deterministic because Qt-only targets do not pull in the GTK graph.")
+                ]
+            ),
+            .init(
+                title: "Mastodon",
+                subtitle: "Timeline cards, replies, and boosts",
+                badge: "14m",
+                detailSubtitle: "Timeline interaction fixture with the lower row selected.",
+                sections: [
+                    .init(title: "Conversation", body: "Replies and boost counts remain visible when the selected row changes."),
+                    .init(title: "Fixture", body: "This row gives the Qt screenshot smoke a stable selected-detail target.")
+                ]
+            )
         ],
         sections: [
             .init(title: "Timeline density", body: "Rows keep avatars, timestamps, and action affordances in the same information hierarchy as the GTK shell."),
@@ -212,9 +256,47 @@ public enum QuillGenericQtAppCatalog {
         detailTitle: "Conversation",
         detailSubtitle: "Shared chat shell rendered through Qt for parity with the GTK Signal target.",
         items: [
-            .init(title: "Mira Patel", subtitle: "Lunch moved to 12:30", badge: "2"),
-            .init(title: "Design review", subtitle: "Wireframes are ready"),
-            .init(title: "Family", subtitle: "Photos from the trip", badge: "5")
+            .init(
+                title: "Mira Patel",
+                subtitle: "Lunch moved to 12:30",
+                badge: "2",
+                detailSubtitle: "Direct message thread with unread replies.",
+                sections: [
+                    .init(title: "Thread state", body: "Unread badges, preview text, and encrypted conversation chrome stay app-specific."),
+                    .init(title: "Parity target", body: "The Qt pane now follows the selected chat instead of showing a static fallback.")
+                ],
+                messages: [
+                    .init(sender: "Mira", body: "Lunch moved to 12:30."),
+                    .init(sender: "You", body: "Works for me.")
+                ]
+            ),
+            .init(
+                title: "Design review",
+                subtitle: "Wireframes are ready",
+                detailSubtitle: "Group thread for product review notes.",
+                sections: [
+                    .init(title: "Thread state", body: "Group chat fixtures keep participants, attachment context, and delivery status in one shared model."),
+                    .init(title: "Visual contract", body: "Selection-driven detail content gives GTK and Qt parity checks more meaningful landmarks.")
+                ],
+                messages: [
+                    .init(sender: "Ari", body: "Wireframes are ready for the review."),
+                    .init(sender: "You", body: "I will compare the desktop and Linux captures.")
+                ]
+            ),
+            .init(
+                title: "Family",
+                subtitle: "Photos from the trip",
+                badge: "5",
+                detailSubtitle: "Media-heavy chat fixture for the lower selected row.",
+                sections: [
+                    .init(title: "Thread state", body: "The selected chat keeps media previews and unread state separate from the shared shell."),
+                    .init(title: "Backend behavior", body: "Changing rows updates headers, detail cards, and messages through one Qt host path.")
+                ],
+                messages: [
+                    .init(sender: "Sam", body: "Added the photos from the trip."),
+                    .init(sender: "You", body: "Saving them after this build passes.")
+                ]
+            )
         ],
         sections: [
             .init(title: "Shared chat chrome", body: "Signal and Telegram use the same high-level chat layout contracts, with only app-specific fixture data changing."),
