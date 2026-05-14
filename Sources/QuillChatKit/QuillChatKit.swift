@@ -1,4 +1,5 @@
 import Foundation
+import QuillFoundation
 import SwiftUI
 
 private struct ChatUncheckedSendableView<Content: View>: @unchecked Sendable {
@@ -83,14 +84,7 @@ public enum ChatInitialSelection {
         environmentKeys: [String],
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> Int? {
-        for key in environmentKeys {
-            guard let rawValue = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !rawValue.isEmpty,
-                  let index = Int(rawValue)
-            else { continue }
-            return index
-        }
-        return nil
+        QuillInitialSelection.index(environmentKeys: environmentKeys, environment: environment)
     }
 
     public static func selectedID<Item: ChatListItem>(
@@ -98,12 +92,7 @@ public enum ChatInitialSelection {
         environmentKeys: [String],
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> Item.ID? {
-        guard !items.isEmpty,
-              let requestedIndex = index(environmentKeys: environmentKeys, environment: environment)
-        else { return nil }
-
-        let clampedIndex = min(max(requestedIndex, 0), items.count - 1)
-        return items[clampedIndex].id
+        QuillInitialSelection.selectedID(in: items, environmentKeys: environmentKeys, environment: environment)
     }
 }
 

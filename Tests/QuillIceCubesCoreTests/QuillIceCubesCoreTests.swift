@@ -201,4 +201,23 @@ struct QuillIceCubesCoreTests {
             #expect(row.avatar == status.account.avatar)
         }
     }
+
+    @Test("Initial timeline selection reads the shared backend env key")
+    func initialTimelineSelectionReadsEnvironment() {
+        let rows = QuillIceCubesProfileFixtures.rows
+
+        #expect(QuillIceCubesInitialSelection.selectedTimelineIndexEnvironmentKey == "QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START")
+        #expect(
+            QuillIceCubesInitialSelection.selectedTimelineID(
+                in: rows,
+                environment: ["QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START": "1"]
+            ) == rows[1].id
+        )
+        #expect(
+            QuillIceCubesInitialSelection.selectedTimelineID(
+                in: rows,
+                environment: ["QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START": "99"]
+            ) == rows.last?.id
+        )
+    }
 }

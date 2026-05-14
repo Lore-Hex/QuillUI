@@ -85,4 +85,23 @@ struct QuillCodeEditCoreTests {
         let ids = project.files.map(\.id)
         #expect(Set(ids).count == ids.count)
     }
+
+    @Test("Initial file selection reads the shared backend env key")
+    func initialFileSelectionReadsEnvironment() {
+        let files = QuillCodeEditFixtures.project.files
+
+        #expect(QuillCodeEditInitialSelection.selectedFileIndexEnvironmentKey == "QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START")
+        #expect(
+            QuillCodeEditInitialSelection.selectedFileID(
+                in: files,
+                environment: ["QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START": "1"]
+            ) == files[1].id
+        )
+        #expect(
+            QuillCodeEditInitialSelection.selectedFileID(
+                in: files,
+                environment: ["QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START": "-1"]
+            ) == files.first?.id
+        )
+    }
 }

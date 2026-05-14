@@ -62,4 +62,23 @@ struct QuillIINACoreTests {
         #expect(titles.contains("Tears of Steel"))
         #expect(titles.contains("Charge"))
     }
+
+    @Test("Initial playlist selection reads the shared backend env key")
+    func initialPlaylistSelectionReadsEnvironment() {
+        let playlist = QuillIINAFixtures.playlist
+
+        #expect(QuillIINAInitialSelection.selectedPlaylistIndexEnvironmentKey == "QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START")
+        #expect(
+            QuillIINAInitialSelection.selectedPlaylistID(
+                in: playlist,
+                environment: ["QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START": "2"]
+            ) == playlist[2].id
+        )
+        #expect(
+            QuillIINAInitialSelection.selectedPlaylistID(
+                in: playlist,
+                environment: ["QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START": "99"]
+            ) == playlist.last?.id
+        )
+    }
 }

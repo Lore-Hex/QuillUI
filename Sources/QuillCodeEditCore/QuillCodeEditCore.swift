@@ -1,4 +1,5 @@
 import Foundation
+import QuillFoundation
 import QuillUI
 
 /// Quill CodeEdit fixtures-only IDE shell.
@@ -18,11 +19,20 @@ import QuillUI
 /// needing real filesystem reads.
 @MainActor
 public struct QuillCodeEditContentView: View {
-    @State private var openTabs: [ProjectFile.ID] = []
+    @State private var openTabs: [ProjectFile.ID]
     @State private var activeID: ProjectFile.ID?
-    @State private var project = QuillCodeEditFixtures.project
+    @State private var project: Project
 
-    public init() {}
+    public init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        let project = QuillCodeEditFixtures.project
+        let selectedID = QuillCodeEditInitialSelection.selectedFileID(
+            in: project.files,
+            environment: environment
+        )
+        _project = State(initialValue: project)
+        _openTabs = State(initialValue: selectedID.map { [$0] } ?? [])
+        _activeID = State(initialValue: selectedID)
+    }
 
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated {
@@ -44,14 +54,22 @@ public struct QuillCodeEditContentView: View {
                     Button {
                         open(file)
                     } label: {
-                        HStack(spacing: 6) {
-                            Text(icon(for: file))
-                            Text(file.name).font(.caption)
-                        }
+                        fileTreeRow(file)
                     }
                 }
             }
         }
+    }
+
+    private func fileTreeRow(_ file: ProjectFile) -> some View {
+        HStack(spacing: 6) {
+            Text(icon(for: file))
+            Text(file.name).font(.caption)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(activeID == file.id ? Color.gray.opacity(0.18) : Color.clear)
     }
 
     private var editorPane: some View {
@@ -177,6 +195,21 @@ public struct ProjectFile: Identifiable, Hashable, Sendable {
 public struct Project: Sendable {
     public var name: String
     public var files: [ProjectFile]
+}
+
+public enum QuillCodeEditInitialSelection {
+    public static let selectedFileIndexEnvironmentKey = "QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START"
+
+    public static func selectedFileID(
+        in files: [ProjectFile],
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> ProjectFile.ID? {
+        QuillInitialSelection.selectedID(
+            in: files,
+            environmentKeys: [selectedFileIndexEnvironmentKey],
+            environment: environment
+        )
+    }
 }
 
 public enum QuillCodeEditFixtures {

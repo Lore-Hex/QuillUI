@@ -293,9 +293,9 @@ let quillUIDependencies: [Target.Dependency] = [
 #endif
 
 #if os(Linux)
-let quillChatKitDependencies: [Target.Dependency] = ["SwiftUI"]
+let quillChatKitDependencies: [Target.Dependency] = ["QuillFoundation", "SwiftUI"]
 #else
-let quillChatKitDependencies: [Target.Dependency] = []
+let quillChatKitDependencies: [Target.Dependency] = ["QuillFoundation"]
 #endif
 
 let nnwSwiftSettings: [SwiftSetting] = [
@@ -661,7 +661,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillIINACore",
-        dependencies: ["QuillUI"],
+        dependencies: ["QuillUI", "QuillFoundation"],
         swiftSettings: appSwiftSettings
     ),
     .executableTarget(
@@ -678,7 +678,7 @@ var targets: [Target] = [
     // layer without the opt-in path.
     .target(
         name: "QuillCodeEditCore",
-        dependencies: ["QuillUI"],
+        dependencies: ["QuillUI", "QuillFoundation"],
         swiftSettings: appSwiftSettings
     ),
     .executableTarget(
@@ -1331,6 +1331,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillKitTests",
             dependencies: ["QuillKit"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "QuillFoundationTests",
+            dependencies: ["QuillFoundation"],
             swiftSettings: appSwiftSettings
         ),
         // Covers IceCubesAPI — the self-contained Mastodon API

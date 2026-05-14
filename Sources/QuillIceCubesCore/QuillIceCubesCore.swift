@@ -1,4 +1,5 @@
 import Foundation
+import QuillFoundation
 import QuillUI
 
 enum QuillIceCubesProfileLabels {
@@ -25,11 +26,15 @@ enum QuillIceCubesProfileLabels {
 public struct QuillIceCubesContentView: View {
     @State private var client = MastodonClient(server: "mastodon.social", version: .v1, oauthToken: nil)
     @State private var timelineRows: [IceCubesTimelineRow] = []
+    @State private var selectedRowID: IceCubesTimelineRow.ID?
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
     @State private var didStartTimelineLoad = false
+    private let initialSelectionEnvironment: [String: String]
 
-    public init() {}
+    public init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        self.initialSelectionEnvironment = environment
+    }
 
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated { profiledTimeline }
@@ -151,7 +156,11 @@ public struct QuillIceCubesContentView: View {
                 // backends compile.
                 List {
                     ForEach(timelineRows) { row in
-                        statusRow(row)
+                        Button {
+                            selectedRowID = row.id
+                        } label: {
+                            statusRow(row)
+                        }
                     }
                 }
                 #if !os(Linux)
@@ -208,6 +217,9 @@ public struct QuillIceCubesContentView: View {
                 .font(.body)
         }
         .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(selectedRowID == row.id ? Color.gray.opacity(0.18) : Color.clear)
     }
 
     @ViewBuilder
@@ -247,6 +259,7 @@ public struct QuillIceCubesContentView: View {
         if timelineRows != rows {
             timelineRows = rows
         }
+        applyInitialTimelineSelectionIfNeeded(to: rows)
         if isLoading {
             isLoading = false
         }
@@ -270,12 +283,21 @@ public struct QuillIceCubesContentView: View {
             if self.timelineRows != rows {
                 self.timelineRows = rows
             }
+            self.applyInitialTimelineSelectionIfNeeded(to: rows)
         } catch {
             self.errorMessage = error.localizedDescription
         }
         if isLoading {
             isLoading = false
         }
+    }
+
+    private func applyInitialTimelineSelectionIfNeeded(to rows: [IceCubesTimelineRow]) {
+        guard selectedRowID == nil else { return }
+        selectedRowID = QuillIceCubesInitialSelection.selectedTimelineID(
+            in: rows,
+            environment: initialSelectionEnvironment
+        )
     }
 }
 
@@ -311,6 +333,21 @@ public struct IceCubesTimelineRow: Identifiable, Hashable, Sendable {
             handleText: status.account.handleText,
             contentText: status.contentText,
             avatar: status.account.avatar
+        )
+    }
+}
+
+public enum QuillIceCubesInitialSelection {
+    public static let selectedTimelineIndexEnvironmentKey = "QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START"
+
+    public static func selectedTimelineID(
+        in rows: [IceCubesTimelineRow],
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> IceCubesTimelineRow.ID? {
+        QuillInitialSelection.selectedID(
+            in: rows,
+            environmentKeys: [selectedTimelineIndexEnvironmentKey],
+            environment: environment
         )
     }
 }

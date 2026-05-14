@@ -245,4 +245,16 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.selectedDetail == detail)
         #expect(model.statusText == statusText)
     }
+
+    @MainActor
+    @Test("RSSReaderModel applies initial feed selection from the shared backend env key")
+    func readerModelInitialFeedSelectionReadsEnvironment() {
+        let model = RSSReaderModel(environment: ["QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START": "1"])
+
+        model.seedProfileFixtures()
+
+        #expect(QuillNetNewsWireInitialSelection.selectedFeedIndexEnvironmentKey == "QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START")
+        #expect(model.selectedItem?.id == "2")
+        #expect(model.selectedDetail?.id == "2")
+    }
 }

@@ -264,6 +264,11 @@ final class RSSReaderModel: ObservableObject {
     @Published private(set) var selectedDetail: RSSArticleDetail?
     @Published private(set) var statusText = "0 items"
     private var didStartInitialLoad = false
+    private let initialSelectionEnvironment: [String: String]
+
+    init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        self.initialSelectionEnvironment = environment
+    }
 
     /// Profile-mode bypass: populate `items` + `feedTitle` with
     /// fixture content so the rendered timeline has shape, then
@@ -275,7 +280,7 @@ final class RSSReaderModel: ObservableObject {
         didStartInitialLoad = true
         setFeedTitle("Profile Fixture Feed")
         setItems(Self.profileFixtureItems)
-        selectItem(id: items.first?.id)
+        selectItem(id: preferredInitialItemID(in: items))
         setError(nil)
         setLoading(false)
     }
@@ -302,7 +307,7 @@ final class RSSReaderModel: ObservableObject {
             self.setFeedTitle(parsed.title)
             self.setItems(Array(parsed.items.prefix(50)))
             if self.selectedID == nil {
-                self.selectItem(id: self.items.first?.id)
+                self.selectItem(id: self.preferredInitialItemID(in: self.items))
             }
         } catch {
             self.setError("\(error)")
@@ -346,6 +351,13 @@ final class RSSReaderModel: ObservableObject {
         if statusText != nextStatusText {
             statusText = nextStatusText
         }
+    }
+
+    private func preferredInitialItemID(in items: [RSSItem]) -> RSSItem.ID? {
+        QuillNetNewsWireInitialSelection.selectedFeedID(
+            in: items,
+            environment: initialSelectionEnvironment
+        ) ?? items.first?.id
     }
 
     private func setItems(_ newItems: [RSSItem]) {
@@ -392,6 +404,21 @@ final class RSSReaderModel: ObservableObject {
             descriptionHTML: "<p>Body of the second fixture article.</p>"
         ),
     ]
+}
+
+public enum QuillNetNewsWireInitialSelection {
+    public static let selectedFeedIndexEnvironmentKey = "QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START"
+
+    public static func selectedFeedID(
+        in items: [RSSItem],
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> RSSItem.ID? {
+        QuillInitialSelection.selectedID(
+            in: items,
+            environmentKeys: [selectedFeedIndexEnvironmentKey],
+            environment: environment
+        )
+    }
 }
 
 /// Minimal RSS 2.0 + Atom parser backed by `Foundation.XMLParser`.

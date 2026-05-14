@@ -1,4 +1,5 @@
 import Foundation
+import QuillFoundation
 import QuillUI
 
 /// Quill IINA fixtures-only media-player shell.
@@ -15,11 +16,18 @@ import QuillUI
 ///   (no-op so far; future slice wires a real `.fileImporter`).
 @MainActor
 public struct QuillIINAContentView: View {
-    @State private var playlist: [PlaylistItem] = QuillIINAFixtures.playlist
-    @State private var selectedID: PlaylistItem.ID? = QuillIINAFixtures.playlist.first?.id
+    @State private var playlist: [PlaylistItem]
+    @State private var selectedID: PlaylistItem.ID?
     @State private var isPlaying = false
 
-    public init() {}
+    public init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        let playlist = QuillIINAFixtures.playlist
+        _playlist = State(initialValue: playlist)
+        _selectedID = State(initialValue:
+            QuillIINAInitialSelection.selectedPlaylistID(in: playlist, environment: environment)
+            ?? playlist.first?.id
+        )
+    }
 
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated {
@@ -91,7 +99,10 @@ public struct QuillIINAContentView: View {
             Text(item.title).font(.subheadline).lineLimit(1)
             Text(item.subtitle).font(.caption).foregroundColor(.secondary).lineLimit(1)
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(selectedID == item.id ? Color.gray.opacity(0.18) : Color.clear)
     }
 
     private var playerCanvas: some View {
@@ -131,6 +142,21 @@ public struct PlaylistItem: Identifiable, Hashable, Sendable {
         self.title = title
         self.subtitle = subtitle
         self.duration = duration
+    }
+}
+
+public enum QuillIINAInitialSelection {
+    public static let selectedPlaylistIndexEnvironmentKey = "QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START"
+
+    public static func selectedPlaylistID(
+        in playlist: [PlaylistItem],
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> PlaylistItem.ID? {
+        QuillInitialSelection.selectedID(
+            in: playlist,
+            environmentKeys: [selectedPlaylistIndexEnvironmentKey],
+            environment: environment
+        )
     }
 }
 
