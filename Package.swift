@@ -145,6 +145,18 @@ let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/
 let codeEditSourceUpstreamPresent: Bool = upstreamPresent(".upstream/codeedit/CodeEdit")
 let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsymbols")
 
+let quillCanonicalLinuxAppProducts: [Product] = [
+    .executable(name: "quill-enchanted", targets: ["QuillEnchanted"]),
+    .executable(name: "quill-enchanted-upstream-slice", targets: ["QuillEnchantedUpstreamSlice"]),
+    .executable(name: "quill-icecubes", targets: ["QuillIceCubes"]),
+    .executable(name: "quill-netnewswire", targets: ["QuillNetNewsWire"]),
+    .executable(name: "quill-codeedit", targets: ["QuillCodeEdit"]),
+    .executable(name: "quill-signal", targets: ["QuillSignal"]),
+    .executable(name: "quill-telegram", targets: ["QuillTelegram"]),
+    .executable(name: "quill-iina", targets: ["QuillIINA"]),
+    .executable(name: "quill-wireguard", targets: ["QuillWireGuard"])
+]
+
 var products: [Product] = [
     .library(name: "QuillUI", targets: ["QuillUI"]),
     .library(name: "QuillUIGtk", targets: ["QuillUIGtk"]),
@@ -157,28 +169,17 @@ var products: [Product] = [
     .library(name: "QuillUIKit", targets: ["QuillUIKit"]),
     .library(name: "QuillWebKit", targets: ["QuillWebKit"]),
     .library(name: "QuillShims", targets: ["QuillShims"]),
-    .library(name: "KeychainSwift", targets: ["KeychainSwift"]),
-    .executable(name: "quill-enchanted", targets: ["QuillEnchanted"]),
-    .executable(name: "quill-enchanted-upstream-slice", targets: ["QuillEnchantedUpstreamSlice"]),
-    .executable(name: "quill-icecubes", targets: ["QuillIceCubes"]),
-    .executable(name: "quill-signal", targets: ["QuillSignal"]),
-    .executable(name: "quill-telegram", targets: ["QuillTelegram"]),
-    .executable(name: "quill-iina", targets: ["QuillIINA"]),
-    .executable(name: "quill-codeedit", targets: ["QuillCodeEdit"]),
-    .executable(name: "quill-wireguard", targets: ["QuillWireGuard"])
-]
+    .library(name: "KeychainSwift", targets: ["KeychainSwift"])
+] + quillCanonicalLinuxAppProducts
 
 #if !os(Linux)
 products.append(.executable(name: "quill-enchanted-qt", targets: ["QuillEnchantedQt"]))
 products.append(.executable(name: "quill-wireguard-qt", targets: ["QuillWireGuardQt"]))
 #endif
 
-// `quill-netnewswire` is now a cross-platform executable backed
-// by the self-contained QuillNetNewsWireCore (Foundation
-// XMLParser-based RSS reader). Was previously gated on the
-// upstream NetNewsWireLogic Shared/ tree compiling, which it
-// doesn't on either platform yet.
-products.append(.executable(name: "quill-netnewswire", targets: ["QuillNetNewsWire"]))
+// `quill-netnewswire` stays in the canonical app product roster even when the
+// upstream NetNewsWire tree is absent because it is backed by the self-contained
+// QuillNetNewsWireCore Foundation/XMLParser reader.
 
 // SwiftData stays cross-platform: generated packages can depend on
 // this product explicitly, while Apple's SDK module remains available
@@ -1142,17 +1143,17 @@ allPackageDependencies += [
 // for a native Qt-only smoke app.
 #if os(Linux)
 if quillUILinuxBuildBackend == .qt {
-    products = [
-        .executable(name: "quill-enchanted", targets: ["QuillEnchanted"]),
-        .executable(name: "quill-enchanted-upstream-slice", targets: ["QuillEnchantedUpstreamSlice"]),
-        .executable(name: "quill-icecubes", targets: ["QuillIceCubes"]),
-        .executable(name: "quill-netnewswire", targets: ["QuillNetNewsWire"]),
-        .executable(name: "quill-codeedit", targets: ["QuillCodeEdit"]),
-        .executable(name: "quill-signal", targets: ["QuillSignal"]),
-        .executable(name: "quill-telegram", targets: ["QuillTelegram"]),
-        .executable(name: "quill-iina", targets: ["QuillIINA"]),
-        .executable(name: "quill-wireguard", targets: ["QuillWireGuard"]),
+    products = quillCanonicalLinuxAppProducts + [
         .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
+    ]
+    let quillGenericQtAppTargets: [(name: String, path: String)] = [
+        (name: "QuillEnchantedUpstreamSlice", path: "Sources/QuillEnchantedUpstreamSliceQt"),
+        (name: "QuillIceCubes", path: "Sources/QuillIceCubesQt"),
+        (name: "QuillNetNewsWire", path: "Sources/QuillNetNewsWireQt"),
+        (name: "QuillCodeEdit", path: "Sources/QuillCodeEditQt"),
+        (name: "QuillSignal", path: "Sources/QuillSignalQt"),
+        (name: "QuillTelegram", path: "Sources/QuillTelegramQt"),
+        (name: "QuillIINA", path: "Sources/QuillIINAQt")
     ]
     allPackageDependencies = []
     targets = [
@@ -1198,48 +1199,6 @@ if quillUILinuxBuildBackend == .qt {
             path: "Sources/QuillEnchantedQt",
             swiftSettings: quillEnchantedQtSwiftSettings
         ),
-        .executableTarget(
-            name: "QuillEnchantedUpstreamSlice",
-            dependencies: ["QuillGenericQtNativeRuntime"],
-            path: "Sources/QuillEnchantedUpstreamSliceQt",
-            swiftSettings: appSwiftSettings
-        ),
-        .executableTarget(
-            name: "QuillIceCubes",
-            dependencies: ["QuillGenericQtNativeRuntime"],
-            path: "Sources/QuillIceCubesQt",
-            swiftSettings: appSwiftSettings
-        ),
-        .executableTarget(
-            name: "QuillNetNewsWire",
-            dependencies: ["QuillGenericQtNativeRuntime"],
-            path: "Sources/QuillNetNewsWireQt",
-            swiftSettings: appSwiftSettings
-        ),
-        .executableTarget(
-            name: "QuillCodeEdit",
-            dependencies: ["QuillGenericQtNativeRuntime"],
-            path: "Sources/QuillCodeEditQt",
-            swiftSettings: appSwiftSettings
-        ),
-        .executableTarget(
-            name: "QuillSignal",
-            dependencies: ["QuillGenericQtNativeRuntime"],
-            path: "Sources/QuillSignalQt",
-            swiftSettings: appSwiftSettings
-        ),
-        .executableTarget(
-            name: "QuillTelegram",
-            dependencies: ["QuillGenericQtNativeRuntime"],
-            path: "Sources/QuillTelegramQt",
-            swiftSettings: appSwiftSettings
-        ),
-        .executableTarget(
-            name: "QuillIINA",
-            dependencies: ["QuillGenericQtNativeRuntime"],
-            path: "Sources/QuillIINAQt",
-            swiftSettings: appSwiftSettings
-        ),
         .target(
             name: "QuillWireGuardQtNativeRuntime",
             dependencies: ["QuillWireGuardCore", "CQuillQt6WidgetsShim"],
@@ -1257,7 +1216,14 @@ if quillUILinuxBuildBackend == .qt {
             dependencies: ["CQuillQt6WidgetsShim"],
             path: "Sources/QuillQtInteractionSmoke"
         )
-    ]
+    ] + quillGenericQtAppTargets.map { spec in
+        .executableTarget(
+            name: spec.name,
+            dependencies: ["QuillGenericQtNativeRuntime"],
+            path: spec.path,
+            swiftSettings: appSwiftSettings
+        )
+    }
 }
 #endif
 
