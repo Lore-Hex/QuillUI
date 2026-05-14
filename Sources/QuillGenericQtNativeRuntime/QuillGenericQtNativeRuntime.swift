@@ -1,6 +1,5 @@
 #if os(Linux)
 import CQuillQt6WidgetsShim
-import Foundation
 import QuillQtNativeRuntimeSupport
 
 public struct QuillGenericQtAppSnapshot: Codable, Sendable {
@@ -525,10 +524,12 @@ public enum QuillGenericQtAppCatalog {
 }
 
 public enum QuillGenericQtNativeApp {
+    private static let selectedIndexEnvironmentKey = "QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"
+
     public static func run(_ snapshot: QuillGenericQtAppSnapshot) -> Never {
         var launchSnapshot = snapshot
         if let selectedIndex = QuillQtNativeRuntimeSupport.boundedIndexOverride(
-            ProcessInfo.processInfo.environment["QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"],
+            environmentKey: selectedIndexEnvironmentKey,
             count: launchSnapshot.items.count
         ) {
             launchSnapshot.selectedIndex = selectedIndex

@@ -1,6 +1,5 @@
 #if os(Linux)
 import CQuillQt6WidgetsShim
-import Foundation
 import QuillQtNativeRuntimeSupport
 
 struct QuillEnchantedQtSnapshot: Codable, Sendable {
@@ -193,7 +192,7 @@ public enum QuillEnchantedQtNativeApp {
     private static func launchSnapshot() -> QuillEnchantedQtSnapshot {
         var snapshot = QuillEnchantedQtSnapshot.preview
         guard let boundedIndex = QuillQtNativeRuntimeSupport.boundedIndexOverride(
-            ProcessInfo.processInfo.environment[selectedConversationIndexEnvironmentKey],
+            environmentKey: selectedConversationIndexEnvironmentKey,
             count: snapshot.conversations.count
         ) else {
             return snapshot

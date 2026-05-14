@@ -3,6 +3,10 @@ import Foundation
 import Glibc
 
 public enum QuillQtNativeRuntimeSupport {
+    public static func boundedIndexOverride(environmentKey: String, count: Int) -> Int? {
+        boundedIndexOverride(ProcessInfo.processInfo.environment[environmentKey], count: count)
+    }
+
     public static func boundedIndexOverride(_ value: String?, count: Int) -> Int? {
         guard count > 0, let value else {
             return nil
