@@ -26,6 +26,34 @@ public enum QuillWireGuardScene {
     }
 }
 
+private enum WireGuardFallbackStyle {
+    static let minimumWidth = CGFloat(QuillWireGuardAppMetadata.linuxMinimumWidth)
+    static let minimumHeight = CGFloat(QuillWireGuardAppMetadata.linuxMinimumHeight)
+    static let sidebarWidth = CGFloat(QuillWireGuardStyle.sidebarWidth)
+    static let sidebarPadding = CGFloat(QuillWireGuardStyle.sidebarPadding)
+    static let sidebarBottomPadding = CGFloat(QuillWireGuardStyle.sidebarBottomPadding)
+    static let detailPadding = CGFloat(QuillWireGuardStyle.detailPadding)
+    static let detailSpacing = CGFloat(QuillWireGuardStyle.detailSpacing)
+    static let detailSectionPadding = CGFloat(QuillWireGuardStyle.detailSectionPadding)
+    static let listItemCornerRadius = CGFloat(QuillWireGuardStyle.listItemCornerRadius)
+
+    static var sidebarBackgroundColor: Color {
+        Color(hex: QuillWireGuardStyle.sidebarBackgroundColor)
+    }
+
+    static var detailSectionBackgroundColor: Color {
+        Color(hex: QuillWireGuardStyle.detailSectionBackgroundColor)
+    }
+
+    static var secondaryTextColor: Color {
+        Color(hex: QuillWireGuardStyle.secondaryTextColor)
+    }
+
+    static var selectedRowBackgroundColor: Color {
+        Color(hex: QuillWireGuardStyle.selectedRowBackgroundColor)
+    }
+}
+
 // Shared fallback used by Linux and by platforms where upstream
 // WireGuardKit is not linked. Privileged tunnel activation stays
 // behind a future backend adapter; this shell keeps configuration
@@ -44,12 +72,15 @@ public struct WireGuardFallbackConfigurationView: View {
         QuillMainActorView.assumeIsolated {
             HStack(spacing: 0) {
                 sidebar
-                    .frame(width: 280)
+                    .frame(width: WireGuardFallbackStyle.sidebarWidth)
                 Divider()
                 detail
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(minWidth: 800, minHeight: 560)
+            .frame(
+                minWidth: WireGuardFallbackStyle.minimumWidth,
+                minHeight: WireGuardFallbackStyle.minimumHeight
+            )
         }
     }
 
@@ -62,14 +93,14 @@ public struct WireGuardFallbackConfigurationView: View {
                 Spacer()
                 Text("\(tunnels.count)")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(WireGuardFallbackStyle.secondaryTextColor)
                 Button(action: showImportPanel) {
                     Text(QuillWireGuardPresentation.importButtonLabel)
                         .font(.headline)
                         .frame(width: 22, height: 22)
                 }
             }
-            .padding(14)
+            .padding(WireGuardFallbackStyle.sidebarPadding)
 
             Divider()
 
@@ -89,14 +120,14 @@ public struct WireGuardFallbackConfigurationView: View {
                 Text(QuillWireGuardPresentation.backendTitle)
                     .font(.caption)
                     .bold()
-                    .foregroundColor(.secondary)
+                    .foregroundColor(WireGuardFallbackStyle.secondaryTextColor)
                 Text(QuillWireGuardBackend.statusText)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(WireGuardFallbackStyle.secondaryTextColor)
             }
-            .padding(12)
+            .padding(WireGuardFallbackStyle.sidebarBottomPadding)
         }
-        .background(Color.gray.opacity(0.06))
+        .background(WireGuardFallbackStyle.sidebarBackgroundColor)
     }
 
     private func tunnelRow(_ tunnel: QuillWireGuardTunnel, isSelected: Bool) -> some View {
@@ -107,24 +138,24 @@ public struct WireGuardFallbackConfigurationView: View {
                 Spacer()
                 Text(tunnel.status.rawValue)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(WireGuardFallbackStyle.secondaryTextColor)
             }
             Text("\(tunnel.interface.addresses.joined(separator: ", ")) - \(tunnel.peerSummary)")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundColor(WireGuardFallbackStyle.secondaryTextColor)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isSelected ? Color(hex: QuillWireGuardStyle.selectedRowBackgroundColor) : Color.clear)
-        .cornerRadius(CGFloat(QuillWireGuardStyle.listItemCornerRadius))
+        .background(isSelected ? WireGuardFallbackStyle.selectedRowBackgroundColor : Color.clear)
+        .cornerRadius(WireGuardFallbackStyle.listItemCornerRadius)
     }
 
     private var detail: some View {
         Group {
             if let tunnel = selectedTunnel {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: WireGuardFallbackStyle.detailSpacing) {
                         if isImportPanelVisible {
                             importPanel
                         }
@@ -135,7 +166,7 @@ public struct WireGuardFallbackConfigurationView: View {
                             Spacer()
                             Text(tunnel.status.rawValue)
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(WireGuardFallbackStyle.secondaryTextColor)
                         }
 
                         section(title: QuillWireGuardPresentation.interfaceSectionTitle) {
@@ -166,15 +197,15 @@ public struct WireGuardFallbackConfigurationView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    .padding(22)
+                    .padding(WireGuardFallbackStyle.detailPadding)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else if isImportPanelVisible {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: WireGuardFallbackStyle.detailSpacing) {
                         importPanel
                     }
-                    .padding(22)
+                    .padding(WireGuardFallbackStyle.detailPadding)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
@@ -183,7 +214,7 @@ public struct WireGuardFallbackConfigurationView: View {
                         .font(.title2)
                     Text(QuillWireGuardPresentation.emptyStateMessage)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(WireGuardFallbackStyle.secondaryTextColor)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -219,19 +250,19 @@ public struct WireGuardFallbackConfigurationView: View {
             Text(title.uppercased())
                 .font(.caption)
                 .bold()
-                .foregroundColor(.secondary)
+                .foregroundColor(WireGuardFallbackStyle.secondaryTextColor)
             content()
         }
-        .padding(14)
+        .padding(WireGuardFallbackStyle.detailSectionPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.gray.opacity(0.08))
+        .background(WireGuardFallbackStyle.detailSectionBackgroundColor)
     }
 
     private func detailRow(_ label: String, _ value: String, monospaced: Bool = false) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(label)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(WireGuardFallbackStyle.secondaryTextColor)
                 .frame(width: 92, alignment: .leading)
             Text(value.isEmpty ? QuillWireGuardPresentation.noneText : value)
                 .font(monospaced ? .system(size: 11, design: .monospaced) : .body)
