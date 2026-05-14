@@ -151,6 +151,17 @@ struct LinuxBackendAppMatrixTests {
         #expect(gtkProducts.status == 0, Comment(rawValue: gtkProducts.output))
         #expect(gtkProducts.output == appProducts.output)
 
+        let genericQtProducts = try runScript(script, arguments: ["generic-qt-apps"])
+        #expect(genericQtProducts.status == 0, Comment(rawValue: genericQtProducts.output))
+        #expect(Self.lines(genericQtProducts.output) == Self.expectedGenericQtAppProducts)
+        #expect(Self.lines(genericQtProducts.output).allSatisfy { Self.expectedAppProducts.contains($0) })
+
+        let genericQtMembership = try runScript(script, arguments: ["is-generic-qt-app", "quill-signal"])
+        #expect(genericQtMembership.status == 0, Comment(rawValue: genericQtMembership.output))
+
+        let nativeQtMembership = try runScript(script, arguments: ["is-generic-qt-app", "quill-wireguard"])
+        #expect(nativeQtMembership.status != 0)
+
         let legacyProducts = try runScript(legacyMatrixScript)
         #expect(legacyProducts.status == 0, Comment(rawValue: legacyProducts.output))
         #expect(legacyProducts.output == appProducts.output)

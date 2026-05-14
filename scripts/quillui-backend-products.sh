@@ -1165,6 +1165,7 @@ Usage: quillui-backend-products.sh COMMAND [ARG]
 
 Commands:
   backend-apps                    List user-facing app products in the backend parity matrix.
+  generic-qt-apps                 List app products backed by the shared generic Qt runtime.
   build-product-matrix MATRIX     List PRODUCT<TAB>BUILD_BACKEND rows for package builds.
   app-backends                    List backends requested for each user-facing app.
   app-matrix                      List PRODUCT<TAB>BACKEND visual smoke rows for user-facing apps.
@@ -1205,6 +1206,7 @@ Commands:
                                   Print the canonical manifest build backend or fail unless BACKEND is gtk/qt.
   is-smoke-product PRODUCT        Exit 0 when PRODUCT is a backend launch smoke product.
   is-generated-app PRODUCT        Exit 0 when PRODUCT is a generated external app product.
+  is-generic-qt-app PRODUCT       Exit 0 when PRODUCT uses the shared generic Qt runtime.
   has-native-runtime BACKEND      Exit 0 when BACKEND is linked to a native Linux runtime host.
   backend-for-product PRODUCT     Print the default requested backend for PRODUCT.
   requested-backend PRODUCT       Print QUILLUI_BACKEND override or PRODUCT default.
@@ -1224,6 +1226,9 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   case "${1:-}" in
     backend-apps)
       quillui_backend_app_products
+      ;;
+    generic-qt-apps)
+      quillui_backend_generic_qt_app_products
       ;;
     build-product-matrix)
       if [[ $# -ne 2 ]]; then
@@ -1358,6 +1363,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         exit 64
       fi
       quillui_is_backend_generated_app_product "$2"
+      ;;
+    is-generic-qt-app)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_is_backend_generic_qt_app_product "$2"
       ;;
     has-native-runtime)
       if [[ $# -ne 2 ]]; then
