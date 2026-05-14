@@ -439,6 +439,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(!smokeLib.contains("QUILLUI_QT_DEFAULT_WINDOW_WIDTH=$reference_window_width"))
         #expect(!smokeLib.contains("QUILLUI_QT_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"))
+        #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"))
+        #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_PROFILE_MODE=1"))
         #expect(smokeLib.contains("quillui_resolve_linux_backend_executable()"))
         #expect(smokeLib.contains("quillui_seed_quill_chat_reference_data()"))
         #expect(legacyVisualScript.contains("scripts/linux-backend-visual-check.sh"))
@@ -519,6 +521,9 @@ struct LinuxBackendAppMatrixTests {
         #expect(csvRunner.contains("-v runtime_mode=\"$runtime_mode\""))
         #expect(legacyCSVRunner.contains("run-linux-backend-profile-csv.sh"))
         #expect(budgetScript.contains("QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT"))
+        #expect(budgetScript.contains("QUILLUI_BACKEND_PROFILE_MAX_QUILL_CHAT_RSS_KB"))
+        #expect(budgetScript.contains("max_quill_chat_rss"))
+        #expect(budgetScript.contains("rss_limit_for_product(product)"))
         #expect(budgetScript.contains("quillui_alias_backend_profile_env"))
         #expect(budgetScript.contains("REQUIRE_BACKEND_MATRIX=0"))
         #expect(budgetScript.contains("--require-backend-matrix)"))
@@ -1443,6 +1448,7 @@ struct LinuxBackendAppMatrixTests {
         \(Self.profileCSVHeader)
         quill-icecubes,gtk,gtk,native,13148,6,236156,3.0,2.8,ok
         quill-netnewswire,qt,gtk,platformFallback,13105,6,235852,5.8,5.6,ok
+        quill-chat-linux,gtk,gtk,native,85730,56,319224,3.0,2.8,ok
 
         """.write(to: csv, atomically: true, encoding: .utf8)
 
@@ -1450,6 +1456,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(passing.status == 0, Comment(rawValue: passing.output))
         #expect(passing.output.contains("profile budget ok: quill-icecubes requested=gtk runtime=gtk"))
         #expect(passing.output.contains("profile budget ok: quill-netnewswire requested=qt runtime=gtk"))
+        #expect(passing.output.contains("profile budget ok: quill-chat-linux requested=gtk runtime=gtk"))
 
         try """
         \(Self.profileCSVHeader)
@@ -1460,6 +1467,17 @@ struct LinuxBackendAppMatrixTests {
         let failing = try runScript(script, arguments: [csv.path, "--max-cpu-pct", "25"])
         #expect(failing.status != 0)
         #expect(failing.output.contains("cpu_pct_steady=135.2"))
+
+        try """
+        \(Self.profileCSVHeader)
+        quill-chat-linux,gtk,gtk,native,85730,56,340001,3.0,2.8,ok
+
+        """.write(to: csv, atomically: true, encoding: .utf8)
+
+        let chatRSSFailing = try runScript(script, arguments: [csv.path, "--max-cpu-pct", "25"])
+        #expect(chatRSSFailing.status != 0)
+        #expect(chatRSSFailing.output.contains("rss_kb=340001"))
+        #expect(chatRSSFailing.output.contains("max=340000"))
 
         try """
         \(Self.profileCSVHeader)

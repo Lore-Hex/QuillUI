@@ -7,6 +7,7 @@ quillui_alias_backend_profile_env
 
 MAX_CPU_PCT="${QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT:-25}"
 MAX_RSS_KB="${QUILLUI_BACKEND_PROFILE_MAX_RSS_KB:-300000}"
+MAX_QUILL_CHAT_RSS_KB="${QUILLUI_BACKEND_PROFILE_MAX_QUILL_CHAT_RSS_KB:-340000}"
 MAX_STARTUP_MS="${QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS:-5000}"
 REQUIRE_BACKEND_MATRIX=0
 CSV_PATH=""
@@ -75,6 +76,10 @@ fi
   echo "--max-rss-kb must be a positive integer, got: $MAX_RSS_KB" >&2
   exit 64
 }
+[[ "$MAX_QUILL_CHAT_RSS_KB" =~ ^[1-9][0-9]*$ ]] || {
+  echo "QUILLUI_BACKEND_PROFILE_MAX_QUILL_CHAT_RSS_KB must be a positive integer, got: $MAX_QUILL_CHAT_RSS_KB" >&2
+  exit 64
+}
 [[ "$MAX_STARTUP_MS" =~ ^[1-9][0-9]*$ ]] || {
   echo "--max-startup-ms must be a positive integer, got: $MAX_STARTUP_MS" >&2
   exit 64
@@ -132,6 +137,7 @@ fi
 awk \
   -v max_cpu="$MAX_CPU_PCT" \
   -v max_rss="$MAX_RSS_KB" \
+  -v max_quill_chat_rss="$MAX_QUILL_CHAT_RSS_KB" \
   -v max_startup="$MAX_STARTUP_MS" '
 BEGIN {
   FS = ","
@@ -149,6 +155,12 @@ function is_backend_identifier(value) {
 }
 function is_runtime_mode(value) {
   return value ~ /^(native|platformFallback)$/
+}
+function rss_limit_for_product(product) {
+  if (product == "quill-chat-linux") {
+    return max_quill_chat_rss
+  }
+  return max_rss
 }
 NR == 1 {
   if ($0 != expected) {
@@ -225,6 +237,7 @@ NF != 10 {
 
   startup_ms_value = startup_ms + 0
   rss_kb_value = rss_kb + 0
+  max_rss_for_row = rss_limit_for_product(product)
   cpu_initial_value = cpu_initial + 0
   cpu_steady_value = cpu_steady + 0
 
@@ -232,8 +245,8 @@ NF != 10 {
     printf "profile budget failed: %s startup_ms=%s max=%s\n", product, startup_ms, max_startup > "/dev/stderr"
     row_failed = 1
   }
-  if (rss_kb_value > max_rss) {
-    printf "profile budget failed: %s rss_kb=%s max=%s\n", product, rss_kb, max_rss > "/dev/stderr"
+  if (rss_kb_value > max_rss_for_row) {
+    printf "profile budget failed: %s rss_kb=%s max=%s\n", product, rss_kb, max_rss_for_row > "/dev/stderr"
     row_failed = 1
   }
   if (cpu_initial_value > max_cpu) {

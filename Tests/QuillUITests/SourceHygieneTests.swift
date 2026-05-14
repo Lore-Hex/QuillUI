@@ -684,6 +684,8 @@ struct SourceHygieneTests {
         #expect(!smokeLib.contains("QUILLUI_QT_DEFAULT_WINDOW_WIDTH=$reference_window_width"))
         #expect(!smokeLib.contains("QUILLUI_QT_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"))
+        #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"))
+        #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_PROFILE_MODE=1"))
         #expect(smokeLib.contains("quillui_generated_app_backend_facade()"))
         #expect(smokeLib.contains("quill_chat_default_work_root=\"$quill_chat_default_work_root-$quill_chat_backend_facade\""))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_BACKEND_FACADE=\"$quill_chat_backend_facade\""))
