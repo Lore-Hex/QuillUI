@@ -5,6 +5,7 @@ import SwiftUI
 import SwiftOpenUI
 import QuillKit
 import QuillFoundation
+@_exported import UniformTypeIdentifiers
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
 private func recordQuillUIFallback(_ operation: String, message: String) {
@@ -25,43 +26,14 @@ private func recordQuillUIFallbackView<Content: View>(
     return view
 }
 
-public struct UTType: Hashable, Sendable {
-    public var identifier: String
-
-    public init(_ identifier: String) {
-        self.identifier = identifier
-    }
-
-    public static let image = UTType("public.image")
-    public static let jpeg = UTType("public.jpeg")
-    public static let png = UTType("public.png")
-    public static let tiff = UTType("public.tiff")
-
-    public func conforms(to other: UTType) -> Bool {
-        if self == other { return true }
-        return other == .image && Self.imageTypes.contains(identifier)
+public extension UTType {
+    static func type(for url: URL) -> UTType? {
+        UTType(filenameExtension: url.pathExtension)
     }
 
     fileprivate func accepts(url: URL) -> Bool {
-        guard self != .image else { return Self.imageExtensions.contains(url.pathExtension.lowercased()) }
-        return Self.extensionsByIdentifier[identifier]?.contains(url.pathExtension.lowercased()) ?? false
+        UTType.type(for: url)?.conforms(to: self) == true
     }
-
-    public static func type(for url: URL) -> UTType? {
-        let pathExtension = url.pathExtension.lowercased()
-        return extensionsByIdentifier.first { _, extensions in
-            extensions.contains(pathExtension)
-        }.map { UTType($0.key) }
-    }
-
-    private static let extensionsByIdentifier: [String: Set<String>] = [
-        UTType.jpeg.identifier: ["jpeg", "jpg"],
-        UTType.png.identifier: ["png"],
-        UTType.tiff.identifier: ["tiff", "tif"]
-    ]
-
-    private static let imageExtensions = Set(extensionsByIdentifier.values.flatMap { $0 })
-    private static let imageTypes = Set(extensionsByIdentifier.keys)
 }
 #endif
 
@@ -931,7 +903,15 @@ public extension View {
         )
     }
 
+    func padding(_ amount: CGFloat) -> PaddedView<Self> {
+        padding(Int(amount))
+    }
+
     func padding(_ edges: Edge.Set, _ amount: Double) -> PaddedView<Self> {
+        padding(edges, Int(amount))
+    }
+
+    func padding(_ edges: Edge.Set, _ amount: CGFloat) -> PaddedView<Self> {
         padding(edges, Int(amount))
     }
 

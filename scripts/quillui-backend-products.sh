@@ -68,6 +68,19 @@ quillui_backend_app_backends_for_product() {
   fi
 }
 
+quillui_backend_default_app_backend() {
+  local backend
+
+  for backend in "${QUILLUI_BACKEND_APP_BACKEND_IDS[@]}"; do
+    [[ -n "$backend" ]] || continue
+    echo "$backend"
+    return 0
+  done
+
+  echo "No QuillUI backend app backends configured." >&2
+  return 65
+}
+
 quillui_backend_native_runtime_backends() {
   # Mirrors QuillBackendRegistry on Linux. Keep this as a registry instead of
   # branching in call sites so adding the native Qt host is a one-line change.
@@ -664,19 +677,17 @@ quillui_backend_for_product() {
       echo "gtk"
       ;;
     *)
-      local product
-      local backend
-      while IFS= read -r product; do
-        if [[ "$1" == "$product" ]]; then
-          while IFS= read -r backend; do
-            [[ -n "$backend" ]] || continue
-            echo "$backend"
-            return
-          done < <(quillui_backend_app_backends_for_product "$product")
-          return
+      local fixed_backend
+
+      if quillui_backend_product_list_contains "$1" quillui_backend_app_products; then
+        if fixed_backend="$(quillui_backend_fixed_backend_for_app_product "$1")"; then
+          echo "$fixed_backend"
+        else
+          quillui_backend_default_app_backend
         fi
-      done < <(quillui_backend_app_products)
-      echo ""
+      else
+        echo ""
+      fi
       ;;
   esac
 }

@@ -828,7 +828,7 @@ struct CompatibilityModuleTests {
         #expect(UTType.png.conforms(to: .image))
         #expect(UTType.jpeg.conforms(to: .image))
         #expect(UTType.tiff.conforms(to: .image))
-        #expect(UTType("public.text").conforms(to: .image) == false)
+        #expect(UTType("public.text")?.conforms(to: .image) == false)
 
         // Unrelated concrete types do not conform to each other.
         #expect(UTType.png.conforms(to: .jpeg) == false)
