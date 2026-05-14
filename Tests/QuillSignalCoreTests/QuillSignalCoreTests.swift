@@ -93,6 +93,27 @@ struct QuillSignalCoreTests {
         #expect(names.contains("Notes To Self"))
     }
 
+    @Test("Initial selection uses Signal key before shared chat fallback")
+    func initialSelectionUsesSignalKeyBeforeSharedFallback() {
+        let conversations = QuillSignalFixtures.conversations
+
+        #expect(QuillSignalInitialSelection.environmentKeys == [
+            "QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START",
+            ChatInitialSelection.sharedEnvironmentKey
+        ])
+        #expect(QuillSignalInitialSelection.selectedConversationID(
+            in: conversations,
+            environment: [
+                "QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START": "1",
+                ChatInitialSelection.sharedEnvironmentKey: "2"
+            ]
+        ) == conversations[1].id)
+        #expect(QuillSignalInitialSelection.selectedConversationID(
+            in: conversations,
+            environment: [ChatInitialSelection.sharedEnvironmentKey: "2"]
+        ) == conversations[2].id)
+    }
+
     private static func chatListItem<Item: ChatListItem>(_ item: Item) -> Item {
         item
     }

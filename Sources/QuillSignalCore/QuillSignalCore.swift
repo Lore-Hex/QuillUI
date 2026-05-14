@@ -18,11 +18,16 @@ import QuillChatKit
 /// file only owns the fixture model and send path.
 @MainActor
 public struct QuillSignalContentView: View {
-    @State private var conversations = QuillSignalFixtures.conversations
-    @State private var selectedID: Conversation.ID? = QuillSignalFixtures.conversations.first?.id
-    @State private var draft = ""
+    @State private var conversations: [Conversation]
+    @State private var selectedID: Conversation.ID?
+    @State private var draft: String
 
-    public init() {}
+    public init() {
+        let conversations = QuillSignalFixtures.conversations
+        _conversations = State(initialValue: conversations)
+        _selectedID = State(initialValue: QuillSignalInitialSelection.selectedConversationID(in: conversations) ?? conversations.first?.id)
+        _draft = State(initialValue: "")
+    }
 
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated {
@@ -45,6 +50,24 @@ public struct QuillSignalContentView: View {
         ) { body in
             Message(sender: "Me", body: body, fromSelf: true)
         }
+    }
+}
+
+public enum QuillSignalInitialSelection {
+    public static let environmentKeys = [
+        "QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START",
+        ChatInitialSelection.sharedEnvironmentKey
+    ]
+
+    public static func selectedConversationID(
+        in conversations: [Conversation],
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Conversation.ID? {
+        ChatInitialSelection.selectedID(
+            in: conversations,
+            environmentKeys: environmentKeys,
+            environment: environment
+        )
     }
 }
 

@@ -215,6 +215,18 @@ struct LinuxBackendAppMatrixTests {
                 backend: "qt",
                 mode: "list-selection",
                 verifyProduct: "quill-enchanted-qt-list-selection"
+            ),
+            Self.expectedInteractionExtraModeRow(
+                product: "quill-signal",
+                backend: "gtk",
+                mode: "list-selection",
+                verifyProduct: "quill-signal-list-selection"
+            ),
+            Self.expectedInteractionExtraModeRow(
+                product: "quill-telegram",
+                backend: "gtk",
+                mode: "list-selection",
+                verifyProduct: "quill-telegram-list-selection"
             )
         ] + expectedGenericQtAppProducts.map { product in
             Self.expectedInteractionExtraModeRow(
@@ -422,12 +434,15 @@ struct LinuxBackendAppMatrixTests {
         #expect(interactionScript.contains("[[ \"$PRODUCT\" == \"quill-wireguard\" && \"$SELECTED_BACKEND\" == \"gtk\" ]]"))
         #expect(interactionScript.contains("[[ \"$PRODUCT\" == \"quill-wireguard\" && \"$SELECTED_BACKEND\" == \"qt\" ]]"))
         #expect(interactionScript.contains("[[ \"$PRODUCT\" == \"quill-enchanted\" && \"$SELECTED_BACKEND\" == \"gtk\" ]]"))
+        #expect(interactionScript.contains("[[ \"$SELECTED_BACKEND\" == \"gtk\" && ( \"$PRODUCT\" == \"quill-signal\" || \"$PRODUCT\" == \"quill-telegram\" ) ]]"))
         #expect(!interactionScript.contains("quill-wireguard|quill-wireguard-qt)"))
 
         #expect(smokeLib.contains("verify_product=\"quill-enchanted-qt\""))
         #expect(smokeLib.contains("verify_product=\"quill-wireguard-qt\""))
         #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
         #expect(smokeLib.contains("quill-enchanted-list-selection"))
+        #expect(smokeLib.contains("quill-signal-list-selection"))
+        #expect(smokeLib.contains("quill-telegram-list-selection"))
         #expect(smokeLib.contains("verify_product=\"$product-qt-list-selection\""))
 
         for document in [readme, appTargets, tooling, uiPlan, profileBaseline] {
@@ -458,6 +473,12 @@ struct LinuxBackendAppMatrixTests {
         source "\(root.path)/scripts/quillui-backend-products.sh"
         source "\(root.path)/scripts/quillui-linux-backend-smoke-lib.sh"
 
+        quillui_print_selection_env() {
+          if (( ${#selection_env[@]} > 0 )); then
+            printf '%s|' "${selection_env[@]}"
+          fi
+        }
+
         unset QUILLUI_BACKEND QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_BACKEND_SKIP_BUILD
         export QUILLUI_GTK_APP_EXECUTABLE=/tmp/gtk-app
         export QUILLUI_QT_APP_EXECUTABLE=/tmp/qt-app
@@ -467,6 +488,12 @@ struct LinuxBackendAppMatrixTests {
         export QUILLUI_QT_GENERIC_SELECTED_INDEX_ON_START=2
         export QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=3
         export QUILLUI_QT_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=4
+        export QUILLUI_GTK_CHAT_SELECTED_THREAD_INDEX_ON_START=5
+        export QUILLUI_QT_CHAT_SELECTED_THREAD_INDEX_ON_START=6
+        export QUILLUI_GTK_SIGNAL_SELECTED_THREAD_INDEX_ON_START=7
+        export QUILLUI_QT_SIGNAL_SELECTED_THREAD_INDEX_ON_START=8
+        export QUILLUI_GTK_TELEGRAM_SELECTED_THREAD_INDEX_ON_START=9
+        export QUILLUI_QT_TELEGRAM_SELECTED_THREAD_INDEX_ON_START=10
 
         quillui_export_backend_argument " Qt6 " quill-wireguard
         quillui_alias_backend_build_env
@@ -477,31 +504,45 @@ struct LinuxBackendAppMatrixTests {
         printf 'generic-selected-qt=%s\\n' "$QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"
         printf 'enchanted-selected-qt=%s\\n' "$QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START"
         printf 'enchanted-selected-qt-legacy=%s\\n' "$QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
+        printf 'chat-selected-qt=%s\\n' "$QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START"
+        printf 'signal-selected-qt=%s\\n' "$QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START"
+        printf 'telegram-selected-qt=%s\\n' "$QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START"
 
-        unset QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START
+        unset QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START
         quillui_export_backend_argument gtk quill-wireguard
         quillui_alias_backend_interaction_env
         printf 'generic-selected-gtk=%s\\n' "$QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"
         printf 'enchanted-selected-gtk=%s\\n' "$QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START"
+        printf 'chat-selected-gtk=%s\\n' "$QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START"
+        printf 'signal-selected-gtk=%s\\n' "$QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START"
+        printf 'telegram-selected-gtk=%s\\n' "$QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START"
 
-        unset QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START
+        unset QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START
         selection_env=()
         quillui_append_backend_selection_start_environment selection_env quill-signal qt list-selection
-        printf 'generic-selection-env=%s\\n' "$(printf '%s|' "${selection_env[@]}")"
+        printf 'generic-selection-env=%s\\n' "$(quillui_print_selection_env)"
         selection_env=()
         quillui_append_backend_selection_start_environment selection_env quill-enchanted qt list-selection "\(temporaryDirectory.path)/selection"
-        printf 'enchanted-selection-env=%s\\n' "$(printf '%s|' "${selection_env[@]}")"
+        printf 'enchanted-selection-env=%s\\n' "$(quillui_print_selection_env)"
         selection_env=()
         quillui_append_backend_selection_start_environment selection_env quill-enchanted gtk list-selection "\(temporaryDirectory.path)/selection"
-        printf 'enchanted-gtk-selection-env=%s\\n' "$(printf '%s|' "${selection_env[@]}")"
+        printf 'enchanted-gtk-selection-env=%s\\n' "$(quillui_print_selection_env)"
         test -f "\(temporaryDirectory.path)/selection/quill-enchanted-reference-home/.quillui/enchanted/enchanted-quilldata.sqlite"
         printf 'enchanted-gtk-fixture=ok\\n'
         selection_env=()
         quillui_append_backend_selection_start_environment selection_env quill-signal gtk list-selection
-        printf 'gtk-selection-env=%s\\n' "$(printf '%s|' "${selection_env[@]}")"
+        printf 'gtk-selection-env=%s\\n' "$(quillui_print_selection_env)"
+        selection_env=()
+        quillui_append_backend_selection_start_environment selection_env quill-telegram gtk list-selection
+        printf 'telegram-gtk-selection-env=%s\\n' "$(quillui_print_selection_env)"
+        export QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START=2
+        selection_env=()
+        quillui_append_backend_selection_start_environment selection_env quill-signal gtk list-selection
+        printf 'shared-chat-selection-env=%s\\n' "$(quillui_print_selection_env)"
+        unset QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START
         selection_env=()
         quillui_append_backend_selection_start_environment selection_env quill-signal qt click
-        printf 'click-selection-env=%s\\n' "$(printf '%s|' "${selection_env[@]}")"
+        printf 'click-selection-env=%s\\n' "$(quillui_print_selection_env)"
 
         unset QUILLUI_BACKEND
         quillui_export_backend_argument "" quill-wireguard
@@ -545,14 +586,22 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("generic-selected-qt=2"))
         #expect(result.output.contains("enchanted-selected-qt=4"))
         #expect(result.output.contains("enchanted-selected-qt-legacy=4"))
+        #expect(result.output.contains("chat-selected-qt=6"))
+        #expect(result.output.contains("signal-selected-qt=8"))
+        #expect(result.output.contains("telegram-selected-qt=10"))
         #expect(result.output.contains("generic-selected-gtk=1"))
         #expect(result.output.contains("enchanted-selected-gtk=3"))
+        #expect(result.output.contains("chat-selected-gtk=5"))
+        #expect(result.output.contains("signal-selected-gtk=7"))
+        #expect(result.output.contains("telegram-selected-gtk=9"))
         #expect(result.output.contains("generic-selection-env=QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=0|"))
         #expect(result.output.contains("enchanted-selection-env=QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=0|"))
         #expect(result.output.contains("enchanted-gtk-selection-env=HOME=\(temporaryDirectory.path)/selection/quill-enchanted-reference-home|QUILLDATA_HOME=\(temporaryDirectory.path)/selection/quill-enchanted-reference-home|QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=0|"))
         #expect(result.output.contains("enchanted-gtk-fixture=ok"))
-        #expect(result.output.contains("gtk-selection-env=|"))
-        #expect(result.output.contains("click-selection-env=|"))
+        #expect(result.output.contains("gtk-selection-env=QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START=1|"))
+        #expect(result.output.contains("telegram-gtk-selection-env=QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START=1|"))
+        #expect(result.output.contains("shared-chat-selection-env=QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START=2|"))
+        #expect(result.output.contains("click-selection-env=\n"))
         #expect(result.output.contains("product-default=gtk"))
         #expect(result.output.contains("product-explicit=qt"))
         #expect(result.output.contains("launch-env=GTK_A11Y=none|QUILLUI_BACKEND=qt|"))

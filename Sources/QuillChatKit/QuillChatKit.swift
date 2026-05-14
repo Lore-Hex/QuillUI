@@ -69,6 +69,44 @@ public protocol ChatThread: ChatListItem {
     var messages: [Message] { get set }
 }
 
+/// Backend-neutral initial selection policy for chat-style apps.
+///
+/// Linux smoke tests can set a deterministic row before the first frame is
+/// painted, while native SwiftUI hosts can pass their own environment map or
+/// ignore this helper entirely. The logic deliberately lives below the app
+/// models and above the view shell so Signal, Telegram, and future chat apps
+/// do not each grow their own string parsing and bounds checks.
+public enum ChatInitialSelection {
+    public static let sharedEnvironmentKey = "QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START"
+
+    public static func index(
+        environmentKeys: [String],
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Int? {
+        for key in environmentKeys {
+            guard let rawValue = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !rawValue.isEmpty,
+                  let index = Int(rawValue)
+            else { continue }
+            return index
+        }
+        return nil
+    }
+
+    public static func selectedID<Item: ChatListItem>(
+        in items: [Item],
+        environmentKeys: [String],
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Item.ID? {
+        guard !items.isEmpty,
+              let requestedIndex = index(environmentKeys: environmentKeys, environment: environment)
+        else { return nil }
+
+        let clampedIndex = min(max(requestedIndex, 0), items.count - 1)
+        return items[clampedIndex].id
+    }
+}
+
 /// Public styling tokens for the shared chat views.
 ///
 /// Defaults match the original Signal/Telegram Linux shell chrome.
@@ -100,8 +138,10 @@ public struct ChatAppearance {
     public var unreadBadgeBackground: Color
     public var unreadBadgeForeground: Color
     public var composerBackground: Color
+    public var selectedRowBackground: Color
     public var bubbleCornerRadius: CGFloat
     public var unreadBadgeCornerRadius: CGFloat
+    public var selectedRowCornerRadius: CGFloat
     public var bubblePadding: CGFloat
     public var rowVerticalPadding: CGFloat
     public var timelinePadding: CGFloat
@@ -114,8 +154,10 @@ public struct ChatAppearance {
         unreadBadgeBackground: Color = .blue,
         unreadBadgeForeground: Color = .white,
         composerBackground: Color = Color.gray.opacity(0.06),
+        selectedRowBackground: Color = Color(red: 0.88, green: 0.94, blue: 1.0),
         bubbleCornerRadius: CGFloat = 12,
         unreadBadgeCornerRadius: CGFloat = 8,
+        selectedRowCornerRadius: CGFloat = 8,
         bubblePadding: CGFloat = 10,
         rowVerticalPadding: CGFloat = 4,
         timelinePadding: CGFloat = 16,
@@ -127,8 +169,10 @@ public struct ChatAppearance {
         self.unreadBadgeBackground = unreadBadgeBackground
         self.unreadBadgeForeground = unreadBadgeForeground
         self.composerBackground = composerBackground
+        self.selectedRowBackground = selectedRowBackground
         self.bubbleCornerRadius = bubbleCornerRadius
         self.unreadBadgeCornerRadius = unreadBadgeCornerRadius
+        self.selectedRowCornerRadius = selectedRowCornerRadius
         self.bubblePadding = bubblePadding
         self.rowVerticalPadding = rowVerticalPadding
         self.timelinePadding = timelinePadding
@@ -248,17 +292,20 @@ public struct ChatRow: View {
     public let title: String
     public let preview: String
     public let unread: Int
+    public let selected: Bool
     public let appearance: ChatAppearance
 
     public init(
         title: String,
         preview: String,
         unread: Int = 0,
+        selected: Bool = false,
         appearance: ChatAppearance = .standard
     ) {
         self.title = title
         self.preview = preview
         self.unread = unread
+        self.selected = selected
         self.appearance = appearance
     }
 
@@ -284,6 +331,9 @@ public struct ChatRow: View {
                     .lineLimit(1)
             }
             .padding(.vertical, appearance.chatRowVerticalPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(selected ? appearance.selectedRowBackground : Color.clear)
+            .cornerRadius(appearance.selectedRowCornerRadius)
         }
     }
 }
@@ -297,15 +347,18 @@ public struct ChatRow: View {
 @MainActor
 public struct ChatSidebarList<Item: ChatListItem>: View {
     public let items: [Item]
+    public let selectedID: Item.ID?
     public let appearance: ChatAppearance
     public let onSelect: (Item) -> Void
 
     public init(
         items: [Item],
+        selectedID: Item.ID? = nil,
         appearance: ChatAppearance = .standard,
         onSelect: @escaping (Item) -> Void
     ) {
         self.items = items
+        self.selectedID = selectedID
         self.appearance = appearance
         self.onSelect = onSelect
     }
@@ -321,6 +374,7 @@ public struct ChatSidebarList<Item: ChatListItem>: View {
                             title: item.title,
                             preview: item.preview,
                             unread: item.unreadCount,
+                            selected: item.id == selectedID,
                             appearance: appearance
                         )
                     }
@@ -342,6 +396,7 @@ public struct ChatSidebarList<Item: ChatListItem>: View {
 public struct ChatSidebar<Item: ChatListItem, Accessory: View>: View {
     public let title: String
     public let items: [Item]
+    public let selectedID: Item.ID?
     public let appearance: ChatAppearance
     public let accessory: Accessory
     public let onSelect: (Item) -> Void
@@ -349,12 +404,14 @@ public struct ChatSidebar<Item: ChatListItem, Accessory: View>: View {
     public init(
         title: String,
         items: [Item],
+        selectedID: Item.ID? = nil,
         appearance: ChatAppearance = .standard,
         @ViewBuilder accessory: () -> Accessory,
         onSelect: @escaping (Item) -> Void
     ) {
         self.title = title
         self.items = items
+        self.selectedID = selectedID
         self.appearance = appearance
         self.accessory = accessory()
         self.onSelect = onSelect
@@ -371,6 +428,7 @@ public struct ChatSidebar<Item: ChatListItem, Accessory: View>: View {
 
                 ChatSidebarList(
                     items: items,
+                    selectedID: selectedID,
                     appearance: appearance,
                     onSelect: onSelect
                 )
@@ -383,12 +441,14 @@ public extension ChatSidebar where Accessory == EmptyView {
     init(
         title: String,
         items: [Item],
+        selectedID: Item.ID? = nil,
         appearance: ChatAppearance = .standard,
         onSelect: @escaping (Item) -> Void
     ) {
         self.init(
             title: title,
             items: items,
+            selectedID: selectedID,
             appearance: appearance,
             accessory: { EmptyView() },
             onSelect: onSelect
@@ -709,7 +769,7 @@ public struct ChatSplitShell<Thread: ChatThread, SidebarAccessory: View>: View w
     nonisolated public var body: some View {
         ChatMainActorView.assumeIsolated {
             NavigationSplitView {
-                ChatSidebar(title: title, items: threads, appearance: appearance) {
+                ChatSidebar(title: title, items: threads, selectedID: selectedID, appearance: appearance) {
                     sidebarAccessory
                 } onSelect: { thread in
                     selectedID = thread.id

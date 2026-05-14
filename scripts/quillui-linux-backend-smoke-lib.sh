@@ -250,6 +250,18 @@ quillui_backend_interaction_verify_product() {
         fi
         ;;
     esac
+  elif [[ "$selected_backend" == "gtk" && "$product" == "quill-signal" ]]; then
+    case "$interaction_mode" in
+      list-selection)
+        verify_product="quill-signal-list-selection"
+        ;;
+    esac
+  elif [[ "$selected_backend" == "gtk" && "$product" == "quill-telegram" ]]; then
+    case "$interaction_mode" in
+      list-selection)
+        verify_product="quill-telegram-list-selection"
+        ;;
+    esac
   elif [[ "$product" == "quill-wireguard" ]]; then
     case "$interaction_mode" in
       tunnel-name-edit|name-edit)
@@ -349,6 +361,9 @@ quillui_backend_scoped_app_environment_names() {
     QUILLUI_GTK_TYPE_TEXT QUILLUI_QT_TYPE_TEXT \
     QUILLUI_GTK_GENERIC_SELECTED_INDEX_ON_START QUILLUI_QT_GENERIC_SELECTED_INDEX_ON_START \
     QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_QT_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START \
+    QUILLUI_GTK_CHAT_SELECTED_THREAD_INDEX_ON_START QUILLUI_QT_CHAT_SELECTED_THREAD_INDEX_ON_START \
+    QUILLUI_GTK_SIGNAL_SELECTED_THREAD_INDEX_ON_START QUILLUI_QT_SIGNAL_SELECTED_THREAD_INDEX_ON_START \
+    QUILLUI_GTK_TELEGRAM_SELECTED_THREAD_INDEX_ON_START QUILLUI_QT_TELEGRAM_SELECTED_THREAD_INDEX_ON_START \
     QUILLUI_GTK_PROFILE_COMMAND QUILLUI_QT_PROFILE_COMMAND \
     QUILLUI_GTK_PROFILE_SETTLE QUILLUI_QT_PROFILE_SETTLE \
     QUILLUI_GTK_PROFILE_STEADY QUILLUI_QT_PROFILE_STEADY \
@@ -563,6 +578,14 @@ quillui_append_backend_selection_start_environment() {
     quillui_append_environment_assignment \
       "$output_array" \
       "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START:-${QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START:-0}}" || return $?
+  elif [[ "$selected_backend" == "gtk" && "$product" == "quill-signal" ]]; then
+    quillui_append_environment_assignment \
+      "$output_array" \
+      "QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START=${QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START:-1}}" || return $?
+  elif [[ "$selected_backend" == "gtk" && "$product" == "quill-telegram" ]]; then
+    quillui_append_environment_assignment \
+      "$output_array" \
+      "QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START=${QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START:-1}}" || return $?
   fi
 
   return 0

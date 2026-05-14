@@ -19,12 +19,18 @@ import QuillChatKit
 /// model, the folder filter, and the unread-badge logic.
 @MainActor
 public struct QuillTelegramContentView: View {
-    @State private var chats = QuillTelegramFixtures.chats
-    @State private var selectedFolder = "All"
-    @State private var selectedChatID: Chat.ID? = QuillTelegramFixtures.chats.first?.id
-    @State private var draft = ""
+    @State private var chats: [Chat]
+    @State private var selectedFolder: String
+    @State private var selectedChatID: Chat.ID?
+    @State private var draft: String
 
-    public init() {}
+    public init() {
+        let chats = QuillTelegramFixtures.chats
+        _chats = State(initialValue: chats)
+        _selectedFolder = State(initialValue: TelegramFolderFilter.all)
+        _selectedChatID = State(initialValue: QuillTelegramInitialSelection.selectedChatID(in: chats) ?? chats.first?.id)
+        _draft = State(initialValue: "")
+    }
 
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated {
@@ -79,6 +85,24 @@ public struct QuillTelegramContentView: View {
         ) { body in
             TGMessage(sender: "Me", body: body, fromSelf: true)
         }
+    }
+}
+
+public enum QuillTelegramInitialSelection {
+    public static let environmentKeys = [
+        "QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START",
+        ChatInitialSelection.sharedEnvironmentKey
+    ]
+
+    public static func selectedChatID(
+        in chats: [Chat],
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Chat.ID? {
+        ChatInitialSelection.selectedID(
+            in: chats,
+            environmentKeys: environmentKeys,
+            environment: environment
+        )
     }
 }
 

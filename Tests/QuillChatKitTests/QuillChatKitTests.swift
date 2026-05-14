@@ -53,14 +53,16 @@ struct QuillChatKitTests {
     func chatRowDefaultsUnreadToZero() {
         let row = ChatRow(title: "Mom", preview: "see you soon")
         #expect(row.unread == 0)
+        #expect(!row.selected)
         #expect(row.title == "Mom")
         #expect(row.preview == "see you soon")
     }
 
-    @Test("ChatRow records non-zero unread badge")
-    func chatRowCarriesUnread() {
-        let row = ChatRow(title: "DevOps", preview: "Build 1 ok", unread: 3)
+    @Test("ChatRow records non-zero unread badge and selection")
+    func chatRowCarriesUnreadAndSelection() {
+        let row = ChatRow(title: "DevOps", preview: "Build 1 ok", unread: 3, selected: true)
         #expect(row.unread == 3)
+        #expect(row.selected)
     }
 
     @Test("ChatListItem defaults unread count to zero")
@@ -86,6 +88,21 @@ struct QuillChatKitTests {
         #expect(list.items[0].unreadCount == 3)
         #expect(list.appearance.rowVerticalPadding == 9)
         #expect(list.appearance.unreadBadgeCornerRadius == 4)
+        #expect(list.selectedID == nil)
+    }
+
+    @Test("ChatSidebarList carries selected row identity")
+    func chatSidebarListCarriesSelectedID() {
+        let id = UUID()
+        let item = Summary(
+            id: id,
+            title: "DevOps",
+            preview: "Canary healthy",
+            unreadCount: 3
+        )
+        let list = ChatSidebarList(items: [item], selectedID: id) { _ in }
+
+        #expect(list.selectedID == id)
     }
 
     @Test("ChatSidebar carries standard title, items, appearance, and no accessory by default")
@@ -101,6 +118,7 @@ struct QuillChatKitTests {
         #expect(sidebar.title == "Quill Signal")
         #expect(sidebar.items.count == 1)
         #expect(sidebar.items[0].title == "Family")
+        #expect(sidebar.selectedID == nil)
         #expect(sidebar.appearance.bubbleCornerRadius == ChatAppearance.standard.bubbleCornerRadius)
     }
 
@@ -120,6 +138,28 @@ struct QuillChatKitTests {
         #expect(sidebar.title == "Quill Telegram")
         #expect(sidebar.items[0].unreadCount == 3)
         #expect(sidebar.appearance.rowVerticalPadding == 11)
+    }
+
+    @Test("ChatInitialSelection reads ordered keys and clamps to valid rows")
+    func chatInitialSelectionReadsOrderedKeysAndClamps() {
+        let ids = [
+            UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+            UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+        ]
+        let items = [
+            Summary(id: ids[0], title: "Family", preview: "Dinner?", unreadCount: 0),
+            Summary(id: ids[1], title: "DevOps", preview: "Canary healthy", unreadCount: 3),
+            Summary(id: ids[2], title: "Saved", preview: "Passport", unreadCount: 0)
+        ]
+
+        #expect(ChatInitialSelection.sharedEnvironmentKey == "QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START")
+        #expect(ChatInitialSelection.index(environmentKeys: ["missing"], environment: [:]) == nil)
+        #expect(ChatInitialSelection.index(environmentKeys: ["bad", "row"], environment: ["bad": "x", "row": "2"]) == 2)
+        #expect(ChatInitialSelection.selectedID(in: items, environmentKeys: ["row"], environment: ["row": "1"]) == ids[1])
+        #expect(ChatInitialSelection.selectedID(in: items, environmentKeys: ["row"], environment: ["row": "-9"]) == ids[0])
+        #expect(ChatInitialSelection.selectedID(in: items, environmentKeys: ["row"], environment: ["row": "99"]) == ids[2])
+        #expect(ChatInitialSelection.selectedID(in: items, environmentKeys: ["row"], environment: ["row": ""]) == nil)
     }
 
     @Test("ChatSplitShell carries reusable split-view state")
@@ -165,6 +205,7 @@ struct QuillChatKitTests {
 
         #expect(appearance.bubbleCornerRadius == 12)
         #expect(appearance.unreadBadgeCornerRadius == 8)
+        #expect(appearance.selectedRowCornerRadius == 8)
         #expect(appearance.bubblePadding == 10)
         #expect(appearance.rowVerticalPadding == 4)
         #expect(appearance.timelinePadding == 16)

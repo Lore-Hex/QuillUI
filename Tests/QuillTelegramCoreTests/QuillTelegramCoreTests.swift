@@ -112,6 +112,27 @@ struct QuillTelegramCoreTests {
         #expect(all.count == QuillTelegramFixtures.chats.count)
     }
 
+    @Test("Initial selection uses Telegram key before shared chat fallback")
+    func initialSelectionUsesTelegramKeyBeforeSharedFallback() {
+        let chats = QuillTelegramFixtures.chats
+
+        #expect(QuillTelegramInitialSelection.environmentKeys == [
+            "QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START",
+            ChatInitialSelection.sharedEnvironmentKey
+        ])
+        #expect(QuillTelegramInitialSelection.selectedChatID(
+            in: chats,
+            environment: [
+                "QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START": "1",
+                ChatInitialSelection.sharedEnvironmentKey: "2"
+            ]
+        ) == chats[1].id)
+        #expect(QuillTelegramInitialSelection.selectedChatID(
+            in: chats,
+            environment: [ChatInitialSelection.sharedEnvironmentKey: "3"]
+        ) == chats[3].id)
+    }
+
     private static func chatListItem<Item: ChatListItem>(_ item: Item) -> Item {
         item
     }
