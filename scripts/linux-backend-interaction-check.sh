@@ -160,6 +160,13 @@ if [[ "$PRODUCT" == "quill-wireguard" ]]; then
       ;;
   esac
 fi
+if [[ "$SELECTED_BACKEND" == "qt" ]] && quillui_is_backend_generic_qt_app_product "$PRODUCT"; then
+  case "$INTERACTION_MODE" in
+    list-selection)
+      app_environment+=("QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-2}")
+      ;;
+  esac
+fi
 env "${app_environment[@]}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
 app_pid=$!
 
@@ -467,6 +474,25 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "qt" ]]; then
         ;;
       *)
         echo "Unsupported WireGuard Qt interaction mode: $INTERACTION_MODE" >&2
+        exit 64
+        ;;
+    esac
+elif [[ "$SELECTED_BACKEND" == "qt" ]] && quillui_is_backend_generic_qt_app_product "$PRODUCT"; then
+    case "$INTERACTION_MODE" in
+      list-selection)
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 160))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 350))}"
+        click_at "$click_x" "$click_y"
+        sleep "$post_click_sleep"
+        ;;
+      click)
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 200))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 54))}"
+        click_at "$click_x" "$click_y"
+        sleep 1
+        ;;
+      *)
+        echo "Unsupported generic Qt interaction mode: $INTERACTION_MODE" >&2
         exit 64
         ;;
     esac

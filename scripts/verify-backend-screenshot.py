@@ -160,6 +160,39 @@ def wireguard_qt_selected_row_pixel(rgb: tuple[int, int, int]) -> bool:
     return wireguard_selected_row_pixel(rgb)
 
 
+def generic_qt_sidebar_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        232 <= red <= 246
+        and 236 <= green <= 248
+        and 228 <= blue <= 244
+        and max(rgb) - min(rgb) <= 22
+    )
+
+
+def generic_qt_selected_row_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 214 <= red <= 232 and 228 <= green <= 242 and 242 <= blue <= 255 and blue - red >= 12
+
+
+def generic_qt_detail_surface_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        232 <= red <= 250
+        and 232 <= green <= 250
+        and 232 <= blue <= 250
+        and max(rgb) - min(rgb) <= 18
+    )
+
+
+def generic_qt_card_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        (244 <= red <= 255 and 244 <= green <= 255 and 244 <= blue <= 255 and max(rgb) - min(rgb) <= 12)
+        or (225 <= red <= 240 and 235 <= green <= 248 and 245 <= blue <= 255 and blue - red >= 8)
+    )
+
+
 def wireguard_error_text_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return (
@@ -1416,6 +1449,105 @@ def validate_quill_enchanted_qt_native(image: Screenshot) -> str:
     )
 
 
+def validate_quill_generic_qt_list_selection(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(900 <= app_width <= 1240, f"Generic Qt window width is unexpected: {app_width}px")
+    require(600 <= app_height <= 840, f"Generic Qt window height is unexpected: {app_height}px")
+
+    divider_search = range(left + 270, min(right + 1, left + 390))
+    divider_x = max(
+        divider_search,
+        key=lambda x: line_column_score(image, x, top + 20, bottom - 20),
+    )
+    divider_score = line_column_score(image, divider_x, top + 20, bottom - 20)
+    require(
+        divider_score >= int(app_height * 0.24),
+        f"Generic Qt splitter was not detected: x={divider_x}, score={divider_score}",
+    )
+
+    sidebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        divider_x,
+        bottom + 1,
+        generic_qt_sidebar_pixel,
+    )
+    selected_row = best_pixel_row_segment(
+        image,
+        left + 12,
+        top + 140,
+        max(left + 13, divider_x - 12),
+        min(bottom + 1, top + 520),
+        generic_qt_selected_row_pixel,
+        min_row_pixels=42,
+    )
+    require(selected_row is not None, "Generic Qt selected list row was not detected")
+    selected_row_segment, selected_row_pixels = selected_row
+    selected_row_center_offset = selected_row_segment.center - top
+    require(
+        selected_row_center_offset >= 270,
+        "Generic Qt list selection did not move to the lower fixture row: "
+        f"selected_center={selected_row_center_offset:.1f}px",
+    )
+
+    detail_surface_pixels = pixel_count(
+        image,
+        divider_x + 16,
+        top,
+        right + 1,
+        bottom + 1,
+        generic_qt_detail_surface_pixel,
+    )
+    card_pixels = pixel_count(
+        image,
+        divider_x + 20,
+        top + 84,
+        right - 20,
+        bottom - 20,
+        generic_qt_card_pixel,
+    )
+    sidebar_text_pixels = dark_pixel_count(
+        image,
+        left + 16,
+        top + 18,
+        max(left + 17, divider_x - 12),
+        bottom - 20,
+    )
+    detail_text_pixels = dark_pixel_count(
+        image,
+        divider_x + 20,
+        top + 20,
+        right - 20,
+        bottom - 20,
+    )
+
+    require(sidebar_pixels >= 28_000, f"Generic Qt sidebar background was not detected: pixels={sidebar_pixels}")
+    require(selected_row_pixels >= 900, f"Generic Qt selected list row is too small: pixels={selected_row_pixels}")
+    require(
+        detail_surface_pixels >= 36_000,
+        f"Generic Qt detail surface was not detected: pixels={detail_surface_pixels}",
+    )
+    require(card_pixels >= 18_000, f"Generic Qt detail cards were not detected: pixels={card_pixels}")
+    require(sidebar_text_pixels >= 400, f"Generic Qt sidebar text was not detected: pixels={sidebar_text_pixels}")
+    require(detail_text_pixels >= 500, f"Generic Qt detail text was not detected: pixels={detail_text_pixels}")
+
+    return (
+        "Quill generic Qt list selection: "
+        f"app={app_width}x{app_height}, "
+        f"divider={divider_x - left}px/{divider_score}, "
+        f"sidebar_pixels={sidebar_pixels}, "
+        f"selected_row_pixels={selected_row_pixels}, "
+        f"selected_row_y={selected_row_segment.start - top}-{selected_row_segment.end - top}, "
+        f"detail_surface_pixels={detail_surface_pixels}, "
+        f"card_pixels={card_pixels}, "
+        f"sidebar_text_pixels={sidebar_text_pixels}, "
+        f"detail_text_pixels={detail_text_pixels}"
+    )
+
+
 def validate_quill_wireguard_qt_native(
     image: Screenshot,
     minimum_selected_center_offset: int | None = None,
@@ -1831,6 +1963,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference(image))
     elif product == "quill-enchanted-qt":
         print(validate_quill_enchanted_qt_native(image))
+    elif product == "quill-generic-qt-list-selection":
+        print(validate_quill_generic_qt_list_selection(image))
     elif product == "quill-wireguard-qt":
         print(validate_quill_wireguard_qt_native(image))
     elif product == "quill-wireguard-qt-tunnel-selection":

@@ -281,11 +281,19 @@ public enum QuillGenericQtAppCatalog {
 
 public enum QuillGenericQtNativeApp {
     public static func run(_ snapshot: QuillGenericQtAppSnapshot) -> Never {
+        var launchSnapshot = snapshot
+        if let selectedIndex = selectedIndexOverride(
+            ProcessInfo.processInfo.environment["QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"],
+            itemCount: launchSnapshot.items.count
+        ) {
+            launchSnapshot.selectedIndex = selectedIndex
+        }
+
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
 
         do {
-            let data = try encoder.encode(snapshot)
+            let data = try encoder.encode(launchSnapshot)
             let payload = String(decoding: data, as: UTF8.self)
             let exitCode = payload.withCString { payloadPointer in
                 quill_generic_qt_run_app_json(
@@ -299,6 +307,19 @@ public enum QuillGenericQtNativeApp {
             fputs("quill-generic-qt: failed to encode Qt payload: \(error)\n", stderr)
             exit(70)
         }
+    }
+
+    private static func selectedIndexOverride(_ value: String?, itemCount: Int) -> Int? {
+        guard itemCount > 0, let value else {
+            return nil
+        }
+
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let requestedIndex = Int(trimmedValue) else {
+            return nil
+        }
+
+        return min(max(requestedIndex, 0), itemCount - 1)
     }
 }
 #endif

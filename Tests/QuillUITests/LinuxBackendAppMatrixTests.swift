@@ -81,6 +81,12 @@ struct LinuxBackendAppMatrixTests {
         expectedAppContracts.map(\.product)
     }
 
+    private static var expectedGenericQtAppProducts: [String] {
+        expectedAppContracts
+            .filter { $0.qtRuntimeDependency == "QuillGenericQtNativeRuntime" }
+            .map(\.product)
+    }
+
     private static let expectedBackends = ["gtk", "qt"]
     private static let expectedGeneratedAppProducts = ["quill-chat-linux"]
     private static let expectedSmokeProducts = ["quill-gtk-interaction-smoke", "quill-qt-interaction-smoke"]
@@ -108,6 +114,21 @@ struct LinuxBackendAppMatrixTests {
                 "quill-gtk-interaction-smoke\tgtk\tgtk\tnative",
                 "quill-qt-interaction-smoke\tqt\tqt\tnative"
             ]
+    }
+
+    private static var expectedInteractionExtraModeRows: [String] {
+        [
+            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-paste-gtk.png\t0\timport-paste",
+            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-file-gtk.png\t0\timport-file",
+            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-invalid-paste-gtk.png\t0\timport-invalid-paste",
+            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-invalid-file-gtk.png\t0\timport-invalid-file",
+            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-paste-qt.png\t0\timport-paste",
+            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-file-qt.png\t0\timport-file",
+            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-invalid-paste-qt.png\t0\timport-invalid-paste",
+            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-invalid-file-qt.png\t0\timport-invalid-file"
+        ] + expectedGenericQtAppProducts.map { product in
+            "interaction\t\(product)\tqt\tqt\tnative\t.qa/\(product)-list-selection-qt.png\t0\tlist-selection"
+        }
     }
 
     private static func lines(_ output: String) -> [String] {
@@ -242,16 +263,7 @@ struct LinuxBackendAppMatrixTests {
             arguments: ["--dry-run", "interaction", "interaction-extra-mode-matrix", ".qa/{product}-{mode}-{backend}.png"]
         )
         #expect(interactionRows.status == 0, Comment(rawValue: interactionRows.output))
-        #expect(Self.lines(interactionRows.output) == [
-            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-paste-gtk.png\t0\timport-paste",
-            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-file-gtk.png\t0\timport-file",
-            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-invalid-paste-gtk.png\t0\timport-invalid-paste",
-            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-invalid-file-gtk.png\t0\timport-invalid-file",
-            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-paste-qt.png\t0\timport-paste",
-            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-file-qt.png\t0\timport-file",
-            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-invalid-paste-qt.png\t0\timport-invalid-paste",
-            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-invalid-file-qt.png\t0\timport-invalid-file"
-        ])
+        #expect(Self.lines(interactionRows.output) == Self.expectedInteractionExtraModeRows)
     }
 
     @Test("source contracts describe canonical backend selection")

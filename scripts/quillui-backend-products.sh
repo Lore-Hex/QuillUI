@@ -18,6 +18,20 @@ quillui_backend_app_products() {
     quill-wireguard
 }
 
+quillui_backend_generic_qt_app_products() {
+  # App products backed by QuillGenericQtNativeRuntime when the manifest is
+  # compiled with QUILLUI_LINUX_BACKEND=qt. Keep this in one roster so generic
+  # Qt interaction coverage cannot drift app-by-app.
+  printf '%s\n' \
+    quill-enchanted-upstream-slice \
+    quill-icecubes \
+    quill-netnewswire \
+    quill-codeedit \
+    quill-signal \
+    quill-telegram \
+    quill-iina
+}
+
 quillui_gtk_app_products() {
   # Legacy GTK-named entry point kept for older scripts. The backend app roster
   # is the source of truth because app binaries select GTK/Qt through the
@@ -358,6 +372,12 @@ quillui_backend_interaction_extra_mode_matrix() {
     quill-wireguard qt import-file \
     quill-wireguard qt import-invalid-paste \
     quill-wireguard qt import-invalid-file
+
+  local product
+  while IFS= read -r product; do
+    [[ -n "$product" ]] || continue
+    printf '%s\t%s\t%s\n' "$product" qt list-selection
+  done < <(quillui_backend_generic_qt_app_products)
 }
 
 quillui_backend_generated_app_products() {
@@ -512,6 +532,10 @@ quillui_is_backend_smoke_product() {
 
 quillui_is_backend_generated_app_product() {
   quillui_backend_product_list_contains "$1" quillui_backend_generated_app_products
+}
+
+quillui_is_backend_generic_qt_app_product() {
+  quillui_backend_product_list_contains "$1" quillui_backend_generic_qt_app_products
 }
 
 quillui_backend_has_native_runtime() {
