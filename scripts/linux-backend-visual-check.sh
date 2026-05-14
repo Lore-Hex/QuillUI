@@ -7,6 +7,7 @@ SCREENSHOT_PATH="${1:-$OUTPUT_DIR/quill-enchanted-backend.png}"
 PRODUCT="${2:-quill-enchanted}"
 REQUESTED_BACKEND="${3:-${QUILLUI_BACKEND:-}}"
 APP_EXECUTABLE=""
+APP_LOG_PATH="${QUILLUI_BACKEND_VISUAL_APP_LOG:-/tmp/quillui-backend-app.log}"
 
 source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
@@ -61,7 +62,7 @@ quillui_append_backend_runtime_environment \
   "$reference_window_height" \
   "$hide_window_menubar_label" \
   "$REQUESTED_BACKEND"
-env "${app_environment[@]}" "$APP_EXECUTABLE" >/tmp/quillui-backend-app.log 2>&1 &
+env "${app_environment[@]}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
 app_pid=$!
 
 sleep 4
@@ -87,4 +88,10 @@ DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 
 VERIFY_PRODUCT=""
 quillui_backend_visual_verify_product "$PRODUCT" VERIFY_PRODUCT
-"$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"
+if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"; then
+  :
+else
+  verify_status=$?
+  quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_VISUAL_APP_LOG_LINES:-80}"
+  exit "$verify_status"
+fi

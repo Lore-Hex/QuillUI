@@ -59,15 +59,6 @@ wireguard_qt_import_configuration_file() {
   printf '%s\n' "$fixture_path"
 }
 
-print_app_log_on_verifier_failure() {
-  if [[ ! -s "$APP_LOG_PATH" ]]; then
-    return 0
-  fi
-
-  echo "Backend interaction app log ($APP_LOG_PATH):" >&2
-  tail -n "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}" "$APP_LOG_PATH" >&2 || true
-}
-
 DISPLAY_ID="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_INTERACTION_DISPLAY:-:95}")"
 SCREEN_SIZE="$(quillui_backend_screen_size "$PRODUCT" "${QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE:-}" "1180x760x24" "$reference_window_width" "$reference_window_height")"
 screen_width="${SCREEN_SIZE%%x*}"
@@ -383,6 +374,6 @@ if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_
   :
 else
   verify_status=$?
-  print_app_log_on_verifier_failure
+  quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"
   exit "$verify_status"
 fi

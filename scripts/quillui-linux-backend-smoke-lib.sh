@@ -335,6 +335,21 @@ quillui_stop_process_if_running() {
   fi
 }
 
+quillui_print_backend_app_log_tail() {
+  local log_path="${1:-}"
+  local line_count="${2:-80}"
+
+  if [[ -z "$log_path" || ! -s "$log_path" ]]; then
+    return 0
+  fi
+  case "$line_count" in
+    ''|*[!0-9]*) line_count=80 ;;
+  esac
+
+  echo "Backend app log ($log_path):" >&2
+  tail -n "$line_count" "$log_path" >&2 || true
+}
+
 quillui_append_backend_launch_environment() {
   local output_array="$1"
   local product="$2"
