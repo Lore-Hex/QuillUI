@@ -5,8 +5,11 @@ public final class QuillDataConversationStore: ConversationPersistence {
     private let context: ModelContext
 
     public static func defaultURL() throws -> URL {
-        let baseURL = FileManager.default
-            .homeDirectoryForCurrentUser
+        let environment = ProcessInfo.processInfo.environment
+        let home = environment["QUILLDATA_HOME"] ?? environment["HOME"]
+        let homeURL = home.map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? FileManager.default.homeDirectoryForCurrentUser
+        let baseURL = homeURL
             .appendingPathComponent(".quillui", isDirectory: true)
             .appendingPathComponent("enchanted", isDirectory: true)
         try FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)

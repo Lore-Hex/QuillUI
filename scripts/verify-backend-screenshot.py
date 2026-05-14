@@ -1510,6 +1510,51 @@ def validate_quill_enchanted_qt_native(
     )
 
 
+def validate_quill_enchanted_gtk_list_selection(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(900 <= app_width <= 1260, f"Enchanted GTK window width is unexpected: {app_width}px")
+    require(620 <= app_height <= 860, f"Enchanted GTK window height is unexpected: {app_height}px")
+
+    sidebar_width = min(340, max(260, int(app_width * 0.30)))
+    selected_row = best_pixel_row_segment(
+        image,
+        left + 16,
+        top + 280,
+        left + sidebar_width - 16,
+        min(bottom + 1, top + 620),
+        enchanted_primary_pixel,
+        min_row_pixels=32,
+    )
+    require(selected_row is not None, "Enchanted GTK selected conversation row was not detected")
+    selected_row_segment, selected_row_pixels = selected_row
+    selected_row_center_offset = selected_row_segment.center - top
+    require(
+        selected_row_center_offset >= 360,
+        "Enchanted GTK conversation selection did not move to the lower conversation row: "
+        f"selected_center={selected_row_center_offset:.1f}px",
+    )
+    require(
+        selected_row_pixels >= 900,
+        f"Enchanted GTK selected conversation row is too small: pixels={selected_row_pixels}",
+    )
+
+    sidebar_text_pixels = dark_pixel_count(image, left + 20, top + 20, left + sidebar_width - 12, bottom - 20)
+    detail_text_pixels = dark_pixel_count(image, left + sidebar_width + 20, top + 20, right - 20, bottom - 20)
+    require(sidebar_text_pixels >= 500, f"Enchanted GTK sidebar text was not detected: pixels={sidebar_text_pixels}")
+    require(detail_text_pixels >= 1200, f"Enchanted GTK detail text was not detected: pixels={detail_text_pixels}")
+
+    return (
+        "Quill Enchanted GTK list selection: "
+        f"app={app_width}x{app_height}, "
+        f"selected_row_pixels={selected_row_pixels}, "
+        f"selected_row_y={selected_row_segment.start - top}-{selected_row_segment.end - top}, "
+        f"sidebar_text_pixels={sidebar_text_pixels}, "
+        f"detail_text_pixels={detail_text_pixels}"
+    )
+
+
 def validate_quill_generic_qt_list_selection(image: Screenshot, product: str) -> str:
     app_label = product.removesuffix("-qt-list-selection")
     left, right, top, bottom = content_bounds(image)
@@ -2027,6 +2072,8 @@ def main() -> int:
         print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-enchanted-qt-list-selection":
         print(validate_quill_enchanted_qt_native(image, minimum_selected_center_offset=430))
+    elif product == "quill-enchanted-list-selection":
+        print(validate_quill_enchanted_gtk_list_selection(image))
     elif product in GENERIC_QT_LIST_SELECTION_PRODUCTS:
         print(validate_quill_generic_qt_list_selection(image, product))
     elif product == "quill-wireguard-qt":

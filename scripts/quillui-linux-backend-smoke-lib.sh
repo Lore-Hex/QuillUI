@@ -240,10 +240,14 @@ quillui_backend_interaction_verify_product() {
         verify_product="quill-wireguard-qt-import-invalid-file"
         ;;
     esac
-  elif [[ "$product" == "quill-enchanted" && "$selected_backend" == "qt" ]]; then
+  elif [[ "$product" == "quill-enchanted" ]]; then
     case "$interaction_mode" in
       list-selection)
-        verify_product="quill-enchanted-qt-list-selection"
+        if [[ "$selected_backend" == "qt" ]]; then
+          verify_product="quill-enchanted-qt-list-selection"
+        else
+          verify_product="quill-enchanted-list-selection"
+        fi
         ;;
     esac
   elif [[ "$product" == "quill-wireguard" ]]; then
@@ -446,6 +450,22 @@ quillui_append_quill_chat_fixture_data_environment() {
   quillui_append_environment_assignment "$output_array" "QUILLUI_QUILL_CHAT_REFERENCE_MODE=1" || return $?
 }
 
+quillui_seed_enchanted_reference_data() {
+  local fixture_home="$1"
+
+  rm -rf "$fixture_home"
+  python3 "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/seed-enchanted-reference-data.py" "$fixture_home"
+}
+
+quillui_append_enchanted_fixture_data_environment() {
+  local output_array="$1"
+  local fixture_home="$2"
+
+  quillui_seed_enchanted_reference_data "$fixture_home" || return $?
+  quillui_append_environment_assignment "$output_array" "HOME=$fixture_home" || return $?
+  quillui_append_environment_assignment "$output_array" "QUILLDATA_HOME=$fixture_home" || return $?
+}
+
 quillui_append_quill_chat_reference_environment() {
   local output_array="$1"
   local reference_home="$2"
@@ -523,20 +543,26 @@ quillui_append_backend_selection_start_environment() {
   local product="$2"
   local selected_backend="$3"
   local interaction_mode="$4"
+  local output_dir="${5:-${QUILLUI_BACKEND_SELECTION_OUTPUT_DIR:-$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.qa}}"
 
   selected_backend="$(quillui_require_backend_identifier "$selected_backend")" || return $?
-  if [[ "$selected_backend" != "qt" || "$interaction_mode" != "list-selection" ]]; then
+  if [[ "$interaction_mode" != "list-selection" ]]; then
     return 0
   fi
 
-  if quillui_is_backend_generic_qt_app_product "$product"; then
+  if [[ "$selected_backend" == "qt" ]] && quillui_is_backend_generic_qt_app_product "$product"; then
     quillui_append_environment_assignment \
       "$output_array" \
       "QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}" || return $?
   elif [[ "$product" == "quill-enchanted" ]]; then
+    if [[ "$selected_backend" == "gtk" ]]; then
+      quillui_append_enchanted_fixture_data_environment \
+        "$output_array" \
+        "$output_dir/quill-enchanted-reference-home" || return $?
+    fi
     quillui_append_environment_assignment \
       "$output_array" \
-      "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START:-0}" || return $?
+      "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START:-${QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START:-0}}" || return $?
   fi
 
   return 0

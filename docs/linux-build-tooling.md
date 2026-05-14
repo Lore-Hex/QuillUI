@@ -377,6 +377,14 @@ QUILLUI_BACKEND_SKIP_BUILD=1 \
     '.qa/{product}-{mode}-{backend}.png'
 ```
 
+Enchanted list-selection coverage runs on both GTK and Qt through that same
+matrix. The shared runner seeds deterministic QuillData conversation records
+for the GTK path, passes
+`QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START`, and still accepts the
+older `QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START` as a Qt
+compatibility fallback. Keep new app interaction knobs backend-neutral unless
+the control only exists in one native host.
+
 The GTK and Qt launch fixtures also run through the backend visual runner from
 the shared smoke matrix, and through a mode-aware interaction matrix that drives
 the root button, nested controls, and sheet presentations with one product build

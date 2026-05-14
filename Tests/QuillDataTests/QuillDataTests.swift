@@ -1,6 +1,6 @@
 import Foundation
 import Dispatch
-import QuillData
+@testable import QuillData
 import Testing
 
 @Suite("QuillData SwiftData-shaped compatibility")
@@ -419,6 +419,18 @@ struct QuillDataTests {
         let models = try context.fetch(FetchDescriptor<NamedModel>())
         #expect(models.count == 1)
         #expect(models.first?.enabled == true)
+    }
+
+    @Test("JSON table names strip unstable private context qualifiers")
+    func genericTableNamesStripPrivateContextQualifiers() {
+        let tableName = QuillDataSQLiteStore.genericTableName(for: ValueTodoItem.self)
+
+        #expect(tableName.hasPrefix("_quilldata_json_"))
+        #expect(tableName.hasSuffix("_ValueTodoItem"))
+        #expect(!tableName.contains("unknown_context_at"))
+        #expect(QuillDataSQLiteStore.normalizedGenericTableName(
+            "_quilldata_json_QuillEnchantedCore__unknown_context_at__c623f13db648__QuillDataConversationRecord"
+        ) == "_quilldata_json_QuillEnchantedCore_QuillDataConversationRecord")
     }
 
     @Test("relationship wrappers encode and decode nested values")

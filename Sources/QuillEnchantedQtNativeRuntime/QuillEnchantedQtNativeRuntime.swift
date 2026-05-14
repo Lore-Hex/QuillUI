@@ -187,19 +187,32 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
 }
 
 public enum QuillEnchantedQtNativeApp {
-    private static let selectedConversationIndexEnvironmentKey = "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
+    private static let selectedConversationIndexEnvironmentKeys = [
+        "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START",
+        "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
+    ]
 
     private static func launchSnapshot() -> QuillEnchantedQtSnapshot {
         var snapshot = QuillEnchantedQtSnapshot.preview
-        guard let boundedIndex = QuillQtNativeRuntimeSupport.boundedIndexOverride(
-            environmentKey: selectedConversationIndexEnvironmentKey,
-            count: snapshot.conversations.count
-        ) else {
+        guard let boundedIndex = selectedConversationIndexOverride(count: snapshot.conversations.count) else {
             return snapshot
         }
 
         snapshot.selectedConversationID = snapshot.conversations[boundedIndex].id
         return snapshot
+    }
+
+    private static func selectedConversationIndexOverride(count: Int) -> Int? {
+        for environmentKey in selectedConversationIndexEnvironmentKeys {
+            if let boundedIndex = QuillQtNativeRuntimeSupport.boundedIndexOverride(
+                environmentKey: environmentKey,
+                count: count
+            ) {
+                return boundedIndex
+            }
+        }
+
+        return nil
     }
 
     public static func run() -> Never {

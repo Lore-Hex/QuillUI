@@ -213,6 +213,7 @@ final class QuillDataSQLiteStore: @unchecked Sendable {
                     try db.execute(sql: mappable.createTableSQL)
                 } else {
                     try Self.createGenericTable(for: modelType, in: db)
+                    try Self.migrateUnstablePrivateContextGenericTables(for: modelType, in: db)
                 }
             }
         }
@@ -364,12 +365,48 @@ final class QuillDataSQLiteStore: @unchecked Sendable {
         return genericTableName(for: type(of: model))
     }
 
-    private static func genericTableName(for modelType: any PersistentModel.Type) -> String {
-        let rawName = String(reflecting: modelType)
+    static func genericTableName(for modelType: any PersistentModel.Type) -> String {
+        let rawName = stableGenericModelName(for: modelType)
         let sanitizedName = rawName.map { character in
             character.isLetter || character.isNumber ? character : "_"
         }
         return genericTablePrefix + String(sanitizedName)
+    }
+
+    static func normalizedGenericTableName(_ tableName: String) -> String {
+        tableName.replacingOccurrences(
+            of: #"__unknown_context_at__[A-Za-z0-9]+__"#,
+            with: "_",
+            options: .regularExpression
+        )
+    }
+
+    private static func stableGenericModelName(for modelType: any PersistentModel.Type) -> String {
+        String(reflecting: modelType).replacingOccurrences(
+            of: #"\.\(unknown context at [^)]+\)"#,
+            with: "",
+            options: .regularExpression
+        )
+    }
+
+    private static func migrateUnstablePrivateContextGenericTables(
+        for modelType: any PersistentModel.Type,
+        in db: Database
+    ) throws {
+        let targetTableName = genericTableName(for: modelType)
+        let legacyTableNames = try String.fetchAll(
+            db,
+            sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?",
+            arguments: ["\(genericTablePrefix)%unknown_context_at%"]
+        )
+
+        for legacyTableName in legacyTableNames
+        where legacyTableName != targetTableName && normalizedGenericTableName(legacyTableName) == targetTableName {
+            try db.execute(sql: """
+            INSERT OR IGNORE INTO \(quotedIdentifier(targetTableName)) (id, payload)
+            SELECT id, payload FROM \(quotedIdentifier(legacyTableName))
+            """)
+        }
     }
 
     private static func quotedIdentifier(_ identifier: String) -> String {

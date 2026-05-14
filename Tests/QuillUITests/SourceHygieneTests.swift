@@ -570,6 +570,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillInteractionSmokeSupport/QuillInteractionSmokeView.swift"),
             encoding: .utf8
         )
+        let enchantedConversationStore = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/QuillDataConversationStore.swift"),
+            encoding: .utf8
+        )
         let wireGuardQtHost = try String(
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillWireGuardQt6Widgets.cpp"),
             encoding: .utf8
@@ -679,6 +683,8 @@ struct SourceHygieneTests {
         #expect(!manifest.contains("dependencies: [\"QuillUI\", \"QuillUIGtk\", \"QuillInteractionSmokeSupport\"]"))
         #expect(!manifest.contains("dependencies: [\"QuillUI\", \"QuillUIQt\", \"QuillInteractionSmokeSupport\"]"))
         #expect(sharedView.contains("import Foundation"))
+        #expect(enchantedConversationStore.contains("let home = environment[\"QUILLDATA_HOME\"] ?? environment[\"HOME\"]"))
+        #expect(enchantedConversationStore.contains("URL(fileURLWithPath: $0, isDirectory: true)"))
 
         #expect(gtkMain.contains("import QuillInteractionSmokeSupport"))
         #expect(gtkMain.contains("import QuillUIGtk"))
@@ -722,12 +728,14 @@ struct SourceHygieneTests {
         #expect(qtNativeWidgetSupport.contains("%s: missing payload JSON\\n"))
         #expect(qtNativeWidgetSupport.contains("%s: invalid payload JSON at offset %lld: %s\\n"))
         #expect(enchantedQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
+        #expect(enchantedQtRuntime.contains("QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START"))
         #expect(enchantedQtRuntime.contains("QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"))
+        #expect(enchantedQtRuntime.contains("private static let selectedConversationIndexEnvironmentKeys = ["))
         #expect(enchantedQtRuntime.contains("var messages: [Message]? = nil"))
         #expect(enchantedQtRuntime.contains("messages: launchConversationMessages"))
         #expect(enchantedQtRuntime.contains("messages: attachmentConversationMessages"))
         #expect(enchantedQtRuntime.contains("QuillQtNativeRuntimeSupport.boundedIndexOverride("))
-        #expect(enchantedQtRuntime.contains("environmentKey: selectedConversationIndexEnvironmentKey"))
+        #expect(enchantedQtRuntime.contains("for environmentKey in selectedConversationIndexEnvironmentKeys"))
         #expect(!enchantedQtRuntime.contains("ProcessInfo.processInfo.environment["))
         #expect(enchantedQtRuntime.contains("snapshot.selectedConversationID = snapshot.conversations[boundedIndex].id"))
         #expect(enchantedQtRuntime.contains("QuillQtNativeRuntimeSupport.runEncodedPayload("))
@@ -938,6 +946,8 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("quillui_append_backend_selection_start_environment"))
         #expect(!backendScript.contains("app_environment+=(\"QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"))
         #expect(!backendScript.contains("app_environment+=(\"QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"))
+        #expect(backendScript.contains("[[ \"$PRODUCT\" == \"quill-enchanted\" && \"$SELECTED_BACKEND\" == \"gtk\" ]]"))
+        #expect(backendScript.contains("Unsupported Enchanted GTK interaction mode"))
         #expect(backendScript.contains("Unsupported Enchanted Qt interaction mode"))
         #expect(backendScript.contains("quillui_is_backend_generic_qt_app_product \"$PRODUCT\""))
         #expect(backendScript.contains("Unsupported generic Qt interaction mode"))
@@ -1021,6 +1031,7 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("quill-wireguard-import-file"))
         #expect(smokeLib.contains("quill-wireguard-import-invalid-paste"))
         #expect(smokeLib.contains("quill-wireguard-import-invalid-file"))
+        #expect(smokeLib.contains("quill-enchanted-list-selection"))
         #expect(smokeLib.contains("quill-enchanted-qt-list-selection"))
         #expect(smokeLib.contains("verify_product=\"$product-qt-list-selection\""))
         #expect(smokeLib.contains("quillui_is_backend_generic_qt_app_product \"$product\""))
@@ -1035,7 +1046,9 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("quillui_append_quill_chat_reference_environment_if_needed \\"))
         #expect(smokeLib.contains("quillui_append_backend_selection_start_environment()"))
         #expect(smokeLib.contains("QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}"))
-        #expect(smokeLib.contains("QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START:-0}"))
+        #expect(smokeLib.contains("QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START:-${QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START:-0}}"))
+        #expect(smokeLib.contains("quillui_seed_enchanted_reference_data()"))
+        #expect(smokeLib.contains("seed-enchanted-reference-data.py"))
         #expect(smokeLib.contains("QUILLUI_BACKEND_LAYOUT_DEBUG=$layout_debug"))
         #expect(!smokeLib.contains("QUILLUI_GTK_LAYOUT_DEBUG=$layout_debug"))
         #expect(!smokeLib.contains("QUILLUI_QT_LAYOUT_DEBUG=$layout_debug"))
@@ -1125,7 +1138,7 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_IMPORT_CONFIGURATION QUILLUI_GTK_IMPORT_CONFIGURATION QUILLUI_QT_IMPORT_CONFIGURATION"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START QUILLUI_GTK_GENERIC_SELECTED_INDEX_ON_START QUILLUI_QT_GENERIC_SELECTED_INDEX_ON_START"))
-        #expect(backendProducts.contains("quillui_alias_env QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_QT_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START"))
+        #expect(backendProducts.contains("quillui_alias_env QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_QT_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_COMMAND QUILLUI_GTK_PROFILE_COMMAND QUILLUI_QT_PROFILE_COMMAND"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS QUILLUI_QT_PROFILE_MAX_STARTUP_MS\n  quillui_alias_backend_common_env"))
@@ -1173,6 +1186,8 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("validate_quill_enchanted_qt_native"))
         #expect(screenshotVerifier.contains("product == \"quill-enchanted-qt\""))
         #expect(screenshotVerifier.contains("product == \"quill-enchanted-qt-list-selection\""))
+        #expect(screenshotVerifier.contains("product == \"quill-enchanted-list-selection\""))
+        #expect(screenshotVerifier.contains("validate_quill_enchanted_gtk_list_selection"))
         #expect(screenshotVerifier.contains("load_generic_qt_app_products()"))
         #expect(screenshotVerifier.contains("Path(__file__).with_name(\"quillui-backend-products.sh\")"))
         #expect(screenshotVerifier.contains("\"generic-qt-apps\""))
