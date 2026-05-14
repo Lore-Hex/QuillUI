@@ -227,6 +227,9 @@ quillui_backend_interaction_verify_product() {
     esac
   elif [[ "$product" == "quill-wireguard" ]]; then
     case "$interaction_mode" in
+      tunnel-name-edit|name-edit)
+        verify_product="quill-wireguard-name-edit"
+        ;;
       import-paste|paste-import)
         verify_product="quill-wireguard-import-paste"
         ;;

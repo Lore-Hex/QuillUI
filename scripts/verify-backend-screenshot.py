@@ -1434,9 +1434,10 @@ def validate_quill_wireguard_qt_native(
     )
 
 
-def validate_quill_wireguard_gtk_import(
+def validate_quill_wireguard_gtk_native(
     image: Screenshot,
-    minimum_selected_center_offset: int = 145,
+    minimum_selected_center_offset: int | None = None,
+    scenario: str = "native",
 ) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1472,15 +1473,16 @@ def validate_quill_wireguard_gtk_import(
         wireguard_selected_row_pixel,
         min_row_pixels=28,
     )
-    require(selected_row is not None, "WireGuard GTK selected imported tunnel row was not detected")
+    require(selected_row is not None, f"WireGuard GTK selected tunnel row was not detected for {scenario}")
     selected_row_segment, selected_row_pixels = selected_row
     selected_row_center_offset = selected_row_segment.center - top
-    require(
-        selected_row_center_offset >= minimum_selected_center_offset,
-        "WireGuard GTK import did not select the imported tunnel row: "
-        f"selected_center={selected_row_center_offset:.1f}px, "
-        f"minimum={minimum_selected_center_offset}px",
-    )
+    if minimum_selected_center_offset is not None:
+        require(
+            selected_row_center_offset >= minimum_selected_center_offset,
+            f"WireGuard GTK {scenario} did not select the expected tunnel row: "
+            f"selected_center={selected_row_center_offset:.1f}px, "
+            f"minimum={minimum_selected_center_offset}px",
+        )
 
     section_pixels = pixel_count(
         image,
@@ -1511,7 +1513,7 @@ def validate_quill_wireguard_gtk_import(
     )
     require(
         selected_row_pixels >= 120,
-        f"WireGuard GTK selected imported row is too small: pixels={selected_row_pixels}",
+        f"WireGuard GTK selected tunnel row is too small: pixels={selected_row_pixels}",
     )
     require(
         section_pixels >= 8_000,
@@ -1527,7 +1529,7 @@ def validate_quill_wireguard_gtk_import(
     )
 
     return (
-        "Quill WireGuard GTK import: "
+        f"Quill WireGuard GTK {scenario}: "
         f"app={app_width}x{app_height}, "
         f"divider={divider_x - left}px/{divider_score}, "
         f"sidebar_pixels={sidebar_pixels}, "
@@ -1536,6 +1538,17 @@ def validate_quill_wireguard_gtk_import(
         f"section_pixels={section_pixels}, "
         f"sidebar_text_pixels={sidebar_text_pixels}, "
         f"detail_text_pixels={detail_text_pixels}"
+    )
+
+
+def validate_quill_wireguard_gtk_import(
+    image: Screenshot,
+    minimum_selected_center_offset: int = 145,
+) -> str:
+    return validate_quill_wireguard_gtk_native(
+        image,
+        minimum_selected_center_offset=minimum_selected_center_offset,
+        scenario="import",
     )
 
 
@@ -1727,6 +1740,12 @@ def main() -> int:
         print(validate_quill_wireguard_qt_native(image, minimum_selected_center_offset=145))
     elif product in {"quill-wireguard-qt-import-invalid-paste", "quill-wireguard-qt-import-invalid-file"}:
         print(validate_quill_wireguard_import_error(image, backend="qt"))
+    elif product == "quill-wireguard-name-edit":
+        print(validate_quill_wireguard_gtk_native(
+            image,
+            minimum_selected_center_offset=100,
+            scenario="name edit",
+        ))
     elif product in {"quill-wireguard-import-paste", "quill-wireguard-import-file"}:
         print(validate_quill_wireguard_gtk_import(image))
     elif product in {"quill-wireguard-import-invalid-paste", "quill-wireguard-import-invalid-file"}:

@@ -414,6 +414,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeLib.contains("quill-wireguard-qt-import-file"))
         #expect(smokeLib.contains("quill-wireguard-qt-import-invalid-paste"))
         #expect(smokeLib.contains("quill-wireguard-qt-import-invalid-file"))
+        #expect(smokeLib.contains("quill-wireguard-name-edit"))
         #expect(smokeLib.contains("quill-wireguard-import-paste"))
         #expect(smokeLib.contains("quill-wireguard-import-file"))
         #expect(smokeLib.contains("quill-wireguard-import-invalid-paste"))

@@ -19,7 +19,7 @@ INTERACTION_MODE="${QUILLUI_BACKEND_INTERACTION_MODE:-}"
 if [[ -z "$INTERACTION_MODE" ]]; then
   case "$PRODUCT" in
     quill-chat-linux) INTERACTION_MODE="toolbar-menu" ;;
-    quill-wireguard-qt) INTERACTION_MODE="tunnel-name-edit" ;;
+    quill-wireguard|quill-wireguard-qt) INTERACTION_MODE="tunnel-name-edit" ;;
     *) INTERACTION_MODE="click" ;;
   esac
   if quillui_is_backend_smoke_product "$PRODUCT"; then
@@ -204,6 +204,23 @@ type_text() {
   DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$1"
 }
 
+edit_wireguard_tunnel_name() {
+  local name_x_offset="${1:-360}"
+  local name_y_offset="${2:-42}"
+  local click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
+  local click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 150))}"
+  local name_x="${QUILLUI_BACKEND_NAME_CLICK_X:-$((window_x + name_x_offset))}"
+  local name_y="${QUILLUI_BACKEND_NAME_CLICK_Y:-$((window_y + name_y_offset))}"
+
+  click_at "$click_x" "$click_y"
+  sleep 0.5
+  click_at "$name_x" "$name_y"
+  sleep 0.5
+  DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
+  type_text "${QUILLUI_BACKEND_TYPE_TEXT:-Edited Tunnel}"
+  sleep "$post_click_sleep"
+}
+
 wireguard_import_configuration() {
   if [[ -n "${QUILLUI_BACKEND_IMPORT_CONFIGURATION:-}" ]]; then
     printf '%s' "$QUILLUI_BACKEND_IMPORT_CONFIGURATION"
@@ -365,6 +382,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
     esac
 elif [[ "$PRODUCT" == "quill-wireguard" ]]; then
     case "$INTERACTION_MODE" in
+      tunnel-name-edit|name-edit)
+        edit_wireguard_tunnel_name
+        ;;
       import-paste|paste-import|import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
         import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 256))}"
         import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
@@ -406,17 +426,7 @@ elif [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
         sleep "$post_click_sleep"
         ;;
       tunnel-name-edit|name-edit)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 150))}"
-        name_x="${QUILLUI_BACKEND_NAME_CLICK_X:-$((window_x + 360))}"
-        name_y="${QUILLUI_BACKEND_NAME_CLICK_Y:-$((window_y + 42))}"
-        click_at "$click_x" "$click_y"
-        sleep 0.5
-        click_at "$name_x" "$name_y"
-        sleep 0.5
-        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
-        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-Edited Tunnel}"
-        sleep "$post_click_sleep"
+        edit_wireguard_tunnel_name
         ;;
       import-paste|paste-import|import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
         import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 292))}"
