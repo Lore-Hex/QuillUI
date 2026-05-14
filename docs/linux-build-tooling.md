@@ -249,8 +249,10 @@ backend travels with each row. The runner canonicalizes backend aliases such as
 `gtk4`, `qt6`, and `swift-ui` before resolving scoped inputs into
 backend-neutral values; app launch environments then pass only
 `QUILLUI_BACKEND_*` values so a selected Qt run does not also receive
-GTK-scoped controls, and `scripts/linux-gtk-visual-check.sh` remains as a thin
-compatibility shim.
+GTK-scoped controls. The shared smoke helper unsets scoped `QUILLUI_GTK_*` and
+`QUILLUI_QT_*` aliases after resolution so inherited shell exports cannot make
+the spawned app see both backend paths. `scripts/linux-gtk-visual-check.sh`
+remains as a thin compatibility shim.
 When `QUILLUI_BACKEND` is set, scoped aliases are treated as path-specific
 inputs: a Qt run can use `QUILLUI_BACKEND_*` or `QUILLUI_QT_*` values, but it
 will not source a `QUILLUI_GTK_*` fallback, and the GTK path follows the same

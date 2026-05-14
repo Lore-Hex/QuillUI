@@ -416,6 +416,9 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeLib.contains("quillui_append_backend_launch_environment()"))
         #expect(smokeLib.contains("quillui_append_backend_runtime_environment()"))
         #expect(smokeLib.contains("quillui_append_environment_assignment()"))
+        #expect(smokeLib.contains("quillui_backend_scoped_app_environment_names()"))
+        #expect(smokeLib.contains("quillui_unset_backend_scoped_app_environment()"))
+        #expect(smokeLib.contains("quillui_unset_backend_scoped_app_environment"))
         #expect(smokeLib.contains("quillui_append_quill_chat_fixture_data_environment()"))
         #expect(smokeLib.contains("quillui_append_quill_chat_reference_environment()"))
         #expect(smokeLib.contains("quillui_append_quill_chat_reference_environment_if_needed()"))
@@ -1192,6 +1195,34 @@ struct LinuxBackendAppMatrixTests {
         quillui_append_backend_launch_environment runtime_env quill-icecubes "" " GTK4 "
         printf 'launch-backend=%s\\n' "${runtime_env[1]}"
 
+        unset QUILLUI_BACKEND_LAYOUT_DEBUG QUILLUI_GTK_LAYOUT_DEBUG QUILLUI_QT_LAYOUT_DEBUG
+        unset QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH QUILLUI_GTK_DEFAULT_WINDOW_WIDTH QUILLUI_QT_DEFAULT_WINDOW_WIDTH
+        unset QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE
+        QUILLUI_BACKEND=qt
+        QUILLUI_GTK_LAYOUT_DEBUG=wrong-backend
+        QUILLUI_QT_LAYOUT_DEBUG=1
+        QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=111
+        QUILLUI_QT_DEFAULT_WINDOW_WIDTH=222
+        QUILLUI_GTK_IMPORT_CONFIGURATION_FILE=/tmp/wrong.conf
+        QUILLUI_QT_IMPORT_CONFIGURATION_FILE=/tmp/qt.conf
+        export QUILLUI_BACKEND
+        export QUILLUI_GTK_LAYOUT_DEBUG QUILLUI_QT_LAYOUT_DEBUG
+        export QUILLUI_GTK_DEFAULT_WINDOW_WIDTH QUILLUI_QT_DEFAULT_WINDOW_WIDTH
+        export QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE
+        quillui_alias_backend_interaction_env
+        scoped_runtime_env=()
+        quillui_append_backend_runtime_environment scoped_runtime_env quill-wireguard-qt :97 "\(temporaryDirectory.path)/runtime" 2048 1380 1 qt
+        printf 'runtime-env=%s\\n' "$(printf '%s|' "${scoped_runtime_env[@]}")"
+        printf 'runtime-layout=%s\\n' "$QUILLUI_BACKEND_LAYOUT_DEBUG"
+        printf 'runtime-width=%s\\n' "$QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH"
+        printf 'runtime-import-file=%s\\n' "$QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE"
+        printf 'runtime-gtk-layout=%s\\n' "${QUILLUI_GTK_LAYOUT_DEBUG-unset}"
+        printf 'runtime-qt-layout=%s\\n' "${QUILLUI_QT_LAYOUT_DEBUG-unset}"
+        printf 'runtime-gtk-width=%s\\n' "${QUILLUI_GTK_DEFAULT_WINDOW_WIDTH-unset}"
+        printf 'runtime-qt-width=%s\\n' "${QUILLUI_QT_DEFAULT_WINDOW_WIDTH-unset}"
+        printf 'runtime-gtk-import-file=%s\\n' "${QUILLUI_GTK_IMPORT_CONFIGURATION_FILE-unset}"
+        printf 'runtime-qt-import-file=%s\\n' "${QUILLUI_QT_IMPORT_CONFIGURATION_FILE-unset}"
+
         if quillui_export_backend_argument "not-a-backend" 2>/dev/null; then
           echo "unexpected-export-success"
           exit 1
@@ -1249,6 +1280,16 @@ struct LinuxBackendAppMatrixTests {
         matching-build-stamp=ok
         mismatched-build-stamp=failed
         launch-backend=QUILLUI_BACKEND=gtk
+        runtime-env=GTK_A11Y=none|DISPLAY=:97|QUILLUI_BACKEND=qt|QUILLUI_BACKEND_LAYOUT_DEBUG=1|
+        runtime-layout=1
+        runtime-width=222
+        runtime-import-file=/tmp/qt.conf
+        runtime-gtk-layout=unset
+        runtime-qt-layout=unset
+        runtime-gtk-width=unset
+        runtime-qt-width=unset
+        runtime-gtk-import-file=unset
+        runtime-qt-import-file=unset
         strict-export=failed
         strict-launch=failed
         strict-env=failed
