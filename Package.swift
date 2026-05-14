@@ -138,6 +138,7 @@ var products: [Product] = [
 ]
 
 #if !os(Linux)
+products.append(.executable(name: "quill-enchanted-qt", targets: ["QuillEnchantedQt"]))
 products.append(.executable(name: "quill-wireguard-qt", targets: ["QuillWireGuardQt"]))
 #endif
 
@@ -278,11 +279,10 @@ let nnwLogicDependencies: [Target.Dependency] = [
 ]
 #endif
 
-// QuillWireGuard is split into a pure model core, one shared SwiftUI-shaped UI
-// target, and backend-specific entry points. Linux chooses one host graph with
-// QUILLUI_LINUX_BACKEND=gtk|qt: the default GTK graph keeps the SwiftOpenUI
-// scene path, while the Qt graph swaps quill-wireguard-qt to a native Qt
-// Widgets host fed by the same core presentation snapshot.
+// Native Qt entry points are split from the GTK/SwiftOpenUI app graph. Linux
+// chooses one host graph with QUILLUI_LINUX_BACKEND=gtk|qt: the default GTK
+// graph keeps SwiftOpenUI scenes, while the Qt graph swaps app-specific Qt
+// products to native Qt Widgets hosts fed by small JSON snapshots.
 let quillWireGuardCoreDependencies: [Target.Dependency] = []
 var quillWireGuardUIDependencies: [Target.Dependency] = ["QuillWireGuardCore", "QuillUI"]
 #if !os(Linux)
@@ -320,6 +320,17 @@ func quillLinuxBackendDependencies(
 ) -> [Target.Dependency] {
     fallback
 }
+#endif
+
+let quillEnchantedQtDependencies: [Target.Dependency] = quillLinuxBackendDependencies(
+    nativeQt: ["QuillEnchantedQtNativeRuntime"],
+    fallback: ["QuillEnchantedCore", "QuillUIQt"]
+)
+#if os(Linux)
+let quillEnchantedQtSwiftSettings: [SwiftSetting] =
+    appSwiftSettings + (quillUILinuxBuildBackend == .qt ? [.define("QUILLUI_ENCHANTED_QT_NATIVE_BACKEND")] : [])
+#else
+let quillEnchantedQtSwiftSettings: [SwiftSetting] = appSwiftSettings
 #endif
 
 let quillWireGuardQtDependencies: [Target.Dependency] = quillLinuxBackendDependencies(
@@ -630,14 +641,20 @@ var targets: [Target] = [
 ]
 
 #if !os(Linux)
-targets.append(
+targets += [
+    .executableTarget(
+        name: "QuillEnchantedQt",
+        dependencies: quillEnchantedQtDependencies,
+        path: "Sources/QuillEnchantedQt",
+        swiftSettings: quillEnchantedQtSwiftSettings
+    ),
     .executableTarget(
         name: "QuillWireGuardQt",
         dependencies: quillWireGuardQtDependencies,
         path: "Sources/QuillWireGuardQt",
         swiftSettings: quillWireGuardQtSwiftSettings
     )
-)
+]
 #endif
 
 // NetNewsWire upstream — modular RSS reader source (Ranchero-Software/
@@ -1086,6 +1103,7 @@ allPackageDependencies += [
 #if os(Linux)
 if quillUILinuxBuildBackend == .qt {
     products = [
+        .executable(name: "quill-enchanted-qt", targets: ["QuillEnchantedQt"]),
         .executable(name: "quill-wireguard-qt", targets: ["QuillWireGuardQt"]),
         .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
     ]
@@ -1114,6 +1132,18 @@ if quillUILinuxBuildBackend == .qt {
             linkerSettings: [
                 .unsafeFlags(qt6WidgetsLinkerFlags)
             ]
+        ),
+        .target(
+            name: "QuillEnchantedQtNativeRuntime",
+            dependencies: ["CQuillQt6WidgetsShim"],
+            path: "Sources/QuillEnchantedQtNativeRuntime",
+            swiftSettings: appSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillEnchantedQt",
+            dependencies: ["QuillEnchantedQtNativeRuntime"],
+            path: "Sources/QuillEnchantedQt",
+            swiftSettings: quillEnchantedQtSwiftSettings
         ),
         .target(
             name: "QuillWireGuardQtNativeRuntime",

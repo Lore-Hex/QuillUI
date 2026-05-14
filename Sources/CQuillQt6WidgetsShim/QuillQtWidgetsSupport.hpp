@@ -5,6 +5,8 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QLabel>
+#include <QLayout>
+#include <QLayoutItem>
 #include <QPushButton>
 #include <QRect>
 #include <QString>
@@ -71,6 +73,22 @@ inline QJsonObject jsonObjectValue(const QJsonObject &object, const char *key) {
 
 inline QJsonArray jsonArrayValue(const QJsonObject &object, const char *key) {
     return object.value(QString::fromUtf8(key)).toArray();
+}
+
+inline void clearLayout(QLayout *layout) {
+    if (layout == nullptr) {
+        return;
+    }
+
+    while (QLayoutItem *item = layout->takeAt(0)) {
+        if (QLayout *childLayout = item->layout()) {
+            clearLayout(childLayout);
+        }
+        if (QWidget *widget = item->widget()) {
+            delete widget;
+        }
+        delete item;
+    }
 }
 
 inline QLabel *label(

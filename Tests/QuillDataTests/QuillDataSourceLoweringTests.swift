@@ -382,6 +382,7 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains(".target(name: \"UIKit\", dependencies: [\"QuillFoundation\", \"QuillUIKit\"], path: \"Sources/UIKitShim\")"))
         #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: [\"QuillFoundation\"],\n        path: \"Sources/QuillUIKit\"\n    )"))
         #expect(manifest.contains(".executable(name: \"quill-wireguard\", targets: [\"QuillWireGuard\"])"))
+        #expect(manifest.contains(".executable(name: \"quill-enchanted-qt\", targets: [\"QuillEnchantedQt\"])"))
         #expect(manifest.contains(".executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"])"))
         #expect(manifest.contains("let quillWireGuardCoreDependencies: [Target.Dependency] = []"))
         #expect(manifest.contains("var quillWireGuardUIDependencies: [Target.Dependency] = [\"QuillWireGuardCore\", \"QuillUI\"]"))

@@ -67,6 +67,59 @@ struct CoreContractMatrixTests {
         #expect(url.path.hasSuffix(testCase.expectedSuffix))
     }
 
+    @Test("Enchanted Qt native target stays isolated from GTK graph")
+    func enchantedQtNativeTargetContracts() throws {
+        let root = try packageRoot()
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+        let qtMain = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedQt/main.swift"),
+            encoding: .utf8
+        )
+        let runtime = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift"),
+            encoding: .utf8
+        )
+        let header = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/include/CQuillQt6WidgetsShim.h"),
+            encoding: .utf8
+        )
+        let nativeShim = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp"),
+            encoding: .utf8
+        )
+        let nativeSupport = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillQtWidgetsSupport.hpp"),
+            encoding: .utf8
+        )
+
+        #expect(manifest.contains(".executable(name: \"quill-enchanted-qt\", targets: [\"QuillEnchantedQt\"])"))
+        #expect(manifest.contains("nativeQt: [\"QuillEnchantedQtNativeRuntime\"]"))
+        #expect(manifest.contains(".define(\"QUILLUI_ENCHANTED_QT_NATIVE_BACKEND\")"))
+        #expect(manifest.contains("name: \"QuillEnchantedQtNativeRuntime\""))
+        #expect(manifest.contains("dependencies: [\"CQuillQt6WidgetsShim\"]"))
+        #expect(qtMain.contains("#if QUILLUI_ENCHANTED_QT_NATIVE_BACKEND"))
+        #expect(qtMain.contains("QuillEnchantedQtNativeApp.run()"))
+        #expect(qtMain.contains("QuillQtApp.run(QuillEnchantedQtApp.self)"))
+        #expect(runtime.contains("QuillEnchantedQtSnapshot.preview"))
+        #expect(runtime.contains("quill_enchanted_qt_run_app_json"))
+        #expect(runtime.contains("windowTitle: \"Quill Enchanted\""))
+        #expect(runtime.contains("selectedModel: \"llama3.1:8b\""))
+        #expect(runtime.contains("canvasColor: \"#F6F7F2\""))
+        #expect(header.contains("quill_enchanted_qt_run_app_json"))
+        #expect(nativeShim.contains("#include \"QuillQtWidgetsSupport.hpp\""))
+        #expect(nativeShim.contains("QComboBox"))
+        #expect(nativeShim.contains("QListWidget"))
+        #expect(nativeShim.contains("QPlainTextEdit"))
+        #expect(nativeShim.contains("QScrollArea"))
+        #expect(nativeShim.contains("styleValue(style, \"canvasColor\", \"#F6F7F2\")"))
+        #expect(nativeShim.contains("intValue(style, \"sidebarWidth\", 300)"))
+        #expect(nativeShim.contains("renderMessages("))
+        #expect(nativeShim.contains("QObject::connect(sendButton"))
+        #expect(nativeSupport.contains("inline void clearLayout(QLayout *layout)"))
+        #expect(nativeShim.contains("clearLayout(messageLayout)"))
+        #expect(!nativeShim.contains("void clearLayout(QLayout *layout)"))
+    }
+
     private func temporaryFile(name: String, bytes: [UInt8]) throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -75,6 +128,25 @@ struct CoreContractMatrixTests {
         try Data(bytes).write(to: url)
         return url
     }
+
+    private func packageRoot() throws -> URL {
+        var directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        for _ in 0..<8 {
+            let manifest = directory.appendingPathComponent("Package.swift")
+            let sources = directory.appendingPathComponent("Sources")
+            if FileManager.default.fileExists(atPath: manifest.path)
+                && FileManager.default.fileExists(atPath: sources.path)
+            {
+                return directory
+            }
+            directory.deleteLastPathComponent()
+        }
+        throw CoreContractMatrixTestError.packageRootNotFound
+    }
+}
+
+private enum CoreContractMatrixTestError: Error {
+    case packageRootNotFound
 }
 
 struct TextCase: Sendable {

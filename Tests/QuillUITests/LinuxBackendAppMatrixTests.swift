@@ -5,6 +5,7 @@ import Testing
 struct LinuxBackendAppMatrixTests {
     private static let expectedAppProducts = [
         "quill-enchanted",
+        "quill-enchanted-qt",
         "quill-enchanted-upstream-slice",
         "quill-icecubes",
         "quill-netnewswire",
@@ -30,6 +31,10 @@ struct LinuxBackendAppMatrixTests {
     private static var expectedAppMatrix: [String] {
         expectedAppProducts.flatMap { product in
             switch product {
+            case "quill-enchanted":
+                ["quill-enchanted\tgtk"]
+            case "quill-enchanted-qt":
+                ["quill-enchanted-qt\tqt"]
             case "quill-wireguard":
                 ["quill-wireguard\tgtk"]
             case "quill-wireguard-qt":
@@ -41,13 +46,18 @@ struct LinuxBackendAppMatrixTests {
     }
 
     private static var expectedAppBuildPlan: [String] {
+        let qtNativeProducts = Set(["quill-enchanted-qt", "quill-wireguard-qt"])
         expectedAppProducts.map { product in
-            "\(product)\t\(product == "quill-wireguard-qt" ? "qt" : "gtk")"
+            "\(product)\t\(qtNativeProducts.contains(product) ? "qt" : "gtk")"
         }
     }
 
     private static func expectedRuntimeBackend(product: String, backend: String) -> String {
-        (product == "quill-wireguard-qt" || product == "quill-qt-interaction-smoke") && backend == "qt"
+        (
+            product == "quill-enchanted-qt"
+                || product == "quill-wireguard-qt"
+                || product == "quill-qt-interaction-smoke"
+        ) && backend == "qt"
             ? "qt"
             : "gtk"
     }
@@ -98,7 +108,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual app-matrix '.qa/{product}-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-matrix '.qa/{product}-interaction-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-extra-mode-matrix '.qa/{product}-{mode}-{backend}.png'"))
-        #expect(workflow.contains("native Qt products such as quill-wireguard-qt"))
+        #expect(workflow.contains("native Qt products such as quill-enchanted-qt and\n      # quill-wireguard-qt are fixed to a single Qt build graph"))
         #expect(!workflow.contains("Qt rows currently exercise the shared launch-plan fallback"))
         #expect(!workflow.contains("With no per-product branch in `verify-backend-screenshot.py`"))
         #expect(workflow.contains("Generated Enchanted backend visual smokes"))
@@ -866,6 +876,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(wireGuardQtBackend.status == 0, Comment(rawValue: wireGuardQtBackend.output))
         #expect(wireGuardQtBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
 
+        let enchantedQtBackend = try runScript(script, arguments: ["backend-for-product", "quill-enchanted-qt"])
+        #expect(enchantedQtBackend.status == 0, Comment(rawValue: enchantedQtBackend.output))
+        #expect(enchantedQtBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+
         let gtkBackend = try runScript(script, arguments: ["backend-for-product", "quill-icecubes"])
         #expect(gtkBackend.status == 0, Comment(rawValue: gtkBackend.output))
         #expect(gtkBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
@@ -961,6 +975,8 @@ struct LinuxBackendAppMatrixTests {
         let fixedAppBackends = try runScript(script, arguments: ["fixed-app-backends"])
         #expect(fixedAppBackends.status == 0, Comment(rawValue: fixedAppBackends.output))
         #expect(fixedAppBackends.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "quill-enchanted\tgtk",
+            "quill-enchanted-qt\tqt",
             "quill-wireguard\tgtk",
             "quill-wireguard-qt\tqt"
         ])
@@ -981,6 +997,8 @@ struct LinuxBackendAppMatrixTests {
         let fixedAppBuildPlan = try runScript(buildScript, arguments: ["--dry-run", "fixed-app-backends"])
         #expect(fixedAppBuildPlan.status == 0, Comment(rawValue: fixedAppBuildPlan.output))
         #expect(fixedAppBuildPlan.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "quill-enchanted\tgtk",
+            "quill-enchanted-qt\tqt",
             "quill-wireguard\tgtk",
             "quill-wireguard-qt\tqt"
         ])
@@ -1001,6 +1019,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(nativeProductRuntimeOverrides.status == 0, Comment(rawValue: nativeProductRuntimeOverrides.output))
         #expect(nativeProductRuntimeOverrides.output.split(whereSeparator: \.isNewline).map(String.init) == [
             "quill-qt-interaction-smoke\tqt\tqt",
+            "quill-enchanted-qt\tqt\tqt",
             "quill-wireguard-qt\tqt\tqt"
         ])
 
@@ -1058,6 +1077,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(runtimeWireGuardQtProductBackend.status == 0, Comment(rawValue: runtimeWireGuardQtProductBackend.output))
         #expect(runtimeWireGuardQtProductBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
 
+        let runtimeEnchantedQtProductBackend = try runScript(script, arguments: ["runtime-backend-for-product", "quill-enchanted-qt"])
+        #expect(runtimeEnchantedQtProductBackend.status == 0, Comment(rawValue: runtimeEnchantedQtProductBackend.output))
+        #expect(runtimeEnchantedQtProductBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "qt")
+
         let mismatchedRuntimeWireGuardQtProductBackend = try runScript(
             script,
             arguments: ["runtime-backend-for-product", "quill-wireguard-qt"],
@@ -1065,6 +1088,14 @@ struct LinuxBackendAppMatrixTests {
         )
         #expect(mismatchedRuntimeWireGuardQtProductBackend.status != 0)
         #expect(mismatchedRuntimeWireGuardQtProductBackend.output.contains("Product quill-wireguard-qt is fixed to the qt Linux backend; requested gtk would mix manifest and runtime backend paths."))
+
+        let mismatchedRuntimeEnchantedQtProductBackend = try runScript(
+            script,
+            arguments: ["runtime-backend-for-product", "quill-enchanted-qt"],
+            environment: ["QUILLUI_BACKEND": "gtk"]
+        )
+        #expect(mismatchedRuntimeEnchantedQtProductBackend.status != 0)
+        #expect(mismatchedRuntimeEnchantedQtProductBackend.output.contains("Product quill-enchanted-qt is fixed to the qt Linux backend; requested gtk would mix manifest and runtime backend paths."))
 
         let runtimeAvailabilities = try runScript(script, arguments: ["runtime-availabilities"])
         #expect(runtimeAvailabilities.status == 0, Comment(rawValue: runtimeAvailabilities.output))

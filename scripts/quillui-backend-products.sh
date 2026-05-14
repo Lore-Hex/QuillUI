@@ -8,6 +8,7 @@ quillui_backend_app_products() {
   # fixtures, and demos stay out of this roster.
   printf '%s\n' \
     quill-enchanted \
+    quill-enchanted-qt \
     quill-enchanted-upstream-slice \
     quill-icecubes \
     quill-netnewswire \
@@ -37,6 +38,8 @@ quillui_backend_fixed_app_backend_overrides() {
   # PRODUCT<TAB>BACKEND rows for app products whose SwiftPM target links one
   # native host stack at manifest time.
   printf '%s\t%s\n' \
+    quill-enchanted gtk \
+    quill-enchanted-qt qt \
     quill-wireguard gtk \
     quill-wireguard-qt qt
 }
@@ -93,6 +96,7 @@ quillui_backend_native_product_runtime_overrides() {
   # exist only behind a product-specific SwiftPM graph today.
   printf '%s\t%s\t%s\n' \
     quill-qt-interaction-smoke qt qt \
+    quill-enchanted-qt qt qt \
     quill-wireguard-qt qt qt
 }
 

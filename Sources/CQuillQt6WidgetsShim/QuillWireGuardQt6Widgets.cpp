@@ -40,6 +40,7 @@
 
 namespace {
 
+using QuillQtWidgets::clearLayout;
 using QuillQtWidgets::label;
 
 QString stringValue(const QJsonObject &object, const char *key) {
@@ -101,18 +102,6 @@ QJsonObject objectValue(const QJsonObject &object, const char *key) {
 
 QJsonArray arrayValue(const QJsonObject &object, const char *key) {
     return QuillQtWidgets::jsonArrayValue(object, key);
-}
-
-void clearLayout(QLayout *layout) {
-    while (QLayoutItem *item = layout->takeAt(0)) {
-        if (QLayout *childLayout = item->layout()) {
-            clearLayout(childLayout);
-        }
-        if (QWidget *widget = item->widget()) {
-            delete widget;
-        }
-        delete item;
-    }
 }
 
 void addDetailRow(

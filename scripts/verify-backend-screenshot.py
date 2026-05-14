@@ -208,6 +208,41 @@ def wireguard_qt_section_pixel(rgb: tuple[int, int, int]) -> bool:
     )
 
 
+def enchanted_sidebar_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        232 <= red <= 246
+        and 235 <= green <= 249
+        and 228 <= blue <= 244
+        and max(rgb) - min(rgb) <= 22
+    )
+
+
+def enchanted_canvas_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        238 <= red <= 252
+        and 238 <= green <= 253
+        and 236 <= blue <= 249
+        and max(rgb) - min(rgb) <= 18
+    )
+
+
+def enchanted_header_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return red >= 246 and green >= 247 and blue >= 242 and max(rgb) - min(rgb) <= 14
+
+
+def enchanted_primary_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 35 <= red <= 75 and 70 <= green <= 110 and 95 <= blue <= 140 and blue > red
+
+
+def enchanted_drop_target_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 218 <= red <= 238 and 233 <= green <= 248 and 225 <= blue <= 242 and green >= red
+
+
 def content_bounds(image: Screenshot) -> tuple[int, int, int, int]:
     rows = [
         y
@@ -1313,6 +1348,74 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
     )
 
 
+def validate_quill_enchanted_qt_native(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(960 <= app_width <= 1220, f"Enchanted Qt window width is unexpected: {app_width}px")
+    require(660 <= app_height <= 820, f"Enchanted Qt window height is unexpected: {app_height}px")
+
+    sidebar_width = min(340, max(260, int(app_width * 0.30)))
+    sidebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        left + sidebar_width,
+        bottom + 1,
+        enchanted_sidebar_pixel,
+    )
+    header_pixels = pixel_count(
+        image,
+        left + sidebar_width,
+        top,
+        right + 1,
+        top + 100,
+        enchanted_header_pixel,
+    )
+    canvas_pixels = pixel_count(
+        image,
+        left + sidebar_width,
+        top + 100,
+        right + 1,
+        bottom - 120,
+        enchanted_canvas_pixel,
+    )
+    primary_pixels = pixel_count(
+        image,
+        left + 20,
+        top + 80,
+        left + sidebar_width - 20,
+        top + 150,
+        enchanted_primary_pixel,
+    )
+    drop_pixels = pixel_count(
+        image,
+        left + sidebar_width + 20,
+        bottom - 150,
+        right - 20,
+        bottom - 80,
+        enchanted_drop_target_pixel,
+    )
+    text_pixels = dark_pixel_count(image, left + 20, top + 20, right - 20, bottom - 20)
+    require(sidebar_pixels >= 30000, f"Enchanted Qt sidebar was not detected: pixels={sidebar_pixels}")
+    require(header_pixels >= 20000, f"Enchanted Qt header was not detected: pixels={header_pixels}")
+    require(canvas_pixels >= 40000, f"Enchanted Qt canvas was not detected: pixels={canvas_pixels}")
+    require(primary_pixels >= 800, f"Enchanted Qt primary action was not detected: pixels={primary_pixels}")
+    require(drop_pixels >= 5000, f"Enchanted Qt attachment drop target was not detected: pixels={drop_pixels}")
+    require(text_pixels >= 1800, f"Enchanted Qt text content was not detected: pixels={text_pixels}")
+
+    return (
+        "Quill Enchanted Qt native: "
+        f"app={app_width}x{app_height}, "
+        f"sidebar_pixels={sidebar_pixels}, "
+        f"header_pixels={header_pixels}, "
+        f"canvas_pixels={canvas_pixels}, "
+        f"primary_pixels={primary_pixels}, "
+        f"drop_pixels={drop_pixels}, "
+        f"text_pixels={text_pixels}"
+    )
+
+
 def validate_quill_wireguard_qt_native(
     image: Screenshot,
     minimum_selected_center_offset: int | None = None,
@@ -1726,6 +1829,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_prompt_send(image))
     elif product in {"quill-chat-mac-reference", "quill-chat-linux-mac-reference"}:
         print(validate_quill_chat_mac_reference(image))
+    elif product == "quill-enchanted-qt":
+        print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-wireguard-qt":
         print(validate_quill_wireguard_qt_native(image))
     elif product == "quill-wireguard-qt-tunnel-selection":
