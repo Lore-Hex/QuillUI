@@ -2,7 +2,7 @@ import Foundation
 
 public enum QuillWireGuardAppMetadata {
     public static let title = "Quill WireGuard"
-    public static let defaultWidth = 800.0
+    public static let defaultWidth = 900.0
     public static let defaultHeight = 600.0
     public static let linuxMinimumWidth = 900.0
     public static let linuxMinimumHeight = 600.0

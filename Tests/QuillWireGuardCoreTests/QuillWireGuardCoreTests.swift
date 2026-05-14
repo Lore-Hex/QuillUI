@@ -448,6 +448,16 @@ struct QuillWireGuardCoreTests {
         #expect(nativeShimSource.contains("window.resize(defaultWindowSize)"))
     }
 
+    @Test("WireGuard Linux default window size is not smaller than the shared minimum")
+    func wireGuardLinuxDefaultWindowSizeIsNotSmallerThanSharedMinimum() {
+        #expect(QuillWireGuardAppMetadata.defaultWidth >= QuillWireGuardAppMetadata.linuxMinimumWidth)
+        #expect(QuillWireGuardAppMetadata.defaultHeight >= QuillWireGuardAppMetadata.linuxMinimumHeight)
+
+        let snapshot = QuillWireGuardAppSnapshot.configurationManager
+        #expect(snapshot.defaultWidth >= snapshot.minimumWidth)
+        #expect(snapshot.defaultHeight >= snapshot.minimumHeight)
+    }
+
     @Test("WireGuard snapshot preserves shared app presentation for native hosts")
     func wireGuardSnapshotPreservesSharedAppPresentationForNativeHosts() throws {
         let snapshot = QuillWireGuardAppSnapshot.configurationManager
