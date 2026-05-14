@@ -3,6 +3,19 @@ import Foundation
 import Glibc
 
 public enum QuillQtNativeRuntimeSupport {
+    public static func boundedIndexOverride(_ value: String?, count: Int) -> Int? {
+        guard count > 0, let value else {
+            return nil
+        }
+
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let requestedIndex = Int(trimmedValue) else {
+            return nil
+        }
+
+        return min(max(requestedIndex, 0), count - 1)
+    }
+
     public static func runEncodedPayload<Payload: Encodable>(
         _ payload: Payload,
         executableName: String,

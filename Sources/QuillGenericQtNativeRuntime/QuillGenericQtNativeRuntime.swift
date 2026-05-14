@@ -527,9 +527,9 @@ public enum QuillGenericQtAppCatalog {
 public enum QuillGenericQtNativeApp {
     public static func run(_ snapshot: QuillGenericQtAppSnapshot) -> Never {
         var launchSnapshot = snapshot
-        if let selectedIndex = selectedIndexOverride(
+        if let selectedIndex = QuillQtNativeRuntimeSupport.boundedIndexOverride(
             ProcessInfo.processInfo.environment["QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"],
-            itemCount: launchSnapshot.items.count
+            count: launchSnapshot.items.count
         ) {
             launchSnapshot.selectedIndex = selectedIndex
         }
@@ -544,19 +544,6 @@ public enum QuillGenericQtNativeApp {
                 payloadPointer
             )
         }
-    }
-
-    private static func selectedIndexOverride(_ value: String?, itemCount: Int) -> Int? {
-        guard itemCount > 0, let value else {
-            return nil
-        }
-
-        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let requestedIndex = Int(trimmedValue) else {
-            return nil
-        }
-
-        return min(max(requestedIndex, 0), itemCount - 1)
     }
 }
 #endif

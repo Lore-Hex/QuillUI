@@ -192,15 +192,13 @@ public enum QuillEnchantedQtNativeApp {
 
     private static func launchSnapshot() -> QuillEnchantedQtSnapshot {
         var snapshot = QuillEnchantedQtSnapshot.preview
-        guard
-            let rawValue = ProcessInfo.processInfo.environment[selectedConversationIndexEnvironmentKey],
-            let requestedIndex = Int(rawValue),
-            !snapshot.conversations.isEmpty
-        else {
+        guard let boundedIndex = QuillQtNativeRuntimeSupport.boundedIndexOverride(
+            ProcessInfo.processInfo.environment[selectedConversationIndexEnvironmentKey],
+            count: snapshot.conversations.count
+        ) else {
             return snapshot
         }
 
-        let boundedIndex = min(max(requestedIndex, 0), snapshot.conversations.count - 1)
         snapshot.selectedConversationID = snapshot.conversations[boundedIndex].id
         return snapshot
     }
