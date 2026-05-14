@@ -623,7 +623,7 @@ void showImportDialog(
     );
 
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
-    layout->setSpacing(10);
+    layout->setSpacing(intValue(style, "importDialogSpacing", 10));
 
     QPlainTextEdit *editor = configurationTextEditor(style);
     editor->setObjectName(QStringLiteral("importConfigText"));
@@ -638,7 +638,7 @@ void showImportDialog(
     layout->addWidget(editor, 1);
 
     QLabel *error = label(QString(), QStringLiteral("importError"));
-    error->setMinimumHeight(20);
+    error->setMinimumHeight(intValue(style, "importErrorMinHeight", 20));
     layout->addWidget(error);
 
     QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel);
@@ -738,8 +738,8 @@ void applyStyle(QApplication &app, const QJsonObject &style) {
     QString styleSheet = QStringLiteral(
         "QWidget { background: %1; color: %2; font-size: %3px; }"
         "QSplitter::handle { background: %4; width: 1px; }"
-        "QListWidget { background: %5; border: 0; padding: 6px; }"
-        "QListWidget::item { padding: 0; margin: 2px 0; border-radius: %6px; }"
+        "QListWidget { background: %5; border: 0; padding: %25px; }"
+        "QListWidget::item { padding: 0; margin: %26px 0; border-radius: %6px; }"
         "QListWidget::item:selected { background: %7; color: %8; }"
         "QWidget#tunnelRow { background: transparent; }"
         "QWidget#tunnelRow QLabel { background: transparent; }"
@@ -753,10 +753,10 @@ void applyStyle(QApplication &app, const QJsonObject &style) {
         "QLabel#importError { color: %14; }"
         "QPushButton#importButton { background: %1; border: 1px solid %4; border-radius: %15px; padding: %16px %17px; }"
         "QPushButton#importButton:pressed { background: %18; }"
-        "QLineEdit#detailTitle { background: transparent; border: 1px solid transparent; border-radius: %19px; padding: 2px; font-size: %20px; font-weight: 600; }"
+        "QLineEdit#detailTitle { background: transparent; border: 1px solid transparent; border-radius: %19px; padding: %27px; font-size: %20px; font-weight: 600; }"
         "QLineEdit#detailTitle:focus { background: %1; border-color: %21; }"
         "QGroupBox#detailSection { border: 0; background: %22; margin-top: %23px; padding: %24px; font-weight: 700; color: %9; }"
-        "QGroupBox#detailSection::title { subcontrol-origin: margin; left: 10px; padding: 0 3px; }"
+        "QGroupBox#detailSection::title { subcontrol-origin: margin; left: %28px; padding: 0 %29px; }"
         "QPlainTextEdit { background: %1; border: 1px solid %4; border-radius: %15px; }"
     );
 
@@ -784,7 +784,12 @@ void applyStyle(QApplication &app, const QJsonObject &style) {
         .arg(styleValue(style, "focusBorderColor", "#93a4c7"))
         .arg(styleValue(style, "detailSectionBackgroundColor", "#f4f4f5"))
         .arg(intValue(style, "detailSectionTopMargin", 18))
-        .arg(intValue(style, "detailSectionPadding", 12));
+        .arg(intValue(style, "detailSectionPadding", 12))
+        .arg(intValue(style, "listPadding", 6))
+        .arg(intValue(style, "listItemVerticalMargin", 2))
+        .arg(intValue(style, "detailTitlePadding", 2))
+        .arg(intValue(style, "detailSectionTitleLeftPadding", 10))
+        .arg(intValue(style, "detailSectionTitleHorizontalPadding", 3));
 
     app.setStyleSheet(styleSheet);
 }

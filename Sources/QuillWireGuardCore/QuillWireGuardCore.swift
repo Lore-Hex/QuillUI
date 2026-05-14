@@ -83,12 +83,17 @@ public enum QuillWireGuardStyle {
     public static let tunnelRowHorizontalPadding = 8
     public static let tunnelRowVerticalPadding = 6
     public static let tunnelRowSpacing = 3
+    public static let listPadding = 6
+    public static let listItemVerticalMargin = 2
     public static let listItemCornerRadius = 4
     public static let importButtonCornerRadius = 4
     public static let detailTitleCornerRadius = 3
+    public static let detailTitlePadding = 2
     public static let importButtonVerticalPadding = 4
     public static let importButtonHorizontalPadding = 8
     public static let detailSectionPadding = 12
+    public static let detailSectionTitleLeftPadding = 10
+    public static let detailSectionTitleHorizontalPadding = 3
     public static let detailSectionTopMargin = 18
 
     public static let sidebarWidth = 280
@@ -99,6 +104,8 @@ public enum QuillWireGuardStyle {
     public static let detailSpacing = 16
     public static let detailKeyWidth = 92
     public static let importEditorHeight = 180
+    public static let importDialogSpacing = 10
+    public static let importErrorMinHeight = 20
     public static let importDialogWidth = 560
     public static let importDialogHeight = 420
 }
@@ -600,12 +607,17 @@ public struct QuillWireGuardStyleSnapshot: Codable, Equatable, Sendable {
     public var tunnelRowHorizontalPadding: Int
     public var tunnelRowVerticalPadding: Int
     public var tunnelRowSpacing: Int
+    public var listPadding: Int
+    public var listItemVerticalMargin: Int
     public var listItemCornerRadius: Int
     public var importButtonCornerRadius: Int
     public var detailTitleCornerRadius: Int
+    public var detailTitlePadding: Int
     public var importButtonVerticalPadding: Int
     public var importButtonHorizontalPadding: Int
     public var detailSectionPadding: Int
+    public var detailSectionTitleLeftPadding: Int
+    public var detailSectionTitleHorizontalPadding: Int
     public var detailSectionTopMargin: Int
     public var sidebarWidth: Int
     public var sidebarMaximumWidth: Int
@@ -615,6 +627,8 @@ public struct QuillWireGuardStyleSnapshot: Codable, Equatable, Sendable {
     public var detailSpacing: Int
     public var detailKeyWidth: Int
     public var importEditorHeight: Int
+    public var importDialogSpacing: Int
+    public var importErrorMinHeight: Int
     public var importDialogWidth: Int
     public var importDialogHeight: Int
 
@@ -641,12 +655,17 @@ public struct QuillWireGuardStyleSnapshot: Codable, Equatable, Sendable {
         case tunnelRowHorizontalPadding
         case tunnelRowVerticalPadding
         case tunnelRowSpacing
+        case listPadding
+        case listItemVerticalMargin
         case listItemCornerRadius
         case importButtonCornerRadius
         case detailTitleCornerRadius
+        case detailTitlePadding
         case importButtonVerticalPadding
         case importButtonHorizontalPadding
         case detailSectionPadding
+        case detailSectionTitleLeftPadding
+        case detailSectionTitleHorizontalPadding
         case detailSectionTopMargin
         case sidebarWidth
         case sidebarMaximumWidth
@@ -656,6 +675,8 @@ public struct QuillWireGuardStyleSnapshot: Codable, Equatable, Sendable {
         case detailSpacing
         case detailKeyWidth
         case importEditorHeight
+        case importDialogSpacing
+        case importErrorMinHeight
         case importDialogWidth
         case importDialogHeight
     }
@@ -683,12 +704,17 @@ public struct QuillWireGuardStyleSnapshot: Codable, Equatable, Sendable {
         tunnelRowHorizontalPadding: Int = QuillWireGuardStyle.tunnelRowHorizontalPadding,
         tunnelRowVerticalPadding: Int = QuillWireGuardStyle.tunnelRowVerticalPadding,
         tunnelRowSpacing: Int = QuillWireGuardStyle.tunnelRowSpacing,
+        listPadding: Int = QuillWireGuardStyle.listPadding,
+        listItemVerticalMargin: Int = QuillWireGuardStyle.listItemVerticalMargin,
         listItemCornerRadius: Int = QuillWireGuardStyle.listItemCornerRadius,
         importButtonCornerRadius: Int = QuillWireGuardStyle.importButtonCornerRadius,
         detailTitleCornerRadius: Int = QuillWireGuardStyle.detailTitleCornerRadius,
+        detailTitlePadding: Int = QuillWireGuardStyle.detailTitlePadding,
         importButtonVerticalPadding: Int = QuillWireGuardStyle.importButtonVerticalPadding,
         importButtonHorizontalPadding: Int = QuillWireGuardStyle.importButtonHorizontalPadding,
         detailSectionPadding: Int = QuillWireGuardStyle.detailSectionPadding,
+        detailSectionTitleLeftPadding: Int = QuillWireGuardStyle.detailSectionTitleLeftPadding,
+        detailSectionTitleHorizontalPadding: Int = QuillWireGuardStyle.detailSectionTitleHorizontalPadding,
         detailSectionTopMargin: Int = QuillWireGuardStyle.detailSectionTopMargin,
         sidebarWidth: Int = QuillWireGuardStyle.sidebarWidth,
         sidebarMaximumWidth: Int = QuillWireGuardStyle.sidebarMaximumWidth,
@@ -698,6 +724,8 @@ public struct QuillWireGuardStyleSnapshot: Codable, Equatable, Sendable {
         detailSpacing: Int = QuillWireGuardStyle.detailSpacing,
         detailKeyWidth: Int = QuillWireGuardStyle.detailKeyWidth,
         importEditorHeight: Int = QuillWireGuardStyle.importEditorHeight,
+        importDialogSpacing: Int = QuillWireGuardStyle.importDialogSpacing,
+        importErrorMinHeight: Int = QuillWireGuardStyle.importErrorMinHeight,
         importDialogWidth: Int = QuillWireGuardStyle.importDialogWidth,
         importDialogHeight: Int = QuillWireGuardStyle.importDialogHeight
     ) {
@@ -723,12 +751,17 @@ public struct QuillWireGuardStyleSnapshot: Codable, Equatable, Sendable {
         self.tunnelRowHorizontalPadding = tunnelRowHorizontalPadding
         self.tunnelRowVerticalPadding = tunnelRowVerticalPadding
         self.tunnelRowSpacing = tunnelRowSpacing
+        self.listPadding = listPadding
+        self.listItemVerticalMargin = listItemVerticalMargin
         self.listItemCornerRadius = listItemCornerRadius
         self.importButtonCornerRadius = importButtonCornerRadius
         self.detailTitleCornerRadius = detailTitleCornerRadius
+        self.detailTitlePadding = detailTitlePadding
         self.importButtonVerticalPadding = importButtonVerticalPadding
         self.importButtonHorizontalPadding = importButtonHorizontalPadding
         self.detailSectionPadding = detailSectionPadding
+        self.detailSectionTitleLeftPadding = detailSectionTitleLeftPadding
+        self.detailSectionTitleHorizontalPadding = detailSectionTitleHorizontalPadding
         self.detailSectionTopMargin = detailSectionTopMargin
         self.sidebarWidth = sidebarWidth
         self.sidebarMaximumWidth = sidebarMaximumWidth
@@ -738,6 +771,8 @@ public struct QuillWireGuardStyleSnapshot: Codable, Equatable, Sendable {
         self.detailSpacing = detailSpacing
         self.detailKeyWidth = detailKeyWidth
         self.importEditorHeight = importEditorHeight
+        self.importDialogSpacing = importDialogSpacing
+        self.importErrorMinHeight = importErrorMinHeight
         self.importDialogWidth = importDialogWidth
         self.importDialogHeight = importDialogHeight
     }
@@ -798,12 +833,18 @@ public struct QuillWireGuardStyleSnapshot: Codable, Equatable, Sendable {
                 ?? QuillWireGuardStyle.tunnelRowVerticalPadding,
             tunnelRowSpacing: try container.decodeIfPresent(Int.self, forKey: .tunnelRowSpacing)
                 ?? QuillWireGuardStyle.tunnelRowSpacing,
+            listPadding: try container.decodeIfPresent(Int.self, forKey: .listPadding)
+                ?? QuillWireGuardStyle.listPadding,
+            listItemVerticalMargin: try container.decodeIfPresent(Int.self, forKey: .listItemVerticalMargin)
+                ?? QuillWireGuardStyle.listItemVerticalMargin,
             listItemCornerRadius: try container.decodeIfPresent(Int.self, forKey: .listItemCornerRadius)
                 ?? QuillWireGuardStyle.listItemCornerRadius,
             importButtonCornerRadius: try container.decodeIfPresent(Int.self, forKey: .importButtonCornerRadius)
                 ?? QuillWireGuardStyle.importButtonCornerRadius,
             detailTitleCornerRadius: try container.decodeIfPresent(Int.self, forKey: .detailTitleCornerRadius)
                 ?? QuillWireGuardStyle.detailTitleCornerRadius,
+            detailTitlePadding: try container.decodeIfPresent(Int.self, forKey: .detailTitlePadding)
+                ?? QuillWireGuardStyle.detailTitlePadding,
             importButtonVerticalPadding: try container.decodeIfPresent(Int.self, forKey: .importButtonVerticalPadding)
                 ?? QuillWireGuardStyle.importButtonVerticalPadding,
             importButtonHorizontalPadding: try container.decodeIfPresent(
@@ -812,6 +853,14 @@ public struct QuillWireGuardStyleSnapshot: Codable, Equatable, Sendable {
             ) ?? QuillWireGuardStyle.importButtonHorizontalPadding,
             detailSectionPadding: try container.decodeIfPresent(Int.self, forKey: .detailSectionPadding)
                 ?? QuillWireGuardStyle.detailSectionPadding,
+            detailSectionTitleLeftPadding: try container.decodeIfPresent(
+                Int.self,
+                forKey: .detailSectionTitleLeftPadding
+            ) ?? QuillWireGuardStyle.detailSectionTitleLeftPadding,
+            detailSectionTitleHorizontalPadding: try container.decodeIfPresent(
+                Int.self,
+                forKey: .detailSectionTitleHorizontalPadding
+            ) ?? QuillWireGuardStyle.detailSectionTitleHorizontalPadding,
             detailSectionTopMargin: try container.decodeIfPresent(Int.self, forKey: .detailSectionTopMargin)
                 ?? QuillWireGuardStyle.detailSectionTopMargin,
             sidebarWidth: try container.decodeIfPresent(Int.self, forKey: .sidebarWidth)
@@ -830,6 +879,10 @@ public struct QuillWireGuardStyleSnapshot: Codable, Equatable, Sendable {
                 ?? QuillWireGuardStyle.detailKeyWidth,
             importEditorHeight: try container.decodeIfPresent(Int.self, forKey: .importEditorHeight)
                 ?? QuillWireGuardStyle.importEditorHeight,
+            importDialogSpacing: try container.decodeIfPresent(Int.self, forKey: .importDialogSpacing)
+                ?? QuillWireGuardStyle.importDialogSpacing,
+            importErrorMinHeight: try container.decodeIfPresent(Int.self, forKey: .importErrorMinHeight)
+                ?? QuillWireGuardStyle.importErrorMinHeight,
             importDialogWidth: try container.decodeIfPresent(Int.self, forKey: .importDialogWidth)
                 ?? QuillWireGuardStyle.importDialogWidth,
             importDialogHeight: try container.decodeIfPresent(Int.self, forKey: .importDialogHeight)

@@ -42,7 +42,11 @@ private enum WireGuardFallbackStyle {
     static let tunnelRowHorizontalPadding = CGFloat(QuillWireGuardStyle.tunnelRowHorizontalPadding)
     static let tunnelRowVerticalPadding = CGFloat(QuillWireGuardStyle.tunnelRowVerticalPadding)
     static let tunnelRowSpacing = CGFloat(QuillWireGuardStyle.tunnelRowSpacing)
+    static let listItemVerticalMargin = CGFloat(QuillWireGuardStyle.listItemVerticalMargin)
     static let listItemCornerRadius = CGFloat(QuillWireGuardStyle.listItemCornerRadius)
+    static let detailTitlePadding = CGFloat(QuillWireGuardStyle.detailTitlePadding)
+    static let importDialogSpacing = CGFloat(QuillWireGuardStyle.importDialogSpacing)
+    static let importErrorMinHeight = CGFloat(QuillWireGuardStyle.importErrorMinHeight)
 
     static var sidebarBackgroundColor: Color {
         Color(hex: QuillWireGuardStyle.sidebarBackgroundColor)
@@ -118,6 +122,12 @@ public struct WireGuardFallbackConfigurationView: View {
                     } label: {
                         tunnelRow(tunnel, isSelected: tunnel.id == selectedTunnelID)
                     }
+                    .listRowInsets(EdgeInsets(
+                        top: WireGuardFallbackStyle.listItemVerticalMargin,
+                        leading: 0,
+                        bottom: WireGuardFallbackStyle.listItemVerticalMargin,
+                        trailing: 0
+                    ))
                 }
             }
 
@@ -171,6 +181,7 @@ public struct WireGuardFallbackConfigurationView: View {
                         HStack(alignment: .firstTextBaseline) {
                             TextField(QuillWireGuardPresentation.tunnelNamePlaceholder, text: selectedTunnelName)
                                 .font(.title2)
+                                .padding(WireGuardFallbackStyle.detailTitlePadding)
                             Spacer()
                             Text(tunnel.status.rawValue)
                                 .font(.caption)
@@ -231,16 +242,15 @@ public struct WireGuardFallbackConfigurationView: View {
 
     private var importPanel: some View {
         section(title: QuillWireGuardPresentation.importDialogTitle) {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: WireGuardFallbackStyle.importDialogSpacing) {
                 TextEditor(text: $importConfigurationText)
                     .font(.system(size: WireGuardFallbackStyle.monospacedFontSize, design: .monospaced))
                     .frame(height: WireGuardFallbackStyle.importEditorHeight)
 
-                if let importErrorText, !importErrorText.isEmpty {
-                    Text(importErrorText)
-                        .font(.caption)
-                        .foregroundColor(Color(hex: QuillWireGuardStyle.errorTextColor))
-                }
+                Text(importErrorText ?? "")
+                    .font(.caption)
+                    .foregroundColor(Color(hex: QuillWireGuardStyle.errorTextColor))
+                    .frame(minHeight: WireGuardFallbackStyle.importErrorMinHeight, alignment: .leading)
 
                 HStack(spacing: 8) {
                     Button(QuillWireGuardPresentation.importActionLabel, action: importPastedConfiguration)

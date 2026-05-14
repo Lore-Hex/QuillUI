@@ -435,6 +435,13 @@ struct QuillWireGuardCoreTests {
         #expect(nativeShimSource.contains("intValue(style, \"tunnelRowHorizontalPadding\", 8)"))
         #expect(nativeShimSource.contains("intValue(style, \"tunnelRowVerticalPadding\", 6)"))
         #expect(nativeShimSource.contains("intValue(style, \"tunnelRowSpacing\", 3)"))
+        #expect(nativeShimSource.contains("intValue(style, \"listPadding\", 6)"))
+        #expect(nativeShimSource.contains("intValue(style, \"listItemVerticalMargin\", 2)"))
+        #expect(nativeShimSource.contains("intValue(style, \"detailTitlePadding\", 2)"))
+        #expect(nativeShimSource.contains("intValue(style, \"detailSectionTitleLeftPadding\", 10)"))
+        #expect(nativeShimSource.contains("intValue(style, \"detailSectionTitleHorizontalPadding\", 3)"))
+        #expect(nativeShimSource.contains("intValue(style, \"importDialogSpacing\", 10)"))
+        #expect(nativeShimSource.contains("intValue(style, \"importErrorMinHeight\", 20)"))
         #expect(nativeShimSource.contains("intValue(style, \"importDialogWidth\", 560)"))
         #expect(nativeShimSource.contains("\"importButtonLabel\""))
         #expect(nativeShimSource.contains("\"importButtonTooltip\""))
@@ -506,7 +513,17 @@ struct QuillWireGuardCoreTests {
         #expect(snapshot.style.tunnelRowHorizontalPadding == QuillWireGuardStyle.tunnelRowHorizontalPadding)
         #expect(snapshot.style.tunnelRowVerticalPadding == QuillWireGuardStyle.tunnelRowVerticalPadding)
         #expect(snapshot.style.tunnelRowSpacing == QuillWireGuardStyle.tunnelRowSpacing)
+        #expect(snapshot.style.listPadding == QuillWireGuardStyle.listPadding)
+        #expect(snapshot.style.listItemVerticalMargin == QuillWireGuardStyle.listItemVerticalMargin)
+        #expect(snapshot.style.detailTitlePadding == QuillWireGuardStyle.detailTitlePadding)
+        #expect(snapshot.style.detailSectionTitleLeftPadding == QuillWireGuardStyle.detailSectionTitleLeftPadding)
+        #expect(
+            snapshot.style.detailSectionTitleHorizontalPadding
+                == QuillWireGuardStyle.detailSectionTitleHorizontalPadding
+        )
         #expect(snapshot.style.importDialogWidth == QuillWireGuardStyle.importDialogWidth)
+        #expect(snapshot.style.importDialogSpacing == QuillWireGuardStyle.importDialogSpacing)
+        #expect(snapshot.style.importErrorMinHeight == QuillWireGuardStyle.importErrorMinHeight)
         #expect(snapshot.style.importEditorHeight == QuillWireGuardStyle.importEditorHeight)
         #expect(snapshot.style.selectedRowBackgroundColor == QuillWireGuardStyle.selectedRowBackgroundColor)
         #expect(snapshot.selectedTunnelID == QuillWireGuardFixtures.defaultTunnelID)
@@ -566,6 +583,7 @@ struct QuillWireGuardCoreTests {
         #expect(legacyStyle.windowBackgroundColor == "#101010")
         #expect(legacyStyle.sidebarWidth == 300)
         #expect(legacyStyle.primaryTextColor == QuillWireGuardStyle.primaryTextColor)
+        #expect(legacyStyle.importDialogSpacing == QuillWireGuardStyle.importDialogSpacing)
         #expect(legacyStyle.importDialogHeight == QuillWireGuardStyle.importDialogHeight)
     }
 
