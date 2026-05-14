@@ -33,6 +33,7 @@ public enum QuillWireGuardPresentation {
     public static let importButtonTooltip = "Import WireGuard configuration"
     public static let importActionLabel = "Import"
     public static let importFileActionLabel = "Choose File"
+    public static let importFileFilter = "WireGuard configurations (*.conf *.txt);;All files (*)"
     public static let importCancelActionLabel = "Cancel"
     public static let importDialogTitle = "Import WireGuard Configuration"
     public static let importPlaceholder = "[Interface]\nPrivateKey = ...\n\n[Peer]\nPublicKey = ..."
@@ -381,6 +382,7 @@ public struct QuillWireGuardPresentationSnapshot: Codable, Equatable, Sendable {
     public var importButtonTooltip: String
     public var importActionLabel: String
     public var importFileActionLabel: String
+    public var importFileFilter: String
     public var importCancelActionLabel: String
     public var importDialogTitle: String
     public var importPlaceholder: String
@@ -411,6 +413,7 @@ public struct QuillWireGuardPresentationSnapshot: Codable, Equatable, Sendable {
         case importButtonTooltip
         case importActionLabel
         case importFileActionLabel
+        case importFileFilter
         case importCancelActionLabel
         case importDialogTitle
         case importPlaceholder
@@ -442,6 +445,7 @@ public struct QuillWireGuardPresentationSnapshot: Codable, Equatable, Sendable {
         importButtonTooltip: String = QuillWireGuardPresentation.importButtonTooltip,
         importActionLabel: String = QuillWireGuardPresentation.importActionLabel,
         importFileActionLabel: String = QuillWireGuardPresentation.importFileActionLabel,
+        importFileFilter: String = QuillWireGuardPresentation.importFileFilter,
         importCancelActionLabel: String = QuillWireGuardPresentation.importCancelActionLabel,
         importDialogTitle: String = QuillWireGuardPresentation.importDialogTitle,
         importPlaceholder: String = QuillWireGuardPresentation.importPlaceholder,
@@ -471,6 +475,7 @@ public struct QuillWireGuardPresentationSnapshot: Codable, Equatable, Sendable {
         self.importButtonTooltip = importButtonTooltip
         self.importActionLabel = importActionLabel
         self.importFileActionLabel = importFileActionLabel
+        self.importFileFilter = importFileFilter
         self.importCancelActionLabel = importCancelActionLabel
         self.importDialogTitle = importDialogTitle
         self.importPlaceholder = importPlaceholder
@@ -511,6 +516,8 @@ public struct QuillWireGuardPresentationSnapshot: Codable, Equatable, Sendable {
                 ?? QuillWireGuardPresentation.importActionLabel,
             importFileActionLabel: try container.decodeIfPresent(String.self, forKey: .importFileActionLabel)
                 ?? QuillWireGuardPresentation.importFileActionLabel,
+            importFileFilter: try container.decodeIfPresent(String.self, forKey: .importFileFilter)
+                ?? QuillWireGuardPresentation.importFileFilter,
             importCancelActionLabel: try container.decodeIfPresent(String.self, forKey: .importCancelActionLabel)
                 ?? QuillWireGuardPresentation.importCancelActionLabel,
             importDialogTitle: try container.decodeIfPresent(String.self, forKey: .importDialogTitle)

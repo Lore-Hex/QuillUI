@@ -354,6 +354,8 @@ struct QuillWireGuardCoreTests {
         #expect(nativeShimSource.contains("\"importButtonTooltip\""))
         #expect(nativeShimSource.contains("\"Import WireGuard configuration\""))
         #expect(nativeShimSource.contains("\"importFileActionLabel\""))
+        #expect(nativeShimSource.contains("\"importFileFilter\""))
+        #expect(nativeShimSource.contains("\"WireGuard configurations (*.conf *.txt);;All files (*)\""))
         #expect(nativeShimSource.contains("\"importDialogTitle\""))
         #expect(nativeShimSource.contains("\"importPlaceholder\""))
         #expect(nativeShimSource.contains("\"importEmptyConfigurationError\""))
@@ -389,6 +391,7 @@ struct QuillWireGuardCoreTests {
         #expect(snapshot.presentation.importButtonLabel == QuillWireGuardPresentation.importButtonLabel)
         #expect(snapshot.presentation.importActionLabel == QuillWireGuardPresentation.importActionLabel)
         #expect(snapshot.presentation.importFileActionLabel == QuillWireGuardPresentation.importFileActionLabel)
+        #expect(snapshot.presentation.importFileFilter == QuillWireGuardPresentation.importFileFilter)
         #expect(snapshot.presentation.importEmptyConfigurationError == QuillWireGuardPresentation.importEmptyConfigurationError)
         #expect(snapshot.presentation.importMissingTunnelError == QuillWireGuardPresentation.importMissingTunnelError)
         #expect(snapshot.presentation.interfaceSectionTitle == QuillWireGuardPresentation.interfaceSectionTitle)
@@ -444,6 +447,7 @@ struct QuillWireGuardCoreTests {
         #expect(legacyPresentation.backendTitle == "Legacy Backend")
         #expect(legacyPresentation.noneText == "Nothing")
         #expect(legacyPresentation.importActionLabel == QuillWireGuardPresentation.importActionLabel)
+        #expect(legacyPresentation.importFileFilter == QuillWireGuardPresentation.importFileFilter)
 
         let legacyStylePayload = """
         {

@@ -655,7 +655,11 @@ void showImportDialog(
             &dialog,
             presentationValue(presentation, "importDialogTitle", "Import WireGuard Configuration"),
             QString(),
-            QStringLiteral("WireGuard configurations (*.conf *.txt);;All files (*)")
+            presentationValue(
+                presentation,
+                "importFileFilter",
+                "WireGuard configurations (*.conf *.txt);;All files (*)"
+            )
         );
         if (fileName.isEmpty()) {
             return;
