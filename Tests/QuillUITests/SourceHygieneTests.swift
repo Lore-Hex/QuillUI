@@ -641,6 +641,11 @@ struct SourceHygieneTests {
         #expect(genericQtRuntime.contains("public var messages: [Message]?"))
         #expect(genericQtRuntime.contains("detailSubtitle: \"Timeline interaction fixture with the lower row selected.\""))
         #expect(genericQtRuntime.contains("detailSubtitle: \"Media-heavy chat fixture for the lower selected row.\""))
+        #expect(genericQtRuntime.contains("detailSubtitle: \"Language practice fixture with the lower row selected.\""))
+        #expect(genericQtRuntime.contains("detailSubtitle: \"Linux compatibility report fixture with the lower row selected.\""))
+        #expect(genericQtRuntime.contains("detailSubtitle: \"Backend registry fixture with the lower file row selected.\""))
+        #expect(genericQtRuntime.contains("detailSubtitle: \"Core engineering channel with the lower row selected.\""))
+        #expect(genericQtRuntime.contains("detailSubtitle: \"Audio-only playlist fixture with the lower row selected.\""))
 
         #expect(sharedView.contains("public struct QuillInteractionSmokeConfiguration"))
         #expect(sharedView.contains("public struct QuillInteractionSmokeView"))

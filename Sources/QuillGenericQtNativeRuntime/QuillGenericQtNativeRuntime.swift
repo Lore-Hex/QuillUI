@@ -135,9 +135,47 @@ public enum QuillGenericQtAppCatalog {
         detailTitle: "Conversation preview",
         detailSubtitle: "A compact native Qt rendering of the upstream chat slice while the full SwiftUI tree remains on the GTK path.",
         items: [
-            .init(title: "Auto-config test", subtitle: "Reply with one short phrase", badge: "ollama"),
-            .init(title: "Wedding plus-one", subtitle: "Draft a friendly message", badge: "draft"),
-            .init(title: "Language phrases", subtitle: "Practice short translations")
+            .init(
+                title: "Auto-config test",
+                subtitle: "Reply with one short phrase",
+                badge: "ollama",
+                detailSubtitle: "Local model setup conversation with endpoint status visible.",
+                sections: [
+                    .init(title: "Endpoint", body: "The selected chat keeps the Ollama endpoint and model controls in the visible shell."),
+                    .init(title: "Prompt", body: "A short assistant response gives the Qt smoke a deterministic transcript landmark.")
+                ],
+                messages: [
+                    .init(sender: "user", body: "Reply with one short phrase."),
+                    .init(sender: "assistant", body: "Native Qt path is active.")
+                ]
+            ),
+            .init(
+                title: "Wedding plus-one",
+                subtitle: "Draft a friendly message",
+                badge: "draft",
+                detailSubtitle: "Draft-writing fixture for a selected conversation.",
+                sections: [
+                    .init(title: "Conversation", body: "Draft state, title, and preview text stay separate from the shared chat shell."),
+                    .init(title: "Composer", body: "The detail pane keeps attachment and composer controls aligned with the GTK slice.")
+                ],
+                messages: [
+                    .init(sender: "user", body: "Draft a friendly plus-one message."),
+                    .init(sender: "assistant", body: "Happy to join you at the wedding. Thanks for including me.")
+                ]
+            ),
+            .init(
+                title: "Language phrases",
+                subtitle: "Practice short translations",
+                detailSubtitle: "Language practice fixture with the lower row selected.",
+                sections: [
+                    .init(title: "Session", body: "The selected practice thread updates the title, cards, and transcript together."),
+                    .init(title: "Parity", body: "This lower-row fixture prevents the Qt selection smoke from passing on header-only updates.")
+                ],
+                messages: [
+                    .init(sender: "user", body: "Practice three short translations."),
+                    .init(sender: "assistant", body: "Bonjour, gracias, and guten Abend.")
+                ]
+            )
         ],
         sections: [
             .init(title: "Endpoint and model controls", body: "The Qt target preserves the chat shell shape with model status, conversation selection, and prompt context."),
@@ -208,9 +246,35 @@ public enum QuillGenericQtAppCatalog {
         detailTitle: "Article reader",
         detailSubtitle: "Self-contained RSS fixtures rendered by the native Qt backend.",
         items: [
-            .init(title: "Swift.org", subtitle: "Language and toolchain updates", badge: "1"),
-            .init(title: "Point-Free", subtitle: "Composable app architecture notes", badge: "2"),
-            .init(title: "QuillUI", subtitle: "Linux compatibility reports")
+            .init(
+                title: "Swift.org",
+                subtitle: "Language and toolchain updates",
+                badge: "1",
+                detailSubtitle: "Unread language and toolchain article selected.",
+                sections: [
+                    .init(title: "Article", body: "Swift.org fixture content keeps source, title, and unread count visible in the Qt reader."),
+                    .init(title: "Reader chrome", body: "The article body reuses the same detail-card renderer as the other generic apps.")
+                ]
+            ),
+            .init(
+                title: "Point-Free",
+                subtitle: "Composable app architecture notes",
+                badge: "2",
+                detailSubtitle: "Composable architecture feed selected by default.",
+                sections: [
+                    .init(title: "Article", body: "The selected feed row exposes a stable headline, excerpt, and unread badge."),
+                    .init(title: "Navigation", body: "Feed selection changes the detail cards without rebuilding the Qt window.")
+                ]
+            ),
+            .init(
+                title: "QuillUI",
+                subtitle: "Linux compatibility reports",
+                detailSubtitle: "Linux compatibility report fixture with the lower row selected.",
+                sections: [
+                    .init(title: "Article", body: "The report summarizes backend parity work across GTK and Qt canonical products."),
+                    .init(title: "Smoke target", body: "The lower feed row gives the list-selection check a row-specific reader surface.")
+                ]
+            )
         ],
         sections: [
             .init(title: "Reader layout", body: "The Qt target mirrors the three-pane reader rhythm with feed selection, unread counts, and article detail."),
@@ -232,9 +296,43 @@ public enum QuillGenericQtAppCatalog {
         detailTitle: "Editor preview",
         detailSubtitle: "Qt native workbench for file tree, tabs, diagnostics, and editor chrome.",
         items: [
-            .init(title: "Package.swift", subtitle: "SwiftPM manifest", badge: "M"),
-            .init(title: "QuillUI.swift", subtitle: "Backend facade"),
-            .init(title: "BackendRegistry.swift", subtitle: "Linux runtime selection")
+            .init(
+                title: "Package.swift",
+                subtitle: "SwiftPM manifest",
+                badge: "M",
+                detailSubtitle: "Manifest fixture showing selected backend dependencies.",
+                sections: [
+                    .init(title: "Editor", body: "The manifest row highlights product routing, target dependencies, and backend selection."),
+                    .init(title: "Diagnostics", body: "The modified badge remains visible without requiring the full CodeEdit plugin graph.")
+                ],
+                messages: [
+                    .init(sender: "diagnostic", body: "Package graph selects exactly one Linux backend.")
+                ]
+            ),
+            .init(
+                title: "QuillUI.swift",
+                subtitle: "Backend facade",
+                detailSubtitle: "Facade source fixture for the shared app entry point.",
+                sections: [
+                    .init(title: "Editor", body: "The facade row keeps the app entry point and scene metadata in the detail pane."),
+                    .init(title: "Navigation", body: "Changing file rows updates the same Qt workbench surface.")
+                ],
+                messages: [
+                    .init(sender: "diagnostic", body: "No stale detail content after file selection.")
+                ]
+            ),
+            .init(
+                title: "BackendRegistry.swift",
+                subtitle: "Linux runtime selection",
+                detailSubtitle: "Backend registry fixture with the lower file row selected.",
+                sections: [
+                    .init(title: "Editor", body: "The selected registry row describes GTK and Qt runtime identifiers in one place."),
+                    .init(title: "Parity", body: "This row makes the Qt screenshot assert detail-body updates, not just sidebar selection.")
+                ],
+                messages: [
+                    .init(sender: "diagnostic", body: "Runtime registry matches the explicit backend matrix.")
+                ]
+            )
         ],
         sections: [
             .init(title: "Workbench", body: "The Qt app compiles without CodeEdit's plugin graph while keeping the visible file tree and editor panels."),
@@ -321,9 +419,47 @@ public enum QuillGenericQtAppCatalog {
         detailTitle: "Channel preview",
         detailSubtitle: "Foldered chat list and channel activity rendered by the Qt backend.",
         items: [
-            .init(title: "Swift Linux", subtitle: "Qt backend milestone", badge: "12"),
-            .init(title: "Release ops", subtitle: "Nightly smoke passed", badge: "pin"),
-            .init(title: "QuillUI Core", subtitle: "Backend registry changes")
+            .init(
+                title: "Swift Linux",
+                subtitle: "Qt backend milestone",
+                badge: "12",
+                detailSubtitle: "Channel thread for Swift-on-Linux backend updates.",
+                sections: [
+                    .init(title: "Channel", body: "Unread count and channel preview stay attached to the selected Telegram row."),
+                    .init(title: "Milestone", body: "Qt backend work shares the same chat shell renderer as Signal.")
+                ],
+                messages: [
+                    .init(sender: "Swift Linux", body: "Qt backend milestone reached for canonical products."),
+                    .init(sender: "You", body: "Keep GTK and Qt rows explicit.")
+                ]
+            ),
+            .init(
+                title: "Release ops",
+                subtitle: "Nightly smoke passed",
+                badge: "pin",
+                detailSubtitle: "Pinned release operations channel selected.",
+                sections: [
+                    .init(title: "Channel", body: "Pinned state and smoke status stay visible in the selected row detail."),
+                    .init(title: "Operations", body: "The detail pane uses the shared generic Qt cards instead of Telegram-only widgets.")
+                ],
+                messages: [
+                    .init(sender: "Release ops", body: "Nightly smoke passed for the Qt matrix."),
+                    .init(sender: "You", body: "Push the next atomic main commit after validation.")
+                ]
+            ),
+            .init(
+                title: "QuillUI Core",
+                subtitle: "Backend registry changes",
+                detailSubtitle: "Core engineering channel with the lower row selected.",
+                sections: [
+                    .init(title: "Channel", body: "Registry changes and backend contracts are visible in the selected channel detail."),
+                    .init(title: "Shared shell", body: "Telegram stays app-specific through data while sharing the native Qt host.")
+                ],
+                messages: [
+                    .init(sender: "QuillUI Core", body: "Backend registry changes landed on main."),
+                    .init(sender: "You", body: "Next pass is app parity coverage.")
+                ]
+            )
         ],
         sections: [
             .init(title: "Folders", body: "Telegram keeps app-specific folders and unread badges on top of the shared chat layout."),
@@ -350,9 +486,36 @@ public enum QuillGenericQtAppCatalog {
         detailTitle: "Player chrome",
         detailSubtitle: "Native Qt player layout with playlist, inspector, and playback status landmarks.",
         items: [
-            .init(title: "Launch trailer", subtitle: "1080p H.264", badge: "3:12"),
-            .init(title: "Linux smoke capture", subtitle: "720p VP9", badge: "1:24"),
-            .init(title: "Audio sample", subtitle: "AAC stereo", badge: "0:48")
+            .init(
+                title: "Launch trailer",
+                subtitle: "1080p H.264",
+                badge: "3:12",
+                detailSubtitle: "Video playlist item with transport controls visible.",
+                sections: [
+                    .init(title: "Now playing", body: "The trailer row keeps codec, duration, and playback state in the detail surface."),
+                    .init(title: "Inspector", body: "Playlist selection updates metadata without replacing the native Qt window.")
+                ]
+            ),
+            .init(
+                title: "Linux smoke capture",
+                subtitle: "720p VP9",
+                badge: "1:24",
+                detailSubtitle: "Default Linux smoke capture selected in the playlist.",
+                sections: [
+                    .init(title: "Now playing", body: "The smoke capture row mirrors the paused playback fixture used by GTK checks."),
+                    .init(title: "Performance", body: "The native Qt host renders a stable player surface from a small snapshot.")
+                ]
+            ),
+            .init(
+                title: "Audio sample",
+                subtitle: "AAC stereo",
+                badge: "0:48",
+                detailSubtitle: "Audio-only playlist fixture with the lower row selected.",
+                sections: [
+                    .init(title: "Now playing", body: "Audio-only selection swaps video metadata for waveform and channel context."),
+                    .init(title: "Parity", body: "The lower row gives the Qt smoke a selected playlist detail target.")
+                ]
+            )
         ],
         sections: [
             .init(title: "Transport controls", body: "The Qt shell exposes the same player state hierarchy that GTK smoke screenshots assert."),
