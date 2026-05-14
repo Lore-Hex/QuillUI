@@ -107,6 +107,44 @@ struct SourceHygieneTests {
         #expect(gtkModuleMap.contains("module CGtk4 [system]"))
     }
 
+    @Test("Linux build preparation is gated by the selected backend")
+    func linuxBuildPreparationIsGatedBySelectedBackend() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let preparationScriptURL = root.appendingPathComponent("scripts/prepare-linux-build-backend.sh")
+        let preparationScript = try String(contentsOf: preparationScriptURL, encoding: .utf8)
+        let linuxSwiftTest = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-swift-test.sh"),
+            encoding: .utf8
+        )
+        let backendBuildScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/build-linux-backend-products.sh"),
+            encoding: .utf8
+        )
+        let smokeLib = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-linux-backend-smoke-lib.sh"),
+            encoding: .utf8
+        )
+
+        #expect(fileManager.isExecutableFile(atPath: preparationScriptURL.path))
+        #expect(preparationScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
+        #expect(preparationScript.contains("REQUESTED_BACKEND=\"${QUILLUI_LINUX_BACKEND:-gtk}\""))
+        #expect(preparationScript.contains("REQUESTED_BACKEND=\"$(quillui_require_linux_build_backend_identifier \"${REQUESTED_BACKEND:-gtk}\")\""))
+        #expect(preparationScript.contains("gtk)\n    \"$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh\" \"$SCRATCH_PATH\""))
+        #expect(preparationScript.contains("qt)\n    ;;"))
+
+        #expect(linuxSwiftTest.contains("scripts/prepare-linux-build-backend.sh"))
+        #expect(!linuxSwiftTest.contains("patch-swiftopenui-gtk-css.sh"))
+        #expect(backendBuildScript.contains("quillui_prepare_backend_once()"))
+        #expect(backendBuildScript.contains("PREPARED_BACKENDS=$'\\n'"))
+        #expect(backendBuildScript.contains("scripts/prepare-linux-build-backend.sh"))
+        #expect(backendBuildScript.contains("--backend \"$build_backend\""))
+        #expect(!backendBuildScript.contains("if [[ \"$DRY_RUN\" != \"1\" ]]; then\n  \"$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh\""))
+        #expect(smokeLib.contains("scripts/prepare-linux-build-backend.sh"))
+        #expect(smokeLib.contains("--backend \"$linux_build_backend\""))
+        #expect(!smokeLib.contains("scripts/patch-swiftopenui-gtk-css.sh"))
+    }
+
     @Test("macro expansion paths report diagnostics instead of crashing")
     func macroExpansionPathsAvoidFatalError() throws {
         let root = try packageRoot()

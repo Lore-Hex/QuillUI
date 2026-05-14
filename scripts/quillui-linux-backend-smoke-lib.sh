@@ -623,7 +623,9 @@ MSG
       fi
       quillui_assign_output "$output_var" "$cached_executable" || return $?
     else
-      "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux"
+      "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/prepare-linux-build-backend.sh" \
+        --backend "$linux_build_backend" \
+        --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux"
       QUILLUI_LINUX_BACKEND="$linux_build_backend" \
         swift build --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --product "$product"
       quillui_record_backend_product_build \

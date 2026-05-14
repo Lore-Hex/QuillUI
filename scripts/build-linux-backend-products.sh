@@ -134,13 +134,24 @@ quillui_build_backend_product() {
   fi
 }
 
+quillui_prepare_backend_once() {
+  local build_backend="$1"
+  local prepared_key=$'\n'"$build_backend"$'\n'
+
+  if [[ "$PREPARED_BACKENDS" == *"$prepared_key"* ]]; then
+    return 0
+  fi
+
+  "$ROOT_DIR/scripts/prepare-linux-build-backend.sh" \
+    --backend "$build_backend" \
+    --scratch-path "$(quillui_absolute_scratch_path)"
+  PREPARED_BACKENDS="${PREPARED_BACKENDS}${build_backend}"$'\n'
+}
+
 SEEN_BUILDS=$'\n'
+PREPARED_BACKENDS=$'\n'
 ROW_COUNT=0
 BUILD_COUNT=0
-
-if [[ "$DRY_RUN" != "1" ]]; then
-  "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$(quillui_absolute_scratch_path)"
-fi
 
 while IFS=$'\t' read -r product requested_backend extra; do
   [[ -n "$product" ]] || continue
@@ -162,6 +173,7 @@ while IFS=$'\t' read -r product requested_backend extra; do
     printf '%s\t%s\n' "$product" "$build_backend"
   else
     echo "==> Build $product (QUILLUI_LINUX_BACKEND=$build_backend)"
+    quillui_prepare_backend_once "$build_backend"
     quillui_build_backend_product "$product" "$build_backend"
     quillui_record_backend_product_build "$(quillui_absolute_scratch_path)" "$product" "$build_backend"
   fi

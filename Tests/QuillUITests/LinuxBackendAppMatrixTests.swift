@@ -392,6 +392,37 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("gtk-stamp=missing"))
     }
 
+    @Test("build preparation helper accepts only Linux build backends")
+    func buildPreparationHelperAcceptsOnlyLinuxBuildBackends() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/prepare-linux-build-backend.sh")
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-backend-prepare-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        let qt = try runScript(
+            script,
+            arguments: ["--backend", "Qt6", "--scratch-path", temporaryDirectory.path]
+        )
+        #expect(qt.status == 0, Comment(rawValue: qt.output))
+
+        let environmentQt = try runScript(
+            script,
+            arguments: ["--scratch-path", temporaryDirectory.path],
+            environment: ["QUILLUI_LINUX_BACKEND": " qt6 "]
+        )
+        #expect(environmentQt.status == 0, Comment(rawValue: environmentQt.output))
+
+        let unsupported = try runScript(
+            script,
+            arguments: ["--backend", "swiftui", "--scratch-path", temporaryDirectory.path]
+        )
+        #expect(unsupported.status == 64)
+        #expect(unsupported.output.contains("Unsupported QuillUI Linux build backend: swiftui; expected gtk or qt."))
+    }
+
     @Test("profile budget rejects runtime drift")
     func profileBudgetRejectsRuntimeDrift() throws {
         let root = try packageRoot()
