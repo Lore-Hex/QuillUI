@@ -18,8 +18,8 @@
 //   6. `gtk_snapshot_to_node(snapshot)` → root GskRenderNode.
 //   7. Create a `cairo_image_surface_t` of the requested size, get a `cairo_t`
 //      context, and draw the node via `gsk_render_node_draw(node, cr)`.
-//   8. `gdk_pixbuf_get_from_surface(surface, ...)` → GdkPixbuf with the
-//      ARGB32 pixels rearranged into a real RGB(A) image.
+//   8. Copy the cairo ARGB32 pixels into a GdkPixbuf, unpremultiplying
+//      components into the straight-alpha RGB(A) format gdk-pixbuf encodes.
 //   9. `gdk_pixbuf_save_to_bufferv(pixbuf, ..., "png" | "tiff", ...)` →
 //      Swift-owned `Data` bytes; free the gdk-pixbuf-allocated buffer.
 //
@@ -55,6 +55,66 @@ private func gtkWidgetPointer(_ pointer: OpaquePointer) -> UnsafeMutablePointer<
 
 private func gtkWindowPointer(_ widget: UnsafeMutablePointer<GtkWidget>) -> UnsafeMutablePointer<GtkWindow> {
     UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GtkWindow.self)
+}
+
+private func unpremultipliedByte(_ component: UInt32, alpha: UInt32) -> guchar {
+    guard alpha > 0 else { return 0 }
+    return guchar(min(255, (component * 255 + alpha / 2) / alpha))
+}
+
+private func pixbufFromCairoARGB32Surface(
+    _ surface: OpaquePointer,
+    width: Int,
+    height: Int
+) -> OpaquePointer? {
+    guard let pixbuf = gdk_pixbuf_new(
+        GDK_COLORSPACE_RGB,
+        1,
+        8,
+        gint(width),
+        gint(height)
+    ) else {
+        return nil
+    }
+
+    cairo_surface_flush(surface)
+
+    guard
+        let sourcePixels = cairo_image_surface_get_data(surface),
+        let destinationPixels = gdk_pixbuf_get_pixels(pixbuf)
+    else {
+        g_object_unref(gpointer(pixbuf))
+        return nil
+    }
+
+    let sourceStride = Int(cairo_image_surface_get_stride(surface))
+    let destinationStride = Int(gdk_pixbuf_get_rowstride(pixbuf))
+    let destinationChannels = Int(gdk_pixbuf_get_n_channels(pixbuf))
+    guard destinationChannels >= 4 else {
+        g_object_unref(gpointer(pixbuf))
+        return nil
+    }
+
+    for y in 0..<height {
+        let sourceRow = sourcePixels.advanced(by: y * sourceStride)
+        let destinationRow = destinationPixels.advanced(by: y * destinationStride)
+
+        for x in 0..<width {
+            let pixel = UnsafeRawPointer(sourceRow.advanced(by: x * 4)).load(as: UInt32.self)
+            let alpha = (pixel >> 24) & 0xFF
+            let red = (pixel >> 16) & 0xFF
+            let green = (pixel >> 8) & 0xFF
+            let blue = pixel & 0xFF
+            let destinationPixel = destinationRow.advanced(by: x * destinationChannels)
+
+            destinationPixel[0] = unpremultipliedByte(red, alpha: alpha)
+            destinationPixel[1] = unpremultipliedByte(green, alpha: alpha)
+            destinationPixel[2] = unpremultipliedByte(blue, alpha: alpha)
+            destinationPixel[3] = guchar(alpha)
+        }
+    }
+
+    return pixbuf
 }
 
 private func isGTKOffscreenRenderEnabled() -> Bool {
@@ -161,13 +221,12 @@ public func quillRenderViewToImage<V: View>(
     gsk_render_node_draw(renderNode, cr)
 
     // 6. Pull pixels back as a GdkPixbuf, then encode.
-    guard let pixbuf = gdk_pixbuf_get_from_surface(
+    guard let pixbuf = pixbufFromCairoARGB32Surface(
         cairoSurface,
-        0, 0,
-        gint(resolvedWidth),
-        gint(resolvedHeight)
+        width: resolvedWidth,
+        height: resolvedHeight
     ) else { return nil }
-    defer { g_object_unref(UnsafeMutableRawPointer(pixbuf)) }
+    defer { g_object_unref(gpointer(pixbuf)) }
 
     var buffer: UnsafeMutablePointer<gchar>? = nil
     var bufferSize: gsize = 0

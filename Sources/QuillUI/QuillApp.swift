@@ -83,16 +83,21 @@ public enum QuillApp {
         preferredBackend: QuillBackendIdentifier? = nil
     ) {
         let launchPlan = QuillBackendRegistry.launchPlan(preferred: preferredBackend)
+        let appTypeBox = QuillUncheckedSendableAppType(appType: appType)
         QuillBackendRuntimeContext.install(launchPlan)
 
         MainActor.assumeIsolated {
             #if os(Linux)
-            QuillLinuxAppRuntime.run(appType, launchPlan: launchPlan)
+            QuillLinuxAppRuntime.run(appTypeBox.appType, launchPlan: launchPlan)
             #else
             A.main()
             #endif
         }
     }
+}
+
+private struct QuillUncheckedSendableAppType<A: App>: @unchecked Sendable {
+    let appType: A.Type
 }
 
 /// Shared launcher for backend-specific facade targets such as

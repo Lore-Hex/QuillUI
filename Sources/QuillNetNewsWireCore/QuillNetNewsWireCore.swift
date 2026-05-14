@@ -412,7 +412,7 @@ struct RSSFeedParser {
         let delegate = Delegate()
         let parser = XMLParser(data: data)
         parser.delegate = delegate
-        parser.parse()
+        _ = parser.parse()
         return Result(title: delegate.feedTitle, items: delegate.items)
     }
 

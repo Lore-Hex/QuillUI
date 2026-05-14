@@ -1485,8 +1485,7 @@ struct CompatibilityModuleTests {
 
         // Drive the full pipeline: gtkRenderView -> offscreen GtkWindow +
         // layout -> gtk_widget_snapshot -> gsk_render_node_draw -> cairo
-        // image surface -> gdk_pixbuf_get_from_surface ->
-        // gdk_pixbuf_save_to_bufferv.
+        // image surface -> copied GdkPixbuf pixels -> gdk_pixbuf_save_to_bufferv.
         let renderer = ImageRenderer(content: Text("hello world"))
         guard let image = renderer.nsImage, let pngData = image.data else {
             let warnings = QuillCompatibilityDiagnostics.shared.events.filter {
@@ -1514,7 +1513,7 @@ struct CompatibilityModuleTests {
         // QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1:
         //   gtkRenderView → offscreen GtkWindow + size_allocate
         //   → gtk_widget_snapshot → gsk_render_node_draw
-        //   → cairo_image_surface → gdk_pixbuf_get_from_surface
+        //   → cairo_image_surface → copied GdkPixbuf pixels
         //   → gdk_pixbuf_save_to_bufferv
         // The default remains the safe nil+warning path because GTK can crash
         // if snapshotting starts outside a controlled display harness.
