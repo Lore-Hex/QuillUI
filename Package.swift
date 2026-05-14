@@ -145,17 +145,46 @@ let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/
 let codeEditSourceUpstreamPresent: Bool = upstreamPresent(".upstream/codeedit/CodeEdit")
 let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsymbols")
 
-let quillCanonicalLinuxAppProducts: [Product] = [
-    .executable(name: "quill-enchanted", targets: ["QuillEnchanted"]),
-    .executable(name: "quill-enchanted-upstream-slice", targets: ["QuillEnchantedUpstreamSlice"]),
-    .executable(name: "quill-icecubes", targets: ["QuillIceCubes"]),
-    .executable(name: "quill-netnewswire", targets: ["QuillNetNewsWire"]),
-    .executable(name: "quill-codeedit", targets: ["QuillCodeEdit"]),
-    .executable(name: "quill-signal", targets: ["QuillSignal"]),
-    .executable(name: "quill-telegram", targets: ["QuillTelegram"]),
-    .executable(name: "quill-iina", targets: ["QuillIINA"]),
-    .executable(name: "quill-wireguard", targets: ["QuillWireGuard"])
+enum QuillCanonicalLinuxAppQtRuntime {
+    case enchantedQtNative
+    case genericQtNative
+    case wireGuardQtNative
+
+    var targetDependency: Target.Dependency {
+        switch self {
+        case .enchantedQtNative:
+            return "QuillEnchantedQtNativeRuntime"
+        case .genericQtNative:
+            return "QuillGenericQtNativeRuntime"
+        case .wireGuardQtNative:
+            return "QuillWireGuardQtNativeRuntime"
+        }
+    }
+}
+
+struct QuillCanonicalLinuxAppSpec {
+    var product: String
+    var target: String
+    var qtPath: String
+    var qtRuntime: QuillCanonicalLinuxAppQtRuntime
+
+    var productDeclaration: Product {
+        .executable(name: product, targets: [target])
+    }
+}
+
+let quillCanonicalLinuxApps: [QuillCanonicalLinuxAppSpec] = [
+    .init(product: "quill-enchanted", target: "QuillEnchanted", qtPath: "Sources/QuillEnchantedQt", qtRuntime: .enchantedQtNative),
+    .init(product: "quill-enchanted-upstream-slice", target: "QuillEnchantedUpstreamSlice", qtPath: "Sources/QuillEnchantedUpstreamSliceQt", qtRuntime: .genericQtNative),
+    .init(product: "quill-icecubes", target: "QuillIceCubes", qtPath: "Sources/QuillIceCubesQt", qtRuntime: .genericQtNative),
+    .init(product: "quill-netnewswire", target: "QuillNetNewsWire", qtPath: "Sources/QuillNetNewsWireQt", qtRuntime: .genericQtNative),
+    .init(product: "quill-codeedit", target: "QuillCodeEdit", qtPath: "Sources/QuillCodeEditQt", qtRuntime: .genericQtNative),
+    .init(product: "quill-signal", target: "QuillSignal", qtPath: "Sources/QuillSignalQt", qtRuntime: .genericQtNative),
+    .init(product: "quill-telegram", target: "QuillTelegram", qtPath: "Sources/QuillTelegramQt", qtRuntime: .genericQtNative),
+    .init(product: "quill-iina", target: "QuillIINA", qtPath: "Sources/QuillIINAQt", qtRuntime: .genericQtNative),
+    .init(product: "quill-wireguard", target: "QuillWireGuard", qtPath: "Sources/QuillWireGuardQt", qtRuntime: .wireGuardQtNative)
 ]
+let quillCanonicalLinuxAppProducts: [Product] = quillCanonicalLinuxApps.map(\.productDeclaration)
 
 var products: [Product] = [
     .library(name: "QuillUI", targets: ["QuillUI"]),
@@ -375,6 +404,27 @@ let quillWireGuardQtSwiftSettings: [SwiftSetting] =
 #else
 let quillWireGuardQtSwiftSettings: [SwiftSetting] = appSwiftSettings
 #endif
+
+func quillCanonicalLinuxAppQtTarget(_ app: QuillCanonicalLinuxAppSpec) -> Target {
+    let swiftSettings: [SwiftSetting]
+
+    switch app.qtRuntime {
+    case .enchantedQtNative:
+        swiftSettings = quillEnchantedQtSwiftSettings
+    case .genericQtNative:
+        swiftSettings = appSwiftSettings
+    case .wireGuardQtNative:
+        swiftSettings = quillWireGuardQtSwiftSettings
+    }
+
+    return .executableTarget(
+        name: app.target,
+        dependencies: [app.qtRuntime.targetDependency],
+        path: app.qtPath,
+        swiftSettings: swiftSettings
+    )
+}
+
 // WireGuardKit deps + Linux-specific excludes.
 #if os(Linux)
 let wireGuardKitDependencies: [Target.Dependency] = ["WireGuardKitC", "Network", "NetworkExtension"]
@@ -1146,15 +1196,6 @@ if quillUILinuxBuildBackend == .qt {
     products = quillCanonicalLinuxAppProducts + [
         .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
     ]
-    let quillGenericQtAppTargets: [(name: String, path: String)] = [
-        (name: "QuillEnchantedUpstreamSlice", path: "Sources/QuillEnchantedUpstreamSliceQt"),
-        (name: "QuillIceCubes", path: "Sources/QuillIceCubesQt"),
-        (name: "QuillNetNewsWire", path: "Sources/QuillNetNewsWireQt"),
-        (name: "QuillCodeEdit", path: "Sources/QuillCodeEditQt"),
-        (name: "QuillSignal", path: "Sources/QuillSignalQt"),
-        (name: "QuillTelegram", path: "Sources/QuillTelegramQt"),
-        (name: "QuillIINA", path: "Sources/QuillIINAQt")
-    ]
     allPackageDependencies = []
     targets = [
         .target(
@@ -1193,12 +1234,6 @@ if quillUILinuxBuildBackend == .qt {
             path: "Sources/QuillEnchantedQtNativeRuntime",
             swiftSettings: appSwiftSettings
         ),
-        .executableTarget(
-            name: "QuillEnchanted",
-            dependencies: ["QuillEnchantedQtNativeRuntime"],
-            path: "Sources/QuillEnchantedQt",
-            swiftSettings: quillEnchantedQtSwiftSettings
-        ),
         .target(
             name: "QuillWireGuardQtNativeRuntime",
             dependencies: ["QuillWireGuardCore", "CQuillQt6WidgetsShim"],
@@ -1206,24 +1241,11 @@ if quillUILinuxBuildBackend == .qt {
             swiftSettings: appSwiftSettings
         ),
         .executableTarget(
-            name: "QuillWireGuard",
-            dependencies: ["QuillWireGuardQtNativeRuntime"],
-            path: "Sources/QuillWireGuardQt",
-            swiftSettings: quillWireGuardQtSwiftSettings
-        ),
-        .executableTarget(
             name: "QuillQtInteractionSmoke",
             dependencies: ["CQuillQt6WidgetsShim"],
             path: "Sources/QuillQtInteractionSmoke"
         )
-    ] + quillGenericQtAppTargets.map { spec in
-        .executableTarget(
-            name: spec.name,
-            dependencies: ["QuillGenericQtNativeRuntime"],
-            path: spec.path,
-            swiftSettings: appSwiftSettings
-        )
-    }
+    ] + quillCanonicalLinuxApps.map(quillCanonicalLinuxAppQtTarget)
 }
 #endif
 

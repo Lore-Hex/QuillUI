@@ -220,10 +220,22 @@ struct LinuxBackendAppMatrixTests {
 
         let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
         for contract in Self.expectedAppContracts {
-            #expect(manifest.contains(".executable(name: \"\(contract.product)\", targets: [\"\(contract.target)\"])"))
-            #expect(manifest.contains("name: \"\(contract.target)\""))
-            #expect(manifest.contains("dependencies: [\"\(contract.qtRuntimeDependency)\"]"))
-            #expect(manifest.contains("path: \"\(contract.qtPath)\""))
+            let qtRuntimeCase: String
+            switch contract.qtRuntimeDependency {
+            case "QuillEnchantedQtNativeRuntime":
+                qtRuntimeCase = "enchantedQtNative"
+            case "QuillGenericQtNativeRuntime":
+                qtRuntimeCase = "genericQtNative"
+            case "QuillWireGuardQtNativeRuntime":
+                qtRuntimeCase = "wireGuardQtNative"
+            default:
+                qtRuntimeCase = ""
+            }
+
+            #expect(
+                manifest.contains("product: \"\(contract.product)\", target: \"\(contract.target)\", qtPath: \"\(contract.qtPath)\", qtRuntime: .\(qtRuntimeCase)")
+            )
+            #expect(manifest.contains("return \"\(contract.qtRuntimeDependency)\""))
 
             let qtMain = root
                 .appendingPathComponent(contract.qtPath)
@@ -239,6 +251,8 @@ struct LinuxBackendAppMatrixTests {
         }
         #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-enchanted-qt\", targets: [\"QuillEnchantedQt\"]))\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
+        #expect(manifest.contains("let quillCanonicalLinuxAppProducts: [Product] = quillCanonicalLinuxApps.map(\\.productDeclaration)"))
+        #expect(manifest.contains("] + quillCanonicalLinuxApps.map(quillCanonicalLinuxAppQtTarget)"))
         #expect(manifest.contains("name: \"QuillGenericQtNativeRuntime\""))
         #expect(manifest.contains("path: \"Sources/QuillGenericQtNativeRuntime\""))
         #expect(!manifest.contains("products = [\n        .executable(name: \"quill-enchanted-qt\""))
