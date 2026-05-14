@@ -151,9 +151,34 @@ def wireguard_qt_sidebar_pixel(rgb: tuple[int, int, int]) -> bool:
     )
 
 
-def wireguard_qt_selected_row_pixel(rgb: tuple[int, int, int]) -> bool:
+def wireguard_selected_row_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return 225 <= red <= 240 and 232 <= green <= 245 and 245 <= blue <= 255 and blue - red >= 8
+
+
+def wireguard_qt_selected_row_pixel(rgb: tuple[int, int, int]) -> bool:
+    return wireguard_selected_row_pixel(rgb)
+
+
+def wireguard_gtk_sidebar_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        238 <= red <= 252
+        and 238 <= green <= 252
+        and 238 <= blue <= 253
+        and max(rgb) - min(rgb) <= 10
+    )
+
+
+def wireguard_gtk_section_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        238 <= red <= 252
+        and 238 <= green <= 252
+        and 238 <= blue <= 253
+        and max(rgb) - min(rgb) <= 14
+        and sum(rgb) < 755
+    )
 
 
 def wireguard_qt_focused_title_border_pixel(rgb: tuple[int, int, int]) -> bool:
@@ -1398,6 +1423,111 @@ def validate_quill_wireguard_qt_native(
     )
 
 
+def validate_quill_wireguard_gtk_import(
+    image: Screenshot,
+    minimum_selected_center_offset: int = 145,
+) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(860 <= app_width <= 1100, f"WireGuard GTK window width is unexpected: {app_width}px")
+    require(560 <= app_height <= 760, f"WireGuard GTK window height is unexpected: {app_height}px")
+
+    divider_search = range(left + 240, min(right + 1, left + 340))
+    divider_x = max(
+        divider_search,
+        key=lambda x: line_column_score(image, x, top + 20, bottom - 20),
+    )
+    divider_score = line_column_score(image, divider_x, top + 20, bottom - 20)
+    require(
+        divider_score >= int(app_height * 0.15),
+        f"WireGuard GTK sidebar divider was not detected: x={divider_x}, score={divider_score}",
+    )
+
+    sidebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        min(right + 1, left + 320),
+        bottom + 1,
+        wireguard_gtk_sidebar_pixel,
+    )
+    selected_row = best_pixel_row_segment(
+        image,
+        left + 8,
+        top + 62,
+        min(right + 1, left + 276),
+        min(bottom + 1, top + 285),
+        wireguard_selected_row_pixel,
+        min_row_pixels=28,
+    )
+    require(selected_row is not None, "WireGuard GTK selected imported tunnel row was not detected")
+    selected_row_segment, selected_row_pixels = selected_row
+    selected_row_center_offset = selected_row_segment.center - top
+    require(
+        selected_row_center_offset >= minimum_selected_center_offset,
+        "WireGuard GTK import did not select the imported tunnel row: "
+        f"selected_center={selected_row_center_offset:.1f}px, "
+        f"minimum={minimum_selected_center_offset}px",
+    )
+
+    section_pixels = pixel_count(
+        image,
+        divider_x + 12,
+        top + 58,
+        right + 1,
+        bottom + 1,
+        wireguard_gtk_section_pixel,
+    )
+    sidebar_text_pixels = dark_pixel_count(
+        image,
+        left + 12,
+        top + 18,
+        min(right + 1, left + 320),
+        bottom - 20,
+    )
+    detail_text_pixels = dark_pixel_count(
+        image,
+        divider_x + 20,
+        top + 20,
+        right - 20,
+        bottom - 20,
+    )
+
+    require(
+        sidebar_pixels >= 18_000,
+        f"WireGuard GTK sidebar background was not detected: pixels={sidebar_pixels}",
+    )
+    require(
+        selected_row_pixels >= 120,
+        f"WireGuard GTK selected imported row is too small: pixels={selected_row_pixels}",
+    )
+    require(
+        section_pixels >= 8_000,
+        f"WireGuard GTK detail section backgrounds were not detected: pixels={section_pixels}",
+    )
+    require(
+        sidebar_text_pixels >= 160,
+        f"WireGuard GTK sidebar tunnel text was not detected: pixels={sidebar_text_pixels}",
+    )
+    require(
+        detail_text_pixels >= 420,
+        f"WireGuard GTK detail text was not detected: pixels={detail_text_pixels}",
+    )
+
+    return (
+        "Quill WireGuard GTK import: "
+        f"app={app_width}x{app_height}, "
+        f"divider={divider_x - left}px/{divider_score}, "
+        f"sidebar_pixels={sidebar_pixels}, "
+        f"selected_row_pixels={selected_row_pixels}, "
+        f"selected_row_y={selected_row_segment.start - top}-{selected_row_segment.end - top}, "
+        f"section_pixels={section_pixels}, "
+        f"sidebar_text_pixels={sidebar_text_pixels}, "
+        f"detail_text_pixels={detail_text_pixels}"
+    )
+
+
 def validate_quill_backend_interaction_smoke(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1528,6 +1658,8 @@ def main() -> int:
         ))
     elif product in {"quill-wireguard-qt-import-paste", "quill-wireguard-qt-import-file"}:
         print(validate_quill_wireguard_qt_native(image, minimum_selected_center_offset=145))
+    elif product in {"quill-wireguard-import-paste", "quill-wireguard-import-file"}:
+        print(validate_quill_wireguard_gtk_import(image))
     elif product in {"quill-gtk-interaction-smoke-open", "quill-qt-interaction-smoke-open"}:
         print(validate_quill_backend_interaction_smoke(image))
     elif product in {"quill-gtk-interaction-smoke-sidebar", "quill-qt-interaction-smoke-sidebar"}:

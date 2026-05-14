@@ -232,6 +232,8 @@ struct QuillWireGuardCoreTests {
         #expect(source.contains("QuillFileImporter.selectURL(allowedContentTypes: [])"))
         #expect(source.contains("QuillWireGuardImportService.importTunnel"))
         #expect(source.contains("QuillWireGuardPresentation.importButtonLabel"))
+        #expect(source.contains("tunnelRow(tunnel, isSelected: tunnel.id == selectedTunnelID)"))
+        #expect(source.contains("QuillWireGuardStyle.selectedRowBackgroundColor"))
         #expect(source.contains("importErrorText"))
         #expect(!source.contains("WireGuardKit not available"))
         #expect(!source.contains("Click + in the sidebar to generate a fresh\\nCurve25519 keypair via upstream WireGuardKit."))
@@ -248,6 +250,10 @@ struct QuillWireGuardCoreTests {
             contentsOf: root.appendingPathComponent("scripts/quillui-backend-products.sh"),
             encoding: .utf8
         )
+        let verifier = try String(
+            contentsOf: root.appendingPathComponent("scripts/verify-backend-screenshot.py"),
+            encoding: .utf8
+        )
 
         #expect(interactionScript.contains("wireguard_import_configuration_file()"))
         #expect(interactionScript.contains("QUILLUI_FILE_IMPORTER_SELECTION=$import_file"))
@@ -258,6 +264,10 @@ struct QuillWireGuardCoreTests {
         #expect(matrixScript.contains("quill-wireguard gtk import-file"))
         #expect(matrixScript.contains("quill-wireguard-qt qt import-paste"))
         #expect(matrixScript.contains("quill-wireguard-qt qt import-file"))
+        #expect(verifier.contains("validate_quill_wireguard_gtk_import"))
+        #expect(verifier.contains("quill-wireguard-import-paste"))
+        #expect(verifier.contains("quill-wireguard-import-file"))
+        #expect(verifier.contains("minimum_selected_center_offset"))
     }
 
     @Test("WireGuard app entry points share the UI scene helper")
@@ -428,6 +438,7 @@ struct QuillWireGuardCoreTests {
         #expect(snapshot.style.detailPadding == QuillWireGuardStyle.detailPadding)
         #expect(snapshot.style.detailSpacing == QuillWireGuardStyle.detailSpacing)
         #expect(snapshot.style.importDialogWidth == QuillWireGuardStyle.importDialogWidth)
+        #expect(snapshot.style.selectedRowBackgroundColor == QuillWireGuardStyle.selectedRowBackgroundColor)
         #expect(snapshot.selectedTunnelID == QuillWireGuardFixtures.defaultTunnelID)
         #expect(snapshot.tunnels.map(\.id) == QuillWireGuardFixtures.tunnels.map(\.id))
         #expect(snapshot.tunnels.first?.interface.addressesText == QuillWireGuardFixtures.tunnels.first?.interface.addresses.joined(separator: ", "))

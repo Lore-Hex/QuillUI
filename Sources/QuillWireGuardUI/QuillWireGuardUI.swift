@@ -78,7 +78,7 @@ public struct WireGuardFallbackConfigurationView: View {
                     Button {
                         selectedTunnelID = tunnel.id
                     } label: {
-                        tunnelRow(tunnel)
+                        tunnelRow(tunnel, isSelected: tunnel.id == selectedTunnelID)
                     }
                 }
             }
@@ -99,7 +99,7 @@ public struct WireGuardFallbackConfigurationView: View {
         .background(Color.gray.opacity(0.06))
     }
 
-    private func tunnelRow(_ tunnel: QuillWireGuardTunnel) -> some View {
+    private func tunnelRow(_ tunnel: QuillWireGuardTunnel, isSelected: Bool) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(tunnel.name)
@@ -113,7 +113,11 @@ public struct WireGuardFallbackConfigurationView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
+        .padding(.horizontal, 8)
         .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isSelected ? Color(hex: QuillWireGuardStyle.selectedRowBackgroundColor) : Color.clear)
+        .cornerRadius(CGFloat(QuillWireGuardStyle.listItemCornerRadius))
     }
 
     private var detail: some View {

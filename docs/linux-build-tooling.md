@@ -218,6 +218,12 @@ scratch path. Visual, interaction, and profile runners that set
 cached executable, so native GTK and native Qt products cannot silently launch
 a stale binary from the wrong manifest-time backend graph.
 
+The GTK WireGuard host uses the same semantic import modes as Qt. Its
+`import-paste` and `import-file` screenshots route through a dedicated GTK
+fallback verifier that checks the sidebar shape, detail sections, and selected
+imported row instead of falling back to the generic nonblank screenshot health
+check.
+
 For `quill-chat-linux`, the script builds through the generic app builder,
 resolves the generated package executable, captures an Xvfb screenshot, checks
 both brightness and pixel variation so blank white windows fail, and verifies
