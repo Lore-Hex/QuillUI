@@ -22,8 +22,6 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-#include <algorithm>
-
 namespace {
 
 using QuillQtWidgets::clearLayout;
@@ -51,20 +49,6 @@ QJsonObject objectValue(const QJsonObject &object, const char *key) {
 
 QJsonArray arrayValue(const QJsonObject &object, const char *key) {
     return QuillQtWidgets::jsonArrayValue(object, key);
-}
-
-QSize resolvedMinimumWindowSize(const QJsonObject &payload) {
-    return QSize(
-        intValue(payload, "minimumWidth", 980),
-        intValue(payload, "minimumHeight", 680)
-    );
-}
-
-QSize resolvedDefaultWindowSize(const QJsonObject &payload, const QSize &minimumSize) {
-    return QSize(
-        std::max(intValue(payload, "defaultWidth", minimumSize.width()), minimumSize.width()),
-        std::max(intValue(payload, "defaultHeight", minimumSize.height()), minimumSize.height())
-    );
 }
 
 QString appStyleSheet(const QJsonObject &style) {
@@ -295,9 +279,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
 ) {
     QJsonObject payload;
     int payloadExitCode = 65;
+    const QByteArray executableName =
+        QuillQtWidgets::executableNameBytes(argc, argv, "quill-enchanted-qt");
     if (!QuillQtWidgets::parseJsonObjectPayload(
         payload_json,
-        "quill-enchanted-qt",
+        executableName.constData(),
         65,
         65,
         &payload,
@@ -314,8 +300,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QWidget window;
     window.setObjectName(QStringLiteral("enchantedRoot"));
     window.setWindowTitle(stringValue(payload, "windowTitle", QStringLiteral("Quill Enchanted")));
-    const QSize minimumWindowSize = resolvedMinimumWindowSize(payload);
-    const QSize defaultWindowSize = resolvedDefaultWindowSize(payload, minimumWindowSize);
+    const QSize minimumWindowSize = QuillQtWidgets::minimumWindowSize(payload, 980, 680);
+    const QSize defaultWindowSize = QuillQtWidgets::defaultWindowSize(payload, minimumWindowSize);
     window.setMinimumSize(minimumWindowSize);
     window.resize(defaultWindowSize);
 

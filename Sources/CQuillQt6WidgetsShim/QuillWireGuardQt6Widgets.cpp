@@ -35,7 +35,6 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-#include <algorithm>
 #include <cstdio>
 
 namespace {
@@ -80,20 +79,6 @@ QPlainTextEdit *configurationTextEditor(
     editor->setMinimumHeight(intValue(style, "importEditorHeight", 180));
     editor->setReadOnly(readOnly);
     return editor;
-}
-
-QSize resolvedMinimumWindowSize(const QJsonObject &payload) {
-    return QSize(
-        intValue(payload, "minimumWidth", 900),
-        intValue(payload, "minimumHeight", 600)
-    );
-}
-
-QSize resolvedDefaultWindowSize(const QJsonObject &payload, const QSize &minimumSize) {
-    return QSize(
-        std::max(intValue(payload, "defaultWidth", minimumSize.width()), minimumSize.width()),
-        std::max(intValue(payload, "defaultHeight", minimumSize.height()), minimumSize.height())
-    );
 }
 
 QJsonObject objectValue(const QJsonObject &object, const char *key) {
@@ -476,13 +461,15 @@ void clearImportError(QLabel *error) {
     }
 }
 
-void reportStartupImportError(const QString &message) {
+void reportStartupImportError(const QByteArray &executableName, const QString &message) {
     if (message.isEmpty()) {
         return;
     }
 
     const QByteArray bytes = message.toUtf8();
-    std::fprintf(stderr, "quill-wireguard-qt: startup import failed: %s\n", bytes.constData());
+    const char *name =
+        executableName.isEmpty() ? "quill-wireguard-qt" : executableName.constData();
+    std::fprintf(stderr, "%s: startup import failed: %s\n", name, bytes.constData());
 }
 
 bool readImportConfigurationFile(
@@ -771,9 +758,11 @@ int quill_wireguard_qt_run_wireguard_json(
 ) {
     QJsonObject payload;
     int payloadExitCode = 64;
+    const QByteArray executableName =
+        QuillQtWidgets::executableNameBytes(argc, argv, "quill-wireguard-qt");
     if (!QuillQtWidgets::parseJsonObjectPayload(
         payload_json,
-        "quill-wireguard-qt",
+        executableName.constData(),
         64,
         65,
         &payload,
@@ -792,8 +781,8 @@ int quill_wireguard_qt_run_wireguard_json(
 
     QWidget window;
     window.setWindowTitle(stringValue(payload, "title"));
-    const QSize minimumWindowSize = resolvedMinimumWindowSize(payload);
-    const QSize defaultWindowSize = resolvedDefaultWindowSize(payload, minimumWindowSize);
+    const QSize minimumWindowSize = QuillQtWidgets::minimumWindowSize(payload, 900, 600);
+    const QSize defaultWindowSize = QuillQtWidgets::defaultWindowSize(payload, minimumWindowSize);
     window.setMinimumSize(minimumWindowSize);
     window.resize(defaultWindowSize);
 
@@ -890,7 +879,7 @@ int quill_wireguard_qt_run_wireguard_json(
             QString configuration;
             QString fileError;
             if (!readImportConfigurationFile(startupImportFile, &configuration, &fileError)) {
-                reportStartupImportError(fileError);
+                reportStartupImportError(executableName, fileError);
                 return;
             }
             if (openStartupImportDialog) {
@@ -921,7 +910,7 @@ int quill_wireguard_qt_run_wireguard_json(
                 nullptr,
                 &importError
             )) {
-                reportStartupImportError(importError);
+                reportStartupImportError(executableName, importError);
             }
         });
     }

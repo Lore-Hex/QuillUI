@@ -12,6 +12,7 @@
 #include <QLayoutItem>
 #include <QPushButton>
 #include <QRect>
+#include <QSize>
 #include <QString>
 #include <QStyle>
 #include <QWidget>
@@ -79,6 +80,52 @@ inline QJsonArray jsonArrayValue(const QJsonObject &object, const char *key) {
     return object.value(QString::fromUtf8(key)).toArray();
 }
 
+inline QByteArray executableNameBytes(
+    int argc,
+    char **argv,
+    const char *fallback = "quill-qt"
+) {
+    const char *fallbackName =
+        (fallback == nullptr || fallback[0] == '\0') ? "quill-qt" : fallback;
+    if (argc <= 0 || argv == nullptr || argv[0] == nullptr || argv[0][0] == '\0') {
+        return QByteArray(fallbackName);
+    }
+
+    const QString rawExecutablePath = QString::fromLocal8Bit(argv[0]).trimmed();
+    if (rawExecutablePath.isEmpty()) {
+        return QByteArray(fallbackName);
+    }
+
+    const int separatorIndex = rawExecutablePath.lastIndexOf('/');
+    const QString executableName = separatorIndex >= 0
+        ? rawExecutablePath.mid(separatorIndex + 1)
+        : rawExecutablePath;
+    if (executableName.isEmpty()) {
+        return QByteArray(fallbackName);
+    }
+    return executableName.toLocal8Bit();
+}
+
+inline QSize minimumWindowSize(
+    const QJsonObject &payload,
+    int fallbackWidth,
+    int fallbackHeight
+) {
+    return QSize(
+        jsonIntValue(payload, "minimumWidth", fallbackWidth),
+        jsonIntValue(payload, "minimumHeight", fallbackHeight)
+    );
+}
+
+inline QSize defaultWindowSize(const QJsonObject &payload, const QSize &minimumSize) {
+    const int requestedWidth = jsonIntValue(payload, "defaultWidth", minimumSize.width());
+    const int requestedHeight = jsonIntValue(payload, "defaultHeight", minimumSize.height());
+    return QSize(
+        requestedWidth < minimumSize.width() ? minimumSize.width() : requestedWidth,
+        requestedHeight < minimumSize.height() ? minimumSize.height() : requestedHeight
+    );
+}
+
 inline bool parseJsonObjectPayload(
     const char *payloadJson,
     const char *executableName,
@@ -87,7 +134,8 @@ inline bool parseJsonObjectPayload(
     QJsonObject *payload,
     int *exitCode
 ) {
-    const char *name = executableName == nullptr ? "quill-qt" : executableName;
+    const char *name =
+        (executableName == nullptr || executableName[0] == '\0') ? "quill-qt" : executableName;
     if (payloadJson == nullptr) {
         std::fprintf(stderr, "%s: missing payload JSON\n", name);
         if (exitCode != nullptr) {

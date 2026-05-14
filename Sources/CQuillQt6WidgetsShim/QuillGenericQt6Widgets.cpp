@@ -68,20 +68,6 @@ QString genericStyleSheet() {
     )");
 }
 
-QSize minimumWindowSize(const QJsonObject &payload) {
-    return QSize(
-        intValue(payload, "minimumWidth", 900),
-        intValue(payload, "minimumHeight", 620)
-    );
-}
-
-QSize defaultWindowSize(const QJsonObject &payload, const QSize &minimumSize) {
-    return QSize(
-        std::max(intValue(payload, "defaultWidth", minimumSize.width()), minimumSize.width()),
-        std::max(intValue(payload, "defaultHeight", minimumSize.height()), minimumSize.height())
-    );
-}
-
 int boundedSelectedIndex(const QJsonArray &items, int selectedIndex) {
     if (items.isEmpty()) {
         return -1;
@@ -285,9 +271,11 @@ QWidget *scrollWrapped(QWidget *child) {
 extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *payload_json) {
     QJsonObject payload;
     int payloadExitCode = 64;
+    const QByteArray executableName =
+        QuillQtWidgets::executableNameBytes(argc, argv, "quill-generic-qt");
     if (!QuillQtWidgets::parseJsonObjectPayload(
         payload_json,
-        "quill-generic-qt",
+        executableName.constData(),
         64,
         64,
         &payload,
@@ -302,9 +290,9 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
     root.setObjectName(QStringLiteral("genericRoot"));
     root.setWindowTitle(stringValue(payload, "windowTitle", QStringLiteral("QuillUI Qt")));
     root.setStyleSheet(genericStyleSheet());
-    const QSize minimumSize = minimumWindowSize(payload);
+    const QSize minimumSize = QuillQtWidgets::minimumWindowSize(payload, 900, 620);
     root.setMinimumSize(minimumSize);
-    root.resize(defaultWindowSize(payload, minimumSize));
+    root.resize(QuillQtWidgets::defaultWindowSize(payload, minimumSize));
 
     QHBoxLayout *rootLayout = new QHBoxLayout(&root);
     rootLayout->setContentsMargins(0, 0, 0, 0);
