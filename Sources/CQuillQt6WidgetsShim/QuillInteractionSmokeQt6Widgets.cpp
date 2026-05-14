@@ -43,9 +43,11 @@ void showInteractionSmokeSheet(QWidget *parent, const QString &title) {
     dialog->setWindowTitle(title);
     dialog->resize(900, 700);
 
-    QFrame *header = new QFrame(dialog);
-    header->setObjectName(QStringLiteral("interactionSheetHeader"));
-    header->setGeometry(20, 55, 400, 70);
+    QFrame *header = QuillQtWidgets::positionedFrame(
+        dialog,
+        QStringLiteral("interactionSheetHeader"),
+        QRect(20, 55, 400, 70)
+    );
     QuillQtWidgets::positionedLabel(
         header,
         title,
@@ -82,9 +84,11 @@ int quill_qt_run_interaction_smoke(int argc, char **argv) {
     window.setWindowTitle(QStringLiteral("Quill Backend Interaction"));
     window.resize(640, 760);
 
-    QFrame *header = new QFrame(&window);
-    header->setObjectName(QStringLiteral("interactionSmokeHeader"));
-    header->setGeometry(0, 0, 640, 73);
+    QFrame *header = QuillQtWidgets::positionedFrame(
+        &window,
+        QStringLiteral("interactionSmokeHeader"),
+        QRect(0, 0, 640, 73)
+    );
     QuillQtWidgets::positionedLabel(
         header,
         QStringLiteral("Quill Backend Interaction"),
@@ -127,9 +131,11 @@ int quill_qt_run_interaction_smoke(int argc, char **argv) {
         typedLabel->setText(text.isEmpty() ? QStringLiteral("No typed text yet") : QStringLiteral("Typed: %1").arg(text));
     });
 
-    QFrame *panel = new QFrame(content);
-    panel->setObjectName(QStringLiteral("interactionSmokePanel"));
-    panel->setGeometry(32, 72, 398, 165);
+    QFrame *panel = QuillQtWidgets::positionedFrame(
+        content,
+        QStringLiteral("interactionSmokePanel"),
+        QRect(32, 72, 398, 165)
+    );
     panel->hide();
     QuillQtWidgets::positionedLabel(
         panel,
@@ -160,9 +166,11 @@ int quill_qt_run_interaction_smoke(int argc, char **argv) {
         QuillQtWidgets::repolish(sidebarButton);
     });
 
-    QFrame *banner = new QFrame(content);
-    banner->setObjectName(QStringLiteral("interactionSmokeBanner"));
-    banner->setGeometry(60, 255, 190, 62);
+    QFrame *banner = QuillQtWidgets::positionedFrame(
+        content,
+        QStringLiteral("interactionSmokeBanner"),
+        QRect(60, 255, 190, 62)
+    );
     banner->hide();
     QuillQtWidgets::positionedLabel(
         banner,

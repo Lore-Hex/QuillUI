@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QFrame>
 #include <QLabel>
 #include <QPushButton>
 #include <QRect>
@@ -47,6 +48,27 @@ inline QLabel *positionedLabel(
     const QRect &geometry
 ) {
     QLabel *view = label(text, objectName, parent);
+    view->setGeometry(geometry);
+    return view;
+}
+
+inline QFrame *frame(
+    const QString &objectName = QString(),
+    QWidget *parent = nullptr
+) {
+    QFrame *view = new QFrame(parent);
+    if (!objectName.isEmpty()) {
+        view->setObjectName(objectName);
+    }
+    return view;
+}
+
+inline QFrame *positionedFrame(
+    QWidget *parent,
+    const QString &objectName,
+    const QRect &geometry
+) {
+    QFrame *view = frame(objectName, parent);
     view->setGeometry(geometry);
     return view;
 }
