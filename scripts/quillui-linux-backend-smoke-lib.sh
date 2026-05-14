@@ -267,7 +267,7 @@ quillui_backend_interaction_verify_product() {
   elif [[ "$selected_backend" == "qt" ]] && quillui_is_backend_generic_qt_app_product "$product"; then
     case "$interaction_mode" in
       list-selection)
-        verify_product="quill-generic-qt-list-selection"
+        verify_product="$product-qt-list-selection"
         ;;
     esac
   elif quillui_is_backend_smoke_product "$product"; then

@@ -8,6 +8,31 @@ from pathlib import Path
 from typing import Callable
 
 
+def load_generic_qt_app_products() -> frozenset[str]:
+    products_script = Path(__file__).with_name("quillui-backend-products.sh")
+    output = subprocess.run(
+        ["bash", str(products_script), "generic-qt-apps"],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    ).stdout
+    products = frozenset(
+        line.strip()
+        for line in output.splitlines()
+        if line.strip()
+    )
+    if not products:
+        raise RuntimeError("No generic Qt app products were reported by quillui-backend-products.sh")
+    return products
+
+
+GENERIC_QT_APP_PRODUCTS = load_generic_qt_app_products()
+GENERIC_QT_LIST_SELECTION_PRODUCTS = frozenset(
+    f"{product}-qt-list-selection"
+    for product in GENERIC_QT_APP_PRODUCTS
+)
+
+
 @dataclass(frozen=True)
 class Segment:
     start: int
@@ -1453,7 +1478,7 @@ def validate_quill_enchanted_qt_native(
         selected_row_center_offset = selected_row_segment.center - top
         require(
             selected_row_center_offset >= minimum_selected_center_offset,
-            "Enchanted Qt conversation selection did not move to the lower fixture row: "
+            "Enchanted Qt conversation selection did not move to the lower conversation row: "
             f"selected_center={selected_row_center_offset:.1f}px",
         )
         require(
@@ -1485,7 +1510,8 @@ def validate_quill_enchanted_qt_native(
     )
 
 
-def validate_quill_generic_qt_list_selection(image: Screenshot) -> str:
+def validate_quill_generic_qt_list_selection(image: Screenshot, product: str) -> str:
+    app_label = product.removesuffix("-qt-list-selection")
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1525,7 +1551,7 @@ def validate_quill_generic_qt_list_selection(image: Screenshot) -> str:
     selected_row_center_offset = selected_row_segment.center - top
     require(
         selected_row_center_offset >= 270,
-        "Generic Qt list selection did not move to the lower fixture row: "
+        "Generic Qt list selection did not move to the lower app row: "
         f"selected_center={selected_row_center_offset:.1f}px",
     )
 
@@ -1571,7 +1597,7 @@ def validate_quill_generic_qt_list_selection(image: Screenshot) -> str:
     require(detail_text_pixels >= 500, f"Generic Qt detail text was not detected: pixels={detail_text_pixels}")
 
     return (
-        "Quill generic Qt list selection: "
+        f"{app_label} Qt list selection: "
         f"app={app_width}x{app_height}, "
         f"divider={divider_x - left}px/{divider_score}, "
         f"sidebar_pixels={sidebar_pixels}, "
@@ -2001,8 +2027,8 @@ def main() -> int:
         print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-enchanted-qt-list-selection":
         print(validate_quill_enchanted_qt_native(image, minimum_selected_center_offset=430))
-    elif product == "quill-generic-qt-list-selection":
-        print(validate_quill_generic_qt_list_selection(image))
+    elif product in GENERIC_QT_LIST_SELECTION_PRODUCTS:
+        print(validate_quill_generic_qt_list_selection(image, product))
     elif product == "quill-wireguard-qt":
         print(validate_quill_wireguard_qt_native(image))
     elif product == "quill-wireguard-qt-tunnel-selection":
