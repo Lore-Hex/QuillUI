@@ -29,7 +29,6 @@ namespace {
 
 using QuillQtWidgets::jsonArrayValue;
 using QuillQtWidgets::jsonIntValue;
-using QuillQtWidgets::jsonObjectValue;
 using QuillQtWidgets::jsonStringValue;
 using QuillQtWidgets::label;
 
@@ -101,14 +100,12 @@ QListWidget *listWidget(const QJsonArray &items, int selectedIndex) {
     list->setObjectName(QStringLiteral("itemList"));
     list->setSpacing(4);
 
-    int row = 0;
     for (const QJsonValue &value : items) {
         const QJsonObject item = value.toObject();
         QListWidgetItem *listItem = new QListWidgetItem();
         listItem->setSizeHint(QSize(264, intValue(item, "height", 76)));
         list->addItem(listItem);
         list->setItemWidget(listItem, itemRowWidget(item));
-        row += 1;
     }
 
     if (list->count() > 0) {

@@ -3,17 +3,83 @@ import Testing
 
 @Suite("Linux backend app matrix", .serialized)
 struct LinuxBackendAppMatrixTests {
-    private static let expectedAppProducts = [
-        "quill-enchanted",
-        "quill-enchanted-upstream-slice",
-        "quill-icecubes",
-        "quill-netnewswire",
-        "quill-codeedit",
-        "quill-signal",
-        "quill-telegram",
-        "quill-iina",
-        "quill-wireguard"
+    private struct AppTargetContract {
+        var product: String
+        var target: String
+        var qtPath: String
+        var qtRuntimeDependency: String
+        var qtLauncherCall: String
+    }
+
+    private static let expectedAppContracts = [
+        AppTargetContract(
+            product: "quill-enchanted",
+            target: "QuillEnchanted",
+            qtPath: "Sources/QuillEnchantedQt",
+            qtRuntimeDependency: "QuillEnchantedQtNativeRuntime",
+            qtLauncherCall: "QuillEnchantedQtNativeApp.run()"
+        ),
+        AppTargetContract(
+            product: "quill-enchanted-upstream-slice",
+            target: "QuillEnchantedUpstreamSlice",
+            qtPath: "Sources/QuillEnchantedUpstreamSliceQt",
+            qtRuntimeDependency: "QuillGenericQtNativeRuntime",
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.enchantedUpstreamSlice)"
+        ),
+        AppTargetContract(
+            product: "quill-icecubes",
+            target: "QuillIceCubes",
+            qtPath: "Sources/QuillIceCubesQt",
+            qtRuntimeDependency: "QuillGenericQtNativeRuntime",
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.iceCubes)"
+        ),
+        AppTargetContract(
+            product: "quill-netnewswire",
+            target: "QuillNetNewsWire",
+            qtPath: "Sources/QuillNetNewsWireQt",
+            qtRuntimeDependency: "QuillGenericQtNativeRuntime",
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.netNewsWire)"
+        ),
+        AppTargetContract(
+            product: "quill-codeedit",
+            target: "QuillCodeEdit",
+            qtPath: "Sources/QuillCodeEditQt",
+            qtRuntimeDependency: "QuillGenericQtNativeRuntime",
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.codeEdit)"
+        ),
+        AppTargetContract(
+            product: "quill-signal",
+            target: "QuillSignal",
+            qtPath: "Sources/QuillSignalQt",
+            qtRuntimeDependency: "QuillGenericQtNativeRuntime",
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.signal)"
+        ),
+        AppTargetContract(
+            product: "quill-telegram",
+            target: "QuillTelegram",
+            qtPath: "Sources/QuillTelegramQt",
+            qtRuntimeDependency: "QuillGenericQtNativeRuntime",
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.telegram)"
+        ),
+        AppTargetContract(
+            product: "quill-iina",
+            target: "QuillIINA",
+            qtPath: "Sources/QuillIINAQt",
+            qtRuntimeDependency: "QuillGenericQtNativeRuntime",
+            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.iina)"
+        ),
+        AppTargetContract(
+            product: "quill-wireguard",
+            target: "QuillWireGuard",
+            qtPath: "Sources/QuillWireGuardQt",
+            qtRuntimeDependency: "QuillWireGuardQtNativeRuntime",
+            qtLauncherCall: "QuillWireGuardQtNativeApp.run()"
+        )
     ]
+
+    private static var expectedAppProducts: [String] {
+        expectedAppContracts.map(\.product)
+    }
 
     private static let expectedBackends = ["gtk", "qt"]
     private static let expectedGeneratedAppProducts = ["quill-chat-linux"]
@@ -131,15 +197,28 @@ struct LinuxBackendAppMatrixTests {
         #expect(unsupportedExplicitProduct.output.contains("Unsupported QuillUI backend product: quill-wireguard-qt"))
 
         let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
-        for product in Self.expectedAppProducts {
-            #expect(manifest.contains(".executable(name: \"\(product)\""))
+        for contract in Self.expectedAppContracts {
+            #expect(manifest.contains(".executable(name: \"\(contract.product)\", targets: [\"\(contract.target)\"])"))
+            #expect(manifest.contains("name: \"\(contract.target)\""))
+            #expect(manifest.contains("dependencies: [\"\(contract.qtRuntimeDependency)\"]"))
+            #expect(manifest.contains("path: \"\(contract.qtPath)\""))
+
+            let qtMain = root
+                .appendingPathComponent(contract.qtPath)
+                .appendingPathComponent("main.swift")
+            #expect(
+                FileManager.default.fileExists(atPath: qtMain.path),
+                Comment(rawValue: "\(contract.product) must have an explicit Qt launcher")
+            )
+
+            let qtLauncher = try String(contentsOf: qtMain, encoding: .utf8)
+            #expect(qtLauncher.contains("import \(contract.qtRuntimeDependency)"))
+            #expect(qtLauncher.contains(contract.qtLauncherCall))
         }
         #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-enchanted-qt\", targets: [\"QuillEnchantedQt\"]))\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
         #expect(manifest.contains("name: \"QuillGenericQtNativeRuntime\""))
         #expect(manifest.contains("path: \"Sources/QuillGenericQtNativeRuntime\""))
-        #expect(manifest.contains("path: \"Sources/QuillWireGuardQt\""))
-        #expect(manifest.contains("path: \"Sources/QuillSignalQt\""))
         #expect(!manifest.contains("products = [\n        .executable(name: \"quill-enchanted-qt\""))
     }
 
