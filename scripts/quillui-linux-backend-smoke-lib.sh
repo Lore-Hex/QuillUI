@@ -553,12 +553,30 @@ quillui_append_backend_runtime_environment() {
   quillui_unset_backend_scoped_app_environment
 }
 
+quillui_backend_generic_qt_selected_index_on_start() {
+  case "$1" in
+    quill-enchanted-upstream-slice)
+      printf '%s\n' "${QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START:-${QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}}"
+      ;;
+    quill-signal)
+      printf '%s\n' "${QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}}"
+      ;;
+    quill-telegram)
+      printf '%s\n' "${QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}}"
+      ;;
+    *)
+      printf '%s\n' "${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}"
+      ;;
+  esac
+}
+
 quillui_append_backend_selection_start_environment() {
   local output_array="$1"
   local product="$2"
   local selected_backend="$3"
   local interaction_mode="$4"
   local output_dir="${5:-${QUILLUI_BACKEND_SELECTION_OUTPUT_DIR:-$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.qa}}"
+  local selected_index
 
   selected_backend="$(quillui_require_backend_identifier "$selected_backend")" || return $?
   if [[ "$interaction_mode" != "list-selection" ]]; then
@@ -566,9 +584,10 @@ quillui_append_backend_selection_start_environment() {
   fi
 
   if [[ "$selected_backend" == "qt" ]] && quillui_is_backend_generic_qt_app_product "$product"; then
+    selected_index="$(quillui_backend_generic_qt_selected_index_on_start "$product")" || return $?
     quillui_append_environment_assignment \
       "$output_array" \
-      "QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}" || return $?
+      "QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=$selected_index" || return $?
   elif [[ "$product" == "quill-enchanted" ]]; then
     if [[ "$selected_backend" == "gtk" ]]; then
       quillui_append_enchanted_fixture_data_environment \

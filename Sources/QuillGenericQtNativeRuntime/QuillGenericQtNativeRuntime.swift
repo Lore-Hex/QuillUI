@@ -3,6 +3,9 @@ import CQuillQt6WidgetsShim
 import QuillQtNativeRuntimeSupport
 
 public struct QuillGenericQtAppSnapshot: Codable, Sendable {
+    public static let genericSelectedIndexEnvironmentKey = "QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"
+    public static let defaultSelectedIndexEnvironmentKeys = [genericSelectedIndexEnvironmentKey]
+
     public var windowTitle: String
     public var minimumWidth: Int
     public var minimumHeight: Int
@@ -17,6 +20,7 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
     public var listTitle: String
     public var status: String
     public var selectedIndex: Int
+    public var selectedIndexEnvironmentKeys: [String]
     public var detailTitle: String
     public var detailSubtitle: String
     public var messagesTitle: String
@@ -90,6 +94,7 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         listTitle: String,
         status: String,
         selectedIndex: Int = 0,
+        selectedIndexEnvironmentKeys: [String] = QuillGenericQtAppSnapshot.defaultSelectedIndexEnvironmentKeys,
         detailTitle: String,
         detailSubtitle: String,
         messagesTitle: String = "Activity",
@@ -111,12 +116,25 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         self.listTitle = listTitle
         self.status = status
         self.selectedIndex = selectedIndex
+        self.selectedIndexEnvironmentKeys = selectedIndexEnvironmentKeys
         self.detailTitle = detailTitle
         self.detailSubtitle = detailSubtitle
         self.messagesTitle = messagesTitle
         self.items = items
         self.sections = sections
         self.messages = messages
+    }
+}
+
+private enum QuillGenericQtSelectionEnvironment {
+    static let chat = "QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START"
+    static let enchanted = "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START"
+    static let enchantedQt = "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
+    static let signal = "QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START"
+    static let telegram = "QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START"
+
+    static func appSpecific(_ environmentKeys: String...) -> [String] {
+        environmentKeys + QuillGenericQtAppSnapshot.defaultSelectedIndexEnvironmentKeys
     }
 }
 
@@ -131,6 +149,9 @@ public enum QuillGenericQtAppCatalog {
         secondaryActionTitle: "Models",
         listTitle: "Conversations",
         status: "Qt native runtime",
+        selectedIndexEnvironmentKeys: QuillGenericQtSelectionEnvironment.appSpecific(
+            QuillGenericQtSelectionEnvironment.chat
+        ),
         detailTitle: "Conversation preview",
         detailSubtitle: "A generated Quill Chat package running through the Qt native host.",
         messagesTitle: "Transcript",
@@ -197,6 +218,10 @@ public enum QuillGenericQtAppCatalog {
         secondaryActionTitle: "Models",
         listTitle: "Conversations",
         status: "Local model ready",
+        selectedIndexEnvironmentKeys: QuillGenericQtSelectionEnvironment.appSpecific(
+            QuillGenericQtSelectionEnvironment.enchanted,
+            QuillGenericQtSelectionEnvironment.enchantedQt
+        ),
         detailTitle: "Conversation preview",
         detailSubtitle: "A compact chat workspace with model status, recent prompts, and draft replies.",
         items: [
@@ -416,6 +441,10 @@ public enum QuillGenericQtAppCatalog {
         secondaryActionTitle: "Archive",
         listTitle: "Chats",
         status: "End-to-end encrypted",
+        selectedIndexEnvironmentKeys: QuillGenericQtSelectionEnvironment.appSpecific(
+            QuillGenericQtSelectionEnvironment.signal,
+            QuillGenericQtSelectionEnvironment.chat
+        ),
         detailTitle: "Conversation",
         detailSubtitle: "Private messaging layout with chat list, unread badges, and thread detail.",
         items: [
@@ -481,6 +510,10 @@ public enum QuillGenericQtAppCatalog {
         secondaryActionTitle: "Folders",
         listTitle: "Chats",
         status: "Pinned channels visible",
+        selectedIndexEnvironmentKeys: QuillGenericQtSelectionEnvironment.appSpecific(
+            QuillGenericQtSelectionEnvironment.telegram,
+            QuillGenericQtSelectionEnvironment.chat
+        ),
         detailTitle: "Channel preview",
         detailSubtitle: "Foldered chat list with pinned channels and recent activity.",
         items: [
@@ -590,12 +623,10 @@ public enum QuillGenericQtAppCatalog {
 }
 
 public enum QuillGenericQtNativeApp {
-    private static let selectedIndexEnvironmentKey = "QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"
-
     public static func run(_ snapshot: QuillGenericQtAppSnapshot) -> Never {
         var launchSnapshot = snapshot
         if let selectedIndex = QuillQtNativeRuntimeSupport.boundedIndexOverride(
-            environmentKey: selectedIndexEnvironmentKey,
+            environmentKeys: launchSnapshot.selectedIndexEnvironmentKeys,
             count: launchSnapshot.items.count
         ) {
             launchSnapshot.selectedIndex = selectedIndex

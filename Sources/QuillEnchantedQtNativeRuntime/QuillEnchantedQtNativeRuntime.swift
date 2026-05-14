@@ -203,16 +203,10 @@ public enum QuillEnchantedQtNativeApp {
     }
 
     private static func selectedConversationIndexOverride(count: Int) -> Int? {
-        for environmentKey in selectedConversationIndexEnvironmentKeys {
-            if let boundedIndex = QuillQtNativeRuntimeSupport.boundedIndexOverride(
-                environmentKey: environmentKey,
-                count: count
-            ) {
-                return boundedIndex
-            }
-        }
-
-        return nil
+        QuillQtNativeRuntimeSupport.boundedIndexOverride(
+            environmentKeys: selectedConversationIndexEnvironmentKeys,
+            count: count
+        )
     }
 
     public static func run() -> Never {

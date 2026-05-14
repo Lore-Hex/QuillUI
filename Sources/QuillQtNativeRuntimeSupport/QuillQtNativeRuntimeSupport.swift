@@ -7,6 +7,16 @@ public enum QuillQtNativeRuntimeSupport {
         boundedIndexOverride(ProcessInfo.processInfo.environment[environmentKey], count: count)
     }
 
+    public static func boundedIndexOverride(environmentKeys: [String], count: Int) -> Int? {
+        for environmentKey in environmentKeys {
+            if let boundedIndex = boundedIndexOverride(environmentKey: environmentKey, count: count) {
+                return boundedIndex
+            }
+        }
+
+        return nil
+    }
+
     public static func boundedIndexOverride(_ value: String?, count: Int) -> Int? {
         guard count > 0, let value else {
             return nil
