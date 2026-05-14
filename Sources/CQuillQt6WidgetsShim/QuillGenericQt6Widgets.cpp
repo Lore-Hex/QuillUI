@@ -40,6 +40,12 @@ int intValue(const QJsonObject &object, const char *key, int fallback) {
     return jsonIntValue(object, key, fallback);
 }
 
+struct GenericDetailPane {
+    QWidget *view;
+    QLabel *titleLabel;
+    QLabel *subtitleLabel;
+};
+
 QString genericStyleSheet() {
     return QStringLiteral(R"(
         QWidget#genericRoot { background: #F7F8F4; color: #182027; font-size: 14px; }
@@ -75,6 +81,34 @@ QSize defaultWindowSize(const QJsonObject &payload, const QSize &minimumSize) {
         std::max(intValue(payload, "defaultWidth", minimumSize.width()), minimumSize.width()),
         std::max(intValue(payload, "defaultHeight", minimumSize.height()), minimumSize.height())
     );
+}
+
+QJsonObject selectedItem(const QJsonArray &items, int row) {
+    if (row < 0 || row >= items.size()) {
+        return QJsonObject();
+    }
+    return items.at(row).toObject();
+}
+
+QString selectedDetailTitle(const QJsonObject &payload, const QJsonArray &items, int row) {
+    const QString baseTitle = stringValue(payload, "detailTitle", QStringLiteral("Qt preview"));
+    const QString itemTitle = stringValue(selectedItem(items, row), "title");
+    if (itemTitle.isEmpty()) {
+        return baseTitle;
+    }
+    return baseTitle + QStringLiteral(": ") + itemTitle;
+}
+
+QString selectedDetailSubtitle(const QJsonObject &payload, const QJsonArray &items, int row) {
+    const QString baseSubtitle = stringValue(payload, "detailSubtitle");
+    const QString itemSubtitle = stringValue(selectedItem(items, row), "subtitle");
+    if (baseSubtitle.isEmpty()) {
+        return itemSubtitle;
+    }
+    if (itemSubtitle.isEmpty()) {
+        return baseSubtitle;
+    }
+    return baseSubtitle + QStringLiteral("\n") + itemSubtitle;
 }
 
 QFrame *itemRowWidget(const QJsonObject &item) {
@@ -114,7 +148,7 @@ QListWidget *listWidget(const QJsonArray &items, int selectedIndex) {
     return list;
 }
 
-QWidget *sidebarWidget(const QJsonObject &payload) {
+QWidget *sidebarWidget(const QJsonObject &payload, QListWidget *list) {
     QFrame *sidebar = QuillQtWidgets::frame(QStringLiteral("sidebar"));
     QVBoxLayout *layout = new QVBoxLayout(sidebar);
     layout->setContentsMargins(18, 18, 18, 18);
@@ -133,7 +167,7 @@ QWidget *sidebarWidget(const QJsonObject &payload) {
     layout->addLayout(actions);
 
     layout->addWidget(label(stringValue(payload, "listTitle", QStringLiteral("Items")), QStringLiteral("sectionTitle")));
-    layout->addWidget(listWidget(jsonArrayValue(payload, "items"), intValue(payload, "selectedIndex", 0)), 1);
+    layout->addWidget(list, 1);
     layout->addWidget(label(stringValue(payload, "status", QStringLiteral("Ready")), QStringLiteral("statusText")));
     return sidebar;
 }
@@ -158,14 +192,16 @@ QFrame *messageCard(const QJsonObject &message) {
     return card;
 }
 
-QWidget *detailWidget(const QJsonObject &payload) {
+GenericDetailPane detailWidget(const QJsonObject &payload, const QJsonArray &items, int selectedIndex) {
     QWidget *detail = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(detail);
     layout->setContentsMargins(24, 22, 24, 22);
     layout->setSpacing(14);
 
-    layout->addWidget(label(stringValue(payload, "detailTitle", QStringLiteral("Qt preview")), QStringLiteral("detailTitle")));
-    layout->addWidget(label(stringValue(payload, "detailSubtitle"), QStringLiteral("caption")));
+    QLabel *title = label(selectedDetailTitle(payload, items, selectedIndex), QStringLiteral("detailTitle"));
+    QLabel *subtitle = label(selectedDetailSubtitle(payload, items, selectedIndex), QStringLiteral("caption"));
+    layout->addWidget(title);
+    layout->addWidget(subtitle);
 
     const QJsonArray sections = jsonArrayValue(payload, "sections");
     int sectionIndex = 0;
@@ -183,7 +219,7 @@ QWidget *detailWidget(const QJsonObject &payload) {
     }
 
     layout->addStretch(1);
-    return detail;
+    return GenericDetailPane { detail, title, subtitle };
 }
 
 QWidget *scrollWrapped(QWidget *child) {
@@ -229,9 +265,18 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
     rootLayout->setContentsMargins(0, 0, 0, 0);
     rootLayout->setSpacing(0);
 
+    const QJsonArray items = jsonArrayValue(payload, "items");
+    const int selectedIndex = intValue(payload, "selectedIndex", 0);
+    QListWidget *itemList = listWidget(items, selectedIndex);
+    GenericDetailPane detailPane = detailWidget(payload, items, selectedIndex);
+    QObject::connect(itemList, &QListWidget::currentRowChanged, [&](int row) {
+        detailPane.titleLabel->setText(selectedDetailTitle(payload, items, row));
+        detailPane.subtitleLabel->setText(selectedDetailSubtitle(payload, items, row));
+    });
+
     QSplitter *splitter = new QSplitter(Qt::Horizontal);
-    splitter->addWidget(sidebarWidget(payload));
-    splitter->addWidget(scrollWrapped(detailWidget(payload)));
+    splitter->addWidget(sidebarWidget(payload, itemList));
+    splitter->addWidget(scrollWrapped(detailPane.view));
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
     QList<int> splitSizes;

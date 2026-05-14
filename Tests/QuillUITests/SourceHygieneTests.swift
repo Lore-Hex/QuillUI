@@ -516,6 +516,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp"),
             encoding: .utf8
         )
+        let genericQtHost = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillGenericQt6Widgets.cpp"),
+            encoding: .utf8
+        )
         let qtNativeSmokeHost = try String(
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillInteractionSmokeQt6Widgets.cpp"),
             encoding: .utf8
@@ -623,6 +627,9 @@ struct SourceHygieneTests {
         #expect(enchantedQtRuntime.contains("QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"))
         #expect(enchantedQtRuntime.contains("snapshot.selectedConversationID = snapshot.conversations[boundedIndex].id"))
         #expect(enchantedQtHost.contains("QObject::connect(conversationList, &QListWidget::currentRowChanged"))
+        #expect(genericQtHost.contains("QObject::connect(itemList, &QListWidget::currentRowChanged"))
+        #expect(genericQtHost.contains("selectedDetailTitle(payload, items, row)"))
+        #expect(genericQtHost.contains("selectedDetailSubtitle(payload, items, row)"))
 
         #expect(sharedView.contains("public struct QuillInteractionSmokeConfiguration"))
         #expect(sharedView.contains("public struct QuillInteractionSmokeView"))
