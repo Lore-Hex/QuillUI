@@ -325,6 +325,11 @@ different `.conf` file. Use `QUILLUI_BACKEND_INTERACTION_MODE=import-file` to
 exercise the native Qt file-read path with the same fixture without automating a
 desktop file-picker dialog.
 
+The GTK WireGuard host uses the same semantic modes on the same runner:
+`import-paste` types the fixture into the Swift fallback import panel, while
+`import-file` seeds the shared `QuillFileImporter` selection hook with the same
+fixture path.
+
 CI registers semantic native app interactions through
 `interaction-extra-mode-matrix`, which expands through the same runtime matrix
 helper as the visual and default interaction rows:

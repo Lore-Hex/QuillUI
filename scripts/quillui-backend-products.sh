@@ -343,6 +343,7 @@ quillui_backend_interaction_extra_mode_matrix() {
   # Semantic app interactions that go past the default click/select smoke live
   # here so CI can add product-specific coverage without forking the runner.
   printf '%s\t%s\t%s\n' \
+    quill-wireguard gtk import-paste \
     quill-wireguard gtk import-file \
     quill-wireguard-qt qt import-paste \
     quill-wireguard-qt qt import-file

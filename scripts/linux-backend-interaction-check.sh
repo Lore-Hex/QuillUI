@@ -287,15 +287,40 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         ;;
     esac
-elif [[ "$PRODUCT" == "quill-wireguard" && ( "$INTERACTION_MODE" == "import-file" || "$INTERACTION_MODE" == "file-import" ) ]]; then
-    import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 256))}"
-    import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
-    file_x="${QUILLUI_BACKEND_IMPORT_FILE_CLICK_X:-$((window_x + 410))}"
-    file_y="${QUILLUI_BACKEND_IMPORT_FILE_CLICK_Y:-$((window_y + 300))}"
-    click_at "$import_x" "$import_y"
-    sleep 0.8
-    click_at "$file_x" "$file_y"
-    sleep "$post_click_sleep"
+elif [[ "$PRODUCT" == "quill-wireguard" ]]; then
+    case "$INTERACTION_MODE" in
+      import-paste|paste-import)
+        import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 256))}"
+        import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
+        editor_x="${QUILLUI_BACKEND_IMPORT_EDITOR_X:-$((window_x + 520))}"
+        editor_y="${QUILLUI_BACKEND_IMPORT_EDITOR_Y:-$((window_y + 190))}"
+        submit_x="${QUILLUI_BACKEND_IMPORT_SUBMIT_CLICK_X:-$((window_x + 330))}"
+        submit_y="${QUILLUI_BACKEND_IMPORT_SUBMIT_CLICK_Y:-$((window_y + 300))}"
+        click_at "$import_x" "$import_y"
+        sleep 0.8
+        click_at "$editor_x" "$editor_y"
+        sleep 0.2
+        import_configuration="$(wireguard_import_configuration)" || exit $?
+        type_text "$import_configuration"
+        sleep 0.4
+        click_at "$submit_x" "$submit_y"
+        sleep "$post_click_sleep"
+        ;;
+      import-file|file-import)
+        import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 256))}"
+        import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
+        file_x="${QUILLUI_BACKEND_IMPORT_FILE_CLICK_X:-$((window_x + 410))}"
+        file_y="${QUILLUI_BACKEND_IMPORT_FILE_CLICK_Y:-$((window_y + 300))}"
+        click_at "$import_x" "$import_y"
+        sleep 0.8
+        click_at "$file_x" "$file_y"
+        sleep "$post_click_sleep"
+        ;;
+      *)
+        echo "Unsupported WireGuard GTK interaction mode: $INTERACTION_MODE" >&2
+        exit 64
+        ;;
+    esac
 elif [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
     case "$INTERACTION_MODE" in
       tunnel-selection|click)

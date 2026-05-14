@@ -412,6 +412,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeLib.contains("quill-wireguard-qt-name-edit"))
         #expect(smokeLib.contains("quill-wireguard-qt-import-paste"))
         #expect(smokeLib.contains("quill-wireguard-qt-import-file"))
+        #expect(smokeLib.contains("quill-wireguard-import-paste"))
         #expect(smokeLib.contains("quill-wireguard-import-file"))
         #expect(smokeLib.contains("quillui_backend_smoke_interaction_verify_product \"$product\" \"$interaction_mode\""))
         #expect(smokeLib.contains("quillui_append_backend_launch_environment()"))
@@ -602,6 +603,7 @@ struct LinuxBackendAppMatrixTests {
         )
         #expect(appExtraInteractions.status == 0, Comment(rawValue: appExtraInteractions.output))
         #expect(appExtraInteractions.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-paste-gtk.png\t0\timport-paste",
             "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-file-gtk.png\t0\timport-file",
             "interaction\tquill-wireguard-qt\tqt\tqt\tnative\t.qa/quill-wireguard-qt-import-paste-qt.png\t0\timport-paste",
             "interaction\tquill-wireguard-qt\tqt\tqt\tnative\t.qa/quill-wireguard-qt-import-file-qt.png\t0\timport-file"
@@ -696,6 +698,7 @@ struct LinuxBackendAppMatrixTests {
         )
 
         let expectedInteractionExtraModeMatrix = [
+            "quill-wireguard\tgtk\timport-paste",
             "quill-wireguard\tgtk\timport-file",
             "quill-wireguard-qt\tqt\timport-paste",
             "quill-wireguard-qt\tqt\timport-file"
@@ -707,6 +710,7 @@ struct LinuxBackendAppMatrixTests {
         let interactionExtraModeRuntimeMatrix = try runScript(script, arguments: ["interaction-extra-mode-runtime-matrix"])
         #expect(interactionExtraModeRuntimeMatrix.status == 0, Comment(rawValue: interactionExtraModeRuntimeMatrix.output))
         #expect(interactionExtraModeRuntimeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == [
+            "quill-wireguard\tgtk\tgtk\tnative\timport-paste",
             "quill-wireguard\tgtk\tgtk\tnative\timport-file",
             "quill-wireguard-qt\tqt\tqt\tnative\timport-paste",
             "quill-wireguard-qt\tqt\tqt\tnative\timport-file"
