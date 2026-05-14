@@ -135,6 +135,34 @@ struct SourceHygieneTests {
         #expect(source.contains("case inspector"))
     }
 
+    @Test("Linux AppKit shims avoid Swift 6 warning traps")
+    func linuxAppKitShimsAvoidSwift6WarningTraps() throws {
+        let root = try packageRoot()
+        let appKit = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillAppKit/QuillAppKit.swift"),
+            encoding: .utf8
+        )
+        let gtk = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillAppKitGTK/QuillAppKit+GTK.swift"),
+            encoding: .utf8
+        )
+
+        #expect(appKit.contains("@MainActor public protocol NSWindowDelegate"))
+        #expect(appKit.contains("@MainActor open class NSViewController"))
+        #expect(appKit.contains("@MainActor public protocol NSApplicationDelegate"))
+        #expect(appKit.contains("@MainActor public protocol NSMenuDelegate"))
+        #expect(appKit.contains("@MainActor public protocol NSToolbarDelegate"))
+        #expect(appKit.contains("@MainActor public protocol NSTableViewDelegate"))
+        #expect(appKit.contains("@MainActor public protocol NSTableViewDataSource"))
+        #expect(appKit.contains("@MainActor public protocol NSOutlineViewDelegate"))
+        #expect(appKit.contains("@MainActor public protocol NSOutlineViewDataSource"))
+        #expect(appKit.contains("public static let borderless: StyleMask = []"))
+        #expect(appKit.contains("open class NSTextStorage: NSMutableAttributedString {"))
+        #expect(!appKit.contains("public static let borderless = StyleMask(rawValue: 0)"))
+        #expect(!appKit.contains("open class NSTextStorage: NSMutableAttributedString, @unchecked Sendable"))
+        #expect(!gtk.contains("let ctx = g_main_context_default()"))
+    }
+
     @Test("ImageRenderer comments describe the current GTK offscreen path")
     func imageRendererCommentsDescribeCurrentOffscreenPath() throws {
         let root = try packageRoot()

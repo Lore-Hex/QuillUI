@@ -67,14 +67,10 @@ public enum QuillGTK {
 
     public static func quitMainLoop() {
         guard ownsLoop else { return }
-        // Iterate one tick with a quit injection. Quick & dirty:
-        // post a high-priority idle that quits the default context.
+        // Post a high-priority one-shot idle that terminates the
+        // smoke-process loop. A structured GTK loop shutdown needs
+        // ownership of the GMainLoop handle across this module boundary.
         g_idle_add_full(Int32(G_PRIORITY_HIGH), { _ in
-            // quitMainLoop hop: stops the *default* main context loop.
-            // Returns G_SOURCE_REMOVE so it's a one-shot.
-            let ctx = g_main_context_default()
-            // Find any running loop on this context and quit it.
-            // Simpler: just exit (works for our smoke purpose).
             exit(0)
         }, nil, nil)
     }

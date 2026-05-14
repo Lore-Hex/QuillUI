@@ -340,7 +340,7 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     public init(rect: NSRect, options: Options, owner: Any?, userInfo: [AnyHashable: Any]?) {}
 }
 
-open class NSViewController: NSResponder {
+@MainActor open class NSViewController: NSResponder {
     public var view: NSView = NSView()
     public var children: [NSViewController] = []
     public var representedObject: Any?
@@ -372,7 +372,7 @@ open class NSWindowController: NSResponder {
     public var windowFrameAutosaveName: String = ""
 }
 
-public protocol NSWindowDelegate: AnyObject {
+@MainActor public protocol NSWindowDelegate: AnyObject {
     func windowWillClose(_ notification: Notification)
     func windowDidBecomeKey(_ notification: Notification)
     func windowDidResignKey(_ notification: Notification)
@@ -398,7 +398,7 @@ open class NSWindow: NSResponder {
     public struct StyleMask: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
-        public static let borderless = StyleMask(rawValue: 0)
+        public static let borderless: StyleMask = []
         public static let titled = StyleMask(rawValue: 1 << 0)
         public static let closable = StyleMask(rawValue: 1 << 1)
         public static let miniaturizable = StyleMask(rawValue: 1 << 2)
@@ -675,7 +675,7 @@ open class NSDockTile: NSObject, @unchecked Sendable {
     public func display() {}
 }
 
-public protocol NSApplicationDelegate: AnyObject {
+@MainActor public protocol NSApplicationDelegate: AnyObject {
     func applicationDidFinishLaunching(_ notification: Notification)
     func applicationWillTerminate(_ notification: Notification)
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool
@@ -1268,7 +1268,7 @@ open class NSMenuItem: NSObject {
     public static func separatorItem() -> NSMenuItem { NSMenuItem() }
 }
 
-public protocol NSMenuDelegate: AnyObject {
+@MainActor public protocol NSMenuDelegate: AnyObject {
     func menuWillOpen(_ menu: NSMenu)
     func menuDidClose(_ menu: NSMenu)
     func numberOfItems(in menu: NSMenu) -> Int
@@ -1359,7 +1359,7 @@ open class NSToolbarItemGroup: NSToolbarItem {
     public enum ControlRepresentation: Int, Sendable { case automatic, expanded, collapsed }
 }
 
-public protocol NSToolbarDelegate: AnyObject {
+@MainActor public protocol NSToolbarDelegate: AnyObject {
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier]
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier]
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar: Bool) -> NSToolbarItem?
@@ -1593,7 +1593,7 @@ open class NSTextView: NSText {
     public func insertText(_ s: Any, replacementRange: NSRange) {}
 }
 
-open class NSTextStorage: NSMutableAttributedString, @unchecked Sendable {
+open class NSTextStorage: NSMutableAttributedString {
     public weak var delegate: AnyObject?
     public var layoutManagers: [NSLayoutManager] = []
     public func addLayoutManager(_ m: NSLayoutManager) { layoutManagers.append(m) }
@@ -2009,7 +2009,7 @@ open class NSTableColumn: NSObject {
     }
 }
 
-public protocol NSTableViewDelegate: AnyObject {
+@MainActor public protocol NSTableViewDelegate: AnyObject {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView?
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat
@@ -2030,7 +2030,7 @@ public extension NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {}
 }
 
-public protocol NSTableViewDataSource: AnyObject {
+@MainActor public protocol NSTableViewDataSource: AnyObject {
     func numberOfRows(in tableView: NSTableView) -> Int
     func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any?
 }
@@ -2063,7 +2063,7 @@ open class NSOutlineView: NSTableView {
     public func isExpandable(_ item: Any?) -> Bool { false }
 }
 
-public protocol NSOutlineViewDelegate: NSTableViewDelegate {
+@MainActor public protocol NSOutlineViewDelegate: NSTableViewDelegate {
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView?
     func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool
@@ -2084,7 +2084,7 @@ public extension NSOutlineViewDelegate {
     func outlineViewItemDidCollapse(_ notification: Notification) {}
 }
 
-public protocol NSOutlineViewDataSource: AnyObject {
+@MainActor public protocol NSOutlineViewDataSource: AnyObject {
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool
