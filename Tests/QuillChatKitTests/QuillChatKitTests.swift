@@ -122,6 +122,37 @@ struct QuillChatKitTests {
         #expect(sidebar.appearance.rowVerticalPadding == 11)
     }
 
+    @Test("ChatSplitShell carries reusable split-view state")
+    func chatSplitShellCarriesReusableSplitViewState() {
+        let thread = GenericThread(
+            id: UUID(),
+            title: "Inbox",
+            messages: [
+                Fake(id: UUID(), sender: "Me", body: "hello", fromSelf: true)
+            ]
+        )
+        let appearance = ChatAppearance(rowVerticalPadding: 12, composerPadding: 18)
+        let shell = ChatSplitShell(
+            title: "Quill Signal",
+            threads: [thread],
+            selectedID: .constant(thread.id),
+            draft: .constant("draft"),
+            placeholder: "Select a conversation",
+            composerPlaceholder: "Reply",
+            sendTitle: "Post",
+            appearance: appearance,
+            onSend: { }
+        )
+
+        #expect(shell.title == "Quill Signal")
+        #expect(shell.threads.map(\.id) == [thread.id])
+        #expect(shell.placeholder == "Select a conversation")
+        #expect(shell.composerPlaceholder == "Reply")
+        #expect(shell.sendTitle == "Post")
+        #expect(shell.appearance.rowVerticalPadding == 12)
+        #expect(shell.appearance.composerPadding == 18)
+    }
+
     @Test("ChatSelectionPlaceholder carries empty-state copy")
     func chatSelectionPlaceholderCarriesTitle() {
         let placeholder = ChatSelectionPlaceholder("Select a chat")

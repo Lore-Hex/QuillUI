@@ -15,7 +15,7 @@ import QuillChatKit
 /// Each `Conversation` owns a stable array of `Message`s. Selecting
 /// a sidebar row updates the right-pane timeline. Bubble +
 /// sidebar-row + timeline chrome lives in `QuillChatKit`; this
-/// file only owns the fixture model + the split-view glue.
+/// file only owns the fixture model and send path.
 @MainActor
 public struct QuillSignalContentView: View {
     @State private var conversations = QuillSignalFixtures.conversations
@@ -26,38 +26,15 @@ public struct QuillSignalContentView: View {
 
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated {
-            NavigationSplitView {
-                sidebar
-            } detail: {
-                detail
-            }
+            ChatSplitShell(
+                title: "Quill Signal",
+                threads: conversations,
+                selectedID: $selectedID,
+                draft: $draft,
+                placeholder: "Select a conversation",
+                onSend: send
+            )
         }
-    }
-
-    private var sidebar: some View {
-        ChatSidebar(title: "Quill Signal", items: conversations) { conversation in
-            selectedID = conversation.id
-        }
-    }
-
-    private var detail: some View {
-        Group {
-            if let conversation = currentConversation {
-                ChatPane(
-                    title: conversation.name,
-                    messages: conversation.messages,
-                    draft: $draft,
-                    onSend: send
-                )
-            } else {
-                ChatSelectionPlaceholder("Select a conversation")
-            }
-        }
-    }
-
-    private var currentConversation: Conversation? {
-        guard let selectedID else { return nil }
-        return conversations.first(where: { $0.id == selectedID })
     }
 
     private func send() {

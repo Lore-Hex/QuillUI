@@ -655,3 +655,109 @@ public struct ChatPane<M: ChatMessage>: View {
         }
     }
 }
+
+/// Full split-view chat shell shared by conversation-style apps.
+///
+/// `ChatSidebar`, `ChatPane`, and `ChatSelectionPlaceholder` remain available
+/// as primitives. Apps that follow the common "conversation list -> selected
+/// conversation detail" flow can use this shell so selection, placeholder, and
+/// pane routing stay identical across Signal, Telegram, GTK, Qt, and native
+/// SwiftUI hosts.
+@available(iOS 16.0, macOS 13.0, tvOS 16.0, *)
+@MainActor
+public struct ChatSplitShell<Thread: ChatThread, SidebarAccessory: View>: View where Thread.ID: Equatable {
+    public let title: String
+    public let threads: [Thread]
+    @Binding public var selectedID: Thread.ID?
+    @Binding public var draft: String
+    public let placeholder: String
+    public let composerPlaceholder: String
+    public let sendTitle: String
+    public let appearance: ChatAppearance
+    public let sidebarAccessory: SidebarAccessory
+    public let onSend: () -> Void
+
+    public init(
+        title: String,
+        threads: [Thread],
+        selectedID: Binding<Thread.ID?>,
+        draft: Binding<String>,
+        placeholder: String,
+        composerPlaceholder: String = "Message",
+        sendTitle: String = "Send",
+        appearance: ChatAppearance = .standard,
+        @ViewBuilder sidebarAccessory: () -> SidebarAccessory,
+        onSend: @escaping () -> Void
+    ) {
+        self.title = title
+        self.threads = threads
+        self._selectedID = selectedID
+        self._draft = draft
+        self.placeholder = placeholder
+        self.composerPlaceholder = composerPlaceholder
+        self.sendTitle = sendTitle
+        self.appearance = appearance
+        self.sidebarAccessory = sidebarAccessory()
+        self.onSend = onSend
+    }
+
+    private var selectedThread: Thread? {
+        guard let selectedID else { return nil }
+        return threads.first { $0.id == selectedID }
+    }
+
+    nonisolated public var body: some View {
+        ChatMainActorView.assumeIsolated {
+            NavigationSplitView {
+                ChatSidebar(title: title, items: threads, appearance: appearance) {
+                    sidebarAccessory
+                } onSelect: { thread in
+                    selectedID = thread.id
+                }
+            } detail: {
+                Group {
+                    if let thread = selectedThread {
+                        ChatPane(
+                            thread: thread,
+                            draft: $draft,
+                            placeholder: composerPlaceholder,
+                            sendTitle: sendTitle,
+                            appearance: appearance,
+                            onSend: onSend
+                        )
+                    } else {
+                        ChatSelectionPlaceholder(placeholder)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@available(iOS 16.0, macOS 13.0, tvOS 16.0, *)
+public extension ChatSplitShell where SidebarAccessory == EmptyView {
+    init(
+        title: String,
+        threads: [Thread],
+        selectedID: Binding<Thread.ID?>,
+        draft: Binding<String>,
+        placeholder: String,
+        composerPlaceholder: String = "Message",
+        sendTitle: String = "Send",
+        appearance: ChatAppearance = .standard,
+        onSend: @escaping () -> Void
+    ) {
+        self.init(
+            title: title,
+            threads: threads,
+            selectedID: selectedID,
+            draft: draft,
+            placeholder: placeholder,
+            composerPlaceholder: composerPlaceholder,
+            sendTitle: sendTitle,
+            appearance: appearance,
+            sidebarAccessory: { EmptyView() },
+            onSend: onSend
+        )
+    }
+}

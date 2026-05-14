@@ -18,6 +18,8 @@ against the iOS simulator SDK at the package's iOS 14 floor. The default
 `ChatAppearance.standard` tokens preserve the desktop app chrome, while
 `ChatAppearance.touch` and `ChatAppearance.platformDefault` provide touch-first
 density profiles for iOS clients without a UIKit or QuillUI dependency.
+`ChatSplitShell` is available on iOS 16+ / macOS 13+ for apps that want the
+same split-view chat routing used by the Linux Signal and Telegram targets.
 
 Current backend parity app targets:
 

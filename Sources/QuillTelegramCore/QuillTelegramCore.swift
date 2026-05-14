@@ -28,11 +28,17 @@ public struct QuillTelegramContentView: View {
 
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated {
-            NavigationSplitView {
-                sidebar
-            } detail: {
-                detail
-            }
+            ChatSplitShell(
+                title: "Quill Telegram",
+                threads: visibleChats,
+                selectedID: $selectedChatID,
+                draft: $draft,
+                placeholder: "Select a chat",
+                sidebarAccessory: {
+                    folderControls
+                },
+                onSend: send
+            )
         }
     }
 
@@ -40,14 +46,6 @@ public struct QuillTelegramContentView: View {
 
     private var visibleChats: [Chat] {
         TelegramFolderFilter.apply(chats, folder: selectedFolder)
-    }
-
-    private var sidebar: some View {
-        ChatSidebar(title: "Quill Telegram", items: visibleChats) {
-            folderControls
-        } onSelect: { chat in
-            selectedChatID = chat.id
-        }
     }
 
     private var folderControls: some View {
@@ -71,26 +69,6 @@ public struct QuillTelegramContentView: View {
         }
         .padding(.horizontal, 14)
         .padding(.bottom, 10)
-    }
-
-    private var detail: some View {
-        Group {
-            if let chat = currentChat {
-                ChatPane(
-                    title: chat.title,
-                    messages: chat.messages,
-                    draft: $draft,
-                    onSend: send
-                )
-            } else {
-                ChatSelectionPlaceholder("Select a chat")
-            }
-        }
-    }
-
-    private var currentChat: Chat? {
-        guard let id = selectedChatID else { return nil }
-        return visibleChats.first(where: { $0.id == id })
     }
 
     private func send() {
