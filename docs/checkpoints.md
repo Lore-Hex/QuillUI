@@ -3061,8 +3061,8 @@ Status: implemented locally; guarded by backend matrix tests.
 
 Linux backend smoke matrix dry-runs now print requested backend, runtime
 backend, and native-vs-fallback runtime mode before the output path and build
-skip flag. Interaction dry-runs also print the resolved screenshot verifier
-product, so matrix audits expose whether each GTK/Qt interaction row will be
+skip flag. Visual and interaction dry-runs also print the resolved screenshot
+verifier product, so matrix audits expose whether each GTK/Qt row will be
 checked against the matching backend-specific visual contract.
 
 ## Checkpoint 180: Runtime Matrix Shell Helpers

@@ -31,8 +31,7 @@ Use --skip-repeated-products when consecutive backend rows can reuse one build.
 Generated app rows reuse per backend facade so GTK and Qt launchers both build.
 Use --dry-run to print
 KIND<TAB>PRODUCT<TAB>REQUESTED_BACKEND<TAB>RUNTIME_BACKEND<TAB>RUNTIME_MODE<TAB>OUTPUT<TAB>SKIP_BUILD
-and, for mode rows, a trailing MODE column. Interaction rows also append a
-VERIFY_PRODUCT column, after MODE for mode rows.
+and a trailing VERIFY_PRODUCT column. Mode rows place MODE before VERIFY_PRODUCT.
 MSG
 }
 
@@ -212,6 +211,20 @@ quillui_print_tabbed() {
   printf '\n'
 }
 
+quillui_smoke_visual_verify_product() {
+  local product="$1"
+  local requested_backend="$2"
+  local verify_product
+
+  verify_product="$(
+    set -e
+    QUILLUI_BACKEND="$requested_backend"
+    quillui_backend_visual_verify_product "$product" resolved_verify_product
+    printf '%s\n' "$resolved_verify_product"
+  )"
+  printf '%s\n' "$verify_product"
+}
+
 quillui_smoke_interaction_verify_product() {
   local product="$1"
   local requested_backend="$2"
@@ -258,7 +271,10 @@ quillui_run_smoke_row() {
     if [[ -n "$mode" ]]; then
       dry_run_fields+=("$mode")
     fi
-    if [[ "$KIND" == "interaction" ]]; then
+    if [[ "$KIND" == "visual" ]]; then
+      verify_product="$(quillui_smoke_visual_verify_product "$product" "$requested_backend")"
+      dry_run_fields+=("$verify_product")
+    elif [[ "$KIND" == "interaction" ]]; then
       verify_product="$(quillui_smoke_interaction_verify_product "$product" "$requested_backend" "$mode")"
       dry_run_fields+=("$verify_product")
     fi

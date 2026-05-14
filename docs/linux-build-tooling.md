@@ -138,11 +138,11 @@ Before launch, the runner expands that roster through the shared
 requested backend, runtime backend, and native/fallback mode values as the
 profile tooling. The runner's `--dry-run` output includes
 `requested_backend`, `runtime_backend`, and `runtime_mode` columns before the
-output path and skip flag. Interaction dry-runs also append the resolved
-`verify_product` that will be passed to the screenshot verifier, after the
-mode column for mode-specific rows. That keeps profile CSV semantics and makes
-Qt's product-specific native rows distinct from shared generic Qt native rows
-in matrix audits.
+output path and skip flag, then appends the resolved `verify_product` that
+will be passed to the screenshot verifier. Interaction mode dry-runs place the
+mode column before that verifier product. That keeps profile CSV semantics,
+makes Qt's product-specific native rows distinct from shared generic Qt native rows,
+and keeps both paths visible in matrix audits.
 CI also runs `scripts/quillui-backend-products.sh validate-integrity` before
 the expensive build and smoke stages; that audit rejects unknown products,
 non-canonical GTK/Qt backend identifiers, duplicate fixed-backend rows, and

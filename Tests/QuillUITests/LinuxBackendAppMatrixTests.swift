@@ -116,6 +116,25 @@ struct LinuxBackendAppMatrixTests {
             ]
     }
 
+    private static func expectedVisualVerifierProduct(product: String, backend: String) -> String {
+        if backend == "qt" {
+            switch product {
+            case "quill-enchanted":
+                return "quill-enchanted-qt"
+            case "quill-wireguard":
+                return "quill-wireguard-qt"
+            default:
+                break
+            }
+        }
+        return product
+    }
+
+    private static func expectedVisualRow(product: String, backend: String) -> String {
+        let verifyProduct = Self.expectedVisualVerifierProduct(product: product, backend: backend)
+        return "visual\t\(product)\t\(backend)\t\(backend)\tnative\t.qa/\(product)-\(backend).png\t0\t\(verifyProduct)"
+    }
+
     private static func expectedInteractionExtraModeRow(
         product: String,
         backend: String,
@@ -340,7 +359,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(visualRows.status == 0, Comment(rawValue: visualRows.output))
         #expect(Self.lines(visualRows.output) == Self.expectedAppMatrixRows.map { row in
             let fields = row.split(separator: "\t").map(String.init)
-            return "visual\t\(fields[0])\t\(fields[1])\t\(fields[1])\tnative\t.qa/\(fields[0])-\(fields[1]).png\t0"
+            return Self.expectedVisualRow(product: fields[0], backend: fields[1])
         })
 
         let interactionRows = try runScript(
