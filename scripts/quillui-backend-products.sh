@@ -619,6 +619,9 @@ quillui_alias_env() {
 
   if [[ -n "${!canonical:-}" ]]; then
     for alias in "$@"; do
+      if [[ -n "$selected_backend" ]] && quillui_alias_matches_other_backend "$alias" "$selected_backend"; then
+        continue
+      fi
       printf -v "$alias" "%s" "${!canonical}"
     done
   fi
@@ -670,6 +673,8 @@ quillui_alias_backend_interaction_env() {
   quillui_alias_env QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE
   quillui_alias_env QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION_FILE QUILLUI_GTK_MALFORMED_IMPORT_CONFIGURATION_FILE QUILLUI_QT_MALFORMED_IMPORT_CONFIGURATION_FILE
   quillui_alias_env QUILLUI_BACKEND_TYPE_TEXT QUILLUI_GTK_TYPE_TEXT QUILLUI_QT_TYPE_TEXT
+  quillui_alias_env QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START QUILLUI_GTK_GENERIC_SELECTED_INDEX_ON_START QUILLUI_QT_GENERIC_SELECTED_INDEX_ON_START
+  quillui_alias_env QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_QT_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START
   quillui_alias_backend_common_env
 }
 

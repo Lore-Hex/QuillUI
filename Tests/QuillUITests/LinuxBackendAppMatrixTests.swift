@@ -348,12 +348,25 @@ struct LinuxBackendAppMatrixTests {
         export QUILLUI_QT_APP_EXECUTABLE=/tmp/qt-app
         export QUILLUI_GTK_SKIP_BUILD=0
         export QUILLUI_QT_SKIP_BUILD=1
+        export QUILLUI_GTK_GENERIC_SELECTED_INDEX_ON_START=1
+        export QUILLUI_QT_GENERIC_SELECTED_INDEX_ON_START=2
+        export QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=3
+        export QUILLUI_QT_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=4
 
         quillui_export_backend_argument " Qt6 " quill-wireguard
         quillui_alias_backend_build_env
+        quillui_alias_backend_interaction_env
         printf 'build-backend=%s\\n' "$QUILLUI_BACKEND"
         printf 'build-exe=%s\\n' "$QUILLUI_BACKEND_APP_EXECUTABLE"
         printf 'build-skip=%s\\n' "$QUILLUI_BACKEND_SKIP_BUILD"
+        printf 'generic-selected-qt=%s\\n' "$QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"
+        printf 'enchanted-selected-qt=%s\\n' "$QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
+
+        unset QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START
+        quillui_export_backend_argument gtk quill-wireguard
+        quillui_alias_backend_interaction_env
+        printf 'generic-selected-gtk=%s\\n' "$QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"
+        printf 'enchanted-selected-gtk=%s\\n' "$QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
 
         unset QUILLUI_BACKEND
         quillui_export_backend_argument "" quill-wireguard
@@ -394,6 +407,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("build-backend=qt"))
         #expect(result.output.contains("build-exe=/tmp/qt-app"))
         #expect(result.output.contains("build-skip=1"))
+        #expect(result.output.contains("generic-selected-qt=2"))
+        #expect(result.output.contains("enchanted-selected-qt=4"))
+        #expect(result.output.contains("generic-selected-gtk=1"))
+        #expect(result.output.contains("enchanted-selected-gtk=3"))
         #expect(result.output.contains("product-default=gtk"))
         #expect(result.output.contains("product-explicit=qt"))
         #expect(result.output.contains("launch-env=GTK_A11Y=none|QUILLUI_BACKEND=qt|"))
