@@ -555,8 +555,20 @@ quillui_append_backend_runtime_environment() {
 
 quillui_backend_generic_qt_selected_index_on_start() {
   case "$1" in
+    quill-codeedit)
+      printf '%s\n' "${QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}"
+      ;;
     quill-enchanted-upstream-slice)
       printf '%s\n' "${QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START:-${QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}}"
+      ;;
+    quill-icecubes)
+      printf '%s\n' "${QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}"
+      ;;
+    quill-iina)
+      printf '%s\n' "${QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}"
+      ;;
+    quill-netnewswire)
+      printf '%s\n' "${QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}"
       ;;
     quill-signal)
       printf '%s\n' "${QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}}"

@@ -128,8 +128,12 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
 
 private enum QuillGenericQtSelectionEnvironment {
     static let chat = "QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START"
+    static let codeEdit = "QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START"
     static let enchanted = "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START"
     static let enchantedQt = "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
+    static let iceCubes = "QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START"
+    static let iina = "QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START"
+    static let netNewsWire = "QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START"
     static let signal = "QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START"
     static let telegram = "QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START"
 
@@ -284,6 +288,9 @@ public enum QuillGenericQtAppCatalog {
         secondaryActionTitle: "Boosts",
         listTitle: "Timeline",
         status: "Public timeline loaded",
+        selectedIndexEnvironmentKeys: QuillGenericQtSelectionEnvironment.appSpecific(
+            QuillGenericQtSelectionEnvironment.iceCubes
+        ),
         detailTitle: "Timeline item",
         detailSubtitle: "Mastodon-style timeline with replies, boosts, and post detail.",
         items: [
@@ -333,6 +340,9 @@ public enum QuillGenericQtAppCatalog {
         listTitle: "Feeds",
         status: "3 unread articles",
         selectedIndex: 1,
+        selectedIndexEnvironmentKeys: QuillGenericQtSelectionEnvironment.appSpecific(
+            QuillGenericQtSelectionEnvironment.netNewsWire
+        ),
         detailTitle: "Article reader",
         detailSubtitle: "RSS reader with feed selection, unread counts, and article excerpts.",
         items: [
@@ -383,6 +393,9 @@ public enum QuillGenericQtAppCatalog {
         secondaryActionTitle: "Search",
         listTitle: "Files",
         status: "Workspace loaded",
+        selectedIndexEnvironmentKeys: QuillGenericQtSelectionEnvironment.appSpecific(
+            QuillGenericQtSelectionEnvironment.codeEdit
+        ),
         detailTitle: "Editor preview",
         detailSubtitle: "Workbench with file tree, tabs, diagnostics, and editor chrome.",
         items: [
@@ -581,6 +594,9 @@ public enum QuillGenericQtAppCatalog {
         listTitle: "Playlist",
         status: "Paused at 01:24",
         selectedIndex: 1,
+        selectedIndexEnvironmentKeys: QuillGenericQtSelectionEnvironment.appSpecific(
+            QuillGenericQtSelectionEnvironment.iina
+        ),
         detailTitle: "Player chrome",
         detailSubtitle: "Player layout with playlist, inspector, and playback status.",
         items: [
