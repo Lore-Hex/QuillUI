@@ -8,11 +8,10 @@ User-raised bar across every app:
 2. **Real UITests on macOS** that drive real actions across many
    features + screenshot the result.
 3. **Identical Linux parity** — the same flows run + screenshot
-   identically through the backend matrix. GTK is the current generic
-   native Linux renderer; backend-neutral Qt rows currently expose the
-   platform fallback until a product-specific Qt host exists, while
-   native Qt rows such as `quill-wireguard-qt` are built with the
-   explicit Qt graph.
+   identically through the backend matrix. GTK and Qt are explicit
+   manifest-time build graphs for the same canonical app product names:
+   `QUILLUI_LINUX_BACKEND=gtk|qt swift run <product>` selects the host
+   stack without introducing backend-suffixed Linux app products.
 
 ## Current state (CP106+)
 
@@ -33,8 +32,11 @@ profile coverage iterate the same user-facing app list:
 `quill-enchanted`, `quill-enchanted-upstream-slice`,
 `quill-icecubes`, `quill-netnewswire`, `quill-codeedit`,
 `quill-signal`, `quill-telegram`, `quill-iina`, and
-`quill-wireguard`, plus the Qt-specific `quill-wireguard-qt`. The older `scripts/linux-gtk-app-products.sh`
+`quill-wireguard`. The older `scripts/linux-gtk-app-products.sh`
 path delegates to the same helper for compatibility.
+For example, `QUILLUI_LINUX_BACKEND=qt swift run quill-wireguard` builds the
+Qt host for the canonical WireGuard product instead of switching to a
+backend-suffixed executable.
 
 The six fixture app backend smokes passed baseline (size + mean
 brightness + stddev) on the first rollout (Linux CI run
@@ -75,18 +77,16 @@ GTK and Qt launch surfaces under the same screenshot contract while native Qt
 runtime hosts are added product by product. Generated external app products use
 `scripts/quillui-backend-products.sh generated-app-matrix`, so Quill Chat's
 temporary SwiftPM package is requested through both GTK and Qt facade builds.
-Backend-specific app products, such as `quill-wireguard` and
-`quill-wireguard-qt`, are single-backend rows from
-`scripts/quillui-backend-products.sh fixed-app-backends` so CI never asks one
-executable to link both native host stacks. Visual and interaction runners
-share `scripts/quillui-linux-backend-smoke-lib.sh`, so package setup,
-executable resolution, and generated Quill Chat fixture state stay identical
-between GTK and Qt smoke paths.
+Canonical app products compile once per requested manifest backend through
+`scripts/quillui-backend-products.sh app-matrix`, so CI proves every app has a
+GTK build and a Qt build without splitting the public product name. Visual and
+interaction runners share `scripts/quillui-linux-backend-smoke-lib.sh`, so
+package setup, executable resolution, and generated Quill Chat fixture state
+stay identical between GTK and Qt smoke paths.
 
 Root app interaction smokes now use
 `scripts/quillui-backend-products.sh interaction-matrix`, which mirrors the
-visual app matrix. Backend-neutral app rows request both GTK and Qt, while
-backend-specific products follow their fixed app backend entry. Those generic
+visual app matrix. Canonical app rows request both GTK and Qt. Those generic
 checks launch the already-built executable, click a stable toolbar-region point,
 and run post-click baseline screenshot verification.
 

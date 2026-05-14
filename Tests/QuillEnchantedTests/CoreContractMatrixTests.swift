@@ -92,7 +92,9 @@ struct CoreContractMatrixTests {
             encoding: .utf8
         )
 
-        #expect(manifest.contains(".executable(name: \"quill-enchanted-qt\", targets: [\"QuillEnchantedQt\"])"))
+        #expect(manifest.contains(".executable(name: \"quill-enchanted\", targets: [\"QuillEnchanted\"])"))
+        #expect(manifest.contains("path: \"Sources/QuillEnchantedQt\""))
+        #expect(manifest.contains("QuillEnchantedQtNativeRuntime"))
         #expect(manifest.contains("nativeQt: [\"QuillEnchantedQtNativeRuntime\"]"))
         #expect(manifest.contains(".define(\"QUILLUI_ENCHANTED_QT_NATIVE_BACKEND\")"))
         #expect(manifest.contains("name: \"QuillEnchantedQtNativeRuntime\""))

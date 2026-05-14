@@ -14,7 +14,7 @@ WireGuard Apple is a UIKit (iOS) and AppKit (macOS) application. To bring it to 
 - **Linux Strategy:** Reuse these models directly for parsing `.conf` files and managing state.
 
 ### 2. UI (SwiftUI + Qt Host Implementation)
-- **Status:** First Linux shell implemented with QuillUI, with a native Qt6 Widgets WireGuard host available through `QUILLUI_LINUX_BACKEND=qt swift run quill-wireguard-qt`; both GTK and Qt import pasted or selected `.conf` text through the shared Swift parser.
+- **Status:** First Linux shell implemented with QuillUI, with a native Qt6 Widgets WireGuard host available through `QUILLUI_LINUX_BACKEND=qt swift run quill-wireguard`; both GTK and Qt import pasted or selected `.conf` text through the shared Swift parser.
 - **Required Views:**
     - `TunnelListView`: List of available tunnels with status indicators.
     - `TunnelDetailView`: Detailed configuration view for interface, peers, and export text.

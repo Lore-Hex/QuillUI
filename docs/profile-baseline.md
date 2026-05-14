@@ -16,13 +16,11 @@ scheduled matrix through `profile-runtime-matrix` so requested backend,
 runtime backend, and native/fallback mode all come from the shared backend
 helper and are canonicalized before launch.
 Profile CSV rows carry `requested_backend`, `runtime_backend`, and
-`runtime_mode` columns so Qt-requested rows are not confused with native Qt
-runtime measurements. Generic app and generated-app Qt-requested rows still report
-`runtime_backend=gtk` and `runtime_mode=platformFallback` while they execute
-through the platform fallback host. Product-specific native Qt hosts, currently
-`quill-qt-interaction-smoke` and `quill-wireguard-qt`, are registered as
-explicit runtime overrides and report `runtime_backend=qt` with
-`runtime_mode=native`.
+`runtime_mode` columns so requested backend rows are not confused with the
+runtime actually measured. Canonical app and generated-app rows now compile
+through both explicit manifest graphs, so GTK rows report `runtime_backend=gtk`
+and Qt rows report `runtime_backend=qt`; both paths use `runtime_mode=native`
+when their selected backend has a native host.
 The older
 `scripts/linux-gtk-app-products.sh`,
 `scripts/linux-gtk-profile.sh`, `scripts/run-linux-gtk-profile-csv.sh`,
@@ -38,10 +36,9 @@ the Linux backend QA tooling. Root app profile rows reuse the backend-neutral
 executable across GTK and Qt requests, while generated app rows compile and
 cache backend-specific launcher facades through `QUILLUI_APP_BACKEND_FACADE`.
 
-Because `profile-matrix` includes root app, generated app,
-`quill-qt-interaction-smoke`, and `quill-wireguard-qt` rows, the Qt launch path
-receives startup/RSS/CPU budget rows for both fallback app hosts and native
-product hosts.
+Because `profile-matrix` includes root app, generated app, and
+`quill-qt-interaction-smoke` rows, the Qt launch path receives startup/RSS/CPU
+budget rows for canonical app products as well as backend smoke hosts.
 That keeps Qt target work visible in the same performance loop as the GTK app
 matrix.
 

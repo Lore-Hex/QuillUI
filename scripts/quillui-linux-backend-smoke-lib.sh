@@ -151,9 +151,21 @@ quillui_backend_visual_verify_product() {
   local product="$1"
   local output_var="$2"
   local verify_product="$product"
+  local selected_backend=""
 
   if quillui_is_quill_chat_mac_reference_product "$product"; then
     verify_product="quill-chat-linux-mac-reference"
+  fi
+  selected_backend="$(quillui_require_requested_backend_for_product "$product" 2>/dev/null || true)"
+  if [[ "$selected_backend" == "qt" ]]; then
+    case "$product" in
+      quill-enchanted)
+        verify_product="quill-enchanted-qt"
+        ;;
+      quill-wireguard)
+        verify_product="quill-wireguard-qt"
+        ;;
+    esac
   fi
   if [[ -n "${QUILLUI_BACKEND_VERIFY_PRODUCT:-}" ]]; then
     verify_product="$QUILLUI_BACKEND_VERIFY_PRODUCT"
@@ -167,6 +179,9 @@ quillui_backend_interaction_verify_product() {
   local interaction_mode="$2"
   local output_var="$3"
   local verify_product="$product"
+  local selected_backend=""
+
+  selected_backend="$(quillui_require_requested_backend_for_product "$product" 2>/dev/null || true)"
 
   if [[ "$product" == "quill-chat-linux" ]]; then
     case "$interaction_mode" in
@@ -204,7 +219,7 @@ quillui_backend_interaction_verify_product() {
         fi
         ;;
     esac
-  elif [[ "$product" == "quill-wireguard-qt" ]]; then
+  elif [[ "$product" == "quill-wireguard" && "$selected_backend" == "qt" ]]; then
     case "$interaction_mode" in
       tunnel-selection|click)
         verify_product="quill-wireguard-qt-tunnel-selection"
@@ -579,7 +594,7 @@ MSG
     quillui_assign_output "$output_var" "$quill_chat_bin_path/$product" || return $?
   else
     local linux_build_backend
-    linux_build_backend="$(quillui_require_backend_for_product "$product")" || return $?
+    linux_build_backend="$(quillui_require_requested_backend_for_product "$product")" || return $?
 
     if [[ "${QUILLUI_BACKEND_SKIP_BUILD:-0}" == "1" ]]; then
       local cached_executable

@@ -11,7 +11,7 @@ import Foundation
 // existing under `.upstream/`. A fresh `git clone` of QuillUI
 // resolves cleanly with no `.upstream/` populated and can still
 // build `QuillUI` / `QuillEnchanted` / `QuillWireGuard` /
-// `QuillWireGuardQt`. Run
+// the canonical Linux GTK/Qt app products. Run
 // `scripts/fetch-upstream.sh` to fetch the upstreams and enable
 // the gated targets.
 //
@@ -1143,8 +1143,15 @@ allPackageDependencies += [
 #if os(Linux)
 if quillUILinuxBuildBackend == .qt {
     products = [
-        .executable(name: "quill-enchanted-qt", targets: ["QuillEnchantedQt"]),
-        .executable(name: "quill-wireguard-qt", targets: ["QuillWireGuardQt"]),
+        .executable(name: "quill-enchanted", targets: ["QuillEnchanted"]),
+        .executable(name: "quill-enchanted-upstream-slice", targets: ["QuillEnchantedUpstreamSlice"]),
+        .executable(name: "quill-icecubes", targets: ["QuillIceCubes"]),
+        .executable(name: "quill-netnewswire", targets: ["QuillNetNewsWire"]),
+        .executable(name: "quill-codeedit", targets: ["QuillCodeEdit"]),
+        .executable(name: "quill-signal", targets: ["QuillSignal"]),
+        .executable(name: "quill-telegram", targets: ["QuillTelegram"]),
+        .executable(name: "quill-iina", targets: ["QuillIINA"]),
+        .executable(name: "quill-wireguard", targets: ["QuillWireGuard"]),
         .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
     ]
     allPackageDependencies = []
@@ -1174,16 +1181,64 @@ if quillUILinuxBuildBackend == .qt {
             ]
         ),
         .target(
+            name: "QuillGenericQtNativeRuntime",
+            dependencies: ["CQuillQt6WidgetsShim"],
+            path: "Sources/QuillGenericQtNativeRuntime",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
             name: "QuillEnchantedQtNativeRuntime",
             dependencies: ["CQuillQt6WidgetsShim"],
             path: "Sources/QuillEnchantedQtNativeRuntime",
             swiftSettings: appSwiftSettings
         ),
         .executableTarget(
-            name: "QuillEnchantedQt",
+            name: "QuillEnchanted",
             dependencies: ["QuillEnchantedQtNativeRuntime"],
             path: "Sources/QuillEnchantedQt",
             swiftSettings: quillEnchantedQtSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillEnchantedUpstreamSlice",
+            dependencies: ["QuillGenericQtNativeRuntime"],
+            path: "Sources/QuillEnchantedUpstreamSliceQt",
+            swiftSettings: appSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillIceCubes",
+            dependencies: ["QuillGenericQtNativeRuntime"],
+            path: "Sources/QuillIceCubesQt",
+            swiftSettings: appSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillNetNewsWire",
+            dependencies: ["QuillGenericQtNativeRuntime"],
+            path: "Sources/QuillNetNewsWireQt",
+            swiftSettings: appSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillCodeEdit",
+            dependencies: ["QuillGenericQtNativeRuntime"],
+            path: "Sources/QuillCodeEditQt",
+            swiftSettings: appSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillSignal",
+            dependencies: ["QuillGenericQtNativeRuntime"],
+            path: "Sources/QuillSignalQt",
+            swiftSettings: appSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillTelegram",
+            dependencies: ["QuillGenericQtNativeRuntime"],
+            path: "Sources/QuillTelegramQt",
+            swiftSettings: appSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillIINA",
+            dependencies: ["QuillGenericQtNativeRuntime"],
+            path: "Sources/QuillIINAQt",
+            swiftSettings: appSwiftSettings
         ),
         .target(
             name: "QuillWireGuardQtNativeRuntime",
@@ -1192,7 +1247,7 @@ if quillUILinuxBuildBackend == .qt {
             swiftSettings: appSwiftSettings
         ),
         .executableTarget(
-            name: "QuillWireGuardQt",
+            name: "QuillWireGuard",
             dependencies: ["QuillWireGuardQtNativeRuntime"],
             path: "Sources/QuillWireGuardQt",
             swiftSettings: quillWireGuardQtSwiftSettings

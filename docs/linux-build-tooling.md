@@ -171,31 +171,31 @@ scripts/run-linux-backend-smoke-matrix.sh \
   '.qa/{product}-{backend}.png'
 ```
 
-Native backend-specific SwiftPM products use a separate manifest-time selector:
+Canonical app products use a separate manifest-time selector:
 `QUILLUI_LINUX_BACKEND=gtk|qt`. This is intentionally distinct from the
 runtime smoke selector `QUILLUI_BACKEND`, because the package graph must link
 exactly one host stack. Shared build helpers validate this selector with the
 stricter Linux build-backend normalizer, so generated facade values such as
 `swiftui` remain valid for runtime entry points but cannot enter the
-manifest-time build graph. For the first native Qt product, install Qt6 Widgets
-development packages and run:
+manifest-time build graph. To run any app against the Qt graph, install Qt6
+Widgets development packages and keep the product name canonical:
 
 ```bash
-QUILLUI_LINUX_BACKEND=qt swift run quill-wireguard-qt
+QUILLUI_LINUX_BACKEND=qt swift run quill-wireguard
 ```
 
 The default remains `gtk` so normal app-matrix smoke keeps resolving on fresh
 Linux containers without Qt packages. A `qt` build graph fails fast if the
-`Qt6Widgets` pkg-config package is missing. Backend-specific products are also
-listed in `scripts/quillui-backend-products.sh fixed-app-backends` so matrix
-smoke and profile rows do not try to compile one executable through both native
-host stacks.
+`Qt6Widgets` pkg-config package is missing. The reserved
+`scripts/quillui-backend-products.sh fixed-app-backends` table stays empty for
+the current app roster because every canonical app product is expected to
+compile through both explicit host stacks.
 
 CI build-gates those native app products through the shared roster instead of
 hand-writing per-product commands:
 
 ```bash
-scripts/build-linux-backend-products.sh --scratch-path .build-linux fixed-app-backends
+scripts/build-linux-backend-products.sh --scratch-path .build-linux backend-apps
 ```
 
 That helper prints or builds one `PRODUCT<TAB>BUILD_BACKEND` row per product
@@ -209,8 +209,8 @@ scripts/build-linux-backend-products.sh --scratch-path .build-linux all-app-back
 ```
 
 `all-app-backends` expands the canonical user-facing app roster once per
-manifest backend, so backend-neutral app products compile once while
-backend-specific products such as `quill-wireguard-qt` still use their Qt graph.
+manifest backend, so every app product proves both its GTK and Qt graph without
+adding backend-suffixed Linux product names.
 
 Package product builds also write backend build stamps under the selected
 scratch path. Visual, interaction, and profile runners that set
@@ -301,10 +301,12 @@ scripts/linux-backend-interaction-check.sh .qa/quill-gtk-interaction-smoke-open.
 The Qt launch target uses the same Swift interaction surface through
 `QuillInteractionSmokeSupport` when built in the default GTK graph, and swaps to
 the native Qt6 Widgets smoke host when `QUILLUI_LINUX_BACKEND=qt` selects the Qt
-graph. Native Qt product hosts use explicit entries in
-`native-product-runtime-overrides`; the shared runtime matrix reports those rows
-as `runtime_backend=qt` / `runtime_mode=native` only after the product has a real
-Qt host, so CI cannot silently report Qt while running the GTK host.
+graph. Canonical app products compile through the explicit backend selector;
+the shared runtime matrix reports those rows as `runtime_backend=qt` /
+`runtime_mode=native` when the requested Qt graph is selected, so CI cannot
+silently report Qt while running the GTK host. Backend smoke products that are
+not part of the app roster still use `native-product-runtime-overrides` when
+they need a product-specific native runtime declaration.
 
 ```bash
 scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke
@@ -319,8 +321,8 @@ QUILLUI_LINUX_BACKEND=qt \
   QUILLUI_BACKEND_INTERACTION_MODE=import-paste \
   QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE=Tests/Fixtures/WireGuard/imported-edge.conf \
   scripts/linux-backend-interaction-check.sh \
-    .qa/quill-wireguard-qt-import.png \
-    quill-wireguard-qt \
+    .qa/quill-wireguard-import-qt.png \
+    quill-wireguard \
     qt
 ```
 

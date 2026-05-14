@@ -20,6 +20,12 @@ int quill_enchanted_qt_run_app_json(
     const char *payload_json
 );
 
+int quill_generic_qt_run_app_json(
+    int argc,
+    char **argv,
+    const char *payload_json
+);
+
 int quill_wireguard_qt_run_wireguard_json(
     int argc,
     char **argv,

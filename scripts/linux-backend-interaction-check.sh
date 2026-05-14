@@ -12,6 +12,7 @@ APP_LOG_PATH="${QUILLUI_BACKEND_INTERACTION_APP_LOG:-/tmp/quillui-backend-intera
 source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
 quillui_export_backend_argument "$REQUESTED_BACKEND" "$PRODUCT"
+SELECTED_BACKEND="$(quillui_require_requested_backend_for_product "$PRODUCT")"
 quillui_alias_backend_build_env
 quillui_alias_backend_interaction_env
 
@@ -19,7 +20,7 @@ INTERACTION_MODE="${QUILLUI_BACKEND_INTERACTION_MODE:-}"
 if [[ -z "$INTERACTION_MODE" ]]; then
   case "$PRODUCT" in
     quill-chat-linux) INTERACTION_MODE="toolbar-menu" ;;
-    quill-wireguard|quill-wireguard-qt) INTERACTION_MODE="tunnel-name-edit" ;;
+    quill-wireguard) INTERACTION_MODE="tunnel-name-edit" ;;
     *) INTERACTION_MODE="click" ;;
   esac
   if quillui_is_backend_smoke_product "$PRODUCT"; then
@@ -143,12 +144,12 @@ quillui_append_backend_runtime_environment \
   "$reference_window_width" \
   "$reference_window_height" \
   "$hide_window_menubar_label" \
-  "$REQUESTED_BACKEND"
-if [[ "$PRODUCT" == "quill-wireguard" || "$PRODUCT" == "quill-wireguard-qt" ]]; then
+  "$SELECTED_BACKEND"
+if [[ "$PRODUCT" == "quill-wireguard" ]]; then
   case "$INTERACTION_MODE" in
     import-file|file-import|import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
       import_file="$(wireguard_import_configuration_file_for_mode "$INTERACTION_MODE")" || exit $?
-      if [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
+      if [[ "$SELECTED_BACKEND" == "qt" ]]; then
         app_environment+=("QUILLUI_WIREGUARD_QT_IMPORT_CONFIGURATION_FILE_ON_START=$import_file")
         if quillui_is_wireguard_malformed_import_file_interaction "$INTERACTION_MODE"; then
           app_environment+=("QUILLUI_WIREGUARD_QT_IMPORT_DIALOG_ON_START=1")
@@ -392,7 +393,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         ;;
     esac
-elif [[ "$PRODUCT" == "quill-wireguard" ]]; then
+elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
     case "$INTERACTION_MODE" in
       tunnel-name-edit|name-edit)
         edit_wireguard_tunnel_name
@@ -429,7 +430,7 @@ elif [[ "$PRODUCT" == "quill-wireguard" ]]; then
         exit 64
         ;;
     esac
-elif [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
+elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "qt" ]]; then
     case "$INTERACTION_MODE" in
       tunnel-selection|click)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"

@@ -594,7 +594,7 @@ public enum QuillBackendRegistry {
                 displayName: "Qt",
                 isPlatformDefault: platformDefault == .qt,
                 isExperimental: true,
-                runtimeNotes: "Experimental QuillUIQt facade; generic SwiftUI-shaped apps use the platform fallback unless a product-specific Qt host is registered."
+                runtimeNotes: "Experimental QuillUIQt facade; canonical Linux app products can select generic or product-specific native Qt hosts while module-level facade calls still report the platform fallback."
             )
         }
     }

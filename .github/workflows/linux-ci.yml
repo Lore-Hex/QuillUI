@@ -87,7 +87,7 @@ jobs:
         run: swift build --scratch-path .build-linux --target QuillUIQt
 
       - name: Build native backend app products
-        run: scripts/build-linux-backend-products.sh --scratch-path .build-linux fixed-app-backends
+        run: scripts/build-linux-backend-products.sh --scratch-path .build-linux backend-apps
 
       - name: GTK offscreen ImageRenderer smoke
         run: GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG
@@ -117,10 +117,10 @@ jobs:
       # in `scripts/quillui-backend-products.sh app-matrix` so visual and
       # profile coverage cannot drift. Each product launches under Xvfb,
       # explicitly requests a backend, screenshots the window, and runs the
-      # verifier. Backend-neutral Qt rows still make the launch-plan fallback
-      # visible, while native Qt products such as quill-enchanted-qt and
-      # quill-wireguard-qt are fixed to a single Qt build graph and can
-      # register per-product screenshot predicates. Products without a
+      # verifier. Each canonical app product compiles through the requested
+      # QUILLUI_LINUX_BACKEND graph, so GTK and Qt rows exercise mutually
+      # exclusive native targets without exposing backend-suffixed app commands.
+      # Products without a
       # per-product branch fall through to the baseline check (size + mean
       # brightness + stddev) so "blank window" /
       # "didn't render" / "tiny window" regressions still fail CI.

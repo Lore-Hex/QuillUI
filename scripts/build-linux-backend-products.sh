@@ -10,7 +10,7 @@ source "$ROOT_DIR/scripts/quillui-backend-products.sh"
 
 SCRATCH_PATH="${QUILLUI_LINUX_BUILD_SCRATCH_PATH:-.build-linux}"
 DRY_RUN=0
-MATRIX_COMMAND="fixed-app-backends"
+MATRIX_COMMAND="backend-apps"
 MATRIX_COMMAND_SET=0
 
 usage() {
@@ -18,15 +18,15 @@ usage() {
 Usage: scripts/build-linux-backend-products.sh [--dry-run] [--scratch-path PATH] [MATRIX]
 
 Build root SwiftPM products with the manifest-time Linux backend selected by
-scripts/quillui-backend-products.sh. The build plan compiles each product once,
-even when the runtime smoke matrix requests both GTK and Qt rows.
+scripts/quillui-backend-products.sh. The build plan compiles product/backend
+pairs so canonical app products exercise both mutually exclusive Linux graphs.
 
 Matrices:
-  fixed-app-backends  Backend-specific app products only. Default.
-  all-app-backends    Alias for backend-apps; every user-facing app product once.
-  backend-apps        User-facing app products, one manifest backend each.
-  app-matrix          User-facing runtime smoke matrix, collapsed by product.
-  interaction-matrix  User-facing interaction matrix, collapsed by product.
+  backend-apps        User-facing app products for every app backend. Default.
+  all-app-backends    Alias for backend-apps.
+  app-matrix          User-facing runtime smoke matrix.
+  interaction-matrix  User-facing interaction matrix.
+  fixed-app-backends  Products constrained to one build backend, if any.
   smoke-matrix        Backend launch fixture products.
 
 Options:
@@ -90,14 +90,12 @@ quillui_manifest_backend_for_product_row() {
   local manifest_backend
   local normalized_requested_backend
 
-  manifest_backend="$(quillui_require_backend_for_product "$product")" || return $?
-  manifest_backend="$(quillui_require_linux_build_backend_identifier "$manifest_backend")" || return $?
   if [[ -n "$requested_backend" ]]; then
-    normalized_requested_backend="$(quillui_require_linux_build_backend_identifier "$requested_backend")" || return $?
-    if [[ "$MATRIX_COMMAND" == "fixed-app-backends" && "$normalized_requested_backend" != "$manifest_backend" ]]; then
-      echo "Backend product build matrix drifted for $product: listed $normalized_requested_backend, manifest requires $manifest_backend" >&2
-      return 65
-    fi
+    quillui_validate_requested_backend_for_product "$product" "$requested_backend" >/dev/null || return $?
+    manifest_backend="$(quillui_require_linux_build_backend_identifier "$requested_backend")" || return $?
+  else
+    manifest_backend="$(quillui_require_backend_for_product "$product")" || return $?
+    manifest_backend="$(quillui_require_linux_build_backend_identifier "$manifest_backend")" || return $?
   fi
 
   echo "$manifest_backend"
@@ -131,12 +129,12 @@ quillui_build_backend_product() {
   printf '%s\n' "$output"
 
   if [[ "$build_backend" == "qt" ]] && grep -Eq "warning:|prohibited flag|Invalid Exclude" <<<"$output"; then
-    echo "Qt backend build for $product emitted warnings; native Qt products must stay warning-clean." >&2
+    echo "Qt backend build for $product emitted warnings; canonical Qt app products must stay warning-clean." >&2
     return 1
   fi
 }
 
-SEEN_PRODUCTS=$'\n'
+SEEN_BUILDS=$'\n'
 ROW_COUNT=0
 BUILD_COUNT=0
 
@@ -152,12 +150,12 @@ while IFS=$'\t' read -r product requested_backend extra; do
   fi
 
   ROW_COUNT=$((ROW_COUNT + 1))
-  if [[ "$SEEN_PRODUCTS" == *$'\n'"$product"$'\n'* ]]; then
+  build_backend="$(quillui_manifest_backend_for_product_row "$product" "$requested_backend")" || exit $?
+  build_key="$product/$build_backend"
+  if [[ "$SEEN_BUILDS" == *$'\n'"$build_key"$'\n'* ]]; then
     continue
   fi
-  SEEN_PRODUCTS="${SEEN_PRODUCTS}${product}"$'\n'
-
-  build_backend="$(quillui_manifest_backend_for_product_row "$product" "$requested_backend")" || exit $?
+  SEEN_BUILDS="${SEEN_BUILDS}${build_key}"$'\n'
   BUILD_COUNT=$((BUILD_COUNT + 1))
 
   if [[ "$DRY_RUN" == "1" ]]; then

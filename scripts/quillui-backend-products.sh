@@ -8,7 +8,6 @@ quillui_backend_app_products() {
   # fixtures, and demos stay out of this roster.
   printf '%s\n' \
     quill-enchanted \
-    quill-enchanted-qt \
     quill-enchanted-upstream-slice \
     quill-icecubes \
     quill-netnewswire \
@@ -16,32 +15,30 @@ quillui_backend_app_products() {
     quill-signal \
     quill-telegram \
     quill-iina \
-    quill-wireguard \
-    quill-wireguard-qt
+    quill-wireguard
 }
 
 quillui_gtk_app_products() {
   # Legacy GTK-named entry point kept for older scripts. The backend app roster
-  # is the source of truth because app binaries select GTK/Qt through
-  # QUILLUI_BACKEND.
+  # is the source of truth because app binaries select GTK/Qt through the
+  # manifest-time QUILLUI_LINUX_BACKEND graph.
   quillui_backend_app_products
 }
 
 quillui_backend_app_backends() {
   # Backends each user-facing app must be able to request in parity smoke
-  # loops. Backend-specific entry points narrow this set below so a product
-  # never compiles or profiles through two mutually exclusive Linux host paths.
+  # loops. Each app product compiles through exactly one selected manifest
+  # backend per row, so GTK and Qt coverage stay explicit without suffixing
+  # Linux product names.
   printf '%s\n' "${QUILLUI_BACKEND_APP_BACKEND_IDS[@]}"
 }
 
 quillui_backend_fixed_app_backend_overrides() {
   # PRODUCT<TAB>BACKEND rows for app products whose SwiftPM target links one
-  # native host stack at manifest time.
-  printf '%s\t%s\n' \
-    quill-enchanted gtk \
-    quill-enchanted-qt qt \
-    quill-wireguard gtk \
-    quill-wireguard-qt qt
+  # native host stack at manifest time. Canonical app products now compile
+  # through the selected QUILLUI_LINUX_BACKEND graph, so this table should stay
+  # empty unless a future product truly cannot support both manifest backends.
+  :
 }
 
 quillui_backend_fixed_backend_for_app_product() {
@@ -88,16 +85,15 @@ quillui_backend_native_runtime_backends() {
   # Mirrors QuillBackendRegistry on Linux. Keep this as a registry instead of
   # branching in call sites so adding the native Qt host is a one-line change.
   printf '%s\n' \
-    gtk
+    gtk \
+    qt
 }
 
 quillui_backend_native_product_runtime_overrides() {
   # PRODUCT<TAB>REQUESTED_BACKEND<TAB>RUNTIME_BACKEND rows for native hosts that
   # exist only behind a product-specific SwiftPM graph today.
   printf '%s\t%s\t%s\n' \
-    quill-qt-interaction-smoke qt qt \
-    quill-enchanted-qt qt qt \
-    quill-wireguard-qt qt qt
+    quill-qt-interaction-smoke qt qt
 }
 
 quillui_backend_native_runtime_backend_for_product() {
@@ -175,16 +171,7 @@ quillui_backend_build_product_rows() {
     fixed-app-backends)
       quillui_backend_fixed_app_backend_overrides
       ;;
-    backend-apps|all-app-backends)
-      local product
-      local backend
-      while IFS= read -r product; do
-        [[ -n "$product" ]] || continue
-        backend="$(quillui_require_backend_for_product "$product")" || return $?
-        printf '%s\t%s\n' "$product" "$backend"
-      done < <(quillui_backend_app_products)
-      ;;
-    app-matrix)
+    backend-apps|all-app-backends|app-matrix)
       quillui_backend_app_matrix
       ;;
     interaction-matrix)
@@ -268,14 +255,16 @@ quillui_backend_build_stamp_product_name() {
 quillui_backend_build_stamp_path() {
   local scratch_path="$1"
   local product
+  local backend
 
   product="$(quillui_backend_build_stamp_product_name "$2")" || return $?
+  backend="$(quillui_require_linux_build_backend_identifier "$3")" || return $?
   if [[ -z "$scratch_path" ]]; then
     echo "Backend build stamp scratch path is required." >&2
     return 65
   fi
 
-  printf '%s/.quillui-backend-products/%s.backend.stamp\n' "$scratch_path" "$product"
+  printf '%s/.quillui-backend-products/%s.%s.backend.stamp\n' "$scratch_path" "$product" "$backend"
 }
 
 quillui_record_backend_product_build() {
@@ -286,7 +275,7 @@ quillui_record_backend_product_build() {
 
   product="$(quillui_backend_build_stamp_product_name "$2")" || return $?
   backend="$(quillui_require_linux_build_backend_identifier "$3")" || return $?
-  stamp_path="$(quillui_backend_build_stamp_path "$scratch_path" "$product")" || return $?
+  stamp_path="$(quillui_backend_build_stamp_path "$scratch_path" "$product" "$backend")" || return $?
 
   mkdir -p "$(dirname "$stamp_path")"
   {
@@ -307,7 +296,7 @@ quillui_require_backend_product_build_stamp() {
 
   product="$(quillui_backend_build_stamp_product_name "$2")" || return $?
   expected_backend="$(quillui_require_linux_build_backend_identifier "$3")" || return $?
-  stamp_path="$(quillui_backend_build_stamp_path "$scratch_path" "$product")" || return $?
+  stamp_path="$(quillui_backend_build_stamp_path "$scratch_path" "$product" "$expected_backend")" || return $?
 
   if [[ ! -f "$stamp_path" ]]; then
     echo "No cached backend build stamp for $product under $scratch_path; rerun without QUILLUI_BACKEND_SKIP_BUILD=1." >&2
@@ -365,10 +354,10 @@ quillui_backend_interaction_extra_mode_matrix() {
     quill-wireguard gtk import-file \
     quill-wireguard gtk import-invalid-paste \
     quill-wireguard gtk import-invalid-file \
-    quill-wireguard-qt qt import-paste \
-    quill-wireguard-qt qt import-file \
-    quill-wireguard-qt qt import-invalid-paste \
-    quill-wireguard-qt qt import-invalid-file
+    quill-wireguard qt import-paste \
+    quill-wireguard qt import-file \
+    quill-wireguard qt import-invalid-paste \
+    quill-wireguard qt import-invalid-file
 }
 
 quillui_backend_generated_app_products() {
@@ -721,6 +710,7 @@ quillui_validate_requested_backend_for_product() {
   local fixed_backend
 
   requested_backend="$(quillui_require_backend_identifier "$2")" || return $?
+  quillui_require_backend_for_product "$product" >/dev/null || return $?
   if fixed_backend="$(quillui_backend_fixed_backend_for_app_product "$product")"; then
     if [[ "$requested_backend" != "$fixed_backend" ]]; then
       echo "Product $product is fixed to the $fixed_backend Linux backend; requested $requested_backend would mix manifest and runtime backend paths." >&2
@@ -1015,7 +1005,7 @@ quillui_backend_validate_native_app_runtime_override() {
   fi
 
   if ! fixed_backend="$(quillui_backend_fixed_backend_for_app_product "$product")"; then
-    echo "native-product-runtime-overrides references app product $product without a fixed-app-backends row; native app products must compile through one manifest backend." >&2
+    echo "native-product-runtime-overrides references app product $product without a fixed-app-backends row; canonical app products should compile through the backend matrix unless they are true single-backend exceptions." >&2
     return 65
   fi
 
