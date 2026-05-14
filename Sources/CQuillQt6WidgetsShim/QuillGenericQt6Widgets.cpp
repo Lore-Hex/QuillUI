@@ -82,6 +82,13 @@ QSize defaultWindowSize(const QJsonObject &payload, const QSize &minimumSize) {
     );
 }
 
+int boundedSelectedIndex(const QJsonArray &items, int selectedIndex) {
+    if (items.isEmpty()) {
+        return -1;
+    }
+    return std::min(std::max(selectedIndex, 0), static_cast<int>(items.size()) - 1);
+}
+
 QJsonObject selectedItem(const QJsonArray &items, int row) {
     if (row < 0 || row >= items.size()) {
         return QJsonObject();
@@ -123,17 +130,17 @@ QString selectedDetailSubtitle(const QJsonObject &payload, const QJsonArray &ite
 }
 
 QJsonArray selectedSections(const QJsonObject &payload, const QJsonArray &items, int row) {
-    const QJsonArray itemSections = jsonArrayValue(selectedItem(items, row), "sections");
-    if (!itemSections.isEmpty()) {
-        return itemSections;
+    const QJsonObject item = selectedItem(items, row);
+    if (item.contains(QStringLiteral("sections"))) {
+        return jsonArrayValue(item, "sections");
     }
     return jsonArrayValue(payload, "sections");
 }
 
 QJsonArray selectedMessages(const QJsonObject &payload, const QJsonArray &items, int row) {
-    const QJsonArray itemMessages = jsonArrayValue(selectedItem(items, row), "messages");
-    if (!itemMessages.isEmpty()) {
-        return itemMessages;
+    const QJsonObject item = selectedItem(items, row);
+    if (item.contains(QStringLiteral("messages"))) {
+        return jsonArrayValue(item, "messages");
     }
     return jsonArrayValue(payload, "messages");
 }
@@ -169,8 +176,9 @@ QListWidget *listWidget(const QJsonArray &items, int selectedIndex) {
         list->setItemWidget(listItem, itemRowWidget(item));
     }
 
-    if (list->count() > 0) {
-        list->setCurrentRow(std::min(std::max(selectedIndex, 0), list->count() - 1));
+    const int boundedIndex = boundedSelectedIndex(items, selectedIndex);
+    if (boundedIndex >= 0) {
+        list->setCurrentRow(boundedIndex);
     }
     return list;
 }
@@ -303,7 +311,8 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
     rootLayout->setSpacing(0);
 
     const QJsonArray items = jsonArrayValue(payload, "items");
-    const int selectedIndex = intValue(payload, "selectedIndex", 0);
+    const int rawSelectedIndex = intValue(payload, "selectedIndex", 0);
+    const int selectedIndex = boundedSelectedIndex(items, rawSelectedIndex);
     QListWidget *itemList = listWidget(items, selectedIndex);
     GenericDetailPane detailPane = detailWidget(payload, items, selectedIndex);
     QObject::connect(itemList, &QListWidget::currentRowChanged, [&](int row) {
