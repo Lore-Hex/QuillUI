@@ -132,7 +132,7 @@ jobs:
         run: QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-matrix '.qa/{product}-interaction-{backend}.png'
 
       # Extra semantic app interactions. Keep these in a mode-aware product
-      # matrix so native Qt paths such as WireGuard import-paste are exercised
+      # matrix so native Qt paths such as WireGuard import-paste/import-file are exercised
       # by CI without duplicating runner or backend-selection logic.
       - name: Quill app backend extra interaction smokes
         run: QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-extra-mode-matrix '.qa/{product}-{mode}-{backend}.png'

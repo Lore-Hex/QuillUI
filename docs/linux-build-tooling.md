@@ -297,7 +297,9 @@ QUILLUI_LINUX_BACKEND=qt \
 
 The fixture path defaults to `Tests/Fixtures/WireGuard/imported-edge.conf`; set
 `QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE` only when the import smoke needs a
-different `.conf` file.
+different `.conf` file. Use `QUILLUI_BACKEND_INTERACTION_MODE=import-file` to
+exercise the native Qt file-read path with the same fixture without automating a
+desktop file-picker dialog.
 
 CI registers semantic native app interactions through
 `interaction-extra-mode-matrix`, which expands through the same runtime matrix

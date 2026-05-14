@@ -48,6 +48,16 @@ quillui_backend_reference_window_defaults \
   reference_window_height \
   hide_window_menubar_label
 
+wireguard_qt_import_configuration_file() {
+  local fixture_path="${QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE:-$ROOT_DIR/Tests/Fixtures/WireGuard/imported-edge.conf}"
+  if [[ ! -f "$fixture_path" ]]; then
+    echo "WireGuard Qt import fixture is missing: $fixture_path" >&2
+    return 66
+  fi
+
+  printf '%s\n' "$fixture_path"
+}
+
 DISPLAY_ID="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_INTERACTION_DISPLAY:-:95}")"
 SCREEN_SIZE="$(quillui_backend_screen_size "$PRODUCT" "${QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE:-}" "1180x760x24" "$reference_window_width" "$reference_window_height")"
 screen_width="${SCREEN_SIZE%%x*}"
@@ -72,6 +82,14 @@ quillui_append_backend_runtime_environment \
   "$reference_window_height" \
   "$hide_window_menubar_label" \
   "$REQUESTED_BACKEND"
+if [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
+  case "$INTERACTION_MODE" in
+    import-file|file-import)
+      import_file="$(wireguard_qt_import_configuration_file)" || exit $?
+      app_environment+=("QUILLUI_WIREGUARD_QT_IMPORT_CONFIGURATION_FILE_ON_START=$import_file")
+      ;;
+  esac
+fi
 env "${app_environment[@]}" "$APP_EXECUTABLE" >/tmp/quillui-backend-interaction-app.log 2>&1 &
 app_pid=$!
 
@@ -123,11 +141,8 @@ wireguard_qt_import_configuration() {
     return 0
   fi
 
-  local fixture_path="${QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE:-$ROOT_DIR/Tests/Fixtures/WireGuard/imported-edge.conf}"
-  if [[ ! -f "$fixture_path" ]]; then
-    echo "WireGuard Qt import fixture is missing: $fixture_path" >&2
-    return 66
-  fi
+  local fixture_path
+  fixture_path="$(wireguard_qt_import_configuration_file)" || return $?
 
   cat "$fixture_path"
 }
@@ -301,6 +316,9 @@ elif [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
         type_text "$import_configuration"
         sleep 0.4
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+Return
+        sleep "$post_click_sleep"
+        ;;
+      import-file|file-import)
         sleep "$post_click_sleep"
         ;;
       *)

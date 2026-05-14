@@ -384,6 +384,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeLib.contains("quill-wireguard-qt-tunnel-selection"))
         #expect(smokeLib.contains("quill-wireguard-qt-name-edit"))
         #expect(smokeLib.contains("quill-wireguard-qt-import-paste"))
+        #expect(smokeLib.contains("quill-wireguard-qt-import-file"))
         #expect(smokeLib.contains("quillui_backend_smoke_interaction_verify_product \"$product\" \"$interaction_mode\""))
         #expect(smokeLib.contains("quillui_append_backend_launch_environment()"))
         #expect(smokeLib.contains("quillui_append_backend_runtime_environment()"))
@@ -567,7 +568,8 @@ struct LinuxBackendAppMatrixTests {
         )
         #expect(appExtraInteractions.status == 0, Comment(rawValue: appExtraInteractions.output))
         #expect(appExtraInteractions.output.split(whereSeparator: \.isNewline).map(String.init) == [
-            "interaction\tquill-wireguard-qt\tqt\tqt\tnative\t.qa/quill-wireguard-qt-import-paste-qt.png\t0\timport-paste"
+            "interaction\tquill-wireguard-qt\tqt\tqt\tnative\t.qa/quill-wireguard-qt-import-paste-qt.png\t0\timport-paste",
+            "interaction\tquill-wireguard-qt\tqt\tqt\tnative\t.qa/quill-wireguard-qt-import-file-qt.png\t0\timport-file"
         ])
 
         let malformedTemplate = try runScript(
@@ -658,7 +660,10 @@ struct LinuxBackendAppMatrixTests {
                 }
         )
 
-        let expectedInteractionExtraModeMatrix = ["quill-wireguard-qt\tqt\timport-paste"]
+        let expectedInteractionExtraModeMatrix = [
+            "quill-wireguard-qt\tqt\timport-paste",
+            "quill-wireguard-qt\tqt\timport-file"
+        ]
         let interactionExtraModeMatrix = try runScript(script, arguments: ["interaction-extra-mode-matrix"])
         #expect(interactionExtraModeMatrix.status == 0, Comment(rawValue: interactionExtraModeMatrix.output))
         #expect(interactionExtraModeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == expectedInteractionExtraModeMatrix)
@@ -666,7 +671,8 @@ struct LinuxBackendAppMatrixTests {
         let interactionExtraModeRuntimeMatrix = try runScript(script, arguments: ["interaction-extra-mode-runtime-matrix"])
         #expect(interactionExtraModeRuntimeMatrix.status == 0, Comment(rawValue: interactionExtraModeRuntimeMatrix.output))
         #expect(interactionExtraModeRuntimeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == [
-            "quill-wireguard-qt\tqt\tqt\tnative\timport-paste"
+            "quill-wireguard-qt\tqt\tqt\tnative\timport-paste",
+            "quill-wireguard-qt\tqt\tqt\tnative\timport-file"
         ])
 
         let expectedSmokeInteractionVerifyMatrix = expectedSmokeMatrix.flatMap { row in

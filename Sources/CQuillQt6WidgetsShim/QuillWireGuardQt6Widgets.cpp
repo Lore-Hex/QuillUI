@@ -30,10 +30,12 @@
 #include <QSize>
 #include <QSplitter>
 #include <QString>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace {
 
@@ -451,6 +453,40 @@ QJsonObject importResponseObject(
     return tunnelValue.toObject();
 }
 
+void setImportError(QLabel *error, const QString &message) {
+    if (error != nullptr) {
+        error->setText(message);
+    }
+}
+
+void clearImportError(QLabel *error) {
+    if (error != nullptr) {
+        error->clear();
+    }
+}
+
+bool readImportConfigurationFile(
+    const QString &fileName,
+    QString *configuration,
+    QString *errorMessage
+) {
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (errorMessage != nullptr) {
+            *errorMessage = file.errorString();
+        }
+        return false;
+    }
+
+    if (configuration != nullptr) {
+        *configuration = QString::fromUtf8(file.readAll());
+    }
+    if (errorMessage != nullptr) {
+        errorMessage->clear();
+    }
+    return true;
+}
+
 bool importConfigurationIntoList(
     const QString &configuration,
     QJsonArray *tunnels,
@@ -463,7 +499,7 @@ bool importConfigurationIntoList(
 ) {
     const QString trimmedConfiguration = configuration.trimmed();
     if (trimmedConfiguration.isEmpty()) {
-        error->setText(presentationValue(
+        setImportError(error, presentationValue(
             presentation,
             "importEmptyConfigurationError",
             "Paste a WireGuard configuration before importing."
@@ -481,13 +517,21 @@ bool importConfigurationIntoList(
         &importError
     );
     if (!importError.isEmpty()) {
-        error->setText(importError);
+        setImportError(error, importError);
         return false;
     }
 
     appendImportedTunnel(tunnels, list, countLabel, tunnel);
-    error->clear();
+    clearImportError(error);
     return true;
+}
+
+QString startupImportConfigurationFile() {
+    const char *fileName = std::getenv("QUILLUI_WIREGUARD_QT_IMPORT_CONFIGURATION_FILE_ON_START");
+    if (fileName == nullptr || fileName[0] == '\0') {
+        return QString();
+    }
+    return QString::fromUtf8(fileName);
 }
 
 void showImportDialog(
@@ -584,13 +628,13 @@ void showImportDialog(
             return;
         }
 
-        QFile file(fileName);
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            error->setText(file.errorString());
+        QString configuration;
+        QString fileError;
+        if (!readImportConfigurationFile(fileName, &configuration, &fileError)) {
+            setImportError(error, fileError);
             return;
         }
 
-        const QString configuration = QString::fromUtf8(file.readAll());
         editor->setPlainText(configuration);
         attemptImport(configuration);
     });
@@ -746,5 +790,25 @@ int quill_wireguard_qt_run_wireguard_json(
     }
 
     window.show();
+    const QString startupImportFile = startupImportConfigurationFile();
+    if (!startupImportFile.isEmpty()) {
+        QTimer::singleShot(0, &window, [&, startupImportFile]() {
+            QString configuration;
+            QString fileError;
+            if (!readImportConfigurationFile(startupImportFile, &configuration, &fileError)) {
+                return;
+            }
+            importConfigurationIntoList(
+                configuration,
+                &tunnels,
+                list,
+                sidebarCount,
+                presentation,
+                import_config,
+                free_string,
+                nullptr
+            );
+        });
+    }
     return app.exec();
 }
