@@ -23,6 +23,7 @@ even when the runtime smoke matrix requests both GTK and Qt rows.
 
 Matrices:
   fixed-app-backends  Backend-specific app products only. Default.
+  all-app-backends    Alias for backend-apps; every user-facing app product once.
   backend-apps        User-facing app products, one manifest backend each.
   app-matrix          User-facing runtime smoke matrix, collapsed by product.
   interaction-matrix  User-facing interaction matrix, collapsed by product.
@@ -82,36 +83,6 @@ if [[ $# -gt 0 ]]; then
   MATRIX_COMMAND="$1"
   MATRIX_COMMAND_SET=1
 fi
-
-quillui_manifest_product_rows() {
-  case "$1" in
-    fixed-app-backends)
-      quillui_backend_fixed_app_backend_overrides
-      ;;
-    backend-apps)
-      local product
-      local backend
-      while IFS= read -r product; do
-        [[ -n "$product" ]] || continue
-        backend="$(quillui_require_backend_for_product "$product")" || return $?
-        printf '%s\t%s\n' "$product" "$backend"
-      done < <(quillui_backend_app_products)
-      ;;
-    app-matrix)
-      quillui_backend_app_matrix
-      ;;
-    interaction-matrix)
-      quillui_backend_interaction_app_matrix
-      ;;
-    smoke-matrix)
-      quillui_backend_smoke_matrix
-      ;;
-    *)
-      echo "Unsupported backend product build matrix: $1" >&2
-      return 64
-      ;;
-  esac
-}
 
 quillui_manifest_backend_for_product_row() {
   local product="$1"
@@ -178,7 +149,7 @@ while IFS=$'\t' read -r product requested_backend extra; do
     )
     quillui_record_backend_product_build "$(quillui_absolute_scratch_path)" "$product" "$build_backend"
   fi
-done < <(quillui_manifest_product_rows "$MATRIX_COMMAND")
+done < <(quillui_backend_build_product_rows "$MATRIX_COMMAND")
 
 if [[ "$ROW_COUNT" -eq 0 ]]; then
   echo "No backend product build rows listed for $MATRIX_COMMAND" >&2

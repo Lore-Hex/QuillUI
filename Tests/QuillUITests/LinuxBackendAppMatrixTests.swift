@@ -40,6 +40,12 @@ struct LinuxBackendAppMatrixTests {
         }
     }
 
+    private static var expectedAppBuildPlan: [String] {
+        expectedAppProducts.map { product in
+            "\(product)\t\(product == "quill-wireguard-qt" ? "qt" : "gtk")"
+        }
+    }
+
     private static func expectedRuntimeBackend(product: String, backend: String) -> String {
         product == "quill-wireguard-qt" && backend == "qt" ? "qt" : "gtk"
     }
@@ -230,6 +236,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_app_backends_for_product()"))
         #expect(backendProducts.contains("quillui_backend_matrix_for_products()"))
         #expect(backendProducts.contains("quillui_backend_app_matrix()"))
+        #expect(backendProducts.contains("quillui_backend_build_product_rows()"))
         #expect(backendProducts.contains("quillui_normalize_backend_identifier()"))
         #expect(backendProducts.contains("quillui_require_backend_identifier()"))
         #expect(backendProducts.contains("quillui_require_linux_build_backend_identifier()"))
@@ -269,6 +276,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("normalize-backend)"))
         #expect(backendProducts.contains("require-backend)"))
         #expect(backendProducts.contains("require-linux-build-backend)"))
+        #expect(backendProducts.contains("build-product-matrix)"))
+        #expect(backendProducts.contains("all-app-backends)"))
         #expect(backendProducts.contains("is-generated-app)"))
         #expect(backendProducts.contains("fixed-app-backends)"))
         #expect(backendProducts.contains("native-runtime-backends)"))
@@ -308,8 +317,9 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE"))
         #expect(backendProducts.contains("quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS QUILLUI_QT_PROFILE_MAX_STARTUP_MS\n  quillui_alias_backend_common_env"))
         #expect(backendProductBuildScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
-        #expect(backendProductBuildScript.contains("fixed-app-backends)"))
-        #expect(backendProductBuildScript.contains("app-matrix)"))
+        #expect(backendProductBuildScript.contains("all-app-backends"))
+        #expect(backendProductBuildScript.contains("quillui_backend_build_product_rows \"$MATRIX_COMMAND\""))
+        #expect(!backendProductBuildScript.contains("quillui_manifest_product_rows()"))
         #expect(backendProductBuildScript.contains("quillui_require_backend_for_product \"$product\""))
         #expect(backendProductBuildScript.contains("quillui_require_linux_build_backend_identifier \"$manifest_backend\""))
         #expect(backendProductBuildScript.contains("quillui_require_linux_build_backend_identifier \"$requested_backend\""))
@@ -909,6 +919,14 @@ struct LinuxBackendAppMatrixTests {
             "quill-wireguard-qt\tqt"
         ])
 
+        let allAppBuildMatrix = try runScript(script, arguments: ["build-product-matrix", "all-app-backends"])
+        #expect(allAppBuildMatrix.status == 0, Comment(rawValue: allAppBuildMatrix.output))
+        #expect(allAppBuildMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == Self.expectedAppBuildPlan)
+
+        let backendAppsBuildMatrix = try runScript(script, arguments: ["build-product-matrix", "backend-apps"])
+        #expect(backendAppsBuildMatrix.status == 0, Comment(rawValue: backendAppsBuildMatrix.output))
+        #expect(backendAppsBuildMatrix.output == allAppBuildMatrix.output)
+
         let integrity = try runScript(script, arguments: ["validate-integrity"])
         #expect(integrity.status == 0, Comment(rawValue: integrity.output))
         #expect(integrity.output.trimmingCharacters(in: .whitespacesAndNewlines) == "backend product matrix ok")
@@ -923,9 +941,15 @@ struct LinuxBackendAppMatrixTests {
 
         let appBuildPlan = try runScript(buildScript, arguments: ["--dry-run", "app-matrix"])
         #expect(appBuildPlan.status == 0, Comment(rawValue: appBuildPlan.output))
-        #expect(appBuildPlan.output.split(whereSeparator: \.isNewline).map(String.init) == Self.expectedAppProducts.map { product in
-            "\(product)\t\(product == "quill-wireguard-qt" ? "qt" : "gtk")"
-        })
+        #expect(appBuildPlan.output.split(whereSeparator: \.isNewline).map(String.init) == Self.expectedAppBuildPlan)
+
+        let allAppBuildPlan = try runScript(buildScript, arguments: ["--dry-run", "all-app-backends"])
+        #expect(allAppBuildPlan.status == 0, Comment(rawValue: allAppBuildPlan.output))
+        #expect(allAppBuildPlan.output.split(whereSeparator: \.isNewline).map(String.init) == Self.expectedAppBuildPlan)
+
+        let backendAppsBuildPlan = try runScript(buildScript, arguments: ["--dry-run", "backend-apps"])
+        #expect(backendAppsBuildPlan.status == 0, Comment(rawValue: backendAppsBuildPlan.output))
+        #expect(backendAppsBuildPlan.output == allAppBuildPlan.output)
 
         let nativeProductRuntimeOverrides = try runScript(script, arguments: ["native-product-runtime-overrides"])
         #expect(nativeProductRuntimeOverrides.status == 0, Comment(rawValue: nativeProductRuntimeOverrides.output))

@@ -202,6 +202,15 @@ That helper prints or builds one `PRODUCT<TAB>BUILD_BACKEND` row per product
 and always selects the manifest backend with `QUILLUI_LINUX_BACKEND`, even when
 a runtime smoke matrix has both GTK and Qt requested-backend rows for a
 backend-neutral app.
+For a local all-root-app build pass, use:
+
+```bash
+scripts/build-linux-backend-products.sh --scratch-path .build-linux all-app-backends
+```
+
+`all-app-backends` expands the canonical user-facing app roster once per
+manifest backend, so backend-neutral app products compile once while
+backend-specific products such as `quill-wireguard-qt` still use their Qt graph.
 
 Package product builds also write backend build stamps under the selected
 scratch path. Visual, interaction, and profile runners that set

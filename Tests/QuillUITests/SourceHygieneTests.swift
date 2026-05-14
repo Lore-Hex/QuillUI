@@ -143,6 +143,7 @@ struct SourceHygieneTests {
         #expect(linuxBuildTooling.contains("Native Qt product hosts use explicit entries"))
         #expect(linuxBuildTooling.contains("native-product-runtime-overrides"))
         #expect(linuxBuildTooling.contains("scripts/build-linux-backend-products.sh --scratch-path .build-linux fixed-app-backends"))
+        #expect(linuxBuildTooling.contains("scripts/build-linux-backend-products.sh --scratch-path .build-linux all-app-backends"))
         #expect(linuxBuildTooling.contains("PRODUCT<TAB>BUILD_BACKEND"))
         #expect(linuxBuildTooling.contains("backend build stamps"))
         #expect(linuxBuildTooling.contains("stricter Linux build-backend normalizer"))
@@ -163,6 +164,7 @@ struct SourceHygieneTests {
         #expect(!linuxBuildTooling.contains("QUILLUI_BACKEND=\"$backend\" scripts/linux-backend-visual-check.sh"))
         #expect(!linuxBuildTooling.contains("QUILLUI_BACKEND=\"$backend\" QUILLUI_BACKEND_SKIP_BUILD=1"))
         #expect(linuxBuildTooling.contains("fixed-app-backends"))
+        #expect(linuxBuildTooling.contains("all-app-backends"))
 
         #expect(profileBaseline.contains("`PRODUCT<TAB>BACKEND` rows"))
         #expect(profileBaseline.contains("canonicalized before launch"))

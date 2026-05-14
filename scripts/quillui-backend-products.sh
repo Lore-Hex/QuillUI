@@ -149,6 +149,39 @@ quillui_backend_app_matrix() {
   quillui_backend_emit_matrix_for_product_rows "$product_rows"
 }
 
+quillui_backend_build_product_rows() {
+  # PRODUCT<TAB>BUILD_BACKEND rows for root SwiftPM product builds. Runtime
+  # smoke matrices may request multiple backend rows, but package products still
+  # compile through one manifest-time backend graph.
+  case "$1" in
+    fixed-app-backends)
+      quillui_backend_fixed_app_backend_overrides
+      ;;
+    backend-apps|all-app-backends)
+      local product
+      local backend
+      while IFS= read -r product; do
+        [[ -n "$product" ]] || continue
+        backend="$(quillui_require_backend_for_product "$product")" || return $?
+        printf '%s\t%s\n' "$product" "$backend"
+      done < <(quillui_backend_app_products)
+      ;;
+    app-matrix)
+      quillui_backend_app_matrix
+      ;;
+    interaction-matrix)
+      quillui_backend_interaction_app_matrix
+      ;;
+    smoke-matrix)
+      quillui_backend_smoke_matrix
+      ;;
+    *)
+      echo "Unsupported backend product build matrix: $1" >&2
+      return 64
+      ;;
+  esac
+}
+
 quillui_normalize_backend_identifier() {
   # Keep shell tooling aligned with QuillBackendIdentifier(environmentValue:).
   local raw_value="${1:-}"
@@ -1053,6 +1086,7 @@ Usage: quillui-backend-products.sh COMMAND [ARG]
 
 Commands:
   backend-apps                    List user-facing app products in the backend parity matrix.
+  build-product-matrix MATRIX     List PRODUCT<TAB>BUILD_BACKEND rows for package builds.
   app-backends                    List backends requested for each user-facing app.
   app-matrix                      List PRODUCT<TAB>BACKEND visual smoke rows for user-facing apps.
   app-runtime-matrix              List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for user-facing apps.
@@ -1111,6 +1145,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   case "${1:-}" in
     backend-apps)
       quillui_backend_app_products
+      ;;
+    build-product-matrix)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_backend_build_product_rows "$2"
       ;;
     app-backends)
       quillui_backend_app_backends
