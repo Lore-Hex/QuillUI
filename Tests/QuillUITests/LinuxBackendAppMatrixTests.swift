@@ -116,19 +116,78 @@ struct LinuxBackendAppMatrixTests {
             ]
     }
 
+    private static func expectedInteractionExtraModeRow(
+        product: String,
+        backend: String,
+        mode: String,
+        verifyProduct: String
+    ) -> String {
+        "interaction\t\(product)\t\(backend)\t\(backend)\tnative\t.qa/\(product)-\(mode)-\(backend).png\t0\t\(mode)\t\(verifyProduct)"
+    }
+
     private static var expectedInteractionExtraModeRows: [String] {
         [
-            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-paste-gtk.png\t0\timport-paste",
-            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-file-gtk.png\t0\timport-file",
-            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-invalid-paste-gtk.png\t0\timport-invalid-paste",
-            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-invalid-file-gtk.png\t0\timport-invalid-file",
-            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-paste-qt.png\t0\timport-paste",
-            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-file-qt.png\t0\timport-file",
-            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-invalid-paste-qt.png\t0\timport-invalid-paste",
-            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-invalid-file-qt.png\t0\timport-invalid-file",
-            "interaction\tquill-enchanted\tqt\tqt\tnative\t.qa/quill-enchanted-list-selection-qt.png\t0\tlist-selection"
+            Self.expectedInteractionExtraModeRow(
+                product: "quill-wireguard",
+                backend: "gtk",
+                mode: "import-paste",
+                verifyProduct: "quill-wireguard-import-paste"
+            ),
+            Self.expectedInteractionExtraModeRow(
+                product: "quill-wireguard",
+                backend: "gtk",
+                mode: "import-file",
+                verifyProduct: "quill-wireguard-import-file"
+            ),
+            Self.expectedInteractionExtraModeRow(
+                product: "quill-wireguard",
+                backend: "gtk",
+                mode: "import-invalid-paste",
+                verifyProduct: "quill-wireguard-import-invalid-paste"
+            ),
+            Self.expectedInteractionExtraModeRow(
+                product: "quill-wireguard",
+                backend: "gtk",
+                mode: "import-invalid-file",
+                verifyProduct: "quill-wireguard-import-invalid-file"
+            ),
+            Self.expectedInteractionExtraModeRow(
+                product: "quill-wireguard",
+                backend: "qt",
+                mode: "import-paste",
+                verifyProduct: "quill-wireguard-qt-import-paste"
+            ),
+            Self.expectedInteractionExtraModeRow(
+                product: "quill-wireguard",
+                backend: "qt",
+                mode: "import-file",
+                verifyProduct: "quill-wireguard-qt-import-file"
+            ),
+            Self.expectedInteractionExtraModeRow(
+                product: "quill-wireguard",
+                backend: "qt",
+                mode: "import-invalid-paste",
+                verifyProduct: "quill-wireguard-qt-import-invalid-paste"
+            ),
+            Self.expectedInteractionExtraModeRow(
+                product: "quill-wireguard",
+                backend: "qt",
+                mode: "import-invalid-file",
+                verifyProduct: "quill-wireguard-qt-import-invalid-file"
+            ),
+            Self.expectedInteractionExtraModeRow(
+                product: "quill-enchanted",
+                backend: "qt",
+                mode: "list-selection",
+                verifyProduct: "quill-enchanted-qt-list-selection"
+            )
         ] + expectedGenericQtAppProducts.map { product in
-            "interaction\t\(product)\tqt\tqt\tnative\t.qa/\(product)-list-selection-qt.png\t0\tlist-selection"
+            Self.expectedInteractionExtraModeRow(
+                product: product,
+                backend: "qt",
+                mode: "list-selection",
+                verifyProduct: "\(product)-qt-list-selection"
+            )
         }
     }
 
@@ -314,6 +373,8 @@ struct LinuxBackendAppMatrixTests {
 
         #expect(smokeLib.contains("verify_product=\"quill-enchanted-qt\""))
         #expect(smokeLib.contains("verify_product=\"quill-wireguard-qt\""))
+        #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
+        #expect(smokeLib.contains("verify_product=\"$product-qt-list-selection\""))
 
         for document in [readme, appTargets, tooling, uiPlan, profileBaseline] {
             #expect(document.contains("QUILLUI_LINUX_BACKEND=qt") || document.contains("runtime_backend=qt"))

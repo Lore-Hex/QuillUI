@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/quillui-backend-products.sh"
+source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
 usage() {
   cat >&2 <<'MSG'
@@ -30,7 +31,8 @@ Use --skip-repeated-products when consecutive backend rows can reuse one build.
 Generated app rows reuse per backend facade so GTK and Qt launchers both build.
 Use --dry-run to print
 KIND<TAB>PRODUCT<TAB>REQUESTED_BACKEND<TAB>RUNTIME_BACKEND<TAB>RUNTIME_MODE<TAB>OUTPUT<TAB>SKIP_BUILD
-and, for mode rows, a trailing MODE column.
+and, for mode rows, a trailing MODE column. Interaction rows also append a
+VERIFY_PRODUCT column, after MODE for mode rows.
 MSG
 }
 
@@ -199,6 +201,32 @@ quillui_smoke_output_path() {
   printf '%s\n' "$output_path"
 }
 
+quillui_print_tabbed() {
+  local separator=""
+  local value
+
+  for value in "$@"; do
+    printf '%s%s' "$separator" "$value"
+    separator=$'\t'
+  done
+  printf '\n'
+}
+
+quillui_smoke_interaction_verify_product() {
+  local product="$1"
+  local requested_backend="$2"
+  local interaction_mode="${3:-click}"
+  local verify_product
+
+  verify_product="$(
+    set -e
+    QUILLUI_BACKEND="$requested_backend"
+    quillui_backend_interaction_verify_product "$product" "$interaction_mode" resolved_verify_product
+    printf '%s\n' "$resolved_verify_product"
+  )"
+  printf '%s\n' "$verify_product"
+}
+
 quillui_run_smoke_row() {
   local product="$1"
   local requested_backend="$2"
@@ -208,6 +236,7 @@ quillui_run_smoke_row() {
   local output_path
   local skip_build=0
   local build_cache_key
+  local verify_product=""
   local smoke_environment=()
 
   output_path="$(quillui_smoke_output_path "$product" "$requested_backend" "$mode")"
@@ -225,11 +254,15 @@ quillui_run_smoke_row() {
   fi
 
   if [[ "$DRY_RUN" == "1" ]]; then
+    local dry_run_fields=("$KIND" "$product" "$requested_backend" "$runtime_backend" "$runtime_mode" "$output_path" "$skip_build")
     if [[ -n "$mode" ]]; then
-      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$KIND" "$product" "$requested_backend" "$runtime_backend" "$runtime_mode" "$output_path" "$skip_build" "$mode"
-    else
-      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$KIND" "$product" "$requested_backend" "$runtime_backend" "$runtime_mode" "$output_path" "$skip_build"
+      dry_run_fields+=("$mode")
     fi
+    if [[ "$KIND" == "interaction" ]]; then
+      verify_product="$(quillui_smoke_interaction_verify_product "$product" "$requested_backend" "$mode")"
+      dry_run_fields+=("$verify_product")
+    fi
+    quillui_print_tabbed "${dry_run_fields[@]}"
   else
     if [[ -n "$mode" ]]; then
       echo "==> Backend $KIND smoke: $product ($requested_backend requested, $runtime_backend runtime, $runtime_mode mode, $mode interaction)"
