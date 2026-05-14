@@ -53,6 +53,11 @@ public final class QuillDataConversationStore: ConversationPersistence {
         return record.summary(lastMessage: "")
     }
 
+    @discardableResult
+    public func createConversation(title: String) throws -> ConversationSummary {
+        try insertConversation(title: title)
+    }
+
     public func updateConversationTitle(id: String, title: String) throws {
         guard var record = try conversationRecord(id: id) else { return }
         record.title = title
@@ -68,6 +73,18 @@ public final class QuillDataConversationStore: ConversationPersistence {
             context.insert(conversation)
         }
         try save()
+    }
+
+    public func append(_ message: ChatMessage) throws {
+        try insertMessage(message)
+    }
+
+    public func loadConversations() throws -> [ConversationSummary] {
+        try fetchConversations()
+    }
+
+    public func loadMessages(conversationID: String) throws -> [ChatMessage] {
+        try fetchMessages(for: conversationID)
     }
 
     public func deleteMessages(in conversationID: String, from messageID: String) throws {
@@ -88,6 +105,10 @@ public final class QuillDataConversationStore: ConversationPersistence {
         }
 
         try save()
+    }
+
+    public func trimMessages(conversationID: String, from messageID: String) throws {
+        try deleteMessages(in: conversationID, from: messageID)
     }
 
     public func deleteConversation(id: String) throws {

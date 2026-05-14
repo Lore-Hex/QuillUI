@@ -1038,20 +1038,23 @@ struct CompatibilityModuleTests {
         let optionalFocus = FocusState<String?>()
         #expect(optionalFocus.wrappedValue == nil)
 
-        // wrappedValue init starts at the provided value.
-        let provided = FocusState<Int>(wrappedValue: 7)
-        #expect(provided.wrappedValue == 7)
+        // wrappedValue init starts at the provided Bool value.
+        let provided = FocusState<Bool>(wrappedValue: true)
+        #expect(provided.wrappedValue)
 
         // Mutating wrappedValue persists (FocusState boxes its storage so
         // nonmutating set works on a let-bound copy, just like SwiftUI).
-        provided.wrappedValue = 42
-        #expect(provided.wrappedValue == 42)
+        provided.wrappedValue = false
+        #expect(!provided.wrappedValue)
 
         // Binding produced via projectedValue can read AND write.
         let binding = provided.projectedValue
-        #expect(binding.wrappedValue == 42)
-        binding.wrappedValue = 99
-        #expect(provided.wrappedValue == 99)
+        #expect(!binding.wrappedValue)
+        binding.wrappedValue = true
+        #expect(provided.wrappedValue)
+
+        let optionalProvided = FocusState<String?>(wrappedValue: "message")
+        #expect(optionalProvided.wrappedValue == "message")
     }
 
     // MARK: - Namespace identity

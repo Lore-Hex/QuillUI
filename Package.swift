@@ -514,7 +514,6 @@ var targets: [Target] = [
         dependencies: [
             "QuillDataMacros",
             "CSQLite",
-            .product(name: "SQLiteData", package: "sqlite-data"),
             .product(name: "GRDB", package: "GRDB.swift")
         ]
     ),
@@ -1147,7 +1146,6 @@ if codeEditSourceUpstreamPresent {
 var allPackageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433"),
     .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
-    .package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.0.0"),
     .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
 ]
 #if os(Linux)
@@ -1298,6 +1296,14 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillDataTests",
             dependencies: ["QuillData"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Pins Enchanted's core compatibility surface: markdown /
+        // stream parsing, QuillData persistence, image attachment
+        // handling, and the Linux Qt-native target contract.
+        .testTarget(
+            name: "QuillEnchantedTests",
+            dependencies: ["QuillEnchantedCore", "QuillUI"],
             swiftSettings: appSwiftSettings
         ),
         // QuillKitTests covers QuillClipboard / diagnostics /

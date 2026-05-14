@@ -69,6 +69,8 @@ struct SourceHygieneTests {
         #expect(!manifest.contains("products = [\n        .executable(name: \"quill-enchanted-qt\""))
         #expect(manifest.contains("allPackageDependencies = []"))
         #expect(manifest.contains("let packageTestTargets: [Target] = {"))
+        #expect(manifest.contains("name: \"QuillEnchantedTests\""))
+        #expect(manifest.contains("dependencies: [\"QuillEnchantedCore\", \"QuillUI\"]"))
         #expect(manifest.contains("targets: targets + packageTestTargets"))
         #expect(!manifest.contains("dependencies: quillQtInteractionSmokeDependencies"))
         #expect(qtCarrierHeader.contains("Linker carrier for Qt6 Widgets"))
@@ -115,6 +117,8 @@ struct SourceHygieneTests {
 
         #expect(manifest.contains("name: \"QuillDataTests\""))
         #expect(manifest.contains("dependencies: [\"QuillData\"]"))
+        #expect(!manifest.contains(".product(name: \"SQLiteData\", package: \"sqlite-data\")"))
+        #expect(!manifest.contains(".package(url: \"https://github.com/pointfreeco/sqlite-data\""))
         #expect(!macros.contains("fatalError("))
     }
 

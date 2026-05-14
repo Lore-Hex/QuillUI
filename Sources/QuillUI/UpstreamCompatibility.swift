@@ -252,6 +252,22 @@ public struct SymbolEffectOptions: Sendable {
 // type lookup" errors in the generated Enchanted Linux build.
 // SwiftOpenUI's version is the canonical one going forward —
 // callers get it transparently through `@_exported import SwiftOpenUI`.
+// QuillUI only fills source-compatibility initializer gaps around that
+// canonical type.
+
+public extension FocusState where Value == Bool {
+    init(wrappedValue: Bool) {
+        self.init()
+        self.wrappedValue = wrappedValue
+    }
+}
+
+public extension FocusState {
+    init<Wrapped>(wrappedValue: Wrapped?) where Value == Wrapped? {
+        self.init()
+        self.wrappedValue = wrappedValue
+    }
+}
 
 public struct AnyTransition: Sendable {
     public init() {}
