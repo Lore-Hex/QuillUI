@@ -508,6 +508,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillWireGuardQt6Widgets.cpp"),
             encoding: .utf8
         )
+        let enchantedQtRuntime = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift"),
+            encoding: .utf8
+        )
+        let enchantedQtHost = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp"),
+            encoding: .utf8
+        )
         let qtNativeSmokeHost = try String(
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillInteractionSmokeQt6Widgets.cpp"),
             encoding: .utf8
@@ -612,6 +620,9 @@ struct SourceHygieneTests {
         #expect(wireGuardQtHost.contains("int quill_wireguard_qt_run_wireguard_json"))
         #expect(!wireGuardQtHost.contains("quill_qt_run_interaction_smoke"))
         #expect(!wireGuardQtHost.contains("interactionSmoke"))
+        #expect(enchantedQtRuntime.contains("QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"))
+        #expect(enchantedQtRuntime.contains("snapshot.selectedConversationID = snapshot.conversations[boundedIndex].id"))
+        #expect(enchantedQtHost.contains("QObject::connect(conversationList, &QListWidget::currentRowChanged"))
 
         #expect(sharedView.contains("public struct QuillInteractionSmokeConfiguration"))
         #expect(sharedView.contains("public struct QuillInteractionSmokeView"))
@@ -724,7 +735,9 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(backendScript.contains("verify-backend-screenshot.py"))
         #expect(backendScript.contains("quillui_backend_interaction_verify_product \"$PRODUCT\" \"$INTERACTION_MODE\" VERIFY_PRODUCT"))
+        #expect(backendScript.contains("QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"))
         #expect(backendScript.contains("QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"))
+        #expect(backendScript.contains("Unsupported Enchanted Qt interaction mode"))
         #expect(backendScript.contains("quillui_is_backend_generic_qt_app_product \"$PRODUCT\""))
         #expect(backendScript.contains("Unsupported generic Qt interaction mode"))
         #expect(!backendScript.contains("xdotool is required for GTK interaction smoke tests"))
@@ -807,6 +820,7 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("quill-wireguard-import-file"))
         #expect(smokeLib.contains("quill-wireguard-import-invalid-paste"))
         #expect(smokeLib.contains("quill-wireguard-import-invalid-file"))
+        #expect(smokeLib.contains("quill-enchanted-qt-list-selection"))
         #expect(smokeLib.contains("quill-generic-qt-list-selection"))
         #expect(smokeLib.contains("quillui_is_backend_generic_qt_app_product \"$product\""))
         #expect(smokeLib.contains("QUILLUI_GTK_MALFORMED_IMPORT_CONFIGURATION_FILE QUILLUI_QT_MALFORMED_IMPORT_CONFIGURATION_FILE"))
@@ -948,6 +962,7 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("Quill Enchanted Qt native"))
         #expect(screenshotVerifier.contains("validate_quill_enchanted_qt_native"))
         #expect(screenshotVerifier.contains("product == \"quill-enchanted-qt\""))
+        #expect(screenshotVerifier.contains("product == \"quill-enchanted-qt-list-selection\""))
         #expect(screenshotVerifier.contains("Quill generic Qt list selection"))
         #expect(screenshotVerifier.contains("validate_quill_generic_qt_list_selection"))
         #expect(screenshotVerifier.contains("product == \"quill-generic-qt-list-selection\""))

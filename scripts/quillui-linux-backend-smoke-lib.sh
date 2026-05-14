@@ -240,6 +240,12 @@ quillui_backend_interaction_verify_product() {
         verify_product="quill-wireguard-qt-import-invalid-file"
         ;;
     esac
+  elif [[ "$product" == "quill-enchanted" && "$selected_backend" == "qt" ]]; then
+    case "$interaction_mode" in
+      list-selection)
+        verify_product="quill-enchanted-qt-list-selection"
+        ;;
+    esac
   elif [[ "$product" == "quill-wireguard" ]]; then
     case "$interaction_mode" in
       tunnel-name-edit|name-edit)

@@ -125,7 +125,8 @@ struct LinuxBackendAppMatrixTests {
             "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-paste-qt.png\t0\timport-paste",
             "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-file-qt.png\t0\timport-file",
             "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-invalid-paste-qt.png\t0\timport-invalid-paste",
-            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-invalid-file-qt.png\t0\timport-invalid-file"
+            "interaction\tquill-wireguard\tqt\tqt\tnative\t.qa/quill-wireguard-import-invalid-file-qt.png\t0\timport-invalid-file",
+            "interaction\tquill-enchanted\tqt\tqt\tnative\t.qa/quill-enchanted-list-selection-qt.png\t0\tlist-selection"
         ] + expectedGenericQtAppProducts.map { product in
             "interaction\t\(product)\tqt\tqt\tnative\t.qa/\(product)-list-selection-qt.png\t0\tlist-selection"
         }

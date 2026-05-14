@@ -276,6 +276,11 @@ def enchanted_drop_target_pixel(rgb: tuple[int, int, int]) -> bool:
     return 218 <= red <= 238 and 233 <= green <= 248 and 225 <= blue <= 242 and green >= red
 
 
+def enchanted_selected_row_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 210 <= red <= 232 and 224 <= green <= 242 and 236 <= blue <= 255 and blue - red >= 14
+
+
 def content_bounds(image: Screenshot) -> tuple[int, int, int, int]:
     rows = [
         y
@@ -1381,7 +1386,10 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
     )
 
 
-def validate_quill_enchanted_qt_native(image: Screenshot) -> str:
+def validate_quill_enchanted_qt_native(
+    image: Screenshot,
+    minimum_selected_center_offset: int | None = None,
+) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1429,6 +1437,33 @@ def validate_quill_enchanted_qt_native(image: Screenshot) -> str:
         bottom - 80,
         enchanted_drop_target_pixel,
     )
+    selected_row_details = ""
+    if minimum_selected_center_offset is not None:
+        selected_row = best_pixel_row_segment(
+            image,
+            left + 16,
+            top + 250,
+            left + sidebar_width - 16,
+            min(bottom + 1, top + 590),
+            enchanted_selected_row_pixel,
+            min_row_pixels=42,
+        )
+        require(selected_row is not None, "Enchanted Qt selected conversation row was not detected")
+        selected_row_segment, selected_row_pixels = selected_row
+        selected_row_center_offset = selected_row_segment.center - top
+        require(
+            selected_row_center_offset >= minimum_selected_center_offset,
+            "Enchanted Qt conversation selection did not move to the lower fixture row: "
+            f"selected_center={selected_row_center_offset:.1f}px",
+        )
+        require(
+            selected_row_pixels >= 900,
+            f"Enchanted Qt selected conversation row is too small: pixels={selected_row_pixels}",
+        )
+        selected_row_details = (
+            f", selected_row_pixels={selected_row_pixels}, "
+            f"selected_row_y={selected_row_segment.start - top}-{selected_row_segment.end - top}"
+        )
     text_pixels = dark_pixel_count(image, left + 20, top + 20, right - 20, bottom - 20)
     require(sidebar_pixels >= 30000, f"Enchanted Qt sidebar was not detected: pixels={sidebar_pixels}")
     require(header_pixels >= 20000, f"Enchanted Qt header was not detected: pixels={header_pixels}")
@@ -1446,6 +1481,7 @@ def validate_quill_enchanted_qt_native(image: Screenshot) -> str:
         f"primary_pixels={primary_pixels}, "
         f"drop_pixels={drop_pixels}, "
         f"text_pixels={text_pixels}"
+        f"{selected_row_details}"
     )
 
 
@@ -1963,6 +1999,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference(image))
     elif product == "quill-enchanted-qt":
         print(validate_quill_enchanted_qt_native(image))
+    elif product == "quill-enchanted-qt-list-selection":
+        print(validate_quill_enchanted_qt_native(image, minimum_selected_center_offset=430))
     elif product == "quill-generic-qt-list-selection":
         print(validate_quill_generic_qt_list_selection(image))
     elif product == "quill-wireguard-qt":

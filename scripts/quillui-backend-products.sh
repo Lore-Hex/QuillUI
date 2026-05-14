@@ -371,7 +371,8 @@ quillui_backend_interaction_extra_mode_matrix() {
     quill-wireguard qt import-paste \
     quill-wireguard qt import-file \
     quill-wireguard qt import-invalid-paste \
-    quill-wireguard qt import-invalid-file
+    quill-wireguard qt import-invalid-file \
+    quill-enchanted qt list-selection
 
   local product
   while IFS= read -r product; do

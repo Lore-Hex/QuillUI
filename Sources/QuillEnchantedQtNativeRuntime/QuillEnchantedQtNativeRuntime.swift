@@ -156,12 +156,30 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
 }
 
 public enum QuillEnchantedQtNativeApp {
+    private static let selectedConversationIndexEnvironmentKey = "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
+
+    private static func launchSnapshot() -> QuillEnchantedQtSnapshot {
+        var snapshot = QuillEnchantedQtSnapshot.preview
+        guard
+            let rawValuePointer = getenv(selectedConversationIndexEnvironmentKey),
+            let rawValue = String(validatingUTF8: rawValuePointer),
+            let requestedIndex = Int(rawValue),
+            !snapshot.conversations.isEmpty
+        else {
+            return snapshot
+        }
+
+        let boundedIndex = min(max(requestedIndex, 0), snapshot.conversations.count - 1)
+        snapshot.selectedConversationID = snapshot.conversations[boundedIndex].id
+        return snapshot
+    }
+
     public static func run() -> Never {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
 
         do {
-            let data = try encoder.encode(QuillEnchantedQtSnapshot.preview)
+            let data = try encoder.encode(launchSnapshot())
             let payload = String(decoding: data, as: UTF8.self)
             let exitCode = payload.withCString { payloadPointer in
                 quill_enchanted_qt_run_app_json(

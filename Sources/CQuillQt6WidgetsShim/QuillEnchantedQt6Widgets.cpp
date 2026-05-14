@@ -477,6 +477,23 @@ extern "C" int quill_enchanted_qt_run_app_json(
         renderMessages(messageLayout, QJsonArray(), prompts, style);
         showingPromptCards = true;
     });
+    QObject::connect(conversationList, &QListWidget::currentRowChanged, [&](int row) {
+        QListWidgetItem *item = conversationList->item(row);
+        if (item == nullptr) {
+            return;
+        }
+
+        const QString selectedID = item->data(Qt::UserRole).toString();
+        currentTitle->setText(selectedConversationTitle(
+            conversations,
+            selectedID,
+            QStringLiteral("QuillUI backend parity")
+        ));
+        if (showingPromptCards) {
+            renderMessages(messageLayout, messages, prompts, style);
+            showingPromptCards = messages.isEmpty();
+        }
+    });
     QObject::connect(attachButton, &QPushButton::clicked, [attachmentPath]() {
         attachmentPath->setText(QStringLiteral("/tmp/reference-image.png"));
     });
