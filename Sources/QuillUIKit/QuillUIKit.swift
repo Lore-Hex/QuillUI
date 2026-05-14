@@ -47,6 +47,12 @@ public class NSLayoutConstraint: NSObject {
     public static func activate(_: [NSLayoutConstraint]) {}
 }
 
+public enum UIUserInterfaceStyle: Int {
+    case unspecified
+    case light
+    case dark
+}
+
 public class UILayoutGuide: NSObject {
     public var topAnchor = NSLayoutYAxisAnchor()
     public var bottomAnchor = NSLayoutYAxisAnchor()
@@ -70,7 +76,7 @@ public class UIWindow: UIView {}
     public var backgroundColor: UIColor?
     public func addSubview(_: UIView) {}
     public var window: UIWindow?
-    public enum UserInterfaceStyle: Int { case unspecified, light, dark }
+    public typealias UserInterfaceStyle = UIUserInterfaceStyle
     public var overrideUserInterfaceStyle: UserInterfaceStyle = .unspecified
     public var isHidden: Bool = false
     public var alpha: CGFloat = 1.0
@@ -87,7 +93,65 @@ public class UIWindow: UIView {}
     public func setNeedsLayout() {}
     public func layoutIfNeeded() {}
 
+    public struct AnimationOptions: OptionSet, Sendable {
+        public let rawValue: UInt
+
+        public init(rawValue: UInt) {
+            self.rawValue = rawValue
+        }
+
+        public static let layoutSubviews = AnimationOptions(rawValue: 1 << 0)
+        public static let allowUserInteraction = AnimationOptions(rawValue: 1 << 1)
+        public static let beginFromCurrentState = AnimationOptions(rawValue: 1 << 2)
+        public static let `repeat` = AnimationOptions(rawValue: 1 << 3)
+        public static let repeatAnimation = `repeat`
+        public static let autoreverse = AnimationOptions(rawValue: 1 << 4)
+        public static let overrideInheritedDuration = AnimationOptions(rawValue: 1 << 5)
+        public static let overrideInheritedCurve = AnimationOptions(rawValue: 1 << 6)
+        public static let allowAnimatedContent = AnimationOptions(rawValue: 1 << 7)
+        public static let showHideTransitionViews = AnimationOptions(rawValue: 1 << 8)
+        public static let overrideInheritedOptions = AnimationOptions(rawValue: 1 << 9)
+        public static let curveEaseInOut: AnimationOptions = []
+        public static let curveEaseIn = AnimationOptions(rawValue: 1 << 16)
+        public static let curveEaseOut = AnimationOptions(rawValue: 2 << 16)
+        public static let curveLinear = AnimationOptions(rawValue: 3 << 16)
+        public static let transitionFlipFromLeft = AnimationOptions(rawValue: 1 << 20)
+        public static let transitionFlipFromRight = AnimationOptions(rawValue: 2 << 20)
+        public static let transitionCurlUp = AnimationOptions(rawValue: 3 << 20)
+        public static let transitionCurlDown = AnimationOptions(rawValue: 4 << 20)
+        public static let transitionCrossDissolve = AnimationOptions(rawValue: 5 << 20)
+        public static let transitionFlipFromTop = AnimationOptions(rawValue: 6 << 20)
+        public static let transitionFlipFromBottom = AnimationOptions(rawValue: 7 << 20)
+        public static let preferredFramesPerSecondDefault: AnimationOptions = []
+        public static let preferredFramesPerSecond60 = AnimationOptions(rawValue: 3 << 24)
+        public static let preferredFramesPerSecond30 = AnimationOptions(rawValue: 7 << 24)
+    }
+
     public static func animate(withDuration: TimeInterval, animations: @escaping () -> Void) { animations() }
+    public static func animate(
+        withDuration: TimeInterval,
+        delay: TimeInterval,
+        options: AnimationOptions = [],
+        animations: @escaping () -> Void,
+        completion: ((Bool) -> Void)? = nil
+    ) {
+        animations()
+        completion?(true)
+    }
+
+    public static func animate(
+        withDuration: TimeInterval,
+        delay: TimeInterval,
+        usingSpringWithDamping: CGFloat,
+        initialSpringVelocity: CGFloat,
+        options: AnimationOptions,
+        animations: @escaping () -> Void,
+        completion: ((Bool) -> Void)? = nil
+    ) {
+        animations()
+        completion?(true)
+    }
+
     public var traitCollection = UITraitCollection()
     public func didMoveToSuperview() {}
     public var translatesAutoresizingMaskIntoConstraints: Bool = true
@@ -112,9 +176,70 @@ public class UIWindow: UIView {}
 }
 
 @MainActor public class UISplitViewController: UIViewController {
-    public enum DisplayMode: Int { case supplementary }
+    public enum DisplayMode: Int {
+        case automatic
+        case secondaryOnly
+        case oneBesideSecondary
+        case oneOverSecondary
+        case twoBesideSecondary
+        case twoOverSecondary
+        case twoDisplaceSecondary
+        case supplementary
+    }
+
+    public enum DisplayModeButtonVisibility: Int {
+        case automatic
+        case never
+        case always
+    }
+
+    public enum SplitBehavior: Int {
+        case automatic
+        case tile
+        case overlay
+        case displace
+    }
+
+    public enum Column: Int {
+        case primary
+        case supplementary
+        case secondary
+        case compact
+        #if compiler(>=6.2)
+        case inspector
+        #endif
+    }
+
+    public enum Style: Int {
+        case unspecified
+        case doubleColumn
+        case tripleColumn
+    }
+
+    public enum PrimaryEdge: Int {
+        case leading
+        case trailing
+    }
+
+    public enum BackgroundStyle: Int {
+        case none
+        case sidebar
+    }
+
+    public enum LayoutEnvironment: Int {
+        case none
+        case expanded
+        case collapsed
+    }
+
     public func show(_: DisplayMode) {}
-    public var preferredDisplayMode: Int = 0
+    public func show(_: Column) {}
+    public var preferredDisplayMode: DisplayMode = .automatic
+    public var displayModeButtonVisibility: DisplayModeButtonVisibility = .automatic
+    public var preferredSplitBehavior: SplitBehavior = .automatic
+    public var preferredPrimaryColumnWidthFraction: CGFloat = 0
+    public var primaryEdge: PrimaryEdge = .leading
+    public var style: Style = .unspecified
 }
 
 @MainActor public class UINavigationController: UIViewController {
@@ -212,7 +337,30 @@ public class SLComposeSheetConfigurationItem: NSObject {
     public var tapHandler: (() -> Void)?
 }
 
-@MainActor public class UIButton: UIView {
+@MainActor public class UIControl: UIView {
+    public struct State: OptionSet, Sendable {
+        public let rawValue: UInt
+
+        public init(rawValue: UInt) {
+            self.rawValue = rawValue
+        }
+
+        public static let normal: State = []
+        public static let highlighted = State(rawValue: 1 << 0)
+        public static let disabled = State(rawValue: 1 << 1)
+        public static let selected = State(rawValue: 1 << 2)
+        public static let focused = State(rawValue: 1 << 3)
+        public static let application = State(rawValue: 0x00FF_0000)
+        public static let reserved = State(rawValue: 0xFF00_0000)
+    }
+
+    public var isEnabled = true
+    public var isSelected = false
+    public var isHighlighted = false
+    public var state: State = .normal
+}
+
+@MainActor public class UIButton: UIControl {
     public var imageView: UIImageView?
     public var accessibilityLabel: String?
     public func setTitle(_: String?, for: Any) {}
@@ -270,16 +418,37 @@ public class UIScene: NSObject {
 }
 
 public class UITraitCollection: NSObject {
-    public var userInterfaceStyle: Int = 0
+    public var userInterfaceStyle: UIUserInterfaceStyle = .unspecified
     public var userInterfaceIdiom: Int = 0
 }
 
 @MainActor public class UIScrollView: UIView {
+    public enum ContentInsetAdjustmentBehavior: Int {
+        case automatic
+        case scrollableAxes
+        case never
+        case always
+    }
+
     public weak var delegate: UIScrollViewDelegate?
+    public var contentInsetAdjustmentBehavior: ContentInsetAdjustmentBehavior = .automatic
 }
 
 public protocol UIScrollViewDelegate: AnyObject {
     @MainActor func scrollViewDidScroll(_: UIScrollView)
+}
+
+public class UIGestureRecognizer: NSObject {
+    public enum State: Int {
+        case possible
+        case began
+        case changed
+        case ended
+        case cancelled
+        case failed
+    }
+
+    public var state: State = .possible
 }
 
 public class UIApplicationShortcutItem: NSObject {

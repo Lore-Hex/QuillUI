@@ -47,7 +47,7 @@ struct LinuxBackendAppMatrixTests {
 
     private static var expectedAppBuildPlan: [String] {
         let qtNativeProducts = Set(["quill-enchanted-qt", "quill-wireguard-qt"])
-        expectedAppProducts.map { product in
+        return expectedAppProducts.map { product in
             "\(product)\t\(qtNativeProducts.contains(product) ? "qt" : "gtk")"
         }
     }

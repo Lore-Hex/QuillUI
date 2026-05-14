@@ -112,6 +112,29 @@ struct SourceHygieneTests {
         #expect(readme.contains("ChatAppearance.touch"))
     }
 
+    @Test("Linux UIKit shim covers dependency conformance symbols")
+    func linuxUIKitShimCoversDependencyConformanceSymbols() throws {
+        let root = try packageRoot()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUIKit/QuillUIKit.swift"),
+            encoding: .utf8
+        )
+
+        #expect(source.contains("public enum UIUserInterfaceStyle: Int"))
+        #expect(source.contains("public typealias UserInterfaceStyle = UIUserInterfaceStyle"))
+        #expect(source.contains("public struct AnimationOptions: OptionSet, Sendable"))
+        #expect(source.contains("usingSpringWithDamping: CGFloat"))
+        #expect(source.contains("public struct State: OptionSet, Sendable"))
+        #expect(source.contains("public class UIGestureRecognizer: NSObject"))
+        #expect(source.contains("public enum ContentInsetAdjustmentBehavior: Int"))
+        #expect(source.contains("public enum DisplayModeButtonVisibility: Int"))
+        #expect(source.contains("public enum SplitBehavior: Int"))
+        #expect(source.contains("public enum Column: Int"))
+        #expect(source.contains("public enum LayoutEnvironment: Int"))
+        #expect(source.contains("case twoDisplaceSecondary"))
+        #expect(source.contains("case inspector"))
+    }
+
     @Test("ImageRenderer comments describe the current GTK offscreen path")
     func imageRendererCommentsDescribeCurrentOffscreenPath() throws {
         let root = try packageRoot()
