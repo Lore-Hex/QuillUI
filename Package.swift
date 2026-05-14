@@ -269,16 +269,32 @@ var quillParityTestDependencies: [Target.Dependency] = [
 quillParityTestDependencies.append("SwiftUI")
 #endif
 #if os(Linux)
-let quillWireGuardQtDependencies: [Target.Dependency] = quillUILinuxBuildBackend == .qt
-    ? ["QuillWireGuardQtNativeRuntime"]
-    : ["QuillWireGuardUI", "QuillUIQt"]
-let quillQtInteractionSmokeDependencies: [Target.Dependency] = quillUILinuxBuildBackend == .qt
-    ? ["CQuillQt6WidgetsShim"]
-    : ["QuillUIQt", "QuillInteractionSmokeSupport"]
+func quillLinuxBackendDependencies(
+    nativeQt: [Target.Dependency],
+    fallback: [Target.Dependency]
+) -> [Target.Dependency] {
+    if quillUILinuxBuildBackend == .qt {
+        return nativeQt
+    }
+    return fallback
+}
 #else
-let quillWireGuardQtDependencies: [Target.Dependency] = ["QuillWireGuardUI", "QuillUIQt"]
-let quillQtInteractionSmokeDependencies: [Target.Dependency] = ["QuillUIQt", "QuillInteractionSmokeSupport"]
+func quillLinuxBackendDependencies(
+    nativeQt: [Target.Dependency],
+    fallback: [Target.Dependency]
+) -> [Target.Dependency] {
+    fallback
+}
 #endif
+
+let quillWireGuardQtDependencies: [Target.Dependency] = quillLinuxBackendDependencies(
+    nativeQt: ["QuillWireGuardQtNativeRuntime"],
+    fallback: ["QuillWireGuardUI", "QuillUIQt"]
+)
+let quillQtInteractionSmokeDependencies: [Target.Dependency] = quillLinuxBackendDependencies(
+    nativeQt: ["CQuillQt6WidgetsShim"],
+    fallback: ["QuillUIQt", "QuillInteractionSmokeSupport"]
+)
 
 // WireGuardKit deps + Linux-specific excludes.
 #if os(Linux)

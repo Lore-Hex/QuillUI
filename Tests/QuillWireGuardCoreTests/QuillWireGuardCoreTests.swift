@@ -639,7 +639,9 @@ struct QuillWireGuardCoreTests {
         #expect(manifest.contains("QUILLUI_LINUX_BACKEND"))
         #expect(manifest.contains("case \"qt\", \"qt6\""))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt && !qt6WidgetsPresent"))
-        #expect(manifest.contains("let quillWireGuardQtDependencies: [Target.Dependency] = quillUILinuxBuildBackend == .qt"))
+        #expect(manifest.contains("func quillLinuxBackendDependencies("))
+        #expect(manifest.contains("nativeQt: [\"QuillWireGuardQtNativeRuntime\"]"))
+        #expect(manifest.contains("fallback: [\"QuillWireGuardUI\", \"QuillUIQt\"]"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt"))
         #expect(!manifest.contains("let quillWireGuardQtDependencies: [Target.Dependency] = qt6WidgetsPresent"))
     }
