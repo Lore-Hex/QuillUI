@@ -660,6 +660,9 @@ struct QuillDataSourceLoweringTests {
         let renderer = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift"
         )
+        let swiftOpenUIManifest = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Package.swift"
+        )
         let descriptorTree = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift"
         )
@@ -696,12 +699,50 @@ struct QuillDataSourceLoweringTests {
         let sharedBinding = directory.appendingPathComponent(
             "checkouts/swift-sharing/Sources/Sharing/SharedBinding.swift"
         )
-        for file in [renderer, descriptorTree, backend, viewHost, navigation, shim, toolbar, layout, symbols, scrollViewReader, state, issueReporter, sharedBinding] {
+        for file in [swiftOpenUIManifest, renderer, descriptorTree, backend, viewHost, navigation, shim, toolbar, layout, symbols, scrollViewReader, state, issueReporter, sharedBinding] {
             try FileManager.default.createDirectory(
                 at: file.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
         }
+
+        try """
+        // swift-tools-version: 5.10
+
+        import PackageDescription
+
+        var targets: [Target] = [
+            .systemLibrary(
+                name: "CGTK",
+                path: "Sources/Backend/GTK4/CGTK",
+                pkgConfig: "gtk4",
+                providers: [.apt(["libgtk-4-dev"])]
+            ),
+            .target(
+                name: "CGTKBridge",
+                dependencies: ["CGTK"],
+                path: "Sources/Backend/GTK4/CGTKBridge"
+            ),
+            .target(
+                name: "BackendGTK4",
+                dependencies: ["SwiftOpenUI", "CGTK", "CGTKBridge", "SwiftOpenUISymbols"],
+                path: "Sources/Backend/GTK4/Rendering",
+                linkerSettings: [
+                    .linkedLibrary("fontconfig"),
+                ]
+            ),
+            .testTarget(
+                name: "GTK4RenderTests",
+                dependencies: ["SwiftOpenUI", "BackendGTK4", "CGTK", "CGTKBridge"],
+                path: "Tests/BackendTests/GTK4Tests"
+            ),
+            .testTarget(
+                name: "GTKLayoutParityTests",
+                dependencies: ["SwiftOpenUI", "BackendGTK4", "CGTK", "CGTKBridge", "LayoutParityShared"],
+                path: "Tests/LayoutParityTests/GTKComparison"
+            ),
+        ]
+        """.write(to: swiftOpenUIManifest, atomically: true, encoding: .utf8)
 
         try """
         let gtkSwiftSpacerMarker = "gtk-swift-spacer"
@@ -1464,6 +1505,16 @@ struct QuillDataSourceLoweringTests {
             environment: ["QUILLUI_SWIFT_PACKAGE_PATH": root.path]
         )
         #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let patchedSwiftOpenUIManifest = try String(contentsOf: swiftOpenUIManifest, encoding: .utf8)
+        #expect(patchedSwiftOpenUIManifest.contains("import Foundation"))
+        #expect(patchedSwiftOpenUIManifest.contains("func swiftOpenUIPkgConfigArguments("))
+        #expect(patchedSwiftOpenUIManifest.contains("func swiftOpenUIPkgConfigSwiftImporterFlags("))
+        #expect(patchedSwiftOpenUIManifest.contains("let swiftOpenUIGTKSwiftImporterFlags: [String] = swiftOpenUIPkgConfigSwiftImporterFlags(\"gtk4\")"))
+        #expect(patchedSwiftOpenUIManifest.contains("let swiftOpenUIGTKLinkerFlags: [String] = swiftOpenUIPkgConfigLinkerFlags(\"gtk4\")"))
+        #expect(patchedSwiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)"))
+        #expect(patchedSwiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKLinkerFlags)"))
+        #expect(!patchedSwiftOpenUIManifest.contains("pkgConfig: \"gtk4\""))
 
         let patchedRenderer = try String(contentsOf: renderer, encoding: .utf8)
         #expect(patchedRenderer.contains("init(views: [any View], cellMinWidth: Int)"))

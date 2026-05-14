@@ -115,6 +115,15 @@ let gdkPixbufLinkerFlags: [String] = pkgConfigLinkerFlags("gdk-pixbuf-2.0")
 let gtk4SwiftImporterFlags: [String] = pkgConfigSwiftImporterFlags("gtk4")
 let gtk4LinkerFlags: [String] = pkgConfigLinkerFlags("gtk4")
 
+let quillUIGTKSwiftImporterSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk ? [
+    .unsafeFlags(gdkPixbufSwiftImporterFlags),
+    .unsafeFlags(gtk4SwiftImporterFlags)
+] : []
+let quillUIGTKLinkerSettings: [LinkerSetting] = quillUILinuxBuildBackend == .gtk ? [
+    .unsafeFlags(gdkPixbufLinkerFlags),
+    .unsafeFlags(gtk4LinkerFlags)
+] : []
+
 if quillUILinuxBuildBackend == .qt && !qt6WidgetsPresent {
     fatalError("\(quillUILinuxBuildBackendEnvironmentKey)=qt requires the Qt6Widgets pkg-config package (install qt6-base-dev).")
 }
@@ -128,6 +137,8 @@ let gdkPixbufSwiftImporterFlags: [String] = []
 let gdkPixbufLinkerFlags: [String] = []
 let gtk4SwiftImporterFlags: [String] = []
 let gtk4LinkerFlags: [String] = []
+let quillUIGTKSwiftImporterSettings: [SwiftSetting] = []
+let quillUIGTKLinkerSettings: [LinkerSetting] = []
 #endif
 let nnwUpstreamPresent: Bool = upstreamPresent(".upstream/netnewswire/Modules/RSCore")
 let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/Sources/WireGuardKit")
@@ -270,7 +281,7 @@ let standardSwiftSettings: [SwiftSetting] = [
 let appSwiftSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v5),
     .unsafeFlags(["-strict-concurrency=minimal"])
-]
+] + quillUIGTKSwiftImporterSettings
 
 #if os(Linux)
 let quillShimsDependencies: [Target.Dependency] = [
@@ -392,27 +403,26 @@ var targets: [Target] = [
     .target(
         name: "QuillUI",
         dependencies: quillUIDependencies,
-        swiftSettings: [
-            .unsafeFlags(gdkPixbufSwiftImporterFlags)
-        ],
-        linkerSettings: [
-            .unsafeFlags(gdkPixbufLinkerFlags)
-        ]
+        swiftSettings: quillUIGTKSwiftImporterSettings,
+        linkerSettings: quillUIGTKLinkerSettings
     ),
     .target(
         name: "QuillUIGtk",
         dependencies: ["QuillUI"],
-        path: "Sources/QuillUIGtk"
+        path: "Sources/QuillUIGtk",
+        swiftSettings: appSwiftSettings
     ),
     .target(
         name: "QuillUIQt",
         dependencies: ["QuillUI"],
-        path: "Sources/QuillUIQt"
+        path: "Sources/QuillUIQt",
+        swiftSettings: appSwiftSettings
     ),
     .target(
         name: "QuillInteractionSmokeSupport",
         dependencies: ["QuillUI"],
-        path: "Sources/QuillInteractionSmokeSupport"
+        path: "Sources/QuillInteractionSmokeSupport",
+        swiftSettings: appSwiftSettings
     ),
     .systemLibrary(
         name: "CGdkPixbuf",
@@ -507,7 +517,8 @@ var targets: [Target] = [
     .target(name: "SwiftData", dependencies: ["QuillData"], path: "Sources/SwiftData"),
     .target(
         name: "QuillEnchantedCore",
-        dependencies: ["QuillUI", "QuillData", "CSQLite"]
+        dependencies: ["QuillUI", "QuillData", "CSQLite"],
+        swiftSettings: appSwiftSettings
     ),
     .executableTarget(
         name: "QuillEnchanted",
@@ -992,7 +1003,8 @@ targets.append(contentsOf: [
     .executableTarget(
         name: "QuillGtkInteractionSmoke",
         dependencies: ["QuillUIGtk", "QuillInteractionSmokeSupport"],
-        path: "Sources/QuillGtkInteractionSmoke"
+        path: "Sources/QuillGtkInteractionSmoke",
+        swiftSettings: appSwiftSettings
     ),
     // Apple-framework compatibility shims that the generated
     // Enchanted package references by canonical name. Each target

@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRATCH_PATH="${1:-$ROOT_DIR/.build-linux}"
 PACKAGE_PATH="${QUILLUI_SWIFT_PACKAGE_PATH:-$ROOT_DIR}"
+SWIFTOPENUI_MANIFEST="$SCRATCH_PATH/checkouts/SwiftOpenUI/Package.swift"
 RENDERER="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift"
 DESCRIPTOR_TREE="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift"
 GTK_BACKEND="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4Backend.swift"
@@ -29,8 +30,13 @@ XCTEST_DYNAMIC_OVERLAY_SOURCE_DIR="$SCRATCH_PATH/checkouts/xctest-dynamic-overla
 GRDB_SOURCE_DIR="$SCRATCH_PATH/checkouts/GRDB.swift/GRDB"
 SQLITE_DATA_SOURCE_DIR="$SCRATCH_PATH/checkouts/sqlite-data/Sources/SQLiteData"
 
-if [[ ! -f "$RENDERER" || ! -f "$GTK_BACKEND" || ! -f "$GTK_VIEW_HOST" || ! -f "$SYMBOLS" || ! -f "$SCROLL_VIEW_READER" ]]; then
+if [[ ! -f "$SWIFTOPENUI_MANIFEST" || ! -f "$RENDERER" || ! -f "$GTK_BACKEND" || ! -f "$GTK_VIEW_HOST" || ! -f "$SYMBOLS" || ! -f "$SCROLL_VIEW_READER" ]]; then
   swift package resolve --package-path "$PACKAGE_PATH" --scratch-path "$SCRATCH_PATH" >/dev/null
+fi
+
+if [[ ! -f "$SWIFTOPENUI_MANIFEST" ]]; then
+  echo "SwiftOpenUI manifest was not found at $SWIFTOPENUI_MANIFEST" >&2
+  exit 1
 fi
 
 if [[ ! -f "$RENDERER" ]]; then
@@ -78,13 +84,155 @@ if [[ ! -f "$SCROLL_VIEW_READER" ]]; then
   exit 1
 fi
 
-chmod u+w "$RENDERER" "$DESCRIPTOR_TREE" "$GTK_BACKEND" "$GTK_VIEW_HOST" "$NAVIGATION" "$TOOLBAR_MODIFIER" "$LAYOUT" "$SYMBOLS" "$SCROLL_VIEW_READER"
+chmod u+w "$SWIFTOPENUI_MANIFEST" "$RENDERER" "$DESCRIPTOR_TREE" "$GTK_BACKEND" "$GTK_VIEW_HOST" "$NAVIGATION" "$TOOLBAR_MODIFIER" "$LAYOUT" "$SYMBOLS" "$SCROLL_VIEW_READER"
 if [[ -f "$GTK_SHIM" ]]; then
   chmod u+w "$GTK_SHIM"
 fi
 if [[ -f "$STATE" ]]; then
   chmod u+w "$STATE"
 fi
+
+python3 - "$SWIFTOPENUI_MANIFEST" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+if "import Foundation" not in text:
+    if "import PackageDescription\n" not in text:
+        raise SystemExit("SwiftOpenUI manifest PackageDescription import was not recognized")
+    text = text.replace("import PackageDescription\n", "import PackageDescription\nimport Foundation\n", 1)
+
+helpers = """#if os(Linux)
+func swiftOpenUIPkgConfigArguments(_ name: String, _ arguments: [String]) -> [String] {
+    let process = Process()
+    let output = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["pkg-config"] + arguments + [name]
+    process.standardOutput = output
+    process.standardError = Pipe()
+
+    do {
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            return []
+        }
+        return String(decoding: data, as: UTF8.self)
+            .split(whereSeparator: { $0 == " " || $0 == "\\n" || $0 == "\\t" })
+            .map(String.init)
+    } catch {
+        return []
+    }
+}
+
+func swiftOpenUIPkgConfigIncludeFlags(_ name: String) -> [String] {
+    swiftOpenUIPkgConfigArguments(name, ["--cflags-only-I"])
+}
+
+func swiftOpenUIPkgConfigSwiftImporterFlags(_ name: String) -> [String] {
+    swiftOpenUIPkgConfigIncludeFlags(name).flatMap { ["-Xcc", $0] }
+}
+
+func swiftOpenUIPkgConfigLinkerFlags(_ name: String) -> [String] {
+    swiftOpenUIPkgConfigArguments(name, ["--libs-only-L", "--libs-only-l"])
+}
+
+let swiftOpenUIGTKSwiftImporterFlags: [String] = swiftOpenUIPkgConfigSwiftImporterFlags("gtk4")
+let swiftOpenUIGTKLinkerFlags: [String] = swiftOpenUIPkgConfigLinkerFlags("gtk4")
+#else
+let swiftOpenUIGTKSwiftImporterFlags: [String] = []
+let swiftOpenUIGTKLinkerFlags: [String] = []
+#endif
+
+"""
+
+if "func swiftOpenUIPkgConfigArguments(" not in text:
+    text = text.replace("import Foundation\n", "import Foundation\n\n" + helpers, 1)
+
+text = text.replace('        pkgConfig: "gtk4",\n', "")
+
+replacements = [
+    (
+        """    .target(
+        name: "CGTKBridge",
+        dependencies: ["CGTK"],
+        path: "Sources/Backend/GTK4/CGTKBridge"
+    ),
+""",
+        """    .target(
+        name: "CGTKBridge",
+        dependencies: ["CGTK"],
+        path: "Sources/Backend/GTK4/CGTKBridge",
+        swiftSettings: [
+            .unsafeFlags(swiftOpenUIGTKSwiftImporterFlags),
+        ]
+    ),
+""",
+    ),
+    (
+        """        path: "Sources/Backend/GTK4/Rendering",
+        linkerSettings: [
+""",
+        """        path: "Sources/Backend/GTK4/Rendering",
+        swiftSettings: [
+            .unsafeFlags(swiftOpenUIGTKSwiftImporterFlags),
+        ],
+        linkerSettings: [
+            .unsafeFlags(swiftOpenUIGTKLinkerFlags),
+""",
+    ),
+    (
+        """    .testTarget(
+        name: "GTK4RenderTests",
+        dependencies: ["SwiftOpenUI", "BackendGTK4", "CGTK", "CGTKBridge"],
+        path: "Tests/BackendTests/GTK4Tests"
+    ),
+""",
+        """    .testTarget(
+        name: "GTK4RenderTests",
+        dependencies: ["SwiftOpenUI", "BackendGTK4", "CGTK", "CGTKBridge"],
+        path: "Tests/BackendTests/GTK4Tests",
+        swiftSettings: [
+            .unsafeFlags(swiftOpenUIGTKSwiftImporterFlags),
+        ]
+    ),
+""",
+    ),
+    (
+        """    .testTarget(
+        name: "GTKLayoutParityTests",
+        dependencies: ["SwiftOpenUI", "BackendGTK4", "CGTK", "CGTKBridge", "LayoutParityShared"],
+        path: "Tests/LayoutParityTests/GTKComparison"
+    ),
+""",
+        """    .testTarget(
+        name: "GTKLayoutParityTests",
+        dependencies: ["SwiftOpenUI", "BackendGTK4", "CGTK", "CGTKBridge", "LayoutParityShared"],
+        path: "Tests/LayoutParityTests/GTKComparison",
+        swiftSettings: [
+            .unsafeFlags(swiftOpenUIGTKSwiftImporterFlags),
+        ]
+    ),
+""",
+    ),
+]
+
+for old, new in replacements:
+    if old in text:
+        text = text.replace(old, new, 1)
+
+if 'pkgConfig: "gtk4"' in text:
+    raise SystemExit("SwiftOpenUI manifest still declares direct gtk4 pkgConfig")
+if text.count(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)") < 4:
+    raise SystemExit("SwiftOpenUI manifest GTK importer flag patch did not apply")
+if ".unsafeFlags(swiftOpenUIGTKLinkerFlags)" not in text:
+    raise SystemExit("SwiftOpenUI manifest GTK linker flag patch did not apply")
+
+path.write_text(text)
+PY
 
 if [[ -f "$GTK_SHIM" ]]; then
   python3 - "$GTK_SHIM" <<'PY'
