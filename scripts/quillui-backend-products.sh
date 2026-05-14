@@ -345,8 +345,10 @@ quillui_backend_interaction_extra_mode_matrix() {
   printf '%s\t%s\t%s\n' \
     quill-wireguard gtk import-paste \
     quill-wireguard gtk import-file \
+    quill-wireguard gtk import-invalid-paste \
     quill-wireguard-qt qt import-paste \
-    quill-wireguard-qt qt import-file
+    quill-wireguard-qt qt import-file \
+    quill-wireguard-qt qt import-invalid-paste
 }
 
 quillui_backend_generated_app_products() {
@@ -630,6 +632,7 @@ quillui_alias_backend_interaction_env() {
   quillui_alias_env QUILLUI_BACKEND_IMPORT_EDITOR_X QUILLUI_GTK_IMPORT_EDITOR_X QUILLUI_QT_IMPORT_EDITOR_X
   quillui_alias_env QUILLUI_BACKEND_IMPORT_EDITOR_Y QUILLUI_GTK_IMPORT_EDITOR_Y QUILLUI_QT_IMPORT_EDITOR_Y
   quillui_alias_env QUILLUI_BACKEND_IMPORT_CONFIGURATION QUILLUI_GTK_IMPORT_CONFIGURATION QUILLUI_QT_IMPORT_CONFIGURATION
+  quillui_alias_env QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION QUILLUI_GTK_MALFORMED_IMPORT_CONFIGURATION QUILLUI_QT_MALFORMED_IMPORT_CONFIGURATION
   quillui_alias_env QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE
   quillui_alias_env QUILLUI_BACKEND_TYPE_TEXT QUILLUI_GTK_TYPE_TEXT QUILLUI_QT_TYPE_TEXT
   quillui_alias_backend_common_env

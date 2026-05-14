@@ -160,6 +160,17 @@ def wireguard_qt_selected_row_pixel(rgb: tuple[int, int, int]) -> bool:
     return wireguard_selected_row_pixel(rgb)
 
 
+def wireguard_error_text_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        120 <= red <= 210
+        and 10 <= green <= 95
+        and 10 <= blue <= 95
+        and red - green >= 45
+        and red - blue >= 45
+    )
+
+
 def wireguard_gtk_sidebar_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return (
@@ -1528,6 +1539,51 @@ def validate_quill_wireguard_gtk_import(
     )
 
 
+def validate_quill_wireguard_import_error(image: Screenshot, backend: str) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    if backend == "qt":
+        require(500 <= app_width <= 720, f"WireGuard Qt import dialog width is unexpected: {app_width}px")
+        require(360 <= app_height <= 540, f"WireGuard Qt import dialog height is unexpected: {app_height}px")
+        x0 = left + 16
+        y0 = top + 60
+        x1 = right - 16
+        y1 = bottom - 48
+        minimum_error_pixels = 12
+        minimum_dark_pixels = 120
+    else:
+        require(860 <= app_width <= 1100, f"WireGuard GTK window width is unexpected: {app_width}px")
+        require(560 <= app_height <= 760, f"WireGuard GTK window height is unexpected: {app_height}px")
+        x0 = left + int(app_width * 0.30)
+        y0 = top + 100
+        x1 = right - 20
+        y1 = bottom - 40
+        minimum_error_pixels = 10
+        minimum_dark_pixels = 260
+
+    error_pixels = pixel_count(image, x0, y0, x1, y1, wireguard_error_text_pixel)
+    dark_pixels = dark_pixel_count(image, x0, y0, x1, y1)
+    require(
+        error_pixels >= minimum_error_pixels,
+        "WireGuard import error text was not detected: "
+        f"backend={backend}, error_pixels={error_pixels}, roi=({x0},{y0})-({x1},{y1})",
+    )
+    require(
+        dark_pixels >= minimum_dark_pixels,
+        "WireGuard import dialog/body text was not detected: "
+        f"backend={backend}, dark_pixels={dark_pixels}, roi=({x0},{y0})-({x1},{y1})",
+    )
+
+    return (
+        f"Quill WireGuard {backend.upper()} import error: "
+        f"app={app_width}x{app_height}, "
+        f"error_pixels={error_pixels}, "
+        f"dark_pixels={dark_pixels}, "
+        f"roi=({x0},{y0})-({x1},{y1})"
+    )
+
+
 def validate_quill_backend_interaction_smoke(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1603,8 +1659,16 @@ def main() -> int:
         product.startswith("quill-gtk-interaction-smoke")
         or product.startswith("quill-qt-interaction-smoke")
     )
-    minimum_width = 600 if smoke_product else 900
-    minimum_height = 560 if smoke_product else 600
+    compact_wireguard_dialog_product = product == "quill-wireguard-qt-import-invalid-paste"
+    if compact_wireguard_dialog_product:
+        minimum_width = 500
+        minimum_height = 360
+    elif smoke_product:
+        minimum_width = 600
+        minimum_height = 560
+    else:
+        minimum_width = 900
+        minimum_height = 600
     require(
         image.width >= minimum_width and image.height >= minimum_height,
         f"Screenshot is unexpectedly small: {image.width}x{image.height}",
@@ -1658,8 +1722,12 @@ def main() -> int:
         ))
     elif product in {"quill-wireguard-qt-import-paste", "quill-wireguard-qt-import-file"}:
         print(validate_quill_wireguard_qt_native(image, minimum_selected_center_offset=145))
+    elif product == "quill-wireguard-qt-import-invalid-paste":
+        print(validate_quill_wireguard_import_error(image, backend="qt"))
     elif product in {"quill-wireguard-import-paste", "quill-wireguard-import-file"}:
         print(validate_quill_wireguard_gtk_import(image))
+    elif product == "quill-wireguard-import-invalid-paste":
+        print(validate_quill_wireguard_import_error(image, backend="gtk"))
     elif product in {"quill-gtk-interaction-smoke-open", "quill-qt-interaction-smoke-open"}:
         print(validate_quill_backend_interaction_smoke(image))
     elif product in {"quill-gtk-interaction-smoke-sidebar", "quill-qt-interaction-smoke-sidebar"}:

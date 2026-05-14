@@ -412,8 +412,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeLib.contains("quill-wireguard-qt-name-edit"))
         #expect(smokeLib.contains("quill-wireguard-qt-import-paste"))
         #expect(smokeLib.contains("quill-wireguard-qt-import-file"))
+        #expect(smokeLib.contains("quill-wireguard-qt-import-invalid-paste"))
         #expect(smokeLib.contains("quill-wireguard-import-paste"))
         #expect(smokeLib.contains("quill-wireguard-import-file"))
+        #expect(smokeLib.contains("quill-wireguard-import-invalid-paste"))
         #expect(smokeLib.contains("quillui_backend_smoke_interaction_verify_product \"$product\" \"$interaction_mode\""))
         #expect(smokeLib.contains("quillui_append_backend_launch_environment()"))
         #expect(smokeLib.contains("quillui_append_backend_runtime_environment()"))
@@ -605,8 +607,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(appExtraInteractions.output.split(whereSeparator: \.isNewline).map(String.init) == [
             "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-paste-gtk.png\t0\timport-paste",
             "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-file-gtk.png\t0\timport-file",
+            "interaction\tquill-wireguard\tgtk\tgtk\tnative\t.qa/quill-wireguard-import-invalid-paste-gtk.png\t0\timport-invalid-paste",
             "interaction\tquill-wireguard-qt\tqt\tqt\tnative\t.qa/quill-wireguard-qt-import-paste-qt.png\t0\timport-paste",
-            "interaction\tquill-wireguard-qt\tqt\tqt\tnative\t.qa/quill-wireguard-qt-import-file-qt.png\t0\timport-file"
+            "interaction\tquill-wireguard-qt\tqt\tqt\tnative\t.qa/quill-wireguard-qt-import-file-qt.png\t0\timport-file",
+            "interaction\tquill-wireguard-qt\tqt\tqt\tnative\t.qa/quill-wireguard-qt-import-invalid-paste-qt.png\t0\timport-invalid-paste"
         ])
 
         let malformedTemplate = try runScript(
@@ -700,8 +704,10 @@ struct LinuxBackendAppMatrixTests {
         let expectedInteractionExtraModeMatrix = [
             "quill-wireguard\tgtk\timport-paste",
             "quill-wireguard\tgtk\timport-file",
+            "quill-wireguard\tgtk\timport-invalid-paste",
             "quill-wireguard-qt\tqt\timport-paste",
-            "quill-wireguard-qt\tqt\timport-file"
+            "quill-wireguard-qt\tqt\timport-file",
+            "quill-wireguard-qt\tqt\timport-invalid-paste"
         ]
         let interactionExtraModeMatrix = try runScript(script, arguments: ["interaction-extra-mode-matrix"])
         #expect(interactionExtraModeMatrix.status == 0, Comment(rawValue: interactionExtraModeMatrix.output))
@@ -712,8 +718,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(interactionExtraModeRuntimeMatrix.output.split(whereSeparator: \.isNewline).map(String.init) == [
             "quill-wireguard\tgtk\tgtk\tnative\timport-paste",
             "quill-wireguard\tgtk\tgtk\tnative\timport-file",
+            "quill-wireguard\tgtk\tgtk\tnative\timport-invalid-paste",
             "quill-wireguard-qt\tqt\tqt\tnative\timport-paste",
-            "quill-wireguard-qt\tqt\tqt\tnative\timport-file"
+            "quill-wireguard-qt\tqt\tqt\tnative\timport-file",
+            "quill-wireguard-qt\tqt\tqt\tnative\timport-invalid-paste"
         ])
 
         let expectedSmokeInteractionVerifyMatrix = expectedSmokeMatrix.flatMap { row in
@@ -1120,17 +1128,23 @@ struct LinuxBackendAppMatrixTests {
         printf 'gtk-ignores-qt-only-source=%s\\n' "$QUILLUI_QT_IMPORT_CONFIGURATION"
 
         unset QUILLUI_BACKEND_IMPORT_CONFIGURATION QUILLUI_GTK_IMPORT_CONFIGURATION QUILLUI_QT_IMPORT_CONFIGURATION
+        unset QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION QUILLUI_GTK_MALFORMED_IMPORT_CONFIGURATION QUILLUI_QT_MALFORMED_IMPORT_CONFIGURATION
         unset QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE
         QUILLUI_BACKEND=qt
         QUILLUI_GTK_IMPORT_CONFIGURATION=wrong-backend
         QUILLUI_QT_IMPORT_CONFIGURATION=qt-import
+        QUILLUI_GTK_MALFORMED_IMPORT_CONFIGURATION=wrong-backend-malformed
+        QUILLUI_QT_MALFORMED_IMPORT_CONFIGURATION=qt-malformed
         QUILLUI_GTK_IMPORT_CONFIGURATION_FILE=/tmp/wrong.conf
         QUILLUI_QT_IMPORT_CONFIGURATION_FILE=/tmp/qt.conf
         export QUILLUI_BACKEND QUILLUI_GTK_IMPORT_CONFIGURATION QUILLUI_QT_IMPORT_CONFIGURATION
+        export QUILLUI_GTK_MALFORMED_IMPORT_CONFIGURATION QUILLUI_QT_MALFORMED_IMPORT_CONFIGURATION
         export QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE
         quillui_alias_backend_interaction_env
         printf 'import-config=%s\\n' "$QUILLUI_BACKEND_IMPORT_CONFIGURATION"
         printf 'import-config-qt=%s\\n' "$QUILLUI_QT_IMPORT_CONFIGURATION"
+        printf 'malformed-config=%s\\n' "$QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION"
+        printf 'malformed-config-qt=%s\\n' "$QUILLUI_QT_MALFORMED_IMPORT_CONFIGURATION"
         printf 'import-config-file=%s\\n' "$QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE"
         printf 'import-config-file-qt=%s\\n' "$QUILLUI_QT_IMPORT_CONFIGURATION_FILE"
 
@@ -1206,6 +1220,7 @@ struct LinuxBackendAppMatrixTests {
         unset QUILLUI_BACKEND_LAYOUT_DEBUG QUILLUI_GTK_LAYOUT_DEBUG QUILLUI_QT_LAYOUT_DEBUG
         unset QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH QUILLUI_GTK_DEFAULT_WINDOW_WIDTH QUILLUI_QT_DEFAULT_WINDOW_WIDTH
         unset QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE
+        unset QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION QUILLUI_GTK_MALFORMED_IMPORT_CONFIGURATION QUILLUI_QT_MALFORMED_IMPORT_CONFIGURATION
         QUILLUI_BACKEND=qt
         QUILLUI_GTK_LAYOUT_DEBUG=wrong-backend
         QUILLUI_QT_LAYOUT_DEBUG=1
@@ -1213,10 +1228,13 @@ struct LinuxBackendAppMatrixTests {
         QUILLUI_QT_DEFAULT_WINDOW_WIDTH=222
         QUILLUI_GTK_IMPORT_CONFIGURATION_FILE=/tmp/wrong.conf
         QUILLUI_QT_IMPORT_CONFIGURATION_FILE=/tmp/qt.conf
+        QUILLUI_GTK_MALFORMED_IMPORT_CONFIGURATION=wrong-backend-malformed
+        QUILLUI_QT_MALFORMED_IMPORT_CONFIGURATION=qt-runtime-malformed
         export QUILLUI_BACKEND
         export QUILLUI_GTK_LAYOUT_DEBUG QUILLUI_QT_LAYOUT_DEBUG
         export QUILLUI_GTK_DEFAULT_WINDOW_WIDTH QUILLUI_QT_DEFAULT_WINDOW_WIDTH
         export QUILLUI_GTK_IMPORT_CONFIGURATION_FILE QUILLUI_QT_IMPORT_CONFIGURATION_FILE
+        export QUILLUI_GTK_MALFORMED_IMPORT_CONFIGURATION QUILLUI_QT_MALFORMED_IMPORT_CONFIGURATION
         quillui_alias_backend_interaction_env
         scoped_runtime_env=()
         quillui_append_backend_runtime_environment scoped_runtime_env quill-wireguard-qt :97 "\(temporaryDirectory.path)/runtime" 2048 1380 1 qt
@@ -1224,12 +1242,15 @@ struct LinuxBackendAppMatrixTests {
         printf 'runtime-layout=%s\\n' "$QUILLUI_BACKEND_LAYOUT_DEBUG"
         printf 'runtime-width=%s\\n' "$QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH"
         printf 'runtime-import-file=%s\\n' "$QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE"
+        printf 'runtime-malformed-import=%s\\n' "$QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION"
         printf 'runtime-gtk-layout=%s\\n' "${QUILLUI_GTK_LAYOUT_DEBUG-unset}"
         printf 'runtime-qt-layout=%s\\n' "${QUILLUI_QT_LAYOUT_DEBUG-unset}"
         printf 'runtime-gtk-width=%s\\n' "${QUILLUI_GTK_DEFAULT_WINDOW_WIDTH-unset}"
         printf 'runtime-qt-width=%s\\n' "${QUILLUI_QT_DEFAULT_WINDOW_WIDTH-unset}"
         printf 'runtime-gtk-import-file=%s\\n' "${QUILLUI_GTK_IMPORT_CONFIGURATION_FILE-unset}"
         printf 'runtime-qt-import-file=%s\\n' "${QUILLUI_QT_IMPORT_CONFIGURATION_FILE-unset}"
+        printf 'runtime-gtk-malformed-import=%s\\n' "${QUILLUI_GTK_MALFORMED_IMPORT_CONFIGURATION-unset}"
+        printf 'runtime-qt-malformed-import=%s\\n' "${QUILLUI_QT_MALFORMED_IMPORT_CONFIGURATION-unset}"
 
         if quillui_export_backend_argument "not-a-backend" 2>/dev/null; then
           echo "unexpected-export-success"
@@ -1273,6 +1294,8 @@ struct LinuxBackendAppMatrixTests {
         gtk-ignores-qt-only-source=wrong-backend
         import-config=qt-import
         import-config-qt=qt-import
+        malformed-config=qt-malformed
+        malformed-config-qt=qt-malformed
         import-config-file=/tmp/qt.conf
         import-config-file-qt=/tmp/qt.conf
         cpu-qt=11
@@ -1292,12 +1315,15 @@ struct LinuxBackendAppMatrixTests {
         runtime-layout=1
         runtime-width=222
         runtime-import-file=/tmp/qt.conf
+        runtime-malformed-import=qt-runtime-malformed
         runtime-gtk-layout=unset
         runtime-qt-layout=unset
         runtime-gtk-width=unset
         runtime-qt-width=unset
         runtime-gtk-import-file=unset
         runtime-qt-import-file=unset
+        runtime-gtk-malformed-import=unset
+        runtime-qt-malformed-import=unset
         strict-export=failed
         strict-launch=failed
         strict-env=failed

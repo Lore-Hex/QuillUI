@@ -329,12 +329,20 @@ The fixture path defaults to `Tests/Fixtures/WireGuard/imported-edge.conf`; set
 `QUILLUI_BACKEND_IMPORT_CONFIGURATION_FILE` only when the import smoke needs a
 different `.conf` file. Use `QUILLUI_BACKEND_INTERACTION_MODE=import-file` to
 exercise the native Qt file-read path with the same fixture without automating a
-desktop file-picker dialog.
+desktop file-picker dialog. Use
+`QUILLUI_BACKEND_INTERACTION_MODE=import-invalid-paste` to paste a malformed
+configuration through the same shared parser and capture the native error state;
+override its default `[Peer]` payload with
+`QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION` when a test needs a different
+parser failure. Qt invalid-paste screenshots capture the active modal dialog so
+the verifier checks the native error label rather than the hidden parent window.
 
 The GTK WireGuard host uses the same semantic modes on the same runner:
 `import-paste` types the fixture into the Swift fallback import panel, while
 `import-file` seeds the shared `QuillFileImporter` selection hook with the same
-fixture path.
+fixture path. `import-invalid-paste` stays backend-parity scoped: it drives the
+same malformed payload through the fallback Swift panel and verifies the shared
+error color token.
 
 CI registers semantic native app interactions through
 `interaction-extra-mode-matrix`, which expands through the same runtime matrix

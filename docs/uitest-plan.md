@@ -99,8 +99,11 @@ while Qt drives the native dialog paste path and the C++ file-read helper used
 by the dialog's `Choose File` action through a deterministic startup hook. Qt
 import modes verify the imported row becomes selected through the same native
 screenshot predicate; GTK import modes assert the selected-row highlight moves
-to the imported tunnel through the GTK fallback screenshot predicate. CI runs
-those extra semantic paths through
+to the imported tunnel through the GTK fallback screenshot predicate.
+`import-invalid-paste` runs on both GTK and Qt with a shared malformed payload;
+Qt captures the active native dialog and GTK captures the fallback panel so the
+verifier can assert the same error color token in both paths. CI runs those
+extra semantic paths through
 `scripts/quillui-backend-products.sh interaction-extra-mode-matrix`, so new
 per-app native interactions can join the same runner without hand-written
 workflow steps.

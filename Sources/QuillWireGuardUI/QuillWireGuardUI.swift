@@ -200,7 +200,7 @@ public struct WireGuardFallbackConfigurationView: View {
                 if let importErrorText, !importErrorText.isEmpty {
                     Text(importErrorText)
                         .font(.caption)
-                        .foregroundColor(.red)
+                        .foregroundColor(Color(hex: QuillWireGuardStyle.errorTextColor))
                 }
 
                 HStack(spacing: 8) {

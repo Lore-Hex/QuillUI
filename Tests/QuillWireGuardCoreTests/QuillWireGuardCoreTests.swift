@@ -235,11 +235,12 @@ struct QuillWireGuardCoreTests {
         #expect(source.contains("tunnelRow(tunnel, isSelected: tunnel.id == selectedTunnelID)"))
         #expect(source.contains("QuillWireGuardStyle.selectedRowBackgroundColor"))
         #expect(source.contains("importErrorText"))
+        #expect(source.contains("Color(hex: QuillWireGuardStyle.errorTextColor)"))
         #expect(!source.contains("WireGuardKit not available"))
         #expect(!source.contains("Click + in the sidebar to generate a fresh\\nCurve25519 keypair via upstream WireGuardKit."))
     }
 
-    @Test("Linux WireGuard import smokes seed GTK paste and backend file selection separately")
+    @Test("Linux WireGuard import smokes seed valid and invalid GTK and Qt imports separately")
     func linuxWireGuardImportSmokesSeedGtkPasteAndBackendFileSelectionSeparately() throws {
         let root = try packageRoot()
         let interactionScript = try String(
@@ -256,17 +257,27 @@ struct QuillWireGuardCoreTests {
         )
 
         #expect(interactionScript.contains("wireguard_import_configuration_file()"))
+        #expect(interactionScript.contains("wireguard_malformed_import_configuration()"))
+        #expect(interactionScript.contains("wireguard_import_configuration_for_mode"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION"))
         #expect(interactionScript.contains("QUILLUI_FILE_IMPORTER_SELECTION=$import_file"))
         #expect(interactionScript.contains("QUILLUI_WIREGUARD_QT_IMPORT_CONFIGURATION_FILE_ON_START=$import_file"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_IMPORT_SUBMIT_CLICK_X"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_IMPORT_FILE_CLICK_X"))
+        #expect(interactionScript.contains("import-invalid-paste"))
+        #expect(interactionScript.contains("refresh_capture_window_for_active_child_window"))
         #expect(matrixScript.contains("quill-wireguard gtk import-paste"))
         #expect(matrixScript.contains("quill-wireguard gtk import-file"))
+        #expect(matrixScript.contains("quill-wireguard gtk import-invalid-paste"))
         #expect(matrixScript.contains("quill-wireguard-qt qt import-paste"))
         #expect(matrixScript.contains("quill-wireguard-qt qt import-file"))
+        #expect(matrixScript.contains("quill-wireguard-qt qt import-invalid-paste"))
         #expect(verifier.contains("validate_quill_wireguard_gtk_import"))
+        #expect(verifier.contains("validate_quill_wireguard_import_error"))
         #expect(verifier.contains("quill-wireguard-import-paste"))
         #expect(verifier.contains("quill-wireguard-import-file"))
+        #expect(verifier.contains("quill-wireguard-import-invalid-paste"))
+        #expect(verifier.contains("quill-wireguard-qt-import-invalid-paste"))
         #expect(verifier.contains("minimum_selected_center_offset"))
     }
 

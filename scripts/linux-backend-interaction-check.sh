@@ -152,6 +152,34 @@ wireguard_import_configuration() {
   cat "$fixture_path"
 }
 
+wireguard_malformed_import_configuration() {
+  if [[ -n "${QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION:-}" ]]; then
+    printf '%s' "$QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION"
+    return 0
+  fi
+
+  printf '[Peer]\nPublicKey = peer\n'
+}
+
+quillui_is_wireguard_malformed_import_interaction() {
+  case "$1" in
+    import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+wireguard_import_configuration_for_mode() {
+  if quillui_is_wireguard_malformed_import_interaction "$1"; then
+    wireguard_malformed_import_configuration
+  else
+    wireguard_import_configuration
+  fi
+}
+
 quillui_is_backend_smoke_sheet_interaction() {
   case "$1" in
     nested-sheet|sidebar-sheet|banner-sheet)
@@ -163,7 +191,7 @@ quillui_is_backend_smoke_sheet_interaction() {
   esac
 }
 
-refresh_capture_window_for_sheet_interaction() {
+refresh_capture_window_for_active_child_window() {
   local attempt
   local candidate_window
 
@@ -185,6 +213,10 @@ refresh_capture_window_for_sheet_interaction() {
 
     sleep 0.1
   done
+}
+
+refresh_capture_window_for_sheet_interaction() {
+  refresh_capture_window_for_active_child_window
 }
 
 post_click_sleep="${QUILLUI_BACKEND_POST_CLICK_SLEEP:-1}"
@@ -289,7 +321,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
     esac
 elif [[ "$PRODUCT" == "quill-wireguard" ]]; then
     case "$INTERACTION_MODE" in
-      import-paste|paste-import)
+      import-paste|paste-import|import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
         import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 256))}"
         import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
         editor_x="${QUILLUI_BACKEND_IMPORT_EDITOR_X:-$((window_x + 520))}"
@@ -300,7 +332,7 @@ elif [[ "$PRODUCT" == "quill-wireguard" ]]; then
         sleep 0.8
         click_at "$editor_x" "$editor_y"
         sleep 0.2
-        import_configuration="$(wireguard_import_configuration)" || exit $?
+        import_configuration="$(wireguard_import_configuration_for_mode "$INTERACTION_MODE")" || exit $?
         type_text "$import_configuration"
         sleep 0.4
         click_at "$submit_x" "$submit_y"
@@ -342,7 +374,7 @@ elif [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-Edited Tunnel}"
         sleep "$post_click_sleep"
         ;;
-      import-paste|paste-import)
+      import-paste|paste-import|import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
         import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 292))}"
         import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
         editor_x="${QUILLUI_BACKEND_IMPORT_EDITOR_X:-$((window_x + window_width / 2))}"
@@ -351,11 +383,14 @@ elif [[ "$PRODUCT" == "quill-wireguard-qt" ]]; then
         sleep 0.8
         click_at "$editor_x" "$editor_y"
         sleep 0.2
-        import_configuration="$(wireguard_import_configuration)" || exit $?
+        import_configuration="$(wireguard_import_configuration_for_mode "$INTERACTION_MODE")" || exit $?
         type_text "$import_configuration"
         sleep 0.4
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+Return
         sleep "$post_click_sleep"
+        if quillui_is_wireguard_malformed_import_interaction "$INTERACTION_MODE"; then
+          refresh_capture_window_for_active_child_window
+        fi
         ;;
       import-file|file-import)
         sleep "$post_click_sleep"
