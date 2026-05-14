@@ -62,6 +62,24 @@ int intValue(const QJsonObject &object, const char *key, int fallback) {
     return value.isDouble() ? value.toInt(fallback) : fallback;
 }
 
+QFont monospacedFont(int pointSize = 10) {
+    QFont font(QStringLiteral("monospace"));
+    font.setStyleHint(QFont::Monospace);
+    font.setPointSize(pointSize);
+    return font;
+}
+
+QPlainTextEdit *configurationTextEditor(
+    const QString &text = QString(),
+    bool readOnly = false
+) {
+    QPlainTextEdit *editor = new QPlainTextEdit(text);
+    editor->setFont(monospacedFont());
+    editor->setMinimumHeight(180);
+    editor->setReadOnly(readOnly);
+    return editor;
+}
+
 QSize resolvedMinimumWindowSize(const QJsonObject &payload) {
     return QSize(
         intValue(payload, "minimumWidth", 900),
@@ -116,10 +134,7 @@ void addDetailRow(
     QLabel *titleLabel = label(title, QStringLiteral("detailKey"));
     QLabel *valueLabel = label(value.isEmpty() ? noneText : value);
     if (monospaced) {
-        QFont font(QStringLiteral("monospace"));
-        font.setStyleHint(QFont::Monospace);
-        font.setPointSize(10);
-        valueLabel->setFont(font);
+        valueLabel->setFont(monospacedFont());
     }
     layout->addRow(titleLabel, valueLabel);
 }
@@ -288,13 +303,7 @@ void addExportSection(
 ) {
     QGroupBox *section = sectionBox(presentationValue(presentation, "exportSectionTitle", "Export"));
     QVBoxLayout *layout = new QVBoxLayout(section);
-    QPlainTextEdit *config = new QPlainTextEdit(stringValue(tunnel, "wgQuickConfig"));
-    config->setReadOnly(true);
-    config->setMinimumHeight(180);
-    QFont font(QStringLiteral("monospace"));
-    font.setStyleHint(QFont::Monospace);
-    font.setPointSize(10);
-    config->setFont(font);
+    QPlainTextEdit *config = configurationTextEditor(stringValue(tunnel, "wgQuickConfig"), true);
     layout->addWidget(config);
     detailLayout->addWidget(section);
 }
@@ -487,7 +496,7 @@ bool readImportConfigurationFile(
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         if (errorMessage != nullptr) {
-            *errorMessage = file.errorString();
+            *errorMessage = QStringLiteral("%1: %2").arg(fileName, file.errorString());
         }
         return false;
     }
@@ -582,17 +591,13 @@ void showImportDialog(
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
     layout->setSpacing(10);
 
-    QPlainTextEdit *editor = new QPlainTextEdit();
+    QPlainTextEdit *editor = configurationTextEditor();
     editor->setObjectName(QStringLiteral("importConfigText"));
     editor->setPlaceholderText(presentationValue(
         presentation,
         "importPlaceholder",
         "[Interface]\nPrivateKey = ...\n\n[Peer]\nPublicKey = ..."
     ));
-    QFont font(QStringLiteral("monospace"));
-    font.setStyleHint(QFont::Monospace);
-    font.setPointSize(10);
-    editor->setFont(font);
     layout->addWidget(editor, 1);
 
     QLabel *error = label(QString(), QStringLiteral("importError"));
@@ -667,6 +672,9 @@ void showImportDialog(
         attemptImport(configuration);
     });
 
+    QTimer::singleShot(0, editor, [editor]() {
+        editor->setFocus(Qt::OtherFocusReason);
+    });
     dialog.exec();
 }
 
