@@ -61,6 +61,9 @@ jobs:
       - name: Shell syntax
         run: scripts/check-shell-syntax.sh
 
+      - name: Validate backend product matrix
+        run: scripts/quillui-backend-products.sh validate-integrity
+
       - name: Profile budget audit
         run: scripts/audit-profile-budget.sh --max-shell-lines 50
 

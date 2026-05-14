@@ -723,6 +723,167 @@ quillui_backend_validate_runtime_availability_for_product() {
   quillui_backend_validate_runtime_availability_row "$runtime_availability" "$3" "$4"
 }
 
+quillui_backend_seen_keys_contains() {
+  local seen_keys="$1"
+  local key="$2"
+
+  case "$seen_keys" in
+    *$'\n'"$key"$'\n'*)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+quillui_backend_validate_unique_key() {
+  local seen_keys="$1"
+  local key="$2"
+  local table_name="$3"
+
+  if quillui_backend_seen_keys_contains "$seen_keys" "$key"; then
+    echo "$table_name contains duplicate row: $key" >&2
+    return 65
+  fi
+}
+
+quillui_backend_validate_app_product_reference() {
+  local product="$1"
+  local table_name="$2"
+
+  if [[ -z "$product" ]]; then
+    echo "$table_name contains an empty product." >&2
+    return 65
+  fi
+
+  if ! quillui_backend_product_list_contains "$product" quillui_backend_app_products; then
+    echo "$table_name references unknown app product: $product" >&2
+    return 65
+  fi
+}
+
+quillui_backend_validate_app_backend_ids() {
+  local backend
+  local normalized_backend
+  local seen_keys=$'\n'
+
+  while IFS= read -r backend; do
+    [[ -n "$backend" ]] || continue
+    normalized_backend="$(quillui_require_linux_build_backend_identifier "$backend")" || return $?
+    if [[ "$backend" != "$normalized_backend" ]]; then
+      echo "app-backends must emit canonical backend identifiers; got $backend, expected $normalized_backend." >&2
+      return 65
+    fi
+    quillui_backend_validate_unique_key "$seen_keys" "$backend" "app-backends" || return $?
+    seen_keys="${seen_keys}${backend}"$'\n'
+  done < <(quillui_backend_app_backends)
+}
+
+quillui_backend_validate_fixed_app_backend_overrides() {
+  local product
+  local backend
+  local extra
+  local normalized_backend
+  local seen_keys=$'\n'
+
+  while IFS=$'\t' read -r product backend extra; do
+    [[ -n "$product" || -n "$backend" || -n "${extra:-}" ]] || continue
+    if [[ -n "${extra:-}" ]]; then
+      echo "fixed-app-backends row has too many columns: $product	$backend	$extra" >&2
+      return 65
+    fi
+    if [[ -z "$backend" ]]; then
+      echo "fixed-app-backends contains an empty backend for product: $product" >&2
+      return 65
+    fi
+    quillui_backend_validate_app_product_reference "$product" "fixed-app-backends" || return $?
+    normalized_backend="$(quillui_require_linux_build_backend_identifier "$backend")" || return $?
+    if [[ "$backend" != "$normalized_backend" ]]; then
+      echo "fixed-app-backends must use canonical backend identifiers; $product has $backend, expected $normalized_backend." >&2
+      return 65
+    fi
+    quillui_backend_validate_unique_key "$seen_keys" "$product" "fixed-app-backends" || return $?
+    seen_keys="${seen_keys}${product}"$'\n'
+  done < <(quillui_backend_fixed_app_backend_overrides)
+}
+
+quillui_backend_validate_native_product_runtime_overrides() {
+  local product
+  local requested_backend
+  local runtime_backend
+  local extra
+  local normalized_requested_backend
+  local normalized_runtime_backend
+  local seen_keys=$'\n'
+
+  while IFS=$'\t' read -r product requested_backend runtime_backend extra; do
+    [[ -n "$product" || -n "$requested_backend" || -n "$runtime_backend" || -n "${extra:-}" ]] || continue
+    if [[ -n "${extra:-}" ]]; then
+      echo "native-product-runtime-overrides row has too many columns: $product	$requested_backend	$runtime_backend	$extra" >&2
+      return 65
+    fi
+    if [[ -z "$requested_backend" || -z "$runtime_backend" ]]; then
+      echo "native-product-runtime-overrides contains an empty backend: $product	$requested_backend	$runtime_backend" >&2
+      return 65
+    fi
+    quillui_backend_validate_app_product_reference "$product" "native-product-runtime-overrides" || return $?
+    normalized_requested_backend="$(quillui_require_linux_build_backend_identifier "$requested_backend")" || return $?
+    normalized_runtime_backend="$(quillui_require_linux_build_backend_identifier "$runtime_backend")" || return $?
+    if [[ "$requested_backend" != "$normalized_requested_backend" || "$runtime_backend" != "$normalized_runtime_backend" ]]; then
+      echo "native-product-runtime-overrides must use canonical backend identifiers: $product	$requested_backend	$runtime_backend" >&2
+      return 65
+    fi
+    quillui_validate_requested_backend_for_product "$product" "$requested_backend" >/dev/null || return $?
+    quillui_backend_validate_unique_key "$seen_keys" "$product/$requested_backend" "native-product-runtime-overrides" || return $?
+    seen_keys="${seen_keys}${product}/${requested_backend}"$'\n'
+  done < <(quillui_backend_native_product_runtime_overrides)
+}
+
+quillui_backend_validate_interaction_extra_mode_matrix() {
+  local product
+  local backend
+  local mode
+  local extra
+  local normalized_backend
+  local seen_keys=$'\n'
+
+  while IFS=$'\t' read -r product backend mode extra; do
+    [[ -n "$product" || -n "$backend" || -n "$mode" || -n "${extra:-}" ]] || continue
+    if [[ -n "${extra:-}" ]]; then
+      echo "interaction-extra-mode-matrix row has too many columns: $product	$backend	$mode	$extra" >&2
+      return 65
+    fi
+    if [[ -z "$backend" || -z "$mode" ]]; then
+      echo "interaction-extra-mode-matrix contains an empty backend or mode: $product	$backend	$mode" >&2
+      return 65
+    fi
+    quillui_backend_validate_app_product_reference "$product" "interaction-extra-mode-matrix" || return $?
+    normalized_backend="$(quillui_require_linux_build_backend_identifier "$backend")" || return $?
+    if [[ "$backend" != "$normalized_backend" ]]; then
+      echo "interaction-extra-mode-matrix must use canonical backend identifiers; $product/$mode has $backend, expected $normalized_backend." >&2
+      return 65
+    fi
+    quillui_validate_requested_backend_for_product "$product" "$backend" >/dev/null || return $?
+    quillui_backend_validate_unique_key "$seen_keys" "$product/$backend/$mode" "interaction-extra-mode-matrix" || return $?
+    seen_keys="${seen_keys}${product}/${backend}/${mode}"$'\n'
+  done < <(quillui_backend_interaction_extra_mode_matrix)
+}
+
+quillui_backend_validate_integrity() {
+  quillui_backend_validate_app_backend_ids || return $?
+  quillui_backend_validate_fixed_app_backend_overrides || return $?
+  quillui_backend_validate_native_product_runtime_overrides || return $?
+  quillui_backend_validate_interaction_extra_mode_matrix || return $?
+  quillui_backend_app_runtime_matrix >/dev/null || return $?
+  quillui_backend_interaction_app_runtime_matrix >/dev/null || return $?
+  quillui_backend_interaction_extra_mode_runtime_matrix >/dev/null || return $?
+  quillui_backend_generated_app_runtime_matrix >/dev/null || return $?
+  quillui_backend_smoke_runtime_matrix >/dev/null || return $?
+  quillui_backend_smoke_interaction_runtime_matrix >/dev/null || return $?
+  quillui_backend_profile_runtime_matrix >/dev/null || return $?
+  echo "backend product matrix ok"
+}
+
 quillui_backend_runtime_matrix_for_rows() {
   local row
   local product
@@ -850,6 +1011,7 @@ Commands:
   runtime-availability BACKEND    Print BACKEND<TAB>RUNTIME<TAB>MODE for a requested backend.
   validate-runtime-availability BACKEND RUNTIME MODE
                                   Validate and print canonical BACKEND<TAB>RUNTIME<TAB>MODE.
+  validate-integrity             Validate product/backend override and smoke matrix tables.
   runtime-backend-for-product PRODUCT
                                   Print the native runtime backend used for PRODUCT.
   runtime-availabilities          List BACKEND<TAB>RUNTIME<TAB>MODE rows for requested app backends.
@@ -1036,6 +1198,9 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         exit 64
       fi
       quillui_backend_validate_runtime_availability "$2" "$3" "$4"
+      ;;
+    validate-integrity)
+      quillui_backend_validate_integrity
       ;;
     runtime-backend-for-product)
       if [[ $# -ne 2 ]]; then

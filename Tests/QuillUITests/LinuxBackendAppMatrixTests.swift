@@ -80,6 +80,8 @@ struct LinuxBackendAppMatrixTests {
             encoding: .utf8
         )
         #expect(workflow.contains("Build native backend app products"))
+        #expect(workflow.contains("Validate backend product matrix"))
+        #expect(workflow.contains("scripts/quillui-backend-products.sh validate-integrity"))
         #expect(workflow.contains("scripts/build-linux-backend-products.sh --scratch-path .build-linux fixed-app-backends"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
@@ -273,6 +275,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("runtime-mode)"))
         #expect(backendProducts.contains("runtime-availability)"))
         #expect(backendProducts.contains("validate-runtime-availability)"))
+        #expect(backendProducts.contains("validate-integrity)"))
         #expect(backendProducts.contains("runtime-backend-for-product)"))
         #expect(backendProducts.contains("runtime-availabilities)"))
         #expect(backendProducts.contains("quillui_backend_native_runtime_backends()"))
@@ -290,6 +293,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(backendProducts.contains("quillui_backend_validate_runtime_availability_row()"))
         #expect(backendProducts.contains("quillui_backend_validate_runtime_availability()"))
         #expect(backendProducts.contains("quillui_backend_validate_runtime_availability_for_product()"))
+        #expect(backendProducts.contains("quillui_backend_validate_integrity()"))
         #expect(backendProducts.contains("quillui_backend_runtime_matrix_for_rows()"))
         #expect(backendProducts.contains("quillui_backend_app_runtime_matrix()"))
         #expect(backendProducts.contains("quillui_backend_interaction_app_runtime_matrix()"))
@@ -895,6 +899,10 @@ struct LinuxBackendAppMatrixTests {
             "quill-wireguard\tgtk",
             "quill-wireguard-qt\tqt"
         ])
+
+        let integrity = try runScript(script, arguments: ["validate-integrity"])
+        #expect(integrity.status == 0, Comment(rawValue: integrity.output))
+        #expect(integrity.output.trimmingCharacters(in: .whitespacesAndNewlines) == "backend product matrix ok")
 
         let buildScript = root.appendingPathComponent("scripts/build-linux-backend-products.sh")
         let fixedAppBuildPlan = try runScript(buildScript, arguments: ["--dry-run", "fixed-app-backends"])

@@ -140,6 +140,11 @@ profile tooling. The runner's `--dry-run` output includes
 `requested_backend`, `runtime_backend`, and `runtime_mode` columns before the
 output path and skip flag, matching profile CSV semantics and making Qt's
 native product rows distinct from generic Qt fallback rows in matrix audits.
+CI also runs `scripts/quillui-backend-products.sh validate-integrity` before
+the expensive build and smoke stages; that audit rejects unknown products,
+non-canonical GTK/Qt backend identifiers, duplicate fixed-backend rows, and
+extra interaction rows that would cross a fixed app onto the wrong native host
+path.
 
 Generated products use the same GTK/Qt requested-backend matrix as the root app
 shells. The matrix runner still accepts `--skip-repeated-products`, but
