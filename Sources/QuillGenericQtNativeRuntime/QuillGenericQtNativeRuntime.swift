@@ -526,7 +526,7 @@ public enum QuillGenericQtAppCatalog {
 public enum QuillGenericQtNativeApp {
     private static let selectedIndexEnvironmentKey = "QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"
 
-    public static func run(_ snapshot: QuillGenericQtAppSnapshot) -> Never {
+    public static func run(_ snapshot: QuillGenericQtAppSnapshot, executableName: String) -> Never {
         var launchSnapshot = snapshot
         if let selectedIndex = QuillQtNativeRuntimeSupport.boundedIndexOverride(
             environmentKey: selectedIndexEnvironmentKey,
@@ -537,7 +537,7 @@ public enum QuillGenericQtNativeApp {
 
         QuillQtNativeRuntimeSupport.runEncodedPayload(
             launchSnapshot,
-            executableName: "quill-generic-qt"
+            executableName: executableName
         ) { payloadPointer in
             quill_generic_qt_run_app_json(
                 CommandLine.argc,

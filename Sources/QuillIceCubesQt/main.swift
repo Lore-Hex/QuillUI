@@ -1,5 +1,5 @@
 #if QUILLUI_GENERIC_QT_NATIVE_BACKEND
 import QuillGenericQtNativeRuntime
 
-QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.iceCubes)
+QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.iceCubes, executableName: "quill-icecubes")
 #endif
