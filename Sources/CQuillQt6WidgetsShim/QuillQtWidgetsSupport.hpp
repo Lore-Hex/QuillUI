@@ -1,8 +1,11 @@
 #pragma once
 
+#include <QByteArray>
 #include <QFrame>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonParseError>
 #include <QJsonValue>
 #include <QLabel>
 #include <QLayout>
@@ -13,6 +16,7 @@
 #include <QStyle>
 #include <QWidget>
 
+#include <cstdio>
 #include <cstdlib>
 
 namespace QuillQtWidgets {
@@ -73,6 +77,52 @@ inline QJsonObject jsonObjectValue(const QJsonObject &object, const char *key) {
 
 inline QJsonArray jsonArrayValue(const QJsonObject &object, const char *key) {
     return object.value(QString::fromUtf8(key)).toArray();
+}
+
+inline bool parseJsonObjectPayload(
+    const char *payloadJson,
+    const char *executableName,
+    int missingPayloadExitCode,
+    int invalidPayloadExitCode,
+    QJsonObject *payload,
+    int *exitCode
+) {
+    const char *name = executableName == nullptr ? "quill-qt" : executableName;
+    if (payloadJson == nullptr) {
+        std::fprintf(stderr, "%s: missing payload JSON\n", name);
+        if (exitCode != nullptr) {
+            *exitCode = missingPayloadExitCode;
+        }
+        return false;
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(QByteArray(payloadJson), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        QByteArray reason = parseError.errorString().toUtf8();
+        if (parseError.error == QJsonParseError::NoError && !document.isObject()) {
+            reason = QByteArray("expected object payload");
+        }
+        std::fprintf(
+            stderr,
+            "%s: invalid payload JSON at offset %lld: %s\n",
+            name,
+            static_cast<long long>(parseError.offset),
+            reason.constData()
+        );
+        if (exitCode != nullptr) {
+            *exitCode = invalidPayloadExitCode;
+        }
+        return false;
+    }
+
+    if (payload != nullptr) {
+        *payload = document.object();
+    }
+    if (exitCode != nullptr) {
+        *exitCode = 0;
+    }
+    return true;
 }
 
 inline void clearLayout(QLayout *layout) {

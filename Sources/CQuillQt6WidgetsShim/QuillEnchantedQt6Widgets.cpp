@@ -2,12 +2,10 @@
 #include "QuillQtWidgetsSupport.hpp"
 
 #include <QApplication>
-#include <QByteArray>
 #include <QComboBox>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QJsonArray>
-#include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QLabel>
@@ -25,7 +23,6 @@
 #include <QWidget>
 
 #include <algorithm>
-#include <cstdio>
 
 namespace {
 
@@ -266,28 +263,20 @@ extern "C" int quill_enchanted_qt_run_app_json(
     char **argv,
     const char *payload_json
 ) {
-    if (payload_json == nullptr) {
-        std::fprintf(stderr, "quill-enchanted-qt: missing payload JSON\n");
-        return 65;
-    }
-
-    QJsonParseError parseError;
-    const QJsonDocument document = QJsonDocument::fromJson(
-        QByteArray(payload_json),
-        &parseError
-    );
-    if (document.isNull() || !document.isObject()) {
-        std::fprintf(
-            stderr,
-            "quill-enchanted-qt: invalid payload JSON at offset %lld: %s\n",
-            static_cast<long long>(parseError.offset),
-            parseError.errorString().toUtf8().constData()
-        );
-        return 65;
+    QJsonObject payload;
+    int payloadExitCode = 65;
+    if (!QuillQtWidgets::parseJsonObjectPayload(
+        payload_json,
+        "quill-enchanted-qt",
+        65,
+        65,
+        &payload,
+        &payloadExitCode
+    )) {
+        return payloadExitCode;
     }
 
     QApplication app(argc, argv);
-    const QJsonObject payload = document.object();
     const QJsonObject style = objectValue(payload, "style");
     app.setApplicationName(stringValue(payload, "windowTitle", QStringLiteral("Quill Enchanted")));
     app.setStyleSheet(appStyleSheet(style));

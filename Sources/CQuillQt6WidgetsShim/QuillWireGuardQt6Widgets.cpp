@@ -769,17 +769,19 @@ int quill_wireguard_qt_run_wireguard_json(
     quill_wireguard_qt_import_config_callback import_config,
     quill_wireguard_qt_free_string_callback free_string
 ) {
-    if (payload_json == nullptr) {
-        return 64;
+    QJsonObject payload;
+    int payloadExitCode = 64;
+    if (!QuillQtWidgets::parseJsonObjectPayload(
+        payload_json,
+        "quill-wireguard-qt",
+        64,
+        65,
+        &payload,
+        &payloadExitCode
+    )) {
+        return payloadExitCode;
     }
 
-    QJsonParseError error;
-    const QJsonDocument document = QJsonDocument::fromJson(QByteArray(payload_json), &error);
-    if (error.error != QJsonParseError::NoError || !document.isObject()) {
-        return 65;
-    }
-
-    const QJsonObject payload = document.object();
     const QJsonObject presentation = objectValue(payload, "presentation");
     const QJsonObject style = objectValue(payload, "style");
     QJsonArray tunnels = arrayValue(payload, "tunnels");

@@ -552,6 +552,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillInteractionSmokeQt6Widgets.cpp"),
             encoding: .utf8
         )
+        let qtNativeWidgetSupport = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillQtWidgetsSupport.hpp"),
+            encoding: .utf8
+        )
         let backendCore = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillBackend.swift"),
             encoding: .utf8
@@ -655,17 +659,31 @@ struct SourceHygieneTests {
         #expect(qtRuntimeSupport.contains("public static func runEncodedPayload<Payload: Encodable>"))
         #expect(qtRuntimeSupport.contains("encoder.outputFormatting = [.sortedKeys]"))
         #expect(qtRuntimeSupport.contains("fputs(\"\\(executableName): failed to encode Qt payload: \\(error)\\n\", stderr)"))
+        #expect(qtNativeWidgetSupport.contains("inline bool parseJsonObjectPayload("))
+        #expect(qtNativeWidgetSupport.contains("%s: missing payload JSON\\n"))
+        #expect(qtNativeWidgetSupport.contains("%s: invalid payload JSON at offset %lld: %s\\n"))
         #expect(enchantedQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
         #expect(enchantedQtRuntime.contains("QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"))
         #expect(enchantedQtRuntime.contains("snapshot.selectedConversationID = snapshot.conversations[boundedIndex].id"))
         #expect(enchantedQtRuntime.contains("QuillQtNativeRuntimeSupport.runEncodedPayload("))
+        #expect(enchantedQtHost.contains("parseJsonObjectPayload("))
+        #expect(enchantedQtHost.contains("\"quill-enchanted-qt\""))
         #expect(genericQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
         #expect(genericQtRuntime.contains("QuillQtNativeRuntimeSupport.runEncodedPayload("))
+        #expect(genericQtHost.contains("parseJsonObjectPayload("))
+        #expect(genericQtHost.contains("\"quill-generic-qt\""))
         #expect(wireGuardQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
         #expect(wireGuardQtRuntime.contains("QuillQtNativeRuntimeSupport.runEncodedPayload("))
+        #expect(wireGuardQtHost.contains("parseJsonObjectPayload("))
+        #expect(wireGuardQtHost.contains("\"quill-wireguard-qt\""))
         #expect(!enchantedQtRuntime.contains("JSONEncoder()"))
         #expect(!genericQtRuntime.contains("JSONEncoder()"))
         #expect(!wireGuardQtRuntime.contains("JSONEncoder()"))
+        #expect(!enchantedQtHost.contains("missing payload JSON"))
+        #expect(!enchantedQtHost.contains("invalid payload JSON at offset"))
+        #expect(!genericQtHost.contains("missing payload JSON"))
+        #expect(!genericQtHost.contains("invalid payload JSON at offset"))
+        #expect(!wireGuardQtHost.contains("QJsonDocument document = QJsonDocument::fromJson(QByteArray(payload_json)"))
         #expect(enchantedQtHost.contains("QObject::connect(conversationList, &QListWidget::currentRowChanged"))
         #expect(genericQtHost.contains("QObject::connect(itemList, &QListWidget::currentRowChanged"))
         #expect(genericQtHost.contains("selectedDetailTitle(payload, items, row)"))

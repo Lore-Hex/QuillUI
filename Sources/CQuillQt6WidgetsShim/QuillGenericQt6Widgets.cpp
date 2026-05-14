@@ -2,13 +2,10 @@
 #include "QuillQtWidgetsSupport.hpp"
 
 #include <QApplication>
-#include <QByteArray>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QJsonArray>
-#include <QJsonDocument>
 #include <QJsonObject>
-#include <QJsonParseError>
 #include <QJsonValue>
 #include <QLabel>
 #include <QLayout>
@@ -24,7 +21,6 @@
 #include <QWidget>
 
 #include <algorithm>
-#include <cstdio>
 
 namespace {
 
@@ -279,25 +275,19 @@ QWidget *scrollWrapped(QWidget *child) {
 } // namespace
 
 extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *payload_json) {
-    if (payload_json == nullptr) {
-        std::fprintf(stderr, "quill-generic-qt: missing payload JSON\n");
-        return 64;
+    QJsonObject payload;
+    int payloadExitCode = 64;
+    if (!QuillQtWidgets::parseJsonObjectPayload(
+        payload_json,
+        "quill-generic-qt",
+        64,
+        64,
+        &payload,
+        &payloadExitCode
+    )) {
+        return payloadExitCode;
     }
 
-    const QByteArray payloadBytes(payload_json);
-    QJsonParseError parseError;
-    const QJsonDocument document = QJsonDocument::fromJson(payloadBytes, &parseError);
-    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        std::fprintf(
-            stderr,
-            "quill-generic-qt: invalid payload JSON at offset %lld: %s\n",
-            static_cast<long long>(parseError.offset),
-            parseError.errorString().toUtf8().constData()
-        );
-        return 64;
-    }
-
-    const QJsonObject payload = document.object();
     QApplication app(argc, argv);
 
     QWidget root;
