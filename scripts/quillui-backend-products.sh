@@ -979,10 +979,35 @@ quillui_backend_validate_native_product_runtime_overrides() {
       echo "native-product-runtime-overrides must use canonical backend identifiers: $product	$requested_backend	$runtime_backend" >&2
       return 65
     fi
+    if [[ "$requested_backend" != "$runtime_backend" ]]; then
+      echo "native-product-runtime-overrides rows must map to a matching native runtime backend: $product	$requested_backend	$runtime_backend" >&2
+      return 65
+    fi
+    quillui_backend_validate_native_app_runtime_override "$product" "$requested_backend" || return $?
     quillui_validate_requested_backend_for_product "$product" "$requested_backend" >/dev/null || return $?
     quillui_backend_validate_unique_key "$seen_keys" "$product/$requested_backend" "native-product-runtime-overrides" || return $?
     seen_keys="${seen_keys}${product}/${requested_backend}"$'\n'
   done < <(quillui_backend_native_product_runtime_overrides)
+}
+
+quillui_backend_validate_native_app_runtime_override() {
+  local product="$1"
+  local requested_backend="$2"
+  local fixed_backend
+
+  if ! quillui_backend_product_list_contains "$product" quillui_backend_app_products; then
+    return 0
+  fi
+
+  if ! fixed_backend="$(quillui_backend_fixed_backend_for_app_product "$product")"; then
+    echo "native-product-runtime-overrides references app product $product without a fixed-app-backends row; native app products must compile through one manifest backend." >&2
+    return 65
+  fi
+
+  if [[ "$fixed_backend" != "$requested_backend" ]]; then
+    echo "native-product-runtime-overrides app product $product requests $requested_backend but fixed-app-backends uses $fixed_backend." >&2
+    return 65
+  fi
 }
 
 quillui_backend_validate_interaction_extra_mode_matrix() {

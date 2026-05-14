@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@Suite("Linux backend app matrix")
+@Suite("Linux backend app matrix", .serialized)
 struct LinuxBackendAppMatrixTests {
     private static let expectedAppProducts = [
         "quill-enchanted",
@@ -1078,6 +1078,72 @@ struct LinuxBackendAppMatrixTests {
         let unsupportedRequiredBackend = try runScript(script, arguments: ["require-backend", "unknown"])
         #expect(unsupportedRequiredBackend.status != 0)
         #expect(unsupportedRequiredBackend.output.contains("Unsupported QuillUI backend: unknown"))
+    }
+
+    @Test("native app runtime overrides stay fixed to one manifest backend")
+    func nativeAppRuntimeOverridesStayManifestFixed() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-native-runtime-overrides-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        func runProbe(named name: String, body: String) throws -> (status: Int32, output: String) {
+            let probe = temporaryDirectory.appendingPathComponent(name)
+            try """
+            #!/usr/bin/env bash
+            set -euo pipefail
+            source "\(root.path)/scripts/quillui-backend-products.sh"
+
+            \(body)
+            quillui_backend_validate_integrity
+            """.write(to: probe, atomically: true, encoding: .utf8)
+            try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: probe.path)
+            return try runScript(probe)
+        }
+
+        let missingFixedAppBackend = try runProbe(
+            named: "missing-fixed-app-backend.sh",
+            body: """
+            quillui_backend_fixed_app_backend_overrides() {
+              printf '%s\\t%s\\n' quill-wireguard gtk
+            }
+
+            quillui_backend_native_product_runtime_overrides() {
+              printf '%s\\t%s\\t%s\\n' quill-wireguard-qt qt qt
+            }
+            """
+        )
+        #expect(missingFixedAppBackend.status != 0)
+        #expect(missingFixedAppBackend.output.contains("native-product-runtime-overrides references app product quill-wireguard-qt without a fixed-app-backends row; native app products must compile through one manifest backend."))
+
+        let mismatchedFixedAppBackend = try runProbe(
+            named: "mismatched-fixed-app-backend.sh",
+            body: """
+            quillui_backend_fixed_app_backend_overrides() {
+              printf '%s\\t%s\\n' quill-wireguard gtk
+              printf '%s\\t%s\\n' quill-wireguard-qt gtk
+            }
+
+            quillui_backend_native_product_runtime_overrides() {
+              printf '%s\\t%s\\t%s\\n' quill-wireguard-qt qt qt
+            }
+            """
+        )
+        #expect(mismatchedFixedAppBackend.status != 0)
+        #expect(mismatchedFixedAppBackend.output.contains("native-product-runtime-overrides app product quill-wireguard-qt requests qt but fixed-app-backends uses gtk."))
+
+        let nonNativeRuntimeOverride = try runProbe(
+            named: "non-native-runtime-override.sh",
+            body: """
+            quillui_backend_native_product_runtime_overrides() {
+              printf '%s\\t%s\\t%s\\n' quill-qt-interaction-smoke qt gtk
+            }
+            """
+        )
+        #expect(nonNativeRuntimeOverride.status != 0)
+        #expect(nonNativeRuntimeOverride.output.contains("native-product-runtime-overrides rows must map to a matching native runtime backend: quill-qt-interaction-smoke\tqt\tgtk"))
     }
 
     @Test("backend alias helper accepts scoped GTK and Qt controls")
