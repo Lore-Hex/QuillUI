@@ -238,18 +238,19 @@ header, four prompt cards at `730-1057`, `1088-1415`, `1445-1772`, and
 `1803-2129`, a `1524px` unreachable alert, and a `1510px` composer. This
 strict pass is allowed to fail while renderer parity is still being closed; it
 exists so the remaining gap is measured against the real app, not a prototype.
-The strict path sets backend-neutral reference window values and exports both
-`QUILLUI_GTK_*` and `QUILLUI_QT_*` compatibility aliases. The SwiftOpenUI GTK
-checkout patch honors the GTK values for automatic window sizing. New GTK/Qt
-parity scripts should use `scripts/run-linux-backend-smoke-matrix.sh` for
-matrix jobs, call `scripts/linux-backend-visual-check.sh` for a single product
-row, and use the `QUILLUI_BACKEND_*` names for visual checks. Matrix jobs pass
-the requested backend as the runner's explicit positional backend argument so
-the selected backend travels with each row. The runner canonicalizes backend aliases
-such as `gtk4`, `qt6`, and `swift-ui` before mapping
-backend-neutral values to the older `QUILLUI_GTK_*` environment contract and to
-scoped `QUILLUI_QT_*` controls for compatibility, and
-`scripts/linux-gtk-visual-check.sh` remains as a thin compatibility shim.
+The strict path sets backend-neutral reference window values and keeps the
+older `QUILLUI_GTK_*` environment contract plus scoped `QUILLUI_QT_*` controls
+as input aliases. New GTK/Qt parity scripts should use
+`scripts/run-linux-backend-smoke-matrix.sh` for matrix jobs, call
+`scripts/linux-backend-visual-check.sh` for a single product row, and use the
+`QUILLUI_BACKEND_*` names for visual checks. Matrix jobs pass the requested
+backend as the runner's explicit positional backend argument so the selected
+backend travels with each row. The runner canonicalizes backend aliases such as
+`gtk4`, `qt6`, and `swift-ui` before resolving scoped inputs into
+backend-neutral values; app launch environments then pass only
+`QUILLUI_BACKEND_*` values so a selected Qt run does not also receive
+GTK-scoped controls, and `scripts/linux-gtk-visual-check.sh` remains as a thin
+compatibility shim.
 When `QUILLUI_BACKEND` is set, scoped aliases are treated as path-specific
 inputs: a Qt run can use `QUILLUI_BACKEND_*` or `QUILLUI_QT_*` values, but it
 will not source a `QUILLUI_GTK_*` fallback, and the GTK path follows the same
@@ -271,15 +272,16 @@ changed and the view tree repainted. New GTK/Qt checks should use
 Like the visual runner, the interaction runner accepts backend-neutral
 `QUILLUI_BACKEND_*` controls, including `QUILLUI_BACKEND_MAC_REFERENCE`,
 `QUILLUI_BACKEND_SCREEN_SIZE`, and `QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE`,
-then maps them to the legacy `QUILLUI_GTK_*` names and scoped `QUILLUI_QT_*`
-names for compatibility.
+while the common alias layer still accepts matching `QUILLUI_GTK_*` or
+`QUILLUI_QT_*` inputs before backend selection.
 Display controls such as `QUILLUI_BACKEND_VISUAL_DISPLAY`,
 `QUILLUI_BACKEND_INTERACTION_DISPLAY`, and `QUILLUI_BACKEND_PROFILE_DISPLAY`
 accept either an X display id (`:95`) or a numeric display (`95`); the runners
 normalize both forms before starting Xvfb.
 `QUILLUI_BACKEND_LAYOUT_DEBUG` is also backend-neutral: visual, interaction,
-and profile launches forward it to both the legacy GTK and scoped Qt aliases so
-layout diagnostics behave the same across every runner.
+and profile launches pass it once as `QUILLUI_BACKEND_LAYOUT_DEBUG` so
+layout diagnostics behave the same across every runner without mixing scoped
+GTK and Qt launch controls.
 The visual, interaction, and profile runners also share the same Xvfb screen
 selection helper, so Mac-reference Quill Chat runs use the same seeded state and
 reference window dimensions across screenshot and performance checks.

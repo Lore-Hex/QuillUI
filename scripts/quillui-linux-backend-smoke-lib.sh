@@ -310,8 +310,6 @@ quillui_append_backend_layout_debug_environment() {
   fi
 
   quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_LAYOUT_DEBUG=$layout_debug" || return $?
-  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_LAYOUT_DEBUG=$layout_debug" || return $?
-  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_LAYOUT_DEBUG=$layout_debug" || return $?
 }
 
 quillui_append_quill_chat_fixture_data_environment() {
@@ -336,12 +334,6 @@ quillui_append_quill_chat_reference_environment() {
   quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH=$reference_window_width" || return $?
   quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT=$reference_window_height" || return $?
   quillui_append_environment_assignment "$output_array" "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label" || return $?
-  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=$reference_window_width" || return $?
-  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT=$reference_window_height" || return $?
-  quillui_append_environment_assignment "$output_array" "QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label" || return $?
-  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_DEFAULT_WINDOW_WIDTH=$reference_window_width" || return $?
-  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_DEFAULT_WINDOW_HEIGHT=$reference_window_height" || return $?
-  quillui_append_environment_assignment "$output_array" "QUILLUI_QT_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label" || return $?
 }
 
 quillui_append_quill_chat_reference_environment_if_needed() {
