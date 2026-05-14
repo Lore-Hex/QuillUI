@@ -10,34 +10,17 @@ public func quill_wireguard_qt_import_config_json(
     _ existingTunnelCount: CInt,
     _ suggestedNamePointer: UnsafePointer<CChar>?
 ) -> UnsafeMutablePointer<CChar>? {
-    let response: QuillWireGuardImportResponse
-
-    if let configurationPointer {
-        let configuration = String(cString: configurationPointer)
-        let count = max(Int(existingTunnelCount), 0)
-        let tunnelID = QuillWireGuardImportService.tunnelID(existingTunnelCount: count)
-        let suggestedName = suggestedNamePointer.map { String(cString: $0) } ?? ""
-        let tunnelName = suggestedName.isEmpty
-            ? QuillWireGuardImportService.tunnelName(existingTunnelCount: count)
-            : suggestedName
-        response = QuillWireGuardImportService.importConfiguration(
-            configuration,
-            id: tunnelID,
-            name: tunnelName
-        )
-    } else {
-        response = .failure(QuillWireGuardPresentation.importMissingConfigurationError)
-    }
-
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys]
+    let response = QuillWireGuardNativeImportBridge.importResponse(
+        configuration: configurationPointer.map { String(cString: $0) },
+        existingTunnelCount: Int(existingTunnelCount),
+        suggestedName: suggestedNamePointer.map { String(cString: $0) }
+    )
 
     do {
-        let data = try encoder.encode(response)
-        let payload = String(decoding: data, as: UTF8.self)
+        let payload = try QuillWireGuardNativeImportBridge.encodeResponsePayload(response)
         return payload.withCString { strdup($0) }
     } catch {
-        let payload = #"{"errorText":"Failed to encode imported WireGuard tunnel."}"#
+        let payload = QuillWireGuardNativeImportBridge.encodingFailurePayload
         return payload.withCString { strdup($0) }
     }
 }

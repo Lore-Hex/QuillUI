@@ -157,6 +157,58 @@ struct QuillWireGuardCoreTests {
         #expect(failed.errorText == QuillWireGuardConfigParseError.missingInterface.description)
     }
 
+    @Test("Native import bridge centralizes host import response semantics")
+    func nativeImportBridgeCentralizesHostImportResponseSemantics() throws {
+        let configuration = QuillWireGuardFixtures.tunnels[0].wgQuickConfig()
+
+        let defaultNamed = QuillWireGuardNativeImportBridge.importResponse(
+            configuration: configuration,
+            existingTunnelCount: 2
+        )
+        #expect(defaultNamed.errorText == nil)
+        #expect(defaultNamed.tunnel?.id == "imported-tunnel-3")
+        #expect(defaultNamed.tunnel?.name == "Imported Tunnel 3")
+
+        let suggestedNamed = QuillWireGuardNativeImportBridge.importResponse(
+            configuration: configuration,
+            existingTunnelCount: 2,
+            suggestedName: "Road Warrior"
+        )
+        #expect(suggestedNamed.tunnel?.id == "imported-tunnel-3")
+        #expect(suggestedNamed.tunnel?.name == "Road Warrior")
+
+        let emptySuggestedName = QuillWireGuardNativeImportBridge.importResponse(
+            configuration: configuration,
+            existingTunnelCount: 0,
+            suggestedName: ""
+        )
+        #expect(emptySuggestedName.tunnel?.id == "imported-tunnel-1")
+        #expect(emptySuggestedName.tunnel?.name == "Imported Tunnel 1")
+
+        let negativeCount = QuillWireGuardNativeImportBridge.importResponse(
+            configuration: configuration,
+            existingTunnelCount: -4
+        )
+        #expect(negativeCount.tunnel?.id == "imported-tunnel-1")
+        #expect(negativeCount.tunnel?.name == "Imported Tunnel 1")
+
+        let missingConfiguration = QuillWireGuardNativeImportBridge.importResponse(
+            configuration: nil,
+            existingTunnelCount: 2
+        )
+        #expect(missingConfiguration.tunnel == nil)
+        #expect(missingConfiguration.errorText == QuillWireGuardPresentation.importMissingConfigurationError)
+
+        let payload = try QuillWireGuardNativeImportBridge.encodeResponsePayload(defaultNamed)
+        let decoded = try JSONDecoder().decode(QuillWireGuardImportResponse.self, from: Data(payload.utf8))
+        #expect(decoded == defaultNamed)
+
+        let fallbackPayload = QuillWireGuardNativeImportBridge.encodingFailurePayload
+        let fallback = try JSONDecoder().decode(QuillWireGuardImportResponse.self, from: Data(fallbackPayload.utf8))
+        #expect(fallback.tunnel == nil)
+        #expect(fallback.errorText == "Failed to encode imported WireGuard tunnel.")
+    }
+
     @Test("Backend availability is explicit per platform")
     func backendAvailabilityIsExplicitPerPlatform() {
         #if os(Linux)
@@ -232,9 +284,12 @@ struct QuillWireGuardCoreTests {
         #expect(nativeRuntimeSource.contains("QuillWireGuardAppSnapshot.configurationManager"))
         #expect(nativeRuntimeSource.contains("quill_wireguard_qt_run_wireguard_json"))
         #expect(nativeRuntimeSource.contains("@_cdecl(\"quill_wireguard_qt_import_config_json\")"))
-        #expect(nativeRuntimeSource.contains("QuillWireGuardImportService.importConfiguration"))
+        #expect(nativeRuntimeSource.contains("QuillWireGuardNativeImportBridge.importResponse"))
+        #expect(nativeRuntimeSource.contains("QuillWireGuardNativeImportBridge.encodeResponsePayload"))
+        #expect(nativeRuntimeSource.contains("QuillWireGuardNativeImportBridge.encodingFailurePayload"))
+        #expect(!nativeRuntimeSource.contains("QuillWireGuardImportService.importConfiguration"))
         #expect(nativeRuntimeSource.contains("quill_wireguard_qt_free_string"))
-        #expect(nativeRuntimeSource.contains("QuillWireGuardPresentation.importMissingConfigurationError"))
+        #expect(!nativeRuntimeSource.contains("QuillWireGuardPresentation.importMissingConfigurationError"))
         #expect(nativeShimHeaderSource.contains("quill_wireguard_qt_import_config_callback"))
         #expect(nativeShimHeaderSource.contains("quill_wireguard_qt_free_string_callback"))
         #expect(nativeShimSource.contains("QApplication"))
@@ -413,12 +468,21 @@ struct QuillWireGuardCoreTests {
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillWireGuardQt6Widgets.cpp"),
             encoding: .utf8
         )
+        let coreSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillWireGuardCore/QuillWireGuardCore.swift"),
+            encoding: .utf8
+        )
 
         for key in presentationKeys {
-            #expect(
-                nativeShimSource.contains("\"\(key)\"")
-                    || nativeRuntimeSource.contains("QuillWireGuardPresentation.\(key)")
-            )
+            if key == "importMissingConfigurationError" {
+                #expect(nativeRuntimeSource.contains("QuillWireGuardNativeImportBridge.importResponse"))
+                #expect(coreSource.contains("QuillWireGuardPresentation.importMissingConfigurationError"))
+            } else {
+                #expect(
+                    nativeShimSource.contains("\"\(key)\"")
+                        || nativeRuntimeSource.contains("QuillWireGuardPresentation.\(key)")
+                )
+            }
         }
     }
 

@@ -343,6 +343,37 @@ public enum QuillWireGuardImportService {
     }
 }
 
+public enum QuillWireGuardNativeImportBridge {
+    public static let encodingFailurePayload = #"{"errorText":"Failed to encode imported WireGuard tunnel."}"#
+
+    public static func importResponse(
+        configuration: String?,
+        existingTunnelCount: Int,
+        suggestedName: String? = nil
+    ) -> QuillWireGuardImportResponse {
+        guard let configuration else {
+            return .failure(QuillWireGuardPresentation.importMissingConfigurationError)
+        }
+
+        let count = max(existingTunnelCount, 0)
+        let name = suggestedName.flatMap { $0.isEmpty ? nil : $0 }
+            ?? QuillWireGuardImportService.tunnelName(existingTunnelCount: count)
+
+        return QuillWireGuardImportService.importConfiguration(
+            configuration,
+            id: QuillWireGuardImportService.tunnelID(existingTunnelCount: count),
+            name: name
+        )
+    }
+
+    public static func encodeResponsePayload(_ response: QuillWireGuardImportResponse) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(response)
+        return String(decoding: data, as: UTF8.self)
+    }
+}
+
 public struct QuillWireGuardPresentationSnapshot: Codable, Equatable, Sendable {
     public var sidebarTitle: String
     public var backendTitle: String
