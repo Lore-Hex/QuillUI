@@ -18,6 +18,35 @@ struct SourceHygieneTests {
         ))
     }
 
+    @Test("Qt manifest avoids pkg-config prohibited flag warnings")
+    func qtManifestAvoidsPkgConfigProhibitedFlagWarnings() throws {
+        let root = try packageRoot()
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+        let qtCarrierHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQt6Widgets/shim.h"),
+            encoding: .utf8
+        )
+
+        #expect(manifest.contains("func pkgConfigArguments("))
+        #expect(manifest.contains("let qt6WidgetsIncludeFlags: [String] = pkgConfigArguments(\"Qt6Widgets\", [\"--cflags-only-I\"])"))
+        #expect(manifest.contains("let qt6WidgetsLinkerFlags: [String] = pkgConfigArguments(\"Qt6Widgets\", [\"--libs-only-L\", \"--libs-only-l\"])"))
+        #expect(manifest.contains("let qt6WidgetsCxxFlags: [String] = qt6WidgetsIncludeFlags + [\"-std=c++17\", \"-fPIC\", \"-Wno-deprecated-literal-operator\"]"))
+        #expect(manifest.contains("name: \"CQt6Widgets\""))
+        #expect(!manifest.contains("pkgConfig: \"Qt6Widgets\""))
+        #expect(manifest.contains(".unsafeFlags(qt6WidgetsCxxFlags)"))
+        #expect(manifest.contains(".unsafeFlags(qt6WidgetsLinkerFlags)"))
+        #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
+        #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk {\n    products.append(.executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"]))\n}"))
+        #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
+        #expect(manifest.contains("products = [\n        .executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]),\n        .executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
+        #expect(manifest.contains("allPackageDependencies = []"))
+        #expect(manifest.contains("let packageTestTargets: [Target] = {"))
+        #expect(manifest.contains("targets: targets + packageTestTargets"))
+        #expect(!manifest.contains("dependencies: quillQtInteractionSmokeDependencies"))
+        #expect(qtCarrierHeader.contains("Linker carrier for Qt6 Widgets"))
+        #expect(!qtCarrierHeader.contains("Pkg-config and linker carrier"))
+    }
+
     @Test("macro expansion paths report diagnostics instead of crashing")
     func macroExpansionPathsAvoidFatalError() throws {
         let root = try packageRoot()
@@ -445,14 +474,16 @@ struct SourceHygieneTests {
 
         #expect(manifest.contains(".library(name: \"QuillUIGtk\", targets: [\"QuillUIGtk\"])"))
         #expect(manifest.contains(".library(name: \"QuillUIQt\", targets: [\"QuillUIQt\"])"))
-        #expect(manifest.contains(".executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"])"))
+        #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk {"))
+        #expect(manifest.contains("products.append(.executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"]))"))
         #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
         #expect(manifest.contains("name: \"QuillInteractionSmokeSupport\""))
         #expect(manifest.contains("dependencies: [\"QuillUIGtk\", \"QuillInteractionSmokeSupport\"]"))
         #expect(manifest.contains("func quillLinuxBackendDependencies("))
-        #expect(manifest.contains("nativeQt: [\"CQuillQt6WidgetsShim\"]"))
-        #expect(manifest.contains("fallback: [\"QuillUIQt\", \"QuillInteractionSmokeSupport\"]"))
-        #expect(manifest.contains("dependencies: quillQtInteractionSmokeDependencies"))
+        #expect(manifest.contains("nativeQt: [\"QuillWireGuardQtNativeRuntime\"]"))
+        #expect(manifest.contains("dependencies: [\"CQuillQt6WidgetsShim\"]"))
+        #expect(!manifest.contains("fallback: [\"QuillUIQt\", \"QuillInteractionSmokeSupport\"]"))
+        #expect(!manifest.contains("dependencies: quillQtInteractionSmokeDependencies"))
         #expect(!manifest.contains("dependencies: [\"QuillUI\", \"QuillUIGtk\", \"QuillInteractionSmokeSupport\"]"))
         #expect(!manifest.contains("dependencies: [\"QuillUI\", \"QuillUIQt\", \"QuillInteractionSmokeSupport\"]"))
         #expect(sharedView.contains("import Foundation"))

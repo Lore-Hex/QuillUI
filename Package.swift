@@ -58,6 +58,29 @@ func pkgConfigPackagePresent(_ name: String) -> Bool {
     }
 }
 
+func pkgConfigArguments(_ name: String, _ arguments: [String]) -> [String] {
+    let process = Process()
+    let output = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["pkg-config"] + arguments + [name]
+    process.standardOutput = output
+    process.standardError = Pipe()
+
+    do {
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            return []
+        }
+        return String(decoding: data, as: UTF8.self)
+            .split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" })
+            .map(String.init)
+    } catch {
+        return []
+    }
+}
+
 let quillUILinuxBuildBackend: QuillUILinuxBuildBackend = {
     let environment = ProcessInfo.processInfo.environment
     guard let rawValue = environment[quillUILinuxBuildBackendEnvironmentKey] else {
@@ -72,6 +95,9 @@ let quillUILinuxBuildBackend: QuillUILinuxBuildBackend = {
 }()
 
 let qt6WidgetsPresent: Bool = pkgConfigPackagePresent("Qt6Widgets")
+let qt6WidgetsIncludeFlags: [String] = pkgConfigArguments("Qt6Widgets", ["--cflags-only-I"])
+let qt6WidgetsLinkerFlags: [String] = pkgConfigArguments("Qt6Widgets", ["--libs-only-L", "--libs-only-l"])
+let qt6WidgetsCxxFlags: [String] = qt6WidgetsIncludeFlags + ["-std=c++17", "-fPIC", "-Wno-deprecated-literal-operator"]
 
 if quillUILinuxBuildBackend == .qt && !qt6WidgetsPresent {
     fatalError("\(quillUILinuxBuildBackendEnvironmentKey)=qt requires the Qt6Widgets pkg-config package (install qt6-base-dev).")
@@ -79,6 +105,9 @@ if quillUILinuxBuildBackend == .qt && !qt6WidgetsPresent {
 #else
 let quillUILinuxBuildBackend: QuillUILinuxBuildBackend = .gtk
 let qt6WidgetsPresent: Bool = false
+let qt6WidgetsIncludeFlags: [String] = []
+let qt6WidgetsLinkerFlags: [String] = []
+let qt6WidgetsCxxFlags: [String] = []
 #endif
 let nnwUpstreamPresent: Bool = upstreamPresent(".upstream/netnewswire/Modules/RSCore")
 let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/Sources/WireGuardKit")
@@ -105,9 +134,12 @@ var products: [Product] = [
     .executable(name: "quill-telegram", targets: ["QuillTelegram"]),
     .executable(name: "quill-iina", targets: ["QuillIINA"]),
     .executable(name: "quill-codeedit", targets: ["QuillCodeEdit"]),
-    .executable(name: "quill-wireguard", targets: ["QuillWireGuard"]),
-    .executable(name: "quill-wireguard-qt", targets: ["QuillWireGuardQt"])
+    .executable(name: "quill-wireguard", targets: ["QuillWireGuard"])
 ]
+
+#if !os(Linux)
+products.append(.executable(name: "quill-wireguard-qt", targets: ["QuillWireGuardQt"]))
+#endif
 
 // `quill-netnewswire` is now a cross-platform executable backed
 // by the self-contained QuillNetNewsWireCore (Foundation
@@ -142,9 +174,11 @@ products += [
 // to the real Apple frameworks via the SDK; on Linux they
 // resolve to these QuillUI-exported shims.
 #if os(Linux)
+if quillUILinuxBuildBackend == .gtk {
+    products.append(.executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]))
+}
+
 products += [
-    .executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]),
-    .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"]),
     .library(name: "SwiftUI", targets: ["SwiftUI"]),
     .library(name: "UniformTypeIdentifiers", targets: ["UniformTypeIdentifiers"]),
     .library(name: "Network", targets: ["Network"]),
@@ -298,11 +332,6 @@ let quillWireGuardQtSwiftSettings: [SwiftSetting] =
 #else
 let quillWireGuardQtSwiftSettings: [SwiftSetting] = appSwiftSettings
 #endif
-let quillQtInteractionSmokeDependencies: [Target.Dependency] = quillLinuxBackendDependencies(
-    nativeQt: ["CQuillQt6WidgetsShim"],
-    fallback: ["QuillUIQt", "QuillInteractionSmokeSupport"]
-)
-
 // WireGuardKit deps + Linux-specific excludes.
 #if os(Linux)
 let wireGuardKitDependencies: [Target.Dependency] = ["WireGuardKitC", "Network", "NetworkExtension"]
@@ -582,12 +611,6 @@ var targets: [Target] = [
         path: "Sources/QuillWireGuard",
         swiftSettings: appSwiftSettings
     ),
-    .executableTarget(
-        name: "QuillWireGuardQt",
-        dependencies: quillWireGuardQtDependencies,
-        path: "Sources/QuillWireGuardQt",
-        swiftSettings: quillWireGuardQtSwiftSettings
-    ),
     // Asset Catalog Symbol Generation tool + build plugin. Generates
     // Color/UIColor/NSColor extensions for every .colorset in a target's
     // .xcassets (Xcode 15+ behavior, missing from SwiftPM).
@@ -605,6 +628,17 @@ var targets: [Target] = [
     // package manifest. Older `@main` extraction scaffolding was replaced
     // by the generated Enchanted source-lowering scripts.
 ]
+
+#if !os(Linux)
+targets.append(
+    .executableTarget(
+        name: "QuillWireGuardQt",
+        dependencies: quillWireGuardQtDependencies,
+        path: "Sources/QuillWireGuardQt",
+        swiftSettings: quillWireGuardQtSwiftSettings
+    )
+)
+#endif
 
 // NetNewsWire upstream — modular RSS reader source (Ranchero-Software/
 // NetNewsWire). The path-based targets only exist if `.upstream/
@@ -915,14 +949,6 @@ targets.append(contentsOf: [
         dependencies: ["QuillUIGtk", "QuillInteractionSmokeSupport"],
         path: "Sources/QuillGtkInteractionSmoke"
     ),
-    // Qt launch target for the same interaction surface. The
-    // GTK build graph uses the generic QuillUIQt facade/fallback,
-    // while the Qt graph swaps in a native Qt Widgets smoke host.
-    .executableTarget(
-        name: "QuillQtInteractionSmoke",
-        dependencies: quillQtInteractionSmokeDependencies,
-        path: "Sources/QuillQtInteractionSmoke"
-    ),
     // Apple-framework compatibility shims that the generated
     // Enchanted package references by canonical name. Each target
     // shadows a real Apple module on Linux; the matching products
@@ -1012,7 +1038,6 @@ if quillUILinuxBuildBackend == .qt {
         .systemLibrary(
             name: "CQt6Widgets",
             path: "Sources/CQt6Widgets",
-            pkgConfig: "Qt6Widgets",
             providers: [
                 .apt(["qt6-base-dev"])
             ]
@@ -1023,7 +1048,10 @@ if quillUILinuxBuildBackend == .qt {
             path: "Sources/CQuillQt6WidgetsShim",
             publicHeadersPath: "include",
             cxxSettings: [
-                .unsafeFlags(["-std=c++17", "-fPIC"])
+                .unsafeFlags(qt6WidgetsCxxFlags)
+            ],
+            linkerSettings: [
+                .unsafeFlags(qt6WidgetsLinkerFlags)
             ]
         ),
         .target(
@@ -1083,13 +1111,71 @@ allPackageDependencies += [
 }
 #endif
 
-let package = Package(
-    name: "QuillUI",
-    defaultLocalization: "en",
-    platforms: [.macOS(.v14), .iOS(.v14)],
-    products: products,
-    dependencies: allPackageDependencies,
-    targets: targets + [
+// Qt builds must not load the GTK/SwiftOpenUI graph. SwiftPM evaluates
+// dependency manifests before target planning, so keeping SwiftOpenUI in the
+// package dependency list is enough to pull in its GTK pkg-config warnings even
+// for a native Qt-only smoke app.
+#if os(Linux)
+if quillUILinuxBuildBackend == .qt {
+    products = [
+        .executable(name: "quill-wireguard-qt", targets: ["QuillWireGuardQt"]),
+        .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
+    ]
+    allPackageDependencies = []
+    targets = [
+        .target(
+            name: "QuillWireGuardCore",
+            dependencies: quillWireGuardCoreDependencies,
+            path: "Sources/QuillWireGuardCore"
+        ),
+        .systemLibrary(
+            name: "CQt6Widgets",
+            path: "Sources/CQt6Widgets",
+            providers: [
+                .apt(["qt6-base-dev"])
+            ]
+        ),
+        .target(
+            name: "CQuillQt6WidgetsShim",
+            dependencies: ["CQt6Widgets"],
+            path: "Sources/CQuillQt6WidgetsShim",
+            publicHeadersPath: "include",
+            cxxSettings: [
+                .unsafeFlags(qt6WidgetsCxxFlags)
+            ],
+            linkerSettings: [
+                .unsafeFlags(qt6WidgetsLinkerFlags)
+            ]
+        ),
+        .target(
+            name: "QuillWireGuardQtNativeRuntime",
+            dependencies: ["QuillWireGuardCore", "CQuillQt6WidgetsShim"],
+            path: "Sources/QuillWireGuardQtNativeRuntime",
+            swiftSettings: appSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillWireGuardQt",
+            dependencies: ["QuillWireGuardQtNativeRuntime"],
+            path: "Sources/QuillWireGuardQt",
+            swiftSettings: quillWireGuardQtSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillQtInteractionSmoke",
+            dependencies: ["CQuillQt6WidgetsShim"],
+            path: "Sources/QuillQtInteractionSmoke"
+        )
+    ]
+}
+#endif
+
+let packageTestTargets: [Target] = {
+    #if os(Linux)
+    if quillUILinuxBuildBackend == .qt {
+        return []
+    }
+    #endif
+
+    return [
         {
             // QuillShimsTests links the Linux compatibility shims
             // so the test file can `import AsyncAlgorithms` etc.
@@ -1224,4 +1310,13 @@ let package = Package(
             swiftSettings: appSwiftSettings
         )
     ]
+}()
+
+let package = Package(
+    name: "QuillUI",
+    defaultLocalization: "en",
+    platforms: [.macOS(.v14), .iOS(.v14)],
+    products: products,
+    dependencies: allPackageDependencies,
+    targets: targets + packageTestTargets
 )
