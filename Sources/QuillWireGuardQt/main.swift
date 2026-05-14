@@ -1,4 +1,4 @@
-#if canImport(QuillWireGuardQtNativeRuntime)
+#if QUILLUI_WIREGUARD_QT_NATIVE_BACKEND
 import QuillWireGuardQtNativeRuntime
 
 QuillWireGuardQtNativeApp.run()

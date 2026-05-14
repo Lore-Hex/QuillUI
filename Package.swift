@@ -292,6 +292,12 @@ let quillWireGuardQtDependencies: [Target.Dependency] = quillLinuxBackendDepende
     nativeQt: ["QuillWireGuardQtNativeRuntime"],
     fallback: ["QuillWireGuardUI", "QuillUIQt"]
 )
+#if os(Linux)
+let quillWireGuardQtSwiftSettings: [SwiftSetting] =
+    appSwiftSettings + (quillUILinuxBuildBackend == .qt ? [.define("QUILLUI_WIREGUARD_QT_NATIVE_BACKEND")] : [])
+#else
+let quillWireGuardQtSwiftSettings: [SwiftSetting] = appSwiftSettings
+#endif
 let quillQtInteractionSmokeDependencies: [Target.Dependency] = quillLinuxBackendDependencies(
     nativeQt: ["CQuillQt6WidgetsShim"],
     fallback: ["QuillUIQt", "QuillInteractionSmokeSupport"]
@@ -580,7 +586,7 @@ var targets: [Target] = [
         name: "QuillWireGuardQt",
         dependencies: quillWireGuardQtDependencies,
         path: "Sources/QuillWireGuardQt",
-        swiftSettings: appSwiftSettings
+        swiftSettings: quillWireGuardQtSwiftSettings
     ),
     // Asset Catalog Symbol Generation tool + build plugin. Generates
     // Color/UIColor/NSColor extensions for every .colorset in a target's

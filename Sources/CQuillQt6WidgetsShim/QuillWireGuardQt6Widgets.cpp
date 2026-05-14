@@ -105,12 +105,11 @@ QJsonArray arrayValue(const QJsonObject &object, const char *key) {
 
 void clearLayout(QLayout *layout) {
     while (QLayoutItem *item = layout->takeAt(0)) {
-        if (QWidget *widget = item->widget()) {
-            delete widget;
-        }
         if (QLayout *childLayout = item->layout()) {
             clearLayout(childLayout);
-            delete childLayout;
+        }
+        if (QWidget *widget = item->widget()) {
+            delete widget;
         }
         delete item;
     }

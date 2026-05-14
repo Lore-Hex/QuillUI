@@ -1740,6 +1740,8 @@ def main() -> int:
         print(validate_quill_wireguard_qt_native(image, minimum_selected_center_offset=145))
     elif product in {"quill-wireguard-qt-import-invalid-paste", "quill-wireguard-qt-import-invalid-file"}:
         print(validate_quill_wireguard_import_error(image, backend="qt"))
+    elif product == "quill-wireguard":
+        print(validate_quill_wireguard_gtk_native(image))
     elif product == "quill-wireguard-name-edit":
         print(validate_quill_wireguard_gtk_native(
             image,

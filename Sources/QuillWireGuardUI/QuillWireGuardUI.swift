@@ -30,6 +30,7 @@ private enum WireGuardFallbackStyle {
     static let minimumWidth = CGFloat(QuillWireGuardAppMetadata.linuxMinimumWidth)
     static let minimumHeight = CGFloat(QuillWireGuardAppMetadata.linuxMinimumHeight)
     static let sidebarWidth = CGFloat(QuillWireGuardStyle.sidebarWidth)
+    static let listPadding = CGFloat(QuillWireGuardStyle.listPadding)
     static let sidebarPadding = CGFloat(QuillWireGuardStyle.sidebarPadding)
     static let sidebarBottomPadding = CGFloat(QuillWireGuardStyle.sidebarBottomPadding)
     static let detailPadding = CGFloat(QuillWireGuardStyle.detailPadding)
@@ -47,6 +48,7 @@ private enum WireGuardFallbackStyle {
     static let detailTitlePadding = CGFloat(QuillWireGuardStyle.detailTitlePadding)
     static let importDialogSpacing = CGFloat(QuillWireGuardStyle.importDialogSpacing)
     static let importErrorMinHeight = CGFloat(QuillWireGuardStyle.importErrorMinHeight)
+    static let sidebarListContentWidth = sidebarWidth - (listPadding * 2)
 
     static var sidebarBackgroundColor: Color {
         Color(hex: QuillWireGuardStyle.sidebarBackgroundColor)
@@ -82,8 +84,7 @@ public struct WireGuardFallbackConfigurationView: View {
     public nonisolated var body: some View {
         QuillMainActorView.assumeIsolated {
             HStack(spacing: 0) {
-                sidebar
-                    .frame(width: WireGuardFallbackStyle.sidebarWidth)
+                constrainedSidebar
                 Divider()
                 detail
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -93,6 +94,11 @@ public struct WireGuardFallbackConfigurationView: View {
                 minHeight: WireGuardFallbackStyle.minimumHeight
             )
         }
+    }
+
+    private var constrainedSidebar: some View {
+        sidebar
+            .frame(width: WireGuardFallbackStyle.sidebarWidth, alignment: .leading)
     }
 
     private var sidebar: some View {
@@ -115,20 +121,18 @@ public struct WireGuardFallbackConfigurationView: View {
 
             Divider()
 
-            List {
-                ForEach(tunnels) { tunnel in
-                    Button {
-                        selectedTunnelID = tunnel.id
-                    } label: {
-                        tunnelRow(tunnel, isSelected: tunnel.id == selectedTunnelID)
+            ScrollView {
+                VStack(alignment: .leading, spacing: WireGuardFallbackStyle.listItemVerticalMargin * 2) {
+                    ForEach(tunnels) { tunnel in
+                        Button {
+                            selectedTunnelID = tunnel.id
+                        } label: {
+                            tunnelRow(tunnel, isSelected: tunnel.id == selectedTunnelID)
+                        }
                     }
-                    .listRowInsets(EdgeInsets(
-                        top: WireGuardFallbackStyle.listItemVerticalMargin,
-                        leading: 0,
-                        bottom: WireGuardFallbackStyle.listItemVerticalMargin,
-                        trailing: 0
-                    ))
                 }
+                .padding(WireGuardFallbackStyle.listPadding)
+                .frame(width: WireGuardFallbackStyle.sidebarWidth, alignment: .topLeading)
             }
 
             Divider()
@@ -141,6 +145,8 @@ public struct WireGuardFallbackConfigurationView: View {
                 Text(QuillWireGuardBackend.statusText)
                     .font(.caption2)
                     .foregroundColor(WireGuardFallbackStyle.secondaryTextColor)
+                    .lineLimit(nil)
+                    .frame(width: WireGuardFallbackStyle.sidebarListContentWidth, alignment: .leading)
             }
             .padding(WireGuardFallbackStyle.sidebarBottomPadding)
         }
@@ -163,7 +169,7 @@ public struct WireGuardFallbackConfigurationView: View {
         }
         .padding(.horizontal, WireGuardFallbackStyle.tunnelRowHorizontalPadding)
         .padding(.vertical, WireGuardFallbackStyle.tunnelRowVerticalPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(width: WireGuardFallbackStyle.sidebarListContentWidth, alignment: .leading)
         .frame(minHeight: WireGuardFallbackStyle.tunnelRowHeight, alignment: .leading)
         .background(isSelected ? WireGuardFallbackStyle.selectedRowBackgroundColor : Color.clear)
         .cornerRadius(WireGuardFallbackStyle.listItemCornerRadius)
