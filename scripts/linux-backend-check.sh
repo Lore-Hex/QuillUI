@@ -160,13 +160,27 @@ for row in "${BACKEND_SMOKE_ROWS[@]}"; do
 done
 
 if [[ "${QUILLUI_SKIP_QUILL_CHAT_BUILD:-0}" != "1" && -d "$QUILL_CHAT_APP_DIR" ]]; then
-  QUILL_CHAT_BIN_DIR="$(swift build \
-    --package-path "$QUILL_CHAT_WORK_ROOT/package" \
-    --scratch-path "$QUILL_CHAT_WORK_ROOT/.build-check" \
-    --show-bin-path)"
-
   for row in "${GENERATED_APP_SMOKE_ROWS[@]}"; do
     IFS="$tab" read -r product backend <<< "$row"
+    generated_work_root="$QUILL_CHAT_WORK_ROOT-$backend"
+
+    QUILLUI_QUILL_CHAT_BUILD_WORKDIR="$generated_work_root" \
+      QUILLUI_QUILL_CHAT_PRODUCT_NAME="$product" \
+      QUILLUI_QUILL_CHAT_BACKEND_FACADE="$backend" \
+      scripts/build-quill-chat-linux.sh
+
+    if [[ "$backend" == "qt" ]]; then
+      QUILL_CHAT_BIN_DIR="$(QUILLUI_LINUX_BACKEND=qt swift build \
+        --package-path "$generated_work_root/package" \
+        --scratch-path "$generated_work_root/.build-check" \
+        --show-bin-path)"
+    else
+      QUILL_CHAT_BIN_DIR="$(swift build \
+        --package-path "$generated_work_root/package" \
+        --scratch-path "$generated_work_root/.build-check" \
+        --show-bin-path)"
+    fi
+
     run_executable_smoke "$product" "$QUILL_CHAT_BIN_DIR/$product" "$backend"
     generated_app_smoke_count=$((generated_app_smoke_count + 1))
   done

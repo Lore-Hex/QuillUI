@@ -23,8 +23,8 @@ lowering profiles:
 - `--product-name` controls the generated executable name.
 - `--workdir` controls where generated source and SwiftPM build state go.
 - `--backend-facade` optionally compiles the generated entry through
-  `QuillUIGtk` or `QuillUIQt` instead of the backend-neutral `QuillUI`
-  launcher.
+  `QuillUIGtk` or the native `QuillGenericQtNativeRuntime` host instead of
+  the backend-neutral `QuillUI` launcher.
 - `--profile` selects a source-lowering script from `scripts/profiles/`.
 - `--list-profiles` prints installed profiles.
 
@@ -98,6 +98,7 @@ The package helper takes this stable environment contract:
 - `QUILLUI_GENERATED_BACKEND_FACADE`
 - `QUILLUI_GENERATED_APP_ENTRY_TYPE`
 - `QUILLUI_GENERATED_APP_MAIN_TYPE`
+- `QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY`
 - `QUILLUI_GENERATED_REPORT_LABEL`
 
 `QUILLUI_GENERATED_INCLUDE_GTK_BACKEND` remains accepted by the package helper
@@ -105,9 +106,18 @@ as a compatibility alias for older profile callers, and
 `QUILLUI_GENERATED_INCLUDE_QT_BACKEND` is accepted for backend-scoped Qt
 profiles. New profiles should use the backend-neutral entry flag.
 Use `QUILLUI_GENERATED_BACKEND_FACADE=gtk` or `qt` only when the generated
-package should import and link the backend facade product directly; ordinary
-backend smoke/profile parity should continue to request the runtime backend
-with `QUILLUI_BACKEND`.
+package should import and link a backend-specific entry product directly. The
+GTK value uses `QuillUIGtk`; the Qt value links `QuillGenericQtNativeRuntime`
+and launches the catalog entry from `QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY`
+(`QuillGenericQtAppCatalog.quillChat` by default). Ordinary backend
+smoke/profile parity should continue to request the runtime backend with
+`QUILLUI_BACKEND`.
+
+In `qt` facade mode the helper intentionally writes only the generated native
+launcher into the temporary package. The lowered source tree is still counted
+for reporting, but SwiftPM resolves the Qt-only QuillUI manifest and links only
+`QuillGenericQtNativeRuntime`; backend-neutral and GTK facade modes continue to
+copy and compile the lowered source tree with the compatibility products.
 
 Reusable fallback behavior should live in library targets, not in profiles.
 The current `enchanted-full-source` profile keeps only app/source-shape wiring
@@ -123,8 +133,9 @@ scripts/build-quill-chat-linux.sh --backend-facade qt
 
 It supplies Quill Chat's source directory, app type, product name, and the
 current `enchanted-full-source` profile to the generic builder. The optional
-backend facade flag forwards to the generated app entry so Qt or GTK facade
-imports can be compile-checked without changing the Quill Chat source tree.
+backend facade flag forwards to the generated app entry so GTK facade imports
+and the Qt native runtime can be compile-checked without changing the Quill
+Chat source tree.
 
 The Linux backend visual smoke script can screenshot either root SwiftPM
 products or generated app products. CI drives matrix jobs through
@@ -152,10 +163,9 @@ path.
 Generated products use the same GTK/Qt requested-backend matrix as the root app
 shells. The matrix runner still accepts `--skip-repeated-products`, but
 generated app cache keys include the requested backend facade so the GTK and Qt
-generated launchers both compile. The generated Qt facade still enters through
-the generic QuillApp runtime registry, so its runtime matrix row reports
-`requested_backend=qt`, `runtime_backend=gtk`, and
-`runtime_mode=platformFallback` until generated packages gain a native Qt host:
+generated launchers both compile. The generated Qt row links the native
+`QuillGenericQtNativeRuntime` host, so its runtime matrix row now reports
+`requested_backend=qt`, `runtime_backend=qt`, and `runtime_mode=native`:
 
 ```bash
 scripts/run-linux-backend-smoke-matrix.sh \

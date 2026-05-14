@@ -18,6 +18,7 @@ INCLUDE_BACKEND_ENTRY="${QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY:-0}"
 BACKEND_FACADE="${QUILLUI_GENERATED_BACKEND_FACADE:-swiftui}"
 APP_ENTRY_TYPE="${QUILLUI_GENERATED_APP_ENTRY_TYPE:-}"
 APP_MAIN_TYPE="${QUILLUI_GENERATED_APP_MAIN_TYPE:-GeneratedSwiftUILinuxMain}"
+QT_NATIVE_CATALOG_ENTRY="${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-QuillGenericQtAppCatalog.quillChat}"
 REPORT_LABEL="${QUILLUI_GENERATED_REPORT_LABEL:-Generated SwiftUI Linux package}"
 
 validate_boolean_flag() {
@@ -104,21 +105,20 @@ validate_package_token "$PRODUCT_NAME" "QUILLUI_GENERATED_PRODUCT_NAME"
 validate_swift_identifier "$TARGET_NAME" "QUILLUI_GENERATED_TARGET_NAME"
 validate_boolean_flag "$INCLUDE_BACKEND_ENTRY" "QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY"
 BACKEND_FACADE="$(normalize_generated_backend_facade "$BACKEND_FACADE")"
+if [[ "$INCLUDE_BACKEND_ENTRY" != "1" && "$BACKEND_FACADE" != "swiftui" ]]; then
+  echo "QUILLUI_GENERATED_BACKEND_FACADE=$BACKEND_FACADE requires QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY=1" >&2
+  exit 64
+fi
 
 TARGET_DIR="$PACKAGE_DIR/Sources/$TARGET_NAME"
-backend_facade_dependency=""
 backend_import="QuillUI"
 backend_runner="QuillApp"
+backend_launch_statement=""
+copy_source_files=1
+target_dependencies=""
 
 rm -rf "$PACKAGE_DIR"
 mkdir -p "$TARGET_DIR"
-
-while IFS= read -r -d '' source_file; do
-  relative_path="${source_file#$SOURCE_DIR/}"
-  destination_file="$TARGET_DIR/$relative_path"
-  mkdir -p "$(dirname "$destination_file")"
-  cp "$source_file" "$destination_file"
-done < <(find "$SOURCE_DIR" -name '*.swift' -print0)
 
 if [[ "$INCLUDE_BACKEND_ENTRY" == "1" ]]; then
   if [[ -z "$APP_ENTRY_TYPE" ]]; then
@@ -128,21 +128,25 @@ if [[ "$INCLUDE_BACKEND_ENTRY" == "1" ]]; then
 
   validate_swift_type "$APP_ENTRY_TYPE" "QUILLUI_GENERATED_APP_ENTRY_TYPE"
   validate_swift_type "$APP_MAIN_TYPE" "QUILLUI_GENERATED_APP_MAIN_TYPE"
+  validate_swift_type "$QT_NATIVE_CATALOG_ENTRY" "QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY"
 
   case "$BACKEND_FACADE" in
     swiftui)
       ;;
     gtk)
-      backend_facade_dependency='                .product(name: "QuillUIGtk", package: "QuillUI"),'
       backend_import="QuillUIGtk"
       backend_runner="QuillGtkApp"
       ;;
     qt)
-      backend_facade_dependency='                .product(name: "QuillUIQt", package: "QuillUI"),'
-      backend_import="QuillUIQt"
-      backend_runner="QuillQtApp"
+      backend_import="QuillGenericQtNativeRuntime"
+      backend_launch_statement="QuillGenericQtNativeApp.run($QT_NATIVE_CATALOG_ENTRY)"
+      copy_source_files=0
       ;;
   esac
+
+  if [[ -z "$backend_launch_statement" ]]; then
+    backend_launch_statement="${backend_runner}.run(${APP_ENTRY_TYPE}.self)"
+  fi
 
   cat > "$TARGET_DIR/GeneratedMain.swift" <<SWIFT
 import $backend_import
@@ -150,30 +154,22 @@ import $backend_import
 @main
 struct $APP_MAIN_TYPE {
     static func main() {
-        $backend_runner.run($APP_ENTRY_TYPE.self)
+        $backend_launch_statement
     }
 }
 SWIFT
 fi
 
-cat > "$PACKAGE_DIR/Package.swift" <<SWIFT
-// swift-tools-version: 6.0
+if [[ "$copy_source_files" == "1" ]]; then
+  while IFS= read -r -d '' source_file; do
+    relative_path="${source_file#$SOURCE_DIR/}"
+    destination_file="$TARGET_DIR/$relative_path"
+    mkdir -p "$(dirname "$destination_file")"
+    cp "$source_file" "$destination_file"
+  done < <(find "$SOURCE_DIR" -name '*.swift' -print0)
+fi
 
-import PackageDescription
-
-let package = Package(
-    name: "$PACKAGE_NAME",
-    products: [
-        .executable(name: "$PRODUCT_NAME", targets: ["$TARGET_NAME"])
-    ],
-    dependencies: [
-        .package(name: "QuillUI", path: "$ROOT_DIR")
-    ],
-    targets: [
-        .executableTarget(
-            name: "$TARGET_NAME",
-            dependencies: [
-                .product(name: "SwiftUI", package: "QuillUI"),
+source_target_dependencies='                .product(name: "SwiftUI", package: "QuillUI"),
                 .product(name: "SwiftData", package: "QuillUI"),
                 .product(name: "Combine", package: "QuillUI"),
                 .product(name: "UniformTypeIdentifiers", package: "QuillUI"),
@@ -206,11 +202,41 @@ let package = Package(
                 // QuillCheckForUpdatesMenuItem, etc.) live in the
                 // main `QuillUI` module.
                 .product(name: "QuillUI", package: "QuillUI"),
-$backend_facade_dependency
                 .product(name: "QuillKit", package: "QuillUI"),
                 .product(name: "QuillData", package: "QuillUI"),
                 .product(name: "QuillFoundation", package: "QuillUI"),
-                .product(name: "QuillShims", package: "QuillUI")
+                .product(name: "QuillShims", package: "QuillUI")'
+
+case "$BACKEND_FACADE" in
+  qt)
+    target_dependencies='                .product(name: "QuillGenericQtNativeRuntime", package: "QuillUI")'
+    ;;
+  gtk)
+    target_dependencies="$(printf '%s,\n                .product(name: "QuillUIGtk", package: "QuillUI")' "$source_target_dependencies")"
+    ;;
+  swiftui)
+    target_dependencies="$source_target_dependencies"
+    ;;
+esac
+
+cat > "$PACKAGE_DIR/Package.swift" <<SWIFT
+// swift-tools-version: 6.0
+
+import PackageDescription
+
+let package = Package(
+    name: "$PACKAGE_NAME",
+    products: [
+        .executable(name: "$PRODUCT_NAME", targets: ["$TARGET_NAME"])
+    ],
+    dependencies: [
+        .package(name: "QuillUI", path: "$ROOT_DIR")
+    ],
+    targets: [
+        .executableTarget(
+            name: "$TARGET_NAME",
+            dependencies: [
+$target_dependencies
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5)
@@ -223,12 +249,21 @@ SWIFT
 source_count="$(find "$SOURCE_COUNT_DIR" -name '*.swift' | wc -l | tr -d ' ')"
 generated_count="$(find "$TARGET_DIR" -name '*.swift' | wc -l | tr -d ' ')"
 
-QUILLUI_SWIFT_PACKAGE_PATH="$PACKAGE_DIR" "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$BUILD_SCRATCH"
+if [[ "$BACKEND_FACADE" != "qt" ]]; then
+  QUILLUI_SWIFT_PACKAGE_PATH="$PACKAGE_DIR" "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$BUILD_SCRATCH"
+fi
 
-swift build \
-  --package-path "$PACKAGE_DIR" \
-  --scratch-path "$BUILD_SCRATCH" \
-  --product "$PRODUCT_NAME"
+if [[ "$BACKEND_FACADE" == "qt" ]]; then
+  QUILLUI_LINUX_BACKEND=qt swift build \
+    --package-path "$PACKAGE_DIR" \
+    --scratch-path "$BUILD_SCRATCH" \
+    --product "$PRODUCT_NAME"
+else
+  swift build \
+    --package-path "$PACKAGE_DIR" \
+    --scratch-path "$BUILD_SCRATCH" \
+    --product "$PRODUCT_NAME"
+fi
 
 cat <<MSG
 

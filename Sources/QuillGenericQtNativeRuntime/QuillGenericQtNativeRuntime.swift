@@ -121,6 +121,72 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
 }
 
 public enum QuillGenericQtAppCatalog {
+    public static let quillChat = QuillGenericQtAppSnapshot(
+        windowTitle: "Quill Chat",
+        defaultWidth: 1120,
+        defaultHeight: 720,
+        sidebarTitle: "Quill Chat",
+        sidebarSubtitle: "Local AI workspace",
+        primaryActionTitle: "New chat",
+        secondaryActionTitle: "Models",
+        listTitle: "Conversations",
+        status: "Qt native runtime",
+        detailTitle: "Conversation preview",
+        detailSubtitle: "A generated Quill Chat package running through the Qt native host.",
+        messagesTitle: "Transcript",
+        items: [
+            .init(
+                title: "Model readiness",
+                subtitle: "Check the local endpoint",
+                badge: "ready",
+                detailSubtitle: "Endpoint and model status remain visible beside the transcript.",
+                sections: [
+                    .init(title: "Endpoint", body: "The native shell keeps the selected model, endpoint state, and conversation list in the same layout across Linux backends."),
+                    .init(title: "Result", body: "A short response confirms that generated packages are linked to the Qt native runtime.")
+                ],
+                messages: [
+                    .init(sender: "user", body: "Confirm the local model is available."),
+                    .init(sender: "assistant", body: "The generated Qt launcher is active.")
+                ]
+            ),
+            .init(
+                title: "Code review",
+                subtitle: "Summarize pending changes",
+                badge: "draft",
+                detailSubtitle: "Review prompt with a compact response draft.",
+                sections: [
+                    .init(title: "Prompt", body: "The selected thread can carry app-specific context without duplicating launcher code."),
+                    .init(title: "Draft", body: "Generated Quill Chat and canonical generic Qt apps share the same runtime renderer and catalog model.")
+                ],
+                messages: [
+                    .init(sender: "user", body: "Summarize the next Linux parity gap."),
+                    .init(sender: "assistant", body: "Generated Qt packages now compile against the native Qt runtime.")
+                ]
+            ),
+            .init(
+                title: "Planning note",
+                subtitle: "Track desktop consistency",
+                badge: "qa",
+                detailSubtitle: "Desktop consistency checklist for the next loop.",
+                sections: [
+                    .init(title: "GTK", body: "The generated GTK launcher continues to use QuillUIGtk and QuillGtkApp."),
+                    .init(title: "Qt", body: "The generated Qt launcher bypasses the fallback registry and enters QuillGenericQtNativeRuntime directly.")
+                ],
+                messages: [
+                    .init(sender: "user", body: "Keep GTK and Qt explicit."),
+                    .init(sender: "assistant", body: "The package generator now selects one native backend path per request.")
+                ]
+            )
+        ],
+        sections: [
+            .init(title: "Generated app runtime", body: "The temporary package links QuillGenericQtNativeRuntime when QUILLUI_GENERATED_BACKEND_FACADE=qt is selected."),
+            .init(title: "Shared renderer", body: "Quill Chat uses the same generic Qt catalog renderer as the smaller native app shells, keeping the implementation DRY.")
+        ],
+        messages: [
+            .init(sender: "assistant", body: "Quill Chat is running through the generated Qt native entry.")
+        ]
+    )
+
     public static let enchantedUpstreamSlice = QuillGenericQtAppSnapshot(
         windowTitle: "Quill Enchanted Slice",
         defaultWidth: 1120,

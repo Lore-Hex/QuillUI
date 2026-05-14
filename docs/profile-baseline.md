@@ -20,10 +20,9 @@ Profile CSV rows carry `requested_backend`, `runtime_backend`, and
 runtime actually measured. Canonical app rows compile through both explicit
 manifest graphs, so GTK rows report `runtime_backend=gtk`, Qt rows report
 `runtime_backend=qt`, and both paths use `runtime_mode=native`. Generated app
-rows compile backend-facade packages separately; the Qt facade currently reports
-`requested_backend=qt`, `runtime_backend=gtk`, and
-`runtime_mode=platformFallback` until the generic generated-app entry links a
-native Qt runtime host.
+rows compile backend-specific entry packages separately; the Qt generated row
+links `QuillGenericQtNativeRuntime`, so it now reports `requested_backend=qt`,
+`runtime_backend=qt`, and `runtime_mode=native`.
 The older
 `scripts/linux-gtk-app-products.sh`,
 `scripts/linux-gtk-profile.sh`, `scripts/run-linux-gtk-profile-csv.sh`,

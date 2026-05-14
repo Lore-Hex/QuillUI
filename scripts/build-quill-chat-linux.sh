@@ -18,9 +18,9 @@ Builds Quill Chat for Linux through the generic SwiftUI Linux app builder
 without editing the app tree.
 
 Options:
-  --backend-facade NAME                Import QuillUI, QuillUIGtk, or QuillUIQt
-                                       in the generated entry. Allowed: swiftui,
-                                       gtk, qt.
+  --backend-facade NAME                Select QuillUI, QuillUIGtk, or the native
+                                       Qt runtime for the generated entry.
+                                       Allowed: swiftui, gtk, qt.
   --run                                Run the built executable after building.
   -h, --help                           Show this help.
 

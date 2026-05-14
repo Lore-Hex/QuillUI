@@ -50,6 +50,10 @@ struct QuillDataSourceLoweringTests {
         )
 
         let script = root.appendingPathComponent("scripts/lower-swiftdata-for-quilldata.sh")
+        let scriptSource = try String(contentsOf: script, encoding: .utf8)
+        #expect(scriptSource.contains("command -v rg"))
+        #expect(scriptSource.contains("grep -nE"))
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path, source.path, output.path]
@@ -359,8 +363,16 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(wrapper.contains("SCRATCH_PATH=\".build-linux\""))
         #expect(wrapper.contains("--scratch-path=*"))
-        #expect(wrapper.contains("scripts/patch-swiftopenui-gtk-css.sh"))
+        #expect(wrapper.contains("scripts/prepare-linux-build-backend.sh"))
+        #expect(!wrapper.contains("scripts/patch-swiftopenui-gtk-css.sh"))
         #expect(wrapper.contains("swift test --scratch-path \"$SCRATCH_PATH\""))
+
+        let preparationScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/prepare-linux-build-backend.sh"),
+            encoding: .utf8
+        )
+        #expect(preparationScript.contains("gtk)\n    \"$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh\" \"$SCRATCH_PATH\""))
+        #expect(preparationScript.contains("qt)\n    ;;"))
 
         let workflow = try String(
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
@@ -381,11 +393,13 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains("publicHeadersPath: \".\""))
         #expect(manifest.contains(".target(name: \"UIKit\", dependencies: [\"QuillFoundation\", \"QuillUIKit\"], path: \"Sources/UIKitShim\")"))
         #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: [\"QuillFoundation\"],\n        path: \"Sources/QuillUIKit\"\n    )"))
-        #expect(manifest.contains(".executable(name: \"quill-wireguard\", targets: [\"QuillWireGuard\"])"))
-        #expect(manifest.contains(".executable(name: \"quill-enchanted\", targets: [\"QuillEnchanted\"])"))
-        #expect(manifest.contains(".executable(name: \"quill-wireguard\", targets: [\"QuillWireGuard\"])"))
+        #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))
+        #expect(manifest.contains(".init(product: \"quill-wireguard\", target: \"QuillWireGuard\", qtPath: \"Sources/QuillWireGuardQt\", qtRuntime: .wireGuardQtNative)"))
+        #expect(manifest.contains(".init(product: \"quill-enchanted\", target: \"QuillEnchanted\", qtPath: \"Sources/QuillEnchantedQt\", qtRuntime: .enchantedQtNative)"))
+        #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedQt\""))
         #expect(manifest.contains("path: \"Sources/QuillWireGuardQt\""))
+        #expect(manifest.contains(".library(name: \"QuillGenericQtNativeRuntime\", targets: [\"QuillGenericQtNativeRuntime\"])"))
         #expect(manifest.contains("name: \"QuillGenericQtNativeRuntime\""))
         #expect(manifest.contains("path: \"Sources/QuillGenericQtNativeRuntime\""))
         #expect(manifest.contains("let quillWireGuardCoreDependencies: [Target.Dependency] = []"))

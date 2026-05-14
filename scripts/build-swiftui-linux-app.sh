@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/quillui-backend-products.sh"
+
 PROFILE_DIR="$ROOT_DIR/scripts/profiles"
 PROFILE="${QUILLUI_APP_PROFILE:-enchanted-full-source}"
 SOURCE_DIR="${QUILLUI_APP_SOURCE_DIR:-}"
@@ -9,6 +11,7 @@ APP_TYPE="${QUILLUI_APP_ENTRY_TYPE:-}"
 PRODUCT_NAME="${QUILLUI_APP_PRODUCT_NAME:-}"
 WORK_ROOT="${QUILLUI_APP_BUILD_WORKDIR:-}"
 BACKEND_FACADE="${QUILLUI_APP_BACKEND_FACADE:-}"
+NORMALIZED_BACKEND_FACADE=""
 RUN_AFTER_BUILD=0
 LIST_PROFILES=0
 
@@ -26,8 +29,8 @@ Options:
   --app-type TYPE       Swift App type to launch through the generated entry.
   --product-name NAME   Output executable name. Defaults from --app-type.
   --workdir PATH        Generated build work directory.
-  --backend-facade NAME Import QuillUI, QuillUIGtk, or QuillUIQt in the
-                        generated entry. Allowed: swiftui, gtk, qt.
+  --backend-facade NAME Select QuillUI, QuillUIGtk, or the native Qt runtime
+                        for the generated entry. Allowed: swiftui, gtk, qt.
   --run                Run the built executable after building.
   -h, --help           Show this help.
 
@@ -170,6 +173,13 @@ if [[ -z "$WORK_ROOT" ]]; then
   WORK_ROOT="$ROOT_DIR/.build/$PRODUCT_NAME"
 fi
 
+if [[ -n "$BACKEND_FACADE" ]]; then
+  if ! NORMALIZED_BACKEND_FACADE="$(quillui_normalize_backend_identifier "$BACKEND_FACADE")"; then
+    echo "--backend-facade must be swiftui, gtk, or qt, got: $BACKEND_FACADE" >&2
+    exit 64
+  fi
+fi
+
 PROFILE_SCRIPT="$PROFILE_DIR/$PROFILE.sh"
 if [[ ! -x "$PROFILE_SCRIPT" ]]; then
   cat >&2 <<MSG
@@ -192,10 +202,17 @@ QUILLUI_PROFILE_MAIN_TYPE=GeneratedSwiftUILinuxMain \
 QUILLUI_GENERATED_BACKEND_FACADE="$BACKEND_FACADE" \
 "$PROFILE_SCRIPT"
 
-BIN_DIR="$(swift build \
-  --package-path "$WORK_ROOT/package" \
-  --scratch-path "$WORK_ROOT/.build-check" \
-  --show-bin-path)"
+if [[ "$NORMALIZED_BACKEND_FACADE" == "qt" ]]; then
+  BIN_DIR="$(QUILLUI_LINUX_BACKEND=qt swift build \
+    --package-path "$WORK_ROOT/package" \
+    --scratch-path "$WORK_ROOT/.build-check" \
+    --show-bin-path)"
+else
+  BIN_DIR="$(swift build \
+    --package-path "$WORK_ROOT/package" \
+    --scratch-path "$WORK_ROOT/.build-check" \
+    --show-bin-path)"
+fi
 ARTIFACT_PATH="$BIN_DIR/$PRODUCT_NAME"
 
 cat <<MSG

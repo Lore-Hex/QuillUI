@@ -87,9 +87,17 @@ while IFS= read -r -d '' source_file; do
   fi
 done < <(find "$SOURCE_DIR" -type f -print0)
 
-remaining="$(
-  rg -n "@Model|@Transient|#Predicate" "$OUTPUT_DIR" -g "*.swift" || true
-)"
+if command -v rg >/dev/null 2>&1; then
+  remaining="$(
+    rg -n "@Model|@Transient|#Predicate" "$OUTPUT_DIR" -g "*.swift" || true
+  )"
+else
+  remaining="$(
+    while IFS= read -r -d '' swift_file; do
+      grep -nE "@Model|@Transient|#Predicate" "$swift_file" | sed "s#^#$swift_file:#" || true
+    done < <(find "$OUTPUT_DIR" -name "*.swift" -type f -print0)
+  )"
+fi
 
 if [[ -n "$remaining" ]]; then
   cat >&2 <<MSG

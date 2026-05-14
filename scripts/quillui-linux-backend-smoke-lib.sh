@@ -625,10 +625,17 @@ MSG
       "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/build-quill-chat-linux.sh"
 
     local quill_chat_bin_path
-    quill_chat_bin_path="$(swift build \
-      --package-path "$quill_chat_work_root/package" \
-      --scratch-path "$quill_chat_work_root/.build-check" \
-      --show-bin-path)"
+    if [[ "$quill_chat_backend_facade" == "qt" ]]; then
+      quill_chat_bin_path="$(QUILLUI_LINUX_BACKEND=qt swift build \
+        --package-path "$quill_chat_work_root/package" \
+        --scratch-path "$quill_chat_work_root/.build-check" \
+        --show-bin-path)"
+    else
+      quill_chat_bin_path="$(swift build \
+        --package-path "$quill_chat_work_root/package" \
+        --scratch-path "$quill_chat_work_root/.build-check" \
+        --show-bin-path)"
+    fi
     quillui_assign_output "$output_var" "$quill_chat_bin_path/$product" || return $?
   else
     local linux_build_backend

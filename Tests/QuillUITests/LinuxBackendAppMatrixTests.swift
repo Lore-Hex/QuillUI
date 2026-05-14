@@ -119,7 +119,7 @@ struct LinuxBackendAppMatrixTests {
         expectedGeneratedAppProducts.flatMap { product in
             expectedBackends.map { backend in
                 if backend == "qt" {
-                    return "\(product)\tqt\tgtk\tplatformFallback"
+                    return "\(product)\tqt\tqt\tnative"
                 }
                 return "\(product)\tgtk\tgtk\tnative"
             }
@@ -295,7 +295,10 @@ struct LinuxBackendAppMatrixTests {
 
         let nativeOverrides = try runScript(script, arguments: ["native-product-runtime-overrides"])
         #expect(nativeOverrides.status == 0, Comment(rawValue: nativeOverrides.output))
-        #expect(Self.lines(nativeOverrides.output) == ["quill-qt-interaction-smoke\tqt\tqt"])
+        #expect(Self.lines(nativeOverrides.output) == [
+            "quill-chat-linux\tqt\tqt",
+            "quill-qt-interaction-smoke\tqt\tqt"
+        ])
 
         let integrity = try runScript(script, arguments: ["validate-integrity"])
         #expect(integrity.status == 0, Comment(rawValue: integrity.output))
@@ -365,6 +368,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(manifest.contains("let quillGenericQtSwiftSettings: [SwiftSetting] ="))
         #expect(manifest.contains(".define(\"QUILLUI_GENERIC_QT_NATIVE_BACKEND\")"))
         #expect(manifest.contains("] + quillCanonicalLinuxApps.map(quillCanonicalLinuxAppQtTarget)"))
+        #expect(manifest.contains(".library(name: \"QuillGenericQtNativeRuntime\", targets: [\"QuillGenericQtNativeRuntime\"])"))
         #expect(manifest.contains("name: \"QuillGenericQtNativeRuntime\""))
         #expect(manifest.contains("path: \"Sources/QuillGenericQtNativeRuntime\""))
         #expect(!manifest.contains("products = [\n        .executable(name: \"quill-enchanted-qt\""))
@@ -586,7 +590,7 @@ struct LinuxBackendAppMatrixTests {
         try """
         \(Self.profileCSVHeader)
         quill-netnewswire,qt,qt,native,1,2,3,0.1,0.1,ok
-        quill-chat-linux,qt,gtk,platformFallback,1,2,3,0.1,0.1,ok
+        quill-chat-linux,qt,qt,native,1,2,3,0.1,0.1,ok
         quill-qt-interaction-smoke,qt,qt,native,1,2,3,0.1,0.1,ok
 
         """.write(to: goodCSV, atomically: true, encoding: .utf8)
@@ -614,7 +618,7 @@ struct LinuxBackendAppMatrixTests {
         let badGeneratedCSV = temporaryDirectory.appendingPathComponent("bad-generated.csv")
         try """
         \(Self.profileCSVHeader)
-        quill-chat-linux,qt,qt,native,1,2,3,0.1,0.1,ok
+        quill-chat-linux,qt,gtk,platformFallback,1,2,3,0.1,0.1,ok
 
         """.write(to: badGeneratedCSV, atomically: true, encoding: .utf8)
 
@@ -623,7 +627,7 @@ struct LinuxBackendAppMatrixTests {
             arguments: [badGeneratedCSV.path, "--max-rss-kb", "400000", "--max-startup-ms", "10000", "--max-cpu-pct", "99"]
         )
         #expect(badGenerated.status != 0)
-        #expect(badGenerated.output.contains("runtime_backend=qt does not match requested_backend=qt expected_runtime=gtk"))
+        #expect(badGenerated.output.contains("runtime_backend=gtk does not match requested_backend=qt expected_runtime=qt"))
     }
 
     @Test("profile CSV runner expands canonical backend matrix")

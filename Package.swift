@@ -1199,6 +1199,7 @@ allPackageDependencies += [
 #if os(Linux)
 if quillUILinuxBuildBackend == .qt {
     products = quillCanonicalLinuxAppProducts + [
+        .library(name: "QuillGenericQtNativeRuntime", targets: ["QuillGenericQtNativeRuntime"]),
         .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
     ]
     allPackageDependencies = []

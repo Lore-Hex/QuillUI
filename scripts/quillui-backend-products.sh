@@ -105,7 +105,7 @@ quillui_backend_native_runtime_backends() {
 
 quillui_backend_product_native_runtime_backends() {
   # Manifest-selected app products can compile through these native runtime
-  # graphs. Keep this separate from the generic runtime registry so generated
+  # graphs. Keep this separate from the generic runtime registry so QuillApp
   # facade packages do not claim a native Qt host before QuillApp links one.
   printf '%s\n' \
     gtk \
@@ -116,6 +116,7 @@ quillui_backend_native_product_runtime_overrides() {
   # PRODUCT<TAB>REQUESTED_BACKEND<TAB>RUNTIME_BACKEND rows for native hosts that
   # exist only behind a product-specific SwiftPM graph today.
   printf '%s\t%s\t%s\n' \
+    quill-chat-linux qt qt \
     quill-qt-interaction-smoke qt qt
 }
 
