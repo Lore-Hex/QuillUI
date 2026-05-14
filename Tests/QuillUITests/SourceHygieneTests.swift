@@ -363,6 +363,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillInteractionSmokeSupport/QuillInteractionSmokeView.swift"),
             encoding: .utf8
         )
+        let wireGuardQtHost = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillWireGuardQt6Widgets.cpp"),
+            encoding: .utf8
+        )
+        let qtNativeSmokeHost = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillInteractionSmokeQt6Widgets.cpp"),
+            encoding: .utf8
+        )
         let backendCore = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillBackend.swift"),
             encoding: .utf8
@@ -455,6 +463,11 @@ struct SourceHygieneTests {
         #expect(!qtMain.contains("Quill Qt Interaction"))
         #expect(!qtMain.contains("Native Qt click target"))
         #expect(!qtMain.contains("struct SmokeView"))
+        #expect(qtNativeSmokeHost.contains("int quill_qt_run_interaction_smoke"))
+        #expect(qtNativeSmokeHost.contains("Native Qt opened this dialog from the backend interaction fixture."))
+        #expect(wireGuardQtHost.contains("int quill_wireguard_qt_run_wireguard_json"))
+        #expect(!wireGuardQtHost.contains("quill_qt_run_interaction_smoke"))
+        #expect(!wireGuardQtHost.contains("interactionSmoke"))
 
         #expect(sharedView.contains("public struct QuillInteractionSmokeConfiguration"))
         #expect(sharedView.contains("public struct QuillInteractionSmokeView"))
