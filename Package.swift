@@ -405,6 +405,13 @@ let quillWireGuardQtSwiftSettings: [SwiftSetting] =
 let quillWireGuardQtSwiftSettings: [SwiftSetting] = appSwiftSettings
 #endif
 
+#if os(Linux)
+let quillGenericQtSwiftSettings: [SwiftSetting] =
+    appSwiftSettings + (quillUILinuxBuildBackend == .qt ? [.define("QUILLUI_GENERIC_QT_NATIVE_BACKEND")] : [])
+#else
+let quillGenericQtSwiftSettings: [SwiftSetting] = appSwiftSettings
+#endif
+
 func quillCanonicalLinuxAppQtTarget(_ app: QuillCanonicalLinuxAppSpec) -> Target {
     let swiftSettings: [SwiftSetting]
 
@@ -412,7 +419,7 @@ func quillCanonicalLinuxAppQtTarget(_ app: QuillCanonicalLinuxAppSpec) -> Target
     case .enchantedQtNative:
         swiftSettings = quillEnchantedQtSwiftSettings
     case .genericQtNative:
-        swiftSettings = appSwiftSettings
+        swiftSettings = quillGenericQtSwiftSettings
     case .wireGuardQtNative:
         swiftSettings = quillWireGuardQtSwiftSettings
     }

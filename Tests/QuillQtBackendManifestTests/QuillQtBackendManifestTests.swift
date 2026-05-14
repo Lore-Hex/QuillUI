@@ -50,7 +50,7 @@ struct QuillQtBackendManifestTests {
             let launcher = try String(contentsOf: mainURL, encoding: .utf8)
             switch spec.qtRuntime {
             case "genericQtNative":
-                #expect(launcher.contains("#if os(Linux)"))
+                #expect(launcher.contains("#if QUILLUI_GENERIC_QT_NATIVE_BACKEND"))
                 #expect(launcher.contains("import QuillGenericQtNativeRuntime"))
                 #expect(launcher.contains("QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog."))
                 #expect(!launcher.contains("import QuillUIQt"))

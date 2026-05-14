@@ -335,12 +335,17 @@ struct LinuxBackendAppMatrixTests {
             )
 
             let qtLauncher = try String(contentsOf: qtMain, encoding: .utf8)
+            if contract.qtRuntimeDependency == "QuillGenericQtNativeRuntime" {
+                #expect(qtLauncher.contains("#if QUILLUI_GENERIC_QT_NATIVE_BACKEND"))
+            }
             #expect(qtLauncher.contains("import \(contract.qtRuntimeDependency)"))
             #expect(qtLauncher.contains(contract.qtLauncherCall))
         }
         #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-enchanted-qt\", targets: [\"QuillEnchantedQt\"]))\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
         #expect(manifest.contains("let quillCanonicalLinuxAppProducts: [Product] = quillCanonicalLinuxApps.map(\\.productDeclaration)"))
+        #expect(manifest.contains("let quillGenericQtSwiftSettings: [SwiftSetting] ="))
+        #expect(manifest.contains(".define(\"QUILLUI_GENERIC_QT_NATIVE_BACKEND\")"))
         #expect(manifest.contains("] + quillCanonicalLinuxApps.map(quillCanonicalLinuxAppQtTarget)"))
         #expect(manifest.contains("name: \"QuillGenericQtNativeRuntime\""))
         #expect(manifest.contains("path: \"Sources/QuillGenericQtNativeRuntime\""))
