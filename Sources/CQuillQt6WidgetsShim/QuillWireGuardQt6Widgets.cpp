@@ -62,20 +62,21 @@ int intValue(const QJsonObject &object, const char *key, int fallback) {
     return value.isDouble() ? value.toInt(fallback) : fallback;
 }
 
-QFont monospacedFont(int pointSize = 10) {
+QFont monospacedFont(const QJsonObject &style) {
     QFont font(QStringLiteral("monospace"));
     font.setStyleHint(QFont::Monospace);
-    font.setPointSize(pointSize);
+    font.setPointSize(intValue(style, "monospacedFontSize", 11));
     return font;
 }
 
 QPlainTextEdit *configurationTextEditor(
+    const QJsonObject &style,
     const QString &text = QString(),
     bool readOnly = false
 ) {
     QPlainTextEdit *editor = new QPlainTextEdit(text);
-    editor->setFont(monospacedFont());
-    editor->setMinimumHeight(180);
+    editor->setFont(monospacedFont(style));
+    editor->setMinimumHeight(intValue(style, "importEditorHeight", 180));
     editor->setReadOnly(readOnly);
     return editor;
 }
@@ -129,12 +130,14 @@ void addDetailRow(
     const QString &title,
     const QString &value,
     const QString &noneText,
+    const QJsonObject &style,
     bool monospaced = false
 ) {
     QLabel *titleLabel = label(title, QStringLiteral("detailKey"));
     QLabel *valueLabel = label(value.isEmpty() ? noneText : value);
+    titleLabel->setFixedWidth(intValue(style, "detailKeyWidth", 92));
     if (monospaced) {
-        valueLabel->setFont(monospacedFont());
+        valueLabel->setFont(monospacedFont(style));
     }
     layout->addRow(titleLabel, valueLabel);
 }
@@ -145,13 +148,15 @@ QGroupBox *sectionBox(const QString &title) {
     return box;
 }
 
-QWidget *tunnelRowWidget(const QJsonObject &tunnel) {
+QWidget *tunnelRowWidget(const QJsonObject &tunnel, const QJsonObject &style) {
     QWidget *row = new QWidget();
     row->setObjectName(QStringLiteral("tunnelRow"));
 
     QVBoxLayout *layout = new QVBoxLayout(row);
-    layout->setContentsMargins(8, 6, 8, 6);
-    layout->setSpacing(3);
+    const int horizontalPadding = intValue(style, "tunnelRowHorizontalPadding", 8);
+    const int verticalPadding = intValue(style, "tunnelRowVerticalPadding", 6);
+    layout->setContentsMargins(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding);
+    layout->setSpacing(intValue(style, "tunnelRowSpacing", 3));
 
     QHBoxLayout *header = new QHBoxLayout();
     header->setContentsMargins(0, 0, 0, 0);
@@ -174,11 +179,11 @@ QWidget *tunnelRowWidget(const QJsonObject &tunnel) {
     return row;
 }
 
-void addTunnelRow(QListWidget *list, const QJsonObject &tunnel) {
+void addTunnelRow(QListWidget *list, const QJsonObject &tunnel, const QJsonObject &style) {
     QListWidgetItem *item = new QListWidgetItem();
-    item->setSizeHint(QSize(240, 64));
+    item->setSizeHint(QSize(240, intValue(style, "tunnelRowHeight", 64)));
     list->addItem(item);
-    list->setItemWidget(item, tunnelRowWidget(tunnel));
+    list->setItemWidget(item, tunnelRowWidget(tunnel, style));
 }
 
 void replaceTunnelName(QJsonArray *tunnels, int row, const QString &name) {
@@ -210,7 +215,8 @@ void updateTunnelRowName(QListWidget *list, int row, const QString &name) {
 void addInterfaceSection(
     QVBoxLayout *detailLayout,
     const QJsonObject &tunnel,
-    const QJsonObject &presentation
+    const QJsonObject &presentation,
+    const QJsonObject &style
 ) {
     const QString noneText = presentationValue(presentation, "noneText", "None");
     const QJsonObject interfaceObject = objectValue(tunnel, "interface");
@@ -222,19 +228,22 @@ void addInterfaceSection(
         presentationValue(presentation, "publicKeyLabel", "Public key"),
         stringValue(interfaceObject, "publicKey"),
         noneText,
+        style,
         true
     );
     addDetailRow(
         form,
         presentationValue(presentation, "addressesLabel", "Addresses"),
         stringValue(interfaceObject, "addressesText"),
-        noneText
+        noneText,
+        style
     );
     addDetailRow(
         form,
         presentationValue(presentation, "dnsLabel", "DNS"),
         stringValue(interfaceObject, "dnsServersText"),
-        noneText
+        noneText,
+        style
     );
 
     const QString listenPort = stringValue(interfaceObject, "listenPortText");
@@ -243,7 +252,8 @@ void addInterfaceSection(
             form,
             presentationValue(presentation, "listenPortLabel", "Listen port"),
             listenPort,
-            noneText
+            noneText,
+            style
         );
     }
 
@@ -253,7 +263,8 @@ void addInterfaceSection(
 void addPeerSection(
     QVBoxLayout *detailLayout,
     const QJsonObject &peer,
-    const QJsonObject &presentation
+    const QJsonObject &presentation,
+    const QJsonObject &style
 ) {
     const QString noneText = presentationValue(presentation, "noneText", "None");
     QGroupBox *section = sectionBox(stringValue(peer, "name"));
@@ -264,13 +275,15 @@ void addPeerSection(
         presentationValue(presentation, "publicKeyLabel", "Public key"),
         stringValue(peer, "publicKey"),
         noneText,
+        style,
         true
     );
     addDetailRow(
         form,
         presentationValue(presentation, "allowedIPsLabel", "Allowed IPs"),
         stringValue(peer, "allowedIPsText"),
-        noneText
+        noneText,
+        style
     );
 
     const QString endpoint = stringValue(peer, "endpointText");
@@ -279,7 +292,8 @@ void addPeerSection(
             form,
             presentationValue(presentation, "endpointLabel", "Endpoint"),
             endpoint,
-            noneText
+            noneText,
+            style
         );
     }
 
@@ -289,7 +303,8 @@ void addPeerSection(
             form,
             presentationValue(presentation, "keepAliveLabel", "Keepalive"),
             keepAlive,
-            noneText
+            noneText,
+            style
         );
     }
 
@@ -299,11 +314,12 @@ void addPeerSection(
 void addExportSection(
     QVBoxLayout *detailLayout,
     const QJsonObject &tunnel,
-    const QJsonObject &presentation
+    const QJsonObject &presentation,
+    const QJsonObject &style
 ) {
     QGroupBox *section = sectionBox(presentationValue(presentation, "exportSectionTitle", "Export"));
     QVBoxLayout *layout = new QVBoxLayout(section);
-    QPlainTextEdit *config = configurationTextEditor(stringValue(tunnel, "wgQuickConfig"), true);
+    QPlainTextEdit *config = configurationTextEditor(style, stringValue(tunnel, "wgQuickConfig"), true);
     layout->addWidget(config);
     detailLayout->addWidget(section);
 }
@@ -313,6 +329,7 @@ void renderDetail(
     QJsonArray *tunnels,
     QListWidget *list,
     const QJsonObject &presentation,
+    const QJsonObject &style,
     int row
 ) {
     clearLayout(detailLayout);
@@ -354,14 +371,14 @@ void renderDetail(
     heading->addWidget(status, 0, Qt::AlignRight);
     detailLayout->addLayout(heading);
 
-    addInterfaceSection(detailLayout, tunnel, presentation);
+    addInterfaceSection(detailLayout, tunnel, presentation, style);
 
     const QJsonArray peers = arrayValue(tunnel, "peers");
     for (const QJsonValue &value : peers) {
-        addPeerSection(detailLayout, value.toObject(), presentation);
+        addPeerSection(detailLayout, value.toObject(), presentation, style);
     }
 
-    addExportSection(detailLayout, tunnel, presentation);
+    addExportSection(detailLayout, tunnel, presentation, style);
     detailLayout->addStretch();
 }
 
@@ -369,14 +386,15 @@ void appendImportedTunnel(
     QJsonArray *tunnels,
     QListWidget *list,
     QLabel *countLabel,
-    const QJsonObject &tunnel
+    const QJsonObject &tunnel,
+    const QJsonObject &style
 ) {
     if (tunnels == nullptr || list == nullptr) {
         return;
     }
 
     tunnels->append(tunnel);
-    addTunnelRow(list, tunnel);
+    addTunnelRow(list, tunnel, style);
     if (countLabel != nullptr) {
         countLabel->setText(QString::number(tunnels->size()));
     }
@@ -516,6 +534,7 @@ bool importConfigurationIntoList(
     QListWidget *list,
     QLabel *countLabel,
     const QJsonObject &presentation,
+    const QJsonObject &style,
     quill_wireguard_qt_import_config_callback importConfig,
     quill_wireguard_qt_free_string_callback freeString,
     QLabel *error,
@@ -551,7 +570,7 @@ bool importConfigurationIntoList(
         return fail(importError);
     }
 
-    appendImportedTunnel(tunnels, list, countLabel, tunnel);
+    appendImportedTunnel(tunnels, list, countLabel, tunnel, style);
     clearImportError(error);
     if (errorText != nullptr) {
         errorText->clear();
@@ -606,7 +625,7 @@ void showImportDialog(
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
     layout->setSpacing(10);
 
-    QPlainTextEdit *editor = configurationTextEditor();
+    QPlainTextEdit *editor = configurationTextEditor(style);
     editor->setObjectName(QStringLiteral("importConfigText"));
     editor->setPlaceholderText(presentationValue(
         presentation,
@@ -649,6 +668,7 @@ void showImportDialog(
             list,
             countLabel,
             presentation,
+            style,
             importConfig,
             freeString,
             error
@@ -842,7 +862,7 @@ int quill_wireguard_qt_run_wireguard_json(
 
     QListWidget *list = new QListWidget();
     for (const QJsonValue &value : tunnels) {
-        addTunnelRow(list, value.toObject());
+        addTunnelRow(list, value.toObject(), style);
     }
     sidebarLayout->addWidget(list, 1);
 
@@ -867,7 +887,7 @@ int quill_wireguard_qt_run_wireguard_json(
     splitter->setStretchFactor(1, 1);
 
     QObject::connect(list, &QListWidget::currentRowChanged, [&](int row) {
-        renderDetail(detailLayout, &tunnels, list, presentation, row);
+        renderDetail(detailLayout, &tunnels, list, presentation, style, row);
     });
     QObject::connect(headerImportButton, &QPushButton::clicked, [&]() {
         showImportDialog(
@@ -886,7 +906,7 @@ int quill_wireguard_qt_run_wireguard_json(
     if (initialRow >= 0) {
         list->setCurrentRow(initialRow);
     } else {
-        renderDetail(detailLayout, &tunnels, list, presentation, initialRow);
+        renderDetail(detailLayout, &tunnels, list, presentation, style, initialRow);
     }
 
     window.show();
@@ -922,6 +942,7 @@ int quill_wireguard_qt_run_wireguard_json(
                 list,
                 sidebarCount,
                 presentation,
+                style,
                 import_config,
                 free_string,
                 nullptr,

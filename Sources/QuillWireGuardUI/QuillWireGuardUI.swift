@@ -35,6 +35,13 @@ private enum WireGuardFallbackStyle {
     static let detailPadding = CGFloat(QuillWireGuardStyle.detailPadding)
     static let detailSpacing = CGFloat(QuillWireGuardStyle.detailSpacing)
     static let detailSectionPadding = CGFloat(QuillWireGuardStyle.detailSectionPadding)
+    static let detailKeyWidth = CGFloat(QuillWireGuardStyle.detailKeyWidth)
+    static let importEditorHeight = CGFloat(QuillWireGuardStyle.importEditorHeight)
+    static let monospacedFontSize = CGFloat(QuillWireGuardStyle.monospacedFontSize)
+    static let tunnelRowHeight = CGFloat(QuillWireGuardStyle.tunnelRowHeight)
+    static let tunnelRowHorizontalPadding = CGFloat(QuillWireGuardStyle.tunnelRowHorizontalPadding)
+    static let tunnelRowVerticalPadding = CGFloat(QuillWireGuardStyle.tunnelRowVerticalPadding)
+    static let tunnelRowSpacing = CGFloat(QuillWireGuardStyle.tunnelRowSpacing)
     static let listItemCornerRadius = CGFloat(QuillWireGuardStyle.listItemCornerRadius)
 
     static var sidebarBackgroundColor: Color {
@@ -131,7 +138,7 @@ public struct WireGuardFallbackConfigurationView: View {
     }
 
     private func tunnelRow(_ tunnel: QuillWireGuardTunnel, isSelected: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: WireGuardFallbackStyle.tunnelRowSpacing) {
             HStack {
                 Text(tunnel.name)
                     .font(.subheadline)
@@ -144,9 +151,10 @@ public struct WireGuardFallbackConfigurationView: View {
                 .font(.caption2)
                 .foregroundColor(WireGuardFallbackStyle.secondaryTextColor)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(.horizontal, WireGuardFallbackStyle.tunnelRowHorizontalPadding)
+        .padding(.vertical, WireGuardFallbackStyle.tunnelRowVerticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: WireGuardFallbackStyle.tunnelRowHeight, alignment: .leading)
         .background(isSelected ? WireGuardFallbackStyle.selectedRowBackgroundColor : Color.clear)
         .cornerRadius(WireGuardFallbackStyle.listItemCornerRadius)
     }
@@ -193,7 +201,7 @@ public struct WireGuardFallbackConfigurationView: View {
 
                         section(title: QuillWireGuardPresentation.exportSectionTitle) {
                             Text(tunnel.wgQuickConfig())
-                                .font(.system(size: 11, design: .monospaced))
+                                .font(.system(size: WireGuardFallbackStyle.monospacedFontSize, design: .monospaced))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
@@ -225,8 +233,8 @@ public struct WireGuardFallbackConfigurationView: View {
         section(title: QuillWireGuardPresentation.importDialogTitle) {
             VStack(alignment: .leading, spacing: 10) {
                 TextEditor(text: $importConfigurationText)
-                    .font(.system(size: 11, design: .monospaced))
-                    .frame(height: 180)
+                    .font(.system(size: WireGuardFallbackStyle.monospacedFontSize, design: .monospaced))
+                    .frame(height: WireGuardFallbackStyle.importEditorHeight)
 
                 if let importErrorText, !importErrorText.isEmpty {
                     Text(importErrorText)
@@ -263,9 +271,13 @@ public struct WireGuardFallbackConfigurationView: View {
             Text(label)
                 .font(.caption)
                 .foregroundColor(WireGuardFallbackStyle.secondaryTextColor)
-                .frame(width: 92, alignment: .leading)
+                .frame(width: WireGuardFallbackStyle.detailKeyWidth, alignment: .leading)
             Text(value.isEmpty ? QuillWireGuardPresentation.noneText : value)
-                .font(monospaced ? .system(size: 11, design: .monospaced) : .body)
+                .font(
+                    monospaced
+                        ? .system(size: WireGuardFallbackStyle.monospacedFontSize, design: .monospaced)
+                        : .body
+                )
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
