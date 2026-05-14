@@ -35,6 +35,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var id: String
         var title: String
         var lastMessage: String
+        var messages: [Message]? = nil
     }
 
     struct Message: Codable, Sendable {
@@ -64,6 +65,50 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var composerHeight: Int
         var messageMaxWidth: Int
     }
+
+    private static let parityConversationMessages = [
+        Message(
+            id: "system-1",
+            role: "system",
+            content: "You are chatting with a local Ollama model through QuillUI."
+        ),
+        Message(
+            id: "user-1",
+            role: "user",
+            content: "Show the Enchanted layout that Qt needs to match."
+        ),
+        Message(
+            id: "assistant-1",
+            role: "assistant",
+            content: "The Qt shell keeps the 300px sidebar, conversation list, model picker, transcript, attachment row, and composer controls aligned with the GTK preview."
+        )
+    ]
+
+    private static let localModelConversationMessages = [
+        Message(
+            id: "local-user-1",
+            role: "user",
+            content: "What has to stay visible while I switch local models?"
+        ),
+        Message(
+            id: "local-assistant-1",
+            role: "assistant",
+            content: "The endpoint, selected model, model refresh action, and readiness status remain in the sidebar so GTK and Qt expose the same controls."
+        )
+    ]
+
+    private static let attachmentConversationMessages = [
+        Message(
+            id: "attachment-user-1",
+            role: "user",
+            content: "Can the native Linux shell keep image attachment affordances?"
+        ),
+        Message(
+            id: "attachment-assistant-1",
+            role: "assistant",
+            content: "Yes. The Qt host keeps the attachment path row, attach action, multiline prompt editor, and send button visible with the selected attachment conversation."
+        )
+    ]
 
     static let preview = QuillEnchantedQtSnapshot(
         windowTitle: "Quill Enchanted",
@@ -96,36 +141,23 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             Conversation(
                 id: "parity-brief",
                 title: "QuillUI backend parity",
-                lastMessage: "Compare the GTK and Qt Enchanted shells."
+                lastMessage: "Compare the GTK and Qt Enchanted shells.",
+                messages: parityConversationMessages
             ),
             Conversation(
                 id: "local-models",
                 title: "Local model setup",
-                lastMessage: "Keep endpoint and model controls visible."
+                lastMessage: "Keep endpoint and model controls visible.",
+                messages: localModelConversationMessages
             ),
             Conversation(
                 id: "attachments",
                 title: "Image attachment flow",
-                lastMessage: "Preserve attachment affordances in native hosts."
+                lastMessage: "Preserve attachment affordances in native hosts.",
+                messages: attachmentConversationMessages
             )
         ],
-        messages: [
-            Message(
-                id: "system-1",
-                role: "system",
-                content: "You are chatting with a local Ollama model through QuillUI."
-            ),
-            Message(
-                id: "user-1",
-                role: "user",
-                content: "Show the Enchanted layout that Qt needs to match."
-            ),
-            Message(
-                id: "assistant-1",
-                role: "assistant",
-                content: "The Qt shell keeps the 300px sidebar, conversation list, model picker, transcript, attachment row, and composer controls aligned with the GTK preview."
-            )
-        ],
+        messages: parityConversationMessages,
         prompts: [
             "Summarize the current conversation",
             "Explain this screenshot",

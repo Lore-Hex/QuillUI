@@ -149,6 +149,36 @@ QString selectedConversationTitle(
     return fallback;
 }
 
+QString currentConversationID(QListWidget *list, const QString &fallback) {
+    QListWidgetItem *item = list->currentItem();
+    if (item == nullptr) {
+        return fallback;
+    }
+
+    const QString selectedID = item->data(Qt::UserRole).toString();
+    if (selectedID.isEmpty()) {
+        return fallback;
+    }
+    return selectedID;
+}
+
+QJsonArray selectedConversationMessages(
+    const QJsonArray &conversations,
+    const QString &selectedConversationID,
+    const QJsonArray &fallbackMessages
+) {
+    for (const QJsonValue &value : conversations) {
+        const QJsonObject conversation = value.toObject();
+        if (
+            stringValue(conversation, "id") == selectedConversationID
+            && conversation.contains(QStringLiteral("messages"))
+        ) {
+            return arrayValue(conversation, "messages");
+        }
+    }
+    return fallbackMessages;
+}
+
 void populateConversations(
     QListWidget *list,
     const QJsonArray &conversations,
@@ -383,10 +413,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
     headerLayout->setSpacing(12);
     QVBoxLayout *titleLayout = new QVBoxLayout();
     titleLayout->setSpacing(4);
+    const QString initialConversationID = currentConversationID(conversationList, selectedConversationID);
     QLabel *currentTitle = label(
         selectedConversationTitle(
             conversations,
-            selectedConversationID,
+            initialConversationID,
             QStringLiteral("QuillUI backend parity")
         ),
         QStringLiteral("currentTitle")
@@ -413,10 +444,15 @@ extern "C" int quill_enchanted_qt_run_app_json(
     scrollArea->setWidget(transcript);
     chatLayout->addWidget(scrollArea, 1);
 
-    const QJsonArray messages = arrayValue(payload, "messages");
+    const QJsonArray fallbackMessages = arrayValue(payload, "messages");
     const QJsonArray prompts = arrayValue(payload, "prompts");
-    renderMessages(messageLayout, messages, prompts, style);
-    bool showingPromptCards = messages.isEmpty();
+    const QJsonArray initialMessages = selectedConversationMessages(
+        conversations,
+        initialConversationID,
+        fallbackMessages
+    );
+    renderMessages(messageLayout, initialMessages, prompts, style);
+    bool showingPromptCards = initialMessages.isEmpty();
 
     QFrame *composer = QuillQtWidgets::frame(QStringLiteral("composer"));
     QVBoxLayout *composerLayout = new QVBoxLayout(composer);
@@ -478,10 +514,13 @@ extern "C" int quill_enchanted_qt_run_app_json(
             selectedID,
             QStringLiteral("QuillUI backend parity")
         ));
-        if (showingPromptCards) {
-            renderMessages(messageLayout, messages, prompts, style);
-            showingPromptCards = messages.isEmpty();
-        }
+        const QJsonArray selectedMessages = selectedConversationMessages(
+            conversations,
+            selectedID,
+            fallbackMessages
+        );
+        renderMessages(messageLayout, selectedMessages, prompts, style);
+        showingPromptCards = selectedMessages.isEmpty();
     });
     QObject::connect(attachButton, &QPushButton::clicked, [attachmentPath]() {
         attachmentPath->setText(QStringLiteral("/tmp/reference-image.png"));
