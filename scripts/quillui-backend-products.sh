@@ -521,6 +521,57 @@ quillui_backend_smoke_interaction_verify_product() {
   esac
 }
 
+quillui_is_quill_chat_mac_reference_product() {
+  local product="$1"
+  [[ "$product" == "quill-chat-linux" && "${QUILLUI_BACKEND_MAC_REFERENCE:-0}" == "1" ]]
+}
+
+quillui_backend_quill_chat_interaction_verify_product() {
+  local selected_backend
+  local interaction_mode="$2"
+  local verify_product=""
+
+  selected_backend="$(quillui_require_backend_identifier "$1")" || return $?
+
+  case "$selected_backend:$interaction_mode" in
+    *:composer-typed)
+      verify_product="quill-chat-linux-mac-reference-composer-typed"
+      ;;
+    *:settings-panel|*:alert-settings-panel)
+      verify_product="quill-chat-linux-mac-reference-settings-panel"
+      ;;
+    *:settings-endpoint-typed)
+      verify_product="quill-chat-linux-mac-reference-settings-endpoint-typed"
+      ;;
+    *:completions-panel)
+      verify_product="quill-chat-linux-mac-reference-completions-panel"
+      ;;
+    *:history-selection)
+      verify_product="quill-chat-linux-mac-reference-history-selection"
+      ;;
+    *:transcript-selection)
+      verify_product="quill-chat-linux-mac-reference-transcript-selection"
+      ;;
+    *:markdown-transcript-selection)
+      verify_product="quill-chat-linux-mac-reference-markdown-transcript-selection"
+      ;;
+    *:long-transcript-selection)
+      verify_product="quill-chat-linux-mac-reference-long-transcript-selection"
+      ;;
+    *:prompt-send)
+      verify_product="quill-chat-linux-mac-reference-prompt-send"
+      ;;
+    *)
+      verify_product="quill-chat-linux-toolbar-menu"
+      if quillui_is_quill_chat_mac_reference_product quill-chat-linux; then
+        verify_product="quill-chat-linux-mac-reference-toolbar-menu"
+      fi
+      ;;
+  esac
+
+  printf '%s\n' "$verify_product"
+}
+
 quillui_backend_wireguard_interaction_verify_product() {
   local selected_backend
   local interaction_mode="$2"
@@ -584,6 +635,9 @@ quillui_backend_app_interaction_verify_product_for_product() {
   local interaction_mode="$3"
 
   case "$product" in
+    quill-chat-linux)
+      quillui_backend_quill_chat_interaction_verify_product "$selected_backend" "$interaction_mode"
+      ;;
     quill-wireguard)
       quillui_backend_wireguard_interaction_verify_product "$selected_backend" "$interaction_mode"
       ;;

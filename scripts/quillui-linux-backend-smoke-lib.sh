@@ -54,11 +54,6 @@ quillui_generated_app_backend_facade() {
   return 0
 }
 
-quillui_is_quill_chat_mac_reference_product() {
-  local product="$1"
-  [[ "$product" == "quill-chat-linux" && "${QUILLUI_BACKEND_MAC_REFERENCE:-0}" == "1" ]]
-}
-
 quillui_backend_screen_size() {
   local product="$1"
   local requested_screen_size="$2"
@@ -204,43 +199,7 @@ quillui_backend_interaction_verify_product() {
 
   selected_backend="$(quillui_require_requested_backend_for_product "$product" 2>/dev/null || true)"
 
-  if [[ "$product" == "quill-chat-linux" ]]; then
-    case "$interaction_mode" in
-      composer-typed)
-        verify_product="quill-chat-linux-mac-reference-composer-typed"
-        ;;
-      settings-panel|alert-settings-panel)
-        verify_product="quill-chat-linux-mac-reference-settings-panel"
-        ;;
-      settings-endpoint-typed)
-        verify_product="quill-chat-linux-mac-reference-settings-endpoint-typed"
-        ;;
-      completions-panel)
-        verify_product="quill-chat-linux-mac-reference-completions-panel"
-        ;;
-      history-selection)
-        verify_product="quill-chat-linux-mac-reference-history-selection"
-        ;;
-      transcript-selection)
-        verify_product="quill-chat-linux-mac-reference-transcript-selection"
-        ;;
-      markdown-transcript-selection)
-        verify_product="quill-chat-linux-mac-reference-markdown-transcript-selection"
-        ;;
-      long-transcript-selection)
-        verify_product="quill-chat-linux-mac-reference-long-transcript-selection"
-        ;;
-      prompt-send)
-        verify_product="quill-chat-linux-mac-reference-prompt-send"
-        ;;
-      *)
-        verify_product="quill-chat-linux-toolbar-menu"
-        if quillui_is_quill_chat_mac_reference_product "$product"; then
-          verify_product="quill-chat-linux-mac-reference-toolbar-menu"
-        fi
-        ;;
-    esac
-  elif verify_product="$(quillui_backend_app_interaction_verify_product_for_product "$product" "$selected_backend" "$interaction_mode")"; then
+  if verify_product="$(quillui_backend_app_interaction_verify_product_for_product "$product" "$selected_backend" "$interaction_mode")"; then
     :
   elif [[ "$interaction_mode" == "list-selection" ]] && list_selection_verify_product="$(quillui_backend_list_selection_verify_product "$product" "$selected_backend")"; then
     verify_product="$list_selection_verify_product"
