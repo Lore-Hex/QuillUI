@@ -105,6 +105,12 @@ struct LinuxBackendAppMatrixTests {
         }
     }
 
+    private static var expectedGeneratedAppMatrixRows: [String] {
+        expectedGeneratedAppProducts.flatMap { product in
+            expectedBackends.map { backend in "\(product)\t\(backend)" }
+        }
+    }
+
     private static var expectedAppRuntimeRows: [String] {
         expectedAppMatrixRows.map { row in
             let fields = row.split(separator: "\t").map(String.init)
@@ -330,6 +336,10 @@ struct LinuxBackendAppMatrixTests {
             "gtk\tgtk\tnative",
             "qt\tgtk\tplatformFallback"
         ])
+
+        let generatedAppRows = try runScript(script, arguments: ["generated-app-matrix"])
+        #expect(generatedAppRows.status == 0, Comment(rawValue: generatedAppRows.output))
+        #expect(Self.lines(generatedAppRows.output) == Self.expectedGeneratedAppMatrixRows)
 
         let generatedAppRuntimeRows = try runScript(script, arguments: ["generated-app-runtime-matrix"])
         #expect(generatedAppRuntimeRows.status == 0, Comment(rawValue: generatedAppRuntimeRows.output))

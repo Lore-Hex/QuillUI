@@ -1146,51 +1146,90 @@ quillui_backend_validate_interaction_extra_mode_matrix() {
   done < <(quillui_backend_interaction_extra_mode_matrix)
 }
 
-quillui_backend_validate_interaction_extra_mode_backend_parity() {
+quillui_backend_app_backend_ids_for_awk() {
+  local backend
+  local separator=""
+
+  for backend in "${QUILLUI_BACKEND_APP_BACKEND_IDS[@]}"; do
+    [[ -n "$backend" ]] || continue
+    printf '%s%s' "$separator" "$backend"
+    separator=" "
+  done
+}
+
+quillui_backend_validate_backend_parity() {
+  local matrix_name="$1"
+  local matrix_command="$2"
+  local column_count="$3"
+  local expected_backends
   local parity_errors
 
+  expected_backends="$(quillui_backend_app_backend_ids_for_awk)"
   parity_errors="$(
-    quillui_backend_interaction_extra_mode_matrix | awk -F '\t' '
+    "$matrix_command" | awk -F '\t' -v matrix_name="$matrix_name" -v expected_backends="$expected_backends" -v column_count="$column_count" '
+      BEGIN {
+        expectedCount = split(expected_backends, expectedBackendList, " ")
+        if (column_count != 2 && column_count != 3) {
+          printf "%s backend parity validator does not support %s columns\n", matrix_name, column_count
+          failures = 1
+        }
+        if (expectedCount == 0) {
+          printf "%s backend parity validator has no expected backends\n", matrix_name
+          failures = 1
+        }
+        for (i = 1; i <= expectedCount; i++) {
+          expectedBackend = expectedBackendList[i]
+          if (expectedBackend == "") {
+            continue
+          }
+          expected[expectedBackend] = 1
+        }
+      }
       NF == 0 {
         next
       }
-      NF != 3 {
-        printf "interaction-extra-mode-matrix row has %d columns, expected 3: %s\n", NF, $0
+      NF != column_count {
+        printf "%s row has %d columns, expected %d: %s\n", matrix_name, NF, column_count, $0
         failures = 1
         next
       }
       {
         rows += 1
-        rowKey = $1 "/" $2 "/" $3
+        rowKey = $1 "/" $2
+        groupKey = $1
+        groupLabel = $1
+        if (column_count == 3) {
+          rowKey = rowKey "/" $3
+          groupKey = $1 SUBSEP $3
+          groupLabel = $1 "/" $3
+        }
         if (seenRow[rowKey]++) {
-          printf "interaction-extra-mode-matrix contains duplicate row: %s\n", rowKey
+          printf "%s contains duplicate row: %s\n", matrix_name, rowKey
           failures = 1
         }
-        modeKey = $1 SUBSEP $3
-        products[modeKey] = $1
-        modes[modeKey] = $3
-        if ($2 == "gtk") {
-          hasGtk[modeKey] = 1
-        } else if ($2 == "qt") {
-          hasQt[modeKey] = 1
-        } else {
-          printf "interaction-extra-mode-matrix contains unsupported backend for parity: %s\n", rowKey
+        if (!($2 in expected)) {
+          printf "%s contains unsupported backend for parity: %s\n", matrix_name, rowKey
           failures = 1
+          next
         }
+        groupLabels[groupKey] = groupLabel
+        backendSeen[groupKey SUBSEP $2] = 1
       }
       END {
         if (rows == 0) {
-          print "interaction-extra-mode-matrix is empty"
+          printf "%s is empty\n", matrix_name
           failures = 1
         }
-        for (modeKey in products) {
-          if (!(modeKey in hasGtk) || !(modeKey in hasQt)) {
-            printf "interaction-extra-mode-matrix must mirror GTK and Qt for %s/%s (gtk=%s qt=%s)\n",
-              products[modeKey],
-              modes[modeKey],
-              ((modeKey in hasGtk) ? "yes" : "no"),
-              ((modeKey in hasQt) ? "yes" : "no")
-            failures = 1
+        for (groupKey in groupLabels) {
+          for (i = 1; i <= expectedCount; i++) {
+            expectedBackend = expectedBackendList[i]
+            if (expectedBackend == "") {
+              continue
+            }
+            if (!((groupKey SUBSEP expectedBackend) in backendSeen)) {
+              printf "%s must include backend %s for %s\n", matrix_name, expectedBackend, groupLabels[groupKey]
+              failures = 1
+            }
           }
         }
         exit failures ? 1 : 0
@@ -1202,11 +1241,26 @@ quillui_backend_validate_interaction_extra_mode_backend_parity() {
   }
 }
 
+quillui_backend_validate_two_column_backend_parity() {
+  quillui_backend_validate_backend_parity "$1" "$2" 2
+}
+
+quillui_backend_validate_mode_backend_parity() {
+  quillui_backend_validate_backend_parity "$1" "$2" 3
+}
+
+quillui_backend_validate_interaction_extra_mode_backend_parity() {
+  quillui_backend_validate_mode_backend_parity "interaction-extra-mode-matrix" quillui_backend_interaction_extra_mode_matrix
+}
+
 quillui_backend_validate_integrity() {
   quillui_backend_validate_app_backend_ids || return $?
   quillui_backend_validate_product_native_runtime_backends || return $?
   quillui_backend_validate_fixed_app_backend_overrides || return $?
   quillui_backend_validate_native_product_runtime_overrides || return $?
+  quillui_backend_validate_two_column_backend_parity "app-matrix" quillui_backend_app_matrix || return $?
+  quillui_backend_validate_two_column_backend_parity "interaction-matrix" quillui_backend_interaction_app_matrix || return $?
+  quillui_backend_validate_two_column_backend_parity "generated-app-matrix" quillui_backend_generated_app_matrix || return $?
   quillui_backend_validate_interaction_extra_mode_matrix || return $?
   quillui_backend_validate_interaction_extra_mode_backend_parity || return $?
   quillui_backend_app_runtime_matrix >/dev/null || return $?
