@@ -250,16 +250,10 @@ quillui_backend_interaction_verify_product() {
         fi
         ;;
     esac
-  elif [[ "$selected_backend" == "gtk" && "$product" == "quill-signal" ]]; then
+  elif [[ "$selected_backend" == "gtk" ]] && quillui_is_backend_chat_gtk_list_selection_app_product "$product"; then
     case "$interaction_mode" in
       list-selection)
-        verify_product="quill-signal-list-selection"
-        ;;
-    esac
-  elif [[ "$selected_backend" == "gtk" && "$product" == "quill-telegram" ]]; then
-    case "$interaction_mode" in
-      list-selection)
-        verify_product="quill-telegram-list-selection"
+        verify_product="$product-list-selection"
         ;;
     esac
   elif [[ "$product" == "quill-wireguard" ]]; then
@@ -649,6 +643,40 @@ quillui_backend_generic_gtk_selection_environment_key() {
   return 65
 }
 
+quillui_backend_chat_gtk_selection_environment_key() {
+  local product="$1"
+
+  if ! quillui_is_backend_chat_gtk_list_selection_app_product "$product"; then
+    echo "Unsupported ChatKit GTK list-selection product: $product" >&2
+    return 65
+  fi
+
+  case "$product" in
+    quill-signal)
+      printf '%s\n' QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START
+      ;;
+    quill-telegram)
+      printf '%s\n' QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START
+      ;;
+    *)
+      echo "Missing ChatKit GTK selection environment key for product: $product" >&2
+      return 66
+      ;;
+  esac
+}
+
+quillui_backend_chat_gtk_selected_index_on_start() {
+  local product="$1"
+  local environment_key
+
+  environment_key="$(quillui_backend_chat_gtk_selection_environment_key "$product")" || return $?
+  if [[ -n "${!environment_key:-}" ]]; then
+    printf '%s\n' "${!environment_key}"
+  else
+    printf '%s\n' "${QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START:-1}"
+  fi
+}
+
 quillui_backend_generic_qt_selected_index_on_start() {
   quillui_backend_generic_selected_index_on_start "$1"
 }
@@ -687,14 +715,12 @@ quillui_append_backend_selection_start_environment() {
     quillui_append_environment_assignment \
       "$output_array" \
       "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START:-${QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START:-0}}" || return $?
-  elif [[ "$selected_backend" == "gtk" && "$product" == "quill-signal" ]]; then
+  elif [[ "$selected_backend" == "gtk" ]] && quillui_is_backend_chat_gtk_list_selection_app_product "$product"; then
+    selected_index="$(quillui_backend_chat_gtk_selected_index_on_start "$product")" || return $?
+    environment_key="$(quillui_backend_chat_gtk_selection_environment_key "$product")" || return $?
     quillui_append_environment_assignment \
       "$output_array" \
-      "QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START=${QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START:-1}}" || return $?
-  elif [[ "$selected_backend" == "gtk" && "$product" == "quill-telegram" ]]; then
-    quillui_append_environment_assignment \
-      "$output_array" \
-      "QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START=${QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START:-1}}" || return $?
+      "$environment_key=$selected_index" || return $?
   fi
 
   return 0

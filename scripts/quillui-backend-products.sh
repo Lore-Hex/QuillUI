@@ -44,6 +44,14 @@ quillui_backend_generic_gtk_list_selection_app_products() {
     quill-iina
 }
 
+quillui_backend_chat_gtk_list_selection_app_products() {
+  # ChatKit-backed GTK app cores share list-selection wiring but keep
+  # ChatKit-specific screenshot verification thresholds.
+  printf '%s\n' \
+    quill-signal \
+    quill-telegram
+}
+
 quillui_gtk_app_products() {
   # Legacy GTK-named entry point kept for older scripts. The backend app roster
   # is the source of truth because app binaries select GTK/Qt through the
@@ -401,11 +409,14 @@ quillui_backend_interaction_extra_mode_matrix() {
     quill-wireguard qt import-invalid-paste \
     quill-wireguard qt import-invalid-file \
     quill-enchanted gtk list-selection \
-    quill-enchanted qt list-selection \
-    quill-signal gtk list-selection \
-    quill-telegram gtk list-selection
+    quill-enchanted qt list-selection
 
   local product
+  while IFS= read -r product; do
+    [[ -n "$product" ]] || continue
+    printf '%s\t%s\t%s\n' "$product" gtk list-selection
+  done < <(quillui_backend_chat_gtk_list_selection_app_products)
+
   while IFS= read -r product; do
     [[ -n "$product" ]] || continue
     printf '%s\t%s\t%s\n' "$product" gtk list-selection
@@ -577,6 +588,10 @@ quillui_is_backend_generic_qt_app_product() {
 
 quillui_is_backend_generic_gtk_list_selection_app_product() {
   quillui_backend_product_list_contains "$1" quillui_backend_generic_gtk_list_selection_app_products
+}
+
+quillui_is_backend_chat_gtk_list_selection_app_product() {
+  quillui_backend_product_list_contains "$1" quillui_backend_chat_gtk_list_selection_app_products
 }
 
 quillui_backend_has_native_runtime() {
@@ -1063,12 +1078,15 @@ quillui_backend_validate_product_rosters() {
   quillui_backend_validate_product_roster "backend-apps" quillui_backend_app_products || return $?
   quillui_backend_validate_product_roster "generic-qt-apps" quillui_backend_generic_qt_app_products || return $?
   quillui_backend_validate_product_roster "generic-gtk-list-selection-apps" quillui_backend_generic_gtk_list_selection_app_products || return $?
+  quillui_backend_validate_product_roster "chat-gtk-list-selection-apps" quillui_backend_chat_gtk_list_selection_app_products || return $?
   quillui_backend_validate_product_roster "generated-apps" quillui_backend_generated_app_products || return $?
   quillui_backend_validate_product_roster "smoke-products" quillui_backend_smoke_products || return $?
   quillui_backend_validate_product_roster "profile-products" quillui_backend_profile_products || return $?
 
   quillui_backend_validate_product_roster_subset "generic-qt-apps" quillui_backend_generic_qt_app_products "backend-apps" quillui_backend_app_products || return $?
   quillui_backend_validate_product_roster_subset "generic-gtk-list-selection-apps" quillui_backend_generic_gtk_list_selection_app_products "backend-apps" quillui_backend_app_products || return $?
+  quillui_backend_validate_product_roster_subset "chat-gtk-list-selection-apps" quillui_backend_chat_gtk_list_selection_app_products "backend-apps" quillui_backend_app_products || return $?
+  quillui_backend_validate_disjoint_product_rosters "generic-gtk-list-selection-apps" quillui_backend_generic_gtk_list_selection_app_products "chat-gtk-list-selection-apps" quillui_backend_chat_gtk_list_selection_app_products || return $?
 
   quillui_backend_validate_disjoint_product_rosters "backend-apps" quillui_backend_app_products "generated-apps" quillui_backend_generated_app_products || return $?
   quillui_backend_validate_disjoint_product_rosters "backend-apps" quillui_backend_app_products "smoke-products" quillui_backend_smoke_products || return $?
@@ -1434,6 +1452,7 @@ Commands:
   backend-apps                    List user-facing app products in the backend parity matrix.
   generic-qt-apps                 List app products backed by the shared generic Qt runtime.
   generic-gtk-list-selection-apps List app products covered by shared GTK list-selection smokes.
+  chat-gtk-list-selection-apps    List ChatKit app products covered by shared GTK list-selection smokes.
   build-product-matrix MATRIX     List PRODUCT<TAB>BUILD_BACKEND rows for package builds.
   app-backends                    List backends requested for each user-facing app.
   app-matrix                      List PRODUCT<TAB>BACKEND visual smoke rows for user-facing apps.
@@ -1478,6 +1497,8 @@ Commands:
   is-generic-qt-app PRODUCT       Exit 0 when PRODUCT uses the shared generic Qt runtime.
   is-generic-gtk-list-selection-app PRODUCT
                                   Exit 0 when PRODUCT uses the shared GTK list-selection smoke.
+  is-chat-gtk-list-selection-app PRODUCT
+                                  Exit 0 when PRODUCT uses the shared ChatKit GTK list-selection smoke.
   has-native-runtime BACKEND      Exit 0 when BACKEND is linked to a native Linux runtime host.
   backend-for-product PRODUCT     Print the default requested backend for PRODUCT.
   requested-backend PRODUCT       Print QUILLUI_BACKEND override or PRODUCT default.
@@ -1503,6 +1524,9 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     generic-gtk-list-selection-apps)
       quillui_backend_generic_gtk_list_selection_app_products
+      ;;
+    chat-gtk-list-selection-apps)
+      quillui_backend_chat_gtk_list_selection_app_products
       ;;
     build-product-matrix)
       if [[ $# -ne 2 ]]; then
@@ -1654,6 +1678,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         exit 64
       fi
       quillui_is_backend_generic_gtk_list_selection_app_product "$2"
+      ;;
+    is-chat-gtk-list-selection-app)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_is_backend_chat_gtk_list_selection_app_product "$2"
       ;;
     has-native-runtime)
       if [[ $# -ne 2 ]]; then

@@ -34,6 +34,10 @@ def load_generic_gtk_list_selection_app_products() -> frozenset[str]:
     return load_backend_product_set("generic-gtk-list-selection-apps", "generic GTK list-selection app products")
 
 
+def load_chat_gtk_list_selection_app_products() -> frozenset[str]:
+    return load_backend_product_set("chat-gtk-list-selection-apps", "ChatKit GTK list-selection app products")
+
+
 GENERIC_QT_APP_PRODUCTS = load_generic_qt_app_products()
 GENERIC_QT_LIST_SELECTION_PRODUCTS = frozenset(
     f"{product}-qt-list-selection"
@@ -43,6 +47,11 @@ GENERIC_GTK_LIST_SELECTION_APP_PRODUCTS = load_generic_gtk_list_selection_app_pr
 GENERIC_GTK_LIST_SELECTION_PRODUCTS = frozenset(
     f"{product}-gtk-list-selection"
     for product in GENERIC_GTK_LIST_SELECTION_APP_PRODUCTS
+)
+CHAT_GTK_LIST_SELECTION_APP_PRODUCTS = load_chat_gtk_list_selection_app_products()
+CHAT_GTK_LIST_SELECTION_PRODUCTS = frozenset(
+    f"{product}-list-selection"
+    for product in CHAT_GTK_LIST_SELECTION_APP_PRODUCTS
 )
 
 
@@ -2250,7 +2259,7 @@ def main() -> int:
         print(validate_quill_enchanted_qt_native(image, minimum_selected_center_offset=430))
     elif product == "quill-enchanted-list-selection":
         print(validate_quill_enchanted_gtk_list_selection(image))
-    elif product in {"quill-signal-list-selection", "quill-telegram-list-selection"}:
+    elif product in CHAT_GTK_LIST_SELECTION_PRODUCTS:
         print(validate_quill_chatkit_gtk_list_selection(image, product))
     elif product in GENERIC_GTK_LIST_SELECTION_PRODUCTS:
         print(validate_quill_generic_gtk_list_selection(image, product))

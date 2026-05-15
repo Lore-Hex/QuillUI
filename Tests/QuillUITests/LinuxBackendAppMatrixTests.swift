@@ -93,6 +93,8 @@ struct LinuxBackendAppMatrixTests {
         }
     }
 
+    private static let expectedChatGtkListSelectionAppProducts = ["quill-signal", "quill-telegram"]
+
     private static let expectedBackends = ["gtk", "qt"]
     private static let expectedNativeRuntimeBackends = ["gtk"]
     private static let expectedGeneratedAppProducts = ["quill-chat-linux"]
@@ -228,19 +230,14 @@ struct LinuxBackendAppMatrixTests {
                 mode: "list-selection",
                 verifyProduct: "quill-enchanted-qt-list-selection"
             ),
+        ] + expectedChatGtkListSelectionAppProducts.map { product in
             Self.expectedInteractionExtraModeRow(
-                product: "quill-signal",
+                product: product,
                 backend: "gtk",
                 mode: "list-selection",
-                verifyProduct: "quill-signal-list-selection"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-telegram",
-                backend: "gtk",
-                mode: "list-selection",
-                verifyProduct: "quill-telegram-list-selection"
+                verifyProduct: "\(product)-list-selection"
             )
-        ] + expectedGenericGtkListSelectionAppProducts.map { product in
+        } + expectedGenericGtkListSelectionAppProducts.map { product in
             Self.expectedInteractionExtraModeRow(
                 product: product,
                 backend: "gtk",
@@ -286,6 +283,11 @@ struct LinuxBackendAppMatrixTests {
         #expect(Self.lines(genericGtkProducts.output) == Self.expectedGenericGtkListSelectionAppProducts)
         #expect(Self.lines(genericGtkProducts.output).allSatisfy { Self.expectedAppProducts.contains($0) })
 
+        let chatGtkProducts = try runScript(script, arguments: ["chat-gtk-list-selection-apps"])
+        #expect(chatGtkProducts.status == 0, Comment(rawValue: chatGtkProducts.output))
+        #expect(Self.lines(chatGtkProducts.output) == Self.expectedChatGtkListSelectionAppProducts)
+        #expect(Self.lines(chatGtkProducts.output).allSatisfy { Self.expectedAppProducts.contains($0) })
+
         let genericQtMembership = try runScript(script, arguments: ["is-generic-qt-app", "quill-signal"])
         #expect(genericQtMembership.status == 0, Comment(rawValue: genericQtMembership.output))
 
@@ -295,8 +297,14 @@ struct LinuxBackendAppMatrixTests {
         let genericGtkMembership = try runScript(script, arguments: ["is-generic-gtk-list-selection-app", "quill-codeedit"])
         #expect(genericGtkMembership.status == 0, Comment(rawValue: genericGtkMembership.output))
 
-        let chatGtkMembership = try runScript(script, arguments: ["is-generic-gtk-list-selection-app", "quill-signal"])
-        #expect(chatGtkMembership.status != 0)
+        let chatExcludedFromGenericGtkMembership = try runScript(script, arguments: ["is-generic-gtk-list-selection-app", "quill-signal"])
+        #expect(chatExcludedFromGenericGtkMembership.status != 0)
+
+        let chatGtkMembership = try runScript(script, arguments: ["is-chat-gtk-list-selection-app", "quill-signal"])
+        #expect(chatGtkMembership.status == 0, Comment(rawValue: chatGtkMembership.output))
+
+        let genericExcludedFromChatGtkMembership = try runScript(script, arguments: ["is-chat-gtk-list-selection-app", "quill-codeedit"])
+        #expect(genericExcludedFromChatGtkMembership.status != 0)
 
         let legacyProducts = try runScript(legacyMatrixScript)
         #expect(legacyProducts.status == 0, Comment(rawValue: legacyProducts.output))
@@ -504,15 +512,15 @@ struct LinuxBackendAppMatrixTests {
         #expect(interactionScript.contains("[[ \"$PRODUCT\" == \"quill-wireguard\" && \"$SELECTED_BACKEND\" == \"gtk\" ]]"))
         #expect(interactionScript.contains("[[ \"$PRODUCT\" == \"quill-wireguard\" && \"$SELECTED_BACKEND\" == \"qt\" ]]"))
         #expect(interactionScript.contains("[[ \"$PRODUCT\" == \"quill-enchanted\" && \"$SELECTED_BACKEND\" == \"gtk\" ]]"))
-        #expect(interactionScript.contains("[[ \"$SELECTED_BACKEND\" == \"gtk\" && ( \"$PRODUCT\" == \"quill-signal\" || \"$PRODUCT\" == \"quill-telegram\" ) ]]"))
+        #expect(interactionScript.contains("quillui_is_backend_chat_gtk_list_selection_app_product \"$PRODUCT\""))
         #expect(!interactionScript.contains("quill-wireguard|quill-wireguard-qt)"))
 
         #expect(smokeLib.contains("verify_product=\"quill-enchanted-qt\""))
         #expect(smokeLib.contains("verify_product=\"quill-wireguard-qt\""))
         #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
         #expect(smokeLib.contains("quill-enchanted-list-selection"))
-        #expect(smokeLib.contains("quill-signal-list-selection"))
-        #expect(smokeLib.contains("quill-telegram-list-selection"))
+        #expect(smokeLib.contains("verify_product=\"$product-list-selection\""))
+        #expect(smokeLib.contains("quillui_is_backend_chat_gtk_list_selection_app_product \"$product\""))
         #expect(smokeLib.contains("verify_product=\"$product-qt-list-selection\""))
 
         for document in [readme, appTargets, tooling, uiPlan, profileBaseline] {
@@ -616,6 +624,7 @@ struct LinuxBackendAppMatrixTests {
         printf 'telegram-selection-keys=%s\\n' "$(quillui_print_selection_keys quill-telegram)"
         printf 'enchanted-selection-keys=%s\\n' "$(quillui_print_selection_keys quill-enchanted-upstream-slice)"
         printf 'codeedit-gtk-selection-key=%s\\n' "$(quillui_backend_generic_gtk_selection_environment_key quill-codeedit)"
+        printf 'signal-chat-gtk-selection-key=%s\\n' "$(quillui_backend_chat_gtk_selection_environment_key quill-signal)"
         if quillui_backend_generic_gtk_selection_environment_key quill-signal >/dev/null 2>&1; then
           echo unexpected-signal-gtk-key
           exit 1
@@ -783,6 +792,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("telegram-selection-keys=QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START|QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START|"))
         #expect(result.output.contains("enchanted-selection-keys=QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START|QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START|"))
         #expect(result.output.contains("codeedit-gtk-selection-key=QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START"))
+        #expect(result.output.contains("signal-chat-gtk-selection-key=QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START"))
         #expect(result.output.contains("signal-gtk-selection-key=unsupported"))
         #expect(result.output.contains("generic-selection-env=QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=0|"))
         #expect(result.output.contains("signal-qt-selection-env=QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=4|"))

@@ -550,7 +550,7 @@ elif [[ "$PRODUCT" == "quill-enchanted" && "$SELECTED_BACKEND" == "qt" ]]; then
         exit 64
         ;;
     esac
-elif [[ "$SELECTED_BACKEND" == "gtk" && ( "$PRODUCT" == "quill-signal" || "$PRODUCT" == "quill-telegram" ) ]]; then
+elif [[ "$SELECTED_BACKEND" == "gtk" ]] && quillui_is_backend_chat_gtk_list_selection_app_product "$PRODUCT"; then
     case "$INTERACTION_MODE" in
       list-selection)
         click_chat_list_selection
