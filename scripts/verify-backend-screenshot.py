@@ -1633,7 +1633,7 @@ def validate_quill_enchanted_linux_gtk_snapshot(image: Screenshot) -> str:
         top,
         right + 1,
         bottom + 1,
-        generic_qt_detail_surface_pixel,
+        generic_gtk_detail_surface_pixel,
     )
     prompt_card_pixels = pixel_count(
         image,
@@ -1641,7 +1641,7 @@ def validate_quill_enchanted_linux_gtk_snapshot(image: Screenshot) -> str:
         top + int(app_height * 0.30),
         right - 20,
         bottom - 20,
-        generic_qt_card_pixel,
+        generic_gtk_card_pixel,
     )
     wordmark_pixels = pixel_count(
         image,
@@ -1671,6 +1671,12 @@ def validate_quill_enchanted_linux_gtk_snapshot(image: Screenshot) -> str:
         f"wordmark_pixels={wordmark_pixels}, "
         f"detail_text_pixels={detail_text_pixels}"
     )
+
+
+ENCHANTED_LINUX_SNAPSHOT_VALIDATORS: dict[str, Callable[[Screenshot], str]] = {
+    "quill-enchanted-linux-qt": validate_quill_enchanted_linux_qt_snapshot,
+    "quill-enchanted-linux-gtk": validate_quill_enchanted_linux_gtk_snapshot,
+}
 
 
 def validate_quill_enchanted_gtk_list_selection(image: Screenshot) -> str:
@@ -2377,10 +2383,8 @@ def main() -> int:
         print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-enchanted-qt-list-selection":
         print(validate_quill_enchanted_qt_native(image, minimum_selected_center_offset=430))
-    elif product == "quill-enchanted-linux-qt":
-        print(validate_quill_enchanted_linux_qt_snapshot(image))
-    elif product == "quill-enchanted-linux-gtk":
-        print(validate_quill_enchanted_linux_gtk_snapshot(image))
+    elif product in ENCHANTED_LINUX_SNAPSHOT_VALIDATORS:
+        print(ENCHANTED_LINUX_SNAPSHOT_VALIDATORS[product](image))
     elif product == "quill-enchanted-list-selection":
         print(validate_quill_enchanted_gtk_list_selection(image))
     elif product in CHAT_GTK_LIST_SELECTION_PRODUCTS:
