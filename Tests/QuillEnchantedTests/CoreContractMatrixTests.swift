@@ -79,6 +79,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift"),
             encoding: .utf8
         )
+        let sharedPrompts = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedShared/QuillEnchantedShared.swift"),
+            encoding: .utf8
+        )
         let header = try String(
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/include/CQuillQt6WidgetsShim.h"),
             encoding: .utf8
@@ -97,20 +101,30 @@ struct CoreContractMatrixTests {
         #expect(manifest.contains("QuillEnchantedQtNativeRuntime"))
         #expect(manifest.contains("nativeQt: [\"QuillEnchantedQtNativeRuntime\"]"))
         #expect(manifest.contains(".define(\"QUILLUI_ENCHANTED_QT_NATIVE_BACKEND\")"))
+        #expect(manifest.contains("name: \"QuillEnchantedShared\""))
+        #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillUI\", \"QuillData\", \"QuillFoundation\", \"CSQLite\"]"))
         #expect(manifest.contains("name: \"QuillEnchantedQtNativeRuntime\""))
-        #expect(manifest.contains("dependencies: [\"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
+        #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
         #expect(qtMain.contains("#if QUILLUI_ENCHANTED_QT_NATIVE_BACKEND"))
         #expect(qtMain.contains("QuillEnchantedQtNativeApp.run()"))
         #expect(qtMain.contains("QuillQtApp.run(QuillEnchantedQtApp.self)"))
+        #expect(runtime.contains("import QuillEnchantedShared"))
         #expect(runtime.contains("QuillEnchantedQtSnapshot.preview"))
         #expect(runtime.contains("quill_enchanted_qt_run_app_json"))
         #expect(runtime.contains("windowTitle: \"Quill Enchanted\""))
         #expect(runtime.contains("selectedModel: \"llama3.1:8b\""))
+        #expect(runtime.contains("emptyStateTitle: \"Ask your local model\""))
+        #expect(runtime.contains("emptyStateSubtitle: \"This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.\""))
+        #expect(runtime.contains("prompts: EnchantedPromptCatalog.emptyConversationTitles"))
         #expect(runtime.contains("var messages: [Message]? = nil"))
         #expect(runtime.contains("messages: attachmentConversationMessages"))
         #expect(runtime.contains("canvasColor: \"#F6F7F2\""))
+        for prompt in enchantedEmptyConversationPrompts {
+            #expect(sharedPrompts.contains(prompt))
+        }
         #expect(header.contains("quill_enchanted_qt_run_app_json"))
         #expect(nativeShim.contains("#include \"QuillQtWidgetsSupport.hpp\""))
+        #expect(nativeShim.contains("using PromptAction = std::function<void(const QString &)>;"))
         #expect(nativeShim.contains("QComboBox"))
         #expect(nativeShim.contains("QListWidget"))
         #expect(nativeShim.contains("QPlainTextEdit"))
@@ -118,7 +132,11 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("styleValue(style, \"canvasColor\", \"#F6F7F2\")"))
         #expect(nativeShim.contains("intValue(style, \"sidebarWidth\", 300)"))
         #expect(nativeShim.contains("selectedConversationMessages("))
-        #expect(nativeShim.contains("renderMessages(messageLayout, selectedMessages, prompts, style)"))
+        #expect(nativeShim.contains("emptyStateTitle"))
+        #expect(nativeShim.contains("emptyStateSubtitle"))
+        #expect(nativeShim.contains("promptAction(prompt)"))
+        #expect(nativeShim.contains("appendUserMessage(promptEditor->toPlainText())"))
+        #expect(nativeShim.contains("renderMessageSet(selectedMessages)"))
         #expect(nativeShim.contains("renderMessages("))
         #expect(nativeShim.contains("QObject::connect(sendButton"))
         #expect(nativeSupport.contains("inline void clearLayout(QLayout *layout)"))
@@ -166,6 +184,13 @@ struct CoreContractMatrixTests {
 private enum CoreContractMatrixTestError: Error {
     case packageRootNotFound
 }
+
+private let enchantedEmptyConversationPrompts: [String] = [
+    "Summarize the tradeoffs in moving a SwiftUI app to Linux.",
+    "Draft a private local assistant workflow for a small team.",
+    "Explain how Ollama model selection should work in a desktop app.",
+    "Write a checklist for shipping an open-source Swift package."
+]
 
 struct TextCase: Sendable {
     var input: String

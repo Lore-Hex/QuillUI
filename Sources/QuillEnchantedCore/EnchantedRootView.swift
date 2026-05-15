@@ -1,4 +1,5 @@
 import Foundation
+import QuillEnchantedShared
 import QuillUI
 #if canImport(SwiftUI)
 import SwiftUI
@@ -369,12 +370,7 @@ private struct ConversationRow: View {
 private struct EmptyConversationView: View {
     var send: (String) -> Void
 
-    private let prompts = [
-        "Summarize the tradeoffs in moving a SwiftUI app to Linux.",
-        "Draft a private local assistant workflow for a small team.",
-        "Explain how Ollama model selection should work in a desktop app.",
-        "Write a checklist for shipping an open-source Swift package."
-    ]
+    private let prompts = EnchantedPromptCatalog.emptyConversationTitles
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {

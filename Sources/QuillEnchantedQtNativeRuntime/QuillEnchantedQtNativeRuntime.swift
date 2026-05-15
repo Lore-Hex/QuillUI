@@ -1,5 +1,6 @@
 #if os(Linux)
 import CQuillQt6WidgetsShim
+import QuillEnchantedShared
 import QuillQtNativeRuntimeSupport
 
 struct QuillEnchantedQtSnapshot: Codable, Sendable {
@@ -21,6 +22,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var composerPlaceholder: String
     var sendTitle: String
     var status: String
+    var emptyStateTitle: String
+    var emptyStateSubtitle: String
     var endpoint: String
     var selectedModel: String
     var selectedConversationID: String
@@ -128,6 +131,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         composerPlaceholder: "Ask a local model...",
         sendTitle: "Send",
         status: "Ready for local inference",
+        emptyStateTitle: "Ask your local model",
+        emptyStateSubtitle: "This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.",
         endpoint: "http://localhost:11434",
         selectedModel: "llama3.1:8b",
         selectedConversationID: "daily-brief",
@@ -157,11 +162,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             )
         ],
         messages: launchConversationMessages,
-        prompts: [
-            "Summarize the current conversation",
-            "Explain this screenshot",
-            "Draft a migration plan"
-        ],
+        prompts: EnchantedPromptCatalog.emptyConversationTitles,
         style: Style(
             canvasColor: "#F6F7F2",
             sidebarColor: "#EEF1EA",

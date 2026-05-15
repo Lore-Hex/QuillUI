@@ -587,8 +587,13 @@ var targets: [Target] = [
     .target(name: "Zip", dependencies: ["QuillRS"], path: "Sources/ZipShim"),
     .target(name: "SwiftData", dependencies: ["QuillData"], path: "Sources/SwiftData"),
     .target(
+        name: "QuillEnchantedShared",
+        dependencies: [],
+        path: "Sources/QuillEnchantedShared"
+    ),
+    .target(
         name: "QuillEnchantedCore",
-        dependencies: ["QuillUI", "QuillData", "QuillFoundation", "CSQLite"],
+        dependencies: [.target(name: "QuillEnchantedShared"), "QuillUI", "QuillData", "QuillFoundation", "CSQLite"],
         swiftSettings: appSwiftSettings
     ),
     .executableTarget(
@@ -1228,6 +1233,11 @@ if quillUILinuxBuildBackend == .qt {
     allPackageDependencies = []
     targets = [
         .target(
+            name: "QuillEnchantedShared",
+            dependencies: [],
+            path: "Sources/QuillEnchantedShared"
+        ),
+        .target(
             name: "QuillWireGuardCore",
             dependencies: quillWireGuardCoreDependencies,
             path: "Sources/QuillWireGuardCore"
@@ -1264,7 +1274,7 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .target(
             name: "QuillEnchantedQtNativeRuntime",
-            dependencies: ["CQuillQt6WidgetsShim", "QuillQtNativeRuntimeSupport"],
+            dependencies: [.target(name: "QuillEnchantedShared"), "CQuillQt6WidgetsShim", "QuillQtNativeRuntimeSupport"],
             path: "Sources/QuillEnchantedQtNativeRuntime",
             swiftSettings: appSwiftSettings
         ),

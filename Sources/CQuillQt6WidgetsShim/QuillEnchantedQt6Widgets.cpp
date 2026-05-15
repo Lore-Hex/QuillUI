@@ -21,11 +21,13 @@
 #include <QString>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <functional>
 
 namespace {
 
 using QuillQtWidgets::clearLayout;
 using QuillQtWidgets::label;
+using PromptAction = std::function<void(const QString &)>;
 
 QString stringValue(const QJsonObject &object, const char *key) {
     return QuillQtWidgets::jsonStringValue(object, key);
@@ -74,10 +76,11 @@ QString appStyleSheet(const QJsonObject &style) {
         QLabel#sectionTitle { color: %2; font-size: 15px; font-weight: 700; }
         QLabel#currentTitle { color: %2; font-size: 20px; font-weight: 650; }
         QLabel#messageText { color: %2; font-size: 14px; }
-        QFrame#messageAssistant, QFrame#messageSystem, QFrame#promptCard { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
+        QFrame#messageAssistant, QFrame#messageSystem { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
         QFrame#messageUser { background: %7; border: 1px solid #D4DFE8; border-radius: 8px; }
         QPushButton#primaryButton, QPushButton#sendButton { background: %6; color: white; border: 0; border-radius: 8px; padding: 9px 12px; text-align: left; }
-        QPushButton#secondaryButton, QPushButton#promptButton { background: transparent; color: %2; border: 1px solid #CDD5CA; border-radius: 7px; padding: 7px 10px; text-align: left; }
+        QPushButton#secondaryButton { background: transparent; color: %2; border: 1px solid #CDD5CA; border-radius: 7px; padding: 7px 10px; text-align: left; }
+        QPushButton#promptButton { background: %5; color: %2; border: 1px solid #E0E5DD; border-radius: 8px; padding: 12px; text-align: left; }
     )")
         .arg(canvas, ink, sidebar, header, card, primary, system, muted);
 
@@ -224,23 +227,41 @@ void addMessageBubble(QVBoxLayout *messageLayout, const QJsonObject &message, co
     messageLayout->addLayout(row);
 }
 
-void addPromptCards(QVBoxLayout *messageLayout, const QJsonArray &prompts) {
-    QFrame *card = QuillQtWidgets::frame(QStringLiteral("promptCard"));
-    QVBoxLayout *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(18, 16, 18, 16);
-    layout->setSpacing(9);
-    layout->addWidget(label(QStringLiteral("Ask your local model"), QStringLiteral("currentTitle")));
+void addPromptCards(
+    QVBoxLayout *messageLayout,
+    const QJsonArray &prompts,
+    const QString &title,
+    const QString &subtitle,
+    const PromptAction &promptAction
+) {
+    QWidget *emptyState = new QWidget();
+    emptyState->setObjectName(QStringLiteral("promptEmptyState"));
+    QVBoxLayout *layout = new QVBoxLayout(emptyState);
+    layout->setContentsMargins(26, 26, 26, 26);
+    layout->setSpacing(18);
+    layout->addWidget(label(title, QStringLiteral("currentTitle")));
     layout->addWidget(label(
-        QStringLiteral("Start with a prompt, attach an image path, or select an existing conversation."),
+        subtitle,
         QStringLiteral("caption")
     ));
 
+    QVBoxLayout *promptList = new QVBoxLayout();
+    promptList->setSpacing(10);
     for (const QJsonValue &value : prompts) {
-        QPushButton *button = new QPushButton(value.toString());
+        const QString prompt = value.toString();
+        QPushButton *button = new QPushButton(prompt);
         button->setObjectName(QStringLiteral("promptButton"));
-        layout->addWidget(button);
+        button->setMinimumHeight(48);
+        button->setMaximumWidth(620);
+        QObject::connect(button, &QPushButton::clicked, [prompt, promptAction]() {
+            promptAction(prompt);
+        });
+        promptList->addWidget(button);
     }
-    messageLayout->addWidget(card);
+
+    layout->addLayout(promptList);
+    emptyState->setMaximumWidth(680);
+    messageLayout->addWidget(emptyState);
     messageLayout->addStretch(1);
 }
 
@@ -248,11 +269,14 @@ void renderMessages(
     QVBoxLayout *messageLayout,
     const QJsonArray &messages,
     const QJsonArray &prompts,
-    const QJsonObject &style
+    const QJsonObject &style,
+    const QString &emptyStateTitle,
+    const QString &emptyStateSubtitle,
+    const PromptAction &promptAction
 ) {
     clearLayout(messageLayout);
     if (messages.isEmpty()) {
-        addPromptCards(messageLayout, prompts);
+        addPromptCards(messageLayout, prompts, emptyStateTitle, emptyStateSubtitle, promptAction);
         return;
     }
 
@@ -430,16 +454,6 @@ extern "C" int quill_enchanted_qt_run_app_json(
     scrollArea->setWidget(transcript);
     chatLayout->addWidget(scrollArea, 1);
 
-    const QJsonArray fallbackMessages = arrayValue(payload, "messages");
-    const QJsonArray prompts = arrayValue(payload, "prompts");
-    const QJsonArray initialMessages = selectedConversationMessages(
-        conversations,
-        initialConversationID,
-        fallbackMessages
-    );
-    renderMessages(messageLayout, initialMessages, prompts, style);
-    bool showingPromptCards = initialMessages.isEmpty();
-
     QFrame *composer = QuillQtWidgets::frame(QStringLiteral("composer"));
     QVBoxLayout *composerLayout = new QVBoxLayout(composer);
     composerLayout->setContentsMargins(18, 14, 18, 18);
@@ -478,6 +492,51 @@ extern "C" int quill_enchanted_qt_run_app_json(
     composerLayout->addLayout(promptRow);
     chatLayout->addWidget(composer);
 
+    const QJsonArray fallbackMessages = arrayValue(payload, "messages");
+    const QJsonArray prompts = arrayValue(payload, "prompts");
+    const QString emptyStateTitle = stringValue(payload, "emptyStateTitle", QStringLiteral("Ask your local model"));
+    const QString emptyStateSubtitle = stringValue(
+        payload,
+        "emptyStateSubtitle",
+        QStringLiteral("This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.")
+    );
+    bool showingPromptCards = false;
+    auto appendUserMessage = [&](const QString &rawText) {
+        const QString text = rawText.trimmed();
+        if (text.isEmpty()) {
+            return;
+        }
+
+        QJsonObject message;
+        message.insert(QStringLiteral("role"), QStringLiteral("user"));
+        message.insert(QStringLiteral("content"), text);
+        if (showingPromptCards) {
+            clearLayout(messageLayout);
+            showingPromptCards = false;
+        }
+        addMessageBubble(messageLayout, message, style);
+        promptEditor->clear();
+    };
+    auto renderMessageSet = [&](const QJsonArray &messages) {
+        renderMessages(
+            messageLayout,
+            messages,
+            prompts,
+            style,
+            emptyStateTitle,
+            emptyStateSubtitle,
+            appendUserMessage
+        );
+        showingPromptCards = messages.isEmpty();
+    };
+
+    const QJsonArray initialMessages = selectedConversationMessages(
+        conversations,
+        initialConversationID,
+        fallbackMessages
+    );
+    renderMessageSet(initialMessages);
+
     splitter->addWidget(sidebar);
     splitter->addWidget(chatPane);
     splitter->setStretchFactor(0, 0);
@@ -485,8 +544,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QObject::connect(newChatButton, &QPushButton::clicked, [&]() {
         currentTitle->setText(QStringLiteral("New conversation"));
-        renderMessages(messageLayout, QJsonArray(), prompts, style);
-        showingPromptCards = true;
+        renderMessageSet(QJsonArray());
     });
     QObject::connect(conversationList, &QListWidget::currentRowChanged, [&](int row) {
         QListWidgetItem *item = conversationList->item(row);
@@ -505,26 +563,13 @@ extern "C" int quill_enchanted_qt_run_app_json(
             selectedID,
             fallbackMessages
         );
-        renderMessages(messageLayout, selectedMessages, prompts, style);
-        showingPromptCards = selectedMessages.isEmpty();
+        renderMessageSet(selectedMessages);
     });
     QObject::connect(attachButton, &QPushButton::clicked, [attachmentPath]() {
         attachmentPath->setText(QStringLiteral("/tmp/reference-image.png"));
     });
     QObject::connect(sendButton, &QPushButton::clicked, [&]() {
-        const QString text = promptEditor->toPlainText().trimmed();
-        if (text.isEmpty()) {
-            return;
-        }
-        QJsonObject message;
-        message.insert(QStringLiteral("role"), QStringLiteral("user"));
-        message.insert(QStringLiteral("content"), text);
-        if (showingPromptCards) {
-            clearLayout(messageLayout);
-            showingPromptCards = false;
-        }
-        addMessageBubble(messageLayout, message, style);
-        promptEditor->clear();
+        appendUserMessage(promptEditor->toPlainText());
     });
 
     window.show();
