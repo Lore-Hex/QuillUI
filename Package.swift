@@ -1269,7 +1269,7 @@ let packageTestTargets: [Target] = {
             // reintroducing the GTK/SwiftOpenUI dependency graph.
             .testTarget(
                 name: "QuillQtBackendManifestTests",
-                dependencies: [],
+                dependencies: ["QuillGenericQtNativeRuntime"],
                 swiftSettings: appSwiftSettings
             )
         ]

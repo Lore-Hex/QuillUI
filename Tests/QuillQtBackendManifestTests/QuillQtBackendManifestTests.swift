@@ -1,4 +1,5 @@
 import Foundation
+import QuillGenericQtNativeRuntime
 import Testing
 
 @Suite("Qt backend manifest")
@@ -69,6 +70,70 @@ struct QuillQtBackendManifestTests {
                 Issue.record("Unknown Qt runtime case \(spec.qtRuntime) for \(spec.product)")
             }
         }
+    }
+
+    @Test("Generic Qt snapshots decode legacy payload defaults")
+    func genericQtSnapshotsDecodeLegacyPayloadDefaults() throws {
+        let payload = """
+        {
+          "windowTitle": "Legacy Generic Qt",
+          "sidebarTitle": "Inbox",
+          "sidebarSubtitle": "Legacy payload",
+          "listTitle": "Items",
+          "status": "Qt native runtime",
+          "detailTitle": "Detail",
+          "detailSubtitle": "Legacy snapshot without style",
+          "items": [
+            {
+              "title": "First",
+              "subtitle": "Missing optional render fields"
+            }
+          ],
+          "sections": [
+            {
+              "title": "Summary",
+              "body": "Snapshot omits fields that host and Swift defaults should fill."
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        let snapshot = try JSONDecoder().decode(QuillGenericQtAppSnapshot.self, from: payload)
+
+        #expect(snapshot.minimumWidth == 900)
+        #expect(snapshot.minimumHeight == 620)
+        #expect(snapshot.defaultWidth == 1040)
+        #expect(snapshot.defaultHeight == 700)
+        #expect(snapshot.sidebarWidth == 320)
+        #expect(snapshot.detailWidth == 720)
+        #expect(snapshot.primaryActionTitle == "New")
+        #expect(snapshot.secondaryActionTitle == "Refresh")
+        #expect(snapshot.selectedIndex == 0)
+        #expect(snapshot.selectedIndexEnvironmentKeys == QuillGenericQtAppSnapshot.defaultSelectedIndexEnvironmentKeys)
+        #expect(snapshot.messagesTitle == "Activity")
+        #expect(snapshot.messages.isEmpty)
+        #expect(snapshot.items[0].badge == "")
+        #expect(snapshot.items[0].height == 76)
+        #expect(snapshot.style.canvasColor == QuillGenericQtAppSnapshot.Style.desktop.canvasColor)
+        #expect(snapshot.style.controlBorderColor == QuillGenericQtAppSnapshot.Style.desktop.controlBorderColor)
+    }
+
+    @Test("Generic Qt style decoding defaults missing fields")
+    func genericQtStyleDecodingDefaultsMissingFields() throws {
+        let payload = """
+        {
+          "canvasColor": "#101010",
+          "primaryColor": "#202020"
+        }
+        """.data(using: .utf8)!
+
+        let style = try JSONDecoder().decode(QuillGenericQtAppSnapshot.Style.self, from: payload)
+
+        #expect(style.canvasColor == "#101010")
+        #expect(style.primaryColor == "#202020")
+        #expect(style.sidebarColor == QuillGenericQtAppSnapshot.Style.desktop.sidebarColor)
+        #expect(style.cardColor == QuillGenericQtAppSnapshot.Style.desktop.cardColor)
+        #expect(style.controlBorderColor == QuillGenericQtAppSnapshot.Style.desktop.controlBorderColor)
     }
 
     private func canonicalAppSpecs(in manifest: String) throws -> [QtAppSpec] {

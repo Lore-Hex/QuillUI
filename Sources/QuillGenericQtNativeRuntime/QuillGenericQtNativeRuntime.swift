@@ -58,6 +58,32 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             self.sections = sections
             self.messages = messages
         }
+
+        private enum CodingKeys: String, CodingKey {
+            case title
+            case subtitle
+            case badge
+            case height
+            case detailTitle
+            case detailSubtitle
+            case sections
+            case messages
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+
+            self.init(
+                title: try container.decode(String.self, forKey: .title),
+                subtitle: try container.decode(String.self, forKey: .subtitle),
+                badge: try container.decodeIfPresent(String.self, forKey: .badge) ?? "",
+                height: try container.decodeIfPresent(Int.self, forKey: .height) ?? 76,
+                detailTitle: try container.decodeIfPresent(String.self, forKey: .detailTitle),
+                detailSubtitle: try container.decodeIfPresent(String.self, forKey: .detailSubtitle),
+                sections: try container.decodeIfPresent([Section].self, forKey: .sections),
+                messages: try container.decodeIfPresent([Message].self, forKey: .messages)
+            )
+        }
     }
 
     public struct Section: Codable, Sendable {
@@ -140,6 +166,56 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             self.dividerColor = dividerColor
             self.controlBorderColor = controlBorderColor
         }
+
+        private enum CodingKeys: String, CodingKey {
+            case canvasColor
+            case sidebarColor
+            case cardColor
+            case activeCardColor
+            case primaryColor
+            case inkColor
+            case mutedColor
+            case badgeColor
+            case selectedMutedColor
+            case borderColor
+            case selectedBorderColor
+            case dividerColor
+            case controlBorderColor
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let defaults = Self.desktop
+
+            self.init(
+                canvasColor: try container.decodeIfPresent(String.self, forKey: .canvasColor)
+                    ?? defaults.canvasColor,
+                sidebarColor: try container.decodeIfPresent(String.self, forKey: .sidebarColor)
+                    ?? defaults.sidebarColor,
+                cardColor: try container.decodeIfPresent(String.self, forKey: .cardColor)
+                    ?? defaults.cardColor,
+                activeCardColor: try container.decodeIfPresent(String.self, forKey: .activeCardColor)
+                    ?? defaults.activeCardColor,
+                primaryColor: try container.decodeIfPresent(String.self, forKey: .primaryColor)
+                    ?? defaults.primaryColor,
+                inkColor: try container.decodeIfPresent(String.self, forKey: .inkColor)
+                    ?? defaults.inkColor,
+                mutedColor: try container.decodeIfPresent(String.self, forKey: .mutedColor)
+                    ?? defaults.mutedColor,
+                badgeColor: try container.decodeIfPresent(String.self, forKey: .badgeColor)
+                    ?? defaults.badgeColor,
+                selectedMutedColor: try container.decodeIfPresent(String.self, forKey: .selectedMutedColor)
+                    ?? defaults.selectedMutedColor,
+                borderColor: try container.decodeIfPresent(String.self, forKey: .borderColor)
+                    ?? defaults.borderColor,
+                selectedBorderColor: try container.decodeIfPresent(String.self, forKey: .selectedBorderColor)
+                    ?? defaults.selectedBorderColor,
+                dividerColor: try container.decodeIfPresent(String.self, forKey: .dividerColor)
+                    ?? defaults.dividerColor,
+                controlBorderColor: try container.decodeIfPresent(String.self, forKey: .controlBorderColor)
+                    ?? defaults.controlBorderColor
+            )
+        }
     }
 
     public init(
@@ -188,6 +264,64 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         self.sections = sections
         self.messages = messages
         self.style = style
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case windowTitle
+        case minimumWidth
+        case minimumHeight
+        case defaultWidth
+        case defaultHeight
+        case sidebarWidth
+        case detailWidth
+        case sidebarTitle
+        case sidebarSubtitle
+        case primaryActionTitle
+        case secondaryActionTitle
+        case listTitle
+        case status
+        case selectedIndex
+        case selectedIndexEnvironmentKeys
+        case detailTitle
+        case detailSubtitle
+        case messagesTitle
+        case items
+        case sections
+        case messages
+        case style
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        self.init(
+            windowTitle: try container.decode(String.self, forKey: .windowTitle),
+            minimumWidth: try container.decodeIfPresent(Int.self, forKey: .minimumWidth) ?? 900,
+            minimumHeight: try container.decodeIfPresent(Int.self, forKey: .minimumHeight) ?? 620,
+            defaultWidth: try container.decodeIfPresent(Int.self, forKey: .defaultWidth) ?? 1040,
+            defaultHeight: try container.decodeIfPresent(Int.self, forKey: .defaultHeight) ?? 700,
+            sidebarWidth: try container.decodeIfPresent(Int.self, forKey: .sidebarWidth) ?? 320,
+            detailWidth: try container.decodeIfPresent(Int.self, forKey: .detailWidth) ?? 720,
+            sidebarTitle: try container.decode(String.self, forKey: .sidebarTitle),
+            sidebarSubtitle: try container.decode(String.self, forKey: .sidebarSubtitle),
+            primaryActionTitle: try container.decodeIfPresent(String.self, forKey: .primaryActionTitle) ?? "New",
+            secondaryActionTitle: try container.decodeIfPresent(String.self, forKey: .secondaryActionTitle)
+                ?? "Refresh",
+            listTitle: try container.decode(String.self, forKey: .listTitle),
+            status: try container.decode(String.self, forKey: .status),
+            selectedIndex: try container.decodeIfPresent(Int.self, forKey: .selectedIndex) ?? 0,
+            selectedIndexEnvironmentKeys: try container.decodeIfPresent(
+                [String].self,
+                forKey: .selectedIndexEnvironmentKeys
+            ) ?? Self.defaultSelectedIndexEnvironmentKeys,
+            detailTitle: try container.decode(String.self, forKey: .detailTitle),
+            detailSubtitle: try container.decode(String.self, forKey: .detailSubtitle),
+            messagesTitle: try container.decodeIfPresent(String.self, forKey: .messagesTitle) ?? "Activity",
+            items: try container.decode([Item].self, forKey: .items),
+            sections: try container.decode([Section].self, forKey: .sections),
+            messages: try container.decodeIfPresent([Message].self, forKey: .messages) ?? [],
+            style: try container.decodeIfPresent(Style.self, forKey: .style) ?? .desktop
+        )
     }
 }
 
