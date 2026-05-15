@@ -1155,8 +1155,10 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_PROFILE_MODE=1"))
         #expect(smokeLib.contains("quillui_generated_app_backend_facade()"))
-        #expect(smokeLib.contains("quill_chat_default_work_root=\"$quill_chat_default_work_root-$quill_chat_backend_facade\""))
-        #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_BACKEND_FACADE=\"$quill_chat_backend_facade\""))
+        #expect(smokeLib.contains("QUILLUI_ENCHANTED_BACKEND_FACADE"))
+        #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_BACKEND_FACADE"))
+        #expect(smokeLib.contains("enchanted_default_work_root=\"$enchanted_default_work_root-$enchanted_backend_facade\""))
+        #expect(smokeLib.contains("QUILLUI_ENCHANTED_BACKEND_FACADE=\"$enchanted_backend_facade\""))
         #expect(smokeLib.contains("quillui_resolve_linux_backend_executable()"))
         #expect(smokeLib.contains("quillui_seed_quill_chat_reference_data()"))
         #expect(backendScript.contains("quillui_resolve_linux_backend_executable \"$PRODUCT\" APP_EXECUTABLE"))
@@ -1407,8 +1409,24 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/build-swiftui-linux-app.sh"),
             encoding: .utf8
         )
-        let quillChatBuildSource = try String(
+        let legacyQuillChatBuildSource = try String(
             contentsOf: root.appendingPathComponent("scripts/build-quill-chat-linux.sh"),
+            encoding: .utf8
+        )
+        let enchantedBuildSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/build-enchanted-linux.sh"),
+            encoding: .utf8
+        )
+        let enchantedSourceResolver = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-enchanted-source.sh"),
+            encoding: .utf8
+        )
+        let generatedEnchantedChatSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/generated-enchanted-chat-components-check.sh"),
+            encoding: .utf8
+        )
+        let generatedEnchantedMacOSChatSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/generated-enchanted-macos-chat-check.sh"),
             encoding: .utf8
         )
         let generatedEnchantedSource = try String(
@@ -1452,12 +1470,27 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("QUILLUI_LINUX_BACKEND=qt swift build"))
         #expect(buildSource.contains("quillui_normalize_backend_identifier \"${BACKEND_FACADE:-swiftui}\""))
         #expect(buildSource.contains("QUILLUI_GENERATED_BACKEND_FACADE=\"$NORMALIZED_BACKEND_FACADE\""))
-        #expect(quillChatBuildSource.contains("--backend-facade"))
-        #expect(quillChatBuildSource.contains("QUILLUI_QUILL_CHAT_BACKEND_FACADE"))
-        #expect(quillChatBuildSource.contains("BACKEND_FACADE_ARGS=(--backend-facade \"$BACKEND_FACADE\")"))
+        #expect(legacyQuillChatBuildSource.contains("scripts/build-enchanted-linux.sh"))
+        #expect(enchantedBuildSource.contains("--backend-facade"))
+        #expect(enchantedBuildSource.contains("QUILLUI_ENCHANTED_BACKEND_FACADE"))
+        #expect(enchantedBuildSource.contains("QUILLUI_QUILL_CHAT_BACKEND_FACADE"))
+        #expect(enchantedBuildSource.contains("source \"$ROOT_DIR/scripts/quillui-enchanted-source.sh\""))
+        #expect(enchantedBuildSource.contains("APP_DIR=\"$(quillui_resolve_enchanted_source_dir \"$ROOT_DIR\")\""))
+        #expect(enchantedBuildSource.contains("BACKEND_FACADE_ARGS=(--backend-facade \"$BACKEND_FACADE\")"))
+        #expect(enchantedSourceResolver.contains("quillui_resolve_enchanted_source_dir()"))
+        #expect(enchantedSourceResolver.contains("QUILLUI_APP_SOURCE_DIR"))
+        #expect(enchantedSourceResolver.contains("ENCHANTED_SOURCE_DIR"))
+        #expect(enchantedSourceResolver.contains("QUILL_CHAT_DIR/Enchanted"))
+        #expect(enchantedSourceResolver.contains(".upstream/enchanted/Enchanted"))
         #expect(!source.contains("import BackendGTK4"))
         #expect(!source.contains("GTK4Backend().run($APP_ENTRY_TYPE.self)"))
         #expect(!source.contains("GTK backend generation is enabled"))
+        #expect(generatedEnchantedChatSource.contains("source \"$ROOT_DIR/scripts/quillui-enchanted-source.sh\""))
+        #expect(generatedEnchantedChatSource.contains("UPSTREAM_DIR=\"$(quillui_resolve_enchanted_source_dir \"$ROOT_DIR\")\""))
+        #expect(generatedEnchantedMacOSChatSource.contains("source \"$ROOT_DIR/scripts/quillui-enchanted-source.sh\""))
+        #expect(generatedEnchantedMacOSChatSource.contains("UPSTREAM_DIR=\"$(quillui_resolve_enchanted_source_dir \"$ROOT_DIR\")\""))
+        #expect(generatedEnchantedSource.contains("source \"$ROOT_DIR/scripts/quillui-enchanted-source.sh\""))
+        #expect(generatedEnchantedSource.contains("UPSTREAM_DIR=\"$(quillui_resolve_enchanted_source_dir \"$ROOT_DIR\")\""))
         #expect(generatedEnchantedSource.contains("include_backend_entry=0"))
         #expect(generatedEnchantedSource.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY=\"$include_backend_entry\""))
         #expect(!generatedEnchantedSource.contains("include_gtk_backend"))

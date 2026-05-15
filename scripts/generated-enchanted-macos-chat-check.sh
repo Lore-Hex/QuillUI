@@ -12,7 +12,9 @@ MSG
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-UPSTREAM_DIR="${ENCHANTED_SOURCE_DIR:-$ROOT_DIR/.upstream/enchanted/Enchanted}"
+source "$ROOT_DIR/scripts/quillui-enchanted-source.sh"
+
+UPSTREAM_DIR="$(quillui_resolve_enchanted_source_dir "$ROOT_DIR")"
 WORK_ROOT="${QUILLUI_GENERATED_ENCHANTED_MACOS_CHAT_WORKDIR:-$ROOT_DIR/.build/generated-enchanted-macos-chat-check}"
 SOURCE_COPY="$WORK_ROOT/source/Enchanted"
 LOWERED_COPY="$WORK_ROOT/lowered/Enchanted"
@@ -25,12 +27,7 @@ if [[ -z "$WORK_ROOT" || "$WORK_ROOT" == "/" || "$WORK_ROOT" == "$ROOT_DIR" ]]; 
 fi
 
 if [[ ! -d "$UPSTREAM_DIR" ]]; then
-  cat >&2 <<MSG
-Enchanted source was not found at:
-  $UPSTREAM_DIR
-
-Set ENCHANTED_SOURCE_DIR=/path/to/Enchanted and rerun.
-MSG
+  quillui_print_enchanted_source_missing "$UPSTREAM_DIR"
   exit 66
 fi
 

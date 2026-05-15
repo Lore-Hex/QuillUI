@@ -422,12 +422,16 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/quillui-linux-backend-smoke-lib.sh"),
             encoding: .utf8
         )
+        let backendProducts = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-backend-products.sh"),
+            encoding: .utf8
+        )
         let legacyVisualScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-gtk-visual-check.sh"),
             encoding: .utf8
         )
         #expect(legacyVisualScript.contains("scripts/linux-backend-visual-check.sh"))
-        #expect(smokeLib.contains("QUILLUI_BACKEND_MAC_REFERENCE"))
+        #expect(backendProducts.contains("QUILLUI_BACKEND_MAC_REFERENCE"))
         #expect(smokeLib.contains("${reference_window_width}x${reference_window_height}x24"))
         #expect(visualScript.contains("quillui_backend_reference_window_defaults"))
         #expect(visualScript.contains("quillui_backend_screen_size"))
@@ -540,15 +544,26 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("\"$SELECTED_BACKEND\" == \"gtk\" && \"$PRODUCT\" == \"quill-enchanted-upstream-slice\""))
         #expect(interactionScript.contains("quillui_backend_interaction_verify_product \"$PRODUCT\" \"$INTERACTION_MODE\" VERIFY_PRODUCT"))
         #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
-        #expect(smokeLib.contains("quill-chat-linux-mac-reference-composer-typed"))
-        #expect(smokeLib.contains("quill-chat-linux-mac-reference-settings-panel"))
-        #expect(smokeLib.contains("quill-chat-linux-mac-reference-settings-endpoint-typed"))
-        #expect(smokeLib.contains("quill-chat-linux-mac-reference-completions-panel"))
-        #expect(smokeLib.contains("quill-chat-linux-mac-reference-history-selection"))
-        #expect(smokeLib.contains("quill-chat-linux-mac-reference-transcript-selection"))
-        #expect(smokeLib.contains("quill-chat-linux-mac-reference-markdown-transcript-selection"))
-        #expect(smokeLib.contains("quill-chat-linux-mac-reference-long-transcript-selection"))
-        #expect(smokeLib.contains("quill-chat-linux-mac-reference-prompt-send"))
+        #expect(smokeLib.contains("quillui_backend_app_interaction_verify_product_for_product \"$product\" \"$selected_backend\" \"$interaction_mode\""))
+        #expect(!smokeLib.contains("quill-chat-linux-mac-reference-composer-typed"))
+        #expect(!smokeLib.contains("quill-chat-linux-mac-reference-settings-panel"))
+        #expect(!smokeLib.contains("quill-chat-linux-mac-reference-settings-endpoint-typed"))
+        #expect(!smokeLib.contains("quill-chat-linux-mac-reference-completions-panel"))
+        #expect(!smokeLib.contains("quill-chat-linux-mac-reference-history-selection"))
+        #expect(!smokeLib.contains("quill-chat-linux-mac-reference-transcript-selection"))
+        #expect(!smokeLib.contains("quill-chat-linux-mac-reference-markdown-transcript-selection"))
+        #expect(!smokeLib.contains("quill-chat-linux-mac-reference-long-transcript-selection"))
+        #expect(!smokeLib.contains("quill-chat-linux-mac-reference-prompt-send"))
+        #expect(backendProducts.contains("quillui_backend_quill_chat_interaction_verify_product()"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-composer-typed"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-settings-panel"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-settings-endpoint-typed"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-completions-panel"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-history-selection"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-transcript-selection"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-markdown-transcript-selection"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-long-transcript-selection"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-prompt-send"))
 
         let seedScript = try String(
             contentsOf: root.appendingPathComponent("scripts/seed-quill-chat-reference-data.py"),

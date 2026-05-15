@@ -5,6 +5,7 @@ QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR="$(
 )"
 
 source "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh"
+source "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-enchanted-source.sh"
 
 quillui_normalize_x_display_id() {
   local value="$1"
@@ -41,7 +42,7 @@ quillui_alias_backend_build_env() {
 }
 
 quillui_generated_app_backend_facade() {
-  local candidate="${QUILLUI_QUILL_CHAT_BACKEND_FACADE:-${QUILLUI_APP_BACKEND_FACADE:-}}"
+  local candidate="${QUILLUI_ENCHANTED_BACKEND_FACADE:-${QUILLUI_QUILL_CHAT_BACKEND_FACADE:-${QUILLUI_APP_BACKEND_FACADE:-}}}"
 
   if [[ -z "$candidate" && -n "${QUILLUI_BACKEND:-}" ]]; then
     candidate="$QUILLUI_BACKEND"
@@ -702,59 +703,54 @@ quillui_resolve_linux_backend_executable() {
   fi
 
   if [[ "$product" == "quill-chat-linux" ]]; then
-    local quill_chat_app_dir="${QUILL_CHAT_DIR:-$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/../quill/clients/quill-chat}/Enchanted"
-    local quill_chat_backend_facade
-    local quill_chat_default_work_root="$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build/quill-chat-linux"
-    local quill_chat_work_root
+    local enchanted_app_dir
+    local enchanted_backend_facade
+    local enchanted_default_work_root="$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build/quill-chat-linux"
+    local enchanted_work_root
 
-    quill_chat_backend_facade="$(quillui_generated_app_backend_facade)" || return $?
-    if [[ -n "$quill_chat_backend_facade" ]]; then
-      quill_chat_default_work_root="$quill_chat_default_work_root-$quill_chat_backend_facade"
+    enchanted_app_dir="$(quillui_resolve_enchanted_source_dir "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR")"
+    enchanted_backend_facade="$(quillui_generated_app_backend_facade)" || return $?
+    if [[ -n "$enchanted_backend_facade" ]]; then
+      enchanted_default_work_root="$enchanted_default_work_root-$enchanted_backend_facade"
     fi
-    quill_chat_work_root="${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$quill_chat_default_work_root}"
+    enchanted_work_root="${QUILLUI_ENCHANTED_BUILD_WORKDIR:-${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$enchanted_default_work_root}}"
 
-    if [[ ! -d "$quill_chat_app_dir" ]]; then
-      cat >&2 <<MSG
-Quill Chat source was not found at:
-  $quill_chat_app_dir
-
-Set QUILL_CHAT_DIR=/path/to/quill/clients/quill-chat or pass a different
-SwiftPM product as the second argument.
-MSG
+    if [[ ! -d "$enchanted_app_dir" ]]; then
+      quillui_print_enchanted_source_missing "$enchanted_app_dir"
       exit 66
     fi
 
     if [[ "${QUILLUI_BACKEND_SKIP_BUILD:-0}" == "1" ]]; then
       local cached_executable
       cached_executable="$(
-        find "$quill_chat_work_root/.build-check" -path "*/debug/$product" -type f -perm -111 2>/dev/null | head -n 1 || true
+        find "$enchanted_work_root/.build-check" -path "*/debug/$product" -type f -perm -111 2>/dev/null | head -n 1 || true
       )"
       if [[ -z "$cached_executable" ]]; then
-        echo "No cached executable found for $product under $quill_chat_work_root/.build-check" >&2
+        echo "No cached executable found for $product under $enchanted_work_root/.build-check" >&2
         exit 66
       fi
       quillui_assign_output "$output_var" "$cached_executable" || return $?
       return
     fi
 
-    QUILLUI_QUILL_CHAT_BUILD_WORKDIR="$quill_chat_work_root" \
-      QUILLUI_QUILL_CHAT_PRODUCT_NAME="$product" \
-      QUILLUI_QUILL_CHAT_BACKEND_FACADE="$quill_chat_backend_facade" \
-      "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/build-quill-chat-linux.sh"
+    QUILLUI_ENCHANTED_BUILD_WORKDIR="$enchanted_work_root" \
+      QUILLUI_ENCHANTED_PRODUCT_NAME="$product" \
+      QUILLUI_ENCHANTED_BACKEND_FACADE="$enchanted_backend_facade" \
+      "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/build-enchanted-linux.sh"
 
-    local quill_chat_bin_path
-    if [[ "$quill_chat_backend_facade" == "qt" ]]; then
-      quill_chat_bin_path="$(QUILLUI_LINUX_BACKEND=qt swift build \
-        --package-path "$quill_chat_work_root/package" \
-        --scratch-path "$quill_chat_work_root/.build-check" \
+    local enchanted_bin_path
+    if [[ "$enchanted_backend_facade" == "qt" ]]; then
+      enchanted_bin_path="$(QUILLUI_LINUX_BACKEND=qt swift build \
+        --package-path "$enchanted_work_root/package" \
+        --scratch-path "$enchanted_work_root/.build-check" \
         --show-bin-path)"
     else
-      quill_chat_bin_path="$(swift build \
-        --package-path "$quill_chat_work_root/package" \
-        --scratch-path "$quill_chat_work_root/.build-check" \
+      enchanted_bin_path="$(swift build \
+        --package-path "$enchanted_work_root/package" \
+        --scratch-path "$enchanted_work_root/.build-check" \
         --show-bin-path)"
     fi
-    quillui_assign_output "$output_var" "$quill_chat_bin_path/$product" || return $?
+    quillui_assign_output "$output_var" "$enchanted_bin_path/$product" || return $?
   else
     local linux_build_backend
     linux_build_backend="$(quillui_require_requested_backend_for_product "$product")" || return $?

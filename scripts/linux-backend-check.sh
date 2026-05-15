@@ -28,12 +28,13 @@ scripts/generated-enchanted-chat-components-check.sh
 scripts/generated-enchanted-macos-chat-check.sh
 scripts/generated-enchanted-full-source-check.sh
 
-QUILL_CHAT_APP_DIR="${QUILL_CHAT_DIR:-$ROOT_DIR/../quill/clients/quill-chat}/Enchanted"
-QUILL_CHAT_WORK_ROOT="${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$ROOT_DIR/.build/quill-chat-linux}"
-if [[ "${QUILLUI_SKIP_QUILL_CHAT_BUILD:-0}" != "1" && -d "$QUILL_CHAT_APP_DIR" ]]; then
-  QUILLUI_QUILL_CHAT_BUILD_WORKDIR="$QUILL_CHAT_WORK_ROOT" scripts/build-quill-chat-linux.sh
-elif [[ "${QUILLUI_SKIP_QUILL_CHAT_BUILD:-0}" != "1" ]]; then
-  echo "Skipping local Quill Chat Linux app build; source not found at $QUILL_CHAT_APP_DIR"
+ENCHANTED_APP_DIR="$(quillui_resolve_enchanted_source_dir "$ROOT_DIR")"
+ENCHANTED_WORK_ROOT="${QUILLUI_ENCHANTED_BUILD_WORKDIR:-${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$ROOT_DIR/.build/quill-chat-linux}}"
+SKIP_ENCHANTED_BUILD="${QUILLUI_SKIP_ENCHANTED_BUILD:-${QUILLUI_SKIP_QUILL_CHAT_BUILD:-0}}"
+if [[ "$SKIP_ENCHANTED_BUILD" != "1" && -d "$ENCHANTED_APP_DIR" ]]; then
+  QUILLUI_ENCHANTED_BUILD_WORKDIR="$ENCHANTED_WORK_ROOT" scripts/build-enchanted-linux.sh
+elif [[ "$SKIP_ENCHANTED_BUILD" != "1" ]]; then
+  echo "Skipping local Enchanted Linux app build; source not found at $ENCHANTED_APP_DIR"
 fi
 
 APP_PRODUCTS=()
@@ -159,29 +160,29 @@ for row in "${BACKEND_SMOKE_ROWS[@]}"; do
   run_smoke "$product" "$backend"
 done
 
-if [[ "${QUILLUI_SKIP_QUILL_CHAT_BUILD:-0}" != "1" && -d "$QUILL_CHAT_APP_DIR" ]]; then
+if [[ "$SKIP_ENCHANTED_BUILD" != "1" && -d "$ENCHANTED_APP_DIR" ]]; then
   for row in "${GENERATED_APP_SMOKE_ROWS[@]}"; do
     IFS="$tab" read -r product backend <<< "$row"
-    generated_work_root="$QUILL_CHAT_WORK_ROOT-$backend"
+    generated_work_root="$ENCHANTED_WORK_ROOT-$backend"
 
-    QUILLUI_QUILL_CHAT_BUILD_WORKDIR="$generated_work_root" \
-      QUILLUI_QUILL_CHAT_PRODUCT_NAME="$product" \
-      QUILLUI_QUILL_CHAT_BACKEND_FACADE="$backend" \
-      scripts/build-quill-chat-linux.sh
+    QUILLUI_ENCHANTED_BUILD_WORKDIR="$generated_work_root" \
+      QUILLUI_ENCHANTED_PRODUCT_NAME="$product" \
+      QUILLUI_ENCHANTED_BACKEND_FACADE="$backend" \
+      scripts/build-enchanted-linux.sh
 
     if [[ "$backend" == "qt" ]]; then
-      QUILL_CHAT_BIN_DIR="$(QUILLUI_LINUX_BACKEND=qt swift build \
+      ENCHANTED_BIN_DIR="$(QUILLUI_LINUX_BACKEND=qt swift build \
         --package-path "$generated_work_root/package" \
         --scratch-path "$generated_work_root/.build-check" \
         --show-bin-path)"
     else
-      QUILL_CHAT_BIN_DIR="$(swift build \
+      ENCHANTED_BIN_DIR="$(swift build \
         --package-path "$generated_work_root/package" \
         --scratch-path "$generated_work_root/.build-check" \
         --show-bin-path)"
     fi
 
-    run_executable_smoke "$product" "$QUILL_CHAT_BIN_DIR/$product" "$backend"
+    run_executable_smoke "$product" "$ENCHANTED_BIN_DIR/$product" "$backend"
     generated_app_smoke_count=$((generated_app_smoke_count + 1))
   done
 fi
