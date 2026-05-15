@@ -1146,12 +1146,69 @@ quillui_backend_validate_interaction_extra_mode_matrix() {
   done < <(quillui_backend_interaction_extra_mode_matrix)
 }
 
+quillui_backend_validate_interaction_extra_mode_backend_parity() {
+  local parity_errors
+
+  parity_errors="$(
+    quillui_backend_interaction_extra_mode_matrix | awk -F '\t' '
+      NF == 0 {
+        next
+      }
+      NF != 3 {
+        printf "interaction-extra-mode-matrix row has %d columns, expected 3: %s\n", NF, $0
+        failures = 1
+        next
+      }
+      {
+        rows += 1
+        rowKey = $1 "/" $2 "/" $3
+        if (seenRow[rowKey]++) {
+          printf "interaction-extra-mode-matrix contains duplicate row: %s\n", rowKey
+          failures = 1
+        }
+        modeKey = $1 SUBSEP $3
+        products[modeKey] = $1
+        modes[modeKey] = $3
+        if ($2 == "gtk") {
+          hasGtk[modeKey] = 1
+        } else if ($2 == "qt") {
+          hasQt[modeKey] = 1
+        } else {
+          printf "interaction-extra-mode-matrix contains unsupported backend for parity: %s\n", rowKey
+          failures = 1
+        }
+      }
+      END {
+        if (rows == 0) {
+          print "interaction-extra-mode-matrix is empty"
+          failures = 1
+        }
+        for (modeKey in products) {
+          if (!(modeKey in hasGtk) || !(modeKey in hasQt)) {
+            printf "interaction-extra-mode-matrix must mirror GTK and Qt for %s/%s (gtk=%s qt=%s)\n",
+              products[modeKey],
+              modes[modeKey],
+              ((modeKey in hasGtk) ? "yes" : "no"),
+              ((modeKey in hasQt) ? "yes" : "no")
+            failures = 1
+          }
+        }
+        exit failures ? 1 : 0
+      }
+    '
+  )" || {
+    [[ -z "$parity_errors" ]] || printf '%s\n' "$parity_errors" >&2
+    return 65
+  }
+}
+
 quillui_backend_validate_integrity() {
   quillui_backend_validate_app_backend_ids || return $?
   quillui_backend_validate_product_native_runtime_backends || return $?
   quillui_backend_validate_fixed_app_backend_overrides || return $?
   quillui_backend_validate_native_product_runtime_overrides || return $?
   quillui_backend_validate_interaction_extra_mode_matrix || return $?
+  quillui_backend_validate_interaction_extra_mode_backend_parity || return $?
   quillui_backend_app_runtime_matrix >/dev/null || return $?
   quillui_backend_interaction_app_runtime_matrix >/dev/null || return $?
   quillui_backend_interaction_extra_mode_runtime_matrix >/dev/null || return $?

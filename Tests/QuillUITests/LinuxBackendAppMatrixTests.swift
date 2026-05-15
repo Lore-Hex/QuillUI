@@ -346,6 +346,22 @@ struct LinuxBackendAppMatrixTests {
         #expect(integrity.status == 0, Comment(rawValue: integrity.output))
         #expect(integrity.output.contains("backend product matrix ok"))
 
+        let interactionExtraModes = try runScript(script, arguments: ["interaction-extra-mode-matrix"])
+        #expect(interactionExtraModes.status == 0, Comment(rawValue: interactionExtraModes.output))
+        let interactionExtraModeFields = Self.lines(interactionExtraModes.output)
+            .map { row in row.split(separator: "\t", omittingEmptySubsequences: false).map(String.init) }
+        #expect(interactionExtraModeFields.allSatisfy { $0.count == 3 })
+        let interactionExtraModeGroups = Dictionary(grouping: interactionExtraModeFields.filter { $0.count == 3 }) {
+            "\($0[0])\t\($0[2])"
+        }
+        for (productAndMode, rows) in interactionExtraModeGroups {
+            let backends = rows.map { $0[1] }.sorted()
+            #expect(
+                backends == Self.expectedBackends,
+                Comment(rawValue: "interaction-extra-mode-matrix must mirror GTK/Qt for \(productAndMode): \(backends)")
+            )
+        }
+
         let defaultBackend = try runScript(script, arguments: ["backend-for-product", "quill-wireguard"])
         #expect(defaultBackend.status == 0, Comment(rawValue: defaultBackend.output))
         #expect(defaultBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
