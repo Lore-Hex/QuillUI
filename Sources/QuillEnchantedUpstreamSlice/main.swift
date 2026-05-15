@@ -146,20 +146,41 @@ struct UpstreamSliceApp: App {
 @MainActor
 struct UpstreamSliceRoot: View {
     @StateObject private var model = EnchantedModel()
+    @State private var selectedSampleConversationID: String?
     @AppStorage("quill.enchanted.ollamaEndpoint") private var endpoint = "http://localhost:11434"
+
+    private var hasStoredConversations: Bool {
+        !model.conversations.isEmpty
+    }
 
     private var conversations: [ConversationSD] {
         let storedConversations = model.conversations.map(ConversationSD.init)
         return storedConversations.isEmpty ? ConversationSD.sample : storedConversations
     }
 
+    private var selectedSampleConversation: ConversationSD? {
+        guard !hasStoredConversations else { return nil }
+        let selectedID = selectedSampleConversationID
+            ?? EnchantedInitialSelection.selectedConversationID(in: ConversationSD.sample)
+        guard let selectedID else { return nil }
+        return ConversationSD.sample.first { $0.id == selectedID }
+    }
+
     private var selectedConversation: ConversationSD? {
+        if let selectedSampleConversation {
+            return selectedSampleConversation
+        }
+
         guard let selectedConversationID = model.selectedConversationID else { return nil }
         return model.conversations.first { $0.id == selectedConversationID }.map(ConversationSD.init)
     }
 
     private var messages: [MessageSD] {
-        model.messages.map(MessageSD.init)
+        if selectedSampleConversation != nil {
+            return MessageSD.sample
+        }
+
+        return model.messages.map(MessageSD.init)
     }
 
     private var modelsList: [LanguageModelSD] {
@@ -179,6 +200,7 @@ struct UpstreamSliceRoot: View {
                 messages: messages,
                 modelsList: modelsList,
                 onNewConversationTap: {
+                    selectedSampleConversationID = nil
                     model.newConversation()
                 },
                 onRefreshModels: {
@@ -193,7 +215,10 @@ struct UpstreamSliceRoot: View {
                 },
                 onConversationTap: { conversation in
                     if let selected = model.conversations.first(where: { $0.id == conversation.id }) {
+                        selectedSampleConversationID = nil
                         model.select(selected)
+                    } else {
+                        selectedSampleConversationID = conversation.id
                     }
                 },
                 conversationState: model.isLoading ? .loading : .completed,
@@ -210,9 +235,12 @@ struct UpstreamSliceRoot: View {
                 onConversationDelete: { conversation in
                     if let selected = model.conversations.first(where: { $0.id == conversation.id }) {
                         model.delete(selected)
+                    } else if selectedSampleConversationID == conversation.id {
+                        selectedSampleConversationID = nil
                     }
                 },
                 onDeleteAllConversations: {
+                    selectedSampleConversationID = nil
                     model.deleteAllConversations()
                 },
                 canDeleteAllConversations: !model.conversations.isEmpty,

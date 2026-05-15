@@ -128,46 +128,20 @@ public struct QuillIceCubesContentView: View {
         } else if env["QUILLUI_PROFILE_FLAT"] == "1" {
             timelineContent
         } else {
-            NavigationStack {
-                timelineContent
-                    .navigationTitle("Public Timeline")
-            }
+            timelineContent
         }
     }
 
     @ViewBuilder
     private var timelineContent: some View {
-        Group {
-            if isLoading && timelineRows.isEmpty {
-                loadingPlaceholder
-            } else if let errorMessage {
-                VStack {
-                    Text("Error: \(errorMessage)")
-                        .foregroundColor(.red)
-                    Button("Retry") {
-                        Task { await fetchTimeline() }
-                    }
-                }
-            } else {
-                // SwiftOpenUI's `List` only ships
-                // `init(@ViewBuilder content:)` — no
-                // `List(_ data:rowContent:)` overload. Use a
-                // ForEach inside a `List { … }` so both
-                // backends compile.
-                List {
-                    ForEach(timelineRows) { row in
-                        Button {
-                            selectedRowID = row.id
-                        } label: {
-                            statusRow(row)
-                        }
-                    }
-                }
-                #if !os(Linux)
-                .refreshable { await fetchTimeline() }
-                #endif
-            }
+        HStack(spacing: 0) {
+            timelineSidebar
+                .frame(width: 320)
+            Divider()
+            timelineDetail
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .background(QuillDesktopChromeStyle.detailBackground)
         // SwiftOpenUI's `.task { … }` modifier takes a
         // `@Sendable` closure; `QuillIceCubesContentView`
         // isn't Sendable (SwiftUI views aren't), so capturing
@@ -184,6 +158,130 @@ public struct QuillIceCubesContentView: View {
         // URLSession / decode / @Published path or in the
         // SwiftOpenUI render-loop after the list populates.
         .onAppear { startTimelineLoadIfNeeded() }
+    }
+
+    private var timelineSidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("IceCubes")
+                    .font(.title2)
+                    .bold()
+                Text("Public timeline")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(16)
+
+            if isLoading && timelineRows.isEmpty {
+                loadingPlaceholder
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let errorMessage, timelineRows.isEmpty {
+                sidebarError(errorMessage)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(timelineRows) { row in
+                            Button {
+                                selectedRowID = row.id
+                            } label: {
+                                statusRow(row)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 18)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(QuillDesktopChromeStyle.sidebarBackground)
+    }
+
+    private func sidebarError(_ errorMessage: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Timeline unavailable")
+                .font(.headline)
+            Text(errorMessage)
+                .font(.caption)
+                .foregroundColor(.red)
+            Button("Retry") {
+                Task { await fetchTimeline() }
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var timelineDetail: some View {
+        Group {
+            if isLoading && timelineRows.isEmpty {
+                loadingPlaceholder
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let row = selectedRow {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Timeline item")
+                            .font(.title)
+                            .bold()
+                        Text("\(row.displayNameText) \(row.handleText)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        detailCard(
+                            title: "Post",
+                            body: row.contentText
+                        )
+                        detailCard(
+                            title: "Conversation",
+                            body: "Replies, boosts, favorites, and sharing actions stay grouped with the selected post."
+                        )
+                        detailCard(
+                            title: "Timeline status",
+                            body: errorMessage ?? "Public timeline loaded with fixture-backed content for deterministic Linux rendering."
+                        )
+                    }
+                    .padding(28)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else if let errorMessage {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Timeline unavailable")
+                        .font(.title2)
+                    Text(errorMessage)
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
+                .padding(28)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Select a timeline item")
+                        .font(.title2)
+                    Text("The public timeline will appear here after loading.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
+                .padding(28)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+        }
+        .background(QuillDesktopChromeStyle.detailBackground)
+    }
+
+    private func detailCard(title: String, body: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.headline)
+            Text(body)
+                .font(.body)
+                .lineSpacing(3)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(QuillDesktopChromeStyle.cardBackground)
+        .cornerRadius(8)
     }
 
     @ViewBuilder
@@ -218,8 +316,11 @@ public struct QuillIceCubesContentView: View {
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
+        .frame(height: 74, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(selectedRowID == row.id ? Color.gray.opacity(0.18) : Color.clear)
+        .background(selectedRowID == row.id ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+        .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder
@@ -298,6 +399,10 @@ public struct QuillIceCubesContentView: View {
             in: rows,
             environment: initialSelectionEnvironment
         )
+    }
+
+    private var selectedRow: IceCubesTimelineRow? {
+        selectedRowID.flatMap { id in timelineRows.first { $0.id == id } } ?? timelineRows.first
     }
 }
 
@@ -379,6 +484,39 @@ public enum QuillIceCubesProfileFixtures {
             ),
             content: HTMLString(stringLiteral: "<p>Canary rollout healthy after 30m.</p>"),
             createdAt: "2026-01-01T00:01:00Z"
+        ),
+        Status(
+            id: "3",
+            account: Account(
+                id: "3",
+                acct: "swiftlinux",
+                username: "swiftlinux",
+                displayName: "Swift on Linux"
+            ),
+            content: HTMLString(stringLiteral: "<p>Desktop packaging notes are ready for the next toolchain smoke run.</p>"),
+            createdAt: "2026-01-01T00:02:00Z"
+        ),
+        Status(
+            id: "4",
+            account: Account(
+                id: "4",
+                acct: "mastodon",
+                username: "mastodon",
+                displayName: "Mastodon"
+            ),
+            content: HTMLString(stringLiteral: "<p>Timeline cards, replies, and boosts remain grouped in the focused detail view.</p>"),
+            createdAt: "2026-01-01T00:03:00Z"
+        ),
+        Status(
+            id: "5",
+            account: Account(
+                id: "5",
+                acct: "design",
+                username: "design",
+                displayName: "Mastodon Design"
+            ),
+            content: HTMLString(stringLiteral: "<p>Selection polish keeps the lower row visually distinct across GTK and Qt.</p>"),
+            createdAt: "2026-01-01T00:04:00Z"
         ),
     ]
 

@@ -524,6 +524,17 @@ quillui_append_quill_chat_reference_environment_if_needed() {
   fi
 }
 
+quillui_append_backend_fixture_runtime_environment_if_needed() {
+  local output_array="$1"
+  local product="$2"
+
+  case "$product" in
+    quill-icecubes|quill-netnewswire)
+      quillui_append_environment_assignment "$output_array" "QUILLUI_DISABLE_FETCH=1" || return $?
+      ;;
+  esac
+}
+
 quillui_append_quill_chat_profile_fixture_environment_if_needed() {
   local output_array="$1"
   local product="$2"
@@ -553,6 +564,7 @@ quillui_append_backend_runtime_environment() {
 
   quillui_append_backend_launch_environment "$output_array" "$product" "$display" "$requested_backend" || return $?
   quillui_append_backend_layout_debug_environment "$output_array" "${QUILLUI_BACKEND_LAYOUT_DEBUG:-}" || return $?
+  quillui_append_backend_fixture_runtime_environment_if_needed "$output_array" "$product" || return $?
   quillui_append_quill_chat_reference_environment_if_needed \
     "$output_array" \
     "$product" \

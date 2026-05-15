@@ -39,37 +39,49 @@ public struct QuillCodeEditContentView: View {
             HStack(spacing: 0) {
                 fileTree
                     .frame(width: 240)
+                    .frame(maxHeight: .infinity, alignment: .topLeading)
                 Divider()
                 editorPane
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .background(QuillDesktopChromeStyle.detailBackground)
         }
     }
 
     private var fileTree: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(project.name).font(.headline).padding(14)
-            List {
-                ForEach(project.files) { file in
-                    Button {
-                        open(file)
-                    } label: {
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(project.files) { file in
                         fileTreeRow(file)
+                            .onTapGesture {
+                                open(file)
+                            }
                     }
                 }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 18)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(QuillDesktopChromeStyle.sidebarBackground)
     }
 
     private func fileTreeRow(_ file: ProjectFile) -> some View {
         HStack(spacing: 6) {
             Text(icon(for: file))
             Text(file.name).font(.caption)
+                .lineLimit(1)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
+        .frame(height: 74, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(activeID == file.id ? Color.gray.opacity(0.18) : Color.clear)
+        .background(activeID == file.id ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+        .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
+        .contentShape(Rectangle())
     }
 
     private var editorPane: some View {
@@ -97,9 +109,10 @@ public struct QuillCodeEditContentView: View {
                         .padding(.vertical, 6)
                         .background(
                             activeID == file.id
-                                ? Color.gray.opacity(0.18)
+                                ? QuillDesktopChromeStyle.selectedRowBackground
                                 : Color.clear
                         )
+                        .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
                     }
                 }
             }
@@ -115,6 +128,7 @@ public struct QuillCodeEditContentView: View {
                     .font(.system(size: 13, design: .monospaced))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(14)
+                    .background(QuillDesktopChromeStyle.detailBackground)
             } else {
                 VStack(spacing: 8) {
                     Text("Quill CodeEdit").font(.title2)
@@ -123,6 +137,7 @@ public struct QuillCodeEditContentView: View {
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(QuillDesktopChromeStyle.detailBackground)
             }
         }
     }

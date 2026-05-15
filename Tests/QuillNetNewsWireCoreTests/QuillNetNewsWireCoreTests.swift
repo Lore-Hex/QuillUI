@@ -212,8 +212,8 @@ struct QuillNetNewsWireCoreTests {
         let model = RSSReaderModel()
         model.seedProfileFixtures()
 
-        #expect(model.statusText == "2 items")
-        #expect(model.rows.map(\.id) == ["1", "2"])
+        #expect(model.statusText == "5 items")
+        #expect(model.rows.map(\.id) == ["1", "2", "3", "4", "5"])
         #expect(model.selectedItem?.id == "1")
         #expect(model.selectedDetail?.id == "1")
         #expect(model.selectedDetail?.plainTextBody == "Body of the first fixture article.")

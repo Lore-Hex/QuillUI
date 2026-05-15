@@ -39,10 +39,13 @@ public struct QuillNetNewsWireContentView: View {
 
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated {
-            NavigationSplitView {
+            HStack(spacing: 0) {
                 sidebar
-            } detail: {
+                    .frame(width: 320)
+                    .frame(maxHeight: .infinity, alignment: .topLeading)
+                Divider()
                 detail
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             // `QUILLUI_DISABLE_FETCH=1` is a profile-mode escape
             // hatch: it seeds fixture content + skips URLSession,
@@ -80,28 +83,44 @@ public struct QuillNetNewsWireContentView: View {
                     .padding(14)
             }
 
-            List {
-                ForEach(model.rows) { item in
-                    Button {
-                        model.selectItem(id: item.id)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.title)
-                                .font(.subheadline)
-                                .lineLimit(2)
-                            if !item.publishedSummary.isEmpty {
-                                Text(item.publishedSummary)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(model.rows) { item in
+                        articleRow(item)
+                            .onTapGesture {
+                                model.selectItem(id: item.id)
                             }
-                        }
-                        .padding(.vertical, 4)
                     }
                 }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 18)
             }
 
             footerStatus
         }
+        .background(QuillDesktopChromeStyle.sidebarBackground)
+    }
+
+    private func articleRow(_ item: RSSArticleRow) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(item.title)
+                .font(.subheadline)
+                .lineLimit(2)
+                .frame(width: 264, alignment: .leading)
+            if !item.publishedSummary.isEmpty {
+                Text(item.publishedSummary)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .frame(width: 264, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(height: 74, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(model.selectedID == item.id ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+        .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
+        .contentShape(Rectangle())
     }
 
     private var footerStatus: some View {
@@ -145,6 +164,7 @@ public struct QuillNetNewsWireContentView: View {
                     .padding(28)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .background(QuillDesktopChromeStyle.detailBackground)
             } else {
                 VStack(spacing: 12) {
                     Text("Select an article")
@@ -157,6 +177,7 @@ public struct QuillNetNewsWireContentView: View {
                 }
                 .padding(40)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(QuillDesktopChromeStyle.detailBackground)
             }
         }
     }
@@ -277,6 +298,7 @@ final class RSSReaderModel: ObservableObject {
     /// Linux profile script can isolate URLSession-cost vs
     /// render-loop-cost.
     func seedProfileFixtures() {
+        guard !didStartInitialLoad || items.isEmpty else { return }
         didStartInitialLoad = true
         setFeedTitle("Profile Fixture Feed")
         setItems(Self.profileFixtureItems)
@@ -402,6 +424,27 @@ final class RSSReaderModel: ObservableObject {
             link: "https://example.test/2",
             pubDate: "2026-01-02",
             descriptionHTML: "<p>Body of the second fixture article.</p>"
+        ),
+        RSSItem(
+            id: "3",
+            title: "Swift.org toolchain update",
+            link: "https://example.test/3",
+            pubDate: "2026-01-03",
+            descriptionHTML: "<p>Compiler and package manager notes for Linux app smoke runs.</p>"
+        ),
+        RSSItem(
+            id: "4",
+            title: "Point-Free dependency release",
+            link: "https://example.test/4",
+            pubDate: "2026-01-04",
+            descriptionHTML: "<p>Dependency injection notes and performance guardrails.</p>"
+        ),
+        RSSItem(
+            id: "5",
+            title: "Linux backend smoke notes",
+            link: "https://example.test/5",
+            pubDate: "2026-01-05",
+            descriptionHTML: "<p>Fixture article used to keep GTK and Qt row selection checks deterministic.</p>"
         ),
     ]
 }

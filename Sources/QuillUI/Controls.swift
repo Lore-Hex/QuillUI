@@ -327,6 +327,32 @@ private struct QuillConversationHistorySection: Identifiable {
     var items: [QuillConversationHistoryItem]
 }
 
+public enum QuillDesktopChromeStyle {
+    public static var sidebarBackground: Color {
+        Color(red: 0.93, green: 0.95, blue: 0.92)
+    }
+
+    public static var detailBackground: Color {
+        Color(red: 0.97, green: 0.97, blue: 0.96)
+    }
+
+    public static var cardBackground: Color {
+        Color.white
+    }
+
+    public static var selectedRowBackground: Color {
+        Color(red: 0.88, green: 0.94, blue: 1.0)
+    }
+
+    public static var selectedRowCornerRadius: CGFloat {
+        #if os(Linux)
+        return 7
+        #else
+        return 6
+        #endif
+    }
+}
+
 public struct QuillConversationHistoryList: View {
     public var items: [QuillConversationHistoryItem]
     public var selectedID: String?
@@ -354,10 +380,11 @@ public struct QuillConversationHistoryList: View {
                             .padding(.top, sectionTopPadding)
 
                         ForEach(section.items) { item in
+                            let isSelected = selectedID == item.id
                             HStack(spacing: 8) {
                                 Circle()
                                     .frame(width: 6, height: 6)
-                                    .opacity(selectedID == item.id ? 1 : 0)
+                                    .opacity(isSelected ? 1 : 0)
 
                                 Text(item.title)
                                     .font(.system(size: rowFontSize))
@@ -365,7 +392,11 @@ public struct QuillConversationHistoryList: View {
                                     .foregroundColor(Color(hex: "#3A3A3C"))
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
+                            .padding(.horizontal, rowHorizontalPadding)
                             .frame(height: rowHeight, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(isSelected ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+                            .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
                             .contentShape(Rectangle())
                             .onTapGesture { onSelect(item) }
                         }
@@ -392,6 +423,7 @@ public struct QuillConversationHistoryList: View {
     private var sectionSpacing: CGFloat { 6 }
     private var sectionTopPadding: CGFloat { 18 }
     private var dividerTopPadding: CGFloat { 16 }
+    private var rowHorizontalPadding: CGFloat { 8 }
     #else
     private var sectionFontSize: CGFloat { 14 }
     private var rowFontSize: CGFloat { 16 }
@@ -399,6 +431,7 @@ public struct QuillConversationHistoryList: View {
     private var sectionSpacing: CGFloat { 13 }
     private var sectionTopPadding: CGFloat { 12 }
     private var dividerTopPadding: CGFloat { 10 }
+    private var rowHorizontalPadding: CGFloat { 6 }
     #endif
 
     private var sections: [QuillConversationHistorySection] {

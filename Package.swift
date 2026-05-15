@@ -574,7 +574,7 @@ var targets: [Target] = [
     .target(name: "SwiftData", dependencies: ["QuillData"], path: "Sources/SwiftData"),
     .target(
         name: "QuillEnchantedCore",
-        dependencies: ["QuillUI", "QuillData", "CSQLite"],
+        dependencies: ["QuillUI", "QuillData", "QuillFoundation", "CSQLite"],
         swiftSettings: appSwiftSettings
     ),
     .executableTarget(

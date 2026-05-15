@@ -37,6 +37,7 @@ public struct QuillIINAContentView: View {
                 HStack(spacing: 0) {
                     playlistSidebar
                         .frame(width: 280)
+                        .frame(maxHeight: .infinity, alignment: .topLeading)
                     Divider()
                     playerCanvas
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -82,16 +83,21 @@ public struct QuillIINAContentView: View {
             .padding(.horizontal, 14)
             .padding(.top, 14)
 
-            List {
-                ForEach(playlist) { item in
-                    Button {
-                        selectedID = item.id
-                    } label: {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(playlist) { item in
                         playlistRow(item)
+                            .onTapGesture {
+                                selectedID = item.id
+                            }
                     }
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 14)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(QuillDesktopChromeStyle.sidebarBackground)
     }
 
     private func playlistRow(_ item: PlaylistItem) -> some View {
@@ -101,8 +107,11 @@ public struct QuillIINAContentView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
+        .frame(height: 74, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(selectedID == item.id ? Color.gray.opacity(0.18) : Color.clear)
+        .background(selectedID == item.id ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+        .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
+        .contentShape(Rectangle())
     }
 
     private var playerCanvas: some View {
@@ -120,7 +129,7 @@ public struct QuillIINAContentView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.opacity(0.04))
+        .background(QuillDesktopChromeStyle.detailBackground)
     }
 
     private var currentItem: PlaylistItem? {

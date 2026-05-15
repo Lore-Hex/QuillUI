@@ -537,7 +537,11 @@ elif [[ "$SELECTED_BACKEND" == "gtk" ]] && quillui_is_backend_generic_gtk_list_s
     case "$INTERACTION_MODE" in
       list-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 160))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 350))}"
+        if [[ "$PRODUCT" == "quill-enchanted-upstream-slice" ]]; then
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 250))}"
+        else
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 350))}"
+        fi
         click_at "$click_x" "$click_y"
         sleep "$post_click_sleep"
         ;;

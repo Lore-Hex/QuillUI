@@ -121,9 +121,47 @@ struct EnchantedPersistenceTests {
         #expect(model.status == "Stopping...")
     }
 
+    @Test("initial selection helper reads ordered keys and clamps")
+    func initialSelectionHelperReadsOrderedKeysAndClamps() {
+        let items = [
+            SelectionProbe(id: "first"),
+            SelectionProbe(id: "second"),
+            SelectionProbe(id: "third")
+        ]
+
+        #expect(
+            EnchantedInitialSelection.selectedConversationIndex(
+                count: items.count,
+                environment: ["QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START": "1"]
+            ) == 1
+        )
+        #expect(
+            EnchantedInitialSelection.selectedConversationIndex(
+                count: items.count,
+                environment: ["QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START": "99"]
+            ) == 2
+        )
+        #expect(
+            EnchantedInitialSelection.selectedConversationID(
+                in: items,
+                environment: ["QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START": "-9"]
+            ) == "first"
+        )
+        #expect(
+            EnchantedInitialSelection.selectedConversationIndex(
+                count: items.count,
+                environment: ["QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START": ""]
+            ) == nil
+        )
+    }
+
     private func temporarySQLiteURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("sqlite")
+    }
+
+    private struct SelectionProbe: Identifiable {
+        var id: String
     }
 }

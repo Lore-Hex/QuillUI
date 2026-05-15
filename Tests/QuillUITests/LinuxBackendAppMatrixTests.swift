@@ -661,6 +661,13 @@ struct LinuxBackendAppMatrixTests {
         quillui_append_backend_launch_environment launch_env quill-wireguard "" qt
         printf 'launch-env=%s\\n' "$(printf '%s|' "${launch_env[@]}")"
 
+        runtime_env=()
+        quillui_append_backend_runtime_environment runtime_env quill-icecubes "" "\(temporaryDirectory.path)/runtime" 900 620 0 gtk
+        printf 'icecubes-runtime-env=%s\\n' "$(printf '%s|' "${runtime_env[@]}")"
+        runtime_env=()
+        quillui_append_backend_runtime_environment runtime_env quill-netnewswire "" "\(temporaryDirectory.path)/runtime" 900 620 0 gtk
+        printf 'netnewswire-runtime-env=%s\\n' "$(printf '%s|' "${runtime_env[@]}")"
+
         if quillui_export_backend_argument qt quill-wireguard-qt 2>/dev/null; then
           echo unexpected-product
           exit 1
@@ -737,6 +744,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("product-default=gtk"))
         #expect(result.output.contains("product-explicit=qt"))
         #expect(result.output.contains("launch-env=GTK_A11Y=none|QUILLUI_BACKEND=qt|"))
+        #expect(result.output.contains("icecubes-runtime-env=GTK_A11Y=none|QUILLUI_BACKEND=gtk|QUILLUI_DISABLE_FETCH=1|"))
+        #expect(result.output.contains("netnewswire-runtime-env=GTK_A11Y=none|QUILLUI_BACKEND=gtk|QUILLUI_DISABLE_FETCH=1|"))
         #expect(result.output.contains("missing-product=failed"))
         #expect(result.output.contains("missing-stamp=failed"))
         #expect(result.output.contains("qt-stamp=ok"))

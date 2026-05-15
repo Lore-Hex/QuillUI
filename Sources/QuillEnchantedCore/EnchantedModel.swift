@@ -1,5 +1,44 @@
 import Foundation
+import QuillFoundation
 import QuillUI
+
+/// Backend-neutral startup selection policy for Enchanted conversation lists.
+///
+/// The GTK app shell, Qt native runtime, and upstream-shaped slice all need the
+/// same deterministic row-selection behavior during Linux smoke tests. Keeping
+/// this below the UI adapters avoids each target reimplementing environment
+/// parsing and clamp rules.
+public enum EnchantedInitialSelection {
+    public static let selectedConversationIndexEnvironmentKeys = [
+        "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START",
+        "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
+    ]
+
+    public static func selectedConversationIndex(
+        count: Int,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Int? {
+        guard count > 0,
+              let requestedIndex = QuillInitialSelection.index(
+                  environmentKeys: selectedConversationIndexEnvironmentKeys,
+                  environment: environment
+              )
+        else { return nil }
+
+        return min(max(requestedIndex, 0), count - 1)
+    }
+
+    public static func selectedConversationID<Item: Identifiable>(
+        in items: [Item],
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Item.ID? {
+        QuillInitialSelection.selectedID(
+            in: items,
+            environmentKeys: selectedConversationIndexEnvironmentKeys,
+            environment: environment
+        )
+    }
+}
 
 @MainActor
 public final class EnchantedModel: ObservableObject {
@@ -19,10 +58,6 @@ public final class EnchantedModel: ObservableObject {
     private let modelContext: EnchantedModelContext?
     private var generationTask: Task<Void, Never>?
     private var didBoot = false
-    private static let selectedConversationIndexEnvironmentKeys = [
-        "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START",
-        "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
-    ]
 
     public init(endpoint: String = "http://localhost:11434", store: SQLiteConversationStore? = nil) {
         self.endpoint = endpoint
@@ -50,7 +85,7 @@ public final class EnchantedModel: ObservableObject {
         guard !didBoot else { return }
         didBoot = true
         reloadConversations()
-        if let selectedIndex = Self.selectedConversationIndexOverride(count: conversations.count) {
+        if let selectedIndex = EnchantedInitialSelection.selectedConversationIndex(count: conversations.count) {
             selectedConversationID = conversations[selectedIndex].id
             reloadMessages()
         } else if selectedConversationID == nil {
@@ -155,20 +190,6 @@ public final class EnchantedModel: ObservableObject {
             status = "Could not trim conversation: \(error.localizedDescription)"
             return false
         }
-    }
-
-    private static func selectedConversationIndexOverride(count: Int) -> Int? {
-        guard count > 0 else { return nil }
-
-        let environment = ProcessInfo.processInfo.environment
-        for key in selectedConversationIndexEnvironmentKeys {
-            guard let rawValue = environment[key] else { continue }
-            let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let requestedIndex = Int(trimmedValue) else { continue }
-            return min(max(requestedIndex, 0), count - 1)
-        }
-
-        return nil
     }
 
     private func deleteConversation(id conversationID: String) {

@@ -167,7 +167,7 @@ struct QuillIceCubesCoreTests {
     @Test("Profile fixtures are non-empty with unique ids")
     func profileFixturesShape() {
         let statuses = QuillIceCubesProfileFixtures.statuses
-        #expect(!statuses.isEmpty)
+        #expect(statuses.count >= 4)
         let ids = Set(statuses.map(\.id))
         #expect(ids.count == statuses.count)
         #expect(QuillIceCubesProfileFixtures.rows.count == statuses.count)
