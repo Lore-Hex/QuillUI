@@ -223,7 +223,23 @@ click_generic_backend_list_selection() {
   sleep "$post_click_sleep"
 }
 
-click_generic_backend_header_action() {
+enchanted_list_selection_y() {
+  if [[ "$SELECTED_BACKEND" == "qt" ]]; then
+    printf '%s\n' "$((window_y + 510))"
+  else
+    printf '%s\n' "$((window_y + 455))"
+  fi
+}
+
+click_enchanted_list_selection() {
+  local click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
+  local click_y="${QUILLUI_BACKEND_CLICK_Y:-$(enchanted_list_selection_y)}"
+
+  click_at "$click_x" "$click_y"
+  sleep "$post_click_sleep"
+}
+
+click_backend_header_action() {
   local click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 200))}"
   local click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 54))}"
 
@@ -503,16 +519,10 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "qt" ]]; then
 elif [[ "$PRODUCT" == "quill-enchanted" && "$SELECTED_BACKEND" == "gtk" ]]; then
     case "$INTERACTION_MODE" in
       list-selection)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 455))}"
-        click_at "$click_x" "$click_y"
-        sleep "$post_click_sleep"
+        click_enchanted_list_selection
         ;;
       click)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 200))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 54))}"
-        click_at "$click_x" "$click_y"
-        sleep 1
+        click_backend_header_action
         ;;
       *)
         echo "Unsupported Enchanted GTK interaction mode: $INTERACTION_MODE" >&2
@@ -522,16 +532,10 @@ elif [[ "$PRODUCT" == "quill-enchanted" && "$SELECTED_BACKEND" == "gtk" ]]; then
 elif [[ "$PRODUCT" == "quill-enchanted" && "$SELECTED_BACKEND" == "qt" ]]; then
     case "$INTERACTION_MODE" in
       list-selection)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 510))}"
-        click_at "$click_x" "$click_y"
-        sleep "$post_click_sleep"
+        click_enchanted_list_selection
         ;;
       click)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 200))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 54))}"
-        click_at "$click_x" "$click_y"
-        sleep 1
+        click_backend_header_action
         ;;
       *)
         echo "Unsupported Enchanted Qt interaction mode: $INTERACTION_MODE" >&2
@@ -547,10 +551,7 @@ elif [[ "$SELECTED_BACKEND" == "gtk" && ( "$PRODUCT" == "quill-signal" || "$PROD
         sleep "$post_click_sleep"
         ;;
       click)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 200))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 54))}"
-        click_at "$click_x" "$click_y"
-        sleep 1
+        click_backend_header_action
         ;;
       *)
         echo "Unsupported chat GTK interaction mode: $INTERACTION_MODE" >&2
@@ -563,7 +564,7 @@ elif [[ "$SELECTED_BACKEND" == "gtk" ]] && quillui_is_backend_generic_gtk_list_s
         click_generic_backend_list_selection
         ;;
       click)
-        click_generic_backend_header_action
+        click_backend_header_action
         ;;
       *)
         echo "Unsupported generic GTK interaction mode: $INTERACTION_MODE" >&2
@@ -576,7 +577,7 @@ elif [[ "$SELECTED_BACKEND" == "qt" ]] && quillui_is_backend_generic_qt_app_prod
         click_generic_backend_list_selection
         ;;
       click)
-        click_generic_backend_header_action
+        click_backend_header_action
         ;;
       *)
         echo "Unsupported generic Qt interaction mode: $INTERACTION_MODE" >&2
@@ -617,10 +618,7 @@ elif quillui_is_backend_smoke_product "$PRODUCT"; then
       refresh_capture_window_for_sheet_interaction
     fi
 else
-    click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 200))}"
-    click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 54))}"
-    click_at "$click_x" "$click_y"
-    sleep 1
+    click_backend_header_action
 fi
 DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 
