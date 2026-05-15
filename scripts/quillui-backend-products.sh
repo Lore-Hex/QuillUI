@@ -594,6 +594,27 @@ quillui_is_backend_chat_gtk_list_selection_app_product() {
   quillui_backend_product_list_contains "$1" quillui_backend_chat_gtk_list_selection_app_products
 }
 
+quillui_backend_default_interaction_mode_for_product() {
+  local product="$1"
+
+  if quillui_is_backend_smoke_product "$product"; then
+    echo "open-panel"
+    return 0
+  fi
+
+  case "$product" in
+    quill-chat-linux)
+      echo "toolbar-menu"
+      ;;
+    quill-wireguard)
+      echo "tunnel-name-edit"
+      ;;
+    *)
+      echo "click"
+      ;;
+  esac
+}
+
 quillui_backend_has_native_runtime() {
   local requested_backend
 
@@ -1485,6 +1506,8 @@ Commands:
                                   Print the canonical backend launch interaction mode.
   smoke-interaction-verify-product PRODUCT MODE
                                   Print the screenshot verifier product for a launch mode.
+  default-interaction-mode PRODUCT
+                                  Print the default interaction mode for PRODUCT.
   profile-products                List app and launch-smoke products for profile budgets.
   profile-matrix                  List PRODUCT<TAB>BACKEND rows for profile budgets.
   profile-runtime-matrix          List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for profile budgets.
@@ -1620,6 +1643,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         exit 64
       fi
       quillui_backend_smoke_interaction_verify_product "$2" "$3"
+      ;;
+    default-interaction-mode)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_backend_default_interaction_mode_for_product "$2"
       ;;
     profile-products)
       quillui_backend_profile_products

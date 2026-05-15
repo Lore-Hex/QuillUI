@@ -498,6 +498,7 @@ struct LinuxBackendAppMatrixTests {
         let root = try packageRoot()
         let workflow = try String(contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"), encoding: .utf8)
         let interactionScript = try String(contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"), encoding: .utf8)
+        let productsScript = try String(contentsOf: root.appendingPathComponent("scripts/quillui-backend-products.sh"), encoding: .utf8)
         let smokeLib = try String(contentsOf: root.appendingPathComponent("scripts/quillui-linux-backend-smoke-lib.sh"), encoding: .utf8)
         let readme = try String(contentsOf: root.appendingPathComponent("README.md"), encoding: .utf8)
         let appTargets = try String(contentsOf: root.appendingPathComponent("docs/app-targets.md"), encoding: .utf8)
@@ -520,7 +521,11 @@ struct LinuxBackendAppMatrixTests {
         #expect(interactionScript.contains("run_list_selection_or_header_interaction \"generic GTK\" click_generic_backend_list_selection"))
         #expect(interactionScript.contains("run_list_selection_or_header_interaction \"generic Qt\" click_generic_backend_list_selection"))
         #expect(interactionScript.contains("quillui_is_backend_chat_gtk_list_selection_app_product \"$PRODUCT\""))
+        #expect(interactionScript.contains("INTERACTION_MODE=\"$(quillui_backend_default_interaction_mode_for_product \"$PRODUCT\")\""))
         #expect(!interactionScript.contains("quill-wireguard|quill-wireguard-qt)"))
+
+        #expect(productsScript.contains("quillui_backend_default_interaction_mode_for_product()"))
+        #expect(productsScript.contains("default-interaction-mode)"))
 
         #expect(smokeLib.contains("verify_product=\"quill-enchanted-qt\""))
         #expect(smokeLib.contains("verify_product=\"quill-wireguard-qt\""))
@@ -740,6 +745,10 @@ struct LinuxBackendAppMatrixTests {
         printf 'product-default=%s\\n' "$QUILLUI_BACKEND"
         quillui_export_backend_argument qt quill-wireguard
         printf 'product-explicit=%s\\n' "$QUILLUI_BACKEND"
+        printf 'default-mode-signal=%s\\n' "$(quillui_backend_default_interaction_mode_for_product quill-signal)"
+        printf 'default-mode-chat=%s\\n' "$(quillui_backend_default_interaction_mode_for_product quill-chat-linux)"
+        printf 'default-mode-wireguard=%s\\n' "$(quillui_backend_default_interaction_mode_for_product quill-wireguard)"
+        printf 'default-mode-smoke=%s\\n' "$(quillui_backend_default_interaction_mode_for_product quill-gtk-interaction-smoke)"
 
         launch_env=()
         quillui_append_backend_launch_environment launch_env quill-wireguard "" qt
@@ -837,6 +846,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("launch-env=GTK_A11Y=none|QUILLUI_BACKEND=qt|"))
         #expect(result.output.contains("icecubes-runtime-env=GTK_A11Y=none|QUILLUI_BACKEND=gtk|QUILLUI_DISABLE_FETCH=1|"))
         #expect(result.output.contains("netnewswire-runtime-env=GTK_A11Y=none|QUILLUI_BACKEND=gtk|QUILLUI_DISABLE_FETCH=1|"))
+        #expect(result.output.contains("default-mode-signal=click"))
+        #expect(result.output.contains("default-mode-chat=toolbar-menu"))
+        #expect(result.output.contains("default-mode-wireguard=tunnel-name-edit"))
+        #expect(result.output.contains("default-mode-smoke=open-panel"))
         #expect(result.output.contains("missing-product=failed"))
         #expect(result.output.contains("missing-stamp=failed"))
         #expect(result.output.contains("qt-stamp=ok"))

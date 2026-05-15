@@ -18,14 +18,7 @@ quillui_alias_backend_interaction_env
 
 INTERACTION_MODE="${QUILLUI_BACKEND_INTERACTION_MODE:-}"
 if [[ -z "$INTERACTION_MODE" ]]; then
-  case "$PRODUCT" in
-    quill-chat-linux) INTERACTION_MODE="toolbar-menu" ;;
-    quill-wireguard) INTERACTION_MODE="tunnel-name-edit" ;;
-    *) INTERACTION_MODE="click" ;;
-  esac
-  if quillui_is_backend_smoke_product "$PRODUCT"; then
-    INTERACTION_MODE="open-panel"
-  fi
+  INTERACTION_MODE="$(quillui_backend_default_interaction_mode_for_product "$PRODUCT")"
 fi
 
 quillui_install_linux_backend_smoke_packages
