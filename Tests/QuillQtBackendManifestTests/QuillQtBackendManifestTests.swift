@@ -1,5 +1,6 @@
 import Foundation
 import QuillGenericQtNativeRuntime
+import QuillQtNativeRuntimeSupport
 import Testing
 
 @Suite("Qt backend manifest")
@@ -10,6 +11,84 @@ struct QuillQtBackendManifestTests {
         var qtPath: String
         var qtRuntime: String
     }
+
+    private struct GenericQtCatalogExpectation {
+        var catalogCase: String
+        var selectedIndexEnvironmentKeys: [String]
+        var snapshot: QuillGenericQtAppSnapshot
+    }
+
+    private static let expectedGenericQtCatalogProducts = [
+        "quill-enchanted-upstream-slice",
+        "quill-icecubes",
+        "quill-netnewswire",
+        "quill-codeedit",
+        "quill-signal",
+        "quill-telegram",
+        "quill-iina"
+    ]
+
+    private static let expectedGenericQtCatalog: [String: GenericQtCatalogExpectation] = [
+        "quill-enchanted-upstream-slice": .init(
+            catalogCase: "enchantedUpstreamSlice",
+            selectedIndexEnvironmentKeys: [
+                "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START",
+                "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START",
+                QuillGenericQtAppSnapshot.genericSelectedIndexEnvironmentKey
+            ],
+            snapshot: QuillGenericQtAppCatalog.enchantedUpstreamSlice
+        ),
+        "quill-icecubes": .init(
+            catalogCase: "iceCubes",
+            selectedIndexEnvironmentKeys: [
+                "QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START",
+                QuillGenericQtAppSnapshot.genericSelectedIndexEnvironmentKey
+            ],
+            snapshot: QuillGenericQtAppCatalog.iceCubes
+        ),
+        "quill-netnewswire": .init(
+            catalogCase: "netNewsWire",
+            selectedIndexEnvironmentKeys: [
+                "QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START",
+                QuillGenericQtAppSnapshot.genericSelectedIndexEnvironmentKey
+            ],
+            snapshot: QuillGenericQtAppCatalog.netNewsWire
+        ),
+        "quill-codeedit": .init(
+            catalogCase: "codeEdit",
+            selectedIndexEnvironmentKeys: [
+                "QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START",
+                QuillGenericQtAppSnapshot.genericSelectedIndexEnvironmentKey
+            ],
+            snapshot: QuillGenericQtAppCatalog.codeEdit
+        ),
+        "quill-signal": .init(
+            catalogCase: "signal",
+            selectedIndexEnvironmentKeys: [
+                "QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START",
+                "QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START",
+                QuillGenericQtAppSnapshot.genericSelectedIndexEnvironmentKey
+            ],
+            snapshot: QuillGenericQtAppCatalog.signal
+        ),
+        "quill-telegram": .init(
+            catalogCase: "telegram",
+            selectedIndexEnvironmentKeys: [
+                "QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START",
+                "QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START",
+                QuillGenericQtAppSnapshot.genericSelectedIndexEnvironmentKey
+            ],
+            snapshot: QuillGenericQtAppCatalog.telegram
+        ),
+        "quill-iina": .init(
+            catalogCase: "iina",
+            selectedIndexEnvironmentKeys: [
+                "QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START",
+                QuillGenericQtAppSnapshot.genericSelectedIndexEnvironmentKey
+            ],
+            snapshot: QuillGenericQtAppCatalog.iina
+        )
+    ]
 
     @Test("Qt backend registers a real Qt-mode test target")
     func qtBackendRegistersRealQtModeTestTarget() throws {
@@ -40,6 +119,11 @@ struct QuillQtBackendManifestTests {
         let expectedProducts = lines(appProducts.output)
         let specs = try canonicalAppSpecs(in: manifest)
         #expect(specs.map(\.product) == expectedProducts)
+        #expect(
+            specs
+                .filter { $0.qtRuntime == "genericQtNative" }
+                .map(\.product) == Self.expectedGenericQtCatalogProducts
+        )
 
         for spec in specs {
             let mainURL = root.appendingPathComponent(spec.qtPath).appendingPathComponent("main.swift")
@@ -51,9 +135,14 @@ struct QuillQtBackendManifestTests {
             let launcher = try String(contentsOf: mainURL, encoding: .utf8)
             switch spec.qtRuntime {
             case "genericQtNative":
+                guard let expectation = Self.expectedGenericQtCatalog[spec.product] else {
+                    Issue.record("Missing generic Qt catalog expectation for \(spec.product)")
+                    continue
+                }
+
                 #expect(launcher.contains("#if QUILLUI_GENERIC_QT_NATIVE_BACKEND"))
                 #expect(launcher.contains("import QuillGenericQtNativeRuntime"))
-                #expect(launcher.contains("QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog."))
+                #expect(launcher.contains("QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.\(expectation.catalogCase))"))
                 #expect(!launcher.contains("executableName:"))
                 #expect(!launcher.contains("import QuillUIQt"))
             case "enchantedQtNative":
@@ -70,6 +159,47 @@ struct QuillQtBackendManifestTests {
                 Issue.record("Unknown Qt runtime case \(spec.qtRuntime) for \(spec.product)")
             }
         }
+    }
+
+    @Test("Generic Qt app catalog snapshots match the product roster")
+    func genericQtAppCatalogSnapshotsMatchProductRoster() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/quillui-backend-products.sh")
+        let genericProducts = try runScript(script, arguments: ["generic-qt-apps"])
+        #expect(genericProducts.status == 0, Comment(rawValue: genericProducts.output))
+        #expect(lines(genericProducts.output) == Self.expectedGenericQtCatalogProducts)
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+
+        for product in Self.expectedGenericQtCatalogProducts {
+            guard let expectation = Self.expectedGenericQtCatalog[product] else {
+                Issue.record("Missing generic Qt catalog expectation for \(product)")
+                continue
+            }
+
+            assertGenericQtSnapshot(expectation.snapshot, product: product, expectation: expectation)
+
+            let encodedSnapshot = try encoder.encode(expectation.snapshot)
+            let decodedSnapshot = try JSONDecoder().decode(QuillGenericQtAppSnapshot.self, from: encodedSnapshot)
+
+            assertGenericQtSnapshot(decodedSnapshot, product: product, expectation: expectation)
+            #expect(decodedSnapshot.windowTitle == expectation.snapshot.windowTitle)
+            #expect(decodedSnapshot.selectedIndex == expectation.snapshot.selectedIndex)
+            #expect(decodedSnapshot.items.count == expectation.snapshot.items.count)
+            #expect(decodedSnapshot.sections.count == expectation.snapshot.sections.count)
+            #expect(decodedSnapshot.messages.count == expectation.snapshot.messages.count)
+        }
+    }
+
+    @Test("Qt native runtime support clamps selection overrides")
+    func qtNativeRuntimeSupportClampsSelectionOverrides() {
+        #expect(QuillQtNativeRuntimeSupport.boundedIndexOverride(" 2 ", count: 3) == 2)
+        #expect(QuillQtNativeRuntimeSupport.boundedIndexOverride("-4", count: 3) == 0)
+        #expect(QuillQtNativeRuntimeSupport.boundedIndexOverride("9", count: 3) == 2)
+        #expect(QuillQtNativeRuntimeSupport.boundedIndexOverride("abc", count: 3) == nil)
+        #expect(QuillQtNativeRuntimeSupport.boundedIndexOverride("1", count: 0) == nil)
+        #expect(QuillQtNativeRuntimeSupport.boundedIndexOverride(nil, count: 3) == nil)
     }
 
     @Test("Generic Qt snapshots decode legacy payload defaults")
@@ -134,6 +264,71 @@ struct QuillQtBackendManifestTests {
         #expect(style.sidebarColor == QuillGenericQtAppSnapshot.Style.desktop.sidebarColor)
         #expect(style.cardColor == QuillGenericQtAppSnapshot.Style.desktop.cardColor)
         #expect(style.controlBorderColor == QuillGenericQtAppSnapshot.Style.desktop.controlBorderColor)
+    }
+
+    private func assertGenericQtSnapshot(
+        _ snapshot: QuillGenericQtAppSnapshot,
+        product: String,
+        expectation: GenericQtCatalogExpectation
+    ) {
+        #expect(!snapshot.windowTitle.isEmpty, Comment(rawValue: "\(product) must provide a window title"))
+        #expect(snapshot.minimumWidth > 0, Comment(rawValue: "\(product) must provide a positive minimum width"))
+        #expect(snapshot.minimumHeight > 0, Comment(rawValue: "\(product) must provide a positive minimum height"))
+        #expect(snapshot.defaultWidth >= snapshot.minimumWidth)
+        #expect(snapshot.defaultHeight >= snapshot.minimumHeight)
+        #expect(snapshot.sidebarWidth > 0)
+        #expect(snapshot.detailWidth > 0)
+        #expect(!snapshot.sidebarTitle.isEmpty)
+        #expect(!snapshot.sidebarSubtitle.isEmpty)
+        #expect(!snapshot.primaryActionTitle.isEmpty)
+        #expect(!snapshot.secondaryActionTitle.isEmpty)
+        #expect(!snapshot.listTitle.isEmpty)
+        #expect(!snapshot.status.isEmpty)
+        #expect(!snapshot.detailTitle.isEmpty)
+        #expect(!snapshot.detailSubtitle.isEmpty)
+        #expect(!snapshot.messagesTitle.isEmpty)
+        #expect(!snapshot.items.isEmpty, Comment(rawValue: "\(product) must provide selectable rows"))
+        #expect(!snapshot.sections.isEmpty, Comment(rawValue: "\(product) must provide detail sections"))
+        #expect(snapshot.selectedIndexEnvironmentKeys == expectation.selectedIndexEnvironmentKeys)
+        #expect(Set(snapshot.selectedIndexEnvironmentKeys).count == snapshot.selectedIndexEnvironmentKeys.count)
+
+        if snapshot.items.isEmpty {
+            Issue.record("\(product) must provide at least one item before selectedIndex can be validated")
+        } else {
+            #expect(snapshot.selectedIndex >= 0)
+            #expect(snapshot.selectedIndex < snapshot.items.count)
+        }
+
+        for item in snapshot.items {
+            #expect(!item.title.isEmpty, Comment(rawValue: "\(product) items must provide titles"))
+            #expect(!item.subtitle.isEmpty, Comment(rawValue: "\(product) items must provide subtitles"))
+            #expect(item.height > 0, Comment(rawValue: "\(product) items must provide positive row heights"))
+
+            if let sections = item.sections {
+                #expect(!sections.isEmpty, Comment(rawValue: "\(product) item sections must not be empty"))
+                for section in sections {
+                    #expect(!section.title.isEmpty)
+                    #expect(!section.body.isEmpty)
+                }
+            }
+
+            if let messages = item.messages {
+                for message in messages {
+                    #expect(!message.sender.isEmpty)
+                    #expect(!message.body.isEmpty)
+                }
+            }
+        }
+
+        for section in snapshot.sections {
+            #expect(!section.title.isEmpty)
+            #expect(!section.body.isEmpty)
+        }
+
+        for message in snapshot.messages {
+            #expect(!message.sender.isEmpty)
+            #expect(!message.body.isEmpty)
+        }
     }
 
     private func canonicalAppSpecs(in manifest: String) throws -> [QtAppSpec] {
