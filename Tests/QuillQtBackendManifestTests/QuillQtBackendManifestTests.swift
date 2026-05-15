@@ -143,7 +143,9 @@ struct QuillQtBackendManifestTests {
                 #expect(launcher.contains("#if QUILLUI_GENERIC_QT_NATIVE_BACKEND"))
                 #expect(launcher.contains("import QuillGenericQtNativeRuntime"))
                 #expect(launcher.contains("QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.\(expectation.catalogCase))"))
+                #expect(!launcher.contains("#else"))
                 #expect(!launcher.contains("executableName:"))
+                #expect(!launcher.contains("QuillQtApp.run"))
                 #expect(!launcher.contains("import QuillUIQt"))
             case "enchantedQtNative":
                 #expect(launcher.contains("#if QUILLUI_ENCHANTED_QT_NATIVE_BACKEND"))
@@ -165,6 +167,7 @@ struct QuillQtBackendManifestTests {
     func genericQtAppCatalogSnapshotsMatchProductRoster() throws {
         let root = try packageRoot()
         let script = root.appendingPathComponent("scripts/quillui-backend-products.sh")
+        let smokeLib = root.appendingPathComponent("scripts/quillui-linux-backend-smoke-lib.sh")
         let genericProducts = try runScript(script, arguments: ["generic-qt-apps"])
         #expect(genericProducts.status == 0, Comment(rawValue: genericProducts.output))
         #expect(lines(genericProducts.output) == Self.expectedGenericQtCatalogProducts)
@@ -179,6 +182,11 @@ struct QuillQtBackendManifestTests {
             }
 
             assertGenericQtSnapshot(expectation.snapshot, product: product, expectation: expectation)
+            let sharedSelectionKeys = try genericSelectionEnvironmentKeys(product: product, smokeLib: smokeLib)
+            #expect(
+                sharedSelectionKeys + QuillGenericQtAppSnapshot.defaultSelectedIndexEnvironmentKeys
+                    == expectation.selectedIndexEnvironmentKeys
+            )
 
             let encodedSnapshot = try encoder.encode(expectation.snapshot)
             let decodedSnapshot = try JSONDecoder().decode(QuillGenericQtAppSnapshot.self, from: encodedSnapshot)
@@ -366,6 +374,38 @@ struct QuillQtBackendManifestTests {
         let process = Process()
         process.executableURL = script
         process.arguments = arguments
+        process.environment = ProcessInfo.processInfo.environment
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        try process.run()
+        process.waitUntilExit()
+
+        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        return (process.terminationStatus, output)
+    }
+
+    private func genericSelectionEnvironmentKeys(product: String, smokeLib: URL) throws -> [String] {
+        let result = try runBash(
+            """
+            set -euo pipefail
+            source "$1"
+            quillui_backend_generic_selection_environment_keys "$2"
+            """,
+            arguments: [smokeLib.path, product]
+        )
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        return lines(result.output)
+    }
+
+    private func runBash(
+        _ command: String,
+        arguments: [String] = []
+    ) throws -> (status: Int32, output: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = ["-c", command, "quillui-test-bash"] + arguments
         process.environment = ProcessInfo.processInfo.environment
 
         let pipe = Pipe()
