@@ -173,11 +173,9 @@ if [[ -z "$WORK_ROOT" ]]; then
   WORK_ROOT="$ROOT_DIR/.build/$PRODUCT_NAME"
 fi
 
-if [[ -n "$BACKEND_FACADE" ]]; then
-  if ! NORMALIZED_BACKEND_FACADE="$(quillui_normalize_backend_identifier "$BACKEND_FACADE")"; then
-    echo "--backend-facade must be swiftui, gtk, or qt, got: $BACKEND_FACADE" >&2
-    exit 64
-  fi
+if ! NORMALIZED_BACKEND_FACADE="$(quillui_normalize_backend_identifier "${BACKEND_FACADE:-swiftui}")"; then
+  echo "--backend-facade must be swiftui, gtk, or qt, got: ${BACKEND_FACADE:-<empty>}" >&2
+  exit 64
 fi
 
 PROFILE_SCRIPT="$PROFILE_DIR/$PROFILE.sh"
@@ -199,7 +197,7 @@ QUILLUI_PROFILE_PACKAGE_NAME=GeneratedSwiftUILinuxApp \
 QUILLUI_PROFILE_TARGET_NAME=GeneratedSwiftUILinuxApp \
 QUILLUI_PROFILE_ENTRY_TYPE="$APP_TYPE" \
 QUILLUI_PROFILE_MAIN_TYPE=GeneratedSwiftUILinuxMain \
-QUILLUI_GENERATED_BACKEND_FACADE="$BACKEND_FACADE" \
+QUILLUI_GENERATED_BACKEND_FACADE="$NORMALIZED_BACKEND_FACADE" \
 "$PROFILE_SCRIPT"
 
 if [[ "$NORMALIZED_BACKEND_FACADE" == "qt" ]]; then
