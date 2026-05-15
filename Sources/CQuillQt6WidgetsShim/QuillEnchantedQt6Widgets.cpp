@@ -136,6 +136,26 @@ QString selectedConversationTitle(
     return fallback;
 }
 
+QString modelStatusText(const QString &selectedModel) {
+    const QString trimmedModel = selectedModel.trimmed();
+    if (trimmedModel.isEmpty()) {
+        return QStringLiteral("Choose a local model to begin");
+    }
+
+    return QStringLiteral("Using %1").arg(trimmedModel);
+}
+
+QString messageRoleTitle(const QString &role) {
+    if (role == QStringLiteral("user")) {
+        return QStringLiteral("You");
+    }
+    if (role == QStringLiteral("system")) {
+        return QStringLiteral("System");
+    }
+
+    return QStringLiteral("Enchanted");
+}
+
 QString currentConversationID(QListWidget *list, const QString &fallback) {
     QListWidgetItem *item = list->currentItem();
     if (item == nullptr) {
@@ -208,7 +228,7 @@ QFrame *messageBubble(const QJsonObject &message, const QJsonObject &style) {
     QVBoxLayout *layout = new QVBoxLayout(bubble);
     layout->setContentsMargins(14, 10, 14, 10);
     layout->setSpacing(6);
-    layout->addWidget(label(role.toUpper(), QStringLiteral("messageRole")));
+    layout->addWidget(label(messageRoleTitle(role), QStringLiteral("messageRole")));
     layout->addWidget(label(stringValue(message, "content"), QStringLiteral("messageText")));
     return bubble;
 }
@@ -433,7 +453,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         QStringLiteral("currentTitle")
     );
     QLabel *modelStatus = label(
-        QStringLiteral("Using %1").arg(stringValue(payload, "selectedModel", QStringLiteral("local model"))),
+        modelStatusText(stringValue(payload, "selectedModel")),
         QStringLiteral("caption")
     );
     titleLayout->addWidget(currentTitle);

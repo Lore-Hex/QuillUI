@@ -119,7 +119,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         defaultWidth: 1180,
         defaultHeight: 760,
         sidebarTitle: "Enchanted",
-        sidebarSubtitle: "Local AI workspace",
+        sidebarSubtitle: "QuillUI Linux preview",
         endpointLabel: "Ollama endpoint",
         modelLabel: "Model",
         conversationsTitle: "Conversations",
