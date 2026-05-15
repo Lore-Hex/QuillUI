@@ -83,6 +83,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedRootView.swift"),
             encoding: .utf8
         )
+        let imageAttachmentSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/ImageAttachment.swift"),
+            encoding: .utf8
+        )
         let sharedPrompts = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedShared/QuillEnchantedShared.swift"),
             encoding: .utf8
@@ -118,6 +122,11 @@ struct CoreContractMatrixTests {
         #expect(runtime.contains("windowTitle: \"Quill Enchanted\""))
         #expect(runtime.contains("sidebarSubtitle: \"QuillUI Linux preview\""))
         #expect(runtime.contains("noModelsTitle: \"No models detected\""))
+        #expect(runtime.contains("attachTitle: \"Attach\""))
+        #expect(runtime.contains("clearAttachmentsTitle: \"Clear\""))
+        #expect(runtime.contains("attachmentsTitle: \"Attachments\""))
+        #expect(runtime.contains("attachmentDefaultPrompt: \"Describe this image.\""))
+        #expect(runtime.contains("attachmentSummaryTitle: \"[Attached images]\""))
         #expect(runtime.contains("selectedModel: \"llama3.1:8b\""))
         #expect(runtime.contains("emptyStateTitle: \"Ask your local model\""))
         #expect(runtime.contains("emptyStateSubtitle: \"This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.\""))
@@ -153,10 +162,28 @@ struct CoreContractMatrixTests {
         #expect(macOSRootView.contains("?? \"New conversation\""))
         #expect(nativeShim.contains("QStringLiteral(\"New conversation\")"))
         #expect(!nativeShim.contains("QuillUI backend parity"))
+        #expect(macOSRootView.contains("Text(\"Attachments\")"))
+        #expect(macOSRootView.contains("Text(\"Attach\")"))
+        #expect(macOSRootView.contains("Button(\"Clear\")"))
+        #expect(imageAttachmentSource.contains("\"Describe this image.\""))
+        #expect(imageAttachmentSource.contains("[Attached images]"))
+        #expect(nativeShim.contains("stringValue(payload, \"attachTitle\", QStringLiteral(\"Attach\"))"))
+        #expect(nativeShim.contains("stringValue(payload, \"clearAttachmentsTitle\", QStringLiteral(\"Clear\"))"))
+        #expect(nativeShim.contains("stringValue(payload, \"attachmentsTitle\", QStringLiteral(\"Attachments\"))"))
+        #expect(nativeShim.contains("\"attachmentDefaultPrompt\""))
+        #expect(nativeShim.contains("QStringLiteral(\"Describe this image.\")"))
+        #expect(nativeShim.contains("\"attachmentSummaryTitle\""))
+        #expect(nativeShim.contains("QStringLiteral(\"[Attached images]\")"))
+        #expect(nativeShim.contains("QPushButton *clearAttachmentsButton"))
+        #expect(nativeShim.contains("QString attachmentDisplayContent("))
+        #expect(nativeShim.contains("clearAttachmentsButton->setEnabled(hasTrimmedText(attachmentPath) || !pendingAttachmentSummary.isEmpty())"))
+        #expect(nativeShim.contains("sendButton->setEnabled(hasTrimmedText(promptEditor) || !pendingAttachmentSummary.isEmpty())"))
+        #expect(nativeShim.contains("QObject::connect(clearAttachmentsButton, &QPushButton::clicked"))
+        #expect(nativeShim.contains("QObject::connect(promptEditor, &QPlainTextEdit::textChanged"))
         #expect(nativeShim.contains("emptyStateTitle"))
         #expect(nativeShim.contains("emptyStateSubtitle"))
         #expect(nativeShim.contains("promptAction(prompt)"))
-        #expect(nativeShim.contains("appendUserMessage(promptEditor->toPlainText())"))
+        #expect(nativeShim.contains("appendUserMessage(attachmentDisplayContent("))
         #expect(nativeShim.contains("renderMessageSet(selectedMessages)"))
         #expect(nativeShim.contains("renderMessages("))
         #expect(nativeShim.contains("QObject::connect(sendButton"))

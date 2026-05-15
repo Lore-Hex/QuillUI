@@ -3,6 +3,7 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QJsonArray>
@@ -78,8 +79,11 @@ QString appStyleSheet(const QJsonObject &style) {
         QLabel#messageText { color: %2; font-size: 14px; }
         QFrame#messageAssistant, QFrame#messageSystem { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
         QFrame#messageUser { background: %7; border: 1px solid #D4DFE8; border-radius: 8px; }
+        QFrame#attachmentChip { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
         QPushButton#primaryButton, QPushButton#sendButton { background: %6; color: white; border: 0; border-radius: 8px; padding: 9px 12px; text-align: left; }
+        QPushButton#sendButton:disabled { background: #AAB5BE; color: #F4F6F7; }
         QPushButton#secondaryButton { background: transparent; color: %2; border: 1px solid #CDD5CA; border-radius: 7px; padding: 7px 10px; text-align: left; }
+        QPushButton#secondaryButton:disabled { color: #9CA6AD; border: 1px solid #D8DDD5; }
         QPushButton#promptButton { background: %5; color: %2; border: 1px solid #E0E5DD; border-radius: 8px; padding: 12px; text-align: left; }
     )")
         .arg(canvas, ink, sidebar, header, card, primary, system, muted);
@@ -310,6 +314,40 @@ QLabel *fieldLabel(const QString &text) {
     return label(text, QStringLiteral("fieldLabel"));
 }
 
+bool hasTrimmedText(const QLineEdit *field) {
+    return field != nullptr && !field->text().trimmed().isEmpty();
+}
+
+bool hasTrimmedText(const QPlainTextEdit *editor) {
+    return editor != nullptr && !editor->toPlainText().trimmed().isEmpty();
+}
+
+QString attachmentDisplayName(const QString &rawPath) {
+    const QString trimmedPath = rawPath.trimmed();
+    if (trimmedPath.isEmpty()) {
+        return QString();
+    }
+
+    const QFileInfo fileInfo(trimmedPath);
+    const QString fileName = fileInfo.fileName();
+    return fileName.isEmpty() ? trimmedPath : fileName;
+}
+
+QString attachmentDisplayContent(
+    const QString &rawPrompt,
+    const QString &pendingAttachmentSummary,
+    const QString &defaultPrompt,
+    const QString &summaryTitle
+) {
+    const QString trimmedPrompt = rawPrompt.trimmed();
+    if (pendingAttachmentSummary.isEmpty()) {
+        return trimmedPrompt;
+    }
+
+    const QString prompt = trimmedPrompt.isEmpty() ? defaultPrompt : trimmedPrompt;
+    return QStringLiteral("%1\n\n%2\n%3").arg(prompt, summaryTitle, pendingAttachmentSummary);
+}
+
 void addSidebarField(QVBoxLayout *layout, const QString &title, QWidget *field) {
     layout->addWidget(fieldLabel(title));
     layout->addWidget(field);
@@ -502,11 +540,28 @@ extern "C" int quill_enchanted_qt_run_app_json(
         "attachmentPlaceholder",
         QStringLiteral("Image path or drop files here")
     ));
-    QPushButton *attachButton = new QPushButton(QStringLiteral("Attach"));
+    QPushButton *attachButton = new QPushButton(stringValue(payload, "attachTitle", QStringLiteral("Attach")));
     attachButton->setObjectName(QStringLiteral("secondaryButton"));
+    QPushButton *clearAttachmentsButton = new QPushButton(stringValue(payload, "clearAttachmentsTitle", QStringLiteral("Clear")));
+    clearAttachmentsButton->setObjectName(QStringLiteral("secondaryButton"));
     dropLayout->addWidget(attachmentPath, 1);
     dropLayout->addWidget(attachButton);
+    dropLayout->addWidget(clearAttachmentsButton);
     composerLayout->addWidget(dropTarget);
+
+    QFrame *attachmentTray = QuillQtWidgets::frame(QStringLiteral("attachmentTray"));
+    QVBoxLayout *attachmentTrayLayout = new QVBoxLayout(attachmentTray);
+    attachmentTrayLayout->setContentsMargins(0, 0, 0, 0);
+    attachmentTrayLayout->setSpacing(7);
+    attachmentTrayLayout->addWidget(fieldLabel(stringValue(payload, "attachmentsTitle", QStringLiteral("Attachments"))));
+    QFrame *attachmentChip = QuillQtWidgets::frame(QStringLiteral("attachmentChip"));
+    QHBoxLayout *attachmentChipLayout = new QHBoxLayout(attachmentChip);
+    attachmentChipLayout->setContentsMargins(10, 7, 10, 7);
+    QLabel *attachmentChipText = label(QString(), QStringLiteral("caption"));
+    attachmentChipLayout->addWidget(attachmentChipText);
+    attachmentTrayLayout->addWidget(attachmentChip);
+    attachmentTray->setVisible(false);
+    composerLayout->addWidget(attachmentTray);
 
     QHBoxLayout *promptRow = new QHBoxLayout();
     promptRow->setSpacing(10);
@@ -525,6 +580,17 @@ extern "C" int quill_enchanted_qt_run_app_json(
     composerLayout->addLayout(promptRow);
     chatLayout->addWidget(composer);
 
+    QString pendingAttachmentSummary;
+    const QString attachmentDefaultPrompt = stringValue(
+        payload,
+        "attachmentDefaultPrompt",
+        QStringLiteral("Describe this image.")
+    );
+    const QString attachmentSummaryTitle = stringValue(
+        payload,
+        "attachmentSummaryTitle",
+        QStringLiteral("[Attached images]")
+    );
     const QJsonArray fallbackMessages = arrayValue(payload, "messages");
     const QJsonArray prompts = arrayValue(payload, "prompts");
     const QString emptyStateTitle = stringValue(payload, "emptyStateTitle", QStringLiteral("Ask your local model"));
@@ -549,6 +615,18 @@ extern "C" int quill_enchanted_qt_run_app_json(
         }
         addMessageBubble(messageLayout, message, style);
         promptEditor->clear();
+    };
+    auto updateComposerControlState = [&]() {
+        attachButton->setEnabled(hasTrimmedText(attachmentPath));
+        clearAttachmentsButton->setEnabled(hasTrimmedText(attachmentPath) || !pendingAttachmentSummary.isEmpty());
+        sendButton->setEnabled(hasTrimmedText(promptEditor) || !pendingAttachmentSummary.isEmpty());
+    };
+    auto clearAttachmentState = [&]() {
+        attachmentPath->clear();
+        pendingAttachmentSummary.clear();
+        attachmentTray->setVisible(false);
+        attachmentChipText->clear();
+        updateComposerControlState();
     };
     auto renderMessageSet = [&](const QJsonArray &messages) {
         renderMessages(
@@ -598,12 +676,37 @@ extern "C" int quill_enchanted_qt_run_app_json(
         );
         renderMessageSet(selectedMessages);
     });
-    QObject::connect(attachButton, &QPushButton::clicked, [attachmentPath]() {
-        attachmentPath->setText(QStringLiteral("/tmp/reference-image.png"));
+    QObject::connect(attachButton, &QPushButton::clicked, [&]() {
+        const QString displayName = attachmentDisplayName(attachmentPath->text());
+        if (displayName.isEmpty()) {
+            return;
+        }
+
+        pendingAttachmentSummary = QStringLiteral("- %1").arg(displayName);
+        attachmentChipText->setText(displayName);
+        attachmentPath->clear();
+        attachmentTray->setVisible(true);
+        updateComposerControlState();
+    });
+    QObject::connect(clearAttachmentsButton, &QPushButton::clicked, [&]() {
+        clearAttachmentState();
+    });
+    QObject::connect(attachmentPath, &QLineEdit::textChanged, [&]() {
+        updateComposerControlState();
+    });
+    QObject::connect(promptEditor, &QPlainTextEdit::textChanged, [&]() {
+        updateComposerControlState();
     });
     QObject::connect(sendButton, &QPushButton::clicked, [&]() {
-        appendUserMessage(promptEditor->toPlainText());
+        appendUserMessage(attachmentDisplayContent(
+            promptEditor->toPlainText(),
+            pendingAttachmentSummary,
+            attachmentDefaultPrompt,
+            attachmentSummaryTitle
+        ));
+        clearAttachmentState();
     });
+    updateComposerControlState();
 
     window.show();
     return app.exec();

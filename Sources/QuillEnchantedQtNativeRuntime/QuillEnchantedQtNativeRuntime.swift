@@ -20,6 +20,11 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var clearAllTitle: String
     var refreshModelsTitle: String
     var attachmentPlaceholder: String
+    var attachTitle: String
+    var clearAttachmentsTitle: String
+    var attachmentsTitle: String
+    var attachmentDefaultPrompt: String
+    var attachmentSummaryTitle: String
     var composerPlaceholder: String
     var sendTitle: String
     var status: String
@@ -130,6 +135,11 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         clearAllTitle: "Clear all",
         refreshModelsTitle: "Refresh models",
         attachmentPlaceholder: "Image path or drop files here",
+        attachTitle: "Attach",
+        clearAttachmentsTitle: "Clear",
+        attachmentsTitle: "Attachments",
+        attachmentDefaultPrompt: "Describe this image.",
+        attachmentSummaryTitle: "[Attached images]",
         composerPlaceholder: "Ask a local model...",
         sendTitle: "Send",
         status: "Ready for local inference",

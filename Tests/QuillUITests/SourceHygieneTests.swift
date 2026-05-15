@@ -625,6 +625,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/QuillDataConversationStore.swift"),
             encoding: .utf8
         )
+        let enchantedMacRoot = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedRootView.swift"),
+            encoding: .utf8
+        )
+        let enchantedImageAttachment = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/ImageAttachment.swift"),
+            encoding: .utf8
+        )
         let wireGuardQtHost = try String(
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillWireGuardQt6Widgets.cpp"),
             encoding: .utf8
@@ -787,6 +795,11 @@ struct SourceHygieneTests {
         #expect(enchantedQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
         #expect(enchantedQtRuntime.contains("sidebarSubtitle: \"QuillUI Linux preview\""))
         #expect(enchantedQtRuntime.contains("noModelsTitle: \"No models detected\""))
+        #expect(enchantedQtRuntime.contains("attachTitle: \"Attach\""))
+        #expect(enchantedQtRuntime.contains("clearAttachmentsTitle: \"Clear\""))
+        #expect(enchantedQtRuntime.contains("attachmentsTitle: \"Attachments\""))
+        #expect(enchantedQtRuntime.contains("attachmentDefaultPrompt: \"Describe this image.\""))
+        #expect(enchantedQtRuntime.contains("attachmentSummaryTitle: \"[Attached images]\""))
         #expect(enchantedQtRuntime.contains("emptyStateTitle: \"Ask your local model\""))
         #expect(enchantedQtRuntime.contains("prompts: EnchantedPromptCatalog.emptyConversationTitles"))
         #expect(enchantedQtRuntime.contains("QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START"))
@@ -822,11 +835,29 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("models.isEmpty() ? QStringLiteral(\"statusDotWarning\") : QStringLiteral(\"statusDot\")"))
         #expect(enchantedQtHost.contains("QStringLiteral(\"New conversation\")"))
         #expect(!enchantedQtHost.contains("QuillUI backend parity"))
+        #expect(enchantedMacRoot.contains("Text(\"Attachments\")"))
+        #expect(enchantedMacRoot.contains("Text(\"Attach\")"))
+        #expect(enchantedMacRoot.contains("Button(\"Clear\")"))
+        #expect(enchantedImageAttachment.contains("\"Describe this image.\""))
+        #expect(enchantedImageAttachment.contains("[Attached images]"))
+        #expect(enchantedQtHost.contains("stringValue(payload, \"attachTitle\", QStringLiteral(\"Attach\"))"))
+        #expect(enchantedQtHost.contains("stringValue(payload, \"clearAttachmentsTitle\", QStringLiteral(\"Clear\"))"))
+        #expect(enchantedQtHost.contains("stringValue(payload, \"attachmentsTitle\", QStringLiteral(\"Attachments\"))"))
+        #expect(enchantedQtHost.contains("\"attachmentDefaultPrompt\""))
+        #expect(enchantedQtHost.contains("QStringLiteral(\"Describe this image.\")"))
+        #expect(enchantedQtHost.contains("\"attachmentSummaryTitle\""))
+        #expect(enchantedQtHost.contains("QStringLiteral(\"[Attached images]\")"))
+        #expect(enchantedQtHost.contains("QPushButton *clearAttachmentsButton"))
+        #expect(enchantedQtHost.contains("QString attachmentDisplayContent("))
+        #expect(enchantedQtHost.contains("clearAttachmentsButton->setEnabled(hasTrimmedText(attachmentPath) || !pendingAttachmentSummary.isEmpty())"))
+        #expect(enchantedQtHost.contains("sendButton->setEnabled(hasTrimmedText(promptEditor) || !pendingAttachmentSummary.isEmpty())"))
+        #expect(enchantedQtHost.contains("QObject::connect(clearAttachmentsButton, &QPushButton::clicked"))
+        #expect(enchantedQtHost.contains("QObject::connect(promptEditor, &QPlainTextEdit::textChanged"))
         #expect(enchantedQtHost.contains("using PromptAction = std::function<void(const QString &)>;"))
         #expect(enchantedQtHost.contains("emptyStateTitle"))
         #expect(enchantedQtHost.contains("emptyStateSubtitle"))
         #expect(enchantedQtHost.contains("promptAction(prompt)"))
-        #expect(enchantedQtHost.contains("appendUserMessage(promptEditor->toPlainText())"))
+        #expect(enchantedQtHost.contains("appendUserMessage(attachmentDisplayContent("))
         #expect(enchantedQtHost.contains("renderMessageSet(selectedMessages)"))
         #expect(genericQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
         #expect(genericQtRuntime.contains("public static let genericSelectedIndexEnvironmentKey = \"QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START\""))
