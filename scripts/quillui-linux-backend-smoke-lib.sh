@@ -589,13 +589,17 @@ quillui_backend_generic_selection_environment_keys() {
       ;;
     quill-signal)
       printf '%s\n' QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START
-      printf '%s\n' QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START
+      quillui_backend_chat_shared_selection_environment_key
       ;;
     quill-telegram)
       printf '%s\n' QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START
-      printf '%s\n' QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START
+      quillui_backend_chat_shared_selection_environment_key
       ;;
   esac
+}
+
+quillui_backend_chat_shared_selection_environment_key() {
+  printf '%s\n' QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START
 }
 
 quillui_backend_selected_index_from_environment_keys() {
@@ -645,35 +649,39 @@ quillui_backend_generic_gtk_selection_environment_key() {
 
 quillui_backend_chat_gtk_selection_environment_key() {
   local product="$1"
+  local environment_key
+  local shared_environment_key
 
   if ! quillui_is_backend_chat_gtk_list_selection_app_product "$product"; then
     echo "Unsupported ChatKit GTK list-selection product: $product" >&2
     return 65
   fi
 
-  case "$product" in
-    quill-signal)
-      printf '%s\n' QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START
-      ;;
-    quill-telegram)
-      printf '%s\n' QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START
-      ;;
-    *)
-      echo "Missing ChatKit GTK selection environment key for product: $product" >&2
-      return 66
-      ;;
-  esac
+  shared_environment_key="$(quillui_backend_chat_shared_selection_environment_key)" || return $?
+  while IFS= read -r environment_key; do
+    [[ -n "$environment_key" ]] || continue
+    if [[ "$environment_key" == "$shared_environment_key" ]]; then
+      continue
+    fi
+    printf '%s\n' "$environment_key"
+    return 0
+  done < <(quillui_backend_generic_selection_environment_keys "$product")
+
+  echo "Missing ChatKit GTK selection environment key for product: $product" >&2
+  return 66
 }
 
 quillui_backend_chat_gtk_selected_index_on_start() {
   local product="$1"
   local environment_key
+  local shared_environment_key
 
   environment_key="$(quillui_backend_chat_gtk_selection_environment_key "$product")" || return $?
   if [[ -n "${!environment_key:-}" ]]; then
     printf '%s\n' "${!environment_key}"
   else
-    printf '%s\n' "${QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START:-1}"
+    shared_environment_key="$(quillui_backend_chat_shared_selection_environment_key)" || return $?
+    printf '%s\n' "${!shared_environment_key:-1}"
   fi
 }
 

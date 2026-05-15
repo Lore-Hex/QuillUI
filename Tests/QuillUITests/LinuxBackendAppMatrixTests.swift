@@ -625,6 +625,7 @@ struct LinuxBackendAppMatrixTests {
         printf 'enchanted-selection-keys=%s\\n' "$(quillui_print_selection_keys quill-enchanted-upstream-slice)"
         printf 'codeedit-gtk-selection-key=%s\\n' "$(quillui_backend_generic_gtk_selection_environment_key quill-codeedit)"
         printf 'signal-chat-gtk-selection-key=%s\\n' "$(quillui_backend_chat_gtk_selection_environment_key quill-signal)"
+        printf 'telegram-chat-gtk-selection-key=%s\\n' "$(quillui_backend_chat_gtk_selection_environment_key quill-telegram)"
         if quillui_backend_generic_gtk_selection_environment_key quill-signal >/dev/null 2>&1; then
           echo unexpected-signal-gtk-key
           exit 1
@@ -793,6 +794,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("enchanted-selection-keys=QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START|QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START|"))
         #expect(result.output.contains("codeedit-gtk-selection-key=QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START"))
         #expect(result.output.contains("signal-chat-gtk-selection-key=QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START"))
+        #expect(result.output.contains("telegram-chat-gtk-selection-key=QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START"))
         #expect(result.output.contains("signal-gtk-selection-key=unsupported"))
         #expect(result.output.contains("generic-selection-env=QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=0|"))
         #expect(result.output.contains("signal-qt-selection-env=QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=4|"))
