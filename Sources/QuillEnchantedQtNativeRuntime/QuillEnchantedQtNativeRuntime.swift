@@ -31,6 +31,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var stoppingStatus: String
     var status: String
     var isLoading: Bool
+    var emptyHistoryTitle: String
+    var emptyHistorySubtitle: String
     var emptyStateTitle: String
     var emptyStateSubtitle: String
     var endpoint: String
@@ -149,6 +151,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         stoppingStatus: "Stopping...",
         status: "Ready for local inference",
         isLoading: false,
+        emptyHistoryTitle: "No saved chats yet",
+        emptyHistorySubtitle: "Start a chat and it will be saved locally.",
         emptyStateTitle: "Ask your local model",
         emptyStateSubtitle: "This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.",
         endpoint: "http://localhost:11434",

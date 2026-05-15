@@ -81,6 +81,7 @@ QString appStyleSheet(const QJsonObject &style) {
         QLabel#sectionTitle { color: %2; font-size: 15px; font-weight: 700; }
         QLabel#currentTitle { color: %2; font-size: 20px; font-weight: 650; }
         QLabel#messageText { color: %2; font-size: 14px; }
+        QFrame#emptyHistory { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
         QFrame#messageAssistant, QFrame#messageSystem { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
         QFrame#messageUser { background: %7; border: 1px solid #D4DFE8; border-radius: 8px; }
         QFrame#attachmentChip { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
@@ -98,8 +99,9 @@ QString appStyleSheet(const QJsonObject &style) {
         QListWidget#conversationList::item { border-radius: 8px; margin: 2px 0; padding: 8px; }
         QListWidget#conversationList::item:selected { background: %1; color: %2; }
         QLineEdit, QComboBox, QPlainTextEdit { background: %3; color: %2; border: 1px solid #CDD5CA; border-radius: 7px; padding: 7px; }
-        QLabel#statusDot { color: %4; font-size: 18px; }
-        QLabel#statusDotWarning { color: %5; font-size: 18px; }
+        QFrame#statusDot, QFrame#statusDotWarning { min-width: 9px; max-width: 9px; min-height: 9px; max-height: 9px; border-radius: 4px; }
+        QFrame#statusDot { background: %4; }
+        QFrame#statusDotWarning { background: %5; }
         QLabel#warningText { color: %5; font-size: 12px; }
         QFrame#dropTarget { background: %6; border: 1px solid #C8DED3; border-radius: 8px; }
         QSplitter::handle { background: #D8DDD5; }
@@ -130,6 +132,16 @@ QFrame *conversationRowWidget(const QJsonObject &conversation) {
     layout->addWidget(title);
     layout->addWidget(preview);
     return row;
+}
+
+QFrame *emptyHistoryWidget(const QString &title, const QString &subtitle) {
+    QFrame *card = QuillQtWidgets::frame(QStringLiteral("emptyHistory"));
+    QVBoxLayout *layout = new QVBoxLayout(card);
+    layout->setContentsMargins(12, 12, 12, 12);
+    layout->setSpacing(8);
+    layout->addWidget(label(title, QStringLiteral("sectionTitle")));
+    layout->addWidget(label(subtitle, QStringLiteral("caption")));
+    return card;
 }
 
 QString selectedConversationTitle(
@@ -382,6 +394,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QApplication app(argc, argv);
     const QJsonObject style = objectValue(payload, "style");
+    const bool isLoading = boolValue(payload, "isLoading", false);
     app.setApplicationName(stringValue(payload, "windowTitle", QStringLiteral("Quill Enchanted")));
     app.setStyleSheet(appStyleSheet(style));
 
@@ -429,6 +442,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     const QJsonArray models = arrayValue(payload, "models");
     const QString modelLabel = stringValue(payload, "modelLabel", QStringLiteral("Model"));
+    QComboBox *modelPicker = nullptr;
     if (models.isEmpty()) {
         sidebarLayout->addWidget(fieldLabel(modelLabel));
         sidebarLayout->addWidget(label(
@@ -436,7 +450,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             QStringLiteral("warningText")
         ));
     } else {
-        QComboBox *modelPicker = new QComboBox();
+        modelPicker = new QComboBox();
         for (const QJsonValue &model : models) {
             modelPicker->addItem(model.toString());
         }
@@ -454,10 +468,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QHBoxLayout *statusLayout = new QHBoxLayout();
     statusLayout->setContentsMargins(0, 0, 0, 0);
     statusLayout->setSpacing(8);
-    statusLayout->addWidget(label(
-        QStringLiteral("*"),
+    QFrame *statusDot = QuillQtWidgets::frame(
         models.isEmpty() ? QStringLiteral("statusDotWarning") : QStringLiteral("statusDot")
-    ));
+    );
+    statusDot->setFixedSize(9, 9);
+    statusLayout->addWidget(statusDot);
     QLabel *statusText = label(stringValue(payload, "status"), QStringLiteral("statusText"));
     statusLayout->addWidget(statusText);
     sidebarLayout->addLayout(statusLayout);
@@ -469,6 +484,12 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     const QJsonArray conversations = arrayValue(payload, "conversations");
     const QString selectedConversationID = stringValue(payload, "selectedConversationID");
+    QFrame *emptyHistory = emptyHistoryWidget(
+        stringValue(payload, "emptyHistoryTitle", QStringLiteral("No saved chats yet")),
+        stringValue(payload, "emptyHistorySubtitle", QStringLiteral("Start a chat and it will be saved locally."))
+    );
+    emptyHistory->setVisible(conversations.isEmpty());
+    sidebarLayout->addWidget(emptyHistory);
     QListWidget *conversationList = new QListWidget();
     conversationList->setObjectName(QStringLiteral("conversationList"));
     populateConversations(
@@ -476,6 +497,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         conversations,
         selectedConversationID
     );
+    conversationList->setVisible(!conversations.isEmpty());
     sidebarLayout->addWidget(conversationList, 1);
 
     QHBoxLayout *conversationActions = new QHBoxLayout();
@@ -518,6 +540,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     headerLayout->addLayout(titleLayout, 1);
     QPushButton *refreshButton = new QPushButton(stringValue(payload, "refreshModelsTitle", QStringLiteral("Refresh models")));
     refreshButton->setObjectName(QStringLiteral("secondaryButton"));
+    refreshButton->setEnabled(!isLoading);
     headerLayout->addWidget(refreshButton);
     chatLayout->addWidget(header);
 
@@ -578,7 +601,6 @@ extern "C" int quill_enchanted_qt_run_app_json(
         QStringLiteral("Ask a local model...")
     ));
     promptEditor->setFixedHeight(intValue(style, "composerHeight", 84));
-    const bool isLoading = boolValue(payload, "isLoading", false);
     const QString sendTitle = stringValue(payload, "sendTitle", QStringLiteral("Send"));
     const QString stopTitle = stringValue(payload, "stopTitle", QStringLiteral("Stop"));
     const QString stoppingStatus = stringValue(payload, "stoppingStatus", QStringLiteral("Stopping..."));
@@ -652,6 +674,10 @@ extern "C" int quill_enchanted_qt_run_app_json(
         );
         showingPromptCards = messages.isEmpty();
     };
+    auto updateConversationActionState = [&]() {
+        deleteButton->setEnabled(conversationList->currentItem() != nullptr);
+        clearAllButton->setEnabled(conversationList->count() > 0);
+    };
 
     const QJsonArray initialMessages = selectedConversationMessages(
         conversations,
@@ -666,10 +692,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
     splitter->setStretchFactor(1, 1);
 
     QObject::connect(newChatButton, &QPushButton::clicked, [&]() {
+        conversationList->clearSelection();
+        conversationList->setCurrentRow(-1);
         currentTitle->setText(QStringLiteral("New conversation"));
         renderMessageSet(QJsonArray());
+        updateConversationActionState();
     });
     QObject::connect(conversationList, &QListWidget::currentRowChanged, [&](int row) {
+        updateConversationActionState();
         QListWidgetItem *item = conversationList->item(row);
         if (item == nullptr) {
             return;
@@ -688,6 +718,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
         );
         renderMessageSet(selectedMessages);
     });
+    if (modelPicker != nullptr) {
+        QObject::connect(modelPicker, &QComboBox::currentTextChanged, [&](const QString &model) {
+            modelStatus->setText(modelStatusText(model));
+        });
+    }
     QObject::connect(attachButton, &QPushButton::clicked, [&]() {
         const QString displayName = attachmentDisplayName(attachmentPath->text());
         if (displayName.isEmpty()) {
@@ -724,6 +759,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         clearAttachmentState();
     });
     updateComposerControlState();
+    updateConversationActionState();
 
     window.show();
     return app.exec();
