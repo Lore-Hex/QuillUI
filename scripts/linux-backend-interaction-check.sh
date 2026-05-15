@@ -255,6 +255,43 @@ click_backend_header_action() {
   sleep 1
 }
 
+backend_label_for_message() {
+  case "$1" in
+    gtk)
+      printf '%s\n' "GTK"
+      ;;
+    qt)
+      printf '%s\n' "Qt"
+      ;;
+    *)
+      printf '%s\n' "$1"
+      ;;
+  esac
+}
+
+unsupported_backend_interaction_mode() {
+  local label="$1"
+  echo "Unsupported $label interaction mode: $INTERACTION_MODE" >&2
+  exit 64
+}
+
+run_list_selection_or_header_interaction() {
+  local label="$1"
+  local list_selection_action="$2"
+
+  case "$INTERACTION_MODE" in
+    list-selection)
+      "$list_selection_action"
+      ;;
+    click)
+      click_backend_header_action
+      ;;
+    *)
+      unsupported_backend_interaction_mode "$label"
+      ;;
+  esac
+}
+
 type_text() {
   DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$1"
 }
@@ -524,71 +561,14 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "qt" ]]; then
         exit 64
         ;;
     esac
-elif [[ "$PRODUCT" == "quill-enchanted" && "$SELECTED_BACKEND" == "gtk" ]]; then
-    case "$INTERACTION_MODE" in
-      list-selection)
-        click_enchanted_list_selection
-        ;;
-      click)
-        click_backend_header_action
-        ;;
-      *)
-        echo "Unsupported Enchanted GTK interaction mode: $INTERACTION_MODE" >&2
-        exit 64
-        ;;
-    esac
-elif [[ "$PRODUCT" == "quill-enchanted" && "$SELECTED_BACKEND" == "qt" ]]; then
-    case "$INTERACTION_MODE" in
-      list-selection)
-        click_enchanted_list_selection
-        ;;
-      click)
-        click_backend_header_action
-        ;;
-      *)
-        echo "Unsupported Enchanted Qt interaction mode: $INTERACTION_MODE" >&2
-        exit 64
-        ;;
-    esac
+elif [[ "$PRODUCT" == "quill-enchanted" && ( "$SELECTED_BACKEND" == "gtk" || "$SELECTED_BACKEND" == "qt" ) ]]; then
+    run_list_selection_or_header_interaction "Enchanted $(backend_label_for_message "$SELECTED_BACKEND")" click_enchanted_list_selection
 elif [[ "$SELECTED_BACKEND" == "gtk" ]] && quillui_is_backend_chat_gtk_list_selection_app_product "$PRODUCT"; then
-    case "$INTERACTION_MODE" in
-      list-selection)
-        click_chat_list_selection
-        ;;
-      click)
-        click_backend_header_action
-        ;;
-      *)
-        echo "Unsupported chat GTK interaction mode: $INTERACTION_MODE" >&2
-        exit 64
-        ;;
-    esac
+    run_list_selection_or_header_interaction "chat GTK" click_chat_list_selection
 elif [[ "$SELECTED_BACKEND" == "gtk" ]] && quillui_is_backend_generic_gtk_list_selection_app_product "$PRODUCT"; then
-    case "$INTERACTION_MODE" in
-      list-selection)
-        click_generic_backend_list_selection
-        ;;
-      click)
-        click_backend_header_action
-        ;;
-      *)
-        echo "Unsupported generic GTK interaction mode: $INTERACTION_MODE" >&2
-        exit 64
-        ;;
-    esac
+    run_list_selection_or_header_interaction "generic GTK" click_generic_backend_list_selection
 elif [[ "$SELECTED_BACKEND" == "qt" ]] && quillui_is_backend_generic_qt_app_product "$PRODUCT"; then
-    case "$INTERACTION_MODE" in
-      list-selection)
-        click_generic_backend_list_selection
-        ;;
-      click)
-        click_backend_header_action
-        ;;
-      *)
-        echo "Unsupported generic Qt interaction mode: $INTERACTION_MODE" >&2
-        exit 64
-        ;;
-    esac
+    run_list_selection_or_header_interaction "generic Qt" click_generic_backend_list_selection
 elif quillui_is_backend_smoke_product "$PRODUCT"; then
     INTERACTION_MODE="$(quillui_normalize_backend_smoke_interaction_mode "$INTERACTION_MODE")"
     case "$INTERACTION_MODE" in

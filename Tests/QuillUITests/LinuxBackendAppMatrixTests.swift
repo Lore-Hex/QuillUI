@@ -511,7 +511,14 @@ struct LinuxBackendAppMatrixTests {
 
         #expect(interactionScript.contains("[[ \"$PRODUCT\" == \"quill-wireguard\" && \"$SELECTED_BACKEND\" == \"gtk\" ]]"))
         #expect(interactionScript.contains("[[ \"$PRODUCT\" == \"quill-wireguard\" && \"$SELECTED_BACKEND\" == \"qt\" ]]"))
-        #expect(interactionScript.contains("[[ \"$PRODUCT\" == \"quill-enchanted\" && \"$SELECTED_BACKEND\" == \"gtk\" ]]"))
+        #expect(interactionScript.contains("run_list_selection_or_header_interaction()"))
+        #expect(interactionScript.contains("unsupported_backend_interaction_mode()"))
+        #expect(interactionScript.contains("backend_label_for_message()"))
+        #expect(interactionScript.contains("[[ \"$PRODUCT\" == \"quill-enchanted\" && ( \"$SELECTED_BACKEND\" == \"gtk\" || \"$SELECTED_BACKEND\" == \"qt\" ) ]]"))
+        #expect(interactionScript.contains("run_list_selection_or_header_interaction \"Enchanted $(backend_label_for_message \"$SELECTED_BACKEND\")\" click_enchanted_list_selection"))
+        #expect(interactionScript.contains("run_list_selection_or_header_interaction \"chat GTK\" click_chat_list_selection"))
+        #expect(interactionScript.contains("run_list_selection_or_header_interaction \"generic GTK\" click_generic_backend_list_selection"))
+        #expect(interactionScript.contains("run_list_selection_or_header_interaction \"generic Qt\" click_generic_backend_list_selection"))
         #expect(interactionScript.contains("quillui_is_backend_chat_gtk_list_selection_app_product \"$PRODUCT\""))
         #expect(!interactionScript.contains("quill-wireguard|quill-wireguard-qt)"))
 
