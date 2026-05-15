@@ -239,6 +239,14 @@ click_enchanted_list_selection() {
   sleep "$post_click_sleep"
 }
 
+click_chat_list_selection() {
+  local click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
+  local click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 160))}"
+
+  click_at "$click_x" "$click_y"
+  sleep "$post_click_sleep"
+}
+
 click_backend_header_action() {
   local click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 200))}"
   local click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 54))}"
@@ -545,10 +553,7 @@ elif [[ "$PRODUCT" == "quill-enchanted" && "$SELECTED_BACKEND" == "qt" ]]; then
 elif [[ "$SELECTED_BACKEND" == "gtk" && ( "$PRODUCT" == "quill-signal" || "$PRODUCT" == "quill-telegram" ) ]]; then
     case "$INTERACTION_MODE" in
       list-selection)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 160))}"
-        click_at "$click_x" "$click_y"
-        sleep "$post_click_sleep"
+        click_chat_list_selection
         ;;
       click)
         click_backend_header_action
