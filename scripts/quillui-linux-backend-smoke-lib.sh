@@ -240,47 +240,10 @@ quillui_backend_interaction_verify_product() {
         fi
         ;;
     esac
-  elif [[ "$product" == "quill-wireguard" && "$selected_backend" == "qt" ]]; then
-    case "$interaction_mode" in
-      tunnel-selection|click)
-        verify_product="quill-wireguard-qt-tunnel-selection"
-        ;;
-      tunnel-name-edit|name-edit)
-        verify_product="quill-wireguard-qt-name-edit"
-        ;;
-      import-paste|paste-import)
-        verify_product="quill-wireguard-qt-import-paste"
-        ;;
-      import-file|file-import)
-        verify_product="quill-wireguard-qt-import-file"
-        ;;
-      import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
-        verify_product="quill-wireguard-qt-import-invalid-paste"
-        ;;
-      import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
-        verify_product="quill-wireguard-qt-import-invalid-file"
-        ;;
-    esac
+  elif verify_product="$(quillui_backend_app_interaction_verify_product_for_product "$product" "$selected_backend" "$interaction_mode")"; then
+    :
   elif [[ "$interaction_mode" == "list-selection" ]] && list_selection_verify_product="$(quillui_backend_list_selection_verify_product "$product" "$selected_backend")"; then
     verify_product="$list_selection_verify_product"
-  elif [[ "$product" == "quill-wireguard" ]]; then
-    case "$interaction_mode" in
-      tunnel-name-edit|name-edit)
-        verify_product="quill-wireguard-name-edit"
-        ;;
-      import-paste|paste-import)
-        verify_product="quill-wireguard-import-paste"
-        ;;
-      import-file|file-import)
-        verify_product="quill-wireguard-import-file"
-        ;;
-      import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
-        verify_product="quill-wireguard-import-invalid-paste"
-        ;;
-      import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
-        verify_product="quill-wireguard-import-invalid-file"
-        ;;
-    esac
   elif quillui_is_backend_smoke_product "$product"; then
     verify_product="$(quillui_backend_smoke_interaction_verify_product "$product" "$interaction_mode")" || return $?
   fi

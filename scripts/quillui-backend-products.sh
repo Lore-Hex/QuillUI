@@ -521,6 +521,78 @@ quillui_backend_smoke_interaction_verify_product() {
   esac
 }
 
+quillui_backend_wireguard_interaction_verify_product() {
+  local selected_backend
+  local interaction_mode="$2"
+  local verify_product=""
+
+  selected_backend="$(quillui_require_backend_identifier "$1")" || return $?
+
+  case "$interaction_mode" in
+    tunnel-selection|click)
+      if [[ "$selected_backend" == "qt" ]]; then
+        verify_product="quill-wireguard-qt-tunnel-selection"
+      fi
+      ;;
+    tunnel-name-edit|name-edit)
+      if [[ "$selected_backend" == "qt" ]]; then
+        verify_product="quill-wireguard-qt-name-edit"
+      else
+        verify_product="quill-wireguard-name-edit"
+      fi
+      ;;
+    import-paste|paste-import)
+      if [[ "$selected_backend" == "qt" ]]; then
+        verify_product="quill-wireguard-qt-import-paste"
+      else
+        verify_product="quill-wireguard-import-paste"
+      fi
+      ;;
+    import-file|file-import)
+      if [[ "$selected_backend" == "qt" ]]; then
+        verify_product="quill-wireguard-qt-import-file"
+      else
+        verify_product="quill-wireguard-import-file"
+      fi
+      ;;
+    import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
+      if [[ "$selected_backend" == "qt" ]]; then
+        verify_product="quill-wireguard-qt-import-invalid-paste"
+      else
+        verify_product="quill-wireguard-import-invalid-paste"
+      fi
+      ;;
+    import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
+      if [[ "$selected_backend" == "qt" ]]; then
+        verify_product="quill-wireguard-qt-import-invalid-file"
+      else
+        verify_product="quill-wireguard-import-invalid-file"
+      fi
+      ;;
+  esac
+
+  if [[ -z "$verify_product" ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "$verify_product"
+}
+
+quillui_backend_app_interaction_verify_product_for_product() {
+  local product="$1"
+  local selected_backend="$2"
+  local interaction_mode="$3"
+
+  case "$product" in
+    quill-wireguard)
+      quillui_backend_wireguard_interaction_verify_product "$selected_backend" "$interaction_mode"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 quillui_backend_smoke_interaction_matrix() {
   local product
   local backend
@@ -1531,6 +1603,8 @@ Commands:
                                   Print the default interaction mode for PRODUCT.
   visual-verify-product PRODUCT BACKEND
                                   Print the screenshot verifier product for a visual app row.
+  app-interaction-verify-product PRODUCT BACKEND MODE
+                                  Print the screenshot verifier product for an app interaction row.
   profile-products                List app and launch-smoke products for profile budgets.
   profile-matrix                  List PRODUCT<TAB>BACKEND rows for profile budgets.
   profile-runtime-matrix          List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for profile budgets.
@@ -1680,6 +1754,16 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         exit 64
       fi
       quillui_backend_visual_verify_product_for_product "$2" "$3"
+      ;;
+    app-interaction-verify-product)
+      if [[ $# -ne 4 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      if ! quillui_backend_app_interaction_verify_product_for_product "$2" "$3" "$4"; then
+        echo "No app interaction verifier product for $2/$3/$4." >&2
+        exit 1
+      fi
       ;;
     profile-products)
       quillui_backend_profile_products

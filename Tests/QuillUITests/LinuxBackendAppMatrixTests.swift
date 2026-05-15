@@ -530,9 +530,15 @@ struct LinuxBackendAppMatrixTests {
         #expect(productsScript.contains("visual-verify-product)"))
         #expect(productsScript.contains("verify_product=\"quill-enchanted-qt\""))
         #expect(productsScript.contains("verify_product=\"quill-wireguard-qt\""))
+        #expect(productsScript.contains("quillui_backend_app_interaction_verify_product_for_product()"))
+        #expect(productsScript.contains("quillui_backend_wireguard_interaction_verify_product()"))
+        #expect(productsScript.contains("app-interaction-verify-product)"))
+        #expect(productsScript.contains("verify_product=\"quill-wireguard-qt-tunnel-selection\""))
+        #expect(productsScript.contains("verify_product=\"quill-wireguard-import-paste\""))
 
         #expect(smokeLib.contains("verify_product=\"$(quillui_backend_visual_verify_product_for_product \"$product\" \"$selected_backend\")\""))
         #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
+        #expect(smokeLib.contains("quillui_backend_app_interaction_verify_product_for_product \"$product\" \"$selected_backend\" \"$interaction_mode\""))
         #expect(smokeLib.contains("quillui_backend_list_selection_verify_product()"))
         #expect(smokeLib.contains("list_selection_verify_product=\"$(quillui_backend_list_selection_verify_product \"$product\" \"$selected_backend\")\""))
         #expect(smokeLib.contains("quillui_backend_list_selection_start_environment_assignment()"))
@@ -756,6 +762,14 @@ struct LinuxBackendAppMatrixTests {
         printf 'visual-verify-wireguard-qt=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-wireguard qt)"
         printf 'visual-verify-signal-qt=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-signal qt)"
         printf 'visual-verify-wireguard-gtk=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-wireguard gtk)"
+        printf 'app-verify-wireguard-qt-click=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-wireguard qt click)"
+        printf 'app-verify-wireguard-qt-name-edit=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-wireguard qt name-edit)"
+        printf 'app-verify-wireguard-gtk-import=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-wireguard gtk paste-import)"
+        if quillui_backend_app_interaction_verify_product_for_product quill-wireguard gtk click >/dev/null; then
+          echo unexpected-gtk-click-verifier
+          exit 1
+        fi
+        printf 'app-verify-wireguard-gtk-click=unsupported\\n'
 
         launch_env=()
         quillui_append_backend_launch_environment launch_env quill-wireguard "" qt
@@ -861,6 +875,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("visual-verify-wireguard-qt=quill-wireguard-qt"))
         #expect(result.output.contains("visual-verify-signal-qt=quill-signal"))
         #expect(result.output.contains("visual-verify-wireguard-gtk=quill-wireguard"))
+        #expect(result.output.contains("app-verify-wireguard-qt-click=quill-wireguard-qt-tunnel-selection"))
+        #expect(result.output.contains("app-verify-wireguard-qt-name-edit=quill-wireguard-qt-name-edit"))
+        #expect(result.output.contains("app-verify-wireguard-gtk-import=quill-wireguard-import-paste"))
+        #expect(result.output.contains("app-verify-wireguard-gtk-click=unsupported"))
         #expect(result.output.contains("missing-product=failed"))
         #expect(result.output.contains("missing-stamp=failed"))
         #expect(result.output.contains("qt-stamp=ok"))
