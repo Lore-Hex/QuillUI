@@ -526,9 +526,12 @@ struct LinuxBackendAppMatrixTests {
 
         #expect(productsScript.contains("quillui_backend_default_interaction_mode_for_product()"))
         #expect(productsScript.contains("default-interaction-mode)"))
+        #expect(productsScript.contains("quillui_backend_visual_verify_product_for_product()"))
+        #expect(productsScript.contains("visual-verify-product)"))
+        #expect(productsScript.contains("verify_product=\"quill-enchanted-qt\""))
+        #expect(productsScript.contains("verify_product=\"quill-wireguard-qt\""))
 
-        #expect(smokeLib.contains("verify_product=\"quill-enchanted-qt\""))
-        #expect(smokeLib.contains("verify_product=\"quill-wireguard-qt\""))
+        #expect(smokeLib.contains("verify_product=\"$(quillui_backend_visual_verify_product_for_product \"$product\" \"$selected_backend\")\""))
         #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
         #expect(smokeLib.contains("quillui_backend_list_selection_verify_product()"))
         #expect(smokeLib.contains("list_selection_verify_product=\"$(quillui_backend_list_selection_verify_product \"$product\" \"$selected_backend\")\""))
@@ -749,6 +752,10 @@ struct LinuxBackendAppMatrixTests {
         printf 'default-mode-chat=%s\\n' "$(quillui_backend_default_interaction_mode_for_product quill-chat-linux)"
         printf 'default-mode-wireguard=%s\\n' "$(quillui_backend_default_interaction_mode_for_product quill-wireguard)"
         printf 'default-mode-smoke=%s\\n' "$(quillui_backend_default_interaction_mode_for_product quill-gtk-interaction-smoke)"
+        printf 'visual-verify-enchanted-qt=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-enchanted qt)"
+        printf 'visual-verify-wireguard-qt=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-wireguard qt)"
+        printf 'visual-verify-signal-qt=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-signal qt)"
+        printf 'visual-verify-wireguard-gtk=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-wireguard gtk)"
 
         launch_env=()
         quillui_append_backend_launch_environment launch_env quill-wireguard "" qt
@@ -850,6 +857,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("default-mode-chat=toolbar-menu"))
         #expect(result.output.contains("default-mode-wireguard=tunnel-name-edit"))
         #expect(result.output.contains("default-mode-smoke=open-panel"))
+        #expect(result.output.contains("visual-verify-enchanted-qt=quill-enchanted-qt"))
+        #expect(result.output.contains("visual-verify-wireguard-qt=quill-wireguard-qt"))
+        #expect(result.output.contains("visual-verify-signal-qt=quill-signal"))
+        #expect(result.output.contains("visual-verify-wireguard-gtk=quill-wireguard"))
         #expect(result.output.contains("missing-product=failed"))
         #expect(result.output.contains("missing-stamp=failed"))
         #expect(result.output.contains("qt-stamp=ok"))

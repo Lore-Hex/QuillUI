@@ -155,17 +155,11 @@ quillui_backend_visual_verify_product() {
 
   if quillui_is_quill_chat_mac_reference_product "$product"; then
     verify_product="quill-chat-linux-mac-reference"
-  fi
-  selected_backend="$(quillui_require_requested_backend_for_product "$product" 2>/dev/null || true)"
-  if [[ "$selected_backend" == "qt" ]]; then
-    case "$product" in
-      quill-enchanted)
-        verify_product="quill-enchanted-qt"
-        ;;
-      quill-wireguard)
-        verify_product="quill-wireguard-qt"
-        ;;
-    esac
+  else
+    selected_backend="$(quillui_require_requested_backend_for_product "$product" 2>/dev/null || true)"
+    if [[ -n "$selected_backend" ]]; then
+      verify_product="$(quillui_backend_visual_verify_product_for_product "$product" "$selected_backend")" || return $?
+    fi
   fi
   if [[ -n "${QUILLUI_BACKEND_VERIFY_PRODUCT:-}" ]]; then
     verify_product="$QUILLUI_BACKEND_VERIFY_PRODUCT"

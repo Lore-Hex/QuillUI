@@ -615,6 +615,27 @@ quillui_backend_default_interaction_mode_for_product() {
   esac
 }
 
+quillui_backend_visual_verify_product_for_product() {
+  local product="$1"
+  local selected_backend
+  local verify_product="$product"
+
+  selected_backend="$(quillui_require_backend_identifier "$2")" || return $?
+
+  if [[ "$selected_backend" == "qt" ]]; then
+    case "$product" in
+      quill-enchanted)
+        verify_product="quill-enchanted-qt"
+        ;;
+      quill-wireguard)
+        verify_product="quill-wireguard-qt"
+        ;;
+    esac
+  fi
+
+  printf '%s\n' "$verify_product"
+}
+
 quillui_backend_has_native_runtime() {
   local requested_backend
 
@@ -1508,6 +1529,8 @@ Commands:
                                   Print the screenshot verifier product for a launch mode.
   default-interaction-mode PRODUCT
                                   Print the default interaction mode for PRODUCT.
+  visual-verify-product PRODUCT BACKEND
+                                  Print the screenshot verifier product for a visual app row.
   profile-products                List app and launch-smoke products for profile budgets.
   profile-matrix                  List PRODUCT<TAB>BACKEND rows for profile budgets.
   profile-runtime-matrix          List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for profile budgets.
@@ -1650,6 +1673,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         exit 64
       fi
       quillui_backend_default_interaction_mode_for_product "$2"
+      ;;
+    visual-verify-product)
+      if [[ $# -ne 3 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      quillui_backend_visual_verify_product_for_product "$2" "$3"
       ;;
     profile-products)
       quillui_backend_profile_products
