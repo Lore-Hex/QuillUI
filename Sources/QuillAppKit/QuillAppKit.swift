@@ -871,6 +871,7 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
         return files.map { PasteboardType(rawValue: $0) }
     }
 
+    @discardableResult
     public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int { 0 }
     public func writeObjects(_ objs: [Any]) -> Bool {
         for obj in objs {

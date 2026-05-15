@@ -382,9 +382,9 @@ public extension ToolbarItemPlacement {
 }
 
 // `VerticalAlignment.firstTextBaseline` / `.lastTextBaseline`
-// live in the `Sources/SwiftUIShim` target (canonical home).
-// Re-declaring them here triggered "ambiguous use of
-// 'firstTextBaseline'" in code that imports both modules.
+// live in `QuillSwiftUICompatibility`, which both `QuillUI` and
+// the Linux `SwiftUI` shadow re-export. Keeping one defining
+// module avoids ambiguous uses in code that imports both modules.
 
 public extension GridItem.Size {
     static func flexible(minimum: Double = 10, maximum: Double = .infinity) -> GridItem.Size {

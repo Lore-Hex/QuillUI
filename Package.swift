@@ -279,6 +279,7 @@ let quillUIDependencies: [Target.Dependency] = [
     // `NSImage` typealiases to) and other CoreGraphics-shaped
     // bridge types. macOS uses Apple's real frameworks instead.
     "QuillFoundation",
+    "QuillSwiftUICompatibility",
     "UniformTypeIdentifiers",
     .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
     "CGdkPixbuf",
@@ -982,7 +983,16 @@ targets += [
 // with anything upstream might want to vendor.
 targets.append(contentsOf: [
     .target(name: "os", dependencies: [], path: "Sources/osShim"),
-    .target(name: "SwiftUI", dependencies: ["QuillUI"], path: "Sources/SwiftUIShim"),
+    .target(
+        name: "QuillSwiftUICompatibility",
+        dependencies: [.product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        path: "Sources/QuillSwiftUICompatibility"
+    ),
+    .target(
+        name: "SwiftUI",
+        dependencies: ["QuillUI", "QuillSwiftUICompatibility"],
+        path: "Sources/SwiftUIShim"
+    ),
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
     .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),

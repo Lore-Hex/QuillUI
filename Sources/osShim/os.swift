@@ -1,9 +1,5 @@
 @_exported import Foundation
 
-#if canImport(os)
-import os
-#endif
-
 public struct Logger: Sendable {
     public init(subsystem: String, category: String) {}
     

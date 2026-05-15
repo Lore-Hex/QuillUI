@@ -265,6 +265,48 @@ struct SourceHygieneTests {
         #expect(!gtk.contains("let ctx = g_main_context_default()"))
     }
 
+    @Test("Linux Apple compatibility shims avoid generated app warnings")
+    func linuxAppleCompatibilityShimsAvoidGeneratedAppWarnings() throws {
+        let root = try packageRoot()
+        let appKit = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillAppKit/QuillAppKit.swift"),
+            encoding: .utf8
+        )
+        let avFoundation = try String(
+            contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVFoundation.swift"),
+            encoding: .utf8
+        )
+        let osShim = try String(
+            contentsOf: root.appendingPathComponent("Sources/osShim/os.swift"),
+            encoding: .utf8
+        )
+
+        #expect(appKit.contains("@discardableResult\n    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int"))
+        #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
+        #expect(!osShim.contains("import os"))
+    }
+
+    @Test("Linux SwiftUI compatibility extensions have one canonical module")
+    func linuxSwiftUICompatibilityExtensionsHaveOneCanonicalModule() throws {
+        let root = try packageRoot()
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+        let quillUI = try String(contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillUI.swift"), encoding: .utf8)
+        let swiftUIShim = try String(contentsOf: root.appendingPathComponent("Sources/SwiftUIShim/SwiftUI.swift"), encoding: .utf8)
+        let compatibility = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/QuillSwiftUICompatibility.swift"),
+            encoding: .utf8
+        )
+
+        #expect(manifest.contains("name: \"QuillSwiftUICompatibility\""))
+        #expect(manifest.contains("\"QuillFoundation\",\n    \"QuillSwiftUICompatibility\","))
+        #expect(manifest.contains("dependencies: [\"QuillUI\", \"QuillSwiftUICompatibility\"]"))
+        #expect(quillUI.contains("@_exported import QuillSwiftUICompatibility"))
+        #expect(swiftUIShim.contains("@_exported import QuillSwiftUICompatibility"))
+        #expect(compatibility.contains("typealias Weight = FontWeight"))
+        #expect(compatibility.contains("static var firstTextBaseline: VerticalAlignment { .top }"))
+        #expect(!swiftUIShim.contains("static var firstTextBaseline"))
+    }
+
     @Test("ImageRenderer comments describe the current GTK offscreen path")
     func imageRendererCommentsDescribeCurrentOffscreenPath() throws {
         let root = try packageRoot()

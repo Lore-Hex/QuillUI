@@ -18,7 +18,8 @@ public final class AVSpeechSynthesizer: @unchecked Sendable {
     public weak var delegate: AVSpeechSynthesizerDelegate?
     public init() {}
     public func speak(_ utterance: AVSpeechUtterance) {}
-    public func stopSpeaking(at boundary: AVSpeechBoundary) {}
+    @discardableResult
+    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool { true }
     @discardableResult
     public func continueSpeaking() -> Bool { false }
     @discardableResult
