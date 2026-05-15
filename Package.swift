@@ -364,6 +364,19 @@ var quillParityTestDependencies: [Target.Dependency] = [
 ]
 #if os(Linux)
 quillParityTestDependencies.append("SwiftUI")
+
+let quillLinuxShimTestDependencies: [Target.Dependency] = [
+    "QuillShims", "SwiftUI",
+    "AsyncAlgorithms", "Carbon", "CoreGraphics", "Security",
+    "AVFoundation", "Speech", "ApplicationServices",
+    "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
+    "ActivityIndicatorView", "WrappingHStack", "Vortex",
+    "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
+    "OllamaKit", "Sparkle", "IOKit", "KeychainSwift"
+]
+let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
+    "QuillUI", "QuillKit", "SwiftData", "AppKit", "UIKit", "os"
+] + quillLinuxShimTestDependencies
 #endif
 #if os(Linux)
 func quillLinuxBackendDependencies(
@@ -1078,9 +1091,9 @@ targets.append(contentsOf: [
     // shadows a real Apple module on Linux; the matching products
     // are added below.
     // CYCLE-BREAK: these UI-adjacent shims re-export
-    // QuillFoundation/QuillUIKit directly instead of depending on
+    // QuillFoundation/QuillUIKit/QuillKit directly instead of depending on
     // QuillShims, because QuillShims depends on them.
-    .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/UIKitShim"),
+    .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit"], path: "Sources/UIKitShim"),
     .target(name: "MessageUI", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/MessageUIShim"),
     .target(name: "SafariServices", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/SafariServicesShim"),
     .target(name: "MobileCoreServices", dependencies: ["QuillFoundation"], path: "Sources/MobileCoreServicesShim"),
@@ -1286,21 +1299,13 @@ let packageTestTargets: [Target] = {
     }
     #endif
 
-    return [
+    var tests: [Target] = [
         {
             // QuillShimsTests links the Linux compatibility shims
             // so the test file can `import AsyncAlgorithms` etc.
             // and surface link errors fast.
             #if os(Linux)
-            let testDeps: [Target.Dependency] = [
-                "QuillShims", "SwiftUI",
-                "AsyncAlgorithms", "Carbon", "CoreGraphics", "Security",
-                "AVFoundation", "Speech", "ApplicationServices",
-                "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
-                "ActivityIndicatorView", "WrappingHStack", "Vortex",
-                "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
-                "OllamaKit", "Sparkle", "IOKit", "KeychainSwift"
-            ]
+            let testDeps: [Target.Dependency] = quillLinuxShimTestDependencies
             #else
             let testDeps: [Target.Dependency] = ["QuillShims"]
             #endif
@@ -1434,6 +1439,20 @@ let packageTestTargets: [Target] = {
             swiftSettings: appSwiftSettings
         )
     ]
+
+    #if os(Linux)
+    // Exercises the Apple-framework compatibility modules that real
+    // generated Enchanted source imports on Linux. This target stays out of
+    // the stripped Qt manifest graph so `QUILLUI_LINUX_BACKEND=qt swift
+    // test` does not reintroduce SwiftOpenUI/GTK.
+    tests.append(.testTarget(
+        name: "QuillCompatibilityModuleTests",
+        dependencies: quillLinuxCompatibilityModuleTestDependencies,
+        swiftSettings: appSwiftSettings
+    ))
+    #endif
+
+    return tests
 }()
 
 let package = Package(

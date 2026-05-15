@@ -17,7 +17,16 @@ public extension AVSpeechSynthesizerDelegate {
 public final class AVSpeechSynthesizer: @unchecked Sendable {
     public weak var delegate: AVSpeechSynthesizerDelegate?
     public init() {}
-    public func speak(_ utterance: AVSpeechUtterance) {}
+    public func speak(_ utterance: AVSpeechUtterance) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "AVFoundation",
+            operation: "speechSynthesis",
+            severity: .info,
+            message: "AVSpeechSynthesizer.speak is emulated on Linux until a native speech backend is attached."
+        )
+        delegate?.speechSynthesizer(self, didStart: utterance)
+        delegate?.speechSynthesizer(self, didFinish: utterance)
+    }
     @discardableResult
     public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool { true }
     @discardableResult

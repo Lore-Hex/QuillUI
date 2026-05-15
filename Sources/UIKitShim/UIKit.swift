@@ -8,8 +8,17 @@
 @_exported import Foundation
 @_exported import QuillFoundation
 @_exported import QuillUIKit
+import QuillKit
 
 #if !os(iOS)
+
+private func recordUIKitFallback(operation: String, api: String) {
+    QuillCompatibilityDiagnostics.shared.record(
+        subsystem: "UIKit",
+        operation: operation,
+        message: "\(api) is a no-op on non-iOS platforms."
+    )
+}
 
 #if canImport(AppKit)
 import AppKit
@@ -55,22 +64,36 @@ public class UIScene: NSObject {
 @MainActor public class UIImpactFeedbackGenerator: NSObject {
     public enum FeedbackStyle: Int { case light, medium, heavy, soft, rigid }
     public init(style: FeedbackStyle = .medium) {}
-    public func prepare() {}
-    public func impactOccurred() {}
-    public func impactOccurred(intensity: CGFloat) {}
+    public func prepare() {
+        recordUIKitFallback(operation: "hapticPrepare", api: "UIImpactFeedbackGenerator.prepare")
+    }
+    public func impactOccurred() {
+        recordUIKitFallback(operation: "impactOccurred", api: "UIImpactFeedbackGenerator.impactOccurred")
+    }
+    public func impactOccurred(intensity: CGFloat) {
+        recordUIKitFallback(operation: "impactOccurred", api: "UIImpactFeedbackGenerator.impactOccurred(intensity:)")
+    }
 }
 
 @MainActor public class UISelectionFeedbackGenerator: NSObject {
     public override init() {}
-    public func prepare() {}
-    public func selectionChanged() {}
+    public func prepare() {
+        recordUIKitFallback(operation: "hapticPrepare", api: "UISelectionFeedbackGenerator.prepare")
+    }
+    public func selectionChanged() {
+        recordUIKitFallback(operation: "selectionChanged", api: "UISelectionFeedbackGenerator.selectionChanged")
+    }
 }
 
 @MainActor public class UINotificationFeedbackGenerator: NSObject {
     public enum FeedbackType: Int { case success, warning, error }
     public override init() {}
-    public func prepare() {}
-    public func notificationOccurred(_ type: FeedbackType) {}
+    public func prepare() {
+        recordUIKitFallback(operation: "hapticPrepare", api: "UINotificationFeedbackGenerator.prepare")
+    }
+    public func notificationOccurred(_ type: FeedbackType) {
+        recordUIKitFallback(operation: "notificationOccurred", api: "UINotificationFeedbackGenerator.notificationOccurred")
+    }
 }
 
 // MARK: - UIDevice / UIScreen extras commonly used by iOS-only upstream

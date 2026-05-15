@@ -296,6 +296,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("Apple service modules provide diagnostic Linux fallbacks")
+    @MainActor
     func appleServiceModulesCompile() throws {
         #expect(QuillKitPlatform.current == .linux)
         #expect(QuillKitCapabilities.status(for: .clipboard) == .emulated)
@@ -530,6 +531,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("platform fallback shims record diagnostics")
+    @MainActor
     func platformFallbacksRecordDiagnostics() throws {
         let result = try AppleCompatibilitySmoke.runDiagnosticFallbackSmoke()
         #expect(result.speechAuthorizationDenied)

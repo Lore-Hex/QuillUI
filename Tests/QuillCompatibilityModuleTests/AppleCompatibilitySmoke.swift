@@ -44,6 +44,7 @@ enum AppleCompatibilitySmoke {
         var redactedPrivateValue: Bool
     }
 
+    @MainActor
     static func runAppleServiceSmoke() throws -> AppleServiceResult {
         UIPasteboard.general.string = "hello"
 
@@ -133,6 +134,7 @@ enum AppleCompatibilitySmoke {
         return responseDidFabricateData == false
     }
 
+    @MainActor
     static func runDiagnosticFallbackSmoke() throws -> DiagnosticFallbackResult {
         QuillCompatibilityDiagnostics.shared.clear()
 
