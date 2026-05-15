@@ -575,46 +575,14 @@ quillui_append_backend_runtime_environment() {
   quillui_unset_backend_scoped_app_environment
 }
 
-quillui_backend_generic_selected_index_on_start() {
-  case "$1" in
-    quill-codeedit)
-      printf '%s\n' "${QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}"
-      ;;
-    quill-enchanted-upstream-slice)
-      printf '%s\n' "${QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START:-${QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}}"
-      ;;
-    quill-icecubes)
-      printf '%s\n' "${QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}"
-      ;;
-    quill-iina)
-      printf '%s\n' "${QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}"
-      ;;
-    quill-netnewswire)
-      printf '%s\n' "${QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}"
-      ;;
-    quill-signal)
-      printf '%s\n' "${QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}}"
-      ;;
-    quill-telegram)
-      printf '%s\n' "${QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START:-${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}}}"
-      ;;
-    *)
-      printf '%s\n' "${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}"
-      ;;
-  esac
-}
-
-quillui_backend_generic_qt_selected_index_on_start() {
-  quillui_backend_generic_selected_index_on_start "$1"
-}
-
-quillui_backend_generic_gtk_selection_environment_key() {
+quillui_backend_generic_selection_environment_keys() {
   case "$1" in
     quill-codeedit)
       printf '%s\n' QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START
       ;;
     quill-enchanted-upstream-slice)
       printf '%s\n' QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START
+      printf '%s\n' QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START
       ;;
     quill-icecubes)
       printf '%s\n' QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START
@@ -625,11 +593,64 @@ quillui_backend_generic_gtk_selection_environment_key() {
     quill-netnewswire)
       printf '%s\n' QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START
       ;;
-    *)
-      echo "Unsupported generic GTK list-selection product: $1" >&2
-      return 65
+    quill-signal)
+      printf '%s\n' QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START
+      printf '%s\n' QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START
+      ;;
+    quill-telegram)
+      printf '%s\n' QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START
+      printf '%s\n' QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START
       ;;
   esac
+}
+
+quillui_backend_selected_index_from_environment_keys() {
+  local environment_key
+
+  for environment_key in "$@"; do
+    if [[ -n "${!environment_key:-}" ]]; then
+      printf '%s\n' "${!environment_key}"
+      return 0
+    fi
+  done
+
+  printf '%s\n' "${QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START:-0}"
+}
+
+quillui_backend_generic_selected_index_on_start() {
+  local product="$1"
+  local environment_key
+  local environment_keys=()
+
+  while IFS= read -r environment_key; do
+    [[ -n "$environment_key" ]] || continue
+    environment_keys+=("$environment_key")
+  done < <(quillui_backend_generic_selection_environment_keys "$product")
+
+  quillui_backend_selected_index_from_environment_keys "${environment_keys[@]}"
+}
+
+quillui_backend_generic_gtk_selection_environment_key() {
+  local product="$1"
+  local environment_key
+
+  if ! quillui_is_backend_generic_gtk_list_selection_app_product "$product"; then
+    echo "Unsupported generic GTK list-selection product: $product" >&2
+    return 65
+  fi
+
+  while IFS= read -r environment_key; do
+    [[ -n "$environment_key" ]] || continue
+    printf '%s\n' "$environment_key"
+    return 0
+  done < <(quillui_backend_generic_selection_environment_keys "$product")
+
+  echo "Missing generic GTK list-selection environment key: $product" >&2
+  return 65
+}
+
+quillui_backend_generic_qt_selected_index_on_start() {
+  quillui_backend_generic_selected_index_on_start "$1"
 }
 
 quillui_append_backend_selection_start_environment() {

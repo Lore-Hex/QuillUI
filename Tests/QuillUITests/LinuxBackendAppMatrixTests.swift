@@ -549,6 +549,14 @@ struct LinuxBackendAppMatrixTests {
           fi
         }
 
+        quillui_print_selection_keys() {
+          local environment_key
+          while IFS= read -r environment_key; do
+            [[ -n "$environment_key" ]] || continue
+            printf '%s|' "$environment_key"
+          done < <(quillui_backend_generic_selection_environment_keys "$1")
+        }
+
         unset QUILLUI_BACKEND QUILLUI_BACKEND_APP_EXECUTABLE QUILLUI_BACKEND_SKIP_BUILD
         export QUILLUI_GTK_APP_EXECUTABLE=/tmp/gtk-app
         export QUILLUI_QT_APP_EXECUTABLE=/tmp/qt-app
@@ -604,6 +612,15 @@ struct LinuxBackendAppMatrixTests {
         printf 'iina-selected-gtk=%s\\n' "$QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START"
 
         unset QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START
+        printf 'signal-selection-keys=%s\\n' "$(quillui_print_selection_keys quill-signal)"
+        printf 'telegram-selection-keys=%s\\n' "$(quillui_print_selection_keys quill-telegram)"
+        printf 'enchanted-selection-keys=%s\\n' "$(quillui_print_selection_keys quill-enchanted-upstream-slice)"
+        printf 'codeedit-gtk-selection-key=%s\\n' "$(quillui_backend_generic_gtk_selection_environment_key quill-codeedit)"
+        if quillui_backend_generic_gtk_selection_environment_key quill-signal >/dev/null 2>&1; then
+          echo unexpected-signal-gtk-key
+          exit 1
+        fi
+        printf 'signal-gtk-selection-key=unsupported\\n'
         selection_env=()
         quillui_append_backend_selection_start_environment selection_env quill-signal qt list-selection
         printf 'generic-selection-env=%s\\n' "$(quillui_print_selection_env)"
@@ -762,6 +779,11 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("netnewswire-selected-gtk=13"))
         #expect(result.output.contains("codeedit-selected-gtk=15"))
         #expect(result.output.contains("iina-selected-gtk=17"))
+        #expect(result.output.contains("signal-selection-keys=QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START|QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START|"))
+        #expect(result.output.contains("telegram-selection-keys=QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START|QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START|"))
+        #expect(result.output.contains("enchanted-selection-keys=QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START|QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START|"))
+        #expect(result.output.contains("codeedit-gtk-selection-key=QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START"))
+        #expect(result.output.contains("signal-gtk-selection-key=unsupported"))
         #expect(result.output.contains("generic-selection-env=QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=0|"))
         #expect(result.output.contains("signal-qt-selection-env=QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=4|"))
         #expect(result.output.contains("shared-chat-qt-selection-env=QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=2|"))
