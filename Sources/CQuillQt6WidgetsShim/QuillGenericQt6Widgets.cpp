@@ -27,7 +27,9 @@ namespace {
 using QuillQtWidgets::clearLayout;
 using QuillQtWidgets::jsonArrayValue;
 using QuillQtWidgets::jsonIntValue;
+using QuillQtWidgets::jsonObjectValue;
 using QuillQtWidgets::jsonStringValue;
+using QuillQtWidgets::jsonStyleValue;
 using QuillQtWidgets::label;
 
 QString stringValue(const QJsonObject &object, const char *key, const QString &fallback = QString()) {
@@ -36,6 +38,10 @@ QString stringValue(const QJsonObject &object, const char *key, const QString &f
 
 int intValue(const QJsonObject &object, const char *key, int fallback) {
     return jsonIntValue(object, key, fallback);
+}
+
+QString styleValue(const QJsonObject &style, const char *key, const char *fallback) {
+    return jsonStyleValue(style, key, fallback);
 }
 
 struct GenericDetailPane {
@@ -53,27 +59,49 @@ struct GenericSelection {
     QJsonArray messages;
 };
 
-QString genericStyleSheet() {
-    return QStringLiteral(R"(
-        QWidget#genericRoot { background: #F7F8F4; color: #182027; font-size: 14px; }
-        QFrame#sidebar { background: #EEF2EA; border-right: 1px solid #D8DDD4; }
-        QLabel#appTitle { color: #182027; font-size: 25px; font-weight: 700; }
-        QLabel#subtitle, QLabel#caption, QLabel#statusText, QLabel#itemSubtitle, QLabel#messageMeta { color: #65707A; font-size: 12px; }
-        QLabel#sectionTitle { color: #182027; font-size: 15px; font-weight: 700; }
-        QLabel#detailTitle { color: #182027; font-size: 22px; font-weight: 700; }
-        QLabel#headline { color: #182027; font-size: 16px; font-weight: 650; }
-        QLabel#bodyText, QLabel#messageText { color: #182027; font-size: 14px; line-height: 140%; }
-        QLabel#badge { color: #295A7A; font-size: 12px; font-weight: 700; }
-        QFrame#card, QFrame#messageCard { background: #FFFFFF; border: 1px solid #E0E4DC; border-radius: 8px; }
-        QFrame#activeCard { background: #E7F0FA; border: 1px solid #CBDDEB; border-radius: 8px; }
+QString genericStyleSheet(const QJsonObject &style) {
+    const QString canvas = styleValue(style, "canvasColor", "#F7F8F4");
+    const QString ink = styleValue(style, "inkColor", "#182027");
+    const QString sidebar = styleValue(style, "sidebarColor", "#EEF2EA");
+    const QString muted = styleValue(style, "mutedColor", "#65707A");
+    const QString badge = styleValue(style, "badgeColor", "#295A7A");
+    const QString card = styleValue(style, "cardColor", "#FFFFFF");
+    const QString activeCard = styleValue(style, "activeCardColor", "#E7F0FA");
+    const QString primary = styleValue(style, "primaryColor", "#2E5B78");
+    const QString selected = styleValue(style, "selectedMutedColor", "#DDEBFA");
+    const QString border = styleValue(style, "borderColor", "#E0E4DC");
+    const QString selectedBorder = styleValue(style, "selectedBorderColor", "#CBDDEB");
+    const QString divider = styleValue(style, "dividerColor", "#D8DDD4");
+    const QString controlBorder = styleValue(style, "controlBorderColor", "#CDD5CA");
+
+    QString sheet = QStringLiteral(R"(
+        QWidget#genericRoot { background: %1; color: %2; font-size: 14px; }
+        QFrame#sidebar { background: %3; border-right: 1px solid %4; }
+        QLabel#appTitle { color: %2; font-size: 25px; font-weight: 700; }
+        QLabel#subtitle, QLabel#caption, QLabel#statusText, QLabel#itemSubtitle, QLabel#messageMeta { color: %5; font-size: 12px; }
+        QLabel#sectionTitle { color: %2; font-size: 15px; font-weight: 700; }
+        QLabel#detailTitle { color: %2; font-size: 22px; font-weight: 700; }
+        QLabel#headline { color: %2; font-size: 16px; font-weight: 650; }
+        QLabel#bodyText, QLabel#messageText { color: %2; font-size: 14px; line-height: 140%; }
+        QLabel#badge { color: %6; font-size: 12px; font-weight: 700; }
+        QFrame#card, QFrame#messageCard { background: %7; border: 1px solid %8; border-radius: 8px; }
+    )").arg(canvas, ink, sidebar, divider, muted, badge, card, border);
+
+    sheet += QStringLiteral(R"(
+        QFrame#activeCard { background: %1; border: 1px solid %2; border-radius: 8px; }
+    )").arg(activeCard, selectedBorder);
+
+    sheet += QStringLiteral(R"(
         QListWidget#itemList { background: transparent; border: 0; outline: 0; }
         QListWidget#itemList::item { border-radius: 8px; margin: 2px 0; padding: 8px; }
-        QListWidget#itemList::item:selected { background: #DDEBFA; color: #182027; }
-        QPushButton#primaryButton { background: #2E5B78; color: white; border: 0; border-radius: 8px; padding: 8px 12px; text-align: left; }
-        QPushButton#secondaryButton { background: transparent; color: #182027; border: 1px solid #CDD5CA; border-radius: 7px; padding: 7px 10px; text-align: left; }
-        QScrollArea { background: #F7F8F4; border: 0; }
-        QSplitter::handle { background: #D8DDD4; }
-    )");
+        QListWidget#itemList::item:selected { background: %1; color: %2; }
+        QPushButton#primaryButton { background: %3; color: white; border: 0; border-radius: 8px; padding: 8px 12px; text-align: left; }
+        QPushButton#secondaryButton { background: transparent; color: %2; border: 1px solid %4; border-radius: 7px; padding: 7px 10px; text-align: left; }
+        QScrollArea { background: %5; border: 0; }
+        QSplitter::handle { background: %6; }
+    )").arg(selected, ink, primary, controlBorder, canvas, divider);
+
+    return sheet;
 }
 
 int boundedSelectedIndex(const QJsonArray &items, int selectedIndex) {
@@ -292,7 +320,8 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
     QWidget root;
     root.setObjectName(QStringLiteral("genericRoot"));
     root.setWindowTitle(stringValue(payload, "windowTitle", QStringLiteral("QuillUI Qt")));
-    root.setStyleSheet(genericStyleSheet());
+    const QJsonObject style = jsonObjectValue(payload, "style");
+    root.setStyleSheet(genericStyleSheet(style));
     const QSize minimumSize = QuillQtWidgets::minimumWindowSize(payload, 900, 620);
     root.setMinimumSize(minimumSize);
     root.resize(QuillQtWidgets::defaultWindowSize(payload, minimumSize));

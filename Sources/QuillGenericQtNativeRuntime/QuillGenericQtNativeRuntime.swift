@@ -27,6 +27,7 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
     public var items: [Item]
     public var sections: [Section]
     public var messages: [Message]
+    public var style: Style
 
     public struct Item: Codable, Sendable {
         public var title: String
@@ -79,6 +80,68 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         }
     }
 
+    public struct Style: Codable, Sendable {
+        public var canvasColor: String
+        public var sidebarColor: String
+        public var cardColor: String
+        public var activeCardColor: String
+        public var primaryColor: String
+        public var inkColor: String
+        public var mutedColor: String
+        public var badgeColor: String
+        public var selectedMutedColor: String
+        public var borderColor: String
+        public var selectedBorderColor: String
+        public var dividerColor: String
+        public var controlBorderColor: String
+
+        public static let desktop = Style(
+            canvasColor: "#F7F8F4",
+            sidebarColor: "#EEF2EA",
+            cardColor: "#FFFFFF",
+            activeCardColor: "#E7F0FA",
+            primaryColor: "#2E5B78",
+            inkColor: "#182027",
+            mutedColor: "#65707A",
+            badgeColor: "#295A7A",
+            selectedMutedColor: "#DDEBFA",
+            borderColor: "#E0E4DC",
+            selectedBorderColor: "#CBDDEB",
+            dividerColor: "#D8DDD4",
+            controlBorderColor: "#CDD5CA"
+        )
+
+        public init(
+            canvasColor: String,
+            sidebarColor: String,
+            cardColor: String,
+            activeCardColor: String,
+            primaryColor: String,
+            inkColor: String,
+            mutedColor: String,
+            badgeColor: String,
+            selectedMutedColor: String,
+            borderColor: String,
+            selectedBorderColor: String,
+            dividerColor: String,
+            controlBorderColor: String
+        ) {
+            self.canvasColor = canvasColor
+            self.sidebarColor = sidebarColor
+            self.cardColor = cardColor
+            self.activeCardColor = activeCardColor
+            self.primaryColor = primaryColor
+            self.inkColor = inkColor
+            self.mutedColor = mutedColor
+            self.badgeColor = badgeColor
+            self.selectedMutedColor = selectedMutedColor
+            self.borderColor = borderColor
+            self.selectedBorderColor = selectedBorderColor
+            self.dividerColor = dividerColor
+            self.controlBorderColor = controlBorderColor
+        }
+    }
+
     public init(
         windowTitle: String,
         minimumWidth: Int = 900,
@@ -100,7 +163,8 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         messagesTitle: String = "Activity",
         items: [Item],
         sections: [Section],
-        messages: [Message] = []
+        messages: [Message] = [],
+        style: Style = .desktop
     ) {
         self.windowTitle = windowTitle
         self.minimumWidth = minimumWidth
@@ -123,6 +187,7 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         self.items = items
         self.sections = sections
         self.messages = messages
+        self.style = style
     }
 }
 
