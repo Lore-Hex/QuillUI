@@ -77,7 +77,7 @@ QString appStyleSheet(const QJsonObject &style) {
         QFrame#sidebar { background: %3; border-right: 1px solid #D8DDD5; }
         QFrame#chatHeader, QFrame#composer { background: %4; }
         QLabel#appTitle { color: %2; font-size: 26px; font-weight: 700; }
-        QLabel#caption, QLabel#fieldLabel, QLabel#statusText, QLabel#messageRole, QLabel#conversationPreview { color: %8; font-size: 12px; }
+        QLabel#caption, QLabel#fieldLabel, QLabel#statusText, QLabel#messageRole { color: %8; font-size: 12px; }
         QLabel#sectionTitle { color: %2; font-size: 15px; font-weight: 700; }
         QLabel#currentTitle { color: %2; font-size: 20px; font-weight: 650; }
         QLabel#messageText { color: %2; font-size: 14px; }
@@ -97,7 +97,13 @@ QString appStyleSheet(const QJsonObject &style) {
     sheet += QStringLiteral(R"(
         QListWidget#conversationList { background: transparent; border: 0; outline: 0; }
         QListWidget#conversationList::item { border-radius: 8px; margin: 2px 0; padding: 8px; }
-        QListWidget#conversationList::item:selected { background: %1; color: %2; }
+        QListWidget#conversationList::item:selected { background: transparent; color: %2; }
+        QFrame#conversationRow { background: %3; border-radius: 8px; }
+        QFrame#conversationRow[active="true"] { background: %8; }
+        QLabel#conversationTitle { color: %2; font-size: 15px; font-weight: 700; }
+        QLabel#conversationTitle[active="true"] { color: white; }
+        QLabel#conversationPreview { color: %5; font-size: 12px; }
+        QLabel#conversationPreview[active="true"] { color: %1; }
         QLineEdit, QComboBox, QPlainTextEdit { background: %3; color: %2; border: 1px solid #CDD5CA; border-radius: 7px; padding: 7px; }
         QFrame#statusDot, QFrame#statusDotWarning { min-width: 9px; max-width: 9px; min-height: 9px; max-height: 9px; border-radius: 4px; }
         QFrame#statusDot { background: %4; }
@@ -107,31 +113,65 @@ QString appStyleSheet(const QJsonObject &style) {
         QSplitter::handle { background: #D8DDD5; }
         QScrollArea { background: %7; border: 0; }
     )")
-        .arg(selected, ink, card, success, warning, dropTarget, canvas);
+        .arg(selected, ink, card, success, muted, dropTarget, canvas, primary);
 
     return sheet;
 }
 
+void refreshStyle(QWidget *widget) {
+    if (widget == nullptr) {
+        return;
+    }
+    widget->style()->unpolish(widget);
+    widget->style()->polish(widget);
+    widget->update();
+}
+
 QFrame *conversationRowWidget(const QJsonObject &conversation) {
     QFrame *row = QuillQtWidgets::frame(QStringLiteral("conversationRow"));
+    row->setProperty("active", false);
     QVBoxLayout *layout = new QVBoxLayout(row);
-    layout->setContentsMargins(2, 3, 2, 3);
-    layout->setSpacing(3);
+    layout->setContentsMargins(11, 9, 11, 9);
+    layout->setSpacing(5);
 
     QLabel *title = label(
         stringValue(conversation, "title", QStringLiteral("New conversation")),
-        QStringLiteral("sectionTitle")
+        QStringLiteral("conversationTitle")
     );
     title->setWordWrap(false);
+    title->setProperty("active", false);
 
     QLabel *preview = label(
         stringValue(conversation, "lastMessage", QStringLiteral("No messages yet")),
         QStringLiteral("conversationPreview")
     );
+    preview->setProperty("active", false);
 
     layout->addWidget(title);
     layout->addWidget(preview);
     return row;
+}
+
+void updateConversationSelectionStyles(QListWidget *list) {
+    if (list == nullptr) {
+        return;
+    }
+
+    for (int index = 0; index < list->count(); ++index) {
+        QListWidgetItem *item = list->item(index);
+        QWidget *widget = item == nullptr ? nullptr : list->itemWidget(item);
+        if (widget == nullptr) {
+            continue;
+        }
+
+        const bool isSelected = item->isSelected();
+        widget->setProperty("active", isSelected);
+        refreshStyle(widget);
+        for (QLabel *child : widget->findChildren<QLabel *>()) {
+            child->setProperty("active", isSelected);
+            refreshStyle(child);
+        }
+    }
 }
 
 QFrame *emptyHistoryWidget(const QString &title, const QString &subtitle) {
@@ -233,6 +273,7 @@ void populateConversations(
     } else if (list->count() > 0) {
         list->setCurrentRow(0);
     }
+    updateConversationSelectionStyles(list);
 }
 
 QFrame *messageBubble(const QJsonObject &message, const QJsonObject &style) {
@@ -694,12 +735,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QObject::connect(newChatButton, &QPushButton::clicked, [&]() {
         conversationList->clearSelection();
         conversationList->setCurrentRow(-1);
+        updateConversationSelectionStyles(conversationList);
         currentTitle->setText(QStringLiteral("New conversation"));
         renderMessageSet(QJsonArray());
         updateConversationActionState();
     });
     QObject::connect(conversationList, &QListWidget::currentRowChanged, [&](int row) {
         updateConversationActionState();
+        updateConversationSelectionStyles(conversationList);
         QListWidgetItem *item = conversationList->item(row);
         if (item == nullptr) {
             return;
