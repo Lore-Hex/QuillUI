@@ -207,6 +207,30 @@ click_at() {
   DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$x" "$y" click 1
 }
 
+generic_backend_list_selection_y() {
+  if [[ "$SELECTED_BACKEND" == "gtk" && "$PRODUCT" == "quill-enchanted-upstream-slice" ]]; then
+    printf '%s\n' "$((window_y + 250))"
+  else
+    printf '%s\n' "$((window_y + 350))"
+  fi
+}
+
+click_generic_backend_list_selection() {
+  local click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 160))}"
+  local click_y="${QUILLUI_BACKEND_CLICK_Y:-$(generic_backend_list_selection_y)}"
+
+  click_at "$click_x" "$click_y"
+  sleep "$post_click_sleep"
+}
+
+click_generic_backend_header_action() {
+  local click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 200))}"
+  local click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 54))}"
+
+  click_at "$click_x" "$click_y"
+  sleep 1
+}
+
 type_text() {
   DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$1"
 }
@@ -536,20 +560,10 @@ elif [[ "$SELECTED_BACKEND" == "gtk" && ( "$PRODUCT" == "quill-signal" || "$PROD
 elif [[ "$SELECTED_BACKEND" == "gtk" ]] && quillui_is_backend_generic_gtk_list_selection_app_product "$PRODUCT"; then
     case "$INTERACTION_MODE" in
       list-selection)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 160))}"
-        if [[ "$PRODUCT" == "quill-enchanted-upstream-slice" ]]; then
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 250))}"
-        else
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 350))}"
-        fi
-        click_at "$click_x" "$click_y"
-        sleep "$post_click_sleep"
+        click_generic_backend_list_selection
         ;;
       click)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 200))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 54))}"
-        click_at "$click_x" "$click_y"
-        sleep 1
+        click_generic_backend_header_action
         ;;
       *)
         echo "Unsupported generic GTK interaction mode: $INTERACTION_MODE" >&2
@@ -559,16 +573,10 @@ elif [[ "$SELECTED_BACKEND" == "gtk" ]] && quillui_is_backend_generic_gtk_list_s
 elif [[ "$SELECTED_BACKEND" == "qt" ]] && quillui_is_backend_generic_qt_app_product "$PRODUCT"; then
     case "$INTERACTION_MODE" in
       list-selection)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 160))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 350))}"
-        click_at "$click_x" "$click_y"
-        sleep "$post_click_sleep"
+        click_generic_backend_list_selection
         ;;
       click)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 200))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 54))}"
-        click_at "$click_x" "$click_y"
-        sleep 1
+        click_generic_backend_header_action
         ;;
       *)
         echo "Unsupported generic Qt interaction mode: $INTERACTION_MODE" >&2
