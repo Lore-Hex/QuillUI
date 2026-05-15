@@ -306,6 +306,26 @@ struct LinuxBackendAppMatrixTests {
         #expect(appBackends.status == 0, Comment(rawValue: appBackends.output))
         #expect(Self.lines(appBackends.output) == Self.expectedBackends)
 
+        let generatedProducts = try runScript(script, arguments: ["generated-apps"])
+        #expect(generatedProducts.status == 0, Comment(rawValue: generatedProducts.output))
+        #expect(Self.lines(generatedProducts.output) == Self.expectedGeneratedAppProducts)
+
+        let smokeProducts = try runScript(script, arguments: ["smoke-products"])
+        #expect(smokeProducts.status == 0, Comment(rawValue: smokeProducts.output))
+        #expect(Self.lines(smokeProducts.output) == Self.expectedSmokeProducts)
+
+        let appProductSet = Set(Self.lines(appProducts.output))
+        let generatedProductSet = Set(Self.lines(generatedProducts.output))
+        let smokeProductSet = Set(Self.lines(smokeProducts.output))
+        #expect(appProductSet.isDisjoint(with: generatedProductSet))
+        #expect(appProductSet.isDisjoint(with: smokeProductSet))
+        #expect(generatedProductSet.isDisjoint(with: smokeProductSet))
+
+        let profileProducts = try runScript(script, arguments: ["profile-products"])
+        #expect(profileProducts.status == 0, Comment(rawValue: profileProducts.output))
+        #expect(Self.lines(profileProducts.output) == Self.expectedAppProducts + Self.expectedGeneratedAppProducts + Self.expectedSmokeProducts)
+        #expect(Set(Self.lines(profileProducts.output)).count == Self.lines(profileProducts.output).count)
+
         for matrixCommand in ["app-matrix", "build-product-matrix"] {
             let result = matrixCommand == "build-product-matrix"
                 ? try runScript(script, arguments: [matrixCommand, "backend-apps"])

@@ -997,6 +997,84 @@ quillui_backend_validate_runtime_product_reference() {
   fi
 }
 
+quillui_backend_validate_product_roster() {
+  local roster_name="$1"
+  local roster_command="$2"
+  local product
+  local extra
+  local seen_keys=$'\n'
+  local row_count=0
+
+  while IFS=$'\t' read -r product extra; do
+    [[ -n "$product" || -n "${extra:-}" ]] || continue
+    if [[ -n "${extra:-}" ]]; then
+      echo "$roster_name row has too many columns: $product	$extra" >&2
+      return 65
+    fi
+    if [[ -z "$product" ]]; then
+      echo "$roster_name contains an empty product." >&2
+      return 65
+    fi
+    quillui_backend_build_stamp_product_name "$product" >/dev/null || return $?
+    quillui_backend_validate_unique_key "$seen_keys" "$product" "$roster_name" || return $?
+    seen_keys="${seen_keys}${product}"$'\n'
+    row_count=$((row_count + 1))
+  done < <("$roster_command")
+
+  if [[ "$row_count" -eq 0 ]]; then
+    echo "$roster_name is empty." >&2
+    return 65
+  fi
+}
+
+quillui_backend_validate_product_roster_subset() {
+  local subset_name="$1"
+  local subset_command="$2"
+  local superset_name="$3"
+  local superset_command="$4"
+  local product
+
+  while IFS= read -r product; do
+    [[ -n "$product" ]] || continue
+    if ! quillui_backend_product_list_contains "$product" "$superset_command"; then
+      echo "$subset_name references $product outside $superset_name." >&2
+      return 65
+    fi
+  done < <("$subset_command")
+}
+
+quillui_backend_validate_disjoint_product_rosters() {
+  local lhs_name="$1"
+  local lhs_command="$2"
+  local rhs_name="$3"
+  local rhs_command="$4"
+  local product
+
+  while IFS= read -r product; do
+    [[ -n "$product" ]] || continue
+    if quillui_backend_product_list_contains "$product" "$rhs_command"; then
+      echo "$lhs_name and $rhs_name both contain product: $product" >&2
+      return 65
+    fi
+  done < <("$lhs_command")
+}
+
+quillui_backend_validate_product_rosters() {
+  quillui_backend_validate_product_roster "backend-apps" quillui_backend_app_products || return $?
+  quillui_backend_validate_product_roster "generic-qt-apps" quillui_backend_generic_qt_app_products || return $?
+  quillui_backend_validate_product_roster "generic-gtk-list-selection-apps" quillui_backend_generic_gtk_list_selection_app_products || return $?
+  quillui_backend_validate_product_roster "generated-apps" quillui_backend_generated_app_products || return $?
+  quillui_backend_validate_product_roster "smoke-products" quillui_backend_smoke_products || return $?
+  quillui_backend_validate_product_roster "profile-products" quillui_backend_profile_products || return $?
+
+  quillui_backend_validate_product_roster_subset "generic-qt-apps" quillui_backend_generic_qt_app_products "backend-apps" quillui_backend_app_products || return $?
+  quillui_backend_validate_product_roster_subset "generic-gtk-list-selection-apps" quillui_backend_generic_gtk_list_selection_app_products "backend-apps" quillui_backend_app_products || return $?
+
+  quillui_backend_validate_disjoint_product_rosters "backend-apps" quillui_backend_app_products "generated-apps" quillui_backend_generated_app_products || return $?
+  quillui_backend_validate_disjoint_product_rosters "backend-apps" quillui_backend_app_products "smoke-products" quillui_backend_smoke_products || return $?
+  quillui_backend_validate_disjoint_product_rosters "generated-apps" quillui_backend_generated_app_products "smoke-products" quillui_backend_smoke_products || return $?
+}
+
 quillui_backend_validate_app_backend_ids() {
   local backend
   local normalized_backend
@@ -1254,6 +1332,7 @@ quillui_backend_validate_interaction_extra_mode_backend_parity() {
 }
 
 quillui_backend_validate_integrity() {
+  quillui_backend_validate_product_rosters || return $?
   quillui_backend_validate_app_backend_ids || return $?
   quillui_backend_validate_product_native_runtime_backends || return $?
   quillui_backend_validate_fixed_app_backend_overrides || return $?
