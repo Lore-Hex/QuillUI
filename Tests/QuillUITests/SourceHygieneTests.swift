@@ -1046,6 +1046,8 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("tail -n \"$line_count\" \"$log_path\" >&2 || true"))
         #expect(smokeLib.contains("quillui_backend_visual_verify_product()"))
         #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
+        #expect(smokeLib.contains("quillui_backend_list_selection_verify_product()"))
+        #expect(smokeLib.contains("list_selection_verify_product=\"$(quillui_backend_list_selection_verify_product \"$product\" \"$selected_backend\")\""))
         #expect(smokeLib.contains("quill-wireguard-qt-tunnel-selection"))
         #expect(smokeLib.contains("quill-wireguard-qt-name-edit"))
         #expect(smokeLib.contains("quill-wireguard-qt-import-paste"))

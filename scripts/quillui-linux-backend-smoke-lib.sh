@@ -174,11 +174,38 @@ quillui_backend_visual_verify_product() {
   quillui_assign_output "$output_var" "$verify_product"
 }
 
+quillui_backend_list_selection_verify_product() {
+  local product="$1"
+  local selected_backend="$2"
+  local verify_product=""
+
+  if [[ "$product" == "quill-enchanted" ]]; then
+    if [[ "$selected_backend" == "qt" ]]; then
+      verify_product="quill-enchanted-qt-list-selection"
+    else
+      verify_product="quill-enchanted-list-selection"
+    fi
+  elif [[ "$selected_backend" == "gtk" ]] && quillui_is_backend_chat_gtk_list_selection_app_product "$product"; then
+    verify_product="$product-list-selection"
+  elif [[ "$selected_backend" == "gtk" ]] && quillui_is_backend_generic_gtk_list_selection_app_product "$product"; then
+    verify_product="$product-gtk-list-selection"
+  elif [[ "$selected_backend" == "qt" ]] && quillui_is_backend_generic_qt_app_product "$product"; then
+    verify_product="$product-qt-list-selection"
+  fi
+
+  if [[ -z "$verify_product" ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "$verify_product"
+}
+
 quillui_backend_interaction_verify_product() {
   local product="$1"
   local interaction_mode="$2"
   local output_var="$3"
   local verify_product="$product"
+  local list_selection_verify_product=""
   local selected_backend=""
 
   selected_backend="$(quillui_require_requested_backend_for_product "$product" 2>/dev/null || true)"
@@ -240,22 +267,8 @@ quillui_backend_interaction_verify_product() {
         verify_product="quill-wireguard-qt-import-invalid-file"
         ;;
     esac
-  elif [[ "$product" == "quill-enchanted" ]]; then
-    case "$interaction_mode" in
-      list-selection)
-        if [[ "$selected_backend" == "qt" ]]; then
-          verify_product="quill-enchanted-qt-list-selection"
-        else
-          verify_product="quill-enchanted-list-selection"
-        fi
-        ;;
-    esac
-  elif [[ "$selected_backend" == "gtk" ]] && quillui_is_backend_chat_gtk_list_selection_app_product "$product"; then
-    case "$interaction_mode" in
-      list-selection)
-        verify_product="$product-list-selection"
-        ;;
-    esac
+  elif [[ "$interaction_mode" == "list-selection" ]] && list_selection_verify_product="$(quillui_backend_list_selection_verify_product "$product" "$selected_backend")"; then
+    verify_product="$list_selection_verify_product"
   elif [[ "$product" == "quill-wireguard" ]]; then
     case "$interaction_mode" in
       tunnel-name-edit|name-edit)
@@ -272,18 +285,6 @@ quillui_backend_interaction_verify_product() {
         ;;
       import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
         verify_product="quill-wireguard-import-invalid-file"
-        ;;
-    esac
-  elif [[ "$selected_backend" == "gtk" ]] && quillui_is_backend_generic_gtk_list_selection_app_product "$product"; then
-    case "$interaction_mode" in
-      list-selection)
-        verify_product="$product-gtk-list-selection"
-        ;;
-    esac
-  elif [[ "$selected_backend" == "qt" ]] && quillui_is_backend_generic_qt_app_product "$product"; then
-    case "$interaction_mode" in
-      list-selection)
-        verify_product="$product-qt-list-selection"
         ;;
     esac
   elif quillui_is_backend_smoke_product "$product"; then
