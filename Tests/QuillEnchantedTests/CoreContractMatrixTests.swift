@@ -79,6 +79,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift"),
             encoding: .utf8
         )
+        let macOSRootView = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedRootView.swift"),
+            encoding: .utf8
+        )
         let sharedPrompts = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedShared/QuillEnchantedShared.swift"),
             encoding: .utf8
@@ -113,6 +117,7 @@ struct CoreContractMatrixTests {
         #expect(runtime.contains("quill_enchanted_qt_run_app_json"))
         #expect(runtime.contains("windowTitle: \"Quill Enchanted\""))
         #expect(runtime.contains("sidebarSubtitle: \"QuillUI Linux preview\""))
+        #expect(runtime.contains("noModelsTitle: \"No models detected\""))
         #expect(runtime.contains("selectedModel: \"llama3.1:8b\""))
         #expect(runtime.contains("emptyStateTitle: \"Ask your local model\""))
         #expect(runtime.contains("emptyStateSubtitle: \"This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.\""))
@@ -142,6 +147,12 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("return QStringLiteral(\"System\")"))
         #expect(nativeShim.contains("label(messageRoleTitle(role), QStringLiteral(\"messageRole\"))"))
         #expect(!nativeShim.contains("role.toUpper()"))
+        #expect(macOSRootView.contains("Text(\"No models detected\")"))
+        #expect(nativeShim.contains("stringValue(payload, \"noModelsTitle\", QStringLiteral(\"No models detected\"))"))
+        #expect(nativeShim.contains("models.isEmpty() ? QStringLiteral(\"statusDotWarning\") : QStringLiteral(\"statusDot\")"))
+        #expect(macOSRootView.contains("?? \"New conversation\""))
+        #expect(nativeShim.contains("QStringLiteral(\"New conversation\")"))
+        #expect(!nativeShim.contains("QuillUI backend parity"))
         #expect(nativeShim.contains("emptyStateTitle"))
         #expect(nativeShim.contains("emptyStateSubtitle"))
         #expect(nativeShim.contains("promptAction(prompt)"))

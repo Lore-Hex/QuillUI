@@ -14,6 +14,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var endpointLabel: String
     var modelLabel: String
     var conversationsTitle: String
+    var noModelsTitle: String
     var newChatTitle: String
     var deleteChatTitle: String
     var clearAllTitle: String
@@ -123,6 +124,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         endpointLabel: "Ollama endpoint",
         modelLabel: "Model",
         conversationsTitle: "Conversations",
+        noModelsTitle: "No models detected",
         newChatTitle: "New chat",
         deleteChatTitle: "Delete chat",
         clearAllTitle: "Clear all",

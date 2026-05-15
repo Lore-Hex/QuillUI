@@ -90,6 +90,7 @@ QString appStyleSheet(const QJsonObject &style) {
         QListWidget#conversationList::item:selected { background: %1; color: %2; }
         QLineEdit, QComboBox, QPlainTextEdit { background: %3; color: %2; border: 1px solid #CDD5CA; border-radius: 7px; padding: 7px; }
         QLabel#statusDot { color: %4; font-size: 18px; }
+        QLabel#statusDotWarning { color: %5; font-size: 18px; }
         QLabel#warningText { color: %5; font-size: 12px; }
         QFrame#dropTarget { background: %6; border: 1px solid #C8DED3; border-radius: 8px; }
         QSplitter::handle { background: #D8DDD5; }
@@ -383,25 +384,37 @@ extern "C" int quill_enchanted_qt_run_app_json(
         endpointField
     );
 
-    QComboBox *modelPicker = new QComboBox();
     const QJsonArray models = arrayValue(payload, "models");
-    for (const QJsonValue &model : models) {
-        modelPicker->addItem(model.toString());
+    const QString modelLabel = stringValue(payload, "modelLabel", QStringLiteral("Model"));
+    if (models.isEmpty()) {
+        sidebarLayout->addWidget(fieldLabel(modelLabel));
+        sidebarLayout->addWidget(label(
+            stringValue(payload, "noModelsTitle", QStringLiteral("No models detected")),
+            QStringLiteral("warningText")
+        ));
+    } else {
+        QComboBox *modelPicker = new QComboBox();
+        for (const QJsonValue &model : models) {
+            modelPicker->addItem(model.toString());
+        }
+        const int selectedModelIndex = modelPicker->findText(stringValue(payload, "selectedModel"));
+        if (selectedModelIndex >= 0) {
+            modelPicker->setCurrentIndex(selectedModelIndex);
+        }
+        addSidebarField(
+            sidebarLayout,
+            modelLabel,
+            modelPicker
+        );
     }
-    const int selectedModelIndex = modelPicker->findText(stringValue(payload, "selectedModel"));
-    if (selectedModelIndex >= 0) {
-        modelPicker->setCurrentIndex(selectedModelIndex);
-    }
-    addSidebarField(
-        sidebarLayout,
-        stringValue(payload, "modelLabel", QStringLiteral("Model")),
-        modelPicker
-    );
 
     QHBoxLayout *statusLayout = new QHBoxLayout();
     statusLayout->setContentsMargins(0, 0, 0, 0);
     statusLayout->setSpacing(8);
-    statusLayout->addWidget(label(QStringLiteral("*"), QStringLiteral("statusDot")));
+    statusLayout->addWidget(label(
+        QStringLiteral("*"),
+        models.isEmpty() ? QStringLiteral("statusDotWarning") : QStringLiteral("statusDot")
+    ));
     statusLayout->addWidget(label(stringValue(payload, "status"), QStringLiteral("statusText")));
     sidebarLayout->addLayout(statusLayout);
 
@@ -448,7 +461,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         selectedConversationTitle(
             conversations,
             initialConversationID,
-            QStringLiteral("QuillUI backend parity")
+            QStringLiteral("New conversation")
         ),
         QStringLiteral("currentTitle")
     );
@@ -576,7 +589,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         currentTitle->setText(selectedConversationTitle(
             conversations,
             selectedID,
-            QStringLiteral("QuillUI backend parity")
+            QStringLiteral("New conversation")
         ));
         const QJsonArray selectedMessages = selectedConversationMessages(
             conversations,
