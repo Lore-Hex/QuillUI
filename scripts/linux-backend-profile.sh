@@ -123,7 +123,7 @@ quillui_append_backend_runtime_environment \
     "$reference_window_height" \
     "$hide_window_menubar_label" \
     "$REQUESTED_BACKEND"
-quillui_append_quill_chat_profile_fixture_environment_if_needed \
+quillui_append_enchanted_profile_fixture_environment_if_needed \
     app_environment \
     "$PRODUCT" \
     "$OUTPUT_DIR"

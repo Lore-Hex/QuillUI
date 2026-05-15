@@ -451,6 +451,9 @@ struct QuillDataSourceLoweringTests {
         #expect(!visualScript.contains("${QUILLUI_GTK_VISUAL_DISPLAY:-"))
         #expect(!visualScript.contains("${QUILLUI_GTK_SCREEN_SIZE:-"))
         #expect(!visualScript.contains("${QUILLUI_GTK_VERIFY_PRODUCT:-"))
+        #expect(smokeLib.contains("QUILLUI_ENCHANTED_REFERENCE_MODE=1"))
+        #expect(smokeLib.contains("QUILLUI_ENCHANTED_FORCE_UNREACHABLE=1"))
+        #expect(smokeLib.contains("QUILLUI_ENCHANTED_PROFILE_MODE=1"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_PROFILE_MODE=1"))
@@ -605,6 +608,7 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/Stores/LanguageModelStore.swift.pl"),
             encoding: .utf8
         )
+        #expect(modelStoreRule.contains("QUILLUI_ENCHANTED_REFERENCE_MODE"))
         #expect(modelStoreRule.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE"))
         #expect(modelStoreRule.contains("llava:latest"))
         #expect(modelStoreRule.contains("self.selectedModel = fallbackModel"))
@@ -614,6 +618,8 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/Stores/AppStore.swift.pl"),
             encoding: .utf8
         )
+        #expect(appStoreRule.contains("QUILLUI_ENCHANTED_FORCE_UNREACHABLE"))
+        #expect(appStoreRule.contains("QUILLUI_ENCHANTED_PROFILE_MODE"))
         #expect(appStoreRule.contains("QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE"))
         #expect(appStoreRule.contains("QUILLUI_QUILL_CHAT_PROFILE_MODE"))
         #expect(appStoreRule.contains("startCheckingReachability(interval: pingInterval)"))
@@ -622,6 +628,7 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/ApplicationEntry.swift.pl"),
             encoding: .utf8
         )
+        #expect(applicationEntryRule.contains("QUILLUI_ENCHANTED_PROFILE_MODE"))
         #expect(applicationEntryRule.contains("QUILLUI_QUILL_CHAT_PROFILE_MODE"))
         #expect(applicationEntryRule.contains("Task.detached"))
     }

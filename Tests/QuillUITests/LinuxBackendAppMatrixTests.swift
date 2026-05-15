@@ -606,6 +606,13 @@ struct LinuxBackendAppMatrixTests {
           fi
         }
 
+        quillui_print_env_array() {
+          local item
+          for item in "$@"; do
+            printf '%s|' "$item"
+          done
+        }
+
         quillui_print_selection_keys() {
           local environment_key
           while IFS= read -r environment_key; do
@@ -813,6 +820,18 @@ struct LinuxBackendAppMatrixTests {
         quillui_append_backend_runtime_environment runtime_env quill-netnewswire "" "\(temporaryDirectory.path)/runtime" 900 620 0 gtk
         printf 'netnewswire-runtime-env=%s\\n' "$(printf '%s|' "${runtime_env[@]}")"
 
+        profile_env=()
+        quillui_append_enchanted_profile_fixture_environment_if_needed profile_env quill-enchanted-linux "\(temporaryDirectory.path)/profile"
+        printf 'enchanted-profile-env=%s\\n' "$(quillui_print_env_array "${profile_env[@]}")"
+        test -f "\(temporaryDirectory.path)/profile/quill-enchanted-linux-profile-home/.quillui/enchanted/enchanted-quilldata.sqlite"
+        printf 'enchanted-profile-fixture=ok\\n'
+        legacy_profile_env=()
+        quillui_append_quill_chat_profile_fixture_environment_if_needed legacy_profile_env quill-chat-linux "\(temporaryDirectory.path)/profile"
+        printf 'legacy-chat-profile-env=%s\\n' "$(quillui_print_env_array "${legacy_profile_env[@]}")"
+        non_enchanted_profile_env=()
+        quillui_append_enchanted_profile_fixture_environment_if_needed non_enchanted_profile_env quill-wireguard "\(temporaryDirectory.path)/profile"
+        printf 'wireguard-profile-env=%s\\n' "$(quillui_print_env_array "${non_enchanted_profile_env[@]}")"
+
         if quillui_export_backend_argument qt quill-wireguard-qt 2>/dev/null; then
           echo unexpected-product
           exit 1
@@ -898,6 +917,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("launch-env=GTK_A11Y=none|QUILLUI_BACKEND=qt|"))
         #expect(result.output.contains("icecubes-runtime-env=GTK_A11Y=none|QUILLUI_BACKEND=gtk|QUILLUI_DISABLE_FETCH=1|"))
         #expect(result.output.contains("netnewswire-runtime-env=GTK_A11Y=none|QUILLUI_BACKEND=gtk|QUILLUI_DISABLE_FETCH=1|"))
+        #expect(result.output.contains("enchanted-profile-env=HOME=\(temporaryDirectory.path)/profile/quill-enchanted-linux-profile-home|QUILLDATA_HOME=\(temporaryDirectory.path)/profile/quill-enchanted-linux-profile-home|QUILLUI_ENCHANTED_REFERENCE_MODE=1|QUILLUI_QUILL_CHAT_REFERENCE_MODE=1|QUILLUI_ENCHANTED_PROFILE_MODE=1|QUILLUI_QUILL_CHAT_PROFILE_MODE=1|"))
+        #expect(result.output.contains("enchanted-profile-fixture=ok"))
+        #expect(result.output.contains("legacy-chat-profile-env=HOME=\(temporaryDirectory.path)/profile/quill-chat-linux-profile-home|QUILLDATA_HOME=\(temporaryDirectory.path)/profile/quill-chat-linux-profile-home|QUILLUI_ENCHANTED_REFERENCE_MODE=1|QUILLUI_QUILL_CHAT_REFERENCE_MODE=1|QUILLUI_ENCHANTED_PROFILE_MODE=1|QUILLUI_QUILL_CHAT_PROFILE_MODE=1|"))
+        #expect(result.output.contains("wireguard-profile-env=\n"))
         #expect(result.output.contains("default-mode-signal=click"))
         #expect(result.output.contains("default-mode-chat=toolbar-menu"))
         #expect(result.output.contains("default-mode-wireguard=tunnel-name-edit"))

@@ -3,7 +3,9 @@ s{init\(swiftDataService: SwiftDataService\) \{
     \}}{<<'SWIFT'}se;
 init(swiftDataService: SwiftDataService) {
         self.swiftDataService = swiftDataService
-        if ProcessInfo.processInfo.environment["QUILLUI_QUILL_CHAT_REFERENCE_MODE"] == "1" {
+        let environment = ProcessInfo.processInfo.environment
+        if environment["QUILLUI_ENCHANTED_REFERENCE_MODE"] == "1"
+            || environment["QUILLUI_QUILL_CHAT_REFERENCE_MODE"] == "1" {
             let fallbackModel = LanguageModelSD(name: "llava:latest", imageSupport: true, modelProvider: .ollama)
             self.models = [fallbackModel]
             self.selectedModel = fallbackModel
@@ -14,7 +16,9 @@ SWIFT
 
 s{func loadModels\(\) async throws \{.*?\n    \}\n    \n    func deleteAllModels\(\)}{<<'SWIFT'}se;
 func loadModels() async throws {
-        if ProcessInfo.processInfo.environment["QUILLUI_QUILL_CHAT_REFERENCE_MODE"] == "1" {
+        let environment = ProcessInfo.processInfo.environment
+        if environment["QUILLUI_ENCHANTED_REFERENCE_MODE"] == "1"
+            || environment["QUILLUI_QUILL_CHAT_REFERENCE_MODE"] == "1" {
             let storedModels = (try? await swiftDataService.fetchModels()) ?? []
             let fallbackModels = storedModels.isEmpty
                 ? [LanguageModelSD(name: "llava:latest", imageSupport: true, modelProvider: .ollama)]

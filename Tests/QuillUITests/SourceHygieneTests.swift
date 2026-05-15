@@ -630,6 +630,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"),
             encoding: .utf8
         )
+        let backendProfileScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-backend-profile.sh"),
+            encoding: .utf8
+        )
         let backendVisualScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-backend-visual-check.sh"),
             encoding: .utf8
@@ -1038,6 +1042,8 @@ struct SourceHygieneTests {
         #expect(backendVisualScript.contains("quillui_stop_process_if_running \"$xvfb_pid\""))
         #expect(backendVisualScript.contains("quillui_append_backend_runtime_environment"))
         #expect(backendVisualScript.contains("\"$REQUESTED_BACKEND\""))
+        #expect(backendProfileScript.contains("quillui_append_enchanted_profile_fixture_environment_if_needed"))
+        #expect(!backendProfileScript.contains("quillui_append_quill_chat_profile_fixture_environment_if_needed"))
         #expect(backendVisualScript.contains("quillui_backend_visual_verify_product \"$PRODUCT\" VERIFY_PRODUCT"))
         #expect(!backendVisualScript.contains("${QUILLUI_GTK_MAC_REFERENCE:-0}"))
         #expect(!backendVisualScript.contains("${QUILLUI_GTK_VISUAL_DISPLAY:-"))
@@ -1143,6 +1149,12 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("quillui_backend_scoped_app_environment_names()"))
         #expect(smokeLib.contains("quillui_unset_backend_scoped_app_environment()"))
         #expect(smokeLib.contains("quillui_unset_backend_scoped_app_environment"))
+        #expect(smokeLib.contains("quillui_append_enchanted_fixture_data_environment()"))
+        #expect(smokeLib.contains("quillui_append_enchanted_reference_mode_environment()"))
+        #expect(smokeLib.contains("quillui_append_enchanted_profile_mode_environment()"))
+        #expect(smokeLib.contains("quillui_append_enchanted_unreachable_environment()"))
+        #expect(smokeLib.contains("quillui_is_generated_enchanted_linux_product()"))
+        #expect(smokeLib.contains("quillui_append_enchanted_profile_fixture_environment_if_needed()"))
         #expect(smokeLib.contains("quillui_append_quill_chat_fixture_data_environment()"))
         #expect(smokeLib.contains("quillui_append_quill_chat_reference_environment()"))
         #expect(smokeLib.contains("quillui_append_quill_chat_reference_environment_if_needed()"))
@@ -1153,6 +1165,9 @@ struct SourceHygieneTests {
         #expect(!smokeLib.contains("QUILLUI_GTK_DEFAULT_WINDOW_WIDTH=$reference_window_width"))
         #expect(!smokeLib.contains("QUILLUI_QT_DEFAULT_WINDOW_WIDTH=$reference_window_width"))
         #expect(!smokeLib.contains("QUILLUI_QT_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"))
+        #expect(smokeLib.contains("QUILLUI_ENCHANTED_REFERENCE_MODE=1"))
+        #expect(smokeLib.contains("QUILLUI_ENCHANTED_FORCE_UNREACHABLE=1"))
+        #expect(smokeLib.contains("QUILLUI_ENCHANTED_PROFILE_MODE=1"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_PROFILE_MODE=1"))
