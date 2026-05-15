@@ -27,7 +27,10 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var attachmentSummaryTitle: String
     var composerPlaceholder: String
     var sendTitle: String
+    var stopTitle: String
+    var stoppingStatus: String
     var status: String
+    var isLoading: Bool
     var emptyStateTitle: String
     var emptyStateSubtitle: String
     var endpoint: String
@@ -142,7 +145,10 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         attachmentSummaryTitle: "[Attached images]",
         composerPlaceholder: "Ask a local model...",
         sendTitle: "Send",
+        stopTitle: "Stop",
+        stoppingStatus: "Stopping...",
         status: "Ready for local inference",
+        isLoading: false,
         emptyStateTitle: "Ask your local model",
         emptyStateSubtitle: "This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.",
         endpoint: "http://localhost:11434",

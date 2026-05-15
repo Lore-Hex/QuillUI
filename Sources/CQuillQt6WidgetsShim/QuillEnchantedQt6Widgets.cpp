@@ -46,6 +46,10 @@ int intValue(const QJsonObject &object, const char *key, int fallback) {
     return QuillQtWidgets::jsonIntValue(object, key, fallback);
 }
 
+bool boolValue(const QJsonObject &object, const char *key, bool fallback) {
+    return QuillQtWidgets::jsonBoolValue(object, key, fallback);
+}
+
 QJsonObject objectValue(const QJsonObject &object, const char *key) {
     return QuillQtWidgets::jsonObjectValue(object, key);
 }
@@ -81,12 +85,13 @@ QString appStyleSheet(const QJsonObject &style) {
         QFrame#messageUser { background: %7; border: 1px solid #D4DFE8; border-radius: 8px; }
         QFrame#attachmentChip { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
         QPushButton#primaryButton, QPushButton#sendButton { background: %6; color: white; border: 0; border-radius: 8px; padding: 9px 12px; text-align: left; }
+        QPushButton#sendButton[loading="true"] { background: %9; }
         QPushButton#sendButton:disabled { background: #AAB5BE; color: #F4F6F7; }
         QPushButton#secondaryButton { background: transparent; color: %2; border: 1px solid #CDD5CA; border-radius: 7px; padding: 7px 10px; text-align: left; }
         QPushButton#secondaryButton:disabled { color: #9CA6AD; border: 1px solid #D8DDD5; }
         QPushButton#promptButton { background: %5; color: %2; border: 1px solid #E0E5DD; border-radius: 8px; padding: 12px; text-align: left; }
     )")
-        .arg(canvas, ink, sidebar, header, card, primary, system, muted);
+        .arg(canvas, ink, sidebar, header, card, primary, system, muted, warning);
 
     sheet += QStringLiteral(R"(
         QListWidget#conversationList { background: transparent; border: 0; outline: 0; }
@@ -453,7 +458,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
         QStringLiteral("*"),
         models.isEmpty() ? QStringLiteral("statusDotWarning") : QStringLiteral("statusDot")
     ));
-    statusLayout->addWidget(label(stringValue(payload, "status"), QStringLiteral("statusText")));
+    QLabel *statusText = label(stringValue(payload, "status"), QStringLiteral("statusText"));
+    statusLayout->addWidget(statusText);
     sidebarLayout->addLayout(statusLayout);
 
     sidebarLayout->addWidget(label(
@@ -572,8 +578,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
         QStringLiteral("Ask a local model...")
     ));
     promptEditor->setFixedHeight(intValue(style, "composerHeight", 84));
-    QPushButton *sendButton = new QPushButton(stringValue(payload, "sendTitle", QStringLiteral("Send")));
+    const bool isLoading = boolValue(payload, "isLoading", false);
+    const QString sendTitle = stringValue(payload, "sendTitle", QStringLiteral("Send"));
+    const QString stopTitle = stringValue(payload, "stopTitle", QStringLiteral("Stop"));
+    const QString stoppingStatus = stringValue(payload, "stoppingStatus", QStringLiteral("Stopping..."));
+    QPushButton *sendButton = new QPushButton();
     sendButton->setObjectName(QStringLiteral("sendButton"));
+    sendButton->setProperty("loading", isLoading);
+    sendButton->setText(isLoading ? stopTitle : sendTitle);
     sendButton->setMinimumWidth(86);
     promptRow->addWidget(promptEditor, 1);
     promptRow->addWidget(sendButton);
@@ -619,7 +631,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     auto updateComposerControlState = [&]() {
         attachButton->setEnabled(hasTrimmedText(attachmentPath));
         clearAttachmentsButton->setEnabled(hasTrimmedText(attachmentPath) || !pendingAttachmentSummary.isEmpty());
-        sendButton->setEnabled(hasTrimmedText(promptEditor) || !pendingAttachmentSummary.isEmpty());
+        sendButton->setEnabled(isLoading || hasTrimmedText(promptEditor) || !pendingAttachmentSummary.isEmpty());
     };
     auto clearAttachmentState = [&]() {
         attachmentPath->clear();
@@ -698,6 +710,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
         updateComposerControlState();
     });
     QObject::connect(sendButton, &QPushButton::clicked, [&]() {
+        if (isLoading) {
+            statusText->setText(stoppingStatus);
+            return;
+        }
+
         appendUserMessage(attachmentDisplayContent(
             promptEditor->toPlainText(),
             pendingAttachmentSummary,

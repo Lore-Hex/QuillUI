@@ -72,6 +72,11 @@ inline int jsonIntValue(const QJsonObject &object, const char *key, int fallback
     return value.isDouble() ? value.toInt(fallback) : fallback;
 }
 
+inline bool jsonBoolValue(const QJsonObject &object, const char *key, bool fallback) {
+    const QJsonValue value = object.value(QString::fromUtf8(key));
+    return value.isBool() ? value.toBool(fallback) : fallback;
+}
+
 inline QJsonObject jsonObjectValue(const QJsonObject &object, const char *key) {
     return object.value(QString::fromUtf8(key)).toObject();
 }
