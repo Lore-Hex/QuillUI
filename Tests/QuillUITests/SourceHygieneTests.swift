@@ -1080,6 +1080,8 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("quillui_append_backend_layout_debug_environment \"$output_array\" \"${QUILLUI_BACKEND_LAYOUT_DEBUG:-}\""))
         #expect(smokeLib.contains("quillui_append_quill_chat_reference_environment_if_needed \\"))
         #expect(smokeLib.contains("quillui_append_backend_selection_start_environment()"))
+        #expect(smokeLib.contains("quillui_backend_list_selection_start_environment_assignment()"))
+        #expect(smokeLib.contains("selection_assignment=\"$(quillui_backend_list_selection_start_environment_assignment \"$product\" \"$selected_backend\")\""))
         #expect(smokeLib.contains("quillui_backend_generic_selection_environment_keys()"))
         #expect(smokeLib.contains("quillui_backend_selected_index_from_environment_keys()"))
         #expect(smokeLib.contains("quillui_backend_generic_selected_index_on_start()"))

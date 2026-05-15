@@ -527,6 +527,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
         #expect(smokeLib.contains("quillui_backend_list_selection_verify_product()"))
         #expect(smokeLib.contains("list_selection_verify_product=\"$(quillui_backend_list_selection_verify_product \"$product\" \"$selected_backend\")\""))
+        #expect(smokeLib.contains("quillui_backend_list_selection_start_environment_assignment()"))
+        #expect(smokeLib.contains("selection_assignment=\"$(quillui_backend_list_selection_start_environment_assignment \"$product\" \"$selected_backend\")\""))
         #expect(smokeLib.contains("quill-enchanted-list-selection"))
         #expect(smokeLib.contains("verify_product=\"$product-list-selection\""))
         #expect(smokeLib.contains("quillui_is_backend_chat_gtk_list_selection_app_product \"$product\""))
