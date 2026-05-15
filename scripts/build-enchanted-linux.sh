@@ -5,8 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/quillui-enchanted-source.sh"
 
 APP_DIR="$(quillui_resolve_enchanted_source_dir "$ROOT_DIR")"
-WORK_ROOT="${QUILLUI_ENCHANTED_BUILD_WORKDIR:-${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$ROOT_DIR/.build/quill-chat-linux}}"
-PRODUCT_NAME="${QUILLUI_ENCHANTED_PRODUCT_NAME:-${QUILLUI_QUILL_CHAT_PRODUCT_NAME:-quill-chat-linux}}"
+WORK_ROOT="${QUILLUI_ENCHANTED_BUILD_WORKDIR:-${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$ROOT_DIR/.build/quill-enchanted-linux}}"
+PRODUCT_NAME="${QUILLUI_ENCHANTED_PRODUCT_NAME:-${QUILLUI_QUILL_CHAT_PRODUCT_NAME:-quill-enchanted-linux}}"
 BACKEND_FACADE="${QUILLUI_ENCHANTED_BACKEND_FACADE:-${QUILLUI_QUILL_CHAT_BACKEND_FACADE:-${QUILLUI_APP_BACKEND_FACADE:-}}}"
 RUN_ARGS=()
 BACKEND_FACADE_ARGS=()
@@ -30,8 +30,8 @@ Environment:
   ENCHANTED_SOURCE_DIR                 Overrides the app source directory
   QUILL_CHAT_DIR                       Legacy checkout root; resolves to
                                        QUILL_CHAT_DIR/Enchanted
-  QUILLUI_ENCHANTED_BUILD_WORKDIR      Defaults to .build/quill-chat-linux
-  QUILLUI_ENCHANTED_PRODUCT_NAME       Defaults to quill-chat-linux
+  QUILLUI_ENCHANTED_BUILD_WORKDIR      Defaults to .build/quill-enchanted-linux
+  QUILLUI_ENCHANTED_PRODUCT_NAME       Defaults to quill-enchanted-linux
   QUILLUI_ENCHANTED_BACKEND_FACADE     Optional swiftui, gtk, or qt generated
                                        entry facade.
 

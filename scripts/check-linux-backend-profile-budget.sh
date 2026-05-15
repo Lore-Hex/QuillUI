@@ -157,7 +157,7 @@ function is_runtime_mode(value) {
   return value ~ /^(native|platformFallback)$/
 }
 function rss_limit_for_product(product) {
-  if (product == "quill-chat-linux") {
+  if (product == "quill-enchanted-linux" || product == "quill-chat-linux") {
     return max_quill_chat_rss
   }
   return max_rss

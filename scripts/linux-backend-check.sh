@@ -29,7 +29,7 @@ scripts/generated-enchanted-macos-chat-check.sh
 scripts/generated-enchanted-full-source-check.sh
 
 ENCHANTED_APP_DIR="$(quillui_resolve_enchanted_source_dir "$ROOT_DIR")"
-ENCHANTED_WORK_ROOT="${QUILLUI_ENCHANTED_BUILD_WORKDIR:-${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$ROOT_DIR/.build/quill-chat-linux}}"
+ENCHANTED_WORK_ROOT="${QUILLUI_ENCHANTED_BUILD_WORKDIR:-${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$ROOT_DIR/.build/quill-enchanted-linux}}"
 SKIP_ENCHANTED_BUILD="${QUILLUI_SKIP_ENCHANTED_BUILD:-${QUILLUI_SKIP_QUILL_CHAT_BUILD:-0}}"
 if [[ "$SKIP_ENCHANTED_BUILD" != "1" && -d "$ENCHANTED_APP_DIR" ]]; then
   QUILLUI_ENCHANTED_BUILD_WORKDIR="$ENCHANTED_WORK_ROOT" scripts/build-enchanted-linux.sh

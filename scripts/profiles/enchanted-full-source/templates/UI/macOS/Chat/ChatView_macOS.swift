@@ -59,7 +59,7 @@ struct ChatView: View {
     }
 
     var body: some View {
-        QuillDesktopSplitLayout(title: "Quill Chat", sidebarWidth: 320) {
+        QuillDesktopSplitLayout(title: "Enchanted", sidebarWidth: 320) {
             SidebarView(
                 selectedConversation: selectedConversation,
                 conversations: conversations,

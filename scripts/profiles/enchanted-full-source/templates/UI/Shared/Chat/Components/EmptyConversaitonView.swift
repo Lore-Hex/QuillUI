@@ -28,7 +28,7 @@ struct EmptyConversaitonView: View, KeyboardReadable {
 
     var body: some View {
         QuillChatEmptyState(
-            brandTitle: "Quill",
+            brandTitle: "Enchanted",
             prompts: prompts,
             columns: 4,
             cardWidth: 155,

@@ -195,13 +195,14 @@ quillui_backend_interaction_verify_product() {
   local interaction_mode="$2"
   local output_var="$3"
   local verify_product="$product"
+  local app_verify_product=""
   local list_selection_verify_product=""
   local selected_backend=""
 
   selected_backend="$(quillui_require_requested_backend_for_product "$product" 2>/dev/null || true)"
 
-  if verify_product="$(quillui_backend_app_interaction_verify_product_for_product "$product" "$selected_backend" "$interaction_mode")"; then
-    :
+  if app_verify_product="$(quillui_backend_app_interaction_verify_product_for_product "$product" "$selected_backend" "$interaction_mode")"; then
+    verify_product="$app_verify_product"
   elif [[ "$interaction_mode" == "list-selection" ]] && list_selection_verify_product="$(quillui_backend_list_selection_verify_product "$product" "$selected_backend")"; then
     verify_product="$list_selection_verify_product"
   elif quillui_is_backend_smoke_product "$product"; then
@@ -702,10 +703,10 @@ quillui_resolve_linux_backend_executable() {
     return
   fi
 
-  if [[ "$product" == "quill-chat-linux" ]]; then
+  if [[ "$product" == "quill-enchanted-linux" || "$product" == "quill-chat-linux" ]]; then
     local enchanted_app_dir
     local enchanted_backend_facade
-    local enchanted_default_work_root="$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build/quill-chat-linux"
+    local enchanted_default_work_root="$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build/$product"
     local enchanted_work_root
 
     enchanted_app_dir="$(quillui_resolve_enchanted_source_dir "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR")"

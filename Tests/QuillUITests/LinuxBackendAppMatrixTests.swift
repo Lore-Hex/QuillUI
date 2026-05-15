@@ -97,7 +97,7 @@ struct LinuxBackendAppMatrixTests {
 
     private static let expectedBackends = ["gtk", "qt"]
     private static let expectedNativeRuntimeBackends = ["gtk"]
-    private static let expectedGeneratedAppProducts = ["quill-chat-linux"]
+    private static let expectedGeneratedAppProducts = ["quill-enchanted-linux"]
     private static let expectedSmokeProducts = ["quill-gtk-interaction-smoke", "quill-qt-interaction-smoke"]
     private static let profileCSVHeader = "product,requested_backend,runtime_backend,runtime_mode,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
 
@@ -141,6 +141,9 @@ struct LinuxBackendAppMatrixTests {
     }
 
     private static func expectedVisualVerifierProduct(product: String, backend: String) -> String {
+        if product == "quill-enchanted-linux" {
+            return "quill-enchanted-linux-\(backend)"
+        }
         if backend == "qt" {
             switch product {
             case "quill-enchanted":
@@ -376,7 +379,7 @@ struct LinuxBackendAppMatrixTests {
         let nativeOverrides = try runScript(script, arguments: ["native-product-runtime-overrides"])
         #expect(nativeOverrides.status == 0, Comment(rawValue: nativeOverrides.output))
         #expect(Self.lines(nativeOverrides.output) == [
-            "quill-chat-linux\tqt\tqt",
+            "quill-enchanted-linux\tqt\tqt",
             "quill-qt-interaction-smoke\tqt\tqt"
         ])
 
@@ -485,6 +488,21 @@ struct LinuxBackendAppMatrixTests {
             return Self.expectedVisualRow(product: fields[0], backend: fields[1])
         })
 
+        let generatedInteractionRows = try runScript(
+            runner,
+            arguments: ["--dry-run", "interaction", "generated-app-matrix", ".qa/{product}-{backend}.png"]
+        )
+        #expect(generatedInteractionRows.status == 0, Comment(rawValue: generatedInteractionRows.output))
+        #expect(Self.lines(generatedInteractionRows.output) == Self.expectedGeneratedAppRuntimeRows.map { row in
+            let fields = row.split(separator: "\t").map(String.init)
+            let product = fields[0]
+            let backend = fields[1]
+            let runtimeBackend = fields[2]
+            let runtimeMode = fields[3]
+            let verifyProduct = Self.expectedVisualVerifierProduct(product: product, backend: backend)
+            return "interaction\t\(product)\t\(backend)\t\(runtimeBackend)\t\(runtimeMode)\t.qa/\(product)-\(backend).png\t0\t\(verifyProduct)"
+        })
+
         let interactionRows = try runScript(
             runner,
             arguments: ["--dry-run", "interaction", "interaction-extra-mode-matrix", ".qa/{product}-{mode}-{backend}.png"]
@@ -529,8 +547,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(productsScript.contains("quillui_backend_visual_verify_product_for_product()"))
         #expect(productsScript.contains("visual-verify-product)"))
         #expect(productsScript.contains("verify_product=\"quill-enchanted-qt\""))
+        #expect(productsScript.contains("verify_product=\"quill-enchanted-linux-$selected_backend\""))
         #expect(productsScript.contains("verify_product=\"quill-wireguard-qt\""))
         #expect(productsScript.contains("quillui_backend_app_interaction_verify_product_for_product()"))
+        #expect(productsScript.contains("quillui_backend_enchanted_linux_interaction_verify_product()"))
         #expect(productsScript.contains("quillui_backend_quill_chat_interaction_verify_product()"))
         #expect(productsScript.contains("quillui_backend_wireguard_interaction_verify_product()"))
         #expect(productsScript.contains("app-interaction-verify-product)"))
@@ -763,9 +783,13 @@ struct LinuxBackendAppMatrixTests {
         printf 'default-mode-wireguard=%s\\n' "$(quillui_backend_default_interaction_mode_for_product quill-wireguard)"
         printf 'default-mode-smoke=%s\\n' "$(quillui_backend_default_interaction_mode_for_product quill-gtk-interaction-smoke)"
         printf 'visual-verify-enchanted-qt=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-enchanted qt)"
+        printf 'visual-verify-enchanted-linux-qt=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-enchanted-linux qt)"
+        printf 'visual-verify-enchanted-linux-gtk=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-enchanted-linux gtk)"
         printf 'visual-verify-wireguard-qt=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-wireguard qt)"
         printf 'visual-verify-signal-qt=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-signal qt)"
         printf 'visual-verify-wireguard-gtk=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-wireguard gtk)"
+        printf 'app-verify-enchanted-linux-qt-click=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-enchanted-linux qt click)"
+        printf 'app-verify-enchanted-linux-gtk-click=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-enchanted-linux gtk click)"
         printf 'app-verify-chat-toolbar=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux qt toolbar-menu)"
         printf 'app-verify-chat-composer=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk composer-typed)"
         printf 'app-verify-chat-reference-toolbar=%s\\n' "$(QUILLUI_BACKEND_MAC_REFERENCE=1 quillui_backend_app_interaction_verify_product_for_product quill-chat-linux qt toolbar-menu)"
@@ -879,9 +903,13 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("default-mode-wireguard=tunnel-name-edit"))
         #expect(result.output.contains("default-mode-smoke=open-panel"))
         #expect(result.output.contains("visual-verify-enchanted-qt=quill-enchanted-qt"))
+        #expect(result.output.contains("visual-verify-enchanted-linux-qt=quill-enchanted-linux-qt"))
+        #expect(result.output.contains("visual-verify-enchanted-linux-gtk=quill-enchanted-linux-gtk"))
         #expect(result.output.contains("visual-verify-wireguard-qt=quill-wireguard-qt"))
         #expect(result.output.contains("visual-verify-signal-qt=quill-signal"))
         #expect(result.output.contains("visual-verify-wireguard-gtk=quill-wireguard"))
+        #expect(result.output.contains("app-verify-enchanted-linux-qt-click=quill-enchanted-linux-qt"))
+        #expect(result.output.contains("app-verify-enchanted-linux-gtk-click=quill-enchanted-linux-gtk"))
         #expect(result.output.contains("app-verify-chat-toolbar=quill-chat-linux-toolbar-menu"))
         #expect(result.output.contains("app-verify-chat-composer=quill-chat-linux-mac-reference-composer-typed"))
         #expect(result.output.contains("app-verify-chat-reference-toolbar=quill-chat-linux-mac-reference-toolbar-menu"))
@@ -940,7 +968,7 @@ struct LinuxBackendAppMatrixTests {
         try """
         \(Self.profileCSVHeader)
         quill-netnewswire,qt,qt,native,1,2,3,0.1,0.1,ok
-        quill-chat-linux,qt,qt,native,1,2,3,0.1,0.1,ok
+        quill-enchanted-linux,qt,qt,native,1,2,3,0.1,0.1,ok
         quill-qt-interaction-smoke,qt,qt,native,1,2,3,0.1,0.1,ok
 
         """.write(to: goodCSV, atomically: true, encoding: .utf8)
@@ -968,7 +996,7 @@ struct LinuxBackendAppMatrixTests {
         let badGeneratedCSV = temporaryDirectory.appendingPathComponent("bad-generated.csv")
         try """
         \(Self.profileCSVHeader)
-        quill-chat-linux,qt,gtk,platformFallback,1,2,3,0.1,0.1,ok
+        quill-enchanted-linux,qt,gtk,platformFallback,1,2,3,0.1,0.1,ok
 
         """.write(to: badGeneratedCSV, atomically: true, encoding: .utf8)
 

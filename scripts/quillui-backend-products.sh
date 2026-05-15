@@ -136,7 +136,7 @@ quillui_backend_native_product_runtime_overrides() {
   # PRODUCT<TAB>REQUESTED_BACKEND<TAB>RUNTIME_BACKEND rows for native hosts that
   # exist only behind a product-specific SwiftPM graph today.
   printf '%s\t%s\t%s\n' \
-    quill-chat-linux qt qt \
+    quill-enchanted-linux qt qt \
     quill-qt-interaction-smoke qt qt
 }
 
@@ -433,7 +433,7 @@ quillui_backend_generated_app_products() {
   # but they still need the same requested-backend parity coverage once
   # assembled into their temporary SwiftPM packages.
   printf '%s\n' \
-    quill-chat-linux
+    quill-enchanted-linux
 }
 
 quillui_backend_generated_app_matrix() {
@@ -629,12 +629,22 @@ quillui_backend_wireguard_interaction_verify_product() {
   printf '%s\n' "$verify_product"
 }
 
+quillui_backend_enchanted_linux_interaction_verify_product() {
+  local selected_backend
+
+  selected_backend="$(quillui_require_backend_identifier "$1")" || return $?
+  printf 'quill-enchanted-linux-%s\n' "$selected_backend"
+}
+
 quillui_backend_app_interaction_verify_product_for_product() {
   local product="$1"
   local selected_backend="$2"
   local interaction_mode="$3"
 
   case "$product" in
+    quill-enchanted-linux)
+      quillui_backend_enchanted_linux_interaction_verify_product "$selected_backend" "$interaction_mode"
+      ;;
     quill-chat-linux)
       quillui_backend_quill_chat_interaction_verify_product "$selected_backend" "$interaction_mode"
       ;;
@@ -747,6 +757,12 @@ quillui_backend_visual_verify_product_for_product() {
   local verify_product="$product"
 
   selected_backend="$(quillui_require_backend_identifier "$2")" || return $?
+
+  case "$product" in
+    quill-enchanted-linux)
+      verify_product="quill-enchanted-linux-$selected_backend"
+      ;;
+  esac
 
   if [[ "$selected_backend" == "qt" ]]; then
     case "$product" in
@@ -933,7 +949,7 @@ quillui_backend_for_product() {
     quill-qt-interaction-smoke)
       echo "qt"
       ;;
-    quill-gtk-interaction-smoke|quill-chat-linux)
+    quill-gtk-interaction-smoke|quill-enchanted-linux|quill-chat-linux)
       echo "gtk"
       ;;
     *)
