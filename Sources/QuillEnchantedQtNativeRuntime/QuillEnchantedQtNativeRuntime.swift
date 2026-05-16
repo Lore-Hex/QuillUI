@@ -145,6 +145,18 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var promptListSpacing: Int
         var promptButtonMinHeight: Int
         var promptButtonWidth: Int
+        var promptButtonPadding: Int
+        var promptButtonRadius: Int
+        var primaryButtonVerticalPadding: Int
+        var primaryButtonHorizontalPadding: Int
+        var primaryButtonRadius: Int
+        var secondaryButtonVerticalPadding: Int
+        var secondaryButtonHorizontalPadding: Int
+        var secondaryButtonRadius: Int
+        var chipRemoveButtonVerticalPadding: Int
+        var chipRemoveButtonHorizontalPadding: Int
+        var controlPadding: Int
+        var controlRadius: Int
         var composerPadding: Int
         var composerSpacing: Int
         var promptRowSpacing: Int
@@ -318,6 +330,18 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             promptListSpacing: 10,
             promptButtonMinHeight: 48,
             promptButtonWidth: 620,
+            promptButtonPadding: 12,
+            promptButtonRadius: 8,
+            primaryButtonVerticalPadding: 12,
+            primaryButtonHorizontalPadding: 12,
+            primaryButtonRadius: 8,
+            secondaryButtonVerticalPadding: 7,
+            secondaryButtonHorizontalPadding: 10,
+            secondaryButtonRadius: 7,
+            chipRemoveButtonVerticalPadding: 2,
+            chipRemoveButtonHorizontalPadding: 6,
+            controlPadding: 7,
+            controlRadius: 7,
             composerPadding: 18,
             composerSpacing: 10,
             promptRowSpacing: 12,

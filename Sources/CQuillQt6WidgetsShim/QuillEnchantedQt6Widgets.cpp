@@ -93,6 +93,18 @@ QString appStyleSheet(const QJsonObject &style) {
     const QString codeBlock = styleValue(style, "codeBlockColor", "#EEF3F4");
     const QString statusDotSize = cssPixels(style, "statusDotSize", 9);
     const QString statusDotRadius = cssPixels(style, "statusDotRadius", 9);
+    const QString promptButtonPadding = cssPixels(style, "promptButtonPadding", 12);
+    const QString promptButtonRadius = cssPixels(style, "promptButtonRadius", 8);
+    const QString primaryButtonVerticalPadding = cssPixels(style, "primaryButtonVerticalPadding", 12);
+    const QString primaryButtonHorizontalPadding = cssPixels(style, "primaryButtonHorizontalPadding", 12);
+    const QString primaryButtonRadius = cssPixels(style, "primaryButtonRadius", 8);
+    const QString secondaryButtonVerticalPadding = cssPixels(style, "secondaryButtonVerticalPadding", 7);
+    const QString secondaryButtonHorizontalPadding = cssPixels(style, "secondaryButtonHorizontalPadding", 10);
+    const QString secondaryButtonRadius = cssPixels(style, "secondaryButtonRadius", 7);
+    const QString chipRemoveButtonVerticalPadding = cssPixels(style, "chipRemoveButtonVerticalPadding", 2);
+    const QString chipRemoveButtonHorizontalPadding = cssPixels(style, "chipRemoveButtonHorizontalPadding", 6);
+    const QString controlPadding = cssPixels(style, "controlPadding", 7);
+    const QString controlRadius = cssPixels(style, "controlRadius", 7);
 
     QString sheet = QStringLiteral(R"(
         QWidget#enchantedRoot { background: %1; color: %2; font-size: 14px; }
@@ -120,15 +132,35 @@ QString appStyleSheet(const QJsonObject &style) {
         QScrollArea#attachmentScrollArea, QWidget#attachmentChipList { background: transparent; border: 0; }
         QLabel#attachmentName { color: %2; font-size: 12px; }
         QLabel#attachmentSize { color: %8; font-size: 11px; }
-        QPushButton#primaryButton, QPushButton#sendButton { background: %6; color: white; border: 0; border-radius: 8px; padding: 9px 12px; text-align: left; }
-        QPushButton#sendButton[loading="true"] { background: %9; }
-        QPushButton#sendButton:disabled { background: #AAB5BE; color: #F4F6F7; }
-        QPushButton#secondaryButton { background: transparent; color: %2; border: 1px solid #CDD5CA; border-radius: 7px; padding: 7px 10px; text-align: left; }
-        QPushButton#secondaryButton:disabled { color: #9CA6AD; border: 1px solid #D8DDD5; }
-        QPushButton#chipRemoveButton { background: transparent; color: %8; border: 0; padding: 2px 6px; font-weight: 700; }
-        QPushButton#promptButton { background: %5; color: %2; border: 1px solid #E0E5DD; border-radius: 8px; padding: 12px; text-align: left; }
     )")
         .arg(canvas, ink, sidebar, header, card, primary, system, muted, warning);
+
+    sheet += QStringLiteral(R"(
+        QPushButton#primaryButton, QPushButton#sendButton { background: %1; color: white; border: 0; border-radius: %2; padding: %3 %4; text-align: left; }
+        QPushButton#sendButton[loading="true"] { background: %5; }
+        QPushButton#sendButton:disabled { background: #AAB5BE; color: #F4F6F7; }
+    )")
+        .arg(primary, primaryButtonRadius, primaryButtonVerticalPadding, primaryButtonHorizontalPadding, warning);
+
+    sheet += QStringLiteral(R"(
+        QPushButton#secondaryButton { background: transparent; color: %1; border: 1px solid #CDD5CA; border-radius: %2; padding: %3 %4; text-align: left; }
+        QPushButton#secondaryButton:disabled { color: #9CA6AD; border: 1px solid #D8DDD5; }
+        QPushButton#chipRemoveButton { background: transparent; color: %5; border: 0; padding: %6 %7; font-weight: 700; }
+    )")
+        .arg(
+            ink,
+            secondaryButtonRadius,
+            secondaryButtonVerticalPadding,
+            secondaryButtonHorizontalPadding,
+            muted,
+            chipRemoveButtonVerticalPadding,
+            chipRemoveButtonHorizontalPadding
+        );
+
+    sheet += QStringLiteral(R"(
+        QPushButton#promptButton { background: %1; color: %2; border: 1px solid #E0E5DD; border-radius: %3; padding: %4; text-align: left; }
+    )")
+        .arg(card, ink, promptButtonRadius, promptButtonPadding);
 
     sheet += QStringLiteral(R"(
         QFrame#markdownQuoteRule { background: %1; border-radius: 1px; }
@@ -146,7 +178,6 @@ QString appStyleSheet(const QJsonObject &style) {
         QLabel#conversationTitle[active="true"] { color: white; }
         QLabel#conversationPreview { color: %5; font-size: 12px; }
         QLabel#conversationPreview[active="true"] { color: %1; }
-        QLineEdit, QComboBox, QPlainTextEdit { background: %3; color: %2; border: 1px solid #CDD5CA; border-radius: 7px; padding: 7px; }
         QFrame#statusDot, QFrame#statusDotWarning { min-width: %9; max-width: %9; min-height: %9; max-height: %9; border-radius: %10; }
         QFrame#statusDot { background: %4; }
         QFrame#statusDotWarning { background: %5; }
@@ -157,6 +188,11 @@ QString appStyleSheet(const QJsonObject &style) {
         QScrollArea { background: %7; border: 0; }
     )")
         .arg(selected, ink, card, success, warning, dropTarget, canvas, primary, statusDotSize, statusDotRadius);
+
+    sheet += QStringLiteral(R"(
+        QLineEdit, QComboBox, QPlainTextEdit { background: %1; color: %2; border: 1px solid #CDD5CA; border-radius: %3; padding: %4; }
+    )")
+        .arg(card, ink, controlRadius, controlPadding);
 
     return sheet;
 }
