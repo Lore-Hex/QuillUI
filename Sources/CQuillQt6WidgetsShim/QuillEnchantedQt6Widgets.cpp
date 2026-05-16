@@ -728,6 +728,7 @@ void addMessageBubble(QVBoxLayout *messageLayout, const QJsonObject &message, co
 void addPromptCards(
     QVBoxLayout *messageLayout,
     const QJsonArray &prompts,
+    const QJsonObject &style,
     const QString &title,
     const QString &subtitle,
     const PromptAction &promptAction
@@ -735,8 +736,14 @@ void addPromptCards(
     QWidget *emptyState = new QWidget();
     emptyState->setObjectName(QStringLiteral("promptEmptyState"));
     QVBoxLayout *layout = new QVBoxLayout(emptyState);
-    layout->setContentsMargins(26, 26, 26, 26);
-    layout->setSpacing(18);
+    const int emptyStatePadding = intValue(style, "emptyStatePadding", 26);
+    layout->setContentsMargins(
+        emptyStatePadding,
+        emptyStatePadding,
+        emptyStatePadding,
+        emptyStatePadding
+    );
+    layout->setSpacing(intValue(style, "emptyStateSpacing", 18));
     layout->addWidget(label(title, QStringLiteral("currentTitle")));
     layout->addWidget(label(
         subtitle,
@@ -744,13 +751,13 @@ void addPromptCards(
     ));
 
     QVBoxLayout *promptList = new QVBoxLayout();
-    promptList->setSpacing(10);
+    promptList->setSpacing(intValue(style, "promptListSpacing", 10));
     for (const QJsonValue &value : prompts) {
         const QString prompt = value.toString();
         QPushButton *button = new QPushButton(QStringLiteral("%1%2").arg(promptCardPrefix(), prompt));
         button->setObjectName(QStringLiteral("promptButton"));
-        button->setMinimumHeight(48);
-        button->setFixedWidth(620);
+        button->setMinimumHeight(intValue(style, "promptButtonMinHeight", 48));
+        button->setFixedWidth(intValue(style, "promptButtonWidth", 620));
         QObject::connect(button, &QPushButton::clicked, [prompt, promptAction]() {
             promptAction(prompt);
         });
@@ -758,7 +765,7 @@ void addPromptCards(
     }
 
     layout->addLayout(promptList);
-    emptyState->setMaximumWidth(680);
+    emptyState->setMaximumWidth(intValue(style, "emptyStateMaxWidth", 680));
     messageLayout->addWidget(emptyState);
     messageLayout->addStretch(1);
 }
@@ -774,7 +781,7 @@ void renderMessages(
 ) {
     clearLayout(messageLayout);
     if (messages.isEmpty()) {
-        addPromptCards(messageLayout, prompts, emptyStateTitle, emptyStateSubtitle, promptAction);
+        addPromptCards(messageLayout, prompts, style, emptyStateTitle, emptyStateSubtitle, promptAction);
         return;
     }
 
