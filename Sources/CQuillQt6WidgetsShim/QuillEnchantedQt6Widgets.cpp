@@ -101,6 +101,16 @@ QString appStyleSheet(const QJsonObject &style) {
     const QString disabledText = styleValue(style, "disabledTextColor", "#9CA6AD");
     const QString statusDotSize = cssPixels(style, "statusDotSize", 9);
     const QString statusDotRadius = cssPixels(style, "statusDotRadius", 9);
+    const QString conversationRowRadius = cssPixels(style, "conversationRowRadius", 8);
+    const QString conversationListItemRadius = cssPixels(style, "conversationListItemRadius", 8);
+    const QString conversationListItemVerticalMargin = cssPixels(style, "conversationListItemVerticalMargin", 2);
+    const QString conversationListItemPadding = cssPixels(style, "conversationListItemPadding", 8);
+    const QString emptyHistoryRadius = cssPixels(style, "emptyHistoryRadius", 8);
+    const QString messageBubbleRadius = cssPixels(style, "messageBubbleRadius", 10);
+    const QString attachmentChipRadius = cssPixels(style, "attachmentChipRadius", 8);
+    const QString markdownQuoteRuleRadius = cssPixels(style, "markdownQuoteRuleRadius", 1);
+    const QString markdownCodeBlockRadius = cssPixels(style, "markdownCodeBlockRadius", 7);
+    const QString dropTargetRadius = cssPixels(style, "dropTargetRadius", 8);
     const QString promptButtonPadding = cssPixels(style, "promptButtonPadding", 12);
     const QString promptButtonRadius = cssPixels(style, "promptButtonRadius", 8);
     const QString primaryButtonVerticalPadding = cssPixels(style, "primaryButtonVerticalPadding", 12);
@@ -139,13 +149,17 @@ QString appStyleSheet(const QJsonObject &style) {
     sheet += QStringLiteral(R"(
         QFrame#sidebar { background: %1; border-right: 1px solid %2; }
         QLabel#messageUserRole { color: %3; font-size: 12px; }
-        QFrame#emptyHistory { background: %4; border: 1px solid %5; border-radius: 8px; }
-        QFrame#messageAssistant { background: %4; border: 1px solid %5; border-radius: 10px; }
-        QFrame#messageSystem { background: %6; border: 1px solid %7; border-radius: 10px; }
-        QFrame#messageUser { background: %8; border: 1px solid %7; border-radius: 10px; }
-        QFrame#attachmentChip { background: %4; border: 1px solid %5; border-radius: 8px; }
     )")
-        .arg(sidebar, divider, selected, card, cardBorder, system, messageBorder, primary);
+        .arg(sidebar, divider, selected);
+
+    sheet += QStringLiteral(R"(
+        QFrame#emptyHistory { background: %1; border: 1px solid %2; border-radius: %3; }
+        QFrame#messageAssistant { background: %1; border: 1px solid %2; border-radius: %4; }
+        QFrame#messageSystem { background: %5; border: 1px solid %6; border-radius: %4; }
+        QFrame#messageUser { background: %7; border: 1px solid %6; border-radius: %4; }
+        QFrame#attachmentChip { background: %1; border: 1px solid %2; border-radius: %8; }
+    )")
+        .arg(card, cardBorder, emptyHistoryRadius, messageBubbleRadius, system, messageBorder, primary, attachmentChipRadius);
 
     sheet += QStringLiteral(R"(
         QPushButton#primaryButton, QPushButton#sendButton { background: %1; color: white; border: 0; border-radius: %2; padding: %3 %4; text-align: left; }
@@ -185,35 +199,50 @@ QString appStyleSheet(const QJsonObject &style) {
         .arg(card, ink, cardBorder, promptButtonRadius, promptButtonPadding);
 
     sheet += QStringLiteral(R"(
-        QFrame#markdownQuoteRule { background: %1; border-radius: 1px; }
-        QFrame#markdownCodeBlock { background: %2; border-radius: 7px; }
+        QFrame#markdownQuoteRule { background: %1; border-radius: %3; }
+        QFrame#markdownCodeBlock { background: %2; border-radius: %4; }
     )")
-        .arg(quoteRule, codeBlock);
+        .arg(quoteRule, codeBlock, markdownQuoteRuleRadius, markdownCodeBlockRadius);
 
     sheet += QStringLiteral(R"(
         QListWidget#conversationList { background: transparent; border: 0; outline: 0; }
-        QListWidget#conversationList::item { border-radius: 8px; margin: 2px 0; padding: 8px; }
-        QListWidget#conversationList::item:selected { background: transparent; color: %2; }
-        QFrame#conversationRow { background: %3; border-radius: 8px; }
-        QFrame#conversationRow[active="true"] { background: %7; }
-        QLabel#conversationTitle { color: %2; font-size: 15px; font-weight: 700; }
-        QLabel#conversationTitle[active="true"] { color: white; }
-        QLabel#conversationPreview { color: %5; font-size: 12px; }
-        QLabel#conversationPreview[active="true"] { color: %1; }
-        QFrame#statusDot, QFrame#statusDotWarning { min-width: %8; max-width: %8; min-height: %8; max-height: %8; border-radius: %9; }
-        QFrame#statusDot { background: %4; }
-        QFrame#statusDotWarning { background: %5; }
-        QLabel#warningText { color: %5; font-size: 12px; }
-        QScrollArea { background: %6; border: 0; }
+        QListWidget#conversationList::item { border-radius: %1; margin: %2 0; padding: %3; }
     )")
-        .arg(selected, ink, card, success, warning, canvas, primary, statusDotSize, statusDotRadius);
+        .arg(conversationListItemRadius, conversationListItemVerticalMargin, conversationListItemPadding);
 
     sheet += QStringLiteral(R"(
-        QFrame#dropTarget { background: %1; border: 1px solid %2; border-radius: 8px; }
+        QListWidget#conversationList::item:selected { background: transparent; color: %2; }
+        QFrame#conversationRow { background: %3; border-radius: %6; }
+        QFrame#conversationRow[active="true"] { background: %5; }
+        QLabel#conversationTitle { color: %2; font-size: 15px; font-weight: 700; }
+        QLabel#conversationTitle[active="true"] { color: white; }
+        QLabel#conversationPreview { color: %4; font-size: 12px; }
+        QLabel#conversationPreview[active="true"] { color: %1; }
+    )")
+        .arg(
+            selected,
+            ink,
+            card,
+            muted,
+            primary,
+            conversationRowRadius
+        );
+
+    sheet += QStringLiteral(R"(
+        QFrame#statusDot, QFrame#statusDotWarning { min-width: %1; max-width: %1; min-height: %1; max-height: %1; border-radius: %2; }
+        QFrame#statusDot { background: %3; }
+        QFrame#statusDotWarning { background: %4; }
+        QLabel#warningText { color: %4; font-size: 12px; }
+        QScrollArea { background: %5; border: 0; }
+    )")
+        .arg(statusDotSize, statusDotRadius, success, warning, canvas);
+
+    sheet += QStringLiteral(R"(
+        QFrame#dropTarget { background: %1; border: 1px solid %2; border-radius: %5; }
         QFrame#dropTarget[dragActive="true"] { background: %1; border: 1px solid %3; }
         QSplitter::handle { background: %4; }
     )")
-        .arg(dropTarget, dropTargetBorder, primary, divider);
+        .arg(dropTarget, dropTargetBorder, primary, divider, dropTargetRadius);
 
     sheet += QStringLiteral(R"(
         QLineEdit, QComboBox, QPlainTextEdit { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: %5; }

@@ -118,10 +118,15 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var statusDotRadius: Int
         var conversationRowPadding: Int
         var conversationRowSpacing: Int
+        var conversationRowRadius: Int
+        var conversationListItemRadius: Int
+        var conversationListItemVerticalMargin: Int
+        var conversationListItemPadding: Int
         var conversationActionsSpacing: Int
         var attachmentChipPadding: Int
         var attachmentChipSpacing: Int
         var attachmentChipTextSpacing: Int
+        var attachmentChipRadius: Int
         var attachmentRemoveButtonWidth: Int
         var attachmentTraySpacing: Int
         var attachmentTrayChipSpacing: Int
@@ -137,16 +142,20 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var messageBubbleRowSpacing: Int
         var messageBubblePadding: Int
         var messageBubbleSpacing: Int
+        var messageBubbleRadius: Int
         var markdownBlockSpacing: Int
         var markdownListItemSpacing: Int
         var markdownNumberWidth: Int
         var markdownQuoteSpacing: Int
         var markdownQuoteRuleWidth: Int
+        var markdownQuoteRuleRadius: Int
         var markdownQuoteVerticalPadding: Int
         var markdownCodeBlockSpacing: Int
         var markdownCodeBlockPadding: Int
+        var markdownCodeBlockRadius: Int
         var emptyHistoryPadding: Int
         var emptyHistorySpacing: Int
+        var emptyHistoryRadius: Int
         var emptyStatePadding: Int
         var emptyStateSpacing: Int
         var emptyStateMaxWidth: Int
@@ -165,6 +174,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var chipRemoveButtonHorizontalPadding: Int
         var controlPadding: Int
         var controlRadius: Int
+        var dropTargetRadius: Int
         var composerPadding: Int
         var composerSpacing: Int
         var promptRowSpacing: Int
@@ -311,10 +321,15 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             statusDotRadius: 9,
             conversationRowPadding: 11,
             conversationRowSpacing: 5,
+            conversationRowRadius: 8,
+            conversationListItemRadius: 8,
+            conversationListItemVerticalMargin: 2,
+            conversationListItemPadding: 8,
             conversationActionsSpacing: 8,
             attachmentChipPadding: 8,
             attachmentChipSpacing: 8,
             attachmentChipTextSpacing: 2,
+            attachmentChipRadius: 8,
             attachmentRemoveButtonWidth: 28,
             attachmentTraySpacing: 7,
             attachmentTrayChipSpacing: 8,
@@ -330,16 +345,20 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             messageBubbleRowSpacing: 10,
             messageBubblePadding: 13,
             messageBubbleSpacing: 7,
+            messageBubbleRadius: 10,
             markdownBlockSpacing: 9,
             markdownListItemSpacing: 8,
             markdownNumberWidth: 26,
             markdownQuoteSpacing: 9,
             markdownQuoteRuleWidth: 3,
+            markdownQuoteRuleRadius: 1,
             markdownQuoteVerticalPadding: 2,
             markdownCodeBlockSpacing: 7,
             markdownCodeBlockPadding: 10,
+            markdownCodeBlockRadius: 7,
             emptyHistoryPadding: 12,
             emptyHistorySpacing: 8,
+            emptyHistoryRadius: 8,
             emptyStatePadding: 26,
             emptyStateSpacing: 18,
             emptyStateMaxWidth: 680,
@@ -358,6 +377,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             chipRemoveButtonHorizontalPadding: 6,
             controlPadding: 7,
             controlRadius: 7,
+            dropTargetRadius: 8,
             composerPadding: 18,
             composerSpacing: 10,
             promptRowSpacing: 12,
