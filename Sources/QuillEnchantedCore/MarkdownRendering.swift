@@ -207,31 +207,32 @@ public struct MarkdownMessageView: View {
         switch block.kind {
         case .paragraph:
             Text(block.text)
+                .font(.system(size: CGFloat(EnchantedTypography.messageBodyFontSize)))
                 .foregroundColor(foregroundColor)
                 .lineSpacing(3)
         case .heading(let level):
             Text(block.text)
                 .font(headingFont(level: level))
-                .fontWeight(.semibold)
                 .foregroundColor(QuillColors.ink)
                 .lineSpacing(2)
         case .unorderedListItem:
             HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.markdownListItemSpacing)) {
                 Text("•")
-                    .font(.headline)
+                    .font(.system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize), weight: .semibold))
                     .foregroundColor(QuillColors.primary)
                 Text(block.text)
+                    .font(.system(size: CGFloat(EnchantedTypography.messageBodyFontSize)))
                     .foregroundColor(foregroundColor)
                     .lineSpacing(3)
             }
         case .orderedListItem(let number):
             HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.markdownListItemSpacing)) {
                 Text("\(number).")
-                    .font(.caption)
-                    .fontWeight(.semibold)
+                    .font(.system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize), weight: .semibold))
                     .foregroundColor(QuillColors.primary)
                     .frame(width: CGFloat(EnchantedVisualMetrics.markdownNumberWidth), alignment: .trailing)
                 Text(block.text)
+                    .font(.system(size: CGFloat(EnchantedTypography.messageBodyFontSize)))
                     .foregroundColor(foregroundColor)
                     .lineSpacing(3)
             }
@@ -241,6 +242,7 @@ public struct MarkdownMessageView: View {
                     .fill(QuillColors.quoteRule)
                     .frame(width: CGFloat(EnchantedVisualMetrics.markdownQuoteRuleWidth))
                 Text(block.text)
+                    .font(.system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize)))
                     .foregroundColor(QuillColors.muted)
                     .lineSpacing(3)
             }
@@ -267,11 +269,11 @@ public struct MarkdownMessageView: View {
     private func headingFont(level: Int) -> Font {
         switch level {
         case 1:
-            return .title3
+            return .system(size: CGFloat(EnchantedTypography.markdownHeading1FontSize), weight: .semibold)
         case 2:
-            return .headline
+            return .system(size: CGFloat(EnchantedTypography.markdownHeading2FontSize), weight: .semibold)
         default:
-            return .subheadline
+            return .system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize), weight: .semibold)
         }
     }
 }

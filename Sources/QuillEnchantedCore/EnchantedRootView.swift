@@ -25,6 +25,7 @@ public struct EnchantedRootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(QuillColors.canvas)
             }
+            .font(.system(size: CGFloat(EnchantedTypography.rootFontSize)))
             .frame(
                 minWidth: CGFloat(EnchantedVisualMetrics.minimumWindowWidth),
                 minHeight: CGFloat(EnchantedVisualMetrics.minimumWindowHeight)
@@ -42,10 +43,10 @@ public struct EnchantedRootView: View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarSpacing)) {
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarTitleSpacing)) {
                 Text("Enchanted")
-                    .font(.largeTitle)
+                    .font(.system(size: CGFloat(EnchantedTypography.appTitleFontSize), weight: .bold))
                     .foregroundColor(QuillColors.ink)
                 Text("QuillUI Linux preview")
-                    .font(.caption)
+                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(QuillColors.muted)
             }
 
@@ -64,7 +65,7 @@ public struct EnchantedRootView: View {
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
                 Text("Ollama endpoint")
-                    .font(.caption)
+                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(QuillColors.muted)
                 TextField("http://localhost:11434", text: $endpoint)
                     .textFieldStyle(.roundedBorder)
@@ -72,11 +73,11 @@ public struct EnchantedRootView: View {
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
                 Text("Model")
-                    .font(.caption)
+                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(QuillColors.muted)
                 if model.models.isEmpty {
                     Text("No models detected")
-                        .font(.caption)
+                        .font(.system(size: CGFloat(EnchantedTypography.warningTextFontSize)))
                         .foregroundColor(QuillColors.warning)
                 } else {
                     Picker("Model", selection: modelSelection) {
@@ -90,7 +91,7 @@ public struct EnchantedRootView: View {
             HStack(spacing: CGFloat(EnchantedVisualMetrics.statusRowSpacing)) {
                 statusDot
                 Text(model.status)
-                    .font(.caption)
+                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(QuillColors.muted)
                     .frame(width: CGFloat(EnchantedVisualMetrics.statusTextWidth), alignment: .leading)
             }
@@ -98,7 +99,7 @@ public struct EnchantedRootView: View {
             Divider()
 
             Text("Conversations")
-                .font(.headline)
+                .font(.system(size: CGFloat(EnchantedTypography.sectionTitleFontSize), weight: .bold))
                 .foregroundColor(QuillColors.ink)
 
             ScrollView {
@@ -129,7 +130,7 @@ public struct EnchantedRootView: View {
                 }
                 .disabled(model.conversations.isEmpty)
             }
-            .font(.caption)
+            .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
         }
         .padding(CGFloat(EnchantedVisualMetrics.sidebarPadding))
     }
@@ -162,6 +163,7 @@ public struct EnchantedRootView: View {
                                 .foregroundColor(QuillColors.muted)
                         }
                         .padding(.top, CGFloat(EnchantedVisualMetrics.loadingTopPadding))
+                        .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     }
                 }
                 .padding(CGFloat(EnchantedVisualMetrics.contentPadding))
@@ -180,11 +182,11 @@ public struct EnchantedRootView: View {
         HStack(spacing: CGFloat(EnchantedVisualMetrics.headerSpacing)) {
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.headerTitleSpacing)) {
                 Text(currentTitle)
-                    .font(.title2)
+                    .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: .semibold))
                     .foregroundColor(QuillColors.ink)
                     .frame(width: CGFloat(EnchantedVisualMetrics.headerTitleWidth), alignment: .leading)
                 Text(model.selectedModel.isEmpty ? "Choose a local model to begin" : "Using \(model.selectedModel)")
-                    .font(.caption)
+                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(QuillColors.muted)
                     .frame(width: CGFloat(EnchantedVisualMetrics.headerTitleWidth), alignment: .leading)
             }
@@ -208,7 +210,7 @@ public struct EnchantedRootView: View {
                     Image(systemName: "folder.badge.plus")
                     Text("Drop image files to attach")
                 }
-                .font(.caption)
+                .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                 .foregroundColor(QuillColors.primary)
                 .padding(CGFloat(EnchantedVisualMetrics.dropTargetPadding))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -309,7 +311,7 @@ public struct EnchantedRootView: View {
     private var attachmentTray: some View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.attachmentTraySpacing)) {
             Text("Attachments")
-                .font(.caption)
+                .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                 .foregroundColor(QuillColors.muted)
             ScrollView(.horizontal) {
                 HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentTrayChipSpacing)) {
@@ -335,10 +337,10 @@ public struct EnchantedRootView: View {
     private var emptyHistory: some View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyHistorySpacing)) {
             Text("No saved chats yet")
-                .font(.subheadline)
+                .font(.system(size: CGFloat(EnchantedTypography.sectionTitleFontSize), weight: .bold))
                 .foregroundColor(QuillColors.ink)
             Text("Start a chat and it will be saved locally.")
-                .font(.caption)
+                .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                 .foregroundColor(QuillColors.muted)
         }
         .padding(CGFloat(EnchantedVisualMetrics.emptyHistoryPadding))
@@ -357,12 +359,12 @@ private struct ConversationRow: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.conversationRowSpacing)) {
                 Text(conversation.title)
-                    .font(.subheadline)
+                    .font(.system(size: CGFloat(EnchantedTypography.conversationTitleFontSize), weight: .bold))
                     .foregroundColor(isSelected ? .white : QuillColors.ink)
                     .lineLimit(1)
                 if !conversation.lastMessage.isEmpty {
                     Text(conversation.lastMessage)
-                        .font(.caption)
+                        .font(.system(size: CGFloat(EnchantedTypography.conversationPreviewFontSize)))
                         .foregroundColor(isSelected ? QuillColors.selectedMuted : QuillColors.muted)
                         .lineLimit(2)
                 }
@@ -385,9 +387,10 @@ private struct EmptyConversationView: View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateSpacing)) {
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateHeaderSpacing)) {
                 Text("Ask your local model")
-                    .font(.title)
+                    .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: .semibold))
                     .foregroundColor(QuillColors.ink)
                 Text("This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.")
+                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(QuillColors.muted)
                     .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth), alignment: .leading)
             }
@@ -429,10 +432,11 @@ private struct MessageBubble: View {
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleSpacing)) {
                 Text(label)
-                    .font(.caption)
+                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(labelColor)
                 if message.role == .user {
                     Text(message.content)
+                        .font(.system(size: CGFloat(EnchantedTypography.messageBodyFontSize)))
                         .foregroundColor(textColor)
                         .lineSpacing(3)
                 } else {
