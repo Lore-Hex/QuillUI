@@ -174,6 +174,20 @@ void updateConversationSelectionStyles(QListWidget *list) {
     }
 }
 
+void removeConversationRow(QListWidget *list, int row) {
+    if (list == nullptr || row < 0 || row >= list->count()) {
+        return;
+    }
+
+    QListWidgetItem *item = list->item(row);
+    QWidget *rowWidget = item == nullptr ? nullptr : list->itemWidget(item);
+    if (rowWidget != nullptr) {
+        list->removeItemWidget(item);
+        delete rowWidget;
+    }
+    delete list->takeItem(row);
+}
+
 QFrame *emptyHistoryWidget(const QString &title, const QString &subtitle) {
     QFrame *card = QuillQtWidgets::frame(QStringLiteral("emptyHistory"));
     QVBoxLayout *layout = new QVBoxLayout(card);
@@ -716,8 +730,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
         showingPromptCards = messages.isEmpty();
     };
     auto updateConversationActionState = [&]() {
+        const bool hasConversations = conversationList->count() > 0;
         deleteButton->setEnabled(conversationList->currentItem() != nullptr);
-        clearAllButton->setEnabled(conversationList->count() > 0);
+        clearAllButton->setEnabled(hasConversations);
+        conversationList->setVisible(hasConversations);
+        emptyHistory->setVisible(!hasConversations);
     };
 
     const QJsonArray initialMessages = selectedConversationMessages(
@@ -734,6 +751,32 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QObject::connect(newChatButton, &QPushButton::clicked, [&]() {
         conversationList->clearSelection();
+        conversationList->setCurrentRow(-1);
+        updateConversationSelectionStyles(conversationList);
+        currentTitle->setText(QStringLiteral("New conversation"));
+        renderMessageSet(QJsonArray());
+        updateConversationActionState();
+    });
+    QObject::connect(deleteButton, &QPushButton::clicked, [&]() {
+        const int deletedRow = conversationList->currentRow();
+        if (deletedRow < 0) {
+            return;
+        }
+
+        removeConversationRow(conversationList, deletedRow);
+        if (conversationList->count() > 0) {
+            const int nextRow = deletedRow >= conversationList->count() ? conversationList->count() - 1 : deletedRow;
+            conversationList->setCurrentRow(nextRow);
+        } else {
+            conversationList->setCurrentRow(-1);
+            currentTitle->setText(QStringLiteral("New conversation"));
+            renderMessageSet(QJsonArray());
+        }
+        updateConversationSelectionStyles(conversationList);
+        updateConversationActionState();
+    });
+    QObject::connect(clearAllButton, &QPushButton::clicked, [&]() {
+        conversationList->clear();
         conversationList->setCurrentRow(-1);
         updateConversationSelectionStyles(conversationList);
         currentTitle->setText(QStringLiteral("New conversation"));
