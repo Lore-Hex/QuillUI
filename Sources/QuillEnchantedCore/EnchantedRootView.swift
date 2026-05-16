@@ -39,8 +39,8 @@ public struct EnchantedRootView: View {
     }
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarSpacing)) {
+            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarTitleSpacing)) {
                 Text("Enchanted")
                     .font(.largeTitle)
                     .foregroundColor(QuillColors.ink)
@@ -50,19 +50,19 @@ public struct EnchantedRootView: View {
             }
 
             Button(action: model.newConversation) {
-                HStack(spacing: 8) {
+                HStack(spacing: CGFloat(EnchantedVisualMetrics.primaryButtonIconSpacing)) {
                     Image(systemName: "square.and.pencil")
                     Text("New chat")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
+                .padding(CGFloat(EnchantedVisualMetrics.primaryButtonPadding))
                 .background(QuillColors.primary)
                 .foregroundColor(.white)
-                .cornerRadius(8)
+                .cornerRadius(CGFloat(EnchantedVisualMetrics.primaryButtonRadius))
             }
             .buttonStyle(.plain)
 
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
                 Text("Ollama endpoint")
                     .font(.caption)
                     .foregroundColor(QuillColors.muted)
@@ -70,7 +70,7 @@ public struct EnchantedRootView: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
                 Text("Model")
                     .font(.caption)
                     .foregroundColor(QuillColors.muted)
@@ -92,7 +92,7 @@ public struct EnchantedRootView: View {
                 Text(model.status)
                     .font(.caption)
                     .foregroundColor(QuillColors.muted)
-                    .frame(width: 240, alignment: .leading)
+                    .frame(width: CGFloat(EnchantedVisualMetrics.statusTextWidth), alignment: .leading)
             }
 
             Divider()
@@ -102,7 +102,7 @@ public struct EnchantedRootView: View {
                 .foregroundColor(QuillColors.ink)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.conversationListSpacing)) {
                     if model.conversations.isEmpty {
                         emptyHistory
                     } else {
@@ -118,7 +118,7 @@ public struct EnchantedRootView: View {
                 }
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: CGFloat(EnchantedVisualMetrics.conversationActionsSpacing)) {
                 Button("Delete chat") {
                     model.deleteSelectedConversation()
                 }
@@ -131,13 +131,13 @@ public struct EnchantedRootView: View {
             }
             .font(.caption)
         }
-        .padding(18)
+        .padding(CGFloat(EnchantedVisualMetrics.sidebarPadding))
     }
 
     private var chatSurface: some View {
         VStack(alignment: .leading, spacing: 0) {
             chatHeader
-                .padding(18)
+                .padding(CGFloat(EnchantedVisualMetrics.headerPadding))
                 .background(QuillColors.header)
 
             Divider()
@@ -156,12 +156,12 @@ public struct EnchantedRootView: View {
                     }
 
                     if model.isLoading {
-                        HStack(spacing: 8) {
+                        HStack(spacing: CGFloat(EnchantedVisualMetrics.loadingRowSpacing)) {
                             ProgressView()
                             Text(model.status)
                                 .foregroundColor(QuillColors.muted)
                         }
-                        .padding(.top, 8)
+                        .padding(.top, CGFloat(EnchantedVisualMetrics.loadingTopPadding))
                     }
                 }
                 .padding(CGFloat(EnchantedVisualMetrics.contentPadding))
@@ -177,8 +177,8 @@ public struct EnchantedRootView: View {
     }
 
     private var chatHeader: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: CGFloat(EnchantedVisualMetrics.headerSpacing)) {
+            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.headerTitleSpacing)) {
                 Text(currentTitle)
                     .font(.title2)
                     .foregroundColor(QuillColors.ink)
@@ -204,23 +204,23 @@ public struct EnchantedRootView: View {
     private var composer: some View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.composerSpacing)) {
             if model.isAttachmentDropTargeted {
-                HStack(spacing: 8) {
+                HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentInputSpacing)) {
                     Image(systemName: "folder.badge.plus")
                     Text("Drop image files to attach")
                 }
                 .font(.caption)
                 .foregroundColor(QuillColors.primary)
-                .padding(8)
+                .padding(CGFloat(EnchantedVisualMetrics.dropTargetPadding))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(QuillColors.dropTarget)
-                .cornerRadius(8)
+                .cornerRadius(CGFloat(EnchantedVisualMetrics.dropTargetRadius))
             }
 
             if !model.pendingImageAttachments.isEmpty {
                 attachmentTray
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentInputSpacing)) {
                 TextField("Image path or drop files here", text: attachmentPath)
                     .textFieldStyle(.roundedBorder)
 
@@ -260,10 +260,10 @@ public struct EnchantedRootView: View {
                         Image(systemName: model.isLoading ? "square.fill" : "arrow.forward.circle.fill")
                         Text(model.isLoading ? "Stop" : "Send")
                     }
-                    .padding(12)
+                    .padding(CGFloat(EnchantedVisualMetrics.primaryButtonPadding))
                     .background(model.isLoading ? QuillColors.warning : QuillColors.primary)
                     .foregroundColor(.white)
-                    .cornerRadius(8)
+                    .cornerRadius(CGFloat(EnchantedVisualMetrics.primaryButtonRadius))
                 }
                 .buttonStyle(.plain)
                 .disabled(sendDisabled)
@@ -307,12 +307,12 @@ public struct EnchantedRootView: View {
     }
 
     private var attachmentTray: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.attachmentTraySpacing)) {
             Text("Attachments")
                 .font(.caption)
                 .foregroundColor(QuillColors.muted)
             ScrollView(.horizontal) {
-                HStack(spacing: 8) {
+                HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentTrayChipSpacing)) {
                     ForEach(model.pendingImageAttachments) { attachment in
                         AttachmentChip(attachment: attachment) {
                             model.removeAttachment(id: attachment.id)
@@ -333,7 +333,7 @@ public struct EnchantedRootView: View {
     }
 
     private var emptyHistory: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyHistorySpacing)) {
             Text("No saved chats yet")
                 .font(.subheadline)
                 .foregroundColor(QuillColors.ink)
@@ -341,10 +341,10 @@ public struct EnchantedRootView: View {
                 .font(.caption)
                 .foregroundColor(QuillColors.muted)
         }
-        .padding(12)
+        .padding(CGFloat(EnchantedVisualMetrics.emptyHistoryPadding))
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(QuillColors.card)
-        .cornerRadius(8)
+        .cornerRadius(CGFloat(EnchantedVisualMetrics.emptyHistoryRadius))
     }
 }
 
@@ -355,7 +355,7 @@ private struct ConversationRow: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.conversationRowSpacing)) {
                 Text(conversation.title)
                     .font(.subheadline)
                     .foregroundColor(isSelected ? .white : QuillColors.ink)
@@ -367,10 +367,10 @@ private struct ConversationRow: View {
                         .lineLimit(2)
                 }
             }
-            .padding(11)
+            .padding(CGFloat(EnchantedVisualMetrics.conversationRowPadding))
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(isSelected ? QuillColors.primary : QuillColors.card)
-            .cornerRadius(8)
+            .cornerRadius(CGFloat(EnchantedVisualMetrics.conversationRowRadius))
         }
         .buttonStyle(.plain)
     }
@@ -504,11 +504,11 @@ private struct AttachmentChip: View {
     var remove: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentChipSpacing)) {
             Image(systemName: "folder")
                 .foregroundColor(QuillColors.primary)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.attachmentChipTextSpacing)) {
                 Text(attachment.filename)
                     .font(.caption)
                     .foregroundColor(QuillColors.ink)
@@ -524,8 +524,8 @@ private struct AttachmentChip: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(8)
+        .padding(CGFloat(EnchantedVisualMetrics.attachmentChipPadding))
         .background(QuillColors.card)
-        .cornerRadius(8)
+        .cornerRadius(CGFloat(EnchantedVisualMetrics.attachmentChipRadius))
     }
 }
