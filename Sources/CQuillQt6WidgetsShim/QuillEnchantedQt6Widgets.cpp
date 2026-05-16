@@ -3,6 +3,7 @@
 
 #include <QApplication>
 #include <QByteArray>
+#include <QColor>
 #include <QComboBox>
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
@@ -22,7 +23,11 @@
 #include <QListWidgetItem>
 #include <QMimeData>
 #include <QObject>
+#include <QPainter>
+#include <QPaintEvent>
+#include <QPen>
 #include <QPlainTextEdit>
+#include <QPointF>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScrollArea>
@@ -64,6 +69,53 @@ int intValue(const QJsonObject &object, const char *key, int fallback) {
 bool boolValue(const QJsonObject &object, const char *key, bool fallback) {
     return QuillQtWidgets::jsonBoolValue(object, key, fallback);
 }
+
+class LoadingSpinner final : public QWidget {
+public:
+    explicit LoadingSpinner(const QJsonObject &style, QWidget *parent = nullptr)
+        : QWidget(parent),
+          color(styleValue(style, "primaryColor", "#315B7D")) {
+        setObjectName(QStringLiteral("loadingSpinner"));
+        const int spinnerSize = intValue(style, "loadingSpinnerSize", 16);
+        setFixedSize(spinnerSize, spinnerSize);
+        timer.setInterval(90);
+        QObject::connect(&timer, &QTimer::timeout, this, [this]() {
+            rotationDegrees = (rotationDegrees + 30) % 360;
+            update();
+        });
+        timer.start();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const double side = width() < height() ? width() : height();
+        const double outerRadius = side / 2.0 - 1.0;
+        const double innerRadius = outerRadius * 0.48;
+        const QPointF center(width() / 2.0, height() / 2.0);
+
+        for (int index = 0; index < 12; ++index) {
+            QColor segmentColor = color;
+            segmentColor.setAlpha(48 + index * 17);
+            QPen segmentPen(segmentColor, 2.0, Qt::SolidLine, Qt::RoundCap);
+            painter.setPen(segmentPen);
+            painter.save();
+            painter.translate(center);
+            painter.rotate(rotationDegrees + index * 30);
+            painter.drawLine(
+                QPointF(0.0, -innerRadius),
+                QPointF(0.0, -outerRadius)
+            );
+            painter.restore();
+        }
+    }
+
+private:
+    QColor color;
+    QTimer timer;
+    int rotationDegrees = 0;
+};
 
 QJsonObject objectValue(const QJsonObject &object, const char *key) {
     return QuillQtWidgets::jsonObjectValue(object, key);
@@ -936,6 +988,18 @@ void addPromptCards(
     messageLayout->addStretch(1);
 }
 
+QWidget *loadingRowWidget(const QString &status, const QJsonObject &style) {
+    QWidget *row = new QWidget();
+    QHBoxLayout *layout = new QHBoxLayout(row);
+    layout->setContentsMargins(0, intValue(style, "loadingTopPadding", 8), 0, 0);
+    layout->setSpacing(intValue(style, "loadingRowSpacing", 8));
+
+    layout->addWidget(new LoadingSpinner(style), 0, Qt::AlignVCenter);
+    layout->addWidget(label(status, QStringLiteral("caption")), 0, Qt::AlignVCenter);
+    layout->addStretch(1);
+    return row;
+}
+
 void renderMessages(
     QVBoxLayout *messageLayout,
     const QJsonArray &messages,
@@ -943,16 +1007,24 @@ void renderMessages(
     const QJsonObject &style,
     const QString &emptyStateTitle,
     const QString &emptyStateSubtitle,
-    const PromptAction &promptAction
+    const PromptAction &promptAction,
+    const QString &status,
+    bool isLoading
 ) {
     clearLayout(messageLayout);
     if (messages.isEmpty()) {
         addPromptCards(messageLayout, prompts, style, emptyStateTitle, emptyStateSubtitle, promptAction);
+        if (isLoading) {
+            messageLayout->addWidget(loadingRowWidget(status, style));
+        }
         return;
     }
 
     for (const QJsonValue &value : messages) {
         addMessageBubble(messageLayout, value.toObject(), style);
+    }
+    if (isLoading) {
+        messageLayout->addWidget(loadingRowWidget(status, style));
     }
 }
 
@@ -1206,7 +1278,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QApplication app(argc, argv);
     const QJsonObject style = objectValue(payload, "style");
-    const bool isLoading = boolValue(payload, "isLoading", false);
+    bool isLoading = boolValue(payload, "isLoading", false);
     app.setApplicationName(stringValue(payload, "windowTitle", QStringLiteral("Quill Enchanted")));
     app.setStyleSheet(appStyleSheet(style));
 
@@ -1641,7 +1713,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
             style,
             emptyStateTitle,
             emptyStateSubtitle,
-            appendUserMessage
+            appendUserMessage,
+            stringValue(payload, "status"),
+            isLoading
         );
         showingPromptCards = messages.isEmpty();
     };
@@ -1654,6 +1728,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     };
     auto applySnapshot = [&](const QJsonObject &snapshot) {
         payload = snapshot;
+        isLoading = boolValue(payload, "isLoading", false);
         models = arrayValue(payload, "models");
         conversations = arrayValue(payload, "conversations");
         selectedConversationID = stringValue(payload, "selectedConversationID");
@@ -1682,6 +1757,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
             QStringLiteral("New conversation")
         ));
         statusText->setText(stringValue(payload, "status"));
+        refreshButton->setEnabled(!isLoading);
+        sendButton->setProperty("loading", isLoading);
+        sendButton->setText(isLoading ? stopTitle : sendTitle);
+        refreshStyle(sendButton);
+        updateComposerControlState();
         modelStatus->setText(modelStatusText(
             modelPicker->currentText().trimmed().isEmpty()
                 ? stringValue(payload, "selectedModel")

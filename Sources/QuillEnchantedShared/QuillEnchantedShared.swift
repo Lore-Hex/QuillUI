@@ -33,6 +33,7 @@ public enum EnchantedVisualMetrics {
     public static let contentPadding = 22
     public static let loadingRowSpacing = 8
     public static let loadingTopPadding = 8
+    public static let loadingSpinnerSize = 16
     public static let promptButtonWidth = 620
     public static let promptButtonMinHeight = 48
     public static let emptyStateMaxWidth = 680

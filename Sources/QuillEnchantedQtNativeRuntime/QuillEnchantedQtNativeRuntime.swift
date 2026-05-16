@@ -160,6 +160,9 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var headerTitleSpacing: Int
         var headerPadding: Int
         var contentPadding: Int
+        var loadingRowSpacing: Int
+        var loadingTopPadding: Int
+        var loadingSpinnerSize: Int
         var messageSpacing: Int
         var messageBubbleRowSpacing: Int
         var messageBubblePadding: Int
@@ -385,6 +388,9 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             headerTitleSpacing: EnchantedVisualMetrics.headerTitleSpacing,
             headerPadding: EnchantedVisualMetrics.headerPadding,
             contentPadding: EnchantedVisualMetrics.contentPadding,
+            loadingRowSpacing: EnchantedVisualMetrics.loadingRowSpacing,
+            loadingTopPadding: EnchantedVisualMetrics.loadingTopPadding,
+            loadingSpinnerSize: EnchantedVisualMetrics.loadingSpinnerSize,
             messageSpacing: EnchantedVisualMetrics.messageSpacing,
             messageBubbleRowSpacing: EnchantedVisualMetrics.messageBubbleRowSpacing,
             messageBubblePadding: EnchantedVisualMetrics.messageBubblePadding,
