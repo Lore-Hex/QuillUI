@@ -661,132 +661,15 @@ struct SourceHygieneTests {
 
     @Test("Linux interaction smoke targets share one view surface")
     func linuxInteractionSmokeTargetsShareOneViewSurface() throws {
-        let root = try packageRoot()
-        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
-        let gtkMain = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillGtkInteractionSmoke/main.swift"),
-            encoding: .utf8
-        )
-        let qtMain = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillQtInteractionSmoke/main.swift"),
-            encoding: .utf8
-        )
-        let sharedView = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillInteractionSmokeSupport/QuillInteractionSmokeView.swift"),
-            encoding: .utf8
-        )
-        let enchantedConversationStore = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedData/QuillDataConversationStore.swift"),
-            encoding: .utf8
-        )
-        let enchantedMacRoot = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedRootView.swift"),
-            encoding: .utf8
-        )
-        let enchantedMacMarkdown = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/MarkdownRendering.swift"),
-            encoding: .utf8
-        )
-        let enchantedImageAttachment = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedShared/ImageAttachment.swift"),
-            encoding: .utf8
-        )
-        let wireGuardQtHost = try String(
-            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillWireGuardQt6Widgets.cpp"),
-            encoding: .utf8
-        )
-        let enchantedQtRuntime = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift"),
-            encoding: .utf8
-        )
-        let enchantedQtHost = try String(
-            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp"),
-            encoding: .utf8
-        )
-        let genericQtHost = try String(
-            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillGenericQt6Widgets.cpp"),
-            encoding: .utf8
-        )
-        let genericQtRuntime = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillGenericQtNativeRuntime/QuillGenericQtNativeRuntime.swift"),
-            encoding: .utf8
-        )
-        let qtRuntimeSupport = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillQtNativeRuntimeSupport/QuillQtNativeRuntimeSupport.swift"),
-            encoding: .utf8
-        )
-        let wireGuardQtRuntime = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillWireGuardQtNativeRuntime/QuillWireGuardQtNativeRuntime.swift"),
-            encoding: .utf8
-        )
-        let qtNativeSmokeHost = try String(
-            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillInteractionSmokeQt6Widgets.cpp"),
-            encoding: .utf8
-        )
-        let qtNativeWidgetSupport = try String(
-            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillQtWidgetsSupport.hpp"),
-            encoding: .utf8
-        )
-        let backendCore = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillBackend.swift"),
-            encoding: .utf8
-        )
-        let appCore = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillApp.swift"),
-            encoding: .utf8
-        )
-        let gtkBackend = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillUIGtk/QuillUIGtk.swift"),
-            encoding: .utf8
-        )
-        let qtBackend = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillUIQt/QuillUIQt.swift"),
-            encoding: .utf8
-        )
-        let backendScript = try String(
-            contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"),
-            encoding: .utf8
-        )
-        let backendProfileScript = try String(
-            contentsOf: root.appendingPathComponent("scripts/linux-backend-profile.sh"),
-            encoding: .utf8
-        )
-        let backendVisualScript = try String(
-            contentsOf: root.appendingPathComponent("scripts/linux-backend-visual-check.sh"),
-            encoding: .utf8
-        )
-        let smokeLib = try String(
-            contentsOf: root.appendingPathComponent("scripts/quillui-linux-backend-smoke-lib.sh"),
-            encoding: .utf8
-        )
-        let backendProducts = try String(
-            contentsOf: root.appendingPathComponent("scripts/quillui-backend-products.sh"),
-            encoding: .utf8
-        )
-        let smokeMatrixRunner = try String(
-            contentsOf: root.appendingPathComponent("scripts/run-linux-backend-smoke-matrix.sh"),
-            encoding: .utf8
-        )
-        let screenshotVerifier = try String(
-            contentsOf: root.appendingPathComponent("scripts/verify-backend-screenshot.py"),
-            encoding: .utf8
-        )
-        let legacyScreenshotVerifier = try String(
-            contentsOf: root.appendingPathComponent("scripts/verify-gtk-screenshot.py"),
-            encoding: .utf8
-        )
-        let legacyGtkScript = try String(
-            contentsOf: root.appendingPathComponent("scripts/linux-gtk-interaction-check.sh"),
-            encoding: .utf8
-        )
-        let workflow = try String(
-            contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
-            encoding: .utf8
-        )
-        let macOSWorkflow = try String(
-            contentsOf: root.appendingPathComponent(".github/workflows/macos-ci.yml"),
-            encoding: .utf8
-        )
+        let manifest = try packageSource("Package.swift")
+        let gtkMain = try packageSource("Sources/QuillGtkInteractionSmoke/main.swift")
+        let qtMain = try packageSource("Sources/QuillQtInteractionSmoke/main.swift")
+        let sharedView = try packageSource("Sources/QuillInteractionSmokeSupport/QuillInteractionSmokeView.swift")
+        let enchantedConversationStore = try packageSource("Sources/QuillEnchantedData/QuillDataConversationStore.swift")
+        let wireGuardQtHost = try packageSource("Sources/CQuillQt6WidgetsShim/QuillWireGuardQt6Widgets.cpp")
+        let qtRuntimeSupport = try packageSource("Sources/QuillQtNativeRuntimeSupport/QuillQtNativeRuntimeSupport.swift")
+        let qtNativeSmokeHost = try packageSource("Sources/CQuillQt6WidgetsShim/QuillInteractionSmokeQt6Widgets.cpp")
+        let qtNativeWidgetSupport = try packageSource("Sources/CQuillQt6WidgetsShim/QuillQtWidgetsSupport.hpp")
 
         #expect(manifest.contains(".library(name: \"QuillUIGtk\", targets: [\"QuillUIGtk\"])"))
         #expect(manifest.contains(".library(name: \"QuillUIQt\", targets: [\"QuillUIQt\"])"))
@@ -858,6 +741,12 @@ struct SourceHygieneTests {
         #expect(qtNativeWidgetSupport.contains("inline QSize defaultWindowSize("))
         #expect(qtNativeWidgetSupport.contains("%s: missing payload JSON\\n"))
         #expect(qtNativeWidgetSupport.contains("%s: invalid payload JSON at offset %lld: %s\\n"))
+    }
+
+    @Test("Enchanted Qt runtime mirrors the macOS payload contract")
+    func enchantedQtRuntimeMirrorsMacOSPayloadContract() throws {
+        let enchantedQtRuntime = try packageSource("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift")
+
         #expect(enchantedQtRuntime.contains("import QuillEnchantedData"))
         #expect(enchantedQtRuntime.contains("import QuillEnchantedShared"))
         #expect(enchantedQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
@@ -982,6 +871,16 @@ struct SourceHygieneTests {
         #expect(enchantedQtRuntime.contains("QuillQtNativeRuntimeSupport.runEncodedPayload("))
         #expect(enchantedQtRuntime.contains("QuillQtNativeRuntimeSupport.encodedPayloadString(snapshot)"))
         #expect(enchantedQtRuntime.contains("executableName: QuillQtNativeRuntimeSupport.executableName(fallback: \"quill-enchanted-qt\")"))
+    }
+
+    @Test("Enchanted Qt host follows the macOS visual and interaction contract")
+    func enchantedQtHostFollowsMacOSVisualAndInteractionContract() throws {
+        let enchantedQtRuntime = try packageSource("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift")
+        let enchantedQtHost = try packageSource("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp")
+        let enchantedMacRoot = try packageSource("Sources/QuillEnchantedCore/EnchantedRootView.swift")
+        let enchantedMacMarkdown = try packageSource("Sources/QuillEnchantedCore/MarkdownRendering.swift")
+        let enchantedImageAttachment = try packageSource("Sources/QuillEnchantedShared/ImageAttachment.swift")
+
         #expect(enchantedQtHost.contains("parseJsonObjectPayload("))
         #expect(enchantedQtHost.contains("QJsonObject actionSnapshot("))
         #expect(enchantedQtHost.contains("quill_enchanted_qt_action_callback actionCallback"))
@@ -1268,6 +1167,17 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("promptAction(prompt)"))
         #expect(enchantedQtHost.contains("appendComposerMessage(promptEditor->toPlainText())"))
         #expect(enchantedQtHost.contains("renderMessageSet(selectedMessages)"))
+    }
+
+    @Test("Generic and WireGuard Qt hosts use shared native runtime contracts")
+    func genericAndWireGuardQtHostsUseSharedNativeRuntimeContracts() throws {
+        let enchantedQtRuntime = try packageSource("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift")
+        let enchantedQtHost = try packageSource("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp")
+        let genericQtRuntime = try packageSource("Sources/QuillGenericQtNativeRuntime/QuillGenericQtNativeRuntime.swift")
+        let genericQtHost = try packageSource("Sources/CQuillQt6WidgetsShim/QuillGenericQt6Widgets.cpp")
+        let wireGuardQtRuntime = try packageSource("Sources/QuillWireGuardQtNativeRuntime/QuillWireGuardQtNativeRuntime.swift")
+        let wireGuardQtHost = try packageSource("Sources/CQuillQt6WidgetsShim/QuillWireGuardQt6Widgets.cpp")
+
         #expect(genericQtRuntime.contains("import QuillEnchantedShared"))
         #expect(genericQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
         #expect(genericQtRuntime.contains("minimumWidth: EnchantedVisualMetrics.minimumWindowWidth"))
@@ -1405,6 +1315,26 @@ struct SourceHygieneTests {
                 #expect(!source.contains(fragment), "\(sourceName) should not expose internal test/backend copy: \(fragment)")
             }
         }
+    }
+
+    @Test("Linux backend facades scripts and workflows stay backend neutral")
+    func linuxBackendFacadesScriptsAndWorkflowsStayBackendNeutral() throws {
+        let sharedView = try packageSource("Sources/QuillInteractionSmokeSupport/QuillInteractionSmokeView.swift")
+        let backendCore = try packageSource("Sources/QuillUI/QuillBackend.swift")
+        let appCore = try packageSource("Sources/QuillUI/QuillApp.swift")
+        let gtkBackend = try packageSource("Sources/QuillUIGtk/QuillUIGtk.swift")
+        let qtBackend = try packageSource("Sources/QuillUIQt/QuillUIQt.swift")
+        let backendScript = try packageSource("scripts/linux-backend-interaction-check.sh")
+        let backendProfileScript = try packageSource("scripts/linux-backend-profile.sh")
+        let backendVisualScript = try packageSource("scripts/linux-backend-visual-check.sh")
+        let smokeLib = try packageSource("scripts/quillui-linux-backend-smoke-lib.sh")
+        let backendProducts = try packageSource("scripts/quillui-backend-products.sh")
+        let smokeMatrixRunner = try packageSource("scripts/run-linux-backend-smoke-matrix.sh")
+        let screenshotVerifier = try packageSource("scripts/verify-backend-screenshot.py")
+        let legacyScreenshotVerifier = try packageSource("scripts/verify-gtk-screenshot.py")
+        let legacyGtkScript = try packageSource("scripts/linux-gtk-interaction-check.sh")
+        let workflow = try packageSource(".github/workflows/linux-ci.yml")
+        let macOSWorkflow = try packageSource(".github/workflows/macos-ci.yml")
 
         #expect(sharedView.contains("public struct QuillInteractionSmokeConfiguration"))
         #expect(sharedView.contains("public struct QuillInteractionSmokeView"))
@@ -2114,6 +2044,11 @@ struct SourceHygieneTests {
             code: 1,
             userInfo: [NSLocalizedDescriptionKey: "Unable to locate package root from \(#filePath)"]
         )
+    }
+
+    private func packageSource(_ relativePath: String) throws -> String {
+        let root = try packageRoot()
+        return try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
     }
 
     private func runSourceHygieneProcess(
