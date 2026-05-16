@@ -1204,8 +1204,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QFrame *composer = QuillQtWidgets::frame(QStringLiteral("composer"));
     QVBoxLayout *composerLayout = new QVBoxLayout(composer);
-    composerLayout->setContentsMargins(18, 14, 18, 18);
-    composerLayout->setSpacing(9);
+    const int composerPadding = intValue(style, "composerPadding", 18);
+    composerLayout->setContentsMargins(composerPadding, composerPadding, composerPadding, composerPadding);
+    composerLayout->setSpacing(intValue(style, "composerSpacing", 10));
 
     AttachmentDropFrame *dropTarget = new AttachmentDropFrame();
     QHBoxLayout *dropLayout = new QHBoxLayout(dropTarget);
@@ -1249,14 +1250,15 @@ extern "C" int quill_enchanted_qt_run_app_json(
     composerLayout->addWidget(attachmentTray);
 
     QHBoxLayout *promptRow = new QHBoxLayout();
-    promptRow->setSpacing(10);
+    promptRow->setSpacing(intValue(style, "promptRowSpacing", 12));
     QPlainTextEdit *promptEditor = new QPlainTextEdit();
     promptEditor->setPlaceholderText(stringValue(
         payload,
         "composerPlaceholder",
         QStringLiteral("Ask a local model...")
     ));
-    promptEditor->setFixedHeight(intValue(style, "composerHeight", 84));
+    promptEditor->setMinimumHeight(intValue(style, "composerMinHeight", 74));
+    promptEditor->setMaximumHeight(intValue(style, "composerMaxHeight", 120));
     const QString sendTitle = stringValue(payload, "sendTitle", QStringLiteral("Send"));
     const QString stopTitle = stringValue(payload, "stopTitle", QStringLiteral("Stop"));
     const QString stoppingStatus = stringValue(payload, "stoppingStatus", QStringLiteral("Stopping..."));

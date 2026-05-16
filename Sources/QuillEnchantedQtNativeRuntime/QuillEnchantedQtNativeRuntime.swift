@@ -106,7 +106,11 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var headerTitleWidth: Int
         var headerPadding: Int
         var contentPadding: Int
-        var composerHeight: Int
+        var composerPadding: Int
+        var composerSpacing: Int
+        var promptRowSpacing: Int
+        var composerMinHeight: Int
+        var composerMaxHeight: Int
         var messageMaxWidth: Int
     }
 
@@ -235,7 +239,11 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             headerTitleWidth: 560,
             headerPadding: 18,
             contentPadding: 22,
-            composerHeight: 84,
+            composerPadding: 18,
+            composerSpacing: 10,
+            promptRowSpacing: 12,
+            composerMinHeight: 74,
+            composerMaxHeight: 120,
             messageMaxWidth: 680
         )
     )
