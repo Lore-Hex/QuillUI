@@ -17,12 +17,14 @@
 #include <QJsonValue>
 #include <QLabel>
 #include <QLineEdit>
+#include <QList>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMimeData>
 #include <QObject>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollArea>
 #include <QSize>
 #include <QSignalBlocker>
@@ -92,10 +94,21 @@ QString appStyleSheet(const QJsonObject &style) {
         QLabel#caption, QLabel#fieldLabel, QLabel#statusText, QLabel#messageRole { color: %8; font-size: 12px; }
         QLabel#sectionTitle { color: %2; font-size: 15px; font-weight: 700; }
         QLabel#currentTitle { color: %2; font-size: 20px; font-weight: 650; }
-        QLabel#messageText { color: %2; font-size: 14px; }
+        QLabel#messageText, QLabel#markdownParagraph { color: %2; font-size: 14px; }
+        QLabel#messageUserText { color: white; font-size: 14px; }
+        QLabel#messageUserRole { color: #DDEBFA; font-size: 12px; }
+        QLabel#markdownHeading1 { color: %2; font-size: 17px; font-weight: 650; }
+        QLabel#markdownHeading2 { color: %2; font-size: 15px; font-weight: 650; }
+        QLabel#markdownHeading { color: %2; font-size: 14px; font-weight: 650; }
+        QLabel#markdownBullet, QLabel#markdownNumber { color: %6; font-size: 14px; font-weight: 650; }
+        QLabel#markdownQuote { color: %8; font-size: 14px; }
+        QLabel#markdownCodeLanguage { color: %8; font-size: 11px; font-weight: 650; }
+        QLabel#markdownCodeText { color: %2; font-family: monospace; font-size: 13px; }
         QFrame#emptyHistory { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
         QFrame#messageAssistant, QFrame#messageSystem { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
-        QFrame#messageUser { background: %7; border: 1px solid #D4DFE8; border-radius: 8px; }
+        QFrame#messageUser { background: %6; border: 1px solid #D4DFE8; border-radius: 8px; }
+        QFrame#markdownQuoteRule { background: #8AA5B7; border-radius: 1px; }
+        QFrame#markdownCodeBlock { background: #EEF3F4; border-radius: 7px; }
         QFrame#attachmentChip { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
         QScrollArea#attachmentScrollArea, QWidget#attachmentChipList { background: transparent; border: 0; }
         QLabel#attachmentName { color: %2; font-size: 12px; }
@@ -264,6 +277,325 @@ QString messageRoleTitle(const QString &role) {
     return QStringLiteral("Enchanted");
 }
 
+enum class MarkdownBlockKind {
+    Paragraph,
+    Heading,
+    UnorderedListItem,
+    OrderedListItem,
+    Quote,
+    CodeBlock
+};
+
+struct MarkdownBlock {
+    MarkdownBlockKind kind = MarkdownBlockKind::Paragraph;
+    QString text;
+    int level = 0;
+    int number = 0;
+    QString language;
+};
+
+struct MarkdownFence {
+    QString delimiter;
+    QString language;
+    bool isActive = false;
+};
+
+QString cleanMarkdownInline(QString text) {
+    static const QRegularExpression linkPattern(QStringLiteral("\\[([^\\]]+)\\]\\(([^)]+)\\)"));
+    text.replace(linkPattern, QStringLiteral("\\1 (\\2)"));
+
+    const QStringList markers = {
+        QStringLiteral("**"),
+        QStringLiteral("__"),
+        QStringLiteral("`"),
+        QStringLiteral("~~")
+    };
+    for (const QString &marker : markers) {
+        text.replace(marker, QString());
+    }
+
+    return text.trimmed();
+}
+
+bool beginMarkdownFence(const QString &rawLine, MarkdownFence *fence) {
+    const QString line = rawLine.trimmed();
+    QString delimiter;
+    if (line.startsWith(QStringLiteral("```"))) {
+        delimiter = QStringLiteral("```");
+    } else if (line.startsWith(QStringLiteral("~~~"))) {
+        delimiter = QStringLiteral("~~~");
+    } else {
+        return false;
+    }
+
+    if (fence != nullptr) {
+        fence->delimiter = delimiter;
+        fence->language = line.mid(delimiter.size()).trimmed();
+        fence->isActive = true;
+    }
+    return true;
+}
+
+bool closesMarkdownFence(const QString &rawLine, const MarkdownFence &fence) {
+    return fence.isActive && rawLine.trimmed().startsWith(fence.delimiter);
+}
+
+bool parseHeadingLine(const QString &line, int *level, QString *text) {
+    int markerCount = 0;
+    while (markerCount < line.size() && line.at(markerCount) == QLatin1Char('#')) {
+        markerCount += 1;
+    }
+
+    if (markerCount < 1 || markerCount > 6 || markerCount >= line.size()) {
+        return false;
+    }
+    if (!line.at(markerCount).isSpace()) {
+        return false;
+    }
+
+    if (level != nullptr) {
+        *level = markerCount;
+    }
+    if (text != nullptr) {
+        *text = cleanMarkdownInline(line.mid(markerCount).trimmed());
+    }
+    return true;
+}
+
+bool parseUnorderedListLine(const QString &line, QString *text) {
+    if (line.size() < 3) {
+        return false;
+    }
+
+    const QChar marker = line.at(0);
+    if (marker != QLatin1Char('-') && marker != QLatin1Char('*') && marker != QLatin1Char('+')) {
+        return false;
+    }
+    if (!line.at(1).isSpace()) {
+        return false;
+    }
+
+    if (text != nullptr) {
+        *text = cleanMarkdownInline(line.mid(2).trimmed());
+    }
+    return true;
+}
+
+bool parseOrderedListLine(const QString &line, int *number, QString *text) {
+    int index = 0;
+    while (index < line.size() && line.at(index).isDigit()) {
+        index += 1;
+    }
+    if (index == 0 || index >= line.size() || line.at(index) != QLatin1Char('.')) {
+        return false;
+    }
+
+    const int textStart = index + 1;
+    if (textStart >= line.size() || !line.at(textStart).isSpace()) {
+        return false;
+    }
+
+    bool ok = false;
+    const int parsedNumber = line.left(index).toInt(&ok);
+    if (!ok) {
+        return false;
+    }
+
+    if (number != nullptr) {
+        *number = parsedNumber;
+    }
+    if (text != nullptr) {
+        *text = cleanMarkdownInline(line.mid(textStart + 1).trimmed());
+    }
+    return true;
+}
+
+bool parseQuoteLine(const QString &line, QString *text) {
+    if (!line.startsWith(QLatin1Char('>'))) {
+        return false;
+    }
+    if (text != nullptr) {
+        *text = cleanMarkdownInline(line.mid(1).trimmed());
+    }
+    return true;
+}
+
+QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
+    QList<MarkdownBlock> blocks;
+    QString normalized = markdown;
+    normalized.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+    normalized.replace(QLatin1Char('\r'), QLatin1Char('\n'));
+
+    QStringList paragraphLines;
+    QStringList codeLines;
+    MarkdownFence activeFence;
+
+    auto appendBlock = [&](MarkdownBlockKind kind, const QString &text, int level = 0, int number = 0, const QString &language = QString()) {
+        MarkdownBlock block;
+        block.kind = kind;
+        block.text = text;
+        block.level = level;
+        block.number = number;
+        block.language = language;
+        blocks.append(block);
+    };
+
+    auto flushParagraph = [&]() {
+        if (paragraphLines.isEmpty()) {
+            return;
+        }
+
+        const QString text = cleanMarkdownInline(paragraphLines.join(QStringLiteral(" ")));
+        paragraphLines.clear();
+        if (!text.isEmpty()) {
+            appendBlock(MarkdownBlockKind::Paragraph, text);
+        }
+    };
+
+    auto flushCodeBlock = [&]() {
+        appendBlock(MarkdownBlockKind::CodeBlock, codeLines.join(QStringLiteral("\n")), 0, 0, activeFence.language);
+        codeLines.clear();
+        activeFence = MarkdownFence();
+    };
+
+    const QStringList lines = normalized.split(QLatin1Char('\n'));
+    for (const QString &rawLine : lines) {
+        if (activeFence.isActive) {
+            if (closesMarkdownFence(rawLine, activeFence)) {
+                flushCodeBlock();
+            } else {
+                codeLines.append(rawLine);
+            }
+            continue;
+        }
+
+        MarkdownFence openingFence;
+        if (beginMarkdownFence(rawLine, &openingFence)) {
+            flushParagraph();
+            activeFence = openingFence;
+            continue;
+        }
+
+        const QString line = rawLine.trimmed();
+        if (line.isEmpty()) {
+            flushParagraph();
+            continue;
+        }
+
+        int level = 0;
+        int number = 0;
+        QString text;
+        if (parseHeadingLine(line, &level, &text)) {
+            flushParagraph();
+            appendBlock(MarkdownBlockKind::Heading, text, level);
+        } else if (parseUnorderedListLine(line, &text)) {
+            flushParagraph();
+            appendBlock(MarkdownBlockKind::UnorderedListItem, text);
+        } else if (parseOrderedListLine(line, &number, &text)) {
+            flushParagraph();
+            appendBlock(MarkdownBlockKind::OrderedListItem, text, 0, number);
+        } else if (parseQuoteLine(line, &text)) {
+            flushParagraph();
+            appendBlock(MarkdownBlockKind::Quote, text);
+        } else {
+            paragraphLines.append(line);
+        }
+    }
+
+    if (activeFence.isActive) {
+        flushCodeBlock();
+    } else {
+        flushParagraph();
+    }
+
+    if (blocks.isEmpty()) {
+        appendBlock(MarkdownBlockKind::Paragraph, QString());
+    }
+    return blocks;
+}
+
+QLabel *markdownLabel(const QString &text, const QString &objectName) {
+    QLabel *view = label(text, objectName);
+    view->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    return view;
+}
+
+QWidget *markdownListItemWidget(const QString &marker, const QString &text, const QString &markerObjectName) {
+    QWidget *row = new QWidget();
+    QHBoxLayout *layout = new QHBoxLayout(row);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(8);
+
+    QLabel *markerLabel = label(marker, markerObjectName);
+    markerLabel->setFixedWidth(markerObjectName == QStringLiteral("markdownNumber") ? 26 : 14);
+    markerLabel->setAlignment(Qt::AlignTop | Qt::AlignRight);
+    layout->addWidget(markerLabel);
+    layout->addWidget(markdownLabel(text, QStringLiteral("markdownParagraph")), 1);
+    return row;
+}
+
+QWidget *markdownQuoteWidget(const QString &text) {
+    QWidget *row = new QWidget();
+    QHBoxLayout *layout = new QHBoxLayout(row);
+    layout->setContentsMargins(0, 2, 0, 2);
+    layout->setSpacing(9);
+
+    QFrame *rule = QuillQtWidgets::frame(QStringLiteral("markdownQuoteRule"));
+    rule->setFixedWidth(3);
+    layout->addWidget(rule);
+    layout->addWidget(markdownLabel(text, QStringLiteral("markdownQuote")), 1);
+    return row;
+}
+
+QWidget *markdownCodeBlockWidget(const MarkdownBlock &block) {
+    QFrame *codeBlock = QuillQtWidgets::frame(QStringLiteral("markdownCodeBlock"));
+    QVBoxLayout *layout = new QVBoxLayout(codeBlock);
+    layout->setContentsMargins(10, 9, 10, 9);
+    layout->setSpacing(6);
+
+    if (!block.language.isEmpty()) {
+        layout->addWidget(markdownLabel(block.language.toUpper(), QStringLiteral("markdownCodeLanguage")));
+    }
+    layout->addWidget(markdownLabel(block.text.isEmpty() ? QStringLiteral(" ") : block.text, QStringLiteral("markdownCodeText")));
+    return codeBlock;
+}
+
+void addMarkdownBlocks(QVBoxLayout *layout, const QString &markdown) {
+    const QList<MarkdownBlock> blocks = parseMarkdownBlocks(markdown);
+    for (const MarkdownBlock &block : blocks) {
+        switch (block.kind) {
+        case MarkdownBlockKind::Heading:
+            if (block.level == 1) {
+                layout->addWidget(markdownLabel(block.text, QStringLiteral("markdownHeading1")));
+            } else if (block.level == 2) {
+                layout->addWidget(markdownLabel(block.text, QStringLiteral("markdownHeading2")));
+            } else {
+                layout->addWidget(markdownLabel(block.text, QStringLiteral("markdownHeading")));
+            }
+            break;
+        case MarkdownBlockKind::UnorderedListItem:
+            layout->addWidget(markdownListItemWidget(QString::fromUtf8("\xE2\x80\xA2"), block.text, QStringLiteral("markdownBullet")));
+            break;
+        case MarkdownBlockKind::OrderedListItem:
+            layout->addWidget(markdownListItemWidget(QStringLiteral("%1.").arg(block.number), block.text, QStringLiteral("markdownNumber")));
+            break;
+        case MarkdownBlockKind::Quote:
+            layout->addWidget(markdownQuoteWidget(block.text));
+            break;
+        case MarkdownBlockKind::CodeBlock:
+            layout->addWidget(markdownCodeBlockWidget(block));
+            break;
+        case MarkdownBlockKind::Paragraph:
+            layout->addWidget(markdownLabel(block.text, QStringLiteral("markdownParagraph")));
+            break;
+        }
+    }
+}
+
+QString promptCardPrefix() {
+    return QString::fromUtf8("\xE2\x98\x85  ");
+}
+
 QString currentConversationID(QListWidget *list, const QString &fallback) {
     QListWidgetItem *item = list->currentItem();
     if (item == nullptr) {
@@ -337,8 +669,15 @@ QFrame *messageBubble(const QJsonObject &message, const QJsonObject &style) {
     QVBoxLayout *layout = new QVBoxLayout(bubble);
     layout->setContentsMargins(14, 10, 14, 10);
     layout->setSpacing(6);
-    layout->addWidget(label(messageRoleTitle(role), QStringLiteral("messageRole")));
-    layout->addWidget(label(stringValue(message, "content"), QStringLiteral("messageText")));
+    layout->addWidget(label(
+        messageRoleTitle(role),
+        role == QStringLiteral("user") ? QStringLiteral("messageUserRole") : QStringLiteral("messageRole")
+    ));
+    if (role == QStringLiteral("user")) {
+        layout->addWidget(label(stringValue(message, "content"), QStringLiteral("messageUserText")));
+    } else {
+        addMarkdownBlocks(layout, stringValue(message, "content"));
+    }
     return bubble;
 }
 
@@ -378,7 +717,7 @@ void addPromptCards(
     promptList->setSpacing(10);
     for (const QJsonValue &value : prompts) {
         const QString prompt = value.toString();
-        QPushButton *button = new QPushButton(prompt);
+        QPushButton *button = new QPushButton(QStringLiteral("%1%2").arg(promptCardPrefix(), prompt));
         button->setObjectName(QStringLiteral("promptButton"));
         button->setMinimumHeight(48);
         button->setMaximumWidth(620);
