@@ -18,7 +18,11 @@ public enum EnchantedVisualMetrics {
     public static let sidebarIdealWidth = 330
     public static let sidebarMaxWidth = 360
     public static let detailWidth = defaultWindowWidth - sidebarWidth
+    public static let statusRowSpacing = 8
+    public static let statusDotSize = 9
+    public static let statusDotRadius = 9
     public static let headerTitleWidth = 560
+    public static let contentPadding = 22
     public static let promptButtonWidth = 620
     public static let emptyStateMaxWidth = 680
     public static let emptyStatePadding = 26
@@ -30,6 +34,11 @@ public enum EnchantedVisualMetrics {
     public static let promptButtonPadding = 12
     public static let promptButtonRadius = 8
     public static let messageMaxWidth = 680
+    public static let messageSpacing = 14
+    public static let messageBubbleRowSpacing = 10
+    public static let messageBubblePadding = 13
+    public static let messageBubbleSpacing = 7
+    public static let messageBubbleRadius = 10
     public static let composerMinWidth = 620
     public static let composerMaxWidth = 840
     public static let composerPadding = 18

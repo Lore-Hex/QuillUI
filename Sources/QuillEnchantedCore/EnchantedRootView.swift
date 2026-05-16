@@ -87,7 +87,7 @@ public struct EnchantedRootView: View {
                 }
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: CGFloat(EnchantedVisualMetrics.statusRowSpacing)) {
                 statusDot
                 Text(model.status)
                     .font(.caption)
@@ -143,7 +143,7 @@ public struct EnchantedRootView: View {
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.messageSpacing)) {
                     if model.messages.isEmpty {
                         EmptyConversationView { prompt in
                             model.startSend(prompt)
@@ -164,7 +164,7 @@ public struct EnchantedRootView: View {
                         .padding(.top, 8)
                     }
                 }
-                .padding(22)
+                .padding(CGFloat(EnchantedVisualMetrics.contentPadding))
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
@@ -326,7 +326,10 @@ public struct EnchantedRootView: View {
     private var statusDot: some View {
         Circle()
             .fill(model.models.isEmpty ? QuillColors.warning : QuillColors.success)
-            .frame(width: 9, height: 9)
+            .frame(
+                width: CGFloat(EnchantedVisualMetrics.statusDotSize),
+                height: CGFloat(EnchantedVisualMetrics.statusDotSize)
+            )
     }
 
     private var emptyHistory: some View {
@@ -419,12 +422,12 @@ private struct MessageBubble: View {
     var message: ChatMessage
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleRowSpacing)) {
             if message.role == .user {
                 Spacer()
             }
 
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleSpacing)) {
                 Text(label)
                     .font(.caption)
                     .foregroundColor(labelColor)
@@ -436,10 +439,10 @@ private struct MessageBubble: View {
                     MarkdownMessageView(markdown: message.content, foregroundColor: textColor)
                 }
             }
-            .padding(13)
+            .padding(CGFloat(EnchantedVisualMetrics.messageBubblePadding))
             .frame(maxWidth: CGFloat(EnchantedVisualMetrics.messageMaxWidth), alignment: .leading)
             .background(backgroundColor)
-            .cornerRadius(10)
+            .cornerRadius(CGFloat(EnchantedVisualMetrics.messageBubbleRadius))
 
             if message.role != .user {
                 Spacer()
