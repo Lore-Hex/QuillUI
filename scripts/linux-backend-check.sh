@@ -92,7 +92,9 @@ for row in "${ALL_BUILD_ROWS[@]}"; do
   IFS="$tab" read -r product build_backend <<< "$row"
   [[ -n "$product" && -n "$build_backend" ]] || continue
   build_backend="$(quillui_validate_requested_backend_for_product "$product" "$build_backend")"
-  QUILLUI_LINUX_BACKEND="$build_backend" swift build --scratch-path .build-linux --product "$product"
+  QUILLUI_LINUX_BACKEND="$build_backend" \
+    "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
+    swift build --scratch-path .build-linux --product "$product"
   quillui_record_backend_product_build "$ROOT_DIR/.build-linux" "$product" "$build_backend"
 done
 
@@ -142,9 +144,15 @@ run_smoke() {
   fi
   requested_backend="$(quillui_validate_requested_backend_for_product "$product" "$requested_backend")"
 
-  QUILLUI_LINUX_BACKEND="$requested_backend" swift build --scratch-path .build-linux --product "$product"
+  QUILLUI_LINUX_BACKEND="$requested_backend" \
+    "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
+    swift build --scratch-path .build-linux --product "$product"
   quillui_record_backend_product_build "$ROOT_DIR/.build-linux" "$product" "$requested_backend"
-  bin_path="$(QUILLUI_LINUX_BACKEND="$requested_backend" swift build --scratch-path .build-linux --show-bin-path)"
+  bin_path="$(
+    QUILLUI_LINUX_BACKEND="$requested_backend" \
+      "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
+      swift build --scratch-path .build-linux --show-bin-path
+  )"
   executable="$bin_path/$product"
 
   run_executable_smoke "$product" "$executable" "$requested_backend"
@@ -171,7 +179,7 @@ if [[ "$SKIP_ENCHANTED_BUILD" != "1" && -d "$ENCHANTED_APP_DIR" ]]; then
       scripts/build-enchanted-linux.sh
 
     if [[ "$backend" == "qt" ]]; then
-      ENCHANTED_BIN_DIR="$(QUILLUI_LINUX_BACKEND=qt swift build \
+      ENCHANTED_BIN_DIR="$(QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
         --package-path "$generated_work_root/package" \
         --scratch-path "$generated_work_root/.build-check" \
         --show-bin-path)"

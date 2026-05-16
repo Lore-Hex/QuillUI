@@ -128,7 +128,9 @@ struct SourceHygieneTests {
         let root = try packageRoot()
         let fileManager = FileManager.default
         let preparationScriptURL = root.appendingPathComponent("scripts/prepare-linux-build-backend.sh")
+        let preserveScriptURL = root.appendingPathComponent("scripts/swiftpm-preserve-package-resolved.sh")
         let preparationScript = try String(contentsOf: preparationScriptURL, encoding: .utf8)
+        let preserveScript = try String(contentsOf: preserveScriptURL, encoding: .utf8)
         let linuxSwiftTest = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-swift-test.sh"),
             encoding: .utf8
@@ -143,22 +145,71 @@ struct SourceHygieneTests {
         )
 
         #expect(fileManager.isExecutableFile(atPath: preparationScriptURL.path))
+        #expect(fileManager.isExecutableFile(atPath: preserveScriptURL.path))
         #expect(preparationScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(preparationScript.contains("REQUESTED_BACKEND=\"${QUILLUI_LINUX_BACKEND:-gtk}\""))
         #expect(preparationScript.contains("REQUESTED_BACKEND=\"$(quillui_require_linux_build_backend_identifier \"${REQUESTED_BACKEND:-gtk}\")\""))
         #expect(preparationScript.contains("gtk)\n    \"$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh\" \"$SCRATCH_PATH\""))
         #expect(preparationScript.contains("qt)\n    ;;"))
+        #expect(preserveScript.contains("PACKAGE_RESOLVED=\"$PACKAGE_DIR/Package.resolved\""))
+        #expect(preserveScript.contains("cp -p \"$PACKAGE_RESOLVED\" \"$TEMP_RESOLVED\""))
+        #expect(preserveScript.contains("restore_package_resolved"))
+        #expect(preserveScript.contains("trap 'status=$?; restore_package_resolved; exit \"$status\"' EXIT"))
+        #expect(preserveScript.contains("exit \"$status\""))
 
         #expect(linuxSwiftTest.contains("scripts/prepare-linux-build-backend.sh"))
+        #expect(linuxSwiftTest.contains("scripts/swiftpm-preserve-package-resolved.sh"))
         #expect(!linuxSwiftTest.contains("patch-swiftopenui-gtk-css.sh"))
         #expect(backendBuildScript.contains("quillui_prepare_backend_once()"))
         #expect(backendBuildScript.contains("PREPARED_BACKENDS=$'\\n'"))
         #expect(backendBuildScript.contains("scripts/prepare-linux-build-backend.sh"))
+        #expect(backendBuildScript.contains("scripts/swiftpm-preserve-package-resolved.sh"))
         #expect(backendBuildScript.contains("--backend \"$build_backend\""))
         #expect(!backendBuildScript.contains("if [[ \"$DRY_RUN\" != \"1\" ]]; then\n  \"$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh\""))
         #expect(smokeLib.contains("scripts/prepare-linux-build-backend.sh"))
+        #expect(smokeLib.contains("scripts/swiftpm-preserve-package-resolved.sh"))
         #expect(smokeLib.contains("--backend \"$linux_build_backend\""))
         #expect(!smokeLib.contains("scripts/patch-swiftopenui-gtk-css.sh"))
+    }
+
+    @Test("SwiftPM resolver preservation restores Package.resolved")
+    func swiftPMResolverPreservationRestoresPackageResolved() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let preserveScriptURL = root.appendingPathComponent("scripts/swiftpm-preserve-package-resolved.sh")
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-package-resolved-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        let packageResolved = temporaryDirectory.appendingPathComponent("Package.resolved")
+        let original = "original pins\n"
+        try original.write(to: packageResolved, atomically: true, encoding: .utf8)
+
+        let success = try runSourceHygieneProcess(
+            preserveScriptURL,
+            arguments: ["bash", "-c", "printf changed > \"$QUILLUI_SWIFTPM_PACKAGE_PATH/Package.resolved\""],
+            environment: ["QUILLUI_SWIFTPM_PACKAGE_PATH": temporaryDirectory.path]
+        )
+        #expect(success.status == 0)
+        #expect(try String(contentsOf: packageResolved, encoding: .utf8) == original)
+
+        let failure = try runSourceHygieneProcess(
+            preserveScriptURL,
+            arguments: ["bash", "-c", "printf failed > \"$QUILLUI_SWIFTPM_PACKAGE_PATH/Package.resolved\"; exit 23"],
+            environment: ["QUILLUI_SWIFTPM_PACKAGE_PATH": temporaryDirectory.path]
+        )
+        #expect(failure.status == 23)
+        #expect(try String(contentsOf: packageResolved, encoding: .utf8) == original)
+
+        try fileManager.removeItem(at: packageResolved)
+        let missing = try runSourceHygieneProcess(
+            preserveScriptURL,
+            arguments: ["bash", "-c", "printf created > \"$QUILLUI_SWIFTPM_PACKAGE_PATH/Package.resolved\""],
+            environment: ["QUILLUI_SWIFTPM_PACKAGE_PATH": temporaryDirectory.path]
+        )
+        #expect(missing.status == 0)
+        #expect(!fileManager.fileExists(atPath: packageResolved.path))
     }
 
     @Test("macro expansion paths report diagnostics instead of crashing")
@@ -1875,7 +1926,7 @@ struct SourceHygieneTests {
         #expect(source.contains("target_dependencies=\"$(printf '%s,\\n"))
         #expect(source.contains(".product(name: \"QuillUIGtk\", package: \"QuillUI\")' \"$source_target_dependencies\")\""))
         #expect(source.contains("if [[ \"$BACKEND_FACADE\" != \"qt\" ]]"))
-        #expect(source.contains("QUILLUI_LINUX_BACKEND=qt swift build"))
+        #expect(source.contains("QUILLUI_LINUX_BACKEND=qt \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
         #expect(source.contains("import $backend_import"))
         #expect(source.contains("$backend_launch_statement"))
         #expect(source.contains(".product(name: \"QuillUIGtk\", package: \"QuillUI\")"))
@@ -1883,7 +1934,7 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("--backend-facade"))
         #expect(buildSource.contains("QUILLUI_APP_BACKEND_FACADE"))
         #expect(buildSource.contains("NORMALIZED_BACKEND_FACADE"))
-        #expect(buildSource.contains("QUILLUI_LINUX_BACKEND=qt swift build"))
+        #expect(buildSource.contains("QUILLUI_LINUX_BACKEND=qt \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
         #expect(buildSource.contains("quillui_normalize_backend_identifier \"${BACKEND_FACADE:-swiftui}\""))
         #expect(buildSource.contains("QUILLUI_GENERATED_BACKEND_FACADE=\"$NORMALIZED_BACKEND_FACADE\""))
         #expect(legacyQuillChatBuildSource.contains("scripts/build-enchanted-linux.sh"))
@@ -1931,6 +1982,27 @@ struct SourceHygieneTests {
             code: 1,
             userInfo: [NSLocalizedDescriptionKey: "Unable to locate package root from \(#filePath)"]
         )
+    }
+
+    private func runSourceHygieneProcess(
+        _ executable: URL,
+        arguments: [String] = [],
+        environment: [String: String] = [:]
+    ) throws -> (status: Int32, output: String) {
+        let process = Process()
+        let pipe = Pipe()
+
+        process.executableURL = executable
+        process.arguments = arguments
+        process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, override in override }
+        process.standardOutput = pipe
+        process.standardError = pipe
+
+        try process.run()
+        process.waitUntilExit()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
     }
 }
 

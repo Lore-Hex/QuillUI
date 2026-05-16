@@ -120,6 +120,7 @@ quillui_build_backend_product() {
   if ! output="$(
     cd "$ROOT_DIR"
     QUILLUI_LINUX_BACKEND="$build_backend" \
+      "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
       swift build --scratch-path "$SCRATCH_PATH" --product "$product" 2>&1
   )"; then
     printf '%s\n' "$output"

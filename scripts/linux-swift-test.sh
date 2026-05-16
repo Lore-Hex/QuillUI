@@ -28,4 +28,8 @@ done
 
 "$ROOT_DIR/scripts/prepare-linux-build-backend.sh" --scratch-path "$SCRATCH_PATH"
 
-swift test --scratch-path "$SCRATCH_PATH" "${SWIFT_TEST_ARGS[@]}"
+(
+  cd "$ROOT_DIR"
+  "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
+    swift test --scratch-path "$SCRATCH_PATH" "${SWIFT_TEST_ARGS[@]}"
+)

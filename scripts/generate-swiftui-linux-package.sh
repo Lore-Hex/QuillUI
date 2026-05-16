@@ -254,7 +254,7 @@ if [[ "$BACKEND_FACADE" != "qt" ]]; then
 fi
 
 if [[ "$BACKEND_FACADE" == "qt" ]]; then
-  QUILLUI_LINUX_BACKEND=qt swift build \
+  QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
     --package-path "$PACKAGE_DIR" \
     --scratch-path "$BUILD_SCRATCH" \
     --product "$PRODUCT_NAME"

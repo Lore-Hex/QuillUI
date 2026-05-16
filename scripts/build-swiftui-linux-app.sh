@@ -201,7 +201,7 @@ QUILLUI_GENERATED_BACKEND_FACADE="$NORMALIZED_BACKEND_FACADE" \
 "$PROFILE_SCRIPT"
 
 if [[ "$NORMALIZED_BACKEND_FACADE" == "qt" ]]; then
-  BIN_DIR="$(QUILLUI_LINUX_BACKEND=qt swift build \
+  BIN_DIR="$(QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
     --package-path "$WORK_ROOT/package" \
     --scratch-path "$WORK_ROOT/.build-check" \
     --show-bin-path)"
