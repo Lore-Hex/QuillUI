@@ -1196,7 +1196,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     sidebarLayout->addWidget(conversationList, 1);
 
     QHBoxLayout *conversationActions = new QHBoxLayout();
-    conversationActions->setSpacing(8);
+    conversationActions->setSpacing(intValue(style, "conversationActionsSpacing", 8));
     QPushButton *deleteButton = new QPushButton(stringValue(payload, "deleteChatTitle", QStringLiteral("Delete chat")));
     deleteButton->setObjectName(QStringLiteral("secondaryButton"));
     QPushButton *clearAllButton = new QPushButton(stringValue(payload, "clearAllTitle", QStringLiteral("Clear all")));
@@ -1433,7 +1433,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
             QVBoxLayout *attachmentTextLayout = new QVBoxLayout();
             attachmentTextLayout->setContentsMargins(0, 0, 0, 0);
-            attachmentTextLayout->setSpacing(2);
+            attachmentTextLayout->setSpacing(intValue(style, "attachmentChipTextSpacing", 2));
             QLabel *attachmentName = label(attachmentDisplayName(path), QStringLiteral("attachmentName"));
             attachmentName->setWordWrap(false);
             attachmentTextLayout->addWidget(attachmentName);
