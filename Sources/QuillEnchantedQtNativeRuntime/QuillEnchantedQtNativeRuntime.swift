@@ -107,6 +107,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var sidebarSpacing: Int
         var statusRowSpacing: Int
         var statusDotSize: Int
+        var statusDotRadius: Int
         var conversationRowPadding: Int
         var conversationRowSpacing: Int
         var conversationActionsSpacing: Int
@@ -279,6 +280,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             sidebarSpacing: 14,
             statusRowSpacing: 8,
             statusDotSize: 9,
+            statusDotRadius: 9,
             conversationRowPadding: 11,
             conversationRowSpacing: 5,
             conversationActionsSpacing: 8,

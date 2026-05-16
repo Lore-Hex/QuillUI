@@ -60,6 +60,10 @@ int intValue(const QJsonObject &object, const char *key, int fallback) {
     return QuillQtWidgets::jsonIntValue(object, key, fallback);
 }
 
+QString cssPixels(const QJsonObject &style, const char *key, int fallback) {
+    return QStringLiteral("%1px").arg(intValue(style, key, fallback));
+}
+
 bool boolValue(const QJsonObject &object, const char *key, bool fallback) {
     return QuillQtWidgets::jsonBoolValue(object, key, fallback);
 }
@@ -87,6 +91,8 @@ QString appStyleSheet(const QJsonObject &style) {
     const QString dropTarget = styleValue(style, "dropTargetColor", "#E1F0EA");
     const QString quoteRule = styleValue(style, "quoteRuleColor", "#8AA5B7");
     const QString codeBlock = styleValue(style, "codeBlockColor", "#EEF3F4");
+    const QString statusDotSize = cssPixels(style, "statusDotSize", 9);
+    const QString statusDotRadius = cssPixels(style, "statusDotRadius", 9);
 
     QString sheet = QStringLiteral(R"(
         QWidget#enchantedRoot { background: %1; color: %2; font-size: 14px; }
@@ -141,7 +147,7 @@ QString appStyleSheet(const QJsonObject &style) {
         QLabel#conversationPreview { color: %5; font-size: 12px; }
         QLabel#conversationPreview[active="true"] { color: %1; }
         QLineEdit, QComboBox, QPlainTextEdit { background: %3; color: %2; border: 1px solid #CDD5CA; border-radius: 7px; padding: 7px; }
-        QFrame#statusDot, QFrame#statusDotWarning { min-width: 9px; max-width: 9px; min-height: 9px; max-height: 9px; border-radius: 4px; }
+        QFrame#statusDot, QFrame#statusDotWarning { min-width: %9; max-width: %9; min-height: %9; max-height: %9; border-radius: %10; }
         QFrame#statusDot { background: %4; }
         QFrame#statusDotWarning { background: %5; }
         QLabel#warningText { color: %5; font-size: 12px; }
@@ -150,7 +156,7 @@ QString appStyleSheet(const QJsonObject &style) {
         QSplitter::handle { background: #D8DDD5; }
         QScrollArea { background: %7; border: 0; }
     )")
-        .arg(selected, ink, card, success, warning, dropTarget, canvas, primary);
+        .arg(selected, ink, card, success, warning, dropTarget, canvas, primary, statusDotSize, statusDotRadius);
 
     return sheet;
 }
