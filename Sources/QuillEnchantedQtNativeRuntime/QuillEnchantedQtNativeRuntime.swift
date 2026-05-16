@@ -192,6 +192,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var primaryButtonVerticalPadding: Int
         var primaryButtonHorizontalPadding: Int
         var primaryButtonRadius: Int
+        var actionButtonIconSize: Int
         var secondaryButtonVerticalPadding: Int
         var secondaryButtonHorizontalPadding: Int
         var secondaryButtonRadius: Int
@@ -420,6 +421,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             primaryButtonVerticalPadding: EnchantedVisualMetrics.primaryButtonVerticalPadding,
             primaryButtonHorizontalPadding: EnchantedVisualMetrics.primaryButtonHorizontalPadding,
             primaryButtonRadius: EnchantedVisualMetrics.primaryButtonRadius,
+            actionButtonIconSize: EnchantedVisualMetrics.actionButtonIconSize,
             secondaryButtonVerticalPadding: EnchantedVisualMetrics.secondaryButtonVerticalPadding,
             secondaryButtonHorizontalPadding: EnchantedVisualMetrics.secondaryButtonHorizontalPadding,
             secondaryButtonRadius: EnchantedVisualMetrics.secondaryButtonRadius,

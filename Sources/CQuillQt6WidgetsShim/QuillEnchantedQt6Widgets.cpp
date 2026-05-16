@@ -72,17 +72,23 @@ bool boolValue(const QJsonObject &object, const char *key, bool fallback) {
     return QuillQtWidgets::jsonBoolValue(object, key, fallback);
 }
 
+QIcon themedActionIcon(const QString &themeName, QStyle::StandardPixmap fallback) {
+    return QIcon::fromTheme(themeName, QApplication::style()->standardIcon(fallback));
+}
+
+QIcon attachButtonIcon() {
+    return themedActionIcon(QStringLiteral("folder-new-symbolic"), QStyle::SP_FileDialogNewFolder);
+}
+
 QIcon sendButtonIcon(bool isLoading) {
-    if (isLoading) {
-        return QIcon::fromTheme(
-            QStringLiteral("process-stop-symbolic"),
-            QApplication::style()->standardIcon(QStyle::SP_MediaStop)
-        );
-    }
-    return QIcon::fromTheme(
-        QStringLiteral("go-next-symbolic"),
-        QApplication::style()->standardIcon(QStyle::SP_MediaPlay)
-    );
+    return isLoading
+        ? themedActionIcon(QStringLiteral("process-stop-symbolic"), QStyle::SP_MediaStop)
+        : themedActionIcon(QStringLiteral("go-next-symbolic"), QStyle::SP_MediaPlay);
+}
+
+void applyActionButtonIconSize(QPushButton *button, const QJsonObject &style) {
+    const int iconSize = intValue(style, "actionButtonIconSize", 16);
+    button->setIconSize(QSize(iconSize, iconSize));
 }
 
 void updateSendButtonPresentation(
@@ -1517,6 +1523,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     attachmentPath->setAcceptDrops(false);
     QPushButton *attachButton = new QPushButton(stringValue(payload, "attachTitle", QStringLiteral("Attach")));
     attachButton->setObjectName(QStringLiteral("secondaryButton"));
+    attachButton->setIcon(attachButtonIcon());
+    applyActionButtonIconSize(attachButton, style);
     QPushButton *clearAttachmentsButton = new QPushButton(stringValue(payload, "clearAttachmentsTitle", QStringLiteral("Clear")));
     clearAttachmentsButton->setObjectName(QStringLiteral("secondaryButton"));
     dropLayout->addWidget(attachmentPath, 1);
@@ -1561,6 +1569,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QPushButton *sendButton = new QPushButton();
     sendButton->setObjectName(QStringLiteral("sendButton"));
     updateSendButtonPresentation(sendButton, isLoading, sendTitle, stopTitle);
+    applyActionButtonIconSize(sendButton, style);
     sendButton->setMinimumWidth(intValue(style, "composerSendButtonMinWidth", 86));
     promptRow->addWidget(promptEditor, 1);
     promptRow->addWidget(sendButton);

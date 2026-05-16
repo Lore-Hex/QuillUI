@@ -51,6 +51,7 @@ public enum EnchantedVisualMetrics {
     public static let primaryButtonHorizontalPadding = primaryButtonPadding
     public static let primaryButtonRadius = 8
     public static let actionButtonIconSpacing = 6
+    public static let actionButtonIconSize = 16
     public static let secondaryButtonVerticalPadding = 7
     public static let secondaryButtonHorizontalPadding = 10
     public static let secondaryButtonRadius = 7
