@@ -4,11 +4,16 @@ import QuillEnchantedQtNativeRuntime
 QuillEnchantedQtNativeApp.run()
 #else
 import QuillEnchantedCore
+import QuillEnchantedShared
 import QuillUIQt
 
 struct QuillEnchantedQtApp: App {
     var body: some Scene {
-        QuillAppWindow.scene("Quill Enchanted", width: 1180, height: 760) {
+        QuillAppWindow.scene(
+            "Quill Enchanted",
+            width: Double(EnchantedVisualMetrics.defaultWindowWidth),
+            height: Double(EnchantedVisualMetrics.defaultWindowHeight)
+        ) {
             EnchantedRootView()
         }
     }

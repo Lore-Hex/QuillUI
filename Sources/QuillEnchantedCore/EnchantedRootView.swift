@@ -16,7 +16,7 @@ public struct EnchantedRootView: View {
         QuillMainActorView.assumeIsolated {
             HStack(spacing: 0) {
                 sidebar
-                    .frame(width: 300)
+                    .frame(width: CGFloat(EnchantedVisualMetrics.sidebarWidth))
                     .background(QuillColors.sidebar)
 
                 Divider()
@@ -25,7 +25,10 @@ public struct EnchantedRootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(QuillColors.canvas)
             }
-            .frame(minWidth: 980, minHeight: 680)
+            .frame(
+                minWidth: CGFloat(EnchantedVisualMetrics.minimumWindowWidth),
+                minHeight: CGFloat(EnchantedVisualMetrics.minimumWindowHeight)
+            )
             .onAppear {
                 model.boot(endpoint: endpoint)
             }
@@ -179,11 +182,11 @@ public struct EnchantedRootView: View {
                 Text(currentTitle)
                     .font(.title2)
                     .foregroundColor(QuillColors.ink)
-                    .frame(width: 560, alignment: .leading)
+                    .frame(width: CGFloat(EnchantedVisualMetrics.headerTitleWidth), alignment: .leading)
                 Text(model.selectedModel.isEmpty ? "Choose a local model to begin" : "Using \(model.selectedModel)")
                     .font(.caption)
                     .foregroundColor(QuillColors.muted)
-                    .frame(width: 560, alignment: .leading)
+                    .frame(width: CGFloat(EnchantedVisualMetrics.headerTitleWidth), alignment: .leading)
             }
 
             Spacer()
@@ -239,7 +242,10 @@ public struct EnchantedRootView: View {
 
             HStack(alignment: .bottom, spacing: 12) {
                 TextEditor(text: composerText)
-                    .frame(minHeight: 74, maxHeight: 120)
+                    .frame(
+                        minHeight: CGFloat(EnchantedVisualMetrics.composerMinHeight),
+                        maxHeight: CGFloat(EnchantedVisualMetrics.composerMaxHeight)
+                    )
                     .background(.white)
                     .cornerRadius(8)
 
@@ -380,7 +386,7 @@ private struct EmptyConversationView: View {
                     .foregroundColor(QuillColors.ink)
                 Text("This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.")
                     .foregroundColor(QuillColors.muted)
-                    .frame(width: 620, alignment: .leading)
+                    .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth), alignment: .leading)
             }
 
             VStack(alignment: .leading, spacing: 10) {
@@ -389,20 +395,20 @@ private struct EmptyConversationView: View {
                         HStack(spacing: 10) {
                             Image(systemName: "star.fill")
                             Text(prompt)
-                                .frame(width: 540, alignment: .leading)
+                                .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth - 80), alignment: .leading)
                         }
                         .padding(12)
-                        .frame(width: 620, alignment: .leading)
+                        .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth), alignment: .leading)
                         .background(QuillColors.card)
                         .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
-                    .frame(width: 620, alignment: .leading)
+                    .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth), alignment: .leading)
                 }
             }
         }
         .padding(26)
-        .frame(maxWidth: 680, alignment: .leading)
+        .frame(maxWidth: CGFloat(EnchantedVisualMetrics.emptyStateMaxWidth), alignment: .leading)
     }
 }
 
@@ -428,7 +434,7 @@ private struct MessageBubble: View {
                 }
             }
             .padding(13)
-            .frame(maxWidth: 680, alignment: .leading)
+            .frame(maxWidth: CGFloat(EnchantedVisualMetrics.messageMaxWidth), alignment: .leading)
             .background(backgroundColor)
             .cornerRadius(10)
 
