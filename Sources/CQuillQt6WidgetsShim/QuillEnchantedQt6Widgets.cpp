@@ -1240,7 +1240,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QFrame *attachmentTray = QuillQtWidgets::frame(QStringLiteral("attachmentTray"));
     QVBoxLayout *attachmentTrayLayout = new QVBoxLayout(attachmentTray);
     attachmentTrayLayout->setContentsMargins(0, 0, 0, 0);
-    attachmentTrayLayout->setSpacing(7);
+    attachmentTrayLayout->setSpacing(intValue(style, "attachmentTraySpacing", 7));
     attachmentTrayLayout->addWidget(fieldLabel(stringValue(payload, "attachmentsTitle", QStringLiteral("Attachments"))));
     QScrollArea *attachmentScrollArea = new QScrollArea();
     attachmentScrollArea->setObjectName(QStringLiteral("attachmentScrollArea"));
@@ -1252,7 +1252,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     attachmentChipList->setObjectName(QStringLiteral("attachmentChipList"));
     QHBoxLayout *attachmentChipListLayout = new QHBoxLayout(attachmentChipList);
     attachmentChipListLayout->setContentsMargins(0, 0, 0, 0);
-    attachmentChipListLayout->setSpacing(8);
+    attachmentChipListLayout->setSpacing(intValue(style, "attachmentTrayChipSpacing", 8));
     attachmentScrollArea->setWidget(attachmentChipList);
     attachmentTrayLayout->addWidget(attachmentScrollArea);
     attachmentTray->setVisible(false);
