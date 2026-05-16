@@ -1971,6 +1971,32 @@ struct SourceHygieneTests {
         #expect(!workflow.contains("scripts/linux-backend-interaction-check.sh .qa/quill-qt-interaction-smoke-open.png quill-qt-interaction-smoke"))
     }
 
+    @Test("Qt widget hosts share native style helpers")
+    func qtWidgetHostsShareNativeStyleHelpers() throws {
+        let root = try packageRoot()
+        let support = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillQtWidgetsSupport.hpp"),
+            encoding: .utf8
+        )
+        let enchantedHost = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp"),
+            encoding: .utf8
+        )
+        let genericHost = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillGenericQt6Widgets.cpp"),
+            encoding: .utf8
+        )
+
+        #expect(support.contains("inline QString cssPixels("))
+        #expect(support.contains("inline void refreshStyle(QWidget *widget)"))
+        #expect(enchantedHost.contains("using QuillQtWidgets::cssPixels;"))
+        #expect(enchantedHost.contains("using QuillQtWidgets::refreshStyle;"))
+        #expect(!enchantedHost.contains("QString cssPixels("))
+        #expect(!enchantedHost.contains("void refreshStyle(QWidget *widget)"))
+        #expect(genericHost.contains("using QuillQtWidgets::cssPixels;"))
+        #expect(!genericHost.contains("QString cssPixels("))
+    }
+
     @Test("Generated Linux app packages can launch through backend facades")
     func generatedLinuxAppPackagesCanLaunchThroughBackendFacades() throws {
         let root = try packageRoot()

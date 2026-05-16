@@ -72,6 +72,10 @@ inline int jsonIntValue(const QJsonObject &object, const char *key, int fallback
     return value.isDouble() ? value.toInt(fallback) : fallback;
 }
 
+inline QString cssPixels(const QJsonObject &object, const char *key, int fallback) {
+    return QStringLiteral("%1px").arg(jsonIntValue(object, key, fallback));
+}
+
 inline bool jsonBoolValue(const QJsonObject &object, const char *key, bool fallback) {
     const QJsonValue value = object.value(QString::fromUtf8(key));
     return value.isBool() ? value.toBool(fallback) : fallback;
@@ -260,6 +264,13 @@ inline void repolish(QWidget *widget) {
 
     widget->style()->unpolish(widget);
     widget->style()->polish(widget);
+}
+
+inline void refreshStyle(QWidget *widget) {
+    repolish(widget);
+    if (widget != nullptr) {
+        widget->update();
+    }
 }
 
 } // namespace QuillQtWidgets

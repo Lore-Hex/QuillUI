@@ -31,7 +31,6 @@
 #include <QSplitter>
 #include <QString>
 #include <QStringList>
-#include <QStyle>
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -41,7 +40,9 @@
 namespace {
 
 using QuillQtWidgets::clearLayout;
+using QuillQtWidgets::cssPixels;
 using QuillQtWidgets::label;
+using QuillQtWidgets::refreshStyle;
 using PromptAction = std::function<void(const QString &)>;
 
 QString stringValue(const QJsonObject &object, const char *key) {
@@ -58,10 +59,6 @@ QString styleValue(const QJsonObject &style, const char *key, const char *fallba
 
 int intValue(const QJsonObject &object, const char *key, int fallback) {
     return QuillQtWidgets::jsonIntValue(object, key, fallback);
-}
-
-QString cssPixels(const QJsonObject &style, const char *key, int fallback) {
-    return QStringLiteral("%1px").arg(intValue(style, key, fallback));
 }
 
 bool boolValue(const QJsonObject &object, const char *key, bool fallback) {
@@ -306,15 +303,6 @@ QString appStyleSheet(const QJsonObject &style) {
         .arg(card, ink, controlBorder, controlRadius, controlPadding);
 
     return sheet;
-}
-
-void refreshStyle(QWidget *widget) {
-    if (widget == nullptr) {
-        return;
-    }
-    widget->style()->unpolish(widget);
-    widget->style()->polish(widget);
-    widget->update();
 }
 
 QFrame *conversationRowWidget(const QJsonObject &conversation, const QJsonObject &style) {

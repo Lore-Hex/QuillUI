@@ -25,6 +25,7 @@
 namespace {
 
 using QuillQtWidgets::clearLayout;
+using QuillQtWidgets::cssPixels;
 using QuillQtWidgets::jsonArrayValue;
 using QuillQtWidgets::jsonIntValue;
 using QuillQtWidgets::jsonObjectValue;
@@ -42,10 +43,6 @@ int intValue(const QJsonObject &object, const char *key, int fallback) {
 
 QString styleValue(const QJsonObject &style, const char *key, const char *fallback) {
     return jsonStyleValue(style, key, fallback);
-}
-
-QString cssPixels(const QJsonObject &style, const char *key, int fallback) {
-    return QString::number(intValue(style, key, fallback)) + QStringLiteral("px");
 }
 
 struct GenericDetailPane {
