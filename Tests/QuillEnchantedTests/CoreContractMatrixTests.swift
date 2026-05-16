@@ -84,7 +84,7 @@ struct CoreContractMatrixTests {
             encoding: .utf8
         )
         let imageAttachmentSource = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/ImageAttachment.swift"),
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedShared/ImageAttachment.swift"),
             encoding: .utf8
         )
         let sharedPrompts = try String(
@@ -160,12 +160,16 @@ struct CoreContractMatrixTests {
         #expect(runtime.contains("var endpoint: String?"))
         #expect(runtime.contains("var selectedModel: String?"))
         #expect(runtime.contains("var models: [String]?"))
+        #expect(runtime.contains("var attachmentPaths: [String]?"))
         #expect(runtime.contains("case \"sendMessage\":"))
         #expect(runtime.contains("case \"refreshModels\", \"configureEndpoint\":"))
         #expect(runtime.contains("case \"selectModel\":"))
         #expect(runtime.contains("OllamaClient(baseURL: endpoint).fetchModels()"))
         #expect(runtime.contains("context.updateConversationTitle(id: selectedConversationID, title: prompt.quillTitle())"))
-        #expect(runtime.contains("context.insert(ChatMessage(conversationID: conversationID, role: .user, content: prompt))"))
+        #expect(runtime.contains("let displayContent = PendingImageAttachment.displayContent(prompt: prompt, attachments: attachments)"))
+        #expect(runtime.contains("content: displayContent"))
+        #expect(runtime.contains("imagesForLastUserMessage: encodedImages"))
+        #expect(runtime.contains("private static func imageAttachments(from rawPaths: [String]) throws -> [PendingImageAttachment]"))
         for prompt in enchantedEmptyConversationPrompts {
             #expect(sharedPrompts.contains(prompt))
         }
@@ -247,6 +251,8 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("QStringLiteral(\"[Attached images]\")"))
         #expect(nativeShim.contains("QPushButton *clearAttachmentsButton"))
         #expect(nativeShim.contains("QString attachmentDisplayContent("))
+        #expect(nativeShim.contains("#include <QStringList>"))
+        #expect(nativeShim.contains("QStringList pendingAttachmentPaths"))
         #expect(nativeShim.contains("boolValue(payload, \"isLoading\", false)"))
         #expect(nativeShim.contains("stringValue(payload, \"stopTitle\", QStringLiteral(\"Stop\"))"))
         #expect(nativeShim.contains("stringValue(payload, \"stoppingStatus\", QStringLiteral(\"Stopping...\"))"))
@@ -258,12 +264,15 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("statusText->setText(stoppingStatus)"))
         #expect(nativeShim.contains("refreshButton->setEnabled(!isLoading)"))
         #expect(nativeShim.contains("modelStatus->setText(modelStatusText(model))"))
-        #expect(nativeShim.contains("std::function<bool(const QString &, const QString &, const QString &)> requestHistoryAction"))
+        #expect(nativeShim.contains("std::function<bool(const QString &, const QString &, const QString &, const QStringList &)> requestHistoryAction"))
         #expect(nativeShim.contains("QStringLiteral(\"sendMessage\"),"))
         #expect(nativeShim.contains("action.insert(QStringLiteral(\"messageText\"), trimmedMessageText)"))
-        #expect(nativeShim.contains("requestHistoryAction(QStringLiteral(\"newConversation\"), QString(), QString())"))
-        #expect(nativeShim.contains("requestHistoryAction(QStringLiteral(\"deleteConversation\"), deletedConversationID, QString())"))
-        #expect(nativeShim.contains("requestHistoryAction(QStringLiteral(\"deleteAllConversations\"), QString(), QString())"))
+        #expect(nativeShim.contains("action.insert(QStringLiteral(\"attachmentPaths\"), encodedAttachmentPaths)"))
+        #expect(nativeShim.contains("pendingAttachmentPaths.append(rawPath)"))
+        #expect(nativeShim.contains("appendComposerMessage(promptEditor->toPlainText())"))
+        #expect(nativeShim.contains("requestHistoryAction(QStringLiteral(\"newConversation\"), QString(), QString(), QStringList())"))
+        #expect(nativeShim.contains("requestHistoryAction(QStringLiteral(\"deleteConversation\"), deletedConversationID, QString(), QStringList())"))
+        #expect(nativeShim.contains("requestHistoryAction(QStringLiteral(\"deleteAllConversations\"), QString(), QString(), QStringList())"))
         #expect(runtime.contains("OllamaClient(baseURL: endpoint).chat("))
         #expect(runtime.contains("context.insert(ChatMessage("))
         #expect(runtime.contains("role: .assistant"))
@@ -285,7 +294,7 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("emptyStateTitle"))
         #expect(nativeShim.contains("emptyStateSubtitle"))
         #expect(nativeShim.contains("promptAction(prompt)"))
-        #expect(nativeShim.contains("appendUserMessage(attachmentDisplayContent("))
+        #expect(nativeShim.contains("appendComposerMessage(promptEditor->toPlainText())"))
         #expect(nativeShim.contains("renderMessageSet(selectedMessages)"))
         #expect(nativeShim.contains("renderMessages("))
         #expect(nativeShim.contains("QObject::connect(sendButton"))

@@ -293,6 +293,7 @@ private struct QuillEnchantedQtActionRequest: Decodable {
     var action: String
     var conversationID: String?
     var messageText: String?
+    var attachmentPaths: [String]?
     var endpoint: String?
     var selectedModel: String?
     var models: [String]?
@@ -351,7 +352,10 @@ private enum QuillEnchantedQtActionBridge {
                 try context.deleteAllConversations()
                 status = "History cleared"
             case "sendMessage":
-                guard let messageText = request.messageText?.quillTrimmedNonEmpty else {
+                let attachments = try imageAttachments(from: request.attachmentPaths ?? [])
+                guard let messageText = request.messageText?.quillTrimmedNonEmpty
+                    ?? (attachments.isEmpty ? nil : PendingImageAttachment.defaultPrompt(for: attachments))
+                else {
                     selectedConversationID = try existingConversationID(request.conversationID, context: context)
                     status = "Message is empty"
                     break
@@ -359,6 +363,7 @@ private enum QuillEnchantedQtActionBridge {
 
                 let sendResult = try sendMessage(
                     messageText,
+                    attachments: attachments,
                     selectedConversationID: existingConversationID(request.conversationID, context: context),
                     endpoint: endpoint,
                     selectedModel: selectedModel?.quillTrimmedNonEmpty ?? models.first?.quillTrimmedNonEmpty ?? "",
@@ -406,12 +411,14 @@ private enum QuillEnchantedQtActionBridge {
 
     private static func sendMessage(
         _ messageText: String,
+        attachments: [PendingImageAttachment] = [],
         selectedConversationID: String?,
         endpoint: String,
         selectedModel: String,
         context: EnchantedModelContext
     ) throws -> (conversationID: String, status: String) {
         let prompt = messageText
+        let encodedImages = try attachments.map { try $0.base64EncodedContent() }
         let conversationID: String
         if let selectedConversationID {
             let currentMessages = try context.fetchMessages(for: selectedConversationID)
@@ -424,13 +431,15 @@ private enum QuillEnchantedQtActionBridge {
             conversationID = conversation.id
         }
 
-        try context.insert(ChatMessage(conversationID: conversationID, role: .user, content: prompt))
+        let displayContent = PendingImageAttachment.displayContent(prompt: prompt, attachments: attachments)
+        try context.insert(ChatMessage(conversationID: conversationID, role: .user, content: displayContent))
         let requestMessages = try context.fetchMessages(for: conversationID)
         do {
             let assistantReply = try fetchOllamaChatResponse(
                 endpoint: endpoint,
                 selectedModel: selectedModel,
-                messages: requestMessages
+                messages: requestMessages,
+                imagesForLastUserMessage: encodedImages
             )
             let finalContent = assistantReply.quillTrimmedNonEmpty ?? "(Ollama returned an empty response.)"
             try context.insert(ChatMessage(
@@ -442,6 +451,11 @@ private enum QuillEnchantedQtActionBridge {
         } catch {
             return (conversationID, error.localizedDescription)
         }
+    }
+
+    private static func imageAttachments(from rawPaths: [String]) throws -> [PendingImageAttachment] {
+        try rawPaths.compactMap { PendingImageAttachment.fileURL(from: $0) }
+            .map { try PendingImageAttachment(fileURL: $0) }
     }
 
     private static func refreshModels(
@@ -472,12 +486,14 @@ private enum QuillEnchantedQtActionBridge {
     private static func fetchOllamaChatResponse(
         endpoint: String,
         selectedModel: String,
-        messages: [ChatMessage]
+        messages: [ChatMessage],
+        imagesForLastUserMessage: [String]
     ) throws -> String {
         try waitForAsync {
             try await OllamaClient(baseURL: endpoint).chat(
                 model: selectedModel,
-                messages: messages
+                messages: messages,
+                imagesForLastUserMessage: imagesForLastUserMessage
             )
         }
     }
