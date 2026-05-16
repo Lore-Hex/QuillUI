@@ -1623,6 +1623,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QString stopTitle = stringValue(payload, "stopTitle", QStringLiteral("Stop"));
     const QString stoppingStatus = stringValue(payload, "stoppingStatus", QStringLiteral("Stopping..."));
     const QString attachmentsClearedStatus = stringValue(payload, "attachmentsClearedStatus", QStringLiteral("Attachments cleared"));
+    const QString attachmentRemovedEmptyStatus = stringValue(payload, "attachmentRemovedEmptyStatus", QStringLiteral("Ready"));
     QPushButton *sendButton = new QPushButton();
     sendButton->setObjectName(QStringLiteral("sendButton"));
     updateSendButtonPresentation(sendButton, isLoading, sendTitle, stopTitle);
@@ -1756,6 +1757,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
             removeAttachmentButton->setFixedWidth(intValue(style, "attachmentRemoveButtonWidth", 28));
             QObject::connect(removeAttachmentButton, &QPushButton::clicked, [&, path]() {
                 pendingAttachmentPaths.removeAll(path);
+                statusText->setText(
+                    pendingAttachmentPaths.isEmpty()
+                        ? attachmentRemovedEmptyStatus
+                        : attachmentReadyStatus(pendingAttachmentPaths.count())
+                );
                 QTimer::singleShot(0, attachmentTray, renderAttachmentTray);
             });
 
