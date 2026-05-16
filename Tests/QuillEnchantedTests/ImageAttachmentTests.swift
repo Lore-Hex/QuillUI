@@ -45,6 +45,7 @@ struct ImageAttachmentTests {
         let rawPaths = " \(first)\n\n\(second); \(third) "
 
         #expect(PendingImageAttachment.attachmentPathCandidates(from: rawPaths) == [first, second, third])
+        #expect(PendingImageAttachment.attachmentPathCandidates(from: " ; \n ; \r\n ") == [])
 
         let urls = PendingImageAttachment.fileURLs(from: rawPaths)
         #expect(urls.map(\.path) == [

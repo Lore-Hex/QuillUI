@@ -1144,6 +1144,10 @@ QStringList attachmentPathCandidatesFromInput(const QString &rawText) {
     return candidates;
 }
 
+bool hasAttachmentPathCandidates(const QLineEdit *field) {
+    return field != nullptr && !attachmentPathCandidatesFromInput(field->text()).isEmpty();
+}
+
 QString attachmentDisplayName(const QString &rawPath) {
     const QString path = normalizedAttachmentPath(rawPath);
     if (path.isEmpty()) {
@@ -1840,8 +1844,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
     };
     auto updateComposerControlState = [&]() {
         const bool hasPendingAttachments = !pendingAttachmentPaths.isEmpty();
-        attachButton->setEnabled(hasTrimmedText(attachmentPath));
-        clearAttachmentsButton->setEnabled(hasTrimmedText(attachmentPath) || hasPendingAttachments);
+        const bool hasAttachmentPathInput = hasAttachmentPathCandidates(attachmentPath);
+        attachButton->setEnabled(hasAttachmentPathInput);
+        clearAttachmentsButton->setEnabled(hasAttachmentPathInput || hasPendingAttachments);
         sendButton->setEnabled(isLoading || hasTrimmedText(promptEditor) || hasPendingAttachments);
     };
     std::function<void()> renderAttachmentTray;

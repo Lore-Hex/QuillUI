@@ -234,12 +234,12 @@ public struct EnchantedRootView: View {
                         Text("Attach")
                     }
                 }
-                .disabled(model.attachmentPath.quillTrimmedNonEmpty == nil)
+                .disabled(!hasAttachmentPathCandidates)
 
                 Button("Clear") {
                     model.clearAttachments()
                 }
-                .disabled(model.pendingImageAttachments.isEmpty && model.attachmentPath.quillTrimmedNonEmpty == nil)
+                .disabled(model.pendingImageAttachments.isEmpty && !hasAttachmentPathCandidates)
             }
 
             HStack(alignment: .bottom, spacing: CGFloat(EnchantedVisualMetrics.promptRowSpacing)) {
@@ -306,6 +306,10 @@ public struct EnchantedRootView: View {
     private var sendDisabled: Bool {
         if model.isLoading { return false }
         return model.composerText.quillTrimmedNonEmpty == nil && model.pendingImageAttachments.isEmpty
+    }
+
+    private var hasAttachmentPathCandidates: Bool {
+        !PendingImageAttachment.attachmentPathCandidates(from: model.attachmentPath).isEmpty
     }
 
     private var attachmentTray: some View {
