@@ -102,6 +102,14 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var quoteRuleColor: String
         var codeBlockColor: String
         var dropTargetColor: String
+        var dividerColor: String
+        var cardBorderColor: String
+        var messageBorderColor: String
+        var controlBorderColor: String
+        var dropTargetBorderColor: String
+        var disabledButtonBackgroundColor: String
+        var disabledButtonForegroundColor: String
+        var disabledTextColor: String
         var sidebarWidth: Int
         var sidebarPadding: Int
         var sidebarSpacing: Int
@@ -287,6 +295,14 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             quoteRuleColor: "#8AA5B7",
             codeBlockColor: "#EEF3F4",
             dropTargetColor: "#E1F0EA",
+            dividerColor: "#D8DDD5",
+            cardBorderColor: "#E0E5DD",
+            messageBorderColor: "#D4DFE8",
+            controlBorderColor: "#CDD5CA",
+            dropTargetBorderColor: "#C8DED3",
+            disabledButtonBackgroundColor: "#AAB5BE",
+            disabledButtonForegroundColor: "#F4F6F7",
+            disabledTextColor: "#9CA6AD",
             sidebarWidth: 300,
             sidebarPadding: 18,
             sidebarSpacing: 14,
