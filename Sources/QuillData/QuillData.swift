@@ -8,6 +8,10 @@ import GRDB
 
 public protocol PersistentModel: Codable {}
 
+public protocol QuillDataStableModelName {
+    static var quillDataStableModelName: String { get }
+}
+
 extension PersistentModel {
     public var databaseValue: DatabaseValue {
         let encoder = JSONEncoder()
@@ -382,7 +386,11 @@ final class QuillDataSQLiteStore: @unchecked Sendable {
     }
 
     private static func stableGenericModelName(for modelType: any PersistentModel.Type) -> String {
-        String(reflecting: modelType).replacingOccurrences(
+        if let stableNamedType = modelType as? any QuillDataStableModelName.Type {
+            return stableNamedType.quillDataStableModelName
+        }
+
+        return String(reflecting: modelType).replacingOccurrences(
             of: #"\.\(unknown context at [^)]+\)"#,
             with: "",
             options: .regularExpression

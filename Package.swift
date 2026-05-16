@@ -463,15 +463,55 @@ let wireGuardKitDependencies: [Target.Dependency] = ["WireGuardKitC"]
 let wireGuardKitExcludes: [String] = ["WireGuardAdapter.swift"]
 #endif
 
+let quillDataPackageDependencies: [Package.Dependency] = [
+    .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
+    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
+]
+
+let cSQLiteTarget: Target = .systemLibrary(
+    name: "CSQLite",
+    pkgConfig: "sqlite3",
+    providers: [
+        .apt(["libsqlite3-dev"]),
+        .brew(["sqlite"])
+    ]
+)
+
+// QuillDataMacros declares the @QuillModel / @Attribute /
+// @Relationship / @QuillPredicate / @Observable macros used
+// by QuillData. The compiler loads it as an out-of-process
+// build plugin; without a `.macro(…)` declaration here,
+// `#externalMacro(module: "QuillDataMacros", …)` references
+// fail with "plugin for module 'QuillDataMacros' not found".
+let quillDataMacroTarget: Target = .macro(
+    name: "QuillDataMacros",
+    dependencies: [
+        .product(name: "SwiftSyntax", package: "swift-syntax"),
+        .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+        .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
+        .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
+    ],
+    path: "Sources/QuillDataMacros"
+)
+
+let quillDataTarget: Target = .target(
+    name: "QuillData",
+    dependencies: [
+        "QuillDataMacros",
+        "CSQLite",
+        .product(name: "GRDB", package: "GRDB.swift")
+    ]
+)
+
+let quillEnchantedDataTarget: Target = .target(
+    name: "QuillEnchantedData",
+    dependencies: ["QuillData"],
+    path: "Sources/QuillEnchantedData",
+    swiftSettings: appSwiftSettings
+)
+
 var targets: [Target] = [
-    .systemLibrary(
-        name: "CSQLite",
-        pkgConfig: "sqlite3",
-        providers: [
-            .apt(["libsqlite3-dev"]),
-            .brew(["sqlite"])
-        ]
-    ),
+    cSQLiteTarget,
     .target(
         name: "QuillUI",
         dependencies: quillUIDependencies,
@@ -514,30 +554,8 @@ var targets: [Target] = [
             .apt(["libgtk-4-dev"])
         ]
     ),
-    // QuillDataMacros declares the @QuillModel / @Attribute /
-    // @Relationship / @QuillPredicate / @Observable macros used
-    // by QuillData. The compiler loads it as an out-of-process
-    // build plugin; without a `.macro(…)` declaration here,
-    // `#externalMacro(module: "QuillDataMacros", …)` references
-    // fail with "plugin for module 'QuillDataMacros' not found".
-    .macro(
-        name: "QuillDataMacros",
-        dependencies: [
-            .product(name: "SwiftSyntax", package: "swift-syntax"),
-            .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
-            .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
-            .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
-        ],
-        path: "Sources/QuillDataMacros"
-    ),
-    .target(
-        name: "QuillData",
-        dependencies: [
-            "QuillDataMacros",
-            "CSQLite",
-            .product(name: "GRDB", package: "GRDB.swift")
-        ]
-    ),
+    quillDataMacroTarget,
+    quillDataTarget,
     .target(
         name: "QuillKit",
         dependencies: []
@@ -591,9 +609,10 @@ var targets: [Target] = [
         dependencies: [],
         path: "Sources/QuillEnchantedShared"
     ),
+    quillEnchantedDataTarget,
     .target(
         name: "QuillEnchantedCore",
-        dependencies: [.target(name: "QuillEnchantedShared"), "QuillUI", "QuillData", "QuillFoundation", "CSQLite"],
+        dependencies: [.target(name: "QuillEnchantedShared"), "QuillEnchantedData", "QuillUI", "QuillFoundation"],
         swiftSettings: appSwiftSettings
     ),
     .executableTarget(
@@ -1179,10 +1198,8 @@ if codeEditSourceUpstreamPresent {
 // etc. On Linux the upstream CodeEdit source itself can't compile (it's a
 // pure AppKit/SwiftUI Mac app) so we only resolve these on macOS.
 var allPackageDependencies: [Package.Dependency] = [
-    .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433"),
-    .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
-    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
-]
+    .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433")
+] + quillDataPackageDependencies
 #if os(Linux)
 // OpenCombine backs the Linux `Combine` compatibility shim
 // (Sources/Combine re-exports OpenCombine / OpenCombineDispatch /
@@ -1230,13 +1247,17 @@ if quillUILinuxBuildBackend == .qt {
         .library(name: "QuillGenericQtNativeRuntime", targets: ["QuillGenericQtNativeRuntime"]),
         .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
     ]
-    allPackageDependencies = []
+    allPackageDependencies = quillDataPackageDependencies
     targets = [
+        cSQLiteTarget,
+        quillDataMacroTarget,
+        quillDataTarget,
         .target(
             name: "QuillEnchantedShared",
             dependencies: [],
             path: "Sources/QuillEnchantedShared"
         ),
+        quillEnchantedDataTarget,
         .target(
             name: "QuillWireGuardCore",
             dependencies: quillWireGuardCoreDependencies,
@@ -1274,7 +1295,7 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .target(
             name: "QuillEnchantedQtNativeRuntime",
-            dependencies: [.target(name: "QuillEnchantedShared"), "CQuillQt6WidgetsShim", "QuillQtNativeRuntimeSupport"],
+            dependencies: [.target(name: "QuillEnchantedShared"), "QuillEnchantedData", "CQuillQt6WidgetsShim", "QuillQtNativeRuntimeSupport"],
             path: "Sources/QuillEnchantedQtNativeRuntime",
             swiftSettings: appSwiftSettings
         ),

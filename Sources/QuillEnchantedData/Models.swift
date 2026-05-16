@@ -59,7 +59,7 @@ public struct OllamaModel: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-extension String {
+public extension String {
     var quillTrimmedNonEmpty: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed

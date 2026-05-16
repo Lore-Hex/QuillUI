@@ -41,17 +41,20 @@ public enum QuillQtNativeRuntimeSupport {
         return executableName.isEmpty ? fallback : executableName
     }
 
+    public static func encodedPayloadString<Payload: Encodable>(_ payload: Payload) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(payload)
+        return String(decoding: data, as: UTF8.self)
+    }
+
     public static func runEncodedPayload<Payload: Encodable>(
         _ payload: Payload,
         executableName: String,
         run: (UnsafePointer<CChar>) -> CInt
     ) -> Never {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-
         do {
-            let data = try encoder.encode(payload)
-            let payload = String(decoding: data, as: UTF8.self)
+            let payload = try encodedPayloadString(payload)
             let exitCode = payload.withCString { payloadPointer in
                 run(payloadPointer)
             }

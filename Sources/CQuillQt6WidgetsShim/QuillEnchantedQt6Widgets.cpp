@@ -2,11 +2,13 @@
 #include "QuillQtWidgetsSupport.hpp"
 
 #include <QApplication>
+#include <QByteArray>
 #include <QComboBox>
 #include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QLabel>
@@ -425,12 +427,50 @@ void addSidebarField(QVBoxLayout *layout, const QString &title, QWidget *field) 
     layout->addWidget(field);
 }
 
+QJsonObject actionSnapshot(
+    const QJsonObject &action,
+    quill_enchanted_qt_action_callback actionCallback,
+    quill_enchanted_qt_free_string_callback freeString,
+    bool *succeeded
+) {
+    if (succeeded != nullptr) {
+        *succeeded = false;
+    }
+    if (actionCallback == nullptr) {
+        return QJsonObject();
+    }
+
+    const QByteArray request = QJsonDocument(action).toJson(QJsonDocument::Compact);
+    char *response = actionCallback(request.constData());
+    if (response == nullptr) {
+        return QJsonObject();
+    }
+
+    const QByteArray responseBytes(response);
+    if (freeString != nullptr) {
+        freeString(response);
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(responseBytes, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        return QJsonObject();
+    }
+
+    if (succeeded != nullptr) {
+        *succeeded = true;
+    }
+    return document.object();
+}
+
 } // namespace
 
 extern "C" int quill_enchanted_qt_run_app_json(
     int argc,
     char **argv,
-    const char *payload_json
+    const char *payload_json,
+    quill_enchanted_qt_action_callback actionCallback,
+    quill_enchanted_qt_free_string_callback freeString
 ) {
     QJsonObject payload;
     int payloadExitCode = 65;
@@ -495,7 +535,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         endpointField
     );
 
-    const QJsonArray models = arrayValue(payload, "models");
+    QJsonArray models = arrayValue(payload, "models");
     const QString modelLabel = stringValue(payload, "modelLabel", QStringLiteral("Model"));
     QComboBox *modelPicker = nullptr;
     if (models.isEmpty()) {
@@ -537,8 +577,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
         QStringLiteral("sectionTitle")
     ));
 
-    const QJsonArray conversations = arrayValue(payload, "conversations");
-    const QString selectedConversationID = stringValue(payload, "selectedConversationID");
+    QJsonArray conversations = arrayValue(payload, "conversations");
+    QString selectedConversationID = stringValue(payload, "selectedConversationID");
     QFrame *emptyHistory = emptyHistoryWidget(
         stringValue(payload, "emptyHistoryTitle", QStringLiteral("No saved chats yet")),
         stringValue(payload, "emptyHistorySubtitle", QStringLiteral("Start a chat and it will be saved locally."))
@@ -680,7 +720,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         "attachmentSummaryTitle",
         QStringLiteral("[Attached images]")
     );
-    const QJsonArray fallbackMessages = arrayValue(payload, "messages");
+    QJsonArray fallbackMessages = arrayValue(payload, "messages");
     const QJsonArray prompts = arrayValue(payload, "prompts");
     const QString emptyStateTitle = stringValue(payload, "emptyStateTitle", QStringLiteral("Ask your local model"));
     const QString emptyStateSubtitle = stringValue(
@@ -736,6 +776,53 @@ extern "C" int quill_enchanted_qt_run_app_json(
         conversationList->setVisible(hasConversations);
         emptyHistory->setVisible(!hasConversations);
     };
+    auto applySnapshot = [&](const QJsonObject &snapshot) {
+        payload = snapshot;
+        models = arrayValue(payload, "models");
+        conversations = arrayValue(payload, "conversations");
+        selectedConversationID = stringValue(payload, "selectedConversationID");
+        fallbackMessages = arrayValue(payload, "messages");
+
+        populateConversations(
+            conversationList,
+            conversations,
+            selectedConversationID
+        );
+        const QString selectedID = currentConversationID(conversationList, selectedConversationID);
+        currentTitle->setText(selectedConversationTitle(
+            conversations,
+            selectedID,
+            QStringLiteral("New conversation")
+        ));
+        statusText->setText(stringValue(payload, "status"));
+        if (modelPicker != nullptr) {
+            modelStatus->setText(modelStatusText(modelPicker->currentText()));
+        } else {
+            modelStatus->setText(modelStatusText(stringValue(payload, "selectedModel")));
+        }
+        renderMessageSet(selectedConversationMessages(
+            conversations,
+            selectedID,
+            fallbackMessages
+        ));
+        updateConversationActionState();
+    };
+    auto requestHistoryAction = [&](const QString &actionName, const QString &conversationID) -> bool {
+        QJsonObject action;
+        action.insert(QStringLiteral("action"), actionName);
+        if (!conversationID.isEmpty()) {
+            action.insert(QStringLiteral("conversationID"), conversationID);
+        }
+
+        bool succeeded = false;
+        const QJsonObject snapshot = actionSnapshot(action, actionCallback, freeString, &succeeded);
+        if (!succeeded) {
+            return false;
+        }
+
+        applySnapshot(snapshot);
+        return true;
+    };
 
     const QJsonArray initialMessages = selectedConversationMessages(
         conversations,
@@ -750,6 +837,10 @@ extern "C" int quill_enchanted_qt_run_app_json(
     splitter->setStretchFactor(1, 1);
 
     QObject::connect(newChatButton, &QPushButton::clicked, [&]() {
+        if (requestHistoryAction(QStringLiteral("newConversation"), QString())) {
+            return;
+        }
+
         conversationList->clearSelection();
         conversationList->setCurrentRow(-1);
         updateConversationSelectionStyles(conversationList);
@@ -760,6 +851,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QObject::connect(deleteButton, &QPushButton::clicked, [&]() {
         const int deletedRow = conversationList->currentRow();
         if (deletedRow < 0) {
+            return;
+        }
+
+        const QString deletedConversationID = currentConversationID(conversationList, selectedConversationID);
+        if (requestHistoryAction(QStringLiteral("deleteConversation"), deletedConversationID)) {
             return;
         }
 
@@ -776,6 +872,10 @@ extern "C" int quill_enchanted_qt_run_app_json(
         updateConversationActionState();
     });
     QObject::connect(clearAllButton, &QPushButton::clicked, [&]() {
+        if (requestHistoryAction(QStringLiteral("deleteAllConversations"), QString())) {
+            return;
+        }
+
         conversationList->clear();
         conversationList->setCurrentRow(-1);
         updateConversationSelectionStyles(conversationList);

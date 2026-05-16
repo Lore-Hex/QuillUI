@@ -428,6 +428,10 @@ struct QuillDataTests {
         #expect(tableName.hasPrefix("_quilldata_json_"))
         #expect(tableName.hasSuffix("_ValueTodoItem"))
         #expect(!tableName.contains("unknown_context_at"))
+        #expect(
+            QuillDataSQLiteStore.genericTableName(for: StableNamedModel.self)
+            == "_quilldata_json_Legacy_EnchantedModel"
+        )
         #expect(QuillDataSQLiteStore.normalizedGenericTableName(
             "_quilldata_json_QuillEnchantedCore__unknown_context_at__c623f13db648__QuillDataConversationRecord"
         ) == "_quilldata_json_QuillEnchantedCore_QuillDataConversationRecord")
@@ -538,6 +542,12 @@ private struct ValueTodoItem: PersistentModel, Equatable {
     var id: UUID = UUID()
     var title: String
     var priority: Int
+}
+
+private struct StableNamedModel: PersistentModel, QuillDataStableModelName {
+    static let quillDataStableModelName = "Legacy.EnchantedModel"
+
+    var id = UUID()
 }
 
 private final class WrappedModel: PersistentModel {

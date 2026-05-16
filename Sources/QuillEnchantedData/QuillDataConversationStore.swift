@@ -146,7 +146,9 @@ public final class QuillDataConversationStore: ConversationPersistence {
     }
 }
 
-private struct QuillDataConversationRecord: PersistentModel {
+private struct QuillDataConversationRecord: PersistentModel, QuillDataStableModelName {
+    static let quillDataStableModelName = "QuillEnchantedCore.QuillDataConversationRecord"
+
     var id: String
     var title: String
     var createdAt: Date
@@ -170,7 +172,9 @@ private struct QuillDataConversationRecord: PersistentModel {
     }
 }
 
-private struct QuillDataMessageRecord: PersistentModel {
+private struct QuillDataMessageRecord: PersistentModel, QuillDataStableModelName {
+    static let quillDataStableModelName = "QuillEnchantedCore.QuillDataMessageRecord"
+
     var id: String
     var conversationID: String
     var role: ChatRole

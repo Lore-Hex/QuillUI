@@ -1,4 +1,5 @@
 import Foundation
+import QuillEnchantedData
 import QuillFoundation
 import QuillUI
 

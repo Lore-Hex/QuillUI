@@ -1,4 +1,5 @@
 import Foundation
+import QuillEnchantedData
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif

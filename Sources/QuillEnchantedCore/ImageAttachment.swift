@@ -1,4 +1,5 @@
 import Foundation
+import QuillEnchantedData
 
 public enum ImageAttachmentError: Error, LocalizedError, Equatable, Sendable {
     case unsupportedFileType(String)

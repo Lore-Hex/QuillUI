@@ -104,10 +104,13 @@ struct QuillQtBackendManifestTests {
         #expect(manifest.contains("name: \"QuillQtBackendManifestTests\""))
         #expect(manifest.contains("products = quillCanonicalLinuxAppProducts + ["))
         #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
-        #expect(manifest.contains("allPackageDependencies = []"))
+        #expect(manifest.contains("allPackageDependencies = quillDataPackageDependencies"))
+        #expect(manifest.contains("let quillDataPackageDependencies: [Package.Dependency] = ["))
+        #expect(manifest.contains("cSQLiteTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))
-        #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
+        #expect(manifest.contains("quillEnchantedDataTarget,"))
+        #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
         #expect(!manifest.contains("if quillUILinuxBuildBackend == .qt {\n        return []"))
     }
 

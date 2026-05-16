@@ -1499,7 +1499,7 @@ def validate_quill_enchanted_qt_native(
         left + 20,
         top + 80,
         left + sidebar_width - 20,
-        top + 150,
+        top + 240,
         enchanted_primary_pixel,
     )
     drop_pixels = pixel_count(

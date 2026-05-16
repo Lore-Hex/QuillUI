@@ -1,5 +1,8 @@
 #if os(Linux)
 import CQuillQt6WidgetsShim
+import Foundation
+import Glibc
+import QuillEnchantedData
 import QuillEnchantedShared
 import QuillQtNativeRuntimeSupport
 
@@ -49,12 +52,38 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var title: String
         var lastMessage: String
         var messages: [Message]? = nil
+
+        init(id: String, title: String, lastMessage: String, messages: [Message]? = nil) {
+            self.id = id
+            self.title = title
+            self.lastMessage = lastMessage
+            self.messages = messages
+        }
+
+        init(summary: ConversationSummary, messages: [Message]) {
+            self.id = summary.id
+            self.title = summary.title
+            self.lastMessage = summary.lastMessage.isEmpty ? "No messages yet" : summary.lastMessage
+            self.messages = messages
+        }
     }
 
     struct Message: Codable, Sendable {
         var id: String
         var role: String
         var content: String
+
+        init(id: String, role: String, content: String) {
+            self.id = id
+            self.role = role
+            self.content = content
+        }
+
+        init(_ message: ChatMessage) {
+            self.id = message.id
+            self.role = message.role.rawValue
+            self.content = message.content
+        }
     }
 
     struct Style: Codable, Sendable {
@@ -207,6 +236,121 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             messageMaxWidth: 680
         )
     )
+
+    static func persisted(
+        context: EnchantedModelContext,
+        selectedConversationID requestedSelectedConversationID: String? = nil,
+        status: String = "Ready"
+    ) throws -> QuillEnchantedQtSnapshot {
+        var snapshot = preview
+        let summaries = try context.fetchConversations()
+        snapshot.conversations = try summaries.map { summary in
+            let messages = try context.fetchMessages(for: summary.id).map(Message.init)
+            return Conversation(summary: summary, messages: messages)
+        }
+        snapshot.selectedConversationID = requestedSelectedConversationID.flatMap { requestedID in
+            snapshot.conversations.contains { $0.id == requestedID } ? requestedID : nil
+        } ?? snapshot.conversations.first?.id ?? ""
+        snapshot.status = status
+        snapshot.syncSelectedMessages()
+        return snapshot
+    }
+
+    mutating func selectConversation(at index: Int) {
+        guard conversations.indices.contains(index) else { return }
+        selectedConversationID = conversations[index].id
+        syncSelectedMessages()
+    }
+
+    private mutating func syncSelectedMessages() {
+        guard
+            let selectedConversation = conversations.first(where: { $0.id == selectedConversationID }),
+            let selectedMessages = selectedConversation.messages
+        else {
+            messages = []
+            return
+        }
+
+        messages = selectedMessages
+    }
+}
+
+private struct QuillEnchantedQtActionRequest: Decodable {
+    var action: String
+    var conversationID: String?
+}
+
+private enum QuillEnchantedQtActionBridge {
+    static func snapshot(for actionJSON: String?) -> QuillEnchantedQtSnapshot {
+        do {
+            let context = try EnchantedModelContext.default()
+            guard let actionJSON else {
+                return try QuillEnchantedQtSnapshot.persisted(context: context)
+            }
+
+            let request = try JSONDecoder().decode(
+                QuillEnchantedQtActionRequest.self,
+                from: Data(actionJSON.utf8)
+            )
+            var selectedConversationID: String?
+            var status = "Ready"
+
+            switch request.action {
+            case "newConversation":
+                let conversation = try context.insert(ConversationDraft(title: "New conversation"))
+                selectedConversationID = conversation.id
+                status = "New conversation"
+            case "deleteConversation":
+                guard let conversationID = request.conversationID, !conversationID.isEmpty else {
+                    status = "No conversation selected"
+                    break
+                }
+                try context.deleteConversation(id: conversationID)
+                status = "Conversation deleted"
+            case "deleteAllConversations":
+                try context.deleteAllConversations()
+                status = "History cleared"
+            default:
+                status = "Unsupported action"
+            }
+
+            return try QuillEnchantedQtSnapshot.persisted(
+                context: context,
+                selectedConversationID: selectedConversationID,
+                status: status
+            )
+        } catch {
+            var snapshot = QuillEnchantedQtSnapshot.preview
+            snapshot.status = "Could not update history: \(error.localizedDescription)"
+            return snapshot
+        }
+    }
+}
+
+private func encodedSnapshotPointer(_ snapshot: QuillEnchantedQtSnapshot) -> UnsafeMutablePointer<CChar>? {
+    do {
+        let payload = try QuillQtNativeRuntimeSupport.encodedPayloadString(snapshot)
+        return payload.withCString { strdup($0) }
+    } catch {
+        return nil
+    }
+}
+
+@_cdecl("quill_enchanted_qt_perform_action_json")
+public func quill_enchanted_qt_perform_action_json(
+    _ actionPointer: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
+    let snapshot = QuillEnchantedQtActionBridge.snapshot(
+        for: actionPointer.map { String(cString: $0) }
+    )
+    return encodedSnapshotPointer(snapshot)
+}
+
+@_cdecl("quill_enchanted_qt_free_string")
+public func quill_enchanted_qt_free_string(_ pointer: UnsafeMutablePointer<CChar>?) {
+    if let pointer {
+        free(UnsafeMutableRawPointer(pointer))
+    }
 }
 
 public enum QuillEnchantedQtNativeApp {
@@ -216,12 +360,19 @@ public enum QuillEnchantedQtNativeApp {
     ]
 
     private static func launchSnapshot() -> QuillEnchantedQtSnapshot {
-        var snapshot = QuillEnchantedQtSnapshot.preview
+        var snapshot: QuillEnchantedQtSnapshot
+        do {
+            snapshot = try QuillEnchantedQtSnapshot.persisted(context: EnchantedModelContext.default())
+        } catch {
+            snapshot = QuillEnchantedQtSnapshot.preview
+            snapshot.status = "Conversation persistence unavailable"
+        }
+
         guard let boundedIndex = selectedConversationIndexOverride(count: snapshot.conversations.count) else {
             return snapshot
         }
 
-        snapshot.selectedConversationID = snapshot.conversations[boundedIndex].id
+        snapshot.selectConversation(at: boundedIndex)
         return snapshot
     }
 
@@ -240,7 +391,9 @@ public enum QuillEnchantedQtNativeApp {
             quill_enchanted_qt_run_app_json(
                 CommandLine.argc,
                 CommandLine.unsafeArgv,
-                payloadPointer
+                payloadPointer,
+                quill_enchanted_qt_perform_action_json,
+                quill_enchanted_qt_free_string
             )
         }
     }
