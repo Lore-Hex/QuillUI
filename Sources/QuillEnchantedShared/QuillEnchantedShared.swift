@@ -49,9 +49,12 @@ public enum EnchantedVisualMetrics {
     public static let primaryButtonVerticalPadding = primaryButtonPadding
     public static let primaryButtonHorizontalPadding = primaryButtonPadding
     public static let primaryButtonRadius = 8
+    public static let actionButtonIconSpacing = 6
     public static let secondaryButtonVerticalPadding = 7
     public static let secondaryButtonHorizontalPadding = 10
     public static let secondaryButtonRadius = 7
+    public static let controlPadding = 7
+    public static let controlRadius = 7
     public static let dropTargetPadding = 8
     public static let dropTargetRadius = 8
     public static let conversationListSpacing = 8
@@ -70,6 +73,8 @@ public enum EnchantedVisualMetrics {
     public static let attachmentChipTextSpacing = 2
     public static let attachmentChipRadius = 8
     public static let attachmentRemoveButtonWidth = 28
+    public static let chipRemoveButtonVerticalPadding = 2
+    public static let chipRemoveButtonHorizontalPadding = 6
     public static let attachmentTraySpacing = 7
     public static let attachmentTrayChipSpacing = 8
     public static let attachmentInputHorizontalPadding = 10
@@ -95,6 +100,7 @@ public enum EnchantedVisualMetrics {
     public static let composerMaxWidth = 840
     public static let composerPadding = 18
     public static let composerSpacing = 10
+    public static let composerEditorRadius = 8
     public static let promptRowSpacing = 12
     public static let composerSendButtonMinWidth = 86
     public static let composerMinHeight = 74

@@ -227,7 +227,7 @@ public struct EnchantedRootView: View {
                 Button(action: {
                     model.addAttachmentPath()
                 }) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
                         Image(systemName: "folder.badge.plus")
                         Text("Attach")
                     }
@@ -247,7 +247,7 @@ public struct EnchantedRootView: View {
                         maxHeight: CGFloat(EnchantedVisualMetrics.composerMaxHeight)
                     )
                     .background(.white)
-                    .cornerRadius(8)
+                    .cornerRadius(CGFloat(EnchantedVisualMetrics.composerEditorRadius))
 
                 Button(action: {
                     if model.isLoading {
@@ -256,7 +256,7 @@ public struct EnchantedRootView: View {
                         model.startComposerMessage()
                     }
                 }) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
                         Image(systemName: model.isLoading ? "square.fill" : "arrow.forward.circle.fill")
                         Text(model.isLoading ? "Stop" : "Send")
                     }
