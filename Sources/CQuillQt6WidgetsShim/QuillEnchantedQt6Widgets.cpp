@@ -18,6 +18,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QList>
@@ -35,6 +36,7 @@
 #include <QRegularExpression>
 #include <QScrollArea>
 #include <QSize>
+#include <QShortcut>
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QString>
@@ -2011,6 +2013,15 @@ extern "C" int quill_enchanted_qt_run_app_json(
         }
         updateComposerControlState();
     };
+    auto triggerSendOrStop = [&]() {
+        if (isLoading) {
+            statusText->setText(stoppingStatus);
+            return;
+        }
+
+        appendComposerMessage(promptEditor->toPlainText());
+        clearAttachmentState(QString());
+    };
     auto attachPendingPath = [&]() {
         const QStringList rawPaths = attachmentPathCandidatesFromInput(attachmentPath->text());
         if (rawPaths.isEmpty()) {
@@ -2283,15 +2294,10 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QObject::connect(promptEditor, &QPlainTextEdit::textChanged, [&]() {
         updateComposerControlState();
     });
-    QObject::connect(sendButton, &QPushButton::clicked, [&]() {
-        if (isLoading) {
-            statusText->setText(stoppingStatus);
-            return;
-        }
-
-        appendComposerMessage(promptEditor->toPlainText());
-        clearAttachmentState(QString());
-    });
+    QShortcut *sendShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Return")), promptEditor);
+    sendShortcut->setContext(Qt::WidgetShortcut);
+    QObject::connect(sendShortcut, &QShortcut::activated, triggerSendOrStop);
+    QObject::connect(sendButton, &QPushButton::clicked, triggerSendOrStop);
     updateComposerControlState();
     updateConversationActionState();
 
