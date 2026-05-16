@@ -12,6 +12,7 @@
 #include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -36,6 +37,7 @@
 #include <QSplitter>
 #include <QString>
 #include <QStringList>
+#include <QStyle>
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -68,6 +70,30 @@ int intValue(const QJsonObject &object, const char *key, int fallback) {
 
 bool boolValue(const QJsonObject &object, const char *key, bool fallback) {
     return QuillQtWidgets::jsonBoolValue(object, key, fallback);
+}
+
+QIcon sendButtonIcon(bool isLoading) {
+    if (isLoading) {
+        return QIcon::fromTheme(
+            QStringLiteral("process-stop-symbolic"),
+            QApplication::style()->standardIcon(QStyle::SP_MediaStop)
+        );
+    }
+    return QIcon::fromTheme(
+        QStringLiteral("go-next-symbolic"),
+        QApplication::style()->standardIcon(QStyle::SP_MediaPlay)
+    );
+}
+
+void updateSendButtonPresentation(
+    QPushButton *button,
+    bool isLoading,
+    const QString &sendTitle,
+    const QString &stopTitle
+) {
+    button->setProperty("loading", isLoading);
+    button->setText(isLoading ? stopTitle : sendTitle);
+    button->setIcon(sendButtonIcon(isLoading));
 }
 
 class LoadingSpinner final : public QWidget {
@@ -1534,8 +1560,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QString stoppingStatus = stringValue(payload, "stoppingStatus", QStringLiteral("Stopping..."));
     QPushButton *sendButton = new QPushButton();
     sendButton->setObjectName(QStringLiteral("sendButton"));
-    sendButton->setProperty("loading", isLoading);
-    sendButton->setText(isLoading ? stopTitle : sendTitle);
+    updateSendButtonPresentation(sendButton, isLoading, sendTitle, stopTitle);
     sendButton->setMinimumWidth(intValue(style, "composerSendButtonMinWidth", 86));
     promptRow->addWidget(promptEditor, 1);
     promptRow->addWidget(sendButton);
@@ -1758,8 +1783,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         ));
         statusText->setText(stringValue(payload, "status"));
         refreshButton->setEnabled(!isLoading);
-        sendButton->setProperty("loading", isLoading);
-        sendButton->setText(isLoading ? stopTitle : sendTitle);
+        updateSendButtonPresentation(sendButton, isLoading, sendTitle, stopTitle);
         refreshStyle(sendButton);
         updateComposerControlState();
         modelStatus->setText(modelStatusText(
