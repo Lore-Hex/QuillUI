@@ -1374,8 +1374,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
         for (const QString &path : pendingAttachmentPaths) {
             QFrame *attachmentChip = QuillQtWidgets::frame(QStringLiteral("attachmentChip"));
             QHBoxLayout *attachmentChipLayout = new QHBoxLayout(attachmentChip);
-            attachmentChipLayout->setContentsMargins(10, 7, 8, 7);
-            attachmentChipLayout->setSpacing(8);
+            const int attachmentChipPadding = intValue(style, "attachmentChipPadding", 8);
+            attachmentChipLayout->setContentsMargins(
+                attachmentChipPadding,
+                attachmentChipPadding,
+                attachmentChipPadding,
+                attachmentChipPadding
+            );
+            attachmentChipLayout->setSpacing(intValue(style, "attachmentChipSpacing", 8));
 
             QVBoxLayout *attachmentTextLayout = new QVBoxLayout();
             attachmentTextLayout->setContentsMargins(0, 0, 0, 0);
