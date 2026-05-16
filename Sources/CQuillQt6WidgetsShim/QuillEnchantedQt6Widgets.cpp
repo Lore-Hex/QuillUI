@@ -1796,6 +1796,17 @@ extern "C" int quill_enchanted_qt_run_app_json(
         attachmentTray->setVisible(false);
         updateComposerControlState();
     };
+    auto attachPendingPath = [&]() {
+        const QString rawPath = attachmentPath->text().trimmed();
+        const QString displayName = attachmentDisplayName(rawPath);
+        if (displayName.isEmpty()) {
+            return;
+        }
+
+        if (addPendingAttachmentPaths(QStringList{rawPath})) {
+            attachmentPath->clear();
+        }
+    };
     auto renderMessageSet = [&](const QJsonArray &messages) {
         renderMessages(
             messageLayout,
@@ -2007,17 +2018,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
             QStringList()
         );
     });
-    QObject::connect(attachButton, &QPushButton::clicked, [&]() {
-        const QString rawPath = attachmentPath->text().trimmed();
-        const QString displayName = attachmentDisplayName(rawPath);
-        if (displayName.isEmpty()) {
-            return;
-        }
-
-        if (addPendingAttachmentPaths(QStringList{rawPath})) {
-            attachmentPath->clear();
-        }
-    });
+    QObject::connect(attachButton, &QPushButton::clicked, attachPendingPath);
+    QObject::connect(attachmentPath, &QLineEdit::returnPressed, attachPendingPath);
     QObject::connect(clearAttachmentsButton, &QPushButton::clicked, [&]() {
         clearAttachmentState();
     });
