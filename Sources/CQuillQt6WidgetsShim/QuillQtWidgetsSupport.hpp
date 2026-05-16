@@ -12,9 +12,12 @@
 #include <QLayoutItem>
 #include <QPushButton>
 #include <QRect>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSize>
 #include <QString>
 #include <QStyle>
+#include <QTimer>
 #include <QWidget>
 
 #include <cstdio>
@@ -271,6 +274,19 @@ inline void refreshStyle(QWidget *widget) {
     if (widget != nullptr) {
         widget->update();
     }
+}
+
+inline void scrollAreaToBottomLater(QScrollArea *scrollArea) {
+    if (scrollArea == nullptr) {
+        return;
+    }
+
+    QTimer::singleShot(0, scrollArea, [scrollArea]() {
+        QScrollBar *scrollBar = scrollArea->verticalScrollBar();
+        if (scrollBar != nullptr) {
+            scrollBar->setValue(scrollBar->maximum());
+        }
+    });
 }
 
 } // namespace QuillQtWidgets

@@ -51,6 +51,7 @@ using QuillQtWidgets::clearLayout;
 using QuillQtWidgets::cssPixels;
 using QuillQtWidgets::label;
 using QuillQtWidgets::refreshStyle;
+using QuillQtWidgets::scrollAreaToBottomLater;
 using PromptAction = std::function<void(const QString &)>;
 
 QString stringValue(const QJsonObject &object, const char *key) {
@@ -1524,6 +1525,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
     messageLayout->setSpacing(intValue(style, "messageSpacing", 14));
     scrollArea->setWidget(transcript);
     chatLayout->addWidget(scrollArea, 1);
+    auto scrollTranscriptToBottom = [scrollArea]() {
+        scrollAreaToBottomLater(scrollArea);
+    };
 
     QFrame *composer = QuillQtWidgets::frame(QStringLiteral("composer"));
     QVBoxLayout *composerLayout = new QVBoxLayout(composer);
@@ -1664,6 +1668,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         }
         addMessageBubble(messageLayout, message, style);
         promptEditor->clear();
+        scrollTranscriptToBottom();
     };
     auto appendUserMessage = [&](const QString &rawText) {
         const QString text = rawText.trimmed();
@@ -1804,6 +1809,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             isLoading
         );
         showingPromptCards = messages.isEmpty();
+        scrollTranscriptToBottom();
     };
     auto updateConversationActionState = [&]() {
         const bool hasConversations = conversationList->count() > 0;
