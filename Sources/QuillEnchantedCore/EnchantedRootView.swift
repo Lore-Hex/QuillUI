@@ -379,8 +379,8 @@ private struct EmptyConversationView: View {
     private let prompts = EnchantedPromptCatalog.emptyConversationTitles
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateSpacing)) {
+            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateHeaderSpacing)) {
                 Text("Ask your local model")
                     .font(.title)
                     .foregroundColor(QuillColors.ink)
@@ -389,25 +389,28 @@ private struct EmptyConversationView: View {
                     .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth), alignment: .leading)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.promptListSpacing)) {
                 ForEach(prompts, id: \.self) { prompt in
                     Button(action: { send(prompt) }) {
-                        HStack(spacing: 10) {
+                        HStack(spacing: CGFloat(EnchantedVisualMetrics.promptButtonIconSpacing)) {
                             Image(systemName: "star.fill")
                             Text(prompt)
-                                .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth - 80), alignment: .leading)
+                                .frame(
+                                    width: CGFloat(EnchantedVisualMetrics.promptButtonWidth - EnchantedVisualMetrics.promptButtonTextWidthInset),
+                                    alignment: .leading
+                                )
                         }
-                        .padding(12)
+                        .padding(CGFloat(EnchantedVisualMetrics.promptButtonPadding))
                         .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth), alignment: .leading)
                         .background(QuillColors.card)
-                        .cornerRadius(8)
+                        .cornerRadius(CGFloat(EnchantedVisualMetrics.promptButtonRadius))
                     }
                     .buttonStyle(.plain)
                     .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth), alignment: .leading)
                 }
             }
         }
-        .padding(26)
+        .padding(CGFloat(EnchantedVisualMetrics.emptyStatePadding))
         .frame(maxWidth: CGFloat(EnchantedVisualMetrics.emptyStateMaxWidth), alignment: .leading)
     }
 }

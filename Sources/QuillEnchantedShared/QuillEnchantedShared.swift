@@ -21,6 +21,14 @@ public enum EnchantedVisualMetrics {
     public static let headerTitleWidth = 560
     public static let promptButtonWidth = 620
     public static let emptyStateMaxWidth = 680
+    public static let emptyStatePadding = 26
+    public static let emptyStateSpacing = 18
+    public static let emptyStateHeaderSpacing = 8
+    public static let promptListSpacing = 10
+    public static let promptButtonIconSpacing = 10
+    public static let promptButtonTextWidthInset = 80
+    public static let promptButtonPadding = 12
+    public static let promptButtonRadius = 8
     public static let messageMaxWidth = 680
     public static let composerMinWidth = 620
     public static let composerMaxWidth = 840
