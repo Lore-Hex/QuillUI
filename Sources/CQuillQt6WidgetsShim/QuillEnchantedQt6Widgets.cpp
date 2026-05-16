@@ -24,6 +24,7 @@
 #include <QSplitter>
 #include <QString>
 #include <QStringList>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <functional>
@@ -89,11 +90,15 @@ QString appStyleSheet(const QJsonObject &style) {
         QFrame#messageAssistant, QFrame#messageSystem { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
         QFrame#messageUser { background: %7; border: 1px solid #D4DFE8; border-radius: 8px; }
         QFrame#attachmentChip { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
+        QScrollArea#attachmentScrollArea, QWidget#attachmentChipList { background: transparent; border: 0; }
+        QLabel#attachmentName { color: %2; font-size: 12px; }
+        QLabel#attachmentSize { color: %8; font-size: 11px; }
         QPushButton#primaryButton, QPushButton#sendButton { background: %6; color: white; border: 0; border-radius: 8px; padding: 9px 12px; text-align: left; }
         QPushButton#sendButton[loading="true"] { background: %9; }
         QPushButton#sendButton:disabled { background: #AAB5BE; color: #F4F6F7; }
         QPushButton#secondaryButton { background: transparent; color: %2; border: 1px solid #CDD5CA; border-radius: 7px; padding: 7px 10px; text-align: left; }
         QPushButton#secondaryButton:disabled { color: #9CA6AD; border: 1px solid #D8DDD5; }
+        QPushButton#chipRemoveButton { background: transparent; color: %8; border: 0; padding: 2px 6px; font-weight: 700; }
         QPushButton#promptButton { background: %5; color: %2; border: 1px solid #E0E5DD; border-radius: 8px; padding: 12px; text-align: left; }
     )")
         .arg(canvas, ink, sidebar, header, card, primary, system, muted, warning);
@@ -447,13 +452,34 @@ QString attachmentSummaryForPaths(const QStringList &rawPaths) {
     return summaryLines.join(QStringLiteral("\n"));
 }
 
-QString attachmentChipTextForPaths(const QStringList &rawPaths) {
-    QStringList displayNames;
-    for (const QString &path : normalizedAttachmentPaths(rawPaths)) {
-        displayNames.append(attachmentDisplayName(path));
+QString formattedAttachmentByteCount(qint64 byteCount) {
+    if (byteCount < 1024) {
+        return QStringLiteral("%1 bytes").arg(byteCount);
     }
 
-    return displayNames.join(QStringLiteral("\n"));
+    const QStringList units = {
+        QStringLiteral("KB"),
+        QStringLiteral("MB"),
+        QStringLiteral("GB"),
+        QStringLiteral("TB")
+    };
+    double value = double(byteCount) / 1024.0;
+    int unitIndex = 0;
+    while (value >= 1024.0 && unitIndex < units.count() - 1) {
+        value /= 1024.0;
+        unitIndex += 1;
+    }
+
+    return QStringLiteral("%1 %2").arg(QString::number(value, 'f', 1), units.at(unitIndex));
+}
+
+QString attachmentDisplaySize(const QString &rawPath) {
+    const QFileInfo fileInfo(rawPath.trimmed());
+    if (!fileInfo.exists() || !fileInfo.isFile()) {
+        return QString();
+    }
+
+    return formattedAttachmentByteCount(fileInfo.size());
 }
 
 QString attachmentDisplayContent(
@@ -747,13 +773,19 @@ extern "C" int quill_enchanted_qt_run_app_json(
     attachmentTrayLayout->setContentsMargins(0, 0, 0, 0);
     attachmentTrayLayout->setSpacing(7);
     attachmentTrayLayout->addWidget(fieldLabel(stringValue(payload, "attachmentsTitle", QStringLiteral("Attachments"))));
-    QFrame *attachmentChip = QuillQtWidgets::frame(QStringLiteral("attachmentChip"));
-    QHBoxLayout *attachmentChipLayout = new QHBoxLayout(attachmentChip);
-    attachmentChipLayout->setContentsMargins(10, 7, 10, 7);
-    QLabel *attachmentChipText = label(QString(), QStringLiteral("caption"));
-    attachmentChipText->setWordWrap(true);
-    attachmentChipLayout->addWidget(attachmentChipText);
-    attachmentTrayLayout->addWidget(attachmentChip);
+    QScrollArea *attachmentScrollArea = new QScrollArea();
+    attachmentScrollArea->setObjectName(QStringLiteral("attachmentScrollArea"));
+    attachmentScrollArea->setWidgetResizable(true);
+    attachmentScrollArea->setFrameShape(QFrame::NoFrame);
+    attachmentScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    attachmentScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    QWidget *attachmentChipList = new QWidget();
+    attachmentChipList->setObjectName(QStringLiteral("attachmentChipList"));
+    QHBoxLayout *attachmentChipListLayout = new QHBoxLayout(attachmentChipList);
+    attachmentChipListLayout->setContentsMargins(0, 0, 0, 0);
+    attachmentChipListLayout->setSpacing(8);
+    attachmentScrollArea->setWidget(attachmentChipList);
+    attachmentTrayLayout->addWidget(attachmentScrollArea);
     attachmentTray->setVisible(false);
     composerLayout->addWidget(attachmentTray);
 
@@ -865,17 +897,51 @@ extern "C" int quill_enchanted_qt_run_app_json(
         clearAttachmentsButton->setEnabled(hasTrimmedText(attachmentPath) || hasPendingAttachments);
         sendButton->setEnabled(isLoading || hasTrimmedText(promptEditor) || hasPendingAttachments);
     };
-    auto renderAttachmentTray = [&]() {
+    std::function<void()> renderAttachmentTray;
+    renderAttachmentTray = [&]() {
         pendingAttachmentPaths = normalizedAttachmentPaths(pendingAttachmentPaths);
-        const QString chipText = attachmentChipTextForPaths(pendingAttachmentPaths);
-        attachmentChipText->setText(chipText);
-        attachmentTray->setVisible(!chipText.isEmpty());
+        clearLayout(attachmentChipListLayout);
+        for (const QString &path : pendingAttachmentPaths) {
+            QFrame *attachmentChip = QuillQtWidgets::frame(QStringLiteral("attachmentChip"));
+            QHBoxLayout *attachmentChipLayout = new QHBoxLayout(attachmentChip);
+            attachmentChipLayout->setContentsMargins(10, 7, 8, 7);
+            attachmentChipLayout->setSpacing(8);
+
+            QVBoxLayout *attachmentTextLayout = new QVBoxLayout();
+            attachmentTextLayout->setContentsMargins(0, 0, 0, 0);
+            attachmentTextLayout->setSpacing(2);
+            QLabel *attachmentName = label(attachmentDisplayName(path), QStringLiteral("attachmentName"));
+            attachmentName->setWordWrap(false);
+            attachmentTextLayout->addWidget(attachmentName);
+
+            const QString displaySize = attachmentDisplaySize(path);
+            if (!displaySize.isEmpty()) {
+                QLabel *attachmentSize = label(displaySize, QStringLiteral("attachmentSize"));
+                attachmentSize->setWordWrap(false);
+                attachmentTextLayout->addWidget(attachmentSize);
+            }
+
+            QPushButton *removeAttachmentButton = new QPushButton(QStringLiteral("x"));
+            removeAttachmentButton->setObjectName(QStringLiteral("chipRemoveButton"));
+            removeAttachmentButton->setToolTip(QStringLiteral("Remove attachment"));
+            removeAttachmentButton->setFixedWidth(28);
+            QObject::connect(removeAttachmentButton, &QPushButton::clicked, [&, path]() {
+                pendingAttachmentPaths.removeAll(path);
+                QTimer::singleShot(0, attachmentTray, renderAttachmentTray);
+            });
+
+            attachmentChipLayout->addLayout(attachmentTextLayout);
+            attachmentChipLayout->addWidget(removeAttachmentButton);
+            attachmentChipListLayout->addWidget(attachmentChip);
+        }
+        attachmentChipListLayout->addStretch(1);
+        attachmentTray->setVisible(!pendingAttachmentPaths.isEmpty());
         updateComposerControlState();
     };
     auto clearAttachmentState = [&]() {
         attachmentPath->clear();
         pendingAttachmentPaths.clear();
-        attachmentChipText->clear();
+        clearLayout(attachmentChipListLayout);
         attachmentTray->setVisible(false);
         updateComposerControlState();
     };
