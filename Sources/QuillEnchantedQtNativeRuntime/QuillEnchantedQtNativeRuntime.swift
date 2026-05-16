@@ -27,6 +27,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var attachmentPlaceholder: String
     var attachTitle: String
     var clearAttachmentsTitle: String
+    var attachmentsClearedStatus: String
     var attachmentsTitle: String
     var attachmentDefaultPrompt: String
     var attachmentSummaryTitle: String
@@ -274,6 +275,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         attachmentPlaceholder: "Image path or drop files here",
         attachTitle: "Attach",
         clearAttachmentsTitle: "Clear",
+        attachmentsClearedStatus: "Attachments cleared",
         attachmentsTitle: "Attachments",
         attachmentDefaultPrompt: "Describe this image.",
         attachmentSummaryTitle: "[Attached images]",

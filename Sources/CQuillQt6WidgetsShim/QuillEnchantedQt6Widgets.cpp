@@ -1622,6 +1622,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QString sendTitle = stringValue(payload, "sendTitle", QStringLiteral("Send"));
     const QString stopTitle = stringValue(payload, "stopTitle", QStringLiteral("Stop"));
     const QString stoppingStatus = stringValue(payload, "stoppingStatus", QStringLiteral("Stopping..."));
+    const QString attachmentsClearedStatus = stringValue(payload, "attachmentsClearedStatus", QStringLiteral("Attachments cleared"));
     QPushButton *sendButton = new QPushButton();
     sendButton->setObjectName(QStringLiteral("sendButton"));
     updateSendButtonPresentation(sendButton, isLoading, sendTitle, stopTitle);
@@ -1789,11 +1790,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
     dropTarget->setDropHandler([&](const QStringList &paths) {
         addPendingAttachmentPaths(paths);
     });
-    auto clearAttachmentState = [&]() {
+    auto clearAttachmentState = [&](const QString &nextStatus) {
         attachmentPath->clear();
         pendingAttachmentPaths.clear();
         clearLayout(attachmentChipListLayout);
         attachmentTray->setVisible(false);
+        if (!nextStatus.isEmpty()) {
+            statusText->setText(nextStatus);
+        }
         updateComposerControlState();
     };
     auto attachPendingPath = [&]() {
@@ -2021,7 +2025,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QObject::connect(attachButton, &QPushButton::clicked, attachPendingPath);
     QObject::connect(attachmentPath, &QLineEdit::returnPressed, attachPendingPath);
     QObject::connect(clearAttachmentsButton, &QPushButton::clicked, [&]() {
-        clearAttachmentState();
+        clearAttachmentState(attachmentsClearedStatus);
     });
     QObject::connect(attachmentPath, &QLineEdit::textChanged, [&]() {
         updateComposerControlState();
@@ -2036,7 +2040,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         }
 
         appendComposerMessage(promptEditor->toPlainText());
-        clearAttachmentState();
+        clearAttachmentState(QString());
     });
     updateComposerControlState();
     updateConversationActionState();
