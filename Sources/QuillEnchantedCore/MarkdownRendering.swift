@@ -254,7 +254,7 @@ public struct MarkdownMessageView: View {
                         .foregroundColor(QuillColors.muted)
                 }
                 Text(block.text.isEmpty ? " " : block.text)
-                    .font(.system(size: 13, weight: .regular, design: .monospaced))
+                    .font(.system(size: CGFloat(EnchantedTypography.markdownCodeFontSize), weight: .regular, design: .monospaced))
                     .foregroundColor(QuillColors.ink)
                     .lineSpacing(2)
             }

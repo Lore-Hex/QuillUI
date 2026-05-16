@@ -1108,6 +1108,7 @@ struct SourceHygieneTests {
         #expect(enchantedMacMarkdown.contains("EnchantedVisualMetrics.markdownCodeBlockSpacing"))
         #expect(enchantedMacMarkdown.contains("EnchantedVisualMetrics.markdownCodeBlockPadding"))
         #expect(enchantedMacMarkdown.contains("EnchantedVisualMetrics.markdownCodeBlockRadius"))
+        #expect(enchantedMacMarkdown.contains("EnchantedTypography.markdownCodeFontSize"))
         #expect(enchantedQtHost.contains("enum class MarkdownBlockKind"))
         #expect(enchantedQtHost.contains("QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown)"))
         #expect(enchantedQtHost.contains("QWidget *markdownMessageWidget(const QString &markdown, const QJsonObject &style)"))

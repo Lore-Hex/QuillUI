@@ -739,6 +739,7 @@ struct CoreContractMatrixTests {
         #expect(macOSMarkdownRendering.contains("EnchantedVisualMetrics.markdownCodeBlockSpacing"))
         #expect(macOSMarkdownRendering.contains("EnchantedVisualMetrics.markdownCodeBlockPadding"))
         #expect(macOSMarkdownRendering.contains("EnchantedVisualMetrics.markdownCodeBlockRadius"))
+        #expect(macOSMarkdownRendering.contains("EnchantedTypography.markdownCodeFontSize"))
         #expect(nativeShim.contains("QListWidget#conversationList::item { border-radius: %1; margin: %2 0; padding: %3; }"))
         #expect(nativeShim.contains("QFrame#conversationRow { background: %3; border-radius: %6; }"))
         #expect(nativeShim.contains("QFrame#conversationRow[active=\"true\"] { background: %5; }"))
