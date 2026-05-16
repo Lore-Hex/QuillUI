@@ -113,6 +113,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var attachmentChipPadding: Int
         var attachmentChipSpacing: Int
         var attachmentChipTextSpacing: Int
+        var attachmentRemoveButtonWidth: Int
         var attachmentTraySpacing: Int
         var attachmentTrayChipSpacing: Int
         var attachmentInputHorizontalPadding: Int
@@ -146,6 +147,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var composerPadding: Int
         var composerSpacing: Int
         var promptRowSpacing: Int
+        var composerSendButtonMinWidth: Int
         var composerMinHeight: Int
         var composerMaxHeight: Int
         var messageMaxWidth: Int
@@ -283,6 +285,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             attachmentChipPadding: 8,
             attachmentChipSpacing: 8,
             attachmentChipTextSpacing: 2,
+            attachmentRemoveButtonWidth: 28,
             attachmentTraySpacing: 7,
             attachmentTrayChipSpacing: 8,
             attachmentInputHorizontalPadding: 10,
@@ -316,6 +319,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             composerPadding: 18,
             composerSpacing: 10,
             promptRowSpacing: 12,
+            composerSendButtonMinWidth: 86,
             composerMinHeight: 74,
             composerMaxHeight: 120,
             messageMaxWidth: 680

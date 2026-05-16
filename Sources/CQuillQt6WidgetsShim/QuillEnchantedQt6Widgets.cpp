@@ -1323,7 +1323,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     sendButton->setObjectName(QStringLiteral("sendButton"));
     sendButton->setProperty("loading", isLoading);
     sendButton->setText(isLoading ? stopTitle : sendTitle);
-    sendButton->setMinimumWidth(86);
+    sendButton->setMinimumWidth(intValue(style, "composerSendButtonMinWidth", 86));
     promptRow->addWidget(promptEditor, 1);
     promptRow->addWidget(sendButton);
     composerLayout->addLayout(promptRow);
@@ -1448,7 +1448,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             QPushButton *removeAttachmentButton = new QPushButton(QStringLiteral("x"));
             removeAttachmentButton->setObjectName(QStringLiteral("chipRemoveButton"));
             removeAttachmentButton->setToolTip(QStringLiteral("Remove attachment"));
-            removeAttachmentButton->setFixedWidth(28);
+            removeAttachmentButton->setFixedWidth(intValue(style, "attachmentRemoveButtonWidth", 28));
             QObject::connect(removeAttachmentButton, &QPushButton::clicked, [&, path]() {
                 pendingAttachmentPaths.removeAll(path);
                 QTimer::singleShot(0, attachmentTray, renderAttachmentTray);
