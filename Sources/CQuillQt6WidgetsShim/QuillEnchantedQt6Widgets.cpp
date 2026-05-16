@@ -28,6 +28,7 @@
 #include <QPaintEvent>
 #include <QPen>
 #include <QPlainTextEdit>
+#include <QPixmap>
 #include <QPointF>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -84,14 +85,22 @@ QIcon attachButtonIcon() {
     return themedActionIcon(QStringLiteral("folder-new-symbolic"), QStyle::SP_FileDialogNewFolder);
 }
 
+QIcon dropTargetIcon() {
+    return attachButtonIcon();
+}
+
 QIcon sendButtonIcon(bool isLoading) {
     return isLoading
         ? themedActionIcon(QStringLiteral("process-stop-symbolic"), QStyle::SP_MediaStop)
         : themedActionIcon(QStringLiteral("go-next-symbolic"), QStyle::SP_MediaPlay);
 }
 
+int buttonIconSize(const QJsonObject &style) {
+    return intValue(style, "actionButtonIconSize", 16);
+}
+
 void applyButtonIconSize(QPushButton *button, const QJsonObject &style) {
-    const int iconSize = intValue(style, "actionButtonIconSize", 16);
+    const int iconSize = buttonIconSize(style);
     button->setIconSize(QSize(iconSize, iconSize));
 }
 
@@ -379,11 +388,13 @@ QString appStyleSheet(const QJsonObject &style) {
         .arg(statusDotSize, statusDotRadius, success, warning, canvas, warningTextFontSize);
 
     sheet += QStringLiteral(R"(
-        QFrame#dropTarget { background: %1; border: 1px solid %2; border-radius: %5; }
-        QFrame#dropTarget[dragActive="true"] { background: %1; border: 1px solid %3; }
+        QFrame#dropTarget { background: transparent; border: 0; }
+        QFrame#dropTarget[dragActive="true"] { background: transparent; border: 0; }
+        QFrame#dropTargetHint { background: %1; border: 1px solid %2; border-radius: %5; }
+        QLabel#dropTargetLabel { color: %3; font-size: %6; }
         QSplitter::handle { background: %4; }
     )")
-        .arg(dropTarget, dropTargetBorder, primary, divider, dropTargetRadius);
+        .arg(dropTarget, dropTargetBorder, primary, divider, dropTargetRadius, captionFontSize);
 
     sheet += QStringLiteral(R"(
         QLineEdit, QComboBox, QPlainTextEdit { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: %5; }
@@ -1132,6 +1143,13 @@ public:
         dropHandler = handler;
     }
 
+    void setDropHint(QWidget *hint) {
+        dropHint = hint;
+        if (dropHint != nullptr) {
+            dropHint->setVisible(property("dragActive").toBool());
+        }
+    }
+
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override {
         handleDragMove(event);
@@ -1181,10 +1199,14 @@ private:
         }
 
         setProperty("dragActive", active);
+        if (dropHint != nullptr) {
+            dropHint->setVisible(active);
+        }
         refreshStyle(this);
     }
 
     DropHandler dropHandler;
+    QWidget *dropHint = nullptr;
 };
 
 QString attachmentSummaryForPaths(const QStringList &rawPaths) {
@@ -1510,15 +1532,38 @@ extern "C" int quill_enchanted_qt_run_app_json(
     composerLayout->setSpacing(intValue(style, "composerSpacing", 10));
 
     AttachmentDropFrame *dropTarget = new AttachmentDropFrame();
-    QHBoxLayout *dropLayout = new QHBoxLayout(dropTarget);
-    const int attachmentInputHorizontalPadding = intValue(style, "attachmentInputHorizontalPadding", 10);
-    const int attachmentInputVerticalPadding = intValue(style, "attachmentInputVerticalPadding", 7);
-    dropLayout->setContentsMargins(
-        attachmentInputHorizontalPadding,
-        attachmentInputVerticalPadding,
-        attachmentInputHorizontalPadding,
-        attachmentInputVerticalPadding
+    QVBoxLayout *dropTargetLayout = new QVBoxLayout(dropTarget);
+    dropTargetLayout->setContentsMargins(0, 0, 0, 0);
+    dropTargetLayout->setSpacing(intValue(style, "attachmentInputSpacing", 8));
+
+    QFrame *dropHint = QuillQtWidgets::frame(QStringLiteral("dropTargetHint"));
+    QHBoxLayout *dropHintLayout = new QHBoxLayout(dropHint);
+    const int dropTargetPadding = intValue(style, "dropTargetPadding", 8);
+    dropHintLayout->setContentsMargins(
+        dropTargetPadding,
+        dropTargetPadding,
+        dropTargetPadding,
+        dropTargetPadding
     );
+    dropHintLayout->setSpacing(intValue(style, "attachmentInputSpacing", 8));
+    const int dropTargetIconSize = buttonIconSize(style);
+    QLabel *dropTargetIconLabel = new QLabel();
+    dropTargetIconLabel->setObjectName(QStringLiteral("dropTargetIcon"));
+    dropTargetIconLabel->setPixmap(dropTargetIcon().pixmap(dropTargetIconSize, dropTargetIconSize));
+    dropTargetIconLabel->setFixedSize(dropTargetIconSize, dropTargetIconSize);
+    QLabel *dropTargetLabel = label(
+        stringValue(payload, "dropTargetTitle", QStringLiteral("Drop image files to attach")),
+        QStringLiteral("dropTargetLabel")
+    );
+    dropHintLayout->addWidget(dropTargetIconLabel);
+    dropHintLayout->addWidget(dropTargetLabel);
+    dropHintLayout->addStretch(1);
+    dropHint->setVisible(false);
+    dropTarget->setDropHint(dropHint);
+    dropTargetLayout->addWidget(dropHint);
+
+    QHBoxLayout *dropLayout = new QHBoxLayout();
+    dropLayout->setContentsMargins(0, 0, 0, 0);
     dropLayout->setSpacing(intValue(style, "attachmentInputSpacing", 8));
     QLineEdit *attachmentPath = new QLineEdit();
     attachmentPath->setPlaceholderText(stringValue(
@@ -1536,6 +1581,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     dropLayout->addWidget(attachmentPath, 1);
     dropLayout->addWidget(attachButton);
     dropLayout->addWidget(clearAttachmentsButton);
+    dropTargetLayout->addLayout(dropLayout);
     composerLayout->addWidget(dropTarget);
 
     QFrame *attachmentTray = QuillQtWidgets::frame(QStringLiteral("attachmentTray"));

@@ -23,6 +23,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var deleteChatTitle: String
     var clearAllTitle: String
     var refreshModelsTitle: String
+    var dropTargetTitle: String
     var attachmentPlaceholder: String
     var attachTitle: String
     var clearAttachmentsTitle: String
@@ -152,8 +153,6 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var attachmentRemoveButtonWidth: Int
         var attachmentTraySpacing: Int
         var attachmentTrayChipSpacing: Int
-        var attachmentInputHorizontalPadding: Int
-        var attachmentInputVerticalPadding: Int
         var attachmentInputSpacing: Int
         var headerTitleWidth: Int
         var headerSpacing: Int
@@ -200,6 +199,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var chipRemoveButtonHorizontalPadding: Int
         var controlPadding: Int
         var controlRadius: Int
+        var dropTargetPadding: Int
         var dropTargetRadius: Int
         var composerPadding: Int
         var composerSpacing: Int
@@ -270,6 +270,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         deleteChatTitle: "Delete chat",
         clearAllTitle: "Clear all",
         refreshModelsTitle: "Refresh models",
+        dropTargetTitle: "Drop image files to attach",
         attachmentPlaceholder: "Image path or drop files here",
         attachTitle: "Attach",
         clearAttachmentsTitle: "Clear",
@@ -381,8 +382,6 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             attachmentRemoveButtonWidth: EnchantedVisualMetrics.attachmentRemoveButtonWidth,
             attachmentTraySpacing: EnchantedVisualMetrics.attachmentTraySpacing,
             attachmentTrayChipSpacing: EnchantedVisualMetrics.attachmentTrayChipSpacing,
-            attachmentInputHorizontalPadding: EnchantedVisualMetrics.attachmentInputHorizontalPadding,
-            attachmentInputVerticalPadding: EnchantedVisualMetrics.attachmentInputVerticalPadding,
             attachmentInputSpacing: EnchantedVisualMetrics.attachmentInputSpacing,
             headerTitleWidth: EnchantedVisualMetrics.headerTitleWidth,
             headerSpacing: EnchantedVisualMetrics.headerSpacing,
@@ -429,6 +428,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             chipRemoveButtonHorizontalPadding: EnchantedVisualMetrics.chipRemoveButtonHorizontalPadding,
             controlPadding: EnchantedVisualMetrics.controlPadding,
             controlRadius: EnchantedVisualMetrics.controlRadius,
+            dropTargetPadding: EnchantedVisualMetrics.dropTargetPadding,
             dropTargetRadius: EnchantedVisualMetrics.dropTargetRadius,
             composerPadding: EnchantedVisualMetrics.composerPadding,
             composerSpacing: EnchantedVisualMetrics.composerSpacing,
