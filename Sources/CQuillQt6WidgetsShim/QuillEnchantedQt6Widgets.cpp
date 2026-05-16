@@ -1201,19 +1201,32 @@ AttachmentPathValidation validatedAttachmentPaths(const QStringList &rawPaths) {
     return validation;
 }
 
-QStringList attachmentPathsFromMimeData(const QMimeData *mimeData) {
+QStringList attachmentCandidatePathsFromMimeData(const QMimeData *mimeData) {
     QStringList paths;
     if (mimeData == nullptr || !mimeData->hasUrls()) {
         return paths;
     }
 
+    const QStringList supportedExtensions = supportedAttachmentExtensions();
     for (const QUrl &url : mimeData->urls()) {
-        if (url.isLocalFile()) {
-            paths.append(url.toLocalFile());
+        if (!url.isLocalFile()) {
+            continue;
         }
+
+        const QString path = normalizedAttachmentPath(url.toLocalFile());
+        if (path.isEmpty() || paths.contains(path)) {
+            continue;
+        }
+
+        const QFileInfo fileInfo(path);
+        if (!supportedExtensions.contains(fileInfo.suffix().toLower())) {
+            continue;
+        }
+
+        paths.append(path);
     }
 
-    return validatedAttachmentPaths(paths).acceptedPaths;
+    return paths;
 }
 
 class AttachmentDropFrame final : public QFrame {
@@ -1255,7 +1268,7 @@ protected:
 
     void dropEvent(QDropEvent *event) override {
         setDragActive(false);
-        const QStringList paths = attachmentPathsFromMimeData(event->mimeData());
+        const QStringList paths = attachmentCandidatePathsFromMimeData(event->mimeData());
         if (paths.isEmpty()) {
             event->ignore();
             return;
@@ -1273,7 +1286,7 @@ private:
             return;
         }
 
-        const bool acceptsDrop = !attachmentPathsFromMimeData(event->mimeData()).isEmpty();
+        const bool acceptsDrop = !attachmentCandidatePathsFromMimeData(event->mimeData()).isEmpty();
         setDragActive(acceptsDrop);
         if (acceptsDrop) {
             event->acceptProposedAction();
