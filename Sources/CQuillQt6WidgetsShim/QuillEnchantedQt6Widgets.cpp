@@ -5,6 +5,7 @@
 #include <QByteArray>
 #include <QColor>
 #include <QComboBox>
+#include <QDir>
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
 #include <QDragMoveEvent>
@@ -1088,29 +1089,116 @@ bool hasTrimmedText(const QPlainTextEdit *editor) {
     return editor != nullptr && !editor->toPlainText().trimmed().isEmpty();
 }
 
-QString attachmentDisplayName(const QString &rawPath) {
-    const QString trimmedPath = rawPath.trimmed();
+const qint64 attachmentMaxByteCount = 20 * 1024 * 1024;
+
+struct AttachmentPathValidation {
+    QStringList acceptedPaths;
+    QString lastError;
+};
+
+QString formattedAttachmentByteCount(qint64 byteCount);
+QString attachmentDisplaySize(const QString &rawPath);
+
+QStringList supportedAttachmentExtensions() {
+    return {
+        QStringLiteral("gif"),
+        QStringLiteral("heic"),
+        QStringLiteral("jpeg"),
+        QStringLiteral("jpg"),
+        QStringLiteral("png"),
+        QStringLiteral("webp")
+    };
+}
+
+QString normalizedAttachmentPath(const QString &rawPath) {
+    QString trimmedPath = rawPath.trimmed();
     if (trimmedPath.isEmpty()) {
         return QString();
     }
 
-    const QFileInfo fileInfo(trimmedPath);
+    const QUrl url(trimmedPath);
+    if (url.isValid() && url.isLocalFile()) {
+        trimmedPath = url.toLocalFile();
+    } else if (trimmedPath == QStringLiteral("~")) {
+        trimmedPath = QDir::homePath();
+    } else if (trimmedPath.startsWith(QStringLiteral("~/"))) {
+        trimmedPath = QDir::homePath() + QStringLiteral("/") + trimmedPath.mid(2);
+    }
+
+    return QFileInfo(trimmedPath).absoluteFilePath();
+}
+
+QString attachmentDisplayName(const QString &rawPath) {
+    const QString path = normalizedAttachmentPath(rawPath);
+    if (path.isEmpty()) {
+        return QString();
+    }
+
+    const QFileInfo fileInfo(path);
     const QString fileName = fileInfo.fileName();
-    return fileName.isEmpty() ? trimmedPath : fileName;
+    return fileName.isEmpty() ? path : fileName;
 }
 
 QStringList normalizedAttachmentPaths(const QStringList &rawPaths) {
     QStringList normalizedPaths;
     for (const QString &rawPath : rawPaths) {
-        const QString trimmedPath = rawPath.trimmed();
-        if (attachmentDisplayName(trimmedPath).isEmpty() || normalizedPaths.contains(trimmedPath)) {
+        const QString path = normalizedAttachmentPath(rawPath);
+        if (attachmentDisplayName(path).isEmpty() || normalizedPaths.contains(path)) {
             continue;
         }
 
-        normalizedPaths.append(trimmedPath);
+        normalizedPaths.append(path);
     }
 
     return normalizedPaths;
+}
+
+QString unsupportedAttachmentMessage(const QString &name) {
+    return QStringLiteral("%1 is not a supported image attachment.").arg(name);
+}
+
+QString unreadableAttachmentMessage(const QString &path) {
+    return QStringLiteral("Could not read image attachment at %1.").arg(path);
+}
+
+QString oversizedAttachmentMessage(const QString &name, qint64 byteCount) {
+    return QStringLiteral("%1 is too large to attach (%2).").arg(name, formattedAttachmentByteCount(byteCount));
+}
+
+AttachmentPathValidation validatedAttachmentPaths(const QStringList &rawPaths) {
+    AttachmentPathValidation validation;
+    const QStringList supportedExtensions = supportedAttachmentExtensions();
+
+    for (const QString &rawPath : rawPaths) {
+        const QString path = normalizedAttachmentPath(rawPath);
+        if (path.isEmpty()) {
+            continue;
+        }
+
+        const QFileInfo fileInfo(path);
+        const QString displayName = fileInfo.fileName().isEmpty() ? path : fileInfo.fileName();
+        if (!supportedExtensions.contains(fileInfo.suffix().toLower())) {
+            validation.lastError = unsupportedAttachmentMessage(displayName);
+            continue;
+        }
+
+        if (!fileInfo.exists() || !fileInfo.isFile() || !fileInfo.isReadable()) {
+            validation.lastError = unreadableAttachmentMessage(path);
+            continue;
+        }
+
+        const qint64 byteCount = fileInfo.size();
+        if (byteCount > attachmentMaxByteCount) {
+            validation.lastError = oversizedAttachmentMessage(displayName, byteCount);
+            continue;
+        }
+
+        if (!validation.acceptedPaths.contains(path)) {
+            validation.acceptedPaths.append(path);
+        }
+    }
+
+    return validation;
 }
 
 QStringList attachmentPathsFromMimeData(const QMimeData *mimeData) {
@@ -1125,7 +1213,7 @@ QStringList attachmentPathsFromMimeData(const QMimeData *mimeData) {
         }
     }
 
-    return normalizedAttachmentPaths(paths);
+    return validatedAttachmentPaths(paths).acceptedPaths;
 }
 
 class AttachmentDropFrame final : public QFrame {
@@ -1213,7 +1301,13 @@ private:
 QString attachmentSummaryForPaths(const QStringList &rawPaths) {
     QStringList summaryLines;
     for (const QString &path : normalizedAttachmentPaths(rawPaths)) {
-        summaryLines.append(QStringLiteral("- %1").arg(attachmentDisplayName(path)));
+        const QString displayName = attachmentDisplayName(path);
+        const QString displaySize = attachmentDisplaySize(path);
+        summaryLines.append(
+            displaySize.isEmpty()
+                ? QStringLiteral("- %1").arg(displayName)
+                : QStringLiteral("- %1 (%2)").arg(displayName, displaySize)
+        );
     }
 
     return summaryLines.join(QStringLiteral("\n"));
@@ -1241,7 +1335,7 @@ QString formattedAttachmentByteCount(qint64 byteCount) {
 }
 
 QString attachmentDisplaySize(const QString &rawPath) {
-    const QFileInfo fileInfo(rawPath.trimmed());
+    const QFileInfo fileInfo(normalizedAttachmentPath(rawPath));
     if (!fileInfo.exists() || !fileInfo.isFile()) {
         return QString();
     }
@@ -1774,9 +1868,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
         updateComposerControlState();
     };
     auto addPendingAttachmentPaths = [&](const QStringList &rawPaths) -> bool {
-        const QStringList attachmentPaths = normalizedAttachmentPaths(rawPaths);
+        const AttachmentPathValidation validation = validatedAttachmentPaths(rawPaths);
         bool accepted = false;
-        for (const QString &path : attachmentPaths) {
+        for (const QString &path : validation.acceptedPaths) {
             if (pendingAttachmentPaths.contains(path)) {
                 continue;
             }
@@ -1786,6 +1880,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
         }
 
         if (!accepted) {
+            if (!validation.lastError.isEmpty()) {
+                statusText->setText(validation.lastError);
+            }
             return false;
         }
 
