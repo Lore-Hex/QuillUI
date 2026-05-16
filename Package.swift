@@ -1289,7 +1289,7 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .target(
             name: "QuillGenericQtNativeRuntime",
-            dependencies: ["CQuillQt6WidgetsShim", "QuillQtNativeRuntimeSupport"],
+            dependencies: [.target(name: "QuillEnchantedShared"), "CQuillQt6WidgetsShim", "QuillQtNativeRuntimeSupport"],
             path: "Sources/QuillGenericQtNativeRuntime",
             swiftSettings: appSwiftSettings
         ),
@@ -1323,7 +1323,7 @@ let packageTestTargets: [Target] = {
             // reintroducing the GTK/SwiftOpenUI dependency graph.
             .testTarget(
                 name: "QuillQtBackendManifestTests",
-                dependencies: ["QuillGenericQtNativeRuntime", "QuillQtNativeRuntimeSupport"],
+                dependencies: ["QuillGenericQtNativeRuntime", "QuillQtNativeRuntimeSupport", "QuillEnchantedShared"],
                 swiftSettings: appSwiftSettings
             )
         ]

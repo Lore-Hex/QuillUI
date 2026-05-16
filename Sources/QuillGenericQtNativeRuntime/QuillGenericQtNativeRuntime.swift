@@ -1,5 +1,6 @@
 #if os(Linux)
 import CQuillQt6WidgetsShim
+import QuillEnchantedShared
 import QuillQtNativeRuntimeSupport
 
 public struct QuillGenericQtAppSnapshot: Codable, Sendable {
@@ -413,8 +414,12 @@ public enum QuillGenericQtAppCatalog {
 
     public static let enchantedUpstreamSlice = QuillGenericQtAppSnapshot(
         windowTitle: "Quill Enchanted Slice",
-        defaultWidth: 1120,
-        defaultHeight: 720,
+        minimumWidth: EnchantedVisualMetrics.minimumWindowWidth,
+        minimumHeight: EnchantedVisualMetrics.minimumWindowHeight,
+        defaultWidth: EnchantedVisualMetrics.defaultWindowWidth,
+        defaultHeight: EnchantedVisualMetrics.defaultWindowHeight,
+        sidebarWidth: EnchantedVisualMetrics.sidebarWidth,
+        detailWidth: EnchantedVisualMetrics.detailWidth,
         sidebarTitle: "Enchanted",
         sidebarSubtitle: "Local AI conversations",
         primaryActionTitle: "New chat",

@@ -79,8 +79,16 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedApp.swift"),
             encoding: .utf8
         )
+        let upstreamSlice = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedUpstreamSlice/main.swift"),
+            encoding: .utf8
+        )
         let runtime = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift"),
+            encoding: .utf8
+        )
+        let genericQtRuntime = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillGenericQtNativeRuntime/QuillGenericQtNativeRuntime.swift"),
             encoding: .utf8
         )
         let macOSRootView = try String(
@@ -127,6 +135,7 @@ struct CoreContractMatrixTests {
         #expect(manifest.contains("dependencies: [\"QuillData\"]"))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedData\""))
         #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"QuillUI\", \"QuillFoundation\"]"))
+        #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
         #expect(manifest.contains("name: \"QuillEnchantedQtNativeRuntime\""))
         #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
         #expect(qtMain.contains("#if QUILLUI_ENCHANTED_QT_NATIVE_BACKEND"))
@@ -137,8 +146,24 @@ struct CoreContractMatrixTests {
         #expect(qtMain.contains("height: Double(EnchantedVisualMetrics.defaultWindowHeight)"))
         #expect(coreApp.contains("width: Double(EnchantedVisualMetrics.defaultWindowWidth)"))
         #expect(coreApp.contains("height: Double(EnchantedVisualMetrics.defaultWindowHeight)"))
+        #expect(upstreamSlice.contains("import QuillEnchantedShared"))
+        #expect(upstreamSlice.contains("width: Double(EnchantedVisualMetrics.defaultWindowWidth)"))
+        #expect(upstreamSlice.contains("height: Double(EnchantedVisualMetrics.defaultWindowHeight)"))
+        #expect(upstreamSlice.contains("EnchantedVisualMetrics.sidebarWidth"))
+        #expect(upstreamSlice.contains("EnchantedVisualMetrics.sidebarIdealWidth"))
+        #expect(upstreamSlice.contains("EnchantedVisualMetrics.sidebarMaxWidth"))
+        #expect(upstreamSlice.contains("EnchantedVisualMetrics.composerMinWidth"))
+        #expect(upstreamSlice.contains("EnchantedVisualMetrics.composerMaxWidth"))
+        #expect(upstreamSlice.contains("EnchantedVisualMetrics.messageMaxWidth"))
         #expect(runtime.contains("import QuillEnchantedData"))
         #expect(runtime.contains("import QuillEnchantedShared"))
+        #expect(genericQtRuntime.contains("import QuillEnchantedShared"))
+        #expect(genericQtRuntime.contains("minimumWidth: EnchantedVisualMetrics.minimumWindowWidth"))
+        #expect(genericQtRuntime.contains("minimumHeight: EnchantedVisualMetrics.minimumWindowHeight"))
+        #expect(genericQtRuntime.contains("defaultWidth: EnchantedVisualMetrics.defaultWindowWidth"))
+        #expect(genericQtRuntime.contains("defaultHeight: EnchantedVisualMetrics.defaultWindowHeight"))
+        #expect(genericQtRuntime.contains("sidebarWidth: EnchantedVisualMetrics.sidebarWidth"))
+        #expect(genericQtRuntime.contains("detailWidth: EnchantedVisualMetrics.detailWidth"))
         #expect(runtime.contains("EnchantedModelContext.default()"))
         #expect(runtime.contains("QuillEnchantedQtSnapshot.preview"))
         #expect(runtime.contains("QuillEnchantedQtSnapshot.persisted("))
@@ -295,10 +320,15 @@ struct CoreContractMatrixTests {
         #expect(sharedPrompts.contains("public static let defaultWindowWidth = 1180"))
         #expect(sharedPrompts.contains("public static let defaultWindowHeight = 760"))
         #expect(sharedPrompts.contains("public static let sidebarWidth = 300"))
+        #expect(sharedPrompts.contains("public static let sidebarIdealWidth = 330"))
+        #expect(sharedPrompts.contains("public static let sidebarMaxWidth = 360"))
+        #expect(sharedPrompts.contains("public static let detailWidth = defaultWindowWidth - sidebarWidth"))
         #expect(sharedPrompts.contains("public static let headerTitleWidth = 560"))
         #expect(sharedPrompts.contains("public static let promptButtonWidth = 620"))
         #expect(sharedPrompts.contains("public static let emptyStateMaxWidth = 680"))
         #expect(sharedPrompts.contains("public static let messageMaxWidth = 680"))
+        #expect(sharedPrompts.contains("public static let composerMinWidth = 620"))
+        #expect(sharedPrompts.contains("public static let composerMaxWidth = 840"))
         #expect(sharedPrompts.contains("public static let composerMinHeight = 74"))
         #expect(sharedPrompts.contains("public static let composerMaxHeight = 120"))
         #expect(sharedPrompts.contains("public enum EnchantedTypography"))

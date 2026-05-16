@@ -1,5 +1,6 @@
 import Foundation
 import QuillEnchantedCore
+import QuillEnchantedShared
 import QuillUI
 #if canImport(SwiftUI)
 import UniformTypeIdentifiers
@@ -137,7 +138,11 @@ private extension String {
 
 struct UpstreamSliceApp: App {
     var body: some Scene {
-        QuillAppWindow.scene("Quill Enchanted Upstream Slice", width: 1180, height: 760) {
+        QuillAppWindow.scene(
+            "Quill Enchanted Upstream Slice",
+            width: Double(EnchantedVisualMetrics.defaultWindowWidth),
+            height: Double(EnchantedVisualMetrics.defaultWindowHeight)
+        ) {
             UpstreamSliceRoot()
         }
     }
@@ -303,7 +308,11 @@ struct ChatView: View {
                 onDeleteAllConversations: onDeleteAllConversations,
                 canDeleteAllConversations: canDeleteAllConversations
             )
-            .navigationSplitViewColumnWidth(min: 300, ideal: 330, max: 360)
+            .navigationSplitViewColumnWidth(
+                min: CGFloat(EnchantedVisualMetrics.sidebarWidth),
+                ideal: CGFloat(EnchantedVisualMetrics.sidebarIdealWidth),
+                max: CGFloat(EnchantedVisualMetrics.sidebarMaxWidth)
+            )
         } detail: {
             VStack(alignment: .center, spacing: 0) {
                 HeaderView(
@@ -351,7 +360,10 @@ struct ChatView: View {
                     editMessage: $editMessage
                 )
                 .padding()
-                .frame(minWidth: 620, maxWidth: 840)
+                .frame(
+                    minWidth: CGFloat(EnchantedVisualMetrics.composerMinWidth),
+                    maxWidth: CGFloat(EnchantedVisualMetrics.composerMaxWidth)
+                )
             }
             .background(EnchantedTheme.canvas)
         }
@@ -581,7 +593,7 @@ struct MessageListView: View {
 
                         messageBody(message)
                             .padding(12)
-                            .frame(maxWidth: 680, alignment: .leading)
+                            .frame(maxWidth: CGFloat(EnchantedVisualMetrics.messageMaxWidth), alignment: .leading)
                             .background(message.role == "user" ? EnchantedTheme.cardQuiet : EnchantedTheme.card)
                             .cornerRadius(8)
                             .contextMenu {

@@ -15,10 +15,15 @@ public enum EnchantedVisualMetrics {
     public static let defaultWindowWidth = 1180
     public static let defaultWindowHeight = 760
     public static let sidebarWidth = 300
+    public static let sidebarIdealWidth = 330
+    public static let sidebarMaxWidth = 360
+    public static let detailWidth = defaultWindowWidth - sidebarWidth
     public static let headerTitleWidth = 560
     public static let promptButtonWidth = 620
     public static let emptyStateMaxWidth = 680
     public static let messageMaxWidth = 680
+    public static let composerMinWidth = 620
+    public static let composerMaxWidth = 840
     public static let composerMinHeight = 74
     public static let composerMaxHeight = 120
 }

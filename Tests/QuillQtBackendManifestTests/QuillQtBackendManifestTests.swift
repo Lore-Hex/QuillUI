@@ -1,4 +1,5 @@
 import Foundation
+import QuillEnchantedShared
 import QuillGenericQtNativeRuntime
 import QuillQtNativeRuntimeSupport
 import Testing
@@ -111,6 +112,7 @@ struct QuillQtBackendManifestTests {
         #expect(manifest.contains("dependencies: [\"QuillEnchantedData\"]"))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))
         #expect(manifest.contains("quillEnchantedDataTarget,"))
+        #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
         #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
         #expect(!manifest.contains("if quillUILinuxBuildBackend == .qt {\n        return []"))
     }
@@ -189,6 +191,10 @@ struct QuillQtBackendManifestTests {
             }
 
             assertGenericQtSnapshot(expectation.snapshot, product: product, expectation: expectation)
+            if product == "quill-enchanted-upstream-slice" {
+                assertEnchantedSliceUsesSharedMetrics(expectation.snapshot)
+            }
+
             let sharedSelectionKeys = try genericSelectionEnvironmentKeys(product: product, smokeLib: smokeLib)
             #expect(
                 sharedSelectionKeys + QuillGenericQtAppSnapshot.defaultSelectedIndexEnvironmentKeys
@@ -199,6 +205,10 @@ struct QuillQtBackendManifestTests {
             let decodedSnapshot = try JSONDecoder().decode(QuillGenericQtAppSnapshot.self, from: encodedSnapshot)
 
             assertGenericQtSnapshot(decodedSnapshot, product: product, expectation: expectation)
+            if product == "quill-enchanted-upstream-slice" {
+                assertEnchantedSliceUsesSharedMetrics(decodedSnapshot)
+            }
+
             #expect(decodedSnapshot.windowTitle == expectation.snapshot.windowTitle)
             #expect(decodedSnapshot.selectedIndex == expectation.snapshot.selectedIndex)
             #expect(decodedSnapshot.items.count == expectation.snapshot.items.count)
@@ -344,6 +354,15 @@ struct QuillQtBackendManifestTests {
             #expect(!message.sender.isEmpty)
             #expect(!message.body.isEmpty)
         }
+    }
+
+    private func assertEnchantedSliceUsesSharedMetrics(_ snapshot: QuillGenericQtAppSnapshot) {
+        #expect(snapshot.minimumWidth == EnchantedVisualMetrics.minimumWindowWidth)
+        #expect(snapshot.minimumHeight == EnchantedVisualMetrics.minimumWindowHeight)
+        #expect(snapshot.defaultWidth == EnchantedVisualMetrics.defaultWindowWidth)
+        #expect(snapshot.defaultHeight == EnchantedVisualMetrics.defaultWindowHeight)
+        #expect(snapshot.sidebarWidth == EnchantedVisualMetrics.sidebarWidth)
+        #expect(snapshot.detailWidth == EnchantedVisualMetrics.detailWidth)
     }
 
     private func canonicalAppSpecs(in manifest: String) throws -> [QtAppSpec] {
