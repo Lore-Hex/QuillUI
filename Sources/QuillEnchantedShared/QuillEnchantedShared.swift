@@ -24,6 +24,10 @@ public enum EnchantedVisualMetrics {
     public static let messageMaxWidth = 680
     public static let composerMinWidth = 620
     public static let composerMaxWidth = 840
+    public static let composerPadding = 18
+    public static let composerSpacing = 10
+    public static let promptRowSpacing = 12
+    public static let composerSendButtonMinWidth = 86
     public static let composerMinHeight = 74
     public static let composerMaxHeight = 120
 }

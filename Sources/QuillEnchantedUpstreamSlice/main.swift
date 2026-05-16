@@ -359,7 +359,7 @@ struct ChatView: View {
                     onAttachmentError: onAttachmentError,
                     editMessage: $editMessage
                 )
-                .padding()
+                .padding(CGFloat(EnchantedVisualMetrics.composerPadding))
                 .frame(
                     minWidth: CGFloat(EnchantedVisualMetrics.composerMinWidth),
                     maxWidth: CGFloat(EnchantedVisualMetrics.composerMaxWidth)

@@ -171,7 +171,7 @@ public struct EnchantedRootView: View {
             Divider()
 
             composer
-                .padding(18)
+                .padding(CGFloat(EnchantedVisualMetrics.composerPadding))
                 .background(QuillColors.header)
         }
     }
@@ -202,7 +202,7 @@ public struct EnchantedRootView: View {
     }
 
     private var composer: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.composerSpacing)) {
             if model.isAttachmentDropTargeted {
                 HStack(spacing: 8) {
                     Image(systemName: "folder.badge.plus")
@@ -240,7 +240,7 @@ public struct EnchantedRootView: View {
                 .disabled(model.pendingImageAttachments.isEmpty && model.attachmentPath.quillTrimmedNonEmpty == nil)
             }
 
-            HStack(alignment: .bottom, spacing: 12) {
+            HStack(alignment: .bottom, spacing: CGFloat(EnchantedVisualMetrics.promptRowSpacing)) {
                 TextEditor(text: composerText)
                     .frame(
                         minHeight: CGFloat(EnchantedVisualMetrics.composerMinHeight),
