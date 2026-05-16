@@ -4,7 +4,7 @@ import QuillEnchantedData
 import FoundationNetworking
 #endif
 
-public enum OllamaClientError: Error, CustomStringConvertible, Sendable {
+public enum OllamaClientError: Error, CustomStringConvertible, LocalizedError, Sendable {
     case invalidBaseURL(String)
     case invalidResponse
     case server(Int, String)
@@ -27,6 +27,10 @@ public enum OllamaClientError: Error, CustomStringConvertible, Sendable {
         case .streamingUnavailable(let message):
             return message
         }
+    }
+
+    public var errorDescription: String? {
+        description
     }
 }
 

@@ -298,17 +298,17 @@ private struct QuillEnchantedQtActionRequest: Decodable {
     var models: [String]?
 }
 
-private final class OllamaModelFetchBox: @unchecked Sendable {
+private final class AsyncResultBox<Value: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
-    private var result: Result<[OllamaModel], Error>?
+    private var result: Result<Value, Error>?
 
-    func store(_ result: Result<[OllamaModel], Error>) {
+    func store(_ result: Result<Value, Error>) {
         lock.lock()
         self.result = result
         lock.unlock()
     }
 
-    func load() -> Result<[OllamaModel], Error>? {
+    func load() -> Result<Value, Error>? {
         lock.lock()
         let result = result
         lock.unlock()
@@ -357,12 +357,15 @@ private enum QuillEnchantedQtActionBridge {
                     break
                 }
 
-                selectedConversationID = try sendMessage(
+                let sendResult = try sendMessage(
                     messageText,
                     selectedConversationID: existingConversationID(request.conversationID, context: context),
+                    endpoint: endpoint,
+                    selectedModel: selectedModel?.quillTrimmedNonEmpty ?? models.first?.quillTrimmedNonEmpty ?? "",
                     context: context
                 )
-                status = "Ready"
+                selectedConversationID = sendResult.conversationID
+                status = sendResult.status
             case "refreshModels", "configureEndpoint":
                 let refresh = refreshModels(
                     endpoint: endpoint,
@@ -404,8 +407,10 @@ private enum QuillEnchantedQtActionBridge {
     private static func sendMessage(
         _ messageText: String,
         selectedConversationID: String?,
+        endpoint: String,
+        selectedModel: String,
         context: EnchantedModelContext
-    ) throws -> String {
+    ) throws -> (conversationID: String, status: String) {
         let prompt = messageText
         let conversationID: String
         if let selectedConversationID {
@@ -420,7 +425,23 @@ private enum QuillEnchantedQtActionBridge {
         }
 
         try context.insert(ChatMessage(conversationID: conversationID, role: .user, content: prompt))
-        return conversationID
+        let requestMessages = try context.fetchMessages(for: conversationID)
+        do {
+            let assistantReply = try fetchOllamaChatResponse(
+                endpoint: endpoint,
+                selectedModel: selectedModel,
+                messages: requestMessages
+            )
+            let finalContent = assistantReply.quillTrimmedNonEmpty ?? "(Ollama returned an empty response.)"
+            try context.insert(ChatMessage(
+                conversationID: conversationID,
+                role: .assistant,
+                content: finalContent
+            ))
+            return (conversationID, "Ready")
+        } catch {
+            return (conversationID, error.localizedDescription)
+        }
     }
 
     private static func refreshModels(
@@ -443,13 +464,34 @@ private enum QuillEnchantedQtActionBridge {
     }
 
     private static func fetchOllamaModels(endpoint: String) throws -> [OllamaModel] {
+        try waitForAsync {
+            try await OllamaClient(baseURL: endpoint).fetchModels()
+        }
+    }
+
+    private static func fetchOllamaChatResponse(
+        endpoint: String,
+        selectedModel: String,
+        messages: [ChatMessage]
+    ) throws -> String {
+        try waitForAsync {
+            try await OllamaClient(baseURL: endpoint).chat(
+                model: selectedModel,
+                messages: messages
+            )
+        }
+    }
+
+    private static func waitForAsync<Value: Sendable>(
+        _ operation: @Sendable @escaping () async throws -> Value
+    ) throws -> Value {
         let semaphore = DispatchSemaphore(value: 0)
-        let box = OllamaModelFetchBox()
+        let box = AsyncResultBox<Value>()
 
         Task.detached {
-            let response: Result<[OllamaModel], Error>
+            let response: Result<Value, Error>
             do {
-                response = .success(try await OllamaClient(baseURL: endpoint).fetchModels())
+                response = .success(try await operation())
             } catch {
                 response = .failure(error)
             }
@@ -458,7 +500,10 @@ private enum QuillEnchantedQtActionBridge {
         }
 
         semaphore.wait()
-        return try box.load()?.get() ?? []
+        guard let result = box.load() else {
+            throw OllamaClientError.streamingUnavailable("Ollama request finished without a response.")
+        }
+        return try result.get()
     }
 }
 
