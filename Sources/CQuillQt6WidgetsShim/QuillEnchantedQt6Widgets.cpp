@@ -599,6 +599,15 @@ void addMarkdownBlocks(QVBoxLayout *layout, const QString &markdown) {
     }
 }
 
+QWidget *markdownMessageWidget(const QString &markdown) {
+    QWidget *container = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(container);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(9);
+    addMarkdownBlocks(layout, markdown);
+    return container;
+}
+
 QString promptCardPrefix() {
     return QString::fromUtf8("\xE2\x98\x85  ");
 }
@@ -683,7 +692,7 @@ QFrame *messageBubble(const QJsonObject &message, const QJsonObject &style) {
     if (role == QStringLiteral("user")) {
         layout->addWidget(label(stringValue(message, "content"), QStringLiteral("messageUserText")));
     } else {
-        addMarkdownBlocks(layout, stringValue(message, "content"));
+        layout->addWidget(markdownMessageWidget(stringValue(message, "content")));
     }
     return bubble;
 }
