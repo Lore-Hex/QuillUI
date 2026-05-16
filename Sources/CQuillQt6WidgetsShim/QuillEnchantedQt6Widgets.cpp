@@ -1180,6 +1180,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
         modelStatusText(stringValue(payload, "selectedModel")),
         QStringLiteral("caption")
     );
+    const int headerTitleWidth = intValue(style, "headerTitleWidth", 560);
+    currentTitle->setFixedWidth(headerTitleWidth);
+    modelStatus->setFixedWidth(headerTitleWidth);
     titleLayout->addWidget(currentTitle);
     titleLayout->addWidget(modelStatus);
     headerLayout->addLayout(titleLayout, 1);
