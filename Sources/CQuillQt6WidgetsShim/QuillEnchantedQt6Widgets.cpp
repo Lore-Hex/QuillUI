@@ -690,8 +690,14 @@ QFrame *messageBubble(const QJsonObject &message, const QJsonObject &style) {
     bubble->setMaximumWidth(intValue(style, "messageMaxWidth", 680));
 
     QVBoxLayout *layout = new QVBoxLayout(bubble);
-    layout->setContentsMargins(13, 13, 13, 13);
-    layout->setSpacing(7);
+    const int messageBubblePadding = intValue(style, "messageBubblePadding", 13);
+    layout->setContentsMargins(
+        messageBubblePadding,
+        messageBubblePadding,
+        messageBubblePadding,
+        messageBubblePadding
+    );
+    layout->setSpacing(intValue(style, "messageBubbleSpacing", 7));
     layout->addWidget(label(
         messageRoleTitle(role),
         role == QStringLiteral("user") ? QStringLiteral("messageUserRole") : QStringLiteral("messageRole")
@@ -708,6 +714,7 @@ void addMessageBubble(QVBoxLayout *messageLayout, const QJsonObject &message, co
     const bool isUser = stringValue(message, "role") == QStringLiteral("user");
     QHBoxLayout *row = new QHBoxLayout();
     row->setContentsMargins(0, 0, 0, 0);
+    row->setSpacing(intValue(style, "messageBubbleRowSpacing", 10));
     if (isUser) {
         row->addStretch(1);
     }
