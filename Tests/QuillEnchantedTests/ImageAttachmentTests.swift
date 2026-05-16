@@ -37,6 +37,23 @@ struct ImageAttachmentTests {
         #expect(homeURL.path.hasPrefix(FileManager.default.homeDirectoryForCurrentUser.path))
     }
 
+    @Test("splits attachment path lists from composer input")
+    func splitsAttachmentPathListsFromComposerInput() throws {
+        let first = "/tmp/first.png"
+        let second = URL(fileURLWithPath: "/tmp/second.jpg").absoluteString
+        let third = "~/third.webp"
+        let rawPaths = " \(first)\n\n\(second); \(third) "
+
+        #expect(PendingImageAttachment.attachmentPathCandidates(from: rawPaths) == [first, second, third])
+
+        let urls = PendingImageAttachment.fileURLs(from: rawPaths)
+        #expect(urls.map(\.path) == [
+            "/tmp/first.png",
+            "/tmp/second.jpg",
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("third.webp").path
+        ])
+    }
+
     @Test("builds display content with attachment summary")
     func buildsDisplayContent() throws {
         let url = try temporaryFile(name: "diagram.webp", bytes: [0x52, 0x49, 0x46, 0x46])

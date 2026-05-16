@@ -102,6 +102,16 @@ public struct PendingImageAttachment: Identifiable, Hashable, Sendable {
         return try PendingImageAttachment(fileURL: destination, id: id)
     }
 
+    public static func attachmentPathCandidates(from rawPaths: String) -> [String] {
+        rawPaths
+            .components(separatedBy: CharacterSet.newlines.union(CharacterSet(charactersIn: ";")))
+            .compactMap(\.quillTrimmedNonEmpty)
+    }
+
+    public static func fileURLs(from rawPaths: String) -> [URL] {
+        attachmentPathCandidates(from: rawPaths).compactMap(fileURL(from:))
+    }
+
     public static func fileURL(from rawPath: String) -> URL? {
         guard let trimmed = rawPath.quillTrimmedNonEmpty else { return nil }
         if let url = URL(string: trimmed), url.isFileURL {

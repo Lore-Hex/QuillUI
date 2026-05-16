@@ -243,8 +243,10 @@ public final class EnchantedModel: ObservableObject {
 
     @discardableResult
     public func addAttachmentPath() -> Bool {
-        guard let url = PendingImageAttachment.fileURL(from: attachmentPath) else { return false }
-        let accepted = addAttachments(urls: [url])
+        let urls = PendingImageAttachment.fileURLs(from: attachmentPath)
+        guard !urls.isEmpty else { return false }
+
+        let accepted = addAttachments(urls: urls)
         if accepted {
             attachmentPath = ""
         }

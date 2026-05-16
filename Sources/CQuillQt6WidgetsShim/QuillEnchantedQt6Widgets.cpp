@@ -1128,6 +1128,22 @@ QString normalizedAttachmentPath(const QString &rawPath) {
     return QFileInfo(trimmedPath).absoluteFilePath();
 }
 
+QStringList attachmentPathCandidatesFromInput(const QString &rawText) {
+    QString normalizedText = rawText;
+    normalizedText.replace(QChar('\r'), QChar('\n'));
+    normalizedText.replace(QChar(';'), QChar('\n'));
+
+    QStringList candidates;
+    for (const QString &part : normalizedText.split(QChar('\n'), Qt::SkipEmptyParts)) {
+        const QString candidate = part.trimmed();
+        if (!candidate.isEmpty()) {
+            candidates.append(candidate);
+        }
+    }
+
+    return candidates;
+}
+
 QString attachmentDisplayName(const QString &rawPath) {
     const QString path = normalizedAttachmentPath(rawPath);
     if (path.isEmpty()) {
@@ -1917,13 +1933,12 @@ extern "C" int quill_enchanted_qt_run_app_json(
         updateComposerControlState();
     };
     auto attachPendingPath = [&]() {
-        const QString rawPath = attachmentPath->text().trimmed();
-        const QString displayName = attachmentDisplayName(rawPath);
-        if (displayName.isEmpty()) {
+        const QStringList rawPaths = attachmentPathCandidatesFromInput(attachmentPath->text());
+        if (rawPaths.isEmpty()) {
             return;
         }
 
-        if (addPendingAttachmentPaths(QStringList{rawPath})) {
+        if (addPendingAttachmentPaths(rawPaths)) {
             attachmentPath->clear();
         }
     };
