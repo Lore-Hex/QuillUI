@@ -1120,11 +1120,12 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QHBoxLayout *statusLayout = new QHBoxLayout();
     statusLayout->setContentsMargins(0, 0, 0, 0);
-    statusLayout->setSpacing(8);
+    statusLayout->setSpacing(intValue(style, "statusRowSpacing", 8));
     QFrame *statusDot = QuillQtWidgets::frame(
         models.isEmpty() ? QStringLiteral("statusDotWarning") : QStringLiteral("statusDot")
     );
-    statusDot->setFixedSize(9, 9);
+    const int statusDotSize = intValue(style, "statusDotSize", 9);
+    statusDot->setFixedSize(statusDotSize, statusDotSize);
     statusLayout->addWidget(statusDot);
     QLabel *statusText = label(stringValue(payload, "status"), QStringLiteral("statusText"));
     statusLayout->addWidget(statusText);
@@ -1173,9 +1174,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QHBoxLayout *headerLayout = new QHBoxLayout(header);
     const int headerPadding = intValue(style, "headerPadding", 18);
     headerLayout->setContentsMargins(headerPadding, headerPadding, headerPadding, headerPadding);
-    headerLayout->setSpacing(12);
+    headerLayout->setSpacing(intValue(style, "headerSpacing", 12));
     QVBoxLayout *titleLayout = new QVBoxLayout();
-    titleLayout->setSpacing(4);
+    titleLayout->setSpacing(intValue(style, "headerTitleSpacing", 4));
     const QString initialConversationID = currentConversationID(conversationList, selectedConversationID);
     QLabel *currentTitle = label(
         selectedConversationTitle(
@@ -1207,7 +1208,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QVBoxLayout *messageLayout = new QVBoxLayout(transcript);
     const int contentPadding = intValue(style, "contentPadding", 22);
     messageLayout->setContentsMargins(contentPadding, contentPadding, contentPadding, contentPadding);
-    messageLayout->setSpacing(14);
+    messageLayout->setSpacing(intValue(style, "messageSpacing", 14));
     scrollArea->setWidget(transcript);
     chatLayout->addWidget(scrollArea, 1);
 

@@ -105,6 +105,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var sidebarWidth: Int
         var sidebarPadding: Int
         var sidebarSpacing: Int
+        var statusRowSpacing: Int
+        var statusDotSize: Int
         var conversationRowPadding: Int
         var conversationRowSpacing: Int
         var attachmentChipPadding: Int
@@ -112,8 +114,11 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var attachmentTraySpacing: Int
         var attachmentTrayChipSpacing: Int
         var headerTitleWidth: Int
+        var headerSpacing: Int
+        var headerTitleSpacing: Int
         var headerPadding: Int
         var contentPadding: Int
+        var messageSpacing: Int
         var composerPadding: Int
         var composerSpacing: Int
         var promptRowSpacing: Int
@@ -246,6 +251,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             sidebarWidth: 300,
             sidebarPadding: 18,
             sidebarSpacing: 14,
+            statusRowSpacing: 8,
+            statusDotSize: 9,
             conversationRowPadding: 11,
             conversationRowSpacing: 5,
             attachmentChipPadding: 8,
@@ -253,8 +260,11 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             attachmentTraySpacing: 7,
             attachmentTrayChipSpacing: 8,
             headerTitleWidth: 560,
+            headerSpacing: 12,
+            headerTitleSpacing: 4,
             headerPadding: 18,
             contentPadding: 22,
+            messageSpacing: 14,
             composerPadding: 18,
             composerSpacing: 10,
             promptRowSpacing: 12,
