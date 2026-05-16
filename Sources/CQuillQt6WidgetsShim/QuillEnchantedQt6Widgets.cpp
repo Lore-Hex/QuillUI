@@ -231,11 +231,17 @@ void removeConversationRow(QListWidget *list, int row) {
     delete list->takeItem(row);
 }
 
-QFrame *emptyHistoryWidget(const QString &title, const QString &subtitle) {
+QFrame *emptyHistoryWidget(const QString &title, const QString &subtitle, const QJsonObject &style) {
     QFrame *card = QuillQtWidgets::frame(QStringLiteral("emptyHistory"));
     QVBoxLayout *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(12, 12, 12, 12);
-    layout->setSpacing(8);
+    const int emptyHistoryPadding = intValue(style, "emptyHistoryPadding", 12);
+    layout->setContentsMargins(
+        emptyHistoryPadding,
+        emptyHistoryPadding,
+        emptyHistoryPadding,
+        emptyHistoryPadding
+    );
+    layout->setSpacing(intValue(style, "emptyHistorySpacing", 8));
     layout->addWidget(label(title, QStringLiteral("sectionTitle")));
     layout->addWidget(label(subtitle, QStringLiteral("caption")));
     return card;
@@ -1173,7 +1179,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QString selectedConversationID = stringValue(payload, "selectedConversationID");
     QFrame *emptyHistory = emptyHistoryWidget(
         stringValue(payload, "emptyHistoryTitle", QStringLiteral("No saved chats yet")),
-        stringValue(payload, "emptyHistorySubtitle", QStringLiteral("Start a chat and it will be saved locally."))
+        stringValue(payload, "emptyHistorySubtitle", QStringLiteral("Start a chat and it will be saved locally.")),
+        style
     );
     emptyHistory->setVisible(conversations.isEmpty());
     sidebarLayout->addWidget(emptyHistory);
