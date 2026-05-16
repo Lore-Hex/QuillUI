@@ -44,6 +44,10 @@ QString styleValue(const QJsonObject &style, const char *key, const char *fallba
     return jsonStyleValue(style, key, fallback);
 }
 
+QString cssPixels(const QJsonObject &style, const char *key, int fallback) {
+    return QString::number(intValue(style, key, fallback)) + QStringLiteral("px");
+}
+
 struct GenericDetailPane {
     QWidget *view;
     QLabel *titleLabel;
@@ -73,19 +77,46 @@ QString genericStyleSheet(const QJsonObject &style) {
     const QString selectedBorder = styleValue(style, "selectedBorderColor", "#CBDDEB");
     const QString divider = styleValue(style, "dividerColor", "#D8DDD4");
     const QString controlBorder = styleValue(style, "controlBorderColor", "#CDD5CA");
+    const QString rootFontSize = cssPixels(style, "rootFontSize", 14);
+    const QString appTitleFontSize = cssPixels(style, "appTitleFontSize", 26);
+    const QString appTitleFontWeight = QString::number(intValue(style, "appTitleFontWeight", 700));
+    const QString captionFontSize = cssPixels(style, "captionFontSize", 12);
+    const QString sectionTitleFontSize = cssPixels(style, "sectionTitleFontSize", 15);
+    const QString sectionTitleFontWeight = QString::number(intValue(style, "sectionTitleFontWeight", 700));
+    const QString currentTitleFontSize = cssPixels(style, "currentTitleFontSize", 20);
+    const QString currentTitleFontWeight = QString::number(intValue(style, "currentTitleFontWeight", 650));
+    const QString messageBodyFontSize = cssPixels(style, "messageBodyFontSize", 14);
+    const QString conversationTitleFontSize = cssPixels(style, "conversationTitleFontSize", 15);
+    const QString conversationTitleFontWeight = QString::number(intValue(style, "conversationTitleFontWeight", 700));
 
     QString sheet = QStringLiteral(R"(
-        QWidget#genericRoot { background: %1; color: %2; font-size: 14px; }
-        QFrame#sidebar { background: %3; border-right: 1px solid %4; }
-        QLabel#appTitle { color: %2; font-size: 25px; font-weight: 700; }
-        QLabel#subtitle, QLabel#caption, QLabel#statusText, QLabel#itemSubtitle, QLabel#messageMeta { color: %5; font-size: 12px; }
-        QLabel#sectionTitle { color: %2; font-size: 15px; font-weight: 700; }
-        QLabel#detailTitle { color: %2; font-size: 22px; font-weight: 700; }
-        QLabel#headline { color: %2; font-size: 16px; font-weight: 650; }
-        QLabel#bodyText, QLabel#messageText { color: %2; font-size: 14px; line-height: 140%; }
-        QLabel#badge { color: %6; font-size: 12px; font-weight: 700; }
-        QFrame#card, QFrame#messageCard { background: %7; border: 1px solid %8; border-radius: 8px; }
-    )").arg(canvas, ink, sidebar, divider, muted, badge, card, border);
+        QWidget#genericRoot { background: %1; color: %2; font-size: %3; }
+        QFrame#sidebar { background: %4; border-right: 1px solid %5; }
+        QLabel#subtitle, QLabel#caption, QLabel#statusText, QLabel#itemSubtitle, QLabel#messageMeta { color: %6; font-size: %7; }
+        QFrame#card, QFrame#messageCard { background: %8; border: 1px solid %9; border-radius: 8px; }
+    )").arg(canvas, ink, rootFontSize, sidebar, divider, muted, captionFontSize, card, border);
+
+    sheet += QStringLiteral(R"(
+        QLabel#appTitle { color: %1; font-size: %2; font-weight: %3; }
+        QLabel#sectionTitle { color: %1; font-size: %4; font-weight: %5; }
+        QLabel#detailTitle { color: %1; font-size: %6; font-weight: %7; }
+        QLabel#headline { color: %1; font-size: %8; font-weight: %9; }
+    )").arg(
+        ink,
+        appTitleFontSize,
+        appTitleFontWeight,
+        sectionTitleFontSize,
+        sectionTitleFontWeight,
+        currentTitleFontSize,
+        currentTitleFontWeight,
+        conversationTitleFontSize,
+        conversationTitleFontWeight
+    );
+
+    sheet += QStringLiteral(R"(
+        QLabel#bodyText, QLabel#messageText { color: %1; font-size: %2; line-height: 140%; }
+        QLabel#badge { color: %3; font-size: %4; font-weight: %5; }
+    )").arg(ink, messageBodyFontSize, badge, captionFontSize, sectionTitleFontWeight);
 
     sheet += QStringLiteral(R"(
         QFrame#activeCard { background: %1; border: 1px solid %2; border-radius: 8px; }

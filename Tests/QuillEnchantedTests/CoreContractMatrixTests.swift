@@ -119,6 +119,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp"),
             encoding: .utf8
         )
+        let genericQtHost = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillGenericQt6Widgets.cpp"),
+            encoding: .utf8
+        )
         let nativeSupport = try String(
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillQtWidgetsSupport.hpp"),
             encoding: .utf8
@@ -165,6 +169,17 @@ struct CoreContractMatrixTests {
         #expect(genericQtRuntime.contains("defaultHeight: EnchantedVisualMetrics.defaultWindowHeight"))
         #expect(genericQtRuntime.contains("sidebarWidth: EnchantedVisualMetrics.sidebarWidth"))
         #expect(genericQtRuntime.contains("detailWidth: EnchantedVisualMetrics.detailWidth"))
+        #expect(genericQtRuntime.contains("rootFontSize: EnchantedTypography.rootFontSize"))
+        #expect(genericQtRuntime.contains("appTitleFontSize: EnchantedTypography.appTitleFontSize"))
+        #expect(genericQtRuntime.contains("appTitleFontWeight: EnchantedTypography.appTitleFontWeight"))
+        #expect(genericQtRuntime.contains("captionFontSize: EnchantedTypography.captionFontSize"))
+        #expect(genericQtRuntime.contains("sectionTitleFontSize: EnchantedTypography.sectionTitleFontSize"))
+        #expect(genericQtRuntime.contains("sectionTitleFontWeight: EnchantedTypography.sectionTitleFontWeight"))
+        #expect(genericQtRuntime.contains("currentTitleFontSize: EnchantedTypography.currentTitleFontSize"))
+        #expect(genericQtRuntime.contains("currentTitleFontWeight: EnchantedTypography.currentTitleFontWeight"))
+        #expect(genericQtRuntime.contains("messageBodyFontSize: EnchantedTypography.messageBodyFontSize"))
+        #expect(genericQtRuntime.contains("conversationTitleFontSize: EnchantedTypography.conversationTitleFontSize"))
+        #expect(genericQtRuntime.contains("conversationTitleFontWeight: EnchantedTypography.conversationTitleFontWeight"))
         #expect(runtime.contains("EnchantedModelContext.default()"))
         #expect(runtime.contains("QuillEnchantedQtSnapshot.preview"))
         #expect(runtime.contains("QuillEnchantedQtSnapshot.persisted("))
@@ -627,6 +642,25 @@ struct CoreContractMatrixTests {
         #expect(!nativeShim.contains("font-size: 14px;"))
         #expect(!nativeShim.contains("font-size: 12px;"))
         #expect(!nativeShim.contains("font-weight: 700;"))
+        #expect(genericQtHost.contains("const QString rootFontSize = cssPixels(style, \"rootFontSize\", 14)"))
+        #expect(genericQtHost.contains("const QString appTitleFontSize = cssPixels(style, \"appTitleFontSize\", 26)"))
+        #expect(genericQtHost.contains("const QString appTitleFontWeight = QString::number(intValue(style, \"appTitleFontWeight\", 700))"))
+        #expect(genericQtHost.contains("const QString captionFontSize = cssPixels(style, \"captionFontSize\", 12)"))
+        #expect(genericQtHost.contains("const QString sectionTitleFontSize = cssPixels(style, \"sectionTitleFontSize\", 15)"))
+        #expect(genericQtHost.contains("const QString sectionTitleFontWeight = QString::number(intValue(style, \"sectionTitleFontWeight\", 700))"))
+        #expect(genericQtHost.contains("const QString currentTitleFontSize = cssPixels(style, \"currentTitleFontSize\", 20)"))
+        #expect(genericQtHost.contains("const QString currentTitleFontWeight = QString::number(intValue(style, \"currentTitleFontWeight\", 650))"))
+        #expect(genericQtHost.contains("const QString messageBodyFontSize = cssPixels(style, \"messageBodyFontSize\", 14)"))
+        #expect(genericQtHost.contains("const QString conversationTitleFontSize = cssPixels(style, \"conversationTitleFontSize\", 15)"))
+        #expect(genericQtHost.contains("const QString conversationTitleFontWeight = QString::number(intValue(style, \"conversationTitleFontWeight\", 700))"))
+        #expect(genericQtHost.contains("QWidget#genericRoot { background: %1; color: %2; font-size: %3; }"))
+        #expect(genericQtHost.contains("QLabel#appTitle { color: %1; font-size: %2; font-weight: %3; }"))
+        #expect(genericQtHost.contains("QLabel#bodyText, QLabel#messageText { color: %1; font-size: %2; line-height: 140%; }"))
+        #expect(!genericQtHost.contains("font-size: 14px;"))
+        #expect(!genericQtHost.contains("font-size: 12px;"))
+        #expect(!genericQtHost.contains("font-size: 25px;"))
+        #expect(!genericQtHost.contains("font-size: 22px;"))
+        #expect(!genericQtHost.contains("font-weight: 700;"))
         #expect(!nativeShim.contains("border-right: 1px solid #D8DDD5"))
         #expect(!nativeShim.contains("color: #DDEBFA; font-size: 12px;"))
         #expect(!nativeShim.contains("border: 1px solid #E0E5DD"))

@@ -121,6 +121,17 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         public var selectedBorderColor: String
         public var dividerColor: String
         public var controlBorderColor: String
+        public var rootFontSize: Int
+        public var appTitleFontSize: Int
+        public var appTitleFontWeight: Int
+        public var captionFontSize: Int
+        public var sectionTitleFontSize: Int
+        public var sectionTitleFontWeight: Int
+        public var currentTitleFontSize: Int
+        public var currentTitleFontWeight: Int
+        public var messageBodyFontSize: Int
+        public var conversationTitleFontSize: Int
+        public var conversationTitleFontWeight: Int
 
         public static let desktop = Style(
             canvasColor: "#F7F8F4",
@@ -135,7 +146,18 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             borderColor: "#E0E4DC",
             selectedBorderColor: "#CBDDEB",
             dividerColor: "#D8DDD4",
-            controlBorderColor: "#CDD5CA"
+            controlBorderColor: "#CDD5CA",
+            rootFontSize: EnchantedTypography.rootFontSize,
+            appTitleFontSize: EnchantedTypography.appTitleFontSize,
+            appTitleFontWeight: EnchantedTypography.appTitleFontWeight,
+            captionFontSize: EnchantedTypography.captionFontSize,
+            sectionTitleFontSize: EnchantedTypography.sectionTitleFontSize,
+            sectionTitleFontWeight: EnchantedTypography.sectionTitleFontWeight,
+            currentTitleFontSize: EnchantedTypography.currentTitleFontSize,
+            currentTitleFontWeight: EnchantedTypography.currentTitleFontWeight,
+            messageBodyFontSize: EnchantedTypography.messageBodyFontSize,
+            conversationTitleFontSize: EnchantedTypography.conversationTitleFontSize,
+            conversationTitleFontWeight: EnchantedTypography.conversationTitleFontWeight
         )
 
         public init(
@@ -151,7 +173,18 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             borderColor: String,
             selectedBorderColor: String,
             dividerColor: String,
-            controlBorderColor: String
+            controlBorderColor: String,
+            rootFontSize: Int = EnchantedTypography.rootFontSize,
+            appTitleFontSize: Int = EnchantedTypography.appTitleFontSize,
+            appTitleFontWeight: Int = EnchantedTypography.appTitleFontWeight,
+            captionFontSize: Int = EnchantedTypography.captionFontSize,
+            sectionTitleFontSize: Int = EnchantedTypography.sectionTitleFontSize,
+            sectionTitleFontWeight: Int = EnchantedTypography.sectionTitleFontWeight,
+            currentTitleFontSize: Int = EnchantedTypography.currentTitleFontSize,
+            currentTitleFontWeight: Int = EnchantedTypography.currentTitleFontWeight,
+            messageBodyFontSize: Int = EnchantedTypography.messageBodyFontSize,
+            conversationTitleFontSize: Int = EnchantedTypography.conversationTitleFontSize,
+            conversationTitleFontWeight: Int = EnchantedTypography.conversationTitleFontWeight
         ) {
             self.canvasColor = canvasColor
             self.sidebarColor = sidebarColor
@@ -166,6 +199,17 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             self.selectedBorderColor = selectedBorderColor
             self.dividerColor = dividerColor
             self.controlBorderColor = controlBorderColor
+            self.rootFontSize = rootFontSize
+            self.appTitleFontSize = appTitleFontSize
+            self.appTitleFontWeight = appTitleFontWeight
+            self.captionFontSize = captionFontSize
+            self.sectionTitleFontSize = sectionTitleFontSize
+            self.sectionTitleFontWeight = sectionTitleFontWeight
+            self.currentTitleFontSize = currentTitleFontSize
+            self.currentTitleFontWeight = currentTitleFontWeight
+            self.messageBodyFontSize = messageBodyFontSize
+            self.conversationTitleFontSize = conversationTitleFontSize
+            self.conversationTitleFontWeight = conversationTitleFontWeight
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -182,6 +226,17 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             case selectedBorderColor
             case dividerColor
             case controlBorderColor
+            case rootFontSize
+            case appTitleFontSize
+            case appTitleFontWeight
+            case captionFontSize
+            case sectionTitleFontSize
+            case sectionTitleFontWeight
+            case currentTitleFontSize
+            case currentTitleFontWeight
+            case messageBodyFontSize
+            case conversationTitleFontSize
+            case conversationTitleFontWeight
         }
 
         public init(from decoder: Decoder) throws {
@@ -214,7 +269,29 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
                 dividerColor: try container.decodeIfPresent(String.self, forKey: .dividerColor)
                     ?? defaults.dividerColor,
                 controlBorderColor: try container.decodeIfPresent(String.self, forKey: .controlBorderColor)
-                    ?? defaults.controlBorderColor
+                    ?? defaults.controlBorderColor,
+                rootFontSize: try container.decodeIfPresent(Int.self, forKey: .rootFontSize)
+                    ?? defaults.rootFontSize,
+                appTitleFontSize: try container.decodeIfPresent(Int.self, forKey: .appTitleFontSize)
+                    ?? defaults.appTitleFontSize,
+                appTitleFontWeight: try container.decodeIfPresent(Int.self, forKey: .appTitleFontWeight)
+                    ?? defaults.appTitleFontWeight,
+                captionFontSize: try container.decodeIfPresent(Int.self, forKey: .captionFontSize)
+                    ?? defaults.captionFontSize,
+                sectionTitleFontSize: try container.decodeIfPresent(Int.self, forKey: .sectionTitleFontSize)
+                    ?? defaults.sectionTitleFontSize,
+                sectionTitleFontWeight: try container.decodeIfPresent(Int.self, forKey: .sectionTitleFontWeight)
+                    ?? defaults.sectionTitleFontWeight,
+                currentTitleFontSize: try container.decodeIfPresent(Int.self, forKey: .currentTitleFontSize)
+                    ?? defaults.currentTitleFontSize,
+                currentTitleFontWeight: try container.decodeIfPresent(Int.self, forKey: .currentTitleFontWeight)
+                    ?? defaults.currentTitleFontWeight,
+                messageBodyFontSize: try container.decodeIfPresent(Int.self, forKey: .messageBodyFontSize)
+                    ?? defaults.messageBodyFontSize,
+                conversationTitleFontSize: try container.decodeIfPresent(Int.self, forKey: .conversationTitleFontSize)
+                    ?? defaults.conversationTitleFontSize,
+                conversationTitleFontWeight: try container.decodeIfPresent(Int.self, forKey: .conversationTitleFontWeight)
+                    ?? defaults.conversationTitleFontWeight
             )
         }
     }
