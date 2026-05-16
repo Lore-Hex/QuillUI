@@ -91,6 +91,18 @@ QIcon dropTargetIcon() {
     return attachButtonIcon();
 }
 
+QIcon completionsButtonIcon() {
+    return themedActionIcon(QStringLiteral("accessories-text-editor-symbolic"), QStyle::SP_FileDialogDetailedView);
+}
+
+QIcon shortcutsButtonIcon() {
+    return themedActionIcon(QStringLiteral("input-keyboard-symbolic"), QStyle::SP_ComputerIcon);
+}
+
+QIcon settingsButtonIcon() {
+    return themedActionIcon(QStringLiteral("preferences-system-symbolic"), QStyle::SP_MessageBoxInformation);
+}
+
 QIcon sendButtonIcon(bool isLoading) {
     return isLoading
         ? themedActionIcon(QStringLiteral("process-stop-symbolic"), QStyle::SP_MediaStop)
@@ -303,7 +315,7 @@ QString appStyleSheet(const QJsonObject &style) {
         .arg(sidebar, divider, selected, captionFontSize);
 
     sheet += QStringLiteral(R"(
-        QFrame#emptyHistory { background: %1; border: 1px solid %2; border-radius: %3; }
+        QFrame#emptyHistory, QFrame#sidebarUtilityPanel { background: %1; border: 1px solid %2; border-radius: %3; }
         QFrame#messageAssistant { background: %1; border: 1px solid %2; border-radius: %4; }
         QFrame#messageSystem { background: %5; border: 1px solid %6; border-radius: %4; }
         QFrame#messageUser { background: %7; border: 1px solid %6; border-radius: %4; }
@@ -1629,6 +1641,45 @@ extern "C" int quill_enchanted_qt_run_app_json(
     conversationActions->addWidget(clearAllButton);
     sidebarLayout->addLayout(conversationActions);
 
+    QFrame *sidebarUtilityPanel = QuillQtWidgets::frame(QStringLiteral("sidebarUtilityPanel"));
+    QVBoxLayout *sidebarUtilityLayout = new QVBoxLayout(sidebarUtilityPanel);
+    const int sidebarUtilityPadding = intValue(style, "emptyHistoryPadding", 12);
+    sidebarUtilityLayout->setContentsMargins(
+        sidebarUtilityPadding,
+        sidebarUtilityPadding,
+        sidebarUtilityPadding,
+        sidebarUtilityPadding
+    );
+    sidebarUtilityLayout->setSpacing(intValue(style, "emptyHistorySpacing", 8));
+    QLabel *sidebarUtilityTitle = label(QString(), QStringLiteral("sectionTitle"));
+    QLabel *sidebarUtilitySubtitle = label(QString(), QStringLiteral("caption"));
+    sidebarUtilitySubtitle->setWordWrap(true);
+    sidebarUtilityLayout->addWidget(sidebarUtilityTitle);
+    sidebarUtilityLayout->addWidget(sidebarUtilitySubtitle);
+    sidebarUtilityPanel->setVisible(false);
+    sidebarLayout->addWidget(sidebarUtilityPanel);
+
+    QFrame *sidebarBottomNavigation = QuillQtWidgets::frame(QStringLiteral("sidebarBottomNavigation"));
+    QVBoxLayout *sidebarBottomNavigationLayout = new QVBoxLayout(sidebarBottomNavigation);
+    sidebarBottomNavigationLayout->setContentsMargins(0, 0, 0, 0);
+    sidebarBottomNavigationLayout->setSpacing(intValue(style, "conversationActionsSpacing", 8));
+    QPushButton *completionsButton = new QPushButton(stringValue(payload, "completionsTitle", QStringLiteral("Completions")));
+    completionsButton->setObjectName(QStringLiteral("secondaryButton"));
+    completionsButton->setIcon(completionsButtonIcon());
+    applyButtonIconSize(completionsButton, style);
+    QPushButton *shortcutsButton = new QPushButton(stringValue(payload, "shortcutsTitle", QStringLiteral("Shortcuts")));
+    shortcutsButton->setObjectName(QStringLiteral("secondaryButton"));
+    shortcutsButton->setIcon(shortcutsButtonIcon());
+    applyButtonIconSize(shortcutsButton, style);
+    QPushButton *settingsButton = new QPushButton(stringValue(payload, "settingsTitle", QStringLiteral("Settings")));
+    settingsButton->setObjectName(QStringLiteral("secondaryButton"));
+    settingsButton->setIcon(settingsButtonIcon());
+    applyButtonIconSize(settingsButton, style);
+    sidebarBottomNavigationLayout->addWidget(completionsButton);
+    sidebarBottomNavigationLayout->addWidget(shortcutsButton);
+    sidebarBottomNavigationLayout->addWidget(settingsButton);
+    sidebarLayout->addWidget(sidebarBottomNavigation);
+
     QFrame *chatPane = QuillQtWidgets::frame(QStringLiteral("chatPane"));
     QVBoxLayout *chatLayout = new QVBoxLayout(chatPane);
     chatLayout->setContentsMargins(0, 0, 0, 0);
@@ -2088,6 +2139,13 @@ extern "C" int quill_enchanted_qt_run_app_json(
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
 
+    auto showSidebarUtilityPanel = [&](const QString &title, const QString &subtitle, const QString &status) {
+        sidebarUtilityTitle->setText(title);
+        sidebarUtilitySubtitle->setText(subtitle);
+        sidebarUtilityPanel->setVisible(true);
+        statusText->setText(status);
+    };
+
     QObject::connect(newChatButton, &QPushButton::clicked, [&]() {
         if (requestHistoryAction(QStringLiteral("newConversation"), QString(), QString(), QStringList())) {
             return;
@@ -2134,6 +2192,39 @@ extern "C" int quill_enchanted_qt_run_app_json(
         currentTitle->setText(QStringLiteral("New conversation"));
         renderMessageSet(QJsonArray());
         updateConversationActionState();
+    });
+    QObject::connect(completionsButton, &QPushButton::clicked, [&]() {
+        showSidebarUtilityPanel(
+            stringValue(payload, "completionsTitle", QStringLiteral("Completions")),
+            stringValue(
+                payload,
+                "completionsPanelSubtitle",
+                QStringLiteral("Prompt completions use the shared Enchanted profile.")
+            ),
+            stringValue(payload, "completionsStatus", QStringLiteral("Completions"))
+        );
+    });
+    QObject::connect(shortcutsButton, &QPushButton::clicked, [&]() {
+        showSidebarUtilityPanel(
+            stringValue(payload, "shortcutsTitle", QStringLiteral("Shortcuts")),
+            stringValue(
+                payload,
+                "shortcutsPanelSubtitle",
+                QStringLiteral("Keyboard shortcuts use the shared QuillKit shortcut surface.")
+            ),
+            stringValue(payload, "shortcutsStatus", QStringLiteral("Shortcuts"))
+        );
+    });
+    QObject::connect(settingsButton, &QPushButton::clicked, [&]() {
+        showSidebarUtilityPanel(
+            stringValue(payload, "settingsTitle", QStringLiteral("Settings")),
+            stringValue(
+                payload,
+                "settingsPanelSubtitle",
+                QStringLiteral("Refresh models, choose a local model, or clear history from this sidebar.")
+            ),
+            stringValue(payload, "settingsStatus", QStringLiteral("Settings"))
+        );
     });
     QObject::connect(conversationList, &QListWidget::currentRowChanged, [&](int row) {
         updateConversationActionState();

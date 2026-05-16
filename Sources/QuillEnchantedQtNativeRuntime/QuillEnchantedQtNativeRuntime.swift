@@ -23,6 +23,15 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var deleteChatTitle: String
     var clearAllTitle: String
     var refreshModelsTitle: String
+    var completionsTitle: String
+    var shortcutsTitle: String
+    var settingsTitle: String
+    var completionsStatus: String
+    var shortcutsStatus: String
+    var settingsStatus: String
+    var completionsPanelSubtitle: String
+    var shortcutsPanelSubtitle: String
+    var settingsPanelSubtitle: String
     var dropTargetTitle: String
     var attachmentPlaceholder: String
     var attachTitle: String
@@ -276,6 +285,15 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         deleteChatTitle: "Delete chat",
         clearAllTitle: "Clear all",
         refreshModelsTitle: "Refresh models",
+        completionsTitle: "Completions",
+        shortcutsTitle: "Shortcuts",
+        settingsTitle: "Settings",
+        completionsStatus: "Completions",
+        shortcutsStatus: "Shortcuts",
+        settingsStatus: "Settings",
+        completionsPanelSubtitle: "Prompt completions use the shared Enchanted profile.",
+        shortcutsPanelSubtitle: "Keyboard shortcuts use the shared QuillKit shortcut surface.",
+        settingsPanelSubtitle: "Refresh models, choose a local model, or clear history from this sidebar.",
         dropTargetTitle: "Drop image files to attach",
         attachmentPlaceholder: "Image path or drop files here",
         attachTitle: "Attach",
