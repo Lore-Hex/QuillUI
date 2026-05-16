@@ -683,6 +683,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedRootView.swift"),
             encoding: .utf8
         )
+        let enchantedMacMarkdown = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/MarkdownRendering.swift"),
+            encoding: .utf8
+        )
         let enchantedImageAttachment = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedShared/ImageAttachment.swift"),
             encoding: .utf8
@@ -933,14 +937,16 @@ struct SourceHygieneTests {
         #expect(enchantedQtRuntime.contains("messageBubblePadding: EnchantedVisualMetrics.messageBubblePadding"))
         #expect(enchantedQtRuntime.contains("messageBubbleSpacing: EnchantedVisualMetrics.messageBubbleSpacing"))
         #expect(enchantedQtRuntime.contains("messageBubbleRadius: EnchantedVisualMetrics.messageBubbleRadius"))
-        #expect(enchantedQtRuntime.contains("markdownBlockSpacing: 9"))
-        #expect(enchantedQtRuntime.contains("markdownListItemSpacing: 8"))
-        #expect(enchantedQtRuntime.contains("markdownNumberWidth: 26"))
-        #expect(enchantedQtRuntime.contains("markdownQuoteSpacing: 9"))
-        #expect(enchantedQtRuntime.contains("markdownQuoteRuleWidth: 3"))
-        #expect(enchantedQtRuntime.contains("markdownQuoteVerticalPadding: 2"))
-        #expect(enchantedQtRuntime.contains("markdownCodeBlockSpacing: 7"))
-        #expect(enchantedQtRuntime.contains("markdownCodeBlockPadding: 10"))
+        #expect(enchantedQtRuntime.contains("markdownBlockSpacing: EnchantedVisualMetrics.markdownBlockSpacing"))
+        #expect(enchantedQtRuntime.contains("markdownListItemSpacing: EnchantedVisualMetrics.markdownListItemSpacing"))
+        #expect(enchantedQtRuntime.contains("markdownNumberWidth: EnchantedVisualMetrics.markdownNumberWidth"))
+        #expect(enchantedQtRuntime.contains("markdownQuoteSpacing: EnchantedVisualMetrics.markdownQuoteSpacing"))
+        #expect(enchantedQtRuntime.contains("markdownQuoteRuleWidth: EnchantedVisualMetrics.markdownQuoteRuleWidth"))
+        #expect(enchantedQtRuntime.contains("markdownQuoteRuleRadius: EnchantedVisualMetrics.markdownQuoteRuleRadius"))
+        #expect(enchantedQtRuntime.contains("markdownQuoteVerticalPadding: EnchantedVisualMetrics.markdownQuoteVerticalPadding"))
+        #expect(enchantedQtRuntime.contains("markdownCodeBlockSpacing: EnchantedVisualMetrics.markdownCodeBlockSpacing"))
+        #expect(enchantedQtRuntime.contains("markdownCodeBlockPadding: EnchantedVisualMetrics.markdownCodeBlockPadding"))
+        #expect(enchantedQtRuntime.contains("markdownCodeBlockRadius: EnchantedVisualMetrics.markdownCodeBlockRadius"))
         #expect(enchantedQtRuntime.contains("emptyHistoryPadding: 12"))
         #expect(enchantedQtRuntime.contains("emptyHistorySpacing: 8"))
         #expect(enchantedQtRuntime.contains("emptyStatePadding: EnchantedVisualMetrics.emptyStatePadding"))
@@ -1075,6 +1081,15 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("void updateConversationSelectionStyles(QListWidget *list)"))
         #expect(enchantedQtHost.contains("widget->setProperty(\"active\", isSelected)"))
         #expect(enchantedMacRoot.contains("MarkdownMessageView(markdown: message.content"))
+        #expect(enchantedMacMarkdown.contains("EnchantedVisualMetrics.markdownBlockSpacing"))
+        #expect(enchantedMacMarkdown.contains("EnchantedVisualMetrics.markdownListItemSpacing"))
+        #expect(enchantedMacMarkdown.contains("EnchantedVisualMetrics.markdownNumberWidth"))
+        #expect(enchantedMacMarkdown.contains("EnchantedVisualMetrics.markdownQuoteSpacing"))
+        #expect(enchantedMacMarkdown.contains("EnchantedVisualMetrics.markdownQuoteRuleWidth"))
+        #expect(enchantedMacMarkdown.contains("EnchantedVisualMetrics.markdownQuoteVerticalPadding"))
+        #expect(enchantedMacMarkdown.contains("EnchantedVisualMetrics.markdownCodeBlockSpacing"))
+        #expect(enchantedMacMarkdown.contains("EnchantedVisualMetrics.markdownCodeBlockPadding"))
+        #expect(enchantedMacMarkdown.contains("EnchantedVisualMetrics.markdownCodeBlockRadius"))
         #expect(enchantedQtHost.contains("enum class MarkdownBlockKind"))
         #expect(enchantedQtHost.contains("QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown)"))
         #expect(enchantedQtHost.contains("QWidget *markdownMessageWidget(const QString &markdown, const QJsonObject &style)"))

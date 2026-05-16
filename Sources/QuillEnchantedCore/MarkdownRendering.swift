@@ -1,4 +1,5 @@
 import Foundation
+import QuillEnchantedShared
 import QuillUI
 
 enum MarkdownBlockKind: Equatable, Sendable {
@@ -186,7 +187,7 @@ public struct MarkdownMessageView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.markdownBlockSpacing)) {
             ForEach(blocks) { block in
                 blockView(block)
             }
@@ -215,7 +216,7 @@ public struct MarkdownMessageView: View {
                 .foregroundColor(QuillColors.ink)
                 .lineSpacing(2)
         case .unorderedListItem:
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.markdownListItemSpacing)) {
                 Text("•")
                     .font(.headline)
                     .foregroundColor(QuillColors.primary)
@@ -224,28 +225,28 @@ public struct MarkdownMessageView: View {
                     .lineSpacing(3)
             }
         case .orderedListItem(let number):
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.markdownListItemSpacing)) {
                 Text("\(number).")
                     .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundColor(QuillColors.primary)
-                    .frame(width: 26, alignment: .trailing)
+                    .frame(width: CGFloat(EnchantedVisualMetrics.markdownNumberWidth), alignment: .trailing)
                 Text(block.text)
                     .foregroundColor(foregroundColor)
                     .lineSpacing(3)
             }
         case .quote:
-            HStack(alignment: .top, spacing: 9) {
+            HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.markdownQuoteSpacing)) {
                 Rectangle()
                     .fill(QuillColors.quoteRule)
-                    .frame(width: 3)
+                    .frame(width: CGFloat(EnchantedVisualMetrics.markdownQuoteRuleWidth))
                 Text(block.text)
                     .foregroundColor(QuillColors.muted)
                     .lineSpacing(3)
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, CGFloat(EnchantedVisualMetrics.markdownQuoteVerticalPadding))
         case .codeBlock(let language):
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.markdownCodeBlockSpacing)) {
                 if let language {
                     Text(language.uppercased())
                         .font(.caption2)
@@ -257,10 +258,10 @@ public struct MarkdownMessageView: View {
                     .foregroundColor(QuillColors.ink)
                     .lineSpacing(2)
             }
-            .padding(10)
+            .padding(CGFloat(EnchantedVisualMetrics.markdownCodeBlockPadding))
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(QuillColors.codeBlock)
-            .cornerRadius(7)
+            .cornerRadius(CGFloat(EnchantedVisualMetrics.markdownCodeBlockRadius))
         }
     }
 

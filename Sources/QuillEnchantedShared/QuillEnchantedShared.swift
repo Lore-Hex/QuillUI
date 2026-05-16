@@ -39,6 +39,16 @@ public enum EnchantedVisualMetrics {
     public static let messageBubblePadding = 13
     public static let messageBubbleSpacing = 7
     public static let messageBubbleRadius = 10
+    public static let markdownBlockSpacing = 9
+    public static let markdownListItemSpacing = 8
+    public static let markdownNumberWidth = 26
+    public static let markdownQuoteSpacing = 9
+    public static let markdownQuoteRuleWidth = 3
+    public static let markdownQuoteRuleRadius = 1
+    public static let markdownQuoteVerticalPadding = 2
+    public static let markdownCodeBlockSpacing = 7
+    public static let markdownCodeBlockPadding = 10
+    public static let markdownCodeBlockRadius = 7
     public static let composerMinWidth = 620
     public static let composerMaxWidth = 840
     public static let composerPadding = 18
