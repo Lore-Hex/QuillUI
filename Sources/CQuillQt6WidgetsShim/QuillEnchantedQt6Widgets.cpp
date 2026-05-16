@@ -345,8 +345,9 @@ QString appStyleSheet(const QJsonObject &style) {
 
     sheet += QStringLiteral(R"(
         QPushButton#promptButton { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: %5; text-align: left; }
+        QLabel#promptButtonIcon, QLabel#promptButtonText { color: %2; font-size: %6; }
     )")
-        .arg(card, ink, cardBorder, promptButtonRadius, promptButtonPadding);
+        .arg(card, ink, cardBorder, promptButtonRadius, promptButtonPadding, rootFontSize);
 
     sheet += QStringLiteral(R"(
         QFrame#markdownQuoteRule { background: %1; border-radius: %3; }
@@ -1013,20 +1014,40 @@ void addPromptCards(
         emptyStatePadding
     );
     layout->setSpacing(intValue(style, "emptyStateSpacing", 18));
-    layout->addWidget(label(title, QStringLiteral("currentTitle")));
-    layout->addWidget(label(
+    QVBoxLayout *headerLayout = new QVBoxLayout();
+    headerLayout->setContentsMargins(0, 0, 0, 0);
+    headerLayout->setSpacing(intValue(style, "emptyStateHeaderSpacing", 8));
+    headerLayout->addWidget(label(title, QStringLiteral("currentTitle")));
+    headerLayout->addWidget(label(
         subtitle,
         QStringLiteral("caption")
     ));
+    layout->addLayout(headerLayout);
 
     QVBoxLayout *promptList = new QVBoxLayout();
     promptList->setSpacing(intValue(style, "promptListSpacing", 10));
     for (const QJsonValue &value : prompts) {
         const QString prompt = value.toString();
-        QPushButton *button = new QPushButton(QStringLiteral("%1%2").arg(promptCardPrefix(), prompt));
+        const int promptButtonWidth = intValue(style, "promptButtonWidth", 620);
+        const int promptButtonIconSpacing = intValue(style, "promptButtonIconSpacing", 10);
+        const int promptButtonTextWidth = promptButtonWidth - intValue(style, "promptButtonTextWidthInset", 80);
+        QPushButton *button = new QPushButton();
         button->setObjectName(QStringLiteral("promptButton"));
+        button->setAccessibleName(prompt);
         button->setMinimumHeight(intValue(style, "promptButtonMinHeight", 48));
-        button->setFixedWidth(intValue(style, "promptButtonWidth", 620));
+        button->setFixedWidth(promptButtonWidth);
+        QHBoxLayout *buttonLayout = new QHBoxLayout(button);
+        buttonLayout->setContentsMargins(0, 0, 0, 0);
+        buttonLayout->setSpacing(promptButtonIconSpacing);
+        QLabel *promptIcon = label(promptCardPrefix().trimmed(), QStringLiteral("promptButtonIcon"));
+        promptIcon->setAttribute(Qt::WA_TransparentForMouseEvents);
+        QLabel *promptText = label(prompt, QStringLiteral("promptButtonText"));
+        promptText->setWordWrap(true);
+        promptText->setFixedWidth(promptButtonTextWidth > 0 ? promptButtonTextWidth : 0);
+        promptText->setAttribute(Qt::WA_TransparentForMouseEvents);
+        buttonLayout->addWidget(promptIcon, 0, Qt::AlignTop);
+        buttonLayout->addWidget(promptText, 0, Qt::AlignVCenter);
+        buttonLayout->addStretch(1);
         QObject::connect(button, &QPushButton::clicked, [prompt, promptAction]() {
             promptAction(prompt);
         });
