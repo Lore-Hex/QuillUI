@@ -533,38 +533,47 @@ QLabel *markdownLabel(const QString &text, const QString &objectName) {
     return view;
 }
 
-QWidget *markdownListItemWidget(const QString &marker, const QString &text, const QString &markerObjectName) {
+QWidget *markdownListItemWidget(
+    const QString &marker,
+    const QString &text,
+    const QString &markerObjectName,
+    const QJsonObject &style
+) {
     QWidget *row = new QWidget();
     QHBoxLayout *layout = new QHBoxLayout(row);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(8);
+    layout->setSpacing(intValue(style, "markdownListItemSpacing", 8));
 
     QLabel *markerLabel = label(marker, markerObjectName);
-    markerLabel->setFixedWidth(markerObjectName == QStringLiteral("markdownNumber") ? 26 : 14);
+    if (markerObjectName == QStringLiteral("markdownNumber")) {
+        markerLabel->setFixedWidth(intValue(style, "markdownNumberWidth", 26));
+    }
     markerLabel->setAlignment(Qt::AlignTop | Qt::AlignRight);
     layout->addWidget(markerLabel);
     layout->addWidget(markdownLabel(text, QStringLiteral("markdownParagraph")), 1);
     return row;
 }
 
-QWidget *markdownQuoteWidget(const QString &text) {
+QWidget *markdownQuoteWidget(const QString &text, const QJsonObject &style) {
     QWidget *row = new QWidget();
     QHBoxLayout *layout = new QHBoxLayout(row);
-    layout->setContentsMargins(0, 2, 0, 2);
-    layout->setSpacing(9);
+    const int verticalPadding = intValue(style, "markdownQuoteVerticalPadding", 2);
+    layout->setContentsMargins(0, verticalPadding, 0, verticalPadding);
+    layout->setSpacing(intValue(style, "markdownQuoteSpacing", 9));
 
     QFrame *rule = QuillQtWidgets::frame(QStringLiteral("markdownQuoteRule"));
-    rule->setFixedWidth(3);
+    rule->setFixedWidth(intValue(style, "markdownQuoteRuleWidth", 3));
     layout->addWidget(rule);
     layout->addWidget(markdownLabel(text, QStringLiteral("markdownQuote")), 1);
     return row;
 }
 
-QWidget *markdownCodeBlockWidget(const MarkdownBlock &block) {
+QWidget *markdownCodeBlockWidget(const MarkdownBlock &block, const QJsonObject &style) {
     QFrame *codeBlock = QuillQtWidgets::frame(QStringLiteral("markdownCodeBlock"));
     QVBoxLayout *layout = new QVBoxLayout(codeBlock);
-    layout->setContentsMargins(10, 10, 10, 10);
-    layout->setSpacing(7);
+    const int codeBlockPadding = intValue(style, "markdownCodeBlockPadding", 10);
+    layout->setContentsMargins(codeBlockPadding, codeBlockPadding, codeBlockPadding, codeBlockPadding);
+    layout->setSpacing(intValue(style, "markdownCodeBlockSpacing", 7));
 
     if (!block.language.isEmpty()) {
         layout->addWidget(markdownLabel(block.language.toUpper(), QStringLiteral("markdownCodeLanguage")));
@@ -573,7 +582,7 @@ QWidget *markdownCodeBlockWidget(const MarkdownBlock &block) {
     return codeBlock;
 }
 
-void addMarkdownBlocks(QVBoxLayout *layout, const QString &markdown) {
+void addMarkdownBlocks(QVBoxLayout *layout, const QString &markdown, const QJsonObject &style) {
     const QList<MarkdownBlock> blocks = parseMarkdownBlocks(markdown);
     for (const MarkdownBlock &block : blocks) {
         switch (block.kind) {
@@ -587,16 +596,26 @@ void addMarkdownBlocks(QVBoxLayout *layout, const QString &markdown) {
             }
             break;
         case MarkdownBlockKind::UnorderedListItem:
-            layout->addWidget(markdownListItemWidget(QString::fromUtf8("\xE2\x80\xA2"), block.text, QStringLiteral("markdownBullet")));
+            layout->addWidget(markdownListItemWidget(
+                QString::fromUtf8("\xE2\x80\xA2"),
+                block.text,
+                QStringLiteral("markdownBullet"),
+                style
+            ));
             break;
         case MarkdownBlockKind::OrderedListItem:
-            layout->addWidget(markdownListItemWidget(QStringLiteral("%1.").arg(block.number), block.text, QStringLiteral("markdownNumber")));
+            layout->addWidget(markdownListItemWidget(
+                QStringLiteral("%1.").arg(block.number),
+                block.text,
+                QStringLiteral("markdownNumber"),
+                style
+            ));
             break;
         case MarkdownBlockKind::Quote:
-            layout->addWidget(markdownQuoteWidget(block.text));
+            layout->addWidget(markdownQuoteWidget(block.text, style));
             break;
         case MarkdownBlockKind::CodeBlock:
-            layout->addWidget(markdownCodeBlockWidget(block));
+            layout->addWidget(markdownCodeBlockWidget(block, style));
             break;
         case MarkdownBlockKind::Paragraph:
             layout->addWidget(markdownLabel(block.text, QStringLiteral("markdownParagraph")));
@@ -605,12 +624,12 @@ void addMarkdownBlocks(QVBoxLayout *layout, const QString &markdown) {
     }
 }
 
-QWidget *markdownMessageWidget(const QString &markdown) {
+QWidget *markdownMessageWidget(const QString &markdown, const QJsonObject &style) {
     QWidget *container = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(container);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(9);
-    addMarkdownBlocks(layout, markdown);
+    layout->setSpacing(intValue(style, "markdownBlockSpacing", 9));
+    addMarkdownBlocks(layout, markdown, style);
     return container;
 }
 
@@ -705,7 +724,7 @@ QFrame *messageBubble(const QJsonObject &message, const QJsonObject &style) {
     if (role == QStringLiteral("user")) {
         layout->addWidget(label(stringValue(message, "content"), QStringLiteral("messageUserText")));
     } else {
-        layout->addWidget(markdownMessageWidget(stringValue(message, "content")));
+        layout->addWidget(markdownMessageWidget(stringValue(message, "content"), style));
     }
     return bubble;
 }

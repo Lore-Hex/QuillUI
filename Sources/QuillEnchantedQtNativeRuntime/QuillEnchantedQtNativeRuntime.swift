@@ -125,6 +125,14 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var messageBubbleRowSpacing: Int
         var messageBubblePadding: Int
         var messageBubbleSpacing: Int
+        var markdownBlockSpacing: Int
+        var markdownListItemSpacing: Int
+        var markdownNumberWidth: Int
+        var markdownQuoteSpacing: Int
+        var markdownQuoteRuleWidth: Int
+        var markdownQuoteVerticalPadding: Int
+        var markdownCodeBlockSpacing: Int
+        var markdownCodeBlockPadding: Int
         var emptyStatePadding: Int
         var emptyStateSpacing: Int
         var emptyStateMaxWidth: Int
@@ -283,6 +291,14 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             messageBubbleRowSpacing: 10,
             messageBubblePadding: 13,
             messageBubbleSpacing: 7,
+            markdownBlockSpacing: 9,
+            markdownListItemSpacing: 8,
+            markdownNumberWidth: 26,
+            markdownQuoteSpacing: 9,
+            markdownQuoteRuleWidth: 3,
+            markdownQuoteVerticalPadding: 2,
+            markdownCodeBlockSpacing: 7,
+            markdownCodeBlockPadding: 10,
             emptyStatePadding: 26,
             emptyStateSpacing: 18,
             emptyStateMaxWidth: 680,
