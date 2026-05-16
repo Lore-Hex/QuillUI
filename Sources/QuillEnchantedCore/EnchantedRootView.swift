@@ -510,11 +510,11 @@ private struct AttachmentChip: View {
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.attachmentChipTextSpacing)) {
                 Text(attachment.filename)
-                    .font(.caption)
+                    .font(.system(size: CGFloat(EnchantedTypography.attachmentNameFontSize)))
                     .foregroundColor(QuillColors.ink)
                     .lineLimit(1)
                 Text(attachment.formattedByteCount)
-                    .font(.caption2)
+                    .font(.system(size: CGFloat(EnchantedTypography.attachmentSizeFontSize)))
                     .foregroundColor(QuillColors.muted)
             }
 

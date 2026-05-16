@@ -249,8 +249,7 @@ public struct MarkdownMessageView: View {
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.markdownCodeBlockSpacing)) {
                 if let language {
                     Text(language.uppercased())
-                        .font(.caption2)
-                        .fontWeight(.semibold)
+                        .font(.system(size: CGFloat(EnchantedTypography.markdownCodeLanguageFontSize), weight: .semibold))
                         .foregroundColor(QuillColors.muted)
                 }
                 Text(block.text.isEmpty ? " " : block.text)
