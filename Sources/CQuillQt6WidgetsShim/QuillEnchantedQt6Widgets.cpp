@@ -4,6 +4,10 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QComboBox>
+#include <QDragEnterEvent>
+#include <QDragLeaveEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -15,6 +19,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QMimeData>
 #include <QObject>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -24,7 +29,9 @@
 #include <QSplitter>
 #include <QString>
 #include <QStringList>
+#include <QStyle>
 #include <QTimer>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <functional>
@@ -119,6 +126,7 @@ QString appStyleSheet(const QJsonObject &style) {
         QFrame#statusDotWarning { background: %5; }
         QLabel#warningText { color: %5; font-size: 12px; }
         QFrame#dropTarget { background: %6; border: 1px solid #C8DED3; border-radius: 8px; }
+        QFrame#dropTarget[dragActive="true"] { background: %6; border: 1px solid %8; }
         QSplitter::handle { background: #D8DDD5; }
         QScrollArea { background: %7; border: 0; }
     )")
@@ -443,6 +451,92 @@ QStringList normalizedAttachmentPaths(const QStringList &rawPaths) {
     return normalizedPaths;
 }
 
+QStringList attachmentPathsFromMimeData(const QMimeData *mimeData) {
+    QStringList paths;
+    if (mimeData == nullptr || !mimeData->hasUrls()) {
+        return paths;
+    }
+
+    for (const QUrl &url : mimeData->urls()) {
+        if (url.isLocalFile()) {
+            paths.append(url.toLocalFile());
+        }
+    }
+
+    return normalizedAttachmentPaths(paths);
+}
+
+class AttachmentDropFrame final : public QFrame {
+public:
+    using DropHandler = std::function<void(const QStringList &)>;
+
+    explicit AttachmentDropFrame(QWidget *parent = nullptr)
+        : QFrame(parent)
+    {
+        setObjectName(QStringLiteral("dropTarget"));
+        setAcceptDrops(true);
+        setProperty("dragActive", false);
+    }
+
+    void setDropHandler(const DropHandler &handler) {
+        dropHandler = handler;
+    }
+
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override {
+        handleDragMove(event);
+    }
+
+    void dragMoveEvent(QDragMoveEvent *event) override {
+        handleDragMove(event);
+    }
+
+    void dragLeaveEvent(QDragLeaveEvent *event) override {
+        setDragActive(false);
+        QFrame::dragLeaveEvent(event);
+    }
+
+    void dropEvent(QDropEvent *event) override {
+        setDragActive(false);
+        const QStringList paths = attachmentPathsFromMimeData(event->mimeData());
+        if (paths.isEmpty()) {
+            event->ignore();
+            return;
+        }
+
+        if (dropHandler) {
+            dropHandler(paths);
+        }
+        event->acceptProposedAction();
+    }
+
+private:
+    void handleDragMove(QDragMoveEvent *event) {
+        if (event == nullptr) {
+            return;
+        }
+
+        const bool acceptsDrop = !attachmentPathsFromMimeData(event->mimeData()).isEmpty();
+        setDragActive(acceptsDrop);
+        if (acceptsDrop) {
+            event->acceptProposedAction();
+        } else {
+            event->ignore();
+        }
+    }
+
+    void setDragActive(bool active) {
+        if (property("dragActive").toBool() == active) {
+            return;
+        }
+
+        setProperty("dragActive", active);
+        refreshStyle(this);
+    }
+
+    DropHandler dropHandler;
+};
+
 QString attachmentSummaryForPaths(const QStringList &rawPaths) {
     QStringList summaryLines;
     for (const QString &path : normalizedAttachmentPaths(rawPaths)) {
@@ -480,6 +574,12 @@ QString attachmentDisplaySize(const QString &rawPath) {
     }
 
     return formattedAttachmentByteCount(fileInfo.size());
+}
+
+QString attachmentReadyStatus(int count) {
+    return count == 1
+        ? QStringLiteral("1 image ready to send")
+        : QStringLiteral("%1 images ready to send").arg(count);
 }
 
 QString attachmentDisplayContent(
@@ -749,7 +849,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     composerLayout->setContentsMargins(18, 14, 18, 18);
     composerLayout->setSpacing(9);
 
-    QFrame *dropTarget = QuillQtWidgets::frame(QStringLiteral("dropTarget"));
+    AttachmentDropFrame *dropTarget = new AttachmentDropFrame();
     QHBoxLayout *dropLayout = new QHBoxLayout(dropTarget);
     dropLayout->setContentsMargins(10, 7, 10, 7);
     dropLayout->setSpacing(8);
@@ -759,6 +859,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         "attachmentPlaceholder",
         QStringLiteral("Image path or drop files here")
     ));
+    attachmentPath->setAcceptDrops(false);
     QPushButton *attachButton = new QPushButton(stringValue(payload, "attachTitle", QStringLiteral("Attach")));
     attachButton->setObjectName(QStringLiteral("secondaryButton"));
     QPushButton *clearAttachmentsButton = new QPushButton(stringValue(payload, "clearAttachmentsTitle", QStringLiteral("Clear")));
@@ -938,6 +1039,29 @@ extern "C" int quill_enchanted_qt_run_app_json(
         attachmentTray->setVisible(!pendingAttachmentPaths.isEmpty());
         updateComposerControlState();
     };
+    auto addPendingAttachmentPaths = [&](const QStringList &rawPaths) -> bool {
+        const QStringList attachmentPaths = normalizedAttachmentPaths(rawPaths);
+        bool accepted = false;
+        for (const QString &path : attachmentPaths) {
+            if (pendingAttachmentPaths.contains(path)) {
+                continue;
+            }
+
+            pendingAttachmentPaths.append(path);
+            accepted = true;
+        }
+
+        if (!accepted) {
+            return false;
+        }
+
+        renderAttachmentTray();
+        statusText->setText(attachmentReadyStatus(pendingAttachmentPaths.count()));
+        return true;
+    };
+    dropTarget->setDropHandler([&](const QStringList &paths) {
+        addPendingAttachmentPaths(paths);
+    });
     auto clearAttachmentState = [&]() {
         attachmentPath->clear();
         pendingAttachmentPaths.clear();
@@ -1154,9 +1278,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
             return;
         }
 
-        pendingAttachmentPaths.append(rawPath);
-        attachmentPath->clear();
-        renderAttachmentTray();
+        if (addPendingAttachmentPaths(QStringList{rawPath})) {
+            attachmentPath->clear();
+        }
     });
     QObject::connect(clearAttachmentsButton, &QPushButton::clicked, [&]() {
         clearAttachmentState();
