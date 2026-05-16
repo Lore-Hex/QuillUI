@@ -1042,8 +1042,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
     sidebar->setMinimumWidth(intValue(style, "sidebarWidth", 300));
     sidebar->setMaximumWidth(intValue(style, "sidebarWidth", 300));
     QVBoxLayout *sidebarLayout = new QVBoxLayout(sidebar);
-    sidebarLayout->setContentsMargins(18, 18, 18, 18);
-    sidebarLayout->setSpacing(10);
+    const int sidebarPadding = intValue(style, "sidebarPadding", 18);
+    sidebarLayout->setContentsMargins(sidebarPadding, sidebarPadding, sidebarPadding, sidebarPadding);
+    sidebarLayout->setSpacing(intValue(style, "sidebarSpacing", 14));
 
     sidebarLayout->addWidget(label(
         stringValue(payload, "sidebarTitle", QStringLiteral("Enchanted")),

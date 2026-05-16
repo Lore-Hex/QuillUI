@@ -103,6 +103,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var codeBlockColor: String
         var dropTargetColor: String
         var sidebarWidth: Int
+        var sidebarPadding: Int
+        var sidebarSpacing: Int
         var headerTitleWidth: Int
         var headerPadding: Int
         var contentPadding: Int
@@ -236,6 +238,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             codeBlockColor: "#EEF3F4",
             dropTargetColor: "#E1F0EA",
             sidebarWidth: 300,
+            sidebarPadding: 18,
+            sidebarSpacing: 14,
             headerTitleWidth: 560,
             headerPadding: 18,
             contentPadding: 22,
