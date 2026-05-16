@@ -85,6 +85,8 @@ QString appStyleSheet(const QJsonObject &style) {
     const QString warning = styleValue(style, "warningColor", "#B86A31");
     const QString success = styleValue(style, "successColor", "#2F8F64");
     const QString dropTarget = styleValue(style, "dropTargetColor", "#E1F0EA");
+    const QString quoteRule = styleValue(style, "quoteRuleColor", "#8AA5B7");
+    const QString codeBlock = styleValue(style, "codeBlockColor", "#EEF3F4");
 
     QString sheet = QStringLiteral(R"(
         QWidget#enchantedRoot { background: %1; color: %2; font-size: 14px; }
@@ -105,10 +107,9 @@ QString appStyleSheet(const QJsonObject &style) {
         QLabel#markdownCodeLanguage { color: %8; font-size: 11px; font-weight: 650; }
         QLabel#markdownCodeText { color: %2; font-family: monospace; font-size: 13px; }
         QFrame#emptyHistory { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
-        QFrame#messageAssistant, QFrame#messageSystem { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
-        QFrame#messageUser { background: %6; border: 1px solid #D4DFE8; border-radius: 8px; }
-        QFrame#markdownQuoteRule { background: #8AA5B7; border-radius: 1px; }
-        QFrame#markdownCodeBlock { background: #EEF3F4; border-radius: 7px; }
+        QFrame#messageAssistant { background: %5; border: 1px solid #E0E5DD; border-radius: 10px; }
+        QFrame#messageSystem { background: %7; border: 1px solid #D4DFE8; border-radius: 10px; }
+        QFrame#messageUser { background: %6; border: 1px solid #D4DFE8; border-radius: 10px; }
         QFrame#attachmentChip { background: %5; border: 1px solid #E0E5DD; border-radius: 8px; }
         QScrollArea#attachmentScrollArea, QWidget#attachmentChipList { background: transparent; border: 0; }
         QLabel#attachmentName { color: %2; font-size: 12px; }
@@ -122,6 +123,12 @@ QString appStyleSheet(const QJsonObject &style) {
         QPushButton#promptButton { background: %5; color: %2; border: 1px solid #E0E5DD; border-radius: 8px; padding: 12px; text-align: left; }
     )")
         .arg(canvas, ink, sidebar, header, card, primary, system, muted, warning);
+
+    sheet += QStringLiteral(R"(
+        QFrame#markdownQuoteRule { background: %1; border-radius: 1px; }
+        QFrame#markdownCodeBlock { background: %2; border-radius: 7px; }
+    )")
+        .arg(quoteRule, codeBlock);
 
     sheet += QStringLiteral(R"(
         QListWidget#conversationList { background: transparent; border: 0; outline: 0; }
@@ -143,7 +150,7 @@ QString appStyleSheet(const QJsonObject &style) {
         QSplitter::handle { background: #D8DDD5; }
         QScrollArea { background: %7; border: 0; }
     )")
-        .arg(selected, ink, card, success, muted, dropTarget, canvas, primary);
+        .arg(selected, ink, card, success, warning, dropTarget, canvas, primary);
 
     return sheet;
 }
@@ -550,8 +557,8 @@ QWidget *markdownQuoteWidget(const QString &text) {
 QWidget *markdownCodeBlockWidget(const MarkdownBlock &block) {
     QFrame *codeBlock = QuillQtWidgets::frame(QStringLiteral("markdownCodeBlock"));
     QVBoxLayout *layout = new QVBoxLayout(codeBlock);
-    layout->setContentsMargins(10, 9, 10, 9);
-    layout->setSpacing(6);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(7);
 
     if (!block.language.isEmpty()) {
         layout->addWidget(markdownLabel(block.language.toUpper(), QStringLiteral("markdownCodeLanguage")));
@@ -667,8 +674,8 @@ QFrame *messageBubble(const QJsonObject &message, const QJsonObject &style) {
     bubble->setMaximumWidth(intValue(style, "messageMaxWidth", 680));
 
     QVBoxLayout *layout = new QVBoxLayout(bubble);
-    layout->setContentsMargins(14, 10, 14, 10);
-    layout->setSpacing(6);
+    layout->setContentsMargins(13, 13, 13, 13);
+    layout->setSpacing(7);
     layout->addWidget(label(
         messageRoleTitle(role),
         role == QStringLiteral("user") ? QStringLiteral("messageUserRole") : QStringLiteral("messageRole")
@@ -720,7 +727,7 @@ void addPromptCards(
         QPushButton *button = new QPushButton(QStringLiteral("%1%2").arg(promptCardPrefix(), prompt));
         button->setObjectName(QStringLiteral("promptButton"));
         button->setMinimumHeight(48);
-        button->setMaximumWidth(620);
+        button->setFixedWidth(620);
         QObject::connect(button, &QPushButton::clicked, [prompt, promptAction]() {
             promptAction(prompt);
         });
