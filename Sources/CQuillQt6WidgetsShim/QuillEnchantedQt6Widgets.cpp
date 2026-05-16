@@ -241,6 +241,7 @@ QString appStyleSheet(const QJsonObject &style) {
     const QString chipRemoveButtonHorizontalPadding = cssPixels(style, "chipRemoveButtonHorizontalPadding", 6);
     const QString controlPadding = cssPixels(style, "controlPadding", 7);
     const QString controlRadius = cssPixels(style, "controlRadius", 7);
+    const QString composerEditorRadius = cssPixels(style, "composerEditorRadius", 8);
 
     QString sheet = QStringLiteral(R"(
         QWidget#enchantedRoot { background: %1; color: %2; font-size: %3; }
@@ -399,9 +400,10 @@ QString appStyleSheet(const QJsonObject &style) {
         .arg(dropTarget, dropTargetBorder, primary, divider, dropTargetRadius, captionFontSize);
 
     sheet += QStringLiteral(R"(
-        QLineEdit, QComboBox, QPlainTextEdit { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: %5; }
+        QLineEdit, QComboBox { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: %5; }
+        QPlainTextEdit { background: %1; color: %2; border: 1px solid %3; border-radius: %6; padding: %5; }
     )")
-        .arg(card, ink, controlBorder, controlRadius, controlPadding);
+        .arg(card, ink, controlBorder, controlRadius, controlPadding, composerEditorRadius);
 
     return sheet;
 }

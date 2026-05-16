@@ -205,6 +205,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var dropTargetRadius: Int
         var composerPadding: Int
         var composerSpacing: Int
+        var composerEditorRadius: Int
         var promptRowSpacing: Int
         var composerSendButtonMinWidth: Int
         var composerMinHeight: Int
@@ -436,6 +437,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             dropTargetRadius: EnchantedVisualMetrics.dropTargetRadius,
             composerPadding: EnchantedVisualMetrics.composerPadding,
             composerSpacing: EnchantedVisualMetrics.composerSpacing,
+            composerEditorRadius: EnchantedVisualMetrics.composerEditorRadius,
             promptRowSpacing: EnchantedVisualMetrics.promptRowSpacing,
             composerSendButtonMinWidth: EnchantedVisualMetrics.composerSendButtonMinWidth,
             composerMinHeight: EnchantedVisualMetrics.composerMinHeight,
