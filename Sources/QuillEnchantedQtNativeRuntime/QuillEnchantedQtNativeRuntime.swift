@@ -110,6 +110,28 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var disabledButtonBackgroundColor: String
         var disabledButtonForegroundColor: String
         var disabledTextColor: String
+        var rootFontSize: Int
+        var appTitleFontSize: Int
+        var appTitleFontWeight: Int
+        var captionFontSize: Int
+        var sectionTitleFontSize: Int
+        var sectionTitleFontWeight: Int
+        var currentTitleFontSize: Int
+        var currentTitleFontWeight: Int
+        var messageBodyFontSize: Int
+        var markdownHeading1FontSize: Int
+        var markdownHeading2FontSize: Int
+        var markdownHeadingFontSize: Int
+        var markdownHeadingFontWeight: Int
+        var markdownCodeLanguageFontSize: Int
+        var markdownCodeFontSize: Int
+        var attachmentNameFontSize: Int
+        var attachmentSizeFontSize: Int
+        var conversationTitleFontSize: Int
+        var conversationTitleFontWeight: Int
+        var conversationPreviewFontSize: Int
+        var warningTextFontSize: Int
+        var chipRemoveButtonFontWeight: Int
         var sidebarWidth: Int
         var sidebarPadding: Int
         var sidebarSpacing: Int
@@ -313,6 +335,28 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             disabledButtonBackgroundColor: "#AAB5BE",
             disabledButtonForegroundColor: "#F4F6F7",
             disabledTextColor: "#9CA6AD",
+            rootFontSize: 14,
+            appTitleFontSize: 26,
+            appTitleFontWeight: 700,
+            captionFontSize: 12,
+            sectionTitleFontSize: 15,
+            sectionTitleFontWeight: 700,
+            currentTitleFontSize: 20,
+            currentTitleFontWeight: 650,
+            messageBodyFontSize: 14,
+            markdownHeading1FontSize: 17,
+            markdownHeading2FontSize: 15,
+            markdownHeadingFontSize: 14,
+            markdownHeadingFontWeight: 650,
+            markdownCodeLanguageFontSize: 11,
+            markdownCodeFontSize: 13,
+            attachmentNameFontSize: 12,
+            attachmentSizeFontSize: 11,
+            conversationTitleFontSize: 15,
+            conversationTitleFontWeight: 700,
+            conversationPreviewFontSize: 12,
+            warningTextFontSize: 12,
+            chipRemoveButtonFontWeight: 700,
             sidebarWidth: 300,
             sidebarPadding: 18,
             sidebarSpacing: 14,

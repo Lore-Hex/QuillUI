@@ -99,6 +99,28 @@ QString appStyleSheet(const QJsonObject &style) {
     const QString disabledButtonBackground = styleValue(style, "disabledButtonBackgroundColor", "#AAB5BE");
     const QString disabledButtonForeground = styleValue(style, "disabledButtonForegroundColor", "#F4F6F7");
     const QString disabledText = styleValue(style, "disabledTextColor", "#9CA6AD");
+    const QString rootFontSize = cssPixels(style, "rootFontSize", 14);
+    const QString appTitleFontSize = cssPixels(style, "appTitleFontSize", 26);
+    const QString appTitleFontWeight = QString::number(intValue(style, "appTitleFontWeight", 700));
+    const QString captionFontSize = cssPixels(style, "captionFontSize", 12);
+    const QString sectionTitleFontSize = cssPixels(style, "sectionTitleFontSize", 15);
+    const QString sectionTitleFontWeight = QString::number(intValue(style, "sectionTitleFontWeight", 700));
+    const QString currentTitleFontSize = cssPixels(style, "currentTitleFontSize", 20);
+    const QString currentTitleFontWeight = QString::number(intValue(style, "currentTitleFontWeight", 650));
+    const QString messageBodyFontSize = cssPixels(style, "messageBodyFontSize", 14);
+    const QString markdownHeading1FontSize = cssPixels(style, "markdownHeading1FontSize", 17);
+    const QString markdownHeading2FontSize = cssPixels(style, "markdownHeading2FontSize", 15);
+    const QString markdownHeadingFontSize = cssPixels(style, "markdownHeadingFontSize", 14);
+    const QString markdownHeadingFontWeight = QString::number(intValue(style, "markdownHeadingFontWeight", 650));
+    const QString markdownCodeLanguageFontSize = cssPixels(style, "markdownCodeLanguageFontSize", 11);
+    const QString markdownCodeFontSize = cssPixels(style, "markdownCodeFontSize", 13);
+    const QString attachmentNameFontSize = cssPixels(style, "attachmentNameFontSize", 12);
+    const QString attachmentSizeFontSize = cssPixels(style, "attachmentSizeFontSize", 11);
+    const QString conversationTitleFontSize = cssPixels(style, "conversationTitleFontSize", 15);
+    const QString conversationTitleFontWeight = QString::number(intValue(style, "conversationTitleFontWeight", 700));
+    const QString conversationPreviewFontSize = cssPixels(style, "conversationPreviewFontSize", 12);
+    const QString warningTextFontSize = cssPixels(style, "warningTextFontSize", 12);
+    const QString chipRemoveButtonFontWeight = QString::number(intValue(style, "chipRemoveButtonFontWeight", 700));
     const QString statusDotSize = cssPixels(style, "statusDotSize", 9);
     const QString statusDotRadius = cssPixels(style, "statusDotRadius", 9);
     const QString conversationRowRadius = cssPixels(style, "conversationRowRadius", 8);
@@ -125,32 +147,63 @@ QString appStyleSheet(const QJsonObject &style) {
     const QString controlRadius = cssPixels(style, "controlRadius", 7);
 
     QString sheet = QStringLiteral(R"(
-        QWidget#enchantedRoot { background: %1; color: %2; font-size: 14px; }
+        QWidget#enchantedRoot { background: %1; color: %2; font-size: %3; }
         QFrame#chatHeader, QFrame#composer { background: %4; }
-        QLabel#appTitle { color: %2; font-size: 26px; font-weight: 700; }
-        QLabel#caption, QLabel#fieldLabel, QLabel#statusText, QLabel#messageRole { color: %8; font-size: 12px; }
-        QLabel#sectionTitle { color: %2; font-size: 15px; font-weight: 700; }
-        QLabel#currentTitle { color: %2; font-size: 20px; font-weight: 650; }
-        QLabel#messageText, QLabel#markdownParagraph { color: %2; font-size: 14px; }
-        QLabel#messageUserText { color: white; font-size: 14px; }
-        QLabel#markdownHeading1 { color: %2; font-size: 17px; font-weight: 650; }
-        QLabel#markdownHeading2 { color: %2; font-size: 15px; font-weight: 650; }
-        QLabel#markdownHeading { color: %2; font-size: 14px; font-weight: 650; }
-        QLabel#markdownBullet, QLabel#markdownNumber { color: %6; font-size: 14px; font-weight: 650; }
-        QLabel#markdownQuote { color: %8; font-size: 14px; }
-        QLabel#markdownCodeLanguage { color: %8; font-size: 11px; font-weight: 650; }
-        QLabel#markdownCodeText { color: %2; font-family: monospace; font-size: 13px; }
-        QScrollArea#attachmentScrollArea, QWidget#attachmentChipList { background: transparent; border: 0; }
-        QLabel#attachmentName { color: %2; font-size: 12px; }
-        QLabel#attachmentSize { color: %8; font-size: 11px; }
+        QLabel#caption, QLabel#fieldLabel, QLabel#statusText, QLabel#messageRole { color: %5; font-size: %6; }
     )")
-        .arg(canvas, ink, sidebar, header, card, primary, system, muted, warning);
+        .arg(canvas, ink, rootFontSize, header, muted, captionFontSize);
+
+    sheet += QStringLiteral(R"(
+        QLabel#appTitle { color: %1; font-size: %2; font-weight: %3; }
+        QLabel#sectionTitle { color: %1; font-size: %4; font-weight: %5; }
+        QLabel#currentTitle { color: %1; font-size: %6; font-weight: %7; }
+        QLabel#messageText, QLabel#markdownParagraph { color: %1; font-size: %8; }
+        QLabel#messageUserText { color: white; font-size: %8; }
+    )")
+        .arg(
+            ink,
+            appTitleFontSize,
+            appTitleFontWeight,
+            sectionTitleFontSize,
+            sectionTitleFontWeight,
+            currentTitleFontSize,
+            currentTitleFontWeight,
+            messageBodyFontSize
+        );
+
+    sheet += QStringLiteral(R"(
+        QLabel#markdownHeading1 { color: %1; font-size: %2; font-weight: %5; }
+        QLabel#markdownHeading2 { color: %1; font-size: %3; font-weight: %5; }
+        QLabel#markdownHeading { color: %1; font-size: %4; font-weight: %5; }
+        QLabel#markdownBullet, QLabel#markdownNumber { color: %6; font-size: %4; font-weight: %5; }
+        QLabel#markdownQuote { color: %7; font-size: %4; }
+        QLabel#markdownCodeLanguage { color: %7; font-size: %8; font-weight: %5; }
+        QLabel#markdownCodeText { color: %1; font-family: monospace; font-size: %9; }
+    )")
+        .arg(
+            ink,
+            markdownHeading1FontSize,
+            markdownHeading2FontSize,
+            markdownHeadingFontSize,
+            markdownHeadingFontWeight,
+            primary,
+            muted,
+            markdownCodeLanguageFontSize,
+            markdownCodeFontSize
+        );
+
+    sheet += QStringLiteral(R"(
+        QScrollArea#attachmentScrollArea, QWidget#attachmentChipList { background: transparent; border: 0; }
+        QLabel#attachmentName { color: %1; font-size: %2; }
+        QLabel#attachmentSize { color: %3; font-size: %4; }
+    )")
+        .arg(ink, attachmentNameFontSize, muted, attachmentSizeFontSize);
 
     sheet += QStringLiteral(R"(
         QFrame#sidebar { background: %1; border-right: 1px solid %2; }
-        QLabel#messageUserRole { color: %3; font-size: 12px; }
+        QLabel#messageUserRole { color: %3; font-size: %4; }
     )")
-        .arg(sidebar, divider, selected);
+        .arg(sidebar, divider, selected, captionFontSize);
 
     sheet += QStringLiteral(R"(
         QFrame#emptyHistory { background: %1; border: 1px solid %2; border-radius: %3; }
@@ -189,9 +242,9 @@ QString appStyleSheet(const QJsonObject &style) {
         .arg(divider);
 
     sheet += QStringLiteral(R"(
-        QPushButton#chipRemoveButton { background: transparent; color: %1; border: 0; padding: %2 %3; font-weight: 700; }
+        QPushButton#chipRemoveButton { background: transparent; color: %1; border: 0; padding: %2 %3; font-weight: %4; }
     )")
-        .arg(muted, chipRemoveButtonVerticalPadding, chipRemoveButtonHorizontalPadding);
+        .arg(muted, chipRemoveButtonVerticalPadding, chipRemoveButtonHorizontalPadding, chipRemoveButtonFontWeight);
 
     sheet += QStringLiteral(R"(
         QPushButton#promptButton { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: %5; text-align: left; }
@@ -214,9 +267,9 @@ QString appStyleSheet(const QJsonObject &style) {
         QListWidget#conversationList::item:selected { background: transparent; color: %2; }
         QFrame#conversationRow { background: %3; border-radius: %6; }
         QFrame#conversationRow[active="true"] { background: %5; }
-        QLabel#conversationTitle { color: %2; font-size: 15px; font-weight: 700; }
+        QLabel#conversationTitle { color: %2; font-size: %7; font-weight: %8; }
         QLabel#conversationTitle[active="true"] { color: white; }
-        QLabel#conversationPreview { color: %4; font-size: 12px; }
+        QLabel#conversationPreview { color: %4; font-size: %9; }
         QLabel#conversationPreview[active="true"] { color: %1; }
     )")
         .arg(
@@ -225,17 +278,20 @@ QString appStyleSheet(const QJsonObject &style) {
             card,
             muted,
             primary,
-            conversationRowRadius
+            conversationRowRadius,
+            conversationTitleFontSize,
+            conversationTitleFontWeight,
+            conversationPreviewFontSize
         );
 
     sheet += QStringLiteral(R"(
         QFrame#statusDot, QFrame#statusDotWarning { min-width: %1; max-width: %1; min-height: %1; max-height: %1; border-radius: %2; }
         QFrame#statusDot { background: %3; }
         QFrame#statusDotWarning { background: %4; }
-        QLabel#warningText { color: %4; font-size: 12px; }
+        QLabel#warningText { color: %4; font-size: %6; }
         QScrollArea { background: %5; border: 0; }
     )")
-        .arg(statusDotSize, statusDotRadius, success, warning, canvas);
+        .arg(statusDotSize, statusDotRadius, success, warning, canvas, warningTextFontSize);
 
     sheet += QStringLiteral(R"(
         QFrame#dropTarget { background: %1; border: 1px solid %2; border-radius: %5; }
