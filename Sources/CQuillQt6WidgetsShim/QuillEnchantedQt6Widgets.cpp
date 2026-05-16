@@ -164,12 +164,18 @@ void refreshStyle(QWidget *widget) {
     widget->update();
 }
 
-QFrame *conversationRowWidget(const QJsonObject &conversation) {
+QFrame *conversationRowWidget(const QJsonObject &conversation, const QJsonObject &style) {
     QFrame *row = QuillQtWidgets::frame(QStringLiteral("conversationRow"));
     row->setProperty("active", false);
     QVBoxLayout *layout = new QVBoxLayout(row);
-    layout->setContentsMargins(11, 9, 11, 9);
-    layout->setSpacing(5);
+    const int conversationRowPadding = intValue(style, "conversationRowPadding", 11);
+    layout->setContentsMargins(
+        conversationRowPadding,
+        conversationRowPadding,
+        conversationRowPadding,
+        conversationRowPadding
+    );
+    layout->setSpacing(intValue(style, "conversationRowSpacing", 5));
 
     QLabel *title = label(
         stringValue(conversation, "title", QStringLiteral("New conversation")),
@@ -645,7 +651,8 @@ QJsonArray selectedConversationMessages(
 void populateConversations(
     QListWidget *list,
     const QJsonArray &conversations,
-    const QString &selectedConversationID
+    const QString &selectedConversationID,
+    const QJsonObject &style
 ) {
     list->clear();
     int selectedRow = -1;
@@ -656,7 +663,7 @@ void populateConversations(
         item->setData(Qt::UserRole, stringValue(conversation, "id"));
         item->setSizeHint(QSize(260, 88));
         list->addItem(item);
-        list->setItemWidget(item, conversationRowWidget(conversation));
+        list->setItemWidget(item, conversationRowWidget(conversation, style));
         if (stringValue(conversation, "id") == selectedConversationID) {
             selectedRow = list->row(item);
         }
@@ -1141,7 +1148,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     populateConversations(
         conversationList,
         conversations,
-        selectedConversationID
+        selectedConversationID,
+        style
     );
     conversationList->setVisible(!conversations.isEmpty());
     sidebarLayout->addWidget(conversationList, 1);
@@ -1469,7 +1477,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
         populateConversations(
             conversationList,
             conversations,
-            selectedConversationID
+            selectedConversationID,
+            style
         );
         const QString selectedID = currentConversationID(conversationList, selectedConversationID);
         currentTitle->setText(selectedConversationTitle(

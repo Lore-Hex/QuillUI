@@ -105,6 +105,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var sidebarWidth: Int
         var sidebarPadding: Int
         var sidebarSpacing: Int
+        var conversationRowPadding: Int
+        var conversationRowSpacing: Int
         var headerTitleWidth: Int
         var headerPadding: Int
         var contentPadding: Int
@@ -240,6 +242,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             sidebarWidth: 300,
             sidebarPadding: 18,
             sidebarSpacing: 14,
+            conversationRowPadding: 11,
+            conversationRowSpacing: 5,
             headerTitleWidth: 560,
             headerPadding: 18,
             contentPadding: 22,
