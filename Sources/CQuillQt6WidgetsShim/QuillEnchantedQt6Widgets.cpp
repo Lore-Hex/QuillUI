@@ -1220,8 +1220,15 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     AttachmentDropFrame *dropTarget = new AttachmentDropFrame();
     QHBoxLayout *dropLayout = new QHBoxLayout(dropTarget);
-    dropLayout->setContentsMargins(10, 7, 10, 7);
-    dropLayout->setSpacing(8);
+    const int attachmentInputHorizontalPadding = intValue(style, "attachmentInputHorizontalPadding", 10);
+    const int attachmentInputVerticalPadding = intValue(style, "attachmentInputVerticalPadding", 7);
+    dropLayout->setContentsMargins(
+        attachmentInputHorizontalPadding,
+        attachmentInputVerticalPadding,
+        attachmentInputHorizontalPadding,
+        attachmentInputVerticalPadding
+    );
+    dropLayout->setSpacing(intValue(style, "attachmentInputSpacing", 8));
     QLineEdit *attachmentPath = new QLineEdit();
     attachmentPath->setPlaceholderText(stringValue(
         payload,

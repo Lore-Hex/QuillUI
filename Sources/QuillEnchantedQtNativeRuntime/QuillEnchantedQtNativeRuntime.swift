@@ -113,6 +113,9 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var attachmentChipSpacing: Int
         var attachmentTraySpacing: Int
         var attachmentTrayChipSpacing: Int
+        var attachmentInputHorizontalPadding: Int
+        var attachmentInputVerticalPadding: Int
+        var attachmentInputSpacing: Int
         var headerTitleWidth: Int
         var headerSpacing: Int
         var headerTitleSpacing: Int
@@ -259,6 +262,9 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             attachmentChipSpacing: 8,
             attachmentTraySpacing: 7,
             attachmentTrayChipSpacing: 8,
+            attachmentInputHorizontalPadding: 10,
+            attachmentInputVerticalPadding: 7,
+            attachmentInputSpacing: 8,
             headerTitleWidth: 560,
             headerSpacing: 12,
             headerTitleSpacing: 4,
