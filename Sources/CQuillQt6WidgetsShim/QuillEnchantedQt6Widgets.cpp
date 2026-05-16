@@ -729,9 +729,20 @@ extern "C" int quill_enchanted_qt_run_app_json(
         QStringLiteral("This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.")
     );
     bool showingPromptCards = false;
+    std::function<bool(const QString &, const QString &, const QString &)> requestHistoryAction;
     auto appendUserMessage = [&](const QString &rawText) {
         const QString text = rawText.trimmed();
         if (text.isEmpty()) {
+            return;
+        }
+
+        if (requestHistoryAction
+            && requestHistoryAction(
+                QStringLiteral("sendMessage"),
+                currentConversationID(conversationList, selectedConversationID),
+                text
+            )) {
+            promptEditor->clear();
             return;
         }
 
@@ -807,11 +818,15 @@ extern "C" int quill_enchanted_qt_run_app_json(
         ));
         updateConversationActionState();
     };
-    auto requestHistoryAction = [&](const QString &actionName, const QString &conversationID) -> bool {
+    requestHistoryAction = [&](const QString &actionName, const QString &conversationID, const QString &messageText) -> bool {
         QJsonObject action;
         action.insert(QStringLiteral("action"), actionName);
         if (!conversationID.isEmpty()) {
             action.insert(QStringLiteral("conversationID"), conversationID);
+        }
+        const QString trimmedMessageText = messageText.trimmed();
+        if (!trimmedMessageText.isEmpty()) {
+            action.insert(QStringLiteral("messageText"), trimmedMessageText);
         }
 
         bool succeeded = false;
@@ -837,7 +852,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     splitter->setStretchFactor(1, 1);
 
     QObject::connect(newChatButton, &QPushButton::clicked, [&]() {
-        if (requestHistoryAction(QStringLiteral("newConversation"), QString())) {
+        if (requestHistoryAction(QStringLiteral("newConversation"), QString(), QString())) {
             return;
         }
 
@@ -855,7 +870,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         }
 
         const QString deletedConversationID = currentConversationID(conversationList, selectedConversationID);
-        if (requestHistoryAction(QStringLiteral("deleteConversation"), deletedConversationID)) {
+        if (requestHistoryAction(QStringLiteral("deleteConversation"), deletedConversationID, QString())) {
             return;
         }
 
@@ -872,7 +887,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         updateConversationActionState();
     });
     QObject::connect(clearAllButton, &QPushButton::clicked, [&]() {
-        if (requestHistoryAction(QStringLiteral("deleteAllConversations"), QString())) {
+        if (requestHistoryAction(QStringLiteral("deleteAllConversations"), QString(), QString())) {
             return;
         }
 

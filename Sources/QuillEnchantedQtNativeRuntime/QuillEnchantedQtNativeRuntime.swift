@@ -278,6 +278,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
 private struct QuillEnchantedQtActionRequest: Decodable {
     var action: String
     var conversationID: String?
+    var messageText: String?
 }
 
 private enum QuillEnchantedQtActionBridge {
@@ -310,6 +311,19 @@ private enum QuillEnchantedQtActionBridge {
             case "deleteAllConversations":
                 try context.deleteAllConversations()
                 status = "History cleared"
+            case "sendMessage":
+                guard let messageText = request.messageText?.quillTrimmedNonEmpty else {
+                    selectedConversationID = try existingConversationID(request.conversationID, context: context)
+                    status = "Message is empty"
+                    break
+                }
+
+                selectedConversationID = try sendMessage(
+                    messageText,
+                    selectedConversationID: existingConversationID(request.conversationID, context: context),
+                    context: context
+                )
+                status = "Ready"
             default:
                 status = "Unsupported action"
             }
@@ -324,6 +338,37 @@ private enum QuillEnchantedQtActionBridge {
             snapshot.status = "Could not update history: \(error.localizedDescription)"
             return snapshot
         }
+    }
+
+    private static func existingConversationID(
+        _ requestedID: String?,
+        context: EnchantedModelContext
+    ) throws -> String? {
+        guard let requestedID = requestedID?.quillTrimmedNonEmpty else { return nil }
+        let conversations = try context.fetchConversations()
+        return conversations.contains { $0.id == requestedID } ? requestedID : nil
+    }
+
+    private static func sendMessage(
+        _ messageText: String,
+        selectedConversationID: String?,
+        context: EnchantedModelContext
+    ) throws -> String {
+        let prompt = messageText
+        let conversationID: String
+        if let selectedConversationID {
+            let currentMessages = try context.fetchMessages(for: selectedConversationID)
+            if currentMessages.isEmpty {
+                try context.updateConversationTitle(id: selectedConversationID, title: prompt.quillTitle())
+            }
+            conversationID = selectedConversationID
+        } else {
+            let conversation = try context.insert(ConversationDraft(title: prompt.quillTitle()))
+            conversationID = conversation.id
+        }
+
+        try context.insert(ChatMessage(conversationID: conversationID, role: .user, content: prompt))
+        return conversationID
     }
 }
 
