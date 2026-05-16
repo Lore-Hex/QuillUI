@@ -76,6 +76,10 @@ QIcon themedActionIcon(const QString &themeName, QStyle::StandardPixmap fallback
     return QIcon::fromTheme(themeName, QApplication::style()->standardIcon(fallback));
 }
 
+QIcon newChatButtonIcon() {
+    return themedActionIcon(QStringLiteral("document-new-symbolic"), QStyle::SP_FileIcon);
+}
+
 QIcon attachButtonIcon() {
     return themedActionIcon(QStringLiteral("folder-new-symbolic"), QStyle::SP_FileDialogNewFolder);
 }
@@ -86,7 +90,7 @@ QIcon sendButtonIcon(bool isLoading) {
         : themedActionIcon(QStringLiteral("go-next-symbolic"), QStyle::SP_MediaPlay);
 }
 
-void applyActionButtonIconSize(QPushButton *button, const QJsonObject &style) {
+void applyButtonIconSize(QPushButton *button, const QJsonObject &style) {
     const int iconSize = intValue(style, "actionButtonIconSize", 16);
     button->setIconSize(QSize(iconSize, iconSize));
 }
@@ -1348,6 +1352,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QPushButton *newChatButton = new QPushButton(stringValue(payload, "newChatTitle", QStringLiteral("New chat")));
     newChatButton->setObjectName(QStringLiteral("primaryButton"));
+    newChatButton->setIcon(newChatButtonIcon());
+    applyButtonIconSize(newChatButton, style);
     sidebarLayout->addWidget(newChatButton);
 
     QLineEdit *endpointField = new QLineEdit(stringValue(payload, "endpoint"));
@@ -1524,7 +1530,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QPushButton *attachButton = new QPushButton(stringValue(payload, "attachTitle", QStringLiteral("Attach")));
     attachButton->setObjectName(QStringLiteral("secondaryButton"));
     attachButton->setIcon(attachButtonIcon());
-    applyActionButtonIconSize(attachButton, style);
+    applyButtonIconSize(attachButton, style);
     QPushButton *clearAttachmentsButton = new QPushButton(stringValue(payload, "clearAttachmentsTitle", QStringLiteral("Clear")));
     clearAttachmentsButton->setObjectName(QStringLiteral("secondaryButton"));
     dropLayout->addWidget(attachmentPath, 1);
@@ -1569,7 +1575,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QPushButton *sendButton = new QPushButton();
     sendButton->setObjectName(QStringLiteral("sendButton"));
     updateSendButtonPresentation(sendButton, isLoading, sendTitle, stopTitle);
-    applyActionButtonIconSize(sendButton, style);
+    applyButtonIconSize(sendButton, style);
     sendButton->setMinimumWidth(intValue(style, "composerSendButtonMinWidth", 86));
     promptRow->addWidget(promptEditor, 1);
     promptRow->addWidget(sendButton);
