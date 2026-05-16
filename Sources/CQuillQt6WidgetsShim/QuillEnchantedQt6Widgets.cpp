@@ -20,6 +20,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSize>
+#include <QSignalBlocker>
 #include <QSplitter>
 #include <QString>
 #include <QVBoxLayout>
@@ -221,6 +222,21 @@ QString modelStatusText(const QString &selectedModel) {
     }
 
     return QStringLiteral("Using %1").arg(trimmedModel);
+}
+
+QJsonArray currentModelList(QComboBox *modelPicker) {
+    QJsonArray models;
+    if (modelPicker == nullptr) {
+        return models;
+    }
+
+    for (int index = 0; index < modelPicker->count(); ++index) {
+        const QString model = modelPicker->itemText(index).trimmed();
+        if (!model.isEmpty()) {
+            models.append(model);
+        }
+    }
+    return models;
 }
 
 QString messageRoleTitle(const QString &role) {
@@ -537,28 +553,48 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QJsonArray models = arrayValue(payload, "models");
     const QString modelLabel = stringValue(payload, "modelLabel", QStringLiteral("Model"));
-    QComboBox *modelPicker = nullptr;
-    if (models.isEmpty()) {
-        sidebarLayout->addWidget(fieldLabel(modelLabel));
-        sidebarLayout->addWidget(label(
-            stringValue(payload, "noModelsTitle", QStringLiteral("No models detected")),
-            QStringLiteral("warningText")
-        ));
-    } else {
-        modelPicker = new QComboBox();
-        for (const QJsonValue &model : models) {
-            modelPicker->addItem(model.toString());
+    QComboBox *modelPicker = new QComboBox();
+    QLabel *noModelsNotice = label(
+        stringValue(payload, "noModelsTitle", QStringLiteral("No models detected")),
+        QStringLiteral("warningText")
+    );
+    auto populateModelPicker = [&](const QJsonArray &modelValues, const QString &selectedModelValue) {
+        QSignalBlocker blocker(modelPicker);
+        modelPicker->clear();
+        const QString trimmedSelection = selectedModelValue.trimmed();
+        QString firstModel;
+        int selectedModelIndex = -1;
+
+        for (const QJsonValue &model : modelValues) {
+            const QString modelName = model.toString().trimmed();
+            if (modelName.isEmpty()) {
+                continue;
+            }
+            if (firstModel.isEmpty()) {
+                firstModel = modelName;
+            }
+            modelPicker->addItem(modelName);
+            if (modelName == trimmedSelection) {
+                selectedModelIndex = modelPicker->count() - 1;
+            }
         }
-        const int selectedModelIndex = modelPicker->findText(stringValue(payload, "selectedModel"));
+
         if (selectedModelIndex >= 0) {
             modelPicker->setCurrentIndex(selectedModelIndex);
+        } else if (!firstModel.isEmpty()) {
+            modelPicker->setCurrentIndex(0);
         }
-        addSidebarField(
-            sidebarLayout,
-            modelLabel,
-            modelPicker
-        );
-    }
+        const bool hasModels = modelPicker->count() > 0;
+        modelPicker->setEnabled(hasModels);
+        noModelsNotice->setVisible(!hasModels);
+    };
+    populateModelPicker(models, stringValue(payload, "selectedModel"));
+    addSidebarField(
+        sidebarLayout,
+        modelLabel,
+        modelPicker
+    );
+    sidebarLayout->addWidget(noModelsNotice);
 
     QHBoxLayout *statusLayout = new QHBoxLayout();
     statusLayout->setContentsMargins(0, 0, 0, 0);
@@ -793,6 +829,16 @@ extern "C" int quill_enchanted_qt_run_app_json(
         conversations = arrayValue(payload, "conversations");
         selectedConversationID = stringValue(payload, "selectedConversationID");
         fallbackMessages = arrayValue(payload, "messages");
+        const QString endpointText = stringValue(payload, "endpoint");
+        if (endpointField->text() != endpointText) {
+            QSignalBlocker blocker(endpointField);
+            endpointField->setText(endpointText);
+        }
+        populateModelPicker(models, stringValue(payload, "selectedModel"));
+        statusDot->setObjectName(
+            modelPicker->count() > 0 ? QStringLiteral("statusDot") : QStringLiteral("statusDotWarning")
+        );
+        refreshStyle(statusDot);
 
         populateConversations(
             conversationList,
@@ -806,11 +852,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
             QStringLiteral("New conversation")
         ));
         statusText->setText(stringValue(payload, "status"));
-        if (modelPicker != nullptr) {
-            modelStatus->setText(modelStatusText(modelPicker->currentText()));
-        } else {
-            modelStatus->setText(modelStatusText(stringValue(payload, "selectedModel")));
-        }
+        modelStatus->setText(modelStatusText(
+            modelPicker->currentText().trimmed().isEmpty()
+                ? stringValue(payload, "selectedModel")
+                : modelPicker->currentText()
+        ));
         renderMessageSet(selectedConversationMessages(
             conversations,
             selectedID,
@@ -821,6 +867,12 @@ extern "C" int quill_enchanted_qt_run_app_json(
     requestHistoryAction = [&](const QString &actionName, const QString &conversationID, const QString &messageText) -> bool {
         QJsonObject action;
         action.insert(QStringLiteral("action"), actionName);
+        action.insert(QStringLiteral("endpoint"), endpointField->text().trimmed());
+        const QString currentModel = modelPicker->currentText().trimmed();
+        if (!currentModel.isEmpty()) {
+            action.insert(QStringLiteral("selectedModel"), currentModel);
+        }
+        action.insert(QStringLiteral("models"), currentModelList(modelPicker));
         if (!conversationID.isEmpty()) {
             action.insert(QStringLiteral("conversationID"), conversationID);
         }
@@ -919,11 +971,28 @@ extern "C" int quill_enchanted_qt_run_app_json(
         );
         renderMessageSet(selectedMessages);
     });
-    if (modelPicker != nullptr) {
-        QObject::connect(modelPicker, &QComboBox::currentTextChanged, [&](const QString &model) {
-            modelStatus->setText(modelStatusText(model));
-        });
-    }
+    QObject::connect(endpointField, &QLineEdit::editingFinished, [&]() {
+        requestHistoryAction(
+            QStringLiteral("configureEndpoint"),
+            currentConversationID(conversationList, selectedConversationID),
+            QString()
+        );
+    });
+    QObject::connect(refreshButton, &QPushButton::clicked, [&]() {
+        requestHistoryAction(
+            QStringLiteral("refreshModels"),
+            currentConversationID(conversationList, selectedConversationID),
+            QString()
+        );
+    });
+    QObject::connect(modelPicker, &QComboBox::currentTextChanged, [&](const QString &model) {
+        modelStatus->setText(modelStatusText(model));
+        requestHistoryAction(
+            QStringLiteral("selectModel"),
+            currentConversationID(conversationList, selectedConversationID),
+            QString()
+        );
+    });
     QObject::connect(attachButton, &QPushButton::clicked, [&]() {
         const QString displayName = attachmentDisplayName(attachmentPath->text());
         if (displayName.isEmpty()) {

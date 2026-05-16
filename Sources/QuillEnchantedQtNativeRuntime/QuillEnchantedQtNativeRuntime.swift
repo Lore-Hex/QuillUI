@@ -1,5 +1,6 @@
 #if os(Linux)
 import CQuillQt6WidgetsShim
+import Dispatch
 import Foundation
 import Glibc
 import QuillEnchantedData
@@ -240,9 +241,22 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     static func persisted(
         context: EnchantedModelContext,
         selectedConversationID requestedSelectedConversationID: String? = nil,
-        status: String = "Ready"
+        status: String = "Ready",
+        endpoint: String = preview.endpoint,
+        selectedModel requestedSelectedModel: String? = nil,
+        models requestedModels: [String]? = nil
     ) throws -> QuillEnchantedQtSnapshot {
         var snapshot = preview
+        snapshot.endpoint = endpoint
+        if let requestedModels {
+            snapshot.models = requestedModels
+        }
+        if let requestedSelectedModel {
+            snapshot.selectedModel = requestedSelectedModel
+        }
+        if !snapshot.models.isEmpty, !snapshot.models.contains(snapshot.selectedModel) {
+            snapshot.selectedModel = snapshot.models.first ?? ""
+        }
         let summaries = try context.fetchConversations()
         snapshot.conversations = try summaries.map { summary in
             let messages = try context.fetchMessages(for: summary.id).map(Message.init)
@@ -279,6 +293,27 @@ private struct QuillEnchantedQtActionRequest: Decodable {
     var action: String
     var conversationID: String?
     var messageText: String?
+    var endpoint: String?
+    var selectedModel: String?
+    var models: [String]?
+}
+
+private final class OllamaModelFetchBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var result: Result<[OllamaModel], Error>?
+
+    func store(_ result: Result<[OllamaModel], Error>) {
+        lock.lock()
+        self.result = result
+        lock.unlock()
+    }
+
+    func load() -> Result<[OllamaModel], Error>? {
+        lock.lock()
+        let result = result
+        lock.unlock()
+        return result
+    }
 }
 
 private enum QuillEnchantedQtActionBridge {
@@ -293,8 +328,12 @@ private enum QuillEnchantedQtActionBridge {
                 QuillEnchantedQtActionRequest.self,
                 from: Data(actionJSON.utf8)
             )
-            var selectedConversationID: String?
+            var selectedConversationID = try existingConversationID(request.conversationID, context: context)
             var status = "Ready"
+            let endpoint = request.endpoint?.trimmingCharacters(in: .whitespacesAndNewlines)
+                ?? QuillEnchantedQtSnapshot.preview.endpoint
+            var selectedModel = request.selectedModel?.trimmingCharacters(in: .whitespacesAndNewlines)
+            var models = request.models ?? QuillEnchantedQtSnapshot.preview.models
 
             switch request.action {
             case "newConversation":
@@ -324,6 +363,16 @@ private enum QuillEnchantedQtActionBridge {
                     context: context
                 )
                 status = "Ready"
+            case "refreshModels", "configureEndpoint":
+                let refresh = refreshModels(
+                    endpoint: endpoint,
+                    selectedModel: selectedModel
+                )
+                models = refresh.models
+                selectedModel = refresh.selectedModel
+                status = refresh.status
+            case "selectModel":
+                status = selectedModel?.isEmpty == false ? "Ready" : "Choose a local model to begin"
             default:
                 status = "Unsupported action"
             }
@@ -331,7 +380,10 @@ private enum QuillEnchantedQtActionBridge {
             return try QuillEnchantedQtSnapshot.persisted(
                 context: context,
                 selectedConversationID: selectedConversationID,
-                status: status
+                status: status,
+                endpoint: endpoint,
+                selectedModel: selectedModel,
+                models: models
             )
         } catch {
             var snapshot = QuillEnchantedQtSnapshot.preview
@@ -369,6 +421,44 @@ private enum QuillEnchantedQtActionBridge {
 
         try context.insert(ChatMessage(conversationID: conversationID, role: .user, content: prompt))
         return conversationID
+    }
+
+    private static func refreshModels(
+        endpoint: String,
+        selectedModel: String?
+    ) -> (models: [String], selectedModel: String, status: String) {
+        do {
+            let fetchedModels = try fetchOllamaModels(endpoint: endpoint).map(\.name)
+            let resolvedSelection = selectedModel.flatMap { fetchedModels.contains($0) ? $0 : nil }
+                ?? fetchedModels.first
+                ?? ""
+            return (
+                fetchedModels,
+                resolvedSelection,
+                fetchedModels.isEmpty ? "No Ollama models found" : "Connected"
+            )
+        } catch {
+            return ([], selectedModel ?? "", "Start Ollama or edit endpoint.")
+        }
+    }
+
+    private static func fetchOllamaModels(endpoint: String) throws -> [OllamaModel] {
+        let semaphore = DispatchSemaphore(value: 0)
+        let box = OllamaModelFetchBox()
+
+        Task.detached {
+            let response: Result<[OllamaModel], Error>
+            do {
+                response = .success(try await OllamaClient(baseURL: endpoint).fetchModels())
+            } catch {
+                response = .failure(error)
+            }
+            box.store(response)
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+        return try box.load()?.get() ?? []
     }
 }
 

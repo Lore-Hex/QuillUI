@@ -91,6 +91,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedShared/QuillEnchantedShared.swift"),
             encoding: .utf8
         )
+        let sharedOllama = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedShared/OllamaClient.swift"),
+            encoding: .utf8
+        )
         let header = try String(
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/include/CQuillQt6WidgetsShim.h"),
             encoding: .utf8
@@ -110,6 +114,7 @@ struct CoreContractMatrixTests {
         #expect(manifest.contains("nativeQt: [\"QuillEnchantedQtNativeRuntime\"]"))
         #expect(manifest.contains(".define(\"QUILLUI_ENCHANTED_QT_NATIVE_BACKEND\")"))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
+        #expect(manifest.contains("dependencies: [\"QuillEnchantedData\"]"))
         #expect(manifest.contains("name: \"QuillEnchantedData\""))
         #expect(manifest.contains("dependencies: [\"QuillData\"]"))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedData\""))
@@ -152,12 +157,20 @@ struct CoreContractMatrixTests {
         #expect(runtime.contains("context.deleteConversation(id: conversationID)"))
         #expect(runtime.contains("context.deleteAllConversations()"))
         #expect(runtime.contains("var messageText: String?"))
+        #expect(runtime.contains("var endpoint: String?"))
+        #expect(runtime.contains("var selectedModel: String?"))
+        #expect(runtime.contains("var models: [String]?"))
         #expect(runtime.contains("case \"sendMessage\":"))
+        #expect(runtime.contains("case \"refreshModels\", \"configureEndpoint\":"))
+        #expect(runtime.contains("case \"selectModel\":"))
+        #expect(runtime.contains("OllamaClient(baseURL: endpoint).fetchModels()"))
         #expect(runtime.contains("context.updateConversationTitle(id: selectedConversationID, title: prompt.quillTitle())"))
         #expect(runtime.contains("context.insert(ChatMessage(conversationID: conversationID, role: .user, content: prompt))"))
         for prompt in enchantedEmptyConversationPrompts {
             #expect(sharedPrompts.contains(prompt))
         }
+        #expect(sharedOllama.contains("public struct OllamaClient: Sendable"))
+        #expect(sharedOllama.contains("public enum OllamaStreamParser"))
         #expect(header.contains("quill_enchanted_qt_run_app_json"))
         #expect(header.contains("quill_enchanted_qt_action_callback"))
         #expect(header.contains("quill_enchanted_qt_free_string_callback"))
@@ -167,6 +180,7 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("QJsonObject actionSnapshot("))
         #expect(nativeShim.contains("quill_enchanted_qt_action_callback actionCallback"))
         #expect(nativeShim.contains("quill_enchanted_qt_free_string_callback freeString"))
+        #expect(nativeShim.contains("#include <QSignalBlocker>"))
         #expect(nativeShim.contains("QComboBox"))
         #expect(nativeShim.contains("QListWidget"))
         #expect(nativeShim.contains("QPlainTextEdit"))
@@ -187,6 +201,12 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("stringValue(payload, \"noModelsTitle\", QStringLiteral(\"No models detected\"))"))
         #expect(nativeShim.contains("models.isEmpty() ? QStringLiteral(\"statusDotWarning\") : QStringLiteral(\"statusDot\")"))
         #expect(nativeShim.contains("QFrame#statusDot, QFrame#statusDotWarning"))
+        #expect(nativeShim.contains("populateModelPicker(models, stringValue(payload, \"selectedModel\"))"))
+        #expect(nativeShim.contains("action.insert(QStringLiteral(\"endpoint\"), endpointField->text().trimmed())"))
+        #expect(nativeShim.contains("action.insert(QStringLiteral(\"selectedModel\"), currentModel)"))
+        #expect(nativeShim.contains("action.insert(QStringLiteral(\"models\"), currentModelList(modelPicker))"))
+        #expect(nativeShim.contains("QObject::connect(endpointField, &QLineEdit::editingFinished"))
+        #expect(nativeShim.contains("QObject::connect(refreshButton, &QPushButton::clicked"))
         #expect(macOSRootView.contains("Text(\"No saved chats yet\")"))
         #expect(macOSRootView.contains("Text(\"Start a chat and it will be saved locally.\")"))
         #expect(macOSRootView.contains("Button(\"Delete chat\")"))

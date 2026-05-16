@@ -108,6 +108,7 @@ struct QuillQtBackendManifestTests {
         #expect(manifest.contains("let quillDataPackageDependencies: [Package.Dependency] = ["))
         #expect(manifest.contains("cSQLiteTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
+        #expect(manifest.contains("dependencies: [\"QuillEnchantedData\"]"))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))
         #expect(manifest.contains("quillEnchantedDataTarget,"))
         #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))

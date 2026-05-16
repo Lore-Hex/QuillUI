@@ -606,7 +606,7 @@ var targets: [Target] = [
     .target(name: "SwiftData", dependencies: ["QuillData"], path: "Sources/SwiftData"),
     .target(
         name: "QuillEnchantedShared",
-        dependencies: [],
+        dependencies: ["QuillEnchantedData"],
         path: "Sources/QuillEnchantedShared"
     ),
     quillEnchantedDataTarget,
@@ -1254,7 +1254,7 @@ if quillUILinuxBuildBackend == .qt {
         quillDataTarget,
         .target(
             name: "QuillEnchantedShared",
-            dependencies: [],
+            dependencies: ["QuillEnchantedData"],
             path: "Sources/QuillEnchantedShared"
         ),
         quillEnchantedDataTarget,

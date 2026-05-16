@@ -217,14 +217,14 @@ private func handleStreamLine(
     }
 }
 
-enum OllamaStreamEvent: Equatable {
+public enum OllamaStreamEvent: Equatable {
     case content(String)
     case done
     case error(String)
 }
 
-enum OllamaStreamParser {
-    static func parseLine(_ line: String) throws -> OllamaStreamEvent? {
+public enum OllamaStreamParser {
+    public static func parseLine(_ line: String) throws -> OllamaStreamEvent? {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         guard let data = trimmed.data(using: .utf8) else {
