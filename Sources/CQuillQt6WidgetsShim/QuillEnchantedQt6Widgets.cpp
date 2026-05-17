@@ -65,10 +65,6 @@ QString stringValue(const QJsonObject &object, const char *key) {
     return QuillQtWidgets::jsonStringValue(object, key);
 }
 
-QString stringValue(const QJsonObject &object, const char *key, const QString &fallback) {
-    return QuillQtWidgets::jsonStringValue(object, key, fallback);
-}
-
 [[noreturn]] void failRequiredPayloadField(const char *key, const char *expectedType) {
     std::fprintf(
         stderr,
@@ -404,14 +400,6 @@ private:
     std::function<void()> onSubmit;
 };
 
-QJsonObject objectValue(const QJsonObject &object, const char *key) {
-    return QuillQtWidgets::jsonObjectValue(object, key);
-}
-
-QJsonArray arrayValue(const QJsonObject &object, const char *key) {
-    return QuillQtWidgets::jsonArrayValue(object, key);
-}
-
 QString appStyleSheet(const QJsonObject &style) {
     const QString canvas = styleValue(style, "canvasColor");
     const QString ink = styleValue(style, "inkColor");
@@ -649,11 +637,29 @@ QString appStyleSheet(const QJsonObject &style) {
     return sheet;
 }
 
+QString conversationID(const QJsonObject &conversation) {
+    return requiredStringValue(conversation, "id");
+}
+
+QString conversationTitle(const QJsonObject &conversation) {
+    return requiredStringValue(conversation, "title");
+}
+
+QString conversationLastMessage(const QJsonObject &conversation) {
+    return requiredStringValue(conversation, "lastMessage");
+}
+
+QString messageRole(const QJsonObject &message) {
+    return requiredStringValue(message, "role");
+}
+
+QString messageContent(const QJsonObject &message) {
+    return requiredStringValue(message, "content");
+}
+
 QFrame *conversationRowWidget(
     const QJsonObject &conversation,
-    const QJsonObject &style,
-    const QString &newConversationTitle,
-    const QString &noMessagesYet
+    const QJsonObject &style
 ) {
     QFrame *row = QuillQtWidgets::frame(QStringLiteral("conversationRow"));
     row->setProperty("active", false);
@@ -667,14 +673,11 @@ QFrame *conversationRowWidget(
     );
     layout->setSpacing(styleInt(style, "conversationRowSpacing"));
 
-    QLabel *title = label(
-        stringValue(conversation, "title", newConversationTitle),
-        QStringLiteral("conversationTitle")
-    );
+    QLabel *title = label(conversationTitle(conversation), QStringLiteral("conversationTitle"));
     title->setWordWrap(false);
     title->setProperty("active", false);
 
-    const QString previewText = stringValue(conversation, "lastMessage", noMessagesYet);
+    const QString previewText = conversationLastMessage(conversation);
 
     layout->addWidget(title);
     if (!previewText.isEmpty()) {
@@ -744,8 +747,8 @@ QString selectedConversationTitle(
 ) {
     for (const QJsonValue &value : conversations) {
         const QJsonObject conversation = value.toObject();
-        if (stringValue(conversation, "id") == selectedConversationID) {
-            return stringValue(conversation, "title", fallback);
+        if (conversationID(conversation) == selectedConversationID) {
+            return conversationTitle(conversation);
         }
     }
     return fallback;
@@ -1159,10 +1162,10 @@ QJsonArray selectedConversationMessages(
     for (const QJsonValue &value : conversations) {
         const QJsonObject conversation = value.toObject();
         if (
-            stringValue(conversation, "id") == selectedConversationID
+            conversationID(conversation) == selectedConversationID
             && conversation.contains(QStringLiteral("messages"))
         ) {
-            return arrayValue(conversation, "messages");
+            return requiredArrayValue(conversation, "messages");
         }
     }
     return fallbackMessages;
@@ -1172,9 +1175,7 @@ void populateConversations(
     QListWidget *list,
     const QJsonArray &conversations,
     const QString &selectedConversationID,
-    const QJsonObject &style,
-    const QString &newConversationTitle,
-    const QString &noMessagesYet
+    const QJsonObject &style
 ) {
     list->clear();
     list->setSpacing(styleInt(style, "conversationListSpacing"));
@@ -1182,18 +1183,14 @@ void populateConversations(
 
     for (const QJsonValue &value : conversations) {
         const QJsonObject conversation = value.toObject();
+        const QString id = conversationID(conversation);
         QListWidgetItem *item = new QListWidgetItem();
-        item->setData(Qt::UserRole, stringValue(conversation, "id"));
+        item->setData(Qt::UserRole, id);
         list->addItem(item);
-        QWidget *rowWidget = conversationRowWidget(
-            conversation,
-            style,
-            newConversationTitle,
-            noMessagesYet
-        );
+        QWidget *rowWidget = conversationRowWidget(conversation, style);
         item->setSizeHint(QSize(260, rowWidget->sizeHint().height()));
         list->setItemWidget(item, rowWidget);
-        if (stringValue(conversation, "id") == selectedConversationID) {
+        if (id == selectedConversationID) {
             selectedRow = list->row(item);
         }
     }
@@ -1213,7 +1210,8 @@ QFrame *messageBubble(
     const QString &assistantRoleLabel,
     const QString &systemRoleLabel
 ) {
-    const QString role = stringValue(message, "role", QStringLiteral("assistant"));
+    const QString role = messageRole(message);
+    const QString content = messageContent(message);
     QString objectName = QStringLiteral("messageAssistant");
     if (role == QStringLiteral("user")) {
         objectName = QStringLiteral("messageUser");
@@ -1238,9 +1236,9 @@ QFrame *messageBubble(
         role == QStringLiteral("user") ? QStringLiteral("messageUserRole") : QStringLiteral("messageRole")
     ));
     if (role == QStringLiteral("user")) {
-        layout->addWidget(label(stringValue(message, "content"), QStringLiteral("messageUserText")));
+        layout->addWidget(label(content, QStringLiteral("messageUserText")));
     } else {
-        layout->addWidget(markdownMessageWidget(stringValue(message, "content"), style));
+        layout->addWidget(markdownMessageWidget(content, style));
     }
     return bubble;
 }
@@ -1253,7 +1251,7 @@ void addMessageBubble(
     const QString &assistantRoleLabel,
     const QString &systemRoleLabel
 ) {
-    const bool isUser = stringValue(message, "role") == QStringLiteral("user");
+    const bool isUser = messageRole(message) == QStringLiteral("user");
     QHBoxLayout *row = new QHBoxLayout();
     row->setContentsMargins(0, 0, 0, 0);
     row->setSpacing(styleInt(style, "messageBubbleRowSpacing"));
@@ -1834,7 +1832,6 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QString usingModelStatusPrefix = payloadString(payload, "usingModelStatusPrefix");
     const QString newConversationButtonTitle = payloadString(payload, "newConversationButtonTitle");
     const QString newConversationTitle = payloadString(payload, "newConversationTitle");
-    const QString noMessagesYet = payloadString(payload, "noMessagesYet");
     const QString userRoleLabel = payloadString(payload, "userRoleLabel");
     const QString assistantRoleLabel = payloadString(payload, "assistantRoleLabel");
     const QString systemRoleLabel = payloadString(payload, "systemRoleLabel");
@@ -1972,9 +1969,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         conversationList,
         conversations,
         selectedConversationID,
-        style,
-        newConversationTitle,
-        noMessagesYet
+        style
     );
     conversationList->setVisible(!conversations.isEmpty());
     sidebarLayout->addWidget(conversationList, 1);
@@ -2448,9 +2443,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             conversationList,
             conversations,
             selectedConversationID,
-            style,
-            newConversationTitle,
-            noMessagesYet
+            style
         );
         const QString selectedID = currentConversationID(conversationList, selectedConversationID);
         currentTitle->setText(selectedConversationTitle(
