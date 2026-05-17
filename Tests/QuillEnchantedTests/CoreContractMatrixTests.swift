@@ -188,6 +188,139 @@ struct CoreContractMatrixTests {
         }
     }
 
+    @Test("Enchanted GTK shell stays on the macOS visual contract")
+    func enchantedGTKShellStaysOnMacOSVisualContract() throws {
+        let appMain = try packageSource("Sources/QuillEnchanted/main.swift")
+        let coreApp = try packageSource("Sources/QuillEnchantedCore/EnchantedApp.swift")
+        let rootView = try packageSource("Sources/QuillEnchantedCore/EnchantedRootView.swift")
+        let shared = try packageSource("Sources/QuillEnchantedShared/QuillEnchantedShared.swift")
+
+        for needle in [
+            "import QuillEnchantedCore",
+            "import QuillUI",
+            "QuillApp.run(QuillEnchantedApp.self)"
+        ] {
+            expectContains(appMain, needle)
+        }
+
+        for needle in [
+            "import QuillEnchantedShared",
+            "QuillAppWindow.scene(",
+            "EnchantedCopy.windowTitle",
+            "width: Double(EnchantedVisualMetrics.defaultWindowWidth)",
+            "height: Double(EnchantedVisualMetrics.defaultWindowHeight)",
+            "EnchantedRootView()"
+        ] {
+            expectContains(coreApp, needle)
+        }
+
+        for needle in [
+            "public enum EnchantedCopy",
+            "public enum EnchantedIcon",
+            "public enum EnchantedPalette",
+            "public enum EnchantedVisualMetrics",
+            "public enum EnchantedTypography"
+        ] {
+            expectContains(shared, needle)
+        }
+
+        for needle in [
+            "import QuillEnchantedShared",
+            "QuillMainActorView.assumeIsolated",
+            "EnchantedCopy.defaultEndpoint",
+            "EnchantedCopy.appTitle",
+            "EnchantedCopy.sidebarSubtitle",
+            "EnchantedCopy.endpointLabel",
+            "EnchantedCopy.modelLabel",
+            "EnchantedCopy.noModelsTitle",
+            "EnchantedCopy.chooseLocalModelStatus",
+            "EnchantedCopy.refreshModelsTitle",
+            "EnchantedCopy.attachmentPlaceholder",
+            "EnchantedCopy.emptyStateTitle",
+            "EnchantedCopy.emptyStateSubtitle",
+            "EnchantedPromptCatalog.emptyConversationPrompts",
+            "Image(systemName: EnchantedIcon.newConversation)",
+            "Image(systemName: EnchantedIcon.attach)",
+            "Image(systemName: EnchantedIcon.dropTarget)",
+            "Image(systemName: EnchantedIcon.attachment)",
+            "Image(systemName: EnchantedIcon.removeAttachment)",
+            "Image(systemName: model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send)",
+            "Color(hex: EnchantedPalette.canvasColor)",
+            "Color(hex: EnchantedPalette.sidebarColor)",
+            "Color(hex: EnchantedPalette.headerColor)",
+            "Color(hex: EnchantedPalette.cardColor)",
+            "Color(hex: EnchantedPalette.primaryColor)",
+            "Color(hex: EnchantedPalette.successColor)",
+            "Color(hex: EnchantedPalette.warningColor)",
+            "Color(hex: EnchantedPalette.systemColor)",
+            "Color(hex: EnchantedPalette.inkColor)",
+            "Color(hex: EnchantedPalette.mutedColor)",
+            "Color(hex: EnchantedPalette.selectedMutedColor)",
+            "Color(hex: EnchantedPalette.dropTargetColor)",
+            "EnchantedVisualMetrics.minimumWindowWidth",
+            "EnchantedVisualMetrics.minimumWindowHeight",
+            "EnchantedVisualMetrics.sidebarWidth",
+            "EnchantedVisualMetrics.sidebarPadding",
+            "EnchantedVisualMetrics.headerPadding",
+            "EnchantedVisualMetrics.contentPadding",
+            "EnchantedVisualMetrics.composerMinWidth",
+            "EnchantedVisualMetrics.composerMaxWidth",
+            "EnchantedVisualMetrics.messageMaxWidth",
+            "EnchantedTypography.rootFontSize",
+            "EnchantedTypography.appTitleFontSize",
+            "EnchantedTypography.currentTitleFontSize",
+            "EnchantedTypography.messageBodyFontSize"
+        ] {
+            expectContains(rootView, needle)
+        }
+
+        for backendSource in [
+            appMain,
+            coreApp,
+            rootView
+        ] {
+            for forbidden in [
+                "QuillEnchantedQtNativeRuntime",
+                "CQuillQt6WidgetsShim",
+                "QUILLUI_LINUX_BACKEND"
+            ] {
+                expectDoesNotContain(backendSource, forbidden)
+            }
+        }
+
+        for forbidden in [
+            "WindowGroup(",
+            ".defaultSize(",
+            ".defaultWindowSize("
+        ] {
+            expectDoesNotContain(coreApp, forbidden)
+        }
+
+        for forbidden in [
+            "\"Quill Enchanted\"",
+            "\"Ollama endpoint\"",
+            "\"No models detected\"",
+            "\"Ask a local model...\"",
+            "\"Ask your local model\"",
+            "\"This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.\"",
+            "#FBFBFD",
+            "#F5F5F7",
+            "#E8E8ED",
+            "#FFFFFF",
+            "#F4F4F6",
+            "#D8D8DE",
+            "#1D1D1F",
+            "#6E6E73",
+            "#4285F4",
+            "#B42318",
+            "#34C759",
+            "#FF9F0A",
+            "#EAF2FF"
+        ] {
+            expectDoesNotContain(rootView, forbidden)
+        }
+    }
+
     @Test("Enchanted Qt native target stays isolated from GTK graph")
     func enchantedQtNativeTargetContracts() throws {
         let root = try packageRoot()
@@ -1400,6 +1533,11 @@ struct CoreContractMatrixTests {
             directory.deleteLastPathComponent()
         }
         throw CoreContractMatrixTestError.packageRootNotFound
+    }
+
+    private func packageSource(_ path: String) throws -> String {
+        let root = try packageRoot()
+        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
     }
 
     private func expectContains(_ source: String, _ needle: String) {
