@@ -1863,8 +1863,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
     rootLayout->addWidget(splitter);
 
     QFrame *sidebar = QuillQtWidgets::frame(QStringLiteral("sidebar"));
-    sidebar->setMinimumWidth(styleInt(style, "sidebarWidth"));
-    sidebar->setMaximumWidth(styleInt(style, "sidebarWidth"));
+    const int sidebarWidth = styleInt(style, "sidebarWidth");
+    sidebar->setMinimumWidth(sidebarWidth);
+    sidebar->setMaximumWidth(sidebarWidth);
     QVBoxLayout *sidebarLayout = new QVBoxLayout(sidebar);
     const int sidebarPadding = styleInt(style, "sidebarPadding");
     sidebarLayout->setContentsMargins(sidebarPadding, sidebarPadding, sidebarPadding, sidebarPadding);
