@@ -1479,9 +1479,19 @@ QString attachmentDisplayContent(
     return QStringLiteral("%1\n\n%2\n%3").arg(prompt, summaryTitle, attachmentSummary);
 }
 
-void addSidebarField(QVBoxLayout *layout, const QString &title, QWidget *field) {
-    layout->addWidget(fieldLabel(title));
-    layout->addWidget(field);
+void addSidebarField(
+    QVBoxLayout *layout,
+    const QString &title,
+    QWidget *field,
+    const QJsonObject &style
+) {
+    QWidget *group = new QWidget();
+    QVBoxLayout *groupLayout = new QVBoxLayout(group);
+    groupLayout->setContentsMargins(0, 0, 0, 0);
+    groupLayout->setSpacing(intValue(style, "sidebarControlGroupSpacing", 7));
+    groupLayout->addWidget(fieldLabel(title));
+    groupLayout->addWidget(field);
+    layout->addWidget(group);
 }
 
 QJsonObject actionSnapshot(
@@ -1573,14 +1583,19 @@ extern "C" int quill_enchanted_qt_run_app_json(
     sidebarLayout->setContentsMargins(sidebarPadding, sidebarPadding, sidebarPadding, sidebarPadding);
     sidebarLayout->setSpacing(intValue(style, "sidebarSpacing", 14));
 
-    sidebarLayout->addWidget(label(
+    QWidget *sidebarTitleBlock = new QWidget();
+    QVBoxLayout *sidebarTitleLayout = new QVBoxLayout(sidebarTitleBlock);
+    sidebarTitleLayout->setContentsMargins(0, 0, 0, 0);
+    sidebarTitleLayout->setSpacing(intValue(style, "sidebarTitleSpacing", 4));
+    sidebarTitleLayout->addWidget(label(
         stringValue(payload, "sidebarTitle", QStringLiteral("Enchanted")),
         QStringLiteral("appTitle")
     ));
-    sidebarLayout->addWidget(label(
+    sidebarTitleLayout->addWidget(label(
         stringValue(payload, "sidebarSubtitle", QStringLiteral("QuillUI Linux preview")),
         QStringLiteral("caption")
     ));
+    sidebarLayout->addWidget(sidebarTitleBlock);
 
     QPushButton *newChatButton = new QPushButton(stringValue(payload, "newChatTitle", QStringLiteral("New chat")));
     newChatButton->setObjectName(QStringLiteral("primaryButton"));
@@ -1592,7 +1607,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     addSidebarField(
         sidebarLayout,
         stringValue(payload, "endpointLabel", QStringLiteral("Ollama endpoint")),
-        endpointField
+        endpointField,
+        style
     );
 
     QJsonArray models = arrayValue(payload, "models");
@@ -1636,7 +1652,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     addSidebarField(
         sidebarLayout,
         modelLabel,
-        modelPicker
+        modelPicker,
+        style
     );
     sidebarLayout->addWidget(noModelsNotice);
 

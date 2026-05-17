@@ -148,6 +148,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var sidebarWidth: Int
         var sidebarPadding: Int
         var sidebarSpacing: Int
+        var sidebarTitleSpacing: Int
+        var sidebarControlGroupSpacing: Int
         var statusRowSpacing: Int
         var statusTextWidth: Int
         var statusDotSize: Int
@@ -394,6 +396,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             sidebarWidth: EnchantedVisualMetrics.sidebarWidth,
             sidebarPadding: EnchantedVisualMetrics.sidebarPadding,
             sidebarSpacing: EnchantedVisualMetrics.sidebarSpacing,
+            sidebarTitleSpacing: EnchantedVisualMetrics.sidebarTitleSpacing,
+            sidebarControlGroupSpacing: EnchantedVisualMetrics.sidebarControlGroupSpacing,
             statusRowSpacing: EnchantedVisualMetrics.statusRowSpacing,
             statusTextWidth: EnchantedVisualMetrics.statusTextWidth,
             statusDotSize: EnchantedVisualMetrics.statusDotSize,
