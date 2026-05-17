@@ -733,13 +733,14 @@ QFrame *emptyHistoryWidget(const QString &title, const QString &subtitle, const 
     QFrame *card = QuillQtWidgets::frame(QStringLiteral("emptyHistory"));
     QVBoxLayout *layout = new QVBoxLayout(card);
     const int emptyHistoryPadding = styleInt(style, "emptyHistoryPadding");
+    const int emptyHistorySpacing = styleInt(style, "emptyHistorySpacing");
     layout->setContentsMargins(
         emptyHistoryPadding,
         emptyHistoryPadding,
         emptyHistoryPadding,
         emptyHistoryPadding
     );
-    layout->setSpacing(styleInt(style, "emptyHistorySpacing"));
+    layout->setSpacing(emptyHistorySpacing);
     layout->addWidget(label(title, QStringLiteral("sectionTitle")));
     layout->addWidget(label(subtitle, QStringLiteral("caption")));
     return card;

@@ -1144,7 +1144,7 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("const int emptyHistoryPadding = styleInt(style, \"emptyHistoryPadding\")"))
         #expect(enchantedQtHost.contains("const int emptyHistorySpacing = styleInt(style, \"emptyHistorySpacing\")"))
         #expect(enchantedQtHost.contains("layout->setContentsMargins(\n        emptyHistoryPadding,\n        emptyHistoryPadding,\n        emptyHistoryPadding,\n        emptyHistoryPadding\n    )"))
-        #expect(enchantedQtHost.contains("layout->setSpacing(styleInt(style, \"emptyHistorySpacing\"))"))
+        #expect(enchantedQtHost.contains("layout->setSpacing(emptyHistorySpacing)"))
         #expect(enchantedQtHost.contains("const int sidebarUtilityPadding = emptyHistoryPadding"))
         #expect(enchantedQtHost.contains("sidebarUtilityLayout->setSpacing(emptyHistorySpacing)"))
         #expect(enchantedQtHost.contains("emptyHistoryWidget(\n        payloadString(payload, \"emptyHistoryTitle\"),\n        payloadString(payload, \"emptyHistorySubtitle\"),\n        style\n    )"))

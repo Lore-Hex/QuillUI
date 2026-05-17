@@ -1338,7 +1338,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "const int emptyHistoryPadding = styleInt(style, \"emptyHistoryPadding\")")
         expectContains(nativeShim, "const int emptyHistorySpacing = styleInt(style, \"emptyHistorySpacing\")")
         expectContains(nativeShim, "layout->setContentsMargins(\n        emptyHistoryPadding,\n        emptyHistoryPadding,\n        emptyHistoryPadding,\n        emptyHistoryPadding\n    )")
-        expectContains(nativeShim, "layout->setSpacing(styleInt(style, \"emptyHistorySpacing\"))")
+        expectContains(nativeShim, "layout->setSpacing(emptyHistorySpacing)")
         expectContains(nativeShim, "const int sidebarUtilityPadding = emptyHistoryPadding")
         expectContains(nativeShim, "sidebarUtilityLayout->setSpacing(emptyHistorySpacing)")
         expectContains(nativeShim, "emptyHistoryWidget(\n        payloadString(payload, \"emptyHistoryTitle\"),\n        payloadString(payload, \"emptyHistorySubtitle\"),\n        style\n    )")
