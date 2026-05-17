@@ -971,6 +971,7 @@ void populateConversations(
     const QJsonObject &style
 ) {
     list->clear();
+    list->setSpacing(intValue(style, "conversationListSpacing", 8));
     int selectedRow = -1;
 
     for (const QJsonValue &value : conversations) {
