@@ -1865,7 +1865,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     conversationActions->setSpacing(intValue(style, "conversationActionsSpacing", 8));
     QPushButton *deleteButton = new QPushButton(stringValue(payload, "deleteChatTitle", QStringLiteral("Delete chat")));
     deleteButton->setObjectName(QStringLiteral("secondaryButton"));
-    QPushButton *clearAllButton = new QPushButton(stringValue(payload, "clearAllTitle", QStringLiteral("Clear all")));
+    QPushButton *clearAllButton = new QPushButton(stringValue(payload, "clearAllTitle"));
     clearAllButton->setObjectName(QStringLiteral("secondaryButton"));
     conversationActions->addWidget(deleteButton);
     conversationActions->addWidget(clearAllButton);
@@ -1996,7 +1996,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         style
     );
     QLabel *dropTargetLabel = label(
-        stringValue(payload, "dropTargetTitle", QStringLiteral("Drop image files to attach")),
+        stringValue(payload, "dropTargetTitle"),
         QStringLiteral("dropTargetLabel")
     );
     dropHintLayout->addWidget(dropTargetIconLabel);
@@ -2010,17 +2010,13 @@ extern "C" int quill_enchanted_qt_run_app_json(
     dropLayout->setContentsMargins(0, 0, 0, 0);
     dropLayout->setSpacing(intValue(style, "attachmentInputSpacing", 8));
     QLineEdit *attachmentPath = new QLineEdit();
-    attachmentPath->setPlaceholderText(stringValue(
-        payload,
-        "attachmentPlaceholder",
-        QStringLiteral("Image path or drop files here")
-    ));
+    attachmentPath->setPlaceholderText(stringValue(payload, "attachmentPlaceholder"));
     attachmentPath->setAcceptDrops(false);
-    QPushButton *attachButton = new QPushButton(stringValue(payload, "attachTitle", QStringLiteral("Attach")));
+    QPushButton *attachButton = new QPushButton(stringValue(payload, "attachTitle"));
     attachButton->setObjectName(QStringLiteral("secondaryButton"));
     attachButton->setIcon(attachButtonIcon(icons));
     applyButtonIconSize(attachButton, style);
-    QPushButton *clearAttachmentsButton = new QPushButton(stringValue(payload, "clearAttachmentsTitle", QStringLiteral("Clear")));
+    QPushButton *clearAttachmentsButton = new QPushButton(stringValue(payload, "clearAttachmentsTitle"));
     clearAttachmentsButton->setObjectName(QStringLiteral("secondaryButton"));
     dropLayout->addWidget(attachmentPath, 1);
     dropLayout->addWidget(attachButton);
@@ -2032,7 +2028,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QVBoxLayout *attachmentTrayLayout = new QVBoxLayout(attachmentTray);
     attachmentTrayLayout->setContentsMargins(0, 0, 0, 0);
     attachmentTrayLayout->setSpacing(intValue(style, "attachmentTraySpacing", 7));
-    attachmentTrayLayout->addWidget(fieldLabel(stringValue(payload, "attachmentsTitle", QStringLiteral("Attachments"))));
+    attachmentTrayLayout->addWidget(fieldLabel(stringValue(payload, "attachmentsTitle")));
     QScrollArea *attachmentScrollArea = new QScrollArea();
     attachmentScrollArea->setObjectName(QStringLiteral("attachmentScrollArea"));
     attachmentScrollArea->setWidgetResizable(true);
@@ -2052,11 +2048,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QHBoxLayout *promptRow = new QHBoxLayout();
     promptRow->setSpacing(intValue(style, "promptRowSpacing", 12));
     QPlainTextEdit *promptEditor = new QPlainTextEdit();
-    promptEditor->setPlaceholderText(stringValue(
-        payload,
-        "composerPlaceholder",
-        QStringLiteral("Ask a local model...")
-    ));
+    promptEditor->setPlaceholderText(stringValue(payload, "composerPlaceholder"));
     promptEditor->setMinimumHeight(intValue(style, "composerMinHeight", 74));
     promptEditor->setMaximumHeight(intValue(style, "composerMaxHeight", 120));
     const QString sendTitle = stringValue(payload, "sendTitle");
@@ -2082,12 +2074,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QString imageReadyStatusPluralUnit = stringValue(payload, "imageReadyStatusPluralUnit");
     QJsonArray fallbackMessages = arrayValue(payload, "messages");
     const QJsonArray prompts = arrayValue(payload, "prompts");
-    const QString emptyStateTitle = stringValue(payload, "emptyStateTitle", QStringLiteral("Ask your local model"));
-    const QString emptyStateSubtitle = stringValue(
-        payload,
-        "emptyStateSubtitle",
-        QStringLiteral("This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.")
-    );
+    const QString emptyStateTitle = stringValue(payload, "emptyStateTitle");
+    const QString emptyStateSubtitle = stringValue(payload, "emptyStateSubtitle");
     bool showingPromptCards = false;
     QStringList pendingAttachmentPaths;
     std::function<bool(const QString &, const QString &, const QString &, const QStringList &)> requestHistoryAction;
