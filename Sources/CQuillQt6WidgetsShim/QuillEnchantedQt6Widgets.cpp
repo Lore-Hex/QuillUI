@@ -1232,17 +1232,19 @@ QFrame *messageBubble(
     }
 
     QFrame *bubble = QuillQtWidgets::frame(objectName);
-    bubble->setMaximumWidth(styleInt(style, "messageMaxWidth"));
+    const int messageMaxWidth = styleInt(style, "messageMaxWidth");
+    bubble->setMaximumWidth(messageMaxWidth);
 
     QVBoxLayout *layout = new QVBoxLayout(bubble);
     const int messageBubblePadding = styleInt(style, "messageBubblePadding");
+    const int messageBubbleSpacing = styleInt(style, "messageBubbleSpacing");
     layout->setContentsMargins(
         messageBubblePadding,
         messageBubblePadding,
         messageBubblePadding,
         messageBubblePadding
     );
-    layout->setSpacing(styleInt(style, "messageBubbleSpacing"));
+    layout->setSpacing(messageBubbleSpacing);
     layout->addWidget(label(
         messageRoleTitle(role, userRoleLabel, assistantRoleLabel, systemRoleLabel),
         role == QStringLiteral("user") ? QStringLiteral("messageUserRole") : QStringLiteral("messageRole")
@@ -1265,8 +1267,9 @@ void addMessageBubble(
 ) {
     const bool isUser = messageRole(message) == QStringLiteral("user");
     QHBoxLayout *row = new QHBoxLayout();
+    const int messageBubbleRowSpacing = styleInt(style, "messageBubbleRowSpacing");
     row->setContentsMargins(0, 0, 0, 0);
-    row->setSpacing(styleInt(style, "messageBubbleRowSpacing"));
+    row->setSpacing(messageBubbleRowSpacing);
     if (isUser) {
         row->addStretch(1);
     }
