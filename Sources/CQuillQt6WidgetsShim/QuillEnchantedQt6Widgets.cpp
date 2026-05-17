@@ -103,6 +103,14 @@ int requiredIntValue(const QJsonObject &object, const char *key) {
     failRequiredPayloadField(key, "integer");
 }
 
+bool requiredBoolValue(const QJsonObject &object, const char *key) {
+    const QJsonValue value = requiredValue(object, key, "boolean");
+    if (value.isBool()) {
+        return value.toBool();
+    }
+    failRequiredPayloadField(key, "boolean");
+}
+
 QStringList requiredStringListValue(const QJsonObject &object, const char *key) {
     const QJsonValue value = requiredValue(object, key, "string array");
     if (!value.isArray()) {
@@ -135,6 +143,10 @@ QString payloadString(const QJsonObject &payload, const char *key) {
     return requiredStringValue(payload, key);
 }
 
+bool payloadBool(const QJsonObject &payload, const char *key) {
+    return requiredBoolValue(payload, key);
+}
+
 int styleInt(const QJsonObject &style, const char *key) {
     return requiredIntValue(style, key);
 }
@@ -157,10 +169,6 @@ QSize clampedDefaultWindowSize(const QJsonObject &payload, const QSize &minimumS
 
 int intValue(const QJsonObject &object, const char *key, int fallback) {
     return QuillQtWidgets::jsonIntValue(object, key, fallback);
-}
-
-bool boolValue(const QJsonObject &object, const char *key, bool fallback) {
-    return QuillQtWidgets::jsonBoolValue(object, key, fallback);
 }
 
 QIcon themedActionIcon(const QString &themeName, QStyle::StandardPixmap fallback) {
@@ -1797,7 +1805,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QApplication app(argc, argv);
     const QJsonObject style = objectValue(payload, "style");
     QJsonObject icons = objectValue(payload, "icons");
-    bool isLoading = boolValue(payload, "isLoading", false);
+    bool isLoading = payloadBool(payload, "isLoading");
     const QString chooseLocalModelStatus = payloadString(payload, "chooseLocalModelStatus");
     const QString usingModelStatusPrefix = payloadString(payload, "usingModelStatusPrefix");
     const QString newConversationButtonTitle = payloadString(payload, "newConversationButtonTitle");
@@ -2396,7 +2404,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     auto applySnapshot = [&](const QJsonObject &snapshot) {
         payload = snapshot;
         icons = objectValue(payload, "icons");
-        isLoading = boolValue(payload, "isLoading", false);
+        isLoading = payloadBool(payload, "isLoading");
         models = arrayValue(payload, "models");
         conversations = arrayValue(payload, "conversations");
         selectedConversationID = payloadString(payload, "selectedConversationID");
