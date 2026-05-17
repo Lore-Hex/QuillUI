@@ -1305,6 +1305,7 @@ void addPromptCards(
     layout->addLayout(headerLayout);
 
     QVBoxLayout *promptList = new QVBoxLayout();
+    promptList->setContentsMargins(0, 0, 0, 0);
     promptList->setSpacing(styleInt(style, "promptListSpacing"));
     for (const QJsonValue &value : prompts) {
         const QJsonObject promptPayload = requiredPromptObject(value);

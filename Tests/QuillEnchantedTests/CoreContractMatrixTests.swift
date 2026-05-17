@@ -1016,6 +1016,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "layout->setContentsMargins(\n        emptyStatePadding,\n        emptyStatePadding,\n        emptyStatePadding,\n        emptyStatePadding\n    )")
         expectContains(nativeShim, "layout->setSpacing(styleInt(style, \"emptyStateSpacing\"))")
         expectContains(nativeShim, "headerLayout->setSpacing(styleInt(style, \"emptyStateHeaderSpacing\"))")
+        expectContains(nativeShim, "promptList->setContentsMargins(0, 0, 0, 0)")
         expectContains(nativeShim, "promptList->setSpacing(styleInt(style, \"promptListSpacing\"))")
         expectContains(nativeShim, "const int promptButtonWidth = styleInt(style, \"promptButtonWidth\")")
         expectContains(nativeShim, "const int promptButtonIconSpacing = styleInt(style, \"promptButtonIconSpacing\")")
