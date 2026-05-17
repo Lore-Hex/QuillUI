@@ -1986,7 +1986,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QHBoxLayout *conversationActions = new QHBoxLayout();
     conversationActions->setContentsMargins(0, 0, 0, 0);
-    conversationActions->setSpacing(styleInt(style, "conversationActionsSpacing"));
+    const int conversationActionsSpacing = styleInt(style, "conversationActionsSpacing");
+    conversationActions->setSpacing(conversationActionsSpacing);
     QPushButton *deleteButton = new QPushButton(payloadString(payload, "deleteChatTitle"));
     deleteButton->setObjectName(QStringLiteral("secondaryButton"));
     QPushButton *clearAllButton = new QPushButton(payloadString(payload, "clearAllTitle"));
@@ -1997,14 +1998,16 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QFrame *sidebarUtilityPanel = QuillQtWidgets::frame(QStringLiteral("sidebarUtilityPanel"));
     QVBoxLayout *sidebarUtilityLayout = new QVBoxLayout(sidebarUtilityPanel);
-    const int sidebarUtilityPadding = styleInt(style, "emptyHistoryPadding");
+    const int emptyHistoryPadding = styleInt(style, "emptyHistoryPadding");
+    const int emptyHistorySpacing = styleInt(style, "emptyHistorySpacing");
+    const int sidebarUtilityPadding = emptyHistoryPadding;
     sidebarUtilityLayout->setContentsMargins(
         sidebarUtilityPadding,
         sidebarUtilityPadding,
         sidebarUtilityPadding,
         sidebarUtilityPadding
     );
-    sidebarUtilityLayout->setSpacing(styleInt(style, "emptyHistorySpacing"));
+    sidebarUtilityLayout->setSpacing(emptyHistorySpacing);
     QLabel *sidebarUtilityTitle = label(QString(), QStringLiteral("sectionTitle"));
     QLabel *sidebarUtilitySubtitle = label(QString(), QStringLiteral("caption"));
     sidebarUtilitySubtitle->setWordWrap(true);
@@ -2016,7 +2019,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QFrame *sidebarBottomNavigation = QuillQtWidgets::frame(QStringLiteral("sidebarBottomNavigation"));
     QVBoxLayout *sidebarBottomNavigationLayout = new QVBoxLayout(sidebarBottomNavigation);
     sidebarBottomNavigationLayout->setContentsMargins(0, 0, 0, 0);
-    sidebarBottomNavigationLayout->setSpacing(styleInt(style, "conversationActionsSpacing"));
+    sidebarBottomNavigationLayout->setSpacing(conversationActionsSpacing);
     QPushButton *completionsButton = new QPushButton(payloadString(payload, "completionsTitle"));
     completionsButton->setObjectName(QStringLiteral("secondaryButton"));
     completionsButton->setIcon(utilityButtonIcon(icons, "completions"));
