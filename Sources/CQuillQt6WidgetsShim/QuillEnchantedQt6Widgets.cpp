@@ -191,6 +191,15 @@ QIcon systemImageIcon(const QString &systemImage) {
     if (normalized.contains(QStringLiteral("arrow.forward.circle.fill"))) {
         return themedActionIcon(QStringLiteral("go-next-symbolic"), QStyle::SP_MediaPlay);
     }
+    if (normalized.contains(QStringLiteral("character.cursor.ibeam")) || normalized.contains(QStringLiteral("ibeam"))) {
+        return themedActionIcon(QStringLiteral("accessories-text-editor-symbolic"), QStyle::SP_FileDialogDetailedView);
+    }
+    if (normalized.contains(QStringLiteral("keyboard"))) {
+        return themedActionIcon(QStringLiteral("input-keyboard-symbolic"), QStyle::SP_ComputerIcon);
+    }
+    if (normalized.contains(QStringLiteral("gearshape"))) {
+        return themedActionIcon(QStringLiteral("preferences-system-symbolic"), QStyle::SP_MessageBoxInformation);
+    }
     if (normalized.contains(QStringLiteral("questionmark"))) {
         return themedActionIcon(QStringLiteral("help-about-symbolic"), QStyle::SP_MessageBoxQuestion);
     }
@@ -220,16 +229,8 @@ QIcon promptButtonIcon(const QString &systemImage) {
     return systemImageIcon(systemImage);
 }
 
-QIcon completionsButtonIcon() {
-    return themedActionIcon(QStringLiteral("accessories-text-editor-symbolic"), QStyle::SP_FileDialogDetailedView);
-}
-
-QIcon shortcutsButtonIcon() {
-    return themedActionIcon(QStringLiteral("input-keyboard-symbolic"), QStyle::SP_ComputerIcon);
-}
-
-QIcon settingsButtonIcon() {
-    return themedActionIcon(QStringLiteral("preferences-system-symbolic"), QStyle::SP_MessageBoxInformation);
+QIcon utilityButtonIcon(const QJsonObject &icons, const char *key) {
+    return systemImageIcon(requiredIconName(icons, key));
 }
 
 QIcon sendButtonIcon(const QJsonObject &icons, bool isLoading) {
@@ -1990,15 +1991,15 @@ extern "C" int quill_enchanted_qt_run_app_json(
     sidebarBottomNavigationLayout->setSpacing(styleInt(style, "conversationActionsSpacing"));
     QPushButton *completionsButton = new QPushButton(stringValue(payload, "completionsTitle"));
     completionsButton->setObjectName(QStringLiteral("secondaryButton"));
-    completionsButton->setIcon(completionsButtonIcon());
+    completionsButton->setIcon(utilityButtonIcon(icons, "completions"));
     applyButtonIconSize(completionsButton, style);
     QPushButton *shortcutsButton = new QPushButton(stringValue(payload, "shortcutsTitle"));
     shortcutsButton->setObjectName(QStringLiteral("secondaryButton"));
-    shortcutsButton->setIcon(shortcutsButtonIcon());
+    shortcutsButton->setIcon(utilityButtonIcon(icons, "shortcuts"));
     applyButtonIconSize(shortcutsButton, style);
     QPushButton *settingsButton = new QPushButton(stringValue(payload, "settingsTitle"));
     settingsButton->setObjectName(QStringLiteral("secondaryButton"));
-    settingsButton->setIcon(settingsButtonIcon());
+    settingsButton->setIcon(utilityButtonIcon(icons, "settings"));
     applyButtonIconSize(settingsButton, style);
     sidebarBottomNavigationLayout->addWidget(completionsButton);
     sidebarBottomNavigationLayout->addWidget(shortcutsButton);

@@ -154,6 +154,9 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var attach: String
         var dropTarget: String
         var attachment: String
+        var completions: String
+        var shortcuts: String
+        var settings: String
         var send: String
         var stop: String
         var removeAttachment: String
@@ -163,6 +166,9 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             attach: EnchantedIcon.attach,
             dropTarget: EnchantedIcon.dropTarget,
             attachment: EnchantedIcon.attachment,
+            completions: EnchantedIcon.completions,
+            shortcuts: EnchantedIcon.shortcuts,
+            settings: EnchantedIcon.settings,
             send: EnchantedIcon.send,
             stop: EnchantedIcon.stop,
             removeAttachment: EnchantedIcon.removeAttachment

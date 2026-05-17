@@ -113,6 +113,9 @@ struct CoreContractMatrixTests {
             "attach: EnchantedIcon.attach",
             "dropTarget: EnchantedIcon.dropTarget",
             "attachment: EnchantedIcon.attachment",
+            "completions: EnchantedIcon.completions",
+            "shortcuts: EnchantedIcon.shortcuts",
+            "settings: EnchantedIcon.settings",
             "send: EnchantedIcon.send",
             "stop: EnchantedIcon.stop",
             "removeAttachment: EnchantedIcon.removeAttachment",
@@ -127,6 +130,9 @@ struct CoreContractMatrixTests {
             "public static let attach = \"folder.badge.plus\"",
             "public static let dropTarget = attach",
             "public static let attachment = \"folder\"",
+            "public static let completions = \"character.cursor.ibeam\"",
+            "public static let shortcuts = \"keyboard\"",
+            "public static let settings = \"gearshape.fill\"",
             "public static let send = \"arrow.forward.circle.fill\"",
             "public static let stop = \"square.fill\"",
             "public static let removeAttachment = \"xmark.circle.fill\""
@@ -153,6 +159,7 @@ struct CoreContractMatrixTests {
             "QIcon attachButtonIcon(const QJsonObject &icons)",
             "QIcon dropTargetIcon(const QJsonObject &icons)",
             "QIcon attachmentChipIcon(const QJsonObject &icons)",
+            "QIcon utilityButtonIcon(const QJsonObject &icons, const char *key)",
             "QIcon sendButtonIcon(const QJsonObject &icons, bool isLoading)",
             "QIcon removeAttachmentButtonIcon(const QJsonObject &icons)",
             "systemImageIcon(requiredIconName(icons, \"newConversation\"))",
@@ -165,6 +172,9 @@ struct CoreContractMatrixTests {
             "icons = objectValue(payload, \"icons\")",
             "newConversationButton->setIcon(newConversationButtonIcon(icons))",
             "attachButton->setIcon(attachButtonIcon(icons))",
+            "completionsButton->setIcon(utilityButtonIcon(icons, \"completions\"))",
+            "shortcutsButton->setIcon(utilityButtonIcon(icons, \"shortcuts\"))",
+            "settingsButton->setIcon(utilityButtonIcon(icons, \"settings\"))",
             "dropTargetIcon(icons),\n        QStringLiteral(\"dropTargetIcon\"),\n        style",
             "attachmentChipIcon(icons),\n                QStringLiteral(\"attachmentChipIcon\"),\n                style",
             "removeAttachmentButton->setIcon(removeAttachmentButtonIcon(icons))",
@@ -175,12 +185,18 @@ struct CoreContractMatrixTests {
             "QStringLiteral(\"window-close-symbolic\")",
             "QStringLiteral(\"process-stop-symbolic\")",
             "QStringLiteral(\"go-next-symbolic\")",
+            "QStringLiteral(\"accessories-text-editor-symbolic\")",
+            "QStringLiteral(\"input-keyboard-symbolic\")",
+            "QStringLiteral(\"preferences-system-symbolic\")",
             "QStyle::SP_FileIcon",
             "QStyle::SP_FileDialogNewFolder",
             "QStyle::SP_DirIcon",
             "QStyle::SP_DialogCloseButton",
             "QStyle::SP_MediaStop",
-            "QStyle::SP_MediaPlay"
+            "QStyle::SP_MediaPlay",
+            "QStyle::SP_FileDialogDetailedView",
+            "QStyle::SP_ComputerIcon",
+            "QStyle::SP_MessageBoxInformation"
         ] {
             expectContains(nativeShim, needle)
         }
@@ -189,6 +205,9 @@ struct CoreContractMatrixTests {
             "QString iconName(const QJsonObject &icons, const char *key, const QString &fallback)",
             "iconName(icons,",
             "QIcon newChatButtonIcon()",
+            "QIcon completionsButtonIcon()",
+            "QIcon shortcutsButtonIcon()",
+            "QIcon settingsButtonIcon()",
             "QLabel *dropTargetIconLabel = new QLabel()",
             "dropTargetIcon().pixmap(dropTargetIconSize, dropTargetIconSize)",
             "new QPushButton(QStringLiteral(\"x\"))"

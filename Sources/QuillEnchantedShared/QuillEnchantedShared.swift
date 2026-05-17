@@ -96,6 +96,9 @@ public enum EnchantedIcon {
     public static let attach = "folder.badge.plus"
     public static let dropTarget = attach
     public static let attachment = "folder"
+    public static let completions = "character.cursor.ibeam"
+    public static let shortcuts = "keyboard"
+    public static let settings = "gearshape.fill"
     public static let send = "arrow.forward.circle.fill"
     public static let stop = "square.fill"
     public static let removeAttachment = "xmark.circle.fill"
