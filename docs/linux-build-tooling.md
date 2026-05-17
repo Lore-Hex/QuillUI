@@ -494,3 +494,6 @@ That script builds each backend app executable once, then smoke-launches the
 full app/backend matrix plus the GTK and Qt backend launch fixtures under Xvfb.
 
 The legacy `scripts/linux-gtk-check.sh` path remains as a compatibility shim.
+It delegates to the backend-neutral runner, so it inherits the same resource
+guard and backend selection behavior instead of maintaining a separate heavy
+GTK path.

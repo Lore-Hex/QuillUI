@@ -208,6 +208,30 @@ struct SourceHygieneTests {
             )
         }
 
+        let legacyGtkShims = [
+            ("scripts/linux-gtk-check.sh", "scripts/linux-backend-check.sh"),
+            ("scripts/linux-gtk-visual-check.sh", "scripts/linux-backend-visual-check.sh"),
+            ("scripts/linux-gtk-interaction-check.sh", "scripts/linux-backend-interaction-check.sh"),
+            ("scripts/linux-gtk-profile.sh", "linux-backend-profile.sh"),
+            ("scripts/run-linux-gtk-profile-csv.sh", "run-linux-backend-profile-csv.sh"),
+            ("scripts/check-linux-gtk-profile-budget.sh", "check-linux-backend-profile-budget.sh"),
+        ]
+
+        for (relativePath, backendRunner) in legacyGtkShims {
+            let source = try packageSource(relativePath)
+            #expect(
+                source.contains(backendRunner),
+                "\(relativePath) should delegate to the backend-neutral runner"
+            )
+            #expect(
+                !source.contains("swift build")
+                    && !source.contains("swift test")
+                    && !source.contains("xvfb-run")
+                    && !source.contains("perf stat"),
+                "\(relativePath) should stay a thin shim instead of starting heavy work directly"
+            )
+        }
+
         let backendBuildScript = try packageSource("scripts/build-linux-backend-products.sh")
         let smokeMatrixRunner = try packageSource("scripts/run-linux-backend-smoke-matrix.sh")
         #expect(backendBuildScript.contains("if [[ \"$DRY_RUN\" != \"1\" ]]; then\n  \"$ROOT_DIR/scripts/quillui-resource-guard.sh\""))

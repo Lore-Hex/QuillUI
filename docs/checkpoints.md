@@ -3087,3 +3087,13 @@ the shared guard before starting SwiftPM, Xvfb, or profile work, while dry-runs
 stay lightweight. Thresholds are configurable through
 `QUILLUI_RESOURCE_GUARD_*`, with `QUILLUI_RESOURCE_GUARD_DISABLE=1` reserved
 for deliberate overrides.
+
+## Checkpoint 182: Guarded GTK Compatibility Shims
+
+Status: implemented locally; guarded by source hygiene and shell syntax checks.
+
+The legacy `scripts/linux-gtk-*` compatibility paths stay thin delegates to the
+backend-neutral scripts rather than starting SwiftPM, Xvfb, or profile work
+directly. Source hygiene now checks those delegates so GTK compatibility
+entrypoints inherit the shared resource guard and cannot diverge from the Qt/GTK
+backend-neutral runners.
