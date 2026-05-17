@@ -390,7 +390,7 @@ private struct ConversationRow: View {
 private struct EmptyConversationView: View {
     var send: (String) -> Void
 
-    private let prompts = EnchantedPromptCatalog.emptyConversationTitles
+    private let prompts = EnchantedPromptCatalog.emptyConversationPrompts
 
     var body: some View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateSpacing)) {
@@ -405,11 +405,11 @@ private struct EmptyConversationView: View {
             }
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.promptListSpacing)) {
-                ForEach(prompts, id: \.self) { prompt in
-                    Button(action: { send(prompt) }) {
+                ForEach(prompts, id: \.title) { prompt in
+                    Button(action: { send(prompt.title) }) {
                         HStack(spacing: CGFloat(EnchantedVisualMetrics.promptButtonIconSpacing)) {
-                            Image(systemName: "star.fill")
-                            Text(prompt)
+                            Image(systemName: prompt.systemImage)
+                            Text(prompt.title)
                                 .frame(
                                     width: CGFloat(EnchantedVisualMetrics.promptButtonWidth - EnchantedVisualMetrics.promptButtonTextWidthInset),
                                     alignment: .leading

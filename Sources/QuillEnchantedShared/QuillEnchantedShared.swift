@@ -1,12 +1,34 @@
 import Foundation
 
+public struct EnchantedPrompt: Codable, Equatable, Hashable, Sendable {
+    public var title: String
+    public var systemImage: String
+
+    public init(title: String, systemImage: String) {
+        self.title = title
+        self.systemImage = systemImage
+    }
+}
+
 public enum EnchantedPromptCatalog {
-    public static let emptyConversationTitles = [
-        "How to center div in HTML?",
-        "How to do personal taxes in USA?",
-        "Explain supercomputers like I'm five years old",
-        "Write a text message asking a friend to be my plus-one at a wedding"
+    public static let questionIconName = "questionmark.circle"
+    public static let actionIconName = "lightbulb.circle"
+
+    public static let emptyConversationPrompts = [
+        EnchantedPrompt(title: "How to center div in HTML?", systemImage: questionIconName),
+        EnchantedPrompt(title: "How to do personal taxes in USA?", systemImage: questionIconName),
+        EnchantedPrompt(title: "Explain supercomputers like I'm five years old", systemImage: actionIconName),
+        EnchantedPrompt(
+            title: "Write a text message asking a friend to be my plus-one at a wedding",
+            systemImage: actionIconName
+        )
     ]
+
+    public static let emptyConversationTitles = emptyConversationPrompts.map(\.title)
+
+    public static func systemImage(forTitle title: String) -> String {
+        emptyConversationPrompts.first { $0.title == title }?.systemImage ?? actionIconName
+    }
 }
 
 public enum EnchantedCopy {

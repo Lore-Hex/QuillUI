@@ -68,7 +68,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var models: [String]
     var conversations: [Conversation]
     var messages: [Message]
-    var prompts: [String]
+    var prompts: [Prompt]
     var style: Style
 
     struct Conversation: Codable, Sendable {
@@ -107,6 +107,21 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             self.id = message.id
             self.role = message.role.rawValue
             self.content = message.content
+        }
+    }
+
+    struct Prompt: Codable, Sendable {
+        var title: String
+        var systemImage: String
+
+        init(title: String, systemImage: String) {
+            self.title = title
+            self.systemImage = systemImage
+        }
+
+        init(_ prompt: EnchantedPrompt) {
+            self.title = prompt.title
+            self.systemImage = prompt.systemImage
         }
     }
 
@@ -370,7 +385,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             )
         ],
         messages: launchConversationMessages,
-        prompts: EnchantedPromptCatalog.emptyConversationTitles,
+        prompts: EnchantedPromptCatalog.emptyConversationPrompts.map(QuillEnchantedQtSnapshot.Prompt.init),
         style: Style(
             canvasColor: EnchantedPalette.canvasColor,
             sidebarColor: EnchantedPalette.sidebarColor,

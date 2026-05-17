@@ -99,7 +99,13 @@ QIcon attachmentChipIcon() {
     return themedActionIcon(QStringLiteral("folder-symbolic"), QStyle::SP_DirIcon);
 }
 
-QIcon promptButtonIcon() {
+QIcon promptButtonIcon(const QString &systemImage) {
+    if (systemImage.contains(QStringLiteral("questionmark"))) {
+        return themedActionIcon(QStringLiteral("help-about-symbolic"), QStyle::SP_MessageBoxQuestion);
+    }
+    if (systemImage.contains(QStringLiteral("lightbulb"))) {
+        return themedActionIcon(QStringLiteral("dialog-information-symbolic"), QStyle::SP_MessageBoxInformation);
+    }
     return themedActionIcon(QStringLiteral("starred-symbolic"), QStyle::SP_DialogYesButton);
 }
 
@@ -123,6 +129,20 @@ QIcon sendButtonIcon(bool isLoading) {
 
 QIcon removeAttachmentButtonIcon() {
     return themedActionIcon(QStringLiteral("window-close-symbolic"), QStyle::SP_DialogCloseButton);
+}
+
+QString promptTitle(const QJsonValue &value) {
+    if (value.isObject()) {
+        return stringValue(value.toObject(), "title");
+    }
+    return value.toString();
+}
+
+QString promptSystemImage(const QJsonValue &value) {
+    if (value.isObject()) {
+        return stringValue(value.toObject(), "systemImage");
+    }
+    return QString();
 }
 
 int buttonIconSize(const QJsonObject &style) {
@@ -1132,7 +1152,11 @@ void addPromptCards(
     QVBoxLayout *promptList = new QVBoxLayout();
     promptList->setSpacing(intValue(style, "promptListSpacing", 10));
     for (const QJsonValue &value : prompts) {
-        const QString prompt = value.toString();
+        const QString prompt = promptTitle(value);
+        if (prompt.isEmpty()) {
+            continue;
+        }
+        const QString systemImage = promptSystemImage(value);
         const int promptButtonWidth = intValue(style, "promptButtonWidth", 620);
         const int promptButtonIconSpacing = intValue(style, "promptButtonIconSpacing", 10);
         const int promptButtonTextWidth = promptButtonWidth - intValue(style, "promptButtonTextWidthInset", 80);
@@ -1144,7 +1168,7 @@ void addPromptCards(
         QHBoxLayout *buttonLayout = new QHBoxLayout(button);
         buttonLayout->setContentsMargins(0, 0, 0, 0);
         buttonLayout->setSpacing(promptButtonIconSpacing);
-        QLabel *promptIcon = iconLabel(promptButtonIcon(), QStringLiteral("promptButtonIcon"), style);
+        QLabel *promptIcon = iconLabel(promptButtonIcon(systemImage), QStringLiteral("promptButtonIcon"), style);
         promptIcon->setAttribute(Qt::WA_TransparentForMouseEvents);
         QLabel *promptText = label(prompt, QStringLiteral("promptButtonText"));
         promptText->setWordWrap(true);
