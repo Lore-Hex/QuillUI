@@ -1206,10 +1206,10 @@ private enum CoreContractMatrixTestError: Error {
 }
 
 private let enchantedEmptyConversationPrompts: [String] = [
-    "Summarize the tradeoffs in moving a SwiftUI app to Linux.",
-    "Draft a private local assistant workflow for a small team.",
-    "Explain how Ollama model selection should work in a desktop app.",
-    "Write a checklist for shipping an open-source Swift package."
+    "How to center div in HTML?",
+    "How to do personal taxes in USA?",
+    "Explain supercomputers like I'm five years old",
+    "Write a text message asking a friend to be my plus-one at a wedding"
 ]
 
 struct TextCase: Sendable {
