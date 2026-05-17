@@ -131,6 +131,10 @@ QString styleValue(const QJsonObject &style, const char *key) {
     return requiredStringValue(style, key);
 }
 
+QString payloadString(const QJsonObject &payload, const char *key) {
+    return requiredStringValue(payload, key);
+}
+
 int styleInt(const QJsonObject &style, const char *key) {
     return requiredIntValue(style, key);
 }
@@ -1794,20 +1798,20 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QJsonObject style = objectValue(payload, "style");
     QJsonObject icons = objectValue(payload, "icons");
     bool isLoading = boolValue(payload, "isLoading", false);
-    const QString chooseLocalModelStatus = stringValue(payload, "chooseLocalModelStatus");
-    const QString usingModelStatusPrefix = stringValue(payload, "usingModelStatusPrefix");
-    const QString newConversationButtonTitle = stringValue(payload, "newConversationButtonTitle");
-    const QString newConversationTitle = stringValue(payload, "newConversationTitle");
-    const QString noMessagesYet = stringValue(payload, "noMessagesYet");
-    const QString userRoleLabel = stringValue(payload, "userRoleLabel");
-    const QString assistantRoleLabel = stringValue(payload, "assistantRoleLabel");
-    const QString systemRoleLabel = stringValue(payload, "systemRoleLabel");
-    app.setApplicationName(stringValue(payload, "windowTitle"));
+    const QString chooseLocalModelStatus = payloadString(payload, "chooseLocalModelStatus");
+    const QString usingModelStatusPrefix = payloadString(payload, "usingModelStatusPrefix");
+    const QString newConversationButtonTitle = payloadString(payload, "newConversationButtonTitle");
+    const QString newConversationTitle = payloadString(payload, "newConversationTitle");
+    const QString noMessagesYet = payloadString(payload, "noMessagesYet");
+    const QString userRoleLabel = payloadString(payload, "userRoleLabel");
+    const QString assistantRoleLabel = payloadString(payload, "assistantRoleLabel");
+    const QString systemRoleLabel = payloadString(payload, "systemRoleLabel");
+    app.setApplicationName(payloadString(payload, "windowTitle"));
     app.setStyleSheet(appStyleSheet(style));
 
     QWidget window;
     window.setObjectName(QStringLiteral("enchantedRoot"));
-    window.setWindowTitle(stringValue(payload, "windowTitle"));
+    window.setWindowTitle(payloadString(payload, "windowTitle"));
     const QSize minimumWindowSize = requiredWindowSize(payload, "minimumWidth", "minimumHeight");
     const QSize defaultWindowSize = clampedDefaultWindowSize(payload, minimumWindowSize);
     window.setMinimumSize(minimumWindowSize);
@@ -1833,11 +1837,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
     sidebarTitleLayout->setContentsMargins(0, 0, 0, 0);
     sidebarTitleLayout->setSpacing(styleInt(style, "sidebarTitleSpacing"));
     sidebarTitleLayout->addWidget(label(
-        stringValue(payload, "sidebarTitle"),
+        payloadString(payload, "sidebarTitle"),
         QStringLiteral("appTitle")
     ));
     sidebarTitleLayout->addWidget(label(
-        stringValue(payload, "sidebarSubtitle"),
+        payloadString(payload, "sidebarSubtitle"),
         QStringLiteral("caption")
     ));
     sidebarLayout->addWidget(sidebarTitleBlock);
@@ -1848,19 +1852,19 @@ extern "C" int quill_enchanted_qt_run_app_json(
     applyButtonIconSize(newConversationButton, style);
     sidebarLayout->addWidget(newConversationButton);
 
-    QLineEdit *endpointField = new QLineEdit(stringValue(payload, "endpoint"));
+    QLineEdit *endpointField = new QLineEdit(payloadString(payload, "endpoint"));
     addSidebarField(
         sidebarLayout,
-        stringValue(payload, "endpointLabel"),
+        payloadString(payload, "endpointLabel"),
         endpointField,
         style
     );
 
     QJsonArray models = arrayValue(payload, "models");
-    const QString modelLabel = stringValue(payload, "modelLabel");
+    const QString modelLabel = payloadString(payload, "modelLabel");
     QComboBox *modelPicker = new QComboBox();
     QLabel *noModelsNotice = label(
-        stringValue(payload, "noModelsTitle"),
+        payloadString(payload, "noModelsTitle"),
         QStringLiteral("warningText")
     );
     auto populateModelPicker = [&](const QJsonArray &modelValues, const QString &selectedModelValue) {
@@ -1893,7 +1897,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         modelPicker->setEnabled(hasModels);
         noModelsNotice->setVisible(!hasModels);
     };
-    populateModelPicker(models, stringValue(payload, "selectedModel"));
+    populateModelPicker(models, payloadString(payload, "selectedModel"));
     addSidebarField(
         sidebarLayout,
         modelLabel,
@@ -1911,21 +1915,21 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const int statusDotSize = styleInt(style, "statusDotSize");
     statusDot->setFixedSize(statusDotSize, statusDotSize);
     statusLayout->addWidget(statusDot);
-    QLabel *statusText = label(stringValue(payload, "status"), QStringLiteral("statusText"));
+    QLabel *statusText = label(payloadString(payload, "status"), QStringLiteral("statusText"));
     statusText->setFixedWidth(styleInt(style, "statusTextWidth"));
     statusLayout->addWidget(statusText);
     sidebarLayout->addLayout(statusLayout);
 
     sidebarLayout->addWidget(label(
-        stringValue(payload, "conversationsTitle"),
+        payloadString(payload, "conversationsTitle"),
         QStringLiteral("sectionTitle")
     ));
 
     QJsonArray conversations = arrayValue(payload, "conversations");
-    QString selectedConversationID = stringValue(payload, "selectedConversationID");
+    QString selectedConversationID = payloadString(payload, "selectedConversationID");
     QFrame *emptyHistory = emptyHistoryWidget(
-        stringValue(payload, "emptyHistoryTitle"),
-        stringValue(payload, "emptyHistorySubtitle"),
+        payloadString(payload, "emptyHistoryTitle"),
+        payloadString(payload, "emptyHistorySubtitle"),
         style
     );
     emptyHistory->setVisible(conversations.isEmpty());
@@ -1945,9 +1949,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QHBoxLayout *conversationActions = new QHBoxLayout();
     conversationActions->setSpacing(styleInt(style, "conversationActionsSpacing"));
-    QPushButton *deleteButton = new QPushButton(stringValue(payload, "deleteChatTitle"));
+    QPushButton *deleteButton = new QPushButton(payloadString(payload, "deleteChatTitle"));
     deleteButton->setObjectName(QStringLiteral("secondaryButton"));
-    QPushButton *clearAllButton = new QPushButton(stringValue(payload, "clearAllTitle"));
+    QPushButton *clearAllButton = new QPushButton(payloadString(payload, "clearAllTitle"));
     clearAllButton->setObjectName(QStringLiteral("secondaryButton"));
     conversationActions->addWidget(deleteButton);
     conversationActions->addWidget(clearAllButton);
@@ -1975,15 +1979,15 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QVBoxLayout *sidebarBottomNavigationLayout = new QVBoxLayout(sidebarBottomNavigation);
     sidebarBottomNavigationLayout->setContentsMargins(0, 0, 0, 0);
     sidebarBottomNavigationLayout->setSpacing(styleInt(style, "conversationActionsSpacing"));
-    QPushButton *completionsButton = new QPushButton(stringValue(payload, "completionsTitle"));
+    QPushButton *completionsButton = new QPushButton(payloadString(payload, "completionsTitle"));
     completionsButton->setObjectName(QStringLiteral("secondaryButton"));
     completionsButton->setIcon(utilityButtonIcon(icons, "completions"));
     applyButtonIconSize(completionsButton, style);
-    QPushButton *shortcutsButton = new QPushButton(stringValue(payload, "shortcutsTitle"));
+    QPushButton *shortcutsButton = new QPushButton(payloadString(payload, "shortcutsTitle"));
     shortcutsButton->setObjectName(QStringLiteral("secondaryButton"));
     shortcutsButton->setIcon(utilityButtonIcon(icons, "shortcuts"));
     applyButtonIconSize(shortcutsButton, style);
-    QPushButton *settingsButton = new QPushButton(stringValue(payload, "settingsTitle"));
+    QPushButton *settingsButton = new QPushButton(payloadString(payload, "settingsTitle"));
     settingsButton->setObjectName(QStringLiteral("secondaryButton"));
     settingsButton->setIcon(utilityButtonIcon(icons, "settings"));
     applyButtonIconSize(settingsButton, style);
@@ -2014,7 +2018,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         QStringLiteral("currentTitle")
     );
     QLabel *modelStatus = label(
-        modelStatusText(stringValue(payload, "selectedModel"), chooseLocalModelStatus, usingModelStatusPrefix),
+        modelStatusText(payloadString(payload, "selectedModel"), chooseLocalModelStatus, usingModelStatusPrefix),
         QStringLiteral("caption")
     );
     const int headerTitleWidth = styleInt(style, "headerTitleWidth");
@@ -2023,7 +2027,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     titleLayout->addWidget(currentTitle);
     titleLayout->addWidget(modelStatus);
     headerLayout->addLayout(titleLayout, 1);
-    QPushButton *refreshButton = new QPushButton(stringValue(payload, "refreshModelsTitle"));
+    QPushButton *refreshButton = new QPushButton(payloadString(payload, "refreshModelsTitle"));
     refreshButton->setObjectName(QStringLiteral("secondaryButton"));
     refreshButton->setEnabled(!isLoading);
     headerLayout->addWidget(refreshButton);
@@ -2078,7 +2082,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         style
     );
     QLabel *dropTargetLabel = label(
-        stringValue(payload, "dropTargetTitle"),
+        payloadString(payload, "dropTargetTitle"),
         QStringLiteral("dropTargetLabel")
     );
     dropHintLayout->addWidget(dropTargetIconLabel);
@@ -2092,13 +2096,13 @@ extern "C" int quill_enchanted_qt_run_app_json(
     dropLayout->setContentsMargins(0, 0, 0, 0);
     dropLayout->setSpacing(styleInt(style, "attachmentInputSpacing"));
     QLineEdit *attachmentPath = new QLineEdit();
-    attachmentPath->setPlaceholderText(stringValue(payload, "attachmentPlaceholder"));
+    attachmentPath->setPlaceholderText(payloadString(payload, "attachmentPlaceholder"));
     attachmentPath->setAcceptDrops(false);
-    QPushButton *attachButton = new QPushButton(stringValue(payload, "attachTitle"));
+    QPushButton *attachButton = new QPushButton(payloadString(payload, "attachTitle"));
     attachButton->setObjectName(QStringLiteral("secondaryButton"));
     attachButton->setIcon(attachButtonIcon(icons));
     applyButtonIconSize(attachButton, style);
-    QPushButton *clearAttachmentsButton = new QPushButton(stringValue(payload, "clearAttachmentsTitle"));
+    QPushButton *clearAttachmentsButton = new QPushButton(payloadString(payload, "clearAttachmentsTitle"));
     clearAttachmentsButton->setObjectName(QStringLiteral("secondaryButton"));
     dropLayout->addWidget(attachmentPath, 1);
     dropLayout->addWidget(attachButton);
@@ -2110,7 +2114,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QVBoxLayout *attachmentTrayLayout = new QVBoxLayout(attachmentTray);
     attachmentTrayLayout->setContentsMargins(0, 0, 0, 0);
     attachmentTrayLayout->setSpacing(styleInt(style, "attachmentTraySpacing"));
-    attachmentTrayLayout->addWidget(fieldLabel(stringValue(payload, "attachmentsTitle")));
+    attachmentTrayLayout->addWidget(fieldLabel(payloadString(payload, "attachmentsTitle")));
     QScrollArea *attachmentScrollArea = new QScrollArea();
     attachmentScrollArea->setObjectName(QStringLiteral("attachmentScrollArea"));
     attachmentScrollArea->setWidgetResizable(true);
@@ -2130,14 +2134,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QHBoxLayout *promptRow = new QHBoxLayout();
     promptRow->setSpacing(styleInt(style, "promptRowSpacing"));
     QPlainTextEdit *promptEditor = new QPlainTextEdit();
-    promptEditor->setPlaceholderText(stringValue(payload, "composerPlaceholder"));
+    promptEditor->setPlaceholderText(payloadString(payload, "composerPlaceholder"));
     promptEditor->setMinimumHeight(styleInt(style, "composerMinHeight"));
     promptEditor->setMaximumHeight(styleInt(style, "composerMaxHeight"));
-    const QString sendTitle = stringValue(payload, "sendTitle");
-    const QString stopTitle = stringValue(payload, "stopTitle");
-    const QString stoppingStatus = stringValue(payload, "stoppingStatus");
-    const QString attachmentsClearedStatus = stringValue(payload, "attachmentsClearedStatus");
-    const QString attachmentRemovedEmptyStatus = stringValue(payload, "attachmentRemovedEmptyStatus");
+    const QString sendTitle = payloadString(payload, "sendTitle");
+    const QString stopTitle = payloadString(payload, "stopTitle");
+    const QString stoppingStatus = payloadString(payload, "stoppingStatus");
+    const QString attachmentsClearedStatus = payloadString(payload, "attachmentsClearedStatus");
+    const QString attachmentRemovedEmptyStatus = payloadString(payload, "attachmentRemovedEmptyStatus");
     QPushButton *sendButton = new QPushButton();
     sendButton->setObjectName(QStringLiteral("sendButton"));
     updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle);
@@ -2148,17 +2152,17 @@ extern "C" int quill_enchanted_qt_run_app_json(
     composerLayout->addLayout(promptRow);
     chatLayout->addWidget(composer);
 
-    const QString attachmentDefaultPrompt = stringValue(payload, "attachmentDefaultPrompt");
-    const QString attachmentDefaultPromptPlural = stringValue(payload, "attachmentDefaultPromptPlural");
-    const QString attachmentSummaryTitle = stringValue(payload, "attachmentSummaryTitle");
+    const QString attachmentDefaultPrompt = payloadString(payload, "attachmentDefaultPrompt");
+    const QString attachmentDefaultPromptPlural = payloadString(payload, "attachmentDefaultPromptPlural");
+    const QString attachmentSummaryTitle = payloadString(payload, "attachmentSummaryTitle");
     const AttachmentValidationPolicy attachmentPolicy = attachmentValidationPolicy(payload);
-    const QString removeAttachmentTooltip = stringValue(payload, "removeAttachmentTooltip");
-    const QString imageReadyStatusSingular = stringValue(payload, "imageReadyStatusSingular");
-    const QString imageReadyStatusPluralUnit = stringValue(payload, "imageReadyStatusPluralUnit");
+    const QString removeAttachmentTooltip = payloadString(payload, "removeAttachmentTooltip");
+    const QString imageReadyStatusSingular = payloadString(payload, "imageReadyStatusSingular");
+    const QString imageReadyStatusPluralUnit = payloadString(payload, "imageReadyStatusPluralUnit");
     QJsonArray fallbackMessages = arrayValue(payload, "messages");
     const QJsonArray prompts = arrayValue(payload, "prompts");
-    const QString emptyStateTitle = stringValue(payload, "emptyStateTitle");
-    const QString emptyStateSubtitle = stringValue(payload, "emptyStateSubtitle");
+    const QString emptyStateTitle = payloadString(payload, "emptyStateTitle");
+    const QString emptyStateSubtitle = payloadString(payload, "emptyStateSubtitle");
     bool showingPromptCards = false;
     QStringList pendingAttachmentPaths;
     std::function<bool(const QString &, const QString &, const QString &, const QStringList &)> requestHistoryAction;
@@ -2373,7 +2377,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             emptyStateTitle,
             emptyStateSubtitle,
             appendUserMessage,
-            stringValue(payload, "status"),
+            payloadString(payload, "status"),
             isLoading,
             userRoleLabel,
             assistantRoleLabel,
@@ -2395,14 +2399,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
         isLoading = boolValue(payload, "isLoading", false);
         models = arrayValue(payload, "models");
         conversations = arrayValue(payload, "conversations");
-        selectedConversationID = stringValue(payload, "selectedConversationID");
+        selectedConversationID = payloadString(payload, "selectedConversationID");
         fallbackMessages = arrayValue(payload, "messages");
-        const QString endpointText = stringValue(payload, "endpoint");
+        const QString endpointText = payloadString(payload, "endpoint");
         if (endpointField->text() != endpointText) {
             QSignalBlocker blocker(endpointField);
             endpointField->setText(endpointText);
         }
-        populateModelPicker(models, stringValue(payload, "selectedModel"));
+        populateModelPicker(models, payloadString(payload, "selectedModel"));
         statusDot->setObjectName(
             modelPicker->count() > 0 ? QStringLiteral("statusDot") : QStringLiteral("statusDotWarning")
         );
@@ -2422,14 +2426,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
             selectedID,
             newConversationTitle
         ));
-        statusText->setText(stringValue(payload, "status"));
+        statusText->setText(payloadString(payload, "status"));
         refreshButton->setEnabled(!isLoading);
         updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle);
         refreshStyle(sendButton);
         updateComposerControlState();
         modelStatus->setText(modelStatusText(
             modelPicker->currentText().trimmed().isEmpty()
-                ? stringValue(payload, "selectedModel")
+                ? payloadString(payload, "selectedModel")
                 : modelPicker->currentText(),
             chooseLocalModelStatus,
             usingModelStatusPrefix
@@ -2546,23 +2550,23 @@ extern "C" int quill_enchanted_qt_run_app_json(
     });
     QObject::connect(completionsButton, &QPushButton::clicked, [&]() {
         showSidebarUtilityPanel(
-            stringValue(payload, "completionsTitle"),
-            stringValue(payload, "completionsPanelSubtitle"),
-            stringValue(payload, "completionsStatus")
+            payloadString(payload, "completionsTitle"),
+            payloadString(payload, "completionsPanelSubtitle"),
+            payloadString(payload, "completionsStatus")
         );
     });
     QObject::connect(shortcutsButton, &QPushButton::clicked, [&]() {
         showSidebarUtilityPanel(
-            stringValue(payload, "shortcutsTitle"),
-            stringValue(payload, "shortcutsPanelSubtitle"),
-            stringValue(payload, "shortcutsStatus")
+            payloadString(payload, "shortcutsTitle"),
+            payloadString(payload, "shortcutsPanelSubtitle"),
+            payloadString(payload, "shortcutsStatus")
         );
     });
     QObject::connect(settingsButton, &QPushButton::clicked, [&]() {
         showSidebarUtilityPanel(
-            stringValue(payload, "settingsTitle"),
-            stringValue(payload, "settingsPanelSubtitle"),
-            stringValue(payload, "settingsStatus")
+            payloadString(payload, "settingsTitle"),
+            payloadString(payload, "settingsPanelSubtitle"),
+            payloadString(payload, "settingsStatus")
         );
     });
     QObject::connect(conversationList, &QListWidget::currentRowChanged, [&](int row) {
