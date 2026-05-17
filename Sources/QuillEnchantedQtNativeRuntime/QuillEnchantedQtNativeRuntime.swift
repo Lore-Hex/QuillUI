@@ -87,7 +87,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         init(summary: ConversationSummary, messages: [Message]) {
             self.id = summary.id
             self.title = summary.title
-            self.lastMessage = summary.lastMessage.isEmpty ? EnchantedCopy.noMessagesYet : summary.lastMessage
+            self.lastMessage = summary.lastMessage
             self.messages = messages
         }
     }

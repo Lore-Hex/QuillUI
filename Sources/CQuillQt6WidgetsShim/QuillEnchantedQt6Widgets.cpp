@@ -501,14 +501,14 @@ QFrame *conversationRowWidget(
     title->setWordWrap(false);
     title->setProperty("active", false);
 
-    QLabel *preview = label(
-        stringValue(conversation, "lastMessage", noMessagesYet),
-        QStringLiteral("conversationPreview")
-    );
-    preview->setProperty("active", false);
+    const QString previewText = stringValue(conversation, "lastMessage", noMessagesYet);
 
     layout->addWidget(title);
-    layout->addWidget(preview);
+    if (!previewText.isEmpty()) {
+        QLabel *preview = label(previewText, QStringLiteral("conversationPreview"));
+        preview->setProperty("active", false);
+        layout->addWidget(preview);
+    }
     return row;
 }
 
@@ -1011,14 +1011,15 @@ void populateConversations(
         const QJsonObject conversation = value.toObject();
         QListWidgetItem *item = new QListWidgetItem();
         item->setData(Qt::UserRole, stringValue(conversation, "id"));
-        item->setSizeHint(QSize(260, 88));
         list->addItem(item);
-        list->setItemWidget(item, conversationRowWidget(
+        QWidget *rowWidget = conversationRowWidget(
             conversation,
             style,
             newConversationTitle,
             noMessagesYet
-        ));
+        );
+        item->setSizeHint(QSize(260, rowWidget->sizeHint().height()));
+        list->setItemWidget(item, rowWidget);
         if (stringValue(conversation, "id") == selectedConversationID) {
             selectedRow = list->row(item);
         }
