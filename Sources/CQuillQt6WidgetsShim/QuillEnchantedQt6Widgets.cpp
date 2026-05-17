@@ -99,6 +99,10 @@ QIcon attachmentChipIcon() {
     return themedActionIcon(QStringLiteral("folder-symbolic"), QStyle::SP_DirIcon);
 }
 
+QIcon promptButtonIcon() {
+    return themedActionIcon(QStringLiteral("starred-symbolic"), QStyle::SP_DialogYesButton);
+}
+
 QIcon completionsButtonIcon() {
     return themedActionIcon(QStringLiteral("accessories-text-editor-symbolic"), QStyle::SP_FileDialogDetailedView);
 }
@@ -123,6 +127,15 @@ QIcon removeAttachmentButtonIcon() {
 
 int buttonIconSize(const QJsonObject &style) {
     return intValue(style, "actionButtonIconSize", 16);
+}
+
+QLabel *iconLabel(const QIcon &icon, const QString &objectName, const QJsonObject &style) {
+    const int iconSize = buttonIconSize(style);
+    QLabel *view = new QLabel();
+    view->setObjectName(objectName);
+    view->setPixmap(icon.pixmap(iconSize, iconSize));
+    view->setFixedSize(iconSize, iconSize);
+    return view;
 }
 
 void applyButtonIconSize(QPushButton *button, const QJsonObject &style) {
@@ -952,10 +965,6 @@ QWidget *markdownMessageWidget(const QString &markdown, const QJsonObject &style
     return container;
 }
 
-QString promptCardPrefix() {
-    return QString::fromUtf8("\xE2\x98\x85  ");
-}
-
 QString currentConversationID(QListWidget *list, const QString &fallback) {
     QListWidgetItem *item = list->currentItem();
     if (item == nullptr) {
@@ -1134,7 +1143,7 @@ void addPromptCards(
         QHBoxLayout *buttonLayout = new QHBoxLayout(button);
         buttonLayout->setContentsMargins(0, 0, 0, 0);
         buttonLayout->setSpacing(promptButtonIconSpacing);
-        QLabel *promptIcon = label(promptCardPrefix().trimmed(), QStringLiteral("promptButtonIcon"));
+        QLabel *promptIcon = iconLabel(promptButtonIcon(), QStringLiteral("promptButtonIcon"), style);
         promptIcon->setAttribute(Qt::WA_TransparentForMouseEvents);
         QLabel *promptText = label(prompt, QStringLiteral("promptButtonText"));
         promptText->setWordWrap(true);
@@ -2118,11 +2127,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
             );
             attachmentChipLayout->setSpacing(intValue(style, "attachmentChipSpacing", 8));
 
-            const int attachmentIconSize = buttonIconSize(style);
-            QLabel *attachmentIcon = new QLabel();
-            attachmentIcon->setObjectName(QStringLiteral("attachmentChipIcon"));
-            attachmentIcon->setPixmap(attachmentChipIcon().pixmap(attachmentIconSize, attachmentIconSize));
-            attachmentIcon->setFixedSize(attachmentIconSize, attachmentIconSize);
+            QLabel *attachmentIcon = iconLabel(
+                attachmentChipIcon(),
+                QStringLiteral("attachmentChipIcon"),
+                style
+            );
 
             QVBoxLayout *attachmentTextLayout = new QVBoxLayout();
             attachmentTextLayout->setContentsMargins(0, 0, 0, 0);
