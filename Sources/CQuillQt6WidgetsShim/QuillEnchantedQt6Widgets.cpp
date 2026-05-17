@@ -1958,7 +1958,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QHBoxLayout *statusLayout = new QHBoxLayout();
     statusLayout->setContentsMargins(0, 0, 0, 0);
-    statusLayout->setSpacing(styleInt(style, "statusRowSpacing"));
+    const int statusRowSpacing = styleInt(style, "statusRowSpacing");
+    statusLayout->setSpacing(statusRowSpacing);
     QFrame *statusDot = QuillQtWidgets::frame(
         models.isEmpty() ? QStringLiteral("statusDotWarning") : QStringLiteral("statusDot")
     );
@@ -1966,7 +1967,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     statusDot->setFixedSize(statusDotSize, statusDotSize);
     statusLayout->addWidget(statusDot);
     QLabel *statusText = label(payloadString(payload, "status"), QStringLiteral("statusText"));
-    statusText->setFixedWidth(styleInt(style, "statusTextWidth"));
+    const int statusTextWidth = styleInt(style, "statusTextWidth");
+    statusText->setFixedWidth(statusTextWidth);
     statusLayout->addWidget(statusText);
     sidebarLayout->addLayout(statusLayout);
 
@@ -2057,10 +2059,12 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QHBoxLayout *headerLayout = new QHBoxLayout(header);
     const int headerPadding = styleInt(style, "headerPadding");
     headerLayout->setContentsMargins(headerPadding, headerPadding, headerPadding, headerPadding);
-    headerLayout->setSpacing(styleInt(style, "headerSpacing"));
+    const int headerSpacing = styleInt(style, "headerSpacing");
+    headerLayout->setSpacing(headerSpacing);
     QVBoxLayout *titleLayout = new QVBoxLayout();
     titleLayout->setContentsMargins(0, 0, 0, 0);
-    titleLayout->setSpacing(styleInt(style, "headerTitleSpacing"));
+    const int headerTitleSpacing = styleInt(style, "headerTitleSpacing");
+    titleLayout->setSpacing(headerTitleSpacing);
     const QString initialConversationID = currentConversationID(conversationList, selectedConversationID);
     QLabel *currentTitle = label(
         selectedConversationTitle(
@@ -2092,7 +2096,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QVBoxLayout *messageLayout = new QVBoxLayout(transcript);
     const int contentPadding = styleInt(style, "contentPadding");
     messageLayout->setContentsMargins(contentPadding, contentPadding, contentPadding, contentPadding);
-    messageLayout->setSpacing(styleInt(style, "messageSpacing"));
+    const int messageSpacing = styleInt(style, "messageSpacing");
+    messageLayout->setSpacing(messageSpacing);
     scrollArea->setWidget(transcript);
     chatLayout->addWidget(scrollArea, 1);
     auto scrollTranscriptToBottom = [scrollArea]() {
