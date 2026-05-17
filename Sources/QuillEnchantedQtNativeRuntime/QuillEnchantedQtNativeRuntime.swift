@@ -328,7 +328,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         attachTitle: EnchantedCopy.attachTitle,
         clearAttachmentsTitle: EnchantedCopy.clearAttachmentsTitle,
         attachmentsClearedStatus: EnchantedCopy.attachmentsClearedStatus,
-        attachmentRemovedEmptyStatus: EnchantedCopy.readyStatus,
+        attachmentRemovedEmptyStatus: EnchantedCopy.attachmentRemovedEmptyStatus,
         removeAttachmentTooltip: EnchantedCopy.removeAttachmentTooltip,
         imageReadyStatusSingular: EnchantedCopy.imageReadyStatusSingular,
         imageReadyStatusPluralUnit: EnchantedCopy.imageReadyStatusPluralUnit,

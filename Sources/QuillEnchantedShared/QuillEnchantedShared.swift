@@ -132,7 +132,9 @@ public enum EnchantedCopy {
     public static let attachTitle = "Attach"
     public static let clearAttachmentsTitle = "Clear"
     public static let attachmentsTitle = "Attachments"
+    public static let readyStatus = "Ready"
     public static let attachmentsClearedStatus = "Attachments cleared"
+    public static let attachmentRemovedEmptyStatus = readyStatus
     public static let removeAttachmentTooltip = "Remove attachment"
     public static let attachmentDefaultPrompt = "Describe this image."
     public static let attachmentDefaultPromptPlural = "Describe these images."
@@ -150,7 +152,6 @@ public enum EnchantedCopy {
     public static let newConversationTitle = "New conversation"
     public static let noMessagesYet = "No messages yet"
     public static let systemLaunchMessage = "You are chatting with a local Ollama model in Enchanted."
-    public static let readyStatus = "Ready"
     public static let readyForLocalInferenceStatus = "Ready for local inference"
     public static let checkingOllamaStatus = "Checking Ollama..."
     public static let noOllamaModelsStatus = "No Ollama models found"

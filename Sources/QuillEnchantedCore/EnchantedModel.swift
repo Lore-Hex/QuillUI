@@ -243,7 +243,9 @@ public final class EnchantedModel: ObservableObject {
 
     public func removeAttachment(id: String) {
         pendingImageAttachments.removeAll { $0.id == id }
-        status = pendingImageAttachments.isEmpty ? EnchantedCopy.readyStatus : EnchantedCopy.imageReadyStatus(count: pendingImageAttachments.count)
+        status = pendingImageAttachments.isEmpty
+            ? EnchantedCopy.attachmentRemovedEmptyStatus
+            : EnchantedCopy.imageReadyStatus(count: pendingImageAttachments.count)
     }
 
     public func clearAttachments() {
