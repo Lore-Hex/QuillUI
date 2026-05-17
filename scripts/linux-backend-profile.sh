@@ -28,6 +28,8 @@ OUTPUT_DIR="$ROOT_DIR/.qa"
 PRODUCT="${1:-}"
 REQUESTED_BACKEND="${4:-${QUILLUI_BACKEND:-}}"
 
+"$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
+
 source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
 quillui_export_backend_argument "$REQUESTED_BACKEND" "$PRODUCT"

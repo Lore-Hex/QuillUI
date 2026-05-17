@@ -149,6 +149,10 @@ quillui_prepare_backend_once() {
   PREPARED_BACKENDS="${PREPARED_BACKENDS}${build_backend}"$'\n'
 }
 
+if [[ "$DRY_RUN" != "1" ]]; then
+  "$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
+fi
+
 SEEN_BUILDS=$'\n'
 PREPARED_BACKENDS=$'\n'
 ROW_COUNT=0

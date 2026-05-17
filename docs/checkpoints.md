@@ -3074,3 +3074,16 @@ generated-app, smoke, interaction, and profile matrices. The smoke matrix runner
 and scheduled profile CSV runner consume those helpers instead of recomputing
 requested/runtime/mode columns in each loop, keeping GTK and Qt parity rows tied
 to one backend availability registry.
+
+## Checkpoint 181: Autonomous Resource Guard
+
+Status: implemented locally; guarded by source hygiene and shell syntax checks.
+
+`scripts/quillui-resource-guard.sh` now checks free disk and available memory
+before expensive Linux backend runs. The full backend check, Swift test wrapper,
+backend product builder, generated app builder/package generator, smoke matrix
+runner, direct visual/interaction/profile scripts, and profile CSV runner call
+the shared guard before starting SwiftPM, Xvfb, or profile work, while dry-runs
+stay lightweight. Thresholds are configurable through
+`QUILLUI_RESOURCE_GUARD_*`, with `QUILLUI_RESOURCE_GUARD_DISABLE=1` reserved
+for deliberate overrides.

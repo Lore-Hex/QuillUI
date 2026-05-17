@@ -159,6 +159,10 @@ if [[ "$DRY_RUN" != "1" && ! -x "$CHECK_SCRIPT" ]]; then
   exit 66
 fi
 
+if [[ "$DRY_RUN" != "1" ]]; then
+  "$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
+fi
+
 BUILT_PRODUCTS_LIST=$'\n'
 
 quillui_smoke_product_was_built() {

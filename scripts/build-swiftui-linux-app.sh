@@ -178,6 +178,8 @@ if ! NORMALIZED_BACKEND_FACADE="$(quillui_normalize_backend_identifier "${BACKEN
   exit 64
 fi
 
+"$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
+
 PROFILE_SCRIPT="$PROFILE_DIR/$PROFILE.sh"
 if [[ ! -x "$PROFILE_SCRIPT" ]]; then
   cat >&2 <<MSG

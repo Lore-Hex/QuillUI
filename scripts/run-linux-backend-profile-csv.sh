@@ -104,6 +104,8 @@ if [[ ! -x "$PROFILE_SCRIPT" ]]; then
   exit 66
 fi
 
+"$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
+
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/quillui-profile-csv.XXXXXX")"
 BUILT_PROFILE_PRODUCTS_LIST=$'\n'
 cleanup() {

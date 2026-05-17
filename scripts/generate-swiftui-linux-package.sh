@@ -110,6 +110,8 @@ if [[ "$INCLUDE_BACKEND_ENTRY" != "1" && "$BACKEND_FACADE" != "swiftui" ]]; then
   exit 64
 fi
 
+"$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
+
 TARGET_DIR="$PACKAGE_DIR/Sources/$TARGET_NAME"
 backend_import="QuillUI"
 backend_runner="QuillApp"

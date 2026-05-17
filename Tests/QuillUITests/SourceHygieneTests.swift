@@ -172,6 +172,48 @@ struct SourceHygieneTests {
         #expect(!smokeLib.contains("scripts/patch-swiftopenui-gtk-css.sh"))
     }
 
+    @Test("Heavy Linux backend runners are resource guarded")
+    func heavyLinuxBackendRunnersAreResourceGuarded() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let guardURL = root.appendingPathComponent("scripts/quillui-resource-guard.sh")
+        let guardSource = try String(contentsOf: guardURL, encoding: .utf8)
+
+        #expect(fileManager.isExecutableFile(atPath: guardURL.path))
+        #expect(guardSource.contains("QUILLUI_RESOURCE_GUARD_DISABLE"))
+        #expect(guardSource.contains("QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB"))
+        #expect(guardSource.contains("QUILLUI_RESOURCE_GUARD_MAX_USED_PERCENT"))
+        #expect(guardSource.contains("QUILLUI_RESOURCE_GUARD_MIN_AVAILABLE_MEMORY_MIB"))
+        #expect(guardSource.contains("/proc/meminfo"))
+        #expect(guardSource.contains("vm_stat"))
+
+        let guardedScripts = [
+            "scripts/linux-backend-check.sh",
+            "scripts/linux-swift-test.sh",
+            "scripts/build-linux-backend-products.sh",
+            "scripts/build-swiftui-linux-app.sh",
+            "scripts/generate-swiftui-linux-package.sh",
+            "scripts/run-linux-backend-smoke-matrix.sh",
+            "scripts/run-linux-backend-profile-csv.sh",
+            "scripts/linux-backend-profile.sh",
+            "scripts/linux-backend-visual-check.sh",
+            "scripts/linux-backend-interaction-check.sh",
+        ]
+
+        for relativePath in guardedScripts {
+            let source = try packageSource(relativePath)
+            #expect(
+                source.contains("scripts/quillui-resource-guard.sh"),
+                "\(relativePath) should run the shared resource guard before heavy work"
+            )
+        }
+
+        let backendBuildScript = try packageSource("scripts/build-linux-backend-products.sh")
+        let smokeMatrixRunner = try packageSource("scripts/run-linux-backend-smoke-matrix.sh")
+        #expect(backendBuildScript.contains("if [[ \"$DRY_RUN\" != \"1\" ]]; then\n  \"$ROOT_DIR/scripts/quillui-resource-guard.sh\""))
+        #expect(smokeMatrixRunner.contains("if [[ \"$DRY_RUN\" != \"1\" ]]; then\n  \"$ROOT_DIR/scripts/quillui-resource-guard.sh\""))
+    }
+
     @Test("SwiftPM resolver preservation restores Package.resolved")
     func swiftPMResolverPreservationRestoresPackageResolved() throws {
         let root = try packageRoot()

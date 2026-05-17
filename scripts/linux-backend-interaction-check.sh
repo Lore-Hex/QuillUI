@@ -9,6 +9,8 @@ REQUESTED_BACKEND="${3:-${QUILLUI_BACKEND:-}}"
 APP_EXECUTABLE=""
 APP_LOG_PATH="${QUILLUI_BACKEND_INTERACTION_APP_LOG:-/tmp/quillui-backend-interaction-app.log}"
 
+"$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
+
 source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
 quillui_export_backend_argument "$REQUESTED_BACKEND" "$PRODUCT"

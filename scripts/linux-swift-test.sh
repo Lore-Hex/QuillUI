@@ -26,6 +26,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+"$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
+
 "$ROOT_DIR/scripts/prepare-linux-build-backend.sh" --scratch-path "$SCRATCH_PATH"
 
 (
