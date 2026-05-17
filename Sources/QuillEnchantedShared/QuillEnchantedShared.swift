@@ -204,6 +204,109 @@ public enum EnchantedCopy {
     }
 }
 
+public enum EnchantedPreviewFixture {
+    public struct Message: Codable, Equatable, Hashable, Sendable {
+        public var id: String
+        public var role: String
+        public var content: String
+
+        public init(id: String, role: String, content: String) {
+            self.id = id
+            self.role = role
+            self.content = content
+        }
+    }
+
+    public struct Conversation: Codable, Equatable, Hashable, Sendable {
+        public var id: String
+        public var title: String
+        public var lastMessage: String
+        public var messages: [Message]
+
+        public init(id: String, title: String, lastMessage: String, messages: [Message]) {
+            self.id = id
+            self.title = title
+            self.lastMessage = lastMessage
+            self.messages = messages
+        }
+    }
+
+    public static let selectedModel = "llama3.1:8b"
+    public static let selectedConversationID = "daily-brief"
+    public static let models = [
+        "llama3.1:8b",
+        "mistral:7b",
+        "qwen2.5-coder:7b"
+    ]
+
+    public static let launchConversationMessages = [
+        Message(
+            id: "system-1",
+            role: "system",
+            content: EnchantedCopy.systemLaunchMessage
+        ),
+        Message(
+            id: "user-1",
+            role: "user",
+            content: "Turn my meeting notes into a short launch checklist."
+        ),
+        Message(
+            id: "assistant-1",
+            role: "assistant",
+            content: "Confirm the owner, send the revised timeline, collect final screenshots, and ask design for approval before Friday."
+        )
+    ]
+
+    public static let localModelConversationMessages = [
+        Message(
+            id: "local-user-1",
+            role: "user",
+            content: "What should I check before switching models for a longer draft?"
+        ),
+        Message(
+            id: "local-assistant-1",
+            role: "assistant",
+            content: "Keep the endpoint reachable, choose the model with the right context window, and run a short prompt before pasting the full draft."
+        )
+    ]
+
+    public static let attachmentConversationMessages = [
+        Message(
+            id: "attachment-user-1",
+            role: "user",
+            content: "Can you help turn this screenshot into release-note copy?"
+        ),
+        Message(
+            id: "attachment-assistant-1",
+            role: "assistant",
+            content: "Use a concise caption, mention what changed, and keep the note focused on the user-facing setup flow."
+        )
+    ]
+
+    public static let conversations = [
+        Conversation(
+            id: "daily-brief",
+            title: "Launch checklist",
+            lastMessage: "Four next steps before Friday.",
+            messages: launchConversationMessages
+        ),
+        Conversation(
+            id: "local-models",
+            title: "Local model setup",
+            lastMessage: "Pick the right model before drafting.",
+            messages: localModelConversationMessages
+        ),
+        Conversation(
+            id: "attachments",
+            title: "Image attachment flow",
+            lastMessage: "Turn a screenshot into release-note copy.",
+            messages: attachmentConversationMessages
+        )
+    ]
+
+    public static let messages = launchConversationMessages
+}
+
 public enum EnchantedPalette {
     public static let canvasColor = "#FBFBFD"
     public static let sidebarColor = "#F5F5F7"

@@ -91,6 +91,13 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             self.lastMessage = summary.lastMessage
             self.messages = messages
         }
+
+        init(_ conversation: EnchantedPreviewFixture.Conversation) {
+            self.id = conversation.id
+            self.title = conversation.title
+            self.lastMessage = conversation.lastMessage
+            self.messages = conversation.messages.map { Message($0) }
+        }
     }
 
     struct Message: Codable, Sendable {
@@ -107,6 +114,12 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         init(_ message: ChatMessage) {
             self.id = message.id
             self.role = message.role.rawValue
+            self.content = message.content
+        }
+
+        init(_ message: EnchantedPreviewFixture.Message) {
+            self.id = message.id
+            self.role = message.role
             self.content = message.content
         }
     }
@@ -281,50 +294,6 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var messageMaxWidth: Int
     }
 
-    private static let launchConversationMessages = [
-        Message(
-            id: "system-1",
-            role: "system",
-            content: EnchantedCopy.systemLaunchMessage
-        ),
-        Message(
-            id: "user-1",
-            role: "user",
-            content: "Turn my meeting notes into a short launch checklist."
-        ),
-        Message(
-            id: "assistant-1",
-            role: "assistant",
-            content: "Confirm the owner, send the revised timeline, collect final screenshots, and ask design for approval before Friday."
-        )
-    ]
-
-    private static let localModelConversationMessages = [
-        Message(
-            id: "local-user-1",
-            role: "user",
-            content: "What should I check before switching models for a longer draft?"
-        ),
-        Message(
-            id: "local-assistant-1",
-            role: "assistant",
-            content: "Keep the endpoint reachable, choose the model with the right context window, and run a short prompt before pasting the full draft."
-        )
-    ]
-
-    private static let attachmentConversationMessages = [
-        Message(
-            id: "attachment-user-1",
-            role: "user",
-            content: "Can you help turn this screenshot into release-note copy?"
-        ),
-        Message(
-            id: "attachment-assistant-1",
-            role: "assistant",
-            content: "Use a concise caption, mention what changed, and keep the note focused on the user-facing setup flow."
-        )
-    ]
-
     static let preview = QuillEnchantedQtSnapshot(
         windowTitle: EnchantedCopy.windowTitle,
         minimumWidth: EnchantedVisualMetrics.minimumWindowWidth,
@@ -381,34 +350,11 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         assistantRoleLabel: EnchantedCopy.assistantRoleLabel,
         systemRoleLabel: EnchantedCopy.systemRoleLabel,
         endpoint: EnchantedCopy.defaultEndpoint,
-        selectedModel: "llama3.1:8b",
-        selectedConversationID: "daily-brief",
-        models: [
-            "llama3.1:8b",
-            "mistral:7b",
-            "qwen2.5-coder:7b"
-        ],
-        conversations: [
-            Conversation(
-                id: "daily-brief",
-                title: "Launch checklist",
-                lastMessage: "Four next steps before Friday.",
-                messages: launchConversationMessages
-            ),
-            Conversation(
-                id: "local-models",
-                title: "Local model setup",
-                lastMessage: "Pick the right model before drafting.",
-                messages: localModelConversationMessages
-            ),
-            Conversation(
-                id: "attachments",
-                title: "Image attachment flow",
-                lastMessage: "Turn a screenshot into release-note copy.",
-                messages: attachmentConversationMessages
-            )
-        ],
-        messages: launchConversationMessages,
+        selectedModel: EnchantedPreviewFixture.selectedModel,
+        selectedConversationID: EnchantedPreviewFixture.selectedConversationID,
+        models: EnchantedPreviewFixture.models,
+        conversations: EnchantedPreviewFixture.conversations.map { Conversation($0) },
+        messages: EnchantedPreviewFixture.messages.map { Message($0) },
         prompts: EnchantedPromptCatalog.emptyConversationPrompts.map(QuillEnchantedQtSnapshot.Prompt.init),
         icons: .shared,
         style: Style(

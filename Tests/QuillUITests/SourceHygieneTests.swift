@@ -745,6 +745,7 @@ struct SourceHygieneTests {
 
     @Test("Enchanted Qt runtime mirrors the macOS payload contract")
     func enchantedQtRuntimeMirrorsMacOSPayloadContract() throws {
+        let enchantedShared = try packageSource("Sources/QuillEnchantedShared/QuillEnchantedShared.swift")
         let enchantedQtRuntime = try packageSource("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift")
 
         #expect(enchantedQtRuntime.contains("import QuillEnchantedData"))
@@ -797,8 +798,17 @@ struct SourceHygieneTests {
         #expect(enchantedQtRuntime.contains("QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"))
         #expect(enchantedQtRuntime.contains("private static let selectedConversationIndexEnvironmentKeys = ["))
         #expect(enchantedQtRuntime.contains("var messages: [Message]? = nil"))
-        #expect(enchantedQtRuntime.contains("messages: launchConversationMessages"))
-        #expect(enchantedQtRuntime.contains("messages: attachmentConversationMessages"))
+        #expect(enchantedShared.contains("public enum EnchantedPreviewFixture"))
+        #expect(enchantedShared.contains("public static let launchConversationMessages"))
+        #expect(enchantedShared.contains("public static let attachmentConversationMessages"))
+        #expect(enchantedQtRuntime.contains("selectedModel: EnchantedPreviewFixture.selectedModel"))
+        #expect(enchantedQtRuntime.contains("selectedConversationID: EnchantedPreviewFixture.selectedConversationID"))
+        #expect(enchantedQtRuntime.contains("models: EnchantedPreviewFixture.models"))
+        #expect(enchantedQtRuntime.contains("conversations: EnchantedPreviewFixture.conversations.map { Conversation($0) }"))
+        #expect(enchantedQtRuntime.contains("messages: EnchantedPreviewFixture.messages.map { Message($0) }"))
+        #expect(!enchantedQtRuntime.contains("private static let launchConversationMessages"))
+        #expect(!enchantedQtRuntime.contains("messages: launchConversationMessages"))
+        #expect(!enchantedQtRuntime.contains("messages: attachmentConversationMessages"))
         #expect(enchantedQtRuntime.contains("warningColor: EnchantedPalette.warningColor"))
         #expect(enchantedQtRuntime.contains("systemColor: EnchantedPalette.systemColor"))
         #expect(enchantedQtRuntime.contains("quoteRuleColor: EnchantedPalette.quoteRuleColor"))
