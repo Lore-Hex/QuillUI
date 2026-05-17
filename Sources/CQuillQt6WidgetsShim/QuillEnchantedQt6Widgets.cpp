@@ -111,6 +111,14 @@ bool requiredBoolValue(const QJsonObject &object, const char *key) {
     failRequiredPayloadField(key, "boolean");
 }
 
+QJsonObject requiredObjectValue(const QJsonObject &object, const char *key) {
+    const QJsonValue value = requiredValue(object, key, "object");
+    if (value.isObject()) {
+        return value.toObject();
+    }
+    failRequiredPayloadField(key, "object");
+}
+
 QJsonArray requiredArrayValue(const QJsonObject &object, const char *key) {
     const QJsonValue value = requiredValue(object, key, "array");
     if (value.isArray()) {
@@ -153,6 +161,10 @@ QString payloadString(const QJsonObject &payload, const char *key) {
 
 bool payloadBool(const QJsonObject &payload, const char *key) {
     return requiredBoolValue(payload, key);
+}
+
+QJsonObject payloadObject(const QJsonObject &payload, const char *key) {
+    return requiredObjectValue(payload, key);
 }
 
 QJsonArray payloadArray(const QJsonObject &payload, const char *key) {
@@ -1815,8 +1827,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     }
 
     QApplication app(argc, argv);
-    const QJsonObject style = objectValue(payload, "style");
-    QJsonObject icons = objectValue(payload, "icons");
+    const QJsonObject style = payloadObject(payload, "style");
+    QJsonObject icons = payloadObject(payload, "icons");
     bool isLoading = payloadBool(payload, "isLoading");
     const QString chooseLocalModelStatus = payloadString(payload, "chooseLocalModelStatus");
     const QString usingModelStatusPrefix = payloadString(payload, "usingModelStatusPrefix");
@@ -2415,7 +2427,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     };
     auto applySnapshot = [&](const QJsonObject &snapshot) {
         payload = snapshot;
-        icons = objectValue(payload, "icons");
+        icons = payloadObject(payload, "icons");
         isLoading = payloadBool(payload, "isLoading");
         models = payloadArray(payload, "models");
         conversations = payloadArray(payload, "conversations");

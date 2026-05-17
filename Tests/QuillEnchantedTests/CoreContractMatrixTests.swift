@@ -170,8 +170,8 @@ struct CoreContractMatrixTests {
             "systemImageIcon(requiredIconName(icons, \"attachment\"))",
             "systemImageIcon(requiredIconName(icons, key))",
             "systemImageIcon(requiredIconName(icons, \"removeAttachment\"))",
-            "QJsonObject icons = objectValue(payload, \"icons\")",
-            "icons = objectValue(payload, \"icons\")",
+            "QJsonObject icons = payloadObject(payload, \"icons\")",
+            "icons = payloadObject(payload, \"icons\")",
             "newConversationButton->setIcon(newConversationButtonIcon(icons))",
             "attachButton->setIcon(attachButtonIcon(icons))",
             "completionsButton->setIcon(utilityButtonIcon(icons, \"completions\"))",
@@ -1493,6 +1493,10 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "clearLayout(attachmentChipListLayout)")
         expectContains(nativeShim, "bool payloadBool(const QJsonObject &payload, const char *key)")
         expectContains(nativeShim, "payloadBool(payload, \"isLoading\")")
+        expectContains(nativeShim, "QJsonObject payloadObject(const QJsonObject &payload, const char *key)")
+        expectContains(nativeShim, "const QJsonObject style = payloadObject(payload, \"style\")")
+        expectContains(nativeShim, "QJsonObject icons = payloadObject(payload, \"icons\")")
+        expectContains(nativeShim, "\n        icons = payloadObject(payload, \"icons\")")
         expectContains(nativeShim, "QJsonArray payloadArray(const QJsonObject &payload, const char *key)")
         expectContains(nativeShim, "QJsonArray models = payloadArray(payload, \"models\")")
         expectContains(nativeShim, "QJsonArray conversations = payloadArray(payload, \"conversations\")")
@@ -1615,6 +1619,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "int styleInt(const QJsonObject &style, const char *key)")
         expectDoesNotContain(nativeShim, "stringValue(payload, \"")
         expectDoesNotContain(nativeShim, "boolValue(payload, \"")
+        expectDoesNotContain(nativeShim, "objectValue(payload, \"")
         expectDoesNotContain(nativeShim, "arrayValue(payload, \"")
         expectDoesNotContain(nativeShim, "intValue(style, \"")
         expectDoesNotContain(nativeShim, "cssPixels(style, \"")
