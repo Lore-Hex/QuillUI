@@ -146,7 +146,8 @@ struct CoreContractMatrixTests {
         }
 
         for needle in [
-            "QString iconName(const QJsonObject &icons, const char *key, const QString &fallback)",
+            "QString requiredIconName(const QJsonObject &icons, const char *key)",
+            "requiredStringValue(icons, key).trimmed()",
             "QIcon systemImageIcon(const QString &systemImage)",
             "QIcon newConversationButtonIcon(const QJsonObject &icons)",
             "QIcon attachButtonIcon(const QJsonObject &icons)",
@@ -154,6 +155,12 @@ struct CoreContractMatrixTests {
             "QIcon attachmentChipIcon(const QJsonObject &icons)",
             "QIcon sendButtonIcon(const QJsonObject &icons, bool isLoading)",
             "QIcon removeAttachmentButtonIcon(const QJsonObject &icons)",
+            "systemImageIcon(requiredIconName(icons, \"newConversation\"))",
+            "systemImageIcon(requiredIconName(icons, \"attach\"))",
+            "systemImageIcon(requiredIconName(icons, \"dropTarget\"))",
+            "systemImageIcon(requiredIconName(icons, \"attachment\"))",
+            "systemImageIcon(requiredIconName(icons, key))",
+            "systemImageIcon(requiredIconName(icons, \"removeAttachment\"))",
             "QJsonObject icons = objectValue(payload, \"icons\")",
             "icons = objectValue(payload, \"icons\")",
             "newConversationButton->setIcon(newConversationButtonIcon(icons))",
@@ -179,6 +186,8 @@ struct CoreContractMatrixTests {
         }
 
         for needle in [
+            "QString iconName(const QJsonObject &icons, const char *key, const QString &fallback)",
+            "iconName(icons,",
             "QIcon newChatButtonIcon()",
             "QLabel *dropTargetIconLabel = new QLabel()",
             "dropTargetIcon().pixmap(dropTargetIconSize, dropTargetIconSize)",

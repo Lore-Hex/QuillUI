@@ -139,8 +139,12 @@ QIcon themedActionIcon(const QString &themeName, QStyle::StandardPixmap fallback
     return QIcon::fromTheme(themeName, QApplication::style()->standardIcon(fallback));
 }
 
-QString iconName(const QJsonObject &icons, const char *key, const QString &fallback) {
-    return stringValue(icons, key, fallback).trimmed();
+QString requiredIconName(const QJsonObject &icons, const char *key) {
+    const QString value = requiredStringValue(icons, key).trimmed();
+    if (!value.isEmpty()) {
+        return value;
+    }
+    failRequiredPayloadField(key, "non-empty string");
 }
 
 QIcon systemImageIcon(const QString &systemImage) {
@@ -173,19 +177,19 @@ QIcon systemImageIcon(const QString &systemImage) {
 }
 
 QIcon newConversationButtonIcon(const QJsonObject &icons) {
-    return systemImageIcon(iconName(icons, "newConversation", QStringLiteral("square.and.pencil")));
+    return systemImageIcon(requiredIconName(icons, "newConversation"));
 }
 
 QIcon attachButtonIcon(const QJsonObject &icons) {
-    return systemImageIcon(iconName(icons, "attach", QStringLiteral("folder.badge.plus")));
+    return systemImageIcon(requiredIconName(icons, "attach"));
 }
 
 QIcon dropTargetIcon(const QJsonObject &icons) {
-    return systemImageIcon(iconName(icons, "dropTarget", QStringLiteral("folder.badge.plus")));
+    return systemImageIcon(requiredIconName(icons, "dropTarget"));
 }
 
 QIcon attachmentChipIcon(const QJsonObject &icons) {
-    return systemImageIcon(iconName(icons, "attachment", QStringLiteral("folder")));
+    return systemImageIcon(requiredIconName(icons, "attachment"));
 }
 
 QIcon promptButtonIcon(const QString &systemImage) {
@@ -206,14 +210,11 @@ QIcon settingsButtonIcon() {
 
 QIcon sendButtonIcon(const QJsonObject &icons, bool isLoading) {
     const char *key = isLoading ? "stop" : "send";
-    const QString fallback = isLoading
-        ? QStringLiteral("square.fill")
-        : QStringLiteral("arrow.forward.circle.fill");
-    return systemImageIcon(iconName(icons, key, fallback));
+    return systemImageIcon(requiredIconName(icons, key));
 }
 
 QIcon removeAttachmentButtonIcon(const QJsonObject &icons) {
-    return systemImageIcon(iconName(icons, "removeAttachment", QStringLiteral("xmark.circle.fill")));
+    return systemImageIcon(requiredIconName(icons, "removeAttachment"));
 }
 
 QString promptTitle(const QJsonValue &value) {
