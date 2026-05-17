@@ -1797,10 +1797,19 @@ extern "C" int quill_enchanted_qt_run_app_json(
     };
 
     QFrame *composer = QuillQtWidgets::frame(QStringLiteral("composer"));
-    QVBoxLayout *composerLayout = new QVBoxLayout(composer);
+    QHBoxLayout *composerBandLayout = new QHBoxLayout(composer);
+    composerBandLayout->setContentsMargins(0, 0, 0, 0);
+    composerBandLayout->setSpacing(0);
+    QWidget *composerContent = new QWidget();
+    composerContent->setMinimumWidth(intValue(style, "composerMinWidth", 620));
+    composerContent->setMaximumWidth(intValue(style, "composerMaxWidth", 840));
+    QVBoxLayout *composerLayout = new QVBoxLayout(composerContent);
     const int composerPadding = intValue(style, "composerPadding", 18);
     composerLayout->setContentsMargins(composerPadding, composerPadding, composerPadding, composerPadding);
     composerLayout->setSpacing(intValue(style, "composerSpacing", 10));
+    composerBandLayout->addStretch(1);
+    composerBandLayout->addWidget(composerContent);
+    composerBandLayout->addStretch(1);
 
     AttachmentDropFrame *dropTarget = new AttachmentDropFrame();
     QVBoxLayout *dropTargetLayout = new QVBoxLayout(dropTarget);

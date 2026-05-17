@@ -174,6 +174,11 @@ public struct EnchantedRootView: View {
 
             composer
                 .padding(CGFloat(EnchantedVisualMetrics.composerPadding))
+                .frame(
+                    minWidth: CGFloat(EnchantedVisualMetrics.composerMinWidth),
+                    maxWidth: CGFloat(EnchantedVisualMetrics.composerMaxWidth)
+                )
+                .frame(maxWidth: .infinity, alignment: .center)
                 .background(QuillColors.header)
         }
     }
