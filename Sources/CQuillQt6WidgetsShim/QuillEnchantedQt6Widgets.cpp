@@ -1146,8 +1146,9 @@ void addMarkdownBlocks(QVBoxLayout *layout, const QString &markdown, const QJson
 QWidget *markdownMessageWidget(const QString &markdown, const QJsonObject &style) {
     QWidget *container = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(container);
+    const int markdownBlockSpacing = styleInt(style, "markdownBlockSpacing");
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(styleInt(style, "markdownBlockSpacing"));
+    layout->setSpacing(markdownBlockSpacing);
     addMarkdownBlocks(layout, markdown, style);
     return container;
 }
