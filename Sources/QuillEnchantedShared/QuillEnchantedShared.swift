@@ -1,26 +1,85 @@
 import Foundation
 
 public struct EnchantedPrompt: Codable, Equatable, Hashable, Sendable {
+    private enum CodingKeys: String, CodingKey {
+        case title
+        case kind
+        case systemImage
+    }
+
+    public enum Kind: String, Codable, Equatable, Hashable, Sendable {
+        case question
+        case action
+
+        public var systemImage: String {
+            switch self {
+            case .question:
+                return "questionmark.circle"
+            case .action:
+                return "lightbulb.circle"
+            }
+        }
+
+        public init(systemImage: String) {
+            let normalized = systemImage.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if normalized.contains("questionmark") {
+                self = .question
+            } else {
+                self = .action
+            }
+        }
+    }
+
     public var title: String
+    public var kind: Kind
     public var systemImage: String
 
+    public init(title: String, kind: Kind) {
+        self.init(title: title, kind: kind, systemImage: kind.systemImage)
+    }
+
     public init(title: String, systemImage: String) {
+        self.init(title: title, kind: Kind(systemImage: systemImage), systemImage: systemImage)
+    }
+
+    private init(title: String, kind: Kind, systemImage: String) {
         self.title = title
+        self.kind = kind
         self.systemImage = systemImage
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let title = try container.decode(String.self, forKey: .title)
+
+        if let kind = try container.decodeIfPresent(Kind.self, forKey: .kind) {
+            let systemImage = try container.decodeIfPresent(String.self, forKey: .systemImage) ?? kind.systemImage
+            self.init(title: title, kind: kind, systemImage: systemImage)
+        } else {
+            let systemImage = try container.decodeIfPresent(String.self, forKey: .systemImage) ?? Kind.action.systemImage
+            self.init(title: title, systemImage: systemImage)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(title, forKey: .title)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(systemImage, forKey: .systemImage)
     }
 }
 
 public enum EnchantedPromptCatalog {
-    public static let questionIconName = "questionmark.circle"
-    public static let actionIconName = "lightbulb.circle"
+    public static let questionIconName = EnchantedPrompt.Kind.question.systemImage
+    public static let actionIconName = EnchantedPrompt.Kind.action.systemImage
 
     public static let emptyConversationPrompts = [
-        EnchantedPrompt(title: "How to center div in HTML?", systemImage: questionIconName),
-        EnchantedPrompt(title: "How to do personal taxes in USA?", systemImage: questionIconName),
-        EnchantedPrompt(title: "Explain supercomputers like I'm five years old", systemImage: actionIconName),
+        EnchantedPrompt(title: "How to center div in HTML?", kind: .question),
+        EnchantedPrompt(title: "How to do personal taxes in USA?", kind: .question),
+        EnchantedPrompt(title: "Explain supercomputers like I'm five years old", kind: .action),
         EnchantedPrompt(
             title: "Write a text message asking a friend to be my plus-one at a wedding",
-            systemImage: actionIconName
+            kind: .action
         )
     ]
 

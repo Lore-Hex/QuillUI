@@ -100,10 +100,11 @@ QIcon attachmentChipIcon() {
 }
 
 QIcon promptButtonIcon(const QString &systemImage) {
-    if (systemImage.contains(QStringLiteral("questionmark"))) {
+    const QString normalized = systemImage.trimmed().toLower();
+    if (normalized.contains(QStringLiteral("questionmark"))) {
         return themedActionIcon(QStringLiteral("help-about-symbolic"), QStyle::SP_MessageBoxQuestion);
     }
-    if (systemImage.contains(QStringLiteral("lightbulb"))) {
+    if (normalized.contains(QStringLiteral("lightbulb"))) {
         return themedActionIcon(QStringLiteral("dialog-information-symbolic"), QStyle::SP_MessageBoxInformation);
     }
     return themedActionIcon(QStringLiteral("starred-symbolic"), QStyle::SP_DialogYesButton);
@@ -138,9 +139,28 @@ QString promptTitle(const QJsonValue &value) {
     return value.toString();
 }
 
+QString promptKind(const QJsonValue &value) {
+    if (!value.isObject()) {
+        return QString();
+    }
+    return stringValue(value.toObject(), "kind").trimmed().toLower();
+}
+
 QString promptSystemImage(const QJsonValue &value) {
     if (value.isObject()) {
-        return stringValue(value.toObject(), "systemImage");
+        const QJsonObject prompt = value.toObject();
+        const QString systemImage = stringValue(prompt, "systemImage").trimmed();
+        if (!systemImage.isEmpty()) {
+            return systemImage;
+        }
+
+        const QString kind = promptKind(value);
+        if (kind == QStringLiteral("question")) {
+            return QStringLiteral("questionmark.circle");
+        }
+        if (kind == QStringLiteral("action")) {
+            return QStringLiteral("lightbulb.circle");
+        }
     }
     return QString();
 }

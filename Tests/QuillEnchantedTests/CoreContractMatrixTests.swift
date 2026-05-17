@@ -60,6 +60,24 @@ struct CoreContractMatrixTests {
         }
     }
 
+    @Test("decodes prompt kind from legacy system image payloads")
+    func promptKindBackfillContracts() throws {
+        let legacyQuestion = Data(
+            #"{"title":"How to center div in HTML?","systemImage":"questionmark.circle"}"#.utf8
+        )
+        let prompt = try JSONDecoder().decode(EnchantedPrompt.self, from: legacyQuestion)
+
+        #expect(prompt.kind == .question)
+        #expect(prompt.systemImage == "questionmark.circle")
+
+        let encoded = try JSONEncoder().encode(prompt)
+        let encodedObject = try #require(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        #expect(encodedObject["kind"] as? String == "question")
+        #expect(encodedObject["systemImage"] as? String == "questionmark.circle")
+    }
+
     @Test("normalizes attachment paths", arguments: pathCases)
     func pathNormalizationContracts(testCase: PathCase) throws {
         let url = try #require(PendingImageAttachment.fileURL(from: testCase.rawPath))
@@ -368,11 +386,17 @@ struct CoreContractMatrixTests {
         #expect(runtime.contains("content: displayContent"))
         #expect(runtime.contains("imagesForLastUserMessage: encodedImages"))
         #expect(runtime.contains("private static func imageAttachments(from rawPaths: [String]) throws -> [PendingImageAttachment]"))
+        #expect(runtime.contains("var kind: String"))
+        #expect(runtime.contains("self.kind = prompt.kind.rawValue"))
         #expect(sharedPrompts.contains("public struct EnchantedPrompt: Codable, Equatable, Hashable, Sendable"))
-        #expect(sharedPrompts.contains("public static let questionIconName = \"questionmark.circle\""))
-        #expect(sharedPrompts.contains("public static let actionIconName = \"lightbulb.circle\""))
-        #expect(sharedPrompts.contains("systemImage: questionIconName"))
-        #expect(sharedPrompts.contains("systemImage: actionIconName"))
+        #expect(sharedPrompts.contains("public enum Kind: String, Codable, Equatable, Hashable, Sendable"))
+        #expect(sharedPrompts.contains("case question"))
+        #expect(sharedPrompts.contains("case action"))
+        #expect(sharedPrompts.contains("public init(title: String, kind: Kind)"))
+        #expect(sharedPrompts.contains("public static let questionIconName = EnchantedPrompt.Kind.question.systemImage"))
+        #expect(sharedPrompts.contains("public static let actionIconName = EnchantedPrompt.Kind.action.systemImage"))
+        #expect(sharedPrompts.contains("kind: .question"))
+        #expect(sharedPrompts.contains("kind: .action"))
         #expect(sharedPrompts.contains("public static let emptyConversationTitles = emptyConversationPrompts.map(\\.title)"))
         #expect(sharedPrompts.contains("public enum EnchantedPalette"))
         #expect(sharedPrompts.contains("public static let canvasColor = \"#FBFBFD\""))
@@ -866,6 +890,13 @@ struct CoreContractMatrixTests {
         #expect(!nativeShim.contains("border-radius: 1px;"))
         #expect(!nativeShim.contains("layout->setContentsMargins(13, 13, 13, 13)"))
         #expect(nativeShim.contains("QIcon promptButtonIcon(const QString &systemImage)"))
+        #expect(nativeShim.contains("const QString normalized = systemImage.trimmed().toLower()"))
+        #expect(nativeShim.contains("QString promptKind(const QJsonValue &value)"))
+        #expect(nativeShim.contains("return stringValue(value.toObject(), \"kind\").trimmed().toLower()"))
+        #expect(nativeShim.contains("if (kind == QStringLiteral(\"question\"))"))
+        #expect(nativeShim.contains("return QStringLiteral(\"questionmark.circle\")"))
+        #expect(nativeShim.contains("if (kind == QStringLiteral(\"action\"))"))
+        #expect(nativeShim.contains("return QStringLiteral(\"lightbulb.circle\")"))
         #expect(nativeShim.contains("QStringLiteral(\"help-about-symbolic\")"))
         #expect(nativeShim.contains("QStringLiteral(\"dialog-information-symbolic\")"))
         #expect(nativeShim.contains("QStringLiteral(\"starred-symbolic\")"))

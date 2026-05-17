@@ -112,15 +112,18 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
 
     struct Prompt: Codable, Sendable {
         var title: String
+        var kind: String
         var systemImage: String
 
-        init(title: String, systemImage: String) {
+        init(title: String, kind: EnchantedPrompt.Kind) {
             self.title = title
-            self.systemImage = systemImage
+            self.kind = kind.rawValue
+            self.systemImage = kind.systemImage
         }
 
         init(_ prompt: EnchantedPrompt) {
             self.title = prompt.title
+            self.kind = prompt.kind.rawValue
             self.systemImage = prompt.systemImage
         }
     }
