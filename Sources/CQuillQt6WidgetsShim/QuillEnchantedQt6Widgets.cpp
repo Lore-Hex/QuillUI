@@ -103,6 +103,30 @@ int requiredIntValue(const QJsonObject &object, const char *key) {
     failRequiredPayloadField(key, "integer");
 }
 
+QStringList requiredStringListValue(const QJsonObject &object, const char *key) {
+    const QJsonValue value = requiredValue(object, key, "string array");
+    if (!value.isArray()) {
+        failRequiredPayloadField(key, "string array");
+    }
+
+    QStringList list;
+    for (const QJsonValue &entry : value.toArray()) {
+        if (!entry.isString()) {
+            failRequiredPayloadField(key, "string array");
+        }
+
+        const QString item = entry.toString().trimmed().toLower();
+        if (!item.isEmpty() && !list.contains(item)) {
+            list.append(item);
+        }
+    }
+
+    if (!list.isEmpty()) {
+        return list;
+    }
+    failRequiredPayloadField(key, "non-empty string array");
+}
+
 QString styleValue(const QJsonObject &style, const char *key) {
     return requiredStringValue(style, key);
 }
@@ -1357,26 +1381,33 @@ bool hasTrimmedText(const QPlainTextEdit *editor) {
     return editor != nullptr && !editor->toPlainText().trimmed().isEmpty();
 }
 
-const qint64 attachmentMaxByteCount = 20 * 1024 * 1024;
-
 struct AttachmentPathValidation {
     QStringList acceptedPaths;
     QString lastError;
 };
 
+struct AttachmentValidationPolicy {
+    qint64 maxByteCount;
+    QStringList supportedExtensions;
+    QString unsupportedSuffix;
+    QString unreadablePrefix;
+    QString unreadableSuffix;
+    QString oversizedMiddle;
+    QString oversizedSuffix;
+};
+
 QString formattedAttachmentByteCount(qint64 byteCount);
 QString attachmentDisplaySize(const QString &rawPath);
 
-QStringList supportedAttachmentExtensions() {
-    return {
-        QStringLiteral("gif"),
-        QStringLiteral("heic"),
-        QStringLiteral("jpeg"),
-        QStringLiteral("jpg"),
-        QStringLiteral("png"),
-        QStringLiteral("tif"),
-        QStringLiteral("tiff"),
-        QStringLiteral("webp")
+AttachmentValidationPolicy attachmentValidationPolicy(const QJsonObject &payload) {
+    return AttachmentValidationPolicy{
+        requiredIntValue(payload, "attachmentMaxByteCount"),
+        requiredStringListValue(payload, "supportedAttachmentExtensions"),
+        requiredStringValue(payload, "unsupportedAttachmentSuffix"),
+        requiredStringValue(payload, "unreadableAttachmentPrefix"),
+        requiredStringValue(payload, "unreadableAttachmentSuffix"),
+        requiredStringValue(payload, "oversizedAttachmentMiddle"),
+        requiredStringValue(payload, "oversizedAttachmentSuffix")
     };
 }
 
@@ -1443,21 +1474,23 @@ QStringList normalizedAttachmentPaths(const QStringList &rawPaths) {
     return normalizedPaths;
 }
 
-QString unsupportedAttachmentMessage(const QString &name) {
-    return QStringLiteral("%1 is not a supported image attachment.").arg(name);
+QString unsupportedAttachmentMessage(const QString &name, const AttachmentValidationPolicy &policy) {
+    return name + policy.unsupportedSuffix;
 }
 
-QString unreadableAttachmentMessage(const QString &path) {
-    return QStringLiteral("Could not read image attachment at %1.").arg(path);
+QString unreadableAttachmentMessage(const QString &path, const AttachmentValidationPolicy &policy) {
+    return policy.unreadablePrefix + path + policy.unreadableSuffix;
 }
 
-QString oversizedAttachmentMessage(const QString &name, qint64 byteCount) {
-    return QStringLiteral("%1 is too large to attach (%2).").arg(name, formattedAttachmentByteCount(byteCount));
+QString oversizedAttachmentMessage(const QString &name, qint64 byteCount, const AttachmentValidationPolicy &policy) {
+    return name + policy.oversizedMiddle + formattedAttachmentByteCount(byteCount) + policy.oversizedSuffix;
 }
 
-AttachmentPathValidation validatedAttachmentPaths(const QStringList &rawPaths) {
+AttachmentPathValidation validatedAttachmentPaths(
+    const QStringList &rawPaths,
+    const AttachmentValidationPolicy &policy
+) {
     AttachmentPathValidation validation;
-    const QStringList supportedExtensions = supportedAttachmentExtensions();
 
     for (const QString &rawPath : rawPaths) {
         const QString path = normalizedAttachmentPath(rawPath);
@@ -1467,19 +1500,19 @@ AttachmentPathValidation validatedAttachmentPaths(const QStringList &rawPaths) {
 
         const QFileInfo fileInfo(path);
         const QString displayName = fileInfo.fileName().isEmpty() ? path : fileInfo.fileName();
-        if (!supportedExtensions.contains(fileInfo.suffix().toLower())) {
-            validation.lastError = unsupportedAttachmentMessage(displayName);
+        if (!policy.supportedExtensions.contains(fileInfo.suffix().toLower())) {
+            validation.lastError = unsupportedAttachmentMessage(displayName, policy);
             continue;
         }
 
         if (!fileInfo.exists() || !fileInfo.isFile() || !fileInfo.isReadable()) {
-            validation.lastError = unreadableAttachmentMessage(path);
+            validation.lastError = unreadableAttachmentMessage(path, policy);
             continue;
         }
 
         const qint64 byteCount = fileInfo.size();
-        if (byteCount > attachmentMaxByteCount) {
-            validation.lastError = oversizedAttachmentMessage(displayName, byteCount);
+        if (byteCount > policy.maxByteCount) {
+            validation.lastError = oversizedAttachmentMessage(displayName, byteCount, policy);
             continue;
         }
 
@@ -1491,13 +1524,15 @@ AttachmentPathValidation validatedAttachmentPaths(const QStringList &rawPaths) {
     return validation;
 }
 
-QStringList attachmentCandidatePathsFromMimeData(const QMimeData *mimeData) {
+QStringList attachmentCandidatePathsFromMimeData(
+    const QMimeData *mimeData,
+    const QStringList &supportedExtensions
+) {
     QStringList paths;
     if (mimeData == nullptr || !mimeData->hasUrls()) {
         return paths;
     }
 
-    const QStringList supportedExtensions = supportedAttachmentExtensions();
     for (const QUrl &url : mimeData->urls()) {
         if (!url.isLocalFile()) {
             continue;
@@ -1535,6 +1570,10 @@ public:
         dropHandler = handler;
     }
 
+    void setSupportedAttachmentExtensions(const QStringList &extensions) {
+        supportedAttachmentExtensions = extensions;
+    }
+
     void setDropHint(QWidget *hint) {
         dropHint = hint;
         if (dropHint != nullptr) {
@@ -1558,7 +1597,10 @@ protected:
 
     void dropEvent(QDropEvent *event) override {
         setDragActive(false);
-        const QStringList paths = attachmentCandidatePathsFromMimeData(event->mimeData());
+        const QStringList paths = attachmentCandidatePathsFromMimeData(
+            event->mimeData(),
+            supportedAttachmentExtensions
+        );
         if (paths.isEmpty()) {
             event->ignore();
             return;
@@ -1576,7 +1618,10 @@ private:
             return;
         }
 
-        const bool acceptsDrop = !attachmentCandidatePathsFromMimeData(event->mimeData()).isEmpty();
+        const bool acceptsDrop = !attachmentCandidatePathsFromMimeData(
+            event->mimeData(),
+            supportedAttachmentExtensions
+        ).isEmpty();
         setDragActive(acceptsDrop);
         if (acceptsDrop) {
             event->acceptProposedAction();
@@ -1599,6 +1644,7 @@ private:
 
     DropHandler dropHandler;
     QWidget *dropHint = nullptr;
+    QStringList supportedAttachmentExtensions;
 };
 
 QString attachmentSummaryForPaths(const QStringList &rawPaths) {
@@ -2118,6 +2164,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QString attachmentDefaultPrompt = stringValue(payload, "attachmentDefaultPrompt");
     const QString attachmentDefaultPromptPlural = stringValue(payload, "attachmentDefaultPromptPlural");
     const QString attachmentSummaryTitle = stringValue(payload, "attachmentSummaryTitle");
+    const AttachmentValidationPolicy attachmentPolicy = attachmentValidationPolicy(payload);
     const QString removeAttachmentTooltip = stringValue(payload, "removeAttachmentTooltip");
     const QString imageReadyStatusSingular = stringValue(payload, "imageReadyStatusSingular");
     const QString imageReadyStatusPluralUnit = stringValue(payload, "imageReadyStatusPluralUnit");
@@ -2271,7 +2318,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         updateComposerControlState();
     };
     auto addPendingAttachmentPaths = [&](const QStringList &rawPaths) -> bool {
-        const AttachmentPathValidation validation = validatedAttachmentPaths(rawPaths);
+        const AttachmentPathValidation validation = validatedAttachmentPaths(rawPaths, attachmentPolicy);
         bool accepted = false;
         for (const QString &path : validation.acceptedPaths) {
             if (pendingAttachmentPaths.contains(path)) {
@@ -2297,6 +2344,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         ));
         return true;
     };
+    dropTarget->setSupportedAttachmentExtensions(attachmentPolicy.supportedExtensions);
     dropTarget->setDropHandler([&](const QStringList &paths) {
         addPendingAttachmentPaths(paths);
     });

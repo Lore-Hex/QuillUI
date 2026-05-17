@@ -49,6 +49,13 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var attachmentDefaultPrompt: String
     var attachmentDefaultPromptPlural: String
     var attachmentSummaryTitle: String
+    var attachmentMaxByteCount: Int64
+    var supportedAttachmentExtensions: [String]
+    var unsupportedAttachmentSuffix: String
+    var unreadableAttachmentPrefix: String
+    var unreadableAttachmentSuffix: String
+    var oversizedAttachmentMiddle: String
+    var oversizedAttachmentSuffix: String
     var composerPlaceholder: String
     var sendTitle: String
     var stopTitle: String
@@ -336,6 +343,13 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         attachmentDefaultPrompt: EnchantedCopy.attachmentDefaultPrompt,
         attachmentDefaultPromptPlural: EnchantedCopy.attachmentDefaultPromptPlural,
         attachmentSummaryTitle: EnchantedCopy.attachmentSummaryTitle,
+        attachmentMaxByteCount: PendingImageAttachment.maxByteCount,
+        supportedAttachmentExtensions: PendingImageAttachment.supportedExtensions.sorted(),
+        unsupportedAttachmentSuffix: EnchantedCopy.unsupportedAttachmentSuffix,
+        unreadableAttachmentPrefix: EnchantedCopy.unreadableAttachmentPrefix,
+        unreadableAttachmentSuffix: EnchantedCopy.unreadableAttachmentSuffix,
+        oversizedAttachmentMiddle: EnchantedCopy.oversizedAttachmentMiddle,
+        oversizedAttachmentSuffix: EnchantedCopy.oversizedAttachmentSuffix,
         composerPlaceholder: EnchantedCopy.composerPlaceholder,
         sendTitle: EnchantedCopy.sendTitle,
         stopTitle: EnchantedCopy.stopTitle,

@@ -9,11 +9,14 @@ public enum ImageAttachmentError: Error, LocalizedError, Equatable, Sendable {
     public var errorDescription: String? {
         switch self {
         case .unsupportedFileType(let name):
-            return "\(name) is not a supported image attachment."
+            return EnchantedCopy.unsupportedAttachmentStatus(name)
         case .unreadableFile(let path):
-            return "Could not read image attachment at \(path)."
+            return EnchantedCopy.unreadableAttachmentStatus(path)
         case .fileTooLarge(let name, let byteCount):
-            return "\(name) is too large to attach (\(PendingImageAttachment.formatByteCount(byteCount)))."
+            return EnchantedCopy.oversizedAttachmentStatus(
+                name,
+                formattedByteCount: PendingImageAttachment.formatByteCount(byteCount)
+            )
         }
     }
 }

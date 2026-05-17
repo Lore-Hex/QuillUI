@@ -139,6 +139,11 @@ public enum EnchantedCopy {
     public static let attachmentDefaultPrompt = "Describe this image."
     public static let attachmentDefaultPromptPlural = "Describe these images."
     public static let attachmentSummaryTitle = "[Attached images]"
+    public static let unsupportedAttachmentSuffix = " is not a supported image attachment."
+    public static let unreadableAttachmentPrefix = "Could not read image attachment at "
+    public static let unreadableAttachmentSuffix = "."
+    public static let oversizedAttachmentMiddle = " is too large to attach ("
+    public static let oversizedAttachmentSuffix = ")."
     public static let composerPlaceholder = "Ask a local model..."
     public static let sendTitle = "Send"
     public static let stopTitle = "Stop"
@@ -175,6 +180,18 @@ public enum EnchantedCopy {
 
     public static func imageReadyStatus(count: Int) -> String {
         count == 1 ? imageReadyStatusSingular : "\(count) \(imageReadyStatusPluralUnit)"
+    }
+
+    public static func unsupportedAttachmentStatus(_ name: String) -> String {
+        "\(name)\(unsupportedAttachmentSuffix)"
+    }
+
+    public static func unreadableAttachmentStatus(_ path: String) -> String {
+        "\(unreadableAttachmentPrefix)\(path)\(unreadableAttachmentSuffix)"
+    }
+
+    public static func oversizedAttachmentStatus(_ name: String, formattedByteCount: String) -> String {
+        "\(name)\(oversizedAttachmentMiddle)\(formattedByteCount)\(oversizedAttachmentSuffix)"
     }
 
     public static func couldNotCreateConversationStatus(_ message: String) -> String {
