@@ -863,6 +863,7 @@ struct SourceHygieneTests {
         #expect(enchantedQtRuntime.contains("OllamaClient(baseURL: endpoint).fetchModels()"))
         #expect(enchantedQtRuntime.contains("context.updateConversationTitle(id: selectedConversationID, title: prompt.quillTitle())"))
         #expect(enchantedQtRuntime.contains("var selectedConversationID = try existingConversationID(request.conversationID, context: context)"))
+        #expect(enchantedQtRuntime.occurrences(of: "existingConversationID(request.conversationID, context: context)") == 1)
         #expect(enchantedQtRuntime.contains("selectedConversationID: selectedConversationID,"))
         #expect(!enchantedQtRuntime.contains("selectedConversationID: existingConversationID(request.conversationID, context: context),"))
         #expect(enchantedQtRuntime.contains("let displayContent = PendingImageAttachment.displayContent(prompt: prompt, attachments: attachments)"))

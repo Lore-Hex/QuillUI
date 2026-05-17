@@ -626,7 +626,6 @@ private enum QuillEnchantedQtActionBridge {
                 guard let messageText = request.messageText?.quillTrimmedNonEmpty
                     ?? (attachments.isEmpty ? nil : PendingImageAttachment.defaultPrompt(for: attachments))
                 else {
-                    selectedConversationID = try existingConversationID(request.conversationID, context: context)
                     status = EnchantedCopy.messageEmptyStatus
                     break
                 }
