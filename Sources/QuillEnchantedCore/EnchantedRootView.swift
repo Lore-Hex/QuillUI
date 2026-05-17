@@ -8,7 +8,7 @@ import SwiftUI
 @MainActor
 public struct EnchantedRootView: View {
     @StateObject private var model = EnchantedModel()
-    @AppStorage("quill.enchanted.ollamaEndpoint") private var endpoint = "http://localhost:11434"
+    @AppStorage("quill.enchanted.ollamaEndpoint") private var endpoint = EnchantedCopy.defaultEndpoint
 
     public init() {}
 
@@ -42,10 +42,10 @@ public struct EnchantedRootView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarSpacing)) {
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarTitleSpacing)) {
-                Text("Enchanted")
+                Text(EnchantedCopy.appTitle)
                     .font(.system(size: CGFloat(EnchantedTypography.appTitleFontSize), weight: .bold))
                     .foregroundColor(QuillColors.ink)
-                Text("QuillUI Linux preview")
+                Text(EnchantedCopy.sidebarSubtitle)
                     .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(QuillColors.muted)
             }
@@ -53,7 +53,7 @@ public struct EnchantedRootView: View {
             Button(action: model.newConversation) {
                 HStack(spacing: CGFloat(EnchantedVisualMetrics.primaryButtonIconSpacing)) {
                     Image(systemName: "square.and.pencil")
-                    Text("New chat")
+                    Text(EnchantedCopy.newChatTitle)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(CGFloat(EnchantedVisualMetrics.primaryButtonPadding))
@@ -64,23 +64,23 @@ public struct EnchantedRootView: View {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
-                Text("Ollama endpoint")
+                Text(EnchantedCopy.endpointLabel)
                     .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(QuillColors.muted)
-                TextField("http://localhost:11434", text: $endpoint)
+                TextField(EnchantedCopy.defaultEndpoint, text: $endpoint)
                     .textFieldStyle(.roundedBorder)
             }
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
-                Text("Model")
+                Text(EnchantedCopy.modelLabel)
                     .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(QuillColors.muted)
                 if model.models.isEmpty {
-                    Text("No models detected")
+                    Text(EnchantedCopy.noModelsTitle)
                         .font(.system(size: CGFloat(EnchantedTypography.warningTextFontSize)))
                         .foregroundColor(QuillColors.warning)
                 } else {
-                    Picker("Model", selection: modelSelection) {
+                    Picker(EnchantedCopy.modelLabel, selection: modelSelection) {
                         ForEach(model.models) { ollamaModel in
                             Text(ollamaModel.name).tag(ollamaModel.name)
                         }
@@ -98,7 +98,7 @@ public struct EnchantedRootView: View {
 
             Divider()
 
-            Text("Conversations")
+            Text(EnchantedCopy.conversationsTitle)
                 .font(.system(size: CGFloat(EnchantedTypography.sectionTitleFontSize), weight: .bold))
                 .foregroundColor(QuillColors.ink)
 
@@ -120,12 +120,12 @@ public struct EnchantedRootView: View {
             }
 
             HStack(spacing: CGFloat(EnchantedVisualMetrics.conversationActionsSpacing)) {
-                Button("Delete chat") {
+                Button(EnchantedCopy.deleteChatTitle) {
                     model.deleteSelectedConversation()
                 }
                 .disabled(model.selectedConversationID == nil)
 
-                Button("Clear all") {
+                Button(EnchantedCopy.clearAllTitle) {
                     model.deleteAllConversations()
                 }
                 .disabled(model.conversations.isEmpty)
@@ -190,7 +190,7 @@ public struct EnchantedRootView: View {
                     .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: .semibold))
                     .foregroundColor(QuillColors.ink)
                     .frame(width: CGFloat(EnchantedVisualMetrics.headerTitleWidth), alignment: .leading)
-                Text(model.selectedModel.isEmpty ? "Choose a local model to begin" : "Using \(model.selectedModel)")
+                Text(model.selectedModel.isEmpty ? EnchantedCopy.chooseLocalModelStatus : EnchantedCopy.usingModel(model.selectedModel))
                     .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(QuillColors.muted)
                     .frame(width: CGFloat(EnchantedVisualMetrics.headerTitleWidth), alignment: .leading)
@@ -198,7 +198,7 @@ public struct EnchantedRootView: View {
 
             Spacer()
 
-            Button("Refresh models") {
+            Button(EnchantedCopy.refreshModelsTitle) {
                 let model = model
                 Task {
                     await model.refreshModels()
@@ -213,7 +213,7 @@ public struct EnchantedRootView: View {
             if model.isAttachmentDropTargeted {
                 HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentInputSpacing)) {
                     Image(systemName: "folder.badge.plus")
-                    Text("Drop image files to attach")
+                    Text(EnchantedCopy.dropTargetTitle)
                 }
                 .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                 .foregroundColor(QuillColors.primary)
@@ -228,7 +228,7 @@ public struct EnchantedRootView: View {
             }
 
             HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentInputSpacing)) {
-                TextField("Image path or drop files here", text: attachmentPath)
+                TextField(EnchantedCopy.attachmentPlaceholder, text: attachmentPath)
                     .textFieldStyle(.roundedBorder)
 
                 Button(action: {
@@ -236,12 +236,12 @@ public struct EnchantedRootView: View {
                 }) {
                     HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
                         Image(systemName: "folder.badge.plus")
-                        Text("Attach")
+                        Text(EnchantedCopy.attachTitle)
                     }
                 }
                 .disabled(!hasAttachmentPathCandidates)
 
-                Button("Clear") {
+                Button(EnchantedCopy.clearAttachmentsTitle) {
                     model.clearAttachments()
                 }
                 .disabled(model.pendingImageAttachments.isEmpty && !hasAttachmentPathCandidates)
@@ -265,7 +265,7 @@ public struct EnchantedRootView: View {
                 }) {
                     HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
                         Image(systemName: model.isLoading ? "square.fill" : "arrow.forward.circle.fill")
-                        Text(model.isLoading ? "Stop" : "Send")
+                        Text(model.isLoading ? EnchantedCopy.stopTitle : EnchantedCopy.sendTitle)
                     }
                     .padding(CGFloat(EnchantedVisualMetrics.primaryButtonPadding))
                     .background(model.isLoading ? QuillColors.warning : QuillColors.primary)
@@ -284,7 +284,7 @@ public struct EnchantedRootView: View {
     }
 
     private var currentTitle: String {
-        model.conversations.first(where: { $0.id == model.selectedConversationID })?.title ?? "New conversation"
+        model.conversations.first(where: { $0.id == model.selectedConversationID })?.title ?? EnchantedCopy.newConversationTitle
     }
 
     private var modelSelection: Binding<String> {
@@ -319,7 +319,7 @@ public struct EnchantedRootView: View {
 
     private var attachmentTray: some View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.attachmentTraySpacing)) {
-            Text("Attachments")
+            Text(EnchantedCopy.attachmentsTitle)
                 .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                 .foregroundColor(QuillColors.muted)
             ScrollView(.horizontal) {
@@ -345,10 +345,10 @@ public struct EnchantedRootView: View {
 
     private var emptyHistory: some View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyHistorySpacing)) {
-            Text("No saved chats yet")
+            Text(EnchantedCopy.emptyHistoryTitle)
                 .font(.system(size: CGFloat(EnchantedTypography.sectionTitleFontSize), weight: .bold))
                 .foregroundColor(QuillColors.ink)
-            Text("Start a chat and it will be saved locally.")
+            Text(EnchantedCopy.emptyHistorySubtitle)
                 .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                 .foregroundColor(QuillColors.muted)
         }
@@ -395,10 +395,10 @@ private struct EmptyConversationView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateSpacing)) {
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateHeaderSpacing)) {
-                Text("Ask your local model")
+                Text(EnchantedCopy.emptyStateTitle)
                     .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: .semibold))
                     .foregroundColor(QuillColors.ink)
-                Text("This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.")
+                Text(EnchantedCopy.emptyStateSubtitle)
                     .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(QuillColors.muted)
                     .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth), alignment: .leading)
@@ -467,11 +467,11 @@ private struct MessageBubble: View {
     private var label: String {
         switch message.role {
         case .user:
-            return "You"
+            return EnchantedCopy.userRoleLabel
         case .assistant:
-            return "Enchanted"
+            return EnchantedCopy.assistantRoleLabel
         case .system:
-            return "System"
+            return EnchantedCopy.systemRoleLabel
         }
     }
 

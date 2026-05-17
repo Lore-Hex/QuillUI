@@ -6,7 +6,7 @@ public struct QuillEnchantedApp: App {
 
     public var body: some Scene {
         QuillAppWindow.scene(
-            "Quill Enchanted",
+            EnchantedCopy.windowTitle,
             width: Double(EnchantedVisualMetrics.defaultWindowWidth),
             height: Double(EnchantedVisualMetrics.defaultWindowHeight)
         ) {

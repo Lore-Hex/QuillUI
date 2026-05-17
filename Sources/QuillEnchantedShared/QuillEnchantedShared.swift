@@ -9,6 +9,106 @@ public enum EnchantedPromptCatalog {
     ]
 }
 
+public enum EnchantedCopy {
+    public static let windowTitle = "Quill Enchanted"
+    public static let appTitle = "Enchanted"
+    public static let sidebarSubtitle = "QuillUI Linux preview"
+    public static let newChatTitle = "New chat"
+    public static let endpointLabel = "Ollama endpoint"
+    public static let defaultEndpoint = "http://localhost:11434"
+    public static let modelLabel = "Model"
+    public static let noModelsTitle = "No models detected"
+    public static let chooseLocalModelStatus = "Choose a local model to begin"
+
+    public static func usingModel(_ modelName: String) -> String {
+        "Using \(modelName)"
+    }
+
+    public static let conversationsTitle = "Conversations"
+    public static let deleteChatTitle = "Delete chat"
+    public static let clearAllTitle = "Clear all"
+    public static let refreshModelsTitle = "Refresh models"
+    public static let completionsTitle = "Completions"
+    public static let shortcutsTitle = "Shortcuts"
+    public static let settingsTitle = "Settings"
+    public static let completionsPanelSubtitle = "Prompt completions use the shared Enchanted profile."
+    public static let shortcutsPanelSubtitle = "Keyboard shortcuts use the shared QuillKit shortcut surface."
+    public static let settingsPanelSubtitle = "Refresh models, choose a local model, or clear history from this sidebar."
+    public static let dropTargetTitle = "Drop image files to attach"
+    public static let attachmentPlaceholder = "Image path or drop files here"
+    public static let attachTitle = "Attach"
+    public static let clearAttachmentsTitle = "Clear"
+    public static let attachmentsTitle = "Attachments"
+    public static let attachmentsClearedStatus = "Attachments cleared"
+    public static let attachmentDefaultPrompt = "Describe this image."
+    public static let attachmentDefaultPromptPlural = "Describe these images."
+    public static let attachmentSummaryTitle = "[Attached images]"
+    public static let composerPlaceholder = "Ask a local model..."
+    public static let sendTitle = "Send"
+    public static let stopTitle = "Stop"
+    public static let emptyHistoryTitle = "No saved chats yet"
+    public static let emptyHistorySubtitle = "Start a chat and it will be saved locally."
+    public static let emptyStateTitle = "Ask your local model"
+    public static let emptyStateSubtitle = "This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history."
+    public static let userRoleLabel = "You"
+    public static let assistantRoleLabel = "Enchanted"
+    public static let systemRoleLabel = "System"
+    public static let newConversationTitle = "New conversation"
+    public static let noMessagesYet = "No messages yet"
+    public static let systemLaunchMessage = "You are chatting with a local Ollama model in Enchanted."
+    public static let readyStatus = "Ready"
+    public static let readyForLocalInferenceStatus = "Ready for local inference"
+    public static let checkingOllamaStatus = "Checking Ollama..."
+    public static let noOllamaModelsStatus = "No Ollama models found"
+    public static let connectedStatus = "Connected"
+    public static let startOllamaStatus = "Start Ollama or edit endpoint."
+    public static let stoppingStatus = "Stopping..."
+    public static let stoppedStatus = "Stopped"
+    public static let conversationDeletedStatus = "Conversation deleted"
+    public static let historyClearedStatus = "History cleared"
+    public static let messageEmptyStatus = "Message is empty"
+    public static let unsupportedActionStatus = "Unsupported action"
+    public static let openingStreamStatus = "Opening stream..."
+    public static let streamingResponseStatus = "Streaming response..."
+    public static let emptyOllamaResponse = "(Ollama returned an empty response.)"
+    public static let conversationPersistenceUnavailableStatus = "Conversation persistence is unavailable."
+    public static let messageUnavailableStatus = "Message is no longer available."
+    public static let conversationTrimmedStatus = "Conversation trimmed"
+    public static let noConversationSelectedStatus = "No conversation selected"
+
+    public static func imageReadyStatus(count: Int) -> String {
+        count == 1 ? "1 image ready to send" : "\(count) images ready to send"
+    }
+
+    public static func couldNotCreateConversationStatus(_ message: String) -> String {
+        "Could not create conversation: \(message)"
+    }
+
+    public static func couldNotTrimConversationStatus(_ message: String) -> String {
+        "Could not trim conversation: \(message)"
+    }
+
+    public static func couldNotDeleteConversationStatus(_ message: String) -> String {
+        "Could not delete conversation: \(message)"
+    }
+
+    public static func couldNotClearHistoryStatus(_ message: String) -> String {
+        "Could not clear history: \(message)"
+    }
+
+    public static func couldNotLoadConversationsStatus(_ message: String) -> String {
+        "Could not load conversations: \(message)"
+    }
+
+    public static func couldNotLoadMessagesStatus(_ message: String) -> String {
+        "Could not load messages: \(message)"
+    }
+
+    public static func couldNotUpdateHistoryStatus(_ message: String) -> String {
+        "Could not update history: \(message)"
+    }
+}
+
 public enum EnchantedPalette {
     public static let canvasColor = "#FBFBFD"
     public static let sidebarColor = "#F5F5F7"

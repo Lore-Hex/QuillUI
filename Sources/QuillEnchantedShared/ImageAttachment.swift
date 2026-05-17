@@ -135,7 +135,7 @@ public struct PendingImageAttachment: Identifiable, Hashable, Sendable {
     public static func attachmentSummary(for attachments: [PendingImageAttachment]) -> String {
         guard !attachments.isEmpty else { return "" }
         let lines = attachments.map { "- \($0.filename) (\($0.formattedByteCount))" }
-        return "[Attached images]\n" + lines.joined(separator: "\n")
+        return EnchantedCopy.attachmentSummaryTitle + "\n" + lines.joined(separator: "\n")
     }
 
     public static func displayContent(prompt: String, attachments: [PendingImageAttachment]) -> String {
@@ -146,7 +146,7 @@ public struct PendingImageAttachment: Identifiable, Hashable, Sendable {
     }
 
     public static func defaultPrompt(for attachments: [PendingImageAttachment]) -> String {
-        attachments.count == 1 ? "Describe this image." : "Describe these images."
+        attachments.count == 1 ? EnchantedCopy.attachmentDefaultPrompt : EnchantedCopy.attachmentDefaultPromptPlural
     }
 
     public static func formatByteCount(_ byteCount: Int64) -> String {

@@ -77,7 +77,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         init(summary: ConversationSummary, messages: [Message]) {
             self.id = summary.id
             self.title = summary.title
-            self.lastMessage = summary.lastMessage.isEmpty ? "No messages yet" : summary.lastMessage
+            self.lastMessage = summary.lastMessage.isEmpty ? EnchantedCopy.noMessagesYet : summary.lastMessage
             self.messages = messages
         }
     }
@@ -236,7 +236,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         Message(
             id: "system-1",
             role: "system",
-            content: "You are chatting with a local Ollama model in Enchanted."
+            content: EnchantedCopy.systemLaunchMessage
         ),
         Message(
             id: "user-1",
@@ -277,51 +277,51 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     ]
 
     static let preview = QuillEnchantedQtSnapshot(
-        windowTitle: "Quill Enchanted",
+        windowTitle: EnchantedCopy.windowTitle,
         minimumWidth: EnchantedVisualMetrics.minimumWindowWidth,
         minimumHeight: EnchantedVisualMetrics.minimumWindowHeight,
         defaultWidth: EnchantedVisualMetrics.defaultWindowWidth,
         defaultHeight: EnchantedVisualMetrics.defaultWindowHeight,
-        sidebarTitle: "Enchanted",
-        sidebarSubtitle: "QuillUI Linux preview",
-        endpointLabel: "Ollama endpoint",
-        modelLabel: "Model",
-        conversationsTitle: "Conversations",
-        noModelsTitle: "No models detected",
-        newChatTitle: "New chat",
-        deleteChatTitle: "Delete chat",
-        clearAllTitle: "Clear all",
-        refreshModelsTitle: "Refresh models",
-        completionsTitle: "Completions",
-        shortcutsTitle: "Shortcuts",
-        settingsTitle: "Settings",
-        completionsStatus: "Completions",
-        shortcutsStatus: "Shortcuts",
-        settingsStatus: "Settings",
-        completionsPanelSubtitle: "Prompt completions use the shared Enchanted profile.",
-        shortcutsPanelSubtitle: "Keyboard shortcuts use the shared QuillKit shortcut surface.",
-        settingsPanelSubtitle: "Refresh models, choose a local model, or clear history from this sidebar.",
-        dropTargetTitle: "Drop image files to attach",
-        attachmentPlaceholder: "Image path or drop files here",
-        attachTitle: "Attach",
-        clearAttachmentsTitle: "Clear",
-        attachmentsClearedStatus: "Attachments cleared",
-        attachmentRemovedEmptyStatus: "Ready",
-        attachmentsTitle: "Attachments",
-        attachmentDefaultPrompt: "Describe this image.",
-        attachmentDefaultPromptPlural: "Describe these images.",
-        attachmentSummaryTitle: "[Attached images]",
-        composerPlaceholder: "Ask a local model...",
-        sendTitle: "Send",
-        stopTitle: "Stop",
-        stoppingStatus: "Stopping...",
-        status: "Ready for local inference",
+        sidebarTitle: EnchantedCopy.appTitle,
+        sidebarSubtitle: EnchantedCopy.sidebarSubtitle,
+        endpointLabel: EnchantedCopy.endpointLabel,
+        modelLabel: EnchantedCopy.modelLabel,
+        conversationsTitle: EnchantedCopy.conversationsTitle,
+        noModelsTitle: EnchantedCopy.noModelsTitle,
+        newChatTitle: EnchantedCopy.newChatTitle,
+        deleteChatTitle: EnchantedCopy.deleteChatTitle,
+        clearAllTitle: EnchantedCopy.clearAllTitle,
+        refreshModelsTitle: EnchantedCopy.refreshModelsTitle,
+        completionsTitle: EnchantedCopy.completionsTitle,
+        shortcutsTitle: EnchantedCopy.shortcutsTitle,
+        settingsTitle: EnchantedCopy.settingsTitle,
+        completionsStatus: EnchantedCopy.completionsTitle,
+        shortcutsStatus: EnchantedCopy.shortcutsTitle,
+        settingsStatus: EnchantedCopy.settingsTitle,
+        completionsPanelSubtitle: EnchantedCopy.completionsPanelSubtitle,
+        shortcutsPanelSubtitle: EnchantedCopy.shortcutsPanelSubtitle,
+        settingsPanelSubtitle: EnchantedCopy.settingsPanelSubtitle,
+        dropTargetTitle: EnchantedCopy.dropTargetTitle,
+        attachmentPlaceholder: EnchantedCopy.attachmentPlaceholder,
+        attachTitle: EnchantedCopy.attachTitle,
+        clearAttachmentsTitle: EnchantedCopy.clearAttachmentsTitle,
+        attachmentsClearedStatus: EnchantedCopy.attachmentsClearedStatus,
+        attachmentRemovedEmptyStatus: EnchantedCopy.readyStatus,
+        attachmentsTitle: EnchantedCopy.attachmentsTitle,
+        attachmentDefaultPrompt: EnchantedCopy.attachmentDefaultPrompt,
+        attachmentDefaultPromptPlural: EnchantedCopy.attachmentDefaultPromptPlural,
+        attachmentSummaryTitle: EnchantedCopy.attachmentSummaryTitle,
+        composerPlaceholder: EnchantedCopy.composerPlaceholder,
+        sendTitle: EnchantedCopy.sendTitle,
+        stopTitle: EnchantedCopy.stopTitle,
+        stoppingStatus: EnchantedCopy.stoppingStatus,
+        status: EnchantedCopy.readyForLocalInferenceStatus,
         isLoading: false,
-        emptyHistoryTitle: "No saved chats yet",
-        emptyHistorySubtitle: "Start a chat and it will be saved locally.",
-        emptyStateTitle: "Ask your local model",
-        emptyStateSubtitle: "This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history.",
-        endpoint: "http://localhost:11434",
+        emptyHistoryTitle: EnchantedCopy.emptyHistoryTitle,
+        emptyHistorySubtitle: EnchantedCopy.emptyHistorySubtitle,
+        emptyStateTitle: EnchantedCopy.emptyStateTitle,
+        emptyStateSubtitle: EnchantedCopy.emptyStateSubtitle,
+        endpoint: EnchantedCopy.defaultEndpoint,
         selectedModel: "llama3.1:8b",
         selectedConversationID: "daily-brief",
         models: [
@@ -487,7 +487,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     static func persisted(
         context: EnchantedModelContext,
         selectedConversationID requestedSelectedConversationID: String? = nil,
-        status: String = "Ready",
+        status: String = EnchantedCopy.readyStatus,
         endpoint: String = preview.endpoint,
         selectedModel requestedSelectedModel: String? = nil,
         models requestedModels: [String]? = nil
@@ -576,7 +576,7 @@ private enum QuillEnchantedQtActionBridge {
                 from: Data(actionJSON.utf8)
             )
             var selectedConversationID = try existingConversationID(request.conversationID, context: context)
-            var status = "Ready"
+            var status = EnchantedCopy.readyStatus
             let endpoint = request.endpoint?.trimmingCharacters(in: .whitespacesAndNewlines)
                 ?? QuillEnchantedQtSnapshot.preview.endpoint
             var selectedModel = request.selectedModel?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -584,26 +584,26 @@ private enum QuillEnchantedQtActionBridge {
 
             switch request.action {
             case "newConversation":
-                let conversation = try context.insert(ConversationDraft(title: "New conversation"))
+                let conversation = try context.insert(ConversationDraft(title: EnchantedCopy.newConversationTitle))
                 selectedConversationID = conversation.id
-                status = "New conversation"
+                status = EnchantedCopy.newConversationTitle
             case "deleteConversation":
                 guard let conversationID = request.conversationID, !conversationID.isEmpty else {
-                    status = "No conversation selected"
+                    status = EnchantedCopy.noConversationSelectedStatus
                     break
                 }
                 try context.deleteConversation(id: conversationID)
-                status = "Conversation deleted"
+                status = EnchantedCopy.conversationDeletedStatus
             case "deleteAllConversations":
                 try context.deleteAllConversations()
-                status = "History cleared"
+                status = EnchantedCopy.historyClearedStatus
             case "sendMessage":
                 let attachments = try imageAttachments(from: request.attachmentPaths ?? [])
                 guard let messageText = request.messageText?.quillTrimmedNonEmpty
                     ?? (attachments.isEmpty ? nil : PendingImageAttachment.defaultPrompt(for: attachments))
                 else {
                     selectedConversationID = try existingConversationID(request.conversationID, context: context)
-                    status = "Message is empty"
+                    status = EnchantedCopy.messageEmptyStatus
                     break
                 }
 
@@ -626,9 +626,9 @@ private enum QuillEnchantedQtActionBridge {
                 selectedModel = refresh.selectedModel
                 status = refresh.status
             case "selectModel":
-                status = selectedModel?.isEmpty == false ? "Ready" : "Choose a local model to begin"
+                status = selectedModel?.isEmpty == false ? EnchantedCopy.readyStatus : EnchantedCopy.chooseLocalModelStatus
             default:
-                status = "Unsupported action"
+                status = EnchantedCopy.unsupportedActionStatus
             }
 
             return try QuillEnchantedQtSnapshot.persisted(
@@ -641,7 +641,7 @@ private enum QuillEnchantedQtActionBridge {
             )
         } catch {
             var snapshot = QuillEnchantedQtSnapshot.preview
-            snapshot.status = "Could not update history: \(error.localizedDescription)"
+            snapshot.status = EnchantedCopy.couldNotUpdateHistoryStatus(error.localizedDescription)
             return snapshot
         }
     }
@@ -687,13 +687,13 @@ private enum QuillEnchantedQtActionBridge {
                 messages: requestMessages,
                 imagesForLastUserMessage: encodedImages
             )
-            let finalContent = assistantReply.quillTrimmedNonEmpty ?? "(Ollama returned an empty response.)"
+            let finalContent = assistantReply.quillTrimmedNonEmpty ?? EnchantedCopy.emptyOllamaResponse
             try context.insert(ChatMessage(
                 conversationID: conversationID,
                 role: .assistant,
                 content: finalContent
             ))
-            return (conversationID, "Ready")
+            return (conversationID, EnchantedCopy.readyStatus)
         } catch {
             return (conversationID, error.localizedDescription)
         }
@@ -716,10 +716,10 @@ private enum QuillEnchantedQtActionBridge {
             return (
                 fetchedModels,
                 resolvedSelection,
-                fetchedModels.isEmpty ? "No Ollama models found" : "Connected"
+                fetchedModels.isEmpty ? EnchantedCopy.noOllamaModelsStatus : EnchantedCopy.connectedStatus
             )
         } catch {
-            return ([], selectedModel ?? "", "Start Ollama or edit endpoint.")
+            return ([], selectedModel ?? "", EnchantedCopy.startOllamaStatus)
         }
     }
 
@@ -807,7 +807,7 @@ public enum QuillEnchantedQtNativeApp {
             snapshot = try QuillEnchantedQtSnapshot.persisted(context: EnchantedModelContext.default())
         } catch {
             snapshot = QuillEnchantedQtSnapshot.preview
-            snapshot.status = "Conversation persistence unavailable"
+            snapshot.status = EnchantedCopy.conversationPersistenceUnavailableStatus
         }
 
         guard let boundedIndex = selectedConversationIndexOverride(count: snapshot.conversations.count) else {

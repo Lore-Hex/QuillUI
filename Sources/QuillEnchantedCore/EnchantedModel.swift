@@ -54,14 +54,14 @@ public final class EnchantedModel: ObservableObject {
     @Published public var attachmentPath: String = ""
     @Published public var pendingImageAttachments: [PendingImageAttachment] = []
     @Published public var isAttachmentDropTargeted: Bool = false
-    @Published public var status: String = "Ready"
+    @Published public var status: String = EnchantedCopy.readyStatus
     @Published public var isLoading: Bool = false
 
     private let modelContext: EnchantedModelContext?
     private var generationTask: Task<Void, Never>?
     private var didBoot = false
 
-    public init(endpoint: String = "http://localhost:11434", store: SQLiteConversationStore? = nil) {
+    public init(endpoint: String = EnchantedCopy.defaultEndpoint, store: SQLiteConversationStore? = nil) {
         self.endpoint = endpoint
         if let store {
             self.modelContext = EnchantedModelContext(persistence: store)
@@ -70,12 +70,12 @@ public final class EnchantedModel: ObservableObject {
         }
     }
 
-    public init(endpoint: String = "http://localhost:11434", persistence: any ConversationPersistence) {
+    public init(endpoint: String = EnchantedCopy.defaultEndpoint, persistence: any ConversationPersistence) {
         self.endpoint = endpoint
         self.modelContext = EnchantedModelContext(persistence: persistence)
     }
 
-    public init(endpoint: String = "http://localhost:11434", modelContext: EnchantedModelContext) {
+    public init(endpoint: String = EnchantedCopy.defaultEndpoint, modelContext: EnchantedModelContext) {
         self.endpoint = endpoint
         self.modelContext = modelContext
     }
@@ -109,29 +109,29 @@ public final class EnchantedModel: ObservableObject {
 
     public func refreshModels() async {
         do {
-            status = "Checking Ollama..."
+            status = EnchantedCopy.checkingOllamaStatus
             let client = try OllamaClient(baseURL: endpoint)
             let fetched = try await client.fetchModels()
             models = fetched
             if selectedModel.isEmpty || !fetched.contains(where: { $0.name == selectedModel }) {
                 selectedModel = fetched.first?.name ?? ""
             }
-            status = fetched.isEmpty ? "No Ollama models found" : "Connected"
+            status = fetched.isEmpty ? EnchantedCopy.noOllamaModelsStatus : EnchantedCopy.connectedStatus
         } catch {
             models = []
-            status = "Start Ollama or edit endpoint."
+            status = EnchantedCopy.startOllamaStatus
         }
     }
 
     public func newConversation() {
         do {
-            let created = try requireModelContext().insert(ConversationDraft(title: "New conversation"))
+            let created = try requireModelContext().insert(ConversationDraft(title: EnchantedCopy.newConversationTitle))
             selectedConversationID = created.id
             reloadConversations()
             messages = []
-            status = "New conversation"
+            status = EnchantedCopy.newConversationTitle
         } catch {
-            status = "Could not create conversation: \(error.localizedDescription)"
+            status = EnchantedCopy.couldNotCreateConversationStatus(error.localizedDescription)
         }
     }
 
@@ -167,9 +167,9 @@ public final class EnchantedModel: ObservableObject {
     public func stopGenerating() {
         generationTask?.cancel()
         if isLoading {
-            status = "Stopping..."
+            status = EnchantedCopy.stoppingStatus
         } else {
-            status = "Ready"
+            status = EnchantedCopy.readyStatus
         }
     }
 
@@ -183,13 +183,13 @@ public final class EnchantedModel: ObservableObject {
             reloadConversations()
             reloadMessages()
             guard messages.count < originalCount else {
-                status = "Message is no longer available."
+                status = EnchantedCopy.messageUnavailableStatus
                 return false
             }
-            status = "Conversation trimmed"
+            status = EnchantedCopy.conversationTrimmedStatus
             return true
         } catch {
-            status = "Could not trim conversation: \(error.localizedDescription)"
+            status = EnchantedCopy.couldNotTrimConversationStatus(error.localizedDescription)
             return false
         }
     }
@@ -203,7 +203,7 @@ public final class EnchantedModel: ObservableObject {
                 reloadMessages()
             }
         } catch {
-            status = "Could not delete conversation: \(error.localizedDescription)"
+            status = EnchantedCopy.couldNotDeleteConversationStatus(error.localizedDescription)
         }
     }
 
@@ -213,9 +213,9 @@ public final class EnchantedModel: ObservableObject {
             conversations = []
             selectedConversationID = nil
             messages = []
-            status = "History cleared"
+            status = EnchantedCopy.historyClearedStatus
         } catch {
-            status = "Could not clear history: \(error.localizedDescription)"
+            status = EnchantedCopy.couldNotClearHistoryStatus(error.localizedDescription)
         }
     }
 
@@ -272,8 +272,7 @@ public final class EnchantedModel: ObservableObject {
         }
 
         if accepted {
-            let count = pendingImageAttachments.count
-            status = count == 1 ? "1 image ready to send" : "\(count) images ready to send"
+            status = EnchantedCopy.imageReadyStatus(count: pendingImageAttachments.count)
         } else if let lastError {
             status = lastError
         }
@@ -283,13 +282,13 @@ public final class EnchantedModel: ObservableObject {
 
     public func removeAttachment(id: String) {
         pendingImageAttachments.removeAll { $0.id == id }
-        status = pendingImageAttachments.isEmpty ? "Ready" : "\(pendingImageAttachments.count) images ready to send"
+        status = pendingImageAttachments.isEmpty ? EnchantedCopy.readyStatus : EnchantedCopy.imageReadyStatus(count: pendingImageAttachments.count)
     }
 
     public func clearAttachments() {
         pendingImageAttachments = []
         attachmentPath = ""
-        status = "Attachments cleared"
+        status = EnchantedCopy.attachmentsClearedStatus
     }
 
     public func send(
@@ -314,7 +313,7 @@ public final class EnchantedModel: ObservableObject {
             reloadMessages()
 
             isLoading = true
-            status = "Opening stream..."
+            status = EnchantedCopy.openingStreamStatus
             let currentEndpoint = endpoint
             let currentModel = selectedModel
             let currentMessages = messages
@@ -341,11 +340,11 @@ public final class EnchantedModel: ObservableObject {
                 try Task.checkCancellation()
                 streamedReply += chunk
                 updateAssistantDraft(id: assistantID, content: streamedReply)
-                status = "Streaming response..."
+                status = EnchantedCopy.streamingResponseStatus
             }
             try Task.checkCancellation()
 
-            let finalContent = streamedReply.quillTrimmedNonEmpty ?? "(Ollama returned an empty response.)"
+            let finalContent = streamedReply.quillTrimmedNonEmpty ?? EnchantedCopy.emptyOllamaResponse
             updateAssistantDraft(id: assistantID, content: finalContent)
             try modelContext.insert(ChatMessage(
                 id: assistantID,
@@ -355,12 +354,12 @@ public final class EnchantedModel: ObservableObject {
             ))
             reloadConversations()
             reloadMessages()
-            status = "Ready"
+            status = EnchantedCopy.readyStatus
         } catch is CancellationError {
             if let assistantDraftID {
                 messages.removeAll { $0.id == assistantDraftID && $0.content.isEmpty }
             }
-            status = "Stopped"
+            status = EnchantedCopy.stoppedStatus
         } catch {
             status = error.localizedDescription
         }
@@ -377,7 +376,7 @@ public final class EnchantedModel: ObservableObject {
         do {
             conversations = try requireModelContext().fetchConversations()
         } catch {
-            status = "Could not load conversations: \(error.localizedDescription)"
+            status = EnchantedCopy.couldNotLoadConversationsStatus(error.localizedDescription)
         }
     }
 
@@ -389,7 +388,7 @@ public final class EnchantedModel: ObservableObject {
         do {
             messages = try requireModelContext().fetchMessages(for: selectedConversationID)
         } catch {
-            status = "Could not load messages: \(error.localizedDescription)"
+            status = EnchantedCopy.couldNotLoadMessagesStatus(error.localizedDescription)
         }
     }
 
@@ -409,6 +408,6 @@ public final class EnchantedModel: ObservableObject {
 
     private func requireModelContext() throws -> EnchantedModelContext {
         if let modelContext { return modelContext }
-        throw ConversationStoreError.openFailed("Conversation persistence is unavailable.")
+        throw ConversationStoreError.openFailed(EnchantedCopy.conversationPersistenceUnavailableStatus)
     }
 }

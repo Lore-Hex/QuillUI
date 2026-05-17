@@ -83,8 +83,8 @@ struct ImageAttachmentTests {
         let first = try PendingImageAttachment(fileURL: firstURL, id: "first")
         let second = try PendingImageAttachment(fileURL: secondURL, id: "second")
 
-        #expect(PendingImageAttachment.defaultPrompt(for: [first]) == "Describe this image.")
-        #expect(PendingImageAttachment.defaultPrompt(for: [first, second]) == "Describe these images.")
+        #expect(PendingImageAttachment.defaultPrompt(for: [first]) == EnchantedCopy.attachmentDefaultPrompt)
+        #expect(PendingImageAttachment.defaultPrompt(for: [first, second]) == EnchantedCopy.attachmentDefaultPromptPlural)
     }
 
     @Test("stages imported files before sending")

@@ -41,7 +41,7 @@ struct EnchantedPersistenceTests {
 
         #expect(model.conversations.count == 1)
         #expect(model.selectedConversationID == model.conversations[0].id)
-        #expect(model.status == "New conversation")
+        #expect(model.status == EnchantedCopy.newConversationTitle)
     }
 
     @Test("app model exposes adapter operations needed by upstream-shaped views")
