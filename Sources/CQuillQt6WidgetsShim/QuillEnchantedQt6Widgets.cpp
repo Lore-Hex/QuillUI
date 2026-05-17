@@ -249,28 +249,14 @@ QString promptTitle(const QJsonValue &value) {
     return value.toString();
 }
 
-QString promptKind(const QJsonValue &value) {
-    if (!value.isObject()) {
-        return QString();
-    }
-    return stringValue(value.toObject(), "kind").trimmed().toLower();
-}
-
 QString promptSystemImage(const QJsonValue &value) {
     if (value.isObject()) {
         const QJsonObject prompt = value.toObject();
-        const QString systemImage = stringValue(prompt, "systemImage").trimmed();
+        const QString systemImage = requiredStringValue(prompt, "systemImage").trimmed();
         if (!systemImage.isEmpty()) {
             return systemImage;
         }
-
-        const QString kind = promptKind(value);
-        if (kind == QStringLiteral("question")) {
-            return QStringLiteral("questionmark.circle");
-        }
-        if (kind == QStringLiteral("action")) {
-            return QStringLiteral("lightbulb.circle");
-        }
+        failRequiredPayloadField("systemImage", "non-empty string");
     }
     return QString();
 }

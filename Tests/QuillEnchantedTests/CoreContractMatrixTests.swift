@@ -119,6 +119,8 @@ struct CoreContractMatrixTests {
             "send: EnchantedIcon.send",
             "stop: EnchantedIcon.stop",
             "removeAttachment: EnchantedIcon.removeAttachment",
+            "var systemImage: String",
+            "self.systemImage = prompt.systemImage",
             "icons: .shared"
         ] {
             expectContains(runtime, needle)
@@ -1237,12 +1239,14 @@ struct CoreContractMatrixTests {
         expectDoesNotContain(nativeShim, "layout->setContentsMargins(13, 13, 13, 13)")
         expectContains(nativeShim, "QIcon promptButtonIcon(const QString &systemImage)")
         expectContains(nativeShim, "const QString normalized = systemImage.trimmed().toLower()")
-        expectContains(nativeShim, "QString promptKind(const QJsonValue &value)")
-        expectContains(nativeShim, "return stringValue(value.toObject(), \"kind\").trimmed().toLower()")
-        expectContains(nativeShim, "if (kind == QStringLiteral(\"question\"))")
-        expectContains(nativeShim, "return QStringLiteral(\"questionmark.circle\")")
-        expectContains(nativeShim, "if (kind == QStringLiteral(\"action\"))")
-        expectContains(nativeShim, "return QStringLiteral(\"lightbulb.circle\")")
+        expectContains(nativeShim, "const QString systemImage = requiredStringValue(prompt, \"systemImage\").trimmed()")
+        expectContains(nativeShim, "failRequiredPayloadField(\"systemImage\", \"non-empty string\")")
+        expectDoesNotContain(nativeShim, "QString promptKind(const QJsonValue &value)")
+        expectDoesNotContain(nativeShim, "return stringValue(value.toObject(), \"kind\").trimmed().toLower()")
+        expectDoesNotContain(nativeShim, "if (kind == QStringLiteral(\"question\"))")
+        expectDoesNotContain(nativeShim, "return QStringLiteral(\"questionmark.circle\")")
+        expectDoesNotContain(nativeShim, "if (kind == QStringLiteral(\"action\"))")
+        expectDoesNotContain(nativeShim, "return QStringLiteral(\"lightbulb.circle\")")
         expectContains(nativeShim, "QStringLiteral(\"help-about-symbolic\")")
         expectContains(nativeShim, "QStringLiteral(\"dialog-information-symbolic\")")
         expectContains(nativeShim, "QStringLiteral(\"starred-symbolic\")")
