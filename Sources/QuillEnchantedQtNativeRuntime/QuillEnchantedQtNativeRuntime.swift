@@ -21,7 +21,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var noModelsTitle: String
     var chooseLocalModelStatus: String
     var usingModelStatusPrefix: String
-    var newChatTitle: String
+    var newConversationButtonTitle: String
     var newConversationTitle: String
     var noMessagesYet: String
     var deleteChatTitle: String
@@ -300,7 +300,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         noModelsTitle: EnchantedCopy.noModelsTitle,
         chooseLocalModelStatus: EnchantedCopy.chooseLocalModelStatus,
         usingModelStatusPrefix: EnchantedCopy.usingModelStatusPrefix,
-        newChatTitle: EnchantedCopy.newChatTitle,
+        newConversationButtonTitle: EnchantedCopy.newChatTitle,
         newConversationTitle: EnchantedCopy.newConversationTitle,
         noMessagesYet: EnchantedCopy.noMessagesYet,
         deleteChatTitle: EnchantedCopy.deleteChatTitle,

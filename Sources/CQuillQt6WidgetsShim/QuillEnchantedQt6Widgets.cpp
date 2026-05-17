@@ -1635,6 +1635,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
         QStringLiteral("Choose a local model to begin")
     );
     const QString usingModelStatusPrefix = stringValue(payload, "usingModelStatusPrefix", QStringLiteral("Using"));
+    const QString newConversationButtonTitle = stringValue(
+        payload,
+        "newConversationButtonTitle",
+        stringValue(payload, "newChatTitle", QStringLiteral("New chat"))
+    );
     const QString newConversationTitle = stringValue(payload, "newConversationTitle", QStringLiteral("New conversation"));
     const QString noMessagesYet = stringValue(payload, "noMessagesYet", QStringLiteral("No messages yet"));
     const QString userRoleLabel = stringValue(payload, "userRoleLabel", QStringLiteral("You"));
@@ -1680,7 +1685,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     ));
     sidebarLayout->addWidget(sidebarTitleBlock);
 
-    QPushButton *newConversationButton = new QPushButton(stringValue(payload, "newChatTitle", QStringLiteral("New chat")));
+    QPushButton *newConversationButton = new QPushButton(newConversationButtonTitle);
     newConversationButton->setObjectName(QStringLiteral("primaryButton"));
     newConversationButton->setIcon(newConversationButtonIcon());
     applyButtonIconSize(newConversationButton, style);
