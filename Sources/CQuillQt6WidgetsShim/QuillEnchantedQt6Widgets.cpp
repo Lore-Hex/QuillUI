@@ -455,7 +455,12 @@ QString appStyleSheet(const QJsonObject &style) {
     return sheet;
 }
 
-QFrame *conversationRowWidget(const QJsonObject &conversation, const QJsonObject &style) {
+QFrame *conversationRowWidget(
+    const QJsonObject &conversation,
+    const QJsonObject &style,
+    const QString &newConversationTitle,
+    const QString &noMessagesYet
+) {
     QFrame *row = QuillQtWidgets::frame(QStringLiteral("conversationRow"));
     row->setProperty("active", false);
     QVBoxLayout *layout = new QVBoxLayout(row);
@@ -469,14 +474,14 @@ QFrame *conversationRowWidget(const QJsonObject &conversation, const QJsonObject
     layout->setSpacing(intValue(style, "conversationRowSpacing", 5));
 
     QLabel *title = label(
-        stringValue(conversation, "title", QStringLiteral("New conversation")),
+        stringValue(conversation, "title", newConversationTitle),
         QStringLiteral("conversationTitle")
     );
     title->setWordWrap(false);
     title->setProperty("active", false);
 
     QLabel *preview = label(
-        stringValue(conversation, "lastMessage", QStringLiteral("No messages yet")),
+        stringValue(conversation, "lastMessage", noMessagesYet),
         QStringLiteral("conversationPreview")
     );
     preview->setProperty("active", false);
@@ -552,13 +557,17 @@ QString selectedConversationTitle(
     return fallback;
 }
 
-QString modelStatusText(const QString &selectedModel) {
+QString modelStatusText(
+    const QString &selectedModel,
+    const QString &chooseLocalModelStatus,
+    const QString &usingModelStatusPrefix
+) {
     const QString trimmedModel = selectedModel.trimmed();
     if (trimmedModel.isEmpty()) {
-        return QStringLiteral("Choose a local model to begin");
+        return chooseLocalModelStatus;
     }
 
-    return QStringLiteral("Using %1").arg(trimmedModel);
+    return QStringLiteral("%1 %2").arg(usingModelStatusPrefix, trimmedModel);
 }
 
 QJsonArray currentModelList(QComboBox *modelPicker) {
@@ -576,15 +585,20 @@ QJsonArray currentModelList(QComboBox *modelPicker) {
     return models;
 }
 
-QString messageRoleTitle(const QString &role) {
+QString messageRoleTitle(
+    const QString &role,
+    const QString &userRoleLabel,
+    const QString &assistantRoleLabel,
+    const QString &systemRoleLabel
+) {
     if (role == QStringLiteral("user")) {
-        return QStringLiteral("You");
+        return userRoleLabel;
     }
     if (role == QStringLiteral("system")) {
-        return QStringLiteral("System");
+        return systemRoleLabel;
     }
 
-    return QStringLiteral("Enchanted");
+    return assistantRoleLabel;
 }
 
 enum class MarkdownBlockKind {
@@ -968,7 +982,9 @@ void populateConversations(
     QListWidget *list,
     const QJsonArray &conversations,
     const QString &selectedConversationID,
-    const QJsonObject &style
+    const QJsonObject &style,
+    const QString &newConversationTitle,
+    const QString &noMessagesYet
 ) {
     list->clear();
     list->setSpacing(intValue(style, "conversationListSpacing", 8));
@@ -980,7 +996,12 @@ void populateConversations(
         item->setData(Qt::UserRole, stringValue(conversation, "id"));
         item->setSizeHint(QSize(260, 88));
         list->addItem(item);
-        list->setItemWidget(item, conversationRowWidget(conversation, style));
+        list->setItemWidget(item, conversationRowWidget(
+            conversation,
+            style,
+            newConversationTitle,
+            noMessagesYet
+        ));
         if (stringValue(conversation, "id") == selectedConversationID) {
             selectedRow = list->row(item);
         }
@@ -994,7 +1015,13 @@ void populateConversations(
     updateConversationSelectionStyles(list);
 }
 
-QFrame *messageBubble(const QJsonObject &message, const QJsonObject &style) {
+QFrame *messageBubble(
+    const QJsonObject &message,
+    const QJsonObject &style,
+    const QString &userRoleLabel,
+    const QString &assistantRoleLabel,
+    const QString &systemRoleLabel
+) {
     const QString role = stringValue(message, "role", QStringLiteral("assistant"));
     QString objectName = QStringLiteral("messageAssistant");
     if (role == QStringLiteral("user")) {
@@ -1016,7 +1043,7 @@ QFrame *messageBubble(const QJsonObject &message, const QJsonObject &style) {
     );
     layout->setSpacing(intValue(style, "messageBubbleSpacing", 7));
     layout->addWidget(label(
-        messageRoleTitle(role),
+        messageRoleTitle(role, userRoleLabel, assistantRoleLabel, systemRoleLabel),
         role == QStringLiteral("user") ? QStringLiteral("messageUserRole") : QStringLiteral("messageRole")
     ));
     if (role == QStringLiteral("user")) {
@@ -1027,7 +1054,14 @@ QFrame *messageBubble(const QJsonObject &message, const QJsonObject &style) {
     return bubble;
 }
 
-void addMessageBubble(QVBoxLayout *messageLayout, const QJsonObject &message, const QJsonObject &style) {
+void addMessageBubble(
+    QVBoxLayout *messageLayout,
+    const QJsonObject &message,
+    const QJsonObject &style,
+    const QString &userRoleLabel,
+    const QString &assistantRoleLabel,
+    const QString &systemRoleLabel
+) {
     const bool isUser = stringValue(message, "role") == QStringLiteral("user");
     QHBoxLayout *row = new QHBoxLayout();
     row->setContentsMargins(0, 0, 0, 0);
@@ -1035,7 +1069,13 @@ void addMessageBubble(QVBoxLayout *messageLayout, const QJsonObject &message, co
     if (isUser) {
         row->addStretch(1);
     }
-    row->addWidget(messageBubble(message, style));
+    row->addWidget(messageBubble(
+        message,
+        style,
+        userRoleLabel,
+        assistantRoleLabel,
+        systemRoleLabel
+    ));
     if (!isUser) {
         row->addStretch(1);
     }
@@ -1128,7 +1168,10 @@ void renderMessages(
     const QString &emptyStateSubtitle,
     const PromptAction &promptAction,
     const QString &status,
-    bool isLoading
+    bool isLoading,
+    const QString &userRoleLabel,
+    const QString &assistantRoleLabel,
+    const QString &systemRoleLabel
 ) {
     clearLayout(messageLayout);
     if (messages.isEmpty()) {
@@ -1140,7 +1183,14 @@ void renderMessages(
     }
 
     for (const QJsonValue &value : messages) {
-        addMessageBubble(messageLayout, value.toObject(), style);
+        addMessageBubble(
+            messageLayout,
+            value.toObject(),
+            style,
+            userRoleLabel,
+            assistantRoleLabel,
+            systemRoleLabel
+        );
     }
     if (isLoading) {
         messageLayout->addWidget(loadingRowWidget(status, style));
@@ -1447,10 +1497,14 @@ QString attachmentDisplaySize(const QString &rawPath) {
     return formattedAttachmentByteCount(fileInfo.size());
 }
 
-QString attachmentReadyStatus(int count) {
+QString attachmentReadyStatus(
+    int count,
+    const QString &imageReadyStatusSingular,
+    const QString &imageReadyStatusPluralUnit
+) {
     return count == 1
-        ? QStringLiteral("1 image ready to send")
-        : QStringLiteral("%1 images ready to send").arg(count);
+        ? imageReadyStatusSingular
+        : QStringLiteral("%1 %2").arg(count).arg(imageReadyStatusPluralUnit);
 }
 
 QString attachmentDefaultPromptForCount(
@@ -1558,6 +1612,17 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QApplication app(argc, argv);
     const QJsonObject style = objectValue(payload, "style");
     bool isLoading = boolValue(payload, "isLoading", false);
+    const QString chooseLocalModelStatus = stringValue(
+        payload,
+        "chooseLocalModelStatus",
+        QStringLiteral("Choose a local model to begin")
+    );
+    const QString usingModelStatusPrefix = stringValue(payload, "usingModelStatusPrefix", QStringLiteral("Using"));
+    const QString newConversationTitle = stringValue(payload, "newConversationTitle", QStringLiteral("New conversation"));
+    const QString noMessagesYet = stringValue(payload, "noMessagesYet", QStringLiteral("No messages yet"));
+    const QString userRoleLabel = stringValue(payload, "userRoleLabel", QStringLiteral("You"));
+    const QString assistantRoleLabel = stringValue(payload, "assistantRoleLabel", QStringLiteral("Enchanted"));
+    const QString systemRoleLabel = stringValue(payload, "systemRoleLabel", QStringLiteral("System"));
     app.setApplicationName(stringValue(payload, "windowTitle", QStringLiteral("Quill Enchanted")));
     app.setStyleSheet(appStyleSheet(style));
 
@@ -1692,7 +1757,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
         conversationList,
         conversations,
         selectedConversationID,
-        style
+        style,
+        newConversationTitle,
+        noMessagesYet
     );
     conversationList->setVisible(!conversations.isEmpty());
     sidebarLayout->addWidget(conversationList, 1);
@@ -1763,12 +1830,12 @@ extern "C" int quill_enchanted_qt_run_app_json(
         selectedConversationTitle(
             conversations,
             initialConversationID,
-            QStringLiteral("New conversation")
+            newConversationTitle
         ),
         QStringLiteral("currentTitle")
     );
     QLabel *modelStatus = label(
-        modelStatusText(stringValue(payload, "selectedModel")),
+        modelStatusText(stringValue(payload, "selectedModel"), chooseLocalModelStatus, usingModelStatusPrefix),
         QStringLiteral("caption")
     );
     const int headerTitleWidth = intValue(style, "headerTitleWidth", 560);
@@ -1925,6 +1992,21 @@ extern "C" int quill_enchanted_qt_run_app_json(
         "attachmentSummaryTitle",
         QStringLiteral("[Attached images]")
     );
+    const QString removeAttachmentTooltip = stringValue(
+        payload,
+        "removeAttachmentTooltip",
+        QStringLiteral("Remove attachment")
+    );
+    const QString imageReadyStatusSingular = stringValue(
+        payload,
+        "imageReadyStatusSingular",
+        QStringLiteral("1 image ready to send")
+    );
+    const QString imageReadyStatusPluralUnit = stringValue(
+        payload,
+        "imageReadyStatusPluralUnit",
+        QStringLiteral("images ready to send")
+    );
     QJsonArray fallbackMessages = arrayValue(payload, "messages");
     const QJsonArray prompts = arrayValue(payload, "prompts");
     const QString emptyStateTitle = stringValue(payload, "emptyStateTitle", QStringLiteral("Ask your local model"));
@@ -1949,7 +2031,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
             clearLayout(messageLayout);
             showingPromptCards = false;
         }
-        addMessageBubble(messageLayout, message, style);
+        addMessageBubble(
+            messageLayout,
+            message,
+            style,
+            userRoleLabel,
+            assistantRoleLabel,
+            systemRoleLabel
+        );
         promptEditor->clear();
         scrollTranscriptToBottom();
     };
@@ -2037,14 +2126,18 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
             QPushButton *removeAttachmentButton = new QPushButton(QStringLiteral("x"));
             removeAttachmentButton->setObjectName(QStringLiteral("chipRemoveButton"));
-            removeAttachmentButton->setToolTip(QStringLiteral("Remove attachment"));
+            removeAttachmentButton->setToolTip(removeAttachmentTooltip);
             removeAttachmentButton->setFixedWidth(intValue(style, "attachmentRemoveButtonWidth", 28));
             QObject::connect(removeAttachmentButton, &QPushButton::clicked, [&, path]() {
                 pendingAttachmentPaths.removeAll(path);
                 statusText->setText(
                     pendingAttachmentPaths.isEmpty()
                         ? attachmentRemovedEmptyStatus
-                        : attachmentReadyStatus(pendingAttachmentPaths.count())
+                        : attachmentReadyStatus(
+                            pendingAttachmentPaths.count(),
+                            imageReadyStatusSingular,
+                            imageReadyStatusPluralUnit
+                        )
                 );
                 QTimer::singleShot(0, attachmentTray, renderAttachmentTray);
             });
@@ -2077,7 +2170,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
         }
 
         renderAttachmentTray();
-        statusText->setText(attachmentReadyStatus(pendingAttachmentPaths.count()));
+        statusText->setText(attachmentReadyStatus(
+            pendingAttachmentPaths.count(),
+            imageReadyStatusSingular,
+            imageReadyStatusPluralUnit
+        ));
         return true;
     };
     dropTarget->setDropHandler([&](const QStringList &paths) {
@@ -2122,7 +2219,10 @@ extern "C" int quill_enchanted_qt_run_app_json(
             emptyStateSubtitle,
             appendUserMessage,
             stringValue(payload, "status"),
-            isLoading
+            isLoading,
+            userRoleLabel,
+            assistantRoleLabel,
+            systemRoleLabel
         );
         showingPromptCards = messages.isEmpty();
         scrollTranscriptToBottom();
@@ -2156,13 +2256,15 @@ extern "C" int quill_enchanted_qt_run_app_json(
             conversationList,
             conversations,
             selectedConversationID,
-            style
+            style,
+            newConversationTitle,
+            noMessagesYet
         );
         const QString selectedID = currentConversationID(conversationList, selectedConversationID);
         currentTitle->setText(selectedConversationTitle(
             conversations,
             selectedID,
-            QStringLiteral("New conversation")
+            newConversationTitle
         ));
         statusText->setText(stringValue(payload, "status"));
         refreshButton->setEnabled(!isLoading);
@@ -2172,7 +2274,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
         modelStatus->setText(modelStatusText(
             modelPicker->currentText().trimmed().isEmpty()
                 ? stringValue(payload, "selectedModel")
-                : modelPicker->currentText()
+                : modelPicker->currentText(),
+            chooseLocalModelStatus,
+            usingModelStatusPrefix
         ));
         renderMessageSet(selectedConversationMessages(
             conversations,
@@ -2245,7 +2349,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         conversationList->clearSelection();
         conversationList->setCurrentRow(-1);
         updateConversationSelectionStyles(conversationList);
-        currentTitle->setText(QStringLiteral("New conversation"));
+        currentTitle->setText(newConversationTitle);
         renderMessageSet(QJsonArray());
         updateConversationActionState();
     });
@@ -2266,7 +2370,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             conversationList->setCurrentRow(nextRow);
         } else {
             conversationList->setCurrentRow(-1);
-            currentTitle->setText(QStringLiteral("New conversation"));
+            currentTitle->setText(newConversationTitle);
             renderMessageSet(QJsonArray());
         }
         updateConversationSelectionStyles(conversationList);
@@ -2280,7 +2384,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         conversationList->clear();
         conversationList->setCurrentRow(-1);
         updateConversationSelectionStyles(conversationList);
-        currentTitle->setText(QStringLiteral("New conversation"));
+        currentTitle->setText(newConversationTitle);
         renderMessageSet(QJsonArray());
         updateConversationActionState();
     });
@@ -2329,7 +2433,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         currentTitle->setText(selectedConversationTitle(
             conversations,
             selectedID,
-            QStringLiteral("New conversation")
+            newConversationTitle
         ));
         const QJsonArray selectedMessages = selectedConversationMessages(
             conversations,
@@ -2355,7 +2459,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         );
     });
     QObject::connect(modelPicker, &QComboBox::currentTextChanged, [&](const QString &model) {
-        modelStatus->setText(modelStatusText(model));
+        modelStatus->setText(modelStatusText(model, chooseLocalModelStatus, usingModelStatusPrefix));
         requestHistoryAction(
             QStringLiteral("selectModel"),
             currentConversationID(conversationList, selectedConversationID),

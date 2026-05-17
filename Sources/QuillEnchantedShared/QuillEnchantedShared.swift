@@ -19,9 +19,10 @@ public enum EnchantedCopy {
     public static let modelLabel = "Model"
     public static let noModelsTitle = "No models detected"
     public static let chooseLocalModelStatus = "Choose a local model to begin"
+    public static let usingModelStatusPrefix = "Using"
 
     public static func usingModel(_ modelName: String) -> String {
-        "Using \(modelName)"
+        "\(usingModelStatusPrefix) \(modelName)"
     }
 
     public static let conversationsTitle = "Conversations"
@@ -40,6 +41,7 @@ public enum EnchantedCopy {
     public static let clearAttachmentsTitle = "Clear"
     public static let attachmentsTitle = "Attachments"
     public static let attachmentsClearedStatus = "Attachments cleared"
+    public static let removeAttachmentTooltip = "Remove attachment"
     public static let attachmentDefaultPrompt = "Describe this image."
     public static let attachmentDefaultPromptPlural = "Describe these images."
     public static let attachmentSummaryTitle = "[Attached images]"
@@ -75,9 +77,11 @@ public enum EnchantedCopy {
     public static let messageUnavailableStatus = "Message is no longer available."
     public static let conversationTrimmedStatus = "Conversation trimmed"
     public static let noConversationSelectedStatus = "No conversation selected"
+    public static let imageReadyStatusSingular = "1 image ready to send"
+    public static let imageReadyStatusPluralUnit = "images ready to send"
 
     public static func imageReadyStatus(count: Int) -> String {
-        count == 1 ? "1 image ready to send" : "\(count) images ready to send"
+        count == 1 ? imageReadyStatusSingular : "\(count) \(imageReadyStatusPluralUnit)"
     }
 
     public static func couldNotCreateConversationStatus(_ message: String) -> String {

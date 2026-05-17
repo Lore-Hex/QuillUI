@@ -19,7 +19,11 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var modelLabel: String
     var conversationsTitle: String
     var noModelsTitle: String
+    var chooseLocalModelStatus: String
+    var usingModelStatusPrefix: String
     var newChatTitle: String
+    var newConversationTitle: String
+    var noMessagesYet: String
     var deleteChatTitle: String
     var clearAllTitle: String
     var refreshModelsTitle: String
@@ -38,6 +42,9 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var clearAttachmentsTitle: String
     var attachmentsClearedStatus: String
     var attachmentRemovedEmptyStatus: String
+    var removeAttachmentTooltip: String
+    var imageReadyStatusSingular: String
+    var imageReadyStatusPluralUnit: String
     var attachmentsTitle: String
     var attachmentDefaultPrompt: String
     var attachmentDefaultPromptPlural: String
@@ -52,6 +59,9 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var emptyHistorySubtitle: String
     var emptyStateTitle: String
     var emptyStateSubtitle: String
+    var userRoleLabel: String
+    var assistantRoleLabel: String
+    var systemRoleLabel: String
     var endpoint: String
     var selectedModel: String
     var selectedConversationID: String
@@ -288,7 +298,11 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         modelLabel: EnchantedCopy.modelLabel,
         conversationsTitle: EnchantedCopy.conversationsTitle,
         noModelsTitle: EnchantedCopy.noModelsTitle,
+        chooseLocalModelStatus: EnchantedCopy.chooseLocalModelStatus,
+        usingModelStatusPrefix: EnchantedCopy.usingModelStatusPrefix,
         newChatTitle: EnchantedCopy.newChatTitle,
+        newConversationTitle: EnchantedCopy.newConversationTitle,
+        noMessagesYet: EnchantedCopy.noMessagesYet,
         deleteChatTitle: EnchantedCopy.deleteChatTitle,
         clearAllTitle: EnchantedCopy.clearAllTitle,
         refreshModelsTitle: EnchantedCopy.refreshModelsTitle,
@@ -307,6 +321,9 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         clearAttachmentsTitle: EnchantedCopy.clearAttachmentsTitle,
         attachmentsClearedStatus: EnchantedCopy.attachmentsClearedStatus,
         attachmentRemovedEmptyStatus: EnchantedCopy.readyStatus,
+        removeAttachmentTooltip: EnchantedCopy.removeAttachmentTooltip,
+        imageReadyStatusSingular: EnchantedCopy.imageReadyStatusSingular,
+        imageReadyStatusPluralUnit: EnchantedCopy.imageReadyStatusPluralUnit,
         attachmentsTitle: EnchantedCopy.attachmentsTitle,
         attachmentDefaultPrompt: EnchantedCopy.attachmentDefaultPrompt,
         attachmentDefaultPromptPlural: EnchantedCopy.attachmentDefaultPromptPlural,
@@ -321,6 +338,9 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         emptyHistorySubtitle: EnchantedCopy.emptyHistorySubtitle,
         emptyStateTitle: EnchantedCopy.emptyStateTitle,
         emptyStateSubtitle: EnchantedCopy.emptyStateSubtitle,
+        userRoleLabel: EnchantedCopy.userRoleLabel,
+        assistantRoleLabel: EnchantedCopy.assistantRoleLabel,
+        systemRoleLabel: EnchantedCopy.systemRoleLabel,
         endpoint: EnchantedCopy.defaultEndpoint,
         selectedModel: "llama3.1:8b",
         selectedConversationID: "daily-brief",
