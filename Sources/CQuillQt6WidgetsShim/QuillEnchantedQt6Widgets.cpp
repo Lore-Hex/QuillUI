@@ -48,12 +48,14 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 #include <functional>
 
 namespace {
 
 using QuillQtWidgets::clearLayout;
-using QuillQtWidgets::cssPixels;
 using QuillQtWidgets::label;
 using QuillQtWidgets::refreshStyle;
 using QuillQtWidgets::scrollAreaToBottomLater;
@@ -67,8 +69,62 @@ QString stringValue(const QJsonObject &object, const char *key, const QString &f
     return QuillQtWidgets::jsonStringValue(object, key, fallback);
 }
 
-QString styleValue(const QJsonObject &style, const char *key, const char *fallback) {
-    return QuillQtWidgets::jsonStyleValue(style, key, fallback);
+[[noreturn]] void failRequiredPayloadField(const char *key, const char *expectedType) {
+    std::fprintf(
+        stderr,
+        "quill-enchanted-qt: missing required %s payload field: %s\n",
+        expectedType,
+        key
+    );
+    std::abort();
+}
+
+QJsonValue requiredValue(const QJsonObject &object, const char *key, const char *expectedType) {
+    const QJsonValue value = object.value(QString::fromUtf8(key));
+    if (!value.isUndefined() && !value.isNull()) {
+        return value;
+    }
+    failRequiredPayloadField(key, expectedType);
+}
+
+QString requiredStringValue(const QJsonObject &object, const char *key) {
+    const QJsonValue value = requiredValue(object, key, "string");
+    if (value.isString()) {
+        return value.toString();
+    }
+    failRequiredPayloadField(key, "string");
+}
+
+int requiredIntValue(const QJsonObject &object, const char *key) {
+    const QJsonValue value = requiredValue(object, key, "integer");
+    if (value.isDouble()) {
+        return value.toInt();
+    }
+    failRequiredPayloadField(key, "integer");
+}
+
+QString styleValue(const QJsonObject &style, const char *key) {
+    return requiredStringValue(style, key);
+}
+
+int styleInt(const QJsonObject &style, const char *key) {
+    return requiredIntValue(style, key);
+}
+
+QString stylePixels(const QJsonObject &style, const char *key) {
+    return QStringLiteral("%1px").arg(styleInt(style, key));
+}
+
+QSize requiredWindowSize(const QJsonObject &payload, const char *widthKey, const char *heightKey) {
+    return QSize(requiredIntValue(payload, widthKey), requiredIntValue(payload, heightKey));
+}
+
+QSize clampedDefaultWindowSize(const QJsonObject &payload, const QSize &minimumSize) {
+    const QSize requested = requiredWindowSize(payload, "defaultWidth", "defaultHeight");
+    return QSize(
+        std::max(requested.width(), minimumSize.width()),
+        std::max(requested.height(), minimumSize.height())
+    );
 }
 
 int intValue(const QJsonObject &object, const char *key, int fallback) {
@@ -194,7 +250,7 @@ QString promptSystemImage(const QJsonValue &value) {
 }
 
 int buttonIconSize(const QJsonObject &style) {
-    return intValue(style, "actionButtonIconSize", 16);
+    return styleInt(style, "actionButtonIconSize");
 }
 
 QLabel *iconLabel(const QIcon &icon, const QString &objectName, const QJsonObject &style) {
@@ -227,9 +283,9 @@ class LoadingSpinner final : public QWidget {
 public:
     explicit LoadingSpinner(const QJsonObject &style, QWidget *parent = nullptr)
         : QWidget(parent),
-          color(styleValue(style, "primaryColor", "#4285F4")) {
+          color(styleValue(style, "primaryColor")) {
         setObjectName(QStringLiteral("loadingSpinner"));
-        const int spinnerSize = intValue(style, "loadingSpinnerSize", 16);
+        const int spinnerSize = styleInt(style, "loadingSpinnerSize");
         setFixedSize(spinnerSize, spinnerSize);
         timer.setInterval(90);
         QObject::connect(&timer, &QTimer::timeout, this, [this]() {
@@ -309,75 +365,75 @@ QJsonArray arrayValue(const QJsonObject &object, const char *key) {
 }
 
 QString appStyleSheet(const QJsonObject &style) {
-    const QString canvas = styleValue(style, "canvasColor", "#FBFBFD");
-    const QString ink = styleValue(style, "inkColor", "#1D1D1F");
-    const QString sidebar = styleValue(style, "sidebarColor", "#F5F5F7");
-    const QString header = styleValue(style, "headerColor", "#FBFBFD");
-    const QString card = styleValue(style, "cardColor", "#FFFFFF");
-    const QString primary = styleValue(style, "primaryColor", "#4285F4");
-    const QString system = styleValue(style, "systemColor", "#E8E8ED");
-    const QString muted = styleValue(style, "mutedColor", "#6E6E73");
-    const QString selected = styleValue(style, "selectedMutedColor", "#FFFFFF");
-    const QString warning = styleValue(style, "warningColor", "#FF9F0A");
-    const QString success = styleValue(style, "successColor", "#34C759");
-    const QString dropTarget = styleValue(style, "dropTargetColor", "#EAF2FF");
-    const QString quoteRule = styleValue(style, "quoteRuleColor", "#D8D8DE");
-    const QString codeBlock = styleValue(style, "codeBlockColor", "#F4F4F6");
-    const QString divider = styleValue(style, "dividerColor", "#D8D8DE");
-    const QString cardBorder = styleValue(style, "cardBorderColor", "#D8D8DE");
-    const QString messageBorder = styleValue(style, "messageBorderColor", "#D8D8DE");
-    const QString controlBorder = styleValue(style, "controlBorderColor", "#D8D8DE");
-    const QString dropTargetBorder = styleValue(style, "dropTargetBorderColor", "#4285F4");
-    const QString disabledButtonBackground = styleValue(style, "disabledButtonBackgroundColor", "#D8D8DE");
-    const QString disabledButtonForeground = styleValue(style, "disabledButtonForegroundColor", "#6E6E73");
-    const QString disabledText = styleValue(style, "disabledTextColor", "#6E6E73");
-    const QString rootFontSize = cssPixels(style, "rootFontSize", 14);
-    const QString appTitleFontSize = cssPixels(style, "appTitleFontSize", 26);
-    const QString appTitleFontWeight = QString::number(intValue(style, "appTitleFontWeight", 700));
-    const QString captionFontSize = cssPixels(style, "captionFontSize", 12);
-    const QString sectionTitleFontSize = cssPixels(style, "sectionTitleFontSize", 15);
-    const QString sectionTitleFontWeight = QString::number(intValue(style, "sectionTitleFontWeight", 700));
-    const QString currentTitleFontSize = cssPixels(style, "currentTitleFontSize", 20);
-    const QString currentTitleFontWeight = QString::number(intValue(style, "currentTitleFontWeight", 650));
-    const QString messageBodyFontSize = cssPixels(style, "messageBodyFontSize", 14);
-    const QString markdownHeading1FontSize = cssPixels(style, "markdownHeading1FontSize", 17);
-    const QString markdownHeading2FontSize = cssPixels(style, "markdownHeading2FontSize", 15);
-    const QString markdownHeadingFontSize = cssPixels(style, "markdownHeadingFontSize", 14);
-    const QString markdownHeadingFontWeight = QString::number(intValue(style, "markdownHeadingFontWeight", 650));
-    const QString markdownCodeLanguageFontSize = cssPixels(style, "markdownCodeLanguageFontSize", 11);
-    const QString markdownCodeFontSize = cssPixels(style, "markdownCodeFontSize", 13);
-    const QString attachmentNameFontSize = cssPixels(style, "attachmentNameFontSize", 12);
-    const QString attachmentSizeFontSize = cssPixels(style, "attachmentSizeFontSize", 11);
-    const QString conversationTitleFontSize = cssPixels(style, "conversationTitleFontSize", 15);
-    const QString conversationTitleFontWeight = QString::number(intValue(style, "conversationTitleFontWeight", 700));
-    const QString conversationPreviewFontSize = cssPixels(style, "conversationPreviewFontSize", 12);
-    const QString warningTextFontSize = cssPixels(style, "warningTextFontSize", 12);
-    const QString chipRemoveButtonFontWeight = QString::number(intValue(style, "chipRemoveButtonFontWeight", 700));
-    const QString statusDotSize = cssPixels(style, "statusDotSize", 9);
-    const QString statusDotRadius = cssPixels(style, "statusDotRadius", 9);
-    const QString conversationRowRadius = cssPixels(style, "conversationRowRadius", 8);
-    const QString conversationListItemRadius = cssPixels(style, "conversationListItemRadius", 8);
-    const QString conversationListItemVerticalMargin = cssPixels(style, "conversationListItemVerticalMargin", 2);
-    const QString conversationListItemPadding = cssPixels(style, "conversationListItemPadding", 8);
-    const QString emptyHistoryRadius = cssPixels(style, "emptyHistoryRadius", 8);
-    const QString messageBubbleRadius = cssPixels(style, "messageBubbleRadius", 10);
-    const QString attachmentChipRadius = cssPixels(style, "attachmentChipRadius", 8);
-    const QString markdownQuoteRuleRadius = cssPixels(style, "markdownQuoteRuleRadius", 1);
-    const QString markdownCodeBlockRadius = cssPixels(style, "markdownCodeBlockRadius", 7);
-    const QString dropTargetRadius = cssPixels(style, "dropTargetRadius", 8);
-    const QString promptButtonPadding = cssPixels(style, "promptButtonPadding", 12);
-    const QString promptButtonRadius = cssPixels(style, "promptButtonRadius", 8);
-    const QString primaryButtonVerticalPadding = cssPixels(style, "primaryButtonVerticalPadding", 12);
-    const QString primaryButtonHorizontalPadding = cssPixels(style, "primaryButtonHorizontalPadding", 12);
-    const QString primaryButtonRadius = cssPixels(style, "primaryButtonRadius", 8);
-    const QString secondaryButtonVerticalPadding = cssPixels(style, "secondaryButtonVerticalPadding", 7);
-    const QString secondaryButtonHorizontalPadding = cssPixels(style, "secondaryButtonHorizontalPadding", 10);
-    const QString secondaryButtonRadius = cssPixels(style, "secondaryButtonRadius", 7);
-    const QString chipRemoveButtonVerticalPadding = cssPixels(style, "chipRemoveButtonVerticalPadding", 2);
-    const QString chipRemoveButtonHorizontalPadding = cssPixels(style, "chipRemoveButtonHorizontalPadding", 6);
-    const QString controlPadding = cssPixels(style, "controlPadding", 7);
-    const QString controlRadius = cssPixels(style, "controlRadius", 7);
-    const QString composerEditorRadius = cssPixels(style, "composerEditorRadius", 8);
+    const QString canvas = styleValue(style, "canvasColor");
+    const QString ink = styleValue(style, "inkColor");
+    const QString sidebar = styleValue(style, "sidebarColor");
+    const QString header = styleValue(style, "headerColor");
+    const QString card = styleValue(style, "cardColor");
+    const QString primary = styleValue(style, "primaryColor");
+    const QString system = styleValue(style, "systemColor");
+    const QString muted = styleValue(style, "mutedColor");
+    const QString selected = styleValue(style, "selectedMutedColor");
+    const QString warning = styleValue(style, "warningColor");
+    const QString success = styleValue(style, "successColor");
+    const QString dropTarget = styleValue(style, "dropTargetColor");
+    const QString quoteRule = styleValue(style, "quoteRuleColor");
+    const QString codeBlock = styleValue(style, "codeBlockColor");
+    const QString divider = styleValue(style, "dividerColor");
+    const QString cardBorder = styleValue(style, "cardBorderColor");
+    const QString messageBorder = styleValue(style, "messageBorderColor");
+    const QString controlBorder = styleValue(style, "controlBorderColor");
+    const QString dropTargetBorder = styleValue(style, "dropTargetBorderColor");
+    const QString disabledButtonBackground = styleValue(style, "disabledButtonBackgroundColor");
+    const QString disabledButtonForeground = styleValue(style, "disabledButtonForegroundColor");
+    const QString disabledText = styleValue(style, "disabledTextColor");
+    const QString rootFontSize = stylePixels(style, "rootFontSize");
+    const QString appTitleFontSize = stylePixels(style, "appTitleFontSize");
+    const QString appTitleFontWeight = QString::number(styleInt(style, "appTitleFontWeight"));
+    const QString captionFontSize = stylePixels(style, "captionFontSize");
+    const QString sectionTitleFontSize = stylePixels(style, "sectionTitleFontSize");
+    const QString sectionTitleFontWeight = QString::number(styleInt(style, "sectionTitleFontWeight"));
+    const QString currentTitleFontSize = stylePixels(style, "currentTitleFontSize");
+    const QString currentTitleFontWeight = QString::number(styleInt(style, "currentTitleFontWeight"));
+    const QString messageBodyFontSize = stylePixels(style, "messageBodyFontSize");
+    const QString markdownHeading1FontSize = stylePixels(style, "markdownHeading1FontSize");
+    const QString markdownHeading2FontSize = stylePixels(style, "markdownHeading2FontSize");
+    const QString markdownHeadingFontSize = stylePixels(style, "markdownHeadingFontSize");
+    const QString markdownHeadingFontWeight = QString::number(styleInt(style, "markdownHeadingFontWeight"));
+    const QString markdownCodeLanguageFontSize = stylePixels(style, "markdownCodeLanguageFontSize");
+    const QString markdownCodeFontSize = stylePixels(style, "markdownCodeFontSize");
+    const QString attachmentNameFontSize = stylePixels(style, "attachmentNameFontSize");
+    const QString attachmentSizeFontSize = stylePixels(style, "attachmentSizeFontSize");
+    const QString conversationTitleFontSize = stylePixels(style, "conversationTitleFontSize");
+    const QString conversationTitleFontWeight = QString::number(styleInt(style, "conversationTitleFontWeight"));
+    const QString conversationPreviewFontSize = stylePixels(style, "conversationPreviewFontSize");
+    const QString warningTextFontSize = stylePixels(style, "warningTextFontSize");
+    const QString chipRemoveButtonFontWeight = QString::number(styleInt(style, "chipRemoveButtonFontWeight"));
+    const QString statusDotSize = stylePixels(style, "statusDotSize");
+    const QString statusDotRadius = stylePixels(style, "statusDotRadius");
+    const QString conversationRowRadius = stylePixels(style, "conversationRowRadius");
+    const QString conversationListItemRadius = stylePixels(style, "conversationListItemRadius");
+    const QString conversationListItemVerticalMargin = stylePixels(style, "conversationListItemVerticalMargin");
+    const QString conversationListItemPadding = stylePixels(style, "conversationListItemPadding");
+    const QString emptyHistoryRadius = stylePixels(style, "emptyHistoryRadius");
+    const QString messageBubbleRadius = stylePixels(style, "messageBubbleRadius");
+    const QString attachmentChipRadius = stylePixels(style, "attachmentChipRadius");
+    const QString markdownQuoteRuleRadius = stylePixels(style, "markdownQuoteRuleRadius");
+    const QString markdownCodeBlockRadius = stylePixels(style, "markdownCodeBlockRadius");
+    const QString dropTargetRadius = stylePixels(style, "dropTargetRadius");
+    const QString promptButtonPadding = stylePixels(style, "promptButtonPadding");
+    const QString promptButtonRadius = stylePixels(style, "promptButtonRadius");
+    const QString primaryButtonVerticalPadding = stylePixels(style, "primaryButtonVerticalPadding");
+    const QString primaryButtonHorizontalPadding = stylePixels(style, "primaryButtonHorizontalPadding");
+    const QString primaryButtonRadius = stylePixels(style, "primaryButtonRadius");
+    const QString secondaryButtonVerticalPadding = stylePixels(style, "secondaryButtonVerticalPadding");
+    const QString secondaryButtonHorizontalPadding = stylePixels(style, "secondaryButtonHorizontalPadding");
+    const QString secondaryButtonRadius = stylePixels(style, "secondaryButtonRadius");
+    const QString chipRemoveButtonVerticalPadding = stylePixels(style, "chipRemoveButtonVerticalPadding");
+    const QString chipRemoveButtonHorizontalPadding = stylePixels(style, "chipRemoveButtonHorizontalPadding");
+    const QString controlPadding = stylePixels(style, "controlPadding");
+    const QString controlRadius = stylePixels(style, "controlRadius");
+    const QString composerEditorRadius = stylePixels(style, "composerEditorRadius");
 
     QString sheet = QStringLiteral(R"(
         QWidget#enchantedRoot { background: %1; color: %2; font-size: %3; }
@@ -554,14 +610,14 @@ QFrame *conversationRowWidget(
     QFrame *row = QuillQtWidgets::frame(QStringLiteral("conversationRow"));
     row->setProperty("active", false);
     QVBoxLayout *layout = new QVBoxLayout(row);
-    const int conversationRowPadding = intValue(style, "conversationRowPadding", 11);
+    const int conversationRowPadding = styleInt(style, "conversationRowPadding");
     layout->setContentsMargins(
         conversationRowPadding,
         conversationRowPadding,
         conversationRowPadding,
         conversationRowPadding
     );
-    layout->setSpacing(intValue(style, "conversationRowSpacing", 5));
+    layout->setSpacing(styleInt(style, "conversationRowSpacing"));
 
     QLabel *title = label(
         stringValue(conversation, "title", newConversationTitle),
@@ -620,14 +676,14 @@ void removeConversationRow(QListWidget *list, int row) {
 QFrame *emptyHistoryWidget(const QString &title, const QString &subtitle, const QJsonObject &style) {
     QFrame *card = QuillQtWidgets::frame(QStringLiteral("emptyHistory"));
     QVBoxLayout *layout = new QVBoxLayout(card);
-    const int emptyHistoryPadding = intValue(style, "emptyHistoryPadding", 12);
+    const int emptyHistoryPadding = styleInt(style, "emptyHistoryPadding");
     layout->setContentsMargins(
         emptyHistoryPadding,
         emptyHistoryPadding,
         emptyHistoryPadding,
         emptyHistoryPadding
     );
-    layout->setSpacing(intValue(style, "emptyHistorySpacing", 8));
+    layout->setSpacing(styleInt(style, "emptyHistorySpacing"));
     layout->addWidget(label(title, QStringLiteral("sectionTitle")));
     layout->addWidget(label(subtitle, QStringLiteral("caption")));
     return card;
@@ -943,11 +999,11 @@ QWidget *markdownListItemWidget(
     QWidget *row = new QWidget();
     QHBoxLayout *layout = new QHBoxLayout(row);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(intValue(style, "markdownListItemSpacing", 8));
+    layout->setSpacing(styleInt(style, "markdownListItemSpacing"));
 
     QLabel *markerLabel = label(marker, markerObjectName);
     if (markerObjectName == QStringLiteral("markdownNumber")) {
-        markerLabel->setFixedWidth(intValue(style, "markdownNumberWidth", 26));
+        markerLabel->setFixedWidth(styleInt(style, "markdownNumberWidth"));
     }
     markerLabel->setAlignment(Qt::AlignTop | Qt::AlignRight);
     layout->addWidget(markerLabel);
@@ -958,12 +1014,12 @@ QWidget *markdownListItemWidget(
 QWidget *markdownQuoteWidget(const QString &text, const QJsonObject &style) {
     QWidget *row = new QWidget();
     QHBoxLayout *layout = new QHBoxLayout(row);
-    const int verticalPadding = intValue(style, "markdownQuoteVerticalPadding", 2);
+    const int verticalPadding = styleInt(style, "markdownQuoteVerticalPadding");
     layout->setContentsMargins(0, verticalPadding, 0, verticalPadding);
-    layout->setSpacing(intValue(style, "markdownQuoteSpacing", 9));
+    layout->setSpacing(styleInt(style, "markdownQuoteSpacing"));
 
     QFrame *rule = QuillQtWidgets::frame(QStringLiteral("markdownQuoteRule"));
-    rule->setFixedWidth(intValue(style, "markdownQuoteRuleWidth", 3));
+    rule->setFixedWidth(styleInt(style, "markdownQuoteRuleWidth"));
     layout->addWidget(rule);
     layout->addWidget(markdownLabel(text, QStringLiteral("markdownQuote")), 1);
     return row;
@@ -972,9 +1028,9 @@ QWidget *markdownQuoteWidget(const QString &text, const QJsonObject &style) {
 QWidget *markdownCodeBlockWidget(const MarkdownBlock &block, const QJsonObject &style) {
     QFrame *codeBlock = QuillQtWidgets::frame(QStringLiteral("markdownCodeBlock"));
     QVBoxLayout *layout = new QVBoxLayout(codeBlock);
-    const int codeBlockPadding = intValue(style, "markdownCodeBlockPadding", 10);
+    const int codeBlockPadding = styleInt(style, "markdownCodeBlockPadding");
     layout->setContentsMargins(codeBlockPadding, codeBlockPadding, codeBlockPadding, codeBlockPadding);
-    layout->setSpacing(intValue(style, "markdownCodeBlockSpacing", 7));
+    layout->setSpacing(styleInt(style, "markdownCodeBlockSpacing"));
 
     if (!block.language.isEmpty()) {
         layout->addWidget(markdownLabel(block.language.toUpper(), QStringLiteral("markdownCodeLanguage")));
@@ -1029,7 +1085,7 @@ QWidget *markdownMessageWidget(const QString &markdown, const QJsonObject &style
     QWidget *container = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(container);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(intValue(style, "markdownBlockSpacing", 9));
+    layout->setSpacing(styleInt(style, "markdownBlockSpacing"));
     addMarkdownBlocks(layout, markdown, style);
     return container;
 }
@@ -1073,7 +1129,7 @@ void populateConversations(
     const QString &noMessagesYet
 ) {
     list->clear();
-    list->setSpacing(intValue(style, "conversationListSpacing", 8));
+    list->setSpacing(styleInt(style, "conversationListSpacing"));
     int selectedRow = -1;
 
     for (const QJsonValue &value : conversations) {
@@ -1118,17 +1174,17 @@ QFrame *messageBubble(
     }
 
     QFrame *bubble = QuillQtWidgets::frame(objectName);
-    bubble->setMaximumWidth(intValue(style, "messageMaxWidth", 680));
+    bubble->setMaximumWidth(styleInt(style, "messageMaxWidth"));
 
     QVBoxLayout *layout = new QVBoxLayout(bubble);
-    const int messageBubblePadding = intValue(style, "messageBubblePadding", 13);
+    const int messageBubblePadding = styleInt(style, "messageBubblePadding");
     layout->setContentsMargins(
         messageBubblePadding,
         messageBubblePadding,
         messageBubblePadding,
         messageBubblePadding
     );
-    layout->setSpacing(intValue(style, "messageBubbleSpacing", 7));
+    layout->setSpacing(styleInt(style, "messageBubbleSpacing"));
     layout->addWidget(label(
         messageRoleTitle(role, userRoleLabel, assistantRoleLabel, systemRoleLabel),
         role == QStringLiteral("user") ? QStringLiteral("messageUserRole") : QStringLiteral("messageRole")
@@ -1152,7 +1208,7 @@ void addMessageBubble(
     const bool isUser = stringValue(message, "role") == QStringLiteral("user");
     QHBoxLayout *row = new QHBoxLayout();
     row->setContentsMargins(0, 0, 0, 0);
-    row->setSpacing(intValue(style, "messageBubbleRowSpacing", 10));
+    row->setSpacing(styleInt(style, "messageBubbleRowSpacing"));
     if (isUser) {
         row->addStretch(1);
     }
@@ -1180,17 +1236,17 @@ void addPromptCards(
     QWidget *emptyState = new QWidget();
     emptyState->setObjectName(QStringLiteral("promptEmptyState"));
     QVBoxLayout *layout = new QVBoxLayout(emptyState);
-    const int emptyStatePadding = intValue(style, "emptyStatePadding", 26);
+    const int emptyStatePadding = styleInt(style, "emptyStatePadding");
     layout->setContentsMargins(
         emptyStatePadding,
         emptyStatePadding,
         emptyStatePadding,
         emptyStatePadding
     );
-    layout->setSpacing(intValue(style, "emptyStateSpacing", 18));
+    layout->setSpacing(styleInt(style, "emptyStateSpacing"));
     QVBoxLayout *headerLayout = new QVBoxLayout();
     headerLayout->setContentsMargins(0, 0, 0, 0);
-    headerLayout->setSpacing(intValue(style, "emptyStateHeaderSpacing", 8));
+    headerLayout->setSpacing(styleInt(style, "emptyStateHeaderSpacing"));
     headerLayout->addWidget(label(title, QStringLiteral("currentTitle")));
     headerLayout->addWidget(label(
         subtitle,
@@ -1199,20 +1255,20 @@ void addPromptCards(
     layout->addLayout(headerLayout);
 
     QVBoxLayout *promptList = new QVBoxLayout();
-    promptList->setSpacing(intValue(style, "promptListSpacing", 10));
+    promptList->setSpacing(styleInt(style, "promptListSpacing"));
     for (const QJsonValue &value : prompts) {
         const QString prompt = promptTitle(value);
         if (prompt.isEmpty()) {
             continue;
         }
         const QString systemImage = promptSystemImage(value);
-        const int promptButtonWidth = intValue(style, "promptButtonWidth", 620);
-        const int promptButtonIconSpacing = intValue(style, "promptButtonIconSpacing", 10);
-        const int promptButtonTextWidth = promptButtonWidth - intValue(style, "promptButtonTextWidthInset", 80);
+        const int promptButtonWidth = styleInt(style, "promptButtonWidth");
+        const int promptButtonIconSpacing = styleInt(style, "promptButtonIconSpacing");
+        const int promptButtonTextWidth = promptButtonWidth - styleInt(style, "promptButtonTextWidthInset");
         QPushButton *button = new QPushButton();
         button->setObjectName(QStringLiteral("promptButton"));
         button->setAccessibleName(prompt);
-        button->setMinimumHeight(intValue(style, "promptButtonMinHeight", 48));
+        button->setMinimumHeight(styleInt(style, "promptButtonMinHeight"));
         button->setFixedWidth(promptButtonWidth);
         QHBoxLayout *buttonLayout = new QHBoxLayout(button);
         buttonLayout->setContentsMargins(0, 0, 0, 0);
@@ -1233,7 +1289,7 @@ void addPromptCards(
     }
 
     layout->addLayout(promptList);
-    emptyState->setMaximumWidth(intValue(style, "emptyStateMaxWidth", 680));
+    emptyState->setMaximumWidth(styleInt(style, "emptyStateMaxWidth"));
     messageLayout->addWidget(emptyState);
     messageLayout->addStretch(1);
 }
@@ -1241,8 +1297,8 @@ void addPromptCards(
 QWidget *loadingRowWidget(const QString &status, const QJsonObject &style) {
     QWidget *row = new QWidget();
     QHBoxLayout *layout = new QHBoxLayout(row);
-    layout->setContentsMargins(0, intValue(style, "loadingTopPadding", 8), 0, 0);
-    layout->setSpacing(intValue(style, "loadingRowSpacing", 8));
+    layout->setContentsMargins(0, styleInt(style, "loadingTopPadding"), 0, 0);
+    layout->setSpacing(styleInt(style, "loadingRowSpacing"));
 
     layout->addWidget(new LoadingSpinner(style), 0, Qt::AlignVCenter);
     layout->addWidget(label(status, QStringLiteral("caption")), 0, Qt::AlignVCenter);
@@ -1634,7 +1690,7 @@ void addSidebarField(
     QWidget *group = new QWidget();
     QVBoxLayout *groupLayout = new QVBoxLayout(group);
     groupLayout->setContentsMargins(0, 0, 0, 0);
-    groupLayout->setSpacing(intValue(style, "sidebarControlGroupSpacing", 7));
+    groupLayout->setSpacing(styleInt(style, "sidebarControlGroupSpacing"));
     groupLayout->addWidget(fieldLabel(title));
     groupLayout->addWidget(field);
     layout->addWidget(group);
@@ -1718,8 +1774,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QWidget window;
     window.setObjectName(QStringLiteral("enchantedRoot"));
     window.setWindowTitle(stringValue(payload, "windowTitle"));
-    const QSize minimumWindowSize = QuillQtWidgets::minimumWindowSize(payload, 980, 680);
-    const QSize defaultWindowSize = QuillQtWidgets::defaultWindowSize(payload, minimumWindowSize);
+    const QSize minimumWindowSize = requiredWindowSize(payload, "minimumWidth", "minimumHeight");
+    const QSize defaultWindowSize = clampedDefaultWindowSize(payload, minimumWindowSize);
     window.setMinimumSize(minimumWindowSize);
     window.resize(defaultWindowSize);
 
@@ -1731,17 +1787,17 @@ extern "C" int quill_enchanted_qt_run_app_json(
     rootLayout->addWidget(splitter);
 
     QFrame *sidebar = QuillQtWidgets::frame(QStringLiteral("sidebar"));
-    sidebar->setMinimumWidth(intValue(style, "sidebarWidth", 300));
-    sidebar->setMaximumWidth(intValue(style, "sidebarWidth", 300));
+    sidebar->setMinimumWidth(styleInt(style, "sidebarWidth"));
+    sidebar->setMaximumWidth(styleInt(style, "sidebarWidth"));
     QVBoxLayout *sidebarLayout = new QVBoxLayout(sidebar);
-    const int sidebarPadding = intValue(style, "sidebarPadding", 18);
+    const int sidebarPadding = styleInt(style, "sidebarPadding");
     sidebarLayout->setContentsMargins(sidebarPadding, sidebarPadding, sidebarPadding, sidebarPadding);
-    sidebarLayout->setSpacing(intValue(style, "sidebarSpacing", 14));
+    sidebarLayout->setSpacing(styleInt(style, "sidebarSpacing"));
 
     QWidget *sidebarTitleBlock = new QWidget();
     QVBoxLayout *sidebarTitleLayout = new QVBoxLayout(sidebarTitleBlock);
     sidebarTitleLayout->setContentsMargins(0, 0, 0, 0);
-    sidebarTitleLayout->setSpacing(intValue(style, "sidebarTitleSpacing", 4));
+    sidebarTitleLayout->setSpacing(styleInt(style, "sidebarTitleSpacing"));
     sidebarTitleLayout->addWidget(label(
         stringValue(payload, "sidebarTitle"),
         QStringLiteral("appTitle")
@@ -1814,15 +1870,15 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QHBoxLayout *statusLayout = new QHBoxLayout();
     statusLayout->setContentsMargins(0, 0, 0, 0);
-    statusLayout->setSpacing(intValue(style, "statusRowSpacing", 8));
+    statusLayout->setSpacing(styleInt(style, "statusRowSpacing"));
     QFrame *statusDot = QuillQtWidgets::frame(
         models.isEmpty() ? QStringLiteral("statusDotWarning") : QStringLiteral("statusDot")
     );
-    const int statusDotSize = intValue(style, "statusDotSize", 9);
+    const int statusDotSize = styleInt(style, "statusDotSize");
     statusDot->setFixedSize(statusDotSize, statusDotSize);
     statusLayout->addWidget(statusDot);
     QLabel *statusText = label(stringValue(payload, "status"), QStringLiteral("statusText"));
-    statusText->setFixedWidth(intValue(style, "statusTextWidth", 240));
+    statusText->setFixedWidth(styleInt(style, "statusTextWidth"));
     statusLayout->addWidget(statusText);
     sidebarLayout->addLayout(statusLayout);
 
@@ -1854,7 +1910,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     sidebarLayout->addWidget(conversationList, 1);
 
     QHBoxLayout *conversationActions = new QHBoxLayout();
-    conversationActions->setSpacing(intValue(style, "conversationActionsSpacing", 8));
+    conversationActions->setSpacing(styleInt(style, "conversationActionsSpacing"));
     QPushButton *deleteButton = new QPushButton(stringValue(payload, "deleteChatTitle"));
     deleteButton->setObjectName(QStringLiteral("secondaryButton"));
     QPushButton *clearAllButton = new QPushButton(stringValue(payload, "clearAllTitle"));
@@ -1865,14 +1921,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QFrame *sidebarUtilityPanel = QuillQtWidgets::frame(QStringLiteral("sidebarUtilityPanel"));
     QVBoxLayout *sidebarUtilityLayout = new QVBoxLayout(sidebarUtilityPanel);
-    const int sidebarUtilityPadding = intValue(style, "emptyHistoryPadding", 12);
+    const int sidebarUtilityPadding = styleInt(style, "emptyHistoryPadding");
     sidebarUtilityLayout->setContentsMargins(
         sidebarUtilityPadding,
         sidebarUtilityPadding,
         sidebarUtilityPadding,
         sidebarUtilityPadding
     );
-    sidebarUtilityLayout->setSpacing(intValue(style, "emptyHistorySpacing", 8));
+    sidebarUtilityLayout->setSpacing(styleInt(style, "emptyHistorySpacing"));
     QLabel *sidebarUtilityTitle = label(QString(), QStringLiteral("sectionTitle"));
     QLabel *sidebarUtilitySubtitle = label(QString(), QStringLiteral("caption"));
     sidebarUtilitySubtitle->setWordWrap(true);
@@ -1884,7 +1940,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QFrame *sidebarBottomNavigation = QuillQtWidgets::frame(QStringLiteral("sidebarBottomNavigation"));
     QVBoxLayout *sidebarBottomNavigationLayout = new QVBoxLayout(sidebarBottomNavigation);
     sidebarBottomNavigationLayout->setContentsMargins(0, 0, 0, 0);
-    sidebarBottomNavigationLayout->setSpacing(intValue(style, "conversationActionsSpacing", 8));
+    sidebarBottomNavigationLayout->setSpacing(styleInt(style, "conversationActionsSpacing"));
     QPushButton *completionsButton = new QPushButton(stringValue(payload, "completionsTitle"));
     completionsButton->setObjectName(QStringLiteral("secondaryButton"));
     completionsButton->setIcon(completionsButtonIcon());
@@ -1909,11 +1965,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QFrame *header = QuillQtWidgets::frame(QStringLiteral("chatHeader"));
     QHBoxLayout *headerLayout = new QHBoxLayout(header);
-    const int headerPadding = intValue(style, "headerPadding", 18);
+    const int headerPadding = styleInt(style, "headerPadding");
     headerLayout->setContentsMargins(headerPadding, headerPadding, headerPadding, headerPadding);
-    headerLayout->setSpacing(intValue(style, "headerSpacing", 12));
+    headerLayout->setSpacing(styleInt(style, "headerSpacing"));
     QVBoxLayout *titleLayout = new QVBoxLayout();
-    titleLayout->setSpacing(intValue(style, "headerTitleSpacing", 4));
+    titleLayout->setSpacing(styleInt(style, "headerTitleSpacing"));
     const QString initialConversationID = currentConversationID(conversationList, selectedConversationID);
     QLabel *currentTitle = label(
         selectedConversationTitle(
@@ -1927,7 +1983,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         modelStatusText(stringValue(payload, "selectedModel"), chooseLocalModelStatus, usingModelStatusPrefix),
         QStringLiteral("caption")
     );
-    const int headerTitleWidth = intValue(style, "headerTitleWidth", 560);
+    const int headerTitleWidth = styleInt(style, "headerTitleWidth");
     currentTitle->setFixedWidth(headerTitleWidth);
     modelStatus->setFixedWidth(headerTitleWidth);
     titleLayout->addWidget(currentTitle);
@@ -1943,9 +1999,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
     scrollArea->setWidgetResizable(true);
     QWidget *transcript = new QWidget();
     QVBoxLayout *messageLayout = new QVBoxLayout(transcript);
-    const int contentPadding = intValue(style, "contentPadding", 22);
+    const int contentPadding = styleInt(style, "contentPadding");
     messageLayout->setContentsMargins(contentPadding, contentPadding, contentPadding, contentPadding);
-    messageLayout->setSpacing(intValue(style, "messageSpacing", 14));
+    messageLayout->setSpacing(styleInt(style, "messageSpacing"));
     scrollArea->setWidget(transcript);
     chatLayout->addWidget(scrollArea, 1);
     auto scrollTranscriptToBottom = [scrollArea]() {
@@ -1957,12 +2013,12 @@ extern "C" int quill_enchanted_qt_run_app_json(
     composerBandLayout->setContentsMargins(0, 0, 0, 0);
     composerBandLayout->setSpacing(0);
     QWidget *composerContent = new QWidget();
-    composerContent->setMinimumWidth(intValue(style, "composerMinWidth", 620));
-    composerContent->setMaximumWidth(intValue(style, "composerMaxWidth", 840));
+    composerContent->setMinimumWidth(styleInt(style, "composerMinWidth"));
+    composerContent->setMaximumWidth(styleInt(style, "composerMaxWidth"));
     QVBoxLayout *composerLayout = new QVBoxLayout(composerContent);
-    const int composerPadding = intValue(style, "composerPadding", 18);
+    const int composerPadding = styleInt(style, "composerPadding");
     composerLayout->setContentsMargins(composerPadding, composerPadding, composerPadding, composerPadding);
-    composerLayout->setSpacing(intValue(style, "composerSpacing", 10));
+    composerLayout->setSpacing(styleInt(style, "composerSpacing"));
     composerBandLayout->addStretch(1);
     composerBandLayout->addWidget(composerContent);
     composerBandLayout->addStretch(1);
@@ -1970,18 +2026,18 @@ extern "C" int quill_enchanted_qt_run_app_json(
     AttachmentDropFrame *dropTarget = new AttachmentDropFrame();
     QVBoxLayout *dropTargetLayout = new QVBoxLayout(dropTarget);
     dropTargetLayout->setContentsMargins(0, 0, 0, 0);
-    dropTargetLayout->setSpacing(intValue(style, "attachmentInputSpacing", 8));
+    dropTargetLayout->setSpacing(styleInt(style, "attachmentInputSpacing"));
 
     QFrame *dropHint = QuillQtWidgets::frame(QStringLiteral("dropTargetHint"));
     QHBoxLayout *dropHintLayout = new QHBoxLayout(dropHint);
-    const int dropTargetPadding = intValue(style, "dropTargetPadding", 8);
+    const int dropTargetPadding = styleInt(style, "dropTargetPadding");
     dropHintLayout->setContentsMargins(
         dropTargetPadding,
         dropTargetPadding,
         dropTargetPadding,
         dropTargetPadding
     );
-    dropHintLayout->setSpacing(intValue(style, "attachmentInputSpacing", 8));
+    dropHintLayout->setSpacing(styleInt(style, "attachmentInputSpacing"));
     QLabel *dropTargetIconLabel = iconLabel(
         dropTargetIcon(icons),
         QStringLiteral("dropTargetIcon"),
@@ -2000,7 +2056,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QHBoxLayout *dropLayout = new QHBoxLayout();
     dropLayout->setContentsMargins(0, 0, 0, 0);
-    dropLayout->setSpacing(intValue(style, "attachmentInputSpacing", 8));
+    dropLayout->setSpacing(styleInt(style, "attachmentInputSpacing"));
     QLineEdit *attachmentPath = new QLineEdit();
     attachmentPath->setPlaceholderText(stringValue(payload, "attachmentPlaceholder"));
     attachmentPath->setAcceptDrops(false);
@@ -2019,7 +2075,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QFrame *attachmentTray = QuillQtWidgets::frame(QStringLiteral("attachmentTray"));
     QVBoxLayout *attachmentTrayLayout = new QVBoxLayout(attachmentTray);
     attachmentTrayLayout->setContentsMargins(0, 0, 0, 0);
-    attachmentTrayLayout->setSpacing(intValue(style, "attachmentTraySpacing", 7));
+    attachmentTrayLayout->setSpacing(styleInt(style, "attachmentTraySpacing"));
     attachmentTrayLayout->addWidget(fieldLabel(stringValue(payload, "attachmentsTitle")));
     QScrollArea *attachmentScrollArea = new QScrollArea();
     attachmentScrollArea->setObjectName(QStringLiteral("attachmentScrollArea"));
@@ -2031,18 +2087,18 @@ extern "C" int quill_enchanted_qt_run_app_json(
     attachmentChipList->setObjectName(QStringLiteral("attachmentChipList"));
     QHBoxLayout *attachmentChipListLayout = new QHBoxLayout(attachmentChipList);
     attachmentChipListLayout->setContentsMargins(0, 0, 0, 0);
-    attachmentChipListLayout->setSpacing(intValue(style, "attachmentTrayChipSpacing", 8));
+    attachmentChipListLayout->setSpacing(styleInt(style, "attachmentTrayChipSpacing"));
     attachmentScrollArea->setWidget(attachmentChipList);
     attachmentTrayLayout->addWidget(attachmentScrollArea);
     attachmentTray->setVisible(false);
     composerLayout->addWidget(attachmentTray);
 
     QHBoxLayout *promptRow = new QHBoxLayout();
-    promptRow->setSpacing(intValue(style, "promptRowSpacing", 12));
+    promptRow->setSpacing(styleInt(style, "promptRowSpacing"));
     QPlainTextEdit *promptEditor = new QPlainTextEdit();
     promptEditor->setPlaceholderText(stringValue(payload, "composerPlaceholder"));
-    promptEditor->setMinimumHeight(intValue(style, "composerMinHeight", 74));
-    promptEditor->setMaximumHeight(intValue(style, "composerMaxHeight", 120));
+    promptEditor->setMinimumHeight(styleInt(style, "composerMinHeight"));
+    promptEditor->setMaximumHeight(styleInt(style, "composerMaxHeight"));
     const QString sendTitle = stringValue(payload, "sendTitle");
     const QString stopTitle = stringValue(payload, "stopTitle");
     const QString stoppingStatus = stringValue(payload, "stoppingStatus");
@@ -2052,7 +2108,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     sendButton->setObjectName(QStringLiteral("sendButton"));
     updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle);
     applyButtonIconSize(sendButton, style);
-    sendButton->setMinimumWidth(intValue(style, "composerSendButtonMinWidth", 86));
+    sendButton->setMinimumWidth(styleInt(style, "composerSendButtonMinWidth"));
     promptRow->addWidget(promptEditor, 1);
     promptRow->addWidget(sendButton);
     composerLayout->addLayout(promptRow);
@@ -2154,14 +2210,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
         for (const QString &path : pendingAttachmentPaths) {
             QFrame *attachmentChip = QuillQtWidgets::frame(QStringLiteral("attachmentChip"));
             QHBoxLayout *attachmentChipLayout = new QHBoxLayout(attachmentChip);
-            const int attachmentChipPadding = intValue(style, "attachmentChipPadding", 8);
+            const int attachmentChipPadding = styleInt(style, "attachmentChipPadding");
             attachmentChipLayout->setContentsMargins(
                 attachmentChipPadding,
                 attachmentChipPadding,
                 attachmentChipPadding,
                 attachmentChipPadding
             );
-            attachmentChipLayout->setSpacing(intValue(style, "attachmentChipSpacing", 8));
+            attachmentChipLayout->setSpacing(styleInt(style, "attachmentChipSpacing"));
 
             QLabel *attachmentIcon = iconLabel(
                 attachmentChipIcon(icons),
@@ -2171,7 +2227,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
             QVBoxLayout *attachmentTextLayout = new QVBoxLayout();
             attachmentTextLayout->setContentsMargins(0, 0, 0, 0);
-            attachmentTextLayout->setSpacing(intValue(style, "attachmentChipTextSpacing", 2));
+            attachmentTextLayout->setSpacing(styleInt(style, "attachmentChipTextSpacing"));
             QLabel *attachmentName = label(attachmentDisplayName(path), QStringLiteral("attachmentName"));
             attachmentName->setWordWrap(false);
             attachmentTextLayout->addWidget(attachmentName);
@@ -2189,7 +2245,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             applyButtonIconSize(removeAttachmentButton, style);
             removeAttachmentButton->setToolTip(removeAttachmentTooltip);
             removeAttachmentButton->setAccessibleName(removeAttachmentTooltip);
-            removeAttachmentButton->setFixedWidth(intValue(style, "attachmentRemoveButtonWidth", 28));
+            removeAttachmentButton->setFixedWidth(styleInt(style, "attachmentRemoveButtonWidth"));
             QObject::connect(removeAttachmentButton, &QPushButton::clicked, [&, path]() {
                 pendingAttachmentPaths.removeAll(path);
                 statusText->setText(
