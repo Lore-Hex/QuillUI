@@ -95,6 +95,10 @@ QIcon dropTargetIcon() {
     return attachButtonIcon();
 }
 
+QIcon attachmentChipIcon() {
+    return themedActionIcon(QStringLiteral("folder-symbolic"), QStyle::SP_DirIcon);
+}
+
 QIcon completionsButtonIcon() {
     return themedActionIcon(QStringLiteral("accessories-text-editor-symbolic"), QStyle::SP_FileDialogDetailedView);
 }
@@ -2114,6 +2118,12 @@ extern "C" int quill_enchanted_qt_run_app_json(
             );
             attachmentChipLayout->setSpacing(intValue(style, "attachmentChipSpacing", 8));
 
+            const int attachmentIconSize = buttonIconSize(style);
+            QLabel *attachmentIcon = new QLabel();
+            attachmentIcon->setObjectName(QStringLiteral("attachmentChipIcon"));
+            attachmentIcon->setPixmap(attachmentChipIcon().pixmap(attachmentIconSize, attachmentIconSize));
+            attachmentIcon->setFixedSize(attachmentIconSize, attachmentIconSize);
+
             QVBoxLayout *attachmentTextLayout = new QVBoxLayout();
             attachmentTextLayout->setContentsMargins(0, 0, 0, 0);
             attachmentTextLayout->setSpacing(intValue(style, "attachmentChipTextSpacing", 2));
@@ -2149,6 +2159,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
                 QTimer::singleShot(0, attachmentTray, renderAttachmentTray);
             });
 
+            attachmentChipLayout->addWidget(attachmentIcon);
             attachmentChipLayout->addLayout(attachmentTextLayout);
             attachmentChipLayout->addWidget(removeAttachmentButton);
             attachmentChipListLayout->addWidget(attachmentChip);
