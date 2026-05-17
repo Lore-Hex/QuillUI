@@ -2059,11 +2059,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
     ));
     promptEditor->setMinimumHeight(intValue(style, "composerMinHeight", 74));
     promptEditor->setMaximumHeight(intValue(style, "composerMaxHeight", 120));
-    const QString sendTitle = stringValue(payload, "sendTitle", QStringLiteral("Send"));
-    const QString stopTitle = stringValue(payload, "stopTitle", QStringLiteral("Stop"));
-    const QString stoppingStatus = stringValue(payload, "stoppingStatus", QStringLiteral("Stopping..."));
-    const QString attachmentsClearedStatus = stringValue(payload, "attachmentsClearedStatus", QStringLiteral("Attachments cleared"));
-    const QString attachmentRemovedEmptyStatus = stringValue(payload, "attachmentRemovedEmptyStatus", QStringLiteral("Ready"));
+    const QString sendTitle = stringValue(payload, "sendTitle");
+    const QString stopTitle = stringValue(payload, "stopTitle");
+    const QString stoppingStatus = stringValue(payload, "stoppingStatus");
+    const QString attachmentsClearedStatus = stringValue(payload, "attachmentsClearedStatus");
+    const QString attachmentRemovedEmptyStatus = stringValue(payload, "attachmentRemovedEmptyStatus");
     QPushButton *sendButton = new QPushButton();
     sendButton->setObjectName(QStringLiteral("sendButton"));
     updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle);
@@ -2077,21 +2077,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QString attachmentDefaultPrompt = stringValue(payload, "attachmentDefaultPrompt");
     const QString attachmentDefaultPromptPlural = stringValue(payload, "attachmentDefaultPromptPlural");
     const QString attachmentSummaryTitle = stringValue(payload, "attachmentSummaryTitle");
-    const QString removeAttachmentTooltip = stringValue(
-        payload,
-        "removeAttachmentTooltip",
-        QStringLiteral("Remove attachment")
-    );
-    const QString imageReadyStatusSingular = stringValue(
-        payload,
-        "imageReadyStatusSingular",
-        QStringLiteral("1 image ready to send")
-    );
-    const QString imageReadyStatusPluralUnit = stringValue(
-        payload,
-        "imageReadyStatusPluralUnit",
-        QStringLiteral("images ready to send")
-    );
+    const QString removeAttachmentTooltip = stringValue(payload, "removeAttachmentTooltip");
+    const QString imageReadyStatusSingular = stringValue(payload, "imageReadyStatusSingular");
+    const QString imageReadyStatusPluralUnit = stringValue(payload, "imageReadyStatusPluralUnit");
     QJsonArray fallbackMessages = arrayValue(payload, "messages");
     const QJsonArray prompts = arrayValue(payload, "prompts");
     const QString emptyStateTitle = stringValue(payload, "emptyStateTitle", QStringLiteral("Ask your local model"));
