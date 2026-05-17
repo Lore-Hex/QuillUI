@@ -181,25 +181,28 @@ public final class EnchantedModel: ObservableObject {
     }
 
     public func sendComposerMessage() async {
-        let attachments = pendingImageAttachments
-        guard let prompt = composerText.quillTrimmedNonEmpty ?? (attachments.isEmpty ? nil : PendingImageAttachment.defaultPrompt(for: attachments)) else {
+        guard let draft = takeComposerDraft() else {
             return
         }
-        composerText = ""
-        attachmentPath = ""
-        pendingImageAttachments = []
-        await send(prompt, attachments: attachments)
+        await send(draft.prompt, attachments: draft.attachments)
     }
 
     public func startComposerMessage() {
+        guard let draft = takeComposerDraft() else {
+            return
+        }
+        startSend(draft.prompt, attachments: draft.attachments)
+    }
+
+    private func takeComposerDraft() -> (prompt: String, attachments: [PendingImageAttachment])? {
         let attachments = pendingImageAttachments
         guard let prompt = composerText.quillTrimmedNonEmpty ?? (attachments.isEmpty ? nil : PendingImageAttachment.defaultPrompt(for: attachments)) else {
-            return
+            return nil
         }
         composerText = ""
         attachmentPath = ""
         pendingImageAttachments = []
-        startSend(prompt, attachments: attachments)
+        return (prompt, attachments)
     }
 
     @discardableResult
