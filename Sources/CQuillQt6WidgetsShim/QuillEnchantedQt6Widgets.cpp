@@ -1983,6 +1983,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     sidebarLayout->addWidget(conversationList, 1);
 
     QHBoxLayout *conversationActions = new QHBoxLayout();
+    conversationActions->setContentsMargins(0, 0, 0, 0);
     conversationActions->setSpacing(styleInt(style, "conversationActionsSpacing"));
     QPushButton *deleteButton = new QPushButton(payloadString(payload, "deleteChatTitle"));
     deleteButton->setObjectName(QStringLiteral("secondaryButton"));
@@ -2042,6 +2043,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     headerLayout->setContentsMargins(headerPadding, headerPadding, headerPadding, headerPadding);
     headerLayout->setSpacing(styleInt(style, "headerSpacing"));
     QVBoxLayout *titleLayout = new QVBoxLayout();
+    titleLayout->setContentsMargins(0, 0, 0, 0);
     titleLayout->setSpacing(styleInt(style, "headerTitleSpacing"));
     const QString initialConversationID = currentConversationID(conversationList, selectedConversationID);
     QLabel *currentTitle = label(
