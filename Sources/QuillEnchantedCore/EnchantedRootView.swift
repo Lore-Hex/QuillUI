@@ -496,20 +496,20 @@ private struct MessageBubble: View {
 }
 
 enum QuillColors {
-    static var canvas: Color { Color(hex: "#F6F7F2") }
-    static var sidebar: Color { Color(hex: "#EEF1EA") }
-    static var header: Color { Color(hex: "#FBFCF7") }
-    static var card: Color { Color(hex: "#FFFFFF") }
-    static var primary: Color { Color(hex: "#315B7D") }
-    static var success: Color { Color(hex: "#2F8F64") }
-    static var warning: Color { Color(hex: "#B86A31") }
-    static var system: Color { Color(hex: "#E8EDF3") }
-    static var ink: Color { Color(hex: "#172026") }
-    static var muted: Color { Color(hex: "#6C747C") }
-    static var selectedMuted: Color { Color(hex: "#DDEBFA") }
-    static var quoteRule: Color { Color(hex: "#8AA5B7") }
-    static var codeBlock: Color { Color(hex: "#EEF3F4") }
-    static var dropTarget: Color { Color(hex: "#E1F0EA") }
+    static var canvas: Color { Color(hex: EnchantedPalette.canvasColor) }
+    static var sidebar: Color { Color(hex: EnchantedPalette.sidebarColor) }
+    static var header: Color { Color(hex: EnchantedPalette.headerColor) }
+    static var card: Color { Color(hex: EnchantedPalette.cardColor) }
+    static var primary: Color { Color(hex: EnchantedPalette.primaryColor) }
+    static var success: Color { Color(hex: EnchantedPalette.successColor) }
+    static var warning: Color { Color(hex: EnchantedPalette.warningColor) }
+    static var system: Color { Color(hex: EnchantedPalette.systemColor) }
+    static var ink: Color { Color(hex: EnchantedPalette.inkColor) }
+    static var muted: Color { Color(hex: EnchantedPalette.mutedColor) }
+    static var selectedMuted: Color { Color(hex: EnchantedPalette.selectedMutedColor) }
+    static var quoteRule: Color { Color(hex: EnchantedPalette.quoteRuleColor) }
+    static var codeBlock: Color { Color(hex: EnchantedPalette.codeBlockColor) }
+    static var dropTarget: Color { Color(hex: EnchantedPalette.dropTargetColor) }
 }
 
 private struct AttachmentChip: View {

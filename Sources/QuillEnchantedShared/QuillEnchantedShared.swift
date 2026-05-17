@@ -9,6 +9,38 @@ public enum EnchantedPromptCatalog {
     ]
 }
 
+public enum EnchantedPalette {
+    public static let canvasColor = "#FBFBFD"
+    public static let sidebarColor = "#F5F5F7"
+    public static let sidebarSelectedColor = "#E8E8ED"
+    public static let cardColor = "#FFFFFF"
+    public static let cardQuietColor = "#F4F4F6"
+    public static let hairlineColor = "#D8D8DE"
+    public static let textColor = "#1D1D1F"
+    public static let secondaryTextColor = "#6E6E73"
+    public static let accentColor = "#4285F4"
+    public static let destructiveColor = "#B42318"
+    public static let successColor = "#34C759"
+    public static let warningColor = "#FF9F0A"
+    public static let dropTargetColor = "#EAF2FF"
+    public static let selectedMutedColor = "#FFFFFF"
+    public static let headerColor = EnchantedPalette.canvasColor
+    public static let primaryColor = EnchantedPalette.accentColor
+    public static let systemColor = EnchantedPalette.sidebarSelectedColor
+    public static let inkColor = EnchantedPalette.textColor
+    public static let mutedColor = EnchantedPalette.secondaryTextColor
+    public static let quoteRuleColor = EnchantedPalette.hairlineColor
+    public static let codeBlockColor = EnchantedPalette.cardQuietColor
+    public static let dividerColor = EnchantedPalette.hairlineColor
+    public static let cardBorderColor = EnchantedPalette.hairlineColor
+    public static let messageBorderColor = EnchantedPalette.hairlineColor
+    public static let controlBorderColor = EnchantedPalette.hairlineColor
+    public static let dropTargetBorderColor = EnchantedPalette.accentColor
+    public static let disabledButtonBackgroundColor = EnchantedPalette.hairlineColor
+    public static let disabledButtonForegroundColor = EnchantedPalette.secondaryTextColor
+    public static let disabledTextColor = EnchantedPalette.secondaryTextColor
+}
+
 public enum EnchantedVisualMetrics {
     public static let minimumWindowWidth = 980
     public static let minimumWindowHeight = 680

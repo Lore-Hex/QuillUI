@@ -137,7 +137,7 @@ class LoadingSpinner final : public QWidget {
 public:
     explicit LoadingSpinner(const QJsonObject &style, QWidget *parent = nullptr)
         : QWidget(parent),
-          color(styleValue(style, "primaryColor", "#315B7D")) {
+          color(styleValue(style, "primaryColor", "#4285F4")) {
         setObjectName(QStringLiteral("loadingSpinner"));
         const int spinnerSize = intValue(style, "loadingSpinnerSize", 16);
         setFixedSize(spinnerSize, spinnerSize);
@@ -219,28 +219,28 @@ QJsonArray arrayValue(const QJsonObject &object, const char *key) {
 }
 
 QString appStyleSheet(const QJsonObject &style) {
-    const QString canvas = styleValue(style, "canvasColor", "#F6F7F2");
-    const QString ink = styleValue(style, "inkColor", "#172026");
-    const QString sidebar = styleValue(style, "sidebarColor", "#EEF1EA");
-    const QString header = styleValue(style, "headerColor", "#FBFCF7");
+    const QString canvas = styleValue(style, "canvasColor", "#FBFBFD");
+    const QString ink = styleValue(style, "inkColor", "#1D1D1F");
+    const QString sidebar = styleValue(style, "sidebarColor", "#F5F5F7");
+    const QString header = styleValue(style, "headerColor", "#FBFBFD");
     const QString card = styleValue(style, "cardColor", "#FFFFFF");
-    const QString primary = styleValue(style, "primaryColor", "#315B7D");
-    const QString system = styleValue(style, "systemColor", "#E8EDF3");
-    const QString muted = styleValue(style, "mutedColor", "#6C747C");
-    const QString selected = styleValue(style, "selectedMutedColor", "#DDEBFA");
-    const QString warning = styleValue(style, "warningColor", "#B86A31");
-    const QString success = styleValue(style, "successColor", "#2F8F64");
-    const QString dropTarget = styleValue(style, "dropTargetColor", "#E1F0EA");
-    const QString quoteRule = styleValue(style, "quoteRuleColor", "#8AA5B7");
-    const QString codeBlock = styleValue(style, "codeBlockColor", "#EEF3F4");
-    const QString divider = styleValue(style, "dividerColor", "#D8DDD5");
-    const QString cardBorder = styleValue(style, "cardBorderColor", "#E0E5DD");
-    const QString messageBorder = styleValue(style, "messageBorderColor", "#D4DFE8");
-    const QString controlBorder = styleValue(style, "controlBorderColor", "#CDD5CA");
-    const QString dropTargetBorder = styleValue(style, "dropTargetBorderColor", "#C8DED3");
-    const QString disabledButtonBackground = styleValue(style, "disabledButtonBackgroundColor", "#AAB5BE");
-    const QString disabledButtonForeground = styleValue(style, "disabledButtonForegroundColor", "#F4F6F7");
-    const QString disabledText = styleValue(style, "disabledTextColor", "#9CA6AD");
+    const QString primary = styleValue(style, "primaryColor", "#4285F4");
+    const QString system = styleValue(style, "systemColor", "#E8E8ED");
+    const QString muted = styleValue(style, "mutedColor", "#6E6E73");
+    const QString selected = styleValue(style, "selectedMutedColor", "#FFFFFF");
+    const QString warning = styleValue(style, "warningColor", "#FF9F0A");
+    const QString success = styleValue(style, "successColor", "#34C759");
+    const QString dropTarget = styleValue(style, "dropTargetColor", "#EAF2FF");
+    const QString quoteRule = styleValue(style, "quoteRuleColor", "#D8D8DE");
+    const QString codeBlock = styleValue(style, "codeBlockColor", "#F4F4F6");
+    const QString divider = styleValue(style, "dividerColor", "#D8D8DE");
+    const QString cardBorder = styleValue(style, "cardBorderColor", "#D8D8DE");
+    const QString messageBorder = styleValue(style, "messageBorderColor", "#D8D8DE");
+    const QString controlBorder = styleValue(style, "controlBorderColor", "#D8D8DE");
+    const QString dropTargetBorder = styleValue(style, "dropTargetBorderColor", "#4285F4");
+    const QString disabledButtonBackground = styleValue(style, "disabledButtonBackgroundColor", "#D8D8DE");
+    const QString disabledButtonForeground = styleValue(style, "disabledButtonForegroundColor", "#6E6E73");
+    const QString disabledText = styleValue(style, "disabledTextColor", "#6E6E73");
     const QString rootFontSize = cssPixels(style, "rootFontSize", 14);
     const QString appTitleFontSize = cssPixels(style, "appTitleFontSize", 26);
     const QString appTitleFontWeight = QString::number(intValue(style, "appTitleFontWeight", 700));
