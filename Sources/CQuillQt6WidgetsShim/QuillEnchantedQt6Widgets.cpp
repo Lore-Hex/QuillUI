@@ -1055,12 +1055,14 @@ QWidget *markdownListItemWidget(
 ) {
     QWidget *row = new QWidget();
     QHBoxLayout *layout = new QHBoxLayout(row);
+    const int markdownListItemSpacing = styleInt(style, "markdownListItemSpacing");
+    const int markdownNumberWidth = styleInt(style, "markdownNumberWidth");
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(styleInt(style, "markdownListItemSpacing"));
+    layout->setSpacing(markdownListItemSpacing);
 
     QLabel *markerLabel = label(marker, markerObjectName);
     if (markerObjectName == QStringLiteral("markdownNumber")) {
-        markerLabel->setFixedWidth(styleInt(style, "markdownNumberWidth"));
+        markerLabel->setFixedWidth(markdownNumberWidth);
     }
     markerLabel->setAlignment(Qt::AlignTop | Qt::AlignRight);
     layout->addWidget(markerLabel);
@@ -1072,11 +1074,13 @@ QWidget *markdownQuoteWidget(const QString &text, const QJsonObject &style) {
     QWidget *row = new QWidget();
     QHBoxLayout *layout = new QHBoxLayout(row);
     const int verticalPadding = styleInt(style, "markdownQuoteVerticalPadding");
+    const int markdownQuoteSpacing = styleInt(style, "markdownQuoteSpacing");
+    const int markdownQuoteRuleWidth = styleInt(style, "markdownQuoteRuleWidth");
     layout->setContentsMargins(0, verticalPadding, 0, verticalPadding);
-    layout->setSpacing(styleInt(style, "markdownQuoteSpacing"));
+    layout->setSpacing(markdownQuoteSpacing);
 
     QFrame *rule = QuillQtWidgets::frame(QStringLiteral("markdownQuoteRule"));
-    rule->setFixedWidth(styleInt(style, "markdownQuoteRuleWidth"));
+    rule->setFixedWidth(markdownQuoteRuleWidth);
     layout->addWidget(rule);
     layout->addWidget(markdownLabel(text, QStringLiteral("markdownQuote")), 1);
     return row;
@@ -1086,8 +1090,9 @@ QWidget *markdownCodeBlockWidget(const MarkdownBlock &block, const QJsonObject &
     QFrame *codeBlock = QuillQtWidgets::frame(QStringLiteral("markdownCodeBlock"));
     QVBoxLayout *layout = new QVBoxLayout(codeBlock);
     const int codeBlockPadding = styleInt(style, "markdownCodeBlockPadding");
+    const int markdownCodeBlockSpacing = styleInt(style, "markdownCodeBlockSpacing");
     layout->setContentsMargins(codeBlockPadding, codeBlockPadding, codeBlockPadding, codeBlockPadding);
-    layout->setSpacing(styleInt(style, "markdownCodeBlockSpacing"));
+    layout->setSpacing(markdownCodeBlockSpacing);
 
     if (!block.language.isEmpty()) {
         layout->addWidget(markdownLabel(block.language.toUpper(), QStringLiteral("markdownCodeLanguage")));
