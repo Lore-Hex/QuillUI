@@ -1306,18 +1306,19 @@ void addPromptCards(
     QVBoxLayout *promptList = new QVBoxLayout();
     promptList->setContentsMargins(0, 0, 0, 0);
     promptList->setSpacing(styleInt(style, "promptListSpacing"));
+    const int promptButtonWidth = styleInt(style, "promptButtonWidth");
+    const int promptButtonIconSpacing = styleInt(style, "promptButtonIconSpacing");
+    const int promptButtonTextWidth = promptButtonWidth - styleInt(style, "promptButtonTextWidthInset");
+    const int promptButtonPadding = styleInt(style, "promptButtonPadding");
+    const int promptButtonMinHeight = styleInt(style, "promptButtonMinHeight");
     for (const QJsonValue &value : prompts) {
         const QJsonObject promptPayload = requiredPromptObject(value);
         const QString prompt = promptTitle(promptPayload);
         const QString systemImage = promptSystemImage(promptPayload);
-        const int promptButtonWidth = styleInt(style, "promptButtonWidth");
-        const int promptButtonIconSpacing = styleInt(style, "promptButtonIconSpacing");
-        const int promptButtonTextWidth = promptButtonWidth - styleInt(style, "promptButtonTextWidthInset");
-        const int promptButtonPadding = styleInt(style, "promptButtonPadding");
         QPushButton *button = new QPushButton();
         button->setObjectName(QStringLiteral("promptButton"));
         button->setAccessibleName(prompt);
-        button->setMinimumHeight(styleInt(style, "promptButtonMinHeight"));
+        button->setMinimumHeight(promptButtonMinHeight);
         button->setFixedWidth(promptButtonWidth);
         QHBoxLayout *buttonLayout = new QHBoxLayout(button);
         buttonLayout->setContentsMargins(
