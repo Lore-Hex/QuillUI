@@ -1298,10 +1298,9 @@ void addPromptCards(
     headerLayout->setContentsMargins(0, 0, 0, 0);
     headerLayout->setSpacing(styleInt(style, "emptyStateHeaderSpacing"));
     headerLayout->addWidget(label(title, QStringLiteral("currentTitle")));
-    headerLayout->addWidget(label(
-        subtitle,
-        QStringLiteral("caption")
-    ));
+    QLabel *subtitleLabel = label(subtitle, QStringLiteral("caption"));
+    subtitleLabel->setFixedWidth(styleInt(style, "promptButtonWidth"));
+    headerLayout->addWidget(subtitleLabel);
     layout->addLayout(headerLayout);
 
     QVBoxLayout *promptList = new QVBoxLayout();
