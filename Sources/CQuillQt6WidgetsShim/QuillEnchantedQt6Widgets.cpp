@@ -10,6 +10,7 @@
 #include <QDragLeaveEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
+#include <QEvent>
 #include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -18,6 +19,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -176,6 +178,36 @@ private:
     QColor color;
     QTimer timer;
     int rotationDegrees = 0;
+};
+
+class ReturnSubmitFilter final : public QObject {
+public:
+    explicit ReturnSubmitFilter(const std::function<void()> &onSubmit, QObject *parent = nullptr)
+        : QObject(parent),
+          onSubmit(onSubmit) {}
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() != QEvent::KeyPress) {
+            return QObject::eventFilter(watched, event);
+        }
+
+        QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+        const int key = keyEvent->key();
+        if (key != Qt::Key_Return && key != Qt::Key_Enter) {
+            return QObject::eventFilter(watched, event);
+        }
+
+        if (keyEvent->modifiers().testFlag(Qt::ShiftModifier)) {
+            return false;
+        }
+
+        onSubmit();
+        return true;
+    }
+
+private:
+    std::function<void()> onSubmit;
 };
 
 QJsonObject objectValue(const QJsonObject &object, const char *key) {
@@ -2297,6 +2329,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QShortcut *sendShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Return")), promptEditor);
     sendShortcut->setContext(Qt::WidgetShortcut);
     QObject::connect(sendShortcut, &QShortcut::activated, triggerSendOrStop);
+    promptEditor->installEventFilter(new ReturnSubmitFilter(triggerSendOrStop, promptEditor));
     QObject::connect(sendButton, &QPushButton::clicked, triggerSendOrStop);
     updateComposerControlState();
     updateConversationActionState();
