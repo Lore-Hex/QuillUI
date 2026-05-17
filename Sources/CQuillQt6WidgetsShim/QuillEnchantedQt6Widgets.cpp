@@ -1650,6 +1650,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     statusDot->setFixedSize(statusDotSize, statusDotSize);
     statusLayout->addWidget(statusDot);
     QLabel *statusText = label(stringValue(payload, "status"), QStringLiteral("statusText"));
+    statusText->setFixedWidth(intValue(style, "statusTextWidth", 240));
     statusLayout->addWidget(statusText);
     sidebarLayout->addLayout(statusLayout);
 
