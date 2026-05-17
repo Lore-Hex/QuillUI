@@ -103,16 +103,16 @@ struct SelectedImageAttachment: Identifiable {
 }
 
 private enum EnchantedTheme {
-    static var canvas: Color { Color(hex: "#FBFBFD") }
-    static var sidebar: Color { Color(hex: "#F5F5F7") }
-    static var sidebarSelected: Color { Color(hex: "#E8E8ED") }
-    static var card: Color { Color.white }
-    static var cardQuiet: Color { Color(hex: "#F4F4F6") }
-    static var hairline: Color { Color(hex: "#D8D8DE") }
-    static var text: Color { Color(hex: "#1D1D1F") }
-    static var secondaryText: Color { Color(hex: "#6E6E73") }
-    static var accent: Color { Color(hex: "#4285F4") }
-    static var destructive: Color { Color(hex: "#B42318") }
+    static var canvas: Color { Color(hex: EnchantedPalette.canvasColor) }
+    static var sidebar: Color { Color(hex: EnchantedPalette.sidebarColor) }
+    static var sidebarSelected: Color { Color(hex: EnchantedPalette.sidebarSelectedColor) }
+    static var card: Color { Color(hex: EnchantedPalette.cardColor) }
+    static var cardQuiet: Color { Color(hex: EnchantedPalette.cardQuietColor) }
+    static var hairline: Color { Color(hex: EnchantedPalette.hairlineColor) }
+    static var text: Color { Color(hex: EnchantedPalette.textColor) }
+    static var secondaryText: Color { Color(hex: EnchantedPalette.secondaryTextColor) }
+    static var accent: Color { Color(hex: EnchantedPalette.accentColor) }
+    static var destructive: Color { Color(hex: EnchantedPalette.destructiveColor) }
 }
 
 private extension String {
@@ -632,12 +632,11 @@ struct MessageListView: View {
 struct EmptyConversaitonView: View {
     var sendPrompt: (String) -> Void
 
-    private let prompts = [
-        QuillPrompt(title: "How to center div in HTML?", systemImage: "questionmark.circle"),
-        QuillPrompt(title: "How to do personal taxes in USA?", systemImage: "questionmark.circle"),
-        QuillPrompt(title: "Explain supercomputers like I'm five years old", systemImage: "lightbulb.circle"),
-        QuillPrompt(title: "Write a text message asking a friend to be my plus-one at a wedding", systemImage: "lightbulb.circle")
-    ]
+    private var prompts: [QuillPrompt] {
+        EnchantedPromptCatalog.emptyConversationPrompts.map {
+            QuillPrompt(title: $0.title, systemImage: $0.systemImage)
+        }
+    }
 
     var body: some View {
         QuillChatEmptyState(brandTitle: "Quill", prompts: prompts, columns: 4) { prompt in
@@ -664,7 +663,7 @@ struct InputFieldsView: View {
     private func sendMessage() {
         guard let selectedModel, message.upstreamTrimmedNonEmpty != nil || selectedImage != nil else { return }
         onSendMessageTap(
-            message.upstreamTrimmedNonEmpty ?? "Describe this image.",
+            message.upstreamTrimmedNonEmpty ?? EnchantedCopy.attachmentDefaultPrompt,
             selectedModel,
             selectedImage?.attachment,
             editMessage?.id
