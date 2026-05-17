@@ -83,24 +83,30 @@ QIcon themedActionIcon(const QString &themeName, QStyle::StandardPixmap fallback
     return QIcon::fromTheme(themeName, QApplication::style()->standardIcon(fallback));
 }
 
-QIcon newConversationButtonIcon() {
-    return themedActionIcon(QStringLiteral("document-new-symbolic"), QStyle::SP_FileIcon);
+QString iconName(const QJsonObject &icons, const char *key, const QString &fallback) {
+    return stringValue(icons, key, fallback).trimmed();
 }
 
-QIcon attachButtonIcon() {
-    return themedActionIcon(QStringLiteral("folder-new-symbolic"), QStyle::SP_FileDialogNewFolder);
-}
-
-QIcon dropTargetIcon() {
-    return attachButtonIcon();
-}
-
-QIcon attachmentChipIcon() {
-    return themedActionIcon(QStringLiteral("folder-symbolic"), QStyle::SP_DirIcon);
-}
-
-QIcon promptButtonIcon(const QString &systemImage) {
+QIcon systemImageIcon(const QString &systemImage) {
     const QString normalized = systemImage.trimmed().toLower();
+    if (normalized.contains(QStringLiteral("square.and.pencil"))) {
+        return themedActionIcon(QStringLiteral("document-new-symbolic"), QStyle::SP_FileIcon);
+    }
+    if (normalized.contains(QStringLiteral("folder.badge.plus"))) {
+        return themedActionIcon(QStringLiteral("folder-new-symbolic"), QStyle::SP_FileDialogNewFolder);
+    }
+    if (normalized == QStringLiteral("folder") || normalized.contains(QStringLiteral("folder."))) {
+        return themedActionIcon(QStringLiteral("folder-symbolic"), QStyle::SP_DirIcon);
+    }
+    if (normalized.contains(QStringLiteral("xmark.circle.fill"))) {
+        return themedActionIcon(QStringLiteral("window-close-symbolic"), QStyle::SP_DialogCloseButton);
+    }
+    if (normalized.contains(QStringLiteral("square.fill"))) {
+        return themedActionIcon(QStringLiteral("process-stop-symbolic"), QStyle::SP_MediaStop);
+    }
+    if (normalized.contains(QStringLiteral("arrow.forward.circle.fill"))) {
+        return themedActionIcon(QStringLiteral("go-next-symbolic"), QStyle::SP_MediaPlay);
+    }
     if (normalized.contains(QStringLiteral("questionmark"))) {
         return themedActionIcon(QStringLiteral("help-about-symbolic"), QStyle::SP_MessageBoxQuestion);
     }
@@ -108,6 +114,26 @@ QIcon promptButtonIcon(const QString &systemImage) {
         return themedActionIcon(QStringLiteral("dialog-information-symbolic"), QStyle::SP_MessageBoxInformation);
     }
     return themedActionIcon(QStringLiteral("starred-symbolic"), QStyle::SP_DialogYesButton);
+}
+
+QIcon newConversationButtonIcon(const QJsonObject &icons) {
+    return systemImageIcon(iconName(icons, "newConversation", QStringLiteral("square.and.pencil")));
+}
+
+QIcon attachButtonIcon(const QJsonObject &icons) {
+    return systemImageIcon(iconName(icons, "attach", QStringLiteral("folder.badge.plus")));
+}
+
+QIcon dropTargetIcon(const QJsonObject &icons) {
+    return systemImageIcon(iconName(icons, "dropTarget", QStringLiteral("folder.badge.plus")));
+}
+
+QIcon attachmentChipIcon(const QJsonObject &icons) {
+    return systemImageIcon(iconName(icons, "attachment", QStringLiteral("folder")));
+}
+
+QIcon promptButtonIcon(const QString &systemImage) {
+    return systemImageIcon(systemImage);
 }
 
 QIcon completionsButtonIcon() {
@@ -122,14 +148,16 @@ QIcon settingsButtonIcon() {
     return themedActionIcon(QStringLiteral("preferences-system-symbolic"), QStyle::SP_MessageBoxInformation);
 }
 
-QIcon sendButtonIcon(bool isLoading) {
-    return isLoading
-        ? themedActionIcon(QStringLiteral("process-stop-symbolic"), QStyle::SP_MediaStop)
-        : themedActionIcon(QStringLiteral("go-next-symbolic"), QStyle::SP_MediaPlay);
+QIcon sendButtonIcon(const QJsonObject &icons, bool isLoading) {
+    const char *key = isLoading ? "stop" : "send";
+    const QString fallback = isLoading
+        ? QStringLiteral("square.fill")
+        : QStringLiteral("arrow.forward.circle.fill");
+    return systemImageIcon(iconName(icons, key, fallback));
 }
 
-QIcon removeAttachmentButtonIcon() {
-    return themedActionIcon(QStringLiteral("window-close-symbolic"), QStyle::SP_DialogCloseButton);
+QIcon removeAttachmentButtonIcon(const QJsonObject &icons) {
+    return systemImageIcon(iconName(icons, "removeAttachment", QStringLiteral("xmark.circle.fill")));
 }
 
 QString promptTitle(const QJsonValue &value) {
@@ -185,13 +213,14 @@ void applyButtonIconSize(QPushButton *button, const QJsonObject &style) {
 
 void updateSendButtonPresentation(
     QPushButton *button,
+    const QJsonObject &icons,
     bool isLoading,
     const QString &sendTitle,
     const QString &stopTitle
 ) {
     button->setProperty("loading", isLoading);
     button->setText(isLoading ? stopTitle : sendTitle);
-    button->setIcon(sendButtonIcon(isLoading));
+    button->setIcon(sendButtonIcon(icons, isLoading));
 }
 
 class LoadingSpinner final : public QWidget {
@@ -1673,6 +1702,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QApplication app(argc, argv);
     const QJsonObject style = objectValue(payload, "style");
+    QJsonObject icons = objectValue(payload, "icons");
     bool isLoading = boolValue(payload, "isLoading", false);
     const QString chooseLocalModelStatus = stringValue(
         payload,
@@ -1732,7 +1762,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QPushButton *newConversationButton = new QPushButton(newConversationButtonTitle);
     newConversationButton->setObjectName(QStringLiteral("primaryButton"));
-    newConversationButton->setIcon(newConversationButtonIcon());
+    newConversationButton->setIcon(newConversationButtonIcon(icons));
     applyButtonIconSize(newConversationButton, style);
     sidebarLayout->addWidget(newConversationButton);
 
@@ -1961,7 +1991,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     );
     dropHintLayout->setSpacing(intValue(style, "attachmentInputSpacing", 8));
     QLabel *dropTargetIconLabel = iconLabel(
-        dropTargetIcon(),
+        dropTargetIcon(icons),
         QStringLiteral("dropTargetIcon"),
         style
     );
@@ -1988,7 +2018,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     attachmentPath->setAcceptDrops(false);
     QPushButton *attachButton = new QPushButton(stringValue(payload, "attachTitle", QStringLiteral("Attach")));
     attachButton->setObjectName(QStringLiteral("secondaryButton"));
-    attachButton->setIcon(attachButtonIcon());
+    attachButton->setIcon(attachButtonIcon(icons));
     applyButtonIconSize(attachButton, style);
     QPushButton *clearAttachmentsButton = new QPushButton(stringValue(payload, "clearAttachmentsTitle", QStringLiteral("Clear")));
     clearAttachmentsButton->setObjectName(QStringLiteral("secondaryButton"));
@@ -2036,7 +2066,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QString attachmentRemovedEmptyStatus = stringValue(payload, "attachmentRemovedEmptyStatus", QStringLiteral("Ready"));
     QPushButton *sendButton = new QPushButton();
     sendButton->setObjectName(QStringLiteral("sendButton"));
-    updateSendButtonPresentation(sendButton, isLoading, sendTitle, stopTitle);
+    updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle);
     applyButtonIconSize(sendButton, style);
     sendButton->setMinimumWidth(intValue(style, "composerSendButtonMinWidth", 86));
     promptRow->addWidget(promptEditor, 1);
@@ -2178,7 +2208,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             attachmentChipLayout->setSpacing(intValue(style, "attachmentChipSpacing", 8));
 
             QLabel *attachmentIcon = iconLabel(
-                attachmentChipIcon(),
+                attachmentChipIcon(icons),
                 QStringLiteral("attachmentChipIcon"),
                 style
             );
@@ -2199,7 +2229,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
             QPushButton *removeAttachmentButton = new QPushButton();
             removeAttachmentButton->setObjectName(QStringLiteral("chipRemoveButton"));
-            removeAttachmentButton->setIcon(removeAttachmentButtonIcon());
+            removeAttachmentButton->setIcon(removeAttachmentButtonIcon(icons));
             applyButtonIconSize(removeAttachmentButton, style);
             removeAttachmentButton->setToolTip(removeAttachmentTooltip);
             removeAttachmentButton->setAccessibleName(removeAttachmentTooltip);
@@ -2313,6 +2343,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     };
     auto applySnapshot = [&](const QJsonObject &snapshot) {
         payload = snapshot;
+        icons = objectValue(payload, "icons");
         isLoading = boolValue(payload, "isLoading", false);
         models = arrayValue(payload, "models");
         conversations = arrayValue(payload, "conversations");
@@ -2345,7 +2376,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         ));
         statusText->setText(stringValue(payload, "status"));
         refreshButton->setEnabled(!isLoading);
-        updateSendButtonPresentation(sendButton, isLoading, sendTitle, stopTitle);
+        updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle);
         refreshStyle(sendButton);
         updateComposerControlState();
         modelStatus->setText(modelStatusText(

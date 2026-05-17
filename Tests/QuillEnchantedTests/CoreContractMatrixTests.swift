@@ -85,6 +85,109 @@ struct CoreContractMatrixTests {
         #expect(url.path.hasSuffix(testCase.expectedSuffix))
     }
 
+    @Test("Enchanted icon contract mirrors macOS symbols through Qt")
+    func enchantedIconContractsMirrorMacOSSymbolsThroughQt() throws {
+        let root = try packageRoot()
+        let runtime = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift"),
+            encoding: .utf8
+        )
+        let macOSRootView = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedRootView.swift"),
+            encoding: .utf8
+        )
+        let sharedPrompts = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedShared/QuillEnchantedShared.swift"),
+            encoding: .utf8
+        )
+        let nativeShim = try String(
+            contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp"),
+            encoding: .utf8
+        )
+
+        for needle in [
+            "var icons: Icons",
+            "struct Icons: Codable, Sendable",
+            "static let shared = Icons(",
+            "newConversation: EnchantedIcon.newConversation",
+            "attach: EnchantedIcon.attach",
+            "dropTarget: EnchantedIcon.dropTarget",
+            "attachment: EnchantedIcon.attachment",
+            "send: EnchantedIcon.send",
+            "stop: EnchantedIcon.stop",
+            "removeAttachment: EnchantedIcon.removeAttachment",
+            "icons: .shared"
+        ] {
+            expectContains(runtime, needle)
+        }
+
+        for needle in [
+            "public enum EnchantedIcon",
+            "public static let newConversation = \"square.and.pencil\"",
+            "public static let attach = \"folder.badge.plus\"",
+            "public static let dropTarget = attach",
+            "public static let attachment = \"folder\"",
+            "public static let send = \"arrow.forward.circle.fill\"",
+            "public static let stop = \"square.fill\"",
+            "public static let removeAttachment = \"xmark.circle.fill\""
+        ] {
+            expectContains(sharedPrompts, needle)
+        }
+
+        for needle in [
+            "Image(systemName: EnchantedIcon.newConversation)",
+            "Image(systemName: EnchantedIcon.attach)",
+            "Image(systemName: model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send)",
+            "Image(systemName: EnchantedIcon.dropTarget)",
+            "Image(systemName: EnchantedIcon.attachment)",
+            "Image(systemName: EnchantedIcon.removeAttachment)"
+        ] {
+            expectContains(macOSRootView, needle)
+        }
+
+        for needle in [
+            "QString iconName(const QJsonObject &icons, const char *key, const QString &fallback)",
+            "QIcon systemImageIcon(const QString &systemImage)",
+            "QIcon newConversationButtonIcon(const QJsonObject &icons)",
+            "QIcon attachButtonIcon(const QJsonObject &icons)",
+            "QIcon dropTargetIcon(const QJsonObject &icons)",
+            "QIcon attachmentChipIcon(const QJsonObject &icons)",
+            "QIcon sendButtonIcon(const QJsonObject &icons, bool isLoading)",
+            "QIcon removeAttachmentButtonIcon(const QJsonObject &icons)",
+            "QJsonObject icons = objectValue(payload, \"icons\")",
+            "icons = objectValue(payload, \"icons\")",
+            "newConversationButton->setIcon(newConversationButtonIcon(icons))",
+            "attachButton->setIcon(attachButtonIcon(icons))",
+            "dropTargetIcon(icons),\n        QStringLiteral(\"dropTargetIcon\"),\n        style",
+            "attachmentChipIcon(icons),\n                QStringLiteral(\"attachmentChipIcon\"),\n                style",
+            "removeAttachmentButton->setIcon(removeAttachmentButtonIcon(icons))",
+            "updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle)",
+            "QStringLiteral(\"document-new-symbolic\")",
+            "QStringLiteral(\"folder-new-symbolic\")",
+            "QStringLiteral(\"folder-symbolic\")",
+            "QStringLiteral(\"window-close-symbolic\")",
+            "QStringLiteral(\"process-stop-symbolic\")",
+            "QStringLiteral(\"go-next-symbolic\")",
+            "QStyle::SP_FileIcon",
+            "QStyle::SP_FileDialogNewFolder",
+            "QStyle::SP_DirIcon",
+            "QStyle::SP_DialogCloseButton",
+            "QStyle::SP_MediaStop",
+            "QStyle::SP_MediaPlay"
+        ] {
+            expectContains(nativeShim, needle)
+        }
+
+        for needle in [
+            "QIcon newChatButtonIcon()",
+            "QLabel *dropTargetIconLabel = new QLabel()",
+            "dropTargetIcon().pixmap(dropTargetIconSize, dropTargetIconSize)",
+            "new QPushButton(QStringLiteral(\"x\"))"
+        ] {
+            expectDoesNotContain(nativeShim, needle)
+        }
+    }
+
     @Test("Enchanted Qt native target stays isolated from GTK graph")
     func enchantedQtNativeTargetContracts() throws {
         let root = try packageRoot()
@@ -984,7 +1087,6 @@ struct CoreContractMatrixTests {
         #expect(macOSRootView.contains("Button(EnchantedCopy.clearAttachmentsTitle)"))
         #expect(macOSRootView.contains("private var hasAttachmentPathCandidates: Bool"))
         #expect(macOSRootView.contains("PendingImageAttachment.attachmentPathCandidates(from: model.attachmentPath)"))
-        #expect(macOSRootView.contains("Image(systemName: model.isLoading ? \"square.fill\" : \"arrow.forward.circle.fill\")"))
         #expect(macOSRootView.contains("Text(model.isLoading ? EnchantedCopy.stopTitle : EnchantedCopy.sendTitle)"))
         #expect(macOSRootView.contains(".background(model.isLoading ? QuillColors.warning : QuillColors.primary)"))
         #expect(macOSRootView.contains(".dropDestination(for: URL.self)"))
@@ -1062,12 +1164,6 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("void setDropHint(QWidget *hint)"))
         #expect(nativeShim.contains("dropHint->setVisible(property(\"dragActive\").toBool())"))
         #expect(nativeShim.contains("dropHint->setVisible(active)"))
-        #expect(nativeShim.contains("QIcon dropTargetIcon()"))
-        #expect(nativeShim.contains("return attachButtonIcon()"))
-        #expect(nativeShim.contains("QLabel *dropTargetIconLabel = iconLabel("))
-        #expect(nativeShim.contains("dropTargetIcon(),\n        QStringLiteral(\"dropTargetIcon\"),\n        style"))
-        #expect(!nativeShim.contains("QLabel *dropTargetIconLabel = new QLabel()"))
-        #expect(!nativeShim.contains("dropTargetIcon().pixmap(dropTargetIconSize, dropTargetIconSize)"))
         #expect(nativeShim.contains("stringValue(payload, \"dropTargetTitle\", QStringLiteral(\"Drop image files to attach\"))"))
         #expect(runtime.contains("dropTargetTitle: EnchantedCopy.dropTargetTitle"))
         #expect(nativeShim.contains("QStringList pendingAttachmentPaths"))
@@ -1075,21 +1171,11 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("QHBoxLayout *attachmentChipListLayout"))
         #expect(nativeShim.contains("QPushButton *removeAttachmentButton"))
         #expect(nativeShim.contains("removeAttachmentButton->setObjectName(QStringLiteral(\"chipRemoveButton\"))"))
-        #expect(macOSRootView.contains("Image(systemName: \"folder\")"))
-        #expect(nativeShim.contains("QIcon attachmentChipIcon()"))
-        #expect(nativeShim.contains("QStringLiteral(\"folder-symbolic\")"))
-        #expect(nativeShim.contains("QStyle::SP_DirIcon"))
         #expect(nativeShim.contains("QLabel *attachmentIcon = iconLabel("))
-        #expect(nativeShim.contains("attachmentChipIcon(),\n                QStringLiteral(\"attachmentChipIcon\"),\n                style"))
         #expect(nativeShim.contains("attachmentChipLayout->addWidget(attachmentIcon)"))
-        #expect(nativeShim.contains("QIcon removeAttachmentButtonIcon()"))
-        #expect(nativeShim.contains("QStringLiteral(\"window-close-symbolic\")"))
-        #expect(nativeShim.contains("QStyle::SP_DialogCloseButton"))
-        #expect(nativeShim.contains("removeAttachmentButton->setIcon(removeAttachmentButtonIcon())"))
         #expect(nativeShim.contains("applyButtonIconSize(removeAttachmentButton, style)"))
         #expect(nativeShim.contains("removeAttachmentButton->setToolTip(removeAttachmentTooltip)"))
         #expect(nativeShim.contains("removeAttachmentButton->setAccessibleName(removeAttachmentTooltip)"))
-        #expect(!nativeShim.contains("new QPushButton(QStringLiteral(\"x\"))"))
         #expect(runtime.contains("attachmentRemoveButtonWidth: EnchantedVisualMetrics.attachmentRemoveButtonWidth"))
         #expect(nativeShim.contains("removeAttachmentButton->setFixedWidth(intValue(style, \"attachmentRemoveButtonWidth\", 28))"))
         #expect(!nativeShim.contains("removeAttachmentButton->setFixedWidth(28)"))
@@ -1106,22 +1192,8 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("#include <QIcon>"))
         #expect(nativeShim.contains("#include <QPixmap>"))
         #expect(nativeShim.contains("#include <QStyle>"))
-        #expect(nativeShim.contains("QIcon sendButtonIcon(bool isLoading)"))
-        #expect(nativeShim.contains("QStringLiteral(\"process-stop-symbolic\")"))
-        #expect(nativeShim.contains("QStringLiteral(\"go-next-symbolic\")"))
-        #expect(nativeShim.contains("QStyle::SP_MediaStop"))
-        #expect(nativeShim.contains("QStyle::SP_MediaPlay"))
-        #expect(nativeShim.contains("QStyle::SP_FileDialogNewFolder"))
-        #expect(nativeShim.contains("QIcon newConversationButtonIcon()"))
-        #expect(!nativeShim.contains("QIcon newChatButtonIcon()"))
-        #expect(nativeShim.contains("QStringLiteral(\"document-new-symbolic\")"))
-        #expect(nativeShim.contains("QStyle::SP_FileIcon"))
         #expect(nativeShim.contains("QIcon themedActionIcon("))
-        #expect(nativeShim.contains("QIcon attachButtonIcon()"))
-        #expect(macOSRootView.contains("Image(systemName: \"square.and.pencil\")"))
         #expect(macOSRootView.contains("EnchantedVisualMetrics.primaryButtonIconSpacing"))
-        #expect(nativeShim.contains("newConversationButton->setIcon(newConversationButtonIcon())"))
-        #expect(nativeShim.contains("attachButton->setIcon(attachButtonIcon())"))
         #expect(nativeShim.contains("int buttonIconSize(const QJsonObject &style)"))
         #expect(nativeShim.contains("return intValue(style, \"actionButtonIconSize\", 16)"))
         #expect(nativeShim.contains("void applyButtonIconSize(QPushButton *button, const QJsonObject &style)"))
@@ -1131,7 +1203,7 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("applyButtonIconSize(attachButton, style)"))
         #expect(nativeShim.contains("applyButtonIconSize(sendButton, style)"))
         #expect(nativeShim.contains("void updateSendButtonPresentation("))
-        #expect(nativeShim.contains("updateSendButtonPresentation(sendButton, isLoading, sendTitle, stopTitle)"))
+        #expect(nativeShim.contains("updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle)"))
         #expect(nativeShim.contains("button->setProperty(\"loading\", isLoading)"))
         #expect(nativeShim.contains("button->setText(isLoading ? stopTitle : sendTitle)"))
         #expect(nativeShim.components(separatedBy: "button->setProperty(\"loading\", isLoading)").count == 2)
@@ -1237,6 +1309,14 @@ struct CoreContractMatrixTests {
             directory.deleteLastPathComponent()
         }
         throw CoreContractMatrixTestError.packageRootNotFound
+    }
+
+    private func expectContains(_ source: String, _ needle: String) {
+        #expect(source.contains(needle))
+    }
+
+    private func expectDoesNotContain(_ source: String, _ needle: String) {
+        #expect(!source.contains(needle))
     }
 }
 

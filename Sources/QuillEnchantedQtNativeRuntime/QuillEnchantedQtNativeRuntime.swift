@@ -69,6 +69,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var conversations: [Conversation]
     var messages: [Message]
     var prompts: [Prompt]
+    var icons: Icons
     var style: Style
 
     struct Conversation: Codable, Sendable {
@@ -126,6 +127,26 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             self.kind = prompt.kind.rawValue
             self.systemImage = prompt.systemImage
         }
+    }
+
+    struct Icons: Codable, Sendable {
+        var newConversation: String
+        var attach: String
+        var dropTarget: String
+        var attachment: String
+        var send: String
+        var stop: String
+        var removeAttachment: String
+
+        static let shared = Icons(
+            newConversation: EnchantedIcon.newConversation,
+            attach: EnchantedIcon.attach,
+            dropTarget: EnchantedIcon.dropTarget,
+            attachment: EnchantedIcon.attachment,
+            send: EnchantedIcon.send,
+            stop: EnchantedIcon.stop,
+            removeAttachment: EnchantedIcon.removeAttachment
+        )
     }
 
     struct Style: Codable, Sendable {
@@ -389,6 +410,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         ],
         messages: launchConversationMessages,
         prompts: EnchantedPromptCatalog.emptyConversationPrompts.map(QuillEnchantedQtSnapshot.Prompt.init),
+        icons: .shared,
         style: Style(
             canvasColor: EnchantedPalette.canvasColor,
             sidebarColor: EnchantedPalette.sidebarColor,

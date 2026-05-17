@@ -52,7 +52,7 @@ public struct EnchantedRootView: View {
 
             Button(action: model.newConversation) {
                 HStack(spacing: CGFloat(EnchantedVisualMetrics.primaryButtonIconSpacing)) {
-                    Image(systemName: "square.and.pencil")
+                    Image(systemName: EnchantedIcon.newConversation)
                     Text(EnchantedCopy.newChatTitle)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -212,7 +212,7 @@ public struct EnchantedRootView: View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.composerSpacing)) {
             if model.isAttachmentDropTargeted {
                 HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentInputSpacing)) {
-                    Image(systemName: "folder.badge.plus")
+                    Image(systemName: EnchantedIcon.dropTarget)
                     Text(EnchantedCopy.dropTargetTitle)
                 }
                 .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
@@ -235,7 +235,7 @@ public struct EnchantedRootView: View {
                     model.addAttachmentPath()
                 }) {
                     HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
-                        Image(systemName: "folder.badge.plus")
+                        Image(systemName: EnchantedIcon.attach)
                         Text(EnchantedCopy.attachTitle)
                     }
                 }
@@ -264,7 +264,7 @@ public struct EnchantedRootView: View {
                     }
                 }) {
                     HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
-                        Image(systemName: model.isLoading ? "square.fill" : "arrow.forward.circle.fill")
+                        Image(systemName: model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send)
                         Text(model.isLoading ? EnchantedCopy.stopTitle : EnchantedCopy.sendTitle)
                     }
                     .padding(CGFloat(EnchantedVisualMetrics.primaryButtonPadding))
@@ -518,7 +518,7 @@ private struct AttachmentChip: View {
 
     var body: some View {
         HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentChipSpacing)) {
-            Image(systemName: "folder")
+            Image(systemName: EnchantedIcon.attachment)
                 .foregroundColor(QuillColors.primary)
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.attachmentChipTextSpacing)) {
@@ -532,7 +532,7 @@ private struct AttachmentChip: View {
             }
 
             Button(action: remove) {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: EnchantedIcon.removeAttachment)
                     .foregroundColor(QuillColors.muted)
             }
             .buttonStyle(.plain)

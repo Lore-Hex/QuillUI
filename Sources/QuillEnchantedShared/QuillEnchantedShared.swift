@@ -90,6 +90,16 @@ public enum EnchantedPromptCatalog {
     }
 }
 
+public enum EnchantedIcon {
+    public static let newConversation = "square.and.pencil"
+    public static let attach = "folder.badge.plus"
+    public static let dropTarget = attach
+    public static let attachment = "folder"
+    public static let send = "arrow.forward.circle.fill"
+    public static let stop = "square.fill"
+    public static let removeAttachment = "xmark.circle.fill"
+}
+
 public enum EnchantedCopy {
     public static let windowTitle = "Quill Enchanted"
     public static let appTitle = "Enchanted"
