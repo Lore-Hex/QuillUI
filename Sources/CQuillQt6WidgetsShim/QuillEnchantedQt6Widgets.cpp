@@ -669,13 +669,14 @@ QFrame *conversationRowWidget(
     row->setProperty("active", false);
     QVBoxLayout *layout = new QVBoxLayout(row);
     const int conversationRowPadding = styleInt(style, "conversationRowPadding");
+    const int conversationRowSpacing = styleInt(style, "conversationRowSpacing");
     layout->setContentsMargins(
         conversationRowPadding,
         conversationRowPadding,
         conversationRowPadding,
         conversationRowPadding
     );
-    layout->setSpacing(styleInt(style, "conversationRowSpacing"));
+    layout->setSpacing(conversationRowSpacing);
 
     QLabel *title = label(conversationTitle(conversation), QStringLiteral("conversationTitle"));
     title->setWordWrap(false);
