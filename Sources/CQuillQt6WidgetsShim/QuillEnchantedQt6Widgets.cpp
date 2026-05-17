@@ -2100,10 +2100,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
     composerBandLayout->addWidget(composerContent);
     composerBandLayout->addStretch(1);
 
+    const int attachmentInputSpacing = styleInt(style, "attachmentInputSpacing");
     AttachmentDropFrame *dropTarget = new AttachmentDropFrame();
     QVBoxLayout *dropTargetLayout = new QVBoxLayout(dropTarget);
     dropTargetLayout->setContentsMargins(0, 0, 0, 0);
-    dropTargetLayout->setSpacing(styleInt(style, "attachmentInputSpacing"));
+    dropTargetLayout->setSpacing(attachmentInputSpacing);
 
     QFrame *dropHint = QuillQtWidgets::frame(QStringLiteral("dropTargetHint"));
     QHBoxLayout *dropHintLayout = new QHBoxLayout(dropHint);
@@ -2114,7 +2115,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         dropTargetPadding,
         dropTargetPadding
     );
-    dropHintLayout->setSpacing(styleInt(style, "attachmentInputSpacing"));
+    dropHintLayout->setSpacing(attachmentInputSpacing);
     QLabel *dropTargetIconLabel = iconLabel(
         dropTargetIcon(icons),
         QStringLiteral("dropTargetIcon"),
@@ -2133,7 +2134,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QHBoxLayout *dropLayout = new QHBoxLayout();
     dropLayout->setContentsMargins(0, 0, 0, 0);
-    dropLayout->setSpacing(styleInt(style, "attachmentInputSpacing"));
+    dropLayout->setSpacing(attachmentInputSpacing);
     QLineEdit *attachmentPath = new QLineEdit();
     attachmentPath->setPlaceholderText(payloadString(payload, "attachmentPlaceholder"));
     attachmentPath->setAcceptDrops(false);
