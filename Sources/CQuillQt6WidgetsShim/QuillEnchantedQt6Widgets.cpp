@@ -61,10 +61,6 @@ using QuillQtWidgets::refreshStyle;
 using QuillQtWidgets::scrollAreaToBottomLater;
 using PromptAction = std::function<void(const QString &)>;
 
-QString stringValue(const QJsonObject &object, const char *key) {
-    return QuillQtWidgets::jsonStringValue(object, key);
-}
-
 [[noreturn]] void failRequiredPayloadField(const char *key, const char *expectedType) {
     std::fprintf(
         stderr,
@@ -109,6 +105,13 @@ bool requiredBoolValue(const QJsonObject &object, const char *key) {
 
 QJsonObject requiredObjectValue(const QJsonObject &object, const char *key) {
     const QJsonValue value = requiredValue(object, key, "object");
+    if (value.isObject()) {
+        return value.toObject();
+    }
+    failRequiredPayloadField(key, "object");
+}
+
+QJsonObject requiredObjectValue(const QJsonValue &value, const char *key) {
     if (value.isObject()) {
         return value.toObject();
     }
@@ -274,23 +277,24 @@ QIcon removeAttachmentButtonIcon(const QJsonObject &icons) {
     return systemImageIcon(requiredIconName(icons, "removeAttachment"));
 }
 
-QString promptTitle(const QJsonValue &value) {
-    if (value.isObject()) {
-        return stringValue(value.toObject(), "title");
-    }
-    return value.toString();
+QJsonObject requiredPromptObject(const QJsonValue &value) {
+    return requiredObjectValue(value, "prompts[]");
 }
 
-QString promptSystemImage(const QJsonValue &value) {
-    if (value.isObject()) {
-        const QJsonObject prompt = value.toObject();
-        const QString systemImage = requiredStringValue(prompt, "systemImage").trimmed();
-        if (!systemImage.isEmpty()) {
-            return systemImage;
-        }
-        failRequiredPayloadField("systemImage", "non-empty string");
+QString promptTitle(const QJsonObject &prompt) {
+    const QString title = requiredStringValue(prompt, "title");
+    if (!title.trimmed().isEmpty()) {
+        return title;
     }
-    return QString();
+    failRequiredPayloadField("title", "non-empty string");
+}
+
+QString promptSystemImage(const QJsonObject &prompt) {
+    const QString systemImage = requiredStringValue(prompt, "systemImage").trimmed();
+    if (!systemImage.isEmpty()) {
+        return systemImage;
+    }
+    failRequiredPayloadField("systemImage", "non-empty string");
 }
 
 int buttonIconSize(const QJsonObject &style) {
@@ -1303,11 +1307,9 @@ void addPromptCards(
     QVBoxLayout *promptList = new QVBoxLayout();
     promptList->setSpacing(styleInt(style, "promptListSpacing"));
     for (const QJsonValue &value : prompts) {
-        const QString prompt = promptTitle(value);
-        if (prompt.isEmpty()) {
-            continue;
-        }
-        const QString systemImage = promptSystemImage(value);
+        const QJsonObject promptPayload = requiredPromptObject(value);
+        const QString prompt = promptTitle(promptPayload);
+        const QString systemImage = promptSystemImage(promptPayload);
         const int promptButtonWidth = styleInt(style, "promptButtonWidth");
         const int promptButtonIconSpacing = styleInt(style, "promptButtonIconSpacing");
         const int promptButtonTextWidth = promptButtonWidth - styleInt(style, "promptButtonTextWidthInset");
