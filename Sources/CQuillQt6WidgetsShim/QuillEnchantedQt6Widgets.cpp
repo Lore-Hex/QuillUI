@@ -2074,21 +2074,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
     composerLayout->addLayout(promptRow);
     chatLayout->addWidget(composer);
 
-    const QString attachmentDefaultPrompt = stringValue(
-        payload,
-        "attachmentDefaultPrompt",
-        QStringLiteral("Describe this image.")
-    );
-    const QString attachmentDefaultPromptPlural = stringValue(
-        payload,
-        "attachmentDefaultPromptPlural",
-        QStringLiteral("Describe these images.")
-    );
-    const QString attachmentSummaryTitle = stringValue(
-        payload,
-        "attachmentSummaryTitle",
-        QStringLiteral("[Attached images]")
-    );
+    const QString attachmentDefaultPrompt = stringValue(payload, "attachmentDefaultPrompt");
+    const QString attachmentDefaultPromptPlural = stringValue(payload, "attachmentDefaultPromptPlural");
+    const QString attachmentSummaryTitle = stringValue(payload, "attachmentSummaryTitle");
     const QString removeAttachmentTooltip = stringValue(
         payload,
         "removeAttachmentTooltip",
