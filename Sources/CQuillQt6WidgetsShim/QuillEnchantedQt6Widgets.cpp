@@ -2167,6 +2167,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     composerLayout->addWidget(attachmentTray);
 
     QHBoxLayout *promptRow = new QHBoxLayout();
+    promptRow->setContentsMargins(0, 0, 0, 0);
     promptRow->setSpacing(styleInt(style, "promptRowSpacing"));
     QPlainTextEdit *promptEditor = new QPlainTextEdit();
     promptEditor->setPlaceholderText(payloadString(payload, "composerPlaceholder"));
@@ -2183,7 +2184,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     applyButtonIconSize(sendButton, style);
     sendButton->setMinimumWidth(styleInt(style, "composerSendButtonMinWidth"));
     promptRow->addWidget(promptEditor, 1);
-    promptRow->addWidget(sendButton);
+    promptRow->addWidget(sendButton, 0, Qt::AlignBottom);
     composerLayout->addLayout(promptRow);
     chatLayout->addWidget(composer);
 
