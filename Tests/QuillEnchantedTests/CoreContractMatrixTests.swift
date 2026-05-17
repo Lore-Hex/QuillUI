@@ -892,6 +892,8 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("const qint64 attachmentMaxByteCount = 20 * 1024 * 1024"))
         #expect(nativeShim.contains("struct AttachmentPathValidation"))
         #expect(nativeShim.contains("QStringList supportedAttachmentExtensions()"))
+        #expect(nativeShim.contains("QStringLiteral(\"tif\")"))
+        #expect(nativeShim.contains("QStringLiteral(\"tiff\")"))
         #expect(nativeShim.contains("QString normalizedAttachmentPath(const QString &rawPath)"))
         #expect(nativeShim.contains("QDir::homePath()"))
         #expect(nativeShim.contains("AttachmentPathValidation validatedAttachmentPaths(const QStringList &rawPaths)"))
@@ -904,7 +906,9 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("const QString displaySize = attachmentDisplaySize(path)"))
         #expect(nativeShim.contains("QStringLiteral(\"- %1 (%2)\").arg(displayName, displaySize)"))
         #expect(imageAttachmentSource.contains("public static let maxByteCount: Int64 = 20 * 1024 * 1024"))
-        #expect(imageAttachmentSource.contains("public static let supportedExtensions: Set<String> = [\"gif\", \"heic\", \"jpeg\", \"jpg\", \"png\", \"webp\"]"))
+        #expect(imageAttachmentSource.contains("public static let supportedExtensions: Set<String> = [\"gif\", \"heic\", \"jpeg\", \"jpg\", \"png\", \"tif\", \"tiff\", \"webp\"]"))
+        #expect(imageAttachmentSource.contains("case \"tif\", \"tiff\":"))
+        #expect(imageAttachmentSource.contains("return \"image/tiff\""))
         #expect(imageAttachmentSource.contains("case .unsupportedFileType(let name):"))
         #expect(imageAttachmentSource.contains("case .unreadableFile(let path):"))
         #expect(imageAttachmentSource.contains("case .fileTooLarge(let name, let byteCount):"))
@@ -1194,12 +1198,16 @@ private let imageExtensionCases: [ImageExtensionCase] = [
     ImageExtensionCase(fileExtension: "jpeg", mediaType: "image/jpeg"),
     ImageExtensionCase(fileExtension: "jpg", mediaType: "image/jpeg"),
     ImageExtensionCase(fileExtension: "png", mediaType: "image/png"),
+    ImageExtensionCase(fileExtension: "tif", mediaType: "image/tiff"),
+    ImageExtensionCase(fileExtension: "tiff", mediaType: "image/tiff"),
     ImageExtensionCase(fileExtension: "webp", mediaType: "image/webp"),
     ImageExtensionCase(fileExtension: "GIF", mediaType: "image/gif"),
     ImageExtensionCase(fileExtension: "HEIC", mediaType: "image/heic"),
     ImageExtensionCase(fileExtension: "JPEG", mediaType: "image/jpeg"),
     ImageExtensionCase(fileExtension: "JPG", mediaType: "image/jpeg"),
     ImageExtensionCase(fileExtension: "PNG", mediaType: "image/png"),
+    ImageExtensionCase(fileExtension: "TIF", mediaType: "image/tiff"),
+    ImageExtensionCase(fileExtension: "TIFF", mediaType: "image/tiff"),
     ImageExtensionCase(fileExtension: "WEBP", mediaType: "image/webp")
 ]
 

@@ -20,7 +20,7 @@ public enum ImageAttachmentError: Error, LocalizedError, Equatable, Sendable {
 
 public struct PendingImageAttachment: Identifiable, Hashable, Sendable {
     public static let maxByteCount: Int64 = 20 * 1024 * 1024
-    public static let supportedExtensions: Set<String> = ["gif", "heic", "jpeg", "jpg", "png", "webp"]
+    public static let supportedExtensions: Set<String> = ["gif", "heic", "jpeg", "jpg", "png", "tif", "tiff", "webp"]
 
     public var id: String
     public var fileURL: URL
@@ -175,6 +175,8 @@ public struct PendingImageAttachment: Identifiable, Hashable, Sendable {
             return "image/jpeg"
         case "png":
             return "image/png"
+        case "tif", "tiff":
+            return "image/tiff"
         case "webp":
             return "image/webp"
         default:

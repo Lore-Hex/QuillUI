@@ -1175,6 +1175,8 @@ QStringList supportedAttachmentExtensions() {
         QStringLiteral("jpeg"),
         QStringLiteral("jpg"),
         QStringLiteral("png"),
+        QStringLiteral("tif"),
+        QStringLiteral("tiff"),
         QStringLiteral("webp")
     };
 }
