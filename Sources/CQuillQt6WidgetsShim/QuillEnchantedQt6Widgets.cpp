@@ -113,6 +113,10 @@ QIcon sendButtonIcon(bool isLoading) {
         : themedActionIcon(QStringLiteral("go-next-symbolic"), QStyle::SP_MediaPlay);
 }
 
+QIcon removeAttachmentButtonIcon() {
+    return themedActionIcon(QStringLiteral("window-close-symbolic"), QStyle::SP_DialogCloseButton);
+}
+
 int buttonIconSize(const QJsonObject &style) {
     return intValue(style, "actionButtonIconSize", 16);
 }
@@ -2124,9 +2128,12 @@ extern "C" int quill_enchanted_qt_run_app_json(
                 attachmentTextLayout->addWidget(attachmentSize);
             }
 
-            QPushButton *removeAttachmentButton = new QPushButton(QStringLiteral("x"));
+            QPushButton *removeAttachmentButton = new QPushButton();
             removeAttachmentButton->setObjectName(QStringLiteral("chipRemoveButton"));
+            removeAttachmentButton->setIcon(removeAttachmentButtonIcon());
+            applyButtonIconSize(removeAttachmentButton, style);
             removeAttachmentButton->setToolTip(removeAttachmentTooltip);
+            removeAttachmentButton->setAccessibleName(removeAttachmentTooltip);
             removeAttachmentButton->setFixedWidth(intValue(style, "attachmentRemoveButtonWidth", 28));
             QObject::connect(removeAttachmentButton, &QPushButton::clicked, [&, path]() {
                 pendingAttachmentPaths.removeAll(path);
