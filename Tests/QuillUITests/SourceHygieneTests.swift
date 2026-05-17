@@ -1248,7 +1248,7 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("QLabel *iconLabel(const QIcon &icon, const QString &objectName, const QJsonObject &style)"))
         #expect(enchantedQtHost.contains("headerLayout->setSpacing(styleInt(style, \"emptyStateHeaderSpacing\"))"))
         #expect(enchantedQtHost.contains("QLabel *subtitleLabel = label(subtitle, QStringLiteral(\"caption\"))"))
-        #expect(enchantedQtHost.contains("subtitleLabel->setFixedWidth(styleInt(style, \"promptButtonWidth\"))"))
+        #expect(enchantedQtHost.contains("subtitleLabel->setFixedWidth(promptButtonWidth)"))
         #expect(enchantedQtHost.contains("headerLayout->addWidget(subtitleLabel)"))
         #expect(enchantedQtHost.contains("const int promptButtonIconSpacing = styleInt(style, \"promptButtonIconSpacing\")"))
         #expect(enchantedQtHost.contains("const int promptButtonTextWidth = promptButtonWidth - styleInt(style, \"promptButtonTextWidthInset\")"))
