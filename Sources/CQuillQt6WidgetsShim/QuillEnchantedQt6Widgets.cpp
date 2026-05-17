@@ -1910,11 +1910,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
         dropTargetPadding
     );
     dropHintLayout->setSpacing(intValue(style, "attachmentInputSpacing", 8));
-    const int dropTargetIconSize = buttonIconSize(style);
-    QLabel *dropTargetIconLabel = new QLabel();
-    dropTargetIconLabel->setObjectName(QStringLiteral("dropTargetIcon"));
-    dropTargetIconLabel->setPixmap(dropTargetIcon().pixmap(dropTargetIconSize, dropTargetIconSize));
-    dropTargetIconLabel->setFixedSize(dropTargetIconSize, dropTargetIconSize);
+    QLabel *dropTargetIconLabel = iconLabel(
+        dropTargetIcon(),
+        QStringLiteral("dropTargetIcon"),
+        style
+    );
     QLabel *dropTargetLabel = label(
         stringValue(payload, "dropTargetTitle", QStringLiteral("Drop image files to attach")),
         QStringLiteral("dropTargetLabel")
