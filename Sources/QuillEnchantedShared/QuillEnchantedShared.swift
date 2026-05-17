@@ -124,6 +124,9 @@ public enum EnchantedCopy {
     public static let completionsTitle = "Completions"
     public static let shortcutsTitle = "Shortcuts"
     public static let settingsTitle = "Settings"
+    public static let completionsStatus = completionsTitle
+    public static let shortcutsStatus = shortcutsTitle
+    public static let settingsStatus = settingsTitle
     public static let completionsPanelSubtitle = "Prompt completions use the shared Enchanted profile."
     public static let shortcutsPanelSubtitle = "Keyboard shortcuts use the shared QuillKit shortcut surface."
     public static let settingsPanelSubtitle = "Refresh models, choose a local model, or clear history from this sidebar."
