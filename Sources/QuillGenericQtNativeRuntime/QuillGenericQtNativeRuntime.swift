@@ -406,8 +406,6 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
 private enum QuillGenericQtSelectionEnvironment {
     static let chat = "QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START"
     static let codeEdit = "QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START"
-    static let enchanted = "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START"
-    static let enchantedQt = "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
     static let iceCubes = "QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START"
     static let iina = "QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START"
     static let netNewsWire = "QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START"
@@ -415,6 +413,10 @@ private enum QuillGenericQtSelectionEnvironment {
     static let telegram = "QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START"
 
     static func appSpecific(_ environmentKeys: String...) -> [String] {
+        appSpecific(environmentKeys)
+    }
+
+    static func appSpecific(_ environmentKeys: [String]) -> [String] {
         environmentKeys + QuillGenericQtAppSnapshot.defaultSelectedIndexEnvironmentKeys
     }
 }
@@ -504,8 +506,7 @@ public enum QuillGenericQtAppCatalog {
         listTitle: "Conversations",
         status: "Local model ready",
         selectedIndexEnvironmentKeys: QuillGenericQtSelectionEnvironment.appSpecific(
-            QuillGenericQtSelectionEnvironment.enchanted,
-            QuillGenericQtSelectionEnvironment.enchantedQt
+            EnchantedInitialSelection.selectedConversationIndexEnvironmentKeys
         ),
         detailTitle: "Conversation preview",
         detailSubtitle: "A compact chat workspace with model status, recent prompts, and draft replies.",

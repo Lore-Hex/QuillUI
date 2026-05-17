@@ -802,11 +802,6 @@ public func quill_enchanted_qt_free_string(_ pointer: UnsafeMutablePointer<CChar
 }
 
 public enum QuillEnchantedQtNativeApp {
-    private static let selectedConversationIndexEnvironmentKeys = [
-        "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START",
-        "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
-    ]
-
     private static func launchSnapshot() -> QuillEnchantedQtSnapshot {
         var snapshot: QuillEnchantedQtSnapshot
         do {
@@ -825,10 +820,7 @@ public enum QuillEnchantedQtNativeApp {
     }
 
     private static func selectedConversationIndexOverride(count: Int) -> Int? {
-        QuillQtNativeRuntimeSupport.boundedIndexOverride(
-            environmentKeys: selectedConversationIndexEnvironmentKeys,
-            count: count
-        )
+        EnchantedInitialSelection.selectedConversationIndex(count: count)
     }
 
     public static func run() -> Never {

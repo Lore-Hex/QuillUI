@@ -1,4 +1,5 @@
 import Foundation
+import QuillFoundation
 
 public struct EnchantedPrompt: Codable, Equatable, Hashable, Sendable {
     private enum CodingKeys: String, CodingKey {
@@ -305,6 +306,44 @@ public enum EnchantedPreviewFixture {
     ]
 
     public static let messages = launchConversationMessages
+}
+
+/// Backend-neutral startup selection policy for Enchanted conversation lists.
+///
+/// The SwiftUI/GTK app shell, Qt native runtime, and upstream-shaped slice all
+/// need the same deterministic row-selection behavior during Linux smoke tests.
+/// Keeping this in the shared Enchanted layer prevents each backend from
+/// reimplementing environment parsing, ordering, and clamp rules.
+public enum EnchantedInitialSelection {
+    public static let selectedConversationIndexEnvironmentKeys = [
+        "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START",
+        "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"
+    ]
+
+    public static func selectedConversationIndex(
+        count: Int,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Int? {
+        guard count > 0,
+              let requestedIndex = QuillInitialSelection.index(
+                environmentKeys: selectedConversationIndexEnvironmentKeys,
+                environment: environment
+              )
+        else { return nil }
+
+        return min(max(requestedIndex, 0), count - 1)
+    }
+
+    public static func selectedConversationID<Item: Identifiable>(
+        in items: [Item],
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Item.ID? {
+        QuillInitialSelection.selectedID(
+            in: items,
+            environmentKeys: selectedConversationIndexEnvironmentKeys,
+            environment: environment
+        )
+    }
 }
 
 public enum EnchantedPalette {

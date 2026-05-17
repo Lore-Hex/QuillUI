@@ -255,7 +255,7 @@ struct CoreContractMatrixTests {
         #expect(manifest.contains("nativeQt: [\"QuillEnchantedQtNativeRuntime\"]"))
         #expect(manifest.contains(".define(\"QUILLUI_ENCHANTED_QT_NATIVE_BACKEND\")"))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
-        #expect(manifest.contains("dependencies: [\"QuillEnchantedData\"]"))
+        #expect(manifest.contains("dependencies: [\"QuillEnchantedData\", \"QuillFoundation\"]"))
         #expect(manifest.contains("name: \"QuillEnchantedData\""))
         #expect(manifest.contains("dependencies: [\"QuillData\"]"))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedData\""))

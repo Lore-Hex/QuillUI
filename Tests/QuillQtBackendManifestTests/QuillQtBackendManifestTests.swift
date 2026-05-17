@@ -32,9 +32,7 @@ struct QuillQtBackendManifestTests {
     private static let expectedGenericQtCatalog: [String: GenericQtCatalogExpectation] = [
         "quill-enchanted-upstream-slice": .init(
             catalogCase: "enchantedUpstreamSlice",
-            selectedIndexEnvironmentKeys: [
-                "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START",
-                "QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START",
+            selectedIndexEnvironmentKeys: EnchantedInitialSelection.selectedConversationIndexEnvironmentKeys + [
                 QuillGenericQtAppSnapshot.genericSelectedIndexEnvironmentKey
             ],
             snapshot: QuillGenericQtAppCatalog.enchantedUpstreamSlice
@@ -109,7 +107,7 @@ struct QuillQtBackendManifestTests {
         #expect(manifest.contains("let quillDataPackageDependencies: [Package.Dependency] = ["))
         #expect(manifest.contains("cSQLiteTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
-        #expect(manifest.contains("dependencies: [\"QuillEnchantedData\"]"))
+        #expect(manifest.contains("dependencies: [\"QuillEnchantedData\", \"QuillFoundation\"]"))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))
         #expect(manifest.contains("quillEnchantedDataTarget,"))
         #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
