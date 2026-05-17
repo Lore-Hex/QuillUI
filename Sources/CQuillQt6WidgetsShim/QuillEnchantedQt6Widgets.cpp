@@ -83,7 +83,7 @@ QIcon themedActionIcon(const QString &themeName, QStyle::StandardPixmap fallback
     return QIcon::fromTheme(themeName, QApplication::style()->standardIcon(fallback));
 }
 
-QIcon newChatButtonIcon() {
+QIcon newConversationButtonIcon() {
     return themedActionIcon(QStringLiteral("document-new-symbolic"), QStyle::SP_FileIcon);
 }
 
@@ -1680,11 +1680,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
     ));
     sidebarLayout->addWidget(sidebarTitleBlock);
 
-    QPushButton *newChatButton = new QPushButton(stringValue(payload, "newChatTitle", QStringLiteral("New chat")));
-    newChatButton->setObjectName(QStringLiteral("primaryButton"));
-    newChatButton->setIcon(newChatButtonIcon());
-    applyButtonIconSize(newChatButton, style);
-    sidebarLayout->addWidget(newChatButton);
+    QPushButton *newConversationButton = new QPushButton(stringValue(payload, "newChatTitle", QStringLiteral("New chat")));
+    newConversationButton->setObjectName(QStringLiteral("primaryButton"));
+    newConversationButton->setIcon(newConversationButtonIcon());
+    applyButtonIconSize(newConversationButton, style);
+    sidebarLayout->addWidget(newConversationButton);
 
     QLineEdit *endpointField = new QLineEdit(stringValue(payload, "endpoint"));
     addSidebarField(
@@ -2368,7 +2368,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         statusText->setText(status);
     };
 
-    QObject::connect(newChatButton, &QPushButton::clicked, [&]() {
+    QObject::connect(newConversationButton, &QPushButton::clicked, [&]() {
         if (requestHistoryAction(QStringLiteral("newConversation"), QString(), QString(), QStringList())) {
             return;
         }
