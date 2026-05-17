@@ -111,6 +111,14 @@ bool requiredBoolValue(const QJsonObject &object, const char *key) {
     failRequiredPayloadField(key, "boolean");
 }
 
+QJsonArray requiredArrayValue(const QJsonObject &object, const char *key) {
+    const QJsonValue value = requiredValue(object, key, "array");
+    if (value.isArray()) {
+        return value.toArray();
+    }
+    failRequiredPayloadField(key, "array");
+}
+
 QStringList requiredStringListValue(const QJsonObject &object, const char *key) {
     const QJsonValue value = requiredValue(object, key, "string array");
     if (!value.isArray()) {
@@ -145,6 +153,10 @@ QString payloadString(const QJsonObject &payload, const char *key) {
 
 bool payloadBool(const QJsonObject &payload, const char *key) {
     return requiredBoolValue(payload, key);
+}
+
+QJsonArray payloadArray(const QJsonObject &payload, const char *key) {
+    return requiredArrayValue(payload, key);
 }
 
 int styleInt(const QJsonObject &style, const char *key) {
@@ -1868,7 +1880,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         style
     );
 
-    QJsonArray models = arrayValue(payload, "models");
+    QJsonArray models = payloadArray(payload, "models");
     const QString modelLabel = payloadString(payload, "modelLabel");
     QComboBox *modelPicker = new QComboBox();
     QLabel *noModelsNotice = label(
@@ -1933,7 +1945,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         QStringLiteral("sectionTitle")
     ));
 
-    QJsonArray conversations = arrayValue(payload, "conversations");
+    QJsonArray conversations = payloadArray(payload, "conversations");
     QString selectedConversationID = payloadString(payload, "selectedConversationID");
     QFrame *emptyHistory = emptyHistoryWidget(
         payloadString(payload, "emptyHistoryTitle"),
@@ -2167,8 +2179,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QString removeAttachmentTooltip = payloadString(payload, "removeAttachmentTooltip");
     const QString imageReadyStatusSingular = payloadString(payload, "imageReadyStatusSingular");
     const QString imageReadyStatusPluralUnit = payloadString(payload, "imageReadyStatusPluralUnit");
-    QJsonArray fallbackMessages = arrayValue(payload, "messages");
-    const QJsonArray prompts = arrayValue(payload, "prompts");
+    QJsonArray fallbackMessages = payloadArray(payload, "messages");
+    const QJsonArray prompts = payloadArray(payload, "prompts");
     const QString emptyStateTitle = payloadString(payload, "emptyStateTitle");
     const QString emptyStateSubtitle = payloadString(payload, "emptyStateSubtitle");
     bool showingPromptCards = false;
@@ -2405,10 +2417,10 @@ extern "C" int quill_enchanted_qt_run_app_json(
         payload = snapshot;
         icons = objectValue(payload, "icons");
         isLoading = payloadBool(payload, "isLoading");
-        models = arrayValue(payload, "models");
-        conversations = arrayValue(payload, "conversations");
+        models = payloadArray(payload, "models");
+        conversations = payloadArray(payload, "conversations");
         selectedConversationID = payloadString(payload, "selectedConversationID");
-        fallbackMessages = arrayValue(payload, "messages");
+        fallbackMessages = payloadArray(payload, "messages");
         const QString endpointText = payloadString(payload, "endpoint");
         if (endpointField->text() != endpointText) {
             QSignalBlocker blocker(endpointField);
