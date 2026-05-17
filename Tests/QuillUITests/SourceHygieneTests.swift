@@ -238,6 +238,34 @@ struct SourceHygieneTests {
         #expect(smokeMatrixRunner.contains("if [[ \"$DRY_RUN\" != \"1\" ]]; then\n  \"$ROOT_DIR/scripts/quillui-resource-guard.sh\""))
     }
 
+    @Test("Autonomous loop artifact pruning is scoped and dry-run first")
+    func autonomousLoopArtifactPruningIsScopedAndDryRunFirst() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let pruneURL = root.appendingPathComponent("scripts/quillui-loop-prune.sh")
+        let pruneSource = try String(contentsOf: pruneURL, encoding: .utf8)
+
+        #expect(fileManager.isExecutableFile(atPath: pruneURL.path))
+        #expect(pruneSource.contains("QUILLUI_LOOP_PRUNE_DRY_RUN"))
+        #expect(pruneSource.contains("DRY_RUN=\"${QUILLUI_LOOP_PRUNE_DRY_RUN:-1}\""))
+        #expect(pruneSource.contains("QUILLUI_LOOP_PRUNE_MAX_DAYS"))
+        #expect(pruneSource.contains("QUILLUI_LOOP_PRUNE_INCLUDE_BUILD_CACHE"))
+        #expect(pruneSource.contains("QUILLUI_LOOP_PRUNE_ROOT"))
+        #expect(pruneSource.contains("$ROOT_DIR/.qa"))
+        #expect(pruneSource.contains("$ROOT_DIR/.build-codex-loop/artifacts"))
+        #expect(pruneSource.contains("$ROOT_DIR/.build-linux-vm-loop/artifacts"))
+        #expect(pruneSource.contains("$ROOT_DIR/.build-linux-qt/artifacts"))
+        #expect(pruneSource.contains("$ROOT_DIR/.build/artifacts"))
+        #expect(pruneSource.contains("$ROOT_DIR/.build-codex-loop"))
+        #expect(pruneSource.contains("$ROOT_DIR/.build-linux-vm-loop"))
+        #expect(pruneSource.contains("$ROOT_DIR/.build-linux-qt"))
+        #expect(pruneSource.contains("-mtime"))
+        #expect(pruneSource.contains("find \"$base\" -type f"))
+        #expect(pruneSource.contains("refusing to prune outside a QuillUI checkout"))
+        #expect(!pruneSource.contains("rm -rf"))
+        #expect(!pruneSource.contains("\"$ROOT_DIR/.build\""))
+    }
+
     @Test("SwiftPM resolver preservation restores Package.resolved")
     func swiftPMResolverPreservationRestoresPackageResolved() throws {
         let root = try packageRoot()

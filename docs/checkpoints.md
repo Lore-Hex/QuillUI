@@ -3097,3 +3097,13 @@ backend-neutral scripts rather than starting SwiftPM, Xvfb, or profile work
 directly. Source hygiene now checks those delegates so GTK compatibility
 entrypoints inherit the shared resource guard and cannot diverge from the Qt/GTK
 backend-neutral runners.
+
+## Checkpoint 183: Scoped Loop Artifact Pruning
+
+Status: implemented locally; guarded by source hygiene and shell syntax checks.
+
+`scripts/quillui-loop-prune.sh` gives autonomous parity loops a dry-run-first
+cleanup path for stale `.qa` files and loop-owned backend artifact directories.
+The helper refuses non-QuillUI roots, avoids broad `.build` cleanup, and only
+touches known loop cache directories when
+`QUILLUI_LOOP_PRUNE_INCLUDE_BUILD_CACHE=1` is set explicitly.

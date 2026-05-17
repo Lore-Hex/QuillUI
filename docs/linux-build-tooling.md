@@ -497,3 +497,17 @@ The legacy `scripts/linux-gtk-check.sh` path remains as a compatibility shim.
 It delegates to the backend-neutral runner, so it inherits the same resource
 guard and backend selection behavior instead of maintaining a separate heavy
 GTK path.
+
+Autonomous loops should keep disk cleanup scoped to loop-owned output. Run the
+pruner in its default dry-run mode before deleting anything:
+
+```bash
+scripts/quillui-loop-prune.sh
+QUILLUI_LOOP_PRUNE_DRY_RUN=0 scripts/quillui-loop-prune.sh
+```
+
+The pruner removes stale `.qa` files and backend artifact directories older than
+`QUILLUI_LOOP_PRUNE_MAX_DAYS` without touching shared SwiftPM caches. Set
+`QUILLUI_LOOP_PRUNE_INCLUDE_BUILD_CACHE=1` only when intentionally pruning the
+known loop cache directories `.build-codex-loop`, `.build-linux-vm-loop`, and
+`.build-linux-qt`.
