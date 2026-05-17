@@ -634,7 +634,7 @@ private enum QuillEnchantedQtActionBridge {
                 let sendResult = try sendMessage(
                     messageText,
                     attachments: attachments,
-                    selectedConversationID: existingConversationID(request.conversationID, context: context),
+                    selectedConversationID: selectedConversationID,
                     endpoint: endpoint,
                     selectedModel: selectedModel?.quillTrimmedNonEmpty ?? models.first?.quillTrimmedNonEmpty ?? "",
                     context: context
