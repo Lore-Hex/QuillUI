@@ -1425,8 +1425,7 @@ QString formattedAttachmentByteCount(qint64 byteCount) {
     const QStringList units = {
         QStringLiteral("KB"),
         QStringLiteral("MB"),
-        QStringLiteral("GB"),
-        QStringLiteral("TB")
+        QStringLiteral("GB")
     };
     double value = double(byteCount) / 1024.0;
     int unitIndex = 0;
@@ -1453,10 +1452,20 @@ QString attachmentReadyStatus(int count) {
         : QStringLiteral("%1 images ready to send").arg(count);
 }
 
+QString attachmentDefaultPromptForCount(
+    int attachmentCount,
+    const QString &defaultPrompt,
+    const QString &defaultPromptPlural
+) {
+    return attachmentCount == 1 ? defaultPrompt : defaultPromptPlural;
+}
+
 QString attachmentDisplayContent(
     const QString &rawPrompt,
     const QString &attachmentSummary,
+    int attachmentCount,
     const QString &defaultPrompt,
+    const QString &defaultPromptPlural,
     const QString &summaryTitle
 ) {
     const QString trimmedPrompt = rawPrompt.trimmed();
@@ -1464,7 +1473,9 @@ QString attachmentDisplayContent(
         return trimmedPrompt;
     }
 
-    const QString prompt = trimmedPrompt.isEmpty() ? defaultPrompt : trimmedPrompt;
+    const QString prompt = trimmedPrompt.isEmpty()
+        ? attachmentDefaultPromptForCount(attachmentCount, defaultPrompt, defaultPromptPlural)
+        : trimmedPrompt;
     return QStringLiteral("%1\n\n%2\n%3").arg(prompt, summaryTitle, attachmentSummary);
 }
 
@@ -1876,6 +1887,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
         "attachmentDefaultPrompt",
         QStringLiteral("Describe this image.")
     );
+    const QString attachmentDefaultPromptPlural = stringValue(
+        payload,
+        "attachmentDefaultPromptPlural",
+        QStringLiteral("Describe these images.")
+    );
     const QString attachmentSummaryTitle = stringValue(
         payload,
         "attachmentSummaryTitle",
@@ -1932,7 +1948,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
         const QString fallbackContent = attachmentDisplayContent(
             rawPrompt,
             attachmentSummaryForPaths(pendingAttachmentPaths),
+            pendingAttachmentPaths.count(),
             attachmentDefaultPrompt,
+            attachmentDefaultPromptPlural,
             attachmentSummaryTitle
         );
         if (fallbackContent.trimmed().isEmpty()) {

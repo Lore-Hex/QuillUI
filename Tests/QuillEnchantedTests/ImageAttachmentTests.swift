@@ -71,6 +71,22 @@ struct ImageAttachmentTests {
         """)
     }
 
+    @Test("chooses default prompt from attachment count")
+    func choosesDefaultPromptFromAttachmentCount() throws {
+        let firstURL = try temporaryFile(name: "first.png", bytes: [0x01])
+        let secondURL = try temporaryFile(name: "second.jpg", bytes: [0x02])
+        defer {
+            try? FileManager.default.removeItem(at: firstURL)
+            try? FileManager.default.removeItem(at: secondURL)
+        }
+
+        let first = try PendingImageAttachment(fileURL: firstURL, id: "first")
+        let second = try PendingImageAttachment(fileURL: secondURL, id: "second")
+
+        #expect(PendingImageAttachment.defaultPrompt(for: [first]) == "Describe this image.")
+        #expect(PendingImageAttachment.defaultPrompt(for: [first, second]) == "Describe these images.")
+    }
+
     @Test("stages imported files before sending")
     func stagesImportedFiles() throws {
         let url = try temporaryFile(name: "picked.jpg", bytes: [0xFF, 0xD8, 0xFF])

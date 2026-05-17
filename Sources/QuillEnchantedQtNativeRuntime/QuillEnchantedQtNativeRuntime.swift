@@ -40,6 +40,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var attachmentRemovedEmptyStatus: String
     var attachmentsTitle: String
     var attachmentDefaultPrompt: String
+    var attachmentDefaultPromptPlural: String
     var attachmentSummaryTitle: String
     var composerPlaceholder: String
     var sendTitle: String
@@ -302,6 +303,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         attachmentRemovedEmptyStatus: "Ready",
         attachmentsTitle: "Attachments",
         attachmentDefaultPrompt: "Describe this image.",
+        attachmentDefaultPromptPlural: "Describe these images.",
         attachmentSummaryTitle: "[Attached images]",
         composerPlaceholder: "Ask a local model...",
         sendTitle: "Send",

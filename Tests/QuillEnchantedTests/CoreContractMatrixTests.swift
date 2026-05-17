@@ -195,6 +195,7 @@ struct CoreContractMatrixTests {
         #expect(runtime.contains("attachmentRemovedEmptyStatus: \"Ready\""))
         #expect(runtime.contains("attachmentsTitle: \"Attachments\""))
         #expect(runtime.contains("attachmentDefaultPrompt: \"Describe this image.\""))
+        #expect(runtime.contains("attachmentDefaultPromptPlural: \"Describe these images.\""))
         #expect(runtime.contains("attachmentSummaryTitle: \"[Attached images]\""))
         #expect(runtime.contains("sendTitle: \"Send\""))
         #expect(runtime.contains("stopTitle: \"Stop\""))
@@ -671,7 +672,7 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("QLabel#caption, QLabel#fieldLabel, QLabel#statusText, QLabel#messageRole { color: %5; font-size: %6; }"))
         #expect(nativeShim.contains("QFrame#sidebar { background: %1; border-right: 1px solid %2; }"))
         #expect(nativeShim.contains("QLabel#messageUserRole { color: %3; font-size: %4; }"))
-        #expect(nativeShim.contains("QFrame#emptyHistory { background: %1; border: 1px solid %2; border-radius: %3; }"))
+        #expect(nativeShim.contains("QFrame#emptyHistory, QFrame#sidebarUtilityPanel { background: %1; border: 1px solid %2; border-radius: %3; }"))
         #expect(nativeShim.contains("QFrame#messageAssistant { background: %1; border: 1px solid %2; border-radius: %4; }"))
         #expect(nativeShim.contains("QFrame#messageSystem { background: %5; border: 1px solid %6; border-radius: %4; }"))
         #expect(nativeShim.contains("QFrame#messageUser { background: %7; border: 1px solid %6; border-radius: %4; }"))
@@ -875,9 +876,12 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("stringValue(payload, \"attachmentsTitle\", QStringLiteral(\"Attachments\"))"))
         #expect(nativeShim.contains("\"attachmentDefaultPrompt\""))
         #expect(nativeShim.contains("QStringLiteral(\"Describe this image.\")"))
+        #expect(nativeShim.contains("\"attachmentDefaultPromptPlural\""))
+        #expect(nativeShim.contains("QStringLiteral(\"Describe these images.\")"))
         #expect(nativeShim.contains("\"attachmentSummaryTitle\""))
         #expect(nativeShim.contains("QStringLiteral(\"[Attached images]\")"))
         #expect(nativeShim.contains("QPushButton *clearAttachmentsButton"))
+        #expect(nativeShim.contains("QString attachmentDefaultPromptForCount("))
         #expect(nativeShim.contains("QString attachmentDisplayContent("))
         #expect(nativeShim.contains("QStringList normalizedAttachmentPaths("))
         #expect(nativeShim.contains("QStringList attachmentPathCandidatesFromInput(const QString &rawText)"))
@@ -902,6 +906,7 @@ struct CoreContractMatrixTests {
         #expect(nativeShim.contains("Could not read image attachment at %1."))
         #expect(nativeShim.contains("is too large to attach (%2)."))
         #expect(nativeShim.contains("formattedAttachmentByteCount(byteCount)"))
+        #expect(!nativeShim.contains("QStringLiteral(\"TB\")"))
         #expect(nativeShim.contains("statusText->setText(validation.lastError)"))
         #expect(nativeShim.contains("const QString displaySize = attachmentDisplaySize(path)"))
         #expect(nativeShim.contains("QStringLiteral(\"- %1 (%2)\").arg(displayName, displaySize)"))
@@ -1187,7 +1192,8 @@ private let byteCountCases: [ByteCountCase] = [
     ByteCountCase(byteCount: 1536, expected: "1.5 KB"),
     ByteCountCase(byteCount: 1_048_576, expected: "1.0 MB"),
     ByteCountCase(byteCount: 1_572_864, expected: "1.5 MB"),
-    ByteCountCase(byteCount: 1_073_741_824, expected: "1.0 GB")
+    ByteCountCase(byteCount: 1_073_741_824, expected: "1.0 GB"),
+    ByteCountCase(byteCount: 1_099_511_627_776, expected: "1024.0 GB")
 ] + (1...32).map { index in
     ByteCountCase(byteCount: Int64(index * 1024), expected: "\(index).0 KB")
 }
