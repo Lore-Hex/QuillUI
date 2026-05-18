@@ -537,25 +537,26 @@ public struct QuillSidebarNavigationButton: View {
 
     @ViewBuilder
     private var sidebarIcon: some View {
-        switch systemImage {
-        case "character.cursor.ibeam", "textformat", "textformat.abc":
-            Text("Abc")
-                .font(.system(size: 11))
+        Image(systemName: sidebarSystemImageName)
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 17, height: 17, alignment: .center)
+    }
+
+    private var sidebarSystemImageName: String {
         #if os(Linux)
-        case "keyboard", "keyboard.fill":
-            Text("⌨")
-                .font(.system(size: 18))
-        case "gearshape", "gearshape.fill", "gear":
-            Text("⚙")
-                .font(.system(size: 22))
-        #endif
+        switch systemImage {
+        case "character.cursor.ibeam", "textformat", "textformat.abc",
+             "keyboard", "keyboard.fill",
+             "gearshape", "gearshape.fill", "gear":
+            return systemImage
         default:
-            Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 17, height: 17, alignment: .center)
+            return QuillSystemSymbol.compatibleName(systemImage)
         }
+        #else
+        return QuillSystemSymbol.compatibleName(systemImage)
+        #endif
     }
 }
 

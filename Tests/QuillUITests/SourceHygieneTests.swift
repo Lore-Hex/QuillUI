@@ -2711,6 +2711,25 @@ struct SourceHygieneTests {
         #expect(!promptGrid.contains("#if os(Linux)\n        ZStack"))
     }
 
+    @Test("QuillSidebarNavigationButton uses native image symbols")
+    func quillSidebarNavigationButtonUsesNativeImageSymbols() throws {
+        let controls = try packageSource("Sources/QuillUI/Controls.swift")
+        guard let buttonStart = controls.range(of: "public struct QuillSidebarNavigationButton: View"),
+              let nextSection = controls.range(of: "public struct QuillStatusBanner: View") else {
+            Issue.record("Unable to locate QuillSidebarNavigationButton source")
+            return
+        }
+
+        let sidebarButton = String(controls[buttonStart.lowerBound..<nextSection.lowerBound])
+        #expect(sidebarButton.contains("Image(systemName: sidebarSystemImageName)"))
+        #expect(sidebarButton.contains("\"textformat\", \"textformat.abc\""))
+        #expect(sidebarButton.contains("\"keyboard\", \"keyboard.fill\""))
+        #expect(sidebarButton.contains("\"gearshape\", \"gearshape.fill\", \"gear\""))
+        #expect(!sidebarButton.contains("Text(\"Abc\")"))
+        #expect(!sidebarButton.contains("case \"keyboard\", \"keyboard.fill\":"))
+        #expect(!sidebarButton.contains("case \"gearshape\", \"gearshape.fill\", \"gear\":"))
+    }
+
     private func packageRoot() throws -> URL {
         var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let fileManager = FileManager.default
