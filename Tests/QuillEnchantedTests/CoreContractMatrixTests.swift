@@ -199,7 +199,15 @@ struct CoreContractMatrixTests {
         ] {
             expectContains(upstreamSidebar, needle)
         }
-        expectContains(upstreamMessageList, "Label(\"Select Text\", systemImage: \"selection.pin.in.out\")")
+        for needle in [
+            "Label(\"Copy\", systemImage: \"doc.on.doc\")",
+            "Label(\"Select Text\", systemImage: \"selection.pin.in.out\")",
+            "Label(\"Read Aloud\", systemImage: \"speaker.wave.3.fill\")",
+            "Label(\"Edit\", systemImage: \"pencil\")",
+            "Label(\"Unselect\", systemImage: \"pencil\")"
+        ] {
+            expectContains(upstreamMessageList, needle)
+        }
         expectContains(upstreamCompletionPanel, "Image(systemName: \"space\")")
         expectContains(upstreamSettings, "Label(\"Vibrations\", systemImage: \"water.waves\")")
         expectContains(upstreamSettings, "Label(\"Appearance\", systemImage: \"sun.max\")")
