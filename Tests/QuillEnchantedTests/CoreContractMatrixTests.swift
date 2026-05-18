@@ -173,7 +173,7 @@ struct CoreContractMatrixTests {
             "QJsonObject icons = payloadObject(payload, \"icons\")",
             "icons = payloadObject(payload, \"icons\")",
             "newConversationButtonIcon(icons),",
-            "attachButton->setIcon(attachButtonIcon(icons))",
+            "attachButtonIcon(icons),\n        attachTitle,\n        QStringLiteral(\"attachButtonIcon\"),",
             "completionsButton->setIcon(utilityButtonIcon(icons, \"completions\"))",
             "shortcutsButton->setIcon(utilityButtonIcon(icons, \"shortcuts\"))",
             "settingsButton->setIcon(utilityButtonIcon(icons, \"settings\"))",
@@ -1212,6 +1212,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QPushButton#sendButton:disabled { background: %6; color: %7; }")
         expectContains(nativeShim, "QPushButton#secondaryButton { background: transparent; color: %1; border: 1px solid %2; border-radius: %3; padding: %4 %5; text-align: left; }")
         expectContains(nativeShim, "QPushButton#secondaryButton:disabled { color: %6; border: 1px solid %7; }")
+        expectContains(nativeShim, "QLabel#attachButtonIcon, QLabel#attachButtonText { color: %1; font-size: %8; }")
+        expectContains(nativeShim, "QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled { color: %6; }")
         expectContains(nativeShim, "QPushButton#chipRemoveButton { background: transparent; color: %1; border: 0; padding: %2 %3; font-weight: %4; }")
         expectContains(nativeShim, "QPushButton#promptButton { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: %5; text-align: left; }")
         expectContains(nativeShim, "QLabel#promptButtonIcon, QLabel#promptButtonText { color: %2; font-size: %6; }")
@@ -1700,7 +1702,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "\"primaryButtonIconSpacing\"")
         expectContains(nativeShim, "\"primaryButtonVerticalPadding\"")
         expectContains(nativeShim, "\"primaryButtonHorizontalPadding\"")
-        expectContains(nativeShim, "applyButtonIconSize(attachButton, style)")
+        expectContains(nativeShim, "addIconTextButtonContent(\n        attachButton,\n        attachButtonIcon(icons),\n        attachTitle,\n        QStringLiteral(\"attachButtonIcon\"),\n        QStringLiteral(\"attachButtonText\"),\n        \"actionButtonIconSpacing\",")
         expectContains(nativeShim, "addIconTextButtonContent(\n        sendButton,\n        sendButtonIcon(icons, isLoading),\n        isLoading ? stopTitle : sendTitle,\n        QStringLiteral(\"sendButtonIcon\"),\n        QStringLiteral(\"sendButtonText\"),\n        \"actionButtonIconSpacing\",")
         expectContains(nativeShim, "void updateSendButtonPresentation(")
         expectContains(nativeShim, "updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle, style)")
