@@ -1327,6 +1327,7 @@ QFrame *messageBubble(
         messageBubblePadding
     );
     layout->setSpacing(messageBubbleSpacing);
+    layout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     layout->addWidget(label(
         messageRoleTitle(role, userRoleLabel, assistantRoleLabel, systemRoleLabel),
         role == QStringLiteral("user") ? QStringLiteral("messageUserRole") : QStringLiteral("messageRole")
