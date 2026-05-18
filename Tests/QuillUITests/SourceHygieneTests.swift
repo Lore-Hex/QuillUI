@@ -922,6 +922,9 @@ struct SourceHygieneTests {
         #expect(enchantedQtRuntime.contains("var systemImage: String"))
         #expect(enchantedQtRuntime.contains("self.systemImage = prompt.systemImage"))
         #expect(enchantedQtRuntime.contains("prompts: EnchantedPromptCatalog.emptyConversationPrompts.map(QuillEnchantedQtSnapshot.Prompt.init)"))
+        for promptTitle in enchantedNativeSamplePromptTitles {
+            #expect(enchantedShared.contains("title: \"\(promptTitle)\""))
+        }
         #expect(enchantedShared.contains("public enum EnchantedInitialSelection"))
         #expect(enchantedShared.contains("public static let selectedConversationIndexEnvironmentKeys = ["))
         #expect(enchantedShared.contains("QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START"))
@@ -1042,6 +1045,7 @@ struct SourceHygieneTests {
         let enchantedShared = try packageSource("Sources/QuillEnchantedShared/QuillEnchantedShared.swift")
         let enchantedUpstreamSlice = try packageSource("Sources/QuillEnchantedUpstreamSlice/main.swift")
         let enchantedUpstreamMacInput = try packageSource(".upstream/enchanted/Enchanted/UI/macOS/Chat/Components/InputFields_macOS.swift")
+        let enchantedUpstreamSamples = try packageSource(".upstream/enchanted/Enchanted/Models/SamplePrompt.swift")
         let enchantedMacMarkdown = try packageSource("Sources/QuillEnchantedCore/MarkdownRendering.swift")
         let enchantedImageAttachment = try packageSource("Sources/QuillEnchantedShared/ImageAttachment.swift")
 
@@ -1121,6 +1125,10 @@ struct SourceHygieneTests {
         #expect(!enchantedUpstreamSlice.contains(".font(.headline)"))
         #expect(!enchantedUpstreamSlice.contains("Text(\"Quill Chat\")"))
         #expect(!enchantedUpstreamSlice.contains(".font(.system(size: 14))"))
+        for promptTitle in enchantedNativeSamplePromptTitles {
+            #expect(enchantedUpstreamSamples.contains("prompt: \"\(promptTitle)\""))
+            #expect(enchantedShared.contains("title: \"\(promptTitle)\""))
+        }
         #expect(enchantedQtRuntime.contains("var completionsTitle: String"))
         #expect(enchantedQtRuntime.contains("var completionsPanelSubtitle: String"))
         #expect(enchantedQtRuntime.contains("var shortcutsPanelSubtitle: String"))
@@ -2697,6 +2705,20 @@ struct SourceHygieneTests {
         return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
     }
 }
+
+private let enchantedNativeSamplePromptTitles: [String] = [
+    "Give me phrases to learn in a new language",
+    "Act like Mowgli from The Jungle Book and answer questions",
+    "How to center div in HTML?",
+    "What's unique about Go programming language?",
+    "Give 10 gift ideas for best friend",
+    "Write a text message asking a friend to be my plus-one at a wedding",
+    "Explain supercomputers like I'm five years old",
+    "How to do personal taxes in USA?",
+    "What are the largest cities in USA in population? Give a table",
+    "Give me ideas about New Years resolutions",
+    "What is bubble sort? Write example in python"
+]
 
 private extension String {
     func occurrences(of needle: String) -> Int {

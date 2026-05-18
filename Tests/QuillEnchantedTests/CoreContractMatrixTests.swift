@@ -78,6 +78,27 @@ struct CoreContractMatrixTests {
         #expect(encodedObject["systemImage"] as? String == "questionmark.circle")
     }
 
+    @Test("empty conversation prompt catalog mirrors upstream samples")
+    func emptyConversationPromptCatalogMirrorsUpstreamSamples() {
+        let expectedKinds: [EnchantedPrompt.Kind] = [
+            .action,
+            .action,
+            .question,
+            .question,
+            .action,
+            .action,
+            .action,
+            .question,
+            .question,
+            .action,
+            .question
+        ]
+
+        #expect(EnchantedPromptCatalog.emptyConversationPrompts.map(\.title) == enchantedEmptyConversationPrompts)
+        #expect(EnchantedPromptCatalog.emptyConversationPrompts.map(\.kind) == expectedKinds)
+        #expect(EnchantedPromptCatalog.emptyConversationTitles == enchantedEmptyConversationPrompts)
+    }
+
     @Test("normalizes attachment paths", arguments: pathCases)
     func pathNormalizationContracts(testCase: PathCase) throws {
         let url = try #require(PendingImageAttachment.fileURL(from: testCase.rawPath))
@@ -1967,10 +1988,17 @@ private enum CoreContractMatrixTestError: Error {
 }
 
 private let enchantedEmptyConversationPrompts: [String] = [
+    "Give me phrases to learn in a new language",
+    "Act like Mowgli from The Jungle Book and answer questions",
     "How to center div in HTML?",
-    "How to do personal taxes in USA?",
+    "What's unique about Go programming language?",
+    "Give 10 gift ideas for best friend",
+    "Write a text message asking a friend to be my plus-one at a wedding",
     "Explain supercomputers like I'm five years old",
-    "Write a text message asking a friend to be my plus-one at a wedding"
+    "How to do personal taxes in USA?",
+    "What are the largest cities in USA in population? Give a table",
+    "Give me ideas about New Years resolutions",
+    "What is bubble sort? Write example in python"
 ]
 
 struct TextCase: Sendable {

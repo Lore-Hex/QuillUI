@@ -75,13 +75,23 @@ public enum EnchantedPromptCatalog {
     public static let actionIconName = EnchantedPrompt.Kind.action.systemImage
 
     public static let emptyConversationPrompts = [
+        EnchantedPrompt(title: "Give me phrases to learn in a new language", kind: .action),
+        EnchantedPrompt(title: "Act like Mowgli from The Jungle Book and answer questions", kind: .action),
         EnchantedPrompt(title: "How to center div in HTML?", kind: .question),
-        EnchantedPrompt(title: "How to do personal taxes in USA?", kind: .question),
-        EnchantedPrompt(title: "Explain supercomputers like I'm five years old", kind: .action),
+        EnchantedPrompt(title: "What's unique about Go programming language?", kind: .question),
+        EnchantedPrompt(title: "Give 10 gift ideas for best friend", kind: .action),
         EnchantedPrompt(
             title: "Write a text message asking a friend to be my plus-one at a wedding",
             kind: .action
-        )
+        ),
+        EnchantedPrompt(title: "Explain supercomputers like I'm five years old", kind: .action),
+        EnchantedPrompt(title: "How to do personal taxes in USA?", kind: .question),
+        EnchantedPrompt(
+            title: "What are the largest cities in USA in population? Give a table",
+            kind: .question
+        ),
+        EnchantedPrompt(title: "Give me ideas about New Years resolutions", kind: .action),
+        EnchantedPrompt(title: "What is bubble sort? Write example in python", kind: .question)
     ]
 
     public static let emptyConversationTitles = emptyConversationPrompts.map(\.title)
