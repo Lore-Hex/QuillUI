@@ -268,6 +268,10 @@ QIcon utilityButtonIcon(const QJsonObject &icons, const char *key) {
     return systemImageIcon(requiredIconName(icons, key));
 }
 
+QIcon refreshModelsButtonIcon(const QJsonObject &icons) {
+    return systemImageIcon(requiredIconName(icons, "refreshModels"));
+}
+
 QIcon sendButtonIcon(const QJsonObject &icons, bool isLoading) {
     const char *key = isLoading ? "stop" : "send";
     return systemImageIcon(requiredIconName(icons, key));
@@ -634,8 +638,8 @@ QString appStyleSheet(const QJsonObject &style) {
     sheet += QStringLiteral(R"(
         QPushButton#secondaryButton { background: transparent; color: %1; border: 1px solid %2; border-radius: %3; padding: %4 %5; text-align: left; }
         QPushButton#secondaryButton:disabled { color: %6; border: 1px solid %7; }
-        QLabel#attachButtonIcon, QLabel#attachButtonText, QLabel#utilityButtonIcon, QLabel#utilityButtonText { color: %1; font-size: %8; }
-        QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled, QLabel#utilityButtonIcon:disabled, QLabel#utilityButtonText:disabled { color: %6; }
+        QLabel#attachButtonIcon, QLabel#attachButtonText, QLabel#utilityButtonIcon, QLabel#utilityButtonText, QLabel#refreshButtonIcon, QLabel#refreshButtonText { color: %1; font-size: %8; }
+        QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled, QLabel#utilityButtonIcon:disabled, QLabel#utilityButtonText:disabled, QLabel#refreshButtonIcon:disabled, QLabel#refreshButtonText:disabled { color: %6; }
     )")
         .arg(ink)
         .arg(controlBorder)
@@ -2182,8 +2186,20 @@ extern "C" int quill_enchanted_qt_run_app_json(
     titleLayout->addWidget(currentTitle);
     titleLayout->addWidget(modelStatus);
     headerLayout->addLayout(titleLayout, 1);
-    QPushButton *refreshButton = new QPushButton(payloadString(payload, "refreshModelsTitle"));
+    const QString refreshModelsTitle = payloadString(payload, "refreshModelsTitle");
+    QPushButton *refreshButton = new QPushButton();
     refreshButton->setObjectName(QStringLiteral("secondaryButton"));
+    addIconTextButtonContent(
+        refreshButton,
+        refreshModelsButtonIcon(icons),
+        refreshModelsTitle,
+        QStringLiteral("refreshButtonIcon"),
+        QStringLiteral("refreshButtonText"),
+        "actionButtonIconSpacing",
+        "secondaryButtonVerticalPadding",
+        "secondaryButtonHorizontalPadding",
+        style
+    );
     refreshButton->setEnabled(!isLoading);
     headerLayout->addWidget(refreshButton);
     chatLayout->addWidget(header);

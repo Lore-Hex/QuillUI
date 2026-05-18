@@ -116,6 +116,7 @@ struct CoreContractMatrixTests {
             "completions: EnchantedIcon.completions",
             "shortcuts: EnchantedIcon.shortcuts",
             "settings: EnchantedIcon.settings",
+            "refreshModels: EnchantedIcon.refreshModels",
             "send: EnchantedIcon.send",
             "stop: EnchantedIcon.stop",
             "removeAttachment: EnchantedIcon.removeAttachment",
@@ -135,6 +136,7 @@ struct CoreContractMatrixTests {
             "public static let completions = \"character.cursor.ibeam\"",
             "public static let shortcuts = \"keyboard\"",
             "public static let settings = \"gearshape.fill\"",
+            "public static let refreshModels = \"arrow.clockwise\"",
             "public static let send = \"arrow.forward.circle.fill\"",
             "public static let stop = \"square.fill\"",
             "public static let removeAttachment = \"xmark.circle.fill\""
@@ -162,6 +164,7 @@ struct CoreContractMatrixTests {
             "QIcon dropTargetIcon(const QJsonObject &icons)",
             "QIcon attachmentChipIcon(const QJsonObject &icons)",
             "QIcon utilityButtonIcon(const QJsonObject &icons, const char *key)",
+            "QIcon refreshModelsButtonIcon(const QJsonObject &icons)",
             "QIcon sendButtonIcon(const QJsonObject &icons, bool isLoading)",
             "QIcon removeAttachmentButtonIcon(const QJsonObject &icons)",
             "systemImageIcon(requiredIconName(icons, \"newConversation\"))",
@@ -169,6 +172,7 @@ struct CoreContractMatrixTests {
             "systemImageIcon(requiredIconName(icons, \"dropTarget\"))",
             "systemImageIcon(requiredIconName(icons, \"attachment\"))",
             "systemImageIcon(requiredIconName(icons, key))",
+            "systemImageIcon(requiredIconName(icons, \"refreshModels\"))",
             "systemImageIcon(requiredIconName(icons, \"removeAttachment\"))",
             "QJsonObject icons = payloadObject(payload, \"icons\")",
             "icons = payloadObject(payload, \"icons\")",
@@ -1216,8 +1220,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QPushButton#sendButton:disabled { background: %6; color: %7; }")
         expectContains(nativeShim, "QPushButton#secondaryButton { background: transparent; color: %1; border: 1px solid %2; border-radius: %3; padding: %4 %5; text-align: left; }")
         expectContains(nativeShim, "QPushButton#secondaryButton:disabled { color: %6; border: 1px solid %7; }")
-        expectContains(nativeShim, "QLabel#attachButtonIcon, QLabel#attachButtonText, QLabel#utilityButtonIcon, QLabel#utilityButtonText { color: %1; font-size: %8; }")
-        expectContains(nativeShim, "QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled, QLabel#utilityButtonIcon:disabled, QLabel#utilityButtonText:disabled { color: %6; }")
+        expectContains(nativeShim, "QLabel#attachButtonIcon, QLabel#attachButtonText, QLabel#utilityButtonIcon, QLabel#utilityButtonText, QLabel#refreshButtonIcon, QLabel#refreshButtonText { color: %1; font-size: %8; }")
+        expectContains(nativeShim, "QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled, QLabel#utilityButtonIcon:disabled, QLabel#utilityButtonText:disabled, QLabel#refreshButtonIcon:disabled, QLabel#refreshButtonText:disabled { color: %6; }")
         expectContains(nativeShim, "QPushButton#chipRemoveButton { background: transparent; color: %1; border: 0; padding: %2 %3; font-weight: %4; }")
         expectContains(nativeShim, "QPushButton#promptButton { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: %5; text-align: left; }")
         expectContains(nativeShim, "QLabel#promptButtonIcon, QLabel#promptButtonText { color: %2; font-size: %6; }")
@@ -1311,7 +1315,11 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "configureUtilityButton(shortcutsButton, payloadString(payload, \"shortcutsTitle\"), \"shortcuts\")")
         expectContains(nativeShim, "QPushButton *settingsButton = new QPushButton()")
         expectContains(nativeShim, "configureUtilityButton(settingsButton, payloadString(payload, \"settingsTitle\"), \"settings\")")
-        expectContains(nativeShim, "QPushButton *refreshButton = new QPushButton(payloadString(payload, \"refreshModelsTitle\"))")
+        expectContains(nativeShim, "const QString refreshModelsTitle = payloadString(payload, \"refreshModelsTitle\")")
+        expectContains(nativeShim, "QPushButton *refreshButton = new QPushButton()")
+        expectContains(nativeShim, "refreshModelsButtonIcon(icons),")
+        expectContains(nativeShim, "QStringLiteral(\"refreshButtonIcon\")")
+        expectContains(nativeShim, "QStringLiteral(\"refreshButtonText\")")
         expectDoesNotContain(nativeShim, "windowTitle\", QStringLiteral(\"Quill Enchanted\")")
         expectDoesNotContain(nativeShim, "sidebarTitle\", QStringLiteral(\"Enchanted\")")
         expectDoesNotContain(nativeShim, "sidebarSubtitle\", QStringLiteral(\"QuillUI Linux preview\")")

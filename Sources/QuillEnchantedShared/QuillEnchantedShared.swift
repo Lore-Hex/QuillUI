@@ -99,6 +99,7 @@ public enum EnchantedIcon {
     public static let completions = "character.cursor.ibeam"
     public static let shortcuts = "keyboard"
     public static let settings = "gearshape.fill"
+    public static let refreshModels = "arrow.clockwise"
     public static let send = "arrow.forward.circle.fill"
     public static let stop = "square.fill"
     public static let removeAttachment = "xmark.circle.fill"
