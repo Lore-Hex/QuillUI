@@ -164,7 +164,7 @@ public enum EnchantedCopy {
     public static let unreadableAttachmentSuffix = "."
     public static let oversizedAttachmentMiddle = " is too large to attach ("
     public static let oversizedAttachmentSuffix = ")."
-    public static let composerPlaceholder = "Ask a local model..."
+    public static let composerPlaceholder = "Message"
     public static let sendTitle = "Send"
     public static let stopTitle = "Stop"
     public static let emptyHistoryTitle = "No saved chats yet"

@@ -494,6 +494,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/Chat/ChatView_macOS.swift"),
             encoding: .utf8
         )
+        let upstreamMacOSInputFields = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/Chat/Components/InputFields_macOS.swift"),
+            encoding: .utf8
+        )
         let runtime = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift"),
             encoding: .utf8
@@ -683,6 +687,9 @@ struct CoreContractMatrixTests {
         expectContains(runtime, "attachmentDefaultPromptPlural: EnchantedCopy.attachmentDefaultPromptPlural")
         expectContains(runtime, "attachmentSummaryTitle: EnchantedCopy.attachmentSummaryTitle")
         expectContains(runtime, "composerPlaceholder: EnchantedCopy.composerPlaceholder")
+        expectContains(sharedPrompts, "public static let composerPlaceholder = \"Message\"")
+        expectContains(upstreamMacOSInputFields, "TextField(\"Message\"")
+        expectDoesNotContain(sharedPrompts, "public static let composerPlaceholder = \"Ask a local model...\"")
         for needle in [
             "attachmentMaxByteCount: PendingImageAttachment.maxByteCount",
             "supportedAttachmentExtensions: PendingImageAttachment.supportedExtensions.sorted()",
