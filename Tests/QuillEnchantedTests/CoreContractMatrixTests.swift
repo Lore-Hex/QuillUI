@@ -300,6 +300,8 @@ struct CoreContractMatrixTests {
         }
         expectContains(shared, "public static let emptyStateTitle = appTitle")
         expectContains(shared, "public static let emptyStateSubtitle = \"\"")
+        expectContains(shared, "public static let sidebarSubtitle = \"Local AI conversations\"")
+        expectDoesNotContain(shared, "QuillUI Linux preview")
         expectContains(shared, "public static let unreachableOllamaMessage = \"Ollama is unreachable. Go to Settings and update your Ollama API endpoint. \"")
 
         for needle in [

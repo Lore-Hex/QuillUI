@@ -917,6 +917,8 @@ struct SourceHygieneTests {
         #expect(enchantedQtRuntime.contains("emptyHistorySubtitle: EnchantedCopy.emptyHistorySubtitle"))
         #expect(enchantedQtRuntime.contains("emptyStateTitle: EnchantedCopy.emptyStateTitle"))
         #expect(enchantedQtRuntime.contains("emptyStateSubtitle: EnchantedCopy.emptyStateSubtitle"))
+        #expect(enchantedShared.contains("public static let sidebarSubtitle = \"Local AI conversations\""))
+        #expect(!enchantedShared.contains("QuillUI Linux preview"))
         #expect(enchantedShared.contains("public static let emptyStateTitle = appTitle"))
         #expect(enchantedShared.contains("public static let emptyStateSubtitle = \"\""))
         #expect(enchantedQtRuntime.contains("var systemImage: String"))

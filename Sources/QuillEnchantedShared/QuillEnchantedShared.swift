@@ -118,7 +118,7 @@ public enum EnchantedIcon {
 public enum EnchantedCopy {
     public static let windowTitle = "Quill Enchanted"
     public static let appTitle = "Enchanted"
-    public static let sidebarSubtitle = "QuillUI Linux preview"
+    public static let sidebarSubtitle = "Local AI conversations"
     public static let newChatTitle = "New chat"
     public static let endpointLabel = "Ollama endpoint"
     public static let defaultEndpoint = "http://localhost:11434"
