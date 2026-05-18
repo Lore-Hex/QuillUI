@@ -186,7 +186,12 @@ struct SourceHygieneTests {
         #expect(guardSource.contains("QUILLUI_RESOURCE_GUARD_MIN_AVAILABLE_MEMORY_MIB"))
         #expect(guardSource.contains("QUILLUI_RESOURCE_GUARD_DIAGNOSTIC_PROCESS_LIMIT"))
         #expect(guardSource.contains("print_process_diagnostics"))
+        #expect(guardSource.contains("print_process_group_diagnostics"))
         #expect(guardSource.contains("top RSS processes"))
+        #expect(guardSource.contains("RSS by process group"))
+        #expect(guardSource.contains("group = \"Codex\""))
+        #expect(guardSource.contains("group = \"Linux VM\""))
+        #expect(guardSource.contains("group = \"Swift toolchain\""))
         #expect(guardSource.contains("/proc/meminfo"))
         #expect(guardSource.contains("vm_stat"))
 

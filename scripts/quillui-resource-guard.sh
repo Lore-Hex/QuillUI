@@ -16,6 +16,7 @@ DIAGNOSTIC_PROCESS_LIMIT="${QUILLUI_RESOURCE_GUARD_DIAGNOSTIC_PROCESS_LIMIT:-8}"
 fail_guard() {
   echo "resource guard failed: $1" >&2
   print_process_diagnostics || true
+  print_process_group_diagnostics || true
   exit "$EXIT_RESOURCE_UNAVAILABLE"
 }
 
@@ -97,6 +98,57 @@ print_process_diagnostics() {
         $2 = ""
         sub(/^  */, "", $0)
         printf "  pid=%s rss=%dMiB command=%s\n", pid, int((rss_kib + 1023) / 1024), $0
+      }
+    ' >&2
+}
+
+print_process_group_diagnostics() {
+  if (( DIAGNOSTIC_PROCESS_LIMIT == 0 )); then
+    return 0
+  fi
+
+  command -v ps >/dev/null 2>&1 || return 0
+  command -v awk >/dev/null 2>&1 || return 0
+
+  echo "resource guard diagnostics: RSS by process group (MiB)" >&2
+  ps -axo rss=,command= 2>/dev/null |
+    awk '
+      {
+        rss_kib = $1
+        $1 = ""
+        sub(/^  */, "", $0)
+        command = tolower($0)
+        group = "Other"
+
+        if (command ~ /codex/) {
+          group = "Codex"
+        } else if (command ~ /(swift|sourcekit|clang|lld|swift-driver)/) {
+          group = "Swift toolchain"
+        } else if (command ~ /(qemu|utm|virtualization|vz)/) {
+          group = "Linux VM"
+        } else if (command ~ /(firefox|chrome|safari|webcontent|browser)/) {
+          group = "Browser"
+        } else if (command ~ /(^|[\/ ])node([ ]|$)/ || command ~ /claude --channels plugin/) {
+          group = "Node/plugin"
+        }
+
+        rss_by_group[group] += rss_kib
+      }
+
+      END {
+        order[1] = "Codex"
+        order[2] = "Swift toolchain"
+        order[3] = "Linux VM"
+        order[4] = "Browser"
+        order[5] = "Node/plugin"
+        order[6] = "Other"
+
+        for (group_index = 1; group_index <= 6; group_index += 1) {
+          group = order[group_index]
+          if (rss_by_group[group] > 0) {
+            printf "  group=%s rss=%dMiB\n", group, int((rss_by_group[group] + 1023) / 1024)
+          }
+        }
       }
     ' >&2
 }
