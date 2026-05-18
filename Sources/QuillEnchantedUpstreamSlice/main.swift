@@ -452,19 +452,23 @@ struct UpstreamSettingsPanel: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Models")
-                    .font(.caption)
-                    .fontWeight(.semibold)
+                    .font(
+                        .system(
+                            size: CGFloat(EnchantedTypography.captionFontSize),
+                            weight: enchantedFontWeight(EnchantedTypography.sectionTitleFontWeight)
+                        )
+                    )
                     .foregroundColor(EnchantedTheme.text)
                 Spacer()
                 Button("Refresh") {
                     onRefreshModels()
                 }
-                .font(.caption)
+                .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
             }
 
             if modelsList.isEmpty {
                 Text("No local models detected")
-                    .font(.caption)
+                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 6) {
@@ -476,11 +480,11 @@ struct UpstreamSettingsPanel: View {
                                     .frame(width: 8, height: 8)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(model.name)
-                                        .font(.caption)
+                                        .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                                         .lineLimit(1)
                                     if model.supportsImages {
                                         Text("Vision")
-                                            .font(.caption2)
+                                            .font(.system(size: CGFloat(EnchantedTypography.attachmentSizeFontSize)))
                                             .foregroundColor(.secondary)
                                     }
                                 }
@@ -500,7 +504,7 @@ struct UpstreamSettingsPanel: View {
             Button("Clear conversations") {
                 onDeleteAllConversations()
             }
-            .font(.caption)
+            .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
             .foregroundColor(EnchantedTheme.destructive)
             .disabled(!canDeleteAllConversations)
         }
@@ -529,8 +533,13 @@ struct HeaderView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text("Quill Chat")
-                .font(.headline)
+            Text(EnchantedCopy.appTitle)
+                .font(
+                    .system(
+                        size: CGFloat(EnchantedTypography.currentTitleFontSize),
+                        weight: enchantedFontWeight(EnchantedTypography.currentTitleFontWeight)
+                    )
+                )
                 .foregroundColor(EnchantedTheme.text)
 
             Spacer()
@@ -545,7 +554,7 @@ struct HeaderView: View {
                 onSelectModel(modelsList[nextIndex])
             }) {
                 Text(selectedModel?.name ?? "Model")
-                    .font(.caption)
+                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(EnchantedTheme.text)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
@@ -585,7 +594,7 @@ struct MessageListView: View {
                 ForEach(messages) { message in
                     HStack(alignment: .top, spacing: 10) {
                         Text(message.role == "user" ? userInitials : "E")
-                            .font(.caption)
+                            .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                             .frame(width: 28, height: 28)
                             .background(message.role == "user" ? EnchantedTheme.accent : EnchantedTheme.sidebarSelected)
                             .foregroundColor(message.role == "user" ? .white : .primary)
@@ -718,7 +727,7 @@ struct InputFieldsView: View {
             ZStack(alignment: .trailing) {
                 TextField("Message", text: $message.animation(.easeOut(duration: 0.3)), axis: .vertical)
                     .focused($isFocusedInput)
-                    .font(.system(size: 14))
+                    .font(.system(size: CGFloat(EnchantedTypography.messageBodyFontSize)))
                     .frame(maxWidth: .infinity, minHeight: 40)
                     .clipped()
                     .textFieldStyle(.plain)

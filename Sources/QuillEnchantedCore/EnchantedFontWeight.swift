@@ -3,7 +3,7 @@ import QuillUI
 import SwiftUI
 #endif
 
-func enchantedFontWeight(_ value: Int) -> Font.Weight {
+public func enchantedFontWeight(_ value: Int) -> Font.Weight {
     switch value {
     case 700...:
         return .bold
