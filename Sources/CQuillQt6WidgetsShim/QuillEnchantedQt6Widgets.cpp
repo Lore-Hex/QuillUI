@@ -229,6 +229,42 @@ QIcon systemImageIcon(const QString &systemImage) {
     if (normalized.contains(QStringLiteral("arrow.clockwise"))) {
         return themedActionIcon(QStringLiteral("view-refresh-symbolic"), QStyle::SP_BrowserReload);
     }
+    if (normalized.contains(QStringLiteral("trash"))) {
+        return themedActionIcon(QStringLiteral("user-trash-symbolic"), QStyle::SP_TrashIcon);
+    }
+    if (normalized.contains(QStringLiteral("doc.on.doc"))) {
+        return themedActionIcon(QStringLiteral("edit-copy-symbolic"), QStyle::SP_FileIcon);
+    }
+    if (normalized.contains(QStringLiteral("doc.text"))) {
+        return themedActionIcon(QStringLiteral("text-x-generic-symbolic"), QStyle::SP_FileIcon);
+    }
+    if (normalized.contains(QStringLiteral("curlybraces"))) {
+        return themedActionIcon(QStringLiteral("applications-development-symbolic"), QStyle::SP_FileDialogDetailedView);
+    }
+    if (normalized.contains(QStringLiteral("ellipsis"))) {
+        return themedActionIcon(QStringLiteral("view-more-symbolic"), QStyle::SP_TitleBarMenuButton);
+    }
+    if (normalized.contains(QStringLiteral("chevron.down"))) {
+        return themedActionIcon(QStringLiteral("pan-down-symbolic"), QStyle::SP_ArrowDown);
+    }
+    if (normalized.contains(QStringLiteral("checkmark"))) {
+        return themedActionIcon(QStringLiteral("emblem-ok-symbolic"), QStyle::SP_DialogApplyButton);
+    }
+    if (normalized.contains(QStringLiteral("paperplane"))) {
+        return themedActionIcon(QStringLiteral("mail-send-symbolic"), QStyle::SP_CommandLink);
+    }
+    if (normalized.contains(QStringLiteral("photo"))) {
+        return themedActionIcon(QStringLiteral("image-x-generic-symbolic"), QStyle::SP_FileIcon);
+    }
+    if (normalized.contains(QStringLiteral("waveform"))) {
+        return themedActionIcon(QStringLiteral("audio-input-microphone-symbolic"), QStyle::SP_MediaPlay);
+    }
+    if (normalized.contains(QStringLiteral("info.circle"))) {
+        return themedActionIcon(QStringLiteral("dialog-information-symbolic"), QStyle::SP_MessageBoxInformation);
+    }
+    if (normalized.contains(QStringLiteral("link"))) {
+        return themedActionIcon(QStringLiteral("insert-link-symbolic"), QStyle::SP_CommandLink);
+    }
     if (normalized.contains(QStringLiteral("character.cursor.ibeam"))
         || normalized.contains(QStringLiteral("textformat"))
         || normalized.contains(QStringLiteral("ibeam"))) {
