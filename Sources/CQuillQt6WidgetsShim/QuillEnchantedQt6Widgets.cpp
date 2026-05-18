@@ -2257,8 +2257,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
         payloadString(payload, "dropTargetTitle"),
         QStringLiteral("dropTargetLabel")
     );
-    dropHintLayout->addWidget(dropTargetIconLabel);
-    dropHintLayout->addWidget(dropTargetLabel);
+    dropHintLayout->addWidget(dropTargetIconLabel, 0, Qt::AlignVCenter);
+    dropHintLayout->addWidget(dropTargetLabel, 0, Qt::AlignVCenter);
     dropHintLayout->addStretch(1);
     dropHint->setVisible(false);
     dropTarget->setDropHint(dropHint);
@@ -2307,9 +2307,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
     );
     QPushButton *clearAttachmentsButton = new QPushButton(payloadString(payload, "clearAttachmentsTitle"));
     clearAttachmentsButton->setObjectName(QStringLiteral("secondaryButton"));
-    dropLayout->addWidget(attachmentPath, 1);
-    dropLayout->addWidget(attachButton);
-    dropLayout->addWidget(clearAttachmentsButton);
+    dropLayout->addWidget(attachmentPath, 1, Qt::AlignVCenter);
+    dropLayout->addWidget(attachButton, 0, Qt::AlignVCenter);
+    dropLayout->addWidget(clearAttachmentsButton, 0, Qt::AlignVCenter);
     dropTargetLayout->addLayout(dropLayout);
     composerLayout->addWidget(dropTarget);
 

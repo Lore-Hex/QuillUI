@@ -963,6 +963,11 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "EnchantedVisualMetrics.attachmentTraySpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.attachmentTrayChipSpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.attachmentInputSpacing")
+        expectComponentSplitCount(
+            macOSRootView,
+            separatedBy: "HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentInputSpacing))",
+            count: 3
+        )
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageMaxWidth")
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageSpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleRowSpacing")
@@ -1090,10 +1095,20 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "const int dropTargetPadding = styleInt(style, \"dropTargetPadding\")")
         expectContains(nativeShim, "dropHintLayout->setContentsMargins(\n        dropTargetPadding,\n        dropTargetPadding,\n        dropTargetPadding,\n        dropTargetPadding\n    )")
         expectContains(nativeShim, "dropHintLayout->setSpacing(attachmentInputSpacing)")
+        expectContains(nativeShim, "dropHintLayout->addWidget(dropTargetIconLabel, 0, Qt::AlignVCenter)")
+        expectContains(nativeShim, "dropHintLayout->addWidget(dropTargetLabel, 0, Qt::AlignVCenter)")
         expectContains(nativeShim, "dropLayout->setContentsMargins(0, 0, 0, 0)")
         expectContains(nativeShim, "dropLayout->setSpacing(attachmentInputSpacing)")
+        expectContains(nativeShim, "dropLayout->addWidget(attachmentPath, 1, Qt::AlignVCenter)")
+        expectContains(nativeShim, "dropLayout->addWidget(attachButton, 0, Qt::AlignVCenter)")
+        expectContains(nativeShim, "dropLayout->addWidget(clearAttachmentsButton, 0, Qt::AlignVCenter)")
         expectDoesNotContain(nativeShim, "const int attachmentInputHorizontalPadding = styleInt(style, \"attachmentInputHorizontalPadding\")")
         expectDoesNotContain(nativeShim, "const int attachmentInputVerticalPadding = styleInt(style, \"attachmentInputVerticalPadding\")")
+        expectDoesNotContain(nativeShim, "dropHintLayout->addWidget(dropTargetIconLabel);")
+        expectDoesNotContain(nativeShim, "dropHintLayout->addWidget(dropTargetLabel);")
+        expectDoesNotContain(nativeShim, "dropLayout->addWidget(attachmentPath, 1);")
+        expectDoesNotContain(nativeShim, "dropLayout->addWidget(attachButton);")
+        expectDoesNotContain(nativeShim, "dropLayout->addWidget(clearAttachmentsButton);")
         expectDoesNotContain(nativeShim, "dropLayout->setContentsMargins(10, 7, 10, 7)")
         expectDoesNotContain(nativeShim, "dropLayout->setSpacing(8)")
         expectContains(nativeShim, "const int headerTitleWidth = styleInt(style, \"headerTitleWidth\")")
