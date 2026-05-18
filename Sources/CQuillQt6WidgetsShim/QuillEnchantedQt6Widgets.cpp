@@ -221,8 +221,15 @@ QIcon systemImageIcon(const QString &systemImage) {
         || normalized.contains(QStringLiteral("x.circle"))) {
         return themedActionIcon(QStringLiteral("window-close-symbolic"), QStyle::SP_DialogCloseButton);
     }
-    if (normalized.contains(QStringLiteral("square.fill"))) {
+    if (normalized.contains(QStringLiteral("square.fill"))
+        || normalized.contains(QStringLiteral("stop.fill"))) {
         return themedActionIcon(QStringLiteral("process-stop-symbolic"), QStyle::SP_MediaStop);
+    }
+    if (normalized.contains(QStringLiteral("speaker.slash"))) {
+        return themedActionIcon(QStringLiteral("audio-volume-muted-symbolic"), QStyle::SP_MediaVolumeMuted);
+    }
+    if (normalized.contains(QStringLiteral("speaker.wave"))) {
+        return themedActionIcon(QStringLiteral("audio-volume-high-symbolic"), QStyle::SP_MediaVolume);
     }
     if (normalized.contains(QStringLiteral("arrow.forward.circle.fill"))) {
         return themedActionIcon(QStringLiteral("go-next-symbolic"), QStyle::SP_MediaPlay);
