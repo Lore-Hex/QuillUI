@@ -566,7 +566,7 @@ struct HeaderView: View {
                 .divider(id: "history-divider"),
                 QuillMenuAction(
                     title: EnchantedCopy.clearAllTitle,
-                    systemImage: "trash",
+                    systemImage: EnchantedIcon.clearAll,
                     isDisabled: !canDeleteAllConversations,
                     action: onDeleteAllConversations
                 )
@@ -708,7 +708,7 @@ struct InputFieldsView: View {
         if let data = try? Data(contentsOf: attachment.fileURL) {
             return Image(data: data)
         }
-        return Image(systemName: QuillSystemSymbol.compatibleName("photo.fill"))
+        return Image(systemName: QuillSystemSymbol.compatibleName(EnchantedIcon.imagePreviewFallback))
     }
 
     var body: some View {
@@ -734,7 +734,7 @@ struct InputFieldsView: View {
 
                 HStack(spacing: 10) {
                     if selectedModel == nil {
-                        QuillFloatingIconButton(systemImage: "waveform") {}
+                        QuillFloatingIconButton(systemImage: EnchantedIcon.unavailableModel) {}
                             .disabled(true)
                     } else {
                         QuillFloatingIconButton(systemImage: EnchantedIcon.attach) {
