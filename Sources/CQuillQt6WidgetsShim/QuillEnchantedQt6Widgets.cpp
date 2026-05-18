@@ -291,7 +291,9 @@ QIcon systemImageIcon(const QString &systemImage) {
     if (normalized.contains(QStringLiteral("keyboard"))) {
         return themedActionIcon(QStringLiteral("input-keyboard-symbolic"), QStyle::SP_ComputerIcon);
     }
-    if (normalized.contains(QStringLiteral("gearshape"))) {
+    if (normalized.contains(QStringLiteral("gearshape"))
+        || normalized == QStringLiteral("gear")
+        || normalized.contains(QStringLiteral("gear."))) {
         return themedActionIcon(QStringLiteral("preferences-system-symbolic"), QStyle::SP_MessageBoxInformation);
     }
     if (normalized.contains(QStringLiteral("questionmark"))) {
