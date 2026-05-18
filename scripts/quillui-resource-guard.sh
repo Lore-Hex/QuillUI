@@ -11,6 +11,7 @@ fi
 MIN_FREE_GIB="${QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB:-12}"
 MAX_USED_PERCENT="${QUILLUI_RESOURCE_GUARD_MAX_USED_PERCENT:-95}"
 MIN_AVAILABLE_MEMORY_MIB="${QUILLUI_RESOURCE_GUARD_MIN_AVAILABLE_MEMORY_MIB:-2048}"
+WARN_AVAILABLE_MEMORY_MIB="${QUILLUI_RESOURCE_GUARD_WARN_AVAILABLE_MEMORY_MIB:-4096}"
 DIAGNOSTIC_PROCESS_LIMIT="${QUILLUI_RESOURCE_GUARD_DIAGNOSTIC_PROCESS_LIMIT:-8}"
 
 fail_guard() {
@@ -185,6 +186,7 @@ check_disk_path() {
 require_unsigned_integer "$MIN_FREE_GIB" "QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB"
 require_unsigned_integer "$MAX_USED_PERCENT" "QUILLUI_RESOURCE_GUARD_MAX_USED_PERCENT"
 require_unsigned_integer "$MIN_AVAILABLE_MEMORY_MIB" "QUILLUI_RESOURCE_GUARD_MIN_AVAILABLE_MEMORY_MIB"
+require_unsigned_integer "$WARN_AVAILABLE_MEMORY_MIB" "QUILLUI_RESOURCE_GUARD_WARN_AVAILABLE_MEMORY_MIB"
 require_unsigned_integer "$DIAGNOSTIC_PROCESS_LIMIT" "QUILLUI_RESOURCE_GUARD_DIAGNOSTIC_PROCESS_LIMIT"
 
 if [[ $# -eq 0 ]]; then
@@ -198,6 +200,11 @@ done
 if memory_mib="$(available_memory_mib)"; then
   if (( memory_mib < MIN_AVAILABLE_MEMORY_MIB )); then
     fail_guard "available memory is ${memory_mib}MiB; requires at least ${MIN_AVAILABLE_MEMORY_MIB}MiB"
+  fi
+  if (( WARN_AVAILABLE_MEMORY_MIB > 0 && memory_mib < WARN_AVAILABLE_MEMORY_MIB )); then
+    echo "resource guard warning: ${memory_mib}MiB available memory is below warning threshold ${WARN_AVAILABLE_MEMORY_MIB}MiB" >&2
+    print_process_diagnostics || true
+    print_process_group_diagnostics || true
   fi
   echo "resource guard ok: ${memory_mib}MiB available memory" >&2
 else
