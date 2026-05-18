@@ -1868,6 +1868,7 @@ void addSidebarField(
     QVBoxLayout *groupLayout = new QVBoxLayout(group);
     groupLayout->setContentsMargins(0, 0, 0, 0);
     groupLayout->setSpacing(styleInt(style, "sidebarControlGroupSpacing"));
+    groupLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     groupLayout->addWidget(fieldLabel(title));
     groupLayout->addWidget(field);
     layout->addWidget(group);
@@ -1971,11 +1972,13 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const int sidebarPadding = styleInt(style, "sidebarPadding");
     sidebarLayout->setContentsMargins(sidebarPadding, sidebarPadding, sidebarPadding, sidebarPadding);
     sidebarLayout->setSpacing(styleInt(style, "sidebarSpacing"));
+    sidebarLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
 
     QWidget *sidebarTitleBlock = new QWidget();
     QVBoxLayout *sidebarTitleLayout = new QVBoxLayout(sidebarTitleBlock);
     sidebarTitleLayout->setContentsMargins(0, 0, 0, 0);
     sidebarTitleLayout->setSpacing(styleInt(style, "sidebarTitleSpacing"));
+    sidebarTitleLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     sidebarTitleLayout->addWidget(label(
         payloadString(payload, "sidebarTitle"),
         QStringLiteral("appTitle")
