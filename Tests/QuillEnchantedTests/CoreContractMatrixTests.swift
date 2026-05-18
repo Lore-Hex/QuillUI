@@ -1932,16 +1932,24 @@ struct CoreContractMatrixTests {
         }
         expectContains(nativeSupport, "inline bool jsonBoolValue(")
         for needle in [
-            "payloadString(payload, \"attachmentPlaceholder\")",
+            "const QString attachmentPlaceholder = payloadString(payload, \"attachmentPlaceholder\")",
+            "attachmentPath->setAccessibleName(attachmentPlaceholder)",
+            "attachmentPath->setAccessibleDescription(attachmentPlaceholder)",
+            "attachmentPath->setToolTip(attachmentPlaceholder)",
+            "attachmentPath->setStatusTip(attachmentPlaceholder)",
             "payloadString(payload, \"attachTitle\")",
-            "payloadString(payload, \"clearAttachmentsTitle\")",
+            "const QString clearAttachmentsTitle = payloadString(payload, \"clearAttachmentsTitle\")",
+            "clearAttachmentsButton->setAccessibleName(clearAttachmentsTitle)",
+            "clearAttachmentsButton->setAccessibleDescription(clearAttachmentsTitle)",
+            "clearAttachmentsButton->setToolTip(clearAttachmentsTitle)",
+            "clearAttachmentsButton->setStatusTip(clearAttachmentsTitle)",
             "payloadString(payload, \"attachmentsClearedStatus\")",
             "payloadString(payload, \"attachmentRemovedEmptyStatus\")",
             "payloadString(payload, \"attachmentsTitle\")",
             "payloadString(payload, \"attachmentDefaultPrompt\")",
             "payloadString(payload, \"attachmentDefaultPromptPlural\")",
             "payloadString(payload, \"attachmentSummaryTitle\")",
-            "QPushButton *clearAttachmentsButton = new QPushButton(payloadString(payload, \"clearAttachmentsTitle\"))",
+            "QPushButton *clearAttachmentsButton = new QPushButton(clearAttachmentsTitle)",
             "QString attachmentDefaultPromptForCount(",
             "QString attachmentDisplayContent(",
             "QStringList normalizedAttachmentPaths(",
@@ -2193,7 +2201,11 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "conversationList->clear()")
         expectContains(nativeShim, "QObject::connect(clearAttachmentsButton, &QPushButton::clicked")
         expectContains(nativeShim, "QObject::connect(promptEditor, &QPlainTextEdit::textChanged")
-        expectContains(nativeShim, "payloadString(payload, \"composerPlaceholder\")")
+        expectContains(nativeShim, "const QString composerPlaceholder = payloadString(payload, \"composerPlaceholder\")")
+        expectContains(nativeShim, "promptEditor->setAccessibleName(composerPlaceholder)")
+        expectContains(nativeShim, "promptEditor->setAccessibleDescription(composerPlaceholder)")
+        expectContains(nativeShim, "promptEditor->setToolTip(composerPlaceholder)")
+        expectContains(nativeShim, "promptEditor->setStatusTip(composerPlaceholder)")
         expectDoesNotContain(nativeShim, "QStringLiteral(\"Ask a local model...\")")
         expectContains(nativeShim, "payloadString(payload, \"emptyStateTitle\")")
         expectDoesNotContain(nativeShim, "QStringLiteral(\"Ask your local model\")")

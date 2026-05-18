@@ -2445,7 +2445,12 @@ extern "C" int quill_enchanted_qt_run_app_json(
     dropLayout->setContentsMargins(0, 0, 0, 0);
     dropLayout->setSpacing(attachmentInputSpacing);
     QLineEdit *attachmentPath = new QLineEdit();
-    attachmentPath->setPlaceholderText(payloadString(payload, "attachmentPlaceholder"));
+    const QString attachmentPlaceholder = payloadString(payload, "attachmentPlaceholder");
+    attachmentPath->setPlaceholderText(attachmentPlaceholder);
+    attachmentPath->setAccessibleName(attachmentPlaceholder);
+    attachmentPath->setAccessibleDescription(attachmentPlaceholder);
+    attachmentPath->setToolTip(attachmentPlaceholder);
+    attachmentPath->setStatusTip(attachmentPlaceholder);
     attachmentPath->setAcceptDrops(false);
     const QString attachTitle = payloadString(payload, "attachTitle");
     QPushButton *unavailableModelButton = new QPushButton();
@@ -2468,8 +2473,13 @@ extern "C" int quill_enchanted_qt_run_app_json(
         "secondaryButtonHorizontalPadding",
         style
     );
-    QPushButton *clearAttachmentsButton = new QPushButton(payloadString(payload, "clearAttachmentsTitle"));
+    const QString clearAttachmentsTitle = payloadString(payload, "clearAttachmentsTitle");
+    QPushButton *clearAttachmentsButton = new QPushButton(clearAttachmentsTitle);
     clearAttachmentsButton->setObjectName(QStringLiteral("secondaryButton"));
+    clearAttachmentsButton->setAccessibleName(clearAttachmentsTitle);
+    clearAttachmentsButton->setAccessibleDescription(clearAttachmentsTitle);
+    clearAttachmentsButton->setToolTip(clearAttachmentsTitle);
+    clearAttachmentsButton->setStatusTip(clearAttachmentsTitle);
     dropLayout->addWidget(attachmentPath, 1, Qt::AlignVCenter);
     dropLayout->addWidget(unavailableModelButton, 0, Qt::AlignVCenter);
     dropLayout->addWidget(attachButton, 0, Qt::AlignVCenter);
@@ -2481,7 +2491,12 @@ extern "C" int quill_enchanted_qt_run_app_json(
     promptRow->setContentsMargins(0, 0, 0, 0);
     promptRow->setSpacing(styleInt(style, "promptRowSpacing"));
     QPlainTextEdit *promptEditor = new QPlainTextEdit();
-    promptEditor->setPlaceholderText(payloadString(payload, "composerPlaceholder"));
+    const QString composerPlaceholder = payloadString(payload, "composerPlaceholder");
+    promptEditor->setPlaceholderText(composerPlaceholder);
+    promptEditor->setAccessibleName(composerPlaceholder);
+    promptEditor->setAccessibleDescription(composerPlaceholder);
+    promptEditor->setToolTip(composerPlaceholder);
+    promptEditor->setStatusTip(composerPlaceholder);
     promptEditor->setMinimumHeight(styleInt(style, "composerMinHeight"));
     promptEditor->setMaximumHeight(styleInt(style, "composerMaxHeight"));
     const QString sendTitle = payloadString(payload, "sendTitle");
