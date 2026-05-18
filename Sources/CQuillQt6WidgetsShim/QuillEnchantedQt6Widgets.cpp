@@ -2388,12 +2388,21 @@ extern "C" int quill_enchanted_qt_run_app_json(
     composerBandLayout->addStretch(1);
 
     const int attachmentInputSpacing = styleInt(style, "attachmentInputSpacing");
+    const QString dropTargetTitle = payloadString(payload, "dropTargetTitle");
     AttachmentDropFrame *dropTarget = new AttachmentDropFrame();
+    dropTarget->setAccessibleName(dropTargetTitle);
+    dropTarget->setAccessibleDescription(dropTargetTitle);
+    dropTarget->setToolTip(dropTargetTitle);
+    dropTarget->setStatusTip(dropTargetTitle);
     QVBoxLayout *dropTargetLayout = new QVBoxLayout(dropTarget);
     dropTargetLayout->setContentsMargins(0, 0, 0, 0);
     dropTargetLayout->setSpacing(attachmentInputSpacing);
 
     QFrame *dropHint = QuillQtWidgets::frame(QStringLiteral("dropTargetHint"));
+    dropHint->setAccessibleName(dropTargetTitle);
+    dropHint->setAccessibleDescription(dropTargetTitle);
+    dropHint->setToolTip(dropTargetTitle);
+    dropHint->setStatusTip(dropTargetTitle);
     QHBoxLayout *dropHintLayout = new QHBoxLayout(dropHint);
     const int dropTargetPadding = styleInt(style, "dropTargetPadding");
     dropHintLayout->setContentsMargins(
@@ -2409,7 +2418,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         style
     );
     QLabel *dropTargetLabel = label(
-        payloadString(payload, "dropTargetTitle"),
+        dropTargetTitle,
         QStringLiteral("dropTargetLabel")
     );
     dropHintLayout->addWidget(dropTargetIconLabel, 0, Qt::AlignVCenter);
@@ -2670,6 +2679,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
             applyButtonIconSize(removeAttachmentButton, style);
             removeAttachmentButton->setToolTip(removeAttachmentTooltip);
             removeAttachmentButton->setAccessibleName(removeAttachmentTooltip);
+            removeAttachmentButton->setAccessibleDescription(removeAttachmentTooltip);
+            removeAttachmentButton->setStatusTip(removeAttachmentTooltip);
             removeAttachmentButton->setFixedWidth(styleInt(style, "attachmentRemoveButtonWidth"));
             QObject::connect(removeAttachmentButton, &QPushButton::clicked, [&, path]() {
                 pendingAttachmentPaths.removeAll(path);
