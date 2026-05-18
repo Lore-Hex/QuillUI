@@ -346,16 +346,52 @@ void addIconTextButtonContent(
     layout->addStretch(1);
 }
 
+void updateIconTextButtonContent(
+    QPushButton *button,
+    const QIcon &icon,
+    const QString &title,
+    const QString &iconObjectName,
+    const QString &textObjectName,
+    const QJsonObject &style
+) {
+    button->setAccessibleName(title);
+    button->setAccessibleDescription(title);
+    button->setToolTip(title);
+    button->setStatusTip(title);
+    button->setText(QString());
+    button->setIcon(QIcon());
+
+    QLabel *buttonIcon = button->findChild<QLabel *>(iconObjectName);
+    if (buttonIcon != nullptr) {
+        const int iconSize = buttonIconSize(style);
+        buttonIcon->setPixmap(icon.pixmap(iconSize, iconSize));
+        buttonIcon->setFixedSize(iconSize, iconSize);
+    }
+
+    QLabel *buttonText = button->findChild<QLabel *>(textObjectName);
+    if (buttonText != nullptr) {
+        buttonText->setText(title);
+    }
+}
+
 void updateSendButtonPresentation(
     QPushButton *button,
     const QJsonObject &icons,
     bool isLoading,
     const QString &sendTitle,
-    const QString &stopTitle
+    const QString &stopTitle,
+    const QJsonObject &style
 ) {
+    const QString title = isLoading ? stopTitle : sendTitle;
     button->setProperty("loading", isLoading);
-    button->setText(isLoading ? stopTitle : sendTitle);
-    button->setIcon(sendButtonIcon(icons, isLoading));
+    updateIconTextButtonContent(
+        button,
+        sendButtonIcon(icons, isLoading),
+        title,
+        QStringLiteral("sendButtonIcon"),
+        QStringLiteral("sendButtonText"),
+        style
+    );
 }
 
 class LoadingSpinner final : public QWidget {
@@ -590,9 +626,10 @@ QString appStyleSheet(const QJsonObject &style) {
         );
 
     sheet += QStringLiteral(R"(
-        QLabel#primaryButtonIcon, QLabel#primaryButtonText { color: white; font-size: %1; }
+        QLabel#primaryButtonIcon, QLabel#primaryButtonText, QLabel#sendButtonIcon, QLabel#sendButtonText { color: white; font-size: %1; }
+        QLabel#sendButtonIcon:disabled, QLabel#sendButtonText:disabled { color: %2; }
     )")
-        .arg(rootFontSize);
+        .arg(rootFontSize, disabledButtonForeground);
 
     sheet += QStringLiteral(R"(
         QPushButton#secondaryButton { background: transparent; color: %1; border: 1px solid %2; border-radius: %3; padding: %4 %5; text-align: left; }
@@ -2254,8 +2291,18 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QString attachmentRemovedEmptyStatus = payloadString(payload, "attachmentRemovedEmptyStatus");
     QPushButton *sendButton = new QPushButton();
     sendButton->setObjectName(QStringLiteral("sendButton"));
-    updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle);
-    applyButtonIconSize(sendButton, style);
+    addIconTextButtonContent(
+        sendButton,
+        sendButtonIcon(icons, isLoading),
+        isLoading ? stopTitle : sendTitle,
+        QStringLiteral("sendButtonIcon"),
+        QStringLiteral("sendButtonText"),
+        "actionButtonIconSpacing",
+        "primaryButtonVerticalPadding",
+        "primaryButtonHorizontalPadding",
+        style
+    );
+    updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle, style);
     sendButton->setMinimumWidth(styleInt(style, "composerSendButtonMinWidth"));
     promptRow->addWidget(promptEditor, 1);
     promptRow->addWidget(sendButton, 0, Qt::AlignBottom);
@@ -2536,7 +2583,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         ));
         statusText->setText(payloadString(payload, "status"));
         refreshButton->setEnabled(!isLoading);
-        updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle);
+        updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle, style);
         refreshStyle(sendButton);
         updateComposerControlState();
         modelStatus->setText(modelStatusText(

@@ -180,7 +180,7 @@ struct CoreContractMatrixTests {
             "dropTargetIcon(icons),\n        QStringLiteral(\"dropTargetIcon\"),\n        style",
             "attachmentChipIcon(icons),\n                QStringLiteral(\"attachmentChipIcon\"),\n                style",
             "removeAttachmentButton->setIcon(removeAttachmentButtonIcon(icons))",
-            "updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle)",
+            "updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle, style)",
             "QStringLiteral(\"document-new-symbolic\")",
             "QStringLiteral(\"folder-new-symbolic\")",
             "QStringLiteral(\"folder-symbolic\")",
@@ -1316,7 +1316,8 @@ struct CoreContractMatrixTests {
         expectDoesNotContain(nativeShim, "refreshModelsTitle\", QStringLiteral(\"Refresh models\")")
         expectContains(nativeShim, "QPushButton *newConversationButton = new QPushButton()")
         expectContains(nativeShim, "addIconTextButtonContent(")
-        expectContains(nativeShim, "QLabel#primaryButtonIcon, QLabel#primaryButtonText { color: white; font-size: %1; }")
+        expectContains(nativeShim, "QLabel#primaryButtonIcon, QLabel#primaryButtonText, QLabel#sendButtonIcon, QLabel#sendButtonText { color: white; font-size: %1; }")
+        expectContains(nativeShim, "QLabel#sendButtonIcon:disabled, QLabel#sendButtonText:disabled { color: %2; }")
         expectContains(nativeShim, "payloadString(payload, \"completionsPanelSubtitle\")")
         expectContains(nativeShim, "payloadString(payload, \"shortcutsPanelSubtitle\")")
         expectContains(nativeShim, "payloadString(payload, \"settingsPanelSubtitle\")")
@@ -1700,13 +1701,15 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "\"primaryButtonVerticalPadding\"")
         expectContains(nativeShim, "\"primaryButtonHorizontalPadding\"")
         expectContains(nativeShim, "applyButtonIconSize(attachButton, style)")
-        expectContains(nativeShim, "applyButtonIconSize(sendButton, style)")
+        expectContains(nativeShim, "addIconTextButtonContent(\n        sendButton,\n        sendButtonIcon(icons, isLoading),\n        isLoading ? stopTitle : sendTitle,\n        QStringLiteral(\"sendButtonIcon\"),\n        QStringLiteral(\"sendButtonText\"),\n        \"actionButtonIconSpacing\",")
         expectContains(nativeShim, "void updateSendButtonPresentation(")
-        expectContains(nativeShim, "updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle)")
+        expectContains(nativeShim, "updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle, style)")
         expectContains(nativeShim, "button->setProperty(\"loading\", isLoading)")
-        expectContains(nativeShim, "button->setText(isLoading ? stopTitle : sendTitle)")
+        expectContains(nativeShim, "button->setText(QString())")
+        expectContains(nativeShim, "QLabel *buttonText = button->findChild<QLabel *>(textObjectName)")
+        expectContains(nativeShim, "buttonText->setText(title)")
         expectComponentSplitCount(nativeShim, separatedBy: "button->setProperty(\"loading\", isLoading)", count: 2)
-        expectComponentSplitCount(nativeShim, separatedBy: "button->setText(isLoading ? stopTitle : sendTitle)", count: 2)
+        expectComponentSplitCount(nativeShim, separatedBy: "button->setText(QString())", count: 2)
         expectContains(runtime, "composerSendButtonMinWidth: EnchantedVisualMetrics.composerSendButtonMinWidth")
         expectContains(nativeShim, "sendButton->setMinimumWidth(styleInt(style, \"composerSendButtonMinWidth\"))")
         expectDoesNotContain(nativeShim, "sendButton->setMinimumWidth(86)")
