@@ -768,6 +768,7 @@ QFrame *conversationRowWidget(
     if (!previewText.isEmpty()) {
         QLabel *preview = label(previewText, QStringLiteral("conversationPreview"));
         preview->setProperty("active", false);
+        preview->setWordWrap(true);
         preview->setMaximumHeight(preview->fontMetrics().lineSpacing() * 2);
         layout->addWidget(preview);
     }

@@ -1080,6 +1080,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "if (!previewText.isEmpty())")
         expectContains(nativeShim, "QLabel *preview = label(previewText, QStringLiteral(\"conversationPreview\"))")
         expectContains(macOSRootView, ".lineLimit(2)")
+        expectContains(nativeShim, "preview->setWordWrap(true)")
         expectContains(nativeShim, "preview->setMaximumHeight(preview->fontMetrics().lineSpacing() * 2)")
         expectContains(nativeShim, "QWidget *rowWidget = conversationRowWidget(")
         expectContains(nativeShim, "rowWidget->sizeHint().height()")
