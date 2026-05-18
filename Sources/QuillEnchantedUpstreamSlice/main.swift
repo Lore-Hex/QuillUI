@@ -414,9 +414,9 @@ struct SidebarView: View {
             }
 
             QuillSidebarBottomNavigation(actions: [
-                QuillSidebarNavigationAction(title: "Completions", systemImage: EnchantedIcon.completions) {},
-                QuillSidebarNavigationAction(title: "Shortcuts", systemImage: EnchantedIcon.shortcuts) {},
-                QuillSidebarNavigationAction(title: "Settings", systemImage: EnchantedIcon.settings) {
+                QuillSidebarNavigationAction(title: EnchantedCopy.completionsTitle, systemImage: EnchantedIcon.completions) {},
+                QuillSidebarNavigationAction(title: EnchantedCopy.shortcutsTitle, systemImage: EnchantedIcon.shortcuts) {},
+                QuillSidebarNavigationAction(title: EnchantedCopy.settingsTitle, systemImage: EnchantedIcon.settings) {
                     withAnimation(.easeOut(duration: 0.2)) {
                         showSettings.toggle()
                     }
@@ -446,7 +446,7 @@ struct UpstreamSettingsPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Models")
+                Text(EnchantedCopy.modelLabel)
                     .font(
                         .system(
                             size: CGFloat(EnchantedTypography.captionFontSize),
@@ -455,14 +455,14 @@ struct UpstreamSettingsPanel: View {
                     )
                     .foregroundColor(EnchantedTheme.text)
                 Spacer()
-                Button("Refresh") {
+                Button(EnchantedCopy.refreshModelsTitle) {
                     onRefreshModels()
                 }
                 .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
             }
 
             if modelsList.isEmpty {
-                Text("No local models detected")
+                Text(EnchantedCopy.noModelsTitle)
                     .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(.secondary)
             } else {
@@ -496,7 +496,7 @@ struct UpstreamSettingsPanel: View {
 
             Divider()
 
-            Button("Clear conversations") {
+            Button(EnchantedCopy.clearAllTitle) {
                 onDeleteAllConversations()
             }
             .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
@@ -548,7 +548,7 @@ struct HeaderView: View {
                 let nextIndex = (currentIndex + 1) % modelsList.count
                 onSelectModel(modelsList[nextIndex])
             }) {
-                Text(selectedModel?.name ?? "Model")
+                Text(selectedModel?.name ?? EnchantedCopy.modelLabel)
                     .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(EnchantedTheme.text)
                     .padding(.horizontal, 10)
@@ -558,14 +558,14 @@ struct HeaderView: View {
             }
             .buttonStyle(.plain)
 
-            QuillFloatingIconButton(systemImage: "square.and.pencil", action: onNewConversationTap)
+            QuillFloatingIconButton(systemImage: EnchantedIcon.newConversation, action: onNewConversationTap)
 
             QuillMenuButton(actions: [
-                QuillMenuAction(title: "New Chat", systemImage: "square.and.pencil", action: onNewConversationTap),
-                QuillMenuAction(title: "Refresh Models", systemImage: "arrow.clockwise", action: onRefreshModels),
+                QuillMenuAction(title: EnchantedCopy.newChatTitle, systemImage: EnchantedIcon.newConversation, action: onNewConversationTap),
+                QuillMenuAction(title: EnchantedCopy.refreshModelsTitle, systemImage: EnchantedIcon.refreshModels, action: onRefreshModels),
                 .divider(id: "history-divider"),
                 QuillMenuAction(
-                    title: "Clear Conversations",
+                    title: EnchantedCopy.clearAllTitle,
                     systemImage: "trash",
                     isDisabled: !canDeleteAllConversations,
                     action: onDeleteAllConversations
@@ -720,7 +720,7 @@ struct InputFieldsView: View {
             }
 
             ZStack(alignment: .trailing) {
-                TextField("Message", text: $message.animation(.easeOut(duration: 0.3)), axis: .vertical)
+                TextField(EnchantedCopy.composerPlaceholder, text: $message.animation(.easeOut(duration: 0.3)), axis: .vertical)
                     .focused($isFocusedInput)
                     .font(.system(size: CGFloat(EnchantedTypography.messageBodyFontSize)))
                     .frame(maxWidth: .infinity, minHeight: 40)
@@ -737,7 +737,7 @@ struct InputFieldsView: View {
                         QuillFloatingIconButton(systemImage: "waveform") {}
                             .disabled(true)
                     } else {
-                        QuillFloatingIconButton(systemImage: "photo.fill") {
+                        QuillFloatingIconButton(systemImage: EnchantedIcon.attach) {
                             fileSelectingActive.toggle()
                         }
                         .disabled(!modelSupportsImages)
@@ -755,9 +755,9 @@ struct InputFieldsView: View {
 
                         switch conversationState {
                         case .loading:
-                            QuillFloatingIconButton(systemImage: "square.fill", action: onStopGenerateTap)
+                            QuillFloatingIconButton(systemImage: EnchantedIcon.stop, action: onStopGenerateTap)
                         case .completed:
-                            QuillFloatingIconButton(systemImage: "paperplane.fill") {
+                            QuillFloatingIconButton(systemImage: EnchantedIcon.send) {
                                 sendMessage()
                             }
                         }
@@ -818,7 +818,7 @@ struct RemovableImage: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
 
             Button(action: onClick) {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: QuillSystemSymbol.compatibleName(EnchantedIcon.removeAttachment))
                     .foregroundColor(EnchantedTheme.secondaryText)
             }
             .buttonStyle(.plain)
