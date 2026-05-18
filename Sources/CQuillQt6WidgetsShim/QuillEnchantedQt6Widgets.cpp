@@ -231,6 +231,12 @@ QIcon systemImageIcon(const QString &systemImage) {
     if (normalized.contains(QStringLiteral("pencil"))) {
         return themedActionIcon(QStringLiteral("document-edit-symbolic"), QStyle::SP_FileIcon);
     }
+    if (normalized.contains(QStringLiteral("checkmark.square"))) {
+        return themedActionIcon(QStringLiteral("checkbox-checked-symbolic"), QStyle::SP_DialogApplyButton);
+    }
+    if (normalized == QStringLiteral("square")) {
+        return themedActionIcon(QStringLiteral("checkbox-symbolic"), QStyle::SP_TitleBarNormalButton);
+    }
     if (normalized.contains(QStringLiteral("square.fill"))
         || normalized.contains(QStringLiteral("stop.fill"))) {
         return themedActionIcon(QStringLiteral("process-stop-symbolic"), QStyle::SP_MediaStop);

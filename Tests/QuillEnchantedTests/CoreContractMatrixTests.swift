@@ -149,6 +149,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/ChatMessages/CodeBlockView.swift"),
             encoding: .utf8
         )
+        let upstreamMarkdownColours = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/ChatMessages/MarkdownColours.swift"),
+            encoding: .utf8
+        )
         let upstreamRecorderView = try String(
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/Recorder/RecordingView.swift"),
             encoding: .utf8
@@ -279,6 +283,7 @@ struct CoreContractMatrixTests {
             expectContains(upstreamReadingAloudView, needle)
         }
         expectContains(upstreamCodeBlockView, "Image(systemName: \"doc.on.doc\")")
+        expectContains(upstreamMarkdownColours, "Image(systemName: configuration.isCompleted ? \"checkmark.square.fill\" : \"square\")")
         for needle in [
             "Image(systemName: \"square.fill\")",
             "Image(systemName: \"waveform\")"
@@ -367,6 +372,10 @@ struct CoreContractMatrixTests {
             "QStringLiteral(\"window-close-symbolic\")",
             "normalized.contains(QStringLiteral(\"pencil\"))",
             "QStringLiteral(\"document-edit-symbolic\")",
+            "normalized.contains(QStringLiteral(\"checkmark.square\"))",
+            "QStringLiteral(\"checkbox-checked-symbolic\")",
+            "normalized == QStringLiteral(\"square\")",
+            "QStringLiteral(\"checkbox-symbolic\")",
             "normalized.contains(QStringLiteral(\"stop.fill\"))",
             "QStringLiteral(\"process-stop-symbolic\")",
             "normalized.contains(QStringLiteral(\"speaker.slash\"))",
@@ -423,6 +432,7 @@ struct CoreContractMatrixTests {
             "QStyle::SP_BrowserReload",
             "QStyle::SP_TrashIcon",
             "QStyle::SP_TitleBarMenuButton",
+            "QStyle::SP_TitleBarNormalButton",
             "QStyle::SP_ArrowDown",
             "QStyle::SP_DialogApplyButton",
             "QStyle::SP_CommandLink",
