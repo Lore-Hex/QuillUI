@@ -177,6 +177,22 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/Components/DragAndDrop.swift"),
             encoding: .utf8
         )
+        let upstreamInputFields = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/Chat/Components/InputFields_macOS.swift"),
+            encoding: .utf8
+        )
+        let upstreamHeader = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/Header.swift"),
+            encoding: .utf8
+        )
+        let upstreamConversationHistoryList = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Sidebar/Components/ConversationHistoryListView.swift"),
+            encoding: .utf8
+        )
+        let upstreamCompletionsEditor = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/CompletionsEditor/CompletionsEditorView.swift"),
+            encoding: .utf8
+        )
         let upstreamCompletionPanel = try String(
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/Components/CompletionPanelView.swift"),
             encoding: .utf8
@@ -275,9 +291,23 @@ struct CoreContractMatrixTests {
         expectContains(upstreamMacOSChatView, "Image(systemName: \"sidebar.left\")")
         expectContains(upstreamMacOSToolbarView, "Image(systemName: \"square.and.pencil\")")
         expectContains(upstreamMacOSDragAndDrop, "Image(systemName: \"photo\")")
+        for needle in [
+            "SimpleFloatingButton(systemImage: \"photo.fill\"",
+            "SimpleFloatingButton(systemImage: \"square.fill\"",
+            "SimpleFloatingButton(systemImage: \"paperplane.fill\""
+        ] {
+            expectContains(upstreamInputFields, needle)
+        }
+        expectContains(upstreamHeader, "Image(systemName: \"line.3.horizontal\")")
+        expectContains(upstreamHeader, "Image(systemName: \"square.and.pencil\")")
         expectContains(upstreamCompletionPanel, "Image(systemName: \"space\")")
         expectContains(upstreamSettings, "Label(\"Vibrations\", systemImage: \"water.waves\")")
         expectContains(upstreamSettings, "Label(\"Appearance\", systemImage: \"sun.max\")")
+        expectContains(upstreamSettings, "Label(\"Voice\", systemImage: \"waveform\")")
+        expectContains(upstreamConversationHistoryList, "Label(\"Delete daily conversations\", systemImage: \"trash\")")
+        expectContains(upstreamConversationHistoryList, "Label(\"Delete\", systemImage: \"trash\")")
+        expectContains(upstreamCompletionsEditor, "Image(systemName: \"pencil\")")
+        expectContains(upstreamCompletionsEditor, "Image(systemName: \"xmark\")")
 
         for needle in [
             "Image(systemName: EnchantedIcon.newConversation)",
