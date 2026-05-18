@@ -133,6 +133,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Sidebar/SidebarView.swift"),
             encoding: .utf8
         )
+        let upstreamMessageList = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/MessageListVIew.swift"),
+            encoding: .utf8
+        )
         let nativeShim = try String(
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp"),
             encoding: .utf8
@@ -187,6 +191,7 @@ struct CoreContractMatrixTests {
         ] {
             expectContains(upstreamSidebar, needle)
         }
+        expectContains(upstreamMessageList, "Label(\"Select Text\", systemImage: \"selection.pin.in.out\")")
 
         for needle in [
             "Image(systemName: EnchantedIcon.newConversation)",
@@ -259,6 +264,8 @@ struct CoreContractMatrixTests {
             "QStringLiteral(\"user-trash-symbolic\")",
             "normalized.contains(QStringLiteral(\"doc.on.doc\"))",
             "QStringLiteral(\"edit-copy-symbolic\")",
+            "normalized.contains(QStringLiteral(\"selection.pin\"))",
+            "QStringLiteral(\"edit-select-all-symbolic\")",
             "normalized.contains(QStringLiteral(\"doc.text\"))",
             "QStringLiteral(\"text-x-generic-symbolic\")",
             "normalized.contains(QStringLiteral(\"curlybraces\"))",

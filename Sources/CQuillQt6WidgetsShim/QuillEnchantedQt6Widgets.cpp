@@ -253,6 +253,9 @@ QIcon systemImageIcon(const QString &systemImage) {
     if (normalized.contains(QStringLiteral("doc.on.doc"))) {
         return themedActionIcon(QStringLiteral("edit-copy-symbolic"), QStyle::SP_FileIcon);
     }
+    if (normalized.contains(QStringLiteral("selection.pin"))) {
+        return themedActionIcon(QStringLiteral("edit-select-all-symbolic"), QStyle::SP_FileDialogDetailedView);
+    }
     if (normalized.contains(QStringLiteral("doc.text"))) {
         return themedActionIcon(QStringLiteral("text-x-generic-symbolic"), QStyle::SP_FileIcon);
     }
