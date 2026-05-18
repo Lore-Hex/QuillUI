@@ -210,7 +210,7 @@ public struct EnchantedRootView: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.composerSpacing)) {
-            if model.isAttachmentDropTargeted {
+            if selectedModelSupportsImages, model.isAttachmentDropTargeted {
                 HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentInputSpacing)) {
                     Image(systemName: EnchantedIcon.dropTarget)
                     Text(EnchantedCopy.dropTargetTitle)
@@ -227,24 +227,26 @@ public struct EnchantedRootView: View {
                 attachmentTray
             }
 
-            HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentInputSpacing)) {
-                TextField(EnchantedCopy.attachmentPlaceholder, text: attachmentPath)
-                    .textFieldStyle(.roundedBorder)
+            if selectedModelSupportsImages {
+                HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentInputSpacing)) {
+                    TextField(EnchantedCopy.attachmentPlaceholder, text: attachmentPath)
+                        .textFieldStyle(.roundedBorder)
 
-                Button(action: {
-                    model.addAttachmentPath()
-                }) {
-                    HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
-                        Image(systemName: EnchantedIcon.attach)
-                        Text(EnchantedCopy.attachTitle)
+                    Button(action: {
+                        model.addAttachmentPath()
+                    }) {
+                        HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
+                            Image(systemName: EnchantedIcon.attach)
+                            Text(EnchantedCopy.attachTitle)
+                        }
                     }
-                }
-                .disabled(!hasAttachmentPathCandidates)
+                    .disabled(!hasAttachmentPathCandidates)
 
-                Button(EnchantedCopy.clearAttachmentsTitle) {
-                    model.clearAttachments()
+                    Button(EnchantedCopy.clearAttachmentsTitle) {
+                        model.clearAttachments()
+                    }
+                    .disabled(model.pendingImageAttachments.isEmpty && !hasAttachmentPathCandidates)
                 }
-                .disabled(model.pendingImageAttachments.isEmpty && !hasAttachmentPathCandidates)
             }
 
             HStack(alignment: .bottom, spacing: CGFloat(EnchantedVisualMetrics.promptRowSpacing)) {
@@ -277,9 +279,11 @@ public struct EnchantedRootView: View {
             }
         }
         .dropDestination(for: URL.self) { urls, _ in
+            guard selectedModelSupportsImages else { return false }
             model.addAttachments(urls: urls)
+            return true
         } isTargeted: { isTargeted in
-            model.isAttachmentDropTargeted = isTargeted
+            model.isAttachmentDropTargeted = selectedModelSupportsImages && isTargeted
         }
     }
 
@@ -306,6 +310,10 @@ public struct EnchantedRootView: View {
             get: { model.attachmentPath },
             set: { model.attachmentPath = $0 }
         )
+    }
+
+    private var selectedModelSupportsImages: Bool {
+        model.models.first(where: { $0.name == model.selectedModel })?.name.quillLikelySupportsImages ?? false
     }
 
     private var sendDisabled: Bool {

@@ -129,11 +129,6 @@ private extension String {
         let prefixLength = max(1, maxLength - 3)
         return String(trimmed.prefix(prefixLength)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
-
-    var quillLikelySupportsImages: Bool {
-        let lowercasedName = lowercased()
-        return ["llava", "vision", "bakllava", "moondream", "minicpm-v"].contains { lowercasedName.contains($0) }
-    }
 }
 
 struct UpstreamSliceApp: App {

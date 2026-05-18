@@ -874,6 +874,24 @@ QJsonArray currentModelList(QComboBox *modelPicker) {
     return models;
 }
 
+bool modelLikelySupportsImages(const QString &modelName) {
+    const QString lowercasedName = modelName.toLower();
+    return lowercasedName.contains(QStringLiteral("llava"))
+        || lowercasedName.contains(QStringLiteral("vision"))
+        || lowercasedName.contains(QStringLiteral("bakllava"))
+        || lowercasedName.contains(QStringLiteral("moondream"))
+        || lowercasedName.contains(QStringLiteral("minicpm-v"));
+}
+
+bool selectedModelSupportsImages(QComboBox *modelPicker, const QJsonObject &payload) {
+    const QString currentModel = modelPicker == nullptr ? QString() : modelPicker->currentText().trimmed();
+    if (!currentModel.isEmpty()) {
+        return modelLikelySupportsImages(currentModel);
+    }
+
+    return payloadBool(payload, "selectedModelSupportsImages");
+}
+
 QString messageRoleTitle(
     const QString &role,
     const QString &userRoleLabel,
@@ -2300,7 +2318,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     attachmentTray->setVisible(false);
     dropTargetLayout->addWidget(attachmentTray);
 
-    QHBoxLayout *dropLayout = new QHBoxLayout();
+    QWidget *attachmentInputRow = new QWidget();
+    QHBoxLayout *dropLayout = new QHBoxLayout(attachmentInputRow);
     dropLayout->setContentsMargins(0, 0, 0, 0);
     dropLayout->setSpacing(attachmentInputSpacing);
     QLineEdit *attachmentPath = new QLineEdit();
@@ -2325,7 +2344,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     dropLayout->addWidget(attachmentPath, 1, Qt::AlignVCenter);
     dropLayout->addWidget(attachButton, 0, Qt::AlignVCenter);
     dropLayout->addWidget(clearAttachmentsButton, 0, Qt::AlignVCenter);
-    dropTargetLayout->addLayout(dropLayout);
+    dropTargetLayout->addWidget(attachmentInputRow);
     composerLayout->addWidget(dropTarget);
 
     QHBoxLayout *promptRow = new QHBoxLayout();
@@ -2446,8 +2465,15 @@ extern "C" int quill_enchanted_qt_run_app_json(
     auto updateComposerControlState = [&]() {
         const bool hasPendingAttachments = !pendingAttachmentPaths.isEmpty();
         const bool hasAttachmentPathInput = hasAttachmentPathCandidates(attachmentPath);
-        attachButton->setEnabled(hasAttachmentPathInput);
-        clearAttachmentsButton->setEnabled(hasAttachmentPathInput || hasPendingAttachments);
+        const bool imageAttachmentsAvailable = selectedModelSupportsImages(modelPicker, payload);
+        attachmentInputRow->setVisible(imageAttachmentsAvailable);
+        dropTarget->setAcceptDrops(imageAttachmentsAvailable);
+        dropTarget->setVisible(imageAttachmentsAvailable || hasPendingAttachments);
+        if (!imageAttachmentsAvailable && dropHint != nullptr) {
+            dropHint->setVisible(false);
+        }
+        attachButton->setEnabled(imageAttachmentsAvailable && hasAttachmentPathInput);
+        clearAttachmentsButton->setEnabled(imageAttachmentsAvailable && (hasAttachmentPathInput || hasPendingAttachments));
         sendButton->setEnabled(isLoading || hasTrimmedText(promptEditor) || hasPendingAttachments);
     };
     std::function<void()> renderAttachmentTray;
@@ -2546,6 +2572,10 @@ extern "C" int quill_enchanted_qt_run_app_json(
     };
     dropTarget->setSupportedAttachmentExtensions(attachmentPolicy.supportedExtensions);
     dropTarget->setDropHandler([&](const QStringList &paths) {
+        if (!selectedModelSupportsImages(modelPicker, payload)) {
+            return;
+        }
+
         addPendingAttachmentPaths(paths);
     });
     auto clearAttachmentState = [&](const QString &nextStatus) {
@@ -2568,6 +2598,10 @@ extern "C" int quill_enchanted_qt_run_app_json(
         clearAttachmentState(QString());
     };
     auto attachPendingPath = [&]() {
+        if (!selectedModelSupportsImages(modelPicker, payload)) {
+            return;
+        }
+
         const QStringList rawPaths = attachmentPathCandidatesFromInput(attachmentPath->text());
         if (rawPaths.isEmpty()) {
             return;
@@ -2816,6 +2850,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     });
     QObject::connect(modelPicker, &QComboBox::currentTextChanged, [&](const QString &model) {
         modelStatus->setText(modelStatusText(model, chooseLocalModelStatus, usingModelStatusPrefix, usingModelStatusSeparator));
+        updateComposerControlState();
         requestHistoryAction(
             QStringLiteral("selectModel"),
             currentConversationID(conversationList, selectedConversationID),

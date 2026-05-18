@@ -65,6 +65,11 @@ public extension String {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    var quillLikelySupportsImages: Bool {
+        let lowercasedName = lowercased()
+        return ["llava", "vision", "bakllava", "moondream", "minicpm-v"].contains { lowercasedName.contains($0) }
+    }
+
     func quillTitle(maxLength: Int = 44) -> String {
         let normalized = split(whereSeparator: \.isNewline).joined(separator: " ")
         let trimmed = normalized.trimmingCharacters(in: .whitespacesAndNewlines)

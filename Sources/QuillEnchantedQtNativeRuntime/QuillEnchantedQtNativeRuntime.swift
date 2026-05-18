@@ -71,6 +71,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var systemRoleLabel: String
     var endpoint: String
     var selectedModel: String
+    var selectedModelSupportsImages: Bool
     var selectedConversationID: String
     var models: [String]
     var conversations: [Conversation]
@@ -375,6 +376,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         systemRoleLabel: EnchantedCopy.systemRoleLabel,
         endpoint: EnchantedCopy.defaultEndpoint,
         selectedModel: EnchantedPreviewFixture.selectedModel,
+        selectedModelSupportsImages: EnchantedPreviewFixture.selectedModel.quillLikelySupportsImages,
         selectedConversationID: EnchantedPreviewFixture.selectedConversationID,
         models: EnchantedPreviewFixture.models,
         conversations: EnchantedPreviewFixture.conversations.map { Conversation($0) },
@@ -535,6 +537,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         if !snapshot.models.isEmpty, !snapshot.models.contains(snapshot.selectedModel) {
             snapshot.selectedModel = snapshot.models.first ?? ""
         }
+        snapshot.selectedModelSupportsImages = snapshot.models.contains(snapshot.selectedModel) && snapshot.selectedModel.quillLikelySupportsImages
         let summaries = try context.fetchConversations()
         snapshot.conversations = try summaries.map { summary in
             let messages = try context.fetchMessages(for: summary.id).map(Message.init)
