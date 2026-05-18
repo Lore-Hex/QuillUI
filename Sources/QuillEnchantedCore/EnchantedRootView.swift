@@ -398,10 +398,12 @@ private struct EmptyConversationView: View {
                 Text(EnchantedCopy.emptyStateTitle)
                     .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.currentTitleFontWeight)))
                     .foregroundColor(QuillColors.ink)
-                Text(EnchantedCopy.emptyStateSubtitle)
-                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
-                    .foregroundColor(QuillColors.muted)
-                    .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth), alignment: .leading)
+                if !EnchantedCopy.emptyStateSubtitle.isEmpty {
+                    Text(EnchantedCopy.emptyStateSubtitle)
+                        .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
+                        .foregroundColor(QuillColors.muted)
+                        .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth), alignment: .leading)
+                }
             }
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.promptListSpacing)) {

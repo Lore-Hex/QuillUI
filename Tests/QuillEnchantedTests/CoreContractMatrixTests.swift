@@ -261,6 +261,8 @@ struct CoreContractMatrixTests {
         ] {
             expectContains(shared, needle)
         }
+        expectContains(shared, "public static let emptyStateTitle = appTitle")
+        expectContains(shared, "public static let emptyStateSubtitle = \"\"")
 
         for needle in [
             "import QuillEnchantedShared",
@@ -1209,8 +1211,10 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateSpacing))")
         expectContains(nativeShim, "layout->setSpacing(styleInt(style, \"emptyStateSpacing\"));\n    layout->setAlignment(Qt::AlignTop | Qt::AlignLeft)")
         expectContains(macOSRootView, "VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateHeaderSpacing))")
+        expectContains(macOSRootView, "if !EnchantedCopy.emptyStateSubtitle.isEmpty")
         expectContains(nativeShim, "headerLayout->setSpacing(styleInt(style, \"emptyStateHeaderSpacing\"));\n    headerLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft)")
         expectContains(nativeShim, "subtitleLabel->setFixedWidth(promptButtonWidth)")
+        expectContains(nativeShim, "subtitleLabel->setVisible(!subtitle.trimmed().isEmpty())")
         expectContains(nativeShim, "headerLayout->addWidget(subtitleLabel)")
         expectContains(nativeShim, "promptList->setContentsMargins(0, 0, 0, 0)")
         expectContains(nativeShim, "promptList->setSpacing(styleInt(style, \"promptListSpacing\"))")

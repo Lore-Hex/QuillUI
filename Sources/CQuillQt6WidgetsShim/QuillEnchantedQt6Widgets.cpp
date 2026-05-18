@@ -1399,6 +1399,7 @@ void addPromptCards(
     headerLayout->addWidget(label(title, QStringLiteral("currentTitle")));
     QLabel *subtitleLabel = label(subtitle, QStringLiteral("caption"));
     subtitleLabel->setFixedWidth(promptButtonWidth);
+    subtitleLabel->setVisible(!subtitle.trimmed().isEmpty());
     headerLayout->addWidget(subtitleLabel);
     layout->addLayout(headerLayout);
 

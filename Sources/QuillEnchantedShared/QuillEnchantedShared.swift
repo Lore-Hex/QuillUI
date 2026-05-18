@@ -157,8 +157,8 @@ public enum EnchantedCopy {
     public static let stopTitle = "Stop"
     public static let emptyHistoryTitle = "No saved chats yet"
     public static let emptyHistorySubtitle = "Start a chat and it will be saved locally."
-    public static let emptyStateTitle = "Ask your local model"
-    public static let emptyStateSubtitle = "This is the first QuillUI Enchanted checkpoint: local Swift UI, Ollama chat, and QuillData history."
+    public static let emptyStateTitle = appTitle
+    public static let emptyStateSubtitle = ""
     public static let userRoleLabel = "You"
     public static let assistantRoleLabel = "Enchanted"
     public static let systemRoleLabel = "System"
