@@ -512,19 +512,6 @@ enum QuillColors {
     static var dropTarget: Color { Color(hex: EnchantedPalette.dropTargetColor) }
 }
 
-private func enchantedFontWeight(_ value: Int) -> Font.Weight {
-    switch value {
-    case 700...:
-        return .bold
-    case 650..<700:
-        return .semibold
-    case 600..<650:
-        return .medium
-    default:
-        return .regular
-    }
-}
-
 private struct AttachmentChip: View {
     var attachment: PendingImageAttachment
     var remove: () -> Void

@@ -218,7 +218,7 @@ public struct MarkdownMessageView: View {
         case .unorderedListItem:
             HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.markdownListItemSpacing)) {
                 Text("•")
-                    .font(.system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize), weight: .semibold))
+                    .font(.system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize), weight: enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight)))
                     .foregroundColor(QuillColors.primary)
                 Text(block.text)
                     .font(.system(size: CGFloat(EnchantedTypography.messageBodyFontSize)))
@@ -228,7 +228,7 @@ public struct MarkdownMessageView: View {
         case .orderedListItem(let number):
             HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.markdownListItemSpacing)) {
                 Text("\(number).")
-                    .font(.system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize), weight: .semibold))
+                    .font(.system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize), weight: enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight)))
                     .foregroundColor(QuillColors.primary)
                     .frame(width: CGFloat(EnchantedVisualMetrics.markdownNumberWidth), alignment: .trailing)
                 Text(block.text)
@@ -251,7 +251,7 @@ public struct MarkdownMessageView: View {
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.markdownCodeBlockSpacing)) {
                 if let language {
                     Text(language.uppercased())
-                        .font(.system(size: CGFloat(EnchantedTypography.markdownCodeLanguageFontSize), weight: .semibold))
+                        .font(.system(size: CGFloat(EnchantedTypography.markdownCodeLanguageFontSize), weight: enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight)))
                         .foregroundColor(QuillColors.muted)
                 }
                 Text(block.text.isEmpty ? " " : block.text)
@@ -269,11 +269,11 @@ public struct MarkdownMessageView: View {
     private func headingFont(level: Int) -> Font {
         switch level {
         case 1:
-            return .system(size: CGFloat(EnchantedTypography.markdownHeading1FontSize), weight: .semibold)
+            return .system(size: CGFloat(EnchantedTypography.markdownHeading1FontSize), weight: enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight))
         case 2:
-            return .system(size: CGFloat(EnchantedTypography.markdownHeading2FontSize), weight: .semibold)
+            return .system(size: CGFloat(EnchantedTypography.markdownHeading2FontSize), weight: enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight))
         default:
-            return .system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize), weight: .semibold)
+            return .system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize), weight: enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight))
         }
     }
 }
