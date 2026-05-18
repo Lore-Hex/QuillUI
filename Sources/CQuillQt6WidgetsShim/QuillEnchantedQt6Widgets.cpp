@@ -2265,6 +2265,27 @@ extern "C" int quill_enchanted_qt_run_app_json(
     dropTarget->setDropHint(dropHint);
     dropTargetLayout->addWidget(dropHint);
 
+    QFrame *attachmentTray = QuillQtWidgets::frame(QStringLiteral("attachmentTray"));
+    QVBoxLayout *attachmentTrayLayout = new QVBoxLayout(attachmentTray);
+    attachmentTrayLayout->setContentsMargins(0, 0, 0, 0);
+    attachmentTrayLayout->setSpacing(styleInt(style, "attachmentTraySpacing"));
+    attachmentTrayLayout->addWidget(fieldLabel(payloadString(payload, "attachmentsTitle")));
+    QScrollArea *attachmentScrollArea = new QScrollArea();
+    attachmentScrollArea->setObjectName(QStringLiteral("attachmentScrollArea"));
+    attachmentScrollArea->setWidgetResizable(true);
+    attachmentScrollArea->setFrameShape(QFrame::NoFrame);
+    attachmentScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    attachmentScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    QWidget *attachmentChipList = new QWidget();
+    attachmentChipList->setObjectName(QStringLiteral("attachmentChipList"));
+    QHBoxLayout *attachmentChipListLayout = new QHBoxLayout(attachmentChipList);
+    attachmentChipListLayout->setContentsMargins(0, 0, 0, 0);
+    attachmentChipListLayout->setSpacing(styleInt(style, "attachmentTrayChipSpacing"));
+    attachmentScrollArea->setWidget(attachmentChipList);
+    attachmentTrayLayout->addWidget(attachmentScrollArea);
+    attachmentTray->setVisible(false);
+    dropTargetLayout->addWidget(attachmentTray);
+
     QHBoxLayout *dropLayout = new QHBoxLayout();
     dropLayout->setContentsMargins(0, 0, 0, 0);
     dropLayout->setSpacing(attachmentInputSpacing);
@@ -2292,27 +2313,6 @@ extern "C" int quill_enchanted_qt_run_app_json(
     dropLayout->addWidget(clearAttachmentsButton);
     dropTargetLayout->addLayout(dropLayout);
     composerLayout->addWidget(dropTarget);
-
-    QFrame *attachmentTray = QuillQtWidgets::frame(QStringLiteral("attachmentTray"));
-    QVBoxLayout *attachmentTrayLayout = new QVBoxLayout(attachmentTray);
-    attachmentTrayLayout->setContentsMargins(0, 0, 0, 0);
-    attachmentTrayLayout->setSpacing(styleInt(style, "attachmentTraySpacing"));
-    attachmentTrayLayout->addWidget(fieldLabel(payloadString(payload, "attachmentsTitle")));
-    QScrollArea *attachmentScrollArea = new QScrollArea();
-    attachmentScrollArea->setObjectName(QStringLiteral("attachmentScrollArea"));
-    attachmentScrollArea->setWidgetResizable(true);
-    attachmentScrollArea->setFrameShape(QFrame::NoFrame);
-    attachmentScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    attachmentScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    QWidget *attachmentChipList = new QWidget();
-    attachmentChipList->setObjectName(QStringLiteral("attachmentChipList"));
-    QHBoxLayout *attachmentChipListLayout = new QHBoxLayout(attachmentChipList);
-    attachmentChipListLayout->setContentsMargins(0, 0, 0, 0);
-    attachmentChipListLayout->setSpacing(styleInt(style, "attachmentTrayChipSpacing"));
-    attachmentScrollArea->setWidget(attachmentChipList);
-    attachmentTrayLayout->addWidget(attachmentScrollArea);
-    attachmentTray->setVisible(false);
-    composerLayout->addWidget(attachmentTray);
 
     QHBoxLayout *promptRow = new QHBoxLayout();
     promptRow->setContentsMargins(0, 0, 0, 0);
