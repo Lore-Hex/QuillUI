@@ -201,6 +201,7 @@ struct CoreContractMatrixTests {
         }
         expectContains(upstreamMessageList, "Label(\"Select Text\", systemImage: \"selection.pin.in.out\")")
         expectContains(upstreamCompletionPanel, "Image(systemName: \"space\")")
+        expectContains(upstreamSettings, "Label(\"Vibrations\", systemImage: \"water.waves\")")
         expectContains(upstreamSettings, "Label(\"Appearance\", systemImage: \"sun.max\")")
 
         for needle in [
@@ -290,6 +291,8 @@ struct CoreContractMatrixTests {
             "QStringLiteral(\"mail-send-symbolic\")",
             "normalized.contains(QStringLiteral(\"photo\"))",
             "QStringLiteral(\"image-x-generic-symbolic\")",
+            "normalized.contains(QStringLiteral(\"water.waves\"))",
+            "QStringLiteral(\"preferences-desktop-sound-symbolic\")",
             "normalized.contains(QStringLiteral(\"sun.max\"))",
             "QStringLiteral(\"weather-clear-symbolic\")",
             "normalized.contains(QStringLiteral(\"waveform\"))",
