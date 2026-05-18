@@ -184,6 +184,9 @@ struct SourceHygieneTests {
         #expect(guardSource.contains("QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB"))
         #expect(guardSource.contains("QUILLUI_RESOURCE_GUARD_MAX_USED_PERCENT"))
         #expect(guardSource.contains("QUILLUI_RESOURCE_GUARD_MIN_AVAILABLE_MEMORY_MIB"))
+        #expect(guardSource.contains("QUILLUI_RESOURCE_GUARD_DIAGNOSTIC_PROCESS_LIMIT"))
+        #expect(guardSource.contains("print_process_diagnostics"))
+        #expect(guardSource.contains("top RSS processes"))
         #expect(guardSource.contains("/proc/meminfo"))
         #expect(guardSource.contains("vm_stat"))
 

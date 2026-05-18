@@ -11,9 +11,11 @@ fi
 MIN_FREE_GIB="${QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB:-12}"
 MAX_USED_PERCENT="${QUILLUI_RESOURCE_GUARD_MAX_USED_PERCENT:-95}"
 MIN_AVAILABLE_MEMORY_MIB="${QUILLUI_RESOURCE_GUARD_MIN_AVAILABLE_MEMORY_MIB:-2048}"
+DIAGNOSTIC_PROCESS_LIMIT="${QUILLUI_RESOURCE_GUARD_DIAGNOSTIC_PROCESS_LIMIT:-8}"
 
 fail_guard() {
   echo "resource guard failed: $1" >&2
+  print_process_diagnostics || true
   exit "$EXIT_RESOURCE_UNAVAILABLE"
 }
 
@@ -73,6 +75,32 @@ available_memory_mib() {
   return 1
 }
 
+print_process_diagnostics() {
+  if (( DIAGNOSTIC_PROCESS_LIMIT == 0 )); then
+    return 0
+  fi
+
+  command -v ps >/dev/null 2>&1 || return 0
+  command -v sort >/dev/null 2>&1 || return 0
+  command -v head >/dev/null 2>&1 || return 0
+  command -v awk >/dev/null 2>&1 || return 0
+
+  echo "resource guard diagnostics: top RSS processes (MiB)" >&2
+  ps -axo pid=,rss=,command= 2>/dev/null |
+    sort -nrk2 |
+    head -n "$DIAGNOSTIC_PROCESS_LIMIT" |
+    awk '
+      {
+        pid = $1
+        rss_kib = $2
+        $1 = ""
+        $2 = ""
+        sub(/^  */, "", $0)
+        printf "  pid=%s rss=%dMiB command=%s\n", pid, int((rss_kib + 1023) / 1024), $0
+      }
+    ' >&2
+}
+
 check_disk_path() {
   local path="$1"
   local row
@@ -105,6 +133,7 @@ check_disk_path() {
 require_unsigned_integer "$MIN_FREE_GIB" "QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB"
 require_unsigned_integer "$MAX_USED_PERCENT" "QUILLUI_RESOURCE_GUARD_MAX_USED_PERCENT"
 require_unsigned_integer "$MIN_AVAILABLE_MEMORY_MIB" "QUILLUI_RESOURCE_GUARD_MIN_AVAILABLE_MEMORY_MIB"
+require_unsigned_integer "$DIAGNOSTIC_PROCESS_LIMIT" "QUILLUI_RESOURCE_GUARD_DIAGNOSTIC_PROCESS_LIMIT"
 
 if [[ $# -eq 0 ]]; then
   set -- "."
