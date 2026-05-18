@@ -767,6 +767,7 @@ QFrame *conversationRowWidget(
     if (!previewText.isEmpty()) {
         QLabel *preview = label(previewText, QStringLiteral("conversationPreview"));
         preview->setProperty("active", false);
+        preview->setMaximumHeight(preview->fontMetrics().lineSpacing() * 2);
         layout->addWidget(preview);
     }
     return row;
@@ -820,6 +821,7 @@ QFrame *emptyHistoryWidget(const QString &title, const QString &subtitle, const 
         emptyHistoryPadding
     );
     layout->setSpacing(emptyHistorySpacing);
+    layout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     layout->addWidget(label(title, QStringLiteral("sectionTitle")));
     layout->addWidget(label(subtitle, QStringLiteral("caption")));
     return card;
