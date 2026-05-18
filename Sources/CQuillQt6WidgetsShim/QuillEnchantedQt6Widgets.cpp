@@ -217,9 +217,19 @@ QIcon systemImageIcon(const QString &systemImage) {
     if (normalized == QStringLiteral("folder") || normalized.contains(QStringLiteral("folder."))) {
         return themedActionIcon(QStringLiteral("folder-symbolic"), QStyle::SP_DirIcon);
     }
+    if (normalized.contains(QStringLiteral("sidebar.left"))) {
+        return themedActionIcon(QStringLiteral("view-sidebar-symbolic"), QStyle::SP_TitleBarMenuButton);
+    }
+    if (normalized.contains(QStringLiteral("line.3.horizontal"))) {
+        return themedActionIcon(QStringLiteral("open-menu-symbolic"), QStyle::SP_TitleBarMenuButton);
+    }
     if (normalized.contains(QStringLiteral("xmark.circle"))
-        || normalized.contains(QStringLiteral("x.circle"))) {
+        || normalized.contains(QStringLiteral("x.circle"))
+        || normalized == QStringLiteral("xmark")) {
         return themedActionIcon(QStringLiteral("window-close-symbolic"), QStyle::SP_DialogCloseButton);
+    }
+    if (normalized.contains(QStringLiteral("pencil"))) {
+        return themedActionIcon(QStringLiteral("document-edit-symbolic"), QStyle::SP_FileIcon);
     }
     if (normalized.contains(QStringLiteral("square.fill"))
         || normalized.contains(QStringLiteral("stop.fill"))) {
