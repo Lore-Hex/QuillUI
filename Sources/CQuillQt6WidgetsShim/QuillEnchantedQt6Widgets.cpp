@@ -331,6 +331,10 @@ QIcon attachButtonIcon(const QJsonObject &icons) {
     return systemImageIcon(requiredIconName(icons, "attach"));
 }
 
+QIcon unavailableModelButtonIcon(const QJsonObject &icons) {
+    return systemImageIcon(requiredIconName(icons, "unavailableModel"));
+}
+
 QIcon dropTargetIcon(const QJsonObject &icons) {
     return systemImageIcon(requiredIconName(icons, "dropTarget"));
 }
@@ -2444,6 +2448,13 @@ extern "C" int quill_enchanted_qt_run_app_json(
     attachmentPath->setPlaceholderText(payloadString(payload, "attachmentPlaceholder"));
     attachmentPath->setAcceptDrops(false);
     const QString attachTitle = payloadString(payload, "attachTitle");
+    QPushButton *unavailableModelButton = new QPushButton();
+    unavailableModelButton->setObjectName(QStringLiteral("secondaryButton"));
+    unavailableModelButton->setIcon(unavailableModelButtonIcon(icons));
+    applyButtonIconSize(unavailableModelButton, style);
+    unavailableModelButton->setToolTip(chooseLocalModelStatus);
+    unavailableModelButton->setAccessibleName(chooseLocalModelStatus);
+    unavailableModelButton->setEnabled(false);
     QPushButton *attachButton = new QPushButton();
     attachButton->setObjectName(QStringLiteral("secondaryButton"));
     addIconTextButtonContent(
@@ -2460,6 +2471,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QPushButton *clearAttachmentsButton = new QPushButton(payloadString(payload, "clearAttachmentsTitle"));
     clearAttachmentsButton->setObjectName(QStringLiteral("secondaryButton"));
     dropLayout->addWidget(attachmentPath, 1, Qt::AlignVCenter);
+    dropLayout->addWidget(unavailableModelButton, 0, Qt::AlignVCenter);
     dropLayout->addWidget(attachButton, 0, Qt::AlignVCenter);
     dropLayout->addWidget(clearAttachmentsButton, 0, Qt::AlignVCenter);
     dropTargetLayout->addWidget(attachmentInputRow);
@@ -2584,9 +2596,15 @@ extern "C" int quill_enchanted_qt_run_app_json(
         const bool hasPendingAttachments = !pendingAttachmentPaths.isEmpty();
         const bool hasAttachmentPathInput = hasAttachmentPathCandidates(attachmentPath);
         const bool imageAttachmentsAvailable = selectedModelSupportsImages(modelPicker, payload);
-        attachmentInputRow->setVisible(imageAttachmentsAvailable);
+        const bool hasSelectedModel = modelPicker != nullptr && !modelPicker->currentText().trimmed().isEmpty();
+        const bool showUnavailableModelButton = !hasSelectedModel;
+        attachmentInputRow->setVisible(imageAttachmentsAvailable || showUnavailableModelButton);
+        attachmentPath->setVisible(imageAttachmentsAvailable);
+        unavailableModelButton->setVisible(showUnavailableModelButton);
+        attachButton->setVisible(imageAttachmentsAvailable);
+        clearAttachmentsButton->setVisible(imageAttachmentsAvailable);
         dropTarget->setAcceptDrops(imageAttachmentsAvailable);
-        dropTarget->setVisible(imageAttachmentsAvailable || hasPendingAttachments);
+        dropTarget->setVisible(imageAttachmentsAvailable || hasPendingAttachments || showUnavailableModelButton);
         if (!imageAttachmentsAvailable && dropHint != nullptr) {
             dropHint->setVisible(false);
         }

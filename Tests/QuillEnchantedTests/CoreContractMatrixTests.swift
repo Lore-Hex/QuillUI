@@ -340,6 +340,7 @@ struct CoreContractMatrixTests {
             "QIcon systemImageIcon(const QString &systemImage)",
             "QIcon newConversationButtonIcon(const QJsonObject &icons)",
             "QIcon attachButtonIcon(const QJsonObject &icons)",
+            "QIcon unavailableModelButtonIcon(const QJsonObject &icons)",
             "QIcon dropTargetIcon(const QJsonObject &icons)",
             "QIcon attachmentChipIcon(const QJsonObject &icons)",
             "QIcon utilityButtonIcon(const QJsonObject &icons, const char *key)",
@@ -349,6 +350,7 @@ struct CoreContractMatrixTests {
             "QIcon removeAttachmentButtonIcon(const QJsonObject &icons)",
             "systemImageIcon(requiredIconName(icons, \"newConversation\"))",
             "systemImageIcon(requiredIconName(icons, \"attach\"))",
+            "systemImageIcon(requiredIconName(icons, \"unavailableModel\"))",
             "systemImageIcon(requiredIconName(icons, \"dropTarget\"))",
             "systemImageIcon(requiredIconName(icons, \"attachment\"))",
             "systemImageIcon(requiredIconName(icons, key))",
@@ -358,6 +360,7 @@ struct CoreContractMatrixTests {
             "QJsonObject icons = payloadObject(payload, \"icons\")",
             "icons = payloadObject(payload, \"icons\")",
             "newConversationButtonIcon(icons),",
+            "unavailableModelButton->setIcon(unavailableModelButtonIcon(icons))",
             "attachButtonIcon(icons),\n        attachTitle,\n        QStringLiteral(\"attachButtonIcon\"),",
             "auto configureUtilityButton = [&](QPushButton *button, const QString &title, const char *iconKey)",
             "utilityButtonIcon(icons, iconKey),",
@@ -2125,9 +2128,15 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "bool hasAttachmentPathCandidates(const QLineEdit *field)")
         expectContains(nativeShim, "const bool hasAttachmentPathInput = hasAttachmentPathCandidates(attachmentPath)")
         expectContains(nativeShim, "const bool imageAttachmentsAvailable = selectedModelSupportsImages(modelPicker, payload)")
-        expectContains(nativeShim, "attachmentInputRow->setVisible(imageAttachmentsAvailable)")
+        expectContains(nativeShim, "const bool hasSelectedModel = modelPicker != nullptr && !modelPicker->currentText().trimmed().isEmpty()")
+        expectContains(nativeShim, "const bool showUnavailableModelButton = !hasSelectedModel")
+        expectContains(nativeShim, "attachmentInputRow->setVisible(imageAttachmentsAvailable || showUnavailableModelButton)")
+        expectContains(nativeShim, "attachmentPath->setVisible(imageAttachmentsAvailable)")
+        expectContains(nativeShim, "unavailableModelButton->setVisible(showUnavailableModelButton)")
+        expectContains(nativeShim, "attachButton->setVisible(imageAttachmentsAvailable)")
+        expectContains(nativeShim, "clearAttachmentsButton->setVisible(imageAttachmentsAvailable)")
         expectContains(nativeShim, "dropTarget->setAcceptDrops(imageAttachmentsAvailable)")
-        expectContains(nativeShim, "dropTarget->setVisible(imageAttachmentsAvailable || hasPendingAttachments)")
+        expectContains(nativeShim, "dropTarget->setVisible(imageAttachmentsAvailable || hasPendingAttachments || showUnavailableModelButton)")
         expectContains(nativeShim, "if (!imageAttachmentsAvailable && dropHint != nullptr)")
         expectContains(nativeShim, "attachButton->setEnabled(imageAttachmentsAvailable && hasAttachmentPathInput)")
         expectContains(nativeShim, "clearAttachmentsButton->setEnabled(imageAttachmentsAvailable && (hasAttachmentPathInput || hasPendingAttachments))")
