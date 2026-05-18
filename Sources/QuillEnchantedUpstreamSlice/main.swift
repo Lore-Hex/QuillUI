@@ -124,7 +124,7 @@ private extension String {
     func upstreamTitle(maxLength: Int = 44) -> String {
         let normalized = split(whereSeparator: \.isNewline).joined(separator: " ")
         let trimmed = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "New conversation" }
+        guard !trimmed.isEmpty else { return EnchantedCopy.newConversationTitle }
         if trimmed.count <= maxLength { return trimmed }
         let prefixLength = max(1, maxLength - 3)
         return String(trimmed.prefix(prefixLength)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
