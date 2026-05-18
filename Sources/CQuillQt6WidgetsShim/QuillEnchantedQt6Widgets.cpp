@@ -1439,7 +1439,7 @@ void addPromptCards(
 
     layout->addLayout(promptList);
     emptyState->setMaximumWidth(styleInt(style, "emptyStateMaxWidth"));
-    messageLayout->addWidget(emptyState);
+    messageLayout->addWidget(emptyState, 0, Qt::AlignLeft | Qt::AlignTop);
     messageLayout->addStretch(1);
 }
 
@@ -2211,6 +2211,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     messageLayout->setContentsMargins(contentPadding, contentPadding, contentPadding, contentPadding);
     const int messageSpacing = styleInt(style, "messageSpacing");
     messageLayout->setSpacing(messageSpacing);
+    messageLayout->setAlignment(Qt::AlignTop);
     scrollArea->setWidget(transcript);
     chatLayout->addWidget(scrollArea, 1);
     auto scrollTranscriptToBottom = [scrollArea]() {
