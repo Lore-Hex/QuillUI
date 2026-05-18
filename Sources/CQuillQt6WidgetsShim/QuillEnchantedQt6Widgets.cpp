@@ -713,7 +713,7 @@ QString appStyleSheet(const QJsonObject &style) {
 
     sheet += QStringLiteral(R"(
         QLineEdit, QComboBox { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: %5; }
-        QPlainTextEdit { background: %1; color: %2; border: 1px solid %3; border-radius: %6; padding: %5; }
+        QPlainTextEdit { background: %1; color: %2; border: 0; border-radius: %6; padding: %5; }
     )")
         .arg(card, ink, controlBorder, controlRadius, controlPadding, composerEditorRadius);
 

@@ -1263,6 +1263,8 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("promptEditor->setMinimumHeight(styleInt(style, \"composerMinHeight\"))"))
         #expect(enchantedQtHost.contains("promptEditor->setMaximumHeight(styleInt(style, \"composerMaxHeight\"))"))
         #expect(!enchantedQtHost.contains("promptEditor->setFixedHeight(styleInt(style, \"composerHeight\"))"))
+        #expect(enchantedQtHost.contains("QPlainTextEdit { background: %1; color: %2; border: 0; border-radius: %6; padding: %5; }"))
+        #expect(!enchantedQtHost.contains("QPlainTextEdit { background: %1; color: %2; border: 1px solid %3; border-radius: %6; padding: %5; }"))
         #expect(enchantedQtHost.contains("currentTitle->setFixedWidth(headerTitleWidth)"))
         #expect(enchantedQtHost.contains("modelStatus->setFixedWidth(headerTitleWidth)"))
         #expect(enchantedQtHost.contains("QString messageRoleTitle(\n    const QString &role,\n    const QString &userRoleLabel,\n    const QString &assistantRoleLabel,\n    const QString &systemRoleLabel\n)"))
