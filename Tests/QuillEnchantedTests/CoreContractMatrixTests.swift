@@ -137,6 +137,14 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/MessageListVIew.swift"),
             encoding: .utf8
         )
+        let upstreamChatMessageView = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/ChatMessages/ChatMessageView.swift"),
+            encoding: .utf8
+        )
+        let upstreamReadingAloudView = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/ReadingAloudView.swift"),
+            encoding: .utf8
+        )
         let upstreamCompletionPanel = try String(
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/Components/CompletionPanelView.swift"),
             encoding: .utf8
@@ -207,6 +215,20 @@ struct CoreContractMatrixTests {
             "Label(\"Unselect\", systemImage: \"pencil\")"
         ] {
             expectContains(upstreamMessageList, needle)
+        }
+        for needle in [
+            "Image(systemName: \"doc.on.doc\")",
+            "Image(systemName: \"speaker.wave.2.fill\")",
+            "Image(systemName: \"speaker.slash.fill\")",
+            "Image(systemName: \"pencil\")"
+        ] {
+            expectContains(upstreamChatMessageView, needle)
+        }
+        for needle in [
+            "Image(systemName: \"speaker.wave.3\")",
+            "Image(systemName: \"stop.fill\")"
+        ] {
+            expectContains(upstreamReadingAloudView, needle)
         }
         expectContains(upstreamCompletionPanel, "Image(systemName: \"space\")")
         expectContains(upstreamSettings, "Label(\"Vibrations\", systemImage: \"water.waves\")")
