@@ -1274,6 +1274,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "composerLayout->setContentsMargins(composerPadding, composerPadding, composerPadding, composerPadding)")
         expectContains(nativeShim, "composerLayout->setSpacing(styleInt(style, \"composerSpacing\"))")
         expectContains(nativeShim, "promptRow->setSpacing(styleInt(style, \"promptRowSpacing\"))")
+        expectContains(nativeShim, "promptRow->addWidget(promptEditor, 1, Qt::AlignBottom)")
+        expectDoesNotContain(nativeShim, "promptRow->addWidget(promptEditor, 1);")
         expectContains(nativeShim, "promptEditor->setMinimumHeight(styleInt(style, \"composerMinHeight\"))")
         expectContains(nativeShim, "promptEditor->setMaximumHeight(styleInt(style, \"composerMaxHeight\"))")
         expectDoesNotContain(nativeShim, "promptEditor->setFixedHeight(styleInt(style, \"composerHeight\"))")

@@ -2340,7 +2340,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     );
     updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle, style);
     sendButton->setMinimumWidth(styleInt(style, "composerSendButtonMinWidth"));
-    promptRow->addWidget(promptEditor, 1);
+    promptRow->addWidget(promptEditor, 1, Qt::AlignBottom);
     promptRow->addWidget(sendButton, 0, Qt::AlignBottom);
     composerLayout->addLayout(promptRow);
     chatLayout->addWidget(composer);
