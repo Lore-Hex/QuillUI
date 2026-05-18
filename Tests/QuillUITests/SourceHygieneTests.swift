@@ -1569,6 +1569,8 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("const QString clearAllTitle = payloadString(payload, \"clearAllTitle\")"))
         #expect(enchantedQtHost.contains("QPushButton *clearAllButton = new QPushButton()"))
         #expect(enchantedQtHost.contains("addIconTextButtonContent(\n        clearAllButton,\n        clearAllButtonIcon(icons),\n        clearAllTitle,\n        QStringLiteral(\"clearAllButtonIcon\"),\n        QStringLiteral(\"clearAllButtonText\"),\n        \"actionButtonIconSpacing\","))
+        #expect(enchantedQtHost.contains("QLabel#attachButtonIcon, QLabel#attachButtonText, QLabel#utilityButtonIcon, QLabel#utilityButtonText, QLabel#refreshButtonIcon, QLabel#refreshButtonText, QLabel#clearAllButtonIcon, QLabel#clearAllButtonText { color: %1; font-size: %8; }"))
+        #expect(enchantedQtHost.contains("QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled, QLabel#utilityButtonIcon:disabled, QLabel#utilityButtonText:disabled, QLabel#refreshButtonIcon:disabled, QLabel#refreshButtonText:disabled, QLabel#clearAllButtonIcon:disabled, QLabel#clearAllButtonText:disabled { color: %6; }"))
         #expect(!enchantedQtHost.contains("new QPushButton(payloadString(payload, \"clearAllTitle\"))"))
         #expect(enchantedQtHost.contains("QIcon newConversationButtonIcon(const QJsonObject &icons)"))
         #expect(!enchantedQtHost.contains("QIcon newChatButtonIcon()"))
