@@ -217,7 +217,8 @@ QIcon systemImageIcon(const QString &systemImage) {
     if (normalized == QStringLiteral("folder") || normalized.contains(QStringLiteral("folder."))) {
         return themedActionIcon(QStringLiteral("folder-symbolic"), QStyle::SP_DirIcon);
     }
-    if (normalized.contains(QStringLiteral("xmark.circle.fill"))) {
+    if (normalized.contains(QStringLiteral("xmark.circle"))
+        || normalized.contains(QStringLiteral("x.circle"))) {
         return themedActionIcon(QStringLiteral("window-close-symbolic"), QStyle::SP_DialogCloseButton);
     }
     if (normalized.contains(QStringLiteral("square.fill"))) {

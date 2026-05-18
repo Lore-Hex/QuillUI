@@ -236,6 +236,8 @@ struct CoreContractMatrixTests {
             "QStringLiteral(\"document-new-symbolic\")",
             "QStringLiteral(\"folder-new-symbolic\")",
             "QStringLiteral(\"folder-symbolic\")",
+            "normalized.contains(QStringLiteral(\"xmark.circle\"))",
+            "normalized.contains(QStringLiteral(\"x.circle\"))",
             "QStringLiteral(\"window-close-symbolic\")",
             "QStringLiteral(\"process-stop-symbolic\")",
             "QStringLiteral(\"go-next-symbolic\")",
