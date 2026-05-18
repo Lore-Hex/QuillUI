@@ -12,6 +12,7 @@ MIN_FREE_GIB="${QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB:-12}"
 MAX_USED_PERCENT="${QUILLUI_RESOURCE_GUARD_MAX_USED_PERCENT:-95}"
 MIN_AVAILABLE_MEMORY_MIB="${QUILLUI_RESOURCE_GUARD_MIN_AVAILABLE_MEMORY_MIB:-2048}"
 WARN_AVAILABLE_MEMORY_MIB="${QUILLUI_RESOURCE_GUARD_WARN_AVAILABLE_MEMORY_MIB:-4096}"
+MAX_CODEX_RSS_MIB="${QUILLUI_RESOURCE_GUARD_MAX_CODEX_RSS_MIB:-8192}"
 DIAGNOSTIC_PROCESS_LIMIT="${QUILLUI_RESOURCE_GUARD_DIAGNOSTIC_PROCESS_LIMIT:-8}"
 
 fail_guard() {
@@ -154,6 +155,25 @@ print_process_group_diagnostics() {
     ' >&2
 }
 
+codex_rss_mib() {
+  command -v ps >/dev/null 2>&1 || return 1
+  command -v awk >/dev/null 2>&1 || return 1
+
+  ps -axo rss=,command= 2>/dev/null |
+    awk '
+      {
+        rss_kib = $1
+        $1 = ""
+        sub(/^  */, "", $0)
+        command = tolower($0)
+        if (command ~ /codex/) {
+          total += rss_kib
+        }
+      }
+      END { print int((total + 1023) / 1024) }
+    '
+}
+
 check_disk_path() {
   local path="$1"
   local row
@@ -187,6 +207,7 @@ require_unsigned_integer "$MIN_FREE_GIB" "QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB"
 require_unsigned_integer "$MAX_USED_PERCENT" "QUILLUI_RESOURCE_GUARD_MAX_USED_PERCENT"
 require_unsigned_integer "$MIN_AVAILABLE_MEMORY_MIB" "QUILLUI_RESOURCE_GUARD_MIN_AVAILABLE_MEMORY_MIB"
 require_unsigned_integer "$WARN_AVAILABLE_MEMORY_MIB" "QUILLUI_RESOURCE_GUARD_WARN_AVAILABLE_MEMORY_MIB"
+require_unsigned_integer "$MAX_CODEX_RSS_MIB" "QUILLUI_RESOURCE_GUARD_MAX_CODEX_RSS_MIB"
 require_unsigned_integer "$DIAGNOSTIC_PROCESS_LIMIT" "QUILLUI_RESOURCE_GUARD_DIAGNOSTIC_PROCESS_LIMIT"
 
 if [[ $# -eq 0 ]]; then
@@ -209,4 +230,15 @@ if memory_mib="$(available_memory_mib)"; then
   echo "resource guard ok: ${memory_mib}MiB available memory" >&2
 else
   echo "resource guard warning: available memory could not be measured" >&2
+fi
+
+if (( MAX_CODEX_RSS_MIB > 0 )); then
+  if codex_mib="$(codex_rss_mib)"; then
+    if (( codex_mib > MAX_CODEX_RSS_MIB )); then
+      fail_guard "Codex RSS is ${codex_mib}MiB; compact or restart Codex before heavy builds, or set QUILLUI_RESOURCE_GUARD_MAX_CODEX_RSS_MIB=0 to disable"
+    fi
+    echo "resource guard ok: Codex RSS ${codex_mib}MiB below ${MAX_CODEX_RSS_MIB}MiB limit" >&2
+  else
+    echo "resource guard warning: Codex RSS could not be measured" >&2
+  fi
 fi
