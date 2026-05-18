@@ -2696,6 +2696,21 @@ struct SourceHygieneTests {
         #expect(!source.contains(".product(name: \"BackendGTK4\", package: \"SwiftOpenUI\")"))
     }
 
+    @Test("QuillPromptGrid uses image accessories on Linux")
+    func quillPromptGridUsesImageAccessoriesOnLinux() throws {
+        let controls = try packageSource("Sources/QuillUI/Controls.swift")
+        guard let gridStart = controls.range(of: "public struct QuillPromptGrid: View"),
+              let nextSection = controls.range(of: "public struct QuillConversationHistoryItem: Identifiable") else {
+            Issue.record("Unable to locate QuillPromptGrid source")
+            return
+        }
+
+        let promptGrid = String(controls[gridStart.lowerBound..<nextSection.lowerBound])
+        #expect(promptGrid.contains("Image(systemName: QuillSystemSymbol.compatibleName(prompt.systemImage))"))
+        #expect(!promptGrid.contains("prompt.systemImage.contains(\"lightbulb\") ? \"!\" : \"?\""))
+        #expect(!promptGrid.contains("#if os(Linux)\n        ZStack"))
+    }
+
     private func packageRoot() throws -> URL {
         var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let fileManager = FileManager.default

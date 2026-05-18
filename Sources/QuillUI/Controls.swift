@@ -286,26 +286,13 @@ public struct QuillPromptGrid: View {
         #endif
     }
 
-    @ViewBuilder
     private func promptAccessory(for prompt: QuillPrompt) -> some View {
-        #if os(Linux)
-        ZStack {
-            Circle()
-                .stroke(Color(hex: "#2E2E31"), lineWidth: 2)
-                .frame(width: promptIconSize, height: promptIconSize)
-            Text(prompt.systemImage.contains("lightbulb") ? "!" : "?")
-                .font(.system(size: 12))
-                .fontWeight(.semibold)
-                .foregroundColor(Color(hex: "#2E2E31"))
-        }
-        #else
         Image(systemName: QuillSystemSymbol.compatibleName(prompt.systemImage))
             .renderingMode(.template)
             .resizable()
             .scaledToFit()
             .frame(width: promptIconSize, height: promptIconSize)
             .foregroundColor(Color(hex: "#2E2E31"))
-        #endif
     }
 }
 
