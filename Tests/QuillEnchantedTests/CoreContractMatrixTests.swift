@@ -1927,7 +1927,7 @@ struct CoreContractMatrixTests {
             "payloadString(payload, \"attachmentDefaultPrompt\")",
             "payloadString(payload, \"attachmentDefaultPromptPlural\")",
             "payloadString(payload, \"attachmentSummaryTitle\")",
-            "QPushButton *clearAttachmentsButton",
+            "QPushButton *clearAttachmentsButton = new QPushButton(payloadString(payload, \"clearAttachmentsTitle\"))",
             "QString attachmentDefaultPromptForCount(",
             "QString attachmentDisplayContent(",
             "QStringList normalizedAttachmentPaths(",
@@ -1965,6 +1965,10 @@ struct CoreContractMatrixTests {
         ] {
             expectContains(nativeShim, needle)
         }
+        expectDoesNotContain(nativeShim, "clearAttachmentsButtonIcon")
+        expectDoesNotContain(nativeShim, "QStringLiteral(\"clearAttachmentsButtonIcon\")")
+        expectDoesNotContain(nativeShim, "QStringLiteral(\"clearAttachmentsButtonText\")")
+        expectDoesNotContain(nativeShim, "addIconTextButtonContent(\n        clearAttachmentsButton,")
         for needle in [
             "QStringLiteral(\"Image path or drop files here\")",
             "stringValue(payload, \"attachTitle\", QStringLiteral(\"Attach\"))",
