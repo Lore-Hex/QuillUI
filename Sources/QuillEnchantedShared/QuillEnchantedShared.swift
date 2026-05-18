@@ -177,6 +177,7 @@ public enum EnchantedCopy {
     public static let systemLaunchMessage = "You are chatting with a local Ollama model in Enchanted."
     public static let readyForLocalInferenceStatus = "Ready for local inference"
     public static let checkingOllamaStatus = "Checking Ollama..."
+    public static let unreachableOllamaMessage = "Ollama is unreachable. Go to Settings and update your Ollama API endpoint. "
     public static let noOllamaModelsStatus = "No Ollama models found"
     public static let connectedStatus = "Connected"
     public static let startOllamaStatus = "Start Ollama or edit endpoint."

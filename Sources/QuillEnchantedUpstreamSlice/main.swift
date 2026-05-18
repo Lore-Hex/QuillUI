@@ -342,8 +342,8 @@ struct ChatView: View {
 
                 if !reachable && selectedConversation != nil {
                     QuillStatusBanner(
-                        message: "Quill is unreachable. Plug Quill back in if it's unplugged, or go to Settings and update your Quill API endpoint.",
-                        actionTitle: "Settings"
+                        message: EnchantedCopy.unreachableOllamaMessage,
+                        actionTitle: EnchantedCopy.settingsTitle
                     )
                     .padding(.horizontal, 16)
                     .padding(.bottom, 8)

@@ -300,6 +300,7 @@ struct CoreContractMatrixTests {
         }
         expectContains(shared, "public static let emptyStateTitle = appTitle")
         expectContains(shared, "public static let emptyStateSubtitle = \"\"")
+        expectContains(shared, "public static let unreachableOllamaMessage = \"Ollama is unreachable. Go to Settings and update your Ollama API endpoint. \"")
 
         for needle in [
             "import QuillEnchantedShared",
@@ -571,6 +572,10 @@ struct CoreContractMatrixTests {
         expectContains(upstreamSlice, "EnchantedCopy.appTitle")
         expectContains(upstreamSlice, "QuillAppWindow.scene(\n            EnchantedCopy.windowTitle,")
         expectContains(upstreamSlice, "QuillChatEmptyState(brandTitle: EnchantedCopy.appTitle")
+        expectContains(upstreamSlice, "message: EnchantedCopy.unreachableOllamaMessage")
+        expectContains(upstreamSlice, "actionTitle: EnchantedCopy.settingsTitle")
+        expectDoesNotContain(upstreamSlice, "Quill is unreachable")
+        expectDoesNotContain(upstreamSlice, "Quill API endpoint")
         expectContains(upstreamSlice, "weight: enchantedFontWeight(EnchantedTypography.sectionTitleFontWeight)")
         expectContains(upstreamSlice, "weight: enchantedFontWeight(EnchantedTypography.currentTitleFontWeight)")
         expectDoesNotContain(upstreamSlice, "\"Quill Enchanted Upstream Slice\"")
