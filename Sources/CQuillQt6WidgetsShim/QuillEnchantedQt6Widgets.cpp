@@ -2175,6 +2175,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     titleLayout->setContentsMargins(0, 0, 0, 0);
     const int headerTitleSpacing = styleInt(style, "headerTitleSpacing");
     titleLayout->setSpacing(headerTitleSpacing);
+    titleLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     const QString initialConversationID = currentConversationID(conversationList, selectedConversationID);
     QLabel *currentTitle = label(
         selectedConversationTitle(
@@ -2470,6 +2471,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             QVBoxLayout *attachmentTextLayout = new QVBoxLayout();
             attachmentTextLayout->setContentsMargins(0, 0, 0, 0);
             attachmentTextLayout->setSpacing(styleInt(style, "attachmentChipTextSpacing"));
+            attachmentTextLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
             QLabel *attachmentName = label(attachmentDisplayName(path), QStringLiteral("attachmentName"));
             attachmentName->setWordWrap(false);
             attachmentTextLayout->addWidget(attachmentName);
