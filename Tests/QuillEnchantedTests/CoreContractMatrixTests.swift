@@ -1210,6 +1210,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "const QString conversationListItemVerticalMargin = stylePixels(style, \"conversationListItemVerticalMargin\")")
         expectContains(nativeShim, "const QString conversationListItemPadding = stylePixels(style, \"conversationListItemPadding\")")
         expectContains(nativeShim, "list->setSpacing(styleInt(style, \"conversationListSpacing\"))")
+        expectContains(nativeShim, "layout->setSpacing(conversationRowSpacing);\n    layout->setAlignment(Qt::AlignTop | Qt::AlignLeft)")
         expectContains(nativeShim, "const QString emptyHistoryRadius = stylePixels(style, \"emptyHistoryRadius\")")
         expectContains(nativeShim, "const QString messageBubbleRadius = stylePixels(style, \"messageBubbleRadius\")")
         expectContains(nativeShim, "const QString attachmentChipRadius = stylePixels(style, \"attachmentChipRadius\")")

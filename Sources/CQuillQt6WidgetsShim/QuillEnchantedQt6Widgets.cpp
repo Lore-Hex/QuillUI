@@ -756,6 +756,7 @@ QFrame *conversationRowWidget(
         conversationRowPadding
     );
     layout->setSpacing(conversationRowSpacing);
+    layout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
 
     QLabel *title = label(conversationTitle(conversation), QStringLiteral("conversationTitle"));
     title->setWordWrap(false);
