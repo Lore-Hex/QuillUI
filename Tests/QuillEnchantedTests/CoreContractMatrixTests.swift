@@ -137,6 +137,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/MessageListVIew.swift"),
             encoding: .utf8
         )
+        let upstreamSettings = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Settings/SettingsView.swift"),
+            encoding: .utf8
+        )
         let nativeShim = try String(
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp"),
             encoding: .utf8
@@ -192,6 +196,7 @@ struct CoreContractMatrixTests {
             expectContains(upstreamSidebar, needle)
         }
         expectContains(upstreamMessageList, "Label(\"Select Text\", systemImage: \"selection.pin.in.out\")")
+        expectContains(upstreamSettings, "Label(\"Appearance\", systemImage: \"sun.max\")")
 
         for needle in [
             "Image(systemName: EnchantedIcon.newConversation)",
@@ -280,6 +285,8 @@ struct CoreContractMatrixTests {
             "QStringLiteral(\"mail-send-symbolic\")",
             "normalized.contains(QStringLiteral(\"photo\"))",
             "QStringLiteral(\"image-x-generic-symbolic\")",
+            "normalized.contains(QStringLiteral(\"sun.max\"))",
+            "QStringLiteral(\"weather-clear-symbolic\")",
             "normalized.contains(QStringLiteral(\"waveform\"))",
             "QStringLiteral(\"audio-input-microphone-symbolic\")",
             "normalized.contains(QStringLiteral(\"info.circle\"))",
@@ -307,6 +314,7 @@ struct CoreContractMatrixTests {
             "QStyle::SP_CommandLink",
             "QStyle::SP_FileDialogDetailedView",
             "QStyle::SP_ComputerIcon",
+            "QStyle::SP_DesktopIcon",
             "QStyle::SP_MessageBoxInformation"
         ] {
             expectContains(nativeShim, needle)

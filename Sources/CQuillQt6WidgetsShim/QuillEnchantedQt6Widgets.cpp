@@ -277,6 +277,9 @@ QIcon systemImageIcon(const QString &systemImage) {
     if (normalized.contains(QStringLiteral("photo"))) {
         return themedActionIcon(QStringLiteral("image-x-generic-symbolic"), QStyle::SP_FileIcon);
     }
+    if (normalized.contains(QStringLiteral("sun.max"))) {
+        return themedActionIcon(QStringLiteral("weather-clear-symbolic"), QStyle::SP_DesktopIcon);
+    }
     if (normalized.contains(QStringLiteral("waveform"))) {
         return themedActionIcon(QStringLiteral("audio-input-microphone-symbolic"), QStyle::SP_MediaPlay);
     }
