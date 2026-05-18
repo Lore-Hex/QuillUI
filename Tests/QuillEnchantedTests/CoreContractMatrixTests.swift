@@ -643,7 +643,7 @@ struct CoreContractMatrixTests {
         expectContains(runtime, "cardBorderColor: EnchantedPalette.cardBorderColor")
         expectContains(runtime, "messageBorderColor: EnchantedPalette.messageBorderColor")
         expectContains(runtime, "controlBorderColor: EnchantedPalette.controlBorderColor")
-        expectContains(runtime, "dropTargetBorderColor: EnchantedPalette.dropTargetBorderColor")
+        expectDoesNotContain(runtime, "dropTargetBorderColor: EnchantedPalette.dropTargetBorderColor")
         expectContains(runtime, "disabledButtonBackgroundColor: EnchantedPalette.disabledButtonBackgroundColor")
         expectContains(runtime, "disabledButtonForegroundColor: EnchantedPalette.disabledButtonForegroundColor")
         expectContains(runtime, "disabledTextColor: EnchantedPalette.disabledTextColor")
@@ -1026,7 +1026,6 @@ struct CoreContractMatrixTests {
             "cardBorderColor",
             "messageBorderColor",
             "controlBorderColor",
-            "dropTargetBorderColor",
             "disabledButtonBackgroundColor",
             "disabledButtonForegroundColor",
             "disabledTextColor",
@@ -1648,9 +1647,10 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "Text(EnchantedCopy.dropTargetTitle)")
         expectContains(nativeShim, "QFrame#dropTarget { background: transparent; border: 0; }")
         expectContains(nativeShim, "QFrame#dropTarget[dragActive=\"true\"]")
-        expectContains(nativeShim, "QFrame#dropTargetHint { background: %1; border: 1px solid %2; border-radius: %5; }")
-        expectContains(nativeShim, "QLabel#dropTargetLabel { color: %3; font-size: %6; }")
-        expectContains(nativeShim, "QSplitter::handle { background: %4; }")
+        expectContains(nativeShim, "QFrame#dropTargetHint { background: %1; border: 0; border-radius: %4; }")
+        expectDoesNotContain(nativeShim, "QFrame#dropTargetHint { background: %1; border: 1px solid %2; border-radius: %5; }")
+        expectContains(nativeShim, "QLabel#dropTargetLabel { color: %2; font-size: %5; }")
+        expectContains(nativeShim, "QSplitter::handle { background: %3; }")
         expectContains(nativeShim, "void setDropHint(QWidget *hint)")
         expectContains(nativeShim, "dropHint->setVisible(property(\"dragActive\").toBool())")
         expectContains(nativeShim, "dropHint->setVisible(active)")

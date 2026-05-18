@@ -196,7 +196,6 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var cardBorderColor: String
         var messageBorderColor: String
         var controlBorderColor: String
-        var dropTargetBorderColor: String
         var disabledButtonBackgroundColor: String
         var disabledButtonForegroundColor: String
         var disabledTextColor: String
@@ -401,7 +400,6 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             cardBorderColor: EnchantedPalette.cardBorderColor,
             messageBorderColor: EnchantedPalette.messageBorderColor,
             controlBorderColor: EnchantedPalette.controlBorderColor,
-            dropTargetBorderColor: EnchantedPalette.dropTargetBorderColor,
             disabledButtonBackgroundColor: EnchantedPalette.disabledButtonBackgroundColor,
             disabledButtonForegroundColor: EnchantedPalette.disabledButtonForegroundColor,
             disabledTextColor: EnchantedPalette.disabledTextColor,

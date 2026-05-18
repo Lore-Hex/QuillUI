@@ -494,7 +494,6 @@ QString appStyleSheet(const QJsonObject &style) {
     const QString cardBorder = styleValue(style, "cardBorderColor");
     const QString messageBorder = styleValue(style, "messageBorderColor");
     const QString controlBorder = styleValue(style, "controlBorderColor");
-    const QString dropTargetBorder = styleValue(style, "dropTargetBorderColor");
     const QString disabledButtonBackground = styleValue(style, "disabledButtonBackgroundColor");
     const QString disabledButtonForeground = styleValue(style, "disabledButtonForegroundColor");
     const QString disabledText = styleValue(style, "disabledTextColor");
@@ -706,11 +705,11 @@ QString appStyleSheet(const QJsonObject &style) {
     sheet += QStringLiteral(R"(
         QFrame#dropTarget { background: transparent; border: 0; }
         QFrame#dropTarget[dragActive="true"] { background: transparent; border: 0; }
-        QFrame#dropTargetHint { background: %1; border: 1px solid %2; border-radius: %5; }
-        QLabel#dropTargetLabel { color: %3; font-size: %6; }
-        QSplitter::handle { background: %4; }
+        QFrame#dropTargetHint { background: %1; border: 0; border-radius: %4; }
+        QLabel#dropTargetLabel { color: %2; font-size: %5; }
+        QSplitter::handle { background: %3; }
     )")
-        .arg(dropTarget, dropTargetBorder, primary, divider, dropTargetRadius, captionFontSize);
+        .arg(dropTarget, primary, divider, dropTargetRadius, captionFontSize);
 
     sheet += QStringLiteral(R"(
         QLineEdit, QComboBox { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: %5; }
