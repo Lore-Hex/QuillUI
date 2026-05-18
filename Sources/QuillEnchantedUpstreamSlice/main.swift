@@ -648,7 +648,7 @@ struct EmptyConversaitonView: View {
     }
 
     var body: some View {
-        QuillChatEmptyState(brandTitle: "Quill", prompts: prompts, columns: 4) { prompt in
+        QuillChatEmptyState(brandTitle: EnchantedCopy.appTitle, prompts: prompts, columns: 4) { prompt in
             sendPrompt(prompt.title)
         }
     }
