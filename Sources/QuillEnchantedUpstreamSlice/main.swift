@@ -139,7 +139,7 @@ private extension String {
 struct UpstreamSliceApp: App {
     var body: some Scene {
         QuillAppWindow.scene(
-            "Quill Enchanted Upstream Slice",
+            EnchantedCopy.windowTitle,
             width: Double(EnchantedVisualMetrics.defaultWindowWidth),
             height: Double(EnchantedVisualMetrics.defaultWindowHeight)
         ) {
