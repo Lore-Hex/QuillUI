@@ -63,7 +63,7 @@ struct MessageSD: Identifiable, Hashable, Sendable {
     }
 
     static let sample = [
-        MessageSD(role: "assistant", content: "QuillUI is rendering this upstream-shaped chat slice on Linux.")
+        MessageSD(role: "assistant", content: EnchantedCopy.systemLaunchMessage)
     ]
 }
 
