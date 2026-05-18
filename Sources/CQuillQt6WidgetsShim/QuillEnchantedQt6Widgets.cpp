@@ -2229,7 +2229,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     composerLayout->setContentsMargins(composerPadding, composerPadding, composerPadding, composerPadding);
     composerLayout->setSpacing(styleInt(style, "composerSpacing"));
     composerBandLayout->addStretch(1);
-    composerBandLayout->addWidget(composerContent);
+    composerBandLayout->addWidget(composerContent, 0, Qt::AlignHCenter);
     composerBandLayout->addStretch(1);
 
     const int attachmentInputSpacing = styleInt(style, "attachmentInputSpacing");

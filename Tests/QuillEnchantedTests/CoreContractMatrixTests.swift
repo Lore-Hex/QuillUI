@@ -977,6 +977,7 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "HStack(alignment: .bottom, spacing: CGFloat(EnchantedVisualMetrics.promptRowSpacing))")
         expectContains(macOSRootView, "EnchantedVisualMetrics.composerMinWidth")
         expectContains(macOSRootView, "EnchantedVisualMetrics.composerMaxWidth")
+        expectContains(macOSRootView, ".frame(maxWidth: .infinity, alignment: .center)")
         expectContains(macOSRootView, "EnchantedVisualMetrics.composerMinHeight")
         expectContains(macOSRootView, "EnchantedVisualMetrics.composerMaxHeight")
         for prompt in enchantedEmptyConversationPrompts {
@@ -1275,6 +1276,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "composerContent->setMaximumWidth(styleInt(style, \"composerMaxWidth\"))")
         expectContains(nativeShim, "composerLayout->setContentsMargins(composerPadding, composerPadding, composerPadding, composerPadding)")
         expectContains(nativeShim, "composerLayout->setSpacing(styleInt(style, \"composerSpacing\"))")
+        expectContains(nativeShim, "composerBandLayout->addWidget(composerContent, 0, Qt::AlignHCenter)")
         expectContains(nativeShim, "promptRow->setSpacing(styleInt(style, \"promptRowSpacing\"))")
         expectContains(nativeShim, "promptRow->addWidget(promptEditor, 1, Qt::AlignBottom)")
         expectDoesNotContain(nativeShim, "promptRow->addWidget(promptEditor, 1);")
