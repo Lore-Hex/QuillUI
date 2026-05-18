@@ -1074,6 +1074,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "layout->setContentsMargins(\n        conversationRowPadding,\n        conversationRowPadding,\n        conversationRowPadding,\n        conversationRowPadding\n    )")
         expectContains(nativeShim, "layout->setSpacing(conversationRowSpacing)")
         expectContains(nativeShim, "conversationTitle(conversation)")
+        expectContains(macOSRootView, ".lineLimit(1)")
+        expectContains(nativeShim, "title->setWordWrap(false)")
         expectContains(nativeShim, "const QString previewText = conversationLastMessage(conversation)")
         expectDoesNotContain(nativeShim, "stringValue(conversation, \"title\", newConversationTitle)")
         expectDoesNotContain(nativeShim, "stringValue(conversation, \"lastMessage\", noMessagesYet)")
