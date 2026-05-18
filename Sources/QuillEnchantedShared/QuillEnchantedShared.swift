@@ -507,7 +507,7 @@ public enum EnchantedVisualMetrics {
     public static let markdownCodeBlockPadding = 10
     public static let markdownCodeBlockRadius = 7
     public static let composerMinWidth = 620
-    public static let composerMaxWidth = 840
+    public static let composerMaxWidth = 800
     public static let composerPadding = 18
     public static let composerSpacing = 10
     public static let composerEditorRadius = 8

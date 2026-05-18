@@ -490,6 +490,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedUpstreamSlice/main.swift"),
             encoding: .utf8
         )
+        let upstreamMacOSChat = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/Chat/ChatView_macOS.swift"),
+            encoding: .utf8
+        )
         let runtime = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift"),
             encoding: .utf8
@@ -978,7 +982,8 @@ struct CoreContractMatrixTests {
         expectContains(sharedPrompts, "public static let markdownCodeBlockPadding = 10")
         expectContains(sharedPrompts, "public static let markdownCodeBlockRadius = 7")
         expectContains(sharedPrompts, "public static let composerMinWidth = 620")
-        expectContains(sharedPrompts, "public static let composerMaxWidth = 840")
+        expectContains(sharedPrompts, "public static let composerMaxWidth = 800")
+        expectContains(upstreamMacOSChat, ".frame(maxWidth: 800)")
         expectContains(sharedPrompts, "public static let composerPadding = 18")
         expectContains(sharedPrompts, "public static let composerSpacing = 10")
         expectContains(sharedPrompts, "public static let promptRowSpacing = 12")
