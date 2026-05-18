@@ -121,6 +121,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedShared/QuillEnchantedShared.swift"),
             encoding: .utf8
         )
+        let upstreamSidebar = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Sidebar/SidebarView.swift"),
+            encoding: .utf8
+        )
         let nativeShim = try String(
             contentsOf: root.appendingPathComponent("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp"),
             encoding: .utf8
@@ -154,8 +158,8 @@ struct CoreContractMatrixTests {
             "public static let attach = \"folder.badge.plus\"",
             "public static let dropTarget = attach",
             "public static let attachment = \"folder\"",
-            "public static let completions = \"character.cursor.ibeam\"",
-            "public static let shortcuts = \"keyboard\"",
+            "public static let completions = \"textformat.abc\"",
+            "public static let shortcuts = \"keyboard.fill\"",
             "public static let settings = \"gearshape.fill\"",
             "public static let refreshModels = \"arrow.clockwise\"",
             "public static let send = \"arrow.forward.circle.fill\"",
@@ -163,6 +167,17 @@ struct CoreContractMatrixTests {
             "public static let removeAttachment = \"xmark.circle.fill\""
         ] {
             expectContains(sharedPrompts, needle)
+        }
+
+        #expect(EnchantedIcon.completions == "textformat.abc")
+        #expect(EnchantedIcon.shortcuts == "keyboard.fill")
+
+        for needle in [
+            "SidebarButton(title: \"Completions\", image: \"textformat.abc\"",
+            "SidebarButton(title: \"Shortcuts\", image: \"keyboard.fill\"",
+            "SidebarButton(title: \"Settings\", image: \"gearshape.fill\""
+        ] {
+            expectContains(upstreamSidebar, needle)
         }
 
         for needle in [
@@ -216,6 +231,7 @@ struct CoreContractMatrixTests {
             "QStringLiteral(\"window-close-symbolic\")",
             "QStringLiteral(\"process-stop-symbolic\")",
             "QStringLiteral(\"go-next-symbolic\")",
+            "normalized.contains(QStringLiteral(\"textformat\"))",
             "QStringLiteral(\"accessories-text-editor-symbolic\")",
             "QStringLiteral(\"input-keyboard-symbolic\")",
             "QStringLiteral(\"preferences-system-symbolic\")",

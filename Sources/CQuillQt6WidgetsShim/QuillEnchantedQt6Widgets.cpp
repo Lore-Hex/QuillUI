@@ -226,7 +226,9 @@ QIcon systemImageIcon(const QString &systemImage) {
     if (normalized.contains(QStringLiteral("arrow.forward.circle.fill"))) {
         return themedActionIcon(QStringLiteral("go-next-symbolic"), QStyle::SP_MediaPlay);
     }
-    if (normalized.contains(QStringLiteral("character.cursor.ibeam")) || normalized.contains(QStringLiteral("ibeam"))) {
+    if (normalized.contains(QStringLiteral("character.cursor.ibeam"))
+        || normalized.contains(QStringLiteral("textformat"))
+        || normalized.contains(QStringLiteral("ibeam"))) {
         return themedActionIcon(QStringLiteral("accessories-text-editor-symbolic"), QStyle::SP_FileDialogDetailedView);
     }
     if (normalized.contains(QStringLiteral("keyboard"))) {

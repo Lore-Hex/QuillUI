@@ -419,9 +419,9 @@ struct SidebarView: View {
             }
 
             QuillSidebarBottomNavigation(actions: [
-                QuillSidebarNavigationAction(title: "Completions", systemImage: "character.cursor.ibeam") {},
-                QuillSidebarNavigationAction(title: "Shortcuts", systemImage: "keyboard") {},
-                QuillSidebarNavigationAction(title: "Settings", systemImage: "gearshape.fill") {
+                QuillSidebarNavigationAction(title: "Completions", systemImage: EnchantedIcon.completions) {},
+                QuillSidebarNavigationAction(title: "Shortcuts", systemImage: EnchantedIcon.shortcuts) {},
+                QuillSidebarNavigationAction(title: "Settings", systemImage: EnchantedIcon.settings) {
                     withAnimation(.easeOut(duration: 0.2)) {
                         showSettings.toggle()
                     }
