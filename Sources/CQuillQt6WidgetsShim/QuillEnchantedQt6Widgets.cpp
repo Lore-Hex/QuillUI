@@ -351,6 +351,10 @@ QIcon refreshModelsButtonIcon(const QJsonObject &icons) {
     return systemImageIcon(requiredIconName(icons, "refreshModels"));
 }
 
+QIcon clearAllButtonIcon(const QJsonObject &icons) {
+    return systemImageIcon(requiredIconName(icons, "clearAll"));
+}
+
 QIcon sendButtonIcon(const QJsonObject &icons, bool isLoading) {
     const char *key = isLoading ? "stop" : "send";
     return systemImageIcon(requiredIconName(icons, key));
@@ -2229,8 +2233,20 @@ extern "C" int quill_enchanted_qt_run_app_json(
     conversationActions->setSpacing(conversationActionsSpacing);
     QPushButton *deleteButton = new QPushButton(payloadString(payload, "deleteChatTitle"));
     deleteButton->setObjectName(QStringLiteral("secondaryButton"));
-    QPushButton *clearAllButton = new QPushButton(payloadString(payload, "clearAllTitle"));
+    const QString clearAllTitle = payloadString(payload, "clearAllTitle");
+    QPushButton *clearAllButton = new QPushButton();
     clearAllButton->setObjectName(QStringLiteral("secondaryButton"));
+    addIconTextButtonContent(
+        clearAllButton,
+        clearAllButtonIcon(icons),
+        clearAllTitle,
+        QStringLiteral("clearAllButtonIcon"),
+        QStringLiteral("clearAllButtonText"),
+        "actionButtonIconSpacing",
+        "secondaryButtonVerticalPadding",
+        "secondaryButtonHorizontalPadding",
+        style
+    );
     conversationActions->addWidget(deleteButton);
     conversationActions->addWidget(clearAllButton);
     sidebarLayout->addLayout(conversationActions);

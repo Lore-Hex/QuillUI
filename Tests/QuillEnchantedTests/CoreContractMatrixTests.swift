@@ -335,6 +335,7 @@ struct CoreContractMatrixTests {
             "QIcon attachmentChipIcon(const QJsonObject &icons)",
             "QIcon utilityButtonIcon(const QJsonObject &icons, const char *key)",
             "QIcon refreshModelsButtonIcon(const QJsonObject &icons)",
+            "QIcon clearAllButtonIcon(const QJsonObject &icons)",
             "QIcon sendButtonIcon(const QJsonObject &icons, bool isLoading)",
             "QIcon removeAttachmentButtonIcon(const QJsonObject &icons)",
             "systemImageIcon(requiredIconName(icons, \"newConversation\"))",
@@ -343,6 +344,7 @@ struct CoreContractMatrixTests {
             "systemImageIcon(requiredIconName(icons, \"attachment\"))",
             "systemImageIcon(requiredIconName(icons, key))",
             "systemImageIcon(requiredIconName(icons, \"refreshModels\"))",
+            "systemImageIcon(requiredIconName(icons, \"clearAll\"))",
             "systemImageIcon(requiredIconName(icons, \"removeAttachment\"))",
             "QJsonObject icons = payloadObject(payload, \"icons\")",
             "icons = payloadObject(payload, \"icons\")",
@@ -1656,6 +1658,10 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "const QString modelLabel = payloadString(payload, \"modelLabel\")")
         expectContains(nativeShim, "payloadString(payload, \"conversationsTitle\")")
         expectContains(nativeShim, "QPushButton *deleteButton = new QPushButton(payloadString(payload, \"deleteChatTitle\"))")
+        expectContains(nativeShim, "const QString clearAllTitle = payloadString(payload, \"clearAllTitle\")")
+        expectContains(nativeShim, "QPushButton *clearAllButton = new QPushButton()")
+        expectContains(nativeShim, "addIconTextButtonContent(\n        clearAllButton,\n        clearAllButtonIcon(icons),\n        clearAllTitle,\n        QStringLiteral(\"clearAllButtonIcon\"),\n        QStringLiteral(\"clearAllButtonText\"),\n        \"actionButtonIconSpacing\",")
+        expectDoesNotContain(nativeShim, "new QPushButton(payloadString(payload, \"clearAllTitle\"))")
         expectContains(nativeShim, "QPushButton *completionsButton = new QPushButton()")
         expectContains(nativeShim, "configureUtilityButton(completionsButton, payloadString(payload, \"completionsTitle\"), \"completions\")")
         expectContains(nativeShim, "QPushButton *shortcutsButton = new QPushButton()")
