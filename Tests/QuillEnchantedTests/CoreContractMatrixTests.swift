@@ -430,6 +430,7 @@ struct CoreContractMatrixTests {
         expectContains(qtMain, "QuillEnchantedQtNativeApp.run()")
         expectContains(qtMain, "QuillQtApp.run(QuillEnchantedQtApp.self)")
         expectContains(qtMain, "import QuillEnchantedShared")
+        expectContains(qtMain, "EnchantedCopy.windowTitle")
         expectContains(qtMain, "width: Double(EnchantedVisualMetrics.defaultWindowWidth)")
         expectContains(qtMain, "height: Double(EnchantedVisualMetrics.defaultWindowHeight)")
         expectContains(coreApp, "width: Double(EnchantedVisualMetrics.defaultWindowWidth)")
