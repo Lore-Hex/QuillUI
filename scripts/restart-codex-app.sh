@@ -55,20 +55,39 @@ set -u
 app_path="$1"
 delay_seconds="$2"
 log_path="$3"
-bundle_process_pattern="${app_path}/Contents/"
+bundle_process_prefix="${app_path}/Contents/"
+
+codex_pids() {
+  /bin/ps -axo pid=,args= | /usr/bin/awk \
+    -v prefix="$bundle_process_prefix" \
+    -v self="$$" \
+    '$1 != self && index($0, prefix) { print $1 }'
+}
 
 {
-  printf '[%s] scheduling Codex restart after %ss\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$delay_seconds"
+  printf '[%s] launchd helper scheduling Codex restart after %ss\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$delay_seconds"
   sleep "$delay_seconds"
 
   /usr/bin/osascript -e 'tell application "Codex" to quit' >/dev/null 2>&1 || true
 
   deadline=$((SECONDS + 10))
-  while /usr/bin/pgrep -f "$bundle_process_pattern" >/dev/null 2>&1 && ((SECONDS < deadline)); do
+  while [[ -n "$(codex_pids)" ]] && ((SECONDS < deadline)); do
     sleep 0.5
   done
 
-  /usr/bin/pkill -f "$bundle_process_pattern" >/dev/null 2>&1 || true
+  pids="$(codex_pids)"
+  if [[ -n "$pids" ]]; then
+    printf '[%s] terminating remaining Codex bundle pids: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${pids//$'\n'/ }"
+    /bin/kill -TERM ${(f)pids} >/dev/null 2>&1 || true
+    sleep 2
+  fi
+
+  pids="$(codex_pids)"
+  if [[ -n "$pids" ]]; then
+    printf '[%s] force-killing remaining Codex bundle pids: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${pids//$'\n'/ }"
+    /bin/kill -KILL ${(f)pids} >/dev/null 2>&1 || true
+  fi
+
   sleep 1
 
   /usr/bin/open "$app_path"
@@ -79,6 +98,12 @@ rm -f "$0"
 HELPER
 
 chmod 700 "$HELPER_PATH"
-nohup /bin/zsh "$HELPER_PATH" "$APP_PATH" "$DELAY_SECONDS" "$LOG_PATH" >/dev/null 2>&1 &
 
-printf 'scheduled Codex restart via %s; log: %s\n' "$HELPER_PATH" "$LOG_PATH"
+LABEL="quillui.restart-codex.$$"
+if /bin/launchctl submit -l "$LABEL" -- /bin/zsh "$HELPER_PATH" "$APP_PATH" "$DELAY_SECONDS" "$LOG_PATH" >/dev/null 2>&1; then
+  printf 'scheduled Codex restart launchd job %s via %s; log: %s\n' "$LABEL" "$HELPER_PATH" "$LOG_PATH"
+  exit 0
+fi
+
+nohup /bin/zsh "$HELPER_PATH" "$APP_PATH" "$DELAY_SECONDS" "$LOG_PATH" >/dev/null 2>&1 &
+printf 'scheduled Codex restart via fallback nohup helper %s; log: %s\n' "$HELPER_PATH" "$LOG_PATH"
