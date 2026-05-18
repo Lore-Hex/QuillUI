@@ -172,7 +172,7 @@ struct CoreContractMatrixTests {
             "systemImageIcon(requiredIconName(icons, \"removeAttachment\"))",
             "QJsonObject icons = payloadObject(payload, \"icons\")",
             "icons = payloadObject(payload, \"icons\")",
-            "newConversationButton->setIcon(newConversationButtonIcon(icons))",
+            "newConversationButtonIcon(icons),",
             "attachButton->setIcon(attachButtonIcon(icons))",
             "completionsButton->setIcon(utilityButtonIcon(icons, \"completions\"))",
             "shortcutsButton->setIcon(utilityButtonIcon(icons, \"shortcuts\"))",
@@ -1314,7 +1314,9 @@ struct CoreContractMatrixTests {
         expectDoesNotContain(nativeShim, "shortcutsTitle\", QStringLiteral(\"Shortcuts\")")
         expectDoesNotContain(nativeShim, "settingsTitle\", QStringLiteral(\"Settings\")")
         expectDoesNotContain(nativeShim, "refreshModelsTitle\", QStringLiteral(\"Refresh models\")")
-        expectContains(nativeShim, "QPushButton *newConversationButton = new QPushButton(newConversationButtonTitle)")
+        expectContains(nativeShim, "QPushButton *newConversationButton = new QPushButton()")
+        expectContains(nativeShim, "addIconTextButtonContent(")
+        expectContains(nativeShim, "QLabel#primaryButtonIcon, QLabel#primaryButtonText { color: white; font-size: %1; }")
         expectContains(nativeShim, "payloadString(payload, \"completionsPanelSubtitle\")")
         expectContains(nativeShim, "payloadString(payload, \"shortcutsPanelSubtitle\")")
         expectContains(nativeShim, "payloadString(payload, \"settingsPanelSubtitle\")")
@@ -1693,7 +1695,10 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "void applyButtonIconSize(QPushButton *button, const QJsonObject &style)")
         expectContains(nativeShim, "const int iconSize = buttonIconSize(style)")
         expectContains(nativeShim, "button->setIconSize(QSize(iconSize, iconSize))")
-        expectContains(nativeShim, "applyButtonIconSize(newConversationButton, style)")
+        expectContains(nativeShim, "layout->setSpacing(styleInt(style, spacingKey))")
+        expectContains(nativeShim, "\"primaryButtonIconSpacing\"")
+        expectContains(nativeShim, "\"primaryButtonVerticalPadding\"")
+        expectContains(nativeShim, "\"primaryButtonHorizontalPadding\"")
         expectContains(nativeShim, "applyButtonIconSize(attachButton, style)")
         expectContains(nativeShim, "applyButtonIconSize(sendButton, style)")
         expectContains(nativeShim, "void updateSendButtonPresentation(")

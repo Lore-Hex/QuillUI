@@ -315,6 +315,37 @@ void applyButtonIconSize(QPushButton *button, const QJsonObject &style) {
     button->setIconSize(QSize(iconSize, iconSize));
 }
 
+void addIconTextButtonContent(
+    QPushButton *button,
+    const QIcon &icon,
+    const QString &title,
+    const QString &iconObjectName,
+    const QString &textObjectName,
+    const char *spacingKey,
+    const char *verticalPaddingKey,
+    const char *horizontalPaddingKey,
+    const QJsonObject &style
+) {
+    button->setAccessibleName(title);
+    button->setAccessibleDescription(title);
+    button->setToolTip(title);
+    button->setStatusTip(title);
+
+    QHBoxLayout *layout = new QHBoxLayout(button);
+    const int verticalPadding = styleInt(style, verticalPaddingKey);
+    const int horizontalPadding = styleInt(style, horizontalPaddingKey);
+    layout->setContentsMargins(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding);
+    layout->setSpacing(styleInt(style, spacingKey));
+
+    QLabel *buttonIcon = iconLabel(icon, iconObjectName, style);
+    buttonIcon->setAttribute(Qt::WA_TransparentForMouseEvents);
+    QLabel *buttonText = label(title, textObjectName);
+    buttonText->setAttribute(Qt::WA_TransparentForMouseEvents);
+    layout->addWidget(buttonIcon, 0, Qt::AlignVCenter);
+    layout->addWidget(buttonText, 0, Qt::AlignVCenter);
+    layout->addStretch(1);
+}
+
 void updateSendButtonPresentation(
     QPushButton *button,
     const QJsonObject &icons,
@@ -557,6 +588,11 @@ QString appStyleSheet(const QJsonObject &style) {
             disabledButtonBackground,
             disabledButtonForeground
         );
+
+    sheet += QStringLiteral(R"(
+        QLabel#primaryButtonIcon, QLabel#primaryButtonText { color: white; font-size: %1; }
+    )")
+        .arg(rootFontSize);
 
     sheet += QStringLiteral(R"(
         QPushButton#secondaryButton { background: transparent; color: %1; border: 1px solid %2; border-radius: %3; padding: %4 %5; text-align: left; }
@@ -1901,10 +1937,19 @@ extern "C" int quill_enchanted_qt_run_app_json(
     ));
     sidebarLayout->addWidget(sidebarTitleBlock);
 
-    QPushButton *newConversationButton = new QPushButton(newConversationButtonTitle);
+    QPushButton *newConversationButton = new QPushButton();
     newConversationButton->setObjectName(QStringLiteral("primaryButton"));
-    newConversationButton->setIcon(newConversationButtonIcon(icons));
-    applyButtonIconSize(newConversationButton, style);
+    addIconTextButtonContent(
+        newConversationButton,
+        newConversationButtonIcon(icons),
+        newConversationButtonTitle,
+        QStringLiteral("primaryButtonIcon"),
+        QStringLiteral("primaryButtonText"),
+        "primaryButtonIconSpacing",
+        "primaryButtonVerticalPadding",
+        "primaryButtonHorizontalPadding",
+        style
+    );
     sidebarLayout->addWidget(newConversationButton);
 
     QLineEdit *endpointField = new QLineEdit(payloadString(payload, "endpoint"));
