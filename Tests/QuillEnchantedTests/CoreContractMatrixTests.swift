@@ -222,6 +222,9 @@ struct CoreContractMatrixTests {
             "shortcuts: EnchantedIcon.shortcuts",
             "settings: EnchantedIcon.settings",
             "refreshModels: EnchantedIcon.refreshModels",
+            "clearAll: EnchantedIcon.clearAll",
+            "imagePreviewFallback: EnchantedIcon.imagePreviewFallback",
+            "unavailableModel: EnchantedIcon.unavailableModel",
             "send: EnchantedIcon.send",
             "stop: EnchantedIcon.stop",
             "removeAttachment: EnchantedIcon.removeAttachment",
@@ -242,6 +245,9 @@ struct CoreContractMatrixTests {
             "public static let shortcuts = \"keyboard.fill\"",
             "public static let settings = \"gearshape.fill\"",
             "public static let refreshModels = \"arrow.clockwise\"",
+            "public static let clearAll = \"trash\"",
+            "public static let imagePreviewFallback = \"photo.fill\"",
+            "public static let unavailableModel = \"waveform\"",
             "public static let send = \"arrow.forward.circle.fill\"",
             "public static let stop = \"square.fill\"",
             "public static let removeAttachment = \"xmark.circle.fill\""
@@ -251,6 +257,9 @@ struct CoreContractMatrixTests {
 
         #expect(EnchantedIcon.completions == "textformat.abc")
         #expect(EnchantedIcon.shortcuts == "keyboard.fill")
+        #expect(EnchantedIcon.clearAll == "trash")
+        #expect(EnchantedIcon.imagePreviewFallback == "photo.fill")
+        #expect(EnchantedIcon.unavailableModel == "waveform")
 
         for needle in [
             "SidebarButton(title: \"Completions\", image: \"textformat.abc\"",
@@ -816,6 +825,8 @@ struct CoreContractMatrixTests {
         expectContains(upstreamSlice, "EnchantedCopy.attachmentDefaultPrompt")
         expectContains(runtime, "import QuillEnchantedData")
         expectContains(runtime, "import QuillEnchantedShared")
+        expectContains(runtime, "imagePreviewFallback: EnchantedIcon.imagePreviewFallback")
+        expectContains(runtime, "unavailableModel: EnchantedIcon.unavailableModel")
         expectContains(genericQtRuntime, "import QuillEnchantedShared")
         expectContains(genericQtRuntime, "minimumWidth: EnchantedVisualMetrics.minimumWindowWidth")
         expectContains(genericQtRuntime, "minimumHeight: EnchantedVisualMetrics.minimumWindowHeight")

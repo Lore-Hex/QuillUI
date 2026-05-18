@@ -932,6 +932,8 @@ struct SourceHygieneTests {
         #expect(enchantedShared.contains("public static let emptyStateSubtitle = \"\""))
         #expect(enchantedQtRuntime.contains("var systemImage: String"))
         #expect(enchantedQtRuntime.contains("self.systemImage = prompt.systemImage"))
+        #expect(enchantedQtRuntime.contains("imagePreviewFallback: EnchantedIcon.imagePreviewFallback"))
+        #expect(enchantedQtRuntime.contains("unavailableModel: EnchantedIcon.unavailableModel"))
         #expect(enchantedQtRuntime.contains("prompts: EnchantedPromptCatalog.visibleEmptyConversationPrompts.map(QuillEnchantedQtSnapshot.Prompt.init)"))
         for promptTitle in enchantedNativeSamplePromptTitles {
             #expect(enchantedShared.contains("title: \"\(promptTitle)\""))
@@ -1554,6 +1556,8 @@ struct SourceHygieneTests {
         #expect(enchantedQtRuntime.contains("settings: EnchantedIcon.settings"))
         #expect(enchantedQtRuntime.contains("refreshModels: EnchantedIcon.refreshModels"))
         #expect(enchantedQtRuntime.contains("clearAll: EnchantedIcon.clearAll"))
+        #expect(enchantedQtRuntime.contains("imagePreviewFallback: EnchantedIcon.imagePreviewFallback"))
+        #expect(enchantedQtRuntime.contains("unavailableModel: EnchantedIcon.unavailableModel"))
         #expect(enchantedQtRuntime.contains("send: EnchantedIcon.send"))
         #expect(enchantedQtRuntime.contains("stop: EnchantedIcon.stop"))
         #expect(enchantedQtRuntime.contains("removeAttachment: EnchantedIcon.removeAttachment"))

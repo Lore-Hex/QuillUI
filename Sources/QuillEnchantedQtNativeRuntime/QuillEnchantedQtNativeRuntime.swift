@@ -160,6 +160,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var settings: String
         var refreshModels: String
         var clearAll: String
+        var imagePreviewFallback: String
+        var unavailableModel: String
         var send: String
         var stop: String
         var removeAttachment: String
@@ -174,6 +176,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             settings: EnchantedIcon.settings,
             refreshModels: EnchantedIcon.refreshModels,
             clearAll: EnchantedIcon.clearAll,
+            imagePreviewFallback: EnchantedIcon.imagePreviewFallback,
+            unavailableModel: EnchantedIcon.unavailableModel,
             send: EnchantedIcon.send,
             stop: EnchantedIcon.stop,
             removeAttachment: EnchantedIcon.removeAttachment
