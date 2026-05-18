@@ -239,6 +239,8 @@ struct CoreContractMatrixTests {
             "QStringLiteral(\"window-close-symbolic\")",
             "QStringLiteral(\"process-stop-symbolic\")",
             "QStringLiteral(\"go-next-symbolic\")",
+            "normalized.contains(QStringLiteral(\"arrow.clockwise\"))",
+            "QStringLiteral(\"view-refresh-symbolic\")",
             "normalized.contains(QStringLiteral(\"textformat\"))",
             "QStringLiteral(\"accessories-text-editor-symbolic\")",
             "QStringLiteral(\"input-keyboard-symbolic\")",
@@ -249,6 +251,7 @@ struct CoreContractMatrixTests {
             "QStyle::SP_DialogCloseButton",
             "QStyle::SP_MediaStop",
             "QStyle::SP_MediaPlay",
+            "QStyle::SP_BrowserReload",
             "QStyle::SP_FileDialogDetailedView",
             "QStyle::SP_ComputerIcon",
             "QStyle::SP_MessageBoxInformation"

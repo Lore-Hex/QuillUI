@@ -226,6 +226,9 @@ QIcon systemImageIcon(const QString &systemImage) {
     if (normalized.contains(QStringLiteral("arrow.forward.circle.fill"))) {
         return themedActionIcon(QStringLiteral("go-next-symbolic"), QStyle::SP_MediaPlay);
     }
+    if (normalized.contains(QStringLiteral("arrow.clockwise"))) {
+        return themedActionIcon(QStringLiteral("view-refresh-symbolic"), QStyle::SP_BrowserReload);
+    }
     if (normalized.contains(QStringLiteral("character.cursor.ibeam"))
         || normalized.contains(QStringLiteral("textformat"))
         || normalized.contains(QStringLiteral("ibeam"))) {
