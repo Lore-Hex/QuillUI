@@ -294,6 +294,9 @@ QIcon systemImageIcon(const QString &systemImage) {
         || normalized.contains(QStringLiteral("ibeam"))) {
         return themedActionIcon(QStringLiteral("accessories-text-editor-symbolic"), QStyle::SP_FileDialogDetailedView);
     }
+    if (normalized == QStringLiteral("space")) {
+        return themedActionIcon(QStringLiteral("input-keyboard-symbolic"), QStyle::SP_ComputerIcon);
+    }
     if (normalized.contains(QStringLiteral("keyboard"))) {
         return themedActionIcon(QStringLiteral("input-keyboard-symbolic"), QStyle::SP_ComputerIcon);
     }

@@ -137,6 +137,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/MessageListVIew.swift"),
             encoding: .utf8
         )
+        let upstreamCompletionPanel = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/Components/CompletionPanelView.swift"),
+            encoding: .utf8
+        )
         let upstreamSettings = try String(
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Settings/SettingsView.swift"),
             encoding: .utf8
@@ -196,6 +200,7 @@ struct CoreContractMatrixTests {
             expectContains(upstreamSidebar, needle)
         }
         expectContains(upstreamMessageList, "Label(\"Select Text\", systemImage: \"selection.pin.in.out\")")
+        expectContains(upstreamCompletionPanel, "Image(systemName: \"space\")")
         expectContains(upstreamSettings, "Label(\"Appearance\", systemImage: \"sun.max\")")
 
         for needle in [
@@ -294,6 +299,7 @@ struct CoreContractMatrixTests {
             "QStringLiteral(\"insert-link-symbolic\")",
             "normalized.contains(QStringLiteral(\"textformat\"))",
             "QStringLiteral(\"accessories-text-editor-symbolic\")",
+            "normalized == QStringLiteral(\"space\")",
             "normalized.contains(QStringLiteral(\"keyboard\"))",
             "QStringLiteral(\"input-keyboard-symbolic\")",
             "normalized.contains(QStringLiteral(\"gearshape\"))",
