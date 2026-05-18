@@ -43,7 +43,7 @@ public struct EnchantedRootView: View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarSpacing)) {
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarTitleSpacing)) {
                 Text(EnchantedCopy.appTitle)
-                    .font(.system(size: CGFloat(EnchantedTypography.appTitleFontSize), weight: .bold))
+                    .font(.system(size: CGFloat(EnchantedTypography.appTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.appTitleFontWeight)))
                     .foregroundColor(QuillColors.ink)
                 Text(EnchantedCopy.sidebarSubtitle)
                     .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
@@ -99,7 +99,7 @@ public struct EnchantedRootView: View {
             Divider()
 
             Text(EnchantedCopy.conversationsTitle)
-                .font(.system(size: CGFloat(EnchantedTypography.sectionTitleFontSize), weight: .bold))
+                .font(.system(size: CGFloat(EnchantedTypography.sectionTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.sectionTitleFontWeight)))
                 .foregroundColor(QuillColors.ink)
 
             ScrollView {
@@ -187,7 +187,7 @@ public struct EnchantedRootView: View {
         HStack(spacing: CGFloat(EnchantedVisualMetrics.headerSpacing)) {
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.headerTitleSpacing)) {
                 Text(currentTitle)
-                    .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: .semibold))
+                    .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.currentTitleFontWeight)))
                     .foregroundColor(QuillColors.ink)
                     .frame(width: CGFloat(EnchantedVisualMetrics.headerTitleWidth), alignment: .leading)
                 Text(model.selectedModel.isEmpty ? EnchantedCopy.chooseLocalModelStatus : EnchantedCopy.usingModel(model.selectedModel))
@@ -346,7 +346,7 @@ public struct EnchantedRootView: View {
     private var emptyHistory: some View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyHistorySpacing)) {
             Text(EnchantedCopy.emptyHistoryTitle)
-                .font(.system(size: CGFloat(EnchantedTypography.sectionTitleFontSize), weight: .bold))
+                .font(.system(size: CGFloat(EnchantedTypography.sectionTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.sectionTitleFontWeight)))
                 .foregroundColor(QuillColors.ink)
             Text(EnchantedCopy.emptyHistorySubtitle)
                 .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
@@ -368,7 +368,7 @@ private struct ConversationRow: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.conversationRowSpacing)) {
                 Text(conversation.title)
-                    .font(.system(size: CGFloat(EnchantedTypography.conversationTitleFontSize), weight: .bold))
+                    .font(.system(size: CGFloat(EnchantedTypography.conversationTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.conversationTitleFontWeight)))
                     .foregroundColor(isSelected ? .white : QuillColors.ink)
                     .lineLimit(1)
                 if !conversation.lastMessage.isEmpty {
@@ -396,7 +396,7 @@ private struct EmptyConversationView: View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateSpacing)) {
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateHeaderSpacing)) {
                 Text(EnchantedCopy.emptyStateTitle)
-                    .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: .semibold))
+                    .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.currentTitleFontWeight)))
                     .foregroundColor(QuillColors.ink)
                 Text(EnchantedCopy.emptyStateSubtitle)
                     .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
@@ -510,6 +510,19 @@ enum QuillColors {
     static var quoteRule: Color { Color(hex: EnchantedPalette.quoteRuleColor) }
     static var codeBlock: Color { Color(hex: EnchantedPalette.codeBlockColor) }
     static var dropTarget: Color { Color(hex: EnchantedPalette.dropTargetColor) }
+}
+
+private func enchantedFontWeight(_ value: Int) -> Font.Weight {
+    switch value {
+    case 700...:
+        return .bold
+    case 650..<700:
+        return .semibold
+    case 600..<650:
+        return .medium
+    default:
+        return .regular
+    }
 }
 
 private struct AttachmentChip: View {

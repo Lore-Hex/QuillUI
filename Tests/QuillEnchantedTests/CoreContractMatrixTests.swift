@@ -359,8 +359,23 @@ struct CoreContractMatrixTests {
             "EnchantedVisualMetrics.attachmentChipRadius",
             "EnchantedTypography.rootFontSize",
             "EnchantedTypography.appTitleFontSize",
+            "EnchantedTypography.appTitleFontWeight",
+            "EnchantedTypography.captionFontSize",
+            "EnchantedTypography.sectionTitleFontSize",
+            "EnchantedTypography.sectionTitleFontWeight",
             "EnchantedTypography.currentTitleFontSize",
-            "EnchantedTypography.messageBodyFontSize"
+            "EnchantedTypography.currentTitleFontWeight",
+            "EnchantedTypography.messageBodyFontSize",
+            "EnchantedTypography.attachmentNameFontSize",
+            "EnchantedTypography.attachmentSizeFontSize",
+            "EnchantedTypography.conversationTitleFontSize",
+            "EnchantedTypography.conversationTitleFontWeight",
+            "EnchantedTypography.conversationPreviewFontSize",
+            "EnchantedTypography.warningTextFontSize",
+            "weight: enchantedFontWeight(EnchantedTypography.appTitleFontWeight)",
+            "weight: enchantedFontWeight(EnchantedTypography.sectionTitleFontWeight)",
+            "weight: enchantedFontWeight(EnchantedTypography.currentTitleFontWeight)",
+            "weight: enchantedFontWeight(EnchantedTypography.conversationTitleFontWeight)"
         ] {
             expectContains(rootView, needle)
         }
