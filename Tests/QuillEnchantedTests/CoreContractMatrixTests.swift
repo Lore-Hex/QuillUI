@@ -174,9 +174,13 @@ struct CoreContractMatrixTests {
             "icons = payloadObject(payload, \"icons\")",
             "newConversationButtonIcon(icons),",
             "attachButtonIcon(icons),\n        attachTitle,\n        QStringLiteral(\"attachButtonIcon\"),",
-            "completionsButton->setIcon(utilityButtonIcon(icons, \"completions\"))",
-            "shortcutsButton->setIcon(utilityButtonIcon(icons, \"shortcuts\"))",
-            "settingsButton->setIcon(utilityButtonIcon(icons, \"settings\"))",
+            "auto configureUtilityButton = [&](QPushButton *button, const QString &title, const char *iconKey)",
+            "utilityButtonIcon(icons, iconKey),",
+            "QStringLiteral(\"utilityButtonIcon\")",
+            "QStringLiteral(\"utilityButtonText\")",
+            "configureUtilityButton(completionsButton, payloadString(payload, \"completionsTitle\"), \"completions\")",
+            "configureUtilityButton(shortcutsButton, payloadString(payload, \"shortcutsTitle\"), \"shortcuts\")",
+            "configureUtilityButton(settingsButton, payloadString(payload, \"settingsTitle\"), \"settings\")",
             "dropTargetIcon(icons),\n        QStringLiteral(\"dropTargetIcon\"),\n        style",
             "attachmentChipIcon(icons),\n                QStringLiteral(\"attachmentChipIcon\"),\n                style",
             "removeAttachmentButton->setIcon(removeAttachmentButtonIcon(icons))",
@@ -1212,8 +1216,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QPushButton#sendButton:disabled { background: %6; color: %7; }")
         expectContains(nativeShim, "QPushButton#secondaryButton { background: transparent; color: %1; border: 1px solid %2; border-radius: %3; padding: %4 %5; text-align: left; }")
         expectContains(nativeShim, "QPushButton#secondaryButton:disabled { color: %6; border: 1px solid %7; }")
-        expectContains(nativeShim, "QLabel#attachButtonIcon, QLabel#attachButtonText { color: %1; font-size: %8; }")
-        expectContains(nativeShim, "QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled { color: %6; }")
+        expectContains(nativeShim, "QLabel#attachButtonIcon, QLabel#attachButtonText, QLabel#utilityButtonIcon, QLabel#utilityButtonText { color: %1; font-size: %8; }")
+        expectContains(nativeShim, "QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled, QLabel#utilityButtonIcon:disabled, QLabel#utilityButtonText:disabled { color: %6; }")
         expectContains(nativeShim, "QPushButton#chipRemoveButton { background: transparent; color: %1; border: 0; padding: %2 %3; font-weight: %4; }")
         expectContains(nativeShim, "QPushButton#promptButton { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: %5; text-align: left; }")
         expectContains(nativeShim, "QLabel#promptButtonIcon, QLabel#promptButtonText { color: %2; font-size: %6; }")
@@ -1301,9 +1305,12 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "const QString modelLabel = payloadString(payload, \"modelLabel\")")
         expectContains(nativeShim, "payloadString(payload, \"conversationsTitle\")")
         expectContains(nativeShim, "QPushButton *deleteButton = new QPushButton(payloadString(payload, \"deleteChatTitle\"))")
-        expectContains(nativeShim, "QPushButton *completionsButton = new QPushButton(payloadString(payload, \"completionsTitle\"))")
-        expectContains(nativeShim, "QPushButton *shortcutsButton = new QPushButton(payloadString(payload, \"shortcutsTitle\"))")
-        expectContains(nativeShim, "QPushButton *settingsButton = new QPushButton(payloadString(payload, \"settingsTitle\"))")
+        expectContains(nativeShim, "QPushButton *completionsButton = new QPushButton()")
+        expectContains(nativeShim, "configureUtilityButton(completionsButton, payloadString(payload, \"completionsTitle\"), \"completions\")")
+        expectContains(nativeShim, "QPushButton *shortcutsButton = new QPushButton()")
+        expectContains(nativeShim, "configureUtilityButton(shortcutsButton, payloadString(payload, \"shortcutsTitle\"), \"shortcuts\")")
+        expectContains(nativeShim, "QPushButton *settingsButton = new QPushButton()")
+        expectContains(nativeShim, "configureUtilityButton(settingsButton, payloadString(payload, \"settingsTitle\"), \"settings\")")
         expectContains(nativeShim, "QPushButton *refreshButton = new QPushButton(payloadString(payload, \"refreshModelsTitle\"))")
         expectDoesNotContain(nativeShim, "windowTitle\", QStringLiteral(\"Quill Enchanted\")")
         expectDoesNotContain(nativeShim, "sidebarTitle\", QStringLiteral(\"Enchanted\")")

@@ -634,8 +634,8 @@ QString appStyleSheet(const QJsonObject &style) {
     sheet += QStringLiteral(R"(
         QPushButton#secondaryButton { background: transparent; color: %1; border: 1px solid %2; border-radius: %3; padding: %4 %5; text-align: left; }
         QPushButton#secondaryButton:disabled { color: %6; border: 1px solid %7; }
-        QLabel#attachButtonIcon, QLabel#attachButtonText { color: %1; font-size: %8; }
-        QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled { color: %6; }
+        QLabel#attachButtonIcon, QLabel#attachButtonText, QLabel#utilityButtonIcon, QLabel#utilityButtonText { color: %1; font-size: %8; }
+        QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled, QLabel#utilityButtonIcon:disabled, QLabel#utilityButtonText:disabled { color: %6; }
     )")
         .arg(ink)
         .arg(controlBorder)
@@ -2123,18 +2123,26 @@ extern "C" int quill_enchanted_qt_run_app_json(
     QVBoxLayout *sidebarBottomNavigationLayout = new QVBoxLayout(sidebarBottomNavigation);
     sidebarBottomNavigationLayout->setContentsMargins(0, 0, 0, 0);
     sidebarBottomNavigationLayout->setSpacing(conversationActionsSpacing);
-    QPushButton *completionsButton = new QPushButton(payloadString(payload, "completionsTitle"));
-    completionsButton->setObjectName(QStringLiteral("secondaryButton"));
-    completionsButton->setIcon(utilityButtonIcon(icons, "completions"));
-    applyButtonIconSize(completionsButton, style);
-    QPushButton *shortcutsButton = new QPushButton(payloadString(payload, "shortcutsTitle"));
-    shortcutsButton->setObjectName(QStringLiteral("secondaryButton"));
-    shortcutsButton->setIcon(utilityButtonIcon(icons, "shortcuts"));
-    applyButtonIconSize(shortcutsButton, style);
-    QPushButton *settingsButton = new QPushButton(payloadString(payload, "settingsTitle"));
-    settingsButton->setObjectName(QStringLiteral("secondaryButton"));
-    settingsButton->setIcon(utilityButtonIcon(icons, "settings"));
-    applyButtonIconSize(settingsButton, style);
+    auto configureUtilityButton = [&](QPushButton *button, const QString &title, const char *iconKey) {
+        button->setObjectName(QStringLiteral("secondaryButton"));
+        addIconTextButtonContent(
+            button,
+            utilityButtonIcon(icons, iconKey),
+            title,
+            QStringLiteral("utilityButtonIcon"),
+            QStringLiteral("utilityButtonText"),
+            "actionButtonIconSpacing",
+            "secondaryButtonVerticalPadding",
+            "secondaryButtonHorizontalPadding",
+            style
+        );
+    };
+    QPushButton *completionsButton = new QPushButton();
+    configureUtilityButton(completionsButton, payloadString(payload, "completionsTitle"), "completions");
+    QPushButton *shortcutsButton = new QPushButton();
+    configureUtilityButton(shortcutsButton, payloadString(payload, "shortcutsTitle"), "shortcuts");
+    QPushButton *settingsButton = new QPushButton();
+    configureUtilityButton(settingsButton, payloadString(payload, "settingsTitle"), "settings");
     sidebarBottomNavigationLayout->addWidget(completionsButton);
     sidebarBottomNavigationLayout->addWidget(shortcutsButton);
     sidebarBottomNavigationLayout->addWidget(settingsButton);
