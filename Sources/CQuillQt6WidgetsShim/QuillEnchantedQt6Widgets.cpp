@@ -2200,7 +2200,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         style
     );
     refreshButton->setEnabled(!isLoading);
-    headerLayout->addWidget(refreshButton);
+    headerLayout->addWidget(refreshButton, 0, Qt::AlignVCenter);
     chatLayout->addWidget(header);
 
     QScrollArea *scrollArea = new QScrollArea();
