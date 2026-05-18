@@ -1359,7 +1359,7 @@ void addMessageBubble(
         userRoleLabel,
         assistantRoleLabel,
         systemRoleLabel
-    ));
+    ), 0, Qt::AlignTop);
     if (!isUser) {
         row->addStretch(1);
     }
