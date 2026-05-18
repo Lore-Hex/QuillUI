@@ -298,9 +298,11 @@ struct CoreContractMatrixTests {
         ] {
             expectContains(shared, needle)
         }
+        expectContains(shared, "public static let windowTitle = \"Enchanted\"")
         expectContains(shared, "public static let emptyStateTitle = appTitle")
         expectContains(shared, "public static let emptyStateSubtitle = \"\"")
         expectContains(shared, "public static let sidebarSubtitle = \"Local AI conversations\"")
+        expectDoesNotContain(shared, "Quill Enchanted")
         expectDoesNotContain(shared, "QuillUI Linux preview")
         expectContains(shared, "public static let unreachableOllamaMessage = \"Ollama is unreachable. Go to Settings and update your Ollama API endpoint. \"")
 

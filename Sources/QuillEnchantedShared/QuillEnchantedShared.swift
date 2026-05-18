@@ -116,7 +116,7 @@ public enum EnchantedIcon {
 }
 
 public enum EnchantedCopy {
-    public static let windowTitle = "Quill Enchanted"
+    public static let windowTitle = "Enchanted"
     public static let appTitle = "Enchanted"
     public static let sidebarSubtitle = "Local AI conversations"
     public static let newChatTitle = "New chat"
