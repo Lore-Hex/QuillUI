@@ -999,17 +999,33 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "auto scrollTranscriptToBottom = [scrollArea]()")
         expectContains(nativeShim, "scrollAreaToBottomLater(scrollArea)")
         expectContains(nativeShim, "scrollTranscriptToBottom();")
-        expectContains(nativeShim, "styleValue(style, \"canvasColor\")")
-        expectContains(nativeShim, "styleValue(style, \"quoteRuleColor\")")
-        expectContains(nativeShim, "styleValue(style, \"codeBlockColor\")")
-        expectContains(nativeShim, "styleValue(style, \"dividerColor\")")
-        expectContains(nativeShim, "styleValue(style, \"cardBorderColor\")")
-        expectContains(nativeShim, "styleValue(style, \"messageBorderColor\")")
-        expectContains(nativeShim, "styleValue(style, \"controlBorderColor\")")
-        expectContains(nativeShim, "styleValue(style, \"dropTargetBorderColor\")")
-        expectContains(nativeShim, "styleValue(style, \"disabledButtonBackgroundColor\")")
-        expectContains(nativeShim, "styleValue(style, \"disabledButtonForegroundColor\")")
-        expectContains(nativeShim, "styleValue(style, \"disabledTextColor\")")
+        let requiredQtStyleColors = [
+            "canvasColor",
+            "inkColor",
+            "sidebarColor",
+            "headerColor",
+            "cardColor",
+            "primaryColor",
+            "systemColor",
+            "mutedColor",
+            "selectedMutedColor",
+            "warningColor",
+            "successColor",
+            "dropTargetColor",
+            "quoteRuleColor",
+            "codeBlockColor",
+            "dividerColor",
+            "cardBorderColor",
+            "messageBorderColor",
+            "controlBorderColor",
+            "dropTargetBorderColor",
+            "disabledButtonBackgroundColor",
+            "disabledButtonForegroundColor",
+            "disabledTextColor",
+        ]
+        for colorToken in requiredQtStyleColors {
+            expectContains(nativeShim, "styleValue(style, \"\(colorToken)\")")
+        }
         expectContains(nativeShim, "promptRow->setContentsMargins(0, 0, 0, 0)")
         expectContains(nativeShim, "promptRow->addWidget(sendButton, 0, Qt::AlignBottom)")
         expectDoesNotContain(nativeShim, "promptRow->addWidget(sendButton);")
