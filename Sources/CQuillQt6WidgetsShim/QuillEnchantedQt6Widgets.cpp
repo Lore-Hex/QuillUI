@@ -2588,6 +2588,13 @@ extern "C" int quill_enchanted_qt_run_app_json(
         }
         updateComposerControlState();
     };
+    auto discardUnsupportedAttachmentState = [&]() {
+        if (selectedModelSupportsImages(modelPicker, payload)) {
+            return;
+        }
+
+        clearAttachmentState(QString());
+    };
     auto triggerSendOrStop = [&]() {
         if (isLoading) {
             statusText->setText(stoppingStatus);
@@ -2668,6 +2675,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             newConversationTitle
         ));
         statusText->setText(payloadString(payload, "status"));
+        discardUnsupportedAttachmentState();
         refreshButton->setEnabled(!isLoading);
         updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle, style);
         refreshStyle(sendButton);
@@ -2850,6 +2858,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     });
     QObject::connect(modelPicker, &QComboBox::currentTextChanged, [&](const QString &model) {
         modelStatus->setText(modelStatusText(model, chooseLocalModelStatus, usingModelStatusPrefix, usingModelStatusSeparator));
+        discardUnsupportedAttachmentState();
         updateComposerControlState();
         requestHistoryAction(
             QStringLiteral("selectModel"),
