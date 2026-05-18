@@ -1387,10 +1387,12 @@ void addPromptCards(
         emptyStatePadding
     );
     layout->setSpacing(styleInt(style, "emptyStateSpacing"));
+    layout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     const int promptButtonWidth = styleInt(style, "promptButtonWidth");
     QVBoxLayout *headerLayout = new QVBoxLayout();
     headerLayout->setContentsMargins(0, 0, 0, 0);
     headerLayout->setSpacing(styleInt(style, "emptyStateHeaderSpacing"));
+    headerLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     headerLayout->addWidget(label(title, QStringLiteral("currentTitle")));
     QLabel *subtitleLabel = label(subtitle, QStringLiteral("caption"));
     subtitleLabel->setFixedWidth(promptButtonWidth);
