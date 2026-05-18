@@ -115,9 +115,10 @@ public enum EnchantedCopy {
     public static let noModelsTitle = "No models detected"
     public static let chooseLocalModelStatus = "Choose a local model to begin"
     public static let usingModelStatusPrefix = "Using"
+    public static let usingModelStatusSeparator = " "
 
     public static func usingModel(_ modelName: String) -> String {
-        "\(usingModelStatusPrefix) \(modelName)"
+        "\(usingModelStatusPrefix)\(usingModelStatusSeparator)\(modelName)"
     }
 
     public static let conversationsTitle = "Conversations"

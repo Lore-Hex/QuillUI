@@ -763,14 +763,15 @@ QString selectedConversationTitle(
 QString modelStatusText(
     const QString &selectedModel,
     const QString &chooseLocalModelStatus,
-    const QString &usingModelStatusPrefix
+    const QString &usingModelStatusPrefix,
+    const QString &usingModelStatusSeparator
 ) {
     const QString trimmedModel = selectedModel.trimmed();
     if (trimmedModel.isEmpty()) {
         return chooseLocalModelStatus;
     }
 
-    return QStringLiteral("%1 %2").arg(usingModelStatusPrefix, trimmedModel);
+    return usingModelStatusPrefix + usingModelStatusSeparator + trimmedModel;
 }
 
 QJsonArray currentModelList(QComboBox *modelPicker) {
@@ -1850,6 +1851,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     bool isLoading = payloadBool(payload, "isLoading");
     const QString chooseLocalModelStatus = payloadString(payload, "chooseLocalModelStatus");
     const QString usingModelStatusPrefix = payloadString(payload, "usingModelStatusPrefix");
+    const QString usingModelStatusSeparator = payloadString(payload, "usingModelStatusSeparator");
     const QString newConversationButtonTitle = payloadString(payload, "newConversationButtonTitle");
     const QString newConversationTitle = payloadString(payload, "newConversationTitle");
     const QString userRoleLabel = payloadString(payload, "userRoleLabel");
@@ -2075,7 +2077,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         QStringLiteral("currentTitle")
     );
     QLabel *modelStatus = label(
-        modelStatusText(payloadString(payload, "selectedModel"), chooseLocalModelStatus, usingModelStatusPrefix),
+        modelStatusText(payloadString(payload, "selectedModel"), chooseLocalModelStatus, usingModelStatusPrefix, usingModelStatusSeparator),
         QStringLiteral("caption")
     );
     const int headerTitleWidth = styleInt(style, "headerTitleWidth");
@@ -2494,7 +2496,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
                 ? payloadString(payload, "selectedModel")
                 : modelPicker->currentText(),
             chooseLocalModelStatus,
-            usingModelStatusPrefix
+            usingModelStatusPrefix,
+            usingModelStatusSeparator
         ));
         renderMessageSet(selectedConversationMessages(
             conversations,
@@ -2665,7 +2668,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         );
     });
     QObject::connect(modelPicker, &QComboBox::currentTextChanged, [&](const QString &model) {
-        modelStatus->setText(modelStatusText(model, chooseLocalModelStatus, usingModelStatusPrefix));
+        modelStatus->setText(modelStatusText(model, chooseLocalModelStatus, usingModelStatusPrefix, usingModelStatusSeparator));
         requestHistoryAction(
             QStringLiteral("selectModel"),
             currentConversationID(conversationList, selectedConversationID),
