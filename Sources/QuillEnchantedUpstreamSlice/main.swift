@@ -642,7 +642,7 @@ struct EmptyConversaitonView: View {
     var sendPrompt: (String) -> Void
 
     private var prompts: [QuillPrompt] {
-        EnchantedPromptCatalog.emptyConversationPrompts.map {
+        EnchantedPromptCatalog.visibleEmptyConversationPrompts.map {
             QuillPrompt(title: $0.title, systemImage: $0.systemImage)
         }
     }

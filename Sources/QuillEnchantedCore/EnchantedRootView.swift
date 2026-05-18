@@ -390,7 +390,7 @@ private struct ConversationRow: View {
 private struct EmptyConversationView: View {
     var send: (String) -> Void
 
-    private let prompts = EnchantedPromptCatalog.emptyConversationPrompts
+    private let prompts = EnchantedPromptCatalog.visibleEmptyConversationPrompts
 
     var body: some View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateSpacing)) {

@@ -379,7 +379,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         models: EnchantedPreviewFixture.models,
         conversations: EnchantedPreviewFixture.conversations.map { Conversation($0) },
         messages: EnchantedPreviewFixture.messages.map { Message($0) },
-        prompts: EnchantedPromptCatalog.emptyConversationPrompts.map(QuillEnchantedQtSnapshot.Prompt.init),
+        prompts: EnchantedPromptCatalog.visibleEmptyConversationPrompts.map(QuillEnchantedQtSnapshot.Prompt.init),
         icons: .shared,
         style: Style(
             canvasColor: EnchantedPalette.canvasColor,

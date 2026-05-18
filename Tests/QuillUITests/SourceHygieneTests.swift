@@ -925,7 +925,7 @@ struct SourceHygieneTests {
         #expect(enchantedShared.contains("public static let emptyStateSubtitle = \"\""))
         #expect(enchantedQtRuntime.contains("var systemImage: String"))
         #expect(enchantedQtRuntime.contains("self.systemImage = prompt.systemImage"))
-        #expect(enchantedQtRuntime.contains("prompts: EnchantedPromptCatalog.emptyConversationPrompts.map(QuillEnchantedQtSnapshot.Prompt.init)"))
+        #expect(enchantedQtRuntime.contains("prompts: EnchantedPromptCatalog.visibleEmptyConversationPrompts.map(QuillEnchantedQtSnapshot.Prompt.init)"))
         for promptTitle in enchantedNativeSamplePromptTitles {
             #expect(enchantedShared.contains("title: \"\(promptTitle)\""))
         }

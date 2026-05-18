@@ -94,6 +94,8 @@ public enum EnchantedPromptCatalog {
         EnchantedPrompt(title: "What is bubble sort? Write example in python", kind: .question)
     ]
 
+    public static let emptyConversationVisiblePromptCount = 4
+    public static let visibleEmptyConversationPrompts = Array(emptyConversationPrompts.prefix(emptyConversationVisiblePromptCount))
     public static let emptyConversationTitles = emptyConversationPrompts.map(\.title)
 
     public static func systemImage(forTitle title: String) -> String {

@@ -97,6 +97,9 @@ struct CoreContractMatrixTests {
         #expect(EnchantedPromptCatalog.emptyConversationPrompts.map(\.title) == enchantedEmptyConversationPrompts)
         #expect(EnchantedPromptCatalog.emptyConversationPrompts.map(\.kind) == expectedKinds)
         #expect(EnchantedPromptCatalog.emptyConversationTitles == enchantedEmptyConversationPrompts)
+        #expect(EnchantedPromptCatalog.emptyConversationVisiblePromptCount == 4)
+        #expect(EnchantedPromptCatalog.visibleEmptyConversationPrompts.map(\.title) == Array(enchantedEmptyConversationPrompts.prefix(4)))
+        #expect(EnchantedPromptCatalog.visibleEmptyConversationPrompts.map(\.kind) == Array(expectedKinds.prefix(4)))
     }
 
     @Test("normalizes attachment paths", arguments: pathCases)
@@ -320,7 +323,7 @@ struct CoreContractMatrixTests {
             "EnchantedCopy.attachmentPlaceholder",
             "EnchantedCopy.emptyStateTitle",
             "EnchantedCopy.emptyStateSubtitle",
-            "EnchantedPromptCatalog.emptyConversationPrompts",
+            "EnchantedPromptCatalog.visibleEmptyConversationPrompts",
             "Image(systemName: EnchantedIcon.newConversation)",
             "Image(systemName: EnchantedIcon.attach)",
             "Image(systemName: EnchantedIcon.dropTarget)",
@@ -601,7 +604,7 @@ struct CoreContractMatrixTests {
         expectDoesNotContain(upstreamSlice, "Color(hex: \"#6E6E73\")")
         expectDoesNotContain(upstreamSlice, "Color(hex: \"#4285F4\")")
         expectDoesNotContain(upstreamSlice, "Color(hex: \"#B42318\")")
-        expectContains(upstreamSlice, "EnchantedPromptCatalog.emptyConversationPrompts.map")
+        expectContains(upstreamSlice, "EnchantedPromptCatalog.visibleEmptyConversationPrompts.map")
         expectDoesNotContain(upstreamSlice, "private let prompts = [")
         expectContains(upstreamSlice, "EnchantedCopy.attachmentDefaultPrompt")
         expectContains(runtime, "import QuillEnchantedData")
@@ -708,7 +711,7 @@ struct CoreContractMatrixTests {
         expectContains(runtime, "userRoleLabel: EnchantedCopy.userRoleLabel")
         expectContains(runtime, "assistantRoleLabel: EnchantedCopy.assistantRoleLabel")
         expectContains(runtime, "systemRoleLabel: EnchantedCopy.systemRoleLabel")
-        expectContains(runtime, "prompts: EnchantedPromptCatalog.emptyConversationPrompts.map(QuillEnchantedQtSnapshot.Prompt.init)")
+        expectContains(runtime, "prompts: EnchantedPromptCatalog.visibleEmptyConversationPrompts.map(QuillEnchantedQtSnapshot.Prompt.init)")
         expectContains(runtime, "var messages: [Message]? = nil")
         expectContains(runtime, "conversations: EnchantedPreviewFixture.conversations.map { Conversation($0) }")
         expectContains(runtime, "messages: EnchantedPreviewFixture.messages.map { Message($0) }")
@@ -873,6 +876,8 @@ struct CoreContractMatrixTests {
         expectContains(sharedPrompts, "public static let actionIconName = EnchantedPrompt.Kind.action.systemImage")
         expectContains(sharedPrompts, "kind: .question")
         expectContains(sharedPrompts, "kind: .action")
+        expectContains(sharedPrompts, "public static let emptyConversationVisiblePromptCount = 4")
+        expectContains(sharedPrompts, "public static let visibleEmptyConversationPrompts = Array(emptyConversationPrompts.prefix(emptyConversationVisiblePromptCount))")
         expectContains(sharedPrompts, "public static let emptyConversationTitles = emptyConversationPrompts.map(\\.title)")
         expectContains(sharedPrompts, "public enum EnchantedPalette")
         expectContains(sharedPrompts, "public static let canvasColor = \"#FBFBFD\"")
