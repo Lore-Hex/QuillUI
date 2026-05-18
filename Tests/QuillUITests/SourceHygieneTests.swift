@@ -196,6 +196,7 @@ struct SourceHygieneTests {
         #expect(guardSource.contains("group = \"Swift toolchain\""))
         #expect(guardSource.contains("/proc/meminfo"))
         #expect(guardSource.contains("vm_stat"))
+        #expect(guardSource.contains("/^Pages inactive:/"))
 
         let guardedScripts = [
             "scripts/linux-backend-check.sh",
@@ -1002,10 +1003,13 @@ struct SourceHygieneTests {
         #expect(enchantedQtRuntime.contains("promptButtonWidth: EnchantedVisualMetrics.promptButtonWidth"))
         #expect(enchantedQtRuntime.contains("promptButtonPadding: EnchantedVisualMetrics.promptButtonPadding"))
         #expect(enchantedQtRuntime.contains("promptButtonRadius: EnchantedVisualMetrics.promptButtonRadius"))
+        #expect(enchantedQtRuntime.contains("primaryButtonPadding: EnchantedVisualMetrics.primaryButtonPadding"))
         #expect(enchantedQtRuntime.contains("primaryButtonVerticalPadding: EnchantedVisualMetrics.primaryButtonVerticalPadding"))
         #expect(enchantedQtRuntime.contains("primaryButtonHorizontalPadding: EnchantedVisualMetrics.primaryButtonHorizontalPadding"))
         #expect(enchantedQtRuntime.contains("primaryButtonRadius: EnchantedVisualMetrics.primaryButtonRadius"))
+        #expect(enchantedQtRuntime.contains("primaryButtonIconSpacing: EnchantedVisualMetrics.primaryButtonIconSpacing"))
         #expect(enchantedQtRuntime.contains("actionButtonIconSize: EnchantedVisualMetrics.actionButtonIconSize"))
+        #expect(enchantedQtRuntime.contains("actionButtonIconSpacing: EnchantedVisualMetrics.actionButtonIconSpacing"))
         #expect(enchantedQtRuntime.contains("secondaryButtonVerticalPadding: EnchantedVisualMetrics.secondaryButtonVerticalPadding"))
         #expect(enchantedQtRuntime.contains("secondaryButtonHorizontalPadding: EnchantedVisualMetrics.secondaryButtonHorizontalPadding"))
         #expect(enchantedQtRuntime.contains("secondaryButtonRadius: EnchantedVisualMetrics.secondaryButtonRadius"))

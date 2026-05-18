@@ -59,7 +59,7 @@ available_memory_mib() {
     )"
     pages_available="$(
       awk -F: '
-        /^Pages free:/ || /^Pages speculative:/ || /^Pages purgeable:/ {
+        /^Pages free:/ || /^Pages speculative:/ || /^Pages purgeable:/ || /^Pages inactive:/ {
           value = $2
           gsub(/[^0-9]/, "", value)
           total += value

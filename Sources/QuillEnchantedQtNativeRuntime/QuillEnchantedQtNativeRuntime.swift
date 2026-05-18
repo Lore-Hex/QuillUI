@@ -282,10 +282,13 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var promptButtonWidth: Int
         var promptButtonPadding: Int
         var promptButtonRadius: Int
+        var primaryButtonPadding: Int
         var primaryButtonVerticalPadding: Int
         var primaryButtonHorizontalPadding: Int
         var primaryButtonRadius: Int
+        var primaryButtonIconSpacing: Int
         var actionButtonIconSize: Int
+        var actionButtonIconSpacing: Int
         var secondaryButtonVerticalPadding: Int
         var secondaryButtonHorizontalPadding: Int
         var secondaryButtonRadius: Int
@@ -484,10 +487,13 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             promptButtonWidth: EnchantedVisualMetrics.promptButtonWidth,
             promptButtonPadding: EnchantedVisualMetrics.promptButtonPadding,
             promptButtonRadius: EnchantedVisualMetrics.promptButtonRadius,
+            primaryButtonPadding: EnchantedVisualMetrics.primaryButtonPadding,
             primaryButtonVerticalPadding: EnchantedVisualMetrics.primaryButtonVerticalPadding,
             primaryButtonHorizontalPadding: EnchantedVisualMetrics.primaryButtonHorizontalPadding,
             primaryButtonRadius: EnchantedVisualMetrics.primaryButtonRadius,
+            primaryButtonIconSpacing: EnchantedVisualMetrics.primaryButtonIconSpacing,
             actionButtonIconSize: EnchantedVisualMetrics.actionButtonIconSize,
+            actionButtonIconSpacing: EnchantedVisualMetrics.actionButtonIconSpacing,
             secondaryButtonVerticalPadding: EnchantedVisualMetrics.secondaryButtonVerticalPadding,
             secondaryButtonHorizontalPadding: EnchantedVisualMetrics.secondaryButtonHorizontalPadding,
             secondaryButtonRadius: EnchantedVisualMetrics.secondaryButtonRadius,
