@@ -145,6 +145,38 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/ReadingAloudView.swift"),
             encoding: .utf8
         )
+        let upstreamCodeBlockView = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/ChatMessages/CodeBlockView.swift"),
+            encoding: .utf8
+        )
+        let upstreamRecorderView = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/Recorder/RecordingView.swift"),
+            encoding: .utf8
+        )
+        let upstreamOptionsMenuView = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/OptionsMenuView.swift"),
+            encoding: .utf8
+        )
+        let upstreamRemovableImage = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/RemovableImage.swift"),
+            encoding: .utf8
+        )
+        let upstreamModelSelectorView = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/ModelSelectorView.swift"),
+            encoding: .utf8
+        )
+        let upstreamMacOSChatView = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/Chat/ChatView_macOS.swift"),
+            encoding: .utf8
+        )
+        let upstreamMacOSToolbarView = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/Chat/Components/ToolbarView_macOS.swift"),
+            encoding: .utf8
+        )
+        let upstreamMacOSDragAndDrop = try String(
+            contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/Components/DragAndDrop.swift"),
+            encoding: .utf8
+        )
         let upstreamCompletionPanel = try String(
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/Components/CompletionPanelView.swift"),
             encoding: .utf8
@@ -230,6 +262,19 @@ struct CoreContractMatrixTests {
         ] {
             expectContains(upstreamReadingAloudView, needle)
         }
+        expectContains(upstreamCodeBlockView, "Image(systemName: \"doc.on.doc\")")
+        for needle in [
+            "Image(systemName: \"square.fill\")",
+            "Image(systemName: \"waveform\")"
+        ] {
+            expectContains(upstreamRecorderView, needle)
+        }
+        expectContains(upstreamOptionsMenuView, "Image(systemName: \"ellipsis\")")
+        expectContains(upstreamRemovableImage, "Image(systemName: \"x.circle.fill\")")
+        expectContains(upstreamModelSelectorView, "Image(systemName: \"chevron.down\")")
+        expectContains(upstreamMacOSChatView, "Image(systemName: \"sidebar.left\")")
+        expectContains(upstreamMacOSToolbarView, "Image(systemName: \"square.and.pencil\")")
+        expectContains(upstreamMacOSDragAndDrop, "Image(systemName: \"photo\")")
         expectContains(upstreamCompletionPanel, "Image(systemName: \"space\")")
         expectContains(upstreamSettings, "Label(\"Vibrations\", systemImage: \"water.waves\")")
         expectContains(upstreamSettings, "Label(\"Appearance\", systemImage: \"sun.max\")")
