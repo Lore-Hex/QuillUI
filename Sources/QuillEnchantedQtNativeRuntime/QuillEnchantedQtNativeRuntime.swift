@@ -633,7 +633,9 @@ private enum QuillEnchantedQtActionBridge {
                 try context.deleteAllConversations()
                 status = EnchantedCopy.historyClearedStatus
             case "sendMessage":
-                let attachments = try imageAttachments(from: request.attachmentPaths ?? [])
+                let effectiveSelectedModel = selectedModel?.quillTrimmedNonEmpty ?? models.first?.quillTrimmedNonEmpty ?? ""
+                let selectedModelAllowsAttachments = models.contains(effectiveSelectedModel) && effectiveSelectedModel.quillLikelySupportsImages
+                let attachments = selectedModelAllowsAttachments ? try imageAttachments(from: request.attachmentPaths ?? []) : []
                 guard let messageText = request.messageText?.quillTrimmedNonEmpty
                     ?? (attachments.isEmpty ? nil : PendingImageAttachment.defaultPrompt(for: attachments))
                 else {
@@ -646,7 +648,7 @@ private enum QuillEnchantedQtActionBridge {
                     attachments: attachments,
                     selectedConversationID: selectedConversationID,
                     endpoint: endpoint,
-                    selectedModel: selectedModel?.quillTrimmedNonEmpty ?? models.first?.quillTrimmedNonEmpty ?? "",
+                    selectedModel: effectiveSelectedModel,
                     context: context
                 )
                 selectedConversationID = sendResult.conversationID

@@ -510,6 +510,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedRootView.swift"),
             encoding: .utf8
         )
+        let enchantedModelSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedModel.swift"),
+            encoding: .utf8
+        )
         let macOSMarkdownRendering = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/MarkdownRendering.swift"),
             encoding: .utf8
@@ -1681,7 +1685,10 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "private var hasAttachmentPathCandidates: Bool")
         expectContains(macOSRootView, "PendingImageAttachment.attachmentPathCandidates(from: model.attachmentPath)")
         expectContains(macOSRootView, "private var selectedModelSupportsImages: Bool")
-        expectContains(macOSRootView, "?.name.quillLikelySupportsImages ?? false")
+        expectContains(macOSRootView, "model.selectedModelSupportsImages")
+        expectContains(enchantedModelSource, "public var selectedModelSupportsImages: Bool")
+        expectContains(enchantedModelSource, "models.first(where: { $0.name == selectedModel })?.name.quillLikelySupportsImages ?? false")
+        expectContains(enchantedModelSource, "guard selectedModelSupportsImages else { return false }")
         expectContains(macOSRootView, "Text(model.isLoading ? EnchantedCopy.stopTitle : EnchantedCopy.sendTitle)")
         expectContains(macOSRootView, ".background(model.isLoading ? QuillColors.warning : QuillColors.primary)")
         expectContains(macOSRootView, ".dropDestination(for: URL.self)")
@@ -1893,6 +1900,8 @@ struct CoreContractMatrixTests {
         expectContains(runtime, "var selectedModelSupportsImages: Bool")
         expectContains(runtime, "selectedModelSupportsImages: EnchantedPreviewFixture.selectedModel.quillLikelySupportsImages")
         expectContains(runtime, "snapshot.selectedModelSupportsImages = snapshot.models.contains(snapshot.selectedModel) && snapshot.selectedModel.quillLikelySupportsImages")
+        expectContains(runtime, "let selectedModelAllowsAttachments = models.contains(effectiveSelectedModel) && effectiveSelectedModel.quillLikelySupportsImages")
+        expectContains(runtime, "let attachments = selectedModelAllowsAttachments ? try imageAttachments(from: request.attachmentPaths ?? []) : []")
         expectContains(nativeShim, "bool modelLikelySupportsImages(const QString &modelName)")
         expectContains(nativeShim, "bool selectedModelSupportsImages(QComboBox *modelPicker, const QJsonObject &payload)")
         expectContains(nativeShim, "const bool hasPendingAttachments = !pendingAttachmentPaths.isEmpty()")

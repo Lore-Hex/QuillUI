@@ -1,4 +1,5 @@
 import Foundation
+import QuillEnchantedData
 import Testing
 @testable import QuillEnchantedCore
 
@@ -122,6 +123,39 @@ struct ImageAttachmentTests {
         #expect(try attachment.base64EncodedContent() == "iVA=")
     }
 
+    @Test("gates pending attachments by selected model image support")
+    @MainActor
+    func gatesPendingAttachmentsBySelectedModelImageSupport() throws {
+        let url = try temporaryFile(name: "sample.png", bytes: [0x89, 0x50, 0x4E, 0x47])
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let storeURL = temporarySQLiteURL()
+        defer { try? FileManager.default.removeItem(at: storeURL) }
+        let model = EnchantedModel(
+            endpoint: "http://localhost:11434",
+            modelContext: try EnchantedModelContext.quillData(url: storeURL)
+        )
+        model.models = [
+            OllamaModel(name: "llama3"),
+            OllamaModel(name: "llava:latest")
+        ]
+
+        model.selectModel(named: "llama3")
+        model.attachmentPath = url.path
+        #expect(!model.selectedModelSupportsImages)
+        #expect(!model.addAttachmentPath())
+        #expect(model.pendingImageAttachments.isEmpty)
+        #expect(model.attachmentPath == url.path)
+
+        model.selectModel(named: "llava:latest")
+        #expect(model.selectedModelSupportsImages)
+        #expect(model.addAttachmentPath())
+        #expect(model.pendingImageAttachments.map(\.filename) == ["sample.png"])
+        #expect(model.attachmentPath.isEmpty)
+
+        model.selectModel(named: "llama3")
+        #expect(model.pendingImageAttachments.isEmpty)
+    }
+
     private func temporaryDirectory() throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -134,5 +168,11 @@ struct ImageAttachmentTests {
         let url = directory.appendingPathComponent(name)
         try Data(bytes).write(to: url)
         return url
+    }
+
+    private func temporarySQLiteURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("sqlite")
     }
 }

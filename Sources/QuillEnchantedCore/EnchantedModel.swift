@@ -18,6 +18,10 @@ public final class EnchantedModel: ObservableObject {
     @Published public var status: String = EnchantedCopy.readyStatus
     @Published public var isLoading: Bool = false
 
+    public var selectedModelSupportsImages: Bool {
+        models.first(where: { $0.name == selectedModel })?.name.quillLikelySupportsImages ?? false
+    }
+
     private let modelContext: EnchantedModelContext?
     private var generationTask: Task<Void, Never>?
     private var didBoot = false
@@ -75,11 +79,14 @@ public final class EnchantedModel: ObservableObject {
             let fetched = try await client.fetchModels()
             models = fetched
             if selectedModel.isEmpty || !fetched.contains(where: { $0.name == selectedModel }) {
-                selectedModel = fetched.first?.name ?? ""
+                selectModel(named: fetched.first?.name)
+            } else {
+                discardUnsupportedImageAttachmentsIfNeeded()
             }
             status = fetched.isEmpty ? EnchantedCopy.noOllamaModelsStatus : EnchantedCopy.connectedStatus
         } catch {
             models = []
+            discardUnsupportedImageAttachmentsIfNeeded()
             status = EnchantedCopy.startOllamaStatus
         }
     }
@@ -112,6 +119,7 @@ public final class EnchantedModel: ObservableObject {
 
     public func selectModel(named modelName: String?) {
         selectedModel = modelName ?? ""
+        discardUnsupportedImageAttachmentsIfNeeded()
     }
 
     public func startSend(
@@ -195,7 +203,7 @@ public final class EnchantedModel: ObservableObject {
     }
 
     private func takeComposerDraft() -> (prompt: String, attachments: [PendingImageAttachment])? {
-        let attachments = pendingImageAttachments
+        let attachments = selectedModelSupportsImages ? pendingImageAttachments : []
         guard let prompt = composerText.quillTrimmedNonEmpty ?? (attachments.isEmpty ? nil : PendingImageAttachment.defaultPrompt(for: attachments)) else {
             return nil
         }
@@ -219,6 +227,8 @@ public final class EnchantedModel: ObservableObject {
 
     @discardableResult
     public func addAttachments(urls: [URL]) -> Bool {
+        guard selectedModelSupportsImages else { return false }
+
         var accepted = false
         var lastError: String?
 
@@ -255,6 +265,13 @@ public final class EnchantedModel: ObservableObject {
         pendingImageAttachments = []
         attachmentPath = ""
         status = EnchantedCopy.attachmentsClearedStatus
+    }
+
+    private func discardUnsupportedImageAttachmentsIfNeeded() {
+        guard !selectedModelSupportsImages else { return }
+        pendingImageAttachments = []
+        attachmentPath = ""
+        isAttachmentDropTargeted = false
     }
 
     public func send(

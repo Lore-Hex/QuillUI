@@ -313,7 +313,7 @@ public struct EnchantedRootView: View {
     }
 
     private var selectedModelSupportsImages: Bool {
-        model.models.first(where: { $0.name == model.selectedModel })?.name.quillLikelySupportsImages ?? false
+        model.selectedModelSupportsImages
     }
 
     private var sendDisabled: Bool {
