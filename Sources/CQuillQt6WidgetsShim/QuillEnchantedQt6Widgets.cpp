@@ -1330,6 +1330,9 @@ void addPromptCards(
         QPushButton *button = new QPushButton();
         button->setObjectName(QStringLiteral("promptButton"));
         button->setAccessibleName(prompt);
+        button->setAccessibleDescription(prompt);
+        button->setToolTip(prompt);
+        button->setStatusTip(prompt);
         button->setMinimumHeight(promptButtonMinHeight);
         button->setFixedWidth(promptButtonWidth);
         QHBoxLayout *buttonLayout = new QHBoxLayout(button);
