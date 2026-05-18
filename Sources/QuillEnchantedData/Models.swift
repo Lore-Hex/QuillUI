@@ -59,6 +59,22 @@ public struct OllamaModel: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
+private let quillLikelyImageModelNameNeedles = [
+    "llava",
+    "vision",
+    "bakllava",
+    "moondream",
+    "minicpm-v",
+    "qwen2.5vl",
+    "qwen2.5-vl",
+    "qwen2-vl",
+    "qwen3-vl",
+    "qwen-vl",
+    "medgemma",
+    "mistral-small3.1",
+    "mistral-small3.2"
+]
+
 public extension String {
     var quillTrimmedNonEmpty: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
@@ -66,8 +82,9 @@ public extension String {
     }
 
     var quillLikelySupportsImages: Bool {
-        let lowercasedName = lowercased()
-        return ["llava", "vision", "bakllava", "moondream", "minicpm-v"].contains { lowercasedName.contains($0) }
+        let lowercasedName = trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return lowercasedName.quillLikelyIsVisionGemma3Model
+            || quillLikelyImageModelNameNeedles.contains { lowercasedName.contains($0) }
     }
 
     func quillTitle(maxLength: Int = 44) -> String {
@@ -77,5 +94,14 @@ public extension String {
         if trimmed.count <= maxLength { return trimmed }
         let prefixLength = max(1, maxLength - 3)
         return String(trimmed.prefix(prefixLength)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private var quillLikelyIsVisionGemma3Model: Bool {
+        guard self == "gemma3" || hasPrefix("gemma3:") else { return false }
+        let components = split(separator: ":", maxSplits: 1)
+        guard components.count == 2 else { return true }
+        let tag = components[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tag.isEmpty else { return true }
+        return tag == "latest" || tag.hasPrefix("4b") || tag.hasPrefix("12b") || tag.hasPrefix("27b")
     }
 }

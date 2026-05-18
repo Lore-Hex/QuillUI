@@ -15,6 +15,11 @@ struct CoreContractMatrixTests {
         #expect(title.count <= 32)
     }
 
+    @Test("detects image-capable Ollama model families", arguments: imageModelSupportCases)
+    func imageModelSupportContracts(testCase: ModelImageSupportCase) {
+        #expect(testCase.modelName.quillLikelySupportsImages == testCase.supportsImages)
+    }
+
     @Test("cleans inline markdown markers", arguments: inlineCases)
     func inlineMarkdownContracts(testCase: TextCase) {
         #expect(MarkdownParser.cleanInline(testCase.input) == testCase.expected)
@@ -1903,6 +1908,9 @@ struct CoreContractMatrixTests {
         expectContains(runtime, "let selectedModelAllowsAttachments = models.contains(effectiveSelectedModel) && effectiveSelectedModel.quillLikelySupportsImages")
         expectContains(runtime, "let attachments = selectedModelAllowsAttachments ? try imageAttachments(from: request.attachmentPaths ?? []) : []")
         expectContains(nativeShim, "bool modelLikelySupportsImages(const QString &modelName)")
+        expectContains(nativeShim, "likelyVisionGemma3Model")
+        expectContains(nativeShim, "lowercasedName.contains(QStringLiteral(\"qwen3-vl\"))")
+        expectContains(nativeShim, "lowercasedName.contains(QStringLiteral(\"mistral-small3.2\"))")
         expectContains(nativeShim, "bool selectedModelSupportsImages(QComboBox *modelPicker, const QJsonObject &payload)")
         expectContains(nativeShim, "const bool hasPendingAttachments = !pendingAttachmentPaths.isEmpty()")
         expectContains(nativeShim, "bool hasAttachmentPathCandidates(const QLineEdit *field)")
@@ -2095,6 +2103,11 @@ struct ImageExtensionCase: Sendable {
     var mediaType: String
 }
 
+struct ModelImageSupportCase: Sendable {
+    var modelName: String
+    var supportsImages: Bool
+}
+
 struct PathCase: Sendable {
     var rawPath: String
     var expectedSuffix: String
@@ -2114,6 +2127,24 @@ private let titleInputs: [String] = [
 ] + (0..<90).map { index in
     "  Generated title case \(index)\nwith continuation text that is intentionally long enough to trim  "
 }
+
+private let imageModelSupportCases: [ModelImageSupportCase] = [
+    ModelImageSupportCase(modelName: "llava:latest", supportsImages: true),
+    ModelImageSupportCase(modelName: "llama3.2-vision:latest", supportsImages: true),
+    ModelImageSupportCase(modelName: "qwen2.5vl:7b", supportsImages: true),
+    ModelImageSupportCase(modelName: "qwen2.5-vl:7b", supportsImages: true),
+    ModelImageSupportCase(modelName: "qwen3-vl:8b", supportsImages: true),
+    ModelImageSupportCase(modelName: "medgemma:4b", supportsImages: true),
+    ModelImageSupportCase(modelName: "mistral-small3.2:latest", supportsImages: true),
+    ModelImageSupportCase(modelName: "gemma3", supportsImages: true),
+    ModelImageSupportCase(modelName: "gemma3:latest", supportsImages: true),
+    ModelImageSupportCase(modelName: "gemma3:4b", supportsImages: true),
+    ModelImageSupportCase(modelName: "gemma3:12b", supportsImages: true),
+    ModelImageSupportCase(modelName: "gemma3:27b", supportsImages: true),
+    ModelImageSupportCase(modelName: "gemma3:1b", supportsImages: false),
+    ModelImageSupportCase(modelName: "gemma3:270m", supportsImages: false),
+    ModelImageSupportCase(modelName: "llama3.2:latest", supportsImages: false)
+]
 
 private let inlineCases: [TextCase] = [
     TextCase(input: "**bold**", expected: "bold"),

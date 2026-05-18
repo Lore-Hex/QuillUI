@@ -875,12 +875,37 @@ QJsonArray currentModelList(QComboBox *modelPicker) {
 }
 
 bool modelLikelySupportsImages(const QString &modelName) {
-    const QString lowercasedName = modelName.toLower();
-    return lowercasedName.contains(QStringLiteral("llava"))
+    const QString lowercasedName = modelName.trimmed().toLower();
+    const QString gemma3Prefix = QStringLiteral("gemma3:");
+    const QString gemma3Tag = lowercasedName.startsWith(gemma3Prefix)
+        ? lowercasedName.mid(gemma3Prefix.size()).trimmed()
+        : QString();
+    const bool likelyVisionGemma3Model = lowercasedName == QStringLiteral("gemma3")
+        || (
+            lowercasedName.startsWith(gemma3Prefix)
+            && (
+                gemma3Tag.isEmpty()
+                || gemma3Tag == QStringLiteral("latest")
+                || gemma3Tag.startsWith(QStringLiteral("4b"))
+                || gemma3Tag.startsWith(QStringLiteral("12b"))
+                || gemma3Tag.startsWith(QStringLiteral("27b"))
+            )
+        );
+
+    return likelyVisionGemma3Model
+        || lowercasedName.contains(QStringLiteral("llava"))
         || lowercasedName.contains(QStringLiteral("vision"))
         || lowercasedName.contains(QStringLiteral("bakllava"))
         || lowercasedName.contains(QStringLiteral("moondream"))
-        || lowercasedName.contains(QStringLiteral("minicpm-v"));
+        || lowercasedName.contains(QStringLiteral("minicpm-v"))
+        || lowercasedName.contains(QStringLiteral("qwen2.5vl"))
+        || lowercasedName.contains(QStringLiteral("qwen2.5-vl"))
+        || lowercasedName.contains(QStringLiteral("qwen2-vl"))
+        || lowercasedName.contains(QStringLiteral("qwen3-vl"))
+        || lowercasedName.contains(QStringLiteral("qwen-vl"))
+        || lowercasedName.contains(QStringLiteral("medgemma"))
+        || lowercasedName.contains(QStringLiteral("mistral-small3.1"))
+        || lowercasedName.contains(QStringLiteral("mistral-small3.2"));
 }
 
 bool selectedModelSupportsImages(QComboBox *modelPicker, const QJsonObject &payload) {
