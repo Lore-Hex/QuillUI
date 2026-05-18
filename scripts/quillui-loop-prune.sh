@@ -5,6 +5,7 @@ ROOT_DIR="${QUILLUI_LOOP_PRUNE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." &&
 DRY_RUN="${QUILLUI_LOOP_PRUNE_DRY_RUN:-1}"
 MAX_DAYS="${QUILLUI_LOOP_PRUNE_MAX_DAYS:-7}"
 INCLUDE_BUILD_CACHE="${QUILLUI_LOOP_PRUNE_INCLUDE_BUILD_CACHE:-0}"
+REPORT_USAGE="${QUILLUI_LOOP_PRUNE_REPORT_USAGE:-1}"
 PRUNED_COUNT=0
 
 require_unsigned_integer() {
@@ -75,6 +76,32 @@ prune_empty_dirs() {
   done < <(find "$base" -mindepth 1 -depth -type d -empty -mtime +"$MAX_DAYS" -print0)
 }
 
+report_path_usage() {
+  local path="$1"
+  local usage
+
+  [[ -e "$path" ]] || return 0
+
+  usage="$(du -sh "$path" 2>/dev/null | awk '{ print $1 }')" || return 0
+  [[ -n "$usage" ]] || return 0
+
+  echo "quillui loop prune usage: $usage $path"
+}
+
+report_scoped_disk_usage() {
+  [[ "$REPORT_USAGE" == "1" ]] || return 0
+
+  for scoped_path in \
+    "$ROOT_DIR/.qa" \
+    "$ROOT_DIR/.build-codex-loop" \
+    "$ROOT_DIR/.build-linux-vm-loop" \
+    "$ROOT_DIR/.build-linux-qt" \
+    "$ROOT_DIR/.build/artifacts"
+  do
+    report_path_usage "$scoped_path"
+  done
+}
+
 prune_all_files_older_than() {
   local base="$1"
 
@@ -103,7 +130,10 @@ prune_matching_files_older_than() {
 require_unsigned_integer "$MAX_DAYS" "QUILLUI_LOOP_PRUNE_MAX_DAYS"
 require_boolean "$DRY_RUN" "QUILLUI_LOOP_PRUNE_DRY_RUN"
 require_boolean "$INCLUDE_BUILD_CACHE" "QUILLUI_LOOP_PRUNE_INCLUDE_BUILD_CACHE"
+require_boolean "$REPORT_USAGE" "QUILLUI_LOOP_PRUNE_REPORT_USAGE"
 require_repo_root
+
+report_scoped_disk_usage
 
 prune_matching_files_older_than \
   "$ROOT_DIR/.qa" \
