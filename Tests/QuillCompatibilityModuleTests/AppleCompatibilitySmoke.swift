@@ -23,6 +23,9 @@ enum AppleCompatibilitySmoke {
         var pasteboardWriteObjectsItemsRoundTrip: Bool
         var pasteboardWriteObjectsDataRoundTrip: Bool
         var pasteboardClearResetsItems: Bool
+        var pasteboardDeclareTypesRoundTrip: Bool
+        var pasteboardDeclareTypesClearsOldTypes: Bool
+        var pasteboardDeclareTypesChangeCount: Bool
         var uiPasteboardString: String?
         var imagesRoundTrip: Bool
         var speechStopSucceeded: Bool
@@ -85,6 +88,20 @@ enum AppleCompatibilitySmoke {
             itemPasteboard.string(forType: .string) == nil &&
             itemPasteboard.data(forType: .png) == nil
 
+        let declaredPasteboard = NSPasteboard(name: .init(rawValue: "quill.compat.declared.\(UUID().uuidString)"))
+        _ = declaredPasteboard.setString("stale", forType: .string)
+        let previousChangeCount = declaredPasteboard.changeCount
+        let declaredChangeCount = declaredPasteboard.declareTypes([.png, .html], owner: nil)
+        let pasteboardDeclareTypesRoundTrip =
+            declaredPasteboard.types() == [.png, .html] &&
+            declaredPasteboard.pasteboardItems == nil
+        let pasteboardDeclareTypesClearsOldTypes =
+            declaredPasteboard.string(forType: .string) == nil &&
+            declaredPasteboard.data(forType: .string) == nil
+        let pasteboardDeclareTypesChangeCount = declaredChangeCount > previousChangeCount
+        _ = declaredPasteboard.setData(Data([0x01, 0x02, 0x03]), forType: .png)
+        let pasteboardDeclareTypesRetainedAfterData = declaredPasteboard.types() == [.png, .html]
+
         let imageData = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==")!
         let nsImageTIFF = NSImage(data: imageData)?.tiffRepresentation
         let nsImageTranscoded = nsImageTIFF.map { data in
@@ -125,6 +142,9 @@ enum AppleCompatibilitySmoke {
             pasteboardWriteObjectsItemsRoundTrip: pasteboardWriteObjectsItemsRoundTrip,
             pasteboardWriteObjectsDataRoundTrip: pasteboardWriteObjectsDataRoundTrip,
             pasteboardClearResetsItems: pasteboardClearResetsItems,
+            pasteboardDeclareTypesRoundTrip: pasteboardDeclareTypesRoundTrip && pasteboardDeclareTypesRetainedAfterData,
+            pasteboardDeclareTypesClearsOldTypes: pasteboardDeclareTypesClearsOldTypes,
+            pasteboardDeclareTypesChangeCount: pasteboardDeclareTypesChangeCount,
             uiPasteboardString: UIPasteboard.general.string,
             imagesRoundTrip: imagesRoundTrip,
             speechStopSucceeded: synthesizer.stopSpeaking(at: .immediate),

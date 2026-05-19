@@ -821,10 +821,12 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
     }
 
     public var pasteboardItems: [NSPasteboardItem]? = nil
+    private var declaredTypes: [PasteboardType]? = nil
 
     @discardableResult
     public func clearContents() -> Int {
         pasteboardItems = nil
+        declaredTypes = nil
         _writeClipboardString("")
         _clearFileBackedTypes()
         _bumpChangeCount()
@@ -836,6 +838,7 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
         let item = NSPasteboardItem()
         item.setString(s, forType: type)
         pasteboardItems = [item]
+        _rememberDeclaredType(type)
 
         guard type == .string else {
             _writeFileBacked(type: type, data: Data(s.utf8))
@@ -853,6 +856,7 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
         let item = NSPasteboardItem()
         item.setData(d, forType: type)
         pasteboardItems = [item]
+        _rememberDeclaredType(type)
 
         if type == .string, let s = String(data: d, encoding: .utf8) {
             _writeClipboardString(s)
@@ -877,6 +881,9 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
     }
 
     public func types() -> [PasteboardType]? {
+        if let declaredTypes, !declaredTypes.isEmpty {
+            return declaredTypes
+        }
         if let pasteboardItems, !pasteboardItems.isEmpty {
             return _types(from: pasteboardItems)
         }
@@ -886,7 +893,15 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
     }
 
     @discardableResult
-    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int { 0 }
+    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int {
+        pasteboardItems = nil
+        declaredTypes = types
+        _writeClipboardString("")
+        _clearFileBackedTypes()
+        _bumpChangeCount()
+        return changeCount
+    }
+
     public func writeObjects(_ objs: [Any]) -> Bool {
         var items: [NSPasteboardItem] = []
         var wroteAnyType = false
@@ -914,6 +929,7 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
 
         if !items.isEmpty {
             pasteboardItems = items
+            declaredTypes = nil
         }
         if wroteAnyType {
             _bumpChangeCount()
@@ -973,6 +989,13 @@ private extension NSPasteboard {
             }
         }
         return ordered
+    }
+    func _rememberDeclaredType(_ type: PasteboardType) {
+        guard var currentDeclaredTypes = declaredTypes else { return }
+        if !currentDeclaredTypes.contains(type) {
+            currentDeclaredTypes.append(type)
+            declaredTypes = currentDeclaredTypes
+        }
     }
     func _writeClipboardString(_ s: String) {
         // Tier 1: Wayland
