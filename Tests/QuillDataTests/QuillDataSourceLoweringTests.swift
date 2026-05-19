@@ -1739,6 +1739,7 @@ struct QuillDataSourceLoweringTests {
         let patchedSymbols = try String(contentsOf: symbols, encoding: .utf8)
         let expectedGTKSymbols = [
             "\"arrow.forward.circle.fill\"",
+            "\"checkmark.seal.fill\"",
             "\"doc.on.doc\"",
             "\"ellipsis.circle\"",
             "\"folder\"",
@@ -1747,8 +1748,10 @@ struct QuillDataSourceLoweringTests {
             "\"gearshape\"",
             "\"gearshape.fill\"",
             "\"keyboard.fill\"",
+            "\"lock.shield\"",
             "\"paperclip\"",
             "\"paperplane.fill\"",
+            "\"shield.lefthalf.filled\"",
             "\"square.fill\"",
             "\"textformat.abc\"",
             "\"waveform\"",

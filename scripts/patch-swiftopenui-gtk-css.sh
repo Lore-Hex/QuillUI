@@ -3323,7 +3323,7 @@ PY
 
 if ! grep -Fq '"textformat.abc"' "$SYMBOLS"; then
   perl -0pi \
-    -e 's/(        "calendar":\s+"calendar_today",\n)/$1        "character.cursor.ibeam": "text_fields",\n        "checkmark.square.fill":  "check_box",\n        "doc.on.doc":             "content_copy",\n        "ellipsis.circle":        "more_horiz",\n        "folder":                 "folder",\n        "folder.badge.plus":      "create_new_folder",\n        "folder.fill":            "folder",\n        "gearshape":              "settings",\n        "gearshape.fill":         "settings",\n        "keyboard":               "keyboard",\n        "keyboard.fill":          "keyboard",\n        "lightbulb":              "lightbulb",\n        "lightbulb.circle":       "lightbulb",\n        "lightbulb.circle.fill":  "lightbulb",\n        "line.3.horizontal":      "menu",\n/;' \
+    -e 's/(        "calendar":\s+"calendar_today",\n)/$1        "character.cursor.ibeam": "text_fields",\n        "checkmark.seal.fill":    "verified",\n        "checkmark.square.fill":  "check_box",\n        "doc.on.doc":             "content_copy",\n        "ellipsis.circle":        "more_horiz",\n        "folder":                 "folder",\n        "folder.badge.plus":      "create_new_folder",\n        "folder.fill":            "folder",\n        "gearshape":              "settings",\n        "gearshape.fill":         "settings",\n        "keyboard":               "keyboard",\n        "keyboard.fill":          "keyboard",\n        "lightbulb":              "lightbulb",\n        "lightbulb.circle":       "lightbulb",\n        "lightbulb.circle.fill":  "lightbulb",\n        "line.3.horizontal":      "menu",\n        "lock.shield":            "shield_lock",\n        "shield.lefthalf.filled": "shield",\n/;' \
     -e 's/(        "pencil":\s+"edit",\n)/$1        "arrow.forward.circle.fill": "arrow_circle_right",\n        "paperclip":             "attach_file",\n        "paperplane.fill":       "send",\n/;' \
     -e 's/(        "plus.circle.fill":\s+"add_circle",\n)/$1        "photo":                 "image",\n        "photo.fill":            "image",\n/;' \
     -e 's/(        "square.and.arrow.up":\s+"share",\n)/$1        "selection.pin.in.out":  "select_all",\n        "space":                 "space_bar",\n        "sidebar.left":           "view_sidebar",\n        "speaker.slash.fill":    "volume_off",\n        "speaker.wave.2.fill":   "volume_up",\n        "speaker.wave.3":        "volume_up",\n        "speaker.wave.3.fill":   "volume_up",\n/;' \
@@ -3332,3 +3332,43 @@ if ! grep -Fq '"textformat.abc"' "$SYMBOLS"; then
     -e 's/(        "xmark.circle.fill":\s+"cancel",\n)/$1        "x.circle.fill":         "cancel",\n        "xmark":                 "cancel",\n/;' \
     "$SYMBOLS"
 fi
+
+python3 - "$SYMBOLS" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+required_symbols = [
+    ("checkmark.seal.fill", "verified", ["checkmark.circle.fill", "checkmark.square.fill", "calendar"]),
+    ("lock.shield", "shield_lock", ["lock.fill", "lock", "line.3.horizontal", "calendar"]),
+    ("shield.lefthalf.filled", "shield", ["lock.shield", "lock.open", "line.3.horizontal", "calendar"]),
+]
+
+
+def entry(sf_name: str, material_name: str) -> str:
+    key = f'"{sf_name}":'
+    return f'        {key:<28}"{material_name}",\n'
+
+
+def add_symbol(source: str, sf_name: str, material_name: str, anchors: list[str]) -> str:
+    if f'"{sf_name}"' in source:
+        return source
+    for anchor in anchors:
+        match = re.search(rf'(?m)^\s*"{re.escape(anchor)}":\s+"[^"]+",\n', source)
+        if match:
+            return source[:match.end()] + entry(sf_name, material_name) + source[match.end():]
+    marker = "    ]"
+    index = source.rfind(marker)
+    if index == -1:
+        raise SystemExit("SwiftOpenUI symbol compatibility map closing bracket was not recognized")
+    return source[:index] + entry(sf_name, material_name) + source[index:]
+
+
+for sf_name, material_name, anchors in required_symbols:
+    text = add_symbol(text, sf_name, material_name, anchors)
+
+path.write_text(text)
+PY
