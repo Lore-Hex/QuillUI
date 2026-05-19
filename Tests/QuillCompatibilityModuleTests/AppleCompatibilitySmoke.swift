@@ -22,6 +22,7 @@ enum AppleCompatibilitySmoke {
         var pasteboardItemTypesRoundTrip: Bool
         var pasteboardWriteObjectsItemsRoundTrip: Bool
         var pasteboardWriteObjectsDataRoundTrip: Bool
+        var pasteboardReadObjectsRoundTrip: Bool
         var pasteboardClearResetsItems: Bool
         var pasteboardSetStringClearsOldData: Bool
         var pasteboardWriteObjectsClearsOldData: Bool
@@ -89,6 +90,13 @@ enum AppleCompatibilitySmoke {
         let itemPasteboardAvailableTypeOrder =
             itemPasteboard.availableType(from: [.html, .png]) == .html &&
             itemPasteboard.availableType(from: [.pdf]) == nil
+        let readPasteboardString = itemPasteboard.readObjects(forClasses: [NSString.self], options: nil)?.first as? String
+        let readPasteboardItem = itemPasteboard.readObjects(forClasses: [NSPasteboardItem.self], options: nil)?.first as? NSPasteboardItem
+        let pasteboardReadObjectsItems =
+            readPasteboardString == "item text" &&
+            readPasteboardItem?.string(forType: .string) == "item text" &&
+            itemPasteboard.canReadObject(forClasses: [NSString.self], options: nil) &&
+            itemPasteboard.canReadObject(forClasses: [NSPasteboardItem.self], options: nil)
         _ = itemPasteboard.clearContents()
         let pasteboardClearResetsItems =
             itemPasteboard.pasteboardItems == nil &&
@@ -129,6 +137,18 @@ enum AppleCompatibilitySmoke {
             itemPasteboardAvailableTypeOrder &&
             declaredPasteboard.availableType(from: [.html, .png]) == .html &&
             replacementPasteboard.availableType(from: [.png, .string]) == .string
+
+        let urlPasteboard = NSPasteboard(name: .init(rawValue: "quill.compat.url.\(UUID().uuidString)"))
+        _ = urlPasteboard.setString("https://example.com/upload", forType: .URL)
+        let readURL = urlPasteboard.readObjects(forClasses: [NSURL.self], options: nil)?.first as? NSURL
+        let fileURLPasteboard = NSPasteboard(name: .init(rawValue: "quill.compat.file-url.\(UUID().uuidString)"))
+        _ = fileURLPasteboard.setString("file:///tmp/quill-read-object.txt", forType: .fileURL)
+        let readFileURL = fileURLPasteboard.readObjects(forClasses: [NSURL.self], options: nil)?.first as? NSURL
+        let pasteboardReadObjectsURL =
+            readURL?.absoluteString == "https://example.com/upload" &&
+            readFileURL?.isFileURL == true &&
+            fileURLPasteboard.canReadObject(forClasses: [NSURL.self], options: nil)
+        let pasteboardReadObjectsRoundTrip = pasteboardReadObjectsItems && pasteboardReadObjectsURL
 
         #if os(Linux)
         let lazyOwner = LazyPasteboardOwner()
@@ -181,6 +201,7 @@ enum AppleCompatibilitySmoke {
             pasteboardItemTypesRoundTrip: pasteboardItem.types == [.string, .png, .html],
             pasteboardWriteObjectsItemsRoundTrip: pasteboardWriteObjectsItemsRoundTrip,
             pasteboardWriteObjectsDataRoundTrip: pasteboardWriteObjectsDataRoundTrip,
+            pasteboardReadObjectsRoundTrip: pasteboardReadObjectsRoundTrip,
             pasteboardClearResetsItems: pasteboardClearResetsItems,
             pasteboardSetStringClearsOldData: pasteboardSetStringClearsOldData,
             pasteboardWriteObjectsClearsOldData: pasteboardWriteObjectsClearsOldData,

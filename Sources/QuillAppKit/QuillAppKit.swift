@@ -810,6 +810,8 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
     public struct PasteboardReadingOption: Hashable, RawRepresentable, Sendable {
         public var rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
+        public static let urlReadingFileURLsOnly = PasteboardReadingOption(rawValue: "NSPasteboardURLReadingFileURLsOnlyKey")
+        public static let urlReadingContentsConformToTypes = PasteboardReadingOption(rawValue: "NSPasteboardURLReadingContentsConformToTypesKey")
     }
 
     public static let general = NSPasteboard(name: .general)
@@ -987,17 +989,99 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
         return true
     }
     public func readObjects(forClasses classes: [AnyClass], options: [PasteboardReadingOption: Any]?) -> [Any]? {
-        guard let s = string(forType: .string) else { return nil }
-        return [s]
+        for objectClass in classes {
+            if objectClass == NSString.self, let string = _readStringObject() {
+                return [string]
+            }
+            if objectClass == NSURL.self, let url = _readURLObject(options: options) {
+                return [url]
+            }
+            if objectClass == NSPasteboardItem.self, let items = _readPasteboardItemObjects() {
+                return items
+            }
+        }
+        return nil
     }
     public func canReadObject(forClasses classes: [AnyClass], options: [PasteboardReadingOption: Any]?) -> Bool {
-        string(forType: .string) != nil
+        for objectClass in classes {
+            if objectClass == NSString.self, availableType(from: [.string]) != nil {
+                return true
+            }
+            if objectClass == NSURL.self, _availableURLType(options: options) != nil {
+                return true
+            }
+            if objectClass == NSPasteboardItem.self, let types = types(), !types.isEmpty {
+                return true
+            }
+        }
+        return false
     }
 }
 
 // MARK: NSPasteboard backing helpers (Linux)
 
 private extension NSPasteboard {
+    func _readStringObject() -> String? {
+        string(forType: .string)
+    }
+
+    func _readURLObject(options: [PasteboardReadingOption: Any]?) -> NSURL? {
+        guard let type = _availableURLType(options: options),
+              let value = string(forType: type)
+        else {
+            return nil
+        }
+
+        let url: URL?
+        if type == .fileURL || type == .backwardsCompatibleFileURL {
+            if let parsed = URL(string: value), parsed.isFileURL {
+                url = parsed
+            } else {
+                url = URL(fileURLWithPath: value)
+            }
+        } else {
+            url = URL(string: value)
+        }
+        return url.map { $0 as NSURL }
+    }
+
+    func _availableURLType(options: [PasteboardReadingOption: Any]?) -> PasteboardType? {
+        let fileURLsOnly = options?[.urlReadingFileURLsOnly].map(_truthy) ?? false
+        let urlTypes: [PasteboardType] = fileURLsOnly
+            ? [.fileURL, .backwardsCompatibleFileURL]
+            : [.fileURL, .backwardsCompatibleFileURL, .URL]
+        return availableType(from: urlTypes)
+    }
+
+    func _readPasteboardItemObjects() -> [NSPasteboardItem]? {
+        if let pasteboardItems, !pasteboardItems.isEmpty {
+            return pasteboardItems
+        }
+        guard let types = types(), !types.isEmpty else { return nil }
+
+        let item = NSPasteboardItem()
+        var capturedType = false
+        for type in types {
+            guard let data = data(forType: type) else { continue }
+            item.setData(data, forType: type)
+            capturedType = true
+        }
+        return capturedType ? [item] : nil
+    }
+
+    func _truthy(_ value: Any) -> Bool {
+        if let bool = value as? Bool {
+            return bool
+        }
+        if let number = value as? NSNumber {
+            return number.boolValue
+        }
+        if let string = value as? String {
+            return ["1", "true", "yes"].contains(string.lowercased())
+        }
+        return false
+    }
+
     func _stateDir() -> String {
         let base = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"]
             ?? NSTemporaryDirectory()
