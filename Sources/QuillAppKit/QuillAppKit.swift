@@ -2798,6 +2798,14 @@ open class NSSlider: NSControl {
     public enum TickMarkPosition: UInt, Sendable { case below, above, leading, trailing }
     public enum SliderType: UInt, Sendable { case linear, circular }
     public override init() { super.init() }
+    public convenience init(value: Double, minValue: Double, maxValue: Double, target: Any?, action: Selector?) {
+        self.init()
+        doubleValue = value
+        self.minValue = minValue
+        self.maxValue = maxValue
+        self.target = target as AnyObject?
+        self.action = action
+    }
 }
 
 open class NSStackView: NSView {

@@ -87,6 +87,7 @@ enum AppleCompatibilitySmoke {
         var labelInitializerPreservedLabelTraits: Bool
         var wrappingLabelInitializerPreservedWrappingTraits: Bool
         var stringInitializerPreservedEditableTraits: Bool
+        var sliderInitializerPreservedRangeTargetAndAction: Bool
     }
 
     struct AppKitPopUpButtonResult {
@@ -848,6 +849,15 @@ enum AppleCompatibilitySmoke {
             stringTextField.maximumNumberOfLines == 0 &&
             stringTextField.lineBreakMode == .byClipping
 
+        let slider = NSSlider(value: 4.5, minValue: 1, maxValue: 9, target: target, action: action)
+        let sliderInitializerPreservedRangeTargetAndAction =
+            slider.doubleValue == 4.5 &&
+            slider.minValue == 1 &&
+            slider.maxValue == 9 &&
+            slider.target === target &&
+            slider.action == action &&
+            slider.isEnabled
+
         return AppKitControlResult(
             stringValueUpdatedNumericAndObjectValues: stringValueUpdatedNumericAndObjectValues,
             numericValuesUpdatedStringAndObjectValues: numericValuesUpdatedStringAndObjectValues,
@@ -861,7 +871,8 @@ enum AppleCompatibilitySmoke {
             radioFactoryPreservedTargetActionAndTitle: radioFactoryPreservedTargetActionAndTitle,
             labelInitializerPreservedLabelTraits: labelInitializerPreservedLabelTraits,
             wrappingLabelInitializerPreservedWrappingTraits: wrappingLabelInitializerPreservedWrappingTraits,
-            stringInitializerPreservedEditableTraits: stringInitializerPreservedEditableTraits
+            stringInitializerPreservedEditableTraits: stringInitializerPreservedEditableTraits,
+            sliderInitializerPreservedRangeTargetAndAction: sliderInitializerPreservedRangeTargetAndAction
         )
     }
 

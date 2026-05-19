@@ -158,6 +158,7 @@ struct CompatibilityModuleTests {
         #expect(result.labelInitializerPreservedLabelTraits)
         #expect(result.wrappingLabelInitializerPreservedWrappingTraits)
         #expect(result.stringInitializerPreservedEditableTraits)
+        #expect(result.sliderInitializerPreservedRangeTargetAndAction)
     }
 
     @Test("AppKit pop-up buttons preserve menu selection state")
