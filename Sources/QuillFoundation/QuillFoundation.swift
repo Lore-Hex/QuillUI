@@ -123,7 +123,16 @@ public class RSImage: NSObject, @unchecked Sendable {
             message: "NSImage(named:) returns a blank placeholder image for '\(name)' on Linux; app assets are not loaded through AppKit yet."
         )
     }
-    public init?(systemName: String, withConfiguration: Any? = nil) {}
+    public init?(systemName: String, withConfiguration: Any? = nil) {
+        super.init()
+        self.size = CGSize(width: 1, height: 1)
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillFoundation",
+            operation: "NSImage(systemName:)",
+            severity: .warning,
+            message: "NSImage(systemName:) returns a blank placeholder image for '\(systemName)' on Linux; SF Symbol assets are not loaded through AppKit yet."
+        )
+    }
     public init(size: CGSize) {
         super.init()
         self.size = size

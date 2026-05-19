@@ -33,6 +33,7 @@ enum AppleCompatibilitySmoke {
     struct AppKitImageResult {
         var sizeRoundTrip: Bool
         var namedImagePlaceholder: Bool
+        var systemImagePlaceholder: Bool
         var bitmapRepresentationRoundTrip: Bool
         var windowTabbingRoundTrip: Bool
         var operations: Set<String>
@@ -184,6 +185,7 @@ enum AppleCompatibilitySmoke {
         image.unlockFocus()
 
         let namedImage = NSImage(named: "StatusBarIcon")
+        let systemImage = NSImage(systemName: "paperplane.fill")
         let encoded = Data([0xFF, 0xD8, 0xFF, 0xD9])
         let rep = NSBitmapImageRep(data: encoded)
         NSWindow.allowsAutomaticWindowTabbing = false
@@ -193,6 +195,7 @@ enum AppleCompatibilitySmoke {
         return AppKitImageResult(
             sizeRoundTrip: sizeRoundTrip,
             namedImagePlaceholder: namedImage?.size == CGSize(width: 1, height: 1),
+            systemImagePlaceholder: systemImage?.size == CGSize(width: 1, height: 1),
             bitmapRepresentationRoundTrip: rep?.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) == encoded,
             windowTabbingRoundTrip: windowTabbingRoundTrip,
             operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
