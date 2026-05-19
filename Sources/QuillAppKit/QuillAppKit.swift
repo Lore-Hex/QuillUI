@@ -2906,10 +2906,7 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     public enum Style: Int, Sendable { case automatic, fullWidth, inset, sourceList, plain }
 
     public func reloadData() {
-        numberOfRows = max(0, dataSource?.numberOfRows(in: self) ?? 0)
-        cachedRowViews.removeAll()
-        cachedCellViews.removeAll()
-        setSelectedRowIndexes(clampedRowIndexes(selectedRowIndexes), notify: false)
+        replaceLoadedRows(count: dataSource?.numberOfRows(in: self) ?? 0)
     }
 
     public func reloadData(forRowIndexes rowIndexes: IndexSet, columnIndexes: IndexSet) {
@@ -2932,7 +2929,7 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     public func selectRowIndexes(_ rowIndexes: IndexSet, byExtendingSelection: Bool) {
         var accepted = IndexSet()
         for row in rowIndexes where row >= 0 && row < numberOfRows {
-            guard delegate?.tableView(self, shouldSelectRow: row) ?? true else { continue }
+            guard shouldSelectRow(row) else { continue }
             accepted.insert(row)
             if !allowsMultipleSelection { break }
         }
@@ -2967,7 +2964,7 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
         if let rowView = cachedRowViews[row] {
             return rowView
         }
-        guard makeIfNecessary, let rowView = delegate?.tableView(self, rowViewForRow: row) else {
+        guard makeIfNecessary, let rowView = makeRowView(forRow: row) else {
             return nil
         }
         rowView.isSelected = selectedRowIndexes.contains(row)
@@ -2985,7 +2982,7 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
             return cached
         }
         guard makeIfNecessary else { return nil }
-        let view = delegate?.tableView(self, viewFor: tableColumns[column], row: row)
+        let view = makeCellView(forColumn: column, row: row)
         if let view {
             cachedCellViews[key] = view
         }
@@ -3089,7 +3086,7 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
             partial + tableColumn.width + intercellSpacing.width
         }
         let y = CGFloat(row) * (rowHeight + intercellSpacing.height)
-        let delegateHeight = delegate?.tableView(self, heightOfRow: row) ?? 0
+        let delegateHeight = heightOfRow(row)
         let height = delegateHeight > 0 ? delegateHeight : rowHeight
         return NSRect(x: x, y: y, width: tableColumns[column].width, height: height)
     }
@@ -3202,9 +3199,57 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
             rowView.isSelected = rowIndexes.contains(row)
         }
         guard notify && oldSelection != rowIndexes else { return }
-        delegate?.tableViewSelectionDidChange(
-            Notification(name: Self.selectionDidChangeNotification, object: self)
-        )
+        let notification = Notification(name: Self.selectionDidChangeNotification, object: self)
+        if self is NSOutlineView,
+           let outlineDelegate = delegate as? NSOutlineViewDelegate {
+            outlineDelegate.outlineViewSelectionDidChange(notification)
+        } else {
+            delegate?.tableViewSelectionDidChange(notification)
+        }
+    }
+
+    fileprivate func replaceLoadedRows(count: Int, selectedRowIndexes rowIndexes: IndexSet? = nil) {
+        numberOfRows = max(0, count)
+        cachedRowViews.removeAll()
+        cachedCellViews.removeAll()
+        setSelectedRowIndexes(clampedRowIndexes(rowIndexes ?? selectedRowIndexes), notify: false)
+    }
+
+    private func shouldSelectRow(_ row: Int) -> Bool {
+        if let outlineView = self as? NSOutlineView,
+           let item = outlineView.item(atRow: row),
+           let outlineDelegate = delegate as? NSOutlineViewDelegate {
+            return outlineDelegate.outlineView(outlineView, shouldSelectItem: item)
+        }
+        return delegate?.tableView(self, shouldSelectRow: row) ?? true
+    }
+
+    private func makeRowView(forRow row: Int) -> NSTableRowView? {
+        if let outlineView = self as? NSOutlineView,
+           let item = outlineView.item(atRow: row),
+           let outlineDelegate = delegate as? NSOutlineViewDelegate {
+            return outlineDelegate.outlineView(outlineView, rowViewForItem: item)
+        }
+        return delegate?.tableView(self, rowViewForRow: row)
+    }
+
+    private func makeCellView(forColumn column: Int, row: Int) -> NSView? {
+        let tableColumn = tableColumns[column]
+        if let outlineView = self as? NSOutlineView,
+           let item = outlineView.item(atRow: row),
+           let outlineDelegate = delegate as? NSOutlineViewDelegate {
+            return outlineDelegate.outlineView(outlineView, viewFor: tableColumn, item: item)
+        }
+        return delegate?.tableView(self, viewFor: tableColumn, row: row)
+    }
+
+    private func heightOfRow(_ row: Int) -> CGFloat {
+        if let outlineView = self as? NSOutlineView,
+           let item = outlineView.item(atRow: row),
+           let outlineDelegate = delegate as? NSOutlineViewDelegate {
+            return outlineDelegate.outlineView(outlineView, heightOfRowByItem: item)
+        }
+        return delegate?.tableView(self, heightOfRow: row) ?? 0
     }
 
     private func shiftedColumnSelection(afterRemovingColumnAt removedIndex: Int) -> IndexSet {
@@ -3300,27 +3345,208 @@ public extension NSTableViewDataSource {
 }
 
 open class NSOutlineView: NSTableView {
+    private enum OutlineItemKey: Hashable {
+        case object(ObjectIdentifier)
+        case hashable(AnyHashable)
+        case description(String)
+    }
+
+    private struct VisibleOutlineItem {
+        var item: Any
+        var parent: Any?
+        var level: Int
+    }
+
     public var indentationPerLevel: CGFloat = 16
     public var indentationMarkerFollowsCell: Bool = true
     public var autoresizesOutlineColumn: Bool = true
     public var outlineTableColumn: NSTableColumn?
     public var autosaveExpandedItems: Bool = false
-    public func reloadItem(_ item: Any?, reloadChildren: Bool = false) {}
-    public func expandItem(_ item: Any?) {}
-    public func expandItem(_ item: Any?, expandChildren: Bool) {}
-    public func collapseItem(_ item: Any?) {}
-    public func collapseItem(_ item: Any?, collapseChildren: Bool) {}
-    public func isItemExpanded(_ item: Any?) -> Bool { false }
-    public func item(atRow row: Int) -> Any? { nil }
-    public func row(forItem item: Any?) -> Int { -1 }
-    public func parent(forItem item: Any?) -> Any? { nil }
-    public func childIndex(forItem item: Any) -> Int { -1 }
-    public func numberOfChildren(ofItem item: Any?) -> Int { 0 }
-    public func child(_ index: Int, ofItem item: Any?) -> Any? { nil }
-    public func selectRowIndexesInOutlineView(_ s: IndexSet) {}
-    public func level(forItem: Any?) -> Int { 0 }
-    public func level(forRow: Int) -> Int { 0 }
-    public func isExpandable(_ item: Any?) -> Bool { false }
+
+    private var expandedItems: Set<OutlineItemKey> = []
+    private var visibleItems: [VisibleOutlineItem] = []
+    private var rowByItem: [OutlineItemKey: Int] = [:]
+    private var parentByItem: [OutlineItemKey: Any?] = [:]
+    private var levelByItem: [OutlineItemKey: Int] = [:]
+
+    private var outlineDataSource: NSOutlineViewDataSource? {
+        dataSource as? NSOutlineViewDataSource
+    }
+
+    public override func reloadData() {
+        let selectedItems = selectedRowIndexes.compactMap { row -> OutlineItemKey? in
+            guard row >= 0 && row < visibleItems.count else { return nil }
+            return key(for: visibleItems[row].item)
+        }
+
+        rebuildVisibleItems()
+
+        var nextSelection = IndexSet()
+        for (row, entry) in visibleItems.enumerated() {
+            guard let key = key(for: entry.item), selectedItems.contains(key) else { continue }
+            nextSelection.insert(row)
+        }
+        replaceLoadedRows(count: visibleItems.count, selectedRowIndexes: nextSelection)
+    }
+
+    public func reloadItem(_ item: Any?, reloadChildren: Bool = false) {
+        reloadData()
+    }
+
+    public func expandItem(_ item: Any?) {
+        expandItem(item, expandChildren: false)
+    }
+
+    public func expandItem(_ item: Any?, expandChildren: Bool) {
+        guard let item, isExpandable(item), let key = key(for: item) else { return }
+        expandedItems.insert(key)
+        if expandChildren {
+            expandDescendants(of: item)
+        }
+        reloadData()
+        (delegate as? NSOutlineViewDelegate)?.outlineViewItemDidExpand(
+            Notification(name: Notification.Name("NSOutlineViewItemDidExpandNotification"), object: self)
+        )
+    }
+
+    public func collapseItem(_ item: Any?) {
+        collapseItem(item, collapseChildren: false)
+    }
+
+    public func collapseItem(_ item: Any?, collapseChildren: Bool) {
+        guard let item else {
+            expandedItems.removeAll()
+            reloadData()
+            return
+        }
+        if let key = key(for: item) {
+            expandedItems.remove(key)
+        }
+        if collapseChildren {
+            collapseDescendants(of: item)
+        }
+        reloadData()
+        (delegate as? NSOutlineViewDelegate)?.outlineViewItemDidCollapse(
+            Notification(name: Notification.Name("NSOutlineViewItemDidCollapseNotification"), object: self)
+        )
+    }
+
+    public func isItemExpanded(_ item: Any?) -> Bool {
+        guard let key = key(for: item) else { return false }
+        return expandedItems.contains(key)
+    }
+
+    public func item(atRow row: Int) -> Any? {
+        guard row >= 0 && row < visibleItems.count else { return nil }
+        return visibleItems[row].item
+    }
+
+    public func row(forItem item: Any?) -> Int {
+        guard let key = key(for: item) else { return -1 }
+        return rowByItem[key] ?? -1
+    }
+
+    public func parent(forItem item: Any?) -> Any? {
+        guard let key = key(for: item) else { return nil }
+        return parentByItem[key] ?? nil
+    }
+
+    public func childIndex(forItem item: Any) -> Int {
+        let parent = parent(forItem: item)
+        for index in 0..<numberOfChildren(ofItem: parent) {
+            guard let candidate = child(index, ofItem: parent), itemsMatch(candidate, item) else { continue }
+            return index
+        }
+        return -1
+    }
+
+    public func numberOfChildren(ofItem item: Any?) -> Int {
+        max(0, outlineDataSource?.outlineView(self, numberOfChildrenOfItem: item) ?? 0)
+    }
+
+    public func child(_ index: Int, ofItem item: Any?) -> Any? {
+        guard index >= 0 && index < numberOfChildren(ofItem: item) else { return nil }
+        return outlineDataSource?.outlineView(self, child: index, ofItem: item)
+    }
+
+    public func selectRowIndexesInOutlineView(_ s: IndexSet) {
+        selectRowIndexes(s, byExtendingSelection: false)
+    }
+
+    public func level(forItem item: Any?) -> Int {
+        guard let key = key(for: item) else { return -1 }
+        return levelByItem[key] ?? -1
+    }
+
+    public func level(forRow row: Int) -> Int {
+        guard row >= 0 && row < visibleItems.count else { return -1 }
+        return visibleItems[row].level
+    }
+
+    public func isExpandable(_ item: Any?) -> Bool {
+        guard let item else { return false }
+        return outlineDataSource?.outlineView(self, isItemExpandable: item) ?? false
+    }
+
+    private func rebuildVisibleItems() {
+        visibleItems.removeAll()
+        rowByItem.removeAll()
+        parentByItem.removeAll()
+        levelByItem.removeAll()
+        appendChildren(of: nil, level: 0)
+    }
+
+    private func appendChildren(of parent: Any?, level: Int) {
+        for index in 0..<numberOfChildren(ofItem: parent) {
+            guard let item = child(index, ofItem: parent) else { continue }
+            let row = visibleItems.count
+            visibleItems.append(VisibleOutlineItem(item: item, parent: parent, level: level))
+            if let key = key(for: item) {
+                rowByItem[key] = row
+                parentByItem[key] = parent
+                levelByItem[key] = level
+            }
+            if isItemExpanded(item) {
+                appendChildren(of: item, level: level + 1)
+            }
+        }
+    }
+
+    private func expandDescendants(of item: Any) {
+        for index in 0..<numberOfChildren(ofItem: item) {
+            guard let child = child(index, ofItem: item), isExpandable(child) else { continue }
+            if let key = key(for: child) {
+                expandedItems.insert(key)
+            }
+            expandDescendants(of: child)
+        }
+    }
+
+    private func collapseDescendants(of item: Any) {
+        for index in 0..<numberOfChildren(ofItem: item) {
+            guard let child = child(index, ofItem: item) else { continue }
+            if let key = key(for: child) {
+                expandedItems.remove(key)
+            }
+            collapseDescendants(of: child)
+        }
+    }
+
+    private func key(for item: Any?) -> OutlineItemKey? {
+        guard let item else { return nil }
+        if Mirror(reflecting: item).displayStyle == .class {
+            return .object(ObjectIdentifier(item as AnyObject))
+        }
+        if let hashable = item as? AnyHashable {
+            return .hashable(hashable)
+        }
+        return .description(String(reflecting: item))
+    }
+
+    private func itemsMatch(_ lhs: Any, _ rhs: Any) -> Bool {
+        guard let lhsKey = key(for: lhs), let rhsKey = key(for: rhs) else { return false }
+        return lhsKey == rhsKey
+    }
 }
 
 @MainActor public protocol NSOutlineViewDelegate: NSTableViewDelegate {
@@ -3344,7 +3570,7 @@ public extension NSOutlineViewDelegate {
     func outlineViewItemDidCollapse(_ notification: Notification) {}
 }
 
-@MainActor public protocol NSOutlineViewDataSource: AnyObject {
+@MainActor public protocol NSOutlineViewDataSource: NSTableViewDataSource {
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool

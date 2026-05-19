@@ -280,6 +280,20 @@ struct CompatibilityModuleTests {
         #expect(result.rowMutationsPreserveState)
     }
 
+    @Test("AppKit outline views flatten expanded data source items")
+    @MainActor
+    func appKitOutlineViewsFlattenExpandedDataSourceItems() {
+        let result = AppleCompatibilitySmoke.runAppKitOutlineSmoke()
+
+        #expect(result.reloadShowsRootItems)
+        #expect(result.expandShowsChildrenAndLevels)
+        #expect(result.rowParentAndChildLookup)
+        #expect(result.delegateViewsUseItems)
+        #expect(result.selectionRoundTrip)
+        #expect(result.collapseHidesChildrenAndClearsSelection)
+        #expect(result.recursiveExpansionAndCollapse)
+    }
+
     @Test("AppKit documents maintain edit and controller state")
     @MainActor
     func appKitDocumentsMaintainEditAndControllerState() {

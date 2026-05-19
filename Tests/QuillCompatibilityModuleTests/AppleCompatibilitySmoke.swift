@@ -173,6 +173,16 @@ enum AppleCompatibilitySmoke {
         var rowMutationsPreserveState: Bool
     }
 
+    struct AppKitOutlineResult {
+        var reloadShowsRootItems: Bool
+        var expandShowsChildrenAndLevels: Bool
+        var rowParentAndChildLookup: Bool
+        var delegateViewsUseItems: Bool
+        var selectionRoundTrip: Bool
+        var collapseHidesChildrenAndClearsSelection: Bool
+        var recursiveExpansionAndCollapse: Bool
+    }
+
     struct AppKitDocumentResult {
         var displayNameFollowsFileURL: Bool
         var changeCountTracksEditedState: Bool
@@ -1357,6 +1367,101 @@ enum AppleCompatibilitySmoke {
     }
 
     @MainActor
+    static func runAppKitOutlineSmoke() -> AppKitOutlineResult {
+        let leaf = OutlineItemProbe("Leaf")
+        let grandchild = OutlineItemProbe("Grandchild")
+        let nested = OutlineItemProbe("Nested", children: [grandchild])
+        let folder = OutlineItemProbe("Folder", children: [leaf, nested])
+        let sibling = OutlineItemProbe("Sibling")
+        let probe = OutlineDelegateProbe(roots: [folder, sibling])
+
+        let outlineView = NSOutlineView()
+        let column = NSTableColumn(identifier: "outline")
+        outlineView.addTableColumn(column)
+        outlineView.outlineTableColumn = column
+        outlineView.dataSource = probe
+        outlineView.delegate = probe
+
+        outlineView.reloadData()
+        let reloadShowsRootItems =
+            outlineView.numberOfRows == 2 &&
+            (outlineView.item(atRow: 0) as? OutlineItemProbe) === folder &&
+            (outlineView.item(atRow: 1) as? OutlineItemProbe) === sibling &&
+            outlineView.row(forItem: folder) == 0 &&
+            outlineView.row(forItem: leaf) == -1 &&
+            outlineView.numberOfChildren(ofItem: nil) == 2 &&
+            (outlineView.child(0, ofItem: nil) as? OutlineItemProbe) === folder &&
+            outlineView.childIndex(forItem: folder) == 0 &&
+            outlineView.level(forRow: 0) == 0 &&
+            outlineView.level(forItem: folder) == 0 &&
+            outlineView.isExpandable(folder) &&
+            !outlineView.isExpandable(leaf)
+
+        outlineView.expandItem(folder)
+        let leafRow = outlineView.row(forItem: leaf)
+        let nestedRow = outlineView.row(forItem: nested)
+        let expandShowsChildrenAndLevels =
+            outlineView.numberOfRows == 4 &&
+            outlineView.isItemExpanded(folder) &&
+            leafRow == 1 &&
+            nestedRow == 2 &&
+            outlineView.level(forRow: leafRow) == 1 &&
+            outlineView.level(forItem: nested) == 1 &&
+            (outlineView.item(atRow: 3) as? OutlineItemProbe) === sibling
+
+        let rowParentAndChildLookup =
+            (outlineView.parent(forItem: leaf) as? OutlineItemProbe) === folder &&
+            outlineView.childIndex(forItem: leaf) == 0 &&
+            outlineView.childIndex(forItem: nested) == 1 &&
+            outlineView.numberOfChildren(ofItem: folder) == 2 &&
+            (outlineView.child(1, ofItem: folder) as? OutlineItemProbe) === nested
+
+        let rowView = outlineView.rowView(atRow: leafRow, makeIfNecessary: true)
+        let cellView = outlineView.view(atColumn: 0, row: leafRow, makeIfNecessary: true)
+        let delegateViewsUseItems =
+            rowView === probe.rowViews["Leaf"] &&
+            cellView?.identifier == "outline-cell-Leaf"
+
+        outlineView.selectRowIndexesInOutlineView(IndexSet(integer: leafRow))
+        let selectionRoundTrip =
+            outlineView.selectedRowIndexes == IndexSet(integer: leafRow) &&
+            outlineView.selectedRow == leafRow &&
+            probe.selectionNotifications == 1 &&
+            probe.selectionNotificationObject === outlineView
+
+        outlineView.collapseItem(folder)
+        let collapseHidesChildrenAndClearsSelection =
+            !outlineView.isItemExpanded(folder) &&
+            outlineView.numberOfRows == 2 &&
+            outlineView.row(forItem: leaf) == -1 &&
+            outlineView.selectedRowIndexes.isEmpty &&
+            outlineView.selectedRow == -1
+
+        outlineView.expandItem(folder, expandChildren: true)
+        let recursiveExpand =
+            outlineView.isItemExpanded(folder) &&
+            outlineView.isItemExpanded(nested) &&
+            outlineView.row(forItem: grandchild) == 3 &&
+            outlineView.level(forItem: grandchild) == 2
+        outlineView.collapseItem(folder, collapseChildren: true)
+        let recursiveExpansionAndCollapse =
+            recursiveExpand &&
+            !outlineView.isItemExpanded(folder) &&
+            !outlineView.isItemExpanded(nested) &&
+            outlineView.row(forItem: grandchild) == -1
+
+        return AppKitOutlineResult(
+            reloadShowsRootItems: reloadShowsRootItems,
+            expandShowsChildrenAndLevels: expandShowsChildrenAndLevels,
+            rowParentAndChildLookup: rowParentAndChildLookup,
+            delegateViewsUseItems: delegateViewsUseItems,
+            selectionRoundTrip: selectionRoundTrip,
+            collapseHidesChildrenAndClearsSelection: collapseHidesChildrenAndClearsSelection,
+            recursiveExpansionAndCollapse: recursiveExpansionAndCollapse
+        )
+    }
+
+    @MainActor
     static func runAppKitDocumentSmoke() -> AppKitDocumentResult {
         let url = URL(fileURLWithPath: "/tmp/enchanted-session.quill")
         let document = NSDocument()
@@ -1764,6 +1869,68 @@ private final class TableDelegateProbe: NSObject, NSTableViewDelegate, NSTableVi
 
     func tableView(_ tableView: NSTableView, didRemove rowView: NSTableRowView, forRow row: Int) {
         removedRows.append(row)
+    }
+}
+
+private final class OutlineItemProbe: NSObject {
+    let title: String
+    let children: [OutlineItemProbe]
+
+    init(_ title: String, children: [OutlineItemProbe] = []) {
+        self.title = title
+        self.children = children
+    }
+}
+
+@MainActor
+private final class OutlineDelegateProbe: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
+    let roots: [OutlineItemProbe]
+    var rowViews: [String: NSTableRowView] = [:]
+    var selectionNotifications = 0
+    weak var selectionNotificationObject: NSOutlineView?
+
+    init(roots: [OutlineItemProbe]) {
+        self.roots = roots
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+        children(of: item).count
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+        children(of: item)[index]
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+        children(of: item).isEmpty == false
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, objectValueFor tableColumn: NSTableColumn?, byItem item: Any?) -> Any? {
+        (item as? OutlineItemProbe)?.title
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
+        guard let item = item as? OutlineItemProbe else { return nil }
+        let rowView = NSTableRowView()
+        rowViews[item.title] = rowView
+        return rowView
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
+        guard let item = item as? OutlineItemProbe else { return nil }
+        let view = NSView()
+        view.identifier = NSUserInterfaceItemIdentifier(rawValue: "outline-cell-\(item.title)")
+        return view
+    }
+
+    func outlineViewSelectionDidChange(_ notification: Notification) {
+        selectionNotifications += 1
+        selectionNotificationObject = notification.object as? NSOutlineView
+    }
+
+    private func children(of item: Any?) -> [OutlineItemProbe] {
+        guard let item = item as? OutlineItemProbe else { return roots }
+        return item.children
     }
 }
 
