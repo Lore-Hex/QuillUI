@@ -850,6 +850,12 @@ QString accessibilitySummary(const QString &title, const QString &detail) {
     return title + QStringLiteral("\n") + trimmedDetail;
 }
 
+void applyActionAccessibility(QAction *action, const QString &title) {
+    action->setToolTip(title);
+    action->setStatusTip(title);
+    action->setWhatsThis(title);
+}
+
 QString messageRole(const QJsonObject &message) {
     return requiredStringValue(message, "role");
 }
@@ -883,6 +889,7 @@ void showMessageContextMenu(
     QMenu menu(anchor);
     QAction *copyAction = menu.addAction(copyMessageTitle);
     copyAction->setIcon(copyMessageActionIcon(icons));
+    applyActionAccessibility(copyAction, copyMessageTitle);
     QObject::connect(copyAction, &QAction::triggered, anchor, [content](bool) {
         if (QClipboard *clipboard = QApplication::clipboard()) {
             clipboard->setText(content);
@@ -891,6 +898,7 @@ void showMessageContextMenu(
     if (isEditableMessageRole(role)) {
         QAction *editAction = menu.addAction(editMessageTitle);
         editAction->setIcon(editMessageActionIcon(icons));
+        applyActionAccessibility(editAction, editMessageTitle);
         QObject::connect(editAction, &QAction::triggered, anchor, [id, content, editMessage](bool) {
             if (editMessage) {
                 editMessage(id, content);
@@ -899,6 +907,7 @@ void showMessageContextMenu(
         if (!editingMessageID.isEmpty() && id == editingMessageID) {
             QAction *unselectAction = menu.addAction(unselectMessageTitle);
             unselectAction->setIcon(editMessageActionIcon(icons));
+            applyActionAccessibility(unselectAction, unselectMessageTitle);
             QObject::connect(unselectAction, &QAction::triggered, anchor, [cancelEdit](bool) {
                 if (cancelEdit) {
                     cancelEdit();
