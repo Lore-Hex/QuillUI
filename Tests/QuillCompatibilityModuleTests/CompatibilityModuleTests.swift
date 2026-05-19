@@ -156,6 +156,19 @@ struct CompatibilityModuleTests {
         #expect(result.menuItemBacklinks)
     }
 
+    @Test("AppKit toolbars ask delegates and maintain visible items")
+    @MainActor
+    func appKitToolbarsAskDelegatesAndMaintainVisibleItems() {
+        let result = AppleCompatibilitySmoke.runAppKitToolbarSmoke()
+
+        #expect(result.insertedItemsInDelegateOrder)
+        #expect(result.delegateSawInsertedFlag)
+        #expect(result.visibleItemsFollowItems)
+        #expect(result.removedItemUpdatesItems)
+        #expect(result.removingSelectedItemClearsSelection)
+        #expect(result.outOfRangeRemoveIgnored)
+    }
+
     @Test("KeyboardShortcuts persist defaults and user overrides by raw name")
     func keyboardShortcutsPersistDefaultsAndUserOverrides() {
         let defaultShortcut = KeyboardShortcuts.Shortcut(.k, modifiers: [.command, .option])

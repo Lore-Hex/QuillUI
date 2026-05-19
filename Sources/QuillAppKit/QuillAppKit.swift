@@ -1653,9 +1653,27 @@ open class NSToolbar: NSObject {
 
     public override init() { super.init() }
     public init(identifier: String) { super.init(); self.identifier = identifier }
-    public func insertItem(withItemIdentifier id: NSToolbarItem.Identifier, at idx: Int) {}
-    public func removeItem(at idx: Int) {}
-    public func validateVisibleItems() {}
+    @MainActor
+    public func insertItem(withItemIdentifier id: NSToolbarItem.Identifier, at idx: Int) {
+        guard let item = delegate?.toolbar(self, itemForItemIdentifier: id, willBeInsertedIntoToolbar: true) else {
+            return
+        }
+        let insertionIndex = max(0, min(idx, items.count))
+        items.insert(item, at: insertionIndex)
+        visibleItems = items
+    }
+    public func removeItem(at idx: Int) {
+        guard items.indices.contains(idx) else { return }
+        let removedItem = items.remove(at: idx)
+        if selectedItemIdentifier == removedItem.itemIdentifier {
+            selectedItemIdentifier = nil
+        }
+        visibleItems = items
+    }
+    @MainActor
+    public func validateVisibleItems() {
+        visibleItems = items
+    }
 }
 
 open class NSToolbarItem: NSObject {

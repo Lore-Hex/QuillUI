@@ -85,6 +85,15 @@ enum AppleCompatibilitySmoke {
         var menuItemBacklinks: Bool
     }
 
+    struct AppKitToolbarResult {
+        var insertedItemsInDelegateOrder: Bool
+        var delegateSawInsertedFlag: Bool
+        var visibleItemsFollowItems: Bool
+        var removedItemUpdatesItems: Bool
+        var removingSelectedItemClearsSelection: Bool
+        var outOfRangeRemoveIgnored: Bool
+    }
+
     struct OSLogResult {
         var operations: Set<String>
         var renderedPublicValue: Bool
@@ -423,6 +432,50 @@ enum AppleCompatibilitySmoke {
         )
     }
 
+    @MainActor
+    static func runAppKitToolbarSmoke() -> AppKitToolbarResult {
+        let toolbar = NSToolbar(identifier: "main")
+        let delegate = ToolbarDelegateProbe()
+        toolbar.delegate = delegate
+
+        let accountID = NSToolbarItem.Identifier(rawValue: "account")
+        let promptID = NSToolbarItem.Identifier(rawValue: "prompt")
+        let exportID = NSToolbarItem.Identifier(rawValue: "export")
+
+        toolbar.insertItem(withItemIdentifier: accountID, at: 0)
+        toolbar.insertItem(withItemIdentifier: exportID, at: 99)
+        toolbar.insertItem(withItemIdentifier: promptID, at: 1)
+
+        let expectedOrder = [accountID, promptID, exportID]
+        let insertedItemsInDelegateOrder = toolbar.items.map(\.itemIdentifier) == expectedOrder
+        let delegateSawInsertedFlag = delegate.requests == [
+            "account:true",
+            "export:true",
+            "prompt:true"
+        ]
+        let visibleItemsFollowItems = toolbar.visibleItems?.map(\.itemIdentifier) == expectedOrder
+
+        toolbar.selectedItemIdentifier = promptID
+        toolbar.removeItem(at: 1)
+        let afterRemovalOrder = [accountID, exportID]
+        let removedItemUpdatesItems =
+            toolbar.items.map(\.itemIdentifier) == afterRemovalOrder &&
+            toolbar.visibleItems?.map(\.itemIdentifier) == afterRemovalOrder
+        let removingSelectedItemClearsSelection = toolbar.selectedItemIdentifier == nil
+
+        toolbar.removeItem(at: 99)
+        let outOfRangeRemoveIgnored = toolbar.items.map(\.itemIdentifier) == afterRemovalOrder
+
+        return AppKitToolbarResult(
+            insertedItemsInDelegateOrder: insertedItemsInDelegateOrder,
+            delegateSawInsertedFlag: delegateSawInsertedFlag,
+            visibleItemsFollowItems: visibleItemsFollowItems,
+            removedItemUpdatesItems: removedItemUpdatesItems,
+            removingSelectedItemClearsSelection: removingSelectedItemClearsSelection,
+            outOfRangeRemoveIgnored: outOfRangeRemoveIgnored
+        )
+    }
+
     static func runAppKitPopUpButtonSmoke() -> AppKitPopUpButtonResult {
         let popup = NSPopUpButton()
         popup.addItem(withTitle: "Local")
@@ -576,5 +629,33 @@ private final class MenuDelegateProbe: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         events.append("needsUpdate:\(menu.title)")
+    }
+}
+
+@MainActor
+private final class ToolbarDelegateProbe: NSObject, NSToolbarDelegate {
+    var requests: [String] = []
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [
+            NSToolbarItem.Identifier(rawValue: "account"),
+            NSToolbarItem.Identifier(rawValue: "prompt"),
+            NSToolbarItem.Identifier(rawValue: "export")
+        ]
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarAllowedItemIdentifiers(toolbar)
+    }
+
+    func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier id: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        requests.append("\(id.rawValue):\(flag)")
+        let item = NSToolbarItem(itemIdentifier: id)
+        item.label = id.rawValue
+        return item
     }
 }
