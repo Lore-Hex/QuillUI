@@ -545,6 +545,9 @@ extension NSPopUpButton {
             return quill_drop_down_new_from_strings(buf.baseAddress)
         }
         gtkWidgetHandle = dd.map { OpaquePointer($0) }
+        if let dd, indexOfSelectedItem >= 0 {
+            quill_drop_down_set_selected(UnsafeMutableRawPointer(dd), UInt32(indexOfSelectedItem))
+        }
         // GtkDropDown copies the strings, safe to free.
         for c in cstrs { if let c = c { free(UnsafeMutablePointer(mutating: c)) } }
         return gtkWidgetHandle
@@ -556,7 +559,8 @@ extension NSPopUpButton {
     }
 
     public func gtkDropDownSelect(_ idx: Int) {
-        guard let handle = gtkWidgetHandle else { return }
+        guard let handle = gtkWidgetHandle, idx >= 0 else { return }
+        selectItem(at: idx)
         quill_drop_down_set_selected(UnsafeMutableRawPointer(handle), UInt32(idx))
     }
 }

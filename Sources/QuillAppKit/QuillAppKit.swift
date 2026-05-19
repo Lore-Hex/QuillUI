@@ -1531,6 +1531,12 @@ open class NSMenu: NSObject {
     }
     public func indexOfItem(_ i: NSMenuItem) -> Int { items.firstIndex { $0 === i } ?? -1 }
     public func setSubmenu(_ menu: NSMenu?, for item: NSMenuItem) {
+        let replacementIsSame = menu.map { replacement in
+            item.submenu === replacement
+        } ?? false
+        if let oldSubmenu = item.submenu, oldSubmenu.supermenu === self, !replacementIsSame {
+            oldSubmenu.supermenu = nil
+        }
         item.submenu = menu
         menu?.supermenu = self
     }
@@ -2098,38 +2104,102 @@ open class NSProgressIndicator: NSView {
 }
 
 open class NSPopUpButton: NSButton {
-    public var menu: NSMenu? = NSMenu()
+    public var menu: NSMenu? = NSMenu() {
+        didSet { reconcileSelectionAfterMenuChange() }
+    }
     public var pullsDown: Bool = false
-    public var indexOfSelectedItem: Int = -1
-    public var selectedItem: NSMenuItem?
-    public var titleOfSelectedItem: String?
+    public private(set) var indexOfSelectedItem: Int = -1
+    public private(set) var selectedItem: NSMenuItem?
+    public private(set) var titleOfSelectedItem: String?
     public var itemArray: [NSMenuItem] { menu?.items ?? [] }
     public var numberOfItems: Int { itemArray.count }
     public func addItem(withTitle title: String) {
-        if menu == nil { menu = NSMenu() }
-        menu?.addItem(NSMenuItem(title: title, action: nil, keyEquivalent: ""))
+        let owningMenu = ensureMenu()
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        owningMenu.addItem(item)
+        if selectedItem == nil {
+            selectItem(item, at: owningMenu.items.count - 1)
+        }
     }
     public func addItems(withTitles titles: [String]) { for t in titles { addItem(withTitle: t) } }
-    public func selectItem(at idx: Int) { indexOfSelectedItem = idx }
-    public func selectItem(withTitle title: String) {
-        if let i = menu?.items.firstIndex(where: { $0.title == title }) { indexOfSelectedItem = i }
+    public func selectItem(at idx: Int) {
+        guard let items = menu?.items, idx >= 0, idx < items.count else { return }
+        selectItem(items[idx], at: idx)
     }
-    public func selectItem(withTag: Int) -> Bool { false }
+    public func selectItem(withTitle title: String) {
+        guard let items = menu?.items, let index = items.firstIndex(where: { $0.title == title }) else { return }
+        selectItem(items[index], at: index)
+    }
+    public func selectItem(withTag tag: Int) -> Bool {
+        guard let items = menu?.items, let index = items.firstIndex(where: { $0.tag == tag }) else { return false }
+        selectItem(items[index], at: index)
+        return true
+    }
     public func itemTitles() -> [String] { menu?.items.map(\.title) ?? [] }
-    public func removeAllItems() { menu?.removeAllItems() }
+    public func removeAllItems() {
+        menu?.removeAllItems()
+        clearSelection()
+    }
     public func itemTitle(at idx: Int) -> String {
         guard let items = menu?.items, idx >= 0, idx < items.count else { return "" }
         return items[idx].title
     }
     public func removeItem(at idx: Int) {
         guard let items = menu?.items, idx >= 0, idx < items.count else { return }
-        menu?.removeItem(items[idx])
+        let removedItem = items[idx]
+        let removedSelectedItem = removedItem === selectedItem
+        menu?.removeItem(removedItem)
+        if removedSelectedItem {
+            selectNearestItem(afterRemovingIndex: idx)
+        } else {
+            reconcileSelectionAfterMenuChange()
+        }
     }
     public func itemWithTitle(_ t: String) -> NSMenuItem? {
         menu?.items.first { $0.title == t }
     }
     public init(frame: NSRect, pullsDown: Bool) { super.init(); self.pullsDown = pullsDown }
     public override init() { super.init() }
+
+    private func ensureMenu() -> NSMenu {
+        if let menu { return menu }
+        let newMenu = NSMenu()
+        menu = newMenu
+        return newMenu
+    }
+
+    private func selectItem(_ item: NSMenuItem, at index: Int) {
+        selectedItem = item
+        indexOfSelectedItem = index
+        titleOfSelectedItem = item.title
+    }
+
+    private func selectNearestItem(afterRemovingIndex removedIndex: Int) {
+        guard let items = menu?.items, !items.isEmpty else {
+            clearSelection()
+            return
+        }
+        let replacementIndex = min(removedIndex, items.count - 1)
+        selectItem(items[replacementIndex], at: replacementIndex)
+    }
+
+    private func reconcileSelectionAfterMenuChange() {
+        guard let items = menu?.items, !items.isEmpty else {
+            clearSelection()
+            return
+        }
+        if let selectedItem, let index = items.firstIndex(where: { $0 === selectedItem }) {
+            selectItem(selectedItem, at: index)
+        } else {
+            selectItem(items[0], at: 0)
+        }
+    }
+
+    private func clearSelection() {
+        selectedItem = nil
+        titleOfSelectedItem = nil
+        indexOfSelectedItem = -1
+    }
 }
 
 open class NSPopUpButtonCell: NSObject {

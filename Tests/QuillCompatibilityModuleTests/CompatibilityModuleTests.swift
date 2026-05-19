@@ -126,6 +126,8 @@ struct CompatibilityModuleTests {
         #expect(result.rememberedView)
         #expect(result.itemMenuBacklinks)
         #expect(result.submenuParentLink)
+        #expect(result.replacedSubmenuClearedParentLink)
+        #expect(result.clearedSubmenuParentLink)
         #expect(result.autoValidationDisabledItem)
         #expect(result.delegateEvents.isSuperset(of: Set([
             "numberOfItems:2",
@@ -137,6 +139,21 @@ struct CompatibilityModuleTests {
         #expect(result.trackingEnded)
         #expect(result.removedItemClearedMenu)
         #expect(result.removeAllClearedMenus)
+    }
+
+    @Test("AppKit pop-up buttons preserve menu selection state")
+    func appKitPopUpButtonsPreserveMenuSelectionState() {
+        let result = AppleCompatibilitySmoke.runAppKitPopUpButtonSmoke()
+
+        #expect(result.firstItemSelectedAfterAdd)
+        #expect(result.selectionFollowsIndex)
+        #expect(result.invalidSelectionPreservesCurrentItem)
+        #expect(result.selectionFollowsTitle)
+        #expect(result.selectionFollowsTag)
+        #expect(result.removedSelectedItemChoosesAdjacentItem)
+        #expect(result.removeAllClearsSelection)
+        #expect(result.menuReplacementSelectsFirstItem)
+        #expect(result.menuItemBacklinks)
     }
 
     @Test("KeyboardShortcuts persist defaults and user overrides by raw name")

@@ -64,11 +64,25 @@ enum AppleCompatibilitySmoke {
         var rememberedView: Bool
         var itemMenuBacklinks: Bool
         var submenuParentLink: Bool
+        var replacedSubmenuClearedParentLink: Bool
+        var clearedSubmenuParentLink: Bool
         var autoValidationDisabledItem: Bool
         var delegateEvents: Set<String>
         var trackingEnded: Bool
         var removedItemClearedMenu: Bool
         var removeAllClearedMenus: Bool
+    }
+
+    struct AppKitPopUpButtonResult {
+        var firstItemSelectedAfterAdd: Bool
+        var selectionFollowsIndex: Bool
+        var invalidSelectionPreservesCurrentItem: Bool
+        var selectionFollowsTitle: Bool
+        var selectionFollowsTag: Bool
+        var removedSelectedItemChoosesAdjacentItem: Bool
+        var removeAllClearsSelection: Bool
+        var menuReplacementSelectsFirstItem: Bool
+        var menuItemBacklinks: Bool
     }
 
     struct OSLogResult {
@@ -358,6 +372,16 @@ enum AppleCompatibilitySmoke {
         menu.addItem(disabledItem)
         let submenu = NSMenu(title: "Nested")
         menu.setSubmenu(submenu, for: copyItem)
+        let replacementSubmenu = NSMenu(title: "Replacement")
+        menu.setSubmenu(replacementSubmenu, for: copyItem)
+        let replacedSubmenuClearedParentLink =
+            submenu.supermenu == nil &&
+            replacementSubmenu.supermenu === menu
+        menu.setSubmenu(nil, for: copyItem)
+        let clearedSubmenuParentLink =
+            replacementSubmenu.supermenu == nil &&
+            copyItem.submenu == nil
+        menu.setSubmenu(submenu, for: copyItem)
 
         let delegate = MenuDelegateProbe()
         menu.delegate = delegate
@@ -389,11 +413,92 @@ enum AppleCompatibilitySmoke {
             rememberedView: rememberedView,
             itemMenuBacklinks: itemMenuBacklinks,
             submenuParentLink: submenuParentLink,
+            replacedSubmenuClearedParentLink: replacedSubmenuClearedParentLink,
+            clearedSubmenuParentLink: clearedSubmenuParentLink,
             autoValidationDisabledItem: autoValidationDisabledItem,
             delegateEvents: Set(delegate.events),
             trackingEnded: trackingEnded,
             removedItemClearedMenu: removedItemClearedMenu,
             removeAllClearedMenus: removeAllClearedMenus
+        )
+    }
+
+    static func runAppKitPopUpButtonSmoke() -> AppKitPopUpButtonResult {
+        let popup = NSPopUpButton()
+        popup.addItem(withTitle: "Local")
+        let firstItem = popup.itemArray[0]
+        let firstItemSelectedAfterAdd =
+            popup.selectedItem === firstItem &&
+            popup.indexOfSelectedItem == 0 &&
+            popup.titleOfSelectedItem == "Local"
+
+        popup.addItem(withTitle: "Remote")
+        let secondItem = popup.itemArray[1]
+        secondItem.tag = 42
+
+        popup.selectItem(at: 1)
+        let selectionFollowsIndex =
+            popup.selectedItem === secondItem &&
+            popup.indexOfSelectedItem == 1 &&
+            popup.titleOfSelectedItem == "Remote"
+
+        popup.selectItem(at: 99)
+        let invalidSelectionPreservesCurrentItem =
+            popup.selectedItem === secondItem &&
+            popup.indexOfSelectedItem == 1 &&
+            popup.titleOfSelectedItem == "Remote"
+
+        popup.selectItem(withTitle: "Local")
+        let selectionFollowsTitle =
+            popup.selectedItem === firstItem &&
+            popup.indexOfSelectedItem == 0 &&
+            popup.titleOfSelectedItem == "Local"
+
+        let foundTaggedItem = popup.selectItem(withTag: 42)
+        let selectionFollowsTag =
+            foundTaggedItem &&
+            popup.selectedItem === secondItem &&
+            popup.indexOfSelectedItem == 1 &&
+            popup.titleOfSelectedItem == "Remote"
+
+        popup.removeItem(at: 1)
+        let removedSelectedItemChoosesAdjacentItem =
+            popup.selectedItem === firstItem &&
+            popup.indexOfSelectedItem == 0 &&
+            popup.titleOfSelectedItem == "Local" &&
+            popup.numberOfItems == 1
+
+        popup.removeAllItems()
+        let removeAllClearsSelection =
+            popup.selectedItem == nil &&
+            popup.indexOfSelectedItem == -1 &&
+            popup.titleOfSelectedItem == nil &&
+            popup.numberOfItems == 0
+
+        let replacementMenu = NSMenu(title: "Models")
+        let cloudItem = NSMenuItem(title: "Cloud", action: nil, keyEquivalent: "")
+        let localItem = NSMenuItem(title: "Local", action: nil, keyEquivalent: "")
+        replacementMenu.addItem(cloudItem)
+        replacementMenu.addItem(localItem)
+        popup.menu = replacementMenu
+        let menuReplacementSelectsFirstItem =
+            popup.selectedItem === cloudItem &&
+            popup.indexOfSelectedItem == 0 &&
+            popup.titleOfSelectedItem == "Cloud"
+        let menuItemBacklinks =
+            cloudItem.menu === replacementMenu &&
+            localItem.menu === replacementMenu
+
+        return AppKitPopUpButtonResult(
+            firstItemSelectedAfterAdd: firstItemSelectedAfterAdd,
+            selectionFollowsIndex: selectionFollowsIndex,
+            invalidSelectionPreservesCurrentItem: invalidSelectionPreservesCurrentItem,
+            selectionFollowsTitle: selectionFollowsTitle,
+            selectionFollowsTag: selectionFollowsTag,
+            removedSelectedItemChoosesAdjacentItem: removedSelectedItemChoosesAdjacentItem,
+            removeAllClearsSelection: removeAllClearsSelection,
+            menuReplacementSelectsFirstItem: menuReplacementSelectsFirstItem,
+            menuItemBacklinks: menuItemBacklinks
         )
     }
 
