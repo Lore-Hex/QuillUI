@@ -371,34 +371,23 @@ public struct QuillConversationHistoryList: View {
                         ForEach(section.items) { item in
                             let isSelected = selectedID == item.id
                             let lastMessage = lastMessagePreview(for: item)
-                            HStack(alignment: .top, spacing: 8) {
-                                Circle()
-                                    .frame(width: 6, height: 6)
-                                    .foregroundColor(selectedRowTitleColor)
-                                    .opacity(isSelected ? 1 : 0)
-                                    .padding(.top, selectionIndicatorTopPadding)
+                            VStack(alignment: .leading, spacing: rowTextSpacing) {
+                                Text(item.title)
+                                    .font(.system(size: rowFontSize))
+                                    .lineLimit(1)
+                                    .foregroundColor(isSelected ? selectedRowTitleColor : rowTitleColor)
 
-                                VStack(alignment: .leading, spacing: rowTextSpacing) {
-                                    Text(item.title)
-                                        .font(.system(size: rowFontSize))
-                                        .lineLimit(1)
-                                        .foregroundColor(isSelected ? selectedRowTitleColor : rowTitleColor)
-
-                                    if !lastMessage.isEmpty {
-                                        Text(lastMessage)
-                                            .font(.system(size: rowPreviewFontSize))
-                                            .lineLimit(2)
-                                            .foregroundColor(isSelected ? selectedRowPreviewColor : rowPreviewColor)
-                                    }
+                                if !lastMessage.isEmpty {
+                                    Text(lastMessage)
+                                        .font(.system(size: rowPreviewFontSize))
+                                        .lineLimit(2)
+                                        .foregroundColor(isSelected ? selectedRowPreviewColor : rowPreviewColor)
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .padding(.horizontal, rowHorizontalPadding)
-                            .padding(.vertical, rowVerticalPadding)
-                            .frame(minHeight: rowMinHeight, alignment: .leading)
+                            .padding(rowPadding)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(isSelected ? selectedRowBackgroundColor : rowBackgroundColor)
-                            .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
+                            .cornerRadius(rowCornerRadius)
                             .contentShape(Rectangle())
                             .accessibilityElement(children: .combine)
                             .accessibilityLabel(item.title)
@@ -423,29 +412,25 @@ public struct QuillConversationHistoryList: View {
     }
 
     #if os(Linux)
-    private var sectionFontSize: CGFloat { 18 }
-    private var rowFontSize: CGFloat { 20 }
-    private var rowPreviewFontSize: CGFloat { 16 }
-    private var rowMinHeight: CGFloat { 52 }
-    private var rowVerticalPadding: CGFloat { 6 }
-    private var rowTextSpacing: CGFloat { 3 }
-    private var selectionIndicatorTopPadding: CGFloat { 8 }
+    private var sectionFontSize: CGFloat { 15 }
+    private var rowFontSize: CGFloat { 15 }
+    private var rowPreviewFontSize: CGFloat { 12 }
+    private var rowPadding: CGFloat { 11 }
+    private var rowTextSpacing: CGFloat { 5 }
+    private var rowCornerRadius: CGFloat { 8 }
     private var sectionSpacing: CGFloat { 6 }
     private var sectionTopPadding: CGFloat { 18 }
     private var dividerTopPadding: CGFloat { 16 }
-    private var rowHorizontalPadding: CGFloat { 8 }
     #else
-    private var sectionFontSize: CGFloat { 14 }
-    private var rowFontSize: CGFloat { 16 }
-    private var rowPreviewFontSize: CGFloat { 13 }
-    private var rowMinHeight: CGFloat { 44 }
-    private var rowVerticalPadding: CGFloat { 5 }
-    private var rowTextSpacing: CGFloat { 2 }
-    private var selectionIndicatorTopPadding: CGFloat { 6 }
+    private var sectionFontSize: CGFloat { 15 }
+    private var rowFontSize: CGFloat { 15 }
+    private var rowPreviewFontSize: CGFloat { 12 }
+    private var rowPadding: CGFloat { 11 }
+    private var rowTextSpacing: CGFloat { 5 }
+    private var rowCornerRadius: CGFloat { 8 }
     private var sectionSpacing: CGFloat { 13 }
     private var sectionTopPadding: CGFloat { 12 }
     private var dividerTopPadding: CGFloat { 10 }
-    private var rowHorizontalPadding: CGFloat { 6 }
     #endif
 
     private var rowBackgroundColor: Color { Color(hex: "#FFFFFF") }
