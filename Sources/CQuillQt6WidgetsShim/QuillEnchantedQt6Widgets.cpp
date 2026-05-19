@@ -2813,6 +2813,10 @@ extern "C" int quill_enchanted_qt_run_app_json(
         "secondaryButtonHorizontalPadding",
         style
     );
+    attachButton->setAccessibleName(attachTitle);
+    attachButton->setAccessibleDescription(attachTitle);
+    attachButton->setToolTip(attachTitle);
+    attachButton->setStatusTip(attachTitle);
     const QString clearAttachmentsTitle = payloadString(payload, "clearAttachmentsTitle");
     QPushButton *clearAttachmentsButton = new QPushButton(clearAttachmentsTitle);
     clearAttachmentsButton->setObjectName(QStringLiteral("secondaryButton"));
