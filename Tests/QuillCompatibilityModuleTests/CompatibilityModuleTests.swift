@@ -169,6 +169,21 @@ struct CompatibilityModuleTests {
         #expect(result.outOfRangeRemoveIgnored)
     }
 
+    @Test("AppKit views maintain hierarchy and window links")
+    @MainActor
+    func appKitViewsMaintainHierarchyAndWindowLinks() {
+        let result = AppleCompatibilitySmoke.runAppKitViewHierarchySmoke()
+
+        #expect(result.addEstablishedLinks)
+        #expect(result.addFiredSuperviewCallbacks)
+        #expect(result.reparentedWithoutDuplicateBacklinks)
+        #expect(result.removalClearedLinks)
+        #expect(result.removalFiredSuperviewCallbacks)
+        #expect(result.windowContentViewPropagated)
+        #expect(result.windowContentViewCleared)
+        #expect(result.windowCallbacksReachedSubview)
+    }
+
     @Test("KeyboardShortcuts persist defaults and user overrides by raw name")
     func keyboardShortcutsPersistDefaultsAndUserOverrides() {
         let defaultShortcut = KeyboardShortcuts.Shortcut(.k, modifiers: [.command, .option])

@@ -284,9 +284,39 @@ open class NSView: NSResponder {
     public override init() { super.init() }
     public init(frame: NSRect) { super.init(); self.frame = frame }
 
-    public func addSubview(_ v: NSView) { subviews.append(v) }
-    public func addSubview(_ v: NSView, positioned: NSWindow.OrderingMode, relativeTo: NSView?) { subviews.append(v) }
-    public func removeFromSuperview() {}
+    public func addSubview(_ v: NSView) {
+        insertSubview(v, at: subviews.count)
+    }
+
+    public func addSubview(_ v: NSView, positioned: NSWindow.OrderingMode, relativeTo: NSView?) {
+        let index: Int
+        if let relativeTo, let relativeIndex = subviews.firstIndex(where: { $0 === relativeTo }) {
+            switch positioned {
+            case .below:
+                index = relativeIndex
+            case .above, .out:
+                index = relativeIndex + 1
+            }
+        } else {
+            switch positioned {
+            case .below:
+                index = 0
+            case .above, .out:
+                index = subviews.count
+            }
+        }
+
+        insertSubview(v, at: index)
+    }
+
+    public func removeFromSuperview() {
+        guard let parent = superview else { return }
+        viewWillMove(toSuperview: nil)
+        parent.subviews.removeAll { $0 === self }
+        superview = nil
+        quillMoveWindowRecursively(nil)
+        viewDidMoveToSuperview()
+    }
     public func setFrameSize(_ s: NSSize) { frame.size = s }
     public func setFrameOrigin(_ p: NSPoint) { frame.origin = p }
     public func layoutSubtreeIfNeeded() {}
@@ -322,6 +352,50 @@ open class NSView: NSResponder {
     public var trackingAreas: [NSTrackingArea] = []
 
     public var enclosingScrollView: NSScrollView? { nil }
+
+    private func insertSubview(_ child: NSView, at requestedIndex: Int) {
+        guard child !== self else { return }
+
+        let newWindow = window
+        child.removeFromSuperview()
+
+        child.viewWillMove(toSuperview: self)
+
+        let index = min(max(0, requestedIndex), subviews.count)
+        subviews.insert(child, at: index)
+        child.superview = self
+        child.quillMoveWindowRecursively(newWindow)
+
+        child.viewDidMoveToSuperview()
+    }
+
+    fileprivate func quillSetWindowRecursively(_ newWindow: NSWindow?) {
+        window = newWindow
+        for child in subviews {
+            child.quillSetWindowRecursively(newWindow)
+        }
+    }
+
+    fileprivate func quillMoveWindowRecursively(_ newWindow: NSWindow?) {
+        guard window !== newWindow else { return }
+        quillViewWillMoveToWindowRecursively(newWindow)
+        quillSetWindowRecursively(newWindow)
+        quillViewDidMoveToWindowRecursively()
+    }
+
+    private func quillViewWillMoveToWindowRecursively(_ newWindow: NSWindow?) {
+        viewWillMove(toWindow: newWindow)
+        for child in subviews {
+            child.quillViewWillMoveToWindowRecursively(newWindow)
+        }
+    }
+
+    private func quillViewDidMoveToWindowRecursively() {
+        viewDidMoveToWindow()
+        for child in subviews {
+            child.quillViewDidMoveToWindowRecursively()
+        }
+    }
 }
 
 open class NSTrackingArea: NSObject, @unchecked Sendable {
@@ -447,7 +521,14 @@ open class NSWindow: NSResponder {
     public var frame: NSRect = .zero
     public var title: String = ""
     public var subtitle: String = ""
-    public var contentView: NSView? = NSView()
+    public var contentView: NSView? = NSView() {
+        didSet {
+            guard oldValue !== contentView else { return }
+            oldValue?.quillMoveWindowRecursively(nil)
+            contentView?.removeFromSuperview()
+            contentView?.quillMoveWindowRecursively(self)
+        }
+    }
     public var contentViewController: NSViewController?
     public weak var delegate: NSWindowDelegate?
     public var styleMask: StyleMask = []
@@ -518,11 +599,16 @@ open class NSWindow: NSResponder {
         case automatic, preferred, disallowed
     }
 
-    public override init() { super.init() }
+    public override init() {
+        super.init()
+        contentView?.quillSetWindowRecursively(self)
+    }
+
     public init(contentRect: NSRect, styleMask: StyleMask, backing: BackingStoreType, defer: Bool) {
         super.init()
         self.frame = contentRect
         self.styleMask = styleMask
+        contentView?.quillSetWindowRecursively(self)
     }
 
     public func makeKeyAndOrderFront(_ sender: Any?) { isVisible = true; isKeyWindow = true }

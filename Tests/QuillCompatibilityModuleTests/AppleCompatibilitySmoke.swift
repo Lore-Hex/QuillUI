@@ -94,6 +94,17 @@ enum AppleCompatibilitySmoke {
         var outOfRangeRemoveIgnored: Bool
     }
 
+    struct AppKitViewHierarchyResult {
+        var addEstablishedLinks: Bool
+        var addFiredSuperviewCallbacks: Bool
+        var reparentedWithoutDuplicateBacklinks: Bool
+        var removalClearedLinks: Bool
+        var removalFiredSuperviewCallbacks: Bool
+        var windowContentViewPropagated: Bool
+        var windowContentViewCleared: Bool
+        var windowCallbacksReachedSubview: Bool
+    }
+
     struct OSLogResult {
         var operations: Set<String>
         var renderedPublicValue: Bool
@@ -555,6 +566,73 @@ enum AppleCompatibilitySmoke {
         )
     }
 
+    @MainActor
+    static func runAppKitViewHierarchySmoke() -> AppKitViewHierarchyResult {
+        let parent = NSView()
+        let child = ViewHierarchyProbe()
+
+        parent.addSubview(child)
+        let addEstablishedLinks =
+            child.superview === parent &&
+            parent.subviews.contains { $0 === child }
+        let addFiredSuperviewCallbacks =
+            child.events.contains("willSuperview:true") &&
+            child.events.contains("didSuperview:true")
+
+        let newParent = NSView()
+        newParent.addSubview(child)
+        let reparentedWithoutDuplicateBacklinks =
+            child.superview === newParent &&
+            !parent.subviews.contains { $0 === child } &&
+            newParent.subviews.filter { $0 === child }.count == 1
+
+        child.removeFromSuperview()
+        let removalClearedLinks =
+            child.superview == nil &&
+            !newParent.subviews.contains { $0 === child }
+        let removalFiredSuperviewCallbacks =
+            child.events.contains("willSuperview:false") &&
+            child.events.contains("didSuperview:false")
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 120, height: 80),
+            styleMask: [],
+            backing: .buffered,
+            defer: false
+        )
+        let contentView = ViewHierarchyProbe()
+        let nestedView = ViewHierarchyProbe()
+        contentView.addSubview(nestedView)
+        contentView.events.removeAll()
+        nestedView.events.removeAll()
+
+        window.contentView = contentView
+        let windowContentViewPropagated =
+            contentView.window === window &&
+            nestedView.window === window
+        let windowCallbacksReachedSubview =
+            contentView.events.contains("willWindow:true") &&
+            contentView.events.contains("didWindow:true") &&
+            nestedView.events.contains("willWindow:true") &&
+            nestedView.events.contains("didWindow:true")
+
+        window.contentView = nil
+        let windowContentViewCleared =
+            contentView.window == nil &&
+            nestedView.window == nil
+
+        return AppKitViewHierarchyResult(
+            addEstablishedLinks: addEstablishedLinks,
+            addFiredSuperviewCallbacks: addFiredSuperviewCallbacks,
+            reparentedWithoutDuplicateBacklinks: reparentedWithoutDuplicateBacklinks,
+            removalClearedLinks: removalClearedLinks,
+            removalFiredSuperviewCallbacks: removalFiredSuperviewCallbacks,
+            windowContentViewPropagated: windowContentViewPropagated,
+            windowContentViewCleared: windowContentViewCleared,
+            windowCallbacksReachedSubview: windowCallbacksReachedSubview
+        )
+    }
+
     static func runOSLogSmoke() -> OSLogResult {
         QuillCompatibilityDiagnostics.shared.clear()
 
@@ -657,5 +735,25 @@ private final class ToolbarDelegateProbe: NSObject, NSToolbarDelegate {
         let item = NSToolbarItem(itemIdentifier: id)
         item.label = id.rawValue
         return item
+    }
+}
+
+private final class ViewHierarchyProbe: NSView {
+    var events: [String] = []
+
+    override func viewWillMove(toSuperview newSuperview: NSView?) {
+        events.append("willSuperview:\(newSuperview != nil)")
+    }
+
+    override func viewDidMoveToSuperview() {
+        events.append("didSuperview:\(superview != nil)")
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        events.append("willWindow:\(newWindow != nil)")
+    }
+
+    override func viewDidMoveToWindow() {
+        events.append("didWindow:\(window != nil)")
     }
 }
