@@ -2388,6 +2388,20 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const int headerTitleWidth = styleInt(style, "headerTitleWidth");
     currentTitle->setFixedWidth(headerTitleWidth);
     modelStatus->setFixedWidth(headerTitleWidth);
+    auto updateHeaderTitleAccessibility = [&](const QString &title) {
+        currentTitle->setAccessibleName(title);
+        currentTitle->setAccessibleDescription(title);
+        currentTitle->setToolTip(title);
+        currentTitle->setStatusTip(title);
+    };
+    auto updateModelStatusAccessibility = [&](const QString &status) {
+        modelStatus->setAccessibleName(status);
+        modelStatus->setAccessibleDescription(status);
+        modelStatus->setToolTip(status);
+        modelStatus->setStatusTip(status);
+    };
+    updateHeaderTitleAccessibility(currentTitle->text());
+    updateModelStatusAccessibility(modelStatus->text());
     titleLayout->addWidget(currentTitle);
     titleLayout->addWidget(modelStatus);
     headerLayout->addLayout(titleLayout, 1);
@@ -2885,25 +2899,29 @@ extern "C" int quill_enchanted_qt_run_app_json(
             style
         );
         const QString selectedID = currentConversationID(conversationList, selectedConversationID);
-        currentTitle->setText(selectedConversationTitle(
+        const QString updatedCurrentTitle = selectedConversationTitle(
             conversations,
             selectedID,
             newConversationTitle
-        ));
+        );
+        currentTitle->setText(updatedCurrentTitle);
+        updateHeaderTitleAccessibility(updatedCurrentTitle);
         setStatusText(payloadString(payload, "status"));
         discardUnsupportedAttachmentState();
         refreshButton->setEnabled(!isLoading);
         updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle, style);
         refreshStyle(sendButton);
         updateComposerControlState();
-        modelStatus->setText(modelStatusText(
+        const QString updatedModelStatus = modelStatusText(
             modelPicker->currentText().trimmed().isEmpty()
                 ? payloadString(payload, "selectedModel")
                 : modelPicker->currentText(),
             chooseLocalModelStatus,
             usingModelStatusPrefix,
             usingModelStatusSeparator
-        ));
+        );
+        modelStatus->setText(updatedModelStatus);
+        updateModelStatusAccessibility(updatedModelStatus);
         renderMessageSet(selectedConversationMessages(
             conversations,
             selectedID,
@@ -2976,6 +2994,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         conversationList->setCurrentRow(-1);
         updateConversationSelectionStyles(conversationList);
         currentTitle->setText(newConversationTitle);
+        updateHeaderTitleAccessibility(newConversationTitle);
         renderMessageSet(QJsonArray());
         updateConversationActionState();
     });
@@ -2997,6 +3016,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         } else {
             conversationList->setCurrentRow(-1);
             currentTitle->setText(newConversationTitle);
+            updateHeaderTitleAccessibility(newConversationTitle);
             renderMessageSet(QJsonArray());
         }
         updateConversationSelectionStyles(conversationList);
@@ -3011,6 +3031,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         conversationList->setCurrentRow(-1);
         updateConversationSelectionStyles(conversationList);
         currentTitle->setText(newConversationTitle);
+        updateHeaderTitleAccessibility(newConversationTitle);
         renderMessageSet(QJsonArray());
         updateConversationActionState();
     });
@@ -3044,11 +3065,13 @@ extern "C" int quill_enchanted_qt_run_app_json(
         }
 
         const QString selectedID = item->data(Qt::UserRole).toString();
-        currentTitle->setText(selectedConversationTitle(
+        const QString updatedCurrentTitle = selectedConversationTitle(
             conversations,
             selectedID,
             newConversationTitle
-        ));
+        );
+        currentTitle->setText(updatedCurrentTitle);
+        updateHeaderTitleAccessibility(updatedCurrentTitle);
         const QJsonArray selectedMessages = selectedConversationMessages(
             conversations,
             selectedID,
@@ -3073,7 +3096,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
         );
     });
     QObject::connect(modelPicker, &QComboBox::currentTextChanged, [&](const QString &model) {
-        modelStatus->setText(modelStatusText(model, chooseLocalModelStatus, usingModelStatusPrefix, usingModelStatusSeparator));
+        const QString updatedModelStatus = modelStatusText(model, chooseLocalModelStatus, usingModelStatusPrefix, usingModelStatusSeparator);
+        modelStatus->setText(updatedModelStatus);
+        updateModelStatusAccessibility(updatedModelStatus);
         discardUnsupportedAttachmentState();
         updateComposerControlState();
         requestHistoryAction(
