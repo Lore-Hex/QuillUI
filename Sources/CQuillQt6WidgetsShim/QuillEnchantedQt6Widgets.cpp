@@ -2231,9 +2231,25 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const int statusDotSize = styleInt(style, "statusDotSize");
     statusDot->setFixedSize(statusDotSize, statusDotSize);
     statusLayout->addWidget(statusDot);
-    QLabel *statusText = label(payloadString(payload, "status"), QStringLiteral("statusText"));
+    const QString initialStatus = payloadString(payload, "status");
+    QLabel *statusText = label(initialStatus, QStringLiteral("statusText"));
     const int statusTextWidth = styleInt(style, "statusTextWidth");
     statusText->setFixedWidth(statusTextWidth);
+    auto updateStatusAccessibility = [&](const QString &status) {
+        statusDot->setAccessibleName(status);
+        statusDot->setAccessibleDescription(status);
+        statusDot->setToolTip(status);
+        statusDot->setStatusTip(status);
+        statusText->setAccessibleName(status);
+        statusText->setAccessibleDescription(status);
+        statusText->setToolTip(status);
+        statusText->setStatusTip(status);
+    };
+    updateStatusAccessibility(initialStatus);
+    auto setStatusText = [&](const QString &status) {
+        statusText->setText(status);
+        updateStatusAccessibility(status);
+    };
     statusLayout->addWidget(statusText);
     sidebarLayout->addLayout(statusLayout);
 
@@ -2722,7 +2738,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             removeAttachmentButton->setFixedWidth(styleInt(style, "attachmentRemoveButtonWidth"));
             QObject::connect(removeAttachmentButton, &QPushButton::clicked, [&, path]() {
                 pendingAttachmentPaths.removeAll(path);
-                statusText->setText(
+                setStatusText(
                     pendingAttachmentPaths.isEmpty()
                         ? attachmentRemovedEmptyStatus
                         : attachmentReadyStatus(
@@ -2757,13 +2773,13 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
         if (!accepted) {
             if (!validation.lastError.isEmpty()) {
-                statusText->setText(validation.lastError);
+                setStatusText(validation.lastError);
             }
             return false;
         }
 
         renderAttachmentTray();
-        statusText->setText(attachmentReadyStatus(
+        setStatusText(attachmentReadyStatus(
             pendingAttachmentPaths.count(),
             imageReadyStatusSingular,
             imageReadyStatusPluralUnit
@@ -2784,7 +2800,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         clearLayout(attachmentChipListLayout);
         attachmentTray->setVisible(false);
         if (!nextStatus.isEmpty()) {
-            statusText->setText(nextStatus);
+            setStatusText(nextStatus);
         }
         updateComposerControlState();
     };
@@ -2797,7 +2813,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     };
     auto triggerSendOrStop = [&]() {
         if (isLoading) {
-            statusText->setText(stoppingStatus);
+            setStatusText(stoppingStatus);
             return;
         }
 
@@ -2874,7 +2890,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             selectedID,
             newConversationTitle
         ));
-        statusText->setText(payloadString(payload, "status"));
+        setStatusText(payloadString(payload, "status"));
         discardUnsupportedAttachmentState();
         refreshButton->setEnabled(!isLoading);
         updateSendButtonPresentation(sendButton, icons, isLoading, sendTitle, stopTitle, style);
@@ -2948,7 +2964,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         sidebarUtilityTitle->setText(title);
         sidebarUtilitySubtitle->setText(subtitle);
         sidebarUtilityPanel->setVisible(true);
-        statusText->setText(status);
+        setStatusText(status);
     };
 
     QObject::connect(newConversationButton, &QPushButton::clicked, [&]() {

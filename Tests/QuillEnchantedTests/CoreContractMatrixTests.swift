@@ -1375,6 +1375,14 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing))")
         expectContains(nativeShim, "groupLayout->setSpacing(styleInt(style, \"sidebarControlGroupSpacing\"));\n    groupLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft)")
         expectContains(nativeShim, "field->setAccessibleName(title);\n    field->setAccessibleDescription(title);\n    field->setToolTip(title);\n    field->setStatusTip(title)")
+        expectContains(nativeShim, "const QString initialStatus = payloadString(payload, \"status\")")
+        expectContains(nativeShim, "auto updateStatusAccessibility = [&](const QString &status)")
+        expectContains(nativeShim, "statusDot->setAccessibleName(status)")
+        expectContains(nativeShim, "statusDot->setAccessibleDescription(status)")
+        expectContains(nativeShim, "statusText->setAccessibleName(status)")
+        expectContains(nativeShim, "statusText->setAccessibleDescription(status)")
+        expectContains(nativeShim, "auto setStatusText = [&](const QString &status)")
+        expectContains(nativeShim, "updateStatusAccessibility(status)")
         expectContains(nativeShim, "QString conversationID(const QJsonObject &conversation)")
         expectContains(nativeShim, "QString conversationTitle(const QJsonObject &conversation)")
         expectContains(nativeShim, "QString conversationLastMessage(const QJsonObject &conversation)")
@@ -2000,7 +2008,7 @@ struct CoreContractMatrixTests {
             "const AttachmentPathValidation validation = validatedAttachmentPaths(rawPaths, attachmentPolicy)",
             "dropTarget->setSupportedAttachmentExtensions(attachmentPolicy.supportedExtensions)",
             "formattedAttachmentByteCount(byteCount)",
-            "statusText->setText(validation.lastError)",
+            "setStatusText(validation.lastError)",
             "const QString displaySize = attachmentDisplaySize(path)",
             "QStringLiteral(\"- %1 (%2)\").arg(displayName, displaySize)",
         ] {
@@ -2185,7 +2193,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "sendButton->setEnabled(isLoading || hasTrimmedText(promptEditor) || hasPendingAttachments)")
         expectContains(nativeShim, "if (!selectedModelSupportsImages(modelPicker, payload)) {\n            return;\n        }\n\n        addPendingAttachmentPaths(paths)")
         expectContains(nativeShim, "auto attachPendingPath = [&]() {\n        if (!selectedModelSupportsImages(modelPicker, payload))")
-        expectContains(nativeShim, "statusText->setText(stoppingStatus)")
+        expectContains(nativeShim, "setStatusText(stoppingStatus)")
         expectContains(nativeShim, "clearAttachmentState(attachmentsClearedStatus)")
         expectContains(nativeShim, "clearAttachmentState(QString())")
         expectContains(nativeShim, "auto discardUnsupportedAttachmentState = [&]()")
@@ -2194,7 +2202,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "isLoading = payloadBool(payload, \"isLoading\")")
         expectContains(nativeShim, "refreshStyle(sendButton)")
         expectContains(nativeShim, "refreshStyle(sendButton);\n        updateComposerControlState()")
-        expectContains(nativeShim, "statusText->setText(payloadString(payload, \"status\"));\n        discardUnsupportedAttachmentState();")
+        expectContains(nativeShim, "setStatusText(payloadString(payload, \"status\"));\n        discardUnsupportedAttachmentState();")
         expectContains(nativeShim, "modelStatus->setText(modelStatusText(model, chooseLocalModelStatus, usingModelStatusPrefix, usingModelStatusSeparator));\n        discardUnsupportedAttachmentState();\n        updateComposerControlState();")
         expectContains(nativeShim, "std::function<bool(const QString &, const QString &, const QString &, const QStringList &)> requestHistoryAction")
         expectContains(nativeShim, "QStringLiteral(\"sendMessage\"),")
