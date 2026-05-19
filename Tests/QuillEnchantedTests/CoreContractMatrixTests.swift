@@ -265,6 +265,7 @@ struct CoreContractMatrixTests {
         #expect(EnchantedIcon.unavailableModel == "waveform")
         #expect(EnchantedIcon.copyMessage == "doc.on.doc")
         #expect(EnchantedCopy.copyMessageTitle == "Copy")
+        #expect(EnchantedCopy.editMessageTitle == "Edit")
 
         for needle in [
             "SidebarButton(title: \"Completions\", image: \"textformat.abc\"",
@@ -537,6 +538,7 @@ struct CoreContractMatrixTests {
         expectContains(shared, "public static let emptyStateSubtitle = \"\"")
         expectContains(shared, "public static let sidebarSubtitle = \"Local AI conversations\"")
         expectContains(shared, "public static let copyMessageTitle = \"Copy\"")
+        expectContains(shared, "public static let editMessageTitle = \"Edit\"")
         expectContains(shared, "public static let copyMessage = \"doc.on.doc\"")
         expectDoesNotContain(shared, "Quill Enchanted")
         expectDoesNotContain(shared, "QuillUI Linux preview")
@@ -960,6 +962,7 @@ struct CoreContractMatrixTests {
         expectContains(runtime, "usingModelStatusSeparator: EnchantedCopy.usingModelStatusSeparator")
         expectContains(runtime, "deleteChatTitle: EnchantedCopy.deleteChatTitle")
         expectContains(runtime, "copyMessageTitle: EnchantedCopy.copyMessageTitle")
+        expectContains(runtime, "editMessageTitle: EnchantedCopy.editMessageTitle")
         expectContains(runtime, "clearAllTitle: EnchantedCopy.clearAllTitle")
         expectContains(runtime, "refreshModelsTitle: EnchantedCopy.refreshModelsTitle")
         expectContains(runtime, "completionsTitle: EnchantedCopy.completionsTitle")
@@ -1595,7 +1598,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "messageLayout->addWidget(loadingRowWidget(status, style))")
         expectContains(nativeShim, "const int messageBubbleRowSpacing = styleInt(style, \"messageBubbleRowSpacing\")")
         expectContains(nativeShim, "row->setSpacing(messageBubbleRowSpacing)")
-        expectContains(nativeShim, "copyMessageTitle\n    ), 0, Qt::AlignTop)")
+        expectContains(nativeShim, "copyMessageTitle,\n        editMessageTitle,\n        editMessage\n    ), 0, Qt::AlignTop)")
         expectContains(nativeShim, "const int messageMaxWidth = styleInt(style, \"messageMaxWidth\")")
         expectContains(nativeShim, "bubble->setMaximumWidth(messageMaxWidth)")
         expectContains(nativeShim, "const int messageBubblePadding = styleInt(style, \"messageBubblePadding\")")
@@ -1802,15 +1805,21 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "payloadString(payload, \"conversationsTitle\")")
         expectContains(nativeShim, "const QString deleteChatTitle = payloadString(payload, \"deleteChatTitle\")")
         expectContains(nativeShim, "const QString copyMessageTitle = payloadString(payload, \"copyMessageTitle\")")
+        expectContains(nativeShim, "const QString editMessageTitle = payloadString(payload, \"editMessageTitle\")")
+        expectContains(nativeShim, "using MessageEditAction = std::function<void(const QString &)>;")
         expectContains(nativeShim, "#include <QClipboard>")
         expectContains(nativeShim, "#include <QMenu>")
-        expectContains(nativeShim, "void installMessageCopyMenuRecursively(")
+        expectContains(nativeShim, "void installMessageContextMenuRecursively(")
         expectContains(nativeShim, "widget->setContextMenuPolicy(Qt::CustomContextMenu)")
         expectContains(nativeShim, "QMenu menu(anchor)")
         expectContains(nativeShim, "QAction *copyAction = menu.addAction(copyMessageTitle)")
+        expectContains(nativeShim, "if (isEditableMessageRole(role))")
+        expectContains(nativeShim, "QAction *editAction = menu.addAction(editMessageTitle)")
+        expectContains(nativeShim, "promptEditor->setPlainText(message)")
+        expectContains(nativeShim, "promptEditor->setFocus(Qt::OtherFocusReason)")
         expectContains(nativeShim, "QClipboard *clipboard = QApplication::clipboard()")
         expectContains(nativeShim, "clipboard->setText(content)")
-        expectContains(nativeShim, "installMessageCopyMenuRecursively(bubble, content, copyMessageTitle)")
+        expectContains(nativeShim, "installMessageContextMenuRecursively(bubble, role, content, copyMessageTitle, editMessageTitle, editMessage)")
         expectContains(nativeShim, "QPushButton *deleteButton = new QPushButton()")
         expectContains(nativeShim, "QIcon deleteChatButtonIcon(const QJsonObject &icons)")
         expectContains(nativeShim, "systemImageIcon(requiredIconName(icons, \"deleteChat\"))")
@@ -2114,7 +2123,9 @@ struct CoreContractMatrixTests {
         for needle in [
             "EnchantedClipboard.setString(message.content)",
             "EnchantedCopy.copyMessageTitle",
-            "QuillSystemSymbol.compatibleName(EnchantedIcon.copyMessage)"
+            "QuillSystemSymbol.compatibleName(EnchantedIcon.copyMessage)",
+            "Button(\"Edit\") {\n                                        editMessage = message",
+            "MenuItem(\"Edit\") {\n                                        editMessage = message"
         ] {
             expectContains(upstreamSlice, needle)
         }

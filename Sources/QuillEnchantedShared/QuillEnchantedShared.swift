@@ -143,6 +143,7 @@ public enum EnchantedCopy {
     public static let deleteChatTitle = "Delete chat"
     public static let clearAllTitle = "Clear all"
     public static let copyMessageTitle = "Copy"
+    public static let editMessageTitle = "Edit"
     public static let refreshModelsTitle = "Refresh models"
     public static let completionsTitle = "Completions"
     public static let shortcutsTitle = "Shortcuts"
