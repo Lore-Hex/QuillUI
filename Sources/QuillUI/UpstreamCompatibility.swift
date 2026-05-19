@@ -1333,7 +1333,13 @@ public extension View {
         @ViewBuilder actions: () -> Actions,
         @ViewBuilder message: () -> Message
     ) -> ConfirmationDialogView<Self> {
-        confirmationDialog(title, isPresented: isPresented, actions: [])
+        confirmationDialog(
+            title,
+            isPresented: isPresented,
+            titleVisibility: .automatic,
+            actions: quillConfirmationDialogButtons(from: actions()),
+            message: quillTextLabel(from: message())
+        )
     }
 
 }
@@ -1437,6 +1443,21 @@ public func quillMenuElements(from view: any View) -> [MenuElement] {
     }
 
     return []
+}
+
+private func quillConfirmationDialogButtons(from view: any View) -> [AlertButton] {
+    quillMenuElements(from: view).flatMap(quillAlertButtons)
+}
+
+private func quillAlertButtons(from element: MenuElement) -> [AlertButton] {
+    switch element {
+    case .item(let label, let action):
+        return [AlertButton(label, action: action)]
+    case .divider:
+        return []
+    case .submenu(_, let children):
+        return children.flatMap(quillAlertButtons)
+    }
 }
 
 private func quillMenuElement(_ element: MenuElement, disabled: Bool) -> MenuElement {

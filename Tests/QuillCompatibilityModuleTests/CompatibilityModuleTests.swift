@@ -1236,6 +1236,36 @@ struct CompatibilityModuleTests {
         #expect(QuillUI.quillMenuElements(from: Unknown()).isEmpty)
     }
 
+    @Test("confirmationDialog compatibility preserves buttons and message text")
+    func confirmationDialogCompatibilityPreservesButtonsAndMessage() {
+        let deleteTapCount = QuillTestBox<Int>(0)
+        let cancelTapCount = QuillTestBox<Int>(0)
+        let dialog = Text("Row").confirmationDialog("Delete?", isPresented: .constant(true)) {
+            Button("Delete") {
+                deleteTapCount.value = (deleteTapCount.value ?? 0) + 1
+            }
+            Button("Cancel", role: .cancel) {
+                cancelTapCount.value = (cancelTapCount.value ?? 0) + 1
+            }
+        } message: {
+            Text("Delete this completion?")
+        }
+
+        #expect(dialog.title == "Delete?")
+        #expect(dialog.message == "Delete this completion?")
+        #expect(dialog.buttons.count == 2)
+        #expect(dialog.buttons.map(\.label) == ["Delete", "Cancel"])
+        guard dialog.buttons.count == 2 else {
+            return
+        }
+
+        dialog.buttons[0].action()
+        dialog.buttons[1].action()
+
+        #expect(deleteTapCount.value == 1)
+        #expect(cancelTapCount.value == 1)
+    }
+
     @Test("quillCommandMenuItems extracts from Button and respects disabled state")
     func quillCommandMenuItemsExtraction() {
         let count = QuillTestBox<Int>(0)
