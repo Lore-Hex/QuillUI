@@ -196,6 +196,20 @@ struct CompatibilityModuleTests {
         #expect(result.windowCallbacksReachedSubview)
     }
 
+    @Test("AppKit responders maintain chain and first responder lifecycle")
+    @MainActor
+    func appKitRespondersMaintainChainAndFirstResponderLifecycle() {
+        let result = AppleCompatibilitySmoke.runAppKitResponderSmoke()
+
+        #expect(result.explicitNextResponderRoundTrip)
+        #expect(result.viewDefaultResponderChain)
+        #expect(result.viewControllerOwnsViewResponder)
+        #expect(result.eventForwardingReachesNextResponder)
+        #expect(result.makeFirstResponderCallsLifecycle)
+        #expect(result.rejectedFirstResponderPreservesCurrent)
+        #expect(result.clearingFirstResponderResignsCurrent)
+    }
+
     @Test("AppKit view controllers maintain containment links")
     @MainActor
     func appKitViewControllersMaintainContainmentLinks() {

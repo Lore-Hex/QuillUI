@@ -237,16 +237,21 @@ open class NSAppearance: NSObject, @unchecked Sendable {
 // MARK: - NSResponder / NSView / NSViewController / NSWindow
 
 open class NSResponder: NSObject {
+    fileprivate weak var quillExplicitNextResponder: NSResponder?
+
     public override init() {}
-    open var nextResponder: NSResponder? { nil }
-    open func mouseDown(with event: NSEvent) {}
-    open func mouseUp(with event: NSEvent) {}
-    open func mouseDragged(with event: NSEvent) {}
-    open func mouseMoved(with event: NSEvent) {}
-    open func keyDown(with event: NSEvent) {}
-    open func keyUp(with event: NSEvent) {}
-    open func flagsChanged(with event: NSEvent) {}
-    open func scrollWheel(with event: NSEvent) {}
+    open var nextResponder: NSResponder? {
+        get { quillExplicitNextResponder }
+        set { quillExplicitNextResponder = newValue }
+    }
+    open func mouseDown(with event: NSEvent) { nextResponder?.mouseDown(with: event) }
+    open func mouseUp(with event: NSEvent) { nextResponder?.mouseUp(with: event) }
+    open func mouseDragged(with event: NSEvent) { nextResponder?.mouseDragged(with: event) }
+    open func mouseMoved(with event: NSEvent) { nextResponder?.mouseMoved(with: event) }
+    open func keyDown(with event: NSEvent) { nextResponder?.keyDown(with: event) }
+    open func keyUp(with event: NSEvent) { nextResponder?.keyUp(with: event) }
+    open func flagsChanged(with event: NSEvent) { nextResponder?.flagsChanged(with: event) }
+    open func scrollWheel(with event: NSEvent) { nextResponder?.scrollWheel(with: event) }
     open var acceptsFirstResponder: Bool { false }
     open func becomeFirstResponder() -> Bool { true }
     open func resignFirstResponder() -> Bool { true }
@@ -268,6 +273,11 @@ open class NSView: NSResponder {
     public var clipsToBounds: Bool = false
     public var autoresizingMask: AutoresizingMask = []
     public var identifier: NSUserInterfaceItemIdentifier?
+
+    open override var nextResponder: NSResponder? {
+        get { quillExplicitNextResponder ?? superview ?? window }
+        set { quillExplicitNextResponder = newValue }
+    }
 
     public struct AutoresizingMask: OptionSet, Sendable {
         public let rawValue: UInt
@@ -432,7 +442,22 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
 }
 
 @MainActor open class NSViewController: NSResponder {
-    public var view: NSView = NSView()
+    private var quillView: NSView = NSView()
+    public var view: NSView {
+        get {
+            if quillView.quillExplicitNextResponder == nil {
+                quillView.nextResponder = self
+            }
+            return quillView
+        }
+        set {
+            if quillView.nextResponder === self {
+                quillView.nextResponder = nil
+            }
+            quillView = newValue
+            quillView.nextResponder = self
+        }
+    }
     public var children: [NSViewController] = []
     public var representedObject: Any?
     public var title: String?
@@ -440,6 +465,7 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     public var preferredContentSize: NSSize = .zero
     public var preferredMinimumSize: NSSize = .zero
     public var preferredMaximumSize: NSSize = .zero
+    public override init() { super.init() }
     open func viewDidLoad() {}
     open func viewWillAppear() {}
     open func viewDidAppear() {}
@@ -658,7 +684,14 @@ open class NSWindow: NSResponder {
     public func setIsVisible(_ v: Bool) { isVisible = v }
     public func setIsMiniaturized(_ v: Bool) { isMiniaturized = v }
     public func setIsZoomed(_ v: Bool) { isZoomed = v }
-    public func makeFirstResponder(_ r: NSResponder?) -> Bool { firstResponder = r; return true }
+    public func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+        if firstResponder === responder { return true }
+        if let responder, !responder.acceptsFirstResponder { return false }
+        if let current = firstResponder, !current.resignFirstResponder() { return false }
+        if let responder, !responder.becomeFirstResponder() { return false }
+        firstResponder = responder
+        return true
+    }
     public func performMiniaturize(_ sender: Any?) {}
     public func performZoom(_ sender: Any?) {}
     public func setFrameAutosaveName(_ name: String) -> Bool { frameAutosaveName = name; return true }

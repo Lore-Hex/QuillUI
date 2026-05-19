@@ -113,6 +113,16 @@ enum AppleCompatibilitySmoke {
         var windowCallbacksReachedSubview: Bool
     }
 
+    struct AppKitResponderResult {
+        var explicitNextResponderRoundTrip: Bool
+        var viewDefaultResponderChain: Bool
+        var viewControllerOwnsViewResponder: Bool
+        var eventForwardingReachesNextResponder: Bool
+        var makeFirstResponderCallsLifecycle: Bool
+        var rejectedFirstResponderPreservesCurrent: Bool
+        var clearingFirstResponderResignsCurrent: Bool
+    }
+
     struct AppKitViewControllerContainmentResult {
         var addEstablishedParentLinks: Bool
         var secondChildPreservedOrder: Bool
@@ -727,6 +737,81 @@ enum AppleCompatibilitySmoke {
     }
 
     @MainActor
+    static func runAppKitResponderSmoke() -> AppKitResponderResult {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 120, height: 80),
+            styleMask: [],
+            backing: .buffered,
+            defer: false
+        )
+        let root = NSView()
+        let child = NSView()
+        root.addSubview(child)
+        window.contentView = root
+
+        let explicit = EventRecorderResponder()
+        child.nextResponder = explicit
+        let explicitNextResponderRoundTrip = child.nextResponder === explicit
+        child.nextResponder = nil
+        let viewDefaultResponderChain =
+            child.nextResponder === root &&
+            root.nextResponder === window
+
+        let viewController = NSViewController()
+        let controllerView = NSView()
+        viewController.view = controllerView
+        let viewControllerOwnsViewResponder = controllerView.nextResponder === viewController
+
+        let recorder = EventRecorderResponder()
+        let sender = NSResponder()
+        sender.nextResponder = recorder
+        let event = NSEvent()
+        sender.keyDown(with: event)
+        sender.mouseDown(with: event)
+        sender.scrollWheel(with: event)
+        let eventForwardingReachesNextResponder =
+            recorder.events == ["keyDown", "mouseDown", "scrollWheel"]
+
+        let lifecycleWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 160, height: 120),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let first = EventRecorderResponder()
+        let second = EventRecorderResponder()
+        let rejecting = RejectingResponder()
+        let acceptedFirst = lifecycleWindow.makeFirstResponder(first)
+        let switched = lifecycleWindow.makeFirstResponder(second)
+        let rejected = lifecycleWindow.makeFirstResponder(rejecting)
+        let makeFirstResponderCallsLifecycle =
+            acceptedFirst &&
+            switched &&
+            first.events == ["become", "resign"] &&
+            second.events == ["become"] &&
+            lifecycleWindow.firstResponder === second
+        let rejectedFirstResponderPreservesCurrent =
+            !rejected &&
+            lifecycleWindow.firstResponder === second &&
+            rejecting.becomeAttempts == 0
+        let cleared = lifecycleWindow.makeFirstResponder(nil)
+        let clearingFirstResponderResignsCurrent =
+            cleared &&
+            lifecycleWindow.firstResponder == nil &&
+            second.events == ["become", "resign"]
+
+        return AppKitResponderResult(
+            explicitNextResponderRoundTrip: explicitNextResponderRoundTrip,
+            viewDefaultResponderChain: viewDefaultResponderChain,
+            viewControllerOwnsViewResponder: viewControllerOwnsViewResponder,
+            eventForwardingReachesNextResponder: eventForwardingReachesNextResponder,
+            makeFirstResponderCallsLifecycle: makeFirstResponderCallsLifecycle,
+            rejectedFirstResponderPreservesCurrent: rejectedFirstResponderPreservesCurrent,
+            clearingFirstResponderResignsCurrent: clearingFirstResponderResignsCurrent
+        )
+    }
+
+    @MainActor
     static func runAppKitViewControllerContainmentSmoke() -> AppKitViewControllerContainmentResult {
         let parent = NSViewController()
         let firstChild = NSViewController()
@@ -1094,6 +1179,45 @@ private final class PopoverDelegateProbe: NSObject, NSPopoverDelegate {
     func popoverShouldClose(_ popover: NSPopover) -> Bool {
         shouldCloseRequests += 1
         return allowsClose
+    }
+}
+
+private final class EventRecorderResponder: NSResponder {
+    var events: [String] = []
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func becomeFirstResponder() -> Bool {
+        events.append("become")
+        return true
+    }
+
+    override func resignFirstResponder() -> Bool {
+        events.append("resign")
+        return true
+    }
+
+    override func keyDown(with event: NSEvent) {
+        events.append("keyDown")
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        events.append("mouseDown")
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        events.append("scrollWheel")
+    }
+}
+
+private final class RejectingResponder: NSResponder {
+    var becomeAttempts = 0
+
+    override var acceptsFirstResponder: Bool { false }
+
+    override func becomeFirstResponder() -> Bool {
+        becomeAttempts += 1
+        return false
     }
 }
 
