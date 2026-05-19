@@ -2392,14 +2392,48 @@ open class NSTextField: NSControl {
 
     public enum BezelStyle: UInt, Sendable { case squareBezel, roundedBezel }
 
+    public convenience init(labelWithString string: String) {
+        self.init()
+        applyLabelDefaults(string: string, selectable: false, lineBreakMode: .byClipping)
+    }
+
+    public convenience init(wrappingLabelWithString string: String) {
+        self.init()
+        applyLabelDefaults(string: string, selectable: true, lineBreakMode: .byWordWrapping)
+    }
+
+    public convenience init(string: String) {
+        self.init()
+        stringValue = string
+        isEditable = true
+        isSelectable = true
+        isBordered = false
+        isBezeled = true
+        drawsBackground = true
+        lineBreakMode = .byClipping
+    }
+
     public static func labelWithString(_ s: String) -> NSTextField {
-        let f = NSTextField(); f.stringValue = s; f.isEditable = false; return f
+        NSTextField(labelWithString: s)
     }
+
     public static func wrappingLabelWithString(_ s: String) -> NSTextField {
-        let f = NSTextField(); f.stringValue = s; f.isEditable = false; f.maximumNumberOfLines = 0; return f
+        NSTextField(wrappingLabelWithString: s)
     }
+
     public static func textField(withString s: String) -> NSTextField {
-        let f = NSTextField(); f.stringValue = s; f.isEditable = true; return f
+        NSTextField(string: s)
+    }
+
+    private func applyLabelDefaults(string: String, selectable: Bool, lineBreakMode: NSLineBreakMode) {
+        stringValue = string
+        isEditable = false
+        isSelectable = selectable
+        isBordered = false
+        isBezeled = false
+        drawsBackground = false
+        maximumNumberOfLines = 0
+        self.lineBreakMode = lineBreakMode
     }
 }
 

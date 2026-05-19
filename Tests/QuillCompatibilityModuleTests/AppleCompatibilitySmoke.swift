@@ -84,6 +84,9 @@ enum AppleCompatibilitySmoke {
         var imageButtonPreservedTargetAndAction: Bool
         var checkboxFactoryPreservedTargetActionAndTitle: Bool
         var radioFactoryPreservedTargetActionAndTitle: Bool
+        var labelInitializerPreservedLabelTraits: Bool
+        var wrappingLabelInitializerPreservedWrappingTraits: Bool
+        var stringInitializerPreservedEditableTraits: Bool
     }
 
     struct AppKitPopUpButtonResult {
@@ -812,6 +815,39 @@ enum AppleCompatibilitySmoke {
             radio.action == action &&
             radio.state == .off
 
+        let label = NSTextField(labelWithString: "Status")
+        let labelInitializerPreservedLabelTraits =
+            label.stringValue == "Status" &&
+            !label.isEditable &&
+            !label.isSelectable &&
+            !label.isBordered &&
+            !label.isBezeled &&
+            !label.drawsBackground &&
+            label.maximumNumberOfLines == 0 &&
+            label.lineBreakMode == .byClipping
+
+        let wrappingLabel = NSTextField(wrappingLabelWithString: "Wrapped status")
+        let wrappingLabelInitializerPreservedWrappingTraits =
+            wrappingLabel.stringValue == "Wrapped status" &&
+            !wrappingLabel.isEditable &&
+            wrappingLabel.isSelectable &&
+            !wrappingLabel.isBordered &&
+            !wrappingLabel.isBezeled &&
+            !wrappingLabel.drawsBackground &&
+            wrappingLabel.maximumNumberOfLines == 0 &&
+            wrappingLabel.lineBreakMode == .byWordWrapping
+
+        let stringTextField = NSTextField(string: "Editable status")
+        let stringInitializerPreservedEditableTraits =
+            stringTextField.stringValue == "Editable status" &&
+            stringTextField.isEditable &&
+            stringTextField.isSelectable &&
+            !stringTextField.isBordered &&
+            stringTextField.isBezeled &&
+            stringTextField.drawsBackground &&
+            stringTextField.maximumNumberOfLines == 0 &&
+            stringTextField.lineBreakMode == .byClipping
+
         return AppKitControlResult(
             stringValueUpdatedNumericAndObjectValues: stringValueUpdatedNumericAndObjectValues,
             numericValuesUpdatedStringAndObjectValues: numericValuesUpdatedStringAndObjectValues,
@@ -822,7 +858,10 @@ enum AppleCompatibilitySmoke {
             textButtonPreservedTargetActionAndTitle: textButtonPreservedTargetActionAndTitle,
             imageButtonPreservedTargetAndAction: imageButtonPreservedTargetAndAction,
             checkboxFactoryPreservedTargetActionAndTitle: checkboxFactoryPreservedTargetActionAndTitle,
-            radioFactoryPreservedTargetActionAndTitle: radioFactoryPreservedTargetActionAndTitle
+            radioFactoryPreservedTargetActionAndTitle: radioFactoryPreservedTargetActionAndTitle,
+            labelInitializerPreservedLabelTraits: labelInitializerPreservedLabelTraits,
+            wrappingLabelInitializerPreservedWrappingTraits: wrappingLabelInitializerPreservedWrappingTraits,
+            stringInitializerPreservedEditableTraits: stringInitializerPreservedEditableTraits
         )
     }
 

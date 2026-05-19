@@ -155,6 +155,9 @@ struct CompatibilityModuleTests {
         #expect(result.imageButtonPreservedTargetAndAction)
         #expect(result.checkboxFactoryPreservedTargetActionAndTitle)
         #expect(result.radioFactoryPreservedTargetActionAndTitle)
+        #expect(result.labelInitializerPreservedLabelTraits)
+        #expect(result.wrappingLabelInitializerPreservedWrappingTraits)
+        #expect(result.stringInitializerPreservedEditableTraits)
     }
 
     @Test("AppKit pop-up buttons preserve menu selection state")
