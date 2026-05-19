@@ -125,6 +125,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedRootView.swift"),
             encoding: .utf8
         )
+        let enchantedModelSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedModel.swift"),
+            encoding: .utf8
+        )
         let sharedPrompts = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedShared/QuillEnchantedShared.swift"),
             encoding: .utf8
@@ -346,14 +350,34 @@ struct CoreContractMatrixTests {
         }
 
         for needle in [
+            "MessageBubble(message: message) { message in\n                                model.editMessage(message)\n                            }",
             ".contextMenu {",
             "Button(action: copyMessageContent)",
             "EnchantedCopy.copyMessageTitle",
             "enchantedSystemImageName(EnchantedIcon.copyMessage)",
+            "if message.role == .user {",
+            "Button(action: editMessageContent)",
+            "Text(EnchantedCopy.editMessageTitle)",
             "private func copyMessageContent()",
-            "EnchantedClipboard.setString(message.content)"
+            "EnchantedClipboard.setString(message.content)",
+            "private func editMessageContent()",
+            "editMessage(message)"
         ] {
             expectContains(macOSRootView, needle)
+        }
+
+        for needle in [
+            "@Published public var editingMessageID: String?",
+            "public func editMessage(_ message: ChatMessage)",
+            "guard message.role == .user else { return }",
+            "composerText = message.content",
+            "editingMessageID = message.id",
+            "trimmingMessageID: draft.trimmingMessageID",
+            "let trimmingMessageID = editingMessageID",
+            "editingMessageID = nil",
+            "return (prompt, attachments, trimmingMessageID)"
+        ] {
+            expectContains(enchantedModelSource, needle)
         }
 
         for needle in [

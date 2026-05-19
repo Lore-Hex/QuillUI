@@ -179,7 +179,9 @@ public struct EnchantedRootView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         ForEach(model.messages) { message in
-                            MessageBubble(message: message)
+                            MessageBubble(message: message) { message in
+                                model.editMessage(message)
+                            }
                         }
                     }
 
@@ -515,6 +517,7 @@ private struct EmptyConversationView: View {
 
 private struct MessageBubble: View {
     var message: ChatMessage
+    var editMessage: (ChatMessage) -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleRowSpacing)) {
@@ -550,6 +553,11 @@ private struct MessageBubble: View {
                         systemImage: enchantedSystemImageName(EnchantedIcon.copyMessage)
                     )
                 }
+                if message.role == .user {
+                    Button(action: editMessageContent) {
+                        Text(EnchantedCopy.editMessageTitle)
+                    }
+                }
             }
 
             if message.role != .user {
@@ -561,6 +569,10 @@ private struct MessageBubble: View {
 
     private func copyMessageContent() {
         EnchantedClipboard.setString(message.content)
+    }
+
+    private func editMessageContent() {
+        editMessage(message)
     }
 
     private var label: String {

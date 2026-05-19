@@ -12,6 +12,7 @@ public final class EnchantedModel: ObservableObject {
     @Published public var selectedConversationID: String?
     @Published public var messages: [ChatMessage] = []
     @Published public var composerText: String = ""
+    @Published public var editingMessageID: String?
     @Published public var attachmentPath: String = ""
     @Published public var pendingImageAttachments: [PendingImageAttachment] = []
     @Published public var isAttachmentDropTargeted: Bool = false
@@ -95,6 +96,7 @@ public final class EnchantedModel: ObservableObject {
         do {
             let created = try requireModelContext().insert(ConversationDraft(title: EnchantedCopy.newConversationTitle))
             selectedConversationID = created.id
+            editingMessageID = nil
             reloadConversations()
             messages = []
             status = EnchantedCopy.newConversationTitle
@@ -105,6 +107,7 @@ public final class EnchantedModel: ObservableObject {
 
     public func select(_ conversation: ConversationSummary) {
         selectedConversationID = conversation.id
+        editingMessageID = nil
         reloadMessages()
     }
 
@@ -120,6 +123,12 @@ public final class EnchantedModel: ObservableObject {
     public func selectModel(named modelName: String?) {
         selectedModel = modelName ?? ""
         discardUnsupportedImageAttachmentsIfNeeded()
+    }
+
+    public func editMessage(_ message: ChatMessage) {
+        guard message.role == .user else { return }
+        composerText = message.content
+        editingMessageID = message.id
     }
 
     public func startSend(
@@ -169,6 +178,7 @@ public final class EnchantedModel: ObservableObject {
             reloadConversations()
             if selectedConversationID == conversationID {
                 selectedConversationID = conversations.first?.id
+                editingMessageID = nil
                 reloadMessages()
             }
         } catch {
@@ -182,6 +192,7 @@ public final class EnchantedModel: ObservableObject {
             conversations = []
             selectedConversationID = nil
             messages = []
+            editingMessageID = nil
             status = EnchantedCopy.historyClearedStatus
         } catch {
             status = EnchantedCopy.couldNotClearHistoryStatus(error.localizedDescription)
@@ -192,25 +203,27 @@ public final class EnchantedModel: ObservableObject {
         guard let draft = takeComposerDraft() else {
             return
         }
-        await send(draft.prompt, attachments: draft.attachments)
+        await send(draft.prompt, attachments: draft.attachments, trimmingMessageID: draft.trimmingMessageID)
     }
 
     public func startComposerMessage() {
         guard let draft = takeComposerDraft() else {
             return
         }
-        startSend(draft.prompt, attachments: draft.attachments)
+        startSend(draft.prompt, attachments: draft.attachments, trimmingMessageID: draft.trimmingMessageID)
     }
 
-    private func takeComposerDraft() -> (prompt: String, attachments: [PendingImageAttachment])? {
+    private func takeComposerDraft() -> (prompt: String, attachments: [PendingImageAttachment], trimmingMessageID: String?)? {
         let attachments = selectedModelSupportsImages ? pendingImageAttachments : []
         guard let prompt = composerText.quillTrimmedNonEmpty ?? (attachments.isEmpty ? nil : PendingImageAttachment.defaultPrompt(for: attachments)) else {
             return nil
         }
+        let trimmingMessageID = editingMessageID
         composerText = ""
+        editingMessageID = nil
         attachmentPath = ""
         pendingImageAttachments = []
-        return (prompt, attachments)
+        return (prompt, attachments, trimmingMessageID)
     }
 
     @discardableResult
