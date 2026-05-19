@@ -1194,6 +1194,20 @@ struct CompatibilityModuleTests {
         #expect(QuillUI.quillSystemImageName(from: Text("not-an-image")) == "circle")
     }
 
+    @Test("quillTextLabel unwraps styled labels")
+    func quillTextLabelUnwrapsStyledLabels() {
+        let styledLabel = Text("Styled")
+            .font(.body)
+            .foregroundColor(.primary)
+            .lineLimit(1)
+            .bold()
+            .help("Tooltip")
+        #expect(QuillUI.quillTextLabel(from: styledLabel) == "Styled")
+
+        #expect(QuillUI.quillTextLabel(from: Text("Visible").accessibilityLabel("Accessible")) == "Visible")
+        #expect(QuillUI.quillTextLabel(from: EmptyView().accessibilityLabel("Fallback")) == "Fallback")
+    }
+
     @Test("quillMenuElements walks Button, Disabled, KeyboardShortcut, and recurses MultiChildView")
     func quillMenuElementsWalksViewTree() {
         // Plain Button returns a single .item with the button's title and action.
@@ -1258,6 +1272,26 @@ struct CompatibilityModuleTests {
             #expect(chainedDisabledTapCount.value == 0)
         } else {
             Issue.record("Expected shortcut then disabled .item, got \(String(describing: shortcutThenDisabledElements.first))")
+        }
+
+        let styledTapCount = QuillTestBox<Int>(0)
+        let styledButton = Button(action: {
+            styledTapCount.value = (styledTapCount.value ?? 0) + 1
+        }) {
+            Text("Rename")
+                .font(.body)
+                .foregroundColor(.primary)
+                .lineLimit(1)
+        }
+        .help("Rename item")
+        let styledElements = QuillUI.quillMenuElements(from: styledButton)
+        #expect(styledElements.count == 1)
+        if case .item(let label, let action) = styledElements.first {
+            #expect(label == "Rename")
+            action()
+            #expect(styledTapCount.value == 1)
+        } else {
+            Issue.record("Expected styled .item, got \(String(describing: styledElements.first))")
         }
 
         // Unknown view type returns []
@@ -1344,6 +1378,16 @@ struct CompatibilityModuleTests {
         #expect(nestedDisabledItems.first?.label == "Pinned")
         #expect(nestedDisabledItems.first?.isDisabled == true)
 
+        let styledCommand = Button("Sync") {
+            count.value = (count.value ?? 0) + 1
+        }
+        .font(.body)
+        .foregroundColor(.primary)
+        .help("Sync now")
+        let styledCommandItems = QuillUI.quillCommandMenuItems(from: styledCommand)
+        #expect(styledCommandItems.count == 1)
+        #expect(styledCommandItems.first?.label == "Sync")
+
         // Unknown view returns empty.
         struct Unknown: View {
             var body: some View { Text("x") }
@@ -1361,8 +1405,22 @@ struct CompatibilityModuleTests {
         #expect(options.count == 2)
         #expect(options[0].label == "a")
         #expect(options[0].tag == AnyHashable("a"))
-        #expect(options[1].label == "folder.badge.plus")
+        #expect(options[1].label == "photo.fill")
         #expect(options[1].tag == AnyHashable("b"))
+
+        let styledOptions = QuillUI.quillPickerOptions(from: HStack {
+            Text("Compact")
+                .font(.body)
+                .tag("compact")
+            Text("Detailed")
+                .tag("detailed")
+                .foregroundColor(.primary)
+        })
+        #expect(styledOptions.count == 2)
+        #expect(styledOptions[0].label == "Compact")
+        #expect(styledOptions[0].tag == AnyHashable("compact"))
+        #expect(styledOptions[1].label == "Detailed")
+        #expect(styledOptions[1].tag == AnyHashable("detailed"))
 
         struct Unknown: View {
             var body: some View { Text("x") }

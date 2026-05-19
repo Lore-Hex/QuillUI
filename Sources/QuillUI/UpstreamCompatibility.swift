@@ -1404,6 +1404,127 @@ extension KeyboardShortcutView: QuillKeyboardShortcutRepresentable {
     fileprivate var quillShortcut: KeyboardShortcut { shortcut }
 }
 
+private protocol QuillWrappedViewRepresentable {
+    var quillWrappedContent: any View { get }
+}
+
+private protocol QuillAccessibilityLabelRepresentable: QuillWrappedViewRepresentable {
+    var quillAccessibilityLabel: String { get }
+}
+
+extension AccessibilityLabelView: QuillAccessibilityLabelRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+    fileprivate var quillAccessibilityLabel: String { label }
+}
+
+extension AccessibilityValueView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension AccessibilityElementView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension ForegroundColorView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension BackgroundView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension FontModifiedView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension BorderView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension LineLimitView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension TruncationModeView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension LineSpacingView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension MultilineTextAlignmentView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension BoldView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension ItalicView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension FontWeightView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension UnderlineView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension StrikethroughView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension TextCaseView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension PaddedView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension FrameView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension PositionView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension LayoutPriorityView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension FixedSizeView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension OverlayView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension OpacityView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension OffsetView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension ScaleEffectView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension AnimatedView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension HelpView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
 @_spi(QuillTesting)
 public func quillTextLabel(from view: any View) -> String {
     if let text = view as? Text {
@@ -1425,6 +1546,15 @@ public func quillTextLabel(from view: any View) -> String {
                 return label
             }
         }
+    }
+
+    if let accessibility = view as? any QuillAccessibilityLabelRepresentable {
+        let contentLabel = quillTextLabel(from: accessibility.quillWrappedContent)
+        return contentLabel.isEmpty ? accessibility.quillAccessibilityLabel : contentLabel
+    }
+
+    if let wrapped = view as? any QuillWrappedViewRepresentable {
+        return quillTextLabel(from: wrapped.quillWrappedContent)
     }
 
     return ""
@@ -1457,6 +1587,10 @@ public func quillMenuElements(from view: any View) -> [MenuElement] {
 
     if let shortcut = view as? any QuillKeyboardShortcutRepresentable {
         return quillMenuElements(from: shortcut.quillShortcutContent)
+    }
+
+    if let wrapped = view as? any QuillWrappedViewRepresentable {
+        return quillMenuElements(from: wrapped.quillWrappedContent)
     }
 
     if let multi = view as? MultiChildView {
@@ -1509,6 +1643,10 @@ public func quillCommandMenuItems(from view: any View) -> [CommandMenuItem] {
             .map { quillCommandMenuItem($0, disabled: disabled.quillIsDisabled) }
     }
 
+    if let wrapped = view as? any QuillWrappedViewRepresentable {
+        return quillCommandMenuItems(from: wrapped.quillWrappedContent)
+    }
+
     if let multi = view as? MultiChildView {
         return multi.children.flatMap(quillCommandMenuItems)
     }
@@ -1534,6 +1672,10 @@ public func quillPickerOptions(from view: any View) -> [(label: String, tag: Any
     if let tagged = view as? AnyTagView {
         let label = quillTextLabel(from: tagged.anyTagContent)
         return [(label.isEmpty ? String(describing: tagged.anyTagValue.base) : label, tagged.anyTagValue)]
+    }
+
+    if let wrapped = view as? any QuillWrappedViewRepresentable {
+        return quillPickerOptions(from: wrapped.quillWrappedContent)
     }
 
     if let multi = view as? MultiChildView {
