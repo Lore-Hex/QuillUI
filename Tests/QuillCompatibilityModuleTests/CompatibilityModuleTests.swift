@@ -156,6 +156,18 @@ struct CompatibilityModuleTests {
         #expect(result.menuItemBacklinks)
     }
 
+    @Test("AppKit popovers maintain presentation and delegate state")
+    @MainActor
+    func appKitPopoversMaintainPresentationAndDelegateState() {
+        let result = AppleCompatibilitySmoke.runAppKitPopoverSmoke()
+
+        #expect(result.showUpdatedStateAndAnchor)
+        #expect(result.repeatedShowUpdatedAnchorWithoutDuplicateCallbacks)
+        #expect(result.closeVetoPreservedState)
+        #expect(result.performCloseDelegatedToClose)
+        #expect(result.redundantCloseIgnored)
+    }
+
     @Test("AppKit toolbars ask delegates and maintain visible items")
     @MainActor
     func appKitToolbarsAskDelegatesAndMaintainVisibleItems() {

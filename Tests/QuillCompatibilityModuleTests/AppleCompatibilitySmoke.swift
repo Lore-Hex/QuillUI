@@ -85,6 +85,14 @@ enum AppleCompatibilitySmoke {
         var menuItemBacklinks: Bool
     }
 
+    struct AppKitPopoverResult {
+        var showUpdatedStateAndAnchor: Bool
+        var repeatedShowUpdatedAnchorWithoutDuplicateCallbacks: Bool
+        var closeVetoPreservedState: Bool
+        var performCloseDelegatedToClose: Bool
+        var redundantCloseIgnored: Bool
+    }
+
     struct AppKitToolbarResult {
         var insertedItemsInDelegateOrder: Bool
         var delegateSawInsertedFlag: Bool
@@ -589,6 +597,61 @@ enum AppleCompatibilitySmoke {
     }
 
     @MainActor
+    static func runAppKitPopoverSmoke() -> AppKitPopoverResult {
+        let popover = NSPopover()
+        let delegate = PopoverDelegateProbe()
+        let anchorView = NSView(frame: NSRect(x: 0, y: 0, width: 80, height: 48))
+        let firstRect = NSRect(x: 8, y: 6, width: 24, height: 18)
+        popover.delegate = delegate
+
+        popover.show(relativeTo: firstRect, of: anchorView, preferredEdge: .maxY)
+        let showUpdatedStateAndAnchor =
+            popover.isShown &&
+            popover.lastPresentationRect == firstRect &&
+            popover.lastPresentationView === anchorView &&
+            popover.lastPresentationEdge == .maxY &&
+            delegate.events == ["willShow:true", "didShow:true"]
+
+        let secondRect = NSRect(x: 12, y: 9, width: 30, height: 20)
+        popover.show(relativeTo: secondRect, of: anchorView, preferredEdge: .minX)
+        let repeatedShowUpdatedAnchorWithoutDuplicateCallbacks =
+            popover.isShown &&
+            popover.lastPresentationRect == secondRect &&
+            popover.lastPresentationView === anchorView &&
+            popover.lastPresentationEdge == .minX &&
+            delegate.events == ["willShow:true", "didShow:true"]
+
+        delegate.allowsClose = false
+        popover.close()
+        let closeVetoPreservedState =
+            popover.isShown &&
+            delegate.shouldCloseRequests == 1 &&
+            delegate.events == ["willShow:true", "didShow:true"]
+
+        delegate.allowsClose = true
+        popover.performClose(nil)
+        let closeEvents = ["willShow:true", "didShow:true", "willClose:true", "didClose:true"]
+        let performCloseDelegatedToClose =
+            !popover.isShown &&
+            delegate.shouldCloseRequests == 2 &&
+            delegate.events == closeEvents
+
+        popover.close()
+        let redundantCloseIgnored =
+            !popover.isShown &&
+            delegate.shouldCloseRequests == 2 &&
+            delegate.events == closeEvents
+
+        return AppKitPopoverResult(
+            showUpdatedStateAndAnchor: showUpdatedStateAndAnchor,
+            repeatedShowUpdatedAnchorWithoutDuplicateCallbacks: repeatedShowUpdatedAnchorWithoutDuplicateCallbacks,
+            closeVetoPreservedState: closeVetoPreservedState,
+            performCloseDelegatedToClose: performCloseDelegatedToClose,
+            redundantCloseIgnored: redundantCloseIgnored
+        )
+    }
+
+    @MainActor
     static func runAppKitViewHierarchySmoke() -> AppKitViewHierarchyResult {
         let parent = NSView()
         let child = ViewHierarchyProbe()
@@ -894,6 +957,33 @@ private final class ToolbarDelegateProbe: NSObject, NSToolbarDelegate {
         let item = NSToolbarItem(itemIdentifier: id)
         item.label = id.rawValue
         return item
+    }
+}
+
+private final class PopoverDelegateProbe: NSObject, NSPopoverDelegate {
+    var events: [String] = []
+    var allowsClose = true
+    var shouldCloseRequests = 0
+
+    func popoverWillShow(_ notification: Notification) {
+        events.append("willShow:\((notification.object as? NSPopover) != nil)")
+    }
+
+    func popoverDidShow(_ notification: Notification) {
+        events.append("didShow:\((notification.object as? NSPopover) != nil)")
+    }
+
+    func popoverWillClose(_ notification: Notification) {
+        events.append("willClose:\((notification.object as? NSPopover) != nil)")
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        events.append("didClose:\((notification.object as? NSPopover) != nil)")
+    }
+
+    func popoverShouldClose(_ popover: NSPopover) -> Bool {
+        shouldCloseRequests += 1
+        return allowsClose
     }
 }
 

@@ -2777,10 +2777,32 @@ open class NSPopover: NSResponder {
     public var isShown: Bool = false
     public var isDetached: Bool = false
     public weak var delegate: NSPopoverDelegate?
+    public private(set) var lastPresentationRect: NSRect = .zero
+    public private(set) weak var lastPresentationView: NSView?
+    public private(set) var lastPresentationEdge: NSRectEdge = .minY
     public enum Behavior: Int, Sendable { case applicationDefined, transient, semitransient }
-    public func show(relativeTo: NSRect, of: NSView, preferredEdge: NSRectEdge) {}
-    public func performClose(_ sender: Any?) {}
-    public func close() {}
+    public func show(relativeTo positioningRect: NSRect, of positioningView: NSView, preferredEdge: NSRectEdge) {
+        lastPresentationRect = positioningRect
+        lastPresentationView = positioningView
+        lastPresentationEdge = preferredEdge
+
+        guard !isShown else { return }
+
+        delegate?.popoverWillShow(Notification(name: .NSPopoverWillShow, object: self))
+        isShown = true
+        delegate?.popoverDidShow(Notification(name: .NSPopoverDidShow, object: self))
+    }
+    public func performClose(_ sender: Any?) {
+        close()
+    }
+    public func close() {
+        guard isShown else { return }
+        guard delegate?.popoverShouldClose(self) ?? true else { return }
+
+        delegate?.popoverWillClose(Notification(name: .NSPopoverWillClose, object: self))
+        isShown = false
+        delegate?.popoverDidClose(Notification(name: .NSPopoverDidClose, object: self))
+    }
 }
 
 public protocol NSPopoverDelegate: AnyObject {
@@ -2796,6 +2818,13 @@ public extension NSPopoverDelegate {
     func popoverWillClose(_ notification: Notification) {}
     func popoverDidClose(_ notification: Notification) {}
     func popoverShouldClose(_ popover: NSPopover) -> Bool { true }
+}
+
+public extension NSNotification.Name {
+    static let NSPopoverWillShow = NSNotification.Name(rawValue: "NSPopoverWillShowNotification")
+    static let NSPopoverDidShow = NSNotification.Name(rawValue: "NSPopoverDidShowNotification")
+    static let NSPopoverWillClose = NSNotification.Name(rawValue: "NSPopoverWillCloseNotification")
+    static let NSPopoverDidClose = NSNotification.Name(rawValue: "NSPopoverDidCloseNotification")
 }
 
 public enum NSRectEdge: UInt, Sendable {
