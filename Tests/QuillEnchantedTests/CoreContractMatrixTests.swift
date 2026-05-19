@@ -1872,6 +1872,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "widget->setContextMenuPolicy(Qt::CustomContextMenu)")
         expectContains(nativeShim, "QMenu menu(anchor)")
         expectContains(nativeShim, "menu.setObjectName(QStringLiteral(\"message.contextMenu\"))")
+        expectContains(nativeShim, "menu.setAccessibleName(copyMessageTitle);\n    menu.setAccessibleDescription(copyMessageTitle)")
         expectContains(nativeShim, "void applyActionAccessibility(QAction *action, const QString &title, const QString &objectName)")
         expectContains(nativeShim, "action->setObjectName(objectName);\n    action->setToolTip(title);\n    action->setStatusTip(title);\n    action->setWhatsThis(title)")
         expectContains(nativeShim, "menu.setToolTipsVisible(true)")

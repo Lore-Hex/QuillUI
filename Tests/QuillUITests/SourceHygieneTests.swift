@@ -2074,6 +2074,7 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("void applyActionAccessibility(QAction *action, const QString &title, const QString &objectName)"))
         #expect(enchantedQtHost.contains("action->setObjectName(objectName);\n    action->setToolTip(title);\n    action->setStatusTip(title);\n    action->setWhatsThis(title)"))
         #expect(enchantedQtHost.contains("menu.setObjectName(QStringLiteral(\"message.contextMenu\"))"))
+        #expect(enchantedQtHost.contains("menu.setAccessibleName(copyMessageTitle);\n    menu.setAccessibleDescription(copyMessageTitle)"))
         #expect(enchantedQtHost.contains("menu.setToolTipsVisible(true)"))
         #expect(enchantedQtHost.contains("copyAction->setIcon(copyMessageActionIcon(icons))"))
         #expect(enchantedQtHost.contains("applyActionAccessibility(copyAction, copyMessageTitle, QStringLiteral(\"message.copy\"))"))

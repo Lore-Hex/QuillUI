@@ -889,6 +889,8 @@ void showMessageContextMenu(
 ) {
     QMenu menu(anchor);
     menu.setObjectName(QStringLiteral("message.contextMenu"));
+    menu.setAccessibleName(copyMessageTitle);
+    menu.setAccessibleDescription(copyMessageTitle);
     menu.setToolTipsVisible(true);
     QAction *copyAction = menu.addAction(copyMessageTitle);
     copyAction->setIcon(copyMessageActionIcon(icons));
