@@ -2554,10 +2554,16 @@ replacement = '''        gtk_widget_set_tooltip_text(widget, text)
         }
         return opaqueFromWidget(widget)
 '''
-if "gtk_swift_accessible_update_description(widget, textPointer)" not in text:
-    if "extension HelpView: GTKRenderable" not in text or needle not in text:
+helpStart = text.find("extension HelpView: GTKRenderable")
+helpEnd = text.find("\n// MARK: - Clip Shape GTK extensions", helpStart)
+if helpStart == -1 or helpEnd == -1:
+    raise SystemExit("SwiftOpenUI GTK HelpView renderer shape was not recognized")
+helpRenderer = text[helpStart:helpEnd]
+if "gtk_swift_accessible_update_description(widget, textPointer)" not in helpRenderer:
+    if needle not in helpRenderer:
         raise SystemExit("SwiftOpenUI GTK HelpView renderer shape was not recognized")
-    text = text.replace(needle, replacement, 1)
+    helpRenderer = helpRenderer.replace(needle, replacement, 1)
+    text = text[:helpStart] + helpRenderer + text[helpEnd:]
 path.write_text(text)
 PY
 
