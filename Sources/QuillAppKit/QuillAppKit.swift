@@ -778,6 +778,10 @@ open class NSEvent: NSObject, @unchecked Sendable {
 // Per-type storage uses the file-backed path (Linux clipboards only
 // natively carry plain text; non-text types stay process-local).
 
+public protocol NSPasteboardOwner: AnyObject {
+    func pasteboard(_ sender: NSPasteboard, provideDataForType type: NSPasteboard.PasteboardType)
+}
+
 open class NSPasteboard: NSObject, @unchecked Sendable {
     public struct PasteboardType: RawRepresentable, Hashable, Sendable {
         public var rawValue: String
@@ -822,11 +826,15 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
 
     public var pasteboardItems: [NSPasteboardItem]? = nil
     private var declaredTypes: [PasteboardType]? = nil
+    private var declaredOwner: NSPasteboardOwner? = nil
+    private var ownerRequestsInFlight: Set<PasteboardType> = []
 
     @discardableResult
     public func clearContents() -> Int {
         pasteboardItems = nil
         declaredTypes = nil
+        declaredOwner = nil
+        ownerRequestsInFlight.removeAll()
         _writeClipboardString("")
         _clearFileBackedTypes()
         _bumpChangeCount()
@@ -873,6 +881,16 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
     }
 
     public func string(forType type: PasteboardType) -> String? {
+        if let declaredTypes, !declaredTypes.contains(type) {
+            return nil
+        }
+        if type == .string, let s = _readClipboardString(), !s.isEmpty {
+            return s
+        }
+        if let string = _readFileBacked(type: type).flatMap({ String(data: $0, encoding: .utf8) }) {
+            return string
+        }
+        _requestDataFromOwnerIfNeeded(for: type)
         if type == .string, let s = _readClipboardString(), !s.isEmpty {
             return s
         }
@@ -880,6 +898,16 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
     }
 
     public func data(forType type: PasteboardType) -> Data? {
+        if let declaredTypes, !declaredTypes.contains(type) {
+            return nil
+        }
+        if type == .string, let s = _readClipboardString(), !s.isEmpty {
+            return Data(s.utf8)
+        }
+        if let data = _readFileBacked(type: type) {
+            return data
+        }
+        _requestDataFromOwnerIfNeeded(for: type)
         if type == .string, let s = _readClipboardString(), !s.isEmpty {
             return Data(s.utf8)
         }
@@ -902,6 +930,8 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
     public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int {
         pasteboardItems = nil
         declaredTypes = types
+        declaredOwner = owner as? NSPasteboardOwner
+        ownerRequestsInFlight.removeAll()
         _writeClipboardString("")
         _clearFileBackedTypes()
         _bumpChangeCount()
@@ -942,6 +972,8 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
         if !items.isEmpty {
             pasteboardItems = items
             declaredTypes = nil
+            declaredOwner = nil
+            ownerRequestsInFlight.removeAll()
         }
         if wroteAnyType {
             _bumpChangeCount()
@@ -996,8 +1028,20 @@ private extension NSPasteboard {
     func _prepareToReplaceContents() {
         pasteboardItems = nil
         declaredTypes = nil
+        declaredOwner = nil
+        ownerRequestsInFlight.removeAll()
         _writeClipboardString("")
         _clearFileBackedTypes()
+    }
+    func _requestDataFromOwnerIfNeeded(for type: PasteboardType) {
+        guard _readFileBacked(type: type) == nil else { return }
+        guard declaredTypes?.contains(type) == true else { return }
+        guard let declaredOwner else { return }
+        guard !ownerRequestsInFlight.contains(type) else { return }
+
+        ownerRequestsInFlight.insert(type)
+        declaredOwner.pasteboard(self, provideDataForType: type)
+        ownerRequestsInFlight.remove(type)
     }
     func _types(from items: [NSPasteboardItem]) -> [PasteboardType] {
         var ordered: [PasteboardType] = []

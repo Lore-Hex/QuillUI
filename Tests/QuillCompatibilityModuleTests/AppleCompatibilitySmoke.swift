@@ -28,6 +28,7 @@ enum AppleCompatibilitySmoke {
         var pasteboardDeclareTypesRoundTrip: Bool
         var pasteboardDeclareTypesClearsOldTypes: Bool
         var pasteboardDeclareTypesChangeCount: Bool
+        var pasteboardDeclareTypesOwnerProvidesData: Bool
         var uiPasteboardString: String?
         var imagesRoundTrip: Bool
         var speechStopSucceeded: Bool
@@ -120,6 +121,18 @@ enum AppleCompatibilitySmoke {
         _ = declaredPasteboard.setData(Data([0x01, 0x02, 0x03]), forType: .png)
         let pasteboardDeclareTypesRetainedAfterData = declaredPasteboard.types() == [.png, .html]
 
+        #if os(Linux)
+        let lazyOwner = LazyPasteboardOwner()
+        let lazyPasteboard = NSPasteboard(name: .init(rawValue: "quill.compat.lazy.\(UUID().uuidString)"))
+        _ = lazyPasteboard.declareTypes([.png], owner: lazyOwner)
+        let pasteboardDeclareTypesOwnerProvidesData =
+            lazyPasteboard.data(forType: .png) == lazyOwner.payload &&
+            lazyOwner.requestedTypes == [.png] &&
+            lazyPasteboard.types() == [.png]
+        #else
+        let pasteboardDeclareTypesOwnerProvidesData = true
+        #endif
+
         let imageData = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==")!
         let nsImageTIFF = NSImage(data: imageData)?.tiffRepresentation
         let nsImageTranscoded = nsImageTIFF.map { data in
@@ -165,6 +178,7 @@ enum AppleCompatibilitySmoke {
             pasteboardDeclareTypesRoundTrip: pasteboardDeclareTypesRoundTrip && pasteboardDeclareTypesRetainedAfterData,
             pasteboardDeclareTypesClearsOldTypes: pasteboardDeclareTypesClearsOldTypes,
             pasteboardDeclareTypesChangeCount: pasteboardDeclareTypesChangeCount,
+            pasteboardDeclareTypesOwnerProvidesData: pasteboardDeclareTypesOwnerProvidesData,
             uiPasteboardString: UIPasteboard.general.string,
             imagesRoundTrip: imagesRoundTrip,
             speechStopSucceeded: synthesizer.stopSpeaking(at: .immediate),
@@ -301,6 +315,20 @@ enum AppleCompatibilitySmoke {
         )
     }
 }
+
+#if os(Linux)
+private final class LazyPasteboardOwner: NSPasteboardOwner {
+    let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
+    private(set) var requestedTypes: [NSPasteboard.PasteboardType] = []
+
+    func pasteboard(_ sender: NSPasteboard, provideDataForType type: NSPasteboard.PasteboardType) {
+        requestedTypes.append(type)
+        if type == .png {
+            sender.setData(payload, forType: .png)
+        }
+    }
+}
+#endif
 
 private struct Evaluator: ServerTrustEvaluating {
     func evaluate(_ trust: SecTrust, forHost host: String) throws {}
