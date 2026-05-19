@@ -504,7 +504,16 @@ open class NSView: NSResponder {
     }
     public var trackingAreas: [NSTrackingArea] = []
 
-    public var enclosingScrollView: NSScrollView? { nil }
+    public var enclosingScrollView: NSScrollView? {
+        var ancestor = superview
+        while let current = ancestor {
+            if let scrollView = current as? NSScrollView {
+                return scrollView
+            }
+            ancestor = current.superview
+        }
+        return nil
+    }
 
     private func insertSubview(_ child: NSView, at requestedIndex: Int) {
         guard child !== self else { return }
@@ -2343,8 +2352,25 @@ open class NSOpenPanel: NSSavePanel {
 // MARK: - NSScrollView / NSScroller / NSTextField / NSTextView / NSImageView / NSButton / NSPopUpButton / NSSearchField / NSSplitView / NSSlider
 
 open class NSScrollView: NSView {
-    public var documentView: NSView?
-    public var contentView: NSClipView = NSClipView()
+    public var contentView: NSClipView = NSClipView() {
+        didSet {
+            quillInstallContentView(replacing: oldValue)
+        }
+    }
+    public var documentView: NSView? {
+        get { contentView.documentView }
+        set {
+            let oldValue = contentView.documentView
+            if oldValue !== newValue {
+                oldValue?.removeFromSuperview()
+            }
+            contentView.documentView = newValue
+            guard let newValue else { return }
+            if newValue.superview !== contentView {
+                contentView.addSubview(newValue)
+            }
+        }
+    }
     public var hasVerticalScroller: Bool = false
     public var hasHorizontalScroller: Bool = false
     public var verticalScroller: NSScroller?
@@ -2359,8 +2385,25 @@ open class NSScrollView: NSView {
     public var maxMagnification: CGFloat = 4.0
     public var contentInsets: NSEdgeInsets = (0, 0, 0, 0)
     public var automaticallyAdjustsContentInsets: Bool = true
+    public override init() {
+        super.init()
+        quillInstallContentView()
+    }
+    public override init(frame: NSRect) {
+        super.init(frame: frame)
+        quillInstallContentView()
+    }
     public func flashScrollers() {}
     public enum BorderType: UInt, Sendable { case noBorder, lineBorder, bezelBorder, grooveBorder }
+
+    private func quillInstallContentView(replacing oldValue: NSClipView? = nil) {
+        if let oldValue, oldValue !== contentView {
+            oldValue.removeFromSuperview()
+        }
+        if contentView.superview !== self {
+            addSubview(contentView)
+        }
+    }
 }
 
 open class NSClipView: NSView {

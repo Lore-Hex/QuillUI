@@ -137,6 +137,9 @@ enum AppleCompatibilitySmoke {
         var reparentedWithoutDuplicateBacklinks: Bool
         var removalClearedLinks: Bool
         var removalFiredSuperviewCallbacks: Bool
+        var scrollDocumentViewInstalledInClipView: Bool
+        var scrollContentSubviewFindsEnclosingScrollView: Bool
+        var scrollDocumentViewClearingRemovedDocument: Bool
         var windowContentViewPropagated: Bool
         var windowContentViewCleared: Bool
         var windowCallbacksReachedSubview: Bool
@@ -1046,6 +1049,28 @@ enum AppleCompatibilitySmoke {
             child.events.contains("willSuperview:false") &&
             child.events.contains("didSuperview:false")
 
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 120, height: 80))
+        let documentView = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 160))
+        scrollView.documentView = documentView
+        let scrollDocumentViewInstalledInClipView =
+            scrollView.documentView === documentView &&
+            scrollView.contentView.documentView === documentView &&
+            scrollView.contentView.superview === scrollView &&
+            scrollView.subviews.contains { $0 === scrollView.contentView } &&
+            documentView.superview === scrollView.contentView &&
+            documentView.enclosingScrollView === scrollView
+
+        let contentSubview = NSView()
+        scrollView.contentView.addSubview(contentSubview)
+        let scrollContentSubviewFindsEnclosingScrollView =
+            contentSubview.enclosingScrollView === scrollView
+
+        scrollView.documentView = nil
+        let scrollDocumentViewClearingRemovedDocument =
+            scrollView.documentView == nil &&
+            scrollView.contentView.documentView == nil &&
+            documentView.superview == nil
+
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 120, height: 80),
             styleMask: [],
@@ -1079,6 +1104,9 @@ enum AppleCompatibilitySmoke {
             reparentedWithoutDuplicateBacklinks: reparentedWithoutDuplicateBacklinks,
             removalClearedLinks: removalClearedLinks,
             removalFiredSuperviewCallbacks: removalFiredSuperviewCallbacks,
+            scrollDocumentViewInstalledInClipView: scrollDocumentViewInstalledInClipView,
+            scrollContentSubviewFindsEnclosingScrollView: scrollContentSubviewFindsEnclosingScrollView,
+            scrollDocumentViewClearingRemovedDocument: scrollDocumentViewClearingRemovedDocument,
             windowContentViewPropagated: windowContentViewPropagated,
             windowContentViewCleared: windowContentViewCleared,
             windowCallbacksReachedSubview: windowCallbacksReachedSubview
