@@ -27,7 +27,7 @@ public enum QuillSystemSymbol {
             return "doc.on.doc"
         case "waveform":
             return "ellipsis.circle"
-        case "x.circle", "x.circle.fill":
+        case "xmark", "x.circle", "x.circle.fill":
             return "xmark.circle.fill"
         default:
             return systemName

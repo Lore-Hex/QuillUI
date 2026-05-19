@@ -1752,6 +1752,7 @@ struct QuillDataSourceLoweringTests {
             "\"square.fill\"",
             "\"textformat.abc\"",
             "\"waveform\"",
+            "\"xmark\"",
         ]
         for symbol in expectedGTKSymbols {
             #expect(patchedSymbols.contains(symbol), Comment(rawValue: symbol))

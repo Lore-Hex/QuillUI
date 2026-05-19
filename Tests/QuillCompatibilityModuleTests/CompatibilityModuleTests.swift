@@ -671,6 +671,7 @@ struct CompatibilityModuleTests {
             ("textformat.abc", "doc.text"),
             ("keyboard", "doc.on.doc"),
             ("waveform", "ellipsis.circle"),
+            ("xmark", "xmark.circle.fill"),
             ("x.circle", "xmark.circle.fill"),
             ("x.circle.fill", "xmark.circle.fill")
         ]

@@ -3329,6 +3329,6 @@ if ! grep -Fq '"textformat.abc"' "$SYMBOLS"; then
     -e 's/(        "square.and.arrow.up":\s+"share",\n)/$1        "selection.pin.in.out":  "select_all",\n        "space":                 "space_bar",\n        "sidebar.left":           "view_sidebar",\n        "speaker.slash.fill":    "volume_off",\n        "speaker.wave.2.fill":   "volume_up",\n        "speaker.wave.3":        "volume_up",\n        "speaker.wave.3.fill":   "volume_up",\n/;' \
     -e 's/(        "square.and.pencil":\s+"edit",\n)/$1        "square":                "check_box_outline_blank",\n        "square.fill":           "stop",\n        "stop.fill":             "stop",\n/;' \
     -e 's/(        "tag.fill":\s+"label",\n)/$1        "sun.max":               "light_mode",\n        "textformat":            "text_fields",\n        "textformat.abc":        "text_fields",\n        "water.waves":           "water",\n        "waveform":              "graphic_eq",\n/;' \
-    -e 's/(        "xmark.circle.fill":\s+"cancel",\n)/$1        "x.circle.fill":         "cancel",\n/;' \
+    -e 's/(        "xmark.circle.fill":\s+"cancel",\n)/$1        "x.circle.fill":         "cancel",\n        "xmark":                 "cancel",\n/;' \
     "$SYMBOLS"
 fi
