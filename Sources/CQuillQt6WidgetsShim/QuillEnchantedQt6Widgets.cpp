@@ -2730,11 +2730,18 @@ extern "C" int quill_enchanted_qt_run_app_json(
             attachmentTextLayout->setContentsMargins(0, 0, 0, 0);
             attachmentTextLayout->setSpacing(styleInt(style, "attachmentChipTextSpacing"));
             attachmentTextLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-            QLabel *attachmentName = label(attachmentDisplayName(path), QStringLiteral("attachmentName"));
+            const QString attachmentNameText = attachmentDisplayName(path);
+            const QString displaySize = attachmentDisplaySize(path);
+            const QString attachmentSummary = accessibilitySummary(attachmentNameText, displaySize);
+            attachmentChip->setAccessibleName(attachmentNameText);
+            attachmentChip->setAccessibleDescription(attachmentSummary);
+            attachmentChip->setToolTip(attachmentSummary);
+            attachmentChip->setStatusTip(attachmentSummary);
+
+            QLabel *attachmentName = label(attachmentNameText, QStringLiteral("attachmentName"));
             attachmentName->setWordWrap(false);
             attachmentTextLayout->addWidget(attachmentName);
 
-            const QString displaySize = attachmentDisplaySize(path);
             if (!displaySize.isEmpty()) {
                 QLabel *attachmentSize = label(displaySize, QStringLiteral("attachmentSize"));
                 attachmentSize->setWordWrap(false);
