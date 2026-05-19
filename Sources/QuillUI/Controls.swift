@@ -339,54 +339,57 @@ public enum QuillDesktopChromeStyle {
 public struct QuillConversationHistoryList: View {
     public var items: [QuillConversationHistoryItem]
     public var selectedID: String?
+    public var emptyTitle: String
+    public var emptySubtitle: String
     public var onSelect: (QuillConversationHistoryItem) -> Void
 
     public init(
         items: [QuillConversationHistoryItem],
         selectedID: String? = nil,
+        emptyTitle: String = "No saved chats yet",
+        emptySubtitle: String = "Start a chat and it will be saved locally.",
         onSelect: @escaping (QuillConversationHistoryItem) -> Void
     ) {
         self.items = items
         self.selectedID = selectedID
+        self.emptyTitle = emptyTitle
+        self.emptySubtitle = emptySubtitle
         self.onSelect = onSelect
     }
 
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: listSpacing) {
-                ForEach(sortedItems) { item in
-                    let isSelected = selectedID == item.id
-                    let lastMessage = lastMessagePreview(for: item)
-                    VStack(alignment: .leading, spacing: rowTextSpacing) {
-                        Text(item.title)
-                            .font(.system(size: rowFontSize))
-                            .lineLimit(1)
-                            .foregroundColor(isSelected ? selectedRowTitleColor : rowTitleColor)
+                if sortedItems.isEmpty {
+                    emptyHistory
+                } else {
+                    ForEach(sortedItems) { item in
+                        let isSelected = selectedID == item.id
+                        let lastMessage = lastMessagePreview(for: item)
+                        VStack(alignment: .leading, spacing: rowTextSpacing) {
+                            Text(item.title)
+                                .font(.system(size: rowFontSize))
+                                .lineLimit(1)
+                                .foregroundColor(isSelected ? selectedRowTitleColor : rowTitleColor)
 
-                        if !lastMessage.isEmpty {
-                            Text(lastMessage)
-                                .font(.system(size: rowPreviewFontSize))
-                                .lineLimit(2)
-                                .foregroundColor(isSelected ? selectedRowPreviewColor : rowPreviewColor)
+                            if !lastMessage.isEmpty {
+                                Text(lastMessage)
+                                    .font(.system(size: rowPreviewFontSize))
+                                    .lineLimit(2)
+                                    .foregroundColor(isSelected ? selectedRowPreviewColor : rowPreviewColor)
+                            }
                         }
+                        .padding(rowPadding)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(isSelected ? selectedRowBackgroundColor : rowBackgroundColor)
+                        .cornerRadius(rowCornerRadius)
+                        .contentShape(Rectangle())
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(item.title)
+                        .accessibilityValue(item.lastMessage)
+                        .help(accessibilitySummary(for: item))
+                        .onTapGesture { onSelect(item) }
                     }
-                    .padding(rowPadding)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(isSelected ? selectedRowBackgroundColor : rowBackgroundColor)
-                    .cornerRadius(rowCornerRadius)
-                    .contentShape(Rectangle())
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel(item.title)
-                    .accessibilityValue(item.lastMessage)
-                    .help(accessibilitySummary(for: item))
-                    .onTapGesture { onSelect(item) }
-                }
-
-                if items.isEmpty {
-                    Text("No conversations yet")
-                        .font(.caption)
-                        .foregroundColor(Color(hex: "#8E8E93"))
-                        .padding(.top, 12)
                 }
             }
         }
@@ -398,6 +401,12 @@ public struct QuillConversationHistoryList: View {
     private var rowTextSpacing: CGFloat { 5 }
     private var rowCornerRadius: CGFloat { 8 }
     private var listSpacing: CGFloat { 8 }
+    private var emptyTitleFontSize: CGFloat { 15 }
+    private var emptySubtitleFontSize: CGFloat { 12 }
+    private var emptyTitleFontWeight: Font.Weight { .bold }
+    private var emptyHistoryPadding: CGFloat { 12 }
+    private var emptyHistorySpacing: CGFloat { 8 }
+    private var emptyHistoryCornerRadius: CGFloat { 8 }
 
     private var rowBackgroundColor: Color { Color(hex: "#FFFFFF") }
     private var selectedRowBackgroundColor: Color { Color(hex: "#4285F4") }
@@ -408,6 +417,25 @@ public struct QuillConversationHistoryList: View {
 
     private var sortedItems: [QuillConversationHistoryItem] {
         items.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    private var emptyHistory: some View {
+        VStack(alignment: .leading, spacing: emptyHistorySpacing) {
+            Text(emptyTitle)
+                .font(.system(size: emptyTitleFontSize, weight: emptyTitleFontWeight))
+                .foregroundColor(rowTitleColor)
+            Text(emptySubtitle)
+                .font(.system(size: emptySubtitleFontSize))
+                .foregroundColor(rowPreviewColor)
+        }
+        .padding(emptyHistoryPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(rowBackgroundColor)
+        .cornerRadius(emptyHistoryCornerRadius)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(emptyTitle)
+        .accessibilityValue(emptySubtitle)
+        .help(emptySubtitle)
     }
 
     private func accessibilitySummary(for item: QuillConversationHistoryItem) -> String {

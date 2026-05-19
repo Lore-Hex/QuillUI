@@ -681,6 +681,43 @@ struct CoreContractMatrixTests {
         }
     }
 
+    @Test("QuillUI conversation history empty state mirrors Enchanted macOS")
+    func quillConversationHistoryEmptyStateMirrorsEnchantedMacOS() throws {
+        let controls = try packageSource("Sources/QuillUI/Controls.swift")
+        guard let historyStart = controls.range(of: "public struct QuillConversationHistoryItem: Identifiable"),
+              let nextSection = controls.range(of: "public struct QuillSidebarNavigationAction: Identifiable") else {
+            Issue.record("Unable to locate QuillConversationHistoryList source")
+            return
+        }
+
+        let historyList = String(controls[historyStart.lowerBound..<nextSection.lowerBound])
+        expectContains(historyList, "emptyTitle: String = \"No saved chats yet\"")
+        expectContains(historyList, "emptySubtitle: String = \"Start a chat and it will be saved locally.\"")
+        expectContains(historyList, "if sortedItems.isEmpty")
+        expectContains(historyList, "private var emptyHistory: some View")
+        expectContains(historyList, "VStack(alignment: .leading, spacing: emptyHistorySpacing)")
+        expectContains(historyList, "Text(emptyTitle)")
+        expectContains(historyList, "Text(emptySubtitle)")
+        expectContains(historyList, ".font(.system(size: emptyTitleFontSize, weight: emptyTitleFontWeight))")
+        expectContains(historyList, ".font(.system(size: emptySubtitleFontSize))")
+        expectContains(historyList, "private var emptyTitleFontSize: CGFloat { 15 }")
+        expectContains(historyList, "private var emptySubtitleFontSize: CGFloat { 12 }")
+        expectContains(historyList, "private var emptyTitleFontWeight: Font.Weight { .bold }")
+        expectContains(historyList, "private var emptyHistoryPadding: CGFloat { 12 }")
+        expectContains(historyList, "private var emptyHistorySpacing: CGFloat { 8 }")
+        expectContains(historyList, "private var emptyHistoryCornerRadius: CGFloat { 8 }")
+        expectContains(historyList, ".padding(emptyHistoryPadding)")
+        expectContains(historyList, ".background(rowBackgroundColor)")
+        expectContains(historyList, ".cornerRadius(emptyHistoryCornerRadius)")
+        expectContains(historyList, ".accessibilityElement(children: .combine)")
+        expectContains(historyList, ".accessibilityLabel(emptyTitle)")
+        expectContains(historyList, ".accessibilityValue(emptySubtitle)")
+        expectContains(historyList, ".help(emptySubtitle)")
+        expectDoesNotContain(historyList, "No conversations yet")
+        expectDoesNotContain(historyList, ".font(.caption)")
+        expectDoesNotContain(historyList, ".padding(.top, 12)")
+    }
+
     @Test("Enchanted Qt native target stays isolated from GTK graph")
     func enchantedQtNativeTargetContracts() throws {
         let root = try packageRoot()
