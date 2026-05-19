@@ -16,6 +16,7 @@
 
 @_exported import QuillFoundation
 @_exported import QuillUIKit
+import QuillKit
 import Glibc
 
 // MARK: - UndoManager (missing from Linux Foundation)
@@ -1003,9 +1004,9 @@ public protocol NSPasteboardReading {}
 // NSWorkspace.open semantics on Linux: pick the user's configured
 // default handler for the URL scheme or file MIME type. selectFile/
 // activateFileViewerSelecting open the parent directory in the user's
-// file manager (also via xdg-open). icon lookup remains stubbed —
-// that needs GIO bindings (GContentType + GIcon → file path) which
-// is a separate, slightly larger Phase B target.
+// file manager (also via xdg-open). Icon lookup returns a small
+// placeholder with diagnostics for now; real desktop icons need GIO
+// bindings (GContentType + GIcon → file path), a separate Phase B target.
 
 open class NSWorkspace: NSObject, @unchecked Sendable {
     public static let shared = NSWorkspace()
@@ -1041,8 +1042,25 @@ open class NSWorkspace: NSObject, @unchecked Sendable {
         _ = _xdgOpen(parent)
     }
 
-    public func icon(forFile path: String) -> NSImage { NSImage() }
-    public func icon(forContentType type: Any) -> NSImage { NSImage() }
+    public func icon(forFile path: String) -> NSImage {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillAppKit",
+            operation: "NSWorkspace.icon(forFile:)",
+            severity: .warning,
+            message: "NSWorkspace.icon(forFile:) returns a blank placeholder image for '\(path)' on Linux; desktop file icon lookup is not implemented yet."
+        )
+        return NSImage(size: NSSize(width: 1, height: 1))
+    }
+
+    public func icon(forContentType type: Any) -> NSImage {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillAppKit",
+            operation: "NSWorkspace.icon(forContentType:)",
+            severity: .warning,
+            message: "NSWorkspace.icon(forContentType:) returns a blank placeholder image for '\(String(describing: type))' on Linux; desktop content-type icon lookup is not implemented yet."
+        )
+        return NSImage(size: NSSize(width: 1, height: 1))
+    }
 
     public func urlForApplication(toOpen: URL) -> URL? {
         guard let cmd = _xdgMimeQueryDefault(toOpen) else { return nil }

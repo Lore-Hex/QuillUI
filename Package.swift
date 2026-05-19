@@ -1046,7 +1046,7 @@ targets.append(contentsOf: [
     // state.
     .target(
         name: "AppKit",
-        dependencies: ["QuillFoundation", "QuillUIKit"],
+        dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit"],
         path: "Sources/QuillAppKit",
         swiftSettings: [
             .swiftLanguageMode(.v5),

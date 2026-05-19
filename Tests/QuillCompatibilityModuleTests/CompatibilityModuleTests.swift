@@ -98,6 +98,8 @@ struct CompatibilityModuleTests {
         #expect(result.sizeRoundTrip)
         #expect(result.namedImagePlaceholder)
         #expect(result.systemImagePlaceholder)
+        #expect(result.workspaceFileIconPlaceholder)
+        #expect(result.workspaceContentTypeIconPlaceholder)
         #expect(result.bitmapRepresentationRoundTrip)
         #expect(result.windowTabbingRoundTrip)
         #expect(result.operations.isSuperset(of: Set([
@@ -105,7 +107,9 @@ struct CompatibilityModuleTests {
             "NSImage.draw",
             "NSImage.unlockFocus",
             "NSImage(named:)",
-            "NSImage(systemName:)"
+            "NSImage(systemName:)",
+            "NSWorkspace.icon(forFile:)",
+            "NSWorkspace.icon(forContentType:)"
         ])))
     }
 

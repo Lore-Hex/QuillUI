@@ -34,6 +34,8 @@ enum AppleCompatibilitySmoke {
         var sizeRoundTrip: Bool
         var namedImagePlaceholder: Bool
         var systemImagePlaceholder: Bool
+        var workspaceFileIconPlaceholder: Bool
+        var workspaceContentTypeIconPlaceholder: Bool
         var bitmapRepresentationRoundTrip: Bool
         var windowTabbingRoundTrip: Bool
         var operations: Set<String>
@@ -186,6 +188,8 @@ enum AppleCompatibilitySmoke {
 
         let namedImage = NSImage(named: "StatusBarIcon")
         let systemImage = NSImage(systemName: "paperplane.fill")
+        let workspaceFileIcon = NSWorkspace.shared.icon(forFile: "/tmp/enchanted-export.txt")
+        let workspaceContentTypeIcon = NSWorkspace.shared.icon(forContentType: "public.plain-text")
         let encoded = Data([0xFF, 0xD8, 0xFF, 0xD9])
         let rep = NSBitmapImageRep(data: encoded)
         NSWindow.allowsAutomaticWindowTabbing = false
@@ -196,6 +200,8 @@ enum AppleCompatibilitySmoke {
             sizeRoundTrip: sizeRoundTrip,
             namedImagePlaceholder: namedImage?.size == CGSize(width: 1, height: 1),
             systemImagePlaceholder: systemImage?.size == CGSize(width: 1, height: 1),
+            workspaceFileIconPlaceholder: workspaceFileIcon.size == CGSize(width: 1, height: 1),
+            workspaceContentTypeIconPlaceholder: workspaceContentTypeIcon.size == CGSize(width: 1, height: 1),
             bitmapRepresentationRoundTrip: rep?.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) == encoded,
             windowTabbingRoundTrip: windowTabbingRoundTrip,
             operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
