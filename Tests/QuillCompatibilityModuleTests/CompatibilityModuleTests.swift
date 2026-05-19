@@ -184,6 +184,17 @@ struct CompatibilityModuleTests {
         #expect(result.windowCallbacksReachedSubview)
     }
 
+    @Test("AppKit view controllers maintain containment links")
+    @MainActor
+    func appKitViewControllersMaintainContainmentLinks() {
+        let result = AppleCompatibilitySmoke.runAppKitViewControllerContainmentSmoke()
+
+        #expect(result.addEstablishedParentLinks)
+        #expect(result.secondChildPreservedOrder)
+        #expect(result.removeClearedParentLinks)
+        #expect(result.orphanRemoveIgnored)
+    }
+
     @Test("AppKit views maintain tracking areas")
     @MainActor
     func appKitViewsMaintainTrackingAreas() {

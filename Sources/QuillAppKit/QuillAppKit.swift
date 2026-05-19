@@ -446,8 +446,18 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     open func viewWillDisappear() {}
     open func viewDidDisappear() {}
     open func loadView() {}
-    public func addChild(_ c: NSViewController) { children.append(c) }
-    public func removeFromParent() {}
+    public func addChild(_ c: NSViewController) {
+        guard !children.contains(where: { $0 === c }) else { return }
+        c.removeFromParent()
+        children.append(c)
+        c.parent = self
+    }
+
+    public func removeFromParent() {
+        guard let parent else { return }
+        parent.children.removeAll { $0 === self }
+        self.parent = nil
+    }
     public func presentAsSheet(_ vc: NSViewController) {}
     public func presentAsModalWindow(_ vc: NSViewController) {}
     public func dismiss(_ sender: Any?) {}

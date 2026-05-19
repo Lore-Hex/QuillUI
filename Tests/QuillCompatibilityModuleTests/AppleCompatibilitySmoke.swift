@@ -105,6 +105,13 @@ enum AppleCompatibilitySmoke {
         var windowCallbacksReachedSubview: Bool
     }
 
+    struct AppKitViewControllerContainmentResult {
+        var addEstablishedParentLinks: Bool
+        var secondChildPreservedOrder: Bool
+        var removeClearedParentLinks: Bool
+        var orphanRemoveIgnored: Bool
+    }
+
     struct AppKitTrackingAreaResult {
         var metadataRoundTripped: Bool
         var addRecordedTrackingArea: Bool
@@ -637,6 +644,42 @@ enum AppleCompatibilitySmoke {
             windowContentViewPropagated: windowContentViewPropagated,
             windowContentViewCleared: windowContentViewCleared,
             windowCallbacksReachedSubview: windowCallbacksReachedSubview
+        )
+    }
+
+    @MainActor
+    static func runAppKitViewControllerContainmentSmoke() -> AppKitViewControllerContainmentResult {
+        let parent = NSViewController()
+        let firstChild = NSViewController()
+        let secondChild = NSViewController()
+
+        parent.addChild(firstChild)
+        let addEstablishedParentLinks =
+            firstChild.parent === parent &&
+            parent.children.contains { $0 === firstChild }
+
+        parent.addChild(secondChild)
+        let secondChildPreservedOrder =
+            parent.children.count == 2 &&
+            parent.children[0] === firstChild &&
+            parent.children[1] === secondChild &&
+            secondChild.parent === parent
+
+        firstChild.removeFromParent()
+        let removeClearedParentLinks =
+            firstChild.parent == nil &&
+            !parent.children.contains { $0 === firstChild } &&
+            parent.children.contains { $0 === secondChild }
+
+        let orphan = NSViewController()
+        orphan.removeFromParent()
+        let orphanRemoveIgnored = orphan.parent == nil
+
+        return AppKitViewControllerContainmentResult(
+            addEstablishedParentLinks: addEstablishedParentLinks,
+            secondChildPreservedOrder: secondChildPreservedOrder,
+            removeClearedParentLinks: removeClearedParentLinks,
+            orphanRemoveIgnored: orphanRemoveIgnored
         )
     }
 
