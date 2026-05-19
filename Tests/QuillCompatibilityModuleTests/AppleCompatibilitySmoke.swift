@@ -73,6 +73,19 @@ enum AppleCompatibilitySmoke {
         var removeAllClearedMenus: Bool
     }
 
+    struct AppKitControlResult {
+        var stringValueUpdatedNumericAndObjectValues: Bool
+        var numericValuesUpdatedStringAndObjectValues: Bool
+        var objectValueUpdatedStringAndNumericValues: Bool
+        var attributedValueUpdatedStringAndNumericValues: Bool
+        var explicitActionSentToTarget: Bool
+        var missingActionOrTargetRejected: Bool
+        var textButtonPreservedTargetActionAndTitle: Bool
+        var imageButtonPreservedTargetAndAction: Bool
+        var checkboxFactoryPreservedTargetActionAndTitle: Bool
+        var radioFactoryPreservedTargetActionAndTitle: Bool
+    }
+
     struct AppKitPopUpButtonResult {
         var firstItemSelectedAfterAdd: Bool
         var selectionFollowsIndex: Bool
@@ -212,6 +225,12 @@ enum AppleCompatibilitySmoke {
         var operations: Set<String>
         var renderedPublicValue: Bool
         var redactedPrivateValue: Bool
+    }
+
+    private final class AppKitControlTarget: NSObject {
+        #if canImport(ObjectiveC)
+        @objc func performControlAction(_ sender: Any?) {}
+        #endif
     }
 
     @MainActor
@@ -712,6 +731,98 @@ enum AppleCompatibilitySmoke {
             tabbedWindowsRoundTrip: tabbedWindowsRoundTrip,
             applicationTabIdentifierLookup: applicationTabIdentifierLookup,
             sheetLifecycleRoundTrip: sheetLifecycleRoundTrip
+        )
+    }
+
+    static func runAppKitControlSmoke() -> AppKitControlResult {
+        let textField = NSTextField()
+        textField.stringValue = "42.5"
+        let stringValueUpdatedNumericAndObjectValues =
+            textField.doubleValue == 42.5 &&
+            textField.floatValue == 42.5 &&
+            textField.integerValue == 42 &&
+            textField.attributedStringValue.string == "42.5" &&
+            (textField.objectValue as? String) == "42.5"
+
+        textField.integerValue = 7
+        let integerValueRoundTrip =
+            textField.doubleValue == 7 &&
+            textField.floatValue == 7 &&
+            textField.stringValue == "7" &&
+            textField.attributedStringValue.string == "7" &&
+            (textField.objectValue as? Int) == 7
+
+        textField.doubleValue = 3.25
+        let doubleValueRoundTrip =
+            textField.doubleValue == 3.25 &&
+            textField.floatValue == 3.25 &&
+            textField.integerValue == 3 &&
+            textField.stringValue == "3.25" &&
+            (textField.objectValue as? Double) == 3.25
+        let numericValuesUpdatedStringAndObjectValues =
+            integerValueRoundTrip && doubleValueRoundTrip
+
+        textField.objectValue = NSNumber(value: 9)
+        let objectValueUpdatedStringAndNumericValues =
+            textField.doubleValue == 9 &&
+            textField.floatValue == 9 &&
+            textField.integerValue == 9 &&
+            textField.stringValue == "9" &&
+            textField.attributedStringValue.string == "9"
+
+        textField.attributedStringValue = NSAttributedString(string: "18")
+        let attributedValueUpdatedStringAndNumericValues =
+            textField.doubleValue == 18 &&
+            textField.floatValue == 18 &&
+            textField.integerValue == 18 &&
+            textField.stringValue == "18"
+
+        let action = Selector("performControlAction:")
+        let target = AppKitControlTarget()
+        let actionButton = NSButton(title: "Run", target: target, action: action)
+        let explicitActionSentToTarget = actionButton.sendAction(actionButton.action, to: actionButton.target)
+        let missingActionOrTargetRejected =
+            !NSButton(title: "Run", target: nil, action: nil).sendAction(nil, to: nil)
+
+        let textButtonPreservedTargetActionAndTitle =
+            actionButton.title == "Run" &&
+            actionButton.attributedTitle.string == "Run" &&
+            actionButton.target === target &&
+            actionButton.action == action
+
+        let imageButton = NSButton(image: NSImage(size: NSSize(width: 1, height: 1)), target: target, action: action)
+        let imageButtonPreservedTargetAndAction =
+            imageButton.image != nil &&
+            imageButton.target === target &&
+            imageButton.action == action
+
+        let checkbox = NSButton.checkbox(withTitle: "Remember me", target: target, action: action)
+        let checkboxFactoryPreservedTargetActionAndTitle =
+            checkbox.title == "Remember me" &&
+            checkbox.attributedTitle.string == "Remember me" &&
+            checkbox.target === target &&
+            checkbox.action == action &&
+            checkbox.state == .off
+
+        let radio = NSButton.radioButton(withTitle: "Local", target: target, action: action)
+        let radioFactoryPreservedTargetActionAndTitle =
+            radio.title == "Local" &&
+            radio.attributedTitle.string == "Local" &&
+            radio.target === target &&
+            radio.action == action &&
+            radio.state == .off
+
+        return AppKitControlResult(
+            stringValueUpdatedNumericAndObjectValues: stringValueUpdatedNumericAndObjectValues,
+            numericValuesUpdatedStringAndObjectValues: numericValuesUpdatedStringAndObjectValues,
+            objectValueUpdatedStringAndNumericValues: objectValueUpdatedStringAndNumericValues,
+            attributedValueUpdatedStringAndNumericValues: attributedValueUpdatedStringAndNumericValues,
+            explicitActionSentToTarget: explicitActionSentToTarget,
+            missingActionOrTargetRejected: missingActionOrTargetRejected,
+            textButtonPreservedTargetActionAndTitle: textButtonPreservedTargetActionAndTitle,
+            imageButtonPreservedTargetAndAction: imageButtonPreservedTargetAndAction,
+            checkboxFactoryPreservedTargetActionAndTitle: checkboxFactoryPreservedTargetActionAndTitle,
+            radioFactoryPreservedTargetActionAndTitle: radioFactoryPreservedTargetActionAndTitle
         )
     }
 

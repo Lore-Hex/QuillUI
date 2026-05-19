@@ -2573,27 +2573,139 @@ open class NSImageView: NSControl {
 }
 
 open class NSControl: NSView {
+    private var storedDoubleValue: Double = 0
+    private var storedFloatValue: Float = 0
+    private var storedIntegerValue: Int = 0
+    private var storedStringValue: String = ""
+    private var storedAttributedStringValue: NSAttributedString = NSAttributedString(string: "")
+    private var storedObjectValue: Any?
+
     public weak var target: AnyObject?
     public var action: Selector?
     public var isEnabled: Bool = true
     public var isHighlighted: Bool = false
     public var tag: Int = 0
-    public var doubleValue: Double = 0
-    public var floatValue: Float = 0
-    public var integerValue: Int = 0
-    public var stringValue: String = ""
-    public var attributedStringValue: NSAttributedString = NSAttributedString(string: "")
-    public var objectValue: Any?
+    public var doubleValue: Double {
+        get { storedDoubleValue }
+        set { setNumericValue(newValue, stringValue: String(newValue), objectValue: newValue) }
+    }
+    public var floatValue: Float {
+        get { storedFloatValue }
+        set { setNumericValue(Double(newValue), stringValue: String(newValue), objectValue: newValue) }
+    }
+    public var integerValue: Int {
+        get { storedIntegerValue }
+        set { setNumericValue(Double(newValue), stringValue: String(newValue), objectValue: newValue) }
+    }
+    public var stringValue: String {
+        get { storedStringValue }
+        set {
+            storedStringValue = newValue
+            storedAttributedStringValue = NSAttributedString(string: newValue)
+            storedObjectValue = newValue
+            updateNumericValues(from: newValue)
+        }
+    }
+    public var attributedStringValue: NSAttributedString {
+        get { storedAttributedStringValue }
+        set {
+            storedAttributedStringValue = newValue
+            storedStringValue = newValue.string
+            storedObjectValue = newValue
+            updateNumericValues(from: newValue.string)
+        }
+    }
+    public var objectValue: Any? {
+        get { storedObjectValue }
+        set { applyObjectValue(newValue) }
+    }
     public var formatter: Foundation.Formatter?
-    public func sendAction(_ a: Selector?, to: Any?) -> Bool { false }
+    public func sendAction(_ a: Selector?, to receiver: Any?) -> Bool {
+        guard isEnabled else { return false }
+        guard (a ?? action) != nil else { return false }
+        let resolvedTarget = (receiver as AnyObject?) ?? target
+        guard resolvedTarget != nil else { return false }
+        return true
+    }
     public func sizeToFit() {}
     public var controlSize: ControlSize = .regular
     public enum ControlSize: UInt, Sendable { case regular, small, mini, large }
+
+    private func setNumericValue(_ value: Double, stringValue: String, objectValue: Any) {
+        updateNumericValues(value)
+        storedStringValue = stringValue
+        storedAttributedStringValue = NSAttributedString(string: stringValue)
+        storedObjectValue = objectValue
+    }
+
+    private func applyObjectValue(_ value: Any?) {
+        guard let value else {
+            storedObjectValue = nil
+            storedStringValue = ""
+            storedAttributedStringValue = NSAttributedString(string: "")
+            updateNumericValues(0)
+            return
+        }
+
+        storedObjectValue = value
+
+        if let attributed = value as? NSAttributedString {
+            storedAttributedStringValue = attributed
+            storedStringValue = attributed.string
+            updateNumericValues(from: attributed.string)
+        } else if let string = value as? String {
+            storedStringValue = string
+            storedAttributedStringValue = NSAttributedString(string: string)
+            updateNumericValues(from: string)
+        } else if let number = value as? NSNumber {
+            let string = number.stringValue
+            storedStringValue = string
+            storedAttributedStringValue = NSAttributedString(string: string)
+            updateNumericValues(number.doubleValue)
+        } else {
+            let string = String(describing: value)
+            storedStringValue = string
+            storedAttributedStringValue = NSAttributedString(string: string)
+            updateNumericValues(from: string)
+        }
+    }
+
+    private func updateNumericValues(from string: String) {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        updateNumericValues(Double(trimmed) ?? 0)
+    }
+
+    private func updateNumericValues(_ value: Double) {
+        let normalized = value.isFinite ? value : 0
+        storedDoubleValue = normalized
+        storedFloatValue = Float(normalized)
+
+        if normalized >= Double(Int.min) && normalized <= Double(Int.max) {
+            storedIntegerValue = Int(normalized)
+        } else {
+            storedIntegerValue = 0
+        }
+    }
 }
 
 open class NSButton: NSControl {
-    public var title: String = ""
-    public var attributedTitle: NSAttributedString = NSAttributedString(string: "")
+    private var storedTitle: String = ""
+    private var storedAttributedTitle: NSAttributedString = NSAttributedString(string: "")
+
+    public var title: String {
+        get { storedTitle }
+        set {
+            storedTitle = newValue
+            storedAttributedTitle = NSAttributedString(string: newValue)
+        }
+    }
+    public var attributedTitle: NSAttributedString {
+        get { storedAttributedTitle }
+        set {
+            storedAttributedTitle = newValue
+            storedTitle = newValue.string
+        }
+    }
     public var alternateTitle: String = ""
     public var image: NSImage?
     public var alternateImage: NSImage?
@@ -2607,15 +2719,26 @@ open class NSButton: NSControl {
     public var showsBorderOnlyWhileMouseInside: Bool = false
     public var imageHugsTitle: Bool = false
     public var symbolConfiguration: Any?
+    public var buttonType: ButtonType = .momentaryPushIn
 
     public enum BezelStyle: UInt, Sendable { case rounded, regularSquare, disclosure, shadowlessSquare, circular, texturedSquare, helpButton, smallSquare, texturedRounded, roundRect, recessed, roundedDisclosure, inline }
     public enum ImagePosition: UInt, Sendable { case noImage, imageOnly, imageLeft, imageRight, imageBelow, imageAbove, imageOverlaps, imageLeading, imageTrailing }
+    public enum ButtonType: UInt, Sendable { case momentaryLight, pushOnPushOff, toggle, `switch`, radio, momentaryChange, onOff, momentaryPushIn, accelerator, multiLevelAccelerator }
 
     public override init() { super.init() }
     public init(title: String, target: Any?, action: Selector?) { super.init(); self.title = title; self.target = target as AnyObject?; self.action = action }
-    public init(image: NSImage, target: Any?, action: Selector?) { super.init(); self.image = image }
-    public static func radioButton(withTitle: String, target: Any?, action: Selector?) -> NSButton { NSButton() }
-    public static func checkbox(withTitle: String, target: Any?, action: Selector?) -> NSButton { NSButton() }
+    public init(image: NSImage, target: Any?, action: Selector?) { super.init(); self.image = image; self.target = target as AnyObject?; self.action = action }
+    public func setButtonType(_ type: ButtonType) { buttonType = type }
+    public static func radioButton(withTitle: String, target: Any?, action: Selector?) -> NSButton {
+        let button = NSButton(title: withTitle, target: target, action: action)
+        button.setButtonType(.radio)
+        return button
+    }
+    public static func checkbox(withTitle: String, target: Any?, action: Selector?) -> NSButton {
+        let button = NSButton(title: withTitle, target: target, action: action)
+        button.setButtonType(.switch)
+        return button
+    }
 }
 
 public extension NSControl {

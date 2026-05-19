@@ -141,6 +141,22 @@ struct CompatibilityModuleTests {
         #expect(result.removeAllClearedMenus)
     }
 
+    @Test("AppKit controls mirror values and button factories")
+    func appKitControlsMirrorValuesAndButtonFactories() {
+        let result = AppleCompatibilitySmoke.runAppKitControlSmoke()
+
+        #expect(result.stringValueUpdatedNumericAndObjectValues)
+        #expect(result.numericValuesUpdatedStringAndObjectValues)
+        #expect(result.objectValueUpdatedStringAndNumericValues)
+        #expect(result.attributedValueUpdatedStringAndNumericValues)
+        #expect(result.explicitActionSentToTarget)
+        #expect(result.missingActionOrTargetRejected)
+        #expect(result.textButtonPreservedTargetActionAndTitle)
+        #expect(result.imageButtonPreservedTargetAndAction)
+        #expect(result.checkboxFactoryPreservedTargetActionAndTitle)
+        #expect(result.radioFactoryPreservedTargetActionAndTitle)
+    }
+
     @Test("AppKit pop-up buttons preserve menu selection state")
     func appKitPopUpButtonsPreserveMenuSelectionState() {
         let result = AppleCompatibilitySmoke.runAppKitPopUpButtonSmoke()
