@@ -310,12 +310,6 @@ public struct QuillConversationHistoryItem: Identifiable, Hashable, Sendable {
     }
 }
 
-private struct QuillConversationHistorySection: Identifiable {
-    var id: String { title }
-    var title: String
-    var items: [QuillConversationHistoryItem]
-}
-
 public enum QuillDesktopChromeStyle {
     public static var sidebarBackground: Color {
         Color(red: 0.93, green: 0.95, blue: 0.92)
@@ -359,46 +353,33 @@ public struct QuillConversationHistoryList: View {
 
     public var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(sections) { section in
-                    VStack(alignment: .leading, spacing: sectionSpacing) {
-                        Text(section.title)
-                            .font(.system(size: sectionFontSize))
-                            .fontWeight(.semibold)
-                            .foregroundColor(Color(hex: "#8E8E93"))
-                            .padding(.top, sectionTopPadding)
+            VStack(alignment: .leading, spacing: listSpacing) {
+                ForEach(sortedItems) { item in
+                    let isSelected = selectedID == item.id
+                    let lastMessage = lastMessagePreview(for: item)
+                    VStack(alignment: .leading, spacing: rowTextSpacing) {
+                        Text(item.title)
+                            .font(.system(size: rowFontSize))
+                            .lineLimit(1)
+                            .foregroundColor(isSelected ? selectedRowTitleColor : rowTitleColor)
 
-                        ForEach(section.items) { item in
-                            let isSelected = selectedID == item.id
-                            let lastMessage = lastMessagePreview(for: item)
-                            VStack(alignment: .leading, spacing: rowTextSpacing) {
-                                Text(item.title)
-                                    .font(.system(size: rowFontSize))
-                                    .lineLimit(1)
-                                    .foregroundColor(isSelected ? selectedRowTitleColor : rowTitleColor)
-
-                                if !lastMessage.isEmpty {
-                                    Text(lastMessage)
-                                        .font(.system(size: rowPreviewFontSize))
-                                        .lineLimit(2)
-                                        .foregroundColor(isSelected ? selectedRowPreviewColor : rowPreviewColor)
-                                }
-                            }
-                            .padding(rowPadding)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(isSelected ? selectedRowBackgroundColor : rowBackgroundColor)
-                            .cornerRadius(rowCornerRadius)
-                            .contentShape(Rectangle())
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel(item.title)
-                            .accessibilityValue(item.lastMessage)
-                            .help(accessibilitySummary(for: item))
-                            .onTapGesture { onSelect(item) }
+                        if !lastMessage.isEmpty {
+                            Text(lastMessage)
+                                .font(.system(size: rowPreviewFontSize))
+                                .lineLimit(2)
+                                .foregroundColor(isSelected ? selectedRowPreviewColor : rowPreviewColor)
                         }
-
-                        Divider()
-                            .padding(.top, dividerTopPadding)
                     }
+                    .padding(rowPadding)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(isSelected ? selectedRowBackgroundColor : rowBackgroundColor)
+                    .cornerRadius(rowCornerRadius)
+                    .contentShape(Rectangle())
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(item.title)
+                    .accessibilityValue(item.lastMessage)
+                    .help(accessibilitySummary(for: item))
+                    .onTapGesture { onSelect(item) }
                 }
 
                 if items.isEmpty {
@@ -411,27 +392,12 @@ public struct QuillConversationHistoryList: View {
         }
     }
 
-    #if os(Linux)
-    private var sectionFontSize: CGFloat { 15 }
     private var rowFontSize: CGFloat { 15 }
     private var rowPreviewFontSize: CGFloat { 12 }
     private var rowPadding: CGFloat { 11 }
     private var rowTextSpacing: CGFloat { 5 }
     private var rowCornerRadius: CGFloat { 8 }
-    private var sectionSpacing: CGFloat { 6 }
-    private var sectionTopPadding: CGFloat { 18 }
-    private var dividerTopPadding: CGFloat { 16 }
-    #else
-    private var sectionFontSize: CGFloat { 15 }
-    private var rowFontSize: CGFloat { 15 }
-    private var rowPreviewFontSize: CGFloat { 12 }
-    private var rowPadding: CGFloat { 11 }
-    private var rowTextSpacing: CGFloat { 5 }
-    private var rowCornerRadius: CGFloat { 8 }
-    private var sectionSpacing: CGFloat { 13 }
-    private var sectionTopPadding: CGFloat { 12 }
-    private var dividerTopPadding: CGFloat { 10 }
-    #endif
+    private var listSpacing: CGFloat { 8 }
 
     private var rowBackgroundColor: Color { Color(hex: "#FFFFFF") }
     private var selectedRowBackgroundColor: Color { Color(hex: "#4285F4") }
@@ -440,36 +406,8 @@ public struct QuillConversationHistoryList: View {
     private var rowPreviewColor: Color { Color(hex: "#6E6E73") }
     private var selectedRowPreviewColor: Color { Color(hex: "#FFFFFF") }
 
-    private var sections: [QuillConversationHistorySection] {
-        var result: [QuillConversationHistorySection] = []
-        let sortedItems = items.sorted { $0.updatedAt > $1.updatedAt }
-
-        for item in sortedItems {
-            let title = Self.sectionTitle(for: item.updatedAt)
-            if let index = result.firstIndex(where: { $0.title == title }) {
-                result[index].items.append(item)
-            } else {
-                result.append(QuillConversationHistorySection(title: title, items: [item]))
-            }
-        }
-
-        return result
-    }
-
-    private static func sectionTitle(for date: Date) -> String {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let target = calendar.startOfDay(for: date)
-        let days = calendar.dateComponents([.day], from: target, to: today).day ?? 0
-
-        switch days {
-        case 0:
-            return "Today"
-        case 1:
-            return "Yesterday"
-        default:
-            return "\(days) days ago"
-        }
+    private var sortedItems: [QuillConversationHistoryItem] {
+        items.sorted { $0.updatedAt > $1.updatedAt }
     }
 
     private func accessibilitySummary(for item: QuillConversationHistoryItem) -> String {
