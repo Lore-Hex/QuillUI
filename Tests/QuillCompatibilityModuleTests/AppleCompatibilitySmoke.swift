@@ -107,6 +107,9 @@ enum AppleCompatibilitySmoke {
         var childWindowLinksRoundTrip: Bool
         var childReparentClearsPreviousParent: Bool
         var childRemovalClearsParent: Bool
+        var tabbedWindowsRoundTrip: Bool
+        var applicationTabIdentifierLookup: Bool
+        var sheetLifecycleRoundTrip: Bool
     }
 
     struct AppKitViewHierarchyResult {
@@ -606,11 +609,64 @@ enum AppleCompatibilitySmoke {
             sibling.parentWindow == nil &&
             !parentChildrenAfterRemoval.contains { $0 === sibling }
 
+        let tabParent = NSWindow()
+        let firstTab = NSWindow()
+        let secondTab = NSWindow()
+        tabParent.addTabbedWindow(firstTab, ordered: .above)
+        tabParent.addTabbedWindow(secondTab, ordered: .below)
+        tabParent.addTabbedWindow(firstTab, ordered: .above)
+        let tabbedWindows = tabParent.tabbedWindows ?? []
+        let tabbedWindowsRoundTrip =
+            tabbedWindows.count == 2 &&
+            tabbedWindows.first === secondTab &&
+            tabbedWindows.last === firstTab
+
+        let app = NSApplication.shared
+        let oldWindows = app.windows
+        let oldKeyWindow = app.keyWindow
+        let oldMainWindow = app.mainWindow
+        defer {
+            app.windows = oldWindows
+            app.keyWindow = oldKeyWindow
+            app.mainWindow = oldMainWindow
+        }
+        let matchingTabWindow = NSWindow()
+        matchingTabWindow.tabbingIdentifier = "enchanted.chat"
+        let otherTabWindow = NSWindow()
+        otherTabWindow.tabbingIdentifier = "other"
+        app.windows = [otherTabWindow, matchingTabWindow]
+        let tabMatches = app.windows(withTabIdentifier: "enchanted.chat")
+        let applicationTabIdentifierLookup =
+            tabMatches.count == 1 &&
+            tabMatches.first === matchingTabWindow
+
+        let sheetParent = NSWindow()
+        let sheet = NSWindow()
+        var sheetResponse: NSApplication.ModalResponse?
+        sheetParent.beginSheet(sheet) { response in
+            sheetResponse = response
+        }
+        let sheetStarted =
+            sheetParent.sheets.count == 1 &&
+            sheetParent.sheets.first === sheet &&
+            sheet.sheetParent === sheetParent &&
+            sheet.isVisible
+        sheetParent.endSheet(sheet, returnCode: .cancel)
+        let sheetLifecycleRoundTrip =
+            sheetStarted &&
+            sheetParent.sheets.isEmpty &&
+            sheet.sheetParent == nil &&
+            sheet.isVisible == false &&
+            sheetResponse == .cancel
+
         return AppKitWindowResult(
             controllerBacklinksRoundTrip: controllerBacklinksRoundTrip,
             childWindowLinksRoundTrip: childWindowLinksRoundTrip,
             childReparentClearsPreviousParent: childReparentClearsPreviousParent,
-            childRemovalClearsParent: childRemovalClearsParent
+            childRemovalClearsParent: childRemovalClearsParent,
+            tabbedWindowsRoundTrip: tabbedWindowsRoundTrip,
+            applicationTabIdentifierLookup: applicationTabIdentifierLookup,
+            sheetLifecycleRoundTrip: sheetLifecycleRoundTrip
         )
     }
 

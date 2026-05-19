@@ -190,6 +190,9 @@ struct CompatibilityModuleTests {
         #expect(result.childWindowLinksRoundTrip)
         #expect(result.childReparentClearsPreviousParent)
         #expect(result.childRemovalClearsParent)
+        #expect(result.tabbedWindowsRoundTrip)
+        #expect(result.applicationTabIdentifierLookup)
+        #expect(result.sheetLifecycleRoundTrip)
     }
 
     @Test("AppKit views maintain hierarchy and window links")

@@ -646,6 +646,11 @@ open class NSWindow: NSResponder {
     public var tabbingMode: TabbingMode = .automatic
     public var tabbingIdentifier: String = ""
     private var childWindowStorage: [NSWindow] = []
+    private var tabbedWindowStorage: [NSWindow] = []
+    private weak var tabbedWindowParentStorage: NSWindow?
+    private var sheetWindowStorage: [NSWindow] = []
+    private var sheetCompletionHandlers: [ObjectIdentifier: (NSApplication.ModalResponse) -> Void] = [:]
+    private weak var sheetParentStorage: NSWindow?
 
     public struct Level: Equatable, Sendable {
         public var rawValue: Int
@@ -724,8 +729,22 @@ open class NSWindow: NSResponder {
     public func registerForDraggedTypes(_ types: [NSPasteboard.PasteboardType]) {}
     public func contentRect(forFrameRect r: NSRect) -> NSRect { r }
     public func frameRect(forContentRect r: NSRect) -> NSRect { r }
-    public func addTabbedWindow(_ w: NSWindow, ordered: OrderingMode) {}
-    public var tabbedWindows: [NSWindow]? { nil }
+    public func addTabbedWindow(_ window: NSWindow, ordered: OrderingMode) {
+        guard window !== self else { return }
+        window.tabbedWindowParentStorage?.quillRemoveTabbedWindow(window, clearParent: true)
+        tabbedWindowStorage.removeAll { $0 === window }
+        window.tabbedWindowParentStorage = self
+        switch ordered {
+        case .below:
+            tabbedWindowStorage.insert(window, at: 0)
+        case .above, .out:
+            tabbedWindowStorage.append(window)
+        }
+    }
+    public func removeTabbedWindow(_ window: NSWindow) {
+        quillRemoveTabbedWindow(window, clearParent: true)
+    }
+    public var tabbedWindows: [NSWindow]? { tabbedWindowStorage.isEmpty ? nil : tabbedWindowStorage }
     public func mergeAllWindows(_ sender: Any?) {}
     public func toggleTabBar(_ sender: Any?) {}
     public func addChildWindow(_ child: NSWindow, ordered: OrderingMode) {
@@ -753,8 +772,46 @@ open class NSWindow: NSResponder {
     }
     public weak var parent: NSWindow?
     public var parentWindow: NSWindow? { parent }
-    public var sheets: [NSWindow] { [] }
+    public var sheets: [NSWindow] { sheetWindowStorage }
+    public var sheetParent: NSWindow? { sheetParentStorage }
+    public func beginSheet(_ sheet: NSWindow, completionHandler: ((NSApplication.ModalResponse) -> Void)? = nil) {
+        guard sheet !== self else {
+            completionHandler?(.abort)
+            return
+        }
+        sheet.sheetParentStorage?.endSheet(sheet, returnCode: .abort)
+        sheetWindowStorage.removeAll { $0 === sheet }
+        sheetWindowStorage.append(sheet)
+        sheet.sheetParentStorage = self
+        sheet.isVisible = true
+        let key = ObjectIdentifier(sheet)
+        if let completionHandler {
+            sheetCompletionHandlers[key] = completionHandler
+        } else {
+            sheetCompletionHandlers.removeValue(forKey: key)
+        }
+    }
+    public func endSheet(_ sheet: NSWindow, returnCode: NSApplication.ModalResponse = .OK) {
+        let key = ObjectIdentifier(sheet)
+        let containedSheet = sheetWindowStorage.contains { $0 === sheet }
+        sheetWindowStorage.removeAll { $0 === sheet }
+        if sheet.sheetParentStorage === self {
+            sheet.sheetParentStorage = nil
+        }
+        sheet.isVisible = false
+        let completionHandler = sheetCompletionHandlers.removeValue(forKey: key)
+        if containedSheet || completionHandler != nil {
+            completionHandler?(returnCode)
+        }
+    }
     public func setAnchorAttribute(_ a: Any?, for: Any?) {}
+
+    private func quillRemoveTabbedWindow(_ window: NSWindow, clearParent: Bool) {
+        tabbedWindowStorage.removeAll { $0 === window }
+        if clearParent, window.tabbedWindowParentStorage === self {
+            window.tabbedWindowParentStorage = nil
+        }
+    }
 }
 
 // MARK: - NSPanel
@@ -839,10 +896,25 @@ open class NSApplication: NSResponder, @unchecked Sendable {
     public func runModal(for window: NSWindow) -> ModalResponse { .OK }
     public func stopModal() {}
     public func stopModal(withCode: ModalResponse) {}
-    public func beginSheet(_ sheet: NSWindow, completionHandler: ((ModalResponse) -> Void)? = nil) {}
-    public func endSheet(_ sheet: NSWindow, returnCode: ModalResponse = .OK) {}
+    public func beginSheet(_ sheet: NSWindow, completionHandler: ((ModalResponse) -> Void)? = nil) {
+        if let parent = keyWindow ?? mainWindow ?? windows.last {
+            parent.beginSheet(sheet, completionHandler: completionHandler)
+        } else {
+            sheet.isVisible = true
+            completionHandler?(.OK)
+        }
+    }
+    public func endSheet(_ sheet: NSWindow, returnCode: ModalResponse = .OK) {
+        if let parent = sheet.sheetParent {
+            parent.endSheet(sheet, returnCode: returnCode)
+        } else {
+            sheet.isVisible = false
+        }
+    }
     public func sendAction(_ a: Selector, to target: Any?, from sender: Any?) -> Bool { false }
-    public func windows(withTabIdentifier id: String) -> [NSWindow] { [] }
+    public func windows(withTabIdentifier id: String) -> [NSWindow] {
+        windows.filter { $0.tabbingIdentifier == id }
+    }
     public func setServicesProvider(_ p: Any?) {}
     public func updateWindows() {}
     public func arrangeInFront(_ sender: Any?) {}
