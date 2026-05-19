@@ -562,7 +562,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillFoundation",
-        dependencies: [],
+        dependencies: ["QuillKit"],
         path: "Sources/QuillFoundation"
     ),
     .target(
@@ -1253,8 +1253,12 @@ if quillUILinuxBuildBackend == .qt {
         quillDataMacroTarget,
         quillDataTarget,
         .target(
+            name: "QuillKit",
+            dependencies: []
+        ),
+        .target(
             name: "QuillFoundation",
-            dependencies: [],
+            dependencies: ["QuillKit"],
             path: "Sources/QuillFoundation"
         ),
         .target(

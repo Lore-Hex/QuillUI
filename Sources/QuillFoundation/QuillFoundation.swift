@@ -12,6 +12,9 @@
 #if canImport(FoundationNetworking)
 @_exported import FoundationNetworking
 #endif
+#if os(Linux)
+import QuillKit
+#endif
 
 #if canImport(ObjectiveC)
 import ObjectiveC
@@ -110,7 +113,16 @@ public class RSImage: NSObject, @unchecked Sendable {
         super.init()
         self.data = data
     }
-    public init?(named: String) {}
+    public init?(named name: String) {
+        super.init()
+        self.size = CGSize(width: 1, height: 1)
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillFoundation",
+            operation: "NSImage(named:)",
+            severity: .warning,
+            message: "NSImage(named:) returns a blank placeholder image for '\(name)' on Linux; app assets are not loaded through AppKit yet."
+        )
+    }
     public init?(systemName: String, withConfiguration: Any? = nil) {}
     public init(size: CGSize) {
         super.init()
