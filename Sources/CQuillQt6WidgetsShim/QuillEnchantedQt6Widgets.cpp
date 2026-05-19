@@ -63,7 +63,7 @@ using QuillQtWidgets::label;
 using QuillQtWidgets::refreshStyle;
 using QuillQtWidgets::scrollAreaToBottomLater;
 using PromptAction = std::function<void(const QString &)>;
-using MessageEditAction = std::function<void(const QString &)>;
+using MessageEditAction = std::function<void(const QString &, const QString &)>;
 
 [[noreturn]] void failRequiredPayloadField(const char *key, const char *expectedType) {
     std::fprintf(
@@ -622,6 +622,7 @@ QString appStyleSheet(const QJsonObject &style) {
     const QString conversationListItemPadding = stylePixels(style, "conversationListItemPadding");
     const QString emptyHistoryRadius = stylePixels(style, "emptyHistoryRadius");
     const QString messageBubbleRadius = stylePixels(style, "messageBubbleRadius");
+    const QString messageEditBorderWidth = stylePixels(style, "messageEditBorderWidth");
     const QString attachmentChipRadius = stylePixels(style, "attachmentChipRadius");
     const QString markdownQuoteRuleRadius = stylePixels(style, "markdownQuoteRuleRadius");
     const QString markdownCodeBlockRadius = stylePixels(style, "markdownCodeBlockRadius");
@@ -707,6 +708,11 @@ QString appStyleSheet(const QJsonObject &style) {
         QFrame#attachmentChip { background: %1; border: 1px solid %2; border-radius: %8; }
     )")
         .arg(card, cardBorder, emptyHistoryRadius, messageBubbleRadius, system, messageBorder, primary, attachmentChipRadius);
+
+    sheet += QStringLiteral(R"(
+        QFrame#messageUser[editing="true"] { border: %2 solid %1; }
+    )")
+        .arg(selected, messageEditBorderWidth);
 
     sheet += QStringLiteral(R"(
         QPushButton#primaryButton, QPushButton#sendButton { background: %1; color: white; border: 0; border-radius: %2; padding: %3 %4; text-align: left; }
@@ -843,6 +849,10 @@ QString messageContent(const QJsonObject &message) {
     return requiredStringValue(message, "content");
 }
 
+QString messageID(const QJsonObject &message) {
+    return requiredStringValue(message, "id");
+}
+
 bool isEditableMessageRole(const QString &role) {
     return role == QStringLiteral("user");
 }
@@ -850,6 +860,7 @@ bool isEditableMessageRole(const QString &role) {
 void showMessageContextMenu(
     QWidget *anchor,
     const QPoint &position,
+    const QString &id,
     const QString &role,
     const QString &content,
     const QString &copyMessageTitle,
@@ -865,9 +876,9 @@ void showMessageContextMenu(
     });
     if (isEditableMessageRole(role)) {
         QAction *editAction = menu.addAction(editMessageTitle);
-        QObject::connect(editAction, &QAction::triggered, anchor, [content, editMessage](bool) {
+        QObject::connect(editAction, &QAction::triggered, anchor, [id, content, editMessage](bool) {
             if (editMessage) {
-                editMessage(content);
+                editMessage(id, content);
             }
         });
     }
@@ -876,6 +887,7 @@ void showMessageContextMenu(
 
 void installMessageContextMenu(
     QWidget *widget,
+    const QString &id,
     const QString &role,
     const QString &content,
     const QString &copyMessageTitle,
@@ -887,10 +899,11 @@ void installMessageContextMenu(
         widget,
         &QWidget::customContextMenuRequested,
         widget,
-        [widget, role, content, copyMessageTitle, editMessageTitle, editMessage](const QPoint &position) {
+        [widget, id, role, content, copyMessageTitle, editMessageTitle, editMessage](const QPoint &position) {
             showMessageContextMenu(
                 widget,
                 position,
+                id,
                 role,
                 content,
                 copyMessageTitle,
@@ -903,16 +916,17 @@ void installMessageContextMenu(
 
 void installMessageContextMenuRecursively(
     QWidget *widget,
+    const QString &id,
     const QString &role,
     const QString &content,
     const QString &copyMessageTitle,
     const QString &editMessageTitle,
     const MessageEditAction &editMessage
 ) {
-    installMessageContextMenu(widget, role, content, copyMessageTitle, editMessageTitle, editMessage);
+    installMessageContextMenu(widget, id, role, content, copyMessageTitle, editMessageTitle, editMessage);
     const QList<QWidget *> children = widget->findChildren<QWidget *>();
     for (QWidget *child : children) {
-        installMessageContextMenu(child, role, content, copyMessageTitle, editMessageTitle, editMessage);
+        installMessageContextMenu(child, id, role, content, copyMessageTitle, editMessageTitle, editMessage);
     }
 }
 
@@ -1543,8 +1557,10 @@ QFrame *messageBubble(
     const QString &systemRoleLabel,
     const QString &copyMessageTitle,
     const QString &editMessageTitle,
+    const QString &editingMessageID,
     const MessageEditAction &editMessage
 ) {
+    const QString id = messageID(message);
     const QString role = messageRole(message);
     const QString content = messageContent(message);
     QString objectName = QStringLiteral("messageAssistant");
@@ -1555,6 +1571,10 @@ QFrame *messageBubble(
     }
 
     QFrame *bubble = QuillQtWidgets::frame(objectName);
+    bubble->setProperty(
+        "editing",
+        isEditableMessageRole(role) && !editingMessageID.isEmpty() && id == editingMessageID
+    );
     const QString title = messageRoleTitle(role, userRoleLabel, assistantRoleLabel, systemRoleLabel);
     const QString summary = accessibilitySummary(title, content);
     bubble->setAccessibleName(title);
@@ -1585,7 +1605,7 @@ QFrame *messageBubble(
     } else {
         layout->addWidget(markdownMessageWidget(content, style));
     }
-    installMessageContextMenuRecursively(bubble, role, content, copyMessageTitle, editMessageTitle, editMessage);
+    installMessageContextMenuRecursively(bubble, id, role, content, copyMessageTitle, editMessageTitle, editMessage);
     return bubble;
 }
 
@@ -1598,6 +1618,7 @@ void addMessageBubble(
     const QString &systemRoleLabel,
     const QString &copyMessageTitle,
     const QString &editMessageTitle,
+    const QString &editingMessageID,
     const MessageEditAction &editMessage
 ) {
     const bool isUser = messageRole(message) == QStringLiteral("user");
@@ -1616,6 +1637,7 @@ void addMessageBubble(
         systemRoleLabel,
         copyMessageTitle,
         editMessageTitle,
+        editingMessageID,
         editMessage
     ), 0, Qt::AlignTop);
     if (!isUser) {
@@ -1731,6 +1753,7 @@ void renderMessages(
     const QString &systemRoleLabel,
     const QString &copyMessageTitle,
     const QString &editMessageTitle,
+    const QString &editingMessageID,
     const MessageEditAction &editMessage
 ) {
     clearLayout(messageLayout);
@@ -1752,6 +1775,7 @@ void renderMessages(
             systemRoleLabel,
             copyMessageTitle,
             editMessageTitle,
+            editingMessageID,
             editMessage
         );
     }
@@ -2740,9 +2764,25 @@ extern "C" int quill_enchanted_qt_run_app_json(
     bool showingPromptCards = false;
     QStringList pendingAttachmentPaths;
     std::function<bool(const QString &, const QString &, const QString &, const QStringList &)> requestHistoryAction;
-    const MessageEditAction editMessage = [promptEditor](const QString &message) {
+    QString editingMessageID;
+    std::function<void()> rerenderCurrentMessages;
+    auto clearEditingMessage = [&]() {
+        if (editingMessageID.isEmpty()) {
+            return;
+        }
+
+        editingMessageID.clear();
+        if (rerenderCurrentMessages) {
+            rerenderCurrentMessages();
+        }
+    };
+    const MessageEditAction editMessage = [&](const QString &messageID, const QString &message) {
+        editingMessageID = messageID;
         promptEditor->setPlainText(message);
         promptEditor->setFocus(Qt::OtherFocusReason);
+        if (rerenderCurrentMessages) {
+            rerenderCurrentMessages();
+        }
     };
     auto renderLocalUserMessage = [&](const QString &rawText) {
         const QString text = rawText.trimmed();
@@ -2751,6 +2791,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         }
 
         QJsonObject message;
+        message.insert(QStringLiteral("id"), QStringLiteral("local-user-message"));
         message.insert(QStringLiteral("role"), QStringLiteral("user"));
         message.insert(QStringLiteral("content"), text);
         if (showingPromptCards) {
@@ -2766,6 +2807,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             systemRoleLabel,
             copyMessageTitle,
             editMessageTitle,
+            editingMessageID,
             editMessage
         );
         promptEditor->clear();
@@ -2777,6 +2819,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             return;
         }
 
+        clearEditingMessage();
         if (requestHistoryAction
             && requestHistoryAction(
                 QStringLiteral("sendMessage"),
@@ -2803,6 +2846,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             return;
         }
 
+        clearEditingMessage();
         if (requestHistoryAction
             && requestHistoryAction(
                 QStringLiteral("sendMessage"),
@@ -2997,10 +3041,19 @@ extern "C" int quill_enchanted_qt_run_app_json(
             systemRoleLabel,
             copyMessageTitle,
             editMessageTitle,
+            editingMessageID,
             editMessage
         );
         showingPromptCards = messages.isEmpty();
         scrollTranscriptToBottom();
+    };
+    rerenderCurrentMessages = [&]() {
+        const QString selectedID = currentConversationID(conversationList, selectedConversationID);
+        renderMessageSet(selectedConversationMessages(
+            conversations,
+            selectedID,
+            fallbackMessages
+        ));
     };
     auto updateConversationActionState = [&]() {
         const bool hasConversations = conversationList->count() > 0;
@@ -3130,6 +3183,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         updateConversationSelectionStyles(conversationList);
         currentTitle->setText(newConversationTitle);
         updateHeaderTitleAccessibility(newConversationTitle);
+        editingMessageID.clear();
         renderMessageSet(QJsonArray());
         updateConversationActionState();
     });
@@ -3152,6 +3206,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             conversationList->setCurrentRow(-1);
             currentTitle->setText(newConversationTitle);
             updateHeaderTitleAccessibility(newConversationTitle);
+            editingMessageID.clear();
             renderMessageSet(QJsonArray());
         }
         updateConversationSelectionStyles(conversationList);
@@ -3167,6 +3222,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         updateConversationSelectionStyles(conversationList);
         currentTitle->setText(newConversationTitle);
         updateHeaderTitleAccessibility(newConversationTitle);
+        editingMessageID.clear();
         renderMessageSet(QJsonArray());
         updateConversationActionState();
     });
@@ -3207,6 +3263,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         );
         currentTitle->setText(updatedCurrentTitle);
         updateHeaderTitleAccessibility(updatedCurrentTitle);
+        editingMessageID.clear();
         const QJsonArray selectedMessages = selectedConversationMessages(
             conversations,
             selectedID,
