@@ -2888,8 +2888,8 @@ struct SourceHygieneTests {
         #expect(!promptGrid.contains("#if os(Linux)\n        ZStack"))
     }
 
-    @Test("QuillConversationHistoryList mirrors Enchanted row accessibility")
-    func quillConversationHistoryListMirrorsEnchantedRowAccessibility() throws {
+    @Test("QuillConversationHistoryList mirrors Enchanted row preview and accessibility")
+    func quillConversationHistoryListMirrorsEnchantedRowPreviewAndAccessibility() throws {
         let controls = try packageSource("Sources/QuillUI/Controls.swift")
         let upstreamSlice = try packageSource("Sources/QuillEnchantedUpstreamSlice/main.swift")
         guard let historyStart = controls.range(of: "public struct QuillConversationHistoryItem: Identifiable"),
@@ -2905,7 +2905,13 @@ struct SourceHygieneTests {
         #expect(historyList.contains(".accessibilityLabel(item.title)"))
         #expect(historyList.contains(".accessibilityValue(item.lastMessage)"))
         #expect(historyList.contains(".help(accessibilitySummary(for: item))"))
-        #expect(historyList.contains("let lastMessage = item.lastMessage.trimmingCharacters(in: .whitespacesAndNewlines)"))
+        #expect(historyList.contains("let lastMessage = lastMessagePreview(for: item)"))
+        #expect(historyList.contains("Text(lastMessage)"))
+        #expect(historyList.contains(".font(.system(size: rowPreviewFontSize))"))
+        #expect(historyList.contains(".lineLimit(2)"))
+        #expect(historyList.contains("private func lastMessagePreview(for item: QuillConversationHistoryItem) -> String"))
+        #expect(historyList.contains("item.lastMessage.trimmingCharacters(in: .whitespacesAndNewlines)"))
+        #expect(historyList.contains("return \"\\(item.title)\\n\\(lastMessage)\""))
         #expect(upstreamSlice.contains("var lastMessage: String"))
         #expect(upstreamSlice.contains("self.lastMessage = conversation.lastMessage"))
         #expect(upstreamSlice.contains("lastMessage: $0.lastMessage"))

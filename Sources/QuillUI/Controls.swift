@@ -370,19 +370,31 @@ public struct QuillConversationHistoryList: View {
 
                         ForEach(section.items) { item in
                             let isSelected = selectedID == item.id
-                            HStack(spacing: 8) {
+                            let lastMessage = lastMessagePreview(for: item)
+                            HStack(alignment: .top, spacing: 8) {
                                 Circle()
                                     .frame(width: 6, height: 6)
                                     .opacity(isSelected ? 1 : 0)
+                                    .padding(.top, selectionIndicatorTopPadding)
 
-                                Text(item.title)
-                                    .font(.system(size: rowFontSize))
-                                    .lineLimit(1)
-                                    .foregroundColor(Color(hex: "#3A3A3C"))
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                VStack(alignment: .leading, spacing: rowTextSpacing) {
+                                    Text(item.title)
+                                        .font(.system(size: rowFontSize))
+                                        .lineLimit(1)
+                                        .foregroundColor(Color(hex: "#3A3A3C"))
+
+                                    if !lastMessage.isEmpty {
+                                        Text(lastMessage)
+                                            .font(.system(size: rowPreviewFontSize))
+                                            .lineLimit(2)
+                                            .foregroundColor(Color(hex: "#8E8E93"))
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             .padding(.horizontal, rowHorizontalPadding)
-                            .frame(height: rowHeight, alignment: .leading)
+                            .padding(.vertical, rowVerticalPadding)
+                            .frame(minHeight: rowMinHeight, alignment: .leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(isSelected ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
                             .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
@@ -412,7 +424,11 @@ public struct QuillConversationHistoryList: View {
     #if os(Linux)
     private var sectionFontSize: CGFloat { 18 }
     private var rowFontSize: CGFloat { 20 }
-    private var rowHeight: CGFloat { 30 }
+    private var rowPreviewFontSize: CGFloat { 16 }
+    private var rowMinHeight: CGFloat { 52 }
+    private var rowVerticalPadding: CGFloat { 6 }
+    private var rowTextSpacing: CGFloat { 3 }
+    private var selectionIndicatorTopPadding: CGFloat { 8 }
     private var sectionSpacing: CGFloat { 6 }
     private var sectionTopPadding: CGFloat { 18 }
     private var dividerTopPadding: CGFloat { 16 }
@@ -420,7 +436,11 @@ public struct QuillConversationHistoryList: View {
     #else
     private var sectionFontSize: CGFloat { 14 }
     private var rowFontSize: CGFloat { 16 }
-    private var rowHeight: CGFloat { 24 }
+    private var rowPreviewFontSize: CGFloat { 13 }
+    private var rowMinHeight: CGFloat { 44 }
+    private var rowVerticalPadding: CGFloat { 5 }
+    private var rowTextSpacing: CGFloat { 2 }
+    private var selectionIndicatorTopPadding: CGFloat { 6 }
     private var sectionSpacing: CGFloat { 13 }
     private var sectionTopPadding: CGFloat { 12 }
     private var dividerTopPadding: CGFloat { 10 }
@@ -460,9 +480,13 @@ public struct QuillConversationHistoryList: View {
     }
 
     private func accessibilitySummary(for item: QuillConversationHistoryItem) -> String {
-        let lastMessage = item.lastMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lastMessage = lastMessagePreview(for: item)
         guard !lastMessage.isEmpty else { return item.title }
-        return "\(item.title). \(lastMessage)"
+        return "\(item.title)\n\(lastMessage)"
+    }
+
+    private func lastMessagePreview(for item: QuillConversationHistoryItem) -> String {
+        item.lastMessage.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
