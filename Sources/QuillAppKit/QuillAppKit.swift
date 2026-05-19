@@ -2365,9 +2365,25 @@ open class NSSplitView: NSView {
     public var dividerStyle: DividerStyle = .thin
     public var holdingPriorityForSubviewAtIndex: (Int) -> Float = { _ in 250 }
     public var autosaveName: String?
-    public func addArrangedSubview(_ v: NSView) { arrangedSubviews.append(v) }
-    public func insertArrangedSubview(_ v: NSView, at idx: Int) { arrangedSubviews.insert(v, at: idx) }
-    public func removeArrangedSubview(_ v: NSView) {}
+    public func addArrangedSubview(_ v: NSView) {
+        guard !arrangedSubviews.contains(where: { $0 === v }) else { return }
+        arrangedSubviews.append(v)
+        addSubview(v)
+    }
+    public func insertArrangedSubview(_ v: NSView, at idx: Int) {
+        guard !arrangedSubviews.contains(where: { $0 === v }) else { return }
+        let relativeSubview = idx < subviews.count ? subviews[idx] : nil
+        arrangedSubviews.insert(v, at: idx)
+        if let relativeSubview {
+            addSubview(v, positioned: .below, relativeTo: relativeSubview)
+        } else {
+            addSubview(v)
+        }
+    }
+    public func removeArrangedSubview(_ v: NSView) {
+        arrangedSubviews.removeAll { $0 === v }
+        v.removeFromSuperview()
+    }
     public func setPosition(_ pos: CGFloat, ofDividerAt idx: Int) {}
     public func adjustSubviews() {}
     public enum DividerStyle: Int, Sendable { case thick = 1, thin = 2, paneSplitter = 3 }
@@ -2386,9 +2402,24 @@ public typealias NSSplitViewDividerIndex = Int
 
 open class NSSplitViewController: NSViewController {
     public var splitViewItems: [NSSplitViewItem] = []
-    public func addSplitViewItem(_ i: NSSplitViewItem) { splitViewItems.append(i) }
-    public func insertSplitViewItem(_ i: NSSplitViewItem, at idx: Int) { splitViewItems.insert(i, at: idx) }
-    public func removeSplitViewItem(_ i: NSSplitViewItem) {}
+    public func addSplitViewItem(_ i: NSSplitViewItem) {
+        guard !splitViewItems.contains(where: { $0 === i }) else { return }
+        splitViewItems.append(i)
+        splitView.addArrangedSubview(i.viewController.view)
+        addChild(i.viewController)
+    }
+    public func insertSplitViewItem(_ i: NSSplitViewItem, at idx: Int) {
+        guard !splitViewItems.contains(where: { $0 === i }) else { return }
+        splitViewItems.insert(i, at: idx)
+        splitView.insertArrangedSubview(i.viewController.view, at: idx)
+        addChild(i.viewController)
+    }
+    public func removeSplitViewItem(_ i: NSSplitViewItem) {
+        guard splitViewItems.contains(where: { $0 === i }) else { return }
+        splitViewItems.removeAll { $0 === i }
+        splitView.removeArrangedSubview(i.viewController.view)
+        i.viewController.removeFromParent()
+    }
     public var splitView: NSSplitView = NSSplitView()
 }
 

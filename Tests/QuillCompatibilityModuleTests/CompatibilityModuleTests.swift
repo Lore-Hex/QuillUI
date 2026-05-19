@@ -195,6 +195,18 @@ struct CompatibilityModuleTests {
         #expect(result.orphanRemoveIgnored)
     }
 
+    @Test("AppKit split views maintain arranged item links")
+    @MainActor
+    func appKitSplitViewsMaintainArrangedItemLinks() {
+        let result = AppleCompatibilitySmoke.runAppKitSplitViewSmoke()
+
+        #expect(result.arrangedSubviewLinks)
+        #expect(result.arrangedSubviewRemovalUpdatedOrder)
+        #expect(result.controllerAddedItemsInOrder)
+        #expect(result.controllerRemoveClearedLinks)
+        #expect(result.factoryBehaviorsRoundTrip)
+    }
+
     @Test("AppKit views maintain tracking areas")
     @MainActor
     func appKitViewsMaintainTrackingAreas() {

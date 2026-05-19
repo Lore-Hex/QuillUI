@@ -112,6 +112,14 @@ enum AppleCompatibilitySmoke {
         var orphanRemoveIgnored: Bool
     }
 
+    struct AppKitSplitViewResult {
+        var arrangedSubviewLinks: Bool
+        var arrangedSubviewRemovalUpdatedOrder: Bool
+        var controllerAddedItemsInOrder: Bool
+        var controllerRemoveClearedLinks: Bool
+        var factoryBehaviorsRoundTrip: Bool
+    }
+
     struct AppKitTrackingAreaResult {
         var metadataRoundTripped: Bool
         var addRecordedTrackingArea: Bool
@@ -680,6 +688,70 @@ enum AppleCompatibilitySmoke {
             secondChildPreservedOrder: secondChildPreservedOrder,
             removeClearedParentLinks: removeClearedParentLinks,
             orphanRemoveIgnored: orphanRemoveIgnored
+        )
+    }
+
+    @MainActor
+    static func runAppKitSplitViewSmoke() -> AppKitSplitViewResult {
+        let splitView = NSSplitView()
+        let first = NSView()
+        let second = NSView()
+
+        splitView.addArrangedSubview(first)
+        splitView.insertArrangedSubview(second, at: 0)
+        let arrangedSubviewLinks =
+            splitView.arrangedSubviews.count == 2 &&
+            splitView.arrangedSubviews[0] === second &&
+            splitView.arrangedSubviews[1] === first &&
+            first.superview === splitView &&
+            second.superview === splitView &&
+            splitView.subviews.contains { $0 === first } &&
+            splitView.subviews.contains { $0 === second }
+
+        splitView.removeArrangedSubview(second)
+        let arrangedSubviewRemovalUpdatedOrder =
+            splitView.arrangedSubviews.count == 1 &&
+            splitView.arrangedSubviews.first === first &&
+            !splitView.arrangedSubviews.contains { $0 === second }
+
+        let controller = NSSplitViewController()
+        let sidebarController = NSViewController()
+        let contentController = NSViewController()
+        let sidebarItem = NSSplitViewItem.sidebar(with: sidebarController)
+        let contentItem = NSSplitViewItem.contentListWithViewController(contentController)
+        controller.addSplitViewItem(contentItem)
+        controller.insertSplitViewItem(sidebarItem, at: 0)
+        let controllerAddedItemsInOrder =
+            controller.splitViewItems.count == 2 &&
+            controller.splitViewItems[0] === sidebarItem &&
+            controller.splitViewItems[1] === contentItem &&
+            controller.splitView.arrangedSubviews.count == 2 &&
+            controller.splitView.arrangedSubviews[0] === sidebarController.view &&
+            controller.splitView.arrangedSubviews[1] === contentController.view &&
+            sidebarController.parent === controller &&
+            contentController.parent === controller
+
+        controller.removeSplitViewItem(sidebarItem)
+        let controllerRemoveClearedLinks =
+            controller.splitViewItems.count == 1 &&
+            controller.splitViewItems.first === contentItem &&
+            controller.splitView.arrangedSubviews.count == 1 &&
+            controller.splitView.arrangedSubviews.first === contentController.view &&
+            sidebarController.parent == nil &&
+            contentController.parent === controller
+
+        let inspectorItem = NSSplitViewItem.inspector(with: NSViewController())
+        let factoryBehaviorsRoundTrip =
+            sidebarItem.behavior == .sidebar &&
+            contentItem.behavior == .contentList &&
+            inspectorItem.behavior == .inspector
+
+        return AppKitSplitViewResult(
+            arrangedSubviewLinks: arrangedSubviewLinks,
+            arrangedSubviewRemovalUpdatedOrder: arrangedSubviewRemovalUpdatedOrder,
+            controllerAddedItemsInOrder: controllerAddedItemsInOrder,
+            controllerRemoveClearedLinks: controllerRemoveClearedLinks,
+            factoryBehaviorsRoundTrip: factoryBehaviorsRoundTrip
         )
     }
 
