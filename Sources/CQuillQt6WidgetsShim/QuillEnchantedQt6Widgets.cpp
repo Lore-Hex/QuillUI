@@ -1875,6 +1875,10 @@ public:
         }
     }
 
+    void resetDragState() {
+        setDragActive(false);
+    }
+
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override {
         handleDragMove(event);
@@ -2709,6 +2713,9 @@ extern "C" int quill_enchanted_qt_run_app_json(
         attachButton->setVisible(imageAttachmentsAvailable);
         clearAttachmentsButton->setVisible(imageAttachmentsAvailable);
         dropTarget->setAcceptDrops(imageAttachmentsAvailable);
+        if (!imageAttachmentsAvailable) {
+            dropTarget->resetDragState();
+        }
         dropTarget->setVisible(imageAttachmentsAvailable || hasPendingAttachments);
         if (!imageAttachmentsAvailable && dropHint != nullptr) {
             dropHint->setVisible(false);
