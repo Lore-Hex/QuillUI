@@ -1808,6 +1808,8 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("QIcon unavailableModelButtonIcon(const QJsonObject &icons)"))
         #expect(enchantedQtHost.contains("systemImageIcon(requiredIconName(icons, \"unavailableModel\"))"))
         #expect(enchantedQtHost.contains("unavailableModelButton->setIcon(unavailableModelButtonIcon(icons))"))
+        #expect(enchantedQtHost.contains("unavailableModelButton->setAccessibleDescription(chooseLocalModelStatus)"))
+        #expect(enchantedQtHost.contains("unavailableModelButton->setStatusTip(chooseLocalModelStatus)"))
         #expect(enchantedMacRoot.contains("Image(systemName: EnchantedIcon.attachment)"))
         #expect(enchantedQtHost.contains("QIcon attachmentChipIcon(const QJsonObject &icons)"))
         #expect(enchantedQtHost.contains("attachmentChipIcon(icons),\n                QStringLiteral(\"attachmentChipIcon\"),\n                style"))

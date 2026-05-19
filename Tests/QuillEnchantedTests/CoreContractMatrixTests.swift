@@ -1937,6 +1937,8 @@ struct CoreContractMatrixTests {
             "attachmentPath->setAccessibleDescription(attachmentPlaceholder)",
             "attachmentPath->setToolTip(attachmentPlaceholder)",
             "attachmentPath->setStatusTip(attachmentPlaceholder)",
+            "unavailableModelButton->setAccessibleDescription(chooseLocalModelStatus)",
+            "unavailableModelButton->setStatusTip(chooseLocalModelStatus)",
             "payloadString(payload, \"attachTitle\")",
             "const QString clearAttachmentsTitle = payloadString(payload, \"clearAttachmentsTitle\")",
             "clearAttachmentsButton->setAccessibleName(clearAttachmentsTitle)",

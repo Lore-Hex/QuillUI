@@ -2468,6 +2468,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
     applyButtonIconSize(unavailableModelButton, style);
     unavailableModelButton->setToolTip(chooseLocalModelStatus);
     unavailableModelButton->setAccessibleName(chooseLocalModelStatus);
+    unavailableModelButton->setAccessibleDescription(chooseLocalModelStatus);
+    unavailableModelButton->setStatusTip(chooseLocalModelStatus);
     unavailableModelButton->setEnabled(false);
     QPushButton *attachButton = new QPushButton();
     attachButton->setObjectName(QStringLiteral("secondaryButton"));
