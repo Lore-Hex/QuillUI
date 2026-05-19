@@ -465,10 +465,11 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
 
 open class NSWindowController: NSResponder {
     public var window: NSWindow?
+    public weak var document: NSDocument?
     public var contentViewController: NSViewController?
     public init(window: NSWindow?) { super.init(); self.window = window }
-    public func showWindow(_ sender: Any?) {}
-    public func close() {}
+    public func showWindow(_ sender: Any?) { window?.makeKeyAndOrderFront(sender) }
+    public func close() { window?.close() }
     public var shouldCascadeWindows: Bool = true
     public var windowFrameAutosaveName: String = ""
 }
@@ -2671,11 +2672,16 @@ open class NSDocument: NSObject {
     public var fileURL: URL?
     public var fileType: String?
     public var fileModificationDate: Date?
-    public var displayName: String = ""
+    private var explicitDisplayName: String?
+    public var displayName: String {
+        get { explicitDisplayName ?? fileURL?.lastPathComponent ?? "" }
+        set { explicitDisplayName = newValue.isEmpty ? nil : newValue }
+    }
     public var isDocumentEdited: Bool = false
     public var hasUnautosavedChanges: Bool = false
     public var windowControllers: [NSWindowController] = []
     public weak var undoManager: UndoManager?
+    private var changeCountDepth: Int = 0
 
     public override init() { super.init() }
     public init(contentsOf url: URL, ofType type: String) throws {
@@ -2684,17 +2690,48 @@ open class NSDocument: NSObject {
         self.fileType = type
     }
     open func makeWindowControllers() {}
-    open func addWindowController(_ wc: NSWindowController) { windowControllers.append(wc) }
-    open func showWindows() {}
-    open func close() {}
+    open func addWindowController(_ wc: NSWindowController) {
+        if !windowControllers.contains(where: { $0 === wc }) {
+            wc.document?.removeWindowController(wc)
+            windowControllers.append(wc)
+        }
+        wc.document = self
+    }
+    open func removeWindowController(_ wc: NSWindowController) {
+        windowControllers.removeAll { $0 === wc }
+        if wc.document === self {
+            wc.document = nil
+        }
+    }
+    open func showWindows() {
+        for windowController in windowControllers {
+            windowController.showWindow(self)
+        }
+    }
+    open func close() {
+        for windowController in windowControllers {
+            windowController.close()
+        }
+    }
     open func read(from data: Data, ofType: String) throws {}
     open func data(ofType: String) throws -> Data { Data() }
     open func write(to url: URL, ofType: String) throws {}
-    open func save(_ sender: Any?) {}
+    open func save(_ sender: Any?) { updateChangeCount(.changeCleared) }
     open func saveAs(_ sender: Any?) {}
     open func saveTo(_ sender: Any?) {}
-    open func revertToSaved(_ sender: Any?) {}
-    open func updateChangeCount(_ change: ChangeType) {}
+    open func revertToSaved(_ sender: Any?) { updateChangeCount(.changeCleared) }
+    open func updateChangeCount(_ change: ChangeType) {
+        switch change {
+        case .changeDone, .changeRedone, .changeReadOtherContents:
+            changeCountDepth += 1
+        case .changeUndone, .changeDiscardable:
+            changeCountDepth = max(0, changeCountDepth - 1)
+        case .changeCleared, .changeAutosaved:
+            changeCountDepth = 0
+        }
+        isDocumentEdited = changeCountDepth > 0
+        hasUnautosavedChanges = isDocumentEdited
+    }
     public enum ChangeType: UInt, Sendable { case changeDone, changeUndone, changeRedone, changeCleared, changeReadOtherContents, changeAutosaved, changeDiscardable }
 }
 
@@ -2703,7 +2740,40 @@ open class NSDocumentController: NSObject {
     public var documents: [NSDocument] = []
     public var currentDocument: NSDocument?
     public var documentClassNames: [String] = []
-    public func openDocument(withContentsOf url: URL, display: Bool, completionHandler: @escaping (NSDocument?, Bool, Error?) -> Void) {}
+    public func addDocument(_ document: NSDocument) {
+        if !documents.contains(where: { $0 === document }) {
+            documents.append(document)
+        }
+        currentDocument = document
+    }
+    public func removeDocument(_ document: NSDocument) {
+        documents.removeAll { $0 === document }
+        if currentDocument === document {
+            currentDocument = documents.last
+        }
+    }
+    public func openDocument(withContentsOf url: URL, display: Bool, completionHandler: @escaping (NSDocument?, Bool, Error?) -> Void) {
+        if let document = documents.first(where: { $0.fileURL == url }) {
+            currentDocument = document
+            if display {
+                document.showWindows()
+            }
+            completionHandler(document, true, nil)
+            return
+        }
+
+        do {
+            let document = try NSDocument(contentsOf: url, ofType: url.pathExtension)
+            addDocument(document)
+            if display {
+                document.makeWindowControllers()
+                document.showWindows()
+            }
+            completionHandler(document, false, nil)
+        } catch {
+            completionHandler(nil, false, error)
+        }
+    }
     public func newDocument(_ sender: Any?) {}
     public func openDocument(_ sender: Any?) {}
 }

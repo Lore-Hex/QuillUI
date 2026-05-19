@@ -135,6 +135,14 @@ enum AppleCompatibilitySmoke {
         var removeClearedTrackingArea: Bool
     }
 
+    struct AppKitDocumentResult {
+        var displayNameFollowsFileURL: Bool
+        var changeCountTracksEditedState: Bool
+        var windowControllerLinksRoundTrip: Bool
+        var documentControllerMaintainsCurrentDocument: Bool
+        var openDocumentCreatesAndReusesDocument: Bool
+    }
+
     struct OSLogResult {
         var operations: Set<String>
         var renderedPublicValue: Bool
@@ -852,6 +860,108 @@ enum AppleCompatibilitySmoke {
             addRecordedTrackingArea: addRecordedTrackingArea,
             unknownRemoveIgnored: unknownRemoveIgnored,
             removeClearedTrackingArea: removeClearedTrackingArea
+        )
+    }
+
+    @MainActor
+    static func runAppKitDocumentSmoke() -> AppKitDocumentResult {
+        let url = URL(fileURLWithPath: "/tmp/enchanted-session.quill")
+        let document = NSDocument()
+        document.fileURL = url
+        let displayNameFollowsFileURL = document.displayName == "enchanted-session.quill"
+
+        let startedClean = !document.isDocumentEdited && !document.hasUnautosavedChanges
+        document.updateChangeCount(.changeDone)
+        let markedChanged = document.isDocumentEdited && document.hasUnautosavedChanges
+        document.updateChangeCount(.changeUndone)
+        let markedUndone = !document.isDocumentEdited && !document.hasUnautosavedChanges
+        document.updateChangeCount(.changeRedone)
+        let markedRedone = document.isDocumentEdited && document.hasUnautosavedChanges
+        document.updateChangeCount(.changeAutosaved)
+        let markedAutosaved = !document.isDocumentEdited && !document.hasUnautosavedChanges
+        document.updateChangeCount(.changeReadOtherContents)
+        document.updateChangeCount(.changeCleared)
+        let markedCleared = !document.isDocumentEdited && !document.hasUnautosavedChanges
+        let changeCountTracksEditedState =
+            startedClean &&
+            markedChanged &&
+            markedUndone &&
+            markedRedone &&
+            markedAutosaved &&
+            markedCleared
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let windowController = NSWindowController(window: window)
+        document.addWindowController(windowController)
+        document.addWindowController(windowController)
+        let addedController =
+            document.windowControllers.count == 1 &&
+            document.windowControllers.first === windowController &&
+            windowController.document === document
+        document.showWindows()
+        let shownController = window.isVisible && window.isKeyWindow
+        document.removeWindowController(windowController)
+        let removedController =
+            document.windowControllers.isEmpty &&
+            windowController.document == nil
+        let windowControllerLinksRoundTrip = addedController && shownController && removedController
+
+        let controller = NSDocumentController()
+        controller.addDocument(document)
+        let secondDocument = NSDocument()
+        controller.addDocument(secondDocument)
+        controller.removeDocument(secondDocument)
+        let returnedToPreviousDocument =
+            controller.documents.count == 1 &&
+            controller.documents.first === document &&
+            controller.currentDocument === document
+        controller.removeDocument(document)
+        let documentControllerMaintainsCurrentDocument =
+            returnedToPreviousDocument &&
+            controller.documents.isEmpty &&
+            controller.currentDocument == nil
+
+        let openController = NSDocumentController()
+        var openedDocument: NSDocument?
+        var openedAlready = true
+        var openedError: Error?
+        openController.openDocument(withContentsOf: url, display: false) { document, alreadyOpen, error in
+            openedDocument = document
+            openedAlready = alreadyOpen
+            openedError = error
+        }
+
+        var reopenedDocument: NSDocument?
+        var reopenedAlready = false
+        var reopenedError: Error?
+        openController.openDocument(withContentsOf: url, display: false) { document, alreadyOpen, error in
+            reopenedDocument = document
+            reopenedAlready = alreadyOpen
+            reopenedError = error
+        }
+
+        let openDocumentCreatesAndReusesDocument =
+            openedError == nil &&
+            reopenedError == nil &&
+            openedDocument?.fileURL == url &&
+            openedDocument?.fileType == "quill" &&
+            openedAlready == false &&
+            reopenedDocument === openedDocument &&
+            reopenedAlready &&
+            openController.documents.count == 1 &&
+            openController.currentDocument === openedDocument
+
+        return AppKitDocumentResult(
+            displayNameFollowsFileURL: displayNameFollowsFileURL,
+            changeCountTracksEditedState: changeCountTracksEditedState,
+            windowControllerLinksRoundTrip: windowControllerLinksRoundTrip,
+            documentControllerMaintainsCurrentDocument: documentControllerMaintainsCurrentDocument,
+            openDocumentCreatesAndReusesDocument: openDocumentCreatesAndReusesDocument
         )
     }
 

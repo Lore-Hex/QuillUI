@@ -230,6 +230,18 @@ struct CompatibilityModuleTests {
         #expect(result.removeClearedTrackingArea)
     }
 
+    @Test("AppKit documents maintain edit and controller state")
+    @MainActor
+    func appKitDocumentsMaintainEditAndControllerState() {
+        let result = AppleCompatibilitySmoke.runAppKitDocumentSmoke()
+
+        #expect(result.displayNameFollowsFileURL)
+        #expect(result.changeCountTracksEditedState)
+        #expect(result.windowControllerLinksRoundTrip)
+        #expect(result.documentControllerMaintainsCurrentDocument)
+        #expect(result.openDocumentCreatesAndReusesDocument)
+    }
+
     @Test("KeyboardShortcuts persist defaults and user overrides by raw name")
     func keyboardShortcutsPersistDefaultsAndUserOverrides() {
         let defaultShortcut = KeyboardShortcuts.Shortcut(.k, modifiers: [.command, .option])
