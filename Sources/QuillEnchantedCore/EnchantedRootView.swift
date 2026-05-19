@@ -62,6 +62,8 @@ public struct EnchantedRootView: View {
                 .cornerRadius(CGFloat(EnchantedVisualMetrics.primaryButtonRadius))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(EnchantedCopy.newChatTitle)
+            .help(EnchantedCopy.newChatTitle)
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
                 Text(EnchantedCopy.endpointLabel)
@@ -69,6 +71,8 @@ public struct EnchantedRootView: View {
                     .foregroundColor(QuillColors.muted)
                 TextField(EnchantedCopy.defaultEndpoint, text: $endpoint)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel(EnchantedCopy.endpointLabel)
+                    .help(EnchantedCopy.endpointLabel)
             }
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
@@ -85,6 +89,8 @@ public struct EnchantedRootView: View {
                             Text(ollamaModel.name).tag(ollamaModel.name)
                         }
                     }
+                    .accessibilityLabel(EnchantedCopy.modelLabel)
+                    .help(EnchantedCopy.modelLabel)
                 }
             }
 
@@ -95,6 +101,9 @@ public struct EnchantedRootView: View {
                     .foregroundColor(QuillColors.muted)
                     .frame(width: CGFloat(EnchantedVisualMetrics.statusTextWidth), alignment: .leading)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(model.status)
+            .help(model.status)
 
             Divider()
 
@@ -124,11 +133,15 @@ public struct EnchantedRootView: View {
                     model.deleteSelectedConversation()
                 }
                 .disabled(model.selectedConversationID == nil)
+                .accessibilityLabel(EnchantedCopy.deleteChatTitle)
+                .help(EnchantedCopy.deleteChatTitle)
 
                 Button(EnchantedCopy.clearAllTitle) {
                     model.deleteAllConversations()
                 }
                 .disabled(model.conversations.isEmpty)
+                .accessibilityLabel(EnchantedCopy.clearAllTitle)
+                .help(EnchantedCopy.clearAllTitle)
             }
             .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
         }
@@ -190,10 +203,14 @@ public struct EnchantedRootView: View {
                     .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.currentTitleFontWeight)))
                     .foregroundColor(QuillColors.ink)
                     .frame(width: CGFloat(EnchantedVisualMetrics.headerTitleWidth), alignment: .leading)
-                Text(model.selectedModel.isEmpty ? EnchantedCopy.chooseLocalModelStatus : EnchantedCopy.usingModel(model.selectedModel))
+                    .accessibilityLabel(currentTitle)
+                    .help(currentTitle)
+                Text(modelStatusText)
                     .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(QuillColors.muted)
                     .frame(width: CGFloat(EnchantedVisualMetrics.headerTitleWidth), alignment: .leading)
+                    .accessibilityLabel(modelStatusText)
+                    .help(modelStatusText)
             }
 
             Spacer()
@@ -205,6 +222,8 @@ public struct EnchantedRootView: View {
                 }
             }
             .disabled(model.isLoading)
+            .accessibilityLabel(EnchantedCopy.refreshModelsTitle)
+            .help(EnchantedCopy.refreshModelsTitle)
         }
     }
 
@@ -221,6 +240,9 @@ public struct EnchantedRootView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(QuillColors.dropTarget)
                 .cornerRadius(CGFloat(EnchantedVisualMetrics.dropTargetRadius))
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(EnchantedCopy.dropTargetTitle)
+                .help(EnchantedCopy.dropTargetTitle)
             }
 
             if !model.pendingImageAttachments.isEmpty {
@@ -231,6 +253,8 @@ public struct EnchantedRootView: View {
                 HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentInputSpacing)) {
                     TextField(EnchantedCopy.attachmentPlaceholder, text: attachmentPath)
                         .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(EnchantedCopy.attachmentPlaceholder)
+                        .help(EnchantedCopy.attachmentPlaceholder)
 
                     Button(action: {
                         model.addAttachmentPath()
@@ -241,11 +265,15 @@ public struct EnchantedRootView: View {
                         }
                     }
                     .disabled(!hasAttachmentPathCandidates)
+                    .accessibilityLabel(EnchantedCopy.attachTitle)
+                    .help(EnchantedCopy.attachTitle)
 
                     Button(EnchantedCopy.clearAttachmentsTitle) {
                         model.clearAttachments()
                     }
                     .disabled(model.pendingImageAttachments.isEmpty && !hasAttachmentPathCandidates)
+                    .accessibilityLabel(EnchantedCopy.clearAttachmentsTitle)
+                    .help(EnchantedCopy.clearAttachmentsTitle)
                 }
             }
 
@@ -257,6 +285,8 @@ public struct EnchantedRootView: View {
                     )
                     .background(.white)
                     .cornerRadius(CGFloat(EnchantedVisualMetrics.composerEditorRadius))
+                    .accessibilityLabel(EnchantedCopy.composerPlaceholder)
+                    .help(EnchantedCopy.composerPlaceholder)
 
                 Button(action: {
                     if model.isLoading {
@@ -267,7 +297,7 @@ public struct EnchantedRootView: View {
                 }) {
                     HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
                         Image(systemName: model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send)
-                        Text(model.isLoading ? EnchantedCopy.stopTitle : EnchantedCopy.sendTitle)
+                        Text(sendActionTitle)
                     }
                     .padding(CGFloat(EnchantedVisualMetrics.primaryButtonPadding))
                     .background(model.isLoading ? QuillColors.warning : QuillColors.primary)
@@ -276,6 +306,8 @@ public struct EnchantedRootView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(sendDisabled)
+                .accessibilityLabel(sendActionTitle)
+                .help(sendActionTitle)
             }
         }
         .dropDestination(for: URL.self) { urls, _ in
@@ -289,6 +321,14 @@ public struct EnchantedRootView: View {
 
     private var currentTitle: String {
         model.conversations.first(where: { $0.id == model.selectedConversationID })?.title ?? EnchantedCopy.newConversationTitle
+    }
+
+    private var modelStatusText: String {
+        model.selectedModel.isEmpty ? EnchantedCopy.chooseLocalModelStatus : EnchantedCopy.usingModel(model.selectedModel)
+    }
+
+    private var sendActionTitle: String {
+        model.isLoading ? EnchantedCopy.stopTitle : EnchantedCopy.sendTitle
     }
 
     private var modelSelection: Binding<String> {
@@ -330,6 +370,7 @@ public struct EnchantedRootView: View {
             Text(EnchantedCopy.attachmentsTitle)
                 .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                 .foregroundColor(QuillColors.muted)
+                .accessibilityLabel(EnchantedCopy.attachmentsTitle)
             ScrollView(.horizontal) {
                 HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentTrayChipSpacing)) {
                     ForEach(model.pendingImageAttachments) { attachment in
@@ -364,6 +405,10 @@ public struct EnchantedRootView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(QuillColors.card)
         .cornerRadius(CGFloat(EnchantedVisualMetrics.emptyHistoryRadius))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(EnchantedCopy.emptyHistoryTitle)
+        .accessibilityValue(EnchantedCopy.emptyHistorySubtitle)
+        .help(EnchantedCopy.emptyHistorySubtitle)
     }
 }
 
@@ -392,6 +437,13 @@ private struct ConversationRow: View {
             .cornerRadius(CGFloat(EnchantedVisualMetrics.conversationRowRadius))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(conversation.title)
+        .accessibilityValue(conversation.lastMessage)
+        .help(accessibilitySummary)
+    }
+
+    private var accessibilitySummary: String {
+        conversation.lastMessage.isEmpty ? conversation.title : "\(conversation.title)\n\(conversation.lastMessage)"
     }
 }
 
@@ -432,6 +484,8 @@ private struct EmptyConversationView: View {
                     }
                     .buttonStyle(.plain)
                     .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth), alignment: .leading)
+                    .accessibilityLabel(prompt.title)
+                    .help(prompt.title)
                 }
             }
         }
@@ -466,6 +520,10 @@ private struct MessageBubble: View {
             .frame(maxWidth: CGFloat(EnchantedVisualMetrics.messageMaxWidth), alignment: .leading)
             .background(backgroundColor)
             .cornerRadius(CGFloat(EnchantedVisualMetrics.messageBubbleRadius))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(label)
+            .accessibilityValue(message.content)
+            .help(accessibilitySummary)
 
             if message.role != .user {
                 Spacer()
@@ -502,6 +560,10 @@ private struct MessageBubble: View {
 
     private var textColor: Color {
         message.role == .user ? .white : QuillColors.ink
+    }
+
+    private var accessibilitySummary: String {
+        "\(label)\n\(message.content)"
     }
 }
 
@@ -540,15 +602,25 @@ private struct AttachmentChip: View {
                     .font(.system(size: CGFloat(EnchantedTypography.attachmentSizeFontSize)))
                     .foregroundColor(QuillColors.muted)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(attachment.filename)
+            .accessibilityValue(attachment.formattedByteCount)
+            .help(accessibilitySummary)
 
             Button(action: remove) {
                 Image(systemName: EnchantedIcon.removeAttachment)
                     .foregroundColor(QuillColors.muted)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(EnchantedCopy.removeAttachmentTooltip)
+            .help(EnchantedCopy.removeAttachmentTooltip)
         }
         .padding(CGFloat(EnchantedVisualMetrics.attachmentChipPadding))
         .background(QuillColors.card)
         .cornerRadius(CGFloat(EnchantedVisualMetrics.attachmentChipRadius))
+    }
+
+    private var accessibilitySummary: String {
+        "\(attachment.filename)\n\(attachment.formattedByteCount)"
     }
 }
