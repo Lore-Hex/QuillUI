@@ -161,6 +161,17 @@ enum AppleCompatibilitySmoke {
         var removeClearedTrackingArea: Bool
     }
 
+    struct AppKitTableResult {
+        var reloadUpdatedRowCount: Bool
+        var columnLookupAndRemoval: Bool
+        var multiSelectionRoundTrip: Bool
+        var singleSelectionAndEmptyRules: Bool
+        var delegateSelectionNotification: Bool
+        var rowAndCellViewsCached: Bool
+        var frameUsesColumnWidthsAndRowHeight: Bool
+        var rowColumnLookupFromViews: Bool
+    }
+
     struct AppKitDocumentResult {
         var displayNameFollowsFileURL: Bool
         var changeCountTracksEditedState: Bool
@@ -1212,6 +1223,109 @@ enum AppleCompatibilitySmoke {
     }
 
     @MainActor
+    static func runAppKitTableSmoke() -> AppKitTableResult {
+        let tableView = NSTableView()
+        let delegate = TableDelegateProbe()
+        tableView.delegate = delegate
+        tableView.dataSource = delegate
+        tableView.rowHeight = 22
+        tableView.intercellSpacing = NSSize(width: 5, height: 3)
+
+        delegate.rowCount = 4
+        tableView.reloadData()
+        let reloadUpdatedRowCount = tableView.numberOfRows == 4
+
+        let promptColumn = NSTableColumn(identifier: "prompt")
+        promptColumn.width = 120
+        let answerColumn = NSTableColumn(identifier: "answer")
+        answerColumn.width = 80
+        tableView.addTableColumn(promptColumn)
+        tableView.addTableColumn(answerColumn)
+
+        delegate.rowHeight = 28
+        let frame = tableView.frameOfCell(atColumn: 1, row: 2)
+        let frameUsesColumnWidthsAndRowHeight =
+            frame == NSRect(x: 125, y: 50, width: 80, height: 28)
+
+        let rowView = tableView.rowView(atRow: 0, makeIfNecessary: true)
+        let sameRowView = tableView.rowView(atRow: 0, makeIfNecessary: false)
+        let cellView = tableView.view(atColumn: 0, row: 0, makeIfNecessary: true)
+        let sameCellView = tableView.view(atColumn: 0, row: 0, makeIfNecessary: false)
+        let reusedCellView = tableView.makeView(withIdentifier: "cell-0-0", owner: nil)
+        let rowAndCellViewsCached =
+            rowView != nil &&
+            rowView === sameRowView &&
+            cellView != nil &&
+            cellView === sameCellView &&
+            cellView === reusedCellView &&
+            delegate.addedRows == [0]
+
+        let rowColumnLookupFromViews: Bool
+        if let rowView, let cellView {
+            rowColumnLookupFromViews =
+                tableView.row(for: rowView) == 0 &&
+                tableView.column(for: rowView) == -1 &&
+                tableView.row(for: cellView) == 0 &&
+                tableView.column(for: cellView) == 0
+        } else {
+            rowColumnLookupFromViews = false
+        }
+
+        var multiSelection = IndexSet()
+        multiSelection.insert(1)
+        multiSelection.insert(3)
+        tableView.allowsMultipleSelection = true
+        tableView.selectRowIndexes(multiSelection, byExtendingSelection: false)
+        let multiSelectionRoundTrip =
+            tableView.selectedRowIndexes == multiSelection &&
+            tableView.selectedRow == 1
+
+        var singleSelectionRequest = IndexSet()
+        singleSelectionRequest.insert(0)
+        singleSelectionRequest.insert(2)
+        tableView.allowsMultipleSelection = false
+        tableView.selectRowIndexes(singleSelectionRequest, byExtendingSelection: false)
+        let singleSelectionKeptFirst =
+            tableView.selectedRowIndexes == IndexSet(integer: 0) &&
+            tableView.selectedRow == 0
+        tableView.allowsEmptySelection = false
+        tableView.deselectAll(nil)
+        let singleSelectionAndEmptyRules =
+            singleSelectionKeptFirst &&
+            tableView.selectedRowIndexes == IndexSet(integer: 0) &&
+            tableView.selectedRow == 0
+
+        let lookupBeforeRemoval =
+            tableView.numberOfColumns == 2 &&
+            tableView.column(withIdentifier: "answer") == 1 &&
+            tableView.tableColumn(withIdentifier: "prompt") === promptColumn
+        tableView.selectedColumnIndexes = IndexSet([0, 1])
+        tableView.removeTableColumn(promptColumn)
+        let columnLookupAndRemoval =
+            lookupBeforeRemoval &&
+            tableView.numberOfColumns == 1 &&
+            tableView.column(withIdentifier: "answer") == 0 &&
+            tableView.tableColumn(withIdentifier: "prompt") == nil &&
+            tableView.selectedColumnIndexes == IndexSet(integer: 0) &&
+            tableView.column(for: cellView ?? NSView()) == -1
+
+        let delegateSelectionNotification =
+            delegate.selectionNotifications >= 2 &&
+            delegate.selectionNotificationObject === tableView
+
+        return AppKitTableResult(
+            reloadUpdatedRowCount: reloadUpdatedRowCount,
+            columnLookupAndRemoval: columnLookupAndRemoval,
+            multiSelectionRoundTrip: multiSelectionRoundTrip,
+            singleSelectionAndEmptyRules: singleSelectionAndEmptyRules,
+            delegateSelectionNotification: delegateSelectionNotification,
+            rowAndCellViewsCached: rowAndCellViewsCached,
+            frameUsesColumnWidthsAndRowHeight: frameUsesColumnWidthsAndRowHeight,
+            rowColumnLookupFromViews: rowColumnLookupFromViews
+        )
+    }
+
+    @MainActor
     static func runAppKitDocumentSmoke() -> AppKitDocumentResult {
         let url = URL(fileURLWithPath: "/tmp/enchanted-session.quill")
         let document = NSDocument()
@@ -1577,6 +1691,48 @@ private final class ViewHierarchyProbe: NSView {
 
     override func viewDidMoveToWindow() {
         events.append("didWindow:\(window != nil)")
+    }
+}
+
+@MainActor
+private final class TableDelegateProbe: NSObject, NSTableViewDelegate, NSTableViewDataSource {
+    var rowCount = 0
+    var rowHeight: CGFloat = 0
+    var addedRows: [Int] = []
+    var removedRows: [Int] = []
+    var selectionNotifications = 0
+    weak var selectionNotificationObject: NSTableView?
+
+    func numberOfRows(in tableView: NSTableView) -> Int {
+        rowCount
+    }
+
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        NSTableRowView()
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        let column = tableView.column(withIdentifier: tableColumn?.identifier ?? "")
+        let view = NSView()
+        view.identifier = NSUserInterfaceItemIdentifier(rawValue: "cell-\(column)-\(row)")
+        return view
+    }
+
+    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+        rowHeight
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        selectionNotifications += 1
+        selectionNotificationObject = notification.object as? NSTableView
+    }
+
+    func tableView(_ tableView: NSTableView, didAdd rowView: NSTableRowView, forRow row: Int) {
+        addedRows.append(row)
+    }
+
+    func tableView(_ tableView: NSTableView, didRemove rowView: NSTableRowView, forRow row: Int) {
+        removedRows.append(row)
     }
 }
 

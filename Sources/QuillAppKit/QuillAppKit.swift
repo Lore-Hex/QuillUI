@@ -2853,7 +2853,9 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
 
 // MARK: - NSOutlineView / NSTableView
 
-open class NSTableView: NSControl {
+@MainActor open class NSTableView: NSControl {
+    public static let selectionDidChangeNotification = Notification.Name("NSTableViewSelectionDidChangeNotification")
+
     public weak var delegate: NSTableViewDelegate?
     public weak var dataSource: NSTableViewDataSource?
     public var headerView: NSTableHeaderView? = NSTableHeaderView()
@@ -2885,6 +2887,14 @@ open class NSTableView: NSControl {
     public var autosaveName: String?
     public var autosaveTableColumns: Bool = false
 
+    private struct CellKey: Hashable {
+        var column: Int
+        var row: Int
+    }
+
+    private var cachedRowViews: [Int: NSTableRowView] = [:]
+    private var cachedCellViews: [CellKey: NSView] = [:]
+
     public struct GridLineStyle: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -2895,21 +2905,122 @@ open class NSTableView: NSControl {
     public enum RowSizeStyle: Int, Sendable { case `default` = -1, custom = 0, small, medium, large }
     public enum Style: Int, Sendable { case automatic, fullWidth, inset, sourceList, plain }
 
-    public func reloadData() {}
-    public func reloadData(forRowIndexes: IndexSet, columnIndexes: IndexSet) {}
-    public func selectRowIndexes(_ s: IndexSet, byExtendingSelection: Bool) {}
-    public func deselectRow(_ row: Int) {}
-    public func deselectAll(_ sender: Any?) {}
+    public func reloadData() {
+        numberOfRows = max(0, dataSource?.numberOfRows(in: self) ?? 0)
+        cachedRowViews.removeAll()
+        cachedCellViews.removeAll()
+        setSelectedRowIndexes(clampedRowIndexes(selectedRowIndexes), notify: false)
+    }
+
+    public func reloadData(forRowIndexes rowIndexes: IndexSet, columnIndexes: IndexSet) {
+        for row in rowIndexes {
+            if let rowView = cachedRowViews.removeValue(forKey: row) {
+                delegate?.tableView(self, didRemove: rowView, forRow: row)
+            }
+            if columnIndexes.isEmpty {
+                cachedCellViews.keys
+                    .filter { $0.row == row }
+                    .forEach { cachedCellViews.removeValue(forKey: $0) }
+            } else {
+                for column in columnIndexes {
+                    cachedCellViews.removeValue(forKey: CellKey(column: column, row: row))
+                }
+            }
+        }
+    }
+
+    public func selectRowIndexes(_ rowIndexes: IndexSet, byExtendingSelection: Bool) {
+        var accepted = IndexSet()
+        for row in rowIndexes where row >= 0 && row < numberOfRows {
+            guard delegate?.tableView(self, shouldSelectRow: row) ?? true else { continue }
+            accepted.insert(row)
+            if !allowsMultipleSelection { break }
+        }
+
+        var nextSelection = byExtendingSelection ? selectedRowIndexes.union(accepted) : accepted
+        if !allowsMultipleSelection, let first = nextSelection.first {
+            nextSelection = IndexSet(integer: first)
+        }
+        if nextSelection.isEmpty && !allowsEmptySelection {
+            return
+        }
+        setSelectedRowIndexes(nextSelection)
+    }
+
+    public func deselectRow(_ row: Int) {
+        guard selectedRowIndexes.contains(row) else { return }
+        var nextSelection = selectedRowIndexes
+        nextSelection.remove(row)
+        if nextSelection.isEmpty && !allowsEmptySelection {
+            return
+        }
+        setSelectedRowIndexes(nextSelection)
+    }
+
+    public func deselectAll(_ sender: Any?) {
+        guard allowsEmptySelection else { return }
+        setSelectedRowIndexes(IndexSet())
+    }
     public func scrollRowToVisible(_ row: Int) {}
-    public func rowView(atRow: Int, makeIfNecessary: Bool) -> NSTableRowView? { nil }
-    public func view(atColumn: Int, row: Int, makeIfNecessary: Bool) -> NSView? { nil }
-    public func makeView(withIdentifier: NSUserInterfaceItemIdentifier, owner: Any?) -> NSView? { nil }
+    public func rowView(atRow row: Int, makeIfNecessary: Bool) -> NSTableRowView? {
+        guard row >= 0 && row < numberOfRows else { return nil }
+        if let rowView = cachedRowViews[row] {
+            return rowView
+        }
+        guard makeIfNecessary, let rowView = delegate?.tableView(self, rowViewForRow: row) else {
+            return nil
+        }
+        rowView.isSelected = selectedRowIndexes.contains(row)
+        cachedRowViews[row] = rowView
+        delegate?.tableView(self, didAdd: rowView, forRow: row)
+        return rowView
+    }
+
+    public func view(atColumn column: Int, row: Int, makeIfNecessary: Bool) -> NSView? {
+        guard row >= 0 && row < numberOfRows && column >= 0 && column < tableColumns.count else {
+            return nil
+        }
+        let key = CellKey(column: column, row: row)
+        if let cached = cachedCellViews[key] {
+            return cached
+        }
+        guard makeIfNecessary else { return nil }
+        let view = delegate?.tableView(self, viewFor: tableColumns[column], row: row)
+        if let view {
+            cachedCellViews[key] = view
+        }
+        return view
+    }
+
+    public func makeView(withIdentifier identifier: NSUserInterfaceItemIdentifier, owner: Any?) -> NSView? {
+        cachedCellViews.values.first { $0.identifier == identifier }
+    }
     public func register(nib: Any?, forIdentifier: NSUserInterfaceItemIdentifier) {}
     public func register(_ cellClass: AnyClass?, forCellReuseIdentifier: String) {}
-    public func addTableColumn(_ c: NSTableColumn) { tableColumns.append(c) }
-    public func removeTableColumn(_ c: NSTableColumn) {}
-    public func column(withIdentifier: NSUserInterfaceItemIdentifier) -> Int { -1 }
-    public func tableColumn(withIdentifier: NSUserInterfaceItemIdentifier) -> NSTableColumn? { nil }
+    public func addTableColumn(_ column: NSTableColumn) { tableColumns.append(column) }
+
+    public func removeTableColumn(_ column: NSTableColumn) {
+        guard let index = tableColumns.firstIndex(where: { $0 === column }) else { return }
+        tableColumns.remove(at: index)
+        let oldCellViews = cachedCellViews
+        cachedCellViews.removeAll()
+        for (key, view) in oldCellViews {
+            if key.column < index {
+                cachedCellViews[key] = view
+            } else if key.column > index {
+                cachedCellViews[CellKey(column: key.column - 1, row: key.row)] = view
+            }
+        }
+        selectedColumnIndexes = shiftedColumnSelection(afterRemovingColumnAt: index)
+    }
+
+    public func column(withIdentifier identifier: NSUserInterfaceItemIdentifier) -> Int {
+        tableColumns.firstIndex { $0.identifier == identifier } ?? -1
+    }
+
+    public func tableColumn(withIdentifier identifier: NSUserInterfaceItemIdentifier) -> NSTableColumn? {
+        tableColumns.first { $0.identifier == identifier }
+    }
     public func beginUpdates() {}
     public func endUpdates() {}
     public func insertRows(at: IndexSet, withAnimation: AnimationOptions) {}
@@ -2917,10 +3028,71 @@ open class NSTableView: NSControl {
     public func moveRow(at oldIndex: Int, to newIndex: Int) {}
     public func setDropRow(_ row: Int, dropOperation: DropOperation) {}
     public func registerForDraggedTypes(_ types: [NSPasteboard.PasteboardType]) {}
-    public func enumerateAvailableRowViews(_ block: (NSTableRowView, Int) -> Void) {}
-    public func row(for view: NSView) -> Int { -1 }
-    public func column(for view: NSView) -> Int { -1 }
-    public func frameOfCell(atColumn col: Int, row: Int) -> NSRect { .zero }
+    public func enumerateAvailableRowViews(_ block: (NSTableRowView, Int) -> Void) {
+        for row in cachedRowViews.keys.sorted() {
+            if let rowView = cachedRowViews[row] {
+                block(rowView, row)
+            }
+        }
+    }
+
+    public func row(for view: NSView) -> Int {
+        if let row = cachedRowViews.first(where: { $0.value === view })?.key {
+            return row
+        }
+        return cachedCellViews.first(where: { $0.value === view })?.key.row ?? -1
+    }
+
+    public func column(for view: NSView) -> Int {
+        cachedCellViews.first(where: { $0.value === view })?.key.column ?? -1
+    }
+
+    public func frameOfCell(atColumn column: Int, row: Int) -> NSRect {
+        guard row >= 0 && row < numberOfRows && column >= 0 && column < tableColumns.count else {
+            return .zero
+        }
+        let x = tableColumns.prefix(column).reduce(CGFloat(0)) { partial, tableColumn in
+            partial + tableColumn.width + intercellSpacing.width
+        }
+        let y = CGFloat(row) * (rowHeight + intercellSpacing.height)
+        let delegateHeight = delegate?.tableView(self, heightOfRow: row) ?? 0
+        let height = delegateHeight > 0 ? delegateHeight : rowHeight
+        return NSRect(x: x, y: y, width: tableColumns[column].width, height: height)
+    }
+
+    private func clampedRowIndexes(_ rowIndexes: IndexSet) -> IndexSet {
+        var clamped = IndexSet()
+        for row in rowIndexes where row >= 0 && row < numberOfRows {
+            clamped.insert(row)
+            if !allowsMultipleSelection { break }
+        }
+        return clamped
+    }
+
+    private func setSelectedRowIndexes(_ rowIndexes: IndexSet, notify: Bool = true) {
+        let oldSelection = selectedRowIndexes
+        selectedRowIndexes = rowIndexes
+        selectedRow = rowIndexes.first ?? -1
+        for (row, rowView) in cachedRowViews {
+            rowView.isSelected = rowIndexes.contains(row)
+        }
+        guard notify && oldSelection != rowIndexes else { return }
+        delegate?.tableViewSelectionDidChange(
+            Notification(name: Self.selectionDidChangeNotification, object: self)
+        )
+    }
+
+    private func shiftedColumnSelection(afterRemovingColumnAt removedIndex: Int) -> IndexSet {
+        var shifted = IndexSet()
+        for column in selectedColumnIndexes {
+            if column < removedIndex {
+                shifted.insert(column)
+            } else if column > removedIndex {
+                shifted.insert(column - 1)
+            }
+        }
+        return shifted
+    }
 
     public struct AnimationOptions: OptionSet, Sendable {
         public let rawValue: UInt

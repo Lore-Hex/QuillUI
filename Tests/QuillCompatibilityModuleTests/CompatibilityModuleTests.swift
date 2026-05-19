@@ -264,6 +264,21 @@ struct CompatibilityModuleTests {
         #expect(result.removeClearedTrackingArea)
     }
 
+    @Test("AppKit table views maintain rows columns and selection")
+    @MainActor
+    func appKitTableViewsMaintainRowsColumnsAndSelection() {
+        let result = AppleCompatibilitySmoke.runAppKitTableSmoke()
+
+        #expect(result.reloadUpdatedRowCount)
+        #expect(result.columnLookupAndRemoval)
+        #expect(result.multiSelectionRoundTrip)
+        #expect(result.singleSelectionAndEmptyRules)
+        #expect(result.delegateSelectionNotification)
+        #expect(result.rowAndCellViewsCached)
+        #expect(result.frameUsesColumnWidthsAndRowHeight)
+        #expect(result.rowColumnLookupFromViews)
+    }
+
     @Test("AppKit documents maintain edit and controller state")
     @MainActor
     func appKitDocumentsMaintainEditAndControllerState() {
