@@ -321,6 +321,7 @@ struct CompatibilityModuleTests {
         #expect(result.pasteboardDeclareTypesClearsOldTypes)
         #expect(result.pasteboardDeclareTypesChangeCount)
         #expect(result.pasteboardDeclareTypesOwnerProvidesData)
+        #expect(result.pasteboardAvailableTypeOrder)
         #expect(result.uiPasteboardString == "hello")
         #expect(result.imagesRoundTrip)
         #expect(result.speechStopSucceeded)

@@ -926,6 +926,12 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
         return files.map { PasteboardType(rawValue: $0) }
     }
 
+    public func availableType(from types: [PasteboardType]) -> PasteboardType? {
+        guard let availableTypes = self.types(), !availableTypes.isEmpty else { return nil }
+        let available = Set(availableTypes)
+        return types.first { available.contains($0) }
+    }
+
     @discardableResult
     public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int {
         pasteboardItems = nil

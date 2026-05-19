@@ -29,6 +29,7 @@ enum AppleCompatibilitySmoke {
         var pasteboardDeclareTypesClearsOldTypes: Bool
         var pasteboardDeclareTypesChangeCount: Bool
         var pasteboardDeclareTypesOwnerProvidesData: Bool
+        var pasteboardAvailableTypeOrder: Bool
         var uiPasteboardString: String?
         var imagesRoundTrip: Bool
         var speechStopSucceeded: Bool
@@ -85,11 +86,15 @@ enum AppleCompatibilitySmoke {
         let pasteboardWriteObjectsDataRoundTrip =
             itemPasteboard.string(forType: .string) == "item text" &&
             itemPasteboard.data(forType: .png) == Data([0x89, 0x50, 0x4E, 0x47])
+        let itemPasteboardAvailableTypeOrder =
+            itemPasteboard.availableType(from: [.html, .png]) == .html &&
+            itemPasteboard.availableType(from: [.pdf]) == nil
         _ = itemPasteboard.clearContents()
         let pasteboardClearResetsItems =
             itemPasteboard.pasteboardItems == nil &&
             itemPasteboard.string(forType: .string) == nil &&
-            itemPasteboard.data(forType: .png) == nil
+            itemPasteboard.data(forType: .png) == nil &&
+            itemPasteboard.availableType(from: [.string]) == nil
 
         let replacementPasteboard = NSPasteboard(name: .init(rawValue: "quill.compat.replacement.\(UUID().uuidString)"))
         _ = replacementPasteboard.setData(Data([0xCA, 0xFE]), forType: .png)
@@ -120,6 +125,10 @@ enum AppleCompatibilitySmoke {
         let pasteboardDeclareTypesChangeCount = declaredChangeCount > previousChangeCount
         _ = declaredPasteboard.setData(Data([0x01, 0x02, 0x03]), forType: .png)
         let pasteboardDeclareTypesRetainedAfterData = declaredPasteboard.types() == [.png, .html]
+        let pasteboardAvailableTypeOrder =
+            itemPasteboardAvailableTypeOrder &&
+            declaredPasteboard.availableType(from: [.html, .png]) == .html &&
+            replacementPasteboard.availableType(from: [.png, .string]) == .string
 
         #if os(Linux)
         let lazyOwner = LazyPasteboardOwner()
@@ -179,6 +188,7 @@ enum AppleCompatibilitySmoke {
             pasteboardDeclareTypesClearsOldTypes: pasteboardDeclareTypesClearsOldTypes,
             pasteboardDeclareTypesChangeCount: pasteboardDeclareTypesChangeCount,
             pasteboardDeclareTypesOwnerProvidesData: pasteboardDeclareTypesOwnerProvidesData,
+            pasteboardAvailableTypeOrder: pasteboardAvailableTypeOrder,
             uiPasteboardString: UIPasteboard.general.string,
             imagesRoundTrip: imagesRoundTrip,
             speechStopSucceeded: synthesizer.stopSpeaking(at: .immediate),
