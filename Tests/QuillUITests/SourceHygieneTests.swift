@@ -150,6 +150,8 @@ struct SourceHygieneTests {
         #expect(gtkPatchScript.contains("gtk_swift_accessible_update_label"))
         #expect(gtkPatchScript.contains("GTK_ACCESSIBLE_PROPERTY_LABEL"))
         #expect(gtkPatchScript.contains("GTK_ACCESSIBLE_PROPERTY_DESCRIPTION"))
+        #expect(gtkPatchScript.contains("gtk_widget_set_tooltip_text(widget, text)"))
+        #expect(gtkPatchScript.contains("gtk_swift_accessible_update_description(widget, textPointer)"))
         #expect(upstreamCompatibilityTests.contains(".accessibilityElement(children: .combine)"))
         #expect(upstreamCompatibilityTests.contains(".accessibilityLabel(\"Composer\")"))
         #expect(upstreamCompatibilityTests.contains(".accessibilityValue(\"Ready\")"))

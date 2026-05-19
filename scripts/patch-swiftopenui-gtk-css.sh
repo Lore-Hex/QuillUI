@@ -2545,6 +2545,28 @@ from pathlib import Path
 
 path = Path(sys.argv[1])
 text = path.read_text()
+needle = '''        gtk_widget_set_tooltip_text(widget, text)
+        return opaqueFromWidget(widget)
+'''
+replacement = '''        gtk_widget_set_tooltip_text(widget, text)
+        text.withCString { textPointer in
+            gtk_swift_accessible_update_description(widget, textPointer)
+        }
+        return opaqueFromWidget(widget)
+'''
+if "gtk_swift_accessible_update_description(widget, textPointer)" not in text:
+    if "extension HelpView: GTKRenderable" not in text or needle not in text:
+        raise SystemExit("SwiftOpenUI GTK HelpView renderer shape was not recognized")
+    text = text.replace(needle, replacement, 1)
+path.write_text(text)
+PY
+
+python3 - "$RENDERER" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
 
 old_init = '''    init<Data, Content: View>(items: [Data], contentBuilder: @escaping (Data) -> Content,
                               cellMinWidth: Int) {
