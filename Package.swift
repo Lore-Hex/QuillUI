@@ -1019,7 +1019,7 @@ targets += [
 // Source dirs are *Shim-suffixed to avoid a directory naming clash
 // with anything upstream might want to vendor.
 targets.append(contentsOf: [
-    .target(name: "os", dependencies: [], path: "Sources/osShim"),
+    .target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
     .target(
         name: "QuillSwiftUICompatibility",
         dependencies: [.product(name: "SwiftOpenUI", package: "SwiftOpenUI")],

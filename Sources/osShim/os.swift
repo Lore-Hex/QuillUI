@@ -1,37 +1,49 @@
 @_exported import Foundation
+import QuillKit
 
 public struct Logger: Sendable {
     public init(subsystem: String, category: String) {}
-    
-    public func debug(_ message: String) { print("DEBUG: \(message)") }
-    public func info(_ message: String) { print("INFO: \(message)") }
-    public func warning(_ message: String) { print("WARNING: \(message)") }
-    public func error(_ message: String) { print("ERROR: \(message)") }
-    public func fault(_ message: String) { print("FAULT: \(message)") }
-    public func critical(_ message: String) { print("CRITICAL: \(message)") }
-    
-    public func debug(_ message: Any) { print("DEBUG: \(message)") }
-    public func info(_ message: Any) { print("INFO: \(message)") }
-    public func warning(_ message: Any) { print("WARNING: \(message)") }
-    public func error(_ message: Any) { print("ERROR: \(message)") }
-    public func fault(_ message: Any) { print("FAULT: \(message)") }
-    public func critical(_ message: Any) { print("CRITICAL: \(message)") }
 
-    public func debug(_ message: OSLogMessage) { print("DEBUG: \(message.value)") }
-    public func info(_ message: OSLogMessage) { print("INFO: \(message.value)") }
-    public func warning(_ message: OSLogMessage) { print("WARNING: \(message.value)") }
-    public func error(_ message: OSLogMessage) { print("ERROR: \(message.value)") }
-    public func fault(_ message: OSLogMessage) { print("FAULT: \(message.value)") }
-    public func critical(_ message: OSLogMessage) { print("CRITICAL: \(message.value)") }
+    public func debug(_ message: String) { recordOSLoggerMessage(level: "DEBUG", operation: "Logger.debug", message: message) }
+    public func info(_ message: String) { recordOSLoggerMessage(level: "INFO", operation: "Logger.info", message: message) }
+    public func warning(_ message: String) { recordOSLoggerMessage(level: "WARNING", operation: "Logger.warning", message: message) }
+    public func error(_ message: String) { recordOSLoggerMessage(level: "ERROR", operation: "Logger.error", message: message) }
+    public func fault(_ message: String) { recordOSLoggerMessage(level: "FAULT", operation: "Logger.fault", message: message) }
+    public func critical(_ message: String) { recordOSLoggerMessage(level: "CRITICAL", operation: "Logger.critical", message: message) }
 
-    public func log(level: OSLogType, _ message: String) { print("\(level.label): \(message)") }
-    public func log(level: OSLogType, _ message: OSLogMessage) { print("\(level.label): \(message.value)") }
-    public func log(_ message: String) { print("DEFAULT: \(message)") }
-    public func log(_ message: OSLogMessage) { print("DEFAULT: \(message.value)") }
-    public func notice(_ message: String) { print("NOTICE: \(message)") }
-    public func notice(_ message: OSLogMessage) { print("NOTICE: \(message.value)") }
-    public func trace(_ message: String) { print("TRACE: \(message)") }
-    public func trace(_ message: OSLogMessage) { print("TRACE: \(message.value)") }
+    public func debug(_ message: Any) { recordOSLoggerMessage(level: "DEBUG", operation: "Logger.debug", message: "\(message)") }
+    public func info(_ message: Any) { recordOSLoggerMessage(level: "INFO", operation: "Logger.info", message: "\(message)") }
+    public func warning(_ message: Any) { recordOSLoggerMessage(level: "WARNING", operation: "Logger.warning", message: "\(message)") }
+    public func error(_ message: Any) { recordOSLoggerMessage(level: "ERROR", operation: "Logger.error", message: "\(message)") }
+    public func fault(_ message: Any) { recordOSLoggerMessage(level: "FAULT", operation: "Logger.fault", message: "\(message)") }
+    public func critical(_ message: Any) { recordOSLoggerMessage(level: "CRITICAL", operation: "Logger.critical", message: "\(message)") }
+
+    public func debug(_ message: OSLogMessage) { recordOSLoggerMessage(level: "DEBUG", operation: "Logger.debug", message: message.value) }
+    public func info(_ message: OSLogMessage) { recordOSLoggerMessage(level: "INFO", operation: "Logger.info", message: message.value) }
+    public func warning(_ message: OSLogMessage) { recordOSLoggerMessage(level: "WARNING", operation: "Logger.warning", message: message.value) }
+    public func error(_ message: OSLogMessage) { recordOSLoggerMessage(level: "ERROR", operation: "Logger.error", message: message.value) }
+    public func fault(_ message: OSLogMessage) { recordOSLoggerMessage(level: "FAULT", operation: "Logger.fault", message: message.value) }
+    public func critical(_ message: OSLogMessage) { recordOSLoggerMessage(level: "CRITICAL", operation: "Logger.critical", message: message.value) }
+
+    public func log(level: OSLogType, _ message: String) { recordOSLoggerMessage(level: level.label, operation: "Logger.log", message: message) }
+    public func log(level: OSLogType, _ message: OSLogMessage) { recordOSLoggerMessage(level: level.label, operation: "Logger.log", message: message.value) }
+    public func log(_ message: String) { recordOSLoggerMessage(level: "DEFAULT", operation: "Logger.log", message: message) }
+    public func log(_ message: OSLogMessage) { recordOSLoggerMessage(level: "DEFAULT", operation: "Logger.log", message: message.value) }
+    public func notice(_ message: String) { recordOSLoggerMessage(level: "NOTICE", operation: "Logger.notice", message: message) }
+    public func notice(_ message: OSLogMessage) { recordOSLoggerMessage(level: "NOTICE", operation: "Logger.notice", message: message.value) }
+    public func trace(_ message: String) { recordOSLoggerMessage(level: "TRACE", operation: "Logger.trace", message: message) }
+    public func trace(_ message: OSLogMessage) { recordOSLoggerMessage(level: "TRACE", operation: "Logger.trace", message: message.value) }
+}
+
+private func recordOSLoggerMessage(level: String, operation: String, message: String) {
+    let renderedMessage = "\(level): \(message)"
+    QuillCompatibilityDiagnostics.shared.record(
+        subsystem: "os.Logger",
+        operation: operation,
+        severity: .info,
+        message: renderedMessage
+    )
+    print(renderedMessage)
 }
 
 public struct OSLogType: Sendable, Equatable {
@@ -61,7 +73,7 @@ public func os_log(
     _ message: StaticString,
     _ args: CVarArg...
 ) {
-    print("\(type.label): \(message)")
+    recordOSLoggerMessage(level: type.label, operation: "os_log", message: "\(message)")
 }
 
 // Apple's Mach-O dynamic-loader API. Stubbed on Linux so packages that
@@ -82,14 +94,38 @@ public struct OSLogInterpolation: StringInterpolationProtocol, Sendable {
     public var value: String
     public init(literalCapacity: Int, interpolationCount: Int) { self.value = "" }
     public mutating func appendLiteral(_ literal: String) { value += literal }
-    public mutating func appendInterpolation(_ any: Any, privacy: OSLogPrivacy = .auto) { value += "\(any)" }
-    public mutating func appendInterpolation(_ any: Any, format: OSLogFormat, privacy: OSLogPrivacy = .auto) { value += "\(any)" }
+    public mutating func appendInterpolation(_ any: Any, privacy: OSLogPrivacy = .auto) {
+        value += OSLogPrivacy.render(any, privacy: privacy)
+    }
+    public mutating func appendInterpolation(_ any: Any, format: OSLogFormat, privacy: OSLogPrivacy = .auto) {
+        value += OSLogPrivacy.render(any, privacy: privacy)
+    }
 }
 
-public struct OSLogPrivacy: Sendable {
-    public static let `public` = OSLogPrivacy()
-    public static let `private` = OSLogPrivacy()
-    public static let auto = OSLogPrivacy()
+public struct OSLogPrivacy: Equatable, Sendable {
+    fileprivate enum Visibility: Sendable {
+        case automatic
+        case rendered
+        case redacted
+    }
+
+    fileprivate let visibility: Visibility
+
+    public init() {
+        self.visibility = .automatic
+    }
+
+    fileprivate init(_ visibility: Visibility) {
+        self.visibility = visibility
+    }
+
+    public static let `public` = OSLogPrivacy(.rendered)
+    public static let `private` = OSLogPrivacy(.redacted)
+    public static let auto = OSLogPrivacy(.automatic)
+
+    fileprivate static func render(_ any: Any, privacy: OSLogPrivacy) -> String {
+        privacy.visibility == .redacted ? "<private>" : "\(any)"
+    }
 }
 
 public struct OSLogFormat: Sendable {
