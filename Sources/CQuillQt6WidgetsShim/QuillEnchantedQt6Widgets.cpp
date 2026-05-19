@@ -2423,11 +2423,16 @@ extern "C" int quill_enchanted_qt_run_app_json(
 
     QJsonArray models = payloadArray(payload, "models");
     const QString modelLabel = payloadString(payload, "modelLabel");
+    const QString noModelsTitle = payloadString(payload, "noModelsTitle");
     QComboBox *modelPicker = new QComboBox();
     QLabel *noModelsNotice = label(
-        payloadString(payload, "noModelsTitle"),
+        noModelsTitle,
         QStringLiteral("warningText")
     );
+    noModelsNotice->setAccessibleName(noModelsTitle);
+    noModelsNotice->setAccessibleDescription(noModelsTitle);
+    noModelsNotice->setToolTip(noModelsTitle);
+    noModelsNotice->setStatusTip(noModelsTitle);
     auto updateModelPickerAccessibility = [&]() {
         const QString selectedModelText = modelPicker->currentText().trimmed();
         const QString modelValue = selectedModelText.isEmpty() ? modelLabel : selectedModelText;
