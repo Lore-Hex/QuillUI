@@ -102,6 +102,13 @@ enum AppleCompatibilitySmoke {
         var outOfRangeRemoveIgnored: Bool
     }
 
+    struct AppKitWindowResult {
+        var controllerBacklinksRoundTrip: Bool
+        var childWindowLinksRoundTrip: Bool
+        var childReparentClearsPreviousParent: Bool
+        var childRemovalClearsParent: Bool
+    }
+
     struct AppKitViewHierarchyResult {
         var addEstablishedLinks: Bool
         var addFiredSuperviewCallbacks: Bool
@@ -532,6 +539,78 @@ enum AppleCompatibilitySmoke {
             removedItemUpdatesItems: removedItemUpdatesItems,
             removingSelectedItemClearsSelection: removingSelectedItemClearsSelection,
             outOfRangeRemoveIgnored: outOfRangeRemoveIgnored
+        )
+    }
+
+    @MainActor
+    static func runAppKitWindowSmoke() -> AppKitWindowResult {
+        let firstWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let secondWindow = NSWindow(
+            contentRect: NSRect(x: 20, y: 20, width: 320, height: 240),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let controller = NSWindowController(window: firstWindow)
+        let initialControllerLink =
+            controller.window === firstWindow &&
+            firstWindow.windowController === controller
+
+        controller.window = secondWindow
+        let reassignedControllerLink =
+            controller.window === secondWindow &&
+            secondWindow.windowController === controller &&
+            firstWindow.windowController == nil
+
+        controller.window = nil
+        let clearedControllerLink =
+            controller.window == nil &&
+            secondWindow.windowController == nil
+        let controllerBacklinksRoundTrip =
+            initialControllerLink &&
+            reassignedControllerLink &&
+            clearedControllerLink
+
+        let parent = NSWindow()
+        let child = NSWindow()
+        let sibling = NSWindow()
+        let newParent = NSWindow()
+        parent.addChildWindow(child, ordered: .above)
+        parent.addChildWindow(sibling, ordered: .below)
+        parent.addChildWindow(child, ordered: .above)
+
+        let parentChildren = parent.childWindows ?? []
+        let childWindowLinksRoundTrip =
+            parentChildren.count == 2 &&
+            parentChildren.first === sibling &&
+            parentChildren.last === child &&
+            child.parentWindow === parent &&
+            sibling.parentWindow === parent
+
+        newParent.addChildWindow(child, ordered: .above)
+        let parentChildrenAfterReparent = parent.childWindows ?? []
+        let newParentChildren = newParent.childWindows ?? []
+        let childReparentClearsPreviousParent =
+            child.parentWindow === newParent &&
+            !parentChildrenAfterReparent.contains { $0 === child } &&
+            newParentChildren.contains { $0 === child }
+
+        parent.removeChildWindow(sibling)
+        let parentChildrenAfterRemoval = parent.childWindows ?? []
+        let childRemovalClearsParent =
+            sibling.parentWindow == nil &&
+            !parentChildrenAfterRemoval.contains { $0 === sibling }
+
+        return AppKitWindowResult(
+            controllerBacklinksRoundTrip: controllerBacklinksRoundTrip,
+            childWindowLinksRoundTrip: childWindowLinksRoundTrip,
+            childReparentClearsPreviousParent: childReparentClearsPreviousParent,
+            childRemovalClearsParent: childRemovalClearsParent
         )
     }
 

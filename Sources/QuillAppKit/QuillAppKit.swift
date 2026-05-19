@@ -490,14 +490,35 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
 }
 
 open class NSWindowController: NSResponder {
-    public var window: NSWindow?
+    public var window: NSWindow? {
+        didSet {
+            quillUpdateWindowControllerLink(from: oldValue)
+        }
+    }
     public weak var document: NSDocument?
     public var contentViewController: NSViewController?
-    public init(window: NSWindow?) { super.init(); self.window = window }
+    public init(window: NSWindow?) {
+        super.init()
+        self.window = window
+        quillUpdateWindowControllerLink(from: nil)
+    }
     public func showWindow(_ sender: Any?) { window?.makeKeyAndOrderFront(sender) }
     public func close() { window?.close() }
     public var shouldCascadeWindows: Bool = true
     public var windowFrameAutosaveName: String = ""
+
+    private func quillUpdateWindowControllerLink(from oldWindow: NSWindow?) {
+        guard oldWindow !== window else { return }
+        if oldWindow?.windowController === self {
+            oldWindow?.windowController = nil
+        }
+        if let window {
+            if let existingController = window.windowController, existingController !== self {
+                existingController.window = nil
+            }
+            window.windowController = self
+        }
+    }
 }
 
 @MainActor public protocol NSWindowDelegate: AnyObject {
@@ -583,6 +604,7 @@ open class NSWindow: NSResponder {
         }
     }
     public var contentViewController: NSViewController?
+    public weak var windowController: NSWindowController?
     public weak var delegate: NSWindowDelegate?
     public var styleMask: StyleMask = []
     public var collectionBehavior: CollectionBehavior = .default
@@ -623,6 +645,7 @@ open class NSWindow: NSResponder {
     public var standardWindowButton: ((WindowButton) -> NSButton?)?
     public var tabbingMode: TabbingMode = .automatic
     public var tabbingIdentifier: String = ""
+    private var childWindowStorage: [NSWindow] = []
 
     public struct Level: Equatable, Sendable {
         public var rawValue: Int
@@ -705,9 +728,29 @@ open class NSWindow: NSResponder {
     public var tabbedWindows: [NSWindow]? { nil }
     public func mergeAllWindows(_ sender: Any?) {}
     public func toggleTabBar(_ sender: Any?) {}
-    public func addChildWindow(_ child: NSWindow, ordered: OrderingMode) {}
-    public func removeChildWindow(_ child: NSWindow) {}
-    public var childWindows: [NSWindow]? { nil }
+    public func addChildWindow(_ child: NSWindow, ordered: OrderingMode) {
+        guard child !== self else { return }
+        child.parent?.removeChildWindow(child)
+        child.parent = self
+        childWindowStorage.removeAll { $0 === child }
+        switch ordered {
+        case .below:
+            childWindowStorage.insert(child, at: 0)
+        case .above, .out:
+            childWindowStorage.append(child)
+        }
+    }
+
+    public func removeChildWindow(_ child: NSWindow) {
+        childWindowStorage.removeAll { $0 === child }
+        if child.parent === self {
+            child.parent = nil
+        }
+    }
+
+    public var childWindows: [NSWindow]? {
+        childWindowStorage.isEmpty ? nil : childWindowStorage
+    }
     public weak var parent: NSWindow?
     public var parentWindow: NSWindow? { parent }
     public var sheets: [NSWindow] { [] }

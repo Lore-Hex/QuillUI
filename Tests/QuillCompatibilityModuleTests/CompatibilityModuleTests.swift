@@ -181,6 +181,17 @@ struct CompatibilityModuleTests {
         #expect(result.outOfRangeRemoveIgnored)
     }
 
+    @Test("AppKit windows maintain controller and child state")
+    @MainActor
+    func appKitWindowsMaintainControllerAndChildState() {
+        let result = AppleCompatibilitySmoke.runAppKitWindowSmoke()
+
+        #expect(result.controllerBacklinksRoundTrip)
+        #expect(result.childWindowLinksRoundTrip)
+        #expect(result.childReparentClearsPreviousParent)
+        #expect(result.childRemovalClearsParent)
+    }
+
     @Test("AppKit views maintain hierarchy and window links")
     @MainActor
     func appKitViewsMaintainHierarchyAndWindowLinks() {

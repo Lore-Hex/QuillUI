@@ -104,7 +104,10 @@ if [[ ! -x "$PROFILE_SCRIPT" ]]; then
   exit 66
 fi
 
-"$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
+if ! resource_guard_output="$("$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}" 2>&1)"; then
+  printf '%s\n' "$resource_guard_output" >&2
+  exit 1
+fi
 
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/quillui-profile-csv.XXXXXX")"
 BUILT_PROFILE_PRODUCTS_LIST=$'\n'
