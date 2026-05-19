@@ -242,6 +242,40 @@ from pathlib import Path
 
 path = Path(sys.argv[1])
 text = path.read_text()
+accessibility_helpers = """
+// --- Accessibility shims ---
+
+static inline void
+gtk_swift_accessible_update_label(GtkWidget *widget, const char *label) {
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(widget),
+        GTK_ACCESSIBLE_PROPERTY_LABEL,
+        label ? label : "",
+        -1);
+}
+
+static inline void
+gtk_swift_accessible_update_description(GtkWidget *widget, const char *description) {
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(widget),
+        GTK_ACCESSIBLE_PROPERTY_DESCRIPTION,
+        description ? description : "",
+        -1);
+}
+"""
+if "gtk_swift_accessible_update_label" not in text:
+    label_marker = """static inline gboolean
+gtk_swift_label_get_use_markup(GtkWidget *label) {
+    return gtk_label_get_use_markup(GTK_LABEL(label));
+}
+"""
+    if label_marker in text:
+        text = text.replace(label_marker, label_marker + accessibility_helpers, 1)
+    else:
+        include_marker = "#include <fontconfig/fontconfig.h>\n"
+        if include_marker not in text:
+            raise SystemExit("SwiftOpenUI GTK shim include block was not recognized")
+        text = text.replace(include_marker, include_marker + accessibility_helpers, 1)
 pattern = re.compile(
     r"gtk_swift_add_gesture\(GtkWidget \*widget, GtkGesture \*gesture\)\s*\{\s*"
     r"gtk_widget_add_controller\(widget, GTK_EVENT_CONTROLLER\(gesture\)\);\s*"

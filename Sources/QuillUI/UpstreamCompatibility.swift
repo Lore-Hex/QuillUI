@@ -839,6 +839,33 @@ public struct AccessibilityChildBehavior: Hashable, Sendable {
     public static let combine = AccessibilityChildBehavior("combine")
 }
 
+public struct AccessibilityLabelView<Content: View>: View {
+    public typealias Body = Never
+
+    public let content: Content
+    public let label: String
+
+    public var body: Never { fatalError("AccessibilityLabelView is a primitive view") }
+}
+
+public struct AccessibilityValueView<Content: View>: View {
+    public typealias Body = Never
+
+    public let content: Content
+    public let value: String
+
+    public var body: Never { fatalError("AccessibilityValueView is a primitive view") }
+}
+
+public struct AccessibilityElementView<Content: View>: View {
+    public typealias Body = Never
+
+    public let content: Content
+    public let children: AccessibilityChildBehavior
+
+    public var body: Never { fatalError("AccessibilityElementView is a primitive view") }
+}
+
 public struct DragGesture: Sendable {
     public struct Value: Sendable {
         public var translation: CGSize
@@ -981,28 +1008,28 @@ public extension View {
         return self
     }
 
-    func accessibilityLabel(_ label: String) -> Self {
+    func accessibilityLabel(_ label: String) -> AccessibilityLabelView<Self> {
         recordQuillUIFallback(
             "accessibilityLabel",
-            message: "View accessibility labels are currently a source-compatibility fallback on Linux."
+            message: "View accessibility labels are propagated to GTK accessibility metadata on Linux."
         )
-        return self
+        return AccessibilityLabelView(content: self, label: label)
     }
 
-    func accessibilityValue(_ value: String) -> Self {
+    func accessibilityValue(_ value: String) -> AccessibilityValueView<Self> {
         recordQuillUIFallback(
             "accessibilityValue",
-            message: "View accessibility values are currently a source-compatibility fallback on Linux."
+            message: "View accessibility values are propagated to GTK accessibility metadata on Linux."
         )
-        return self
+        return AccessibilityValueView(content: self, value: value)
     }
 
-    func accessibilityElement(children: AccessibilityChildBehavior) -> Self {
+    func accessibilityElement(children: AccessibilityChildBehavior) -> AccessibilityElementView<Self> {
         recordQuillUIFallback(
             "accessibilityElement(children:)",
-            message: "View accessibility child behavior is currently a source-compatibility fallback on Linux."
+            message: "View accessibility child behavior is preserved for GTK accessibility rendering on Linux."
         )
-        return self
+        return AccessibilityElementView(content: self, children: children)
     }
 
     func minimumScaleFactor(_ factor: Double) -> Self {
