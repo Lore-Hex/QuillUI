@@ -819,6 +819,14 @@ QString conversationLastMessage(const QJsonObject &conversation) {
     return requiredStringValue(conversation, "lastMessage");
 }
 
+QString accessibilitySummary(const QString &title, const QString &detail) {
+    const QString trimmedDetail = detail.trimmed();
+    if (trimmedDetail.isEmpty()) {
+        return title;
+    }
+    return title + QStringLiteral("\n") + trimmedDetail;
+}
+
 QString messageRole(const QJsonObject &message) {
     return requiredStringValue(message, "role");
 }
@@ -833,6 +841,14 @@ QFrame *conversationRowWidget(
 ) {
     QFrame *row = QuillQtWidgets::frame(QStringLiteral("conversationRow"));
     row->setProperty("active", false);
+    const QString titleText = conversationTitle(conversation);
+    const QString previewText = conversationLastMessage(conversation);
+    const QString rowSummary = accessibilitySummary(titleText, previewText);
+    row->setAccessibleName(titleText);
+    row->setAccessibleDescription(rowSummary);
+    row->setToolTip(rowSummary);
+    row->setStatusTip(rowSummary);
+
     QVBoxLayout *layout = new QVBoxLayout(row);
     const int conversationRowPadding = styleInt(style, "conversationRowPadding");
     const int conversationRowSpacing = styleInt(style, "conversationRowSpacing");
@@ -845,11 +861,9 @@ QFrame *conversationRowWidget(
     layout->setSpacing(conversationRowSpacing);
     layout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
 
-    QLabel *title = label(conversationTitle(conversation), QStringLiteral("conversationTitle"));
+    QLabel *title = label(titleText, QStringLiteral("conversationTitle"));
     title->setWordWrap(false);
     title->setProperty("active", false);
-
-    const QString previewText = conversationLastMessage(conversation);
 
     layout->addWidget(title);
     if (!previewText.isEmpty()) {
@@ -900,6 +914,12 @@ void removeConversationRow(QListWidget *list, int row) {
 
 QFrame *emptyHistoryWidget(const QString &title, const QString &subtitle, const QJsonObject &style) {
     QFrame *card = QuillQtWidgets::frame(QStringLiteral("emptyHistory"));
+    const QString cardSummary = accessibilitySummary(title, subtitle);
+    card->setAccessibleName(title);
+    card->setAccessibleDescription(cardSummary);
+    card->setToolTip(cardSummary);
+    card->setStatusTip(cardSummary);
+
     QVBoxLayout *layout = new QVBoxLayout(card);
     const int emptyHistoryPadding = styleInt(style, "emptyHistoryPadding");
     const int emptyHistorySpacing = styleInt(style, "emptyHistorySpacing");
