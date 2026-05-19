@@ -829,6 +829,16 @@ public enum ScrollIndicatorVisibility: Sendable {
     case never
 }
 
+public struct AccessibilityChildBehavior: Hashable, Sendable {
+    private let rawValue: String
+
+    private init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public static let combine = AccessibilityChildBehavior("combine")
+}
+
 public struct DragGesture: Sendable {
     public struct Value: Sendable {
         public var translation: CGSize
@@ -967,6 +977,30 @@ public extension View {
         recordQuillUIFallback(
             "textSelection",
             message: "textSelection is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func accessibilityLabel(_ label: String) -> Self {
+        recordQuillUIFallback(
+            "accessibilityLabel",
+            message: "View accessibility labels are currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func accessibilityValue(_ value: String) -> Self {
+        recordQuillUIFallback(
+            "accessibilityValue",
+            message: "View accessibility values are currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func accessibilityElement(children: AccessibilityChildBehavior) -> Self {
+        recordQuillUIFallback(
+            "accessibilityElement(children:)",
+            message: "View accessibility child behavior is currently a source-compatibility fallback on Linux."
         )
         return self
     }

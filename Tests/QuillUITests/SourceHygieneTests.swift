@@ -123,6 +123,24 @@ struct SourceHygieneTests {
         #expect(gtkModuleMap.contains("module CGtk4 [system]"))
     }
 
+    @Test("Linux SwiftUI compatibility exposes accessibility modifiers")
+    func linuxSwiftUICompatibilityExposesAccessibilityModifiers() throws {
+        let compatibility = try packageSource("Sources/QuillUI/UpstreamCompatibility.swift")
+        let upstreamCompatibilityTests = try packageSource("Tests/QuillEnchantedTests/UpstreamCompatibilityTests.swift")
+
+        #expect(compatibility.contains("public struct AccessibilityChildBehavior: Hashable, Sendable"))
+        #expect(compatibility.contains("public static let combine = AccessibilityChildBehavior(\"combine\")"))
+        #expect(compatibility.contains("func accessibilityLabel(_ label: String) -> Self"))
+        #expect(compatibility.contains("func accessibilityValue(_ value: String) -> Self"))
+        #expect(compatibility.contains("func accessibilityElement(children: AccessibilityChildBehavior) -> Self"))
+        #expect(compatibility.contains("\"accessibilityLabel\""))
+        #expect(compatibility.contains("\"accessibilityValue\""))
+        #expect(compatibility.contains("\"accessibilityElement(children:)\""))
+        #expect(upstreamCompatibilityTests.contains(".accessibilityElement(children: .combine)"))
+        #expect(upstreamCompatibilityTests.contains(".accessibilityLabel(\"Composer\")"))
+        #expect(upstreamCompatibilityTests.contains(".accessibilityValue(\"Ready\")"))
+    }
+
     @Test("Linux build preparation is gated by the selected backend")
     func linuxBuildPreparationIsGatedBySelectedBackend() throws {
         let root = try packageRoot()

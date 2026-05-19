@@ -27,6 +27,9 @@ struct UpstreamCompatibilityTests {
             )
             .onDrop(of: [.image], isTargeted: isTargeted) { _ in true }
             .symbolEffect(.variableColor.iterative, options: .repeat(2), value: true)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Composer")
+            .accessibilityValue("Ready")
 
         _ = Text("System colors")
             .foregroundStyle(.label, .gray5Custom)
