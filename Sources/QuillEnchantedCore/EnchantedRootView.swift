@@ -219,10 +219,15 @@ public struct EnchantedRootView: View {
 
             Spacer()
 
-            Button(EnchantedCopy.refreshModelsTitle) {
+            Button {
                 let model = model
                 Task {
                     await model.refreshModels()
+                }
+            } label: {
+                HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
+                    Image(systemName: enchantedSystemImageName(EnchantedIcon.refreshModels))
+                    Text(EnchantedCopy.refreshModelsTitle)
                 }
             }
             .disabled(model.isLoading)

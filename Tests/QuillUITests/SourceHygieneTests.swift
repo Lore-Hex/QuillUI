@@ -1694,6 +1694,7 @@ struct SourceHygieneTests {
         #expect(enchantedUpstreamMacInput.contains("NSApp.currentEvent?.modifierFlags.contains(.shift)"))
         #expect(enchantedUpstreamMacInput.contains("message += \"\\n\""))
         #expect(enchantedMacRoot.contains("EnchantedVisualMetrics.actionButtonIconSpacing"))
+        #expect(enchantedMacRoot.contains("Image(systemName: enchantedSystemImageName(EnchantedIcon.refreshModels))"))
         #expect(enchantedMacRoot.contains("EnchantedVisualMetrics.composerEditorRadius"))
         #expect(enchantedMacRoot.contains(".background(model.isLoading ? QuillColors.warning : QuillColors.primary)"))
         #expect(enchantedMacRoot.contains(".dropDestination(for: URL.self)"))
