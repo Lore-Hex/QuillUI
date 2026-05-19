@@ -368,6 +368,14 @@ QIcon clearAllButtonIcon(const QJsonObject &icons) {
     return systemImageIcon(requiredIconName(icons, "clearAll"));
 }
 
+QIcon copyMessageActionIcon(const QJsonObject &icons) {
+    return systemImageIcon(requiredIconName(icons, "copyMessage"));
+}
+
+QIcon editMessageActionIcon(const QJsonObject &icons) {
+    return systemImageIcon(requiredIconName(icons, "editMessage"));
+}
+
 QIcon sendButtonIcon(const QJsonObject &icons, bool isLoading) {
     const char *key = isLoading ? "stop" : "send";
     return systemImageIcon(requiredIconName(icons, key));
@@ -864,6 +872,7 @@ void showMessageContextMenu(
     const QString &id,
     const QString &role,
     const QString &content,
+    const QJsonObject &icons,
     const QString &copyMessageTitle,
     const QString &editMessageTitle,
     const QString &unselectMessageTitle,
@@ -873,6 +882,7 @@ void showMessageContextMenu(
 ) {
     QMenu menu(anchor);
     QAction *copyAction = menu.addAction(copyMessageTitle);
+    copyAction->setIcon(copyMessageActionIcon(icons));
     QObject::connect(copyAction, &QAction::triggered, anchor, [content](bool) {
         if (QClipboard *clipboard = QApplication::clipboard()) {
             clipboard->setText(content);
@@ -880,6 +890,7 @@ void showMessageContextMenu(
     });
     if (isEditableMessageRole(role)) {
         QAction *editAction = menu.addAction(editMessageTitle);
+        editAction->setIcon(editMessageActionIcon(icons));
         QObject::connect(editAction, &QAction::triggered, anchor, [id, content, editMessage](bool) {
             if (editMessage) {
                 editMessage(id, content);
@@ -887,6 +898,7 @@ void showMessageContextMenu(
         });
         if (!editingMessageID.isEmpty() && id == editingMessageID) {
             QAction *unselectAction = menu.addAction(unselectMessageTitle);
+            unselectAction->setIcon(editMessageActionIcon(icons));
             QObject::connect(unselectAction, &QAction::triggered, anchor, [cancelEdit](bool) {
                 if (cancelEdit) {
                     cancelEdit();
@@ -902,6 +914,7 @@ void installMessageContextMenu(
     const QString &id,
     const QString &role,
     const QString &content,
+    const QJsonObject &icons,
     const QString &copyMessageTitle,
     const QString &editMessageTitle,
     const QString &unselectMessageTitle,
@@ -919,6 +932,7 @@ void installMessageContextMenu(
             id,
             role,
             content,
+            icons,
             copyMessageTitle,
             editMessageTitle,
             unselectMessageTitle,
@@ -932,6 +946,7 @@ void installMessageContextMenu(
                 id,
                 role,
                 content,
+                icons,
                 copyMessageTitle,
                 editMessageTitle,
                 unselectMessageTitle,
@@ -948,6 +963,7 @@ void installMessageContextMenuRecursively(
     const QString &id,
     const QString &role,
     const QString &content,
+    const QJsonObject &icons,
     const QString &copyMessageTitle,
     const QString &editMessageTitle,
     const QString &unselectMessageTitle,
@@ -960,6 +976,7 @@ void installMessageContextMenuRecursively(
         id,
         role,
         content,
+        icons,
         copyMessageTitle,
         editMessageTitle,
         unselectMessageTitle,
@@ -974,6 +991,7 @@ void installMessageContextMenuRecursively(
             id,
             role,
             content,
+            icons,
             copyMessageTitle,
             editMessageTitle,
             unselectMessageTitle,
@@ -1606,6 +1624,7 @@ void populateConversations(
 QFrame *messageBubble(
     const QJsonObject &message,
     const QJsonObject &style,
+    const QJsonObject &icons,
     const QString &userRoleLabel,
     const QString &assistantRoleLabel,
     const QString &systemRoleLabel,
@@ -1666,6 +1685,7 @@ QFrame *messageBubble(
         id,
         role,
         content,
+        icons,
         copyMessageTitle,
         editMessageTitle,
         unselectMessageTitle,
@@ -1680,6 +1700,7 @@ void addMessageBubble(
     QVBoxLayout *messageLayout,
     const QJsonObject &message,
     const QJsonObject &style,
+    const QJsonObject &icons,
     const QString &userRoleLabel,
     const QString &assistantRoleLabel,
     const QString &systemRoleLabel,
@@ -1701,6 +1722,7 @@ void addMessageBubble(
     row->addWidget(messageBubble(
         message,
         style,
+        icons,
         userRoleLabel,
         assistantRoleLabel,
         systemRoleLabel,
@@ -1814,6 +1836,7 @@ void renderMessages(
     const QJsonArray &messages,
     const QJsonArray &prompts,
     const QJsonObject &style,
+    const QJsonObject &icons,
     const QString &emptyStateTitle,
     const QString &emptyStateSubtitle,
     const PromptAction &promptAction,
@@ -1843,6 +1866,7 @@ void renderMessages(
             messageLayout,
             value.toObject(),
             style,
+            icons,
             userRoleLabel,
             assistantRoleLabel,
             systemRoleLabel,
@@ -2878,6 +2902,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             messageLayout,
             message,
             style,
+            icons,
             userRoleLabel,
             assistantRoleLabel,
             systemRoleLabel,
@@ -3113,6 +3138,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             messages,
             prompts,
             style,
+            icons,
             emptyStateTitle,
             emptyStateSubtitle,
             appendUserMessage,
