@@ -864,6 +864,8 @@ QFrame *conversationRowWidget(
     QLabel *title = label(titleText, QStringLiteral("conversationTitle"));
     title->setWordWrap(false);
     title->setProperty("active", false);
+    title->setToolTip(rowSummary);
+    title->setStatusTip(rowSummary);
 
     layout->addWidget(title);
     if (!previewText.isEmpty()) {
@@ -871,6 +873,8 @@ QFrame *conversationRowWidget(
         preview->setProperty("active", false);
         preview->setWordWrap(true);
         preview->setMaximumHeight(preview->fontMetrics().lineSpacing() * 2);
+        preview->setToolTip(rowSummary);
+        preview->setStatusTip(rowSummary);
         layout->addWidget(preview);
     }
     return row;
@@ -1434,7 +1438,8 @@ void populateConversations(
         item->setData(Qt::UserRole, id);
         list->addItem(item);
         QWidget *rowWidget = conversationRowWidget(conversation, style);
-        item->setSizeHint(QSize(260, rowWidget->sizeHint().height()));
+        const QSize rowSizeHint = rowWidget->sizeHint();
+        item->setSizeHint(QSize(0, rowSizeHint.height()));
         list->setItemWidget(item, rowWidget);
         if (id == selectedConversationID) {
             selectedRow = list->row(item);
