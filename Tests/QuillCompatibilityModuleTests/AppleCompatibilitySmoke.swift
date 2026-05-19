@@ -20,6 +20,9 @@ enum AppleCompatibilitySmoke {
         var pasteboardItemDataRoundTrip: Bool
         var pasteboardItemPropertyListRoundTrip: Bool
         var pasteboardItemTypesRoundTrip: Bool
+        var pasteboardWriteObjectsItemsRoundTrip: Bool
+        var pasteboardWriteObjectsDataRoundTrip: Bool
+        var pasteboardClearResetsItems: Bool
         var uiPasteboardString: String?
         var imagesRoundTrip: Bool
         var speechStopSucceeded: Bool
@@ -63,6 +66,25 @@ enum AppleCompatibilitySmoke {
         pasteboardItem.setData(Data([0x89, 0x50, 0x4E, 0x47]), forType: .png)
         pasteboardItem.setPropertyList("item title", forType: .html)
 
+        let itemPasteboard = NSPasteboard(name: .init(rawValue: "quill.compat.item.\(UUID().uuidString)"))
+        _ = itemPasteboard.clearContents()
+        _ = itemPasteboard.writeObjects([pasteboardItem])
+        let writtenPasteboardItem = itemPasteboard.pasteboardItems?.first
+        let pasteboardWriteObjectsItemsRoundTrip =
+            itemPasteboard.pasteboardItems?.count == 1 &&
+            writtenPasteboardItem?.string(forType: .string) == "item text" &&
+            writtenPasteboardItem?.data(forType: .png) == Data([0x89, 0x50, 0x4E, 0x47]) &&
+            writtenPasteboardItem?.propertyList(forType: .html) as? String == "item title" &&
+            writtenPasteboardItem?.types == [.string, .png, .html]
+        let pasteboardWriteObjectsDataRoundTrip =
+            itemPasteboard.string(forType: .string) == "item text" &&
+            itemPasteboard.data(forType: .png) == Data([0x89, 0x50, 0x4E, 0x47])
+        _ = itemPasteboard.clearContents()
+        let pasteboardClearResetsItems =
+            itemPasteboard.pasteboardItems == nil &&
+            itemPasteboard.string(forType: .string) == nil &&
+            itemPasteboard.data(forType: .png) == nil
+
         let imageData = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==")!
         let nsImageTIFF = NSImage(data: imageData)?.tiffRepresentation
         let nsImageTranscoded = nsImageTIFF.map { data in
@@ -100,6 +122,9 @@ enum AppleCompatibilitySmoke {
             pasteboardItemDataRoundTrip: pasteboardItem.data(forType: .png) == Data([0x89, 0x50, 0x4E, 0x47]),
             pasteboardItemPropertyListRoundTrip: pasteboardItem.propertyList(forType: .html) as? String == "item title",
             pasteboardItemTypesRoundTrip: pasteboardItem.types == [.string, .png, .html],
+            pasteboardWriteObjectsItemsRoundTrip: pasteboardWriteObjectsItemsRoundTrip,
+            pasteboardWriteObjectsDataRoundTrip: pasteboardWriteObjectsDataRoundTrip,
+            pasteboardClearResetsItems: pasteboardClearResetsItems,
             uiPasteboardString: UIPasteboard.general.string,
             imagesRoundTrip: imagesRoundTrip,
             speechStopSucceeded: synthesizer.stopSpeaking(at: .immediate),

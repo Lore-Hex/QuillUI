@@ -824,13 +824,19 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
 
     @discardableResult
     public func clearContents() -> Int {
+        pasteboardItems = nil
         _writeClipboardString("")
+        _clearFileBackedTypes()
         _bumpChangeCount()
         return changeCount
     }
 
     @discardableResult
     public func setString(_ s: String, forType type: PasteboardType) -> Bool {
+        let item = NSPasteboardItem()
+        item.setString(s, forType: type)
+        pasteboardItems = [item]
+
         guard type == .string else {
             _writeFileBacked(type: type, data: Data(s.utf8))
             _bumpChangeCount()
@@ -844,6 +850,10 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
 
     @discardableResult
     public func setData(_ d: Data, forType type: PasteboardType) -> Bool {
+        let item = NSPasteboardItem()
+        item.setData(d, forType: type)
+        pasteboardItems = [item]
+
         if type == .string, let s = String(data: d, encoding: .utf8) {
             _writeClipboardString(s)
         }
@@ -867,6 +877,9 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
     }
 
     public func types() -> [PasteboardType]? {
+        if let pasteboardItems, !pasteboardItems.isEmpty {
+            return _types(from: pasteboardItems)
+        }
         let dir = _typeDir()
         guard let files = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return nil }
         return files.map { PasteboardType(rawValue: $0) }
@@ -875,10 +888,35 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
     @discardableResult
     public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int { 0 }
     public func writeObjects(_ objs: [Any]) -> Bool {
+        var items: [NSPasteboardItem] = []
+        var wroteAnyType = false
+
         for obj in objs {
-            if let s = obj as? String { _ = setString(s, forType: .string) }
-            else if let item = obj as? NSPasteboardItem,
-                    let s = item.string(forType: .string) { _ = setString(s, forType: .string) }
+            if let s = obj as? String {
+                let item = NSPasteboardItem()
+                item.setString(s, forType: .string)
+                items.append(item)
+                _writeClipboardString(s)
+                _writeFileBacked(type: .string, data: Data(s.utf8))
+                wroteAnyType = true
+            } else if let item = obj as? NSPasteboardItem {
+                items.append(item)
+                for type in item.types {
+                    guard let data = item.data(forType: type) else { continue }
+                    if type == .string, let s = String(data: data, encoding: .utf8) {
+                        _writeClipboardString(s)
+                    }
+                    _writeFileBacked(type: type, data: data)
+                    wroteAnyType = true
+                }
+            }
+        }
+
+        if !items.isEmpty {
+            pasteboardItems = items
+        }
+        if wroteAnyType {
+            _bumpChangeCount()
         }
         return true
     }
@@ -923,6 +961,18 @@ private extension NSPasteboard {
     }
     func _readFileBacked(type: PasteboardType) -> Data? {
         try? Data(contentsOf: URL(fileURLWithPath: _filePath(for: type)))
+    }
+    func _clearFileBackedTypes() {
+        try? FileManager.default.removeItem(atPath: _typeDir())
+    }
+    func _types(from items: [NSPasteboardItem]) -> [PasteboardType] {
+        var ordered: [PasteboardType] = []
+        for item in items {
+            for type in item.types where !ordered.contains(type) {
+                ordered.append(type)
+            }
+        }
+        return ordered
     }
     func _writeClipboardString(_ s: String) {
         // Tier 1: Wayland
