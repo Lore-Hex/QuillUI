@@ -1229,6 +1229,37 @@ struct CompatibilityModuleTests {
             Issue.record("Expected disabled .item, got \(String(describing: disabledElements.first))")
         }
 
+        let chainedDisabledTapCount = QuillTestBox<Int>(0)
+        let disabledThenShortcut = Button("Archive") {
+            chainedDisabledTapCount.value = (chainedDisabledTapCount.value ?? 0) + 1
+        }
+        .disabled(true)
+        .keyboardShortcut("a", modifiers: .command)
+        let chainedDisabledElements = QuillUI.quillMenuElements(from: disabledThenShortcut)
+        #expect(chainedDisabledElements.count == 1)
+        if case .item(let label, let action) = chainedDisabledElements.first {
+            #expect(label == "Archive")
+            action()
+            #expect(chainedDisabledTapCount.value == 0)
+        } else {
+            Issue.record("Expected chained disabled .item, got \(String(describing: chainedDisabledElements.first))")
+        }
+
+        let shortcutThenDisabled = Button("Export") {
+            chainedDisabledTapCount.value = (chainedDisabledTapCount.value ?? 0) + 1
+        }
+        .keyboardShortcut("e", modifiers: .command)
+        .disabled(true)
+        let shortcutThenDisabledElements = QuillUI.quillMenuElements(from: shortcutThenDisabled)
+        #expect(shortcutThenDisabledElements.count == 1)
+        if case .item(let label, let action) = shortcutThenDisabledElements.first {
+            #expect(label == "Export")
+            action()
+            #expect(chainedDisabledTapCount.value == 0)
+        } else {
+            Issue.record("Expected shortcut then disabled .item, got \(String(describing: shortcutThenDisabledElements.first))")
+        }
+
         // Unknown view type returns []
         struct Unknown: View {
             var body: some View { Text("x") }
@@ -1280,6 +1311,38 @@ struct CompatibilityModuleTests {
         // Verify the action is the button's action (calls increment counter).
         items.first?.action()
         #expect(count.value == 1)
+
+        let disabledShortcut = Button("Archive") {
+            count.value = (count.value ?? 0) + 1
+        }
+        .disabled(true)
+        .keyboardShortcut("a", modifiers: .command)
+        let disabledShortcutItems = QuillUI.quillCommandMenuItems(from: disabledShortcut)
+        #expect(disabledShortcutItems.count == 1)
+        #expect(disabledShortcutItems.first?.label == "Archive")
+        #expect(disabledShortcutItems.first?.isDisabled == true)
+        #expect(disabledShortcutItems.first?.shortcut == KeyboardShortcut("a", modifiers: .command))
+
+        let shortcutDisabled = Button("Export") {
+            count.value = (count.value ?? 0) + 1
+        }
+        .keyboardShortcut("e", modifiers: .command)
+        .disabled(true)
+        let shortcutDisabledItems = QuillUI.quillCommandMenuItems(from: shortcutDisabled)
+        #expect(shortcutDisabledItems.count == 1)
+        #expect(shortcutDisabledItems.first?.label == "Export")
+        #expect(shortcutDisabledItems.first?.isDisabled == true)
+        #expect(shortcutDisabledItems.first?.shortcut == KeyboardShortcut("e", modifiers: .command))
+
+        let nestedDisabled = Button("Pinned") {
+            count.value = (count.value ?? 0) + 1
+        }
+        .disabled(true)
+        .disabled(false)
+        let nestedDisabledItems = QuillUI.quillCommandMenuItems(from: nestedDisabled)
+        #expect(nestedDisabledItems.count == 1)
+        #expect(nestedDisabledItems.first?.label == "Pinned")
+        #expect(nestedDisabledItems.first?.isDisabled == true)
 
         // Unknown view returns empty.
         struct Unknown: View {

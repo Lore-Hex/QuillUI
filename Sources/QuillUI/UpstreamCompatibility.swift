@@ -523,7 +523,8 @@ public extension CommandMenuBuilder {
     }
 
     static func buildExpression<Content: View>(_ disabledView: DisabledView<Content>) -> [CommandMenuItem] {
-        quillCommandMenuItems(from: disabledView.content).map { $0.disabled(disabledView.isDisabled) }
+        quillCommandMenuItems(from: disabledView.content)
+            .map { quillCommandMenuItem($0, disabled: disabledView.isDisabled) }
     }
 
     static func buildExpression<Content: View>(_ view: Content) -> [CommandMenuItem] {
@@ -1383,6 +1384,26 @@ extension Button: QuillButtonRepresentable {
     fileprivate var quillButtonAction: () -> Void { action }
 }
 
+private protocol QuillDisabledRepresentable {
+    var quillDisabledContent: any View { get }
+    var quillIsDisabled: Bool { get }
+}
+
+extension DisabledView: QuillDisabledRepresentable {
+    fileprivate var quillDisabledContent: any View { content }
+    fileprivate var quillIsDisabled: Bool { isDisabled }
+}
+
+private protocol QuillKeyboardShortcutRepresentable {
+    var quillShortcutContent: any View { get }
+    var quillShortcut: KeyboardShortcut { get }
+}
+
+extension KeyboardShortcutView: QuillKeyboardShortcutRepresentable {
+    fileprivate var quillShortcutContent: any View { content }
+    fileprivate var quillShortcut: KeyboardShortcut { shortcut }
+}
+
 @_spi(QuillTesting)
 public func quillTextLabel(from view: any View) -> String {
     if let text = view as? Text {
@@ -1429,13 +1450,13 @@ public func quillMenuElements(from view: any View) -> [MenuElement] {
         return [.item(label: button.quillButtonLabel, action: button.quillButtonAction)]
     }
 
-    if let disabled = view as? DisabledView<Button<Text>> {
-        return quillMenuElements(from: disabled.content)
-            .map { quillMenuElement($0, disabled: disabled.isDisabled) }
+    if let disabled = view as? any QuillDisabledRepresentable {
+        return quillMenuElements(from: disabled.quillDisabledContent)
+            .map { quillMenuElement($0, disabled: disabled.quillIsDisabled) }
     }
 
-    if let shortcut = view as? KeyboardShortcutView<Button<Text>> {
-        return quillMenuElements(from: shortcut.content)
+    if let shortcut = view as? any QuillKeyboardShortcutRepresentable {
+        return quillMenuElements(from: shortcut.quillShortcutContent)
     }
 
     if let multi = view as? MultiChildView {
@@ -1478,18 +1499,14 @@ public func quillCommandMenuItems(from view: any View) -> [CommandMenuItem] {
         return [CommandMenuItem(button.quillButtonLabel, action: button.quillButtonAction)]
     }
 
-    if let shortcut = view as? KeyboardShortcutView<Button<Text>> {
-        return [
-            CommandMenuItem(
-                quillTextLabel(from: shortcut.content.label),
-                shortcut: shortcut.shortcut,
-                action: shortcut.content.action
-            )
-        ]
+    if let shortcut = view as? any QuillKeyboardShortcutRepresentable {
+        return quillCommandMenuItems(from: shortcut.quillShortcutContent)
+            .map { quillCommandMenuItem($0, shortcut: shortcut.quillShortcut) }
     }
 
-    if let disabled = view as? DisabledView<Button<Text>> {
-        return quillCommandMenuItems(from: disabled.content).map { $0.disabled(disabled.isDisabled) }
+    if let disabled = view as? any QuillDisabledRepresentable {
+        return quillCommandMenuItems(from: disabled.quillDisabledContent)
+            .map { quillCommandMenuItem($0, disabled: disabled.quillIsDisabled) }
     }
 
     if let multi = view as? MultiChildView {
@@ -1497,6 +1514,19 @@ public func quillCommandMenuItems(from view: any View) -> [CommandMenuItem] {
     }
 
     return []
+}
+
+private func quillCommandMenuItem(_ item: CommandMenuItem, shortcut: KeyboardShortcut) -> CommandMenuItem {
+    CommandMenuItem(
+        item.label,
+        shortcut: item.shortcut ?? shortcut,
+        action: item.action
+    )
+    .disabled(item.isDisabled)
+}
+
+private func quillCommandMenuItem(_ item: CommandMenuItem, disabled: Bool) -> CommandMenuItem {
+    item.disabled(disabled || item.isDisabled)
 }
 
 @_spi(QuillTesting)
