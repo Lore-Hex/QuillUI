@@ -850,7 +850,8 @@ QString accessibilitySummary(const QString &title, const QString &detail) {
     return title + QStringLiteral("\n") + trimmedDetail;
 }
 
-void applyActionAccessibility(QAction *action, const QString &title) {
+void applyActionAccessibility(QAction *action, const QString &title, const QString &objectName) {
+    action->setObjectName(objectName);
     action->setToolTip(title);
     action->setStatusTip(title);
     action->setWhatsThis(title);
@@ -887,9 +888,10 @@ void showMessageContextMenu(
     const MessageCancelEditAction &cancelEdit
 ) {
     QMenu menu(anchor);
+    menu.setToolTipsVisible(true);
     QAction *copyAction = menu.addAction(copyMessageTitle);
     copyAction->setIcon(copyMessageActionIcon(icons));
-    applyActionAccessibility(copyAction, copyMessageTitle);
+    applyActionAccessibility(copyAction, copyMessageTitle, QStringLiteral("message.copy"));
     QObject::connect(copyAction, &QAction::triggered, anchor, [content](bool) {
         if (QClipboard *clipboard = QApplication::clipboard()) {
             clipboard->setText(content);
@@ -898,7 +900,7 @@ void showMessageContextMenu(
     if (isEditableMessageRole(role)) {
         QAction *editAction = menu.addAction(editMessageTitle);
         editAction->setIcon(editMessageActionIcon(icons));
-        applyActionAccessibility(editAction, editMessageTitle);
+        applyActionAccessibility(editAction, editMessageTitle, QStringLiteral("message.edit"));
         QObject::connect(editAction, &QAction::triggered, anchor, [id, content, editMessage](bool) {
             if (editMessage) {
                 editMessage(id, content);
@@ -907,7 +909,7 @@ void showMessageContextMenu(
         if (!editingMessageID.isEmpty() && id == editingMessageID) {
             QAction *unselectAction = menu.addAction(unselectMessageTitle);
             unselectAction->setIcon(editMessageActionIcon(icons));
-            applyActionAccessibility(unselectAction, unselectMessageTitle);
+            applyActionAccessibility(unselectAction, unselectMessageTitle, QStringLiteral("message.unselect"));
             QObject::connect(unselectAction, &QAction::triggered, anchor, [cancelEdit](bool) {
                 if (cancelEdit) {
                     cancelEdit();
