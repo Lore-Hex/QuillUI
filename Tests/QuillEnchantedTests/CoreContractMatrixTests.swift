@@ -324,12 +324,14 @@ struct CoreContractMatrixTests {
         expectContains(upstreamCompletionsEditor, "Image(systemName: \"xmark\")")
 
         for needle in [
-            "Image(systemName: EnchantedIcon.newConversation)",
-            "Image(systemName: EnchantedIcon.attach)",
-            "Image(systemName: model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send)",
-            "Image(systemName: EnchantedIcon.dropTarget)",
-            "Image(systemName: EnchantedIcon.attachment)",
-            "Image(systemName: EnchantedIcon.removeAttachment)"
+            "private func enchantedSystemImageName(_ systemImage: String) -> String",
+            "QuillSystemSymbol.compatibleName(systemImage)",
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.newConversation))",
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.attach))",
+            "Image(systemName: enchantedSystemImageName(model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send))",
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.dropTarget))",
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.attachment))",
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.removeAttachment))"
         ] {
             expectContains(macOSRootView, needle)
         }
@@ -531,12 +533,14 @@ struct CoreContractMatrixTests {
             "EnchantedCopy.emptyStateTitle",
             "EnchantedCopy.emptyStateSubtitle",
             "EnchantedPromptCatalog.visibleEmptyConversationPrompts",
-            "Image(systemName: EnchantedIcon.newConversation)",
-            "Image(systemName: EnchantedIcon.attach)",
-            "Image(systemName: EnchantedIcon.dropTarget)",
-            "Image(systemName: EnchantedIcon.attachment)",
-            "Image(systemName: EnchantedIcon.removeAttachment)",
-            "Image(systemName: model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send)",
+            "private func enchantedSystemImageName(_ systemImage: String) -> String",
+            "QuillSystemSymbol.compatibleName(systemImage)",
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.newConversation))",
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.attach))",
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.dropTarget))",
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.attachment))",
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.removeAttachment))",
+            "Image(systemName: enchantedSystemImageName(model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send))",
             "Color(hex: EnchantedPalette.canvasColor)",
             "Color(hex: EnchantedPalette.sidebarColor)",
             "Color(hex: EnchantedPalette.headerColor)",
@@ -1284,7 +1288,7 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "EnchantedVisualMetrics.promptButtonTextWidthInset")
         expectContains(macOSRootView, "EnchantedVisualMetrics.promptButtonPadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.promptButtonRadius")
-        expectContains(macOSRootView, "Image(systemName: prompt.systemImage)")
+        expectContains(macOSRootView, "Image(systemName: enchantedSystemImageName(prompt.systemImage))")
         expectContains(macOSRootView, "EnchantedVisualMetrics.primaryButtonPadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.primaryButtonIconSpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.primaryButtonRadius")

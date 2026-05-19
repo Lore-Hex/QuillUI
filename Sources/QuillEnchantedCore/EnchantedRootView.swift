@@ -5,6 +5,10 @@ import QuillUI
 import SwiftUI
 #endif
 
+private func enchantedSystemImageName(_ systemImage: String) -> String {
+    QuillSystemSymbol.compatibleName(systemImage)
+}
+
 @MainActor
 public struct EnchantedRootView: View {
     @StateObject private var model = EnchantedModel()
@@ -52,7 +56,7 @@ public struct EnchantedRootView: View {
 
             Button(action: model.newConversation) {
                 HStack(spacing: CGFloat(EnchantedVisualMetrics.primaryButtonIconSpacing)) {
-                    Image(systemName: EnchantedIcon.newConversation)
+                    Image(systemName: enchantedSystemImageName(EnchantedIcon.newConversation))
                     Text(EnchantedCopy.newChatTitle)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -231,7 +235,7 @@ public struct EnchantedRootView: View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.composerSpacing)) {
             if selectedModelSupportsImages, model.isAttachmentDropTargeted {
                 HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentInputSpacing)) {
-                    Image(systemName: EnchantedIcon.dropTarget)
+                    Image(systemName: enchantedSystemImageName(EnchantedIcon.dropTarget))
                     Text(EnchantedCopy.dropTargetTitle)
                 }
                 .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
@@ -260,7 +264,7 @@ public struct EnchantedRootView: View {
                         model.addAttachmentPath()
                     }) {
                         HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
-                            Image(systemName: EnchantedIcon.attach)
+                            Image(systemName: enchantedSystemImageName(EnchantedIcon.attach))
                             Text(EnchantedCopy.attachTitle)
                         }
                     }
@@ -296,7 +300,7 @@ public struct EnchantedRootView: View {
                     }
                 }) {
                     HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
-                        Image(systemName: model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send)
+                        Image(systemName: enchantedSystemImageName(model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send))
                         Text(sendActionTitle)
                     }
                     .padding(CGFloat(EnchantedVisualMetrics.primaryButtonPadding))
@@ -470,7 +474,7 @@ private struct EmptyConversationView: View {
                 ForEach(prompts, id: \.title) { prompt in
                     Button(action: { send(prompt.title) }) {
                         HStack(spacing: CGFloat(EnchantedVisualMetrics.promptButtonIconSpacing)) {
-                            Image(systemName: prompt.systemImage)
+                            Image(systemName: enchantedSystemImageName(prompt.systemImage))
                             Text(prompt.title)
                                 .frame(
                                     width: CGFloat(EnchantedVisualMetrics.promptButtonWidth - EnchantedVisualMetrics.promptButtonTextWidthInset),
@@ -590,7 +594,7 @@ private struct AttachmentChip: View {
 
     var body: some View {
         HStack(spacing: CGFloat(EnchantedVisualMetrics.attachmentChipSpacing)) {
-            Image(systemName: EnchantedIcon.attachment)
+            Image(systemName: enchantedSystemImageName(EnchantedIcon.attachment))
                 .foregroundColor(QuillColors.primary)
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.attachmentChipTextSpacing)) {
@@ -608,7 +612,7 @@ private struct AttachmentChip: View {
             .help(accessibilitySummary)
 
             Button(action: remove) {
-                Image(systemName: EnchantedIcon.removeAttachment)
+                Image(systemName: enchantedSystemImageName(EnchantedIcon.removeAttachment))
                     .foregroundColor(QuillColors.muted)
             }
             .buttonStyle(.plain)
