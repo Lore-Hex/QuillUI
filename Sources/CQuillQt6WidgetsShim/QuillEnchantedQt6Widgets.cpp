@@ -3119,7 +3119,11 @@ extern "C" int quill_enchanted_qt_run_app_json(
         const QString updatedModelStatus = modelStatusText(model, chooseLocalModelStatus, usingModelStatusPrefix, usingModelStatusSeparator);
         modelStatus->setText(updatedModelStatus);
         updateModelStatusAccessibility(updatedModelStatus);
-        updateComposerControlState();
+        if (!selectedModelSupportsImages(modelPicker, payload)) {
+            clearAttachmentState(QString());
+        } else {
+            updateComposerControlState();
+        }
         requestHistoryAction(
             QStringLiteral("selectModel"),
             currentConversationID(conversationList, selectedConversationID),

@@ -334,7 +334,7 @@ public struct EnchantedRootView: View {
     private var modelSelection: Binding<String> {
         Binding(
             get: { model.selectedModel },
-            set: { model.selectedModel = $0 }
+            set: { model.selectModel(named: $0) }
         )
     }
 
