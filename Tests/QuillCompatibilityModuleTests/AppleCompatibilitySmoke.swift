@@ -131,6 +131,12 @@ enum AppleCompatibilitySmoke {
         var makeFirstResponderCallsLifecycle: Bool
         var rejectedFirstResponderPreservesCurrent: Bool
         var clearingFirstResponderResignsCurrent: Bool
+        var applicationSendEventDispatchesToFirstResponder: Bool
+        var applicationCurrentEventTracksDispatch: Bool
+        var localEventMonitorCanRewriteEvent: Bool
+        var localEventMonitorCanCancelEvent: Bool
+        var globalEventMonitorObservesDispatchedEvent: Bool
+        var removedEventMonitorStopsObserving: Bool
     }
 
     struct AppKitViewControllerContainmentResult {
@@ -944,6 +950,113 @@ enum AppleCompatibilitySmoke {
             lifecycleWindow.firstResponder == nil &&
             second.events == ["become", "resign"]
 
+        let app = NSApplication.shared
+        let previousWindows = app.windows
+        let previousKeyWindow = app.keyWindow
+        let previousMainWindow = app.mainWindow
+        let previousCurrentEvent = app.currentEvent
+        defer {
+            app.windows = previousWindows
+            app.keyWindow = previousKeyWindow
+            app.mainWindow = previousMainWindow
+            app.currentEvent = previousCurrentEvent
+        }
+
+        let dispatchWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 180, height: 120),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let dispatchRecorder = EventRecorderResponder()
+        _ = dispatchWindow.makeFirstResponder(dispatchRecorder)
+        dispatchRecorder.events.removeAll()
+        app.windows = [dispatchWindow]
+        app.keyWindow = dispatchWindow
+        app.mainWindow = dispatchWindow
+
+        func makeDispatchEvent(type: NSEvent.EventType = .keyDown) -> NSEvent {
+            let event = NSEvent()
+            event.type = type
+            event.window = dispatchWindow
+            return event
+        }
+
+        let dispatchedEvent = makeDispatchEvent()
+        app.sendEvent(dispatchedEvent)
+        let applicationSendEventDispatchesToFirstResponder =
+            dispatchRecorder.events == ["keyDown"]
+        let applicationCurrentEventTracksDispatch = app.currentEvent === dispatchedEvent
+
+        var localEventMonitorCanRewriteEvent = false
+        do {
+            let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                let rewritten = NSEvent()
+                rewritten.type = .scrollWheel
+                rewritten.window = event.window
+                return rewritten
+            }
+            defer {
+                if let monitor {
+                    NSEvent.removeMonitor(monitor)
+                }
+            }
+
+            dispatchRecorder.events.removeAll()
+            app.sendEvent(makeDispatchEvent())
+            localEventMonitorCanRewriteEvent =
+                dispatchRecorder.events == ["scrollWheel"] &&
+                app.currentEvent?.type == .scrollWheel
+        }
+
+        var localEventMonitorCanCancelEvent = false
+        do {
+            let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { _ in nil }
+            defer {
+                if let monitor {
+                    NSEvent.removeMonitor(monitor)
+                }
+            }
+
+            dispatchRecorder.events.removeAll()
+            app.sendEvent(makeDispatchEvent())
+            localEventMonitorCanCancelEvent = dispatchRecorder.events.isEmpty
+        }
+
+        var observedGlobalEvent: NSEvent?
+        var globalEventMonitorObservesDispatchedEvent = false
+        do {
+            let monitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
+                observedGlobalEvent = event
+            }
+            defer {
+                if let monitor {
+                    NSEvent.removeMonitor(monitor)
+                }
+            }
+
+            let globalEvent = makeDispatchEvent()
+            dispatchRecorder.events.removeAll()
+            app.sendEvent(globalEvent)
+            let globalDispatchStillReachedResponder = dispatchRecorder.events == ["keyDown"]
+            globalEventMonitorObservesDispatchedEvent =
+                observedGlobalEvent === globalEvent &&
+                globalDispatchStillReachedResponder
+        }
+
+        var removedMonitorObservationCount = 0
+        do {
+            let monitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { _ in
+                removedMonitorObservationCount += 1
+            }
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
+
+            app.sendEvent(makeDispatchEvent())
+        }
+        let removedEventMonitorStopsObserving = removedMonitorObservationCount == 0
+
         return AppKitResponderResult(
             explicitNextResponderRoundTrip: explicitNextResponderRoundTrip,
             viewDefaultResponderChain: viewDefaultResponderChain,
@@ -951,7 +1064,13 @@ enum AppleCompatibilitySmoke {
             eventForwardingReachesNextResponder: eventForwardingReachesNextResponder,
             makeFirstResponderCallsLifecycle: makeFirstResponderCallsLifecycle,
             rejectedFirstResponderPreservesCurrent: rejectedFirstResponderPreservesCurrent,
-            clearingFirstResponderResignsCurrent: clearingFirstResponderResignsCurrent
+            clearingFirstResponderResignsCurrent: clearingFirstResponderResignsCurrent,
+            applicationSendEventDispatchesToFirstResponder: applicationSendEventDispatchesToFirstResponder,
+            applicationCurrentEventTracksDispatch: applicationCurrentEventTracksDispatch,
+            localEventMonitorCanRewriteEvent: localEventMonitorCanRewriteEvent,
+            localEventMonitorCanCancelEvent: localEventMonitorCanCancelEvent,
+            globalEventMonitorObservesDispatchedEvent: globalEventMonitorObservesDispatchedEvent,
+            removedEventMonitorStopsObserving: removedEventMonitorStopsObserving
         )
     }
 

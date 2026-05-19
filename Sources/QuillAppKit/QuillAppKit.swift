@@ -1028,7 +1028,13 @@ open class NSApplication: NSResponder, @unchecked Sendable {
         // still get clean returns from NSApp.run().
     }
     public func stop(_ sender: Any?) {}
-    public func sendEvent(_ e: NSEvent) {}
+    public func sendEvent(_ e: NSEvent) {
+        currentEvent = e
+        guard let event = NSEvent.quillApplyLocalMonitors(to: e) else { return }
+        currentEvent = event
+        quillDispatchEvent(event)
+        NSEvent.quillNotifyGlobalMonitors(event)
+    }
     public func nextEvent(matching: UInt64, until: Date?, inMode: RunLoop.Mode, dequeue: Bool) -> NSEvent? { nil }
     public func runModal(for window: NSWindow) -> ModalResponse { .OK }
     public func stopModal() {}
@@ -1060,6 +1066,33 @@ open class NSApplication: NSResponder, @unchecked Sendable {
     public func unhideAllApplications(_ sender: Any?) {}
     public func registerForRemoteNotifications() {}
     public func unregisterForRemoteNotifications() {}
+
+    private func quillDispatchEvent(_ event: NSEvent) {
+        let eventWindow = event.window ?? keyWindow ?? mainWindow ?? windows.last
+        let responder = eventWindow?.firstResponder ?? eventWindow?.contentView ?? eventWindow ?? self
+
+        switch event.type {
+        case .leftMouseDown, .rightMouseDown:
+            responder.mouseDown(with: event)
+        case .leftMouseUp, .rightMouseUp:
+            responder.mouseUp(with: event)
+        case .leftMouseDragged, .rightMouseDragged:
+            responder.mouseDragged(with: event)
+        case .mouseMoved:
+            responder.mouseMoved(with: event)
+        case .keyDown:
+            responder.keyDown(with: event)
+        case .keyUp:
+            responder.keyUp(with: event)
+        case .flagsChanged:
+            responder.flagsChanged(with: event)
+        case .scrollWheel:
+            responder.scrollWheel(with: event)
+        case .mouseEntered, .mouseExited, .appKitDefined, .systemDefined,
+             .applicationDefined, .periodic, .cursorUpdate:
+            break
+        }
+    }
 }
 
 // Top-level globals. NSApplication itself is no longer
@@ -1119,7 +1152,29 @@ open class NSEvent: NSObject, @unchecked Sendable {
     public struct EventTypeMask: OptionSet, Sendable {
         public let rawValue: UInt64
         public init(rawValue: UInt64) { self.rawValue = rawValue }
-        public static let any = EventTypeMask(rawValue: ~0)
+        private static func mask(_ type: NSEvent.EventType) -> EventTypeMask {
+            EventTypeMask(rawValue: UInt64(1) << type.rawValue)
+        }
+
+        public static let leftMouseDown = mask(.leftMouseDown)
+        public static let leftMouseUp = mask(.leftMouseUp)
+        public static let rightMouseDown = mask(.rightMouseDown)
+        public static let rightMouseUp = mask(.rightMouseUp)
+        public static let mouseMoved = mask(.mouseMoved)
+        public static let leftMouseDragged = mask(.leftMouseDragged)
+        public static let rightMouseDragged = mask(.rightMouseDragged)
+        public static let mouseEntered = mask(.mouseEntered)
+        public static let mouseExited = mask(.mouseExited)
+        public static let keyDown = mask(.keyDown)
+        public static let keyUp = mask(.keyUp)
+        public static let flagsChanged = mask(.flagsChanged)
+        public static let appKitDefined = mask(.appKitDefined)
+        public static let systemDefined = mask(.systemDefined)
+        public static let applicationDefined = mask(.applicationDefined)
+        public static let periodic = mask(.periodic)
+        public static let cursorUpdate = mask(.cursorUpdate)
+        public static let scrollWheel = mask(.scrollWheel)
+        public static let any = EventTypeMask(rawValue: UInt64.max)
     }
     public var type: EventType = .keyDown
     public var modifierFlags: ModifierFlags = []
@@ -1155,9 +1210,63 @@ open class NSEvent: NSObject, @unchecked Sendable {
 
     public static var modifierFlags: ModifierFlags { [] }
     public static var mouseLocation: NSPoint { .zero }
-    public static func addLocalMonitorForEvents(matching: EventTypeMask, handler: @escaping (NSEvent) -> NSEvent?) -> Any? { nil }
-    public static func addGlobalMonitorForEvents(matching: EventTypeMask, handler: @escaping (NSEvent) -> Void) -> Any? { nil }
-    public static func removeMonitor(_ m: Any) {}
+
+    public static func addLocalMonitorForEvents(matching: EventTypeMask, handler: @escaping (NSEvent) -> NSEvent?) -> Any? {
+        let monitor = EventMonitor(mask: matching, localHandler: handler, globalHandler: nil)
+        localEventMonitors.append(monitor)
+        return monitor
+    }
+
+    public static func addGlobalMonitorForEvents(matching: EventTypeMask, handler: @escaping (NSEvent) -> Void) -> Any? {
+        let monitor = EventMonitor(mask: matching, localHandler: nil, globalHandler: handler)
+        globalEventMonitors.append(monitor)
+        return monitor
+    }
+
+    public static func removeMonitor(_ m: Any) {
+        guard let monitor = m as? EventMonitor else { return }
+        localEventMonitors.removeAll { $0 === monitor }
+        globalEventMonitors.removeAll { $0 === monitor }
+    }
+
+    fileprivate static func quillApplyLocalMonitors(to event: NSEvent) -> NSEvent? {
+        var monitoredEvent: NSEvent? = event
+        for monitor in localEventMonitors {
+            guard let currentEvent = monitoredEvent else { break }
+            guard monitor.matches(currentEvent), let handler = monitor.localHandler else { continue }
+            monitoredEvent = handler(currentEvent)
+        }
+        return monitoredEvent
+    }
+
+    fileprivate static func quillNotifyGlobalMonitors(_ event: NSEvent) {
+        for monitor in globalEventMonitors where monitor.matches(event) {
+            monitor.globalHandler?(event)
+        }
+    }
+
+    private var quillEventTypeMask: EventTypeMask {
+        EventTypeMask(rawValue: UInt64(1) << type.rawValue)
+    }
+
+    private final class EventMonitor {
+        let mask: EventTypeMask
+        let localHandler: ((NSEvent) -> NSEvent?)?
+        let globalHandler: ((NSEvent) -> Void)?
+
+        init(mask: EventTypeMask, localHandler: ((NSEvent) -> NSEvent?)?, globalHandler: ((NSEvent) -> Void)?) {
+            self.mask = mask
+            self.localHandler = localHandler
+            self.globalHandler = globalHandler
+        }
+
+        func matches(_ event: NSEvent) -> Bool {
+            mask.contains(event.quillEventTypeMask)
+        }
+    }
+
+    private static var localEventMonitors: [EventMonitor] = []
+    private static var globalEventMonitors: [EventMonitor] = []
 }
 
 // MARK: - NSPasteboard

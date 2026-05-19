@@ -222,6 +222,12 @@ struct CompatibilityModuleTests {
         #expect(result.makeFirstResponderCallsLifecycle)
         #expect(result.rejectedFirstResponderPreservesCurrent)
         #expect(result.clearingFirstResponderResignsCurrent)
+        #expect(result.applicationSendEventDispatchesToFirstResponder)
+        #expect(result.applicationCurrentEventTracksDispatch)
+        #expect(result.localEventMonitorCanRewriteEvent)
+        #expect(result.localEventMonitorCanCancelEvent)
+        #expect(result.globalEventMonitorObservesDispatchedEvent)
+        #expect(result.removedEventMonitorStopsObserving)
     }
 
     @Test("AppKit view controllers maintain containment links")
@@ -1031,7 +1037,7 @@ struct CompatibilityModuleTests {
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.jpg")) == .jpeg)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.tiff")) == .tiff)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.tif")) == .tiff)
-        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/document.txt")) == nil)
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/document.txt")) == .plainText)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/no-extension")) == nil)
 
         // Identity conformance.
