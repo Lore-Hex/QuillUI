@@ -459,12 +459,16 @@ struct UpstreamSettingsPanel: View {
                     onRefreshModels()
                 }
                 .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
+                .accessibilityLabel(EnchantedCopy.refreshModelsTitle)
+                .help(EnchantedCopy.refreshModelsTitle)
             }
 
             if modelsList.isEmpty {
                 Text(EnchantedCopy.noModelsTitle)
                     .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                     .foregroundColor(.secondary)
+                    .accessibilityLabel(EnchantedCopy.noModelsTitle)
+                    .help(EnchantedCopy.noModelsTitle)
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(visibleModels) { model in
@@ -490,6 +494,8 @@ struct UpstreamSettingsPanel: View {
                             .cornerRadius(7)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(model.name)
+                        .help(model.name)
                     }
                 }
             }
@@ -502,6 +508,8 @@ struct UpstreamSettingsPanel: View {
             .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
             .foregroundColor(EnchantedTheme.destructive)
             .disabled(!canDeleteAllConversations)
+            .accessibilityLabel(EnchantedCopy.clearAllTitle)
+            .help(EnchantedCopy.clearAllTitle)
         }
         .padding(10)
         .background(EnchantedTheme.card)
@@ -557,8 +565,13 @@ struct HeaderView: View {
                     .cornerRadius(8)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(EnchantedCopy.modelLabel)
+            .accessibilityValue(selectedModel?.name ?? EnchantedCopy.modelLabel)
+            .help(selectedModel?.name ?? EnchantedCopy.modelLabel)
 
             QuillFloatingIconButton(systemImage: EnchantedIcon.newConversation, action: onNewConversationTap)
+                .accessibilityLabel(EnchantedCopy.newChatTitle)
+                .help(EnchantedCopy.newChatTitle)
 
             QuillMenuButton(actions: [
                 QuillMenuAction(title: EnchantedCopy.newChatTitle, systemImage: EnchantedIcon.newConversation, action: onNewConversationTap),
@@ -600,6 +613,10 @@ struct MessageListView: View {
                             .frame(maxWidth: CGFloat(EnchantedVisualMetrics.messageMaxWidth), alignment: .leading)
                             .background(message.role == "user" ? EnchantedTheme.cardQuiet : EnchantedTheme.card)
                             .cornerRadius(8)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel(messageAccessibilityLabel(message))
+                            .accessibilityValue(message.content)
+                            .help(messageAccessibilitySummary(message))
                             .contextMenu {
                                 if message.role == "user" {
 #if canImport(SwiftUI)
@@ -630,6 +647,21 @@ struct MessageListView: View {
                 .foregroundColor(EnchantedTheme.text)
                 .lineSpacing(3)
         }
+    }
+
+    private func messageAccessibilityLabel(_ message: MessageSD) -> String {
+        switch message.role {
+        case "user":
+            return EnchantedCopy.userRoleLabel
+        case "system":
+            return EnchantedCopy.systemRoleLabel
+        default:
+            return EnchantedCopy.assistantRoleLabel
+        }
+    }
+
+    private func messageAccessibilitySummary(_ message: MessageSD) -> String {
+        "\(messageAccessibilityLabel(message))\n\(message.content)"
     }
 }
 
@@ -714,7 +746,7 @@ struct InputFieldsView: View {
     var body: some View {
         HStack(spacing: 20) {
             if let selectedImage {
-                RemovableImage(image: selectedImage.preview) {
+                RemovableImage(attachment: selectedImage.attachment, image: selectedImage.preview) {
                     self.selectedImage = nil
                 }
             }
@@ -730,16 +762,23 @@ struct InputFieldsView: View {
                         sendMessage()
                     }
                     .allowsHitTesting(!fileDropActive)
+                    .accessibilityLabel(EnchantedCopy.composerPlaceholder)
+                    .help(EnchantedCopy.composerPlaceholder)
                     .padding(.trailing, 86)
 
                 HStack(spacing: 10) {
                     if selectedModel == nil {
                         QuillFloatingIconButton(systemImage: EnchantedIcon.unavailableModel) {}
                             .disabled(true)
+                            .accessibilityLabel(EnchantedCopy.modelLabel)
+                            .accessibilityValue(EnchantedCopy.chooseLocalModelStatus)
+                            .help(EnchantedCopy.chooseLocalModelStatus)
                     } else {
                         QuillFloatingIconButton(systemImage: EnchantedIcon.attach) {
                             fileSelectingActive.toggle()
                         }
+                        .accessibilityLabel(EnchantedCopy.attachTitle)
+                        .help(EnchantedCopy.attachTitle)
                         .disabled(!modelSupportsImages)
                         .fileImporter(
                             isPresented: $fileSelectingActive,
@@ -756,10 +795,14 @@ struct InputFieldsView: View {
                         switch conversationState {
                         case .loading:
                             QuillFloatingIconButton(systemImage: EnchantedIcon.stop, action: onStopGenerateTap)
+                                .accessibilityLabel(EnchantedCopy.stopTitle)
+                                .help(EnchantedCopy.stopTitle)
                         case .completed:
                             QuillFloatingIconButton(systemImage: EnchantedIcon.send) {
                                 sendMessage()
                             }
+                            .accessibilityLabel(EnchantedCopy.sendTitle)
+                            .help(EnchantedCopy.sendTitle)
                         }
                     }
                 }
@@ -806,6 +849,7 @@ struct InputFieldsView: View {
 }
 
 struct RemovableImage: View {
+    var attachment: PendingImageAttachment
     var image: Image
     var onClick: () -> Void
 
@@ -816,13 +860,22 @@ struct RemovableImage: View {
                 .scaledToFit()
                 .frame(width: 70, height: 70)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+                .accessibilityLabel(attachment.filename)
+                .accessibilityValue(attachment.formattedByteCount)
+                .help(accessibilitySummary)
 
             Button(action: onClick) {
                 Image(systemName: QuillSystemSymbol.compatibleName(EnchantedIcon.removeAttachment))
                     .foregroundColor(EnchantedTheme.secondaryText)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(EnchantedCopy.removeAttachmentTooltip)
+            .help(EnchantedCopy.removeAttachmentTooltip)
         }
+    }
+
+    private var accessibilitySummary: String {
+        "\(attachment.filename)\n\(attachment.formattedByteCount)"
     }
 }
 
