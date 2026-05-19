@@ -2187,6 +2187,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
         payloadString(payload, "noModelsTitle"),
         QStringLiteral("warningText")
     );
+    auto updateModelPickerAccessibility = [&]() {
+        const QString selectedModelText = modelPicker->currentText().trimmed();
+        const QString modelValue = selectedModelText.isEmpty() ? modelLabel : selectedModelText;
+        modelPicker->setAccessibleName(modelLabel);
+        modelPicker->setAccessibleDescription(modelValue);
+        modelPicker->setToolTip(modelValue);
+        modelPicker->setStatusTip(modelValue);
+    };
     auto populateModelPicker = [&](const QJsonArray &modelValues, const QString &selectedModelValue) {
         QSignalBlocker blocker(modelPicker);
         modelPicker->clear();
@@ -2216,6 +2224,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         const bool hasModels = modelPicker->count() > 0;
         modelPicker->setEnabled(hasModels);
         noModelsNotice->setVisible(!hasModels);
+        updateModelPickerAccessibility();
     };
     populateModelPicker(models, payloadString(payload, "selectedModel"));
     addSidebarField(
@@ -2224,6 +2233,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         modelPicker,
         style
     );
+    updateModelPickerAccessibility();
     sidebarLayout->addWidget(noModelsNotice);
 
     QHBoxLayout *statusLayout = new QHBoxLayout();
@@ -3108,6 +3118,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         );
     });
     QObject::connect(modelPicker, &QComboBox::currentTextChanged, [&](const QString &model) {
+        updateModelPickerAccessibility();
         const QString updatedModelStatus = modelStatusText(model, chooseLocalModelStatus, usingModelStatusPrefix, usingModelStatusSeparator);
         modelStatus->setText(updatedModelStatus);
         updateModelStatusAccessibility(updatedModelStatus);
