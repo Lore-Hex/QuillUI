@@ -2293,6 +2293,7 @@ struct CoreContractMatrixTests {
             "attachmentPath->setStatusTip(attachmentPlaceholder)",
             "unavailableModelButton->setAccessibleName(modelLabel)",
             "unavailableModelButton->setAccessibleDescription(chooseLocalModelStatus)",
+            "unavailableModelButton->setToolTip(chooseLocalModelStatus)",
             "unavailableModelButton->setStatusTip(chooseLocalModelStatus)",
             "payloadString(payload, \"attachTitle\")",
             "attachButton->setAccessibleName(attachTitle)",

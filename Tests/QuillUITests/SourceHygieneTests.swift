@@ -1960,6 +1960,7 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("unavailableModelButton->setIcon(unavailableModelButtonIcon(icons))"))
         #expect(enchantedQtHost.contains("unavailableModelButton->setAccessibleName(modelLabel)"))
         #expect(enchantedQtHost.contains("unavailableModelButton->setAccessibleDescription(chooseLocalModelStatus)"))
+        #expect(enchantedQtHost.contains("unavailableModelButton->setToolTip(chooseLocalModelStatus)"))
         #expect(enchantedQtHost.contains("unavailableModelButton->setStatusTip(chooseLocalModelStatus)"))
         #expect(!enchantedQtHost.contains("unavailableModelButton->setAccessibleName(chooseLocalModelStatus)"))
         #expect(enchantedMacRoot.contains("Image(systemName: enchantedSystemImageName(EnchantedIcon.attachment))"))
