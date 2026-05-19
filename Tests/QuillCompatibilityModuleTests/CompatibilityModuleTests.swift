@@ -93,6 +93,7 @@ struct CompatibilityModuleTests {
         #expect(name.rawValue == "togglePanelMode")
         #expect(name.defaultShortcut == shortcut)
         #expect(KeyboardShortcuts.Shortcut(.character("p")).key == .character("p"))
+        #expect(KeyboardShortcuts.Name("togglePanelMode") == name)
 
         let result = try AppleCompatibilitySmoke.runAppKitImageSmoke()
         #expect(result.sizeRoundTrip)
@@ -111,6 +112,25 @@ struct CompatibilityModuleTests {
             "NSWorkspace.icon(forFile:)",
             "NSWorkspace.icon(forContentType:)"
         ])))
+    }
+
+    @Test("KeyboardShortcuts persist defaults and user overrides by raw name")
+    func keyboardShortcutsPersistDefaultsAndUserOverrides() {
+        let defaultShortcut = KeyboardShortcuts.Shortcut(.k, modifiers: [.command, .option])
+        let overrideShortcut = KeyboardShortcuts.Shortcut(.character("p"), modifiers: [.command, .shift])
+        let name = KeyboardShortcuts.Name("togglePanelMode1", default: defaultShortcut)
+
+        KeyboardShortcuts.reset(name)
+        #expect(KeyboardShortcuts.getShortcut(for: name) == defaultShortcut)
+
+        KeyboardShortcuts.setShortcut(overrideShortcut, for: name)
+        #expect(KeyboardShortcuts.getShortcut(for: name) == overrideShortcut)
+        #expect(KeyboardShortcuts.getShortcut(for: "togglePanelMode1") == overrideShortcut)
+
+        KeyboardShortcuts.reset(name)
+        #expect(KeyboardShortcuts.getShortcut(for: name) == defaultShortcut)
+
+        KeyboardShortcuts.resetAll()
     }
 
     @Test("MarkdownUI and Splash cover Enchanted markdown theme contracts")
