@@ -2703,15 +2703,13 @@ extern "C" int quill_enchanted_qt_run_app_json(
         const bool hasPendingAttachments = !pendingAttachmentPaths.isEmpty();
         const bool hasAttachmentPathInput = hasAttachmentPathCandidates(attachmentPath);
         const bool imageAttachmentsAvailable = selectedModelSupportsImages(modelPicker, payload);
-        const bool hasSelectedModel = modelPicker != nullptr && !modelPicker->currentText().trimmed().isEmpty();
-        const bool showUnavailableModelButton = !hasSelectedModel;
-        attachmentInputRow->setVisible(imageAttachmentsAvailable || showUnavailableModelButton);
+        attachmentInputRow->setVisible(imageAttachmentsAvailable);
         attachmentPath->setVisible(imageAttachmentsAvailable);
-        unavailableModelButton->setVisible(showUnavailableModelButton);
+        unavailableModelButton->setVisible(false);
         attachButton->setVisible(imageAttachmentsAvailable);
         clearAttachmentsButton->setVisible(imageAttachmentsAvailable);
         dropTarget->setAcceptDrops(imageAttachmentsAvailable);
-        dropTarget->setVisible(imageAttachmentsAvailable || hasPendingAttachments || showUnavailableModelButton);
+        dropTarget->setVisible(imageAttachmentsAvailable || hasPendingAttachments);
         if (!imageAttachmentsAvailable && dropHint != nullptr) {
             dropHint->setVisible(false);
         }
