@@ -15,18 +15,6 @@ public enum QuillSystemSymbol {
         return systemName
         #else
         switch systemName {
-        case "paperplane.fill":
-            return "arrow.forward.circle.fill"
-        case "photo", "photo.fill":
-            return "folder.badge.plus"
-        case "lightbulb", "lightbulb.circle", "lightbulb.circle.fill":
-            return "info.circle"
-        case "character.cursor.ibeam", "textformat", "textformat.abc":
-            return "doc.text"
-        case "keyboard", "keyboard.fill":
-            return "doc.on.doc"
-        case "waveform":
-            return "ellipsis.circle"
         case "xmark", "x.circle", "x.circle.fill":
             return "xmark.circle.fill"
         default:

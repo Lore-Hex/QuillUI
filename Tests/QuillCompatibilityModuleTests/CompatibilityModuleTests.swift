@@ -655,22 +655,22 @@ struct CompatibilityModuleTests {
         #expect(addedSecond.count == 2, "Image(data:) with new bytes should add a second PNG; saw \(addedSecond.count) total new files")
     }
 
-    // MARK: - Symbol name remapping
+    // MARK: - Symbol name compatibility
 
-    @Test("QuillSystemSymbol remaps known SF Symbol names and passes unknown through")
+    @Test("QuillSystemSymbol preserves backend-covered SF Symbols and maps close variants")
     func quillSystemSymbolMapsKnownAndPassesUnknown() {
         let knownMappings: [(input: String, expected: String)] = [
-            ("paperplane.fill", "arrow.forward.circle.fill"),
-            ("photo", "folder.badge.plus"),
-            ("photo.fill", "folder.badge.plus"),
-            ("lightbulb", "info.circle"),
-            ("lightbulb.circle", "info.circle"),
-            ("lightbulb.circle.fill", "info.circle"),
-            ("character.cursor.ibeam", "doc.text"),
-            ("textformat", "doc.text"),
-            ("textformat.abc", "doc.text"),
-            ("keyboard", "doc.on.doc"),
-            ("waveform", "ellipsis.circle"),
+            ("paperplane.fill", "paperplane.fill"),
+            ("photo", "photo"),
+            ("photo.fill", "photo.fill"),
+            ("lightbulb", "lightbulb"),
+            ("lightbulb.circle", "lightbulb.circle"),
+            ("lightbulb.circle.fill", "lightbulb.circle.fill"),
+            ("character.cursor.ibeam", "character.cursor.ibeam"),
+            ("textformat", "textformat"),
+            ("textformat.abc", "textformat.abc"),
+            ("keyboard", "keyboard"),
+            ("waveform", "waveform"),
             ("xmark", "xmark.circle.fill"),
             ("x.circle", "xmark.circle.fill"),
             ("x.circle.fill", "xmark.circle.fill")
@@ -1168,9 +1168,8 @@ struct CompatibilityModuleTests {
         // Label: returns its title (the system-image side is ignored here).
         #expect(QuillUI.quillTextLabel(from: Label("Settings", systemImage: "gear")) == "Settings")
 
-        // Image: bridges through quillSystemImageName, which remaps SF Symbols
-        // and returns the (potentially-remapped) name.
-        #expect(QuillUI.quillTextLabel(from: Image(systemName: "paperplane.fill")) == "arrow.forward.circle.fill")
+        // Image: bridges through quillSystemImageName and returns the symbol token.
+        #expect(QuillUI.quillTextLabel(from: Image(systemName: "paperplane.fill")) == "paperplane.fill")
 
         // Unknown view type returns an empty string fallback (used so callers can detect
         // "no extractable label" without crashing on opaque view types).
@@ -1180,12 +1179,12 @@ struct CompatibilityModuleTests {
         #expect(QuillUI.quillTextLabel(from: Unknown()) == "")
     }
 
-    @Test("quillSystemImageName remaps SF Symbol names and falls back gracefully")
+    @Test("quillSystemImageName preserves backend-covered SF Symbols and falls back gracefully")
     func quillSystemImageNameRemapsAndFallsBack() {
-        // Known SF Symbol uses the fallback table.
-        #expect(QuillUI.quillSystemImageName(from: Image(systemName: "paperplane.fill")) == "arrow.forward.circle.fill")
-        #expect(QuillUI.quillSystemImageName(from: Image(systemName: "photo.fill")) == "folder.badge.plus")
-        #expect(QuillUI.quillSystemImageName(from: Image(systemName: "lightbulb.circle")) == "info.circle")
+        // Backend-covered SF Symbols preserve the macOS token.
+        #expect(QuillUI.quillSystemImageName(from: Image(systemName: "paperplane.fill")) == "paperplane.fill")
+        #expect(QuillUI.quillSystemImageName(from: Image(systemName: "photo.fill")) == "photo.fill")
+        #expect(QuillUI.quillSystemImageName(from: Image(systemName: "lightbulb.circle")) == "lightbulb.circle")
 
         // Unknown SF Symbol passes through unchanged.
         #expect(QuillUI.quillSystemImageName(from: Image(systemName: "custom.symbol.name")) == "custom.symbol.name")
