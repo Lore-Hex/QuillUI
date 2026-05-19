@@ -23,6 +23,8 @@ enum AppleCompatibilitySmoke {
         var pasteboardWriteObjectsItemsRoundTrip: Bool
         var pasteboardWriteObjectsDataRoundTrip: Bool
         var pasteboardClearResetsItems: Bool
+        var pasteboardSetStringClearsOldData: Bool
+        var pasteboardWriteObjectsClearsOldData: Bool
         var pasteboardDeclareTypesRoundTrip: Bool
         var pasteboardDeclareTypesClearsOldTypes: Bool
         var pasteboardDeclareTypesChangeCount: Bool
@@ -88,6 +90,22 @@ enum AppleCompatibilitySmoke {
             itemPasteboard.string(forType: .string) == nil &&
             itemPasteboard.data(forType: .png) == nil
 
+        let replacementPasteboard = NSPasteboard(name: .init(rawValue: "quill.compat.replacement.\(UUID().uuidString)"))
+        _ = replacementPasteboard.setData(Data([0xCA, 0xFE]), forType: .png)
+        _ = replacementPasteboard.setString("fresh", forType: .string)
+        let pasteboardSetStringClearsOldData =
+            replacementPasteboard.types() == [.string] &&
+            replacementPasteboard.data(forType: .png) == nil &&
+            replacementPasteboard.string(forType: .string) == "fresh"
+
+        let writeReplacementPasteboard = NSPasteboard(name: .init(rawValue: "quill.compat.write-replacement.\(UUID().uuidString)"))
+        _ = writeReplacementPasteboard.setData(Data([0xCA, 0xFE]), forType: .png)
+        _ = writeReplacementPasteboard.writeObjects(["fresh"])
+        let pasteboardWriteObjectsClearsOldData =
+            writeReplacementPasteboard.types() == [.string] &&
+            writeReplacementPasteboard.data(forType: .png) == nil &&
+            writeReplacementPasteboard.string(forType: .string) == "fresh"
+
         let declaredPasteboard = NSPasteboard(name: .init(rawValue: "quill.compat.declared.\(UUID().uuidString)"))
         _ = declaredPasteboard.setString("stale", forType: .string)
         let previousChangeCount = declaredPasteboard.changeCount
@@ -142,6 +160,8 @@ enum AppleCompatibilitySmoke {
             pasteboardWriteObjectsItemsRoundTrip: pasteboardWriteObjectsItemsRoundTrip,
             pasteboardWriteObjectsDataRoundTrip: pasteboardWriteObjectsDataRoundTrip,
             pasteboardClearResetsItems: pasteboardClearResetsItems,
+            pasteboardSetStringClearsOldData: pasteboardSetStringClearsOldData,
+            pasteboardWriteObjectsClearsOldData: pasteboardWriteObjectsClearsOldData,
             pasteboardDeclareTypesRoundTrip: pasteboardDeclareTypesRoundTrip && pasteboardDeclareTypesRetainedAfterData,
             pasteboardDeclareTypesClearsOldTypes: pasteboardDeclareTypesClearsOldTypes,
             pasteboardDeclareTypesChangeCount: pasteboardDeclareTypesChangeCount,

@@ -315,6 +315,8 @@ struct CompatibilityModuleTests {
         #expect(result.pasteboardWriteObjectsItemsRoundTrip)
         #expect(result.pasteboardWriteObjectsDataRoundTrip)
         #expect(result.pasteboardClearResetsItems)
+        #expect(result.pasteboardSetStringClearsOldData)
+        #expect(result.pasteboardWriteObjectsClearsOldData)
         #expect(result.pasteboardDeclareTypesRoundTrip)
         #expect(result.pasteboardDeclareTypesClearsOldTypes)
         #expect(result.pasteboardDeclareTypesChangeCount)

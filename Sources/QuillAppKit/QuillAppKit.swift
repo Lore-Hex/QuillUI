@@ -835,6 +835,9 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
 
     @discardableResult
     public func setString(_ s: String, forType type: PasteboardType) -> Bool {
+        if declaredTypes == nil {
+            _prepareToReplaceContents()
+        }
         let item = NSPasteboardItem()
         item.setString(s, forType: type)
         pasteboardItems = [item]
@@ -853,6 +856,9 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
 
     @discardableResult
     public func setData(_ d: Data, forType type: PasteboardType) -> Bool {
+        if declaredTypes == nil {
+            _prepareToReplaceContents()
+        }
         let item = NSPasteboardItem()
         item.setData(d, forType: type)
         pasteboardItems = [item]
@@ -908,6 +914,9 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
 
         for obj in objs {
             if let s = obj as? String {
+                if !wroteAnyType {
+                    _prepareToReplaceContents()
+                }
                 let item = NSPasteboardItem()
                 item.setString(s, forType: .string)
                 items.append(item)
@@ -918,6 +927,9 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
                 items.append(item)
                 for type in item.types {
                     guard let data = item.data(forType: type) else { continue }
+                    if !wroteAnyType {
+                        _prepareToReplaceContents()
+                    }
                     if type == .string, let s = String(data: data, encoding: .utf8) {
                         _writeClipboardString(s)
                     }
@@ -980,6 +992,12 @@ private extension NSPasteboard {
     }
     func _clearFileBackedTypes() {
         try? FileManager.default.removeItem(atPath: _typeDir())
+    }
+    func _prepareToReplaceContents() {
+        pasteboardItems = nil
+        declaredTypes = nil
+        _writeClipboardString("")
+        _clearFileBackedTypes()
     }
     func _types(from items: [NSPasteboardItem]) -> [PasteboardType] {
         var ordered: [PasteboardType] = []
