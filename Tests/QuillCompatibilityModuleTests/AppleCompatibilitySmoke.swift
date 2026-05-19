@@ -80,6 +80,8 @@ enum AppleCompatibilitySmoke {
         var attributedValueUpdatedStringAndNumericValues: Bool
         var explicitActionSentToTarget: Bool
         var missingActionOrTargetRejected: Bool
+        var applicationExplicitActionSentToTarget: Bool
+        var applicationMissingTargetRejected: Bool
         var textButtonPreservedTargetActionAndTitle: Bool
         var imageButtonPreservedTargetAndAction: Bool
         var checkboxFactoryPreservedTargetActionAndTitle: Bool
@@ -787,6 +789,10 @@ enum AppleCompatibilitySmoke {
         let explicitActionSentToTarget = actionButton.sendAction(actionButton.action, to: actionButton.target)
         let missingActionOrTargetRejected =
             !NSButton(title: "Run", target: nil, action: nil).sendAction(nil, to: nil)
+        let applicationExplicitActionSentToTarget =
+            NSApplication.shared.sendAction(action, to: target, from: actionButton)
+        let applicationMissingTargetRejected =
+            !NSApplication.shared.sendAction(action, to: nil, from: actionButton)
 
         let textButtonPreservedTargetActionAndTitle =
             actionButton.title == "Run" &&
@@ -865,6 +871,8 @@ enum AppleCompatibilitySmoke {
             attributedValueUpdatedStringAndNumericValues: attributedValueUpdatedStringAndNumericValues,
             explicitActionSentToTarget: explicitActionSentToTarget,
             missingActionOrTargetRejected: missingActionOrTargetRejected,
+            applicationExplicitActionSentToTarget: applicationExplicitActionSentToTarget,
+            applicationMissingTargetRejected: applicationMissingTargetRejected,
             textButtonPreservedTargetActionAndTitle: textButtonPreservedTargetActionAndTitle,
             imageButtonPreservedTargetAndAction: imageButtonPreservedTargetAndAction,
             checkboxFactoryPreservedTargetActionAndTitle: checkboxFactoryPreservedTargetActionAndTitle,

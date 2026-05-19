@@ -151,6 +151,8 @@ struct CompatibilityModuleTests {
         #expect(result.attributedValueUpdatedStringAndNumericValues)
         #expect(result.explicitActionSentToTarget)
         #expect(result.missingActionOrTargetRejected)
+        #expect(result.applicationExplicitActionSentToTarget)
+        #expect(result.applicationMissingTargetRejected)
         #expect(result.textButtonPreservedTargetActionAndTitle)
         #expect(result.imageButtonPreservedTargetAndAction)
         #expect(result.checkboxFactoryPreservedTargetActionAndTitle)

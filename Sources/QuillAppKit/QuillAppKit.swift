@@ -1054,7 +1054,9 @@ open class NSApplication: NSResponder, @unchecked Sendable {
             sheet.isVisible = false
         }
     }
-    public func sendAction(_ a: Selector, to target: Any?, from sender: Any?) -> Bool { false }
+    public func sendAction(_ a: Selector, to target: Any?, from sender: Any?) -> Bool {
+        target != nil
+    }
     public func windows(withTabIdentifier id: String) -> [NSWindow] {
         windows.filter { $0.tabbingIdentifier == id }
     }
