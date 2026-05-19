@@ -1466,6 +1466,13 @@ QFrame *messageBubble(
     }
 
     QFrame *bubble = QuillQtWidgets::frame(objectName);
+    const QString title = messageRoleTitle(role, userRoleLabel, assistantRoleLabel, systemRoleLabel);
+    const QString summary = accessibilitySummary(title, content);
+    bubble->setAccessibleName(title);
+    bubble->setAccessibleDescription(summary);
+    bubble->setToolTip(summary);
+    bubble->setStatusTip(summary);
+
     const int messageMaxWidth = styleInt(style, "messageMaxWidth");
     bubble->setMaximumWidth(messageMaxWidth);
 
@@ -1481,7 +1488,7 @@ QFrame *messageBubble(
     layout->setSpacing(messageBubbleSpacing);
     layout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     layout->addWidget(label(
-        messageRoleTitle(role, userRoleLabel, assistantRoleLabel, systemRoleLabel),
+        title,
         role == QStringLiteral("user") ? QStringLiteral("messageUserRole") : QStringLiteral("messageRole")
     ));
     if (role == QStringLiteral("user")) {
