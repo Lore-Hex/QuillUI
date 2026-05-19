@@ -888,6 +888,7 @@ void showMessageContextMenu(
     const MessageCancelEditAction &cancelEdit
 ) {
     QMenu menu(anchor);
+    menu.setObjectName(QStringLiteral("message.contextMenu"));
     menu.setToolTipsVisible(true);
     QAction *copyAction = menu.addAction(copyMessageTitle);
     copyAction->setIcon(copyMessageActionIcon(icons));
