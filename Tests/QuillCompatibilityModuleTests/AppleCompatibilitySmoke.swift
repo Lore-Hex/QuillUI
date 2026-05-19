@@ -170,6 +170,7 @@ enum AppleCompatibilitySmoke {
         var rowAndCellViewsCached: Bool
         var frameUsesColumnWidthsAndRowHeight: Bool
         var rowColumnLookupFromViews: Bool
+        var rowMutationsPreserveState: Bool
     }
 
     struct AppKitDocumentResult {
@@ -1313,6 +1314,35 @@ enum AppleCompatibilitySmoke {
             delegate.selectionNotifications >= 2 &&
             delegate.selectionNotificationObject === tableView
 
+        tableView.allowsMultipleSelection = true
+        tableView.allowsEmptySelection = true
+        delegate.removedRows.removeAll()
+        let removedRowView = tableView.rowView(atRow: 1, makeIfNecessary: true)
+        let movedCellView = tableView.view(atColumn: 0, row: 2, makeIfNecessary: true)
+        tableView.selectRowIndexes(IndexSet([1, 2]), byExtendingSelection: false)
+        tableView.clickedRow = 2
+        tableView.insertRows(at: IndexSet([1, 3]), withAnimation: [])
+        let insertShiftedState =
+            tableView.numberOfRows == 6 &&
+            tableView.selectedRowIndexes == IndexSet([2, 4]) &&
+            tableView.clickedRow == 4 &&
+            tableView.row(for: movedCellView ?? NSView()) == 4
+        tableView.removeRows(at: IndexSet([0, 2]), withAnimation: [])
+        let removeShiftedState =
+            tableView.numberOfRows == 4 &&
+            tableView.selectedRowIndexes == IndexSet(integer: 2) &&
+            tableView.clickedRow == 2 &&
+            tableView.row(for: movedCellView ?? NSView()) == 2 &&
+            tableView.row(for: removedRowView ?? NSView()) == -1 &&
+            delegate.removedRows == [0, 2]
+        tableView.moveRow(at: 2, to: 3)
+        let moveShiftedState =
+            tableView.numberOfRows == 4 &&
+            tableView.selectedRowIndexes == IndexSet(integer: 3) &&
+            tableView.clickedRow == 3 &&
+            tableView.row(for: movedCellView ?? NSView()) == 3
+        let rowMutationsPreserveState = insertShiftedState && removeShiftedState && moveShiftedState
+
         return AppKitTableResult(
             reloadUpdatedRowCount: reloadUpdatedRowCount,
             columnLookupAndRemoval: columnLookupAndRemoval,
@@ -1321,7 +1351,8 @@ enum AppleCompatibilitySmoke {
             delegateSelectionNotification: delegateSelectionNotification,
             rowAndCellViewsCached: rowAndCellViewsCached,
             frameUsesColumnWidthsAndRowHeight: frameUsesColumnWidthsAndRowHeight,
-            rowColumnLookupFromViews: rowColumnLookupFromViews
+            rowColumnLookupFromViews: rowColumnLookupFromViews,
+            rowMutationsPreserveState: rowMutationsPreserveState
         )
     }
 

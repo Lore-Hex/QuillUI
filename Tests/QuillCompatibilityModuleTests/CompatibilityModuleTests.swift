@@ -277,6 +277,7 @@ struct CompatibilityModuleTests {
         #expect(result.rowAndCellViewsCached)
         #expect(result.frameUsesColumnWidthsAndRowHeight)
         #expect(result.rowColumnLookupFromViews)
+        #expect(result.rowMutationsPreserveState)
     }
 
     @Test("AppKit documents maintain edit and controller state")

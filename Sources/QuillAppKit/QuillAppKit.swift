@@ -3023,9 +3023,43 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     }
     public func beginUpdates() {}
     public func endUpdates() {}
-    public func insertRows(at: IndexSet, withAnimation: AnimationOptions) {}
-    public func removeRows(at: IndexSet, withAnimation: AnimationOptions) {}
-    public func moveRow(at oldIndex: Int, to newIndex: Int) {}
+    public func insertRows(at rowIndexes: IndexSet, withAnimation _: AnimationOptions) {
+        let insertedRows = validInsertionRows(from: rowIndexes)
+        guard !insertedRows.isEmpty else { return }
+
+        recacheRowViews { shiftedRowAfterInsertion(row: $0, insertedRows: insertedRows) }
+        recacheCellViews { shiftedRowAfterInsertion(row: $0, insertedRows: insertedRows) }
+        numberOfRows += insertedRows.count
+        setSelectedRowIndexes(shiftedSelectionAfterInsertion(insertedRows), notify: false)
+        clickedRow = clickedRow >= 0 ? shiftedRowAfterInsertion(row: clickedRow, insertedRows: insertedRows) : clickedRow
+    }
+
+    public func removeRows(at rowIndexes: IndexSet, withAnimation _: AnimationOptions) {
+        let removedRows = existingRows(from: rowIndexes)
+        guard !removedRows.isEmpty else { return }
+
+        for row in removedRows {
+            if let rowView = cachedRowViews[row] {
+                delegate?.tableView(self, didRemove: rowView, forRow: row)
+            }
+        }
+        recacheRowViews { shiftedRowAfterRemoval(row: $0, removedRows: removedRows) }
+        recacheCellViews { shiftedRowAfterRemoval(row: $0, removedRows: removedRows) }
+        numberOfRows -= removedRows.count
+        setSelectedRowIndexes(shiftedSelectionAfterRemoval(removedRows), notify: false)
+        clickedRow = shiftedRowAfterRemoval(row: clickedRow, removedRows: removedRows) ?? -1
+    }
+
+    public func moveRow(at oldIndex: Int, to newIndex: Int) {
+        guard oldIndex >= 0, oldIndex < numberOfRows, newIndex >= 0, newIndex < numberOfRows, oldIndex != newIndex else {
+            return
+        }
+
+        recacheRowViews { movedRow(row: $0, from: oldIndex, to: newIndex) }
+        recacheCellViews { movedRow(row: $0, from: oldIndex, to: newIndex) }
+        setSelectedRowIndexes(movedSelection(from: oldIndex, to: newIndex), notify: false)
+        clickedRow = clickedRow >= 0 ? movedRow(row: clickedRow, from: oldIndex, to: newIndex) : clickedRow
+    }
     public func setDropRow(_ row: Int, dropOperation: DropOperation) {}
     public func registerForDraggedTypes(_ types: [NSPasteboard.PasteboardType]) {}
     public func enumerateAvailableRowViews(_ block: (NSTableRowView, Int) -> Void) {
@@ -3058,6 +3092,97 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
         let delegateHeight = delegate?.tableView(self, heightOfRow: row) ?? 0
         let height = delegateHeight > 0 ? delegateHeight : rowHeight
         return NSRect(x: x, y: y, width: tableColumns[column].width, height: height)
+    }
+
+    private func validInsertionRows(from rowIndexes: IndexSet) -> IndexSet {
+        var validRows = IndexSet()
+        for row in rowIndexes {
+            guard row >= 0, row <= numberOfRows + validRows.count else { continue }
+            validRows.insert(row)
+        }
+        return validRows
+    }
+
+    private func existingRows(from rowIndexes: IndexSet) -> IndexSet {
+        var rows = IndexSet()
+        for row in rowIndexes where row >= 0 && row < numberOfRows {
+            rows.insert(row)
+        }
+        return rows
+    }
+
+    private func recacheRowViews(_ transform: (Int) -> Int?) {
+        let oldRowViews = cachedRowViews
+        cachedRowViews.removeAll()
+        for (row, rowView) in oldRowViews {
+            guard let nextRow = transform(row) else { continue }
+            cachedRowViews[nextRow] = rowView
+        }
+    }
+
+    private func recacheCellViews(_ transform: (Int) -> Int?) {
+        let oldCellViews = cachedCellViews
+        cachedCellViews.removeAll()
+        for (key, view) in oldCellViews {
+            guard let nextRow = transform(key.row) else { continue }
+            cachedCellViews[CellKey(column: key.column, row: nextRow)] = view
+        }
+    }
+
+    private func shiftedRowAfterInsertion(row: Int, insertedRows: IndexSet) -> Int {
+        var shiftedRow = row
+        for insertedRow in insertedRows where insertedRow <= shiftedRow {
+            shiftedRow += 1
+        }
+        return shiftedRow
+    }
+
+    private func shiftedRowAfterRemoval(row: Int, removedRows: IndexSet) -> Int? {
+        guard row >= 0, !removedRows.contains(row) else { return nil }
+        var shiftedRow = row
+        for removedRow in removedRows where removedRow < row {
+            shiftedRow -= 1
+        }
+        return shiftedRow
+    }
+
+    private func movedRow(row: Int, from oldIndex: Int, to newIndex: Int) -> Int {
+        if row == oldIndex {
+            return newIndex
+        }
+        if oldIndex < newIndex, row > oldIndex, row <= newIndex {
+            return row - 1
+        }
+        if newIndex < oldIndex, row >= newIndex, row < oldIndex {
+            return row + 1
+        }
+        return row
+    }
+
+    private func shiftedSelectionAfterInsertion(_ insertedRows: IndexSet) -> IndexSet {
+        var shiftedSelection = IndexSet()
+        for row in selectedRowIndexes {
+            shiftedSelection.insert(shiftedRowAfterInsertion(row: row, insertedRows: insertedRows))
+        }
+        return clampedRowIndexes(shiftedSelection)
+    }
+
+    private func shiftedSelectionAfterRemoval(_ removedRows: IndexSet) -> IndexSet {
+        var shiftedSelection = IndexSet()
+        for row in selectedRowIndexes {
+            if let shiftedRow = shiftedRowAfterRemoval(row: row, removedRows: removedRows) {
+                shiftedSelection.insert(shiftedRow)
+            }
+        }
+        return clampedRowIndexes(shiftedSelection)
+    }
+
+    private func movedSelection(from oldIndex: Int, to newIndex: Int) -> IndexSet {
+        var shiftedSelection = IndexSet()
+        for row in selectedRowIndexes {
+            shiftedSelection.insert(movedRow(row: row, from: oldIndex, to: newIndex))
+        }
+        return clampedRowIndexes(shiftedSelection)
     }
 
     private func clampedRowIndexes(_ rowIndexes: IndexSet) -> IndexSet {
