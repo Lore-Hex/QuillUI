@@ -2235,8 +2235,13 @@ extern "C" int quill_enchanted_qt_run_app_json(
     conversationActions->setContentsMargins(0, 0, 0, 0);
     const int conversationActionsSpacing = styleInt(style, "conversationActionsSpacing");
     conversationActions->setSpacing(conversationActionsSpacing);
-    QPushButton *deleteButton = new QPushButton(payloadString(payload, "deleteChatTitle"));
+    const QString deleteChatTitle = payloadString(payload, "deleteChatTitle");
+    QPushButton *deleteButton = new QPushButton(deleteChatTitle);
     deleteButton->setObjectName(QStringLiteral("secondaryButton"));
+    deleteButton->setAccessibleName(deleteChatTitle);
+    deleteButton->setAccessibleDescription(deleteChatTitle);
+    deleteButton->setToolTip(deleteChatTitle);
+    deleteButton->setStatusTip(deleteChatTitle);
     const QString clearAllTitle = payloadString(payload, "clearAllTitle");
     QPushButton *clearAllButton = new QPushButton();
     clearAllButton->setObjectName(QStringLiteral("secondaryButton"));
