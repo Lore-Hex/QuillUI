@@ -13,17 +13,20 @@ import UniformTypeIdentifiers
 struct ConversationSD: Identifiable, Hashable, Sendable {
     var id: String
     var title: String
+    var lastMessage: String
     var updatedAt = Date()
 
-    init(id: String = UUID().uuidString, title: String, updatedAt: Date = Date()) {
+    init(id: String = UUID().uuidString, title: String, updatedAt: Date = Date(), lastMessage: String = "") {
         self.id = id
         self.title = title
+        self.lastMessage = lastMessage
         self.updatedAt = updatedAt
     }
 
     init(_ conversation: ConversationSummary) {
         self.id = conversation.id
         self.title = conversation.title
+        self.lastMessage = conversation.lastMessage
         self.updatedAt = conversation.updatedAt
     }
 
@@ -430,7 +433,7 @@ struct SidebarView: View {
 
     private var historyItems: [QuillConversationHistoryItem] {
         conversations.map {
-            QuillConversationHistoryItem(id: $0.id, title: $0.title, updatedAt: $0.updatedAt)
+            QuillConversationHistoryItem(id: $0.id, title: $0.title, updatedAt: $0.updatedAt, lastMessage: $0.lastMessage)
         }
     }
 }

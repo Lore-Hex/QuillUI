@@ -697,6 +697,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedUpstreamSlice/main.swift"),
             encoding: .utf8
         )
+        let controlsSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/Controls.swift"),
+            encoding: .utf8
+        )
         let upstreamMacOSChat = try String(
             contentsOf: root.appendingPathComponent(".upstream/enchanted/Enchanted/UI/macOS/Chat/ChatView_macOS.swift"),
             encoding: .utf8
@@ -1967,6 +1971,11 @@ struct CoreContractMatrixTests {
         expectContains(upstreamSlice, ".accessibilityLabel(messageAccessibilityLabel(message))")
         expectContains(upstreamSlice, ".accessibilityValue(message.content)")
         expectContains(upstreamSlice, ".accessibilityElement(children: .combine)")
+        expectContains(upstreamSlice, "self.lastMessage = conversation.lastMessage")
+        expectContains(upstreamSlice, "lastMessage: $0.lastMessage")
+        expectContains(controlsSource, ".accessibilityLabel(item.title)")
+        expectContains(controlsSource, ".accessibilityValue(item.lastMessage)")
+        expectContains(controlsSource, ".help(accessibilitySummary(for: item))")
         expectContains(macOSRootView, ".background(model.isLoading ? QuillColors.warning : QuillColors.primary)")
         expectContains(macOSRootView, ".dropDestination(for: URL.self)")
         expectContains(macOSRootView, "guard selectedModelSupportsImages else { return false }")

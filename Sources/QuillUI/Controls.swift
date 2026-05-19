@@ -299,11 +299,13 @@ public struct QuillPromptGrid: View {
 public struct QuillConversationHistoryItem: Identifiable, Hashable, Sendable {
     public var id: String
     public var title: String
+    public var lastMessage: String
     public var updatedAt: Date
 
-    public init(id: String, title: String, updatedAt: Date) {
+    public init(id: String, title: String, updatedAt: Date, lastMessage: String = "") {
         self.id = id
         self.title = title
+        self.lastMessage = lastMessage
         self.updatedAt = updatedAt
     }
 }
@@ -385,6 +387,10 @@ public struct QuillConversationHistoryList: View {
                             .background(isSelected ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
                             .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
                             .contentShape(Rectangle())
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel(item.title)
+                            .accessibilityValue(item.lastMessage)
+                            .help(accessibilitySummary(for: item))
                             .onTapGesture { onSelect(item) }
                         }
 
@@ -451,6 +457,12 @@ public struct QuillConversationHistoryList: View {
         default:
             return "\(days) days ago"
         }
+    }
+
+    private func accessibilitySummary(for item: QuillConversationHistoryItem) -> String {
+        let lastMessage = item.lastMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !lastMessage.isEmpty else { return item.title }
+        return "\(item.title). \(lastMessage)"
     }
 }
 

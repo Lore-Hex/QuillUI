@@ -2888,6 +2888,29 @@ struct SourceHygieneTests {
         #expect(!promptGrid.contains("#if os(Linux)\n        ZStack"))
     }
 
+    @Test("QuillConversationHistoryList mirrors Enchanted row accessibility")
+    func quillConversationHistoryListMirrorsEnchantedRowAccessibility() throws {
+        let controls = try packageSource("Sources/QuillUI/Controls.swift")
+        let upstreamSlice = try packageSource("Sources/QuillEnchantedUpstreamSlice/main.swift")
+        guard let historyStart = controls.range(of: "public struct QuillConversationHistoryItem: Identifiable"),
+              let nextSection = controls.range(of: "public struct QuillSidebarNavigationAction: Identifiable") else {
+            Issue.record("Unable to locate QuillConversationHistoryList source")
+            return
+        }
+
+        let historyList = String(controls[historyStart.lowerBound..<nextSection.lowerBound])
+        #expect(historyList.contains("public var lastMessage: String"))
+        #expect(historyList.contains("lastMessage: String = \"\""))
+        #expect(historyList.contains(".accessibilityElement(children: .combine)"))
+        #expect(historyList.contains(".accessibilityLabel(item.title)"))
+        #expect(historyList.contains(".accessibilityValue(item.lastMessage)"))
+        #expect(historyList.contains(".help(accessibilitySummary(for: item))"))
+        #expect(historyList.contains("let lastMessage = item.lastMessage.trimmingCharacters(in: .whitespacesAndNewlines)"))
+        #expect(upstreamSlice.contains("var lastMessage: String"))
+        #expect(upstreamSlice.contains("self.lastMessage = conversation.lastMessage"))
+        #expect(upstreamSlice.contains("lastMessage: $0.lastMessage"))
+    }
+
     @Test("QuillSidebarNavigationButton uses native image symbols")
     func quillSidebarNavigationButtonUsesNativeImageSymbols() throws {
         let controls = try packageSource("Sources/QuillUI/Controls.swift")
