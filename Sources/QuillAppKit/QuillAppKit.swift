@@ -984,14 +984,62 @@ private extension NSPasteboard {
 }
 
 open class NSPasteboardItem: NSObject, @unchecked Sendable {
+    private var storedStrings: [NSPasteboard.PasteboardType: String] = [:]
+    private var storedData: [NSPasteboard.PasteboardType: Data] = [:]
+    private var storedPropertyLists: [NSPasteboard.PasteboardType: Any] = [:]
+    private var orderedTypes: [NSPasteboard.PasteboardType] = []
+
     public override init() {}
-    public func setString(_ s: String, forType: NSPasteboard.PasteboardType) -> Bool { true }
-    public func string(forType: NSPasteboard.PasteboardType) -> String? { nil }
-    public func setData(_ d: Data, forType: NSPasteboard.PasteboardType) -> Bool { true }
-    public func data(forType: NSPasteboard.PasteboardType) -> Data? { nil }
-    public func setPropertyList(_ p: Any, forType: NSPasteboard.PasteboardType) -> Bool { true }
-    public func propertyList(forType: NSPasteboard.PasteboardType) -> Any? { nil }
-    public var types: [NSPasteboard.PasteboardType] = []
+
+    @discardableResult
+    public func setString(_ s: String, forType type: NSPasteboard.PasteboardType) -> Bool {
+        _remember(type)
+        storedStrings[type] = s
+        storedData[type] = Data(s.utf8)
+        storedPropertyLists[type] = s
+        return true
+    }
+
+    public func string(forType type: NSPasteboard.PasteboardType) -> String? {
+        if let string = storedStrings[type] { return string }
+        return storedData[type].flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    @discardableResult
+    public func setData(_ d: Data, forType type: NSPasteboard.PasteboardType) -> Bool {
+        _remember(type)
+        storedData[type] = d
+        storedStrings[type] = String(data: d, encoding: .utf8)
+        return true
+    }
+
+    public func data(forType type: NSPasteboard.PasteboardType) -> Data? {
+        if let data = storedData[type] { return data }
+        return storedStrings[type].map { Data($0.utf8) }
+    }
+
+    @discardableResult
+    public func setPropertyList(_ p: Any, forType type: NSPasteboard.PasteboardType) -> Bool {
+        _remember(type)
+        storedPropertyLists[type] = p
+        if let string = p as? String {
+            storedStrings[type] = string
+            storedData[type] = Data(string.utf8)
+        }
+        return true
+    }
+
+    public func propertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
+        storedPropertyLists[type]
+    }
+
+    public var types: [NSPasteboard.PasteboardType] { orderedTypes }
+
+    private func _remember(_ type: NSPasteboard.PasteboardType) {
+        if !orderedTypes.contains(type) {
+            orderedTypes.append(type)
+        }
+    }
 }
 
 public protocol NSPasteboardWriting {}

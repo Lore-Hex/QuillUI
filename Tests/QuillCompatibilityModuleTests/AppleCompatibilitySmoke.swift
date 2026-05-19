@@ -16,6 +16,10 @@ import os
 enum AppleCompatibilitySmoke {
     struct AppleServiceResult {
         var pasteboardString: String?
+        var pasteboardItemString: String?
+        var pasteboardItemDataRoundTrip: Bool
+        var pasteboardItemPropertyListRoundTrip: Bool
+        var pasteboardItemTypesRoundTrip: Bool
         var uiPasteboardString: String?
         var imagesRoundTrip: Bool
         var speechStopSucceeded: Bool
@@ -54,6 +58,11 @@ enum AppleCompatibilitySmoke {
         NSPasteboard.general.setString("hello", forType: .string)
         let pasteboardString = NSPasteboard.general.string(forType: .string)
 
+        let pasteboardItem = NSPasteboardItem()
+        pasteboardItem.setString("item text", forType: .string)
+        pasteboardItem.setData(Data([0x89, 0x50, 0x4E, 0x47]), forType: .png)
+        pasteboardItem.setPropertyList("item title", forType: .html)
+
         let imageData = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==")!
         let nsImageTIFF = NSImage(data: imageData)?.tiffRepresentation
         let nsImageTranscoded = nsImageTIFF.map { data in
@@ -87,6 +96,10 @@ enum AppleCompatibilitySmoke {
 
         return AppleServiceResult(
             pasteboardString: pasteboardString,
+            pasteboardItemString: pasteboardItem.string(forType: .string),
+            pasteboardItemDataRoundTrip: pasteboardItem.data(forType: .png) == Data([0x89, 0x50, 0x4E, 0x47]),
+            pasteboardItemPropertyListRoundTrip: pasteboardItem.propertyList(forType: .html) as? String == "item title",
+            pasteboardItemTypesRoundTrip: pasteboardItem.types == [.string, .png, .html],
             uiPasteboardString: UIPasteboard.general.string,
             imagesRoundTrip: imagesRoundTrip,
             speechStopSucceeded: synthesizer.stopSpeaking(at: .immediate),
