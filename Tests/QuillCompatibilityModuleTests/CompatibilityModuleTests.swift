@@ -270,6 +270,18 @@ struct CompatibilityModuleTests {
         #expect(result.openDocumentCreatesAndReusesDocument)
     }
 
+    @Test("AppKit undo managers maintain action stacks")
+    func appKitUndoManagersMaintainActionStacks() {
+        let result = AppleCompatibilitySmoke.runAppKitUndoSmoke()
+
+        #expect(result.singleActionUndoRedoRoundTrip)
+        #expect(result.actionNamesRoundTrip)
+        #expect(result.disablingRegistrationBlocksActions)
+        #expect(result.targetRemovalClearsActions)
+        #expect(result.groupedActionsUndoTogether)
+        #expect(result.groupedActionsRedoTogether)
+    }
+
     @Test("KeyboardShortcuts persist defaults and user overrides by raw name")
     func keyboardShortcutsPersistDefaultsAndUserOverrides() {
         let defaultShortcut = KeyboardShortcuts.Shortcut(.k, modifiers: [.command, .option])

@@ -163,6 +163,15 @@ enum AppleCompatibilitySmoke {
         var openDocumentCreatesAndReusesDocument: Bool
     }
 
+    struct AppKitUndoResult {
+        var singleActionUndoRedoRoundTrip: Bool
+        var actionNamesRoundTrip: Bool
+        var disablingRegistrationBlocksActions: Bool
+        var targetRemovalClearsActions: Bool
+        var groupedActionsUndoTogether: Bool
+        var groupedActionsRedoTogether: Bool
+    }
+
     struct OSLogResult {
         var operations: Set<String>
         var renderedPublicValue: Bool
@@ -1185,6 +1194,69 @@ enum AppleCompatibilitySmoke {
         )
     }
 
+    static func runAppKitUndoSmoke() -> AppKitUndoResult {
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        let probe = UndoProbe()
+        probe.undoManager = manager
+        probe.setValue(1)
+        manager.setActionName("Change Value")
+        let actionNamesRoundTrip = manager.undoActionName == "Change Value"
+        let registeredAction = manager.canUndo && probe.value == 1
+        manager.undo()
+        let undoneAction = probe.value == 0 && !manager.isUndoing && manager.canRedo
+        manager.redo()
+        let redoneAction = probe.value == 1 && !manager.isRedoing && manager.canUndo
+        let singleActionUndoRedoRoundTrip = registeredAction && undoneAction && redoneAction
+
+        let disabledManager = UndoManager()
+        disabledManager.groupsByEvent = false
+        let disabledProbe = UndoProbe()
+        disabledProbe.undoManager = disabledManager
+        disabledManager.disableUndoRegistration()
+        disabledProbe.setValue(1)
+        let disabledRegistrationBlocked =
+            !disabledManager.isUndoRegistrationEnabled &&
+            !disabledManager.canUndo &&
+            disabledProbe.value == 1
+        disabledManager.enableUndoRegistration()
+        let disablingRegistrationBlocksActions =
+            disabledRegistrationBlocked &&
+            disabledManager.isUndoRegistrationEnabled
+
+        let removalManager = UndoManager()
+        removalManager.groupsByEvent = false
+        let removalProbe = UndoProbe()
+        removalProbe.undoManager = removalManager
+        removalProbe.setValue(2)
+        let removalRegistered = removalManager.canUndo
+        removalManager.removeAllActions(withTarget: removalProbe)
+        let targetRemovalClearsActions = removalRegistered && !removalManager.canUndo
+
+        let groupedManager = UndoManager()
+        groupedManager.groupsByEvent = false
+        let groupedProbe = UndoProbe()
+        groupedProbe.undoManager = groupedManager
+        groupedManager.beginUndoGrouping()
+        groupedProbe.setValue(1)
+        groupedProbe.setValue(2)
+        groupedManager.endUndoGrouping()
+        let groupedRegistered = groupedManager.canUndo && groupedProbe.value == 2
+        groupedManager.undo()
+        let groupedActionsUndoTogether = groupedRegistered && groupedProbe.value == 0 && groupedManager.canRedo
+        groupedManager.redo()
+        let groupedActionsRedoTogether = groupedActionsUndoTogether && groupedProbe.value == 2
+
+        return AppKitUndoResult(
+            singleActionUndoRedoRoundTrip: singleActionUndoRedoRoundTrip,
+            actionNamesRoundTrip: actionNamesRoundTrip,
+            disablingRegistrationBlocksActions: disablingRegistrationBlocksActions,
+            targetRemovalClearsActions: targetRemovalClearsActions,
+            groupedActionsUndoTogether: groupedActionsUndoTogether,
+            groupedActionsRedoTogether: groupedActionsRedoTogether
+        )
+    }
+
     static func runOSLogSmoke() -> OSLogResult {
         QuillCompatibilityDiagnostics.shared.clear()
 
@@ -1198,6 +1270,19 @@ enum AppleCompatibilitySmoke {
             renderedPublicValue: messages.contains("visible"),
             redactedPrivateValue: messages.contains("<private>") && !messages.contains("hidden")
         )
+    }
+}
+
+private final class UndoProbe: NSObject {
+    weak var undoManager: UndoManager?
+    private(set) var value: Int = 0
+
+    func setValue(_ newValue: Int) {
+        let oldValue = value
+        undoManager?.registerUndo(withTarget: self) { probe in
+            probe.setValue(oldValue)
+        }
+        value = newValue
     }
 }
 
