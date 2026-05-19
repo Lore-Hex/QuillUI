@@ -45,6 +45,30 @@ QString styleValue(const QJsonObject &style, const char *key, const char *fallba
     return jsonStyleValue(style, key, fallback);
 }
 
+QString accessibilitySummary(const QString &title, const QString &detail) {
+    if (title.isEmpty()) {
+        return detail;
+    }
+    if (detail.isEmpty()) {
+        return title;
+    }
+    return title + QStringLiteral(". ") + detail;
+}
+
+void applyAccessibleText(QWidget *widget, const QString &name, const QString &description = QString()) {
+    if (widget == nullptr) {
+        return;
+    }
+    const QString summary = description.isEmpty() ? name : description;
+    if (name.isEmpty() && summary.isEmpty()) {
+        return;
+    }
+    widget->setAccessibleName(name.isEmpty() ? summary : name);
+    widget->setAccessibleDescription(summary);
+    widget->setToolTip(summary);
+    widget->setStatusTip(summary);
+}
+
 struct GenericDetailPane {
     QWidget *view;
     QLabel *titleLabel;
@@ -188,19 +212,31 @@ GenericSelection selectionForRow(const QJsonObject &payload, const QJsonArray &i
 }
 
 QFrame *itemRowWidget(const QJsonObject &item) {
+    const QString titleText = stringValue(item, "title", QStringLiteral("Untitled"));
+    const QString subtitleText = stringValue(item, "subtitle");
+    const QString badgeText = stringValue(item, "badge");
+    const QString secondaryText = accessibilitySummary(subtitleText, badgeText);
+    const QString rowSummary = accessibilitySummary(titleText, secondaryText);
+
     QFrame *row = QuillQtWidgets::frame(QStringLiteral("itemRow"));
+    applyAccessibleText(row, titleText, rowSummary);
     QVBoxLayout *layout = new QVBoxLayout(row);
     layout->setContentsMargins(2, 4, 2, 4);
     layout->setSpacing(4);
 
-    QLabel *title = label(stringValue(item, "title", QStringLiteral("Untitled")), QStringLiteral("sectionTitle"));
+    QLabel *title = label(titleText, QStringLiteral("sectionTitle"));
+    applyAccessibleText(title, titleText, rowSummary);
     title->setWordWrap(false);
     layout->addWidget(title);
-    layout->addWidget(label(stringValue(item, "subtitle"), QStringLiteral("itemSubtitle")));
 
-    const QString badge = stringValue(item, "badge");
-    if (!badge.isEmpty()) {
-        layout->addWidget(label(badge, QStringLiteral("badge")));
+    QLabel *subtitle = label(subtitleText, QStringLiteral("itemSubtitle"));
+    applyAccessibleText(subtitle, subtitleText, subtitleText);
+    layout->addWidget(subtitle);
+
+    if (!badgeText.isEmpty()) {
+        QLabel *badge = label(badgeText, QStringLiteral("badge"));
+        applyAccessibleText(badge, badgeText, badgeText);
+        layout->addWidget(badge);
     }
     return row;
 }
@@ -208,6 +244,7 @@ QFrame *itemRowWidget(const QJsonObject &item) {
 QListWidget *listWidget(const QJsonArray &items, int selectedIndex) {
     QListWidget *list = new QListWidget();
     list->setObjectName(QStringLiteral("itemList"));
+    applyAccessibleText(list, QStringLiteral("App items"), QStringLiteral("App items"));
     list->setSpacing(4);
 
     for (const QJsonValue &value : items) {
@@ -226,46 +263,83 @@ QListWidget *listWidget(const QJsonArray &items, int selectedIndex) {
 }
 
 QWidget *sidebarWidget(const QJsonObject &payload, QListWidget *list) {
+    const QString sidebarTitle = stringValue(payload, "sidebarTitle", QStringLiteral("QuillUI"));
+    const QString sidebarSubtitle = stringValue(payload, "sidebarSubtitle", QStringLiteral("Qt backend"));
+    const QString primaryActionTitle = stringValue(payload, "primaryActionTitle", QStringLiteral("New"));
+    const QString secondaryActionTitle = stringValue(payload, "secondaryActionTitle", QStringLiteral("Refresh"));
+    const QString listTitle = stringValue(payload, "listTitle", QStringLiteral("Items"));
+    const QString statusText = stringValue(payload, "status", QStringLiteral("Ready"));
+    const QString sidebarSummary = accessibilitySummary(sidebarTitle, sidebarSubtitle);
+
     QFrame *sidebar = QuillQtWidgets::frame(QStringLiteral("sidebar"));
+    applyAccessibleText(sidebar, sidebarTitle, sidebarSummary);
     QVBoxLayout *layout = new QVBoxLayout(sidebar);
     layout->setContentsMargins(18, 18, 18, 18);
     layout->setSpacing(12);
 
-    layout->addWidget(label(stringValue(payload, "sidebarTitle", QStringLiteral("QuillUI")), QStringLiteral("appTitle")));
-    layout->addWidget(label(stringValue(payload, "sidebarSubtitle", QStringLiteral("Qt backend")), QStringLiteral("subtitle")));
+    QLabel *title = label(sidebarTitle, QStringLiteral("appTitle"));
+    applyAccessibleText(title, sidebarTitle, sidebarSummary);
+    layout->addWidget(title);
+    QLabel *subtitle = label(sidebarSubtitle, QStringLiteral("subtitle"));
+    applyAccessibleText(subtitle, sidebarSubtitle, sidebarSubtitle);
+    layout->addWidget(subtitle);
 
     QHBoxLayout *actions = new QHBoxLayout();
-    QPushButton *primary = new QPushButton(stringValue(payload, "primaryActionTitle", QStringLiteral("New")));
+    QPushButton *primary = new QPushButton(primaryActionTitle);
     primary->setObjectName(QStringLiteral("primaryButton"));
-    QPushButton *secondary = new QPushButton(stringValue(payload, "secondaryActionTitle", QStringLiteral("Refresh")));
+    applyAccessibleText(primary, primaryActionTitle, primaryActionTitle);
+    QPushButton *secondary = new QPushButton(secondaryActionTitle);
     secondary->setObjectName(QStringLiteral("secondaryButton"));
+    applyAccessibleText(secondary, secondaryActionTitle, secondaryActionTitle);
     actions->addWidget(primary);
     actions->addWidget(secondary);
     layout->addLayout(actions);
 
-    layout->addWidget(label(stringValue(payload, "listTitle", QStringLiteral("Items")), QStringLiteral("sectionTitle")));
+    QLabel *listLabel = label(listTitle, QStringLiteral("sectionTitle"));
+    applyAccessibleText(listLabel, listTitle, listTitle);
+    layout->addWidget(listLabel);
     layout->addWidget(list, 1);
-    layout->addWidget(label(stringValue(payload, "status", QStringLiteral("Ready")), QStringLiteral("statusText")));
+    QLabel *status = label(statusText, QStringLiteral("statusText"));
+    applyAccessibleText(status, statusText, statusText);
+    layout->addWidget(status);
     return sidebar;
 }
 
 QFrame *detailCard(const QJsonObject &section, bool active) {
+    const QString titleText = stringValue(section, "title", QStringLiteral("Section"));
+    const QString bodyText = stringValue(section, "body");
+    const QString cardSummary = accessibilitySummary(titleText, bodyText);
+
     QFrame *card = QuillQtWidgets::frame(active ? QStringLiteral("activeCard") : QStringLiteral("card"));
+    applyAccessibleText(card, titleText, cardSummary);
     QVBoxLayout *layout = new QVBoxLayout(card);
     layout->setContentsMargins(16, 14, 16, 14);
     layout->setSpacing(7);
-    layout->addWidget(label(stringValue(section, "title", QStringLiteral("Section")), QStringLiteral("headline")));
-    layout->addWidget(label(stringValue(section, "body"), QStringLiteral("bodyText")));
+    QLabel *title = label(titleText, QStringLiteral("headline"));
+    applyAccessibleText(title, titleText, cardSummary);
+    layout->addWidget(title);
+    QLabel *body = label(bodyText, QStringLiteral("bodyText"));
+    applyAccessibleText(body, bodyText, bodyText);
+    layout->addWidget(body);
     return card;
 }
 
 QFrame *messageCard(const QJsonObject &message) {
+    const QString senderText = stringValue(message, "sender", QStringLiteral("System"));
+    const QString bodyText = stringValue(message, "body");
+    const QString cardSummary = accessibilitySummary(senderText, bodyText);
+
     QFrame *card = QuillQtWidgets::frame(QStringLiteral("messageCard"));
+    applyAccessibleText(card, senderText, cardSummary);
     QVBoxLayout *layout = new QVBoxLayout(card);
     layout->setContentsMargins(14, 10, 14, 10);
     layout->setSpacing(6);
-    layout->addWidget(label(stringValue(message, "sender", QStringLiteral("System")), QStringLiteral("messageMeta")));
-    layout->addWidget(label(stringValue(message, "body"), QStringLiteral("messageText")));
+    QLabel *sender = label(senderText, QStringLiteral("messageMeta"));
+    applyAccessibleText(sender, senderText, cardSummary);
+    layout->addWidget(sender);
+    QLabel *body = label(bodyText, QStringLiteral("messageText"));
+    applyAccessibleText(body, bodyText, bodyText);
+    layout->addWidget(body);
     return card;
 }
 
@@ -282,7 +356,9 @@ void populateDetailContent(
     }
 
     if (!selection.messages.isEmpty()) {
-        layout->addWidget(label(selection.messagesTitle, QStringLiteral("sectionTitle")));
+        QLabel *messagesTitle = label(selection.messagesTitle, QStringLiteral("sectionTitle"));
+        applyAccessibleText(messagesTitle, selection.messagesTitle, selection.messagesTitle);
+        layout->addWidget(messagesTitle);
         for (const QJsonValue &value : selection.messages) {
             layout->addWidget(messageCard(value.toObject()));
         }
@@ -292,8 +368,12 @@ void populateDetailContent(
 }
 
 void applySelection(GenericDetailPane &detailPane, const GenericSelection &selection) {
+    const QString detailSummary = accessibilitySummary(selection.detailTitle, selection.detailSubtitle);
     detailPane.titleLabel->setText(selection.detailTitle);
     detailPane.subtitleLabel->setText(selection.detailSubtitle);
+    applyAccessibleText(detailPane.view, selection.detailTitle, detailSummary);
+    applyAccessibleText(detailPane.titleLabel, selection.detailTitle, detailSummary);
+    applyAccessibleText(detailPane.subtitleLabel, selection.detailSubtitle, selection.detailSubtitle);
     populateDetailContent(detailPane.contentLayout, selection);
 }
 
@@ -304,8 +384,12 @@ GenericDetailPane detailWidget(const QJsonObject &payload, const QJsonArray &ite
     layout->setSpacing(14);
 
     const GenericSelection selection = selectionForRow(payload, items, selectedIndex);
+    const QString detailSummary = accessibilitySummary(selection.detailTitle, selection.detailSubtitle);
+    applyAccessibleText(detail, selection.detailTitle, detailSummary);
     QLabel *title = label(selection.detailTitle, QStringLiteral("detailTitle"));
+    applyAccessibleText(title, selection.detailTitle, detailSummary);
     QLabel *subtitle = label(selection.detailSubtitle, QStringLiteral("caption"));
+    applyAccessibleText(subtitle, selection.detailSubtitle, selection.detailSubtitle);
     layout->addWidget(title);
     layout->addWidget(subtitle);
 
@@ -320,6 +404,7 @@ GenericDetailPane detailWidget(const QJsonObject &payload, const QJsonArray &ite
 
 QWidget *scrollWrapped(QWidget *child) {
     QScrollArea *scroll = new QScrollArea();
+    applyAccessibleText(scroll, child->accessibleName(), child->accessibleDescription());
     scroll->setWidgetResizable(true);
     scroll->setWidget(child);
     return scroll;
@@ -347,7 +432,9 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
 
     QWidget root;
     root.setObjectName(QStringLiteral("genericRoot"));
-    root.setWindowTitle(stringValue(payload, "windowTitle", QStringLiteral("QuillUI Qt")));
+    const QString windowTitle = stringValue(payload, "windowTitle", QStringLiteral("QuillUI Qt"));
+    root.setWindowTitle(windowTitle);
+    applyAccessibleText(&root, windowTitle, windowTitle);
     const QJsonObject style = jsonObjectValue(payload, "style");
     root.setStyleSheet(genericStyleSheet(style));
     const QSize minimumSize = QuillQtWidgets::minimumWindowSize(payload, 900, 620);
