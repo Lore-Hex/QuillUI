@@ -1081,6 +1081,18 @@ struct QuillDataSourceLoweringTests {
             }
         }
 
+        // MARK: - Help / tooltip modifier
+
+        extension HelpView: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let widget = widgetFromOpaque(gtkRenderView(content))
+                gtk_widget_set_tooltip_text(widget, text)
+                return opaqueFromWidget(widget)
+            }
+        }
+
+        // MARK: - Clip Shape GTK extensions
+
         // MARK: - ScrollViewReader + ID GTK extensions
 
         extension IdView: GTKRenderable {
@@ -1284,6 +1296,7 @@ struct QuillDataSourceLoweringTests {
 
         try """
         #include <gtk/gtk.h>
+        #include <fontconfig/fontconfig.h>
 
         void
         gtk_swift_add_gesture(GtkWidget *widget, GtkGesture *gesture) {
@@ -1724,8 +1737,25 @@ struct QuillDataSourceLoweringTests {
         #expect(!patchedNavigation.contains("gtkInstallToolbar(from: detail, on: paned)"))
 
         let patchedSymbols = try String(contentsOf: symbols, encoding: .utf8)
-        #expect(patchedSymbols.contains("\"textformat.abc\""))
-        #expect(patchedSymbols.contains("\"square.fill\""))
+        let expectedGTKSymbols = [
+            "\"arrow.forward.circle.fill\"",
+            "\"doc.on.doc\"",
+            "\"ellipsis.circle\"",
+            "\"folder\"",
+            "\"folder.badge.plus\"",
+            "\"folder.fill\"",
+            "\"gearshape\"",
+            "\"gearshape.fill\"",
+            "\"keyboard.fill\"",
+            "\"paperclip\"",
+            "\"paperplane.fill\"",
+            "\"square.fill\"",
+            "\"textformat.abc\"",
+            "\"waveform\"",
+        ]
+        for symbol in expectedGTKSymbols {
+            #expect(patchedSymbols.contains(symbol), Comment(rawValue: symbol))
+        }
     }
 
     private func runScript(
