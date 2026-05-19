@@ -1921,6 +1921,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "refreshModelsButtonIcon(icons),")
         expectContains(nativeShim, "QStringLiteral(\"refreshButtonIcon\")")
         expectContains(nativeShim, "QStringLiteral(\"refreshButtonText\")")
+        expectContains(nativeShim, "refreshButton->setAccessibleName(refreshModelsTitle);\n    refreshButton->setAccessibleDescription(refreshModelsTitle);\n    refreshButton->setToolTip(refreshModelsTitle);\n    refreshButton->setStatusTip(refreshModelsTitle)")
         expectDoesNotContain(nativeShim, "windowTitle\", QStringLiteral(\"Quill Enchanted\")")
         expectDoesNotContain(nativeShim, "sidebarTitle\", QStringLiteral(\"Enchanted\")")
         expectDoesNotContain(nativeShim, "sidebarSubtitle\", QStringLiteral(\"QuillUI Linux preview\")")

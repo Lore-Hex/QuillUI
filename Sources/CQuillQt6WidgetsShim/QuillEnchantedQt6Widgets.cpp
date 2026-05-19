@@ -2687,6 +2687,10 @@ extern "C" int quill_enchanted_qt_run_app_json(
         "secondaryButtonHorizontalPadding",
         style
     );
+    refreshButton->setAccessibleName(refreshModelsTitle);
+    refreshButton->setAccessibleDescription(refreshModelsTitle);
+    refreshButton->setToolTip(refreshModelsTitle);
+    refreshButton->setStatusTip(refreshModelsTitle);
     refreshButton->setEnabled(!isLoading);
     headerLayout->addWidget(refreshButton, 0, Qt::AlignVCenter);
     chatLayout->addWidget(header);

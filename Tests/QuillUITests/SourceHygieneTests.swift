@@ -1328,6 +1328,7 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("refreshModelsButtonIcon(icons),"))
         #expect(enchantedQtHost.contains("QStringLiteral(\"refreshButtonIcon\")"))
         #expect(enchantedQtHost.contains("QStringLiteral(\"refreshButtonText\")"))
+        #expect(enchantedQtHost.contains("refreshButton->setAccessibleName(refreshModelsTitle);\n    refreshButton->setAccessibleDescription(refreshModelsTitle);\n    refreshButton->setToolTip(refreshModelsTitle);\n    refreshButton->setStatusTip(refreshModelsTitle)"))
         #expect(enchantedQtHost.contains("payloadString(payload, \"completionsPanelSubtitle\")"))
         #expect(enchantedQtHost.contains("payloadString(payload, \"shortcutsPanelSubtitle\")"))
         #expect(enchantedQtHost.contains("payloadString(payload, \"settingsPanelSubtitle\")"))
