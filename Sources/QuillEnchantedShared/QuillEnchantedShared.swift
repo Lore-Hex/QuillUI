@@ -112,6 +112,7 @@ public enum EnchantedIcon {
     public static let shortcuts = "keyboard.fill"
     public static let settings = "gearshape.fill"
     public static let refreshModels = "arrow.clockwise"
+    public static let deleteChat = "trash"
     public static let clearAll = "trash"
     public static let imagePreviewFallback = "photo.fill"
     public static let unavailableModel = "waveform"

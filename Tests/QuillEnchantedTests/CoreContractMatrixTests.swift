@@ -222,6 +222,7 @@ struct CoreContractMatrixTests {
             "shortcuts: EnchantedIcon.shortcuts",
             "settings: EnchantedIcon.settings",
             "refreshModels: EnchantedIcon.refreshModels",
+            "deleteChat: EnchantedIcon.deleteChat",
             "clearAll: EnchantedIcon.clearAll",
             "imagePreviewFallback: EnchantedIcon.imagePreviewFallback",
             "unavailableModel: EnchantedIcon.unavailableModel",
@@ -245,6 +246,7 @@ struct CoreContractMatrixTests {
             "public static let shortcuts = \"keyboard.fill\"",
             "public static let settings = \"gearshape.fill\"",
             "public static let refreshModels = \"arrow.clockwise\"",
+            "public static let deleteChat = \"trash\"",
             "public static let clearAll = \"trash\"",
             "public static let imagePreviewFallback = \"photo.fill\"",
             "public static let unavailableModel = \"waveform\"",
@@ -328,6 +330,7 @@ struct CoreContractMatrixTests {
             "QuillSystemSymbol.compatibleName(systemImage)",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.newConversation))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.refreshModels))",
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.deleteChat))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.clearAll))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.attach))",
             "Image(systemName: enchantedSystemImageName(model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send))",
@@ -349,6 +352,7 @@ struct CoreContractMatrixTests {
             "QIcon attachmentChipIcon(const QJsonObject &icons)",
             "QIcon utilityButtonIcon(const QJsonObject &icons, const char *key)",
             "QIcon refreshModelsButtonIcon(const QJsonObject &icons)",
+            "QIcon deleteChatButtonIcon(const QJsonObject &icons)",
             "QIcon clearAllButtonIcon(const QJsonObject &icons)",
             "QIcon sendButtonIcon(const QJsonObject &icons, bool isLoading)",
             "QIcon removeAttachmentButtonIcon(const QJsonObject &icons)",
@@ -359,6 +363,7 @@ struct CoreContractMatrixTests {
             "systemImageIcon(requiredIconName(icons, \"attachment\"))",
             "systemImageIcon(requiredIconName(icons, key))",
             "systemImageIcon(requiredIconName(icons, \"refreshModels\"))",
+            "systemImageIcon(requiredIconName(icons, \"deleteChat\"))",
             "systemImageIcon(requiredIconName(icons, \"clearAll\"))",
             "systemImageIcon(requiredIconName(icons, \"removeAttachment\"))",
             "QJsonObject icons = payloadObject(payload, \"icons\")",
@@ -1653,8 +1658,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QPushButton#sendButton:disabled { background: %6; color: %7; }")
         expectContains(nativeShim, "QPushButton#secondaryButton { background: transparent; color: %1; border: 1px solid %2; border-radius: %3; padding: %4 %5; text-align: left; }")
         expectContains(nativeShim, "QPushButton#secondaryButton:disabled { color: %6; border: 1px solid %7; }")
-        expectContains(nativeShim, "QLabel#attachButtonIcon, QLabel#attachButtonText, QLabel#utilityButtonIcon, QLabel#utilityButtonText, QLabel#refreshButtonIcon, QLabel#refreshButtonText, QLabel#clearAllButtonIcon, QLabel#clearAllButtonText { color: %1; font-size: %8; }")
-        expectContains(nativeShim, "QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled, QLabel#utilityButtonIcon:disabled, QLabel#utilityButtonText:disabled, QLabel#refreshButtonIcon:disabled, QLabel#refreshButtonText:disabled, QLabel#clearAllButtonIcon:disabled, QLabel#clearAllButtonText:disabled { color: %6; }")
+        expectContains(nativeShim, "QLabel#attachButtonIcon, QLabel#attachButtonText, QLabel#utilityButtonIcon, QLabel#utilityButtonText, QLabel#refreshButtonIcon, QLabel#refreshButtonText, QLabel#deleteButtonIcon, QLabel#deleteButtonText, QLabel#clearAllButtonIcon, QLabel#clearAllButtonText { color: %1; font-size: %8; }")
+        expectContains(nativeShim, "QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled, QLabel#utilityButtonIcon:disabled, QLabel#utilityButtonText:disabled, QLabel#refreshButtonIcon:disabled, QLabel#refreshButtonText:disabled, QLabel#deleteButtonIcon:disabled, QLabel#deleteButtonText:disabled, QLabel#clearAllButtonIcon:disabled, QLabel#clearAllButtonText:disabled { color: %6; }")
         expectContains(nativeShim, "QPushButton#chipRemoveButton { background: transparent; color: %1; border: 0; padding: %2 %3; font-weight: %4; }")
         expectContains(nativeShim, "QPushButton#promptButton { background: %1; color: %2; border: 1px solid %3; border-radius: %4; padding: %5; text-align: left; }")
         expectContains(nativeShim, "QLabel#promptButtonIcon, QLabel#promptButtonText { color: %2; font-size: %6; }")
@@ -1756,11 +1761,10 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QObject::connect(modelPicker, &QComboBox::currentTextChanged, [&](const QString &model) {\n        updateModelPickerAccessibility();\n        const QString updatedModelStatus = modelStatusText(model, chooseLocalModelStatus, usingModelStatusPrefix, usingModelStatusSeparator);")
         expectContains(nativeShim, "payloadString(payload, \"conversationsTitle\")")
         expectContains(nativeShim, "const QString deleteChatTitle = payloadString(payload, \"deleteChatTitle\")")
-        expectContains(nativeShim, "QPushButton *deleteButton = new QPushButton(deleteChatTitle)")
-        expectContains(nativeShim, "deleteButton->setAccessibleName(deleteChatTitle)")
-        expectContains(nativeShim, "deleteButton->setAccessibleDescription(deleteChatTitle)")
-        expectContains(nativeShim, "deleteButton->setToolTip(deleteChatTitle)")
-        expectContains(nativeShim, "deleteButton->setStatusTip(deleteChatTitle)")
+        expectContains(nativeShim, "QPushButton *deleteButton = new QPushButton()")
+        expectContains(nativeShim, "QIcon deleteChatButtonIcon(const QJsonObject &icons)")
+        expectContains(nativeShim, "systemImageIcon(requiredIconName(icons, \"deleteChat\"))")
+        expectContains(nativeShim, "addIconTextButtonContent(\n        deleteButton,\n        deleteChatButtonIcon(icons),\n        deleteChatTitle,\n        QStringLiteral(\"deleteButtonIcon\"),\n        QStringLiteral(\"deleteButtonText\"),\n        \"actionButtonIconSpacing\",")
         expectContains(nativeShim, "const QString clearAllTitle = payloadString(payload, \"clearAllTitle\")")
         expectContains(nativeShim, "QPushButton *clearAllButton = new QPushButton()")
         expectContains(nativeShim, "addIconTextButtonContent(\n        clearAllButton,\n        clearAllButtonIcon(icons),\n        clearAllTitle,\n        QStringLiteral(\"clearAllButtonIcon\"),\n        QStringLiteral(\"clearAllButtonText\"),\n        \"actionButtonIconSpacing\",")
@@ -1783,6 +1787,7 @@ struct CoreContractMatrixTests {
         expectDoesNotContain(nativeShim, "modelLabel\", QStringLiteral(\"Model\")")
         expectDoesNotContain(nativeShim, "conversationsTitle\", QStringLiteral(\"Conversations\")")
         expectDoesNotContain(nativeShim, "deleteChatTitle\", QStringLiteral(\"Delete chat\")")
+        expectDoesNotContain(nativeShim, "new QPushButton(deleteChatTitle)")
         expectDoesNotContain(nativeShim, "completionsTitle\", QStringLiteral(\"Completions\")")
         expectDoesNotContain(nativeShim, "shortcutsTitle\", QStringLiteral(\"Shortcuts\")")
         expectDoesNotContain(nativeShim, "settingsTitle\", QStringLiteral(\"Settings\")")
@@ -1932,7 +1937,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QObject::connect(refreshButton, &QPushButton::clicked")
         expectContains(macOSRootView, "Text(EnchantedCopy.emptyHistoryTitle)")
         expectContains(macOSRootView, "Text(EnchantedCopy.emptyHistorySubtitle)")
-        expectContains(macOSRootView, "Button(EnchantedCopy.deleteChatTitle)")
+        expectContains(macOSRootView, "Image(systemName: enchantedSystemImageName(EnchantedIcon.deleteChat))")
+        expectContains(macOSRootView, "Text(EnchantedCopy.deleteChatTitle)")
         expectContains(macOSRootView, "model.deleteSelectedConversation()")
         expectContains(macOSRootView, "Image(systemName: enchantedSystemImageName(EnchantedIcon.clearAll))")
         expectContains(macOSRootView, "Text(EnchantedCopy.clearAllTitle)")

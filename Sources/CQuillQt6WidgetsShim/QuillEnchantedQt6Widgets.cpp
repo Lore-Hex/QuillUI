@@ -355,6 +355,10 @@ QIcon refreshModelsButtonIcon(const QJsonObject &icons) {
     return systemImageIcon(requiredIconName(icons, "refreshModels"));
 }
 
+QIcon deleteChatButtonIcon(const QJsonObject &icons) {
+    return systemImageIcon(requiredIconName(icons, "deleteChat"));
+}
+
 QIcon clearAllButtonIcon(const QJsonObject &icons) {
     return systemImageIcon(requiredIconName(icons, "clearAll"));
 }
@@ -724,8 +728,8 @@ QString appStyleSheet(const QJsonObject &style) {
     sheet += QStringLiteral(R"(
         QPushButton#secondaryButton { background: transparent; color: %1; border: 1px solid %2; border-radius: %3; padding: %4 %5; text-align: left; }
         QPushButton#secondaryButton:disabled { color: %6; border: 1px solid %7; }
-        QLabel#attachButtonIcon, QLabel#attachButtonText, QLabel#utilityButtonIcon, QLabel#utilityButtonText, QLabel#refreshButtonIcon, QLabel#refreshButtonText, QLabel#clearAllButtonIcon, QLabel#clearAllButtonText { color: %1; font-size: %8; }
-        QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled, QLabel#utilityButtonIcon:disabled, QLabel#utilityButtonText:disabled, QLabel#refreshButtonIcon:disabled, QLabel#refreshButtonText:disabled, QLabel#clearAllButtonIcon:disabled, QLabel#clearAllButtonText:disabled { color: %6; }
+        QLabel#attachButtonIcon, QLabel#attachButtonText, QLabel#utilityButtonIcon, QLabel#utilityButtonText, QLabel#refreshButtonIcon, QLabel#refreshButtonText, QLabel#deleteButtonIcon, QLabel#deleteButtonText, QLabel#clearAllButtonIcon, QLabel#clearAllButtonText { color: %1; font-size: %8; }
+        QLabel#attachButtonIcon:disabled, QLabel#attachButtonText:disabled, QLabel#utilityButtonIcon:disabled, QLabel#utilityButtonText:disabled, QLabel#refreshButtonIcon:disabled, QLabel#refreshButtonText:disabled, QLabel#deleteButtonIcon:disabled, QLabel#deleteButtonText:disabled, QLabel#clearAllButtonIcon:disabled, QLabel#clearAllButtonText:disabled { color: %6; }
     )")
         .arg(ink)
         .arg(controlBorder)
@@ -2302,12 +2306,19 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const int conversationActionsSpacing = styleInt(style, "conversationActionsSpacing");
     conversationActions->setSpacing(conversationActionsSpacing);
     const QString deleteChatTitle = payloadString(payload, "deleteChatTitle");
-    QPushButton *deleteButton = new QPushButton(deleteChatTitle);
+    QPushButton *deleteButton = new QPushButton();
     deleteButton->setObjectName(QStringLiteral("secondaryButton"));
-    deleteButton->setAccessibleName(deleteChatTitle);
-    deleteButton->setAccessibleDescription(deleteChatTitle);
-    deleteButton->setToolTip(deleteChatTitle);
-    deleteButton->setStatusTip(deleteChatTitle);
+    addIconTextButtonContent(
+        deleteButton,
+        deleteChatButtonIcon(icons),
+        deleteChatTitle,
+        QStringLiteral("deleteButtonIcon"),
+        QStringLiteral("deleteButtonText"),
+        "actionButtonIconSpacing",
+        "secondaryButtonVerticalPadding",
+        "secondaryButtonHorizontalPadding",
+        style
+    );
     const QString clearAllTitle = payloadString(payload, "clearAllTitle");
     QPushButton *clearAllButton = new QPushButton();
     clearAllButton->setObjectName(QStringLiteral("secondaryButton"));

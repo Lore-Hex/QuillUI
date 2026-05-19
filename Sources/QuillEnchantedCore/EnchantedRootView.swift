@@ -133,8 +133,13 @@ public struct EnchantedRootView: View {
             }
 
             HStack(spacing: CGFloat(EnchantedVisualMetrics.conversationActionsSpacing)) {
-                Button(EnchantedCopy.deleteChatTitle) {
+                Button {
                     model.deleteSelectedConversation()
+                } label: {
+                    HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
+                        Image(systemName: enchantedSystemImageName(EnchantedIcon.deleteChat))
+                        Text(EnchantedCopy.deleteChatTitle)
+                    }
                 }
                 .disabled(model.selectedConversationID == nil)
                 .accessibilityLabel(EnchantedCopy.deleteChatTitle)
