@@ -2455,10 +2455,67 @@ open class NSTextView: NSText {
     public var drawsBackground: Bool = true
     public weak var delegate: NSTextViewDelegate?
     public var attributedString: NSAttributedString { NSAttributedString(string: string) }
-    public func setSelectedRange(_ r: NSRange) { selectedRange = r }
+    public func setSelectedRange(_ r: NSRange) {
+        selectedRange = clampedTextRange(r)
+        selectedRanges = [NSValue(range: selectedRange)]
+        delegate?.textViewDidChangeSelection(
+            Notification(name: Notification.Name("NSTextViewDidChangeSelectionNotification"), object: self)
+        )
+    }
     public func scrollRangeToVisible(_ r: NSRange) {}
-    public func replaceCharacters(in r: NSRange, with s: String) {}
-    public func insertText(_ s: Any, replacementRange: NSRange) {}
+    public func replaceCharacters(in r: NSRange, with s: String) {
+        let range = clampedTextRange(r)
+        guard delegate?.textView(self, shouldChangeTextIn: range, replacementString: s) ?? true else {
+            return
+        }
+
+        string = (string as NSString).replacingCharacters(in: range, with: s)
+        textStorage?.setAttributedString(NSAttributedString(string: string))
+
+        let replacementLength = (s as NSString).length
+        let insertionLocation = min(range.location + replacementLength, (string as NSString).length)
+        selectedRange = NSRange(location: insertionLocation, length: 0)
+        selectedRanges = [NSValue(range: selectedRange)]
+
+        delegate?.textDidChange(Notification(name: Notification.Name("NSTextDidChangeNotification"), object: self))
+        delegate?.textViewDidChangeSelection(
+            Notification(name: Notification.Name("NSTextViewDidChangeSelectionNotification"), object: self)
+        )
+    }
+    public func replaceCharacters(in r: NSRange, with s: NSAttributedString) {
+        replaceCharacters(in: r, with: s.string)
+    }
+    public func insertText(_ s: Any, replacementRange: NSRange) {
+        let replacement: String
+        if let attributed = s as? NSAttributedString {
+            replacement = attributed.string
+        } else if let string = s as? String {
+            replacement = string
+        } else {
+            replacement = String(describing: s)
+        }
+
+        let range = replacementRange.location == NSNotFound ? selectedRange : replacementRange
+        replaceCharacters(in: range, with: replacement)
+    }
+
+    private func clampedTextRange(_ range: NSRange) -> NSRange {
+        let textLength = (string as NSString).length
+        guard range.location != NSNotFound else {
+            return NSRange(location: textLength, length: 0)
+        }
+
+        let requestedLength = max(0, range.length)
+        let location = max(0, min(range.location, textLength))
+        let requestedEnd: Int
+        if requestedLength > textLength || range.location > Int.max - requestedLength {
+            requestedEnd = textLength
+        } else {
+            requestedEnd = range.location + requestedLength
+        }
+        let end = max(location, min(requestedEnd, textLength))
+        return NSRange(location: location, length: end - location)
+    }
 }
 
 open class NSTextStorage: NSMutableAttributedString {

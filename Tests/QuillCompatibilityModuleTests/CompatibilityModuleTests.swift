@@ -264,6 +264,18 @@ struct CompatibilityModuleTests {
         #expect(result.removeClearedTrackingArea)
     }
 
+    @Test("AppKit text views apply edit APIs and notify delegates")
+    @MainActor
+    func appKitTextViewsApplyEditApisAndNotifyDelegates() {
+        let result = AppleCompatibilitySmoke.runAppKitTextViewEditingSmoke()
+
+        #expect(result.replaceUpdatesStringAndStorage)
+        #expect(result.insertUsesSelectedRange)
+        #expect(result.attributedInsertUsesStringContents)
+        #expect(result.delegateCanVetoChange)
+        #expect(result.delegateReceivesChangeAndSelectionNotifications)
+    }
+
     @Test("AppKit table views maintain rows columns and selection")
     @MainActor
     func appKitTableViewsMaintainRowsColumnsAndSelection() {

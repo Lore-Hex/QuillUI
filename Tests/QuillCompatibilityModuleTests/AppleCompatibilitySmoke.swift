@@ -161,6 +161,14 @@ enum AppleCompatibilitySmoke {
         var removeClearedTrackingArea: Bool
     }
 
+    struct AppKitTextViewEditingResult {
+        var replaceUpdatesStringAndStorage: Bool
+        var insertUsesSelectedRange: Bool
+        var attributedInsertUsesStringContents: Bool
+        var delegateCanVetoChange: Bool
+        var delegateReceivesChangeAndSelectionNotifications: Bool
+    }
+
     struct AppKitTableResult {
         var reloadUpdatedRowCount: Bool
         var columnLookupAndRemoval: Bool
@@ -1234,6 +1242,74 @@ enum AppleCompatibilitySmoke {
     }
 
     @MainActor
+    static func runAppKitTextViewEditingSmoke() -> AppKitTextViewEditingResult {
+        let selectedRangeSentinel = Foundation.NSNotFound
+
+        let replaceView = NSTextView()
+        let replaceDelegate = TextViewDelegateProbe()
+        replaceView.delegate = replaceDelegate
+        replaceView.string = "Hello world"
+        replaceView.replaceCharacters(in: NSRange(location: 0, length: 5), with: "Hi")
+        let replaceUpdatesStringAndStorage =
+            replaceView.string == "Hi world" &&
+            replaceView.textStorage?.string == "Hi world" &&
+            replaceDelegate.shouldChangeRequests == 1 &&
+            replaceDelegate.lastReplacement == "Hi" &&
+            replaceDelegate.changeNotifications == 1 &&
+            replaceDelegate.changedTextView === replaceView
+
+        let insertView = NSTextView()
+        insertView.string = "Hello world"
+        insertView.setSelectedRange(NSRange(location: 6, length: 5))
+        insertView.insertText("Quill", replacementRange: NSRange(location: selectedRangeSentinel, length: 0))
+        let insertUsesSelectedRange =
+            insertView.string == "Hello Quill" &&
+            insertView.selectedRange == NSRange(location: 11, length: 0)
+
+        let attributedInsertView = NSTextView()
+        attributedInsertView.string = "Say "
+        attributedInsertView.setSelectedRange(NSRange(location: 4, length: 0))
+        attributedInsertView.insertText(
+            NSAttributedString(string: "hello"),
+            replacementRange: NSRange(location: selectedRangeSentinel, length: 0)
+        )
+        let attributedInsertUsesStringContents =
+            attributedInsertView.string == "Say hello" &&
+            attributedInsertView.selectedRange == NSRange(location: 9, length: 0)
+
+        let vetoView = NSTextView()
+        let vetoDelegate = TextViewDelegateProbe()
+        vetoDelegate.allowsChanges = false
+        vetoView.delegate = vetoDelegate
+        vetoView.string = "Keep"
+        vetoView.replaceCharacters(in: NSRange(location: 0, length: 4), with: "Drop")
+        let delegateCanVetoChange =
+            vetoView.string == "Keep" &&
+            vetoDelegate.shouldChangeRequests == 1 &&
+            vetoDelegate.changeNotifications == 0
+
+        let callbackView = NSTextView()
+        let callbackDelegate = TextViewDelegateProbe()
+        callbackView.delegate = callbackDelegate
+        callbackView.string = "abcdef"
+        callbackView.setSelectedRange(NSRange(location: 1, length: 3))
+        callbackView.insertText("Z", replacementRange: NSRange(location: selectedRangeSentinel, length: 0))
+        let delegateReceivesChangeAndSelectionNotifications =
+            callbackDelegate.changeNotifications == 1 &&
+            callbackDelegate.selectionNotifications >= 1 &&
+            callbackDelegate.changedTextView === callbackView &&
+            callbackDelegate.selectionTextView === callbackView
+
+        return AppKitTextViewEditingResult(
+            replaceUpdatesStringAndStorage: replaceUpdatesStringAndStorage,
+            insertUsesSelectedRange: insertUsesSelectedRange,
+            attributedInsertUsesStringContents: attributedInsertUsesStringContents,
+            delegateCanVetoChange: delegateCanVetoChange,
+            delegateReceivesChangeAndSelectionNotifications: delegateReceivesChangeAndSelectionNotifications
+        )
+    }
+
+    @MainActor
     static func runAppKitTableSmoke() -> AppKitTableResult {
         let tableView = NSTableView()
         let delegate = TableDelegateProbe()
@@ -1768,6 +1844,32 @@ private final class PopoverDelegateProbe: NSObject, NSPopoverDelegate {
     func popoverShouldClose(_ popover: NSPopover) -> Bool {
         shouldCloseRequests += 1
         return allowsClose
+    }
+}
+
+private final class TextViewDelegateProbe: NSObject, NSTextViewDelegate {
+    var allowsChanges = true
+    var shouldChangeRequests = 0
+    var changeNotifications = 0
+    var selectionNotifications = 0
+    var lastReplacement: String?
+    weak var changedTextView: NSTextView?
+    weak var selectionTextView: NSTextView?
+
+    func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool {
+        shouldChangeRequests += 1
+        lastReplacement = replacementString
+        return allowsChanges
+    }
+
+    func textDidChange(_ notification: Notification) {
+        changeNotifications += 1
+        changedTextView = notification.object as? NSTextView
+    }
+
+    func textViewDidChangeSelection(_ notification: Notification) {
+        selectionNotifications += 1
+        selectionTextView = notification.object as? NSTextView
     }
 }
 
