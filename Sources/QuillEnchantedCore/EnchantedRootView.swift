@@ -179,9 +179,14 @@ public struct EnchantedRootView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         ForEach(model.messages) { message in
-                            MessageBubble(message: message) { message in
-                                model.editMessage(message)
-                            }
+                            MessageBubble(
+                                message: message,
+                                isEditing: message.id == model.editingMessageID,
+                                editMessage: { message in
+                                    model.editMessage(message)
+                                },
+                                cancelEdit: model.cancelMessageEdit
+                            )
                         }
                     }
 
@@ -517,7 +522,9 @@ private struct EmptyConversationView: View {
 
 private struct MessageBubble: View {
     var message: ChatMessage
+    var isEditing: Bool
     var editMessage: (ChatMessage) -> Void
+    var cancelEdit: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleRowSpacing)) {
@@ -542,6 +549,13 @@ private struct MessageBubble: View {
             .frame(maxWidth: CGFloat(EnchantedVisualMetrics.messageMaxWidth), alignment: .leading)
             .background(backgroundColor)
             .cornerRadius(CGFloat(EnchantedVisualMetrics.messageBubbleRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: CGFloat(EnchantedVisualMetrics.messageBubbleRadius))
+                    .stroke(
+                        isEditing ? editingBorderColor : Color.clear,
+                        lineWidth: CGFloat(EnchantedVisualMetrics.messageEditBorderWidth)
+                    )
+            )
             .accessibilityElement(children: .combine)
             .accessibilityLabel(label)
             .accessibilityValue(message.content)
@@ -555,7 +569,18 @@ private struct MessageBubble: View {
                 }
                 if message.role == .user {
                     Button(action: editMessageContent) {
-                        Text(EnchantedCopy.editMessageTitle)
+                        Label(
+                            EnchantedCopy.editMessageTitle,
+                            systemImage: enchantedSystemImageName(EnchantedIcon.editMessage)
+                        )
+                    }
+                    if isEditing {
+                        Button(action: cancelEdit) {
+                            Label(
+                                EnchantedCopy.unselectMessageTitle,
+                                systemImage: enchantedSystemImageName(EnchantedIcon.editMessage)
+                            )
+                        }
                     }
                 }
             }
@@ -603,6 +628,10 @@ private struct MessageBubble: View {
 
     private var textColor: Color {
         message.role == .user ? .white : QuillColors.ink
+    }
+
+    private var editingBorderColor: Color {
+        message.role == .user ? .white : QuillColors.primary
     }
 
     private var accessibilitySummary: String {

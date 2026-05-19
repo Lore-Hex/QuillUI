@@ -228,6 +228,7 @@ struct CoreContractMatrixTests {
             "refreshModels: EnchantedIcon.refreshModels",
             "deleteChat: EnchantedIcon.deleteChat",
             "clearAll: EnchantedIcon.clearAll",
+            "editMessage: EnchantedIcon.editMessage",
             "imagePreviewFallback: EnchantedIcon.imagePreviewFallback",
             "unavailableModel: EnchantedIcon.unavailableModel",
             "send: EnchantedIcon.send",
@@ -257,6 +258,7 @@ struct CoreContractMatrixTests {
             "public static let send = \"arrow.forward.circle.fill\"",
             "public static let stop = \"square.fill\"",
             "public static let copyMessage = \"doc.on.doc\"",
+            "public static let editMessage = \"pencil\"",
             "public static let removeAttachment = \"xmark.circle.fill\""
         ] {
             expectContains(sharedPrompts, needle)
@@ -268,8 +270,10 @@ struct CoreContractMatrixTests {
         #expect(EnchantedIcon.imagePreviewFallback == "photo.fill")
         #expect(EnchantedIcon.unavailableModel == "waveform")
         #expect(EnchantedIcon.copyMessage == "doc.on.doc")
+        #expect(EnchantedIcon.editMessage == "pencil")
         #expect(EnchantedCopy.copyMessageTitle == "Copy")
         #expect(EnchantedCopy.editMessageTitle == "Edit")
+        #expect(EnchantedCopy.unselectMessageTitle == "Unselect")
 
         for needle in [
             "SidebarButton(title: \"Completions\", image: \"textformat.abc\"",
@@ -344,20 +348,29 @@ struct CoreContractMatrixTests {
             "Image(systemName: enchantedSystemImageName(model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.dropTarget))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.attachment))",
-            "Image(systemName: enchantedSystemImageName(EnchantedIcon.removeAttachment))"
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.removeAttachment))",
+            "enchantedSystemImageName(EnchantedIcon.editMessage)"
         ] {
             expectContains(macOSRootView, needle)
         }
 
         for needle in [
-            "MessageBubble(message: message) { message in\n                                model.editMessage(message)\n                            }",
+            "MessageBubble(\n                                message: message,",
+            "isEditing: message.id == model.editingMessageID",
+            "cancelEdit: model.cancelMessageEdit",
+            ".overlay(",
+            "EnchantedVisualMetrics.messageEditBorderWidth",
             ".contextMenu {",
             "Button(action: copyMessageContent)",
             "EnchantedCopy.copyMessageTitle",
             "enchantedSystemImageName(EnchantedIcon.copyMessage)",
             "if message.role == .user {",
             "Button(action: editMessageContent)",
-            "Text(EnchantedCopy.editMessageTitle)",
+            "EnchantedCopy.editMessageTitle",
+            "enchantedSystemImageName(EnchantedIcon.editMessage)",
+            "if isEditing {",
+            "Button(action: cancelEdit)",
+            "EnchantedCopy.unselectMessageTitle",
             "private func copyMessageContent()",
             "EnchantedClipboard.setString(message.content)",
             "private func editMessageContent()",
@@ -369,6 +382,7 @@ struct CoreContractMatrixTests {
         for needle in [
             "@Published public var editingMessageID: String?",
             "public func editMessage(_ message: ChatMessage)",
+            "public func cancelMessageEdit()",
             "guard message.role == .user else { return }",
             "composerText = message.content",
             "editingMessageID = message.id",
@@ -563,7 +577,9 @@ struct CoreContractMatrixTests {
         expectContains(shared, "public static let sidebarSubtitle = \"Local AI conversations\"")
         expectContains(shared, "public static let copyMessageTitle = \"Copy\"")
         expectContains(shared, "public static let editMessageTitle = \"Edit\"")
+        expectContains(shared, "public static let unselectMessageTitle = \"Unselect\"")
         expectContains(shared, "public static let copyMessage = \"doc.on.doc\"")
+        expectContains(shared, "public static let editMessage = \"pencil\"")
         expectDoesNotContain(shared, "Quill Enchanted")
         expectDoesNotContain(shared, "QuillUI Linux preview")
         expectContains(shared, "public static let unreachableOllamaMessage = \"Ollama is unreachable. Go to Settings and update your Ollama API endpoint. \"")
@@ -592,6 +608,7 @@ struct CoreContractMatrixTests {
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.dropTarget))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.attachment))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.removeAttachment))",
+            "enchantedSystemImageName(EnchantedIcon.editMessage)",
             "Image(systemName: enchantedSystemImageName(model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send))",
             "Color(hex: EnchantedPalette.canvasColor)",
             "Color(hex: EnchantedPalette.sidebarColor)",
@@ -636,6 +653,7 @@ struct CoreContractMatrixTests {
             "EnchantedVisualMetrics.messageBubblePadding",
             "EnchantedVisualMetrics.messageBubbleSpacing",
             "EnchantedVisualMetrics.messageBubbleRadius",
+            "EnchantedVisualMetrics.messageEditBorderWidth",
             "EnchantedVisualMetrics.conversationListSpacing",
             "EnchantedVisualMetrics.conversationActionsSpacing",
             "EnchantedVisualMetrics.conversationRowPadding",
@@ -694,8 +712,15 @@ struct CoreContractMatrixTests {
             "Button(action: copyMessageContent)",
             "EnchantedCopy.copyMessageTitle",
             "enchantedSystemImageName(EnchantedIcon.copyMessage)",
+            "Button(action: editMessageContent)",
+            "EnchantedCopy.editMessageTitle",
+            "enchantedSystemImageName(EnchantedIcon.editMessage)",
+            "Button(action: cancelEdit)",
+            "EnchantedCopy.unselectMessageTitle",
             "private func copyMessageContent()",
-            "EnchantedClipboard.setString(message.content)"
+            "EnchantedClipboard.setString(message.content)",
+            "private func editMessageContent()",
+            "editMessage(message)"
         ] {
             expectContains(rootView, needle)
         }
@@ -987,6 +1012,7 @@ struct CoreContractMatrixTests {
         expectContains(runtime, "deleteChatTitle: EnchantedCopy.deleteChatTitle")
         expectContains(runtime, "copyMessageTitle: EnchantedCopy.copyMessageTitle")
         expectContains(runtime, "editMessageTitle: EnchantedCopy.editMessageTitle")
+        expectContains(runtime, "unselectMessageTitle: EnchantedCopy.unselectMessageTitle")
         expectContains(runtime, "clearAllTitle: EnchantedCopy.clearAllTitle")
         expectContains(runtime, "refreshModelsTitle: EnchantedCopy.refreshModelsTitle")
         expectContains(runtime, "completionsTitle: EnchantedCopy.completionsTitle")
@@ -1149,6 +1175,7 @@ struct CoreContractMatrixTests {
         expectContains(runtime, "messageBubblePadding: EnchantedVisualMetrics.messageBubblePadding")
         expectContains(runtime, "messageBubbleSpacing: EnchantedVisualMetrics.messageBubbleSpacing")
         expectContains(runtime, "messageBubbleRadius: EnchantedVisualMetrics.messageBubbleRadius")
+        expectContains(runtime, "messageEditBorderWidth: EnchantedVisualMetrics.messageEditBorderWidth")
         expectContains(runtime, "markdownBlockSpacing: EnchantedVisualMetrics.markdownBlockSpacing")
         expectContains(runtime, "markdownListItemSpacing: EnchantedVisualMetrics.markdownListItemSpacing")
         expectContains(runtime, "markdownNumberWidth: EnchantedVisualMetrics.markdownNumberWidth")
@@ -1312,6 +1339,7 @@ struct CoreContractMatrixTests {
         expectContains(sharedPrompts, "public static let messageBubblePadding = 13")
         expectContains(sharedPrompts, "public static let messageBubbleSpacing = 7")
         expectContains(sharedPrompts, "public static let messageBubbleRadius = 10")
+        expectContains(sharedPrompts, "public static let messageEditBorderWidth = 2")
         expectContains(sharedPrompts, "public static let markdownBlockSpacing = 9")
         expectContains(sharedPrompts, "public static let markdownListItemSpacing = 8")
         expectContains(sharedPrompts, "public static let markdownNumberWidth = 26")
@@ -1412,6 +1440,7 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleSpacing")
         expectContains(macOSRootView, "VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleSpacing))")
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleRadius")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.messageEditBorderWidth")
         expectContains(macOSRootView, "EnchantedVisualMetrics.composerPadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.composerSpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.composerEditorRadius")
@@ -2052,6 +2081,7 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, ".background(isSelected ? QuillColors.primary : QuillColors.card)")
         expectContains(macOSRootView, "EnchantedVisualMetrics.composerEditorRadius")
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleRadius")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.messageEditBorderWidth")
         expectContains(macOSMarkdownRendering, "EnchantedVisualMetrics.markdownBlockSpacing")
         expectContains(macOSMarkdownRendering, "EnchantedVisualMetrics.markdownListItemSpacing")
         expectContains(macOSMarkdownRendering, "EnchantedVisualMetrics.markdownNumberWidth")
@@ -2116,7 +2146,14 @@ struct CoreContractMatrixTests {
             "Button(action: copyMessageContent)",
             "EnchantedCopy.copyMessageTitle",
             "enchantedSystemImageName(EnchantedIcon.copyMessage)",
+            "Button(action: editMessageContent)",
+            "EnchantedCopy.editMessageTitle",
+            "enchantedSystemImageName(EnchantedIcon.editMessage)",
+            "Button(action: cancelEdit)",
+            "EnchantedCopy.unselectMessageTitle",
             "private func copyMessageContent()",
+            "private func editMessageContent()",
+            "editMessage(message)",
             "EnchantedClipboard.setString(message.content)"
         ] {
             expectContains(macOSRootView, needle)

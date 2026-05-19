@@ -27,6 +27,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var deleteChatTitle: String
     var copyMessageTitle: String
     var editMessageTitle: String
+    var unselectMessageTitle: String
     var clearAllTitle: String
     var refreshModelsTitle: String
     var completionsTitle: String
@@ -163,6 +164,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var refreshModels: String
         var deleteChat: String
         var clearAll: String
+        var editMessage: String
         var imagePreviewFallback: String
         var unavailableModel: String
         var send: String
@@ -180,6 +182,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             refreshModels: EnchantedIcon.refreshModels,
             deleteChat: EnchantedIcon.deleteChat,
             clearAll: EnchantedIcon.clearAll,
+            editMessage: EnchantedIcon.editMessage,
             imagePreviewFallback: EnchantedIcon.imagePreviewFallback,
             unavailableModel: EnchantedIcon.unavailableModel,
             send: EnchantedIcon.send,
@@ -270,6 +273,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var messageBubblePadding: Int
         var messageBubbleSpacing: Int
         var messageBubbleRadius: Int
+        var messageEditBorderWidth: Int
         var markdownBlockSpacing: Int
         var markdownListItemSpacing: Int
         var markdownNumberWidth: Int
@@ -342,6 +346,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         deleteChatTitle: EnchantedCopy.deleteChatTitle,
         copyMessageTitle: EnchantedCopy.copyMessageTitle,
         editMessageTitle: EnchantedCopy.editMessageTitle,
+        unselectMessageTitle: EnchantedCopy.unselectMessageTitle,
         clearAllTitle: EnchantedCopy.clearAllTitle,
         refreshModelsTitle: EnchantedCopy.refreshModelsTitle,
         completionsTitle: EnchantedCopy.completionsTitle,
@@ -477,6 +482,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             messageBubblePadding: EnchantedVisualMetrics.messageBubblePadding,
             messageBubbleSpacing: EnchantedVisualMetrics.messageBubbleSpacing,
             messageBubbleRadius: EnchantedVisualMetrics.messageBubbleRadius,
+            messageEditBorderWidth: EnchantedVisualMetrics.messageEditBorderWidth,
             markdownBlockSpacing: EnchantedVisualMetrics.markdownBlockSpacing,
             markdownListItemSpacing: EnchantedVisualMetrics.markdownListItemSpacing,
             markdownNumberWidth: EnchantedVisualMetrics.markdownNumberWidth,

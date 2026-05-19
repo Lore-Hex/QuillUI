@@ -115,6 +115,7 @@ public enum EnchantedIcon {
     public static let deleteChat = "trash"
     public static let clearAll = "trash"
     public static let copyMessage = "doc.on.doc"
+    public static let editMessage = "pencil"
     public static let imagePreviewFallback = "photo.fill"
     public static let unavailableModel = "waveform"
     public static let send = "arrow.forward.circle.fill"
@@ -144,6 +145,7 @@ public enum EnchantedCopy {
     public static let clearAllTitle = "Clear all"
     public static let copyMessageTitle = "Copy"
     public static let editMessageTitle = "Edit"
+    public static let unselectMessageTitle = "Unselect"
     public static let refreshModelsTitle = "Refresh models"
     public static let completionsTitle = "Completions"
     public static let shortcutsTitle = "Shortcuts"
@@ -503,6 +505,7 @@ public enum EnchantedVisualMetrics {
     public static let messageBubblePadding = 13
     public static let messageBubbleSpacing = 7
     public static let messageBubbleRadius = 10
+    public static let messageEditBorderWidth = 2
     public static let markdownBlockSpacing = 9
     public static let markdownListItemSpacing = 8
     public static let markdownNumberWidth = 26

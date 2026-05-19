@@ -131,6 +131,10 @@ public final class EnchantedModel: ObservableObject {
         editingMessageID = message.id
     }
 
+    public func cancelMessageEdit() {
+        editingMessageID = nil
+    }
+
     public func startSend(
         _ prompt: String,
         attachments: [PendingImageAttachment] = [],
