@@ -670,7 +670,9 @@ struct CompatibilityModuleTests {
             ("textformat", "doc.text"),
             ("textformat.abc", "doc.text"),
             ("keyboard", "doc.on.doc"),
-            ("waveform", "ellipsis.circle")
+            ("waveform", "ellipsis.circle"),
+            ("x.circle", "xmark.circle.fill"),
+            ("x.circle.fill", "xmark.circle.fill")
         ]
 
         for (input, expected) in knownMappings {
