@@ -56,6 +56,21 @@ enum AppleCompatibilitySmoke {
         var operations: Set<String>
     }
 
+    struct AppKitMenuResult {
+        var popupSucceeded: Bool
+        var trackingBegan: Bool
+        var rememberedPositioningItem: Bool
+        var rememberedLocation: Bool
+        var rememberedView: Bool
+        var itemMenuBacklinks: Bool
+        var submenuParentLink: Bool
+        var autoValidationDisabledItem: Bool
+        var delegateEvents: Set<String>
+        var trackingEnded: Bool
+        var removedItemClearedMenu: Bool
+        var removeAllClearedMenus: Bool
+    }
+
     struct OSLogResult {
         var operations: Set<String>
         var renderedPublicValue: Bool
@@ -331,6 +346,57 @@ enum AppleCompatibilitySmoke {
         )
     }
 
+    @MainActor
+    static func runAppKitMenuSmoke() -> AppKitMenuResult {
+        let menu = NSMenu(title: "Chat")
+        let copyItem = NSMenuItem(title: "Copy", action: nil, keyEquivalent: "c")
+        let disabledItem = NSMenuItem(title: "Disabled", action: nil, keyEquivalent: "")
+        let validator = MenuItemValidator(enabled: false)
+        disabledItem.target = validator
+
+        menu.addItem(copyItem)
+        menu.addItem(disabledItem)
+        let submenu = NSMenu(title: "Nested")
+        menu.setSubmenu(submenu, for: copyItem)
+
+        let delegate = MenuDelegateProbe()
+        menu.delegate = delegate
+        let anchorView = NSView(frame: NSRect(x: 0, y: 0, width: 64, height: 64))
+        let location = NSPoint(x: 12, y: 34)
+
+        let didShow = menu.popUp(positioning: copyItem, at: location, in: anchorView)
+        let trackingBegan = menu.isTracking
+        let rememberedPositioningItem = menu.lastPopUpPositioningItem === copyItem
+        let rememberedLocation = menu.lastPopUpLocation == location
+        let rememberedView = menu.lastPopUpView === anchorView
+        let itemMenuBacklinks = copyItem.menu === menu && disabledItem.menu === menu
+        let submenuParentLink = submenu.supermenu === menu
+        let autoValidationDisabledItem = !disabledItem.isEnabled
+
+        menu.cancelTracking()
+        let trackingEnded = !menu.isTracking && delegate.events.last == "didClose:Chat"
+
+        menu.removeItem(copyItem)
+        let removedItemClearedMenu = copyItem.menu == nil
+        menu.removeAllItems()
+        let removeAllClearedMenus = disabledItem.menu == nil
+
+        return AppKitMenuResult(
+            popupSucceeded: didShow,
+            trackingBegan: trackingBegan,
+            rememberedPositioningItem: rememberedPositioningItem,
+            rememberedLocation: rememberedLocation,
+            rememberedView: rememberedView,
+            itemMenuBacklinks: itemMenuBacklinks,
+            submenuParentLink: submenuParentLink,
+            autoValidationDisabledItem: autoValidationDisabledItem,
+            delegateEvents: Set(delegate.events),
+            trackingEnded: trackingEnded,
+            removedItemClearedMenu: removedItemClearedMenu,
+            removeAllClearedMenus: removeAllClearedMenus
+        )
+    }
+
     static func runOSLogSmoke() -> OSLogResult {
         QuillCompatibilityDiagnostics.shared.clear()
 
@@ -367,4 +433,43 @@ private struct Evaluator: ServerTrustEvaluating {
 
 private struct CompatibilityResponse: Decodable {
     var value: String
+}
+
+private final class MenuItemValidator: NSObject, NSMenuItemValidation {
+    let enabled: Bool
+
+    init(enabled: Bool) {
+        self.enabled = enabled
+    }
+
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        enabled
+    }
+}
+
+@MainActor
+private final class MenuDelegateProbe: NSObject, NSMenuDelegate {
+    var events: [String] = []
+
+    func menuWillOpen(_ menu: NSMenu) {
+        events.append("willOpen:\(menu.title)")
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        events.append("didClose:\(menu.title)")
+    }
+
+    func numberOfItems(in menu: NSMenu) -> Int {
+        events.append("numberOfItems:\(menu.items.count)")
+        return menu.items.count
+    }
+
+    func menu(_ menu: NSMenu, update item: NSMenuItem, at index: Int, shouldCancel: Bool) -> Bool {
+        events.append("update:\(item.title):\(index):\(shouldCancel)")
+        return false
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        events.append("needsUpdate:\(menu.title)")
+    }
 }

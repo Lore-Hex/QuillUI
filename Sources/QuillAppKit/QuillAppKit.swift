@@ -1499,23 +1499,68 @@ open class NSMenu: NSObject {
     public var minimumWidth: CGFloat = 0
     public var font: NSFont?
     public var allowsContextMenuPlugIns: Bool = true
+    public private(set) var isTracking: Bool = false
+    public private(set) var lastPopUpPositioningItem: NSMenuItem?
+    public private(set) var lastPopUpLocation: NSPoint = .zero
+    public private(set) weak var lastPopUpView: NSView?
 
     public override init() { super.init() }
     public init(title: String) { super.init(); self.title = title }
-    public func addItem(_ i: NSMenuItem) { items.append(i) }
+    public func addItem(_ i: NSMenuItem) {
+        i.menu = self
+        items.append(i)
+    }
     public func addItem(withTitle title: String, action: Selector?, keyEquivalent: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
-        items.append(item)
+        addItem(item)
         return item
     }
-    public func insertItem(_ i: NSMenuItem, at idx: Int) { items.insert(i, at: idx) }
-    public func removeItem(_ i: NSMenuItem) { items.removeAll { $0 === i } }
-    public func removeAllItems() { items.removeAll() }
+    public func insertItem(_ i: NSMenuItem, at idx: Int) {
+        i.menu = self
+        items.insert(i, at: idx)
+    }
+    public func removeItem(_ i: NSMenuItem) {
+        items.removeAll { $0 === i }
+        if i.menu === self { i.menu = nil }
+    }
+    public func removeAllItems() {
+        for item in items where item.menu === self {
+            item.menu = nil
+        }
+        items.removeAll()
+    }
     public func indexOfItem(_ i: NSMenuItem) -> Int { items.firstIndex { $0 === i } ?? -1 }
-    public func setSubmenu(_ menu: NSMenu?, for item: NSMenuItem) { item.submenu = menu }
-    public func popUp(positioning: NSMenuItem?, at: NSPoint, in: NSView?) -> Bool { false }
-    public func cancelTracking() {}
-    public func update() {}
+    public func setSubmenu(_ menu: NSMenu?, for item: NSMenuItem) {
+        item.submenu = menu
+        menu?.supermenu = self
+    }
+    @MainActor
+    public func popUp(positioning item: NSMenuItem?, at location: NSPoint, in view: NSView?) -> Bool {
+        lastPopUpPositioningItem = item
+        lastPopUpLocation = location
+        lastPopUpView = view
+        update()
+        isTracking = true
+        delegate?.menuWillOpen(self)
+        return true
+    }
+    @MainActor
+    public func cancelTracking() {
+        guard isTracking else { return }
+        isTracking = false
+        delegate?.menuDidClose(self)
+    }
+    @MainActor
+    public func update() {
+        _ = delegate?.numberOfItems(in: self)
+        delegate?.menuNeedsUpdate(self)
+        for (index, item) in items.enumerated() {
+            _ = delegate?.menu(self, update: item, at: index, shouldCancel: false)
+            if autoenablesItems, let validator = item.target as? NSMenuItemValidation {
+                item.isEnabled = validator.validateMenuItem(item)
+            }
+        }
+    }
     public static var menuBarVisible: Bool = true
 }
 

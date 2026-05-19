@@ -114,6 +114,31 @@ struct CompatibilityModuleTests {
         ])))
     }
 
+    @Test("AppKit menu popups update delegates and track presentation")
+    @MainActor
+    func appKitMenuPopupsUpdateDelegatesAndTrackPresentation() {
+        let result = AppleCompatibilitySmoke.runAppKitMenuSmoke()
+
+        #expect(result.popupSucceeded)
+        #expect(result.trackingBegan)
+        #expect(result.rememberedPositioningItem)
+        #expect(result.rememberedLocation)
+        #expect(result.rememberedView)
+        #expect(result.itemMenuBacklinks)
+        #expect(result.submenuParentLink)
+        #expect(result.autoValidationDisabledItem)
+        #expect(result.delegateEvents.isSuperset(of: Set([
+            "numberOfItems:2",
+            "needsUpdate:Chat",
+            "update:Copy:0:false",
+            "update:Disabled:1:false",
+            "willOpen:Chat"
+        ])))
+        #expect(result.trackingEnded)
+        #expect(result.removedItemClearedMenu)
+        #expect(result.removeAllClearedMenus)
+    }
+
     @Test("KeyboardShortcuts persist defaults and user overrides by raw name")
     func keyboardShortcutsPersistDefaultsAndUserOverrides() {
         let defaultShortcut = KeyboardShortcuts.Shortcut(.k, modifiers: [.command, .option])
