@@ -2099,6 +2099,7 @@ struct CoreContractMatrixTests {
             "attachmentPath->setAccessibleDescription(attachmentPlaceholder)",
             "attachmentPath->setToolTip(attachmentPlaceholder)",
             "attachmentPath->setStatusTip(attachmentPlaceholder)",
+            "unavailableModelButton->setAccessibleName(modelLabel)",
             "unavailableModelButton->setAccessibleDescription(chooseLocalModelStatus)",
             "unavailableModelButton->setStatusTip(chooseLocalModelStatus)",
             "payloadString(payload, \"attachTitle\")",
@@ -2151,6 +2152,7 @@ struct CoreContractMatrixTests {
         ] {
             expectContains(nativeShim, needle)
         }
+        expectDoesNotContain(nativeShim, "unavailableModelButton->setAccessibleName(chooseLocalModelStatus)")
         expectDoesNotContain(nativeShim, "clearAttachmentsButtonIcon")
         expectDoesNotContain(nativeShim, "QStringLiteral(\"clearAttachmentsButtonIcon\")")
         expectDoesNotContain(nativeShim, "QStringLiteral(\"clearAttachmentsButtonText\")")

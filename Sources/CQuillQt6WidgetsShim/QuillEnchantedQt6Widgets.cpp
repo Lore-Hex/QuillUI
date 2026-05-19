@@ -2548,7 +2548,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     unavailableModelButton->setIcon(unavailableModelButtonIcon(icons));
     applyButtonIconSize(unavailableModelButton, style);
     unavailableModelButton->setToolTip(chooseLocalModelStatus);
-    unavailableModelButton->setAccessibleName(chooseLocalModelStatus);
+    unavailableModelButton->setAccessibleName(modelLabel);
     unavailableModelButton->setAccessibleDescription(chooseLocalModelStatus);
     unavailableModelButton->setStatusTip(chooseLocalModelStatus);
     unavailableModelButton->setEnabled(false);
