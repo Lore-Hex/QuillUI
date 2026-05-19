@@ -328,6 +328,7 @@ struct CoreContractMatrixTests {
             "QuillSystemSymbol.compatibleName(systemImage)",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.newConversation))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.refreshModels))",
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.clearAll))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.attach))",
             "Image(systemName: enchantedSystemImageName(model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.dropTarget))",
@@ -538,6 +539,7 @@ struct CoreContractMatrixTests {
             "QuillSystemSymbol.compatibleName(systemImage)",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.newConversation))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.refreshModels))",
+            "Image(systemName: enchantedSystemImageName(EnchantedIcon.clearAll))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.attach))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.dropTarget))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.attachment))",
@@ -1932,7 +1934,8 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "Text(EnchantedCopy.emptyHistorySubtitle)")
         expectContains(macOSRootView, "Button(EnchantedCopy.deleteChatTitle)")
         expectContains(macOSRootView, "model.deleteSelectedConversation()")
-        expectContains(macOSRootView, "Button(EnchantedCopy.clearAllTitle)")
+        expectContains(macOSRootView, "Image(systemName: enchantedSystemImageName(EnchantedIcon.clearAll))")
+        expectContains(macOSRootView, "Text(EnchantedCopy.clearAllTitle)")
         expectContains(macOSRootView, "model.deleteAllConversations()")
         expectContains(nativeShim, "payloadString(payload, \"clearAllTitle\")")
         expectDoesNotContain(nativeShim, "stringValue(payload, \"clearAllTitle\", QStringLiteral(\"Clear all\"))")

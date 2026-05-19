@@ -140,8 +140,13 @@ public struct EnchantedRootView: View {
                 .accessibilityLabel(EnchantedCopy.deleteChatTitle)
                 .help(EnchantedCopy.deleteChatTitle)
 
-                Button(EnchantedCopy.clearAllTitle) {
+                Button {
                     model.deleteAllConversations()
+                } label: {
+                    HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
+                        Image(systemName: enchantedSystemImageName(EnchantedIcon.clearAll))
+                        Text(EnchantedCopy.clearAllTitle)
+                    }
                 }
                 .disabled(model.conversations.isEmpty)
                 .accessibilityLabel(EnchantedCopy.clearAllTitle)
