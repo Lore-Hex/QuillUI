@@ -1374,6 +1374,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "void addSidebarField(\n    QVBoxLayout *layout,\n    const QString &title,\n    QWidget *field,\n    const QJsonObject &style\n)")
         expectContains(macOSRootView, "VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing))")
         expectContains(nativeShim, "groupLayout->setSpacing(styleInt(style, \"sidebarControlGroupSpacing\"));\n    groupLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft)")
+        expectContains(nativeShim, "field->setAccessibleName(title);\n    field->setAccessibleDescription(title);\n    field->setToolTip(title);\n    field->setStatusTip(title)")
         expectContains(nativeShim, "QString conversationID(const QJsonObject &conversation)")
         expectContains(nativeShim, "QString conversationTitle(const QJsonObject &conversation)")
         expectContains(nativeShim, "QString conversationLastMessage(const QJsonObject &conversation)")

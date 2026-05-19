@@ -1096,6 +1096,7 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("sidebarTitleLayout->setSpacing(styleInt(style, \"sidebarTitleSpacing\"))"))
         #expect(enchantedQtHost.contains("void addSidebarField(\n    QVBoxLayout *layout,\n    const QString &title,\n    QWidget *field,\n    const QJsonObject &style\n)"))
         #expect(enchantedQtHost.contains("groupLayout->setSpacing(styleInt(style, \"sidebarControlGroupSpacing\"))"))
+        #expect(enchantedQtHost.contains("field->setAccessibleName(title);\n    field->setAccessibleDescription(title);\n    field->setToolTip(title);\n    field->setStatusTip(title)"))
         #expect(enchantedQtHost.contains("QFrame *conversationRowWidget("))
         #expect(enchantedQtHost.contains("QString conversationID(const QJsonObject &conversation)"))
         #expect(enchantedQtHost.contains("QString conversationTitle(const QJsonObject &conversation)"))

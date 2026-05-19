@@ -2001,6 +2001,10 @@ void addSidebarField(
     groupLayout->setContentsMargins(0, 0, 0, 0);
     groupLayout->setSpacing(styleInt(style, "sidebarControlGroupSpacing"));
     groupLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    field->setAccessibleName(title);
+    field->setAccessibleDescription(title);
+    field->setToolTip(title);
+    field->setStatusTip(title);
     groupLayout->addWidget(fieldLabel(title));
     groupLayout->addWidget(field);
     layout->addWidget(group);
