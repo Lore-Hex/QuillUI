@@ -25,6 +25,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
     var newConversationButtonTitle: String
     var newConversationTitle: String
     var deleteChatTitle: String
+    var copyMessageTitle: String
     var clearAllTitle: String
     var refreshModelsTitle: String
     var completionsTitle: String
@@ -338,6 +339,7 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         newConversationButtonTitle: EnchantedCopy.newChatTitle,
         newConversationTitle: EnchantedCopy.newConversationTitle,
         deleteChatTitle: EnchantedCopy.deleteChatTitle,
+        copyMessageTitle: EnchantedCopy.copyMessageTitle,
         clearAllTitle: EnchantedCopy.clearAllTitle,
         refreshModelsTitle: EnchantedCopy.refreshModelsTitle,
         completionsTitle: EnchantedCopy.completionsTitle,

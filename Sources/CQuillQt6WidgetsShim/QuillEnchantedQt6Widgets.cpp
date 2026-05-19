@@ -1,10 +1,12 @@
 #include "CQuillQt6WidgetsShim.h"
 #include "QuillQtWidgetsSupport.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QByteArray>
 #include <QColor>
 #include <QComboBox>
+#include <QClipboard>
 #include <QDir>
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
@@ -26,6 +28,7 @@
 #include <QList>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QMenu>
 #include <QMimeData>
 #include <QObject>
 #include <QPainter>
@@ -839,6 +842,50 @@ QString messageContent(const QJsonObject &message) {
     return requiredStringValue(message, "content");
 }
 
+void showMessageCopyMenu(
+    QWidget *anchor,
+    const QPoint &position,
+    const QString &content,
+    const QString &copyMessageTitle
+) {
+    QMenu menu(anchor);
+    QAction *copyAction = menu.addAction(copyMessageTitle);
+    QObject::connect(copyAction, &QAction::triggered, anchor, [content](bool) {
+        if (QClipboard *clipboard = QApplication::clipboard()) {
+            clipboard->setText(content);
+        }
+    });
+    menu.exec(anchor->mapToGlobal(position));
+}
+
+void installMessageCopyMenu(
+    QWidget *widget,
+    const QString &content,
+    const QString &copyMessageTitle
+) {
+    widget->setContextMenuPolicy(Qt::CustomContextMenu);
+    QObject::connect(
+        widget,
+        &QWidget::customContextMenuRequested,
+        widget,
+        [widget, content, copyMessageTitle](const QPoint &position) {
+            showMessageCopyMenu(widget, position, content, copyMessageTitle);
+        }
+    );
+}
+
+void installMessageCopyMenuRecursively(
+    QWidget *widget,
+    const QString &content,
+    const QString &copyMessageTitle
+) {
+    installMessageCopyMenu(widget, content, copyMessageTitle);
+    const QList<QWidget *> children = widget->findChildren<QWidget *>();
+    for (QWidget *child : children) {
+        installMessageCopyMenu(child, content, copyMessageTitle);
+    }
+}
+
 QFrame *conversationRowWidget(
     const QJsonObject &conversation,
     const QJsonObject &style
@@ -1463,7 +1510,8 @@ QFrame *messageBubble(
     const QJsonObject &style,
     const QString &userRoleLabel,
     const QString &assistantRoleLabel,
-    const QString &systemRoleLabel
+    const QString &systemRoleLabel,
+    const QString &copyMessageTitle
 ) {
     const QString role = messageRole(message);
     const QString content = messageContent(message);
@@ -1505,6 +1553,7 @@ QFrame *messageBubble(
     } else {
         layout->addWidget(markdownMessageWidget(content, style));
     }
+    installMessageCopyMenuRecursively(bubble, content, copyMessageTitle);
     return bubble;
 }
 
@@ -1514,7 +1563,8 @@ void addMessageBubble(
     const QJsonObject &style,
     const QString &userRoleLabel,
     const QString &assistantRoleLabel,
-    const QString &systemRoleLabel
+    const QString &systemRoleLabel,
+    const QString &copyMessageTitle
 ) {
     const bool isUser = messageRole(message) == QStringLiteral("user");
     QHBoxLayout *row = new QHBoxLayout();
@@ -1529,7 +1579,8 @@ void addMessageBubble(
         style,
         userRoleLabel,
         assistantRoleLabel,
-        systemRoleLabel
+        systemRoleLabel,
+        copyMessageTitle
     ), 0, Qt::AlignTop);
     if (!isUser) {
         row->addStretch(1);
@@ -1641,7 +1692,8 @@ void renderMessages(
     bool isLoading,
     const QString &userRoleLabel,
     const QString &assistantRoleLabel,
-    const QString &systemRoleLabel
+    const QString &systemRoleLabel,
+    const QString &copyMessageTitle
 ) {
     clearLayout(messageLayout);
     if (messages.isEmpty()) {
@@ -1659,7 +1711,8 @@ void renderMessages(
             style,
             userRoleLabel,
             assistantRoleLabel,
-            systemRoleLabel
+            systemRoleLabel,
+            copyMessageTitle
         );
     }
     if (isLoading) {
@@ -2122,6 +2175,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QString userRoleLabel = payloadString(payload, "userRoleLabel");
     const QString assistantRoleLabel = payloadString(payload, "assistantRoleLabel");
     const QString systemRoleLabel = payloadString(payload, "systemRoleLabel");
+    const QString copyMessageTitle = payloadString(payload, "copyMessageTitle");
     app.setApplicationName(payloadString(payload, "windowTitle"));
     app.setStyleSheet(appStyleSheet(style));
 
@@ -2664,7 +2718,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
             style,
             userRoleLabel,
             assistantRoleLabel,
-            systemRoleLabel
+            systemRoleLabel,
+            copyMessageTitle
         );
         promptEditor->clear();
         scrollTranscriptToBottom();
@@ -2892,7 +2947,8 @@ extern "C" int quill_enchanted_qt_run_app_json(
             isLoading,
             userRoleLabel,
             assistantRoleLabel,
-            systemRoleLabel
+            systemRoleLabel,
+            copyMessageTitle
         );
         showingPromptCards = messages.isEmpty();
         scrollTranscriptToBottom();
