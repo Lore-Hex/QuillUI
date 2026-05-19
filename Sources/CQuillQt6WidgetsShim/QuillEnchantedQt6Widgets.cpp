@@ -64,6 +64,7 @@ using QuillQtWidgets::refreshStyle;
 using QuillQtWidgets::scrollAreaToBottomLater;
 using PromptAction = std::function<void(const QString &)>;
 using MessageEditAction = std::function<void(const QString &, const QString &)>;
+using MessageCancelEditAction = std::function<void()>;
 
 [[noreturn]] void failRequiredPayloadField(const char *key, const char *expectedType) {
     std::fprintf(
@@ -865,7 +866,10 @@ void showMessageContextMenu(
     const QString &content,
     const QString &copyMessageTitle,
     const QString &editMessageTitle,
-    const MessageEditAction &editMessage
+    const QString &unselectMessageTitle,
+    const QString &editingMessageID,
+    const MessageEditAction &editMessage,
+    const MessageCancelEditAction &cancelEdit
 ) {
     QMenu menu(anchor);
     QAction *copyAction = menu.addAction(copyMessageTitle);
@@ -881,6 +885,14 @@ void showMessageContextMenu(
                 editMessage(id, content);
             }
         });
+        if (!editingMessageID.isEmpty() && id == editingMessageID) {
+            QAction *unselectAction = menu.addAction(unselectMessageTitle);
+            QObject::connect(unselectAction, &QAction::triggered, anchor, [cancelEdit](bool) {
+                if (cancelEdit) {
+                    cancelEdit();
+                }
+            });
+        }
     }
     menu.exec(anchor->mapToGlobal(position));
 }
@@ -892,14 +904,28 @@ void installMessageContextMenu(
     const QString &content,
     const QString &copyMessageTitle,
     const QString &editMessageTitle,
-    const MessageEditAction &editMessage
+    const QString &unselectMessageTitle,
+    const QString &editingMessageID,
+    const MessageEditAction &editMessage,
+    const MessageCancelEditAction &cancelEdit
 ) {
     widget->setContextMenuPolicy(Qt::CustomContextMenu);
     QObject::connect(
         widget,
         &QWidget::customContextMenuRequested,
         widget,
-        [widget, id, role, content, copyMessageTitle, editMessageTitle, editMessage](const QPoint &position) {
+        [
+            widget,
+            id,
+            role,
+            content,
+            copyMessageTitle,
+            editMessageTitle,
+            unselectMessageTitle,
+            editingMessageID,
+            editMessage,
+            cancelEdit
+        ](const QPoint &position) {
             showMessageContextMenu(
                 widget,
                 position,
@@ -908,7 +934,10 @@ void installMessageContextMenu(
                 content,
                 copyMessageTitle,
                 editMessageTitle,
-                editMessage
+                unselectMessageTitle,
+                editingMessageID,
+                editMessage,
+                cancelEdit
             );
         }
     );
@@ -921,12 +950,37 @@ void installMessageContextMenuRecursively(
     const QString &content,
     const QString &copyMessageTitle,
     const QString &editMessageTitle,
-    const MessageEditAction &editMessage
+    const QString &unselectMessageTitle,
+    const QString &editingMessageID,
+    const MessageEditAction &editMessage,
+    const MessageCancelEditAction &cancelEdit
 ) {
-    installMessageContextMenu(widget, id, role, content, copyMessageTitle, editMessageTitle, editMessage);
+    installMessageContextMenu(
+        widget,
+        id,
+        role,
+        content,
+        copyMessageTitle,
+        editMessageTitle,
+        unselectMessageTitle,
+        editingMessageID,
+        editMessage,
+        cancelEdit
+    );
     const QList<QWidget *> children = widget->findChildren<QWidget *>();
     for (QWidget *child : children) {
-        installMessageContextMenu(child, id, role, content, copyMessageTitle, editMessageTitle, editMessage);
+        installMessageContextMenu(
+            child,
+            id,
+            role,
+            content,
+            copyMessageTitle,
+            editMessageTitle,
+            unselectMessageTitle,
+            editingMessageID,
+            editMessage,
+            cancelEdit
+        );
     }
 }
 
@@ -1557,8 +1611,10 @@ QFrame *messageBubble(
     const QString &systemRoleLabel,
     const QString &copyMessageTitle,
     const QString &editMessageTitle,
+    const QString &unselectMessageTitle,
     const QString &editingMessageID,
-    const MessageEditAction &editMessage
+    const MessageEditAction &editMessage,
+    const MessageCancelEditAction &cancelEdit
 ) {
     const QString id = messageID(message);
     const QString role = messageRole(message);
@@ -1605,7 +1661,18 @@ QFrame *messageBubble(
     } else {
         layout->addWidget(markdownMessageWidget(content, style));
     }
-    installMessageContextMenuRecursively(bubble, id, role, content, copyMessageTitle, editMessageTitle, editMessage);
+    installMessageContextMenuRecursively(
+        bubble,
+        id,
+        role,
+        content,
+        copyMessageTitle,
+        editMessageTitle,
+        unselectMessageTitle,
+        editingMessageID,
+        editMessage,
+        cancelEdit
+    );
     return bubble;
 }
 
@@ -1618,8 +1685,10 @@ void addMessageBubble(
     const QString &systemRoleLabel,
     const QString &copyMessageTitle,
     const QString &editMessageTitle,
+    const QString &unselectMessageTitle,
     const QString &editingMessageID,
-    const MessageEditAction &editMessage
+    const MessageEditAction &editMessage,
+    const MessageCancelEditAction &cancelEdit
 ) {
     const bool isUser = messageRole(message) == QStringLiteral("user");
     QHBoxLayout *row = new QHBoxLayout();
@@ -1637,8 +1706,10 @@ void addMessageBubble(
         systemRoleLabel,
         copyMessageTitle,
         editMessageTitle,
+        unselectMessageTitle,
         editingMessageID,
-        editMessage
+        editMessage,
+        cancelEdit
     ), 0, Qt::AlignTop);
     if (!isUser) {
         row->addStretch(1);
@@ -1753,8 +1824,10 @@ void renderMessages(
     const QString &systemRoleLabel,
     const QString &copyMessageTitle,
     const QString &editMessageTitle,
+    const QString &unselectMessageTitle,
     const QString &editingMessageID,
-    const MessageEditAction &editMessage
+    const MessageEditAction &editMessage,
+    const MessageCancelEditAction &cancelEdit
 ) {
     clearLayout(messageLayout);
     if (messages.isEmpty()) {
@@ -1775,8 +1848,10 @@ void renderMessages(
             systemRoleLabel,
             copyMessageTitle,
             editMessageTitle,
+            unselectMessageTitle,
             editingMessageID,
-            editMessage
+            editMessage,
+            cancelEdit
         );
     }
     if (isLoading) {
@@ -2241,6 +2316,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QString systemRoleLabel = payloadString(payload, "systemRoleLabel");
     const QString copyMessageTitle = payloadString(payload, "copyMessageTitle");
     const QString editMessageTitle = payloadString(payload, "editMessageTitle");
+    const QString unselectMessageTitle = payloadString(payload, "unselectMessageTitle");
     app.setApplicationName(payloadString(payload, "windowTitle"));
     app.setStyleSheet(appStyleSheet(style));
 
@@ -2807,8 +2883,10 @@ extern "C" int quill_enchanted_qt_run_app_json(
             systemRoleLabel,
             copyMessageTitle,
             editMessageTitle,
+            unselectMessageTitle,
             editingMessageID,
-            editMessage
+            editMessage,
+            clearEditingMessage
         );
         promptEditor->clear();
         scrollTranscriptToBottom();
@@ -3045,8 +3123,10 @@ extern "C" int quill_enchanted_qt_run_app_json(
             systemRoleLabel,
             copyMessageTitle,
             editMessageTitle,
+            unselectMessageTitle,
             editingMessageID,
-            editMessage
+            editMessage,
+            clearEditingMessage
         );
         showingPromptCards = messages.isEmpty();
         scrollTranscriptToBottom();
