@@ -374,6 +374,7 @@ public struct QuillConversationHistoryList: View {
                             HStack(alignment: .top, spacing: 8) {
                                 Circle()
                                     .frame(width: 6, height: 6)
+                                    .foregroundColor(selectedRowTitleColor)
                                     .opacity(isSelected ? 1 : 0)
                                     .padding(.top, selectionIndicatorTopPadding)
 
@@ -381,13 +382,13 @@ public struct QuillConversationHistoryList: View {
                                     Text(item.title)
                                         .font(.system(size: rowFontSize))
                                         .lineLimit(1)
-                                        .foregroundColor(Color(hex: "#3A3A3C"))
+                                        .foregroundColor(isSelected ? selectedRowTitleColor : rowTitleColor)
 
                                     if !lastMessage.isEmpty {
                                         Text(lastMessage)
                                             .font(.system(size: rowPreviewFontSize))
                                             .lineLimit(2)
-                                            .foregroundColor(Color(hex: "#8E8E93"))
+                                            .foregroundColor(isSelected ? selectedRowPreviewColor : rowPreviewColor)
                                     }
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -396,7 +397,7 @@ public struct QuillConversationHistoryList: View {
                             .padding(.vertical, rowVerticalPadding)
                             .frame(minHeight: rowMinHeight, alignment: .leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(isSelected ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+                            .background(isSelected ? selectedRowBackgroundColor : rowBackgroundColor)
                             .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
                             .contentShape(Rectangle())
                             .accessibilityElement(children: .combine)
@@ -446,6 +447,13 @@ public struct QuillConversationHistoryList: View {
     private var dividerTopPadding: CGFloat { 10 }
     private var rowHorizontalPadding: CGFloat { 6 }
     #endif
+
+    private var rowBackgroundColor: Color { Color(hex: "#FFFFFF") }
+    private var selectedRowBackgroundColor: Color { Color(hex: "#4285F4") }
+    private var rowTitleColor: Color { Color(hex: "#1D1D1F") }
+    private var selectedRowTitleColor: Color { Color(hex: "#FFFFFF") }
+    private var rowPreviewColor: Color { Color(hex: "#6E6E73") }
+    private var selectedRowPreviewColor: Color { Color(hex: "#FFFFFF") }
 
     private var sections: [QuillConversationHistorySection] {
         var result: [QuillConversationHistorySection] = []
