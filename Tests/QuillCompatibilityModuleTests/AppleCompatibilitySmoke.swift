@@ -105,6 +105,13 @@ enum AppleCompatibilitySmoke {
         var windowCallbacksReachedSubview: Bool
     }
 
+    struct AppKitTrackingAreaResult {
+        var metadataRoundTripped: Bool
+        var addRecordedTrackingArea: Bool
+        var unknownRemoveIgnored: Bool
+        var removeClearedTrackingArea: Bool
+    }
+
     struct OSLogResult {
         var operations: Set<String>
         var renderedPublicValue: Bool
@@ -633,6 +640,43 @@ enum AppleCompatibilitySmoke {
         )
     }
 
+    @MainActor
+    static func runAppKitTrackingAreaSmoke() -> AppKitTrackingAreaResult {
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 80, height: 40))
+        let owner = TrackingAreaOwnerProbe()
+        let rect = NSRect(x: 4, y: 6, width: 24, height: 16)
+        let area = NSTrackingArea(
+            rect: rect,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: owner,
+            userInfo: ["purpose": "hover"]
+        )
+
+        let metadataRoundTripped =
+            area.rect == rect &&
+            area.options.contains(.mouseEnteredAndExited) &&
+            area.options.contains(.activeAlways) &&
+            (area.owner as AnyObject?) === owner &&
+            (area.userInfo?["purpose"] as? String) == "hover"
+
+        view.addTrackingArea(area)
+        let addRecordedTrackingArea = view.trackingAreas.contains { $0 === area }
+
+        let unknownArea = NSTrackingArea(rect: .zero, options: [.activeAlways], owner: nil, userInfo: nil)
+        view.removeTrackingArea(unknownArea)
+        let unknownRemoveIgnored = view.trackingAreas.contains { $0 === area }
+
+        view.removeTrackingArea(area)
+        let removeClearedTrackingArea = !view.trackingAreas.contains { $0 === area }
+
+        return AppKitTrackingAreaResult(
+            metadataRoundTripped: metadataRoundTripped,
+            addRecordedTrackingArea: addRecordedTrackingArea,
+            unknownRemoveIgnored: unknownRemoveIgnored,
+            removeClearedTrackingArea: removeClearedTrackingArea
+        )
+    }
+
     static func runOSLogSmoke() -> OSLogResult {
         QuillCompatibilityDiagnostics.shared.clear()
 
@@ -757,3 +801,5 @@ private final class ViewHierarchyProbe: NSView {
         events.append("didWindow:\(window != nil)")
     }
 }
+
+private final class TrackingAreaOwnerProbe: NSObject {}

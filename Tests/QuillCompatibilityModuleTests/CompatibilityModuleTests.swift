@@ -184,6 +184,17 @@ struct CompatibilityModuleTests {
         #expect(result.windowCallbacksReachedSubview)
     }
 
+    @Test("AppKit views maintain tracking areas")
+    @MainActor
+    func appKitViewsMaintainTrackingAreas() {
+        let result = AppleCompatibilitySmoke.runAppKitTrackingAreaSmoke()
+
+        #expect(result.metadataRoundTripped)
+        #expect(result.addRecordedTrackingArea)
+        #expect(result.unknownRemoveIgnored)
+        #expect(result.removeClearedTrackingArea)
+    }
+
     @Test("KeyboardShortcuts persist defaults and user overrides by raw name")
     func keyboardShortcutsPersistDefaultsAndUserOverrides() {
         let defaultShortcut = KeyboardShortcuts.Shortcut(.k, modifiers: [.command, .option])

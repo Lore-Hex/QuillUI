@@ -347,8 +347,14 @@ open class NSView: NSResponder {
     open func updateTrackingAreas() {}
     open func resetCursorRects() {}
 
-    public func addTrackingArea(_ a: NSTrackingArea) {}
-    public func removeTrackingArea(_ a: NSTrackingArea) {}
+    public func addTrackingArea(_ a: NSTrackingArea) {
+        guard !trackingAreas.contains(where: { $0 === a }) else { return }
+        trackingAreas.append(a)
+    }
+
+    public func removeTrackingArea(_ a: NSTrackingArea) {
+        trackingAreas.removeAll { $0 === a }
+    }
     public var trackingAreas: [NSTrackingArea] = []
 
     public var enclosingScrollView: NSScrollView? { nil }
@@ -412,7 +418,17 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
         public static let inVisibleRect = Options(rawValue: 1 << 7)
         public static let assumeInside = Options(rawValue: 1 << 8)
     }
-    public init(rect: NSRect, options: Options, owner: Any?, userInfo: [AnyHashable: Any]?) {}
+    public let rect: NSRect
+    public let options: Options
+    public let owner: Any?
+    public let userInfo: [AnyHashable: Any]?
+
+    public init(rect: NSRect, options: Options, owner: Any?, userInfo: [AnyHashable: Any]?) {
+        self.rect = rect
+        self.options = options
+        self.owner = owner
+        self.userInfo = userInfo
+    }
 }
 
 @MainActor open class NSViewController: NSResponder {
