@@ -621,6 +621,18 @@ struct MessageListView: View {
                             .accessibilityValue(message.content)
                             .help(messageAccessibilitySummary(message))
                             .contextMenu {
+#if canImport(SwiftUI)
+                                Button(action: { EnchantedClipboard.setString(message.content) }) {
+                                    Label(
+                                        EnchantedCopy.copyMessageTitle,
+                                        systemImage: QuillSystemSymbol.compatibleName(EnchantedIcon.copyMessage)
+                                    )
+                                }
+#else
+                                MenuItem(EnchantedCopy.copyMessageTitle) {
+                                    EnchantedClipboard.setString(message.content)
+                                }
+#endif
                                 if message.role == "user" {
 #if canImport(SwiftUI)
                                     Button("Edit") {

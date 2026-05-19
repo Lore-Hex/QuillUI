@@ -252,6 +252,7 @@ struct CoreContractMatrixTests {
             "public static let unavailableModel = \"waveform\"",
             "public static let send = \"arrow.forward.circle.fill\"",
             "public static let stop = \"square.fill\"",
+            "public static let copyMessage = \"doc.on.doc\"",
             "public static let removeAttachment = \"xmark.circle.fill\""
         ] {
             expectContains(sharedPrompts, needle)
@@ -262,6 +263,8 @@ struct CoreContractMatrixTests {
         #expect(EnchantedIcon.clearAll == "trash")
         #expect(EnchantedIcon.imagePreviewFallback == "photo.fill")
         #expect(EnchantedIcon.unavailableModel == "waveform")
+        #expect(EnchantedIcon.copyMessage == "doc.on.doc")
+        #expect(EnchantedCopy.copyMessageTitle == "Copy")
 
         for needle in [
             "SidebarButton(title: \"Completions\", image: \"textformat.abc\"",
@@ -337,6 +340,17 @@ struct CoreContractMatrixTests {
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.dropTarget))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.attachment))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.removeAttachment))"
+        ] {
+            expectContains(macOSRootView, needle)
+        }
+
+        for needle in [
+            ".contextMenu {",
+            "Button(action: copyMessageContent)",
+            "EnchantedCopy.copyMessageTitle",
+            "enchantedSystemImageName(EnchantedIcon.copyMessage)",
+            "private func copyMessageContent()",
+            "EnchantedClipboard.setString(message.content)"
         ] {
             expectContains(macOSRootView, needle)
         }
@@ -487,6 +501,7 @@ struct CoreContractMatrixTests {
         let appMain = try packageSource("Sources/QuillEnchanted/main.swift")
         let coreApp = try packageSource("Sources/QuillEnchantedCore/EnchantedApp.swift")
         let rootView = try packageSource("Sources/QuillEnchantedCore/EnchantedRootView.swift")
+        let clipboard = try packageSource("Sources/QuillEnchantedCore/EnchantedClipboard.swift")
         let shared = try packageSource("Sources/QuillEnchantedShared/QuillEnchantedShared.swift")
 
         for needle in [
@@ -521,6 +536,8 @@ struct CoreContractMatrixTests {
         expectContains(shared, "public static let emptyStateTitle = appTitle")
         expectContains(shared, "public static let emptyStateSubtitle = \"\"")
         expectContains(shared, "public static let sidebarSubtitle = \"Local AI conversations\"")
+        expectContains(shared, "public static let copyMessageTitle = \"Copy\"")
+        expectContains(shared, "public static let copyMessage = \"doc.on.doc\"")
         expectDoesNotContain(shared, "Quill Enchanted")
         expectDoesNotContain(shared, "QuillUI Linux preview")
         expectContains(shared, "public static let unreachableOllamaMessage = \"Ollama is unreachable. Go to Settings and update your Ollama API endpoint. \"")
@@ -647,6 +664,24 @@ struct CoreContractMatrixTests {
             expectContains(rootView, needle)
         }
 
+        for needle in [
+            "Button(action: copyMessageContent)",
+            "EnchantedCopy.copyMessageTitle",
+            "enchantedSystemImageName(EnchantedIcon.copyMessage)",
+            "private func copyMessageContent()",
+            "EnchantedClipboard.setString(message.content)"
+        ] {
+            expectContains(rootView, needle)
+        }
+
+        for needle in [
+            "import QuillKit",
+            "public enum EnchantedClipboard",
+            "QuillClipboard.shared.setString(message)"
+        ] {
+            expectContains(clipboard, needle)
+        }
+
         for backendSource in [
             appMain,
             coreApp,
@@ -771,6 +806,10 @@ struct CoreContractMatrixTests {
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedRootView.swift"),
             encoding: .utf8
         )
+        let enchantedClipboardSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedClipboard.swift"),
+            encoding: .utf8
+        )
         let enchantedModelSource = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedModel.swift"),
             encoding: .utf8
@@ -818,7 +857,7 @@ struct CoreContractMatrixTests {
         expectContains(manifest, "name: \"QuillEnchantedData\"")
         expectContains(manifest, "dependencies: [\"QuillData\"]")
         expectContains(manifest, "path: \"Sources/QuillEnchantedData\"")
-        expectContains(manifest, "dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"QuillUI\", \"QuillFoundation\"]")
+        expectContains(manifest, "dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"QuillUI\", \"QuillFoundation\", \"QuillKit\"]")
         expectContains(manifest, "dependencies: [.target(name: \"QuillEnchantedShared\"), \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]")
         expectContains(manifest, "name: \"QuillEnchantedQtNativeRuntime\"")
         expectContains(manifest, "dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]")
@@ -2028,6 +2067,24 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, ".accessibilityLabel(label)")
         expectContains(macOSRootView, ".accessibilityValue(message.content)")
         expectContains(macOSRootView, ".accessibilityElement(children: .combine)")
+        for needle in [
+            "Button(action: copyMessageContent)",
+            "EnchantedCopy.copyMessageTitle",
+            "enchantedSystemImageName(EnchantedIcon.copyMessage)",
+            "private func copyMessageContent()",
+            "EnchantedClipboard.setString(message.content)"
+        ] {
+            expectContains(macOSRootView, needle)
+        }
+
+        for needle in [
+            "import QuillKit",
+            "public enum EnchantedClipboard",
+            "QuillClipboard.shared.setString(message)"
+        ] {
+            expectContains(enchantedClipboardSource, needle)
+        }
+
         expectContains(upstreamSlice, ".accessibilityLabel(EnchantedCopy.modelLabel)")
         expectContains(upstreamSlice, ".accessibilityValue(selectedModel?.name ?? EnchantedCopy.modelLabel)")
         expectContains(upstreamSlice, ".help(selectedModel?.name ?? EnchantedCopy.modelLabel)")
@@ -2042,6 +2099,14 @@ struct CoreContractMatrixTests {
         expectContains(upstreamSlice, ".accessibilityLabel(messageAccessibilityLabel(message))")
         expectContains(upstreamSlice, ".accessibilityValue(message.content)")
         expectContains(upstreamSlice, ".accessibilityElement(children: .combine)")
+        for needle in [
+            "EnchantedClipboard.setString(message.content)",
+            "EnchantedCopy.copyMessageTitle",
+            "QuillSystemSymbol.compatibleName(EnchantedIcon.copyMessage)"
+        ] {
+            expectContains(upstreamSlice, needle)
+        }
+
         expectContains(upstreamSlice, "self.lastMessage = conversation.lastMessage")
         expectContains(upstreamSlice, "lastMessage: $0.lastMessage")
         expectContains(controlsSource, "let lastMessage = lastMessagePreview(for: item)")

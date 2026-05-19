@@ -612,7 +612,7 @@ var targets: [Target] = [
     quillEnchantedDataTarget,
     .target(
         name: "QuillEnchantedCore",
-        dependencies: [.target(name: "QuillEnchantedShared"), "QuillEnchantedData", "QuillUI", "QuillFoundation"],
+        dependencies: [.target(name: "QuillEnchantedShared"), "QuillEnchantedData", "QuillUI", "QuillFoundation", "QuillKit"],
         swiftSettings: appSwiftSettings
     ),
     .executableTarget(

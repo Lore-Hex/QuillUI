@@ -543,12 +543,24 @@ private struct MessageBubble: View {
             .accessibilityLabel(label)
             .accessibilityValue(message.content)
             .help(accessibilitySummary)
+            .contextMenu {
+                Button(action: copyMessageContent) {
+                    Label(
+                        EnchantedCopy.copyMessageTitle,
+                        systemImage: enchantedSystemImageName(EnchantedIcon.copyMessage)
+                    )
+                }
+            }
 
             if message.role != .user {
                 Spacer()
             }
         }
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+    }
+
+    private func copyMessageContent() {
+        EnchantedClipboard.setString(message.content)
     }
 
     private var label: String {
