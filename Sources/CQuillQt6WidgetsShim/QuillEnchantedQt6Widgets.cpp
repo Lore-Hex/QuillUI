@@ -793,7 +793,7 @@ QString appStyleSheet(const QJsonObject &style) {
         QFrame#dropTarget { background: transparent; border: 0; }
         QFrame#dropTarget[dragActive="true"] { background: transparent; border: 0; }
         QFrame#dropTargetHint { background: %1; border: 0; border-radius: %4; }
-        QLabel#dropTargetLabel { color: %2; font-size: %5; }
+        QLabel#dropTargetIcon, QLabel#dropTargetLabel { color: %2; font-size: %5; }
         QSplitter::handle { background: %3; }
     )")
         .arg(dropTarget, primary, divider, dropTargetRadius, captionFontSize);
