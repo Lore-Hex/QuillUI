@@ -3323,12 +3323,12 @@ PY
 
 if ! grep -Fq '"textformat.abc"' "$SYMBOLS"; then
   perl -0pi \
-    -e 's/(        "calendar":\s+"calendar_today",\n)/$1        "character.cursor.ibeam": "text_fields",\n        "checkmark.seal.fill":    "verified",\n        "checkmark.square.fill":  "check_box",\n        "doc.on.doc":             "content_copy",\n        "ellipsis.circle":        "more_horiz",\n        "folder":                 "folder",\n        "folder.badge.plus":      "create_new_folder",\n        "folder.fill":            "folder",\n        "gearshape":              "settings",\n        "gearshape.fill":         "settings",\n        "keyboard":               "keyboard",\n        "keyboard.fill":          "keyboard",\n        "lightbulb":              "lightbulb",\n        "lightbulb.circle":       "lightbulb",\n        "lightbulb.circle.fill":  "lightbulb",\n        "line.3.horizontal":      "menu",\n        "lock.shield":            "shield_lock",\n        "shield.lefthalf.filled": "shield",\n/;' \
+    -e 's/(        "calendar":\s+"calendar_today",\n)/$1        "arrow.clockwise":       "refresh",\n        "character.cursor.ibeam": "text_fields",\n        "checkmark.seal.fill":    "verified",\n        "checkmark.square.fill":  "check_box",\n        "chevron.down":           "expand_more",\n        "doc.on.doc":             "content_copy",\n        "ellipsis.circle":        "more_horiz",\n        "folder":                 "folder",\n        "folder.badge.plus":      "create_new_folder",\n        "folder.fill":            "folder",\n        "gearshape":              "settings",\n        "gearshape.fill":         "settings",\n        "info.circle":            "info",\n        "keyboard":               "keyboard",\n        "keyboard.fill":          "keyboard",\n        "lightbulb":              "lightbulb",\n        "lightbulb.circle":       "lightbulb",\n        "lightbulb.circle.fill":  "lightbulb",\n        "line.3.horizontal":      "menu",\n        "lock.shield":            "shield_lock",\n        "shield.lefthalf.filled": "shield",\n/;' \
     -e 's/(        "pencil":\s+"edit",\n)/$1        "arrow.forward.circle.fill": "arrow_circle_right",\n        "paperclip":             "attach_file",\n        "paperplane.fill":       "send",\n/;' \
-    -e 's/(        "plus.circle.fill":\s+"add_circle",\n)/$1        "photo":                 "image",\n        "photo.fill":            "image",\n/;' \
+    -e 's/(        "plus.circle.fill":\s+"add_circle",\n)/$1        "photo":                 "image",\n        "photo.fill":            "image",\n        "questionmark.circle":    "help_outline",\n/;' \
     -e 's/(        "square.and.arrow.up":\s+"share",\n)/$1        "selection.pin.in.out":  "select_all",\n        "space":                 "space_bar",\n        "sidebar.left":           "view_sidebar",\n        "speaker.slash.fill":    "volume_off",\n        "speaker.wave.2.fill":   "volume_up",\n        "speaker.wave.3":        "volume_up",\n        "speaker.wave.3.fill":   "volume_up",\n/;' \
     -e 's/(        "square.and.pencil":\s+"edit",\n)/$1        "square":                "check_box_outline_blank",\n        "square.fill":           "stop",\n        "stop.fill":             "stop",\n/;' \
-    -e 's/(        "tag.fill":\s+"label",\n)/$1        "sun.max":               "light_mode",\n        "textformat":            "text_fields",\n        "textformat.abc":        "text_fields",\n        "water.waves":           "water",\n        "waveform":              "graphic_eq",\n/;' \
+    -e 's/(        "tag.fill":\s+"label",\n)/$1        "sun.max":               "light_mode",\n        "textformat":            "text_fields",\n        "textformat.abc":        "text_fields",\n        "trash":                 "delete",\n        "water.waves":           "water",\n        "waveform":              "graphic_eq",\n/;' \
     -e 's/(        "xmark.circle.fill":\s+"cancel",\n)/$1        "x.circle.fill":         "cancel",\n        "xmark":                 "cancel",\n/;' \
     "$SYMBOLS"
 fi
@@ -3342,9 +3342,14 @@ path = Path(sys.argv[1])
 text = path.read_text()
 
 required_symbols = [
+    ("arrow.clockwise", "refresh", ["arrow.uturn.clockwise", "calendar"]),
     ("checkmark.seal.fill", "verified", ["checkmark.circle.fill", "checkmark.square.fill", "calendar"]),
+    ("chevron.down", "expand_more", ["chevron.right", "calendar"]),
+    ("info.circle", "info", ["gearshape.fill", "calendar"]),
     ("lock.shield", "shield_lock", ["lock.fill", "lock", "line.3.horizontal", "calendar"]),
+    ("questionmark.circle", "help_outline", ["info.circle", "calendar"]),
     ("shield.lefthalf.filled", "shield", ["lock.shield", "lock.open", "line.3.horizontal", "calendar"]),
+    ("trash", "delete", ["tag.fill", "calendar"]),
 ]
 
 
