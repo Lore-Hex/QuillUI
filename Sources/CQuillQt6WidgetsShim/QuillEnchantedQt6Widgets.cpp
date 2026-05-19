@@ -2763,7 +2763,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     const QString emptyStateSubtitle = payloadString(payload, "emptyStateSubtitle");
     bool showingPromptCards = false;
     QStringList pendingAttachmentPaths;
-    std::function<bool(const QString &, const QString &, const QString &, const QStringList &)> requestHistoryAction;
+    std::function<bool(const QString &, const QString &, const QString &, const QString &, const QStringList &)> requestHistoryAction;
     QString editingMessageID;
     std::function<void()> rerenderCurrentMessages;
     auto clearEditingMessage = [&]() {
@@ -2819,12 +2819,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
             return;
         }
 
+        const QString trimmingMessageID = editingMessageID;
         clearEditingMessage();
         if (requestHistoryAction
             && requestHistoryAction(
                 QStringLiteral("sendMessage"),
                 currentConversationID(conversationList, selectedConversationID),
                 text,
+                trimmingMessageID,
                 QStringList()
             )) {
             promptEditor->clear();
@@ -2846,12 +2848,14 @@ extern "C" int quill_enchanted_qt_run_app_json(
             return;
         }
 
+        const QString trimmingMessageID = editingMessageID;
         clearEditingMessage();
         if (requestHistoryAction
             && requestHistoryAction(
                 QStringLiteral("sendMessage"),
                 currentConversationID(conversationList, selectedConversationID),
                 rawPrompt,
+                trimmingMessageID,
                 pendingAttachmentPaths
             )) {
             promptEditor->clear();
@@ -3117,7 +3121,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         ));
         updateConversationActionState();
     };
-    requestHistoryAction = [&](const QString &actionName, const QString &conversationID, const QString &messageText, const QStringList &attachmentPaths) -> bool {
+    requestHistoryAction = [&](const QString &actionName, const QString &conversationID, const QString &messageText, const QString &trimmingMessageID, const QStringList &attachmentPaths) -> bool {
         QJsonObject action;
         action.insert(QStringLiteral("action"), actionName);
         action.insert(QStringLiteral("endpoint"), endpointField->text().trimmed());
@@ -3132,6 +3136,10 @@ extern "C" int quill_enchanted_qt_run_app_json(
         const QString trimmedMessageText = messageText.trimmed();
         if (!trimmedMessageText.isEmpty()) {
             action.insert(QStringLiteral("messageText"), trimmedMessageText);
+        }
+        const QString trimmedTrimmingMessageID = trimmingMessageID.trimmed();
+        if (!trimmedTrimmingMessageID.isEmpty()) {
+            action.insert(QStringLiteral("trimmingMessageID"), trimmedTrimmingMessageID);
         }
         QJsonArray encodedAttachmentPaths;
         for (const QString &path : attachmentPaths) {
@@ -3174,7 +3182,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
     };
 
     QObject::connect(newConversationButton, &QPushButton::clicked, [&]() {
-        if (requestHistoryAction(QStringLiteral("newConversation"), QString(), QString(), QStringList())) {
+        if (requestHistoryAction(QStringLiteral("newConversation"), QString(), QString(), QString(), QStringList())) {
             return;
         }
 
@@ -3194,7 +3202,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         }
 
         const QString deletedConversationID = currentConversationID(conversationList, selectedConversationID);
-        if (requestHistoryAction(QStringLiteral("deleteConversation"), deletedConversationID, QString(), QStringList())) {
+        if (requestHistoryAction(QStringLiteral("deleteConversation"), deletedConversationID, QString(), QString(), QStringList())) {
             return;
         }
 
@@ -3213,7 +3221,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         updateConversationActionState();
     });
     QObject::connect(clearAllButton, &QPushButton::clicked, [&]() {
-        if (requestHistoryAction(QStringLiteral("deleteAllConversations"), QString(), QString(), QStringList())) {
+        if (requestHistoryAction(QStringLiteral("deleteAllConversations"), QString(), QString(), QString(), QStringList())) {
             return;
         }
 
@@ -3276,6 +3284,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
             QStringLiteral("configureEndpoint"),
             currentConversationID(conversationList, selectedConversationID),
             QString(),
+            QString(),
             QStringList()
         );
     });
@@ -3283,6 +3292,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         requestHistoryAction(
             QStringLiteral("refreshModels"),
             currentConversationID(conversationList, selectedConversationID),
+            QString(),
             QString(),
             QStringList()
         );
@@ -3300,6 +3310,7 @@ extern "C" int quill_enchanted_qt_run_app_json(
         requestHistoryAction(
             QStringLiteral("selectModel"),
             currentConversationID(conversationList, selectedConversationID),
+            QString(),
             QString(),
             QStringList()
         );

@@ -592,6 +592,7 @@ private struct QuillEnchantedQtActionRequest: Decodable {
     var action: String
     var conversationID: String?
     var messageText: String?
+    var trimmingMessageID: String?
     var attachmentPaths: [String]?
     var endpoint: String?
     var selectedModel: String?
@@ -665,6 +666,7 @@ private enum QuillEnchantedQtActionBridge {
                     messageText,
                     attachments: attachments,
                     selectedConversationID: selectedConversationID,
+                    trimmingMessageID: request.trimmingMessageID?.quillTrimmedNonEmpty,
                     endpoint: endpoint,
                     selectedModel: effectiveSelectedModel,
                     context: context
@@ -713,6 +715,7 @@ private enum QuillEnchantedQtActionBridge {
         _ messageText: String,
         attachments: [PendingImageAttachment] = [],
         selectedConversationID: String?,
+        trimmingMessageID: String? = nil,
         endpoint: String,
         selectedModel: String,
         context: EnchantedModelContext
@@ -720,6 +723,9 @@ private enum QuillEnchantedQtActionBridge {
         let prompt = messageText
         let encodedImages = try attachments.map { try $0.base64EncodedContent() }
         let conversationID: String
+        if let trimmingMessageID, let selectedConversationID {
+            try context.deleteMessages(in: selectedConversationID, from: trimmingMessageID)
+        }
         if let selectedConversationID {
             let currentMessages = try context.fetchMessages(for: selectedConversationID)
             if currentMessages.isEmpty {
