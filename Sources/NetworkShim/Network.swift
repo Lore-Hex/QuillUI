@@ -210,8 +210,12 @@ public struct NWInterface: Hashable, Sendable, CustomStringConvertible, CustomDe
     public var debugDescription: String { description }
 }
 
+public class NWProtocolOptions: @unchecked Sendable {
+    init() {}
+}
+
 public enum NWProtocolTCP {
-    public final class Options: @unchecked Sendable {
+    public final class Options: NWProtocolOptions {
         public var noDelay = false
         public var noPush = false
         public var noOptions = false
@@ -228,22 +232,154 @@ public enum NWProtocolTCP {
         public var enableFastOpen = false
         public var disableECN = false
 
-        public init() {}
+        public override init() {
+            super.init()
+        }
+
+        fileprivate func copyForProtocolStack() -> Options {
+            let copy = Options()
+            copy.noDelay = noDelay
+            copy.noPush = noPush
+            copy.noOptions = noOptions
+            copy.enableKeepalive = enableKeepalive
+            copy.keepaliveCount = keepaliveCount
+            copy.keepaliveIdle = keepaliveIdle
+            copy.keepaliveInterval = keepaliveInterval
+            copy.maximumSegmentSize = maximumSegmentSize
+            copy.connectionTimeout = connectionTimeout
+            copy.persistTimeout = persistTimeout
+            copy.connectionDropTime = connectionDropTime
+            copy.retransmitFinDrop = retransmitFinDrop
+            copy.disableAckStretching = disableAckStretching
+            copy.enableFastOpen = enableFastOpen
+            copy.disableECN = disableECN
+            return copy
+        }
     }
 }
 
 public enum NWProtocolUDP {
-    public final class Options: @unchecked Sendable {
+    public final class Options: NWProtocolOptions {
         public var preferNoChecksum = false
 
-        public init() {}
+        public override init() {
+            super.init()
+        }
+
+        fileprivate func copyForProtocolStack() -> Options {
+            let copy = Options()
+            copy.preferNoChecksum = preferNoChecksum
+            return copy
+        }
     }
 }
 
 public enum NWProtocolTLS {
-    public final class Options: @unchecked Sendable {
-        public init() {}
+    public final class Options: NWProtocolOptions {
+        public override init() {
+            super.init()
+        }
+
+        fileprivate func copyForProtocolStack() -> Options {
+            Options()
+        }
     }
+}
+
+public enum NWProtocolIP {
+    public final class Options: NWProtocolOptions {
+        public enum Version: Hashable, Sendable, CustomStringConvertible {
+            case any, v4, v6
+
+            public var description: String {
+                switch self {
+                case .any:
+                    return "any"
+                case .v4:
+                    return "v4"
+                case .v6:
+                    return "v6"
+                }
+            }
+        }
+
+        public enum AddressPreference: Hashable, Sendable, CustomStringConvertible {
+            case `default`, temporary, stable
+
+            public var description: String {
+                switch self {
+                case .default:
+                    return "default"
+                case .temporary:
+                    return "temporary"
+                case .stable:
+                    return "stable"
+                }
+            }
+        }
+
+        public var version: Version = .any
+        public var hopLimit: UInt8 = 0
+        public var useMinimumMTU = false
+        public var disableFragmentation = false
+        public var shouldCalculateReceiveTime = false
+        public var localAddressPreference: AddressPreference = .default
+        public var disableMulticastLoopback = false
+
+        override init() {
+            super.init()
+        }
+
+        fileprivate func copyForProtocolStack() -> Options {
+            let copy = Options()
+            copy.version = version
+            copy.hopLimit = hopLimit
+            copy.useMinimumMTU = useMinimumMTU
+            copy.disableFragmentation = disableFragmentation
+            copy.shouldCalculateReceiveTime = shouldCalculateReceiveTime
+            copy.localAddressPreference = localAddressPreference
+            copy.disableMulticastLoopback = disableMulticastLoopback
+            return copy
+        }
+    }
+
+    public enum ECN: Hashable, Sendable, CustomStringConvertible {
+        case nonECT, ect0, ect1, ce
+
+        public var description: String {
+            switch self {
+            case .nonECT:
+                return "nonECT"
+            case .ect0:
+                return "ect0"
+            case .ect1:
+                return "ect1"
+            case .ce:
+                return "ce"
+            }
+        }
+    }
+}
+
+private func copiedProtocolOption(_ option: NWProtocolOptions?) -> NWProtocolOptions? {
+    switch option {
+    case let options as NWProtocolTCP.Options:
+        return options.copyForProtocolStack()
+    case let options as NWProtocolUDP.Options:
+        return options.copyForProtocolStack()
+    case let options as NWProtocolTLS.Options:
+        return options.copyForProtocolStack()
+    case let options as NWProtocolIP.Options:
+        return options.copyForProtocolStack()
+    case let option?:
+        return option
+    case nil:
+        return nil
+    }
+}
+
+private func copiedProtocolOptions(_ options: [NWProtocolOptions]) -> [NWProtocolOptions] {
+    options.map { copiedProtocolOption($0) ?? $0 }
 }
 
 public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertible {
@@ -344,8 +480,52 @@ public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertib
         case udp
     }
 
+    private final class ProtocolStackStorage {
+        var applicationProtocols: [NWProtocolOptions]
+        var transportProtocol: NWProtocolOptions?
+        var internetProtocol: NWProtocolOptions?
+
+        init(
+            applicationProtocols: [NWProtocolOptions],
+            transportProtocol: NWProtocolOptions?,
+            internetProtocol: NWProtocolOptions?
+        ) {
+            self.applicationProtocols = applicationProtocols
+            self.transportProtocol = transportProtocol
+            self.internetProtocol = internetProtocol
+        }
+    }
+
+    public final class ProtocolStack: @unchecked Sendable {
+        private let storage: ProtocolStackStorage
+
+        fileprivate init(storage: ProtocolStackStorage) {
+            self.storage = storage
+        }
+
+        public var applicationProtocols: [NWProtocolOptions] {
+            get { storage.applicationProtocols }
+            set { storage.applicationProtocols = copiedProtocolOptions(newValue) }
+        }
+
+        public var transportProtocol: NWProtocolOptions? {
+            get { storage.transportProtocol }
+            set { storage.transportProtocol = copiedProtocolOption(newValue) }
+        }
+
+        public var internetProtocol: NWProtocolOptions? {
+            get { storage.internetProtocol }
+            set {
+                if let newValue {
+                    storage.internetProtocol = copiedProtocolOption(newValue)
+                }
+            }
+        }
+    }
+
     private let transport: Transport
     private let usesTLS: Bool
+    private let protocolStackStorage: ProtocolStackStorage
 
     public var requiredInterfaceType: NWInterface.InterfaceType = .other
     private var storedProhibitedInterfaceTypes: [NWInterface.InterfaceType]?
@@ -372,17 +552,48 @@ public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertib
     public var preferNoProxies = false
     public var attribution: Attribution = .developer
 
-    private init(transport: Transport, usesTLS: Bool) {
+    private init(
+        transport: Transport,
+        usesTLS: Bool,
+        transportProtocol: NWProtocolOptions? = nil,
+        applicationProtocols: [NWProtocolOptions] = []
+    ) {
         self.transport = transport
         self.usesTLS = usesTLS
+        let defaultTransport = transportProtocol ?? {
+            switch transport {
+            case .tcp:
+                return NWProtocolTCP.Options()
+            case .udp:
+                return NWProtocolUDP.Options()
+            }
+        }()
+        let defaultApplicationProtocols = usesTLS && applicationProtocols.isEmpty
+            ? [NWProtocolTLS.Options()]
+            : applicationProtocols
+        self.protocolStackStorage = ProtocolStackStorage(
+            applicationProtocols: copiedProtocolOptions(defaultApplicationProtocols),
+            transportProtocol: copiedProtocolOption(defaultTransport),
+            internetProtocol: NWProtocolIP.Options()
+        )
     }
 
     public convenience init(tls: NWProtocolTLS.Options?, tcp: NWProtocolTCP.Options) {
-        self.init(transport: .tcp, usesTLS: tls != nil)
+        self.init(
+            transport: .tcp,
+            usesTLS: tls != nil,
+            transportProtocol: tcp,
+            applicationProtocols: tls.map { [$0] } ?? []
+        )
     }
 
     public convenience init(dtls: NWProtocolTLS.Options?, udp: NWProtocolUDP.Options) {
-        self.init(transport: .udp, usesTLS: dtls != nil)
+        self.init(
+            transport: .udp,
+            usesTLS: dtls != nil,
+            transportProtocol: udp,
+            applicationProtocols: dtls.map { [$0] } ?? []
+        )
     }
 
     public static var tcp: NWParameters {
@@ -399,6 +610,10 @@ public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertib
 
     public static var dtls: NWParameters {
         NWParameters(transport: .udp, usesTLS: true)
+    }
+
+    public var defaultProtocolStack: ProtocolStack {
+        ProtocolStack(storage: protocolStackStorage)
     }
 
     public var debugDescription: String {
