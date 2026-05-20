@@ -82,6 +82,33 @@ final class NetworkEndpointHostParityTests: XCTestCase {
         }
     }
 
+    func testHostValueEqualityAndHashingMatchApple() throws {
+        let ipv4 = try XCTUnwrap(IPv4Address("192.0.2.1"))
+        let ipv6 = try XCTUnwrap(IPv6Address("2001:db8::1"))
+        let ipv4Mapped = try XCTUnwrap(IPv4Address("192.0.2.1"))
+        let ipv4Compatible = try XCTUnwrap(IPv6Address("::192.0.2.1"))
+
+        let equalHosts: [(NWEndpoint.Host, NWEndpoint.Host, String)] = [
+            (NWEndpoint.Host("example.com"), .name("example.com", nil), "DNS name"),
+            (NWEndpoint.Host(""), .name(".", nil), "empty-string DNS root normalization"),
+            (NWEndpoint.Host("192.0.2.1"), .ipv4(ipv4), "IPv4 literal"),
+            (NWEndpoint.Host("2001:db8::1"), .ipv6(ipv6), "IPv6 literal"),
+            (NWEndpoint.Host("::ffff:192.0.2.1"), .ipv4(ipv4Mapped), "IPv4-mapped IPv6 literal"),
+            (NWEndpoint.Host("::192.0.2.1"), .ipv6(ipv4Compatible), "IPv4-compatible IPv6 literal"),
+        ]
+
+        for (lhs, rhs, context) in equalHosts {
+            XCTAssertEqual(lhs, rhs, context)
+            XCTAssertEqual(lhs.hashValue, rhs.hashValue, context)
+        }
+
+        XCTAssertNotEqual(NWEndpoint.Host("example.com"), NWEndpoint.Host("example.org"))
+        XCTAssertNotEqual(NWEndpoint.Host("example.com"), NWEndpoint.Host("Example.com"))
+        XCTAssertNotEqual(NWEndpoint.Host("192.0.2.1"), NWEndpoint.Host("192.0.2.2"))
+        XCTAssertNotEqual(NWEndpoint.Host("::1"), NWEndpoint.Host("::"))
+        XCTAssertNotEqual(NWEndpoint.Host("::ffff:192.0.2.1"), NWEndpoint.Host("::192.0.2.1"))
+    }
+
     func testEndpointValueDescriptionsMatchApple() {
         let literalPort: NWEndpoint.Port = 443
         let cases: [(NWEndpoint, String)] = [
