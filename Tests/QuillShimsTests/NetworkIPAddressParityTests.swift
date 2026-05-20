@@ -1,6 +1,11 @@
 import Foundation
 import Network
 import XCTest
+#if canImport(Glibc)
+import Glibc
+#elseif canImport(Darwin)
+import Darwin
+#endif
 
 final class NetworkIPAddressParityTests: XCTestCase {
     func testIPv4ClassifierEdgeMatrixMatchesApple() throws {
@@ -93,6 +98,57 @@ final class NetworkIPAddressParityTests: XCTestCase {
         XCTAssertNil(IPv6Address(Data(Array(repeating: UInt8(0), count: 17))))
     }
 
+    func testIPAddressEqualityAndHashingMatchApple() throws {
+        let loopbackName = try XCTUnwrap(Self.interfaceName(forIndex: 1))
+
+        let v4FromString = try XCTUnwrap(IPv4Address("192.0.2.1"))
+        let v4FromData = try XCTUnwrap(IPv4Address(Data([192, 0, 2, 1])))
+        let otherV4 = try XCTUnwrap(IPv4Address("192.0.2.2"))
+        let scopedV4ByName = try XCTUnwrap(IPv4Address("192.0.2.1%\(loopbackName)"))
+        let sameScopedV4ByName = try XCTUnwrap(IPv4Address("192.0.2.1%\(loopbackName)"))
+
+        XCTAssertEqual(v4FromString, v4FromData)
+        XCTAssertEqual(v4FromString.hashValue, v4FromData.hashValue)
+        XCTAssertNotEqual(v4FromString, otherV4)
+        XCTAssertEqual(scopedV4ByName, sameScopedV4ByName)
+        XCTAssertEqual(scopedV4ByName.hashValue, sameScopedV4ByName.hashValue)
+        XCTAssertNotEqual(scopedV4ByName, v4FromString)
+
+        let v6Raw = [UInt8]([0x20, 0x01, 0x0d, 0xb8] + Array(repeating: 0, count: 11) + [1])
+        let v6FromString = try XCTUnwrap(IPv6Address("2001:db8::1"))
+        let v6FromData = try XCTUnwrap(IPv6Address(Data(v6Raw)))
+        let otherV6 = try XCTUnwrap(IPv6Address("2001:db8::2"))
+        let scopedV6ByName = try XCTUnwrap(IPv6Address("fe80::1%\(loopbackName)"))
+        let scopedV6ByIndex = try XCTUnwrap(IPv6Address("fe80::1%1"))
+        let unscopedV6 = try XCTUnwrap(IPv6Address("fe80::1"))
+
+        XCTAssertEqual(v6FromString, v6FromData)
+        XCTAssertEqual(v6FromString.hashValue, v6FromData.hashValue)
+        XCTAssertNotEqual(v6FromString, otherV6)
+        XCTAssertEqual(scopedV6ByName, scopedV6ByIndex)
+        XCTAssertEqual(scopedV6ByName.hashValue, scopedV6ByIndex.hashValue)
+        XCTAssertNotEqual(scopedV6ByName, unscopedV6)
+
+        let scopeCases: [(IPv6Address.Scope, UInt8)] = [
+            (.nodeLocal, 1),
+            (.linkLocal, 2),
+            (.siteLocal, 5),
+            (.organizationLocal, 8),
+            (.global, 14),
+        ]
+
+        for (scope, rawValue) in scopeCases {
+            XCTAssertEqual(scope.rawValue, rawValue)
+            let reconstructed = try XCTUnwrap(IPv6Address.Scope(rawValue: rawValue))
+            XCTAssertEqual(scope, reconstructed)
+            XCTAssertEqual(scope.hashValue, reconstructed.hashValue)
+        }
+
+        XCTAssertNotEqual(IPv6Address.Scope.nodeLocal, .linkLocal)
+        XCTAssertNil(IPv6Address.Scope(rawValue: 0))
+        XCTAssertNil(IPv6Address.Scope(rawValue: 15))
+    }
+
     private struct IPv4ClassifierCase {
         let input: String
         let rawValue: [UInt8]
@@ -153,5 +209,15 @@ final class NetworkIPAddressParityTests: XCTestCase {
             self.multicastScope = multicastScope
             self.isUniqueLocal = isUniqueLocal
         }
+    }
+
+    private static func interfaceName(forIndex index: UInt32) -> String? {
+        var buffer = [CChar](repeating: 0, count: 64)
+        let result = buffer.withUnsafeMutableBufferPointer { nameBuffer in
+            if_indextoname(index, nameBuffer.baseAddress)
+        }
+        guard result != nil else { return nil }
+        let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+        return String(decoding: bytes, as: UTF8.self)
     }
 }
