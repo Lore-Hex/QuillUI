@@ -14,6 +14,7 @@ public enum KeychainSwiftAccessOptions: String, Sendable {
 private let keychainSwiftSuccessStatus: Int32 = 0
 private let keychainSwiftParamStatus: Int32 = -50
 private let keychainSwiftItemNotFoundStatus: Int32 = -25300
+private let keychainSwiftInvalidEncodingStatus: Int32 = -67853
 
 private struct KeychainSwiftStorageKey: Hashable {
     var accessGroup: String?
@@ -22,7 +23,8 @@ private struct KeychainSwiftStorageKey: Hashable {
 }
 
 private struct KeychainSwiftStorageValue: Sendable {
-    var value: String
+    var data: Data
+    var reference: Data
     var access: String?
 }
 
@@ -32,21 +34,25 @@ private struct KeychainSwiftStorageValue: Sendable {
 /// and exercise non-sensitive flows under QuillUI. It intentionally does not
 /// claim native secure persistence; `QuillKitCapabilities.secureStorage`
 /// remains unavailable on Linux until a real Secret Service backend is wired.
-public final class KeychainSwift: @unchecked Sendable {
+open class KeychainSwift: @unchecked Sendable {
     private final class Storage: @unchecked Sendable {
         private let lock = NSLock()
         private var values: [KeychainSwiftStorageKey: KeychainSwiftStorageValue] = [:]
 
-        func set(_ value: String, access: String?, forKey key: KeychainSwiftStorageKey) {
+        func set(_ data: Data, access: String?, forKey key: KeychainSwiftStorageKey) {
             lock.lock()
             defer { lock.unlock() }
-            values[key] = KeychainSwiftStorageValue(value: value, access: access)
+            values[key] = KeychainSwiftStorageValue(
+                data: data,
+                reference: referenceData(for: key),
+                access: access
+            )
         }
 
-        func get(_ key: KeychainSwiftStorageKey) -> String? {
+        func get(_ key: KeychainSwiftStorageKey) -> KeychainSwiftStorageValue? {
             lock.lock()
             defer { lock.unlock() }
-            return values[key]?.value
+            return values[key]
         }
 
         func delete(_ key: KeychainSwiftStorageKey) -> Bool {
@@ -55,30 +61,39 @@ public final class KeychainSwift: @unchecked Sendable {
             return values.removeValue(forKey: key) != nil
         }
 
-        func clearNamespace(accessGroup: String?, synchronizable: Bool, prefix: String) {
+        func clearNamespace(accessGroup: String?, synchronizable: Bool) -> Bool {
             lock.lock()
             defer { lock.unlock() }
-            if prefix.isEmpty {
-                values = values.filter { storageKey, _ in
-                    storageKey.accessGroup != accessGroup
-                        || storageKey.synchronizable != synchronizable
-                }
-            } else {
-                values = values.filter { storageKey, _ in
-                    storageKey.accessGroup != accessGroup
-                        || storageKey.synchronizable != synchronizable
-                        || !storageKey.key.hasPrefix(prefix)
-                }
+            let originalCount = values.count
+            values = values.filter { storageKey, _ in
+                storageKey.accessGroup != accessGroup
+                    || storageKey.synchronizable != synchronizable
             }
+            return values.count != originalCount
+        }
+
+        func allKeys(accessGroup: String?, synchronizable: Bool) -> [String] {
+            lock.lock()
+            defer { lock.unlock() }
+            return values.keys
+                .filter { $0.accessGroup == accessGroup && $0.synchronizable == synchronizable }
+                .map(\.key)
+                .sorted()
+        }
+
+        private func referenceData(for key: KeychainSwiftStorageKey) -> Data {
+            let group = key.accessGroup ?? ""
+            let sync = key.synchronizable ? "1" : "0"
+            return Data("keychainswift-ref:\(group):\(sync):\(key.key)".utf8)
         }
     }
 
     private static let storage = Storage()
 
-    private let keyPrefix: String
-    public var accessGroup: String?
-    public var synchronizable: Bool
-    public private(set) var lastResultCode: Int32
+    var keyPrefix = ""
+    open var accessGroup: String?
+    open var synchronizable: Bool
+    open var lastResultCode: Int32
 
     public init(keyPrefix: String = "", accessGroup: String? = nil, synchronizable: Bool = false) {
         self.keyPrefix = keyPrefix
@@ -115,68 +130,71 @@ public final class KeychainSwift: @unchecked Sendable {
     }
 
     @discardableResult
-    public func set(_ value: String, forKey key: String, withAccess: Any? = nil) -> Bool {
+    open func set(_ value: String, forKey key: String, withAccess: Any? = nil) -> Bool {
+        guard let data = value.data(using: .utf8) else {
+            lastResultCode = keychainSwiftParamStatus
+            return false
+        }
+        return set(data, forKey: key, withAccess: withAccess)
+    }
+
+    @discardableResult
+    open func set(_ value: Data, forKey key: String, withAccess: Any? = nil) -> Bool {
         Self.storage.set(value, access: accessValue(from: withAccess), forKey: storageKey(key))
         lastResultCode = keychainSwiftSuccessStatus
         return true
     }
 
     @discardableResult
-    public func set(_ value: Data, forKey key: String, withAccess: Any? = nil) -> Bool {
-        set(value.base64EncodedString(), forKey: key, withAccess: withAccess)
+    open func set(_ value: Bool, forKey key: String, withAccess: Any? = nil) -> Bool {
+        set(Data([value ? 1 : 0]), forKey: key, withAccess: withAccess)
     }
 
-    @discardableResult
-    public func set(_ value: Bool, forKey key: String, withAccess: Any? = nil) -> Bool {
-        set(value ? "true" : "false", forKey: key, withAccess: withAccess)
+    open func get(_ key: String) -> String? {
+        guard let data = getData(key) else {
+            return nil
+        }
+        guard let value = String(data: data, encoding: .utf8) else {
+            lastResultCode = keychainSwiftInvalidEncodingStatus
+            return nil
+        }
+        return value
     }
 
-    public func get(_ key: String) -> String? {
+    open func getData(_ key: String, asReference: Bool = false) -> Data? {
         guard let value = Self.storage.get(storageKey(key)) else {
             lastResultCode = keychainSwiftItemNotFoundStatus
             return nil
         }
         lastResultCode = keychainSwiftSuccessStatus
-        return value
+        return asReference ? value.reference : value.data
     }
 
-    public func getData(_ key: String) -> Data? {
-        guard let s = get(key) else { return nil }
-        guard let data = Data(base64Encoded: s) else {
-            lastResultCode = keychainSwiftParamStatus
+    open func getBool(_ key: String) -> Bool? {
+        guard let data = getData(key), let first = data.first else {
             return nil
         }
-        return data
-    }
-
-    public func getBool(_ key: String) -> Bool? {
-        guard let s = get(key) else { return nil }
-        switch s {
-        case "true":
-            return true
-        case "false":
-            return false
-        default:
-            lastResultCode = keychainSwiftParamStatus
-            return nil
-        }
+        return first == 1
     }
 
     @discardableResult
-    public func delete(_ key: String) -> Bool {
+    open func delete(_ key: String) -> Bool {
         let removed = Self.storage.delete(storageKey(key))
         lastResultCode = removed ? keychainSwiftSuccessStatus : keychainSwiftItemNotFoundStatus
-        return true
+        return removed
     }
 
     @discardableResult
-    public func clear() -> Bool {
-        Self.storage.clearNamespace(
+    open func clear() -> Bool {
+        let removed = Self.storage.clearNamespace(
             accessGroup: accessGroup,
-            synchronizable: synchronizable,
-            prefix: keyPrefix
+            synchronizable: synchronizable
         )
-        lastResultCode = keychainSwiftSuccessStatus
-        return true
+        lastResultCode = removed ? keychainSwiftSuccessStatus : keychainSwiftItemNotFoundStatus
+        return removed
+    }
+
+    public var allKeys: [String] {
+        Self.storage.allKeys(accessGroup: accessGroup, synchronizable: synchronizable)
     }
 }

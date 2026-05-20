@@ -3118,3 +3118,15 @@ height, and returns real PNG data instead of always falling back to the original
 image. `PlatformImage.compressImageData()` now recompresses valid bitmap input
 to JPEG through the same bridge, while invalid data keeps the existing
 warning-plus-original-byte fallback contract.
+
+## Checkpoint 185: KeychainSwift Upstream Storage Semantics
+
+Status: implemented locally; guarded by KeychainSwift compatibility tests.
+
+The KeychainSwift clone now stores strings as UTF-8 bytes, booleans as
+single-byte values, and `Data` without base64 wrapping, matching upstream source
+behavior for Signal-style account/key storage code. It adds
+`getData(_:asReference:)`, deterministic process-local reference handles,
+`allKeys`, open result/config vars, false-on-missing delete, and
+upstream-shaped namespace `clear()` behavior while still documenting that Linux
+storage is process-local and not secure OS keychain persistence.

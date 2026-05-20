@@ -3,8 +3,8 @@ import KeychainSwift
 import Testing
 
 private let keychainSuccessStatus: Int32 = 0
-private let keychainParamStatus: Int32 = -50
 private let keychainItemNotFoundStatus: Int32 = -25300
+private let keychainInvalidEncodingStatus: Int32 = -67853
 
 @Suite("KeychainSwift compatibility store", .serialized)
 struct KeychainSwiftTests {
@@ -18,12 +18,14 @@ struct KeychainSwiftTests {
         #expect(keychain.set(true, forKey: "bool"))
 
         #expect(keychain.get("string") == "token")
+        #expect(keychain.getData("string") == Data("token".utf8))
         #expect(keychain.getData("data") == Data([0, 1, 2, 3]))
+        #expect(keychain.getData("bool") == Data([1]))
         #expect(keychain.getBool("bool") == true)
     }
 
-    @Test("key prefixes isolate keys and clear only their namespace")
-    func keyPrefixesIsolateAndClear() {
+    @Test("key prefixes isolate reads while clear matches the upstream namespace behavior")
+    func keyPrefixesIsolateReadsAndClearNamespace() {
         let suffix = UUID().uuidString
         let first = KeychainSwift(keyPrefix: "first-\(suffix)-")
         let second = KeychainSwift(keyPrefix: "second-\(suffix)-")
@@ -37,10 +39,19 @@ struct KeychainSwiftTests {
 
         #expect(first.get("token") == "one")
         #expect(second.get("token") == "two")
+        #expect(first.allKeys.filter { $0.hasSuffix("-\(suffix)-token") } == [
+            "first-\(suffix)-token",
+            "second-\(suffix)-token"
+        ])
 
-        #expect(first.clear())
+        #expect(first.delete("token"))
         #expect(first.get("token") == nil)
         #expect(second.get("token") == "two")
+
+        #expect(first.set("one", forKey: "token"))
+        #expect(first.clear())
+        #expect(first.get("token") == nil)
+        #expect(second.get("token") == nil)
     }
 
     @Test("delete removes one key without disturbing siblings")
@@ -56,13 +67,32 @@ struct KeychainSwiftTests {
         #expect(keychain.get("second") == "two")
     }
 
-    @Test("bool reads reject non-bool strings")
-    func boolReadsRejectNonBoolStrings() {
+    @Test("bool reads follow upstream first-byte behavior")
+    func boolReadsFollowFirstByteBehavior() {
         let keychain = KeychainSwift(keyPrefix: "bool-\(UUID().uuidString)-")
         defer { keychain.clear() }
 
-        #expect(keychain.set("not-bool", forKey: "value"))
-        #expect(keychain.getBool("value") == nil)
+        #expect(keychain.set("not-bool", forKey: "string"))
+        #expect(keychain.set(Data(), forKey: "empty"))
+
+        #expect(keychain.getBool("string") == false)
+        #expect(keychain.getBool("empty") == nil)
+    }
+
+    @Test("data references return a stable handle instead of value bytes")
+    func dataReferencesReturnStableHandles() {
+        let keychain = KeychainSwift(keyPrefix: "reference-\(UUID().uuidString)-")
+        defer { keychain.clear() }
+
+        let payload = Data("payload".utf8)
+        #expect(keychain.set(payload, forKey: "data"))
+
+        let firstReference = keychain.getData("data", asReference: true)
+        let secondReference = keychain.getData("data", asReference: true)
+        #expect(keychain.getData("data") == payload)
+        #expect(firstReference != nil)
+        #expect(firstReference == secondReference)
+        #expect(firstReference != payload)
     }
 
     @Test("access groups and synchronizable mode isolate namespaces")
@@ -108,8 +138,11 @@ struct KeychainSwiftTests {
         #expect(keychain.get("missing") == nil)
         #expect(keychain.lastResultCode == keychainItemNotFoundStatus)
 
-        #expect(keychain.set("not-bool", forKey: "flag"))
-        #expect(keychain.getBool("flag") == nil)
-        #expect(keychain.lastResultCode == keychainParamStatus)
+        #expect(!keychain.delete("missing"))
+        #expect(keychain.lastResultCode == keychainItemNotFoundStatus)
+
+        #expect(keychain.set(Data([0xff]), forKey: "invalid-string"))
+        #expect(keychain.get("invalid-string") == nil)
+        #expect(keychain.lastResultCode == keychainInvalidEncodingStatus)
     }
 }
