@@ -236,14 +236,45 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
     }
 
     func testNetworkShimParsesAddressLiteralsAndHosts() {
-        XCTAssertEqual(IPv4Address("192.168.1.10")?.rawValue, Data([192, 168, 1, 10]))
-        XCTAssertNil(IPv4Address("192.168.1.10.extra"))
-        XCTAssertNil(IPv4Address("192.168.1"))
-        XCTAssertNil(IPv4Address("1..2.3.4"))
+        let ipv4Cases: [(String, [UInt8], String)] = [
+            ("192.168.1.10", [192, 168, 1, 10], "192.168.1.10"),
+            ("0.0.0.0", [0, 0, 0, 0], "0.0.0.0"),
+            ("255.255.255.255", [255, 255, 255, 255], "255.255.255.255"),
+            ("01.02.03.04", [1, 2, 3, 4], "1.2.3.4"),
+            ("1", [0, 0, 0, 1], "0.0.0.1"),
+            ("1.2", [1, 0, 0, 2], "1.0.0.2"),
+            ("1.2.3", [1, 2, 0, 3], "1.2.0.3"),
+            ("0x1.2.3.4", [1, 2, 3, 4], "1.2.3.4"),
+            ("0377.0377.0377.0377", [255, 255, 255, 255], "255.255.255.255"),
+            ("0xffffffff", [255, 255, 255, 255], "255.255.255.255"),
+            ("4294967296", [0, 0, 0, 0], "0.0.0.0"),
+        ]
+        for (input, rawValue, description) in ipv4Cases {
+            let address = IPv4Address(input)
+            XCTAssertEqual(address?.rawValue, Data(rawValue), input)
+            XCTAssertEqual(address?.description, description, input)
+        }
 
-        XCTAssertEqual(IPv6Address("::1")?.rawValue, Data(Array(repeating: UInt8(0), count: 15) + [1]))
-        XCTAssertNotNil(IPv6Address("2001:db8::1"))
+        for input in ["192.168.1.10.extra", "1..2.3.4", "1.2.3.256", "1.2.3.4 ", " 1.2.3.4", "+1.2.3.4"] {
+            XCTAssertNil(IPv4Address(input), input)
+        }
+
+        let ipv6Loopback = Data(Array(repeating: UInt8(0), count: 15) + [1])
+        XCTAssertEqual(IPv6Address("::1")?.rawValue, ipv6Loopback)
+        XCTAssertEqual(IPv6Address("::1")?.description, "::1")
+        XCTAssertEqual(IPv6Address("::")?.description, "::")
+        XCTAssertEqual(IPv6Address("2001:db8::1")?.description, "2001:db8::1")
         XCTAssertNil(IPv6Address("example.com"))
+        XCTAssertNil(IPv6Address("::1 "))
+        XCTAssertNil(IPv6Address(" ::1"))
+        XCTAssertNil(IPv6Address("1.2.3.4"))
+
+        XCTAssertNil(IPv4Address(Data([1, 2, 3])))
+        XCTAssertEqual(IPv4Address(Data([1, 2, 3, 4]))?.description, "1.2.3.4")
+        XCTAssertNil(IPv4Address(Data([1, 2, 3, 4, 5])))
+        XCTAssertNil(IPv6Address(Data(Array(repeating: UInt8(0), count: 15))))
+        XCTAssertEqual(IPv6Address(ipv6Loopback)?.description, "::1")
+        XCTAssertNil(IPv6Address(Data(Array(repeating: UInt8(0), count: 17))))
 
         if case .ipv4(let address) = NWEndpoint.Host("192.168.1.10") {
             XCTAssertEqual(address.rawValue, Data([192, 168, 1, 10]))
@@ -265,9 +296,20 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
 
         let literalPort: NWEndpoint.Port = 443
         XCTAssertEqual(literalPort.rawValue, 443)
+        XCTAssertEqual(literalPort.description, "443")
         XCTAssertEqual(NWEndpoint.Port("51820")?.rawValue, 51820)
+        XCTAssertEqual(NWEndpoint.Port(" 80")?.rawValue, 80)
+        XCTAssertEqual(NWEndpoint.Port("\t80")?.rawValue, 80)
+        XCTAssertEqual(NWEndpoint.Port("+1")?.rawValue, 1)
+        XCTAssertEqual(NWEndpoint.Port("-0")?.rawValue, 0)
+        XCTAssertEqual(NWEndpoint.Port("00080")?.rawValue, 80)
+        XCTAssertEqual(NWEndpoint.Port(rawValue: 65535)?.description, "65535")
         XCTAssertNil(NWEndpoint.Port("-1"))
         XCTAssertNil(NWEndpoint.Port("65536"))
+        XCTAssertNil(NWEndpoint.Port("80 "))
+        XCTAssertNil(NWEndpoint.Port("80\n"))
+        XCTAssertNil(NWEndpoint.Port("0x50"))
+        XCTAssertNil(NWEndpoint.Port("1.0"))
     }
 }
 

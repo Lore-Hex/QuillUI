@@ -43,7 +43,7 @@ is `Usable` or `Parity`.
 | `WebKit` | None yet beyond compile-compatible shapes. | `WKWebView`, configuration, delegates, user scripts, content rules, navigation, HTML rendering, JavaScript, process isolation, and scheme handling are compile-only or incomplete. |
 | `AuthenticationServices` | None yet beyond compile-compatible shapes. | Web authentication session start is fallback; session cancellation, presentation anchors, callback handling, secure storage, and browser flow parity are incomplete. |
 | `UniformTypeIdentifiers` | App-facing known extension lookup, conforming known extension lookup, common static types, local conformance checks, and preferred extension/MIME metadata for known identifiers. | Identifier parsing remains partial; system registry lookup, dynamic/exported/imported types, tag classes, synthesized dynamic identifiers for unknown extensions, and the full conformance graph need parity work. |
-| `Network` | IPv4/IPv6 literal parsing, endpoint host classification, and port construction are `Usable` for current app contracts. | Path monitoring, interfaces, connections, listeners, DNS, TLS, UDP/TCP, and real path probing are incomplete or fallback-only. |
+| `Network` | `IPv4Address`, `IPv6Address`, `NWEndpoint.Host.init(_:)`, and `NWEndpoint.Port` value behavior now have Apple-checked `Parity` rows for current tested literal/data/raw-value/description contracts. | Path monitoring, interfaces, connections, listeners, DNS, TLS, UDP/TCP, and real path probing are incomplete or fallback-only. |
 | `NetworkExtension` | None yet beyond compile/fallback shapes. | Packet flow, VPN lifecycle, tunnel routing, provider hosting, and real tunnel settings are incomplete. |
 | `CoreGraphics` | None yet beyond compile/fallback shapes. | Event sources, key state, keyboard events, event posting, pointer events, event taps, and drawing APIs beyond shared geometry are incomplete. |
 | `Security` | None yet at `Usable`; certificate wrapping is partial and trust calls fallback. | Keychain, certificate parsing, policy evaluation, platform trust store, and Secure Transport parity are incomplete. |
@@ -311,10 +311,10 @@ subset lives in `QuillUIKit`.
 | `NWPathMonitor.cancel()` | Compile-only | No-op. |
 | `NWPath` status/interface/expense properties | Compile-only | Static/default metadata only. |
 | `NWInterface.init(type:)` | Compile-only | Stores type only. |
-| `IPv4Address.init?(String)` / `init?(Data)` | Usable | Strict IPv4 literal parsing plus 4-byte data validation for current endpoint flows. |
-| `IPv6Address.init?(String)` / `init?(Data)` | Usable | Strict IPv6 literal parsing plus 16-byte data validation for current endpoint flows. |
-| `NWEndpoint.Host.init(_:)` | Usable | Classifies IPv4 literals, IPv6 literals, and DNS names without placeholder IPv6 false positives. |
-| `NWEndpoint.Port.init?(String)` / `init(rawValue:)` / integer literal | Usable | UInt16 string parsing, raw-value construction, and integer-literal construction. |
+| `IPv4Address.init?(String)` / `init?(Data)` / `description` | Parity | Apple-checked IPv4 parser covers strict whitespace rejection, legacy 1-4 component forms, octal and hex components, 32-bit wraparound, 4-byte data validation, and canonical dotted-decimal descriptions. |
+| `IPv6Address.init?(String)` / `init?(Data)` / `description` | Parity | Apple-checked IPv6 parser covers `inet_pton` literal acceptance, whitespace rejection, 16-byte data validation, and canonical `inet_ntop` descriptions. |
+| `NWEndpoint.Host.init(_:)` | Parity | Classifies Apple-matching IPv4 literals, IPv6 literals, and DNS names through the parity-tested address value parsers. |
+| `NWEndpoint.Port.init?(String)` / `init?(rawValue:)` / integer literal / `rawValue` / `description` | Parity | Apple-checked port parsing covers leading C whitespace, plus signs, `-0`, decimal-only input, UInt16 bounds, trailing-character rejection, failable raw-value construction, integer literals, and decimal descriptions. |
 | Connections, listeners, real path probing, DNS, TLS, UDP/TCP behavior | Incomplete | Required for Network Parity. |
 
 ## NetworkExtension

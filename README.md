@@ -36,6 +36,12 @@ Current backend parity app targets:
 Generated external app coverage also includes `quill-chat-linux` when the
 local Quill Chat checkout is available.
 
+## Coverage Ledgers
+
+- [Apple package function coverage](docs/apple-package-function-coverage.md): function-by-function complete/incomplete status for SwiftUI, SwiftData, AppKit/UIKit, Network, media/service kits, system kits, and app-facing package clones.
+- [API coverage matrix](docs/api-coverage-matrix.md): backend and app-facing API evidence.
+- [App targets](docs/app-targets.md): target-by-target app progress.
+
 ## Compatibility Progress
 
 Status terms:
@@ -50,18 +56,20 @@ Status terms:
 Progress is intentionally conservative. `Compatible today` means either real
 Linux runtime behavior exists or enough metadata is preserved for the GTK/Qt
 backends and source-contract tests to prove the app-facing API shape. The
-detailed evidence lives in `docs/api-coverage-matrix.md`,
-`docs/apple-package-function-coverage.md`, and `docs/app-targets.md`; this
-README is the high-level checklist.
+detailed evidence lives in [docs/api-coverage-matrix.md](docs/api-coverage-matrix.md),
+[docs/apple-package-function-coverage.md](docs/apple-package-function-coverage.md),
+and [docs/app-targets.md](docs/app-targets.md); this README is the high-level
+checklist.
 
 ### Function-Level Compatibility Ledger
 
 The function-by-function Apple package and app-facing package clone status lives
-in `docs/apple-package-function-coverage.md`. In that ledger, `Usable` and
-`Parity` rows are complete for today's tested Linux contract. `Partial`,
-`Fallback`, `Compile-only`, and `Incomplete` rows are intentionally listed as
-incomplete until the missing Apple or upstream package behavior is implemented
-and covered by source-contract, golden, or seeded fuzz tests.
+in [docs/apple-package-function-coverage.md](docs/apple-package-function-coverage.md).
+In that ledger, `Usable` and `Parity` rows are complete for today's tested
+Linux contract. `Partial`, `Fallback`, `Compile-only`, and `Incomplete` rows
+are intentionally listed as incomplete until the missing Apple or upstream
+package behavior is implemented and covered by source-contract, golden, or
+seeded fuzz tests.
 
 | Apple package area | Complete today | Incomplete today |
 | --- | --- | --- |
@@ -69,7 +77,7 @@ and covered by source-contract, golden, or seeded fuzz tests.
 | `SwiftData` / `QuillData` | Table mapping, inserts, deletes, saves, deterministic error text, and current Enchanted persistence flows. | Full Apple SwiftData schema, relationship, predicate, migration, CloudKit, undo, observation, and concurrency semantics. |
 | `AppKit` / `QuillAppKit` | In-memory undo, view hierarchy, window geometry, pasteboard, menu, pop-up, stack, progress, child-controller, and selected workspace/document flows. | Native event loop, Auto Layout, CALayer/drawing, accessibility, file dialogs, cursor/event taps, XPC, sharing, audio, host font metrics, and full window-manager behavior. |
 | `UIKit` / `QuillUIKit` | `UIApplication.shared` and selected source-compatible aliases and in-memory bridges. | Mobile renderer, lifecycle, layout engine, navigation, presentation, text input, events, accessibility, haptics, notifications, and collection/table parity. |
-| Web, network, media, and service Apple kits | Selected compile or fallback shapes for `WebKit`, `AuthenticationServices`, `Network`, `NetworkExtension`, `AVFoundation`, `Speech`, `PhotosUI`, `Charts`, `StoreKit`, and `TipKit`. | Real web rendering, authentication sessions, DNS/TLS/TCP/UDP behavior, VPN tunnels, media I/O, speech, photo library, chart rendering, purchases, and tip persistence. |
+| Web, network, media, and service Apple kits | Selected compile or fallback shapes for `WebKit`, `AuthenticationServices`, `Network`, `NetworkExtension`, `AVFoundation`, `Speech`, `PhotosUI`, `Charts`, `StoreKit`, and `TipKit`; `Network` address and port value APIs now have Apple-checked parity rows. | Real web rendering, authentication sessions, DNS/TLS/TCP/UDP behavior, VPN tunnels, media I/O, speech, photo library, chart rendering, purchases, and tip persistence. |
 | System and support kits | Focused usable rows for `ServiceManagement`, `AsyncAlgorithms`, `AnyPublisher`, and `Logger` initialization. | Full `CoreGraphics`, `Security`, `Observation`, `ApplicationServices`, `Carbon`, `IOKit`, `os`, and Combine edge-case parity. |
 | Re-export-only Apple shims | Imports compile for current app source. | Standalone framework behavior for `MessageUI`, `SafariServices`, `MobileCoreServices`, `LocalAuthentication`, and `CoreSpotlight`. |
 
@@ -119,7 +127,7 @@ been cloned far enough for current QuillUI app targets.
 | `UniformTypeIdentifiers` | Partial with usable app rows | File-extension lookup, conforming extension filters, common image aliases, preferred extension/MIME metadata, conformance checks, and app-facing item-provider flows are covered by compatibility tests. | It is not Apple's complete type database or LaunchServices-backed identifier system. |
 | `QuillFoundation`, `QuillRS`, `CoreGraphics`, `Security` | Partial | Foundation-like selection helpers, image/color/font/screen aliases, localized string fallback, CoreGraphics image/render helpers, accessibility and security-shaped APIs compile and have focused tests. | Many APIs are placeholders or app-contract shims rather than complete framework implementations. |
 | `QuillWebKit` / `WebKit` | Compile shim | `WKWebView`-shaped configuration, load, evaluate, and delegate APIs are available for source compatibility. | No full embedded web engine, JavaScript runtime, navigation stack, process model, or rendering parity exists yet. |
-| `Network` and `NetworkExtension` | Partial | Imports and app-facing types compile for ports such as WireGuard. `Network` now strictly parses IPv4/IPv6 literals, classifies endpoint hosts, and builds ports for current app contracts. | Real VPN control, tunnel lifecycle, system extension behavior, DNS/TLS/TCP/UDP behavior, and network monitoring are not implemented. |
+| `Network` and `NetworkExtension` | Partial overall; selected `Network` values at Parity | Imports and app-facing types compile for ports such as WireGuard. `IPv4Address`, `IPv6Address`, `NWEndpoint.Host.init(_:)`, and `NWEndpoint.Port` now match Apple-observed literal/data/raw-value/description behavior for the tested edge cases. | Real VPN control, tunnel lifecycle, system extension behavior, DNS/TLS/TCP/UDP behavior, connections, listeners, and network monitoring are not implemented. |
 | `AVFoundation`, `Speech`, `PhotosUI`, `MessageUI`, `SafariServices`, `MobileCoreServices` | Compile shim / fallback | Service-shaped modules compile and record diagnostic fallback behavior where applicable. | They do not provide real media capture/playback, speech recognition, photo picker, mail compose, browser, or mobile type services. |
 | `Combine` | Partial | Publishers, subjects, merge, timers, notifications, cancellation, completion, and `AnyCancellable` contracts are tested. | The full Combine operator surface, scheduler semantics, and backpressure behavior are incomplete. |
 | `os` | Partial | `Logger` and privacy diagnostic rendering are tested. | It is not Apple's unified logging system. |
@@ -138,7 +146,7 @@ are easier to scan than the raw product list.
 | Data and persistence | `SwiftData`, `QuillData` | Usable for Enchanted conversation storage and source-lowered model tests; not a complete Apple SwiftData clone. |
 | Desktop and mobile UI kits | `AppKit`, `QuillAppKitGTK`, `UIKit` | AppKit-shaped desktop APIs are partial and source-tested. UIKit is primarily an import/type compatibility layer for current ports. |
 | Foundation, drawing, identity, and security | `QuillFoundation`, `QuillRS`, `CoreGraphics`, `Security`, `UniformTypeIdentifiers` | Common app-facing helpers, image/type/security aliases, and source contracts compile; many APIs are focused shims. |
-| Web, network, and extensions | `QuillWebKit`, `Network`, `NetworkExtension` | Web/network imports and selected types compile. Network endpoint literal/name parsing is usable for current app contracts; real web rendering, VPN tunnels, system extensions, DNS/TLS/TCP/UDP behavior, and network monitoring are not implemented. |
+| Web, network, and extensions | `QuillWebKit`, `Network`, `NetworkExtension` | Web/network imports and selected types compile. Network endpoint address/name parsing and port construction are parity-tested for current Apple-observed value behavior; real web rendering, VPN tunnels, system extensions, DNS/TLS/TCP/UDP behavior, connections, listeners, and network monitoring are not implemented. |
 | Media, sharing, browser, and mobile services | `AVFoundation`, `Speech`, `PhotosUI`, `MessageUI`, `SafariServices`, `MobileCoreServices` | Service-shaped APIs compile or fallback for app source compatibility. Real device/media/service behavior is mostly absent. |
 | Reactive, logging, async, and system kits | `Combine`, `os`, `AsyncAlgorithms`, `Carbon`, `IOKit`, `ApplicationServices`, `ServiceManagement` | Combine and logging have focused tests; the rest are partial or compile shims for app-facing calls. |
 | Network/client third-party packages | `Alamofire`, `OllamaKit` | `OllamaKit` covers Enchanted model listing and streaming-chat contracts. `Alamofire` covers current GET/POST, status-validation, and decodable-response needs, but not the full upstream client surface. |
