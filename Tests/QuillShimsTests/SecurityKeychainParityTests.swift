@@ -5,6 +5,25 @@ import Foundation
 import Security
 
 final class SecurityKeychainParityTests: XCTestCase {
+    func testSecRandomCopyBytesMatchesAppleFillContract() {
+        let sentinel = [UInt8](repeating: 0xA5, count: 32)
+        var bytes = sentinel
+
+        let status = bytes.withUnsafeMutableBytes { buffer -> OSStatus in
+            guard let baseAddress = buffer.baseAddress else {
+                return -1
+            }
+            return SecRandomCopyBytes(kSecRandomDefault, buffer.count, baseAddress)
+        }
+
+        XCTAssertEqual(status, errSecSuccess)
+        XCTAssertNotEqual(bytes, sentinel)
+
+        var zeroByteSentinel = UInt8(0xA5)
+        XCTAssertEqual(SecRandomCopyBytes(kSecRandomDefault, 0, &zeroByteSentinel), errSecSuccess)
+        XCTAssertEqual(zeroByteSentinel, 0xA5)
+    }
+
     func testGenericPasswordAddCopyUpdateDelete() {
         let service = "signal-\(UUID().uuidString)"
         let account = "identity-key"

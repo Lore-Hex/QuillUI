@@ -13,7 +13,12 @@ public final class SecTrust: @unchecked Sendable {
     public init() {}
 }
 
+public final class SecRandom: @unchecked Sendable {
+    public init() {}
+}
+
 public typealias OSStatus = Int32
+public typealias SecRandomRef = SecRandom
 public let errSecSuccess: OSStatus = 0
 public let errSecUnimplemented: OSStatus = -4
 public let errSecParam: OSStatus = -50
@@ -53,8 +58,27 @@ public let kSecMatchLimit: CFString = "m_Limit" as CFString
 public let kSecMatchLimitOne: CFString = "m_LimitOne" as CFString
 public let kSecMatchLimitAll: CFString = "m_LimitAll" as CFString
 
+public let kSecRandomDefault: SecRandomRef? = nil
+
 public func SecCertificateCreateWithData(_ allocator: CFAllocator?, _ data: CFData) -> SecCertificate? {
     SecCertificate(data: data)
+}
+
+@discardableResult
+public func SecRandomCopyBytes(_ _: SecRandomRef?, _ count: Int, _ bytes: UnsafeMutableRawPointer) -> OSStatus {
+    guard count >= 0 else {
+        return errSecParam
+    }
+    guard count > 0 else {
+        return errSecSuccess
+    }
+
+    var generator = SystemRandomNumberGenerator()
+    let buffer = bytes.bindMemory(to: UInt8.self, capacity: count)
+    for index in 0..<count {
+        buffer[index] = UInt8.random(in: UInt8.min ... UInt8.max, using: &generator)
+    }
+    return errSecSuccess
 }
 
 public func SecItemAdd(_ attributes: CFDictionary, _ result: UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus {
