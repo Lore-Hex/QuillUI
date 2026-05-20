@@ -8,6 +8,93 @@ import Glibc
 import Darwin
 #endif
 
+public typealias DNSServiceErrorType = Int32
+
+#if os(Linux)
+public typealias OSStatus = Int32
+#endif
+
+public enum NWError: Error, Equatable, Sendable, CustomDebugStringConvertible, LocalizedError {
+    case posix(POSIXErrorCode)
+    case dns(DNSServiceErrorType)
+    case tls(OSStatus)
+
+    public var debugDescription: String {
+        let payload = descriptionPayload
+        return "\(payload.codeDescription): \(payload.message)"
+    }
+
+    public var errorDescription: String? {
+        let payload = descriptionPayload
+        return "The operation couldn’t be completed. (Network.NWError error \(payload.localizedCode) - \(payload.message))"
+    }
+
+    private var descriptionPayload: NWErrorDescriptionPayload {
+        switch self {
+        case .posix(let code):
+            let posix = darwinPOSIXDescription(for: code)
+            return NWErrorDescriptionPayload(
+                codeDescription: "POSIXErrorCode(rawValue: \(posix.rawValue))",
+                localizedCode: posix.rawValue,
+                message: posix.message
+            )
+        case .dns(let code):
+            return NWErrorDescriptionPayload(
+                codeDescription: "\(code)",
+                localizedCode: code,
+                message: dnsServiceMessage(for: code)
+            )
+        case .tls(let status):
+            return NWErrorDescriptionPayload(
+                codeDescription: "\(status)",
+                localizedCode: status,
+                message: tlsStatusMessage(for: status)
+            )
+        }
+    }
+}
+
+private struct NWErrorDescriptionPayload {
+    var codeDescription: String
+    var localizedCode: Int32
+    var message: String
+}
+
+private func darwinPOSIXDescription(for code: POSIXErrorCode) -> (rawValue: Int32, message: String) {
+    switch code {
+    case .ECONNREFUSED:
+        return (61, "Connection refused")
+    case .ECONNRESET:
+        return (54, "Connection reset by peer")
+    default:
+        let rawValue = Int32(code.rawValue)
+        return (rawValue, posixMessage(for: rawValue))
+    }
+}
+
+private func posixMessage(for rawValue: Int32) -> String {
+    guard let messagePointer = strerror(rawValue) else {
+        return "Unknown error: \(rawValue)"
+    }
+    return String(cString: messagePointer)
+}
+
+private func dnsServiceMessage(for code: DNSServiceErrorType) -> String {
+    switch code {
+    default:
+        return "Unknown"
+    }
+}
+
+private func tlsStatusMessage(for status: OSStatus) -> String {
+    switch status {
+    case -9807:
+        return "invalid certificate chain"
+    default:
+        return "Unknown"
+    }
+}
+
 public final class NWPathMonitor: @unchecked Sendable {
     public typealias Status = NWPath.Status
 
