@@ -146,6 +146,30 @@ struct CompatibilityModuleTests {
         #expect(String(describing: type(of: focusEffect)).contains("FocusEffectDisabledView"))
         #expect(focusEffect.disabled == false)
 
+        let boolFocus = FocusState<Bool>()
+        let focusBound = Text("Focus bound").focused(boolFocus)
+        #expect(String(describing: type(of: focusBound)).contains("FocusedView"))
+        #expect(focusBound.focusState.wrappedValue == false)
+        #expect(quillTextLabel(from: focusBound) == "Focus bound")
+
+        let optionalFocus = FocusState<String?>()
+        let focusEquals = Text("Field focus").focused(optionalFocus, equals: "prompt")
+        #expect(String(describing: type(of: focusEquals)).contains("FocusedEqualsView"))
+        #expect(focusEquals.value == "prompt")
+        #expect(quillTextLabel(from: focusEquals) == "Field focus")
+
+        let bindingFocus = Text("Binding focus").focused(Binding.constant(true))
+        #expect(String(describing: type(of: bindingFocus)).contains("FocusBindingView"))
+        #expect(bindingFocus.binding.wrappedValue)
+        #expect(quillTextLabel(from: bindingFocus) == "Binding focus")
+
+        let optionalBindingFocus = Text("Optional binding focus")
+            .focused(Binding.constant(Optional("chat")), equals: "chat")
+        #expect(String(describing: type(of: optionalBindingFocus)).contains("FocusEqualsBindingView"))
+        #expect(optionalBindingFocus.value == "chat")
+        #expect(optionalBindingFocus.binding.wrappedValue == "chat")
+        #expect(quillTextLabel(from: optionalBindingFocus) == "Optional binding focus")
+
         let legacySafeArea = Text("Legacy Safe Area").edgesIgnoringSafeArea(.top)
         #expect(String(describing: type(of: legacySafeArea)).contains("EdgesIgnoringSafeAreaView"))
         #expect(legacySafeArea.edges == .top)
@@ -186,6 +210,7 @@ struct CompatibilityModuleTests {
             "gesture",
             "onHover",
             "focusEffectDisabled",
+            "focused",
             "edgesIgnoringSafeArea",
             "ignoresSafeArea",
             "listRowInsets",

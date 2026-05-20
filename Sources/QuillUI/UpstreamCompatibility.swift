@@ -1049,6 +1049,32 @@ public struct FocusEffectDisabledView<Content: View>: View {
     public var body: some View { content }
 }
 
+public struct FocusBindingView<Content: View, Value>: View {
+    public let content: Content
+    public let binding: Binding<Value>
+
+    public init(content: Content, binding: Binding<Value>) {
+        self.content = content
+        self.binding = binding
+    }
+
+    public var body: some View { content }
+}
+
+public struct FocusEqualsBindingView<Content: View, Value: Equatable>: View {
+    public let content: Content
+    public let binding: Binding<Value?>
+    public let value: Value
+
+    public init(content: Content, binding: Binding<Value?>, value: Value) {
+        self.content = content
+        self.binding = binding
+        self.value = value
+    }
+
+    public var body: some View { content }
+}
+
 public struct EdgesIgnoringSafeAreaView<Content: View>: View {
     public let content: Content
     public let edges: Edge.Set
@@ -1255,20 +1281,20 @@ public extension View {
         return ListRowSeparatorView(content: self, visibility: visibility, edges: edges)
     }
 
-    func focused<Value>(_ binding: Binding<Value>) -> Self {
+    func focused<Value>(_ binding: Binding<Value>) -> FocusBindingView<Self, Value> {
         recordQuillUIFallback(
             "focused",
-            message: "FocusState is currently a source-compatibility fallback on Linux."
+            message: "Focus bindings are preserved as focus metadata on Linux."
         )
-        return self
+        return FocusBindingView(content: self, binding: binding)
     }
 
-    func focused<Value: Equatable>(_ binding: Binding<Value?>, equals value: Value) -> Self {
+    func focused<Value: Equatable>(_ binding: Binding<Value?>, equals value: Value) -> FocusEqualsBindingView<Self, Value> {
         recordQuillUIFallback(
             "focused",
-            message: "Optional FocusState bindings are currently a source-compatibility fallback on Linux."
+            message: "Optional focus bindings are preserved as focus-equals metadata on Linux."
         )
-        return self
+        return FocusEqualsBindingView(content: self, binding: binding, value: value)
     }
 
     func textSelection(_ selection: TextSelectability = .enabled) -> TextSelectionView<Self> {
@@ -1816,6 +1842,22 @@ extension OnHoverView: QuillWrappedViewRepresentable {
 }
 
 extension FocusEffectDisabledView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension FocusedView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension FocusedEqualsView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension FocusBindingView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension FocusEqualsBindingView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
