@@ -601,8 +601,8 @@ public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible, CustomDebug
         case .hostPort(let host, let port):
             let separator = host.isIPv6Literal ? "." : ":"
             return "\(host.description)\(separator)\(String(describing: port))"
-        case .service(let name, let type, let domain, _):
-            return Self.describeService(name: name, type: type, domain: domain)
+        case .service(let name, let type, let domain, let interface):
+            return Self.describeService(name: name, type: type, domain: domain, interface: interface)
         case .unix(let path):
             return path
         }
@@ -612,11 +612,11 @@ public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible, CustomDebug
         description
     }
 
-    private static func describeService(name: String, type: String, domain: String) -> String {
+    private static func describeService(name: String, type: String, domain: String, interface: NWInterface?) -> String {
         let normalizedType = trimTrailingDots(type)
 
         guard isValidDNSServiceType(normalizedType) else {
-            return "\(name).\(type)\(domain)"
+            return appendInterfaceScope("\(name).\(type)\(domain)", interface)
         }
 
         var result = ""
@@ -635,6 +635,13 @@ public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible, CustomDebug
             result += "."
             result += trimTrailingDots(domain)
             result += "."
+        }
+
+        if let interface {
+            if domain.isEmpty {
+                return appendInterfaceScope(result, interface)
+            }
+            return "\(result)@\(interface.name)"
         }
 
         return result

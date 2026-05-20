@@ -157,6 +157,7 @@ final class NetworkEndpointHostParityTests: XCTestCase {
         let ipv6 = try XCTUnwrap(IPv6Address("2001:db8::1"))
         let loopbackName = try XCTUnwrap(Self.interfaceName(forIndex: 1))
         let scopedIPv6 = try XCTUnwrap(IPv6Address("fe80::1%\(loopbackName)"))
+        let loopbackInterface = try XCTUnwrap(scopedIPv6.interface)
 
         let equalEndpoints: [(NWEndpoint, NWEndpoint, String)] = [
             (
@@ -188,6 +189,11 @@ final class NetworkEndpointHostParityTests: XCTestCase {
                 .service(name: "svc", type: "_http._tcp", domain: "local.", interface: nil),
                 .service(name: "svc", type: "_http._tcp", domain: "local.", interface: nil),
                 "service exact value"
+            ),
+            (
+                .service(name: "svc", type: "_http._tcp", domain: "local.", interface: loopbackInterface),
+                .service(name: "svc", type: "_http._tcp", domain: "local.", interface: loopbackInterface),
+                "scoped service exact value"
             ),
             (
                 .unix(path: "/tmp/socket"),
@@ -222,6 +228,10 @@ final class NetworkEndpointHostParityTests: XCTestCase {
             NWEndpoint.service(name: "svc", type: "_mesh._udp", domain: "local.", interface: nil)
         )
         XCTAssertNotEqual(
+            NWEndpoint.service(name: "svc", type: "_http._tcp", domain: "local.", interface: loopbackInterface),
+            NWEndpoint.service(name: "svc", type: "_http._tcp", domain: "local.", interface: nil)
+        )
+        XCTAssertNotEqual(
             NWEndpoint.unix(path: "/tmp/socket"),
             NWEndpoint.unix(path: "/tmp/other")
         )
@@ -229,10 +239,31 @@ final class NetworkEndpointHostParityTests: XCTestCase {
             NWEndpoint.hostPort(host: NWEndpoint.Host("example.com"), port: port),
             NWEndpoint.unix(path: "example.com:443")
         )
+
+        let scopedService = NWEndpoint.service(
+            name: "svc",
+            type: "_http._tcp",
+            domain: "local.",
+            interface: loopbackInterface
+        )
+        guard case let .service(name, type, domain, interface?) = scopedService else {
+            XCTFail("Expected scoped service endpoint")
+            return
+        }
+        XCTAssertEqual(name, "svc")
+        XCTAssertEqual(type, "_http._tcp")
+        XCTAssertEqual(domain, "local.")
+        XCTAssertEqual(interface.name, loopbackName)
+        XCTAssertEqual(String(describing: interface.type), "loopback")
+        XCTAssertEqual(String(describing: interface), loopbackName)
+        XCTAssertEqual(String(reflecting: interface), loopbackName)
     }
 
-    func testEndpointValueDescriptionsMatchApple() {
+    func testEndpointValueDescriptionsMatchApple() throws {
         let literalPort: NWEndpoint.Port = 443
+        let loopbackName = try XCTUnwrap(Self.interfaceName(forIndex: 1))
+        let scopedIPv6 = try XCTUnwrap(IPv6Address("fe80::1%\(loopbackName)"))
+        let loopbackInterface = try XCTUnwrap(scopedIPv6.interface)
         let cases: [(NWEndpoint, String)] = [
             (.hostPort(host: NWEndpoint.Host("example.com"), port: literalPort), "example.com:443"),
             (.hostPort(host: NWEndpoint.Host("192.168.1.10"), port: literalPort), "192.168.1.10:443"),
@@ -258,6 +289,46 @@ final class NetworkEndpointHostParityTests: XCTestCase {
             (.service(name: "svc", type: "_http._tcp", domain: ".local", interface: nil), "svc._http._tcp..local."),
             (.service(name: "svc.", type: "._http._tcp.", domain: ".local.", interface: nil), "svc\\..._http._tcp..local."),
             (.service(name: ".", type: ".", domain: ".", interface: nil), "...."),
+            (
+                .service(name: "svc", type: "_http._tcp", domain: "local.", interface: loopbackInterface),
+                "svc._http._tcp.local.@\(loopbackName)"
+            ),
+            (
+                .service(name: "svc", type: "_http._tcp.", domain: "local.", interface: loopbackInterface),
+                "svc._http._tcp.local.@\(loopbackName)"
+            ),
+            (
+                .service(name: "", type: "_http._tcp", domain: "local", interface: loopbackInterface),
+                "_http._tcp.local.@\(loopbackName)"
+            ),
+            (
+                .service(name: "svc.", type: "_http._tcp", domain: "local", interface: loopbackInterface),
+                "svc\\.._http._tcp.local.@\(loopbackName)"
+            ),
+            (
+                .service(name: "svc", type: "_http._tcp", domain: ".local", interface: loopbackInterface),
+                "svc._http._tcp..local.@\(loopbackName)"
+            ),
+            (
+                .service(name: "svc", type: "_http._tcp", domain: "", interface: loopbackInterface),
+                "svc._http._tcp%\(loopbackName)"
+            ),
+            (
+                .service(name: "", type: "_http._tcp", domain: "", interface: loopbackInterface),
+                "._http._tcp%\(loopbackName)"
+            ),
+            (
+                .service(name: "svc", type: "http", domain: "local", interface: loopbackInterface),
+                "svc.httplocal%\(loopbackName)"
+            ),
+            (
+                .service(name: "svc", type: "http", domain: "local.", interface: loopbackInterface),
+                "svc.httplocal.%\(loopbackName)"
+            ),
+            (
+                .service(name: ".", type: ".", domain: ".", interface: loopbackInterface),
+                "....%\(loopbackName)"
+            ),
         ]
 
         for (endpoint, expectedDescription) in cases {

@@ -6,8 +6,8 @@ usable on Apple platforms.
 
 ## Start Here
 
-- **Apple package function coverage:** [docs/apple-package-function-coverage.md](docs/apple-package-function-coverage.md) is the function-by-function complete/incomplete ledger for SwiftUI, SwiftData, AppKit/UIKit, Network, media/service kits, system kits, third-party package clones, and app progress.
-- **Network parity pocket:** [Network function rows](docs/apple-package-function-coverage.md#network) list the narrow API rows currently at `Parity`; broader transport, DNS, TLS, connection, listener, VPN, and monitoring work is still incomplete.
+- **Apple package function coverage:** [docs/apple-package-function-coverage.md](docs/apple-package-function-coverage.md) is the function-by-function complete/incomplete ledger for SwiftUI, SwiftData, AppKit/UIKit, Network, media/service kits, system kits, third-party package clones, and app progress; use it as the linked source of truth for which functions are complete, incomplete, usable, fallback-only, or still compile shims.
+- **Network parity pocket:** [Network function rows](docs/apple-package-function-coverage.md#network) list the narrow API rows currently at `Parity`; scoped service endpoint descriptions and associated interface values are now pinned there, while broader transport, DNS, TLS, connection, listener, VPN, and monitoring work is still incomplete.
 - **App progress:** [App progress summary](docs/apple-package-function-coverage.md#app-progress-summary) and [docs/app-targets.md](docs/app-targets.md) track target-by-target status.
 
 The Linux runtime and build graph are selected separately. `QUILLUI_BACKEND`
@@ -61,7 +61,7 @@ the only rows treated as full Apple/Linux contract matches.
   octal/hex edge cases; the endpoint rows cover scoped and unscoped host parsing,
   direct-value equality/hash coherence, port
   parser/constant/equality/hash semantics, and host-port/service/Unix endpoint
-  value behavior.
+  value behavior, including scoped service interface suffixes.
 - [API coverage matrix](docs/api-coverage-matrix.md): backend and app-facing API evidence.
 - [App targets](docs/app-targets.md): target-by-target app progress.
 
