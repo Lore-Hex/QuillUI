@@ -128,6 +128,143 @@ final class SecurityKeychainParityTests: XCTestCase {
         XCTAssertEqual(accounts, ["profile-key", "session-key"])
     }
 
+    func testAccessGroupSeparatesGenericPasswordNamespaces() {
+        let service = "signal-access-group-\(UUID().uuidString)"
+        let account = "identity-key"
+        let personalGroup = "org.signal.private"
+        let sharedGroup = "group.org.signal.shared"
+        let personalData = Data([0x41, 0x42])
+        let sharedData = Data([0x51, 0x52])
+        defer {
+            _ = SecItemDelete(cfDictionary([
+                kSecClass: kSecClassGenericPassword,
+                kSecAttrService: service
+            ]))
+        }
+
+        XCTAssertEqual(SecItemAdd(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecAttrAccessGroup: personalGroup,
+            kSecValueData: personalData
+        ]), nil), errSecSuccess)
+        XCTAssertEqual(SecItemAdd(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecAttrAccessGroup: sharedGroup,
+            kSecValueData: sharedData
+        ]), nil), errSecSuccess)
+        XCTAssertEqual(SecItemAdd(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecAttrAccessGroup: personalGroup,
+            kSecValueData: personalData
+        ]), nil), errSecDuplicateItem)
+
+        var personalResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecAttrAccessGroup: personalGroup,
+            kSecReturnData: true
+        ]), &personalResult), errSecSuccess)
+        XCTAssertEqual(data(from: personalResult), personalData)
+
+        var sharedResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecAttrAccessGroup: sharedGroup,
+            kSecReturnData: true
+        ]), &sharedResult), errSecSuccess)
+        XCTAssertEqual(data(from: sharedResult), sharedData)
+
+        let updatedPersonalData = Data([0x61, 0x62])
+        XCTAssertEqual(SecItemUpdate(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecAttrAccessGroup: personalGroup
+        ]), cfDictionary([
+            kSecValueData: updatedPersonalData
+        ])), errSecSuccess)
+
+        var updatedPersonalResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecAttrAccessGroup: personalGroup,
+            kSecReturnData: true
+        ]), &updatedPersonalResult), errSecSuccess)
+        XCTAssertEqual(data(from: updatedPersonalResult), updatedPersonalData)
+
+        var unchangedSharedResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecAttrAccessGroup: sharedGroup,
+            kSecReturnData: true
+        ]), &unchangedSharedResult), errSecSuccess)
+        XCTAssertEqual(data(from: unchangedSharedResult), sharedData)
+    }
+
+    func testSynchronizableAnyMatchesLocalAndSynchronizableRows() {
+        let service = "signal-sync-\(UUID().uuidString)"
+        defer {
+            _ = SecItemDelete(cfDictionary([
+                kSecClass: kSecClassGenericPassword,
+                kSecAttrService: service
+            ]))
+        }
+
+        XCTAssertEqual(SecItemAdd(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: "local-key",
+            kSecValueData: Data([0x11])
+        ]), nil), errSecSuccess)
+        XCTAssertEqual(SecItemAdd(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: "sync-key",
+            kSecAttrSynchronizable: true,
+            kSecValueData: Data([0x22])
+        ]), nil), errSecSuccess)
+
+        var syncOnlyResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrSynchronizable: true,
+            kSecReturnAttributes: true
+        ]), &syncOnlyResult), errSecSuccess)
+        let syncOnlyAttributes = attributes(from: syncOnlyResult)
+        XCTAssertEqual(syncOnlyAttributes?[string(kSecAttrAccount)] as? String, "sync-key")
+        XCTAssertEqual(bool(from: syncOnlyAttributes?[string(kSecAttrSynchronizable)]), true)
+
+        var anyResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrSynchronizable: kSecAttrSynchronizableAny,
+            kSecReturnAttributes: true,
+            kSecMatchLimit: kSecMatchLimitAll
+        ]), &anyResult), errSecSuccess)
+
+        let rows = (anyResult as? NSArray)?.compactMap { $0 as? NSDictionary }
+        let accounts = rows?
+            .compactMap { $0[string(kSecAttrAccount)] as? String }
+            .sorted()
+        XCTAssertEqual(accounts, ["local-key", "sync-key"])
+    }
+
     func testGenericPasswordPersistentReferenceRoundTrip() {
         let service = "signal-persistent-\(UUID().uuidString)"
         let account = "identity-key"
@@ -214,6 +351,16 @@ private func data(from value: Any?) -> Data? {
     }
     if let value = value as? NSData {
         return value as Data
+    }
+    return nil
+}
+
+private func bool(from value: Any?) -> Bool? {
+    if let value = value as? Bool {
+        return value
+    }
+    if let value = value as? NSNumber {
+        return value.boolValue
     }
     return nil
 }

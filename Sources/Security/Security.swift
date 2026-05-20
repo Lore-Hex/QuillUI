@@ -38,6 +38,7 @@ public let kSecAttrService: CFString = "svce" as CFString
 public let kSecAttrAccount: CFString = "acct" as CFString
 public let kSecAttrAccessGroup: CFString = "agrp" as CFString
 public let kSecAttrSynchronizable: CFString = "sync" as CFString
+public let kSecAttrSynchronizableAny: CFString = "syna" as CFString
 public let kSecAttrLabel: CFString = "labl" as CFString
 public let kSecAttrGeneric: CFString = "gena" as CFString
 public let kSecAttrAccessible: CFString = "pdmn" as CFString
@@ -316,6 +317,11 @@ private func storedAttributes(from attributes: [String: Any]) -> [String: Any] {
 
 private func matches(record: SecItemRecord, query: [String: Any]) -> Bool {
     for (key, queryValue) in query where !controlKeys.contains(key) {
+        if key == secKey(kSecAttrSynchronizable),
+           stringValue(queryValue) == secString(kSecAttrSynchronizableAny) {
+            continue
+        }
+
         if key == secKey(kSecValueData) {
             guard dataValue(queryValue) == record.valueData else {
                 return false
