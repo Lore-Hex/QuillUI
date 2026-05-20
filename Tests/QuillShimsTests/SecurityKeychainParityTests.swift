@@ -610,6 +610,136 @@ final class SecurityKeychainParityTests: XCTestCase {
         XCTAssertTrue(attributes?[string(kSecValueRef)] is SecKey)
     }
 
+    func testSecKeyCreateRandomKeySynthesizesPrivateKeyMetadataAndPublicKey() {
+        let applicationTag = Data("org.signal.generated-private.\(UUID().uuidString)".utf8)
+        let parameters: [CFString: Any] = [
+            kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
+            kSecAttrKeySizeInBits: 256,
+            kSecPrivateKeyAttrs: [
+                kSecAttrApplicationTag: applicationTag,
+                kSecAttrIsPermanent: true,
+                kSecAttrCanSign: true
+            ] as NSDictionary
+        ]
+        defer {
+            _ = SecItemDelete(cfDictionary([
+                kSecClass: kSecClassKey,
+                kSecAttrApplicationTag: applicationTag
+            ]))
+        }
+
+        guard let privateKey = SecKeyCreateRandomKey(cfDictionary(parameters), nil) else {
+            XCTFail("SecKeyCreateRandomKey should synthesize a private key")
+            return
+        }
+
+        let privateData = data(from: SecKeyCopyExternalRepresentation(privateKey, nil))
+        XCTAssertEqual(privateData?.count, 32)
+        XCTAssertEqual(SecKeyGetBlockSize(privateKey), 32)
+
+        let privateAttributes = secKeyAttributes(privateKey)
+        XCTAssertEqual(privateAttributes?[string(kSecClass)] as? String, string(kSecClassKey))
+        XCTAssertEqual(privateAttributes?[string(kSecAttrKeyClass)] as? String, string(kSecAttrKeyClassPrivate))
+        XCTAssertEqual(privateAttributes?[string(kSecAttrKeyType)] as? String, string(kSecAttrKeyTypeECSECPrimeRandom))
+        XCTAssertEqual(String(describing: privateAttributes?[string(kSecAttrKeySizeInBits)] ?? ""), "256")
+        XCTAssertEqual(data(from: privateAttributes?[string(kSecAttrApplicationTag)]), applicationTag)
+        XCTAssertEqual(bool(from: privateAttributes?[string(kSecAttrIsPermanent)]), true)
+        XCTAssertEqual(bool(from: privateAttributes?[string(kSecAttrCanSign)]), true)
+
+        guard let publicKey = SecKeyCopyPublicKey(privateKey) else {
+            XCTFail("SecKeyCopyPublicKey should synthesize a public key")
+            return
+        }
+        let publicData = data(from: SecKeyCopyExternalRepresentation(publicKey, nil))
+        XCTAssertEqual(publicData?.count, 32)
+        XCTAssertNotEqual(publicData, privateData)
+        XCTAssertEqual(SecKeyGetBlockSize(publicKey), 32)
+
+        let publicAttributes = secKeyAttributes(publicKey)
+        XCTAssertEqual(publicAttributes?[string(kSecAttrKeyClass)] as? String, string(kSecAttrKeyClassPublic))
+        XCTAssertEqual(publicAttributes?[string(kSecAttrKeyType)] as? String, string(kSecAttrKeyTypeECSECPrimeRandom))
+        XCTAssertEqual(bool(from: publicAttributes?[string(kSecAttrCanVerify)]), true)
+
+        var storedResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassKey,
+            kSecAttrApplicationTag: applicationTag,
+            kSecAttrKeyClass: kSecAttrKeyClassPrivate,
+            kSecReturnRef: true
+        ]), &storedResult), errSecSuccess)
+        XCTAssertTrue(storedResult is SecKey)
+    }
+
+    func testSecKeyGeneratePairReturnsClassedKeysAndStoresPermanentRows() {
+        let privateTag = Data("org.signal.generated-pair.private.\(UUID().uuidString)".utf8)
+        let publicTag = Data("org.signal.generated-pair.public.\(UUID().uuidString)".utf8)
+        let parameters: [CFString: Any] = [
+            kSecAttrKeyType: kSecAttrKeyTypeRSA,
+            kSecAttrKeySizeInBits: 512,
+            kSecPrivateKeyAttrs: [
+                kSecAttrApplicationTag: privateTag,
+                kSecAttrIsPermanent: true,
+                kSecAttrCanSign: true
+            ] as NSDictionary,
+            kSecPublicKeyAttrs: [
+                kSecAttrApplicationTag: publicTag,
+                kSecAttrIsPermanent: true,
+                kSecAttrCanVerify: true
+            ] as NSDictionary
+        ]
+        defer {
+            _ = SecItemDelete(cfDictionary([
+                kSecClass: kSecClassKey,
+                kSecAttrApplicationTag: privateTag
+            ]))
+            _ = SecItemDelete(cfDictionary([
+                kSecClass: kSecClassKey,
+                kSecAttrApplicationTag: publicTag
+            ]))
+        }
+
+        var publicKey: SecKey?
+        var privateKey: SecKey?
+        XCTAssertEqual(SecKeyGeneratePair(cfDictionary(parameters), &publicKey, &privateKey), errSecSuccess)
+        guard let publicKey, let privateKey else {
+            XCTFail("SecKeyGeneratePair should return both keys")
+            return
+        }
+
+        XCTAssertEqual(SecKeyGetBlockSize(privateKey), 64)
+        XCTAssertEqual(SecKeyGetBlockSize(publicKey), 64)
+
+        let privateAttributes = secKeyAttributes(privateKey)
+        XCTAssertEqual(privateAttributes?[string(kSecAttrKeyClass)] as? String, string(kSecAttrKeyClassPrivate))
+        XCTAssertEqual(privateAttributes?[string(kSecAttrKeyType)] as? String, string(kSecAttrKeyTypeRSA))
+        XCTAssertEqual(String(describing: privateAttributes?[string(kSecAttrKeySizeInBits)] ?? ""), "512")
+        XCTAssertEqual(data(from: privateAttributes?[string(kSecAttrApplicationTag)]), privateTag)
+        XCTAssertEqual(bool(from: privateAttributes?[string(kSecAttrCanSign)]), true)
+
+        let publicAttributes = secKeyAttributes(publicKey)
+        XCTAssertEqual(publicAttributes?[string(kSecAttrKeyClass)] as? String, string(kSecAttrKeyClassPublic))
+        XCTAssertEqual(publicAttributes?[string(kSecAttrKeyType)] as? String, string(kSecAttrKeyTypeRSA))
+        XCTAssertEqual(String(describing: publicAttributes?[string(kSecAttrKeySizeInBits)] ?? ""), "512")
+        XCTAssertEqual(data(from: publicAttributes?[string(kSecAttrApplicationTag)]), publicTag)
+        XCTAssertEqual(bool(from: publicAttributes?[string(kSecAttrCanVerify)]), true)
+
+        var privateDataResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassKey,
+            kSecAttrApplicationTag: privateTag,
+            kSecReturnData: true
+        ]), &privateDataResult), errSecSuccess)
+        XCTAssertEqual(data(from: privateDataResult)?.count, 64)
+
+        var publicRefResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassKey,
+            kSecAttrApplicationTag: publicTag,
+            kSecReturnRef: true
+        ]), &publicRefResult), errSecSuccess)
+        XCTAssertTrue(publicRefResult is SecKey)
+    }
+
     func testInternetPasswordNamespacesByEndpointAttributes() {
         let server = "chat.signal.example"
         let account = "primary-\(UUID().uuidString)"

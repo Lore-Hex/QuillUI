@@ -35,6 +35,14 @@ public final class SecKey: @unchecked Sendable {
         attributes[secKey(kSecClass)] = attributes[secKey(kSecClass)] ?? secString(kSecClassKey)
         return attributes
     }
+
+    func copyReplacingAttributes(_ updates: [String: Any]) -> SecKey {
+        var attributes = copyAttributes()
+        for (key, value) in updates {
+            attributes[key] = value
+        }
+        return SecKey(data: data, attributes: attributes)
+    }
 }
 
 public typealias SecKeyRef = SecKey
@@ -125,6 +133,7 @@ public let kSecAttrKeyClassSymmetric: CFString = "symm" as CFString
 public let kSecAttrKeyType: CFString = "type" as CFString
 public let kSecAttrKeyTypeRSA: CFString = "42" as CFString
 public let kSecAttrKeyTypeEC: CFString = "73" as CFString
+public let kSecAttrKeyTypeECSECPrimeRandom: CFString = "73" as CFString
 public let kSecAttrKeySizeInBits: CFString = "bsiz" as CFString
 public let kSecAttrEffectiveKeySize: CFString = "esiz" as CFString
 public let kSecAttrIsPermanent: CFString = "perm" as CFString
@@ -256,6 +265,88 @@ public func SecKeyCopyAttributes(_ key: SecKey) -> CFDictionary? {
 public func SecKeyCopyExternalRepresentation(_ key: SecKey, _ error: UnsafeMutablePointer<CFError?>?) -> CFData? {
     error?.pointee = nil
     return key.copyExternalRepresentation() as NSData as CFData
+}
+
+public func SecKeyCreateRandomKey(_ parameters: CFDictionary, _ error: UnsafeMutablePointer<CFError?>?) -> SecKey? {
+    let parameterValues = secDictionary(parameters)
+    guard let key = makeGeneratedSecKey(from: parameterValues, keyClass: kSecAttrKeyClassPrivate) else {
+        error?.pointee = nil
+        return nil
+    }
+
+    if boolValue(key.copyAttributes()[secKey(kSecAttrIsPermanent)]) {
+        guard storeGeneratedSecKey(key) == errSecSuccess else {
+            error?.pointee = nil
+            return nil
+        }
+    }
+
+    error?.pointee = nil
+    return key
+}
+
+public func SecKeyGeneratePair(
+    _ parameters: CFDictionary,
+    _ publicKey: UnsafeMutablePointer<SecKey?>?,
+    _ privateKey: UnsafeMutablePointer<SecKey?>?
+) -> OSStatus {
+    let parameterValues = secDictionary(parameters)
+    guard let privateGeneratedKey = makeGeneratedSecKey(from: parameterValues, keyClass: kSecAttrKeyClassPrivate) else {
+        publicKey?.pointee = nil
+        privateKey?.pointee = nil
+        return errSecParam
+    }
+
+    let publicData = synthesizedPublicKeyData(from: privateGeneratedKey.copyExternalRepresentation())
+    guard let publicGeneratedKey = makeGeneratedSecKey(from: parameterValues, keyClass: kSecAttrKeyClassPublic, data: publicData) else {
+        publicKey?.pointee = nil
+        privateKey?.pointee = nil
+        return errSecParam
+    }
+
+    if boolValue(privateGeneratedKey.copyAttributes()[secKey(kSecAttrIsPermanent)]) {
+        let status = storeGeneratedSecKey(privateGeneratedKey)
+        guard status == errSecSuccess else {
+            publicKey?.pointee = nil
+            privateKey?.pointee = nil
+            return status
+        }
+    }
+    if boolValue(publicGeneratedKey.copyAttributes()[secKey(kSecAttrIsPermanent)]) {
+        let status = storeGeneratedSecKey(publicGeneratedKey)
+        guard status == errSecSuccess else {
+            publicKey?.pointee = nil
+            privateKey?.pointee = nil
+            return status
+        }
+    }
+
+    publicKey?.pointee = publicGeneratedKey
+    privateKey?.pointee = privateGeneratedKey
+    return errSecSuccess
+}
+
+public func SecKeyCopyPublicKey(_ key: SecKey) -> SecKey? {
+    let attributes = key.copyAttributes()
+    if stringValue(attributes[secKey(kSecAttrKeyClass)]) == secString(kSecAttrKeyClassSymmetric) {
+        return nil
+    }
+    if stringValue(attributes[secKey(kSecAttrKeyClass)]) == secString(kSecAttrKeyClassPublic) {
+        return key
+    }
+
+    var updates: [String: Any] = [
+        secKey(kSecAttrKeyClass): secString(kSecAttrKeyClassPublic)
+    ]
+    if attributes[secKey(kSecAttrCanSign)] != nil && attributes[secKey(kSecAttrCanVerify)] == nil {
+        updates[secKey(kSecAttrCanVerify)] = true
+    }
+    return SecKey(data: synthesizedPublicKeyData(from: key.copyExternalRepresentation()), attributes: attributes)
+        .copyReplacingAttributes(updates)
+}
+
+public func SecKeyGetBlockSize(_ key: SecKey) -> Int {
+    key.copyExternalRepresentation().count
 }
 
 public func SecKeyIsAlgorithmSupported(_ _: SecKey, _ _: SecKeyOperationType, _ _: SecKeyAlgorithm) -> Bool {
@@ -665,6 +756,109 @@ private func makeValueReference(from source: [String: Any], storedAttributes: [S
     return SecKey(data: valueData, attributes: storedAttributes)
 }
 
+private func makeGeneratedSecKey(from parameters: [String: Any], keyClass: CFString, data: Data? = nil) -> SecKey? {
+    let bitCount = keySizeInBits(from: parameters)
+    guard bitCount > 0 else {
+        return nil
+    }
+
+    let byteCount = max(1, (bitCount + 7) / 8)
+    guard let keyData = data ?? randomData(byteCount: byteCount), !keyData.isEmpty else {
+        return nil
+    }
+
+    var attributes = generatedKeyAttributes(from: parameters, keyClass: keyClass, keySizeInBits: bitCount)
+    if attributes[secKey(kSecAttrApplicationLabel)] == nil {
+        attributes[secKey(kSecAttrApplicationLabel)] = generatedKeyLabel(from: keyData, keyClass: keyClass) as NSData
+    }
+    return SecKey(data: keyData, attributes: attributes)
+}
+
+private func generatedKeyAttributes(from parameters: [String: Any], keyClass: CFString, keySizeInBits: Int) -> [String: Any] {
+    var attributes = parameters
+    let nestedKeyAttributes = dictionaryValue(
+        parameters[secKey(keyClass == kSecAttrKeyClassPublic ? kSecPublicKeyAttrs : kSecPrivateKeyAttrs)]
+    )
+    for (key, value) in nestedKeyAttributes {
+        attributes[key] = value
+    }
+
+    attributes[secKey(kSecClass)] = secString(kSecClassKey)
+    attributes[secKey(kSecAttrKeyClass)] = secString(keyClass)
+    attributes[secKey(kSecAttrKeyType)] = stringValue(attributes[secKey(kSecAttrKeyType)])
+        ?? secString(kSecAttrKeyTypeECSECPrimeRandom)
+    attributes[secKey(kSecAttrKeySizeInBits)] = keySizeInBits
+    attributes[secKey(kSecAttrEffectiveKeySize)] = attributes[secKey(kSecAttrEffectiveKeySize)] ?? keySizeInBits
+
+    if keyClass == kSecAttrKeyClassPublic {
+        attributes[secKey(kSecAttrCanVerify)] = attributes[secKey(kSecAttrCanVerify)] ?? true
+        attributes[secKey(kSecAttrCanEncrypt)] = attributes[secKey(kSecAttrCanEncrypt)] ?? true
+    } else {
+        attributes[secKey(kSecAttrCanSign)] = attributes[secKey(kSecAttrCanSign)] ?? true
+        attributes[secKey(kSecAttrCanDecrypt)] = attributes[secKey(kSecAttrCanDecrypt)] ?? true
+    }
+
+    return attributes
+}
+
+private func keySizeInBits(from parameters: [String: Any]) -> Int {
+    if let bitCount = intValue(parameters[secKey(kSecAttrKeySizeInBits)]) {
+        return bitCount
+    }
+
+    let nestedKeys = [kSecPrivateKeyAttrs, kSecPublicKeyAttrs]
+    for nestedKey in nestedKeys {
+        let nestedAttributes = dictionaryValue(parameters[secKey(nestedKey)])
+        if let bitCount = intValue(nestedAttributes[secKey(kSecAttrKeySizeInBits)]) {
+            return bitCount
+        }
+    }
+
+    if stringValue(parameters[secKey(kSecAttrKeyType)]) == secString(kSecAttrKeyTypeRSA) {
+        return 2048
+    }
+    return 256
+}
+
+private func randomData(byteCount: Int) -> Data? {
+    guard byteCount > 0 else {
+        return nil
+    }
+
+    var bytes = [UInt8](repeating: 0, count: byteCount)
+    let status = bytes.withUnsafeMutableBytes { buffer -> OSStatus in
+        guard let baseAddress = buffer.baseAddress else {
+            return errSecParam
+        }
+        return SecRandomCopyBytes(kSecRandomDefault, byteCount, baseAddress)
+    }
+    guard status == errSecSuccess else {
+        return nil
+    }
+    return Data(bytes)
+}
+
+private func synthesizedPublicKeyData(from privateData: Data) -> Data {
+    var bytes = Array(privateData)
+    for index in bytes.indices {
+        let mask = UInt8(truncatingIfNeeded: UInt(index &* 31 &+ 0xA5))
+        bytes[index] ^= mask
+    }
+    return Data(bytes)
+}
+
+private func generatedKeyLabel(from keyData: Data, keyClass: CFString) -> Data {
+    var label = Data("quillui-security-generated-key:\(secString(keyClass)):".utf8)
+    label.append(keyData.prefix(24))
+    return label
+}
+
+private func storeGeneratedSecKey(_ key: SecKey) -> OSStatus {
+    var attributes = key.copyAttributes()
+    attributes[secKey(kSecValueData)] = key.copyExternalRepresentation() as NSData
+    return SecItemProcessStore.shared.add(attributes, result: nil)
+}
+
 private func setResult(_ object: CFTypeRef?, _ result: UnsafeMutablePointer<CFTypeRef?>?) {
     guard let result else {
         return
@@ -720,6 +914,37 @@ private func boolValue(_ value: Any?) -> Bool {
         return value.boolValue
     }
     return false
+}
+
+private func intValue(_ value: Any?) -> Int? {
+    if let value = value as? Int {
+        return value
+    }
+    if let value = value as? NSNumber {
+        return value.intValue
+    }
+    if let value = value as? String {
+        return Int(value)
+    }
+    if let value {
+        return Int(String(describing: value))
+    }
+    return nil
+}
+
+private func dictionaryValue(_ value: Any?) -> [String: Any] {
+    if let value = value as? [String: Any] {
+        return value
+    }
+    guard let dictionary = value as? NSDictionary else {
+        return [:]
+    }
+
+    var result: [String: Any] = [:]
+    for (key, value) in dictionary {
+        result[secKeyName(key)] = value
+    }
+    return result
 }
 
 private func dataValue(_ value: Any?) -> Data? {
