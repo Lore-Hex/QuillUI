@@ -539,37 +539,66 @@ public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible, CustomDebug
     }
 
     private static func describeService(name: String, type: String, domain: String) -> String {
-        let normalizedName = trimDots(name)
-        let normalizedType = trimDots(type)
-        let normalizedDomain = trimDots(domain)
+        let normalizedType = trimTrailingDots(type)
 
-        if normalizedType.isEmpty {
-            return [normalizedName, normalizedDomain]
-                .filter { !$0.isEmpty }
-                .joined(separator: ".")
+        guard isValidDNSServiceType(normalizedType) else {
+            return "\(name).\(type)\(domain)"
         }
 
-        let serviceTypeAndDomain: String
-        if normalizedDomain.isEmpty {
-            serviceTypeAndDomain = normalizedType
-        } else if normalizedType.contains(".") {
-            serviceTypeAndDomain = "\(normalizedType).\(normalizedDomain)."
+        var result = ""
+        if name.isEmpty {
+            if domain.isEmpty {
+                result += "."
+            }
         } else {
-            serviceTypeAndDomain = "\(normalizedType)\(normalizedDomain)"
+            result += escapeDNSServiceName(name)
+            result += "."
         }
 
-        return [normalizedName, serviceTypeAndDomain]
-            .filter { !$0.isEmpty }
-            .joined(separator: ".")
+        result += normalizedType
+
+        if !domain.isEmpty {
+            result += "."
+            result += trimTrailingDots(domain)
+            result += "."
+        }
+
+        return result
     }
 
-    private static func trimDots(_ value: String) -> String {
+    private static func trimTrailingDots(_ value: String) -> String {
         var result = value
-        while result.first == "." {
-            result.removeFirst()
-        }
         while result.last == "." {
             result.removeLast()
+        }
+        return result
+    }
+
+    private static func isValidDNSServiceType(_ type: String) -> Bool {
+        let labels = type.split(separator: ".", omittingEmptySubsequences: false)
+        guard labels.count == 2 || (labels.count == 3 && labels.first == "") else {
+            return false
+        }
+        guard let service = labels.dropLast().last,
+              let transport = labels.last,
+              service.hasPrefix("_") else {
+            return false
+        }
+        return transport == "_tcp" || transport == "_udp"
+    }
+
+    private static func escapeDNSServiceName(_ name: String) -> String {
+        var result = ""
+        for scalar in name.unicodeScalars {
+            if scalar == "." {
+                result += "\\."
+            } else if scalar == "\\" {
+                result += "\\\\"
+            } else if scalar.value <= 0x20 {
+                result += String(format: "\\%03u", scalar.value)
+            } else {
+                result.unicodeScalars.append(scalar)
+            }
         }
         return result
     }

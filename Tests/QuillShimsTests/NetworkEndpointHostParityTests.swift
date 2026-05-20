@@ -94,6 +94,21 @@ final class NetworkEndpointHostParityTests: XCTestCase {
             (.service(name: "svc", type: "_http._tcp", domain: "local.", interface: nil), "svc._http._tcp.local."),
             (.service(name: "svc", type: "_http._tcp.", domain: "local.", interface: nil), "svc._http._tcp.local."),
             (.service(name: "svc", type: "http", domain: "local", interface: nil), "svc.httplocal"),
+            (.service(name: "", type: "_http._tcp", domain: "local", interface: nil), "_http._tcp.local."),
+            (.service(name: "", type: "_http._tcp", domain: "", interface: nil), "._http._tcp"),
+            (.service(name: "", type: "http", domain: "local", interface: nil), ".httplocal"),
+            (.service(name: "svc.", type: "_http._tcp", domain: "local", interface: nil), "svc\\.._http._tcp.local."),
+            (.service(name: "a.b", type: "_http._tcp", domain: "local", interface: nil), "a\\.b._http._tcp.local."),
+            (.service(name: "a..b.", type: "_http._tcp", domain: "local", interface: nil), "a\\.\\.b\\.._http._tcp.local."),
+            (.service(name: ".svc", type: "_http._tcp", domain: "local", interface: nil), "\\.svc._http._tcp.local."),
+            (.service(name: "a b", type: "_http._tcp", domain: "local", interface: nil), "a\\032b._http._tcp.local."),
+            (.service(name: "a\\b", type: "_http._tcp", domain: "local", interface: nil), "a\\\\b._http._tcp.local."),
+            (.service(name: "svc", type: "_mesh._udp", domain: "example.com.", interface: nil), "svc._mesh._udp.example.com."),
+            (.service(name: "svc", type: "_mesh._udp.example.com", domain: "local", interface: nil), "svc._mesh._udp.example.comlocal"),
+            (.service(name: "svc", type: "_mesh._sctp", domain: "local", interface: nil), "svc._mesh._sctplocal"),
+            (.service(name: "svc", type: "_http._tcp", domain: ".local", interface: nil), "svc._http._tcp..local."),
+            (.service(name: "svc.", type: "._http._tcp.", domain: ".local.", interface: nil), "svc\\..._http._tcp..local."),
+            (.service(name: ".", type: ".", domain: ".", interface: nil), "...."),
         ]
 
         for (endpoint, expectedDescription) in cases {
