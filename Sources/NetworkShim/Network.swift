@@ -223,7 +223,7 @@ public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible {
         }
     }
 
-    public struct Port: Hashable, Sendable, RawRepresentable, ExpressibleByIntegerLiteral, CustomStringConvertible {
+    public struct Port: Hashable, Sendable, RawRepresentable, ExpressibleByIntegerLiteral, CustomDebugStringConvertible {
         public let rawValue: UInt16
         public init?(_ string: String) {
             guard let rawValue = Self.parsePortString(string) else { return nil }
@@ -232,9 +232,19 @@ public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible {
         public init?(rawValue: UInt16) { self.rawValue = rawValue }
         public init(integerLiteral value: UInt16) { self.rawValue = value }
 
-        public var description: String {
+        public var debugDescription: String {
             String(rawValue)
         }
+
+        public static let any = Port(rawValue: 0)!
+        public static let ssh = Port(rawValue: 22)!
+        public static let smtp = Port(rawValue: 25)!
+        public static let http = Port(rawValue: 80)!
+        public static let pop = Port(rawValue: 110)!
+        public static let imap = Port(rawValue: 143)!
+        public static let https = Port(rawValue: 443)!
+        public static let imaps = Port(rawValue: 993)!
+        public static let socks = Port(rawValue: 1080)!
 
         private static func parsePortString(_ string: String) -> UInt16? {
             let scalars = Array(string.unicodeScalars)
@@ -284,7 +294,7 @@ public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible {
         switch self {
         case .hostPort(let host, let port):
             let separator = host.isIPv6Literal ? "." : ":"
-            return "\(host.description)\(separator)\(port.description)"
+            return "\(host.description)\(separator)\(String(describing: port))"
         case .service(let name, let type, let domain, _):
             return Self.describeService(name: name, type: type, domain: domain)
         case .unix(let path):

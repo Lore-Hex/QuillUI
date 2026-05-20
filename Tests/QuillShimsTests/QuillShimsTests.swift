@@ -299,14 +299,32 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
 
         let literalPort: NWEndpoint.Port = 443
         XCTAssertEqual(literalPort.rawValue, 443)
-        XCTAssertEqual(literalPort.description, "443")
+        XCTAssertEqual(String(describing: literalPort), "443")
+        XCTAssertEqual(literalPort.debugDescription, "443")
         XCTAssertEqual(NWEndpoint.Port("51820")?.rawValue, 51820)
         XCTAssertEqual(NWEndpoint.Port(" 80")?.rawValue, 80)
         XCTAssertEqual(NWEndpoint.Port("\t80")?.rawValue, 80)
         XCTAssertEqual(NWEndpoint.Port("+1")?.rawValue, 1)
         XCTAssertEqual(NWEndpoint.Port("-0")?.rawValue, 0)
         XCTAssertEqual(NWEndpoint.Port("00080")?.rawValue, 80)
-        XCTAssertEqual(NWEndpoint.Port(rawValue: 65535)?.description, "65535")
+        XCTAssertEqual(String(describing: NWEndpoint.Port(rawValue: 65535)!), "65535")
+        XCTAssertEqual(NWEndpoint.Port(rawValue: 65535)?.debugDescription, "65535")
+        let knownPorts: [(NWEndpoint.Port, UInt16)] = [
+            (.any, 0),
+            (.ssh, 22),
+            (.smtp, 25),
+            (.http, 80),
+            (.pop, 110),
+            (.imap, 143),
+            (.https, 443),
+            (.imaps, 993),
+            (.socks, 1080),
+        ]
+        for (port, rawValue) in knownPorts {
+            XCTAssertEqual(port.rawValue, rawValue)
+            XCTAssertEqual(String(describing: port), String(rawValue))
+            XCTAssertEqual(port.debugDescription, String(rawValue))
+        }
         XCTAssertNil(NWEndpoint.Port("-1"))
         XCTAssertNil(NWEndpoint.Port("65536"))
         XCTAssertNil(NWEndpoint.Port("80 "))
