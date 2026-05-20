@@ -276,6 +276,65 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
         XCTAssertEqual(IPv6Address(ipv6Loopback)?.description, "::1")
         XCTAssertNil(IPv6Address(Data(Array(repeating: UInt8(0), count: 17))))
 
+        let ipv4Constants: [(IPv4Address, [UInt8], String, Bool, Bool, Bool)] = [
+            (.any, [0, 0, 0, 0], "0.0.0.0", false, false, false),
+            (.broadcast, [255, 255, 255, 255], "255.255.255.255", false, false, false),
+            (.loopback, [127, 0, 0, 1], "127.0.0.1", true, false, false),
+            (.allHostsGroup, [224, 0, 0, 1], "224.0.0.1", false, false, true),
+            (.allRoutersGroup, [224, 0, 0, 2], "224.0.0.2", false, false, true),
+            (.allReportsGroup, [224, 0, 0, 22], "224.0.0.22", false, false, true),
+            (.mdnsGroup, [224, 0, 0, 251], "224.0.0.251", false, false, true),
+        ]
+        for (address, rawValue, description, isLoopback, isLinkLocal, isMulticast) in ipv4Constants {
+            XCTAssertEqual(address.rawValue, Data(rawValue), description)
+            XCTAssertEqual(String(describing: address), description)
+            XCTAssertEqual(address.debugDescription, description)
+            XCTAssertEqual(address.isLoopback, isLoopback, description)
+            XCTAssertEqual(address.isLinkLocal, isLinkLocal, description)
+            XCTAssertEqual(address.isMulticast, isMulticast, description)
+            XCTAssertNil(address.interface, description)
+        }
+        XCTAssertFalse(IPv4Address("127.0.0.2")!.isLoopback)
+        XCTAssertTrue(IPv4Address("169.254.1.2")!.isLinkLocal)
+        XCTAssertTrue(IPv4Address("239.255.255.255")!.isMulticast)
+        XCTAssertFalse(IPv4Address("240.0.0.1")!.isMulticast)
+
+        let ipv6Constants: [(IPv6Address, [UInt8], String, Bool, Bool, Bool, IPv6Address.Scope?)] = [
+            (.any, Array(repeating: UInt8(0), count: 16), "::", true, false, false, nil),
+            (.broadcast, Array(repeating: UInt8(0), count: 16), "::", true, false, false, nil),
+            (.loopback, Array(repeating: UInt8(0), count: 15) + [1], "::1", false, true, false, nil),
+            (.nodeLocalNodes, [0xff, 0x01] + Array(repeating: UInt8(0), count: 13) + [1], "ff01::1", false, false, true, .nodeLocal),
+            (.linkLocalNodes, [0xff, 0x02] + Array(repeating: UInt8(0), count: 13) + [1], "ff02::1", false, false, true, .linkLocal),
+            (.linkLocalRouters, [0xff, 0x02] + Array(repeating: UInt8(0), count: 13) + [2], "ff02::2", false, false, true, .linkLocal),
+        ]
+        for (address, rawValue, description, isAny, isLoopback, isMulticast, scope) in ipv6Constants {
+            XCTAssertEqual(address.rawValue, Data(rawValue), description)
+            XCTAssertEqual(String(describing: address), description)
+            XCTAssertEqual(address.debugDescription, description)
+            XCTAssertEqual(address.isAny, isAny, description)
+            XCTAssertEqual(address.isLoopback, isLoopback, description)
+            XCTAssertEqual(address.isMulticast, isMulticast, description)
+            XCTAssertEqual(address.multicastScope, scope, description)
+            XCTAssertNil(address.interface, description)
+        }
+        XCTAssertTrue(IPv6Address("fe80::1")!.isLinkLocal)
+        XCTAssertTrue(IPv6Address("febf::1")!.isLinkLocal)
+        XCTAssertFalse(IPv6Address("fec0::1")!.isLinkLocal)
+        XCTAssertTrue(IPv6Address("::ffff:192.0.2.1")!.isIPv4Mapped)
+        XCTAssertFalse(IPv6Address("::ffff:192.0.2.1")!.isIPv4Compatabile)
+        XCTAssertEqual(IPv6Address("::ffff:192.0.2.1")!.asIPv4?.description, "192.0.2.1")
+        XCTAssertTrue(IPv6Address("::192.0.2.1")!.isIPv4Compatabile)
+        XCTAssertFalse(IPv6Address("::192.0.2.1")!.isIPv4Mapped)
+        XCTAssertEqual(IPv6Address("::192.0.2.1")!.asIPv4?.description, "192.0.2.1")
+        XCTAssertFalse(IPv6Address("::")!.isIPv4Compatabile)
+        XCTAssertFalse(IPv6Address("::1")!.isIPv4Compatabile)
+        XCTAssertTrue(IPv6Address("2002:c000:0201::")!.is6to4)
+        XCTAssertTrue(IPv6Address("fc00::1")!.isUniqueLocal)
+        XCTAssertTrue(IPv6Address("fd00::1")!.isUniqueLocal)
+        XCTAssertEqual(IPv6Address("ff05::1")!.multicastScope, .siteLocal)
+        XCTAssertEqual(IPv6Address("ff08::1")!.multicastScope, .organizationLocal)
+        XCTAssertEqual(IPv6Address("ff0e::1")!.multicastScope, .global)
+
         if case .ipv4(let address) = NWEndpoint.Host("192.168.1.10") {
             XCTAssertEqual(address.rawValue, Data([192, 168, 1, 10]))
             XCTAssertEqual(NWEndpoint.Host("192.168.1.10").description, "192.168.1.10")

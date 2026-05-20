@@ -75,6 +75,12 @@ public struct NWInterface: Hashable, Sendable {
 
 public protocol IPAddress {
     var rawValue: Data { get }
+    init?(_ rawValue: Data, _ interface: NWInterface?)
+    init?(_ string: String)
+    var interface: NWInterface? { get }
+    var isLoopback: Bool { get }
+    var isLinkLocal: Bool { get }
+    var isMulticast: Bool { get }
 }
 
 private func parseIPv4Component(_ component: Substring) -> UInt64? {
@@ -165,37 +171,130 @@ private func formatIPAddressLiteral(_ data: Data, family: Int32) -> String {
     }
 }
 
-public struct IPv4Address: IPAddress, Hashable, Sendable, CustomStringConvertible {
+public struct IPv4Address: IPAddress, Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
+    public static let any = IPv4Address(Data([0, 0, 0, 0]))!
+    public static let broadcast = IPv4Address(Data([255, 255, 255, 255]))!
+    public static let loopback = IPv4Address(Data([127, 0, 0, 1]))!
+    public static let allHostsGroup = IPv4Address(Data([224, 0, 0, 1]))!
+    public static let allRoutersGroup = IPv4Address(Data([224, 0, 0, 2]))!
+    public static let allReportsGroup = IPv4Address(Data([224, 0, 0, 22]))!
+    public static let mdnsGroup = IPv4Address(Data([224, 0, 0, 251]))!
+
     public var rawValue: Data
+    public let interface: NWInterface?
+
     public init?(_ string: String) {
         guard let rawValue = parseIPv4AddressLiteral(string) else { return nil }
         self.rawValue = rawValue
+        self.interface = nil
     }
     /// Apple's matches this signature as `init?(_ rawValue: Data)`, so
     /// upstream code does `IPv4Address(bytes)!`.
-    public init?(_ data: Data) {
+    public init?(_ data: Data, _ interface: NWInterface? = nil) {
         guard data.count == 4 else { return nil }
         self.rawValue = data
+        self.interface = interface
+    }
+
+    public var isLoopback: Bool {
+        rawValue.elementsEqual([127, 0, 0, 1])
+    }
+
+    public var isLinkLocal: Bool {
+        rawValue[0] == 169 && rawValue[1] == 254
+    }
+
+    public var isMulticast: Bool {
+        (224...239).contains(rawValue[0])
     }
 
     public var description: String {
         formatIPAddressLiteral(rawValue, family: AF_INET)
     }
+
+    public var debugDescription: String {
+        description
+    }
 }
 
-public struct IPv6Address: IPAddress, Hashable, Sendable, CustomStringConvertible {
+public struct IPv6Address: IPAddress, Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
+    public static let any = IPv6Address(Data(Array(repeating: UInt8(0), count: 16)))!
+    public static let broadcast = IPv6Address(Data(Array(repeating: UInt8(0), count: 16)))!
+    public static let loopback = IPv6Address(Data(Array(repeating: UInt8(0), count: 15) + [1]))!
+    public static let nodeLocalNodes = IPv6Address(Data([0xff, 0x01] + Array(repeating: UInt8(0), count: 13) + [1]))!
+    public static let linkLocalNodes = IPv6Address(Data([0xff, 0x02] + Array(repeating: UInt8(0), count: 13) + [1]))!
+    public static let linkLocalRouters = IPv6Address(Data([0xff, 0x02] + Array(repeating: UInt8(0), count: 13) + [2]))!
+
+    public enum Scope: UInt8 {
+        case nodeLocal = 1
+        case linkLocal = 2
+        case siteLocal = 5
+        case organizationLocal = 8
+        case global = 14
+    }
+
     public var rawValue: Data
+    public let interface: NWInterface?
+
     public init?(_ string: String) {
         guard let rawValue = parseIPv6AddressLiteral(string) else { return nil }
         self.rawValue = rawValue
+        self.interface = nil
     }
-    public init?(_ data: Data) {
+    public init?(_ data: Data, _ interface: NWInterface? = nil) {
         guard data.count == 16 else { return nil }
         self.rawValue = data
+        self.interface = interface
+    }
+
+    public var isAny: Bool {
+        rawValue.allSatisfy { $0 == 0 }
+    }
+
+    public var isLoopback: Bool {
+        rawValue.prefix(15).allSatisfy { $0 == 0 } && rawValue[15] == 1
+    }
+
+    public var isIPv4Compatabile: Bool {
+        rawValue.prefix(12).allSatisfy { $0 == 0 } && !isAny && !isLoopback
+    }
+
+    public var isIPv4Mapped: Bool {
+        rawValue.prefix(10).allSatisfy { $0 == 0 } && rawValue[10] == 0xff && rawValue[11] == 0xff
+    }
+
+    public var asIPv4: IPv4Address? {
+        guard isIPv4Compatabile || isIPv4Mapped else { return nil }
+        return IPv4Address(Data(rawValue.suffix(4)))
+    }
+
+    public var is6to4: Bool {
+        rawValue[0] == 0x20 && rawValue[1] == 0x02
+    }
+
+    public var isLinkLocal: Bool {
+        rawValue[0] == 0xfe && (rawValue[1] & 0xc0) == 0x80
+    }
+
+    public var isMulticast: Bool {
+        rawValue[0] == 0xff
+    }
+
+    public var multicastScope: Scope? {
+        guard isMulticast else { return nil }
+        return Scope(rawValue: rawValue[1] & 0x0f)
+    }
+
+    public var isUniqueLocal: Bool {
+        rawValue[0] == 0xfc || rawValue[0] == 0xfd
     }
 
     public var description: String {
         formatIPAddressLiteral(rawValue, family: AF_INET6)
+    }
+
+    public var debugDescription: String {
+        description
     }
 }
 
