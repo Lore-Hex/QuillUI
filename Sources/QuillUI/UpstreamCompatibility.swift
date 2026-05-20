@@ -917,6 +917,54 @@ public struct ListRowSeparatorView<Content: View>: View {
     public var body: some View { content }
 }
 
+public struct TextContentTypeView<Content: View>: View {
+    public let content: Content
+    public let contentType: TextContentType?
+
+    public init(content: Content, contentType: TextContentType?) {
+        self.content = content
+        self.contentType = contentType
+    }
+
+    public var body: some View { content }
+}
+
+public struct AutocorrectionDisabledView<Content: View>: View {
+    public let content: Content
+    public let disabled: Bool?
+
+    public init(content: Content, disabled: Bool?) {
+        self.content = content
+        self.disabled = disabled
+    }
+
+    public var body: some View { content }
+}
+
+public struct KeyboardTypeView<Content: View>: View {
+    public let content: Content
+    public let keyboardType: KeyboardType
+
+    public init(content: Content, keyboardType: KeyboardType) {
+        self.content = content
+        self.keyboardType = keyboardType
+    }
+
+    public var body: some View { content }
+}
+
+public struct AutocapitalizationView<Content: View>: View {
+    public let content: Content
+    public let autocapitalization: TextInputAutocapitalization
+
+    public init(content: Content, autocapitalization: TextInputAutocapitalization) {
+        self.content = content
+        self.autocapitalization = autocapitalization
+    }
+
+    public var body: some View { content }
+}
+
 public struct DragGesture: Sendable {
     public struct Value: Sendable {
         public var translation: CGSize
@@ -1324,36 +1372,36 @@ public extension View {
             .background(Color.gray5Custom)
     }
 
-    func textContentType(_ contentType: TextContentType?) -> Self {
+    func textContentType(_ contentType: TextContentType?) -> TextContentTypeView<Self> {
         recordQuillUIFallback(
             "textContentType",
-            message: "textContentType is currently a source-compatibility fallback on Linux."
+            message: "textContentType is preserved as text-input metadata on Linux."
         )
-        return self
+        return TextContentTypeView(content: self, contentType: contentType)
     }
 
-    func disableAutocorrection(_ disabled: Bool?) -> Self {
+    func disableAutocorrection(_ disabled: Bool?) -> AutocorrectionDisabledView<Self> {
         recordQuillUIFallback(
             "disableAutocorrection",
-            message: "disableAutocorrection is currently a source-compatibility fallback on Linux."
+            message: "disableAutocorrection is preserved as text-input metadata on Linux."
         )
-        return self
+        return AutocorrectionDisabledView(content: self, disabled: disabled)
     }
 
-    func keyboardType(_ keyboardType: KeyboardType) -> Self {
+    func keyboardType(_ keyboardType: KeyboardType) -> KeyboardTypeView<Self> {
         recordQuillUIFallback(
             "keyboardType",
-            message: "keyboardType is currently a source-compatibility fallback on Linux."
+            message: "keyboardType is preserved as text-input metadata on Linux."
         )
-        return self
+        return KeyboardTypeView(content: self, keyboardType: keyboardType)
     }
 
-    func autocapitalization(_ autocapitalization: TextInputAutocapitalization) -> Self {
+    func autocapitalization(_ autocapitalization: TextInputAutocapitalization) -> AutocapitalizationView<Self> {
         recordQuillUIFallback(
             "autocapitalization",
-            message: "autocapitalization is currently a source-compatibility fallback on Linux."
+            message: "autocapitalization is preserved as text-input metadata on Linux."
         )
-        return self
+        return AutocapitalizationView(content: self, autocapitalization: autocapitalization)
     }
 
     func onChange<V: Equatable>(
@@ -1556,6 +1604,22 @@ extension ListRowInsetsView: QuillWrappedViewRepresentable {
 }
 
 extension ListRowSeparatorView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension TextContentTypeView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension AutocorrectionDisabledView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension KeyboardTypeView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension AutocapitalizationView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 

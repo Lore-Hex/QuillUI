@@ -84,6 +84,22 @@ struct CompatibilityModuleTests {
         #expect(String(describing: type(of: rowSeparator)).contains("ListRowSeparatorView"))
         #expect(rowSeparator.visibility == .hidden)
         #expect(rowSeparator.edges == .vertical)
+
+        let keyboardTyped = Text("URL").keyboardType(.URL)
+        #expect(String(describing: type(of: keyboardTyped)).contains("KeyboardTypeView"))
+        #expect(keyboardTyped.keyboardType == .URL)
+
+        let autocapitalized = Text("Lowercase").autocapitalization(.never)
+        #expect(String(describing: type(of: autocapitalized)).contains("AutocapitalizationView"))
+        #expect(autocapitalized.autocapitalization == .never)
+
+        let autocorrectionDisabled = Text("No correction").disableAutocorrection(true)
+        #expect(String(describing: type(of: autocorrectionDisabled)).contains("AutocorrectionDisabledView"))
+        #expect(autocorrectionDisabled.disabled == true)
+
+        let typedContent = Text("URL").textContentType(.URL)
+        #expect(String(describing: type(of: typedContent)).contains("TextContentTypeView"))
+        #expect(typedContent.contentType == .URL)
 #endif
 
         let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
