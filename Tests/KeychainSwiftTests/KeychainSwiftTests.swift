@@ -2,6 +2,10 @@ import Foundation
 import KeychainSwift
 import Testing
 
+private let keychainSuccessStatus: Int32 = 0
+private let keychainParamStatus: Int32 = -50
+private let keychainItemNotFoundStatus: Int32 = -25300
+
 @Suite("KeychainSwift compatibility store", .serialized)
 struct KeychainSwiftTests {
     @Test("stores strings, data, and bools by key")
@@ -59,5 +63,53 @@ struct KeychainSwiftTests {
 
         #expect(keychain.set("not-bool", forKey: "value"))
         #expect(keychain.getBool("value") == nil)
+    }
+
+    @Test("access groups and synchronizable mode isolate namespaces")
+    func accessGroupsAndSynchronizableModeIsolateNamespaces() {
+        let prefix = "namespaces-\(UUID().uuidString)-"
+        let local = KeychainSwift(keyPrefix: prefix)
+        let grouped = KeychainSwift(keyPrefix: prefix, accessGroup: "group.org.signal")
+        let synchronized = KeychainSwift(keyPrefix: prefix, synchronizable: true)
+        defer {
+            local.clear()
+            grouped.clear()
+            synchronized.clear()
+        }
+
+        #expect(local.set("local", forKey: "token"))
+        #expect(grouped.set("group", forKey: "token"))
+        #expect(synchronized.set("sync", forKey: "token"))
+
+        #expect(local.get("token") == "local")
+        #expect(grouped.get("token") == "group")
+        #expect(synchronized.get("token") == "sync")
+
+        #expect(grouped.clear())
+        #expect(grouped.get("token") == nil)
+        #expect(local.get("token") == "local")
+        #expect(synchronized.get("token") == "sync")
+    }
+
+    @Test("tracks result codes and accepts accessibility options")
+    func tracksResultCodesAndAcceptsAccessOptions() {
+        let keychain = KeychainSwift(keyPrefix: "result-\(UUID().uuidString)-")
+        defer { keychain.clear() }
+
+        #expect(keychain.set(
+            "token",
+            forKey: "token",
+            withAccess: KeychainSwiftAccessOptions.accessibleAfterFirstUnlockThisDeviceOnly
+        ))
+        #expect(keychain.lastResultCode == keychainSuccessStatus)
+        #expect(keychain.get("token") == "token")
+        #expect(keychain.lastResultCode == keychainSuccessStatus)
+
+        #expect(keychain.get("missing") == nil)
+        #expect(keychain.lastResultCode == keychainItemNotFoundStatus)
+
+        #expect(keychain.set("not-bool", forKey: "flag"))
+        #expect(keychain.getBool("flag") == nil)
+        #expect(keychain.lastResultCode == keychainParamStatus)
     }
 }

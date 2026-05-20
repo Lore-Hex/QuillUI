@@ -552,7 +552,7 @@ app progress can be audited with the same status ladder.
 | --- | --- | --- |
 | `Alamofire` | URL string request creation for GET/POST, URLSession-backed transport, status-code validation, and JSON `Decodable` response callbacks. | Upload/download, interceptors, authentication, retry policies, request/response serializers beyond JSON decoding, trust evaluation parity, cancellation/progress, and fuzz parity against upstream Alamofire. |
 | `OllamaKit` | Base URL setup, model listing, reachability probing, current chat streaming contracts, response decoding, and app-facing Codable models. | Full upstream API breadth, retries, tool-call/event streaming details, transport customization edge cases, and Apple/Linux fuzz parity beyond current Enchanted flows. |
-| `KeychainSwift` and lower-level `Security` random/keychain storage | Prefix-scoped in-memory string, data, bool, delete, and clear flows; `SecRandomCopyBytes` for Signal-shaped key-material generation; process-local `SecItemAdd`, `SecItemCopyMatching`, `SecItemUpdate`, and `SecItemDelete` generic-password rows with persistent-reference handles for account storage. | Secure OS keychain persistence, access control, access groups, synchronization, accessibility classes, native item protection, cross-process behavior, and cryptographic equivalence beyond the valid-count random-byte contract. |
+| `KeychainSwift` and lower-level `Security` random/keychain storage | Prefix-scoped in-memory string, data, bool, delete, and clear flows; source-compatible access-group and synchronizable namespaces, accessibility option metadata, and result-code tracking; `SecRandomCopyBytes` for Signal-shaped key-material generation; process-local `SecItemAdd`, `SecItemCopyMatching`, `SecItemUpdate`, and `SecItemDelete` generic-password rows with persistent-reference handles for account storage. | Secure OS keychain persistence, native access-control enforcement, true keychain sharing, iCloud synchronization, native item protection, cross-process behavior, and cryptographic equivalence beyond the valid-count random-byte contract. |
 | Markdown/code packages | `MarkdownUI` parsing/rendering subset, plain-text extraction, highlighter injection, `Splash` theme/token highlighting subset. | Full CommonMark/GitHub Markdown, exact MarkdownUI styling/layout, complete Swift tokenization, HTML output parity, and typography/rendering fidelity. |
 | UI helper packages | `ActivityIndicatorView`, `WrappingHStack`, `Vortex`, `KeyboardShortcuts`, `Magnet`, and `Sparkle` expose app-facing shapes. | Animations, true wrapping layout, particle effects, native shortcut recording/global hotkeys, updater behavior, and platform services. |
 | App support shims | `Tidemark`, `Secrets`, `QuillRS`, `SwiftUIIntrospect`, `SwiftUIDesignSystem`, `Zip`, and `RSDatabase` compile current app source. | CommonMark conversion, secret storage, browser integration, tree/path parity, introspection callbacks, real zip/database APIs, and broader upstream semantics. |
@@ -588,14 +588,16 @@ app progress can be audited with the same status ladder.
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `KeychainSwift.init()` / `init(keyPrefix:)` | Usable | Creates a process-local in-memory store with optional key prefixing. |
+| `KeychainSwift.init()` / `init(keyPrefix:accessGroup:synchronizable:)` | Usable | Creates a process-local in-memory store with optional key prefixing, access-group namespace, and synchronizable namespace. |
 | `set(_:forKey:)` for `String`, `Data`, and `Bool` | Usable | Stores values in memory and returns success. |
 | `get(_:)`, `getData(_:)`, `getBool(_:)` | Usable | Round trips values written through the current shim. |
 | `delete(_:)` | Usable | Removes one prefix-scoped key and returns success. |
-| `clear()` | Usable | Removes all values for the prefix. |
+| `clear()` | Usable | Removes all values for the current prefix, access-group namespace, and synchronizable namespace. |
+| `accessGroup`, `synchronizable`, `KeychainSwiftAccessOptions` | Usable | Source-compatible knobs isolate in-memory namespaces and preserve accessibility metadata for current app/library contracts; they do not enforce native keychain sharing, synchronization, or item protection. |
+| `lastResultCode` | Usable | Tracks success, not-found, and parameter-error statuses for the current process-local operations. |
 | Lower-level `Security` `SecRandomCopyBytes` | Parity | Supports Signal-style key-material generation with Apple-matched valid-count fill and zero-count status/mutation behavior. |
 | Lower-level `Security` `SecItem` generic-password add/copy/update/delete | Usable | Supports the process-local keychain-shaped rows and persistent-reference handles Signal-style libraries commonly source-target before a secure backend is attached. |
-| Keychain access groups, secure persistence, access-control flags, synchronization, cross-process lookup | Incomplete | Required before claiming KeychainSwift or Security keychain parity. |
+| Native secure persistence, access-control enforcement, keychain sharing, synchronization, cross-process lookup | Incomplete | Required before claiming KeychainSwift or Security keychain parity. |
 
 ### MarkdownUI
 
