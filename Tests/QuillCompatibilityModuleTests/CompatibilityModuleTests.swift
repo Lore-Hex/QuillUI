@@ -65,6 +65,7 @@ struct CompatibilityModuleTests {
             .autocapitalization(.never)
             .disableAutocorrection(true)
             .textContentType(.URL)
+            .symbolRenderingMode(.hierarchical)
 
         _ = Text("Icon scaled").imageScale(.large)
         _ = Image(systemName: "photo").renderingMode(.template)
@@ -78,6 +79,10 @@ struct CompatibilityModuleTests {
         let imageScaled = Text("Icon scaled").imageScale(.large)
         #expect(String(describing: type(of: imageScaled)).contains("ImageScaleView"))
         #expect(String(describing: imageScaled.scale).lowercased().contains("large"))
+
+        let symbolMode = Text("Symbol").symbolRenderingMode(.hierarchical)
+        #expect(String(describing: type(of: symbolMode)).contains("SymbolRenderingModeView"))
+        #expect(String(describing: symbolMode.mode).lowercased().contains("hierarchical"))
 
         let rowInsets = Text("Row").listRowInsets(EdgeInsets(top: 1, leading: 2, bottom: 3, trailing: 4))
         #expect(String(describing: type(of: rowInsets)).contains("ListRowInsetsView"))
@@ -138,6 +143,7 @@ struct CompatibilityModuleTests {
             "disableAutocorrection",
             "textContentType",
             "imageScale",
+            "symbolRenderingMode",
             "renderingMode",
             "formStyle"
         ])))

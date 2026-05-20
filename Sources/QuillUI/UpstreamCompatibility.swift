@@ -891,6 +891,18 @@ public struct ImageScaleView<Content: View>: View {
     public var body: some View { content }
 }
 
+public struct SymbolRenderingModeView<Content: View>: View {
+    public let content: Content
+    public let mode: Image.SymbolRenderingMode?
+
+    public init(content: Content, mode: Image.SymbolRenderingMode?) {
+        self.content = content
+        self.mode = mode
+    }
+
+    public var body: some View { content }
+}
+
 public struct ListRowInsetsView<Content: View>: View {
     public let content: Content
     public let insets: EdgeInsets?
@@ -1232,12 +1244,12 @@ public extension View {
         foregroundColor(primary)
     }
 
-    func symbolRenderingMode(_ mode: Image.SymbolRenderingMode?) -> Self {
+    func symbolRenderingMode(_ mode: Image.SymbolRenderingMode?) -> SymbolRenderingModeView<Self> {
         recordQuillUIFallback(
             "symbolRenderingMode",
-            message: "View symbolRenderingMode is currently a source-compatibility fallback on Linux."
+            message: "View symbolRenderingMode is preserved as symbol rendering metadata on Linux."
         )
-        return self
+        return SymbolRenderingModeView(content: self, mode: mode)
     }
 
     func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> ScrollIndicatorsView<Self> {
@@ -1644,6 +1656,10 @@ extension LayoutPriorityView: QuillWrappedViewRepresentable {
 }
 
 extension FixedSizeView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension SymbolRenderingModeView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
