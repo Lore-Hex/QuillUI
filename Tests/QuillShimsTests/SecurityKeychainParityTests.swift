@@ -544,7 +544,10 @@ final class SecurityKeychainParityTests: XCTestCase {
         XCTAssertEqual(bool(from: attributes[string(kSecAttrCanVerify)]), true)
 
         XCTAssertEqual(data(from: SecKeyCopyExternalRepresentation(key, nil)), keyData)
-        XCTAssertFalse(SecKeyIsAlgorithmSupported(key, .verify, kSecKeyAlgorithmECDSASignatureMessageX962SHA256))
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(key, .verify, kSecKeyAlgorithmECDSASignatureMessageX962SHA256))
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(key, .verify, kSecKeyAlgorithmECDSASignatureDigestX962SHA256))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(key, .sign, kSecKeyAlgorithmECDSASignatureMessageX962SHA256))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(key, .keyExchange, kSecKeyAlgorithmECDHKeyExchangeStandard))
     }
 
     func testKeyClassReturnRefSynthesizesSecKeyForStoredKeyData() {
@@ -618,7 +621,8 @@ final class SecurityKeychainParityTests: XCTestCase {
             kSecPrivateKeyAttrs: [
                 kSecAttrApplicationTag: applicationTag,
                 kSecAttrIsPermanent: true,
-                kSecAttrCanSign: true
+                kSecAttrCanSign: true,
+                kSecAttrCanDerive: true
             ] as NSDictionary
         ]
         defer {
@@ -645,6 +649,13 @@ final class SecurityKeychainParityTests: XCTestCase {
         XCTAssertEqual(data(from: privateAttributes?[string(kSecAttrApplicationTag)]), applicationTag)
         XCTAssertEqual(bool(from: privateAttributes?[string(kSecAttrIsPermanent)]), true)
         XCTAssertEqual(bool(from: privateAttributes?[string(kSecAttrCanSign)]), true)
+        XCTAssertEqual(bool(from: privateAttributes?[string(kSecAttrCanDerive)]), true)
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(privateKey, .sign, kSecKeyAlgorithmECDSASignatureMessageX962SHA256))
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(privateKey, .sign, kSecKeyAlgorithmECDSASignatureDigestX962SHA256))
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(privateKey, .keyExchange, kSecKeyAlgorithmECDHKeyExchangeStandard))
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(privateKey, .keyExchange, kSecKeyAlgorithmECDHKeyExchangeStandardX963SHA256))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(privateKey, .verify, kSecKeyAlgorithmECDSASignatureMessageX962SHA256))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(privateKey, .encrypt, kSecKeyAlgorithmRSAEncryptionPKCS1))
 
         guard let publicKey = SecKeyCopyPublicKey(privateKey) else {
             XCTFail("SecKeyCopyPublicKey should synthesize a public key")
@@ -659,6 +670,10 @@ final class SecurityKeychainParityTests: XCTestCase {
         XCTAssertEqual(publicAttributes?[string(kSecAttrKeyClass)] as? String, string(kSecAttrKeyClassPublic))
         XCTAssertEqual(publicAttributes?[string(kSecAttrKeyType)] as? String, string(kSecAttrKeyTypeECSECPrimeRandom))
         XCTAssertEqual(bool(from: publicAttributes?[string(kSecAttrCanVerify)]), true)
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(publicKey, .verify, kSecKeyAlgorithmECDSASignatureMessageX962SHA256))
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(publicKey, .verify, kSecKeyAlgorithmECDSASignatureDigestX962SHA256))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(publicKey, .sign, kSecKeyAlgorithmECDSASignatureMessageX962SHA256))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(publicKey, .keyExchange, kSecKeyAlgorithmECDHKeyExchangeStandard))
 
         var storedResult: CFTypeRef?
         XCTAssertEqual(SecItemCopyMatching(cfDictionary([
@@ -679,12 +694,14 @@ final class SecurityKeychainParityTests: XCTestCase {
             kSecPrivateKeyAttrs: [
                 kSecAttrApplicationTag: privateTag,
                 kSecAttrIsPermanent: true,
-                kSecAttrCanSign: true
+                kSecAttrCanSign: true,
+                kSecAttrCanDecrypt: true
             ] as NSDictionary,
             kSecPublicKeyAttrs: [
                 kSecAttrApplicationTag: publicTag,
                 kSecAttrIsPermanent: true,
-                kSecAttrCanVerify: true
+                kSecAttrCanVerify: true,
+                kSecAttrCanEncrypt: true
             ] as NSDictionary
         ]
         defer {
@@ -715,6 +732,10 @@ final class SecurityKeychainParityTests: XCTestCase {
         XCTAssertEqual(String(describing: privateAttributes?[string(kSecAttrKeySizeInBits)] ?? ""), "512")
         XCTAssertEqual(data(from: privateAttributes?[string(kSecAttrApplicationTag)]), privateTag)
         XCTAssertEqual(bool(from: privateAttributes?[string(kSecAttrCanSign)]), true)
+        XCTAssertEqual(bool(from: privateAttributes?[string(kSecAttrCanDecrypt)]), true)
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(privateKey, .decrypt, kSecKeyAlgorithmRSAEncryptionPKCS1))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(privateKey, .encrypt, kSecKeyAlgorithmRSAEncryptionPKCS1))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(privateKey, .verify, kSecKeyAlgorithmRSAEncryptionPKCS1))
 
         let publicAttributes = secKeyAttributes(publicKey)
         XCTAssertEqual(publicAttributes?[string(kSecAttrKeyClass)] as? String, string(kSecAttrKeyClassPublic))
@@ -722,6 +743,10 @@ final class SecurityKeychainParityTests: XCTestCase {
         XCTAssertEqual(String(describing: publicAttributes?[string(kSecAttrKeySizeInBits)] ?? ""), "512")
         XCTAssertEqual(data(from: publicAttributes?[string(kSecAttrApplicationTag)]), publicTag)
         XCTAssertEqual(bool(from: publicAttributes?[string(kSecAttrCanVerify)]), true)
+        XCTAssertEqual(bool(from: publicAttributes?[string(kSecAttrCanEncrypt)]), true)
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(publicKey, .encrypt, kSecKeyAlgorithmRSAEncryptionPKCS1))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(publicKey, .decrypt, kSecKeyAlgorithmRSAEncryptionPKCS1))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(publicKey, .sign, kSecKeyAlgorithmRSAEncryptionPKCS1))
 
         var privateDataResult: CFTypeRef?
         XCTAssertEqual(SecItemCopyMatching(cfDictionary([

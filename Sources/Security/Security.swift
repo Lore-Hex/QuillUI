@@ -349,8 +349,22 @@ public func SecKeyGetBlockSize(_ key: SecKey) -> Int {
     key.copyExternalRepresentation().count
 }
 
-public func SecKeyIsAlgorithmSupported(_ _: SecKey, _ _: SecKeyOperationType, _ _: SecKeyAlgorithm) -> Bool {
-    false
+public func SecKeyIsAlgorithmSupported(_ key: SecKey, _ operation: SecKeyOperationType, _ algorithm: SecKeyAlgorithm) -> Bool {
+    let attributes = key.copyAttributes()
+    let algorithmName = secString(algorithm)
+
+    switch algorithmName {
+    case secString(kSecKeyAlgorithmECDSASignatureMessageX962SHA256),
+         secString(kSecKeyAlgorithmECDSASignatureDigestX962SHA256):
+        return secKeySupportsECDSA(attributes, operation: operation)
+    case secString(kSecKeyAlgorithmECDHKeyExchangeStandard),
+         secString(kSecKeyAlgorithmECDHKeyExchangeStandardX963SHA256):
+        return secKeySupportsECDH(attributes, operation: operation)
+    case secString(kSecKeyAlgorithmRSAEncryptionPKCS1):
+        return secKeySupportsRSAEncryption(attributes, operation: operation)
+    default:
+        return false
+    }
 }
 
 public func SecItemAdd(_ attributes: CFDictionary, _ result: UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus {
@@ -383,6 +397,58 @@ public func SecTrustEvaluateWithError(_ trust: SecTrust, _ error: UnsafeMutableP
         message: "Trust evaluation is accepted by the compatibility shim; attach a native TLS trust backend before production use."
     )
     return true
+}
+
+private func secKeySupportsECDSA(_ attributes: [String: Any], operation: SecKeyOperationType) -> Bool {
+    guard secKeyType(attributes) == secString(kSecAttrKeyTypeECSECPrimeRandom) else {
+        return false
+    }
+
+    switch operation {
+    case .sign:
+        return secKeyClass(attributes) == secString(kSecAttrKeyClassPrivate)
+            && boolValue(attributes[secKey(kSecAttrCanSign)])
+    case .verify:
+        return secKeyClass(attributes) != secString(kSecAttrKeyClassSymmetric)
+            && boolValue(attributes[secKey(kSecAttrCanVerify)])
+    default:
+        return false
+    }
+}
+
+private func secKeySupportsECDH(_ attributes: [String: Any], operation: SecKeyOperationType) -> Bool {
+    guard case .keyExchange = operation else {
+        return false
+    }
+
+    return secKeyType(attributes) == secString(kSecAttrKeyTypeECSECPrimeRandom)
+        && secKeyClass(attributes) == secString(kSecAttrKeyClassPrivate)
+        && boolValue(attributes[secKey(kSecAttrCanDerive)])
+}
+
+private func secKeySupportsRSAEncryption(_ attributes: [String: Any], operation: SecKeyOperationType) -> Bool {
+    guard secKeyType(attributes) == secString(kSecAttrKeyTypeRSA) else {
+        return false
+    }
+
+    switch operation {
+    case .encrypt:
+        return secKeyClass(attributes) != secString(kSecAttrKeyClassSymmetric)
+            && boolValue(attributes[secKey(kSecAttrCanEncrypt)])
+    case .decrypt:
+        return secKeyClass(attributes) == secString(kSecAttrKeyClassPrivate)
+            && boolValue(attributes[secKey(kSecAttrCanDecrypt)])
+    default:
+        return false
+    }
+}
+
+private func secKeyClass(_ attributes: [String: Any]) -> String? {
+    stringValue(attributes[secKey(kSecAttrKeyClass)])
+}
+
+private func secKeyType(_ attributes: [String: Any]) -> String? {
+    stringValue(attributes[secKey(kSecAttrKeyType)])
 }
 
 private struct SecItemIdentity: Hashable, Comparable {
