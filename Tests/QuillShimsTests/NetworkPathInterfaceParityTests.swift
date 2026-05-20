@@ -1,5 +1,10 @@
 import Network
 import XCTest
+#if canImport(Glibc)
+import Glibc
+#elseif canImport(Darwin)
+import Darwin
+#endif
 
 final class NetworkPathInterfaceParityTests: XCTestCase {
     func testPathStatusStringDescriptionsMatchApple() {
@@ -103,5 +108,53 @@ final class NetworkPathInterfaceParityTests: XCTestCase {
         XCTAssertNotEqual(NWInterface.InterfaceType.wiredEthernet, NWInterface.InterfaceType.loopback)
         XCTAssertNotEqual(NWInterface.InterfaceType.wiredEthernet, NWInterface.InterfaceType.other)
         XCTAssertNotEqual(NWInterface.InterfaceType.loopback, NWInterface.InterfaceType.other)
+    }
+
+    func testResolvedScopedInterfaceValuesMatchApple() throws {
+        let loopbackName = try XCTUnwrap(Self.interfaceName(forIndex: 1))
+        let namedIPv6Interface = try XCTUnwrap(IPv6Address("fe80::1%\(loopbackName)")?.interface)
+        let indexedIPv6Interface = try XCTUnwrap(IPv6Address("fe80::1%1")?.interface)
+        let namedIPv4Interface = try XCTUnwrap(IPv4Address("192.0.2.1%\(loopbackName)")?.interface)
+
+        guard case let .name(name, hostInterface?) = NWEndpoint.Host("example.com%\(loopbackName)") else {
+            return XCTFail("Expected scoped host literal to resolve a named interface")
+        }
+
+        XCTAssertEqual(name, "example.com")
+
+        let interfaces = [
+            namedIPv6Interface,
+            indexedIPv6Interface,
+            namedIPv4Interface,
+            hostInterface,
+        ]
+
+        for interface in interfaces {
+            XCTAssertEqual(interface.name, loopbackName)
+            XCTAssertEqual(interface.type, .loopback)
+            XCTAssertEqual(String(describing: interface), loopbackName)
+            XCTAssertEqual(interface.debugDescription, loopbackName)
+        }
+
+        let equalPairs: [(NWInterface, NWInterface, String)] = [
+            (namedIPv6Interface, indexedIPv6Interface, "IPv6 name and numeric scope"),
+            (namedIPv6Interface, namedIPv4Interface, "IPv6 and IPv4 scoped literals"),
+            (namedIPv6Interface, hostInterface, "address and host scoped literals"),
+        ]
+
+        for (lhs, rhs, context) in equalPairs {
+            XCTAssertEqual(lhs, rhs, context)
+            XCTAssertEqual(lhs.hashValue, rhs.hashValue, context)
+        }
+    }
+
+    private static func interfaceName(forIndex index: UInt32) -> String? {
+        var buffer = [CChar](repeating: 0, count: 64)
+        let result = buffer.withUnsafeMutableBufferPointer { nameBuffer in
+            if_indextoname(index, nameBuffer.baseAddress)
+        }
+        guard result != nil else { return nil }
+        let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+        return String(decoding: bytes, as: UTF8.self)
     }
 }
