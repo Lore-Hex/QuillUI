@@ -85,6 +85,25 @@ public let kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly: CFString = "akpu" as
 public let kSecAttrAccessibleWhenUnlockedThisDeviceOnly: CFString = "aku" as CFString
 public let kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly: CFString = "cku" as CFString
 public let kSecAttrAccessibleAlwaysThisDeviceOnly: CFString = "dku" as CFString
+public let kSecAttrApplicationTag: CFString = "atag" as CFString
+public let kSecAttrApplicationLabel: CFString = "alis" as CFString
+public let kSecAttrKeyClass: CFString = "kcls" as CFString
+public let kSecAttrKeyClassPublic: CFString = "publ" as CFString
+public let kSecAttrKeyClassPrivate: CFString = "priv" as CFString
+public let kSecAttrKeyClassSymmetric: CFString = "symm" as CFString
+public let kSecAttrKeyType: CFString = "type" as CFString
+public let kSecAttrKeyTypeRSA: CFString = "42" as CFString
+public let kSecAttrKeyTypeEC: CFString = "73" as CFString
+public let kSecAttrKeySizeInBits: CFString = "bsiz" as CFString
+public let kSecAttrEffectiveKeySize: CFString = "esiz" as CFString
+public let kSecAttrIsPermanent: CFString = "perm" as CFString
+public let kSecAttrCanEncrypt: CFString = "encr" as CFString
+public let kSecAttrCanDecrypt: CFString = "decr" as CFString
+public let kSecAttrCanDerive: CFString = "drve" as CFString
+public let kSecAttrCanSign: CFString = "sign" as CFString
+public let kSecAttrCanVerify: CFString = "vrfy" as CFString
+public let kSecAttrCanWrap: CFString = "wrap" as CFString
+public let kSecAttrCanUnwrap: CFString = "unwp" as CFString
 
 public let kSecAttrProtocolFTP: CFString = "ftp " as CFString
 public let kSecAttrProtocolFTPAccount: CFString = "ftpa" as CFString
@@ -223,6 +242,11 @@ private struct SecItemIdentity: Hashable, Comparable {
     var path: String?
     var accessGroup: String?
     var synchronizable: String?
+    var applicationTag: Data?
+    var applicationLabel: Data?
+    var keyClass: String?
+    var keyType: String?
+    var keySizeInBits: String?
 
     static func < (lhs: SecItemIdentity, rhs: SecItemIdentity) -> Bool {
         let lhsValues = lhs.sortValues
@@ -248,8 +272,17 @@ private struct SecItemIdentity: Hashable, Comparable {
             port ?? "",
             path ?? "",
             accessGroup ?? "",
-            synchronizable ?? ""
+            synchronizable ?? "",
+            sortData(applicationTag),
+            sortData(applicationLabel),
+            keyClass ?? "",
+            keyType ?? "",
+            keySizeInBits ?? ""
         ]
+    }
+
+    private func sortData(_ data: Data?) -> String {
+        data?.base64EncodedString() ?? ""
     }
 }
 
@@ -428,7 +461,12 @@ private func makeIdentity(from attributes: [String: Any]) -> SecItemIdentity? {
         port: stringValue(attributes[secKey(kSecAttrPort)]),
         path: stringValue(attributes[secKey(kSecAttrPath)]),
         accessGroup: stringValue(attributes[secKey(kSecAttrAccessGroup)]),
-        synchronizable: stringValue(attributes[secKey(kSecAttrSynchronizable)])
+        synchronizable: stringValue(attributes[secKey(kSecAttrSynchronizable)]),
+        applicationTag: dataValue(attributes[secKey(kSecAttrApplicationTag)]),
+        applicationLabel: dataValue(attributes[secKey(kSecAttrApplicationLabel)]),
+        keyClass: stringValue(attributes[secKey(kSecAttrKeyClass)]),
+        keyType: stringValue(attributes[secKey(kSecAttrKeyType)]),
+        keySizeInBits: stringValue(attributes[secKey(kSecAttrKeySizeInBits)])
     )
 }
 

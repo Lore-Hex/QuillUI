@@ -411,6 +411,111 @@ final class SecurityKeychainParityTests: XCTestCase {
         XCTAssertNil(deletedResult)
     }
 
+    func testKeyClassItemsUseApplicationTagAndKeyClassIdentity() {
+        let applicationTag = Data("org.signal.identity-key.\(UUID().uuidString)".utf8)
+        let privateKeyData = Data([0xA1, 0xB2, 0xC3, 0xD4])
+        let publicKeyData = Data([0x01, 0x23, 0x45, 0x67])
+        let taggedKeyQuery = cfDictionary([
+            kSecClass: kSecClassKey,
+            kSecAttrApplicationTag: applicationTag
+        ])
+        defer { _ = SecItemDelete(taggedKeyQuery) }
+
+        let privateKeyRow: [CFString: Any] = [
+            kSecClass: kSecClassKey,
+            kSecAttrApplicationTag: applicationTag,
+            kSecAttrApplicationLabel: Data([0x01, 0x02]),
+            kSecAttrKeyClass: kSecAttrKeyClassPrivate,
+            kSecAttrKeyType: kSecAttrKeyTypeEC,
+            kSecAttrKeySizeInBits: 256,
+            kSecAttrIsPermanent: true,
+            kSecAttrCanSign: true,
+            kSecAttrCanVerify: false,
+            kSecValueData: privateKeyData
+        ]
+
+        var addResult: CFTypeRef?
+        XCTAssertEqual(SecItemAdd(cfDictionary(merged(privateKeyRow, [
+            kSecReturnAttributes: true,
+            kSecReturnData: true,
+            kSecReturnPersistentRef: true
+        ])), &addResult), errSecSuccess)
+
+        let addedAttributes = attributes(from: addResult)
+        XCTAssertEqual(addedAttributes?[string(kSecClass)] as? String, string(kSecClassKey))
+        XCTAssertEqual(data(from: addedAttributes?[string(kSecAttrApplicationTag)]), applicationTag)
+        XCTAssertEqual(data(from: addedAttributes?[string(kSecAttrApplicationLabel)]), Data([0x01, 0x02]))
+        XCTAssertEqual(addedAttributes?[string(kSecAttrKeyClass)] as? String, string(kSecAttrKeyClassPrivate))
+        XCTAssertEqual(addedAttributes?[string(kSecAttrKeyType)] as? String, string(kSecAttrKeyTypeEC))
+        XCTAssertEqual(String(describing: addedAttributes?[string(kSecAttrKeySizeInBits)] ?? ""), "256")
+        XCTAssertEqual(bool(from: addedAttributes?[string(kSecAttrIsPermanent)]), true)
+        XCTAssertEqual(bool(from: addedAttributes?[string(kSecAttrCanSign)]), true)
+        XCTAssertEqual(bool(from: addedAttributes?[string(kSecAttrCanVerify)]), false)
+        XCTAssertEqual(data(from: addedAttributes?[string(kSecValueData)]), privateKeyData)
+
+        guard let persistentRef = data(from: addedAttributes?[string(kSecValuePersistentRef)]) else {
+            XCTFail("SecItemAdd should return a persistent reference for key rows")
+            return
+        }
+        XCTAssertFalse(persistentRef.isEmpty)
+
+        XCTAssertEqual(SecItemAdd(cfDictionary(privateKeyRow), nil), errSecDuplicateItem)
+
+        XCTAssertEqual(SecItemAdd(cfDictionary([
+            kSecClass: kSecClassKey,
+            kSecAttrApplicationTag: applicationTag,
+            kSecAttrApplicationLabel: Data([0x03, 0x04]),
+            kSecAttrKeyClass: kSecAttrKeyClassPublic,
+            kSecAttrKeyType: kSecAttrKeyTypeEC,
+            kSecAttrKeySizeInBits: 256,
+            kSecAttrIsPermanent: true,
+            kSecAttrCanVerify: true,
+            kSecValueData: publicKeyData
+        ]), nil), errSecSuccess)
+
+        var privateCopyResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassKey,
+            kSecAttrApplicationTag: applicationTag,
+            kSecAttrKeyClass: kSecAttrKeyClassPrivate,
+            kSecReturnData: true
+        ]), &privateCopyResult), errSecSuccess)
+        XCTAssertEqual(data(from: privateCopyResult), privateKeyData)
+
+        var allKeysResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassKey,
+            kSecAttrApplicationTag: applicationTag,
+            kSecReturnAttributes: true,
+            kSecMatchLimit: kSecMatchLimitAll
+        ]), &allKeysResult), errSecSuccess)
+
+        let rows = (allKeysResult as? NSArray)?.compactMap { $0 as? NSDictionary }
+        let keyClasses = rows?
+            .compactMap { $0[string(kSecAttrKeyClass)] as? String }
+            .sorted()
+        XCTAssertEqual(keyClasses, [string(kSecAttrKeyClassPrivate), string(kSecAttrKeyClassPublic)])
+
+        XCTAssertEqual(SecItemDelete(cfDictionary([
+            kSecValuePersistentRef: persistentRef
+        ])), errSecSuccess)
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassKey,
+            kSecAttrApplicationTag: applicationTag,
+            kSecAttrKeyClass: kSecAttrKeyClassPrivate,
+            kSecReturnData: true
+        ]), nil), errSecItemNotFound)
+
+        var publicCopyResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassKey,
+            kSecAttrApplicationTag: applicationTag,
+            kSecAttrKeyClass: kSecAttrKeyClassPublic,
+            kSecReturnData: true
+        ]), &publicCopyResult), errSecSuccess)
+        XCTAssertEqual(data(from: publicCopyResult), publicKeyData)
+    }
+
     func testInternetPasswordNamespacesByEndpointAttributes() {
         let server = "chat.signal.example"
         let account = "primary-\(UUID().uuidString)"
