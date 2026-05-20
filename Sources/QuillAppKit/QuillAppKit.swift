@@ -397,10 +397,18 @@ open class NSResponder: NSObject {
 open class NSView: NSResponder {
     public var frame: NSRect = .zero {
         didSet {
+            guard frame != oldValue else { return }
             quillUpdateBoundsSize(from: oldValue.size, to: frame.size)
+            needsLayout = true
         }
     }
-    public var bounds: NSRect = .zero
+    public var bounds: NSRect = .zero {
+        didSet {
+            if bounds != oldValue {
+                needsLayout = true
+            }
+        }
+    }
     public var subviews: [NSView] = []
     public weak var superview: NSView?
     public weak var window: NSWindow?
@@ -409,7 +417,7 @@ open class NSView: NSResponder {
     public var wantsLayer: Bool = false
     public var layer: Any?
     public var translatesAutoresizingMaskIntoConstraints: Bool = true
-    public var needsLayout: Bool = false
+    public var needsLayout: Bool = true
     public var needsDisplay: Bool = false
     public var clipsToBounds: Bool = false
     public var autoresizingMask: AutoresizingMask = []
@@ -474,7 +482,16 @@ open class NSView: NSResponder {
     }
     public func setFrameSize(_ s: NSSize) { frame.size = s }
     public func setFrameOrigin(_ p: NSPoint) { frame.origin = p }
-    public func layoutSubtreeIfNeeded() {}
+    public func layoutSubtreeIfNeeded() {
+        if needsLayout {
+            layout()
+            needsLayout = false
+        }
+
+        for subview in subviews {
+            subview.layoutSubtreeIfNeeded()
+        }
+    }
     public func display() {}
     public func setNeedsDisplay(_ rect: NSRect) {}
     public func convert(_ p: NSPoint, from sourceView: NSView?) -> NSPoint {
@@ -525,6 +542,7 @@ open class NSView: NSResponder {
     public var firstBaselineAnchor = NSLayoutYAxisAnchor()
     public var lastBaselineAnchor = NSLayoutYAxisAnchor()
 
+    open func layout() {}
     open func draw(_ rect: NSRect) {}
     open func viewWillMove(toWindow: NSWindow?) {}
     open func viewDidMoveToWindow() {}

@@ -145,6 +145,12 @@ enum AppleCompatibilitySmoke {
         var windowCallbacksReachedSubview: Bool
         var frameInitializerEstablishedBounds: Bool
         var frameResizeScaledBounds: Bool
+        var newViewsStartNeedingLayout: Bool
+        var layoutSubtreeClearsNeedsLayout: Bool
+        var layoutSubtreeVisitsDirtyDescendants: Bool
+        var layoutSubtreeSkipsCleanViews: Bool
+        var layoutSubtreeVisitsDirtyDescendantFromCleanAncestor: Bool
+        var frameAndBoundsMutationsMarkNeedsLayout: Bool
         var hitTestReturnsTopmostVisibleSubview: Bool
         var hitTestIgnoresHiddenSubview: Bool
         var hitTestRejectsOutsideBounds: Bool
@@ -1125,6 +1131,59 @@ enum AppleCompatibilitySmoke {
             bottomSubview.bounds == NSRect(x: 0, y: 0, width: 100, height: 80)
         bottomSubview.frame = NSRect(x: 10, y: 10, width: 50, height: 50)
 
+        let layoutRecorder = LayoutRecorder()
+        let layoutRoot = LayoutProbe()
+        layoutRoot.layoutName = "root"
+        layoutRoot.recorder = layoutRecorder
+        let layoutChild = LayoutProbe()
+        layoutChild.layoutName = "child"
+        layoutChild.recorder = layoutRecorder
+        layoutRoot.addSubview(layoutChild)
+
+        let newViewsStartNeedingLayout =
+            layoutRoot.needsLayout &&
+            layoutChild.needsLayout
+        layoutRoot.layoutSubtreeIfNeeded()
+        let layoutSubtreeClearsNeedsLayout =
+            !layoutRoot.needsLayout &&
+            !layoutChild.needsLayout
+        let layoutSubtreeVisitsDirtyDescendants =
+            layoutRecorder.events == ["root", "child"] &&
+            layoutRoot.layoutCount == 1 &&
+            layoutChild.layoutCount == 1
+
+        layoutRoot.layoutSubtreeIfNeeded()
+        let layoutSubtreeSkipsCleanViews =
+            layoutRecorder.events == ["root", "child"] &&
+            layoutRoot.layoutCount == 1 &&
+            layoutChild.layoutCount == 1
+
+        layoutChild.needsLayout = true
+        layoutRoot.layoutSubtreeIfNeeded()
+        let layoutSubtreeVisitsDirtyDescendantFromCleanAncestor =
+            layoutRecorder.events == ["root", "child", "child"] &&
+            layoutRoot.layoutCount == 1 &&
+            layoutChild.layoutCount == 2 &&
+            !layoutRoot.needsLayout &&
+            !layoutChild.needsLayout
+
+        let layoutMutationView = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
+        layoutMutationView.layoutSubtreeIfNeeded()
+        let layoutMutationBaselineClean = !layoutMutationView.needsLayout
+        layoutMutationView.setFrameOrigin(NSPoint(x: 1, y: 2))
+        let frameOriginMarksNeedsLayout = layoutMutationView.needsLayout
+        layoutMutationView.layoutSubtreeIfNeeded()
+        layoutMutationView.setFrameSize(NSSize(width: 20, height: 30))
+        let frameSizeMarksNeedsLayout = layoutMutationView.needsLayout
+        layoutMutationView.layoutSubtreeIfNeeded()
+        layoutMutationView.bounds = NSRect(x: 1, y: 2, width: 20, height: 30)
+        let boundsMutationMarksNeedsLayout = layoutMutationView.needsLayout
+        let frameAndBoundsMutationsMarkNeedsLayout =
+            layoutMutationBaselineClean &&
+            frameOriginMarksNeedsLayout &&
+            frameSizeMarksNeedsLayout &&
+            boundsMutationMarksNeedsLayout
+
         let hitTestReturnsTopmostVisibleSubview =
             hitTestRoot.hitTest(NSPoint(x: 25, y: 25)) === topSubview
         topSubview.isHidden = true
@@ -1180,6 +1239,12 @@ enum AppleCompatibilitySmoke {
             windowCallbacksReachedSubview: windowCallbacksReachedSubview,
             frameInitializerEstablishedBounds: frameInitializerEstablishedBounds,
             frameResizeScaledBounds: frameResizeScaledBounds,
+            newViewsStartNeedingLayout: newViewsStartNeedingLayout,
+            layoutSubtreeClearsNeedsLayout: layoutSubtreeClearsNeedsLayout,
+            layoutSubtreeVisitsDirtyDescendants: layoutSubtreeVisitsDirtyDescendants,
+            layoutSubtreeSkipsCleanViews: layoutSubtreeSkipsCleanViews,
+            layoutSubtreeVisitsDirtyDescendantFromCleanAncestor: layoutSubtreeVisitsDirtyDescendantFromCleanAncestor,
+            frameAndBoundsMutationsMarkNeedsLayout: frameAndBoundsMutationsMarkNeedsLayout,
             hitTestReturnsTopmostVisibleSubview: hitTestReturnsTopmostVisibleSubview,
             hitTestIgnoresHiddenSubview: hitTestIgnoresHiddenSubview,
             hitTestRejectsOutsideBounds: hitTestRejectsOutsideBounds,
@@ -2206,6 +2271,21 @@ private final class ViewHierarchyProbe: NSView {
 
     override func viewDidMoveToWindow() {
         events.append("didWindow:\(window != nil)")
+    }
+}
+
+private final class LayoutRecorder {
+    var events: [String] = []
+}
+
+private final class LayoutProbe: NSView {
+    var layoutName = ""
+    var recorder: LayoutRecorder?
+    var layoutCount = 0
+
+    override func layout() {
+        layoutCount += 1
+        recorder?.events.append(layoutName)
     }
 }
 
