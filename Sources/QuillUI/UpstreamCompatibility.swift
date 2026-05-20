@@ -269,18 +269,28 @@ public extension FocusState {
     }
 }
 
-public struct AnyTransition: Sendable {
-    public init() {}
+public struct AnyTransition: Sendable, CustomStringConvertible {
+    public let quillDescription: String
 
-    public static let opacity = AnyTransition()
-    public static let slide = AnyTransition()
+    public init() {
+        self.quillDescription = "identity"
+    }
+
+    private init(quillDescription: String) {
+        self.quillDescription = quillDescription
+    }
+
+    public static let opacity = AnyTransition(quillDescription: "opacity")
+    public static let slide = AnyTransition(quillDescription: "slide")
 
     public static func scale(scale: Double = 1.0, anchor: UnitPoint = .center) -> AnyTransition {
-        AnyTransition()
+        AnyTransition(quillDescription: "scale(scale: \(scale), anchor: \(anchor))")
     }
 
     public static func asymmetric(insertion: AnyTransition, removal: AnyTransition) -> AnyTransition {
-        AnyTransition()
+        AnyTransition(
+            quillDescription: "asymmetric(insertion: \(insertion.quillDescription), removal: \(removal.quillDescription))"
+        )
     }
 
     public init(_ transition: AnyTransition) {
@@ -288,8 +298,10 @@ public struct AnyTransition: Sendable {
     }
 
     public func combined(with transition: AnyTransition) -> AnyTransition {
-        AnyTransition()
+        AnyTransition(quillDescription: "combined(\(quillDescription), \(transition.quillDescription))")
     }
+
+    public var description: String { quillDescription }
 }
 
 public struct PinnedScrollableViews: OptionSet, Sendable {
@@ -989,6 +1001,18 @@ public struct GestureView<Content: View, GestureValue>: View {
     public var body: some View { content }
 }
 
+public struct TransitionView<Content: View>: View {
+    public let content: Content
+    public let transition: AnyTransition
+
+    public init(content: Content, transition: AnyTransition) {
+        self.content = content
+        self.transition = transition
+    }
+
+    public var body: some View { content }
+}
+
 public struct ViewMaskView<Content: View, MaskContent: View>: View {
     public let content: Content
     public let mask: MaskContent
@@ -1436,12 +1460,12 @@ public extension View {
         }
     }
 
-    func transition(_ transition: AnyTransition) -> Self {
+    func transition(_ transition: AnyTransition) -> TransitionView<Self> {
         recordQuillUIFallback(
             "transition",
-            message: "transition is currently a source-compatibility fallback on Linux."
+            message: "transition is preserved as transition metadata on Linux."
         )
-        return self
+        return TransitionView(content: self, transition: transition)
     }
 
     func symbolEffect<Value: Equatable>(
@@ -1776,6 +1800,10 @@ extension AllowsHitTestingView: QuillWrappedViewRepresentable {
 }
 
 extension GestureView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension TransitionView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 

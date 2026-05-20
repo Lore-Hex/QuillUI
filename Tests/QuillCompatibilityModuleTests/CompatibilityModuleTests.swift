@@ -53,6 +53,7 @@ struct CompatibilityModuleTests {
         _ = Text("Fallback")
             .symbolEffect(.variableColor, value: true)
             .matchedGeometryEffect(id: "title", in: Namespace().wrappedValue)
+            .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .top)))
             .mask(Rectangle())
             .mask(Text("Mask"))
             .contentShape(Rectangle())
@@ -122,6 +123,13 @@ struct CompatibilityModuleTests {
         #expect(String(describing: type(of: gestured.gesture)).contains("DragGesture"))
         #expect(quillTextLabel(from: gestured) == "Drag")
 
+        let transitioned = Text("Transition").transition(.opacity.combined(with: .scale(scale: 0.7, anchor: .top)))
+        #expect(String(describing: type(of: transitioned)).contains("TransitionView"))
+        #expect(String(describing: transitioned.transition).contains("combined"))
+        #expect(String(describing: transitioned.transition).contains("opacity"))
+        #expect(String(describing: transitioned.transition).contains("scale"))
+        #expect(quillTextLabel(from: transitioned) == "Transition")
+
         let maskedContent = Text("Masked").mask(Text("Mask"))
         #expect(String(describing: type(of: maskedContent)).contains("ViewMaskView"))
         #expect(quillTextLabel(from: maskedContent) == "Masked")
@@ -171,6 +179,7 @@ struct CompatibilityModuleTests {
         #expect(operations.isSuperset(of: Set([
             "symbolEffect",
             "matchedGeometryEffect",
+            "transition",
             "mask",
             "contentShape",
             "allowsHitTesting",
@@ -1596,20 +1605,20 @@ struct CompatibilityModuleTests {
     @Test("AnyTransition combinators do not crash and return AnyTransition values")
     func anyTransitionCombinatorsAreSafe() {
         // Static factories.
-        _ = AnyTransition.opacity
-        _ = AnyTransition.slide
-        _ = AnyTransition.scale()
-        _ = AnyTransition.scale(scale: 0.5, anchor: .center)
-        _ = AnyTransition.asymmetric(insertion: .opacity, removal: .slide)
+        #expect(String(describing: AnyTransition.opacity).contains("opacity"))
+        #expect(String(describing: AnyTransition.slide).contains("slide"))
+        #expect(String(describing: AnyTransition.scale()).contains("scale"))
+        #expect(String(describing: AnyTransition.scale(scale: 0.5, anchor: .center)).contains("0.5"))
+        #expect(String(describing: AnyTransition.asymmetric(insertion: .opacity, removal: .slide)).contains("asymmetric"))
 
         // Init-from-self preserves the value.
         let copy = AnyTransition(.opacity)
-        _ = copy
+        #expect(String(describing: copy).contains("opacity"))
 
-        // Combined returns a non-crashing AnyTransition (currently a stub
-        // returning a fresh value; when this gains real behavior, this test
-        // will need real assertions).
-        _ = AnyTransition.opacity.combined(with: .slide)
+        let combined = AnyTransition.opacity.combined(with: .slide)
+        #expect(String(describing: combined).contains("combined"))
+        #expect(String(describing: combined).contains("opacity"))
+        #expect(String(describing: combined).contains("slide"))
     }
 
     // MARK: - QuillCompatibilityEvent equality
