@@ -58,6 +58,7 @@ struct CompatibilityModuleTests {
             .listRowInsets(EdgeInsets(top: 1, leading: 2, bottom: 3, trailing: 4))
             .listRowSeparator(.hidden, edges: .vertical)
             .minimumScaleFactor(0.5)
+            .textSelection(.enabled)
             .keyboardType(.URL)
             .autocapitalization(.never)
             .disableAutocorrection(true)
@@ -89,6 +90,10 @@ struct CompatibilityModuleTests {
         #expect(String(describing: type(of: shapedContent)).contains("ContentShapeView"))
         #expect(String(describing: type(of: shapedContent.shape)).contains("Rectangle"))
 
+        let selectable = Text("Selectable").textSelection(.enabled)
+        #expect(String(describing: type(of: selectable)).contains("TextSelectionView"))
+        #expect(String(describing: selectable.selection).contains("enabled"))
+
         let keyboardTyped = Text("URL").keyboardType(.URL)
         #expect(String(describing: type(of: keyboardTyped)).contains("KeyboardTypeView"))
         #expect(keyboardTyped.keyboardType == .URL)
@@ -115,6 +120,7 @@ struct CompatibilityModuleTests {
             "listRowInsets",
             "listRowSeparator",
             "minimumScaleFactor",
+            "textSelection",
             "keyboardType",
             "autocapitalization",
             "disableAutocorrection",

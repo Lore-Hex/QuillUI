@@ -929,6 +929,18 @@ public struct ContentShapeView<Content: View, ShapeValue: Shape>: View {
     public var body: some View { content }
 }
 
+public struct TextSelectionView<Content: View>: View {
+    public let content: Content
+    public let selection: TextSelectability
+
+    public init(content: Content, selection: TextSelectability) {
+        self.content = content
+        self.selection = selection
+    }
+
+    public var body: some View { content }
+}
+
 public struct TextContentTypeView<Content: View>: View {
     public let content: Content
     public let contentType: TextContentType?
@@ -1111,12 +1123,12 @@ public extension View {
         return self
     }
 
-    func textSelection(_ selection: TextSelectability = .enabled) -> Self {
+    func textSelection(_ selection: TextSelectability = .enabled) -> TextSelectionView<Self> {
         recordQuillUIFallback(
             "textSelection",
-            message: "textSelection is currently a source-compatibility fallback on Linux."
+            message: "textSelection is preserved as selectable text metadata on Linux."
         )
-        return self
+        return TextSelectionView(content: self, selection: selection)
     }
 
     func accessibilityLabel(_ label: String) -> AccessibilityLabelView<Self> {
@@ -1620,6 +1632,10 @@ extension ListRowSeparatorView: QuillWrappedViewRepresentable {
 }
 
 extension ContentShapeView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension TextSelectionView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
