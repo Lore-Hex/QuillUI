@@ -3107,3 +3107,14 @@ cleanup path for stale `.qa` files and loop-owned backend artifact directories.
 The helper refuses non-QuillUI roots, avoids broad `.build` cleanup, and only
 touches known loop cache directories when
 `QUILLUI_LOOP_PRUNE_INCLUDE_BUILD_CACHE=1` is set explicitly.
+
+## Checkpoint 184: PlatformImage Pixbuf Transforms
+
+Status: implemented locally; guarded by Linux compatibility tests.
+
+Linux `PlatformImage.aspectFittedToHeight(_:)` now decodes valid bitmap bytes
+through gdk-pixbuf, preserves aspect ratio while scaling to the requested
+height, and returns real PNG data instead of always falling back to the original
+image. `PlatformImage.compressImageData()` now recompresses valid bitmap input
+to JPEG through the same bridge, while invalid data keeps the existing
+warning-plus-original-byte fallback contract.

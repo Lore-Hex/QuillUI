@@ -22,6 +22,18 @@ import KeyboardShortcuts
 
 @Suite("Linux compatibility import modules", .serialized)
 struct CompatibilityModuleTests {
+    private func pngDimensions(_ data: Data) -> (width: UInt32, height: UInt32)? {
+        let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        guard data.count >= 24, Array(data.prefix(8)) == pngMagic else { return nil }
+
+        let bytes = Array(data)
+        let width = (UInt32(bytes[16]) << 24) | (UInt32(bytes[17]) << 16)
+                  | (UInt32(bytes[18]) << 8)  |  UInt32(bytes[19])
+        let height = (UInt32(bytes[20]) << 24) | (UInt32(bytes[21]) << 16)
+                   | (UInt32(bytes[22]) << 8)  |  UInt32(bytes[23])
+        return (width, height)
+    }
+
     @Test("SwiftUI and SwiftData module aliases expose Quill APIs")
     func swiftUIAndSwiftDataAliasesExposeQuillAPIs() throws {
         _ = Text("Quill")
@@ -1922,6 +1934,46 @@ struct CompatibilityModuleTests {
         let isLittle = tiffPrefix == [0x49, 0x49, 0x2A, 0x00]
         let isBig    = tiffPrefix == [0x4D, 0x4D, 0x00, 0x2A]
         #expect(isLittle || isBig, "TIFF output must have TIFF magic; got \(tiffPrefix)")
+    }
+
+    @Test("PlatformImage scales and compresses valid image bytes through gdk-pixbuf")
+    func platformImageTransformsValidImageData() {
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        guard let png = quillRenderSolidColorImage(
+            red: 1, green: 0, blue: 0, alpha: 1,
+            width: 4, height: 2,
+            format: .png
+        ) else {
+            Issue.record("Expected non-nil PNG for valid solid-color render")
+            return
+        }
+
+        let image = PlatformImage(data: png)
+        let resized = image.aspectFittedToHeight(6)
+        guard let resizedData = resized.data else {
+            Issue.record("Expected resized PlatformImage to retain PNG data")
+            return
+        }
+
+        guard let dimensions = pngDimensions(resizedData) else {
+            Issue.record("Expected resized image to be a valid PNG")
+            return
+        }
+        #expect(dimensions.width == 12, "Aspect-fit width should scale from 4x2 to 12x6; got \(dimensions.width)x\(dimensions.height)")
+        #expect(dimensions.height == 6, "Aspect-fit height should be 6; got \(dimensions.width)x\(dimensions.height)")
+
+        guard let jpeg = image.compressImageData() else {
+            Issue.record("Expected JPEG output for valid PNG input")
+            return
+        }
+        #expect(Array(jpeg.prefix(3)) == [0xFF, 0xD8, 0xFF], "Compressed output must have JPEG magic; got \(Array(jpeg.prefix(3)))")
+
+        let warnings = QuillCompatibilityDiagnostics.shared.events.filter {
+            ($0.operation == "PlatformImage.aspectFittedToHeight" || $0.operation == "PlatformImage.compressImageData")
+                && $0.severity == .warning
+        }
+        #expect(warnings.isEmpty, "Valid image transforms should not record fallback warnings; got \(warnings.map(\.message))")
     }
 
     @Test("ImageRenderer rasterizes Color content to PNG bytes via gdk-pixbuf")

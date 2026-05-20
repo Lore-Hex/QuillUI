@@ -258,19 +258,46 @@ public extension QuillPlatformImage {
     }
 
     func aspectFittedToHeight(_ newHeight: CGFloat) -> QuillPlatformImage {
-        recordCompatibilityWarning(
-            "PlatformImage.aspectFittedToHeight",
-            message: "PlatformImage.aspectFittedToHeight returns the original image on Linux; bitmap resizing is not implemented yet."
-        )
-        return self
+        guard let data else { return self }
+        guard newHeight.isFinite else {
+            recordCompatibilityWarning(
+                "PlatformImage.aspectFittedToHeight",
+                message: "PlatformImage.aspectFittedToHeight received a non-finite height; returning the original image."
+            )
+            return self
+        }
+
+        let targetHeight = Int(newHeight.rounded())
+        guard targetHeight > 0 else {
+            recordCompatibilityWarning(
+                "PlatformImage.aspectFittedToHeight",
+                message: "PlatformImage.aspectFittedToHeight received a non-positive height; returning the original image."
+            )
+            return self
+        }
+
+        guard let resizedData = quillScaleImageDataToHeight(data, height: targetHeight) else {
+            recordCompatibilityWarning(
+                "PlatformImage.aspectFittedToHeight",
+                message: "PlatformImage.aspectFittedToHeight could not decode or resize image bytes with gdk-pixbuf; returning the original image."
+            )
+            return self
+        }
+
+        return QuillPlatformImage(data: resizedData)
     }
 
     func compressImageData() -> Data? {
-        recordCompatibilityWarning(
-            "PlatformImage.compressImageData",
-            message: "PlatformImage.compressImageData returns original bytes on Linux; JPEG recompression is not implemented yet."
-        )
-        return data
+        guard let data else { return nil }
+        guard let compressed = quillCompressImageDataToJPEG(data) else {
+            recordCompatibilityWarning(
+                "PlatformImage.compressImageData",
+                message: "PlatformImage.compressImageData could not decode or recompress image bytes with gdk-pixbuf; returning original bytes."
+            )
+            return data
+        }
+
+        return compressed
     }
 }
 
