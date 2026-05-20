@@ -46,6 +46,22 @@ Status terms:
 - `Compile shim`: imports, types, and selected calls compile, with little or no runtime behavior.
 - `Fallback`: the API intentionally degrades and usually records compatibility diagnostics.
 
+Progress is intentionally conservative. `Compatible today` means either real
+Linux runtime behavior exists or enough metadata is preserved for the GTK/Qt
+backends and source-contract tests to prove the app-facing API shape. The
+detailed evidence lives in `docs/api-coverage-matrix.md` and
+`docs/app-targets.md`; this README is the high-level checklist.
+
+### Current Progress Snapshot
+
+| Track | Done now | Still open |
+| --- | --- | --- |
+| SwiftUI clone | App/scene launch, common view declarations, state wrappers, file-import helpers, menu/picker/list extraction, image helpers, compatibility diagnostics, and many modifier metadata paths compile and are tested against current app sources. | Full SwiftUI layout, accessibility, animation, transitions, gesture semantics, focus routing, multi-window scenes, and pixel-perfect backend rendering are incomplete. |
+| Apple kit clones | AppKit, UIKit, SwiftData, Foundation/CoreGraphics/Security, WebKit, Network, media/service frameworks, Combine, `os`, and legacy platform kits expose enough surface for the app targets to compile. | Most kits are scoped app-contract clones, not full framework replacements; real platform services such as VPN tunnels, web rendering, media playback/capture, speech, and service management remain limited or fallback-only. |
+| Third-party package clones | Enchanted and chat/editor/feed shells can compile with scoped clones of packages such as `OllamaKit`, `KeychainSwift`, `MarkdownUI`, `Splash`, `ActivityIndicatorView`, `WrappingHStack`, `Vortex`, `KeyboardShortcuts`, `Magnet`, `Sparkle`, and `Alamofire`. | Package coverage follows the app ports. APIs not exercised by current targets may be missing or fallback-only. |
+| App targets | Enchanted, WireGuard, Signal, Telegram, IceCubes, NetNewsWire, CodeEdit, IINA, and optional generated Quill Chat coverage are represented in the backend matrix. | Enchanted is the parity priority. The other ports are mostly shell/core-logic targets until their upstream app behaviors are brought across. |
+| Backend parity | GTK and Qt build graphs are isolated and checked independently through shared matrix scripts. | GTK and Qt are both compared against native macOS behavior; neither Linux backend is treated as the reference for the other. |
+
 ### API-by-API SwiftUI Clone Progress
 
 These rows track the SwiftUI-shaped API families QuillUI currently clones or
@@ -56,9 +72,13 @@ metadata or runtime behavior is visible to the Linux backends and tests.
 | --- | --- | --- | --- |
 | `QuillUI` / `SwiftUI` module boundary | Apple-native on Apple, usable on Linux | Re-exports real SwiftUI on Apple platforms. Linux builds use SwiftOpenUI plus `QuillSwiftUICompatibility`, with `QuillUIGtk` and `QuillUIQt` sharing the same app scene contracts. | Not a complete SwiftUI replacement; compatibility is driven by the app matrix and source-contract tests. |
 | App, scene, and backend launch | Usable | Canonical app products launch through `QUILLUI_BACKEND` at runtime and `QUILLUI_LINUX_BACKEND=gtk|qt` at build time. GTK and Qt products are tracked by `scripts/quillui-backend-products.sh app-matrix`. | Only the app/window patterns used by current ports are covered. Advanced SwiftUI scene types and multi-window behavior are still limited. |
-| Core views, layout, controls, and modifiers | Partial | The current ports compile common `Text`, `Image`, `Button`, `Form`, picker, menu, list/sidebar, navigation, toolbar, and prompt-shaped code paths. Menu extraction, picker option extraction, confirmation dialogs, and text-label helpers are source-tested. | SwiftUI's full layout engine, animation model, gestures, accessibility tree, and many advanced modifiers are not visually identical yet. |
+| Text, labels, and markdown-shaped content | Partial | Current ports compile common `Text`, `Label`, text-label helpers, MarkdownUI/Splash-shaped code paths, prompt text, selection text, and shell copy affordances. | Rich text editing, full `AttributedString` rendering, bidirectional text, text selection parity, accessibility text metadata, and every Markdown/code-highlighting feature are incomplete. |
+| Images, symbols, and rendering | Partial | `Image`, SF-symbol-style names, `Image(data:)`, `PlatformImage`, gdk-pixbuf round trips, `ImageRenderer` color payloads, and system icon contracts are tested. | General view-to-image rendering, full symbol fidelity, animated images, metadata/color-profile preservation, and every bitmap/vector format are incomplete. |
+| Layout containers and navigation | Partial | Stacks, lists/sidebars, split-view-shaped shells, navigation routing, toolbar declarations, prompts, and initial selection flows compile for the current apps. | SwiftUI's full layout solver, layout priority, geometry preferences, scroll behavior, navigation stacks/split state restoration, and macOS-exact sidebar metrics need more backend work. |
+| Controls, forms, menus, pickers, and dialogs | Partial | `Button`, `Form`, picker option extraction, menu extraction, confirmation dialogs, toolbar items, popovers/sheets via AppKit bridges, and app prompt controls are source-tested. | Control styling, keyboard navigation, validation, menu command routing, modal lifecycle, accessibility, and platform-native visual fidelity are incomplete. |
 | State, environment, and storage | Partial | `@AppStorage` scalar and raw-enum persistence, bindings, `FocusState`, `Namespace`, `PresentationMode`, `OpenURLAction`, sidebar navigation actions, and prompt helpers have compatibility tests. | Full SwiftUI environment propagation, scene storage, focus routing, transaction semantics, and property-wrapper coverage remain incomplete. |
-| Symbols, images, and rendering | Partial | SF-symbol style names map through `quillSystemImageName`, `Image(data:)` deduplicates payloads, PNG/TIFF/JPEG image round trips are tested through gdk-pixbuf, Linux `PlatformImage` can scale valid bitmap bytes by height and recompress them to JPEG, and `ImageRenderer` can render supported color payloads. | General SwiftUI view rendering to images, full symbol fidelity, animated images, metadata/color-profile preservation, and every platform image format are not complete. |
+| Input, focus, hover, gestures, and keyboard hints | Partial fallback | `FocusState`, keyboard/text-entry modifiers, `contentShape`, `allowsHitTesting`, `gesture`, `onHover`, and `focusEffectDisabled` preserve metadata for backend rendering/layout/input/focus work. | Full event routing, gesture recognition, hover/focus visuals, accessibility focus, keyboard shortcut propagation, and responder-chain parity are incomplete. |
+| Visual effects, masks, safe areas, transitions, and animation | Fallback to partial | Shape masks compile as `clipShape` approximations, generic view masks preserve content and mask metadata, safe-area modifiers preserve metadata, and unsupported visual modifiers record diagnostics. | `AnyTransition`, animation timing, matched geometry, symbol effects, complex masks, blend/compositing behavior, and visual-effect fidelity do not yet match macOS. |
 | File import, item providers, and type identifiers | Partial | `QuillFileImporter`, `NSItemProvider`, and `UniformTypeIdentifiers` cover the app-facing extension and conformance checks used by current ports. | Full file promises, drag/drop provider behavior, sandbox security-scoped resources, and system type database parity are not implemented. |
 | Diagnostics and unsupported modifiers | Usable fallback | Unsupported fallbacks such as `symbolEffect`, `matchedGeometryEffect`, `Image.renderingMode`, and `Form.formStyle` record `QuillCompatibilityDiagnostics`; shape masks compile as a `clipShape` approximation, while generic view masks preserve content and mask metadata. `symbolRenderingMode`, keyboard/text-entry modifiers plus generic `View.imageScale`, `minimumScaleFactor`, `textSelection`, `listRowInsets`, `listRowSeparator`, `scrollIndicators`, `scrollContentBackground`, `contentShape`, `allowsHitTesting`, `gesture`, `onHover`, `focusEffectDisabled`, `edgesIgnoringSafeArea`, and `ignoresSafeArea` now preserve metadata for backend rendering/layout/input/focus work. | These APIs may compile without changing visuals or behavior until a backend implementation is added. |
 | Third-party SwiftUI package shapes | Partial | Compatibility shims exist for `ActivityIndicatorView`, `MarkdownUI`, `Splash`, `WrappingHStack`, `Vortex`, and `KeyboardShortcuts`; the tests verify the app-facing contracts. | These are not full upstream package clones, and visual fidelity is limited to the features currently exercised by app targets. |
@@ -85,7 +105,30 @@ been cloned far enough for current QuillUI app targets.
 | `AsyncAlgorithms`, `Carbon`, `IOKit`, `ApplicationServices`, `ServiceManagement` | Compile shim / partial | App-facing imports and the currently used prompt, USB, accessibility, and service-management calls compile. | These modules do not clone complete device, process, service, or legacy Carbon APIs. |
 | `Alamofire`, `OllamaKit`, `KeychainSwift`, `MarkdownUI`, `Splash`, `ActivityIndicatorView`, `WrappingHStack`, `Vortex`, `KeyboardShortcuts`, `Magnet`, and `Sparkle` | Partial to usable | Enchanted uses `OllamaKit` for model and streaming-chat contracts. `KeychainSwift` covers strings, data, bools, prefixes, and deletion. Markdown/code highlighting, keyboard shortcut, updater, hotkey, and UI-helper shims cover the current app surfaces. | These are scoped compatibility surfaces, not drop-in upstream replacements for all features. |
 
+### Cloned Module Coverage Checklist
+
+This table maps the cloned or shimmed products in `Package.swift` to the
+current compatibility level. It is intentionally grouped by API family so gaps
+are easier to scan than the raw product list.
+
+| Module group | Products covered | Compatibility checkpoint |
+| --- | --- | --- |
+| SwiftUI portability core | `SwiftUI`, `QuillUI`, `QuillUIGtk`, `QuillUIQt`, `QuillShims` | Apple-native on Apple; Linux app source compiles through SwiftOpenUI compatibility plus GTK/Qt backend products. Backend rendering remains incremental and app-matrix driven. |
+| Data and persistence | `SwiftData`, `QuillData` | Usable for Enchanted conversation storage and source-lowered model tests; not a complete Apple SwiftData clone. |
+| Desktop and mobile UI kits | `AppKit`, `QuillAppKitGTK`, `UIKit` | AppKit-shaped desktop APIs are partial and source-tested. UIKit is primarily an import/type compatibility layer for current ports. |
+| Foundation, drawing, identity, and security | `QuillFoundation`, `QuillRS`, `CoreGraphics`, `Security`, `UniformTypeIdentifiers` | Common app-facing helpers, image/type/security aliases, and source contracts compile; many APIs are focused shims. |
+| Web, network, and extensions | `QuillWebKit`, `Network`, `NetworkExtension` | Web/network imports and selected types compile. Real web rendering, VPN tunnels, system extensions, and network monitoring are not implemented. |
+| Media, sharing, browser, and mobile services | `AVFoundation`, `Speech`, `PhotosUI`, `MessageUI`, `SafariServices`, `MobileCoreServices` | Service-shaped APIs compile or fallback for app source compatibility. Real device/media/service behavior is mostly absent. |
+| Reactive, logging, async, and system kits | `Combine`, `os`, `AsyncAlgorithms`, `Carbon`, `IOKit`, `ApplicationServices`, `ServiceManagement` | Combine and logging have focused tests; the rest are partial or compile shims for app-facing calls. |
+| Network/client third-party packages | `Alamofire`, `OllamaKit` | `OllamaKit` covers Enchanted model listing and streaming-chat contracts. `Alamofire` is scoped to current app source needs. |
+| UI third-party packages | `MarkdownUI`, `Splash`, `ActivityIndicatorView`, `WrappingHStack`, `Vortex`, `KeyboardShortcuts`, `Magnet`, `Sparkle` | Enough API shape exists for markdown/code, loading, wrapping layout, effects, shortcuts, hotkeys, and updater surfaces used by the app shells. |
+| Storage and keychain third-party packages | `KeychainSwift` | String/data/bool storage, prefixes, reads, writes, and deletion are tested for current app expectations. |
+
 ### App Target Progress
+
+App progress is tracked per target and per backend. Enchanted remains the
+highest-priority parity target; GTK and Qt are each compared against the native
+macOS app rather than against each other.
 
 | App target | Status | Compatible today | Not compatible yet |
 | --- | --- | --- | --- |
