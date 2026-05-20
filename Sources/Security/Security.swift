@@ -17,6 +17,35 @@ public final class SecRandom: @unchecked Sendable {
     public init() {}
 }
 
+public final class SecAccessControl: @unchecked Sendable {
+    public let protection: Any
+    public let flags: SecAccessControlCreateFlags
+
+    public init(protection: Any, flags: SecAccessControlCreateFlags) {
+        self.protection = protection
+        self.flags = flags
+    }
+}
+
+public struct SecAccessControlCreateFlags: OptionSet, Sendable {
+    public let rawValue: UInt
+
+    public init(rawValue: UInt) {
+        self.rawValue = rawValue
+    }
+
+    public static let userPresence = Self(rawValue: 1 << 0)
+    public static let biometryAny = Self(rawValue: 1 << 1)
+    public static let touchIDAny = biometryAny
+    public static let biometryCurrentSet = Self(rawValue: 1 << 3)
+    public static let touchIDCurrentSet = biometryCurrentSet
+    public static let devicePasscode = Self(rawValue: 1 << 4)
+    public static let `or` = Self(rawValue: 1 << 14)
+    public static let `and` = Self(rawValue: 1 << 15)
+    public static let privateKeyUsage = Self(rawValue: 1 << 30)
+    public static let applicationPassword = Self(rawValue: 1 << 31)
+}
+
 public typealias OSStatus = Int32
 public typealias SecRandomRef = SecRandom
 public let errSecSuccess: OSStatus = 0
@@ -48,6 +77,7 @@ public let kSecAttrSynchronizableAny: CFString = "syna" as CFString
 public let kSecAttrLabel: CFString = "labl" as CFString
 public let kSecAttrGeneric: CFString = "gena" as CFString
 public let kSecAttrAccessible: CFString = "pdmn" as CFString
+public let kSecAttrAccessControl: CFString = "accc" as CFString
 public let kSecAttrAccessibleWhenUnlocked: CFString = "ak" as CFString
 public let kSecAttrAccessibleAfterFirstUnlock: CFString = "ck" as CFString
 public let kSecAttrAccessibleAlways: CFString = "dk" as CFString
@@ -107,11 +137,29 @@ public let kSecReturnPersistentRef: CFString = "r_PersistentRef" as CFString
 public let kSecMatchLimit: CFString = "m_Limit" as CFString
 public let kSecMatchLimitOne: CFString = "m_LimitOne" as CFString
 public let kSecMatchLimitAll: CFString = "m_LimitAll" as CFString
+public let kSecUseDataProtectionKeychain: CFString = "u_DPK" as CFString
+public let kSecUseAuthenticationUI: CFString = "u_AuthUI" as CFString
+public let kSecUseAuthenticationUIAllow: CFString = "u_AuthUIAllow" as CFString
+public let kSecUseAuthenticationUIFail: CFString = "u_AuthUIFail" as CFString
+public let kSecUseAuthenticationUISkip: CFString = "u_AuthUISkip" as CFString
+public let kSecUseAuthenticationContext: CFString = "u_AuthCtx" as CFString
+public let kSecUseOperationPrompt: CFString = "u_OpPrompt" as CFString
+public let kSecUseItemList: CFString = "u_ItemList" as CFString
+public let kSecUseKeychain: CFString = "u_Keychain" as CFString
 
 public let kSecRandomDefault: SecRandomRef? = nil
 
 public func SecCertificateCreateWithData(_ allocator: CFAllocator?, _ data: CFData) -> SecCertificate? {
     SecCertificate(data: data)
+}
+
+public func SecAccessControlCreateWithFlags(
+    _ allocator: CFAllocator?,
+    _ protection: Any,
+    _ flags: SecAccessControlCreateFlags,
+    _ error: UnsafeMutablePointer<CFError?>?
+) -> SecAccessControl? {
+    SecAccessControl(protection: protection, flags: flags)
 }
 
 @discardableResult
@@ -349,7 +397,13 @@ private let controlKeys: Set<String> = [
     secKey(kSecReturnAttributes),
     secKey(kSecReturnRef),
     secKey(kSecReturnPersistentRef),
-    secKey(kSecMatchLimit)
+    secKey(kSecMatchLimit),
+    secKey(kSecUseDataProtectionKeychain),
+    secKey(kSecUseAuthenticationUI),
+    secKey(kSecUseAuthenticationContext),
+    secKey(kSecUseOperationPrompt),
+    secKey(kSecUseItemList),
+    secKey(kSecUseKeychain)
 ]
 
 private let valueKeys: Set<String> = [

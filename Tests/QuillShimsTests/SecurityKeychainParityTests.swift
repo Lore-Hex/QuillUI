@@ -91,6 +91,85 @@ final class SecurityKeychainParityTests: XCTestCase {
         ]), nil), errSecItemNotFound)
     }
 
+    func testAccessControlAndUseOptionsAreAcceptedForSignalStyleQueries() {
+        let service = "signal-access-control-\(UUID().uuidString)"
+        let account = "aci-identity-key"
+        let originalData = Data([0xAA, 0xBB])
+        let updatedData = Data([0xCC, 0xDD])
+        let baseQuery = cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecUseDataProtectionKeychain: true,
+            kSecUseAuthenticationUI: kSecUseAuthenticationUISkip,
+            kSecUseOperationPrompt: "Unlock Signal identity key"
+        ])
+        defer { _ = SecItemDelete(baseQuery) }
+
+        guard let accessControl = SecAccessControlCreateWithFlags(
+            nil,
+            kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+            [.userPresence, .privateKeyUsage],
+            nil
+        ) else {
+            XCTFail("SecAccessControlCreateWithFlags should create a shim object")
+            return
+        }
+
+        XCTAssertEqual(accessControl.protection as? String, string(kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly))
+        XCTAssertTrue(accessControl.flags.contains(.userPresence))
+        XCTAssertTrue(accessControl.flags.contains(.privateKeyUsage))
+
+        var addResult: CFTypeRef?
+        XCTAssertEqual(SecItemAdd(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+            kSecAttrAccessControl: accessControl,
+            kSecValueData: originalData,
+            kSecReturnAttributes: true,
+            kSecReturnData: true,
+            kSecUseDataProtectionKeychain: true,
+            kSecUseAuthenticationUI: kSecUseAuthenticationUISkip,
+            kSecUseOperationPrompt: "Unlock Signal identity key"
+        ]), &addResult), errSecSuccess)
+
+        let addedAttributes = attributes(from: addResult)
+        let storedAccessControl = addedAttributes?[string(kSecAttrAccessControl)] as? SecAccessControl
+        XCTAssertTrue(storedAccessControl === accessControl)
+        XCTAssertNil(addedAttributes?[string(kSecUseDataProtectionKeychain)])
+        XCTAssertNil(addedAttributes?[string(kSecUseAuthenticationUI)])
+        XCTAssertNil(addedAttributes?[string(kSecUseOperationPrompt)])
+        XCTAssertEqual(data(from: addedAttributes?[string(kSecValueData)]), originalData)
+
+        var copyResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecUseDataProtectionKeychain: true,
+            kSecUseAuthenticationUI: kSecUseAuthenticationUIAllow,
+            kSecUseAuthenticationContext: "local-auth-context",
+            kSecReturnData: true
+        ]), &copyResult), errSecSuccess)
+        XCTAssertEqual(data(from: copyResult), originalData)
+
+        XCTAssertEqual(SecItemUpdate(baseQuery, cfDictionary([
+            kSecValueData: updatedData,
+            kSecUseAuthenticationUI: kSecUseAuthenticationUIFail
+        ])), errSecSuccess)
+
+        var updatedResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecReturnData: true
+        ]), &updatedResult), errSecSuccess)
+        XCTAssertEqual(data(from: updatedResult), updatedData)
+    }
+
     func testGenericPasswordMatchLimitAllReturnsAttributes() {
         let service = "signal-session-\(UUID().uuidString)"
         defer {
