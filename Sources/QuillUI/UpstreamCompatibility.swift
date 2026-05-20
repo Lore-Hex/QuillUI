@@ -879,6 +879,18 @@ public struct MinimumScaleFactorView<Content: View>: View {
     public var body: some View { content }
 }
 
+public struct ImageScaleView<Content: View>: View {
+    public let content: Content
+    public let scale: ImageScale
+
+    public init(content: Content, scale: ImageScale) {
+        self.content = content
+        self.scale = scale
+    }
+
+    public var body: some View { content }
+}
+
 public struct DragGesture: Sendable {
     public struct Value: Sendable {
         public var translation: CGSize
@@ -911,12 +923,12 @@ public extension View {
         self
     }
 
-    func imageScale(_ scale: ImageScale) -> some View {
+    func imageScale(_ scale: ImageScale) -> ImageScaleView<Self> {
         recordQuillUIFallback(
             "imageScale",
-            message: "View imageScale is currently a source-compatibility fallback on Linux."
+            message: "View imageScale is preserved as image metadata on Linux."
         )
-        return self
+        return ImageScaleView(content: self, scale: scale)
     }
 }
 

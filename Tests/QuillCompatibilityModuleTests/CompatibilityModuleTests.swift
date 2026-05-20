@@ -61,6 +61,7 @@ struct CompatibilityModuleTests {
             .disableAutocorrection(true)
             .textContentType(.URL)
 
+        _ = Text("Icon scaled").imageScale(.large)
         _ = Image(systemName: "photo").renderingMode(.template)
         _ = Form { Text("Field") }.formStyle(.grouped)
 
@@ -68,6 +69,10 @@ struct CompatibilityModuleTests {
         let scaled = Text("Scaled").minimumScaleFactor(0.5)
         #expect(scaled.factor == 0.5)
         #expect(String(describing: type(of: scaled)).contains("MinimumScaleFactorView"))
+
+        let imageScaled = Text("Icon scaled").imageScale(.large)
+        #expect(String(describing: type(of: imageScaled)).contains("ImageScaleView"))
+        #expect(String(describing: imageScaled.scale).lowercased().contains("large"))
 #endif
 
         let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
@@ -81,6 +86,7 @@ struct CompatibilityModuleTests {
             "autocapitalization",
             "disableAutocorrection",
             "textContentType",
+            "imageScale",
             "renderingMode",
             "formStyle"
         ])))
