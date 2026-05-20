@@ -13,13 +13,20 @@ public final class NWPathMonitor: @unchecked Sendable {
 
     public var pathUpdateHandler: (@Sendable (NWPath) -> Void)?
     public var currentPath: NWPath = NWPath(status: .unsatisfied)
+    private let requiredInterfaceType: NWInterface.InterfaceType?
 
-    public init() {}
-    public init(requiredInterfaceType: NWInterface.InterfaceType) {}
+    public init() {
+        self.requiredInterfaceType = nil
+    }
+
+    public init(requiredInterfaceType: NWInterface.InterfaceType) {
+        self.requiredInterfaceType = requiredInterfaceType
+    }
 
     public func start(queue: DispatchQueue) {
         let handler = pathUpdateHandler
-        let path = currentPath
+        let path = currentLinuxPath(requiredInterfaceType: requiredInterfaceType)
+        currentPath = path
         queue.async { handler?(path) }
     }
 
@@ -51,9 +58,9 @@ public struct NWPath: Sendable {
     public var availableInterfaces: [NWInterface]
     public var isExpensive: Bool
     public var isConstrained: Bool
-    public var supportsIPv4: Bool { false }
-    public var supportsIPv6: Bool { false }
-    public var supportsDNS: Bool { false }
+    public var supportsIPv4: Bool
+    public var supportsIPv6: Bool
+    public var supportsDNS: Bool
 
     public func usesInterfaceType(_ type: NWInterface.InterfaceType) -> Bool {
         availableInterfaces.contains { $0.type == type }
@@ -64,13 +71,19 @@ public struct NWPath: Sendable {
         unsatisfiedReason: UnsatisfiedReason = .notAvailable,
         availableInterfaces: [NWInterface] = [],
         isExpensive: Bool = false,
-        isConstrained: Bool = false
+        isConstrained: Bool = false,
+        supportsIPv4: Bool = false,
+        supportsIPv6: Bool = false,
+        supportsDNS: Bool = false
     ) {
         self.status = status
         self.unsatisfiedReason = unsatisfiedReason
         self.availableInterfaces = availableInterfaces
         self.isExpensive = isExpensive
         self.isConstrained = isConstrained
+        self.supportsIPv4 = supportsIPv4
+        self.supportsIPv6 = supportsIPv6
+        self.supportsDNS = supportsDNS
     }
 }
 
@@ -108,6 +121,81 @@ public struct NWInterface: Hashable, Sendable, CustomStringConvertible, CustomDe
 
     public var description: String { name }
     public var debugDescription: String { description }
+}
+
+private func currentLinuxPath(requiredInterfaceType: NWInterface.InterfaceType?) -> NWPath {
+    var firstInterface: UnsafeMutablePointer<ifaddrs>?
+    guard getifaddrs(&firstInterface) == 0, let firstInterface else {
+        return NWPath(status: .unsatisfied)
+    }
+    defer { freeifaddrs(firstInterface) }
+
+    var interfacesByName: [String: NWInterface] = [:]
+    var supportsIPv4 = false
+    var supportsIPv6 = false
+
+    var pointer: UnsafeMutablePointer<ifaddrs>? = firstInterface
+    while let current = pointer {
+        defer { pointer = current.pointee.ifa_next }
+
+        let flags = UInt32(current.pointee.ifa_flags)
+        guard flags & UInt32(IFF_UP) != 0,
+              let address = current.pointee.ifa_addr,
+              let namePointer = current.pointee.ifa_name
+        else {
+            continue
+        }
+
+        let name = String(cString: namePointer)
+        let type = interfaceType(forInterfaceName: name)
+        guard shouldIncludeInterface(type, requiredInterfaceType: requiredInterfaceType) else {
+            continue
+        }
+
+        switch Int32(address.pointee.sa_family) {
+        case AF_INET:
+            supportsIPv4 = true
+        case AF_INET6:
+            supportsIPv6 = true
+        default:
+            continue
+        }
+
+        interfacesByName[name] = NWInterface(name: name, type: type)
+    }
+
+    let availableInterfaces = interfacesByName.values.sorted {
+        if $0.name == $1.name {
+            return String(describing: $0.type) < String(describing: $1.type)
+        }
+        return $0.name < $1.name
+    }
+    let isSatisfied = !availableInterfaces.isEmpty && (supportsIPv4 || supportsIPv6)
+
+    return NWPath(
+        status: isSatisfied ? .satisfied : .unsatisfied,
+        availableInterfaces: availableInterfaces,
+        supportsIPv4: isSatisfied && supportsIPv4,
+        supportsIPv6: isSatisfied && supportsIPv6,
+        supportsDNS: isSatisfied && linuxResolverLooksConfigured()
+    )
+}
+
+private func shouldIncludeInterface(
+    _ type: NWInterface.InterfaceType,
+    requiredInterfaceType: NWInterface.InterfaceType?
+) -> Bool {
+    if let requiredInterfaceType {
+        return type == requiredInterfaceType
+    }
+    return type != .loopback
+}
+
+private func linuxResolverLooksConfigured() -> Bool {
+    guard let contents = try? String(contentsOfFile: "/etc/resolv.conf", encoding: .utf8) else { return false }
+    return contents.split(whereSeparator: \.isNewline).contains { line in
+        String(line).trimmingCharacters(in: .whitespaces).hasPrefix("nameserver")
+    }
 }
 
 // MARK: - IPAddress / NWEndpoint shims for WireGuardKit
@@ -359,7 +447,26 @@ private func interfaceType(forInterfaceName name: String) -> NWInterface.Interfa
     if lowercasedName == "lo" || lowercasedName.hasPrefix("lo") {
         return .loopback
     }
-    if lowercasedName.hasPrefix("en") || lowercasedName.hasPrefix("eth") {
+    if lowercasedName.hasPrefix("wl")
+        || lowercasedName.hasPrefix("wlan")
+        || lowercasedName.hasPrefix("wifi")
+        || lowercasedName.hasPrefix("ath")
+    {
+        return .wifi
+    }
+    if lowercasedName.hasPrefix("wwan")
+        || lowercasedName.hasPrefix("rmnet")
+        || lowercasedName.hasPrefix("pdp_ip")
+        || lowercasedName.hasPrefix("cell")
+    {
+        return .cellular
+    }
+    if lowercasedName.hasPrefix("en")
+        || lowercasedName.hasPrefix("eth")
+        || lowercasedName.hasPrefix("eno")
+        || lowercasedName.hasPrefix("ens")
+        || lowercasedName.hasPrefix("enp")
+    {
         return .wiredEthernet
     }
     return .other

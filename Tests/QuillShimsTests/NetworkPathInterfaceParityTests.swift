@@ -1,3 +1,5 @@
+import Dispatch
+import Foundation
 import Network
 import XCTest
 #if canImport(Glibc)
@@ -19,6 +21,40 @@ final class NetworkPathInterfaceParityTests: XCTestCase {
             assertInitialPath(monitor.currentPath, context)
         }
     }
+
+    #if os(Linux)
+    func testPathMonitorStartReportsCurrentLinuxInterfaceSnapshot() {
+        for (context, monitor) in Self.makePathMonitors() {
+            let recorder = PathSnapshotRecorder()
+            monitor.pathUpdateHandler = { path in
+                recorder.record(PathSnapshot(path))
+            }
+
+            let queue = DispatchQueue(label: "quillui.network.path.\(context)")
+            monitor.start(queue: queue)
+
+            XCTAssertTrue(recorder.wait(timeout: .now() + 2.0), context)
+            guard let delivered = recorder.load() else {
+                XCTFail("Expected start(queue:) to deliver a path update for \(context)")
+                continue
+            }
+
+            let current = PathSnapshot(monitor.currentPath)
+            XCTAssertEqual(delivered, current, context)
+            XCTAssertEqual(current.status == .satisfied, current.supportsIPv4 || current.supportsIPv6, context)
+            XCTAssertEqual(current.supportsDNS && current.status != .satisfied, false, context)
+
+            for interfaceType in Self.pathInterfaceTypes {
+                let name = String(describing: interfaceType)
+                XCTAssertEqual(
+                    current.usedInterfaceTypes.contains(name),
+                    current.interfaceTypes.contains(name),
+                    "\(context) \(name)"
+                )
+            }
+        }
+    }
+    #endif
 
     func testPathStatusStringDescriptionsMatchApple() {
         let cases: [(NWPath.Status, String)] = [
@@ -170,6 +206,64 @@ final class NetworkPathInterfaceParityTests: XCTestCase {
         let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
         return String(decoding: bytes, as: UTF8.self)
     }
+
+    #if os(Linux)
+    private struct PathSnapshot: Equatable {
+        var status: NWPath.Status
+        var unsatisfiedReason: NWPath.UnsatisfiedReason
+        var interfaceDescriptions: [String]
+        var interfaceTypes: [String]
+        var usedInterfaceTypes: [String]
+        var isExpensive: Bool
+        var isConstrained: Bool
+        var supportsIPv4: Bool
+        var supportsIPv6: Bool
+        var supportsDNS: Bool
+
+        init(_ path: NWPath) {
+            status = path.status
+            unsatisfiedReason = path.unsatisfiedReason
+            interfaceDescriptions = path.availableInterfaces
+                .map { "\($0.name):\(String(describing: $0.type))" }
+                .sorted()
+            interfaceTypes = path.availableInterfaces
+                .map { String(describing: $0.type) }
+                .sorted()
+            usedInterfaceTypes = NetworkPathInterfaceParityTests.pathInterfaceTypes
+                .filter { path.usesInterfaceType($0) }
+                .map { String(describing: $0) }
+                .sorted()
+            isExpensive = path.isExpensive
+            isConstrained = path.isConstrained
+            supportsIPv4 = path.supportsIPv4
+            supportsIPv6 = path.supportsIPv6
+            supportsDNS = path.supportsDNS
+        }
+    }
+
+    private final class PathSnapshotRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private let semaphore = DispatchSemaphore(value: 0)
+        private var value: PathSnapshot?
+
+        func record(_ snapshot: PathSnapshot) {
+            lock.lock()
+            value = snapshot
+            lock.unlock()
+            semaphore.signal()
+        }
+
+        func wait(timeout: DispatchTime) -> Bool {
+            semaphore.wait(timeout: timeout) == .success
+        }
+
+        func load() -> PathSnapshot? {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+    }
+    #endif
 
     private func assertInitialPath(
         _ path: NWPath,
