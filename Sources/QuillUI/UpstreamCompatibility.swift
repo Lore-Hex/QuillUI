@@ -989,6 +989,30 @@ public struct FocusEffectDisabledView<Content: View>: View {
     public var body: some View { content }
 }
 
+public struct EdgesIgnoringSafeAreaView<Content: View>: View {
+    public let content: Content
+    public let edges: Edge.Set
+
+    public init(content: Content, edges: Edge.Set) {
+        self.content = content
+        self.edges = edges
+    }
+
+    public var body: some View { content }
+}
+
+public struct IgnoresSafeAreaView<Content: View>: View {
+    public let content: Content
+    public let edges: Edge.Set
+
+    public init(content: Content, edges: Edge.Set) {
+        self.content = content
+        self.edges = edges
+    }
+
+    public var body: some View { content }
+}
+
 public struct TextSelectionView<Content: View>: View {
     public let content: Content
     public let selection: TextSelectability
@@ -1300,20 +1324,20 @@ public extension View {
         return FocusEffectDisabledView(content: self, disabled: disabled)
     }
 
-    func edgesIgnoringSafeArea(_ edges: Edge.Set) -> Self {
+    func edgesIgnoringSafeArea(_ edges: Edge.Set) -> EdgesIgnoringSafeAreaView<Self> {
         recordQuillUIFallback(
             "edgesIgnoringSafeArea",
-            message: "edgesIgnoringSafeArea is currently a source-compatibility fallback on Linux."
+            message: "edgesIgnoringSafeArea is preserved as safe-area layout metadata on Linux."
         )
-        return self
+        return EdgesIgnoringSafeAreaView(content: self, edges: edges)
     }
 
-    func ignoresSafeArea(_ edges: Edge.Set = .all) -> Self {
+    func ignoresSafeArea(_ edges: Edge.Set = .all) -> IgnoresSafeAreaView<Self> {
         recordQuillUIFallback(
             "ignoresSafeArea",
-            message: "ignoresSafeArea is currently a source-compatibility fallback on Linux."
+            message: "ignoresSafeArea is preserved as safe-area layout metadata on Linux."
         )
-        return self
+        return IgnoresSafeAreaView(content: self, edges: edges)
     }
 
     func onMove(perform action: ((IndexSet, Int) -> Void)?) -> Self {
@@ -1712,6 +1736,14 @@ extension OnHoverView: QuillWrappedViewRepresentable {
 }
 
 extension FocusEffectDisabledView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension EdgesIgnoringSafeAreaView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension IgnoresSafeAreaView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 

@@ -57,6 +57,8 @@ struct CompatibilityModuleTests {
             .contentShape(Rectangle())
             .onHover { _ in }
             .focusEffectDisabled(false)
+            .edgesIgnoringSafeArea(.top)
+            .ignoresSafeArea(.bottom)
             .listRowInsets(EdgeInsets(top: 1, leading: 2, bottom: 3, trailing: 4))
             .listRowSeparator(.hidden, edges: .vertical)
             .scrollIndicators(.hidden)
@@ -118,6 +120,14 @@ struct CompatibilityModuleTests {
         #expect(String(describing: type(of: focusEffect)).contains("FocusEffectDisabledView"))
         #expect(focusEffect.disabled == false)
 
+        let legacySafeArea = Text("Legacy Safe Area").edgesIgnoringSafeArea(.top)
+        #expect(String(describing: type(of: legacySafeArea)).contains("EdgesIgnoringSafeAreaView"))
+        #expect(legacySafeArea.edges == .top)
+
+        let ignoredSafeArea = Text("Safe Area").ignoresSafeArea(.bottom)
+        #expect(String(describing: type(of: ignoredSafeArea)).contains("IgnoresSafeAreaView"))
+        #expect(ignoredSafeArea.edges == .bottom)
+
         let selectable = Text("Selectable").textSelection(.enabled)
         #expect(String(describing: type(of: selectable)).contains("TextSelectionView"))
         #expect(String(describing: selectable.selection).contains("enabled"))
@@ -147,6 +157,8 @@ struct CompatibilityModuleTests {
             "contentShape",
             "onHover",
             "focusEffectDisabled",
+            "edgesIgnoringSafeArea",
+            "ignoresSafeArea",
             "listRowInsets",
             "listRowSeparator",
             "scrollIndicators",
