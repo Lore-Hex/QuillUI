@@ -27,6 +27,39 @@ Status ladder:
   tests, UI flows have backend-equivalent behavior and rendering, and any
   unavoidable OS differences are explicit.
 
+## Package Summary
+
+Use this table to find the detailed package section below. The per-function
+rows remain the source of truth: a function is complete today only when its row
+is `Usable` or `Parity`.
+
+| Apple package | Complete function rows today | Incomplete function rows and parity blockers |
+| --- | --- | --- |
+| `SwiftUI` clone layer | `Font.Weight`. | Module boundary and app-facing view/modifier metadata paths are partial; baseline alignments fallback; full layout, diffing, animation, transition, gesture, accessibility, focus, scene, and rendering behavior is incomplete. |
+| `SwiftData` / `QuillData` | `QuillTableMappable` table/name/convert/update helpers, `ModelContext.insert`, `delete`, `save`, and `QuillDataError.description`. | Database scalar conversion, fetches, predicates, configuration, schemas, containers, sorting, and macros are partial or compile-only; migrations, relationships, undo, CloudKit, constraints, predicate lowering, and concurrency are incomplete. |
+| `AppKit` / `QuillAppKit` | Undo execution and registration gates, `NSStringFromRect`, view hierarchy and geometry mutation, child-controller links, window geometry mutation, pasteboard string/data/item storage, menu item models, arranged stack subviews, progress value mutation, pop-up item selection, and selected singleton/property flows. | Most native OS behavior is partial, fallback, compile-only, or incomplete: event loop and dispatch, focus, dialogs, window manager integration, Auto Layout, drawing/layers, accessibility, cursor/event taps, native menus, drag/drop, text layout, document architecture, SwiftUI hosting, status items, popovers, visual effects, animation timing, haptics, sharing, audio, XPC, font discovery, file icons, and workspace services. |
+| `UIKit` / `QuillUIKit` | `UIApplication.shared`. | Aliases, app opening, device metadata, pasteboard, views, hierarchy, and notifications are partial/fallback; constraints, scenes, controllers, navigation, split views, collections, alerts, controls, labels/images/key commands, renderer, lifecycle, layout, events, accessibility, and text input are incomplete. |
+| `WebKit` | None yet beyond compile-compatible shapes. | `WKWebView`, configuration, delegates, user scripts, content rules, navigation, HTML rendering, JavaScript, process isolation, and scheme handling are compile-only or incomplete. |
+| `AuthenticationServices` | None yet beyond compile-compatible shapes. | Web authentication session start is fallback; session cancellation, presentation anchors, callback handling, secure storage, and browser flow parity are incomplete. |
+| `UniformTypeIdentifiers` | None yet at `Usable`; current rows are partial. | Identifier parsing, extension lookup, conformance, static types, system registry lookup, dynamic/exported/imported types, and the full conformance graph need parity work. |
+| `Network` | None yet at `Usable`; selected parsing rows are partial. | Path monitoring, interfaces, IPv6 parsing, endpoint classification, ports, connections, listeners, DNS, TLS, UDP/TCP, and real path probing are incomplete or fallback-only. |
+| `NetworkExtension` | None yet beyond compile/fallback shapes. | Packet flow, VPN lifecycle, tunnel routing, provider hosting, and real tunnel settings are incomplete. |
+| `CoreGraphics` | None yet beyond compile/fallback shapes. | Event sources, key state, keyboard events, event posting, pointer events, event taps, and drawing APIs beyond shared geometry are incomplete. |
+| `Security` | None yet at `Usable`; certificate wrapping is partial and trust calls fallback. | Keychain, certificate parsing, policy evaluation, platform trust store, and Secure Transport parity are incomplete. |
+| `AVFoundation` / `AVKit` | None yet beyond compile/fallback shapes. | Speech synthesis, audio session, playback, audio engine graph processing, taps, buffers, formats, video rendering, media decoding, capture, and real media I/O are incomplete. |
+| `Speech` | None yet beyond compile/fallback shapes. | Authorization, recognizer availability, recognition tasks, audio transcription, and audio bridge behavior are incomplete. |
+| `PhotosUI` / `Photos` | None yet beyond compile-compatible shapes. | Photo-library authorization, asset fetching, picker UI, transferable item loading, and photo service behavior are incomplete. |
+| `Charts`, `StoreKit`, `TipKit` | None yet beyond compile-compatible shapes. | Chart marks/rendering/axes/scales/interaction/accessibility, product lookup, purchases, transactions, subscriptions, tip rules, persistence, display frequency, and popovers are incomplete. |
+| `Observation` | None yet at `Usable`; `@Observable` lowering is partial. | Tracking, invalidation, access lists, registrar behavior, and observation parity are incomplete. |
+| `ApplicationServices` | None yet at `Usable`; process trust check is partial. | Accessibility tree inspection, mutation, notifications, app targeting, and attribute access are incomplete. |
+| `ServiceManagement` | `SMAppService.register()` and `unregister()`. | Main-app/status behavior is partial; login item parity, privileged helpers, and platform service managers are incomplete. |
+| `AsyncAlgorithms` | `AsyncTimerSequence.init(interval:clock:)` and iterator `next()`. | Other AsyncAlgorithms package algorithms are incomplete. |
+| `Carbon` | None yet beyond compile-compatible shapes. | Hot-key registration, event targets, and classic Carbon APIs are incomplete. |
+| `Combine` | `AnyPublisher.init()` where `Failure == Never`. | OpenCombine coverage, merge behavior, backpressure, schedulers, demand, cancellation, operators, and seeded edge-case parity remain partial or incomplete. |
+| `os` | `Logger.init(...)`. | Logging calls, `os_log`, dyld inspection, unfair-lock semantics, signposts, persistence, and tooling parity are partial, compile-only, or incomplete. |
+| `IOKit` | None yet beyond compile/fallback shapes. | USB/device discovery, notifications, registry traversal, matching, iterators, and object lifetime behavior are incomplete. |
+| Re-export-only Apple shims | Imports compile for current app source. | `MessageUI`, `SafariServices`, `MobileCoreServices`, `LocalAuthentication`, and `CoreSpotlight` do not implement standalone framework behavior yet. |
+
 ## SwiftUI
 
 Linux `SwiftUI` re-exports `SwiftOpenUI` plus local compatibility extensions.

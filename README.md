@@ -54,6 +54,25 @@ detailed evidence lives in `docs/api-coverage-matrix.md`,
 `docs/apple-package-function-coverage.md`, and `docs/app-targets.md`; this
 README is the high-level checklist.
 
+### Function-Level Compatibility Ledger
+
+The function-by-function Apple package status lives in
+`docs/apple-package-function-coverage.md`. In that ledger, `Usable` and
+`Parity` rows are complete for today's tested Linux contract. `Partial`,
+`Fallback`, `Compile-only`, and `Incomplete` rows are intentionally listed as
+incomplete until the missing Apple behavior is implemented and covered by
+source-contract, golden, or seeded fuzz tests.
+
+| Apple package area | Complete today | Incomplete today |
+| --- | --- | --- |
+| `SwiftUI` clone layer | Focused rows such as `Font.Weight`. | Most app-facing view and modifier metadata is still partial; full layout, diffing, animation, transition, gesture, accessibility, focus, scene, and rendering parity remains open. |
+| `SwiftData` / `QuillData` | Table mapping, inserts, deletes, saves, deterministic error text, and current Enchanted persistence flows. | Full Apple SwiftData schema, relationship, predicate, migration, CloudKit, undo, observation, and concurrency semantics. |
+| `AppKit` / `QuillAppKit` | In-memory undo, view hierarchy, window geometry, pasteboard, menu, pop-up, stack, progress, child-controller, and selected workspace/document flows. | Native event loop, Auto Layout, CALayer/drawing, accessibility, file dialogs, cursor/event taps, XPC, sharing, audio, host font metrics, and full window-manager behavior. |
+| `UIKit` / `QuillUIKit` | `UIApplication.shared` and selected source-compatible aliases and in-memory bridges. | Mobile renderer, lifecycle, layout engine, navigation, presentation, text input, events, accessibility, haptics, notifications, and collection/table parity. |
+| Web, network, media, and service Apple kits | Selected compile or fallback shapes for `WebKit`, `AuthenticationServices`, `Network`, `NetworkExtension`, `AVFoundation`, `Speech`, `PhotosUI`, `Charts`, `StoreKit`, and `TipKit`. | Real web rendering, authentication sessions, DNS/TLS/TCP/UDP behavior, VPN tunnels, media I/O, speech, photo library, chart rendering, purchases, and tip persistence. |
+| System and support kits | Focused usable rows for `ServiceManagement`, `AsyncAlgorithms`, `AnyPublisher`, and `Logger` initialization. | Full `CoreGraphics`, `Security`, `Observation`, `ApplicationServices`, `Carbon`, `IOKit`, `os`, and Combine edge-case parity. |
+| Re-export-only Apple shims | Imports compile for current app source. | Standalone framework behavior for `MessageUI`, `SafariServices`, `MobileCoreServices`, `LocalAuthentication`, and `CoreSpotlight`. |
+
 ### Current Progress Snapshot
 
 | Track | Done now | Still open |
