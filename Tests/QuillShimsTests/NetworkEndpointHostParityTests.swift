@@ -109,6 +109,75 @@ final class NetworkEndpointHostParityTests: XCTestCase {
         XCTAssertNotEqual(NWEndpoint.Host("::ffff:192.0.2.1"), NWEndpoint.Host("::192.0.2.1"))
     }
 
+    func testEndpointValueEqualityAndHashingMatchApple() throws {
+        let port: NWEndpoint.Port = 443
+        let ipv4 = try XCTUnwrap(IPv4Address("192.0.2.1"))
+        let ipv6 = try XCTUnwrap(IPv6Address("2001:db8::1"))
+
+        let equalEndpoints: [(NWEndpoint, NWEndpoint, String)] = [
+            (
+                .hostPort(host: NWEndpoint.Host("example.com"), port: port),
+                .hostPort(host: .name("example.com", nil), port: .https),
+                "host-port DNS name"
+            ),
+            (
+                .hostPort(host: NWEndpoint.Host("192.0.2.1"), port: port),
+                .hostPort(host: .ipv4(ipv4), port: .https),
+                "host-port IPv4 literal"
+            ),
+            (
+                .hostPort(host: NWEndpoint.Host("2001:db8::1"), port: port),
+                .hostPort(host: .ipv6(ipv6), port: .https),
+                "host-port IPv6 literal"
+            ),
+            (
+                .hostPort(host: NWEndpoint.Host("::ffff:192.0.2.1"), port: port),
+                .hostPort(host: .ipv4(ipv4), port: .https),
+                "host-port IPv4-mapped IPv6 literal"
+            ),
+            (
+                .service(name: "svc", type: "_http._tcp", domain: "local.", interface: nil),
+                .service(name: "svc", type: "_http._tcp", domain: "local.", interface: nil),
+                "service exact value"
+            ),
+            (
+                .unix(path: "/tmp/socket"),
+                .unix(path: "/tmp/socket"),
+                "Unix path exact value"
+            ),
+        ]
+
+        for (lhs, rhs, context) in equalEndpoints {
+            XCTAssertEqual(lhs, rhs, context)
+            XCTAssertEqual(lhs.hashValue, rhs.hashValue, context)
+        }
+
+        XCTAssertNotEqual(
+            NWEndpoint.hostPort(host: NWEndpoint.Host("example.com"), port: port),
+            NWEndpoint.hostPort(host: NWEndpoint.Host("example.org"), port: port)
+        )
+        XCTAssertNotEqual(
+            NWEndpoint.hostPort(host: NWEndpoint.Host("example.com"), port: port),
+            NWEndpoint.hostPort(host: NWEndpoint.Host("example.com"), port: .http)
+        )
+        XCTAssertNotEqual(
+            NWEndpoint.service(name: "svc", type: "_http._tcp", domain: "local.", interface: nil),
+            NWEndpoint.service(name: "other", type: "_http._tcp", domain: "local.", interface: nil)
+        )
+        XCTAssertNotEqual(
+            NWEndpoint.service(name: "svc", type: "_http._tcp", domain: "local.", interface: nil),
+            NWEndpoint.service(name: "svc", type: "_mesh._udp", domain: "local.", interface: nil)
+        )
+        XCTAssertNotEqual(
+            NWEndpoint.unix(path: "/tmp/socket"),
+            NWEndpoint.unix(path: "/tmp/other")
+        )
+        XCTAssertNotEqual(
+            NWEndpoint.hostPort(host: NWEndpoint.Host("example.com"), port: port),
+            NWEndpoint.unix(path: "example.com:443")
+        )
+    }
+
     func testEndpointValueDescriptionsMatchApple() {
         let literalPort: NWEndpoint.Port = 443
         let cases: [(NWEndpoint, String)] = [
