@@ -56,6 +56,7 @@ struct CompatibilityModuleTests {
             .mask(Rectangle())
             .contentShape(Rectangle())
             .onHover { _ in }
+            .focusEffectDisabled(false)
             .listRowInsets(EdgeInsets(top: 1, leading: 2, bottom: 3, trailing: 4))
             .listRowSeparator(.hidden, edges: .vertical)
             .scrollIndicators(.hidden)
@@ -113,6 +114,10 @@ struct CompatibilityModuleTests {
         hoverable.action(false)
         #expect(hoverStates == [true, false])
 
+        let focusEffect = Text("Focus").focusEffectDisabled(false)
+        #expect(String(describing: type(of: focusEffect)).contains("FocusEffectDisabledView"))
+        #expect(focusEffect.disabled == false)
+
         let selectable = Text("Selectable").textSelection(.enabled)
         #expect(String(describing: type(of: selectable)).contains("TextSelectionView"))
         #expect(String(describing: selectable.selection).contains("enabled"))
@@ -141,6 +146,7 @@ struct CompatibilityModuleTests {
             "mask",
             "contentShape",
             "onHover",
+            "focusEffectDisabled",
             "listRowInsets",
             "listRowSeparator",
             "scrollIndicators",

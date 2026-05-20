@@ -977,6 +977,18 @@ public struct OnHoverView<Content: View>: View {
     public var body: some View { content }
 }
 
+public struct FocusEffectDisabledView<Content: View>: View {
+    public let content: Content
+    public let disabled: Bool
+
+    public init(content: Content, disabled: Bool) {
+        self.content = content
+        self.disabled = disabled
+    }
+
+    public var body: some View { content }
+}
+
 public struct TextSelectionView<Content: View>: View {
     public let content: Content
     public let selection: TextSelectability
@@ -1280,12 +1292,12 @@ public extension View {
         return ScrollContentBackgroundView(content: self, visibility: visibility)
     }
 
-    func focusEffectDisabled(_ disabled: Bool = true) -> Self {
+    func focusEffectDisabled(_ disabled: Bool = true) -> FocusEffectDisabledView<Self> {
         recordQuillUIFallback(
             "focusEffectDisabled",
-            message: "focusEffectDisabled is currently a source-compatibility fallback on Linux."
+            message: "focusEffectDisabled is preserved as focus-effect metadata on Linux."
         )
-        return self
+        return FocusEffectDisabledView(content: self, disabled: disabled)
     }
 
     func edgesIgnoringSafeArea(_ edges: Edge.Set) -> Self {
@@ -1696,6 +1708,10 @@ extension ContentShapeView: QuillWrappedViewRepresentable {
 }
 
 extension OnHoverView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension FocusEffectDisabledView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
