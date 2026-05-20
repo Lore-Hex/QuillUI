@@ -51,6 +51,13 @@ public struct NWPath: Sendable {
     public var availableInterfaces: [NWInterface]
     public var isExpensive: Bool
     public var isConstrained: Bool
+    public var supportsIPv4: Bool { false }
+    public var supportsIPv6: Bool { false }
+    public var supportsDNS: Bool { false }
+
+    public func usesInterfaceType(_ type: NWInterface.InterfaceType) -> Bool {
+        availableInterfaces.contains { $0.type == type }
+    }
 
     init(
         status: Status = .unsatisfied,

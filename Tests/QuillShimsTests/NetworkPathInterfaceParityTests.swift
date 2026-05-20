@@ -171,17 +171,6 @@ final class NetworkPathInterfaceParityTests: XCTestCase {
         return String(decoding: bytes, as: UTF8.self)
     }
 
-    private static func makePathMonitors() -> [(String, NWPathMonitor)] {
-        [
-            ("default", NWPathMonitor()),
-            ("wifi", NWPathMonitor(requiredInterfaceType: .wifi)),
-            ("cellular", NWPathMonitor(requiredInterfaceType: .cellular)),
-            ("wiredEthernet", NWPathMonitor(requiredInterfaceType: .wiredEthernet)),
-            ("loopback", NWPathMonitor(requiredInterfaceType: .loopback)),
-            ("other", NWPathMonitor(requiredInterfaceType: .other)),
-        ]
-    }
-
     private func assertInitialPath(
         _ path: NWPath,
         _ context: String,
@@ -193,5 +182,26 @@ final class NetworkPathInterfaceParityTests: XCTestCase {
         XCTAssertTrue(path.availableInterfaces.isEmpty, context, file: file, line: line)
         XCTAssertFalse(path.isExpensive, context, file: file, line: line)
         XCTAssertFalse(path.isConstrained, context, file: file, line: line)
+        XCTAssertFalse(path.supportsIPv4, context, file: file, line: line)
+        XCTAssertFalse(path.supportsIPv6, context, file: file, line: line)
+        XCTAssertFalse(path.supportsDNS, context, file: file, line: line)
+
+        for interfaceType in Self.pathInterfaceTypes {
+            XCTAssertFalse(path.usesInterfaceType(interfaceType), "\(context) \(interfaceType)", file: file, line: line)
+        }
+    }
+
+    private static let pathInterfaceTypes: [NWInterface.InterfaceType] = [
+        .wifi,
+        .cellular,
+        .wiredEthernet,
+        .loopback,
+        .other,
+    ]
+
+    private static func makePathMonitors() -> [(String, NWPathMonitor)] {
+        [("default", NWPathMonitor())] + pathInterfaceTypes.map {
+            (String(describing: $0), NWPathMonitor(requiredInterfaceType: $0))
+        }
     }
 }
