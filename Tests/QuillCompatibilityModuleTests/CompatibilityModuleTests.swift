@@ -55,6 +55,7 @@ struct CompatibilityModuleTests {
             .matchedGeometryEffect(id: "title", in: Namespace().wrappedValue)
             .mask(Rectangle())
             .contentShape(Rectangle())
+            .minimumScaleFactor(0.5)
             .keyboardType(.URL)
             .autocapitalization(.never)
             .disableAutocorrection(true)
@@ -63,12 +64,19 @@ struct CompatibilityModuleTests {
         _ = Image(systemName: "photo").renderingMode(.template)
         _ = Form { Text("Field") }.formStyle(.grouped)
 
+#if os(Linux)
+        let scaled = Text("Scaled").minimumScaleFactor(0.5)
+        #expect(scaled.factor == 0.5)
+        #expect(String(describing: type(of: scaled)).contains("MinimumScaleFactorView"))
+#endif
+
         let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
         #expect(operations.isSuperset(of: Set([
             "symbolEffect",
             "matchedGeometryEffect",
             "mask",
             "contentShape",
+            "minimumScaleFactor",
             "keyboardType",
             "autocapitalization",
             "disableAutocorrection",

@@ -867,6 +867,18 @@ public struct AccessibilityElementView<Content: View>: View {
     public var body: Never { fatalError("AccessibilityElementView is a primitive view") }
 }
 
+public struct MinimumScaleFactorView<Content: View>: View {
+    public let content: Content
+    public let factor: Double
+
+    public init(content: Content, factor: Double) {
+        self.content = content
+        self.factor = factor
+    }
+
+    public var body: some View { content }
+}
+
 public struct DragGesture: Sendable {
     public struct Value: Sendable {
         public var translation: CGSize
@@ -1033,12 +1045,12 @@ public extension View {
         return AccessibilityElementView(content: self, children: children)
     }
 
-    func minimumScaleFactor(_ factor: Double) -> Self {
+    func minimumScaleFactor(_ factor: Double) -> MinimumScaleFactorView<Self> {
         recordQuillUIFallback(
             "minimumScaleFactor",
-            message: "minimumScaleFactor is currently a source-compatibility fallback on Linux."
+            message: "minimumScaleFactor is preserved as layout metadata on Linux."
         )
-        return self
+        return MinimumScaleFactorView(content: self, factor: factor)
     }
 
     func lineLimit(_ number: Int?, reservesSpace: Bool) -> some View {
