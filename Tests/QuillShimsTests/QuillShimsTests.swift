@@ -236,6 +236,16 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
     }
 
     func testNetworkShimParsesAddressLiteralsAndHosts() {
+        let unsatisfiedReasons: [(NWPath.UnsatisfiedReason, String)] = [
+            (.notAvailable, "notAvailable"),
+            (.cellularDenied, "cellularDenied"),
+            (.wifiDenied, "wifiDenied"),
+            (.localNetworkDenied, "localNetworkDenied"),
+        ]
+        for (reason, description) in unsatisfiedReasons {
+            XCTAssertEqual(String(describing: reason), description)
+        }
+
         let ipv4Cases: [(String, [UInt8], String)] = [
             ("192.168.1.10", [192, 168, 1, 10], "192.168.1.10"),
             ("0.0.0.0", [0, 0, 0, 0], "0.0.0.0"),

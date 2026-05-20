@@ -42,7 +42,12 @@ public struct NWPath: Sendable {
         }
     }
 
+    public enum UnsatisfiedReason: Hashable, Sendable {
+        case notAvailable, cellularDenied, wifiDenied, localNetworkDenied
+    }
+
     public var status: Status = .satisfied
+    public var unsatisfiedReason: UnsatisfiedReason = .notAvailable
     public var availableInterfaces: [NWInterface] = []
     public var isExpensive: Bool = false
     public var isConstrained: Bool = false
