@@ -57,6 +57,8 @@ struct CompatibilityModuleTests {
             .contentShape(Rectangle())
             .listRowInsets(EdgeInsets(top: 1, leading: 2, bottom: 3, trailing: 4))
             .listRowSeparator(.hidden, edges: .vertical)
+            .scrollIndicators(.hidden)
+            .scrollContentBackground(.hidden)
             .minimumScaleFactor(0.5)
             .textSelection(.enabled)
             .keyboardType(.URL)
@@ -85,6 +87,14 @@ struct CompatibilityModuleTests {
         #expect(String(describing: type(of: rowSeparator)).contains("ListRowSeparatorView"))
         #expect(rowSeparator.visibility == .hidden)
         #expect(rowSeparator.edges == .vertical)
+
+        let scrollIndicators = Text("Scroll").scrollIndicators(.hidden)
+        #expect(String(describing: type(of: scrollIndicators)).contains("ScrollIndicatorsView"))
+        #expect(String(describing: scrollIndicators.visibility).contains("hidden"))
+
+        let scrollBackground = Text("Scroll").scrollContentBackground(.hidden)
+        #expect(String(describing: type(of: scrollBackground)).contains("ScrollContentBackgroundView"))
+        #expect(scrollBackground.visibility == .hidden)
 
         let shapedContent = Text("Hit area").contentShape(Rectangle())
         #expect(String(describing: type(of: shapedContent)).contains("ContentShapeView"))
@@ -119,6 +129,8 @@ struct CompatibilityModuleTests {
             "contentShape",
             "listRowInsets",
             "listRowSeparator",
+            "scrollIndicators",
+            "scrollContentBackground",
             "minimumScaleFactor",
             "textSelection",
             "keyboardType",

@@ -917,6 +917,30 @@ public struct ListRowSeparatorView<Content: View>: View {
     public var body: some View { content }
 }
 
+public struct ScrollIndicatorsView<Content: View>: View {
+    public let content: Content
+    public let visibility: ScrollIndicatorVisibility
+
+    public init(content: Content, visibility: ScrollIndicatorVisibility) {
+        self.content = content
+        self.visibility = visibility
+    }
+
+    public var body: some View { content }
+}
+
+public struct ScrollContentBackgroundView<Content: View>: View {
+    public let content: Content
+    public let visibility: Visibility
+
+    public init(content: Content, visibility: Visibility) {
+        self.content = content
+        self.visibility = visibility
+    }
+
+    public var body: some View { content }
+}
+
 public struct ContentShapeView<Content: View, ShapeValue: Shape>: View {
     public let content: Content
     public let shape: ShapeValue
@@ -1216,20 +1240,20 @@ public extension View {
         return self
     }
 
-    func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> Self {
+    func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> ScrollIndicatorsView<Self> {
         recordQuillUIFallback(
             "scrollIndicators",
-            message: "scrollIndicators is currently a source-compatibility fallback on Linux."
+            message: "scrollIndicators is preserved as scroll view chrome metadata on Linux."
         )
-        return self
+        return ScrollIndicatorsView(content: self, visibility: visibility)
     }
 
-    func scrollContentBackground(_ visibility: Visibility) -> Self {
+    func scrollContentBackground(_ visibility: Visibility) -> ScrollContentBackgroundView<Self> {
         recordQuillUIFallback(
             "scrollContentBackground",
-            message: "scrollContentBackground is currently a source-compatibility fallback on Linux."
+            message: "scrollContentBackground is preserved as scroll content background metadata on Linux."
         )
-        return self
+        return ScrollContentBackgroundView(content: self, visibility: visibility)
     }
 
     func focusEffectDisabled(_ disabled: Bool = true) -> Self {
@@ -1628,6 +1652,14 @@ extension ListRowInsetsView: QuillWrappedViewRepresentable {
 }
 
 extension ListRowSeparatorView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension ScrollIndicatorsView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension ScrollContentBackgroundView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
