@@ -144,7 +144,9 @@ platform fallbacks.
 | `NSPasteboard.writeObjects(_:)` / `readObjects(...)` | Partial | Current pasteboard item paths only. |
 | `NSPasteboardItem.setString`, `setData`, `setPropertyList` and getters | Usable | In-memory item storage. |
 | `NSWorkspace.open(_:)` and overloads | Fallback | Delegates where host support exists, otherwise records diagnostic/no-op. |
-| `NSWorkspace.selectFile`, `activateFileViewerSelecting`, icon/application lookup | Compile-only | No real desktop integration on Linux. |
+| `NSWorkspace.selectFile`, `activateFileViewerSelecting` | Fallback | Opens containing directories through `xdg-open` when a Linux desktop session is available; records diagnostics and no-ops in headless environments. |
+| `NSWorkspace.icon(forFile:)`, `icon(forContentType:)` | Fallback | Returns deterministic 32x32 placeholders with diagnostics; desktop icon lookup is not implemented yet. |
+| `NSWorkspace.urlForApplication(...)` | Partial | Uses `xdg-mime` plus XDG application directories for existing `.desktop` files; bundle identifiers only resolve when they already map to a Linux desktop entry. |
 | `NSCursor.push()` / `pop()` / `set()` / hide helpers | Compile-only | No native cursor effects. |
 | `NSMenu.addItem(_:)`, `insertItem`, `removeItem`, `item(at:)` | Usable | In-memory menu model. |
 | `NSMenu.popUp(...)`, `update()`, `cancelTracking()` | Fallback | No native menu display. |

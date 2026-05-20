@@ -265,6 +265,8 @@ struct CompatibilityModuleTests {
         #expect(result.systemImagePlaceholder)
         #expect(result.workspaceFileIconPlaceholder)
         #expect(result.workspaceContentTypeIconPlaceholder)
+        #expect(result.unknownBundleApplicationMissing)
+        #expect(result.unknownSchemeApplicationMissing)
         #expect(result.bitmapRepresentationRoundTrip)
         #expect(result.windowTabbingRoundTrip)
         #expect(result.operations.isSuperset(of: Set([
@@ -274,7 +276,9 @@ struct CompatibilityModuleTests {
             "NSImage(named:)",
             "NSImage(systemName:)",
             "NSWorkspace.icon(forFile:)",
-            "NSWorkspace.icon(forContentType:)"
+            "NSWorkspace.icon(forContentType:)",
+            "NSWorkspace.urlForApplication(withBundleIdentifier:)",
+            "NSWorkspace.urlForApplication(toOpen:)"
         ])))
     }
 

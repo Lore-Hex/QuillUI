@@ -51,6 +51,8 @@ enum AppleCompatibilitySmoke {
         var systemImagePlaceholder: Bool
         var workspaceFileIconPlaceholder: Bool
         var workspaceContentTypeIconPlaceholder: Bool
+        var unknownBundleApplicationMissing: Bool
+        var unknownSchemeApplicationMissing: Bool
         var bitmapRepresentationRoundTrip: Bool
         var windowTabbingRoundTrip: Bool
         var operations: Set<String>
@@ -719,6 +721,12 @@ enum AppleCompatibilitySmoke {
         let systemImage = NSImage(systemName: "paperplane.fill")
         let workspaceFileIcon = NSWorkspace.shared.icon(forFile: "/tmp/enchanted-export.txt")
         let workspaceContentTypeIcon = NSWorkspace.shared.icon(forContentType: "public.plain-text")
+        let missingBundleApplication = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.quillui.missing.AppKitWorkspaceSmoke"
+        )
+        let missingSchemeApplication = NSWorkspace.shared.urlForApplication(
+            toOpen: URL(string: "quillui-missing-scheme://workspace-smoke")!
+        )
         let encoded = Data([0xFF, 0xD8, 0xFF, 0xD9])
         let rep = NSBitmapImageRep(data: encoded)
         NSWindow.allowsAutomaticWindowTabbing = false
@@ -731,6 +739,8 @@ enum AppleCompatibilitySmoke {
             systemImagePlaceholder: systemImage?.size == CGSize(width: 32, height: 32),
             workspaceFileIconPlaceholder: workspaceFileIcon.size == CGSize(width: 32, height: 32),
             workspaceContentTypeIconPlaceholder: workspaceContentTypeIcon.size == CGSize(width: 32, height: 32),
+            unknownBundleApplicationMissing: missingBundleApplication == nil,
+            unknownSchemeApplicationMissing: missingSchemeApplication == nil,
             bitmapRepresentationRoundTrip: rep?.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) == encoded,
             windowTabbingRoundTrip: windowTabbingRoundTrip,
             operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))

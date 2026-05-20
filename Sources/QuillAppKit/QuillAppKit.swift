@@ -2133,32 +2133,51 @@ open class NSWorkspace: NSObject, @unchecked Sendable {
 
     @discardableResult
     public func open(_ url: URL) -> Bool {
-        _xdgOpen(url.absoluteString)
+        _xdgOpen(url.absoluteString, operation: "NSWorkspace.open(_:)")
     }
 
     public func open(_ url: URL, configuration: OpenConfiguration, completionHandler: ((Any?, Error?) -> Void)? = nil) {
-        let ok = _xdgOpen(url.absoluteString)
+        let ok = _xdgOpen(url.absoluteString, operation: "NSWorkspace.open(_:configuration:completionHandler:)")
         completionHandler?(ok ? nil : nil, ok ? nil : NSError(domain: "QuillNSWorkspace", code: 1))
     }
 
     public func openApplication(at url: URL, configuration: OpenConfiguration, completionHandler: ((Any?, Error?) -> Void)? = nil) {
-        let ok = _xdgOpen(url.path)
+        let ok = _xdgOpen(url.path, operation: "NSWorkspace.openApplication(at:configuration:completionHandler:)")
         completionHandler?(ok ? nil : nil, ok ? nil : NSError(domain: "QuillNSWorkspace", code: 1))
     }
 
     @discardableResult
     public func selectFile(_ path: String?, inFileViewerRootedAtPath: String) -> Bool {
-        guard let p = path else { return _xdgOpen(inFileViewerRootedAtPath) }
+        guard let p = path else {
+            return _xdgOpen(inFileViewerRootedAtPath, operation: "NSWorkspace.selectFile(_:inFileViewerRootedAtPath:)")
+        }
         let dir = (p as NSString).deletingLastPathComponent
-        return _xdgOpen(dir.isEmpty ? inFileViewerRootedAtPath : dir)
+        let target = dir.isEmpty ? inFileViewerRootedAtPath : dir
+        _recordFallback(
+            operation: "NSWorkspace.selectFile(_:inFileViewerRootedAtPath:)",
+            severity: .warning,
+            message: "NSWorkspace.selectFile opens the containing directory on Linux; selecting/highlighting '\(p)' is not implemented yet."
+        )
+        return _xdgOpen(target, operation: "NSWorkspace.selectFile(_:inFileViewerRootedAtPath:)")
     }
 
     public func activateFileViewerSelecting(_ urls: [URL]) {
         // On Apple this opens Finder with each URL highlighted. On
         // Linux we just open the containing directory of the first url.
-        guard let first = urls.first else { return }
+        guard let first = urls.first else {
+            _recordFallback(
+                operation: "NSWorkspace.activateFileViewerSelecting(_:)",
+                message: "NSWorkspace.activateFileViewerSelecting received no URLs; no Linux file viewer was opened."
+            )
+            return
+        }
+        _recordFallback(
+            operation: "NSWorkspace.activateFileViewerSelecting(_:)",
+            severity: .warning,
+            message: "NSWorkspace.activateFileViewerSelecting opens the first containing directory on Linux; multi-selection highlighting is not implemented yet."
+        )
         let parent = first.deletingLastPathComponent().path
-        _ = _xdgOpen(parent)
+        _ = _xdgOpen(parent, operation: "NSWorkspace.activateFileViewerSelecting(_:)")
     }
 
     public func icon(forFile path: String) -> NSImage {
@@ -2182,12 +2201,31 @@ open class NSWorkspace: NSObject, @unchecked Sendable {
     }
 
     public func urlForApplication(toOpen: URL) -> URL? {
-        guard let cmd = _xdgMimeQueryDefault(toOpen) else { return nil }
-        return URL(fileURLWithPath: "/usr/share/applications/\(cmd)")
+        guard let desktopID = _xdgMimeQueryDefault(toOpen) else {
+            _recordFallback(
+                operation: "NSWorkspace.urlForApplication(toOpen:)",
+                message: "NSWorkspace.urlForApplication(toOpen:) could not find a Linux desktop application for '\(toOpen.absoluteString)'."
+            )
+            return nil
+        }
+        guard let url = _desktopApplicationURL(forDesktopID: desktopID) else {
+            _recordFallback(
+                operation: "NSWorkspace.urlForApplication(toOpen:)",
+                message: "NSWorkspace.urlForApplication(toOpen:) resolved desktop id '\(desktopID)' but could not find a matching .desktop file."
+            )
+            return nil
+        }
+        return url
     }
     public func urlForApplication(withBundleIdentifier id: String) -> URL? {
-        // Not really applicable on Linux. Best-effort return.
-        URL(fileURLWithPath: "/usr/share/applications/\(id).desktop")
+        guard let url = _desktopApplicationURL(forDesktopID: id) else {
+            _recordFallback(
+                operation: "NSWorkspace.urlForApplication(withBundleIdentifier:)",
+                message: "NSWorkspace.urlForApplication(withBundleIdentifier:) maps bundle identifiers to existing Linux .desktop files only; no entry was found for '\(id)'."
+            )
+            return nil
+        }
+        return url
     }
 
     public class OpenConfiguration: NSObject, @unchecked Sendable {
@@ -2204,8 +2242,14 @@ private extension NSWorkspace {
     }
 
     @discardableResult
-    func _xdgOpen(_ target: String) -> Bool {
-        guard _hasCommand("xdg-open") else { return false }
+    func _xdgOpen(_ target: String, operation: String) -> Bool {
+        guard _canOpenDesktopTarget else {
+            _recordFallback(
+                operation: operation,
+                message: "\(operation) requires xdg-open plus DISPLAY or WAYLAND_DISPLAY on Linux; '\(target)' was not opened in this process."
+            )
+            return false
+        }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         p.arguments = ["xdg-open", target]
@@ -2216,9 +2260,16 @@ private extension NSWorkspace {
             // Don't waitUntilExit() — xdg-open forks the real handler
             // and may stay attached. Detach instead.
             return true
-        } catch { return false }
+        } catch {
+            _recordFallback(
+                operation: operation,
+                message: "\(operation) could not launch xdg-open for '\(target)': \(error.localizedDescription)"
+            )
+            return false
+        }
     }
     func _xdgMimeQueryDefault(_ url: URL) -> String? {
+        guard _hasCommand("xdg-mime") else { return nil }
         if url.isFileURL {
             return _runForOutput(["xdg-mime", "query", "default", _xdgMimeForFile(url.path) ?? ""])
         }
@@ -2228,7 +2279,52 @@ private extension NSWorkspace {
         return nil
     }
     func _xdgMimeForFile(_ path: String) -> String? {
-        _runForOutput(["xdg-mime", "query", "filetype", path])
+        guard _hasCommand("xdg-mime") else { return nil }
+        return _runForOutput(["xdg-mime", "query", "filetype", path])
+    }
+    var _canOpenDesktopTarget: Bool {
+        guard _hasCommand("xdg-open") else { return false }
+        let env = ProcessInfo.processInfo.environment
+        return env["DISPLAY"]?.isEmpty == false || env["WAYLAND_DISPLAY"]?.isEmpty == false
+    }
+    func _desktopApplicationURL(forDesktopID id: String) -> URL? {
+        if id.hasPrefix("/"), FileManager.default.fileExists(atPath: id) {
+            return URL(fileURLWithPath: id)
+        }
+        let names = id.hasSuffix(".desktop") ? [id] : [id, "\(id).desktop"]
+        for directory in _xdgApplicationDirectories() {
+            for name in names {
+                let path = (directory as NSString).appendingPathComponent(name)
+                if FileManager.default.fileExists(atPath: path) {
+                    return URL(fileURLWithPath: path)
+                }
+            }
+        }
+        return nil
+    }
+    func _xdgApplicationDirectories() -> [String] {
+        let env = ProcessInfo.processInfo.environment
+        var directories: [String] = []
+        if let dataHome = env["XDG_DATA_HOME"], !dataHome.isEmpty {
+            directories.append((dataHome as NSString).appendingPathComponent("applications"))
+        } else if let home = env["HOME"], !home.isEmpty {
+            directories.append((home as NSString).appendingPathComponent(".local/share/applications"))
+        }
+
+        let dataDirs = env["XDG_DATA_DIRS"]?.split(separator: ":").map(String.init)
+            ?? ["/usr/local/share", "/usr/share"]
+        directories.append(contentsOf: dataDirs.map { ($0 as NSString).appendingPathComponent("applications") })
+
+        var seen: Set<String> = []
+        return directories.filter { seen.insert($0).inserted }
+    }
+    func _recordFallback(operation: String, severity: QuillCompatibilityEvent.Severity = .unsupported, message: String) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillAppKit",
+            operation: operation,
+            severity: severity,
+            message: message
+        )
     }
     func _hasCommand(_ name: String) -> Bool {
         for dir in (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":") {
