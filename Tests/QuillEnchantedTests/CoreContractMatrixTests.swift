@@ -228,6 +228,7 @@ struct CoreContractMatrixTests {
             "refreshModels: EnchantedIcon.refreshModels",
             "deleteChat: EnchantedIcon.deleteChat",
             "clearAll: EnchantedIcon.clearAll",
+            "copyMessage: EnchantedIcon.copyMessage",
             "editMessage: EnchantedIcon.editMessage",
             "imagePreviewFallback: EnchantedIcon.imagePreviewFallback",
             "unavailableModel: EnchantedIcon.unavailableModel",
@@ -407,6 +408,8 @@ struct CoreContractMatrixTests {
             "QIcon refreshModelsButtonIcon(const QJsonObject &icons)",
             "QIcon deleteChatButtonIcon(const QJsonObject &icons)",
             "QIcon clearAllButtonIcon(const QJsonObject &icons)",
+            "QIcon copyMessageActionIcon(const QJsonObject &icons)",
+            "QIcon editMessageActionIcon(const QJsonObject &icons)",
             "QIcon sendButtonIcon(const QJsonObject &icons, bool isLoading)",
             "QIcon removeAttachmentButtonIcon(const QJsonObject &icons)",
             "systemImageIcon(requiredIconName(icons, \"newConversation\"))",
@@ -418,6 +421,8 @@ struct CoreContractMatrixTests {
             "systemImageIcon(requiredIconName(icons, \"refreshModels\"))",
             "systemImageIcon(requiredIconName(icons, \"deleteChat\"))",
             "systemImageIcon(requiredIconName(icons, \"clearAll\"))",
+            "systemImageIcon(requiredIconName(icons, \"copyMessage\"))",
+            "systemImageIcon(requiredIconName(icons, \"editMessage\"))",
             "systemImageIcon(requiredIconName(icons, \"removeAttachment\"))",
             "QJsonObject icons = payloadObject(payload, \"icons\")",
             "icons = payloadObject(payload, \"icons\")",
@@ -1013,6 +1018,8 @@ struct CoreContractMatrixTests {
         expectContains(runtime, "copyMessageTitle: EnchantedCopy.copyMessageTitle")
         expectContains(runtime, "editMessageTitle: EnchantedCopy.editMessageTitle")
         expectContains(runtime, "unselectMessageTitle: EnchantedCopy.unselectMessageTitle")
+        expectContains(runtime, "copyMessage: EnchantedIcon.copyMessage")
+        expectContains(runtime, "editMessage: EnchantedIcon.editMessage")
         expectContains(runtime, "clearAllTitle: EnchantedCopy.clearAllTitle")
         expectContains(runtime, "refreshModelsTitle: EnchantedCopy.refreshModelsTitle")
         expectContains(runtime, "completionsTitle: EnchantedCopy.completionsTitle")
