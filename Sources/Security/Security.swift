@@ -349,6 +349,38 @@ public func SecKeyGetBlockSize(_ key: SecKey) -> Int {
     key.copyExternalRepresentation().count
 }
 
+public func SecKeyCreateSignature(
+    _ key: SecKey,
+    _ algorithm: SecKeyAlgorithm,
+    _ dataToSign: CFData,
+    _ error: UnsafeMutablePointer<CFError?>?
+) -> CFData? {
+    error?.pointee = nil
+    guard SecKeyIsAlgorithmSupported(key, .sign, algorithm) else {
+        return nil
+    }
+
+    let payload = dataToSign as NSData as Data
+    return synthesizedECDSASignatureData(for: key, algorithm: algorithm, payload: payload) as NSData as CFData
+}
+
+public func SecKeyVerifySignature(
+    _ key: SecKey,
+    _ algorithm: SecKeyAlgorithm,
+    _ signedData: CFData,
+    _ signature: CFData,
+    _ error: UnsafeMutablePointer<CFError?>?
+) -> Bool {
+    error?.pointee = nil
+    guard SecKeyIsAlgorithmSupported(key, .verify, algorithm) else {
+        return false
+    }
+
+    let payload = signedData as NSData as Data
+    let signatureData = signature as NSData as Data
+    return synthesizedECDSASignatureData(for: key, algorithm: algorithm, payload: payload) == signatureData
+}
+
 public func SecKeyIsAlgorithmSupported(_ key: SecKey, _ operation: SecKeyOperationType, _ algorithm: SecKeyAlgorithm) -> Bool {
     let attributes = key.copyAttributes()
     let algorithmName = secString(algorithm)
@@ -911,6 +943,57 @@ private func synthesizedPublicKeyData(from privateData: Data) -> Data {
         bytes[index] ^= mask
     }
     return Data(bytes)
+}
+
+private func synthesizedECDSASignatureData(for key: SecKey, algorithm: SecKeyAlgorithm, payload: Data) -> Data {
+    var seed = Data(secString(algorithm).utf8)
+    seed.append(0)
+    seed.append(secKeyPublicIdentityData(for: key))
+    seed.append(0xFF)
+    seed.append(payload)
+    return deterministicSecKeyDigest(seed, byteCount: 64)
+}
+
+private func secKeyPublicIdentityData(for key: SecKey) -> Data {
+    let attributes = key.copyAttributes()
+    if secKeyClass(attributes) == secString(kSecAttrKeyClassPrivate) {
+        return synthesizedPublicKeyData(from: key.copyExternalRepresentation())
+    }
+    return key.copyExternalRepresentation()
+}
+
+// Deterministic compatibility material for Linux source paths. This is not
+// cryptographic ECDSA and must be replaced before production signature use.
+private func deterministicSecKeyDigest(_ seed: Data, byteCount: Int) -> Data {
+    guard byteCount > 0 else {
+        return Data()
+    }
+
+    let bytes = Array(seed)
+    var state: UInt64 = 0xcbf29ce484222325
+    for byte in bytes {
+        state ^= UInt64(byte)
+        state &*= 0x100000001b3
+        state = (state << 13) | (state >> 51)
+        state ^= 0x9e3779b97f4a7c15
+    }
+
+    var output = Data()
+    output.reserveCapacity(byteCount)
+    var counter: UInt64 = 0
+    while output.count < byteCount {
+        var lane = state ^ (counter &* 0x9e3779b97f4a7c15)
+        for byte in bytes {
+            lane ^= UInt64(byte) &+ counter
+            lane &*= 0x100000001b3
+            lane = (lane << 7) | (lane >> 57)
+        }
+
+        let laneBytes = withUnsafeBytes(of: lane.bigEndian) { Array($0) }
+        output.append(contentsOf: laneBytes.prefix(byteCount - output.count))
+        counter &+= 1
+    }
+    return output
 }
 
 private func generatedKeyLabel(from keyData: Data, keyClass: CFString) -> Data {

@@ -675,6 +675,70 @@ final class SecurityKeychainParityTests: XCTestCase {
         XCTAssertFalse(SecKeyIsAlgorithmSupported(publicKey, .sign, kSecKeyAlgorithmECDSASignatureMessageX962SHA256))
         XCTAssertFalse(SecKeyIsAlgorithmSupported(publicKey, .keyExchange, kSecKeyAlgorithmECDHKeyExchangeStandard))
 
+        let message = Data("signal identity message".utf8)
+        guard let messageSignature = SecKeyCreateSignature(
+            privateKey,
+            kSecKeyAlgorithmECDSASignatureMessageX962SHA256,
+            message as NSData as CFData,
+            nil
+        ) else {
+            XCTFail("SecKeyCreateSignature should sign with generated private EC key metadata")
+            return
+        }
+        let messageSignatureData = messageSignature as NSData as Data
+        XCTAssertEqual(messageSignatureData.count, 64)
+        XCTAssertTrue(SecKeyVerifySignature(
+            publicKey,
+            kSecKeyAlgorithmECDSASignatureMessageX962SHA256,
+            message as NSData as CFData,
+            messageSignature,
+            nil
+        ))
+
+        let tamperedMessage = Data("tampered identity message".utf8)
+        XCTAssertFalse(SecKeyVerifySignature(
+            publicKey,
+            kSecKeyAlgorithmECDSASignatureMessageX962SHA256,
+            tamperedMessage as NSData as CFData,
+            messageSignature,
+            nil
+        ))
+
+        var tamperedSignatureData = messageSignatureData
+        tamperedSignatureData[tamperedSignatureData.startIndex] = tamperedSignatureData[tamperedSignatureData.startIndex] ^ 0xFF
+        XCTAssertFalse(SecKeyVerifySignature(
+            publicKey,
+            kSecKeyAlgorithmECDSASignatureMessageX962SHA256,
+            message as NSData as CFData,
+            tamperedSignatureData as NSData as CFData,
+            nil
+        ))
+
+        XCTAssertNil(SecKeyCreateSignature(
+            publicKey,
+            kSecKeyAlgorithmECDSASignatureMessageX962SHA256,
+            message as NSData as CFData,
+            nil
+        ))
+
+        let digest = Data(repeating: 0x5A, count: 32)
+        guard let digestSignature = SecKeyCreateSignature(
+            privateKey,
+            kSecKeyAlgorithmECDSASignatureDigestX962SHA256,
+            digest as NSData as CFData,
+            nil
+        ) else {
+            XCTFail("SecKeyCreateSignature should sign digest payloads")
+            return
+        }
+        XCTAssertTrue(SecKeyVerifySignature(
+            publicKey,
+            kSecKeyAlgorithmECDSASignatureDigestX962SHA256,
+            digest as NSData as CFData,
+            digestSignature,
+            nil
+        ))
+
         var storedResult: CFTypeRef?
         XCTAssertEqual(SecItemCopyMatching(cfDictionary([
             kSecClass: kSecClassKey,
