@@ -301,6 +301,18 @@ struct CompatibilityModuleTests {
         #expect(result.unknownAppearanceDoesNotInventMatch)
     }
 
+    @Test("AppKit font manager exposes deterministic fallback fonts")
+    func appKitFontManagerExposesDeterministicFallbackFonts() {
+        let result = AppleCompatibilitySmoke.runAppKitFontSmoke()
+
+        #expect(result.fontsAreDeterministicAndNonEmpty)
+        #expect(result.familiesAreDeterministicAndNonEmpty)
+        #expect(result.membersAreDeterministicAndNonEmpty)
+        #expect(result.fontsContainCommonMacFaces)
+        #expect(result.familiesContainCommonMacFamilies)
+        #expect(result.unknownFamilyReturnsNil)
+    }
+
     @Test("AppKit menu popups update delegates and track presentation")
     @MainActor
     func appKitMenuPopupsUpdateDelegatesAndTrackPresentation() {

@@ -73,6 +73,15 @@ enum AppleCompatibilitySmoke {
         var unknownAppearanceDoesNotInventMatch: Bool
     }
 
+    struct AppKitFontResult {
+        var fontsAreDeterministicAndNonEmpty: Bool
+        var familiesAreDeterministicAndNonEmpty: Bool
+        var membersAreDeterministicAndNonEmpty: Bool
+        var fontsContainCommonMacFaces: Bool
+        var familiesContainCommonMacFamilies: Bool
+        var unknownFamilyReturnsNil: Bool
+    }
+
     struct AppKitMenuResult {
         var popupSucceeded: Bool
         var trackingBegan: Bool
@@ -573,6 +582,34 @@ enum AppleCompatibilitySmoke {
             highContrastDarkFallsBackToDark: highContrastDark?.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua,
             vibrantLightFallsBackToAqua: vibrantLight?.bestMatch(from: [.aqua, .darkAqua]) == .aqua,
             unknownAppearanceDoesNotInventMatch: unknown?.bestMatch(from: [.aqua, .darkAqua]) == nil
+        )
+    }
+
+    static func runAppKitFontSmoke() -> AppKitFontResult {
+        let manager = NSFontManager.shared
+        let fonts = manager.availableFonts()
+        let secondFonts = manager.availableFonts()
+        let families = manager.availableFontFamilies()
+        let secondFamilies = manager.availableFontFamilies()
+        let helveticaMembers = manager.availableMembers(ofFontFamily: "Helvetica")
+        let secondHelveticaMembers = manager.availableMembers(ofFontFamily: "Helvetica")
+
+        return AppKitFontResult(
+            fontsAreDeterministicAndNonEmpty: !fonts.isEmpty &&
+                fonts == secondFonts &&
+                fonts == fonts.sorted(),
+            familiesAreDeterministicAndNonEmpty: !families.isEmpty &&
+                families == secondFamilies &&
+                families == families.sorted(),
+            membersAreDeterministicAndNonEmpty: helveticaMembers != nil &&
+                helveticaMembers?.count == secondHelveticaMembers?.count &&
+                helveticaMembers?.first?.first as? String == "Helvetica",
+            fontsContainCommonMacFaces: fonts.contains("Helvetica") &&
+                fonts.contains("Helvetica-Bold") &&
+                fonts.contains("Menlo-Regular"),
+            familiesContainCommonMacFamilies: families.contains("Helvetica") &&
+                families.contains("Menlo"),
+            unknownFamilyReturnsNil: manager.availableMembers(ofFontFamily: "QuillCustomFamily") == nil
         )
     }
 

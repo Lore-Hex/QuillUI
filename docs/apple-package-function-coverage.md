@@ -103,7 +103,8 @@ platform fallbacks.
 | `NSStringFromRect(_:)` | Usable | Re-exported from Foundation through `QuillFoundation`; deterministic rect text is smoke-tested through the AppKit smoke target. |
 | `NSRectFromString(_:)` | Partial | Re-exported from Foundation through `QuillFoundation`; common AppKit rect strings and `NSStringFromRect` round-trips are covered, while full Apple parser edge-case/fuzz parity is still pending. |
 | `NSBitmapImageRep.init?(data:)` / `representation(using:properties:)` | Partial | Basic data wrapping, not full image codec parity. |
-| `NSFontManager.availableFonts()` / `availableFontFamilies()` | Compile-only | Returns empty lists. |
+| `NSFontManager.availableFonts()` / `availableFontFamilies()` | Partial | Returns deterministic fallback Mac-shaped font and family names for source compatibility; no host font discovery or metrics yet. |
+| `NSFontManager.availableMembers(ofFontFamily:)` | Partial | Returns deterministic member rows for fallback families and `nil` for unknown families; trait values are compatibility placeholders. |
 | `NSAppearance.init(named:)` / `bestMatch(from:)` | Partial | Named appearances retain their names, high-contrast constants use deterministic Apple-shaped raw values, and common light/dark/vibrant best-match fallbacks are smoke-tested. Full system appearance resolution remains incomplete. |
 | `NSResponder` mouse/key/touch handlers | Fallback | Forwarding/no-op behavior only. |
 | `NSResponder.becomeFirstResponder()` / `resignFirstResponder()` | Fallback | Returns true without native focus system. |

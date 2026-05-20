@@ -106,6 +106,21 @@ func smokeAppearanceMatching() -> Bool {
         highContrastDark?.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
 }
 
+func smokeFontManagerFallbacks() -> Bool {
+    let manager = NSFontManager.shared
+    let fonts = manager.availableFonts()
+    let families = manager.availableFontFamilies()
+    return !fonts.isEmpty &&
+        !families.isEmpty &&
+        fonts == fonts.sorted() &&
+        families == families.sorted() &&
+        fonts.contains("Helvetica") &&
+        fonts.contains("Menlo-Regular") &&
+        families.contains("Helvetica") &&
+        manager.availableMembers(ofFontFamily: "Helvetica")?.first?.first as? String == "Helvetica" &&
+        manager.availableMembers(ofFontFamily: "QuillCustomFamily") == nil
+}
+
 // MARK: - Status item (Maccy menu bar)
 
 @MainActor
@@ -145,7 +160,9 @@ public enum QuillAppKitSmoke {
         app.delegate = delegate
         _ = app.setActivationPolicy(.regular)
         // Don't actually run() — this is a compile-only smoke check.
-        return smokeGeometryStringHelpers() && smokeAppearanceMatching()
+        return smokeGeometryStringHelpers() &&
+            smokeAppearanceMatching() &&
+            smokeFontManagerFallbacks()
     }
 }
 

@@ -344,9 +344,77 @@ public extension NSFont {
 
 open class NSFontManager: NSObject, @unchecked Sendable {
     public static let shared = NSFontManager()
-    public func availableFonts() -> [String] { [] }
-    public func availableFontFamilies() -> [String] { [] }
-    public func availableMembers(ofFontFamily: String) -> [[Any]]? { nil }
+
+    private static let fallbackFontFamilies = [
+        "Courier",
+        "Helvetica",
+        "Menlo",
+        "System",
+        "Times",
+    ]
+
+    private static let fallbackFonts = [
+        "Courier",
+        "Courier-Bold",
+        "Courier-BoldOblique",
+        "Courier-Oblique",
+        "Helvetica",
+        "Helvetica-Bold",
+        "Helvetica-BoldOblique",
+        "Helvetica-Oblique",
+        "Menlo-Bold",
+        "Menlo-BoldItalic",
+        "Menlo-Italic",
+        "Menlo-Regular",
+        "System",
+        "System-Bold",
+        "Times-Bold",
+        "Times-BoldItalic",
+        "Times-Italic",
+        "Times-Roman",
+    ]
+
+    public func availableFonts() -> [String] { Self.fallbackFonts }
+    public func availableFontFamilies() -> [String] { Self.fallbackFontFamilies }
+    public func availableMembers(ofFontFamily fontFamily: String) -> [[Any]]? {
+        switch fontFamily {
+        case "Courier":
+            return [
+                ["Courier", "Regular", 5, 0],
+                ["Courier-Bold", "Bold", 9, 2],
+                ["Courier-Oblique", "Oblique", 5, 1],
+                ["Courier-BoldOblique", "Bold Oblique", 9, 3],
+            ]
+        case "Helvetica":
+            return [
+                ["Helvetica", "Regular", 5, 0],
+                ["Helvetica-Bold", "Bold", 9, 2],
+                ["Helvetica-Oblique", "Oblique", 5, 1],
+                ["Helvetica-BoldOblique", "Bold Oblique", 9, 3],
+            ]
+        case "Menlo":
+            return [
+                ["Menlo-Regular", "Regular", 5, 0],
+                ["Menlo-Bold", "Bold", 9, 2],
+                ["Menlo-Italic", "Italic", 5, 1],
+                ["Menlo-BoldItalic", "Bold Italic", 9, 3],
+            ]
+        case "System":
+            return [
+                ["System", "Regular", 5, 0],
+                ["System-Bold", "Bold", 9, 2],
+            ]
+        case "Times":
+            return [
+                ["Times-Roman", "Roman", 5, 0],
+                ["Times-Bold", "Bold", 9, 2],
+                ["Times-Italic", "Italic", 5, 1],
+                ["Times-BoldItalic", "Bold Italic", 9, 3],
+            ]
+        default:
+            return nil
+        }
+    }
 }
 
 open class NSAppearance: NSObject, @unchecked Sendable {
