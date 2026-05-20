@@ -531,8 +531,8 @@ enum AppleCompatibilitySmoke {
             sizeRoundTrip: sizeRoundTrip,
             namedImagePlaceholder: namedImage?.size == CGSize(width: 1, height: 1),
             systemImagePlaceholder: systemImage?.size == CGSize(width: 1, height: 1),
-            workspaceFileIconPlaceholder: workspaceFileIcon.size == CGSize(width: 1, height: 1),
-            workspaceContentTypeIconPlaceholder: workspaceContentTypeIcon.size == CGSize(width: 1, height: 1),
+            workspaceFileIconPlaceholder: workspaceFileIcon.size == CGSize(width: 32, height: 32),
+            workspaceContentTypeIconPlaceholder: workspaceContentTypeIcon.size == CGSize(width: 32, height: 32),
             bitmapRepresentationRoundTrip: rep?.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) == encoded,
             windowTabbingRoundTrip: windowTabbingRoundTrip,
             operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))

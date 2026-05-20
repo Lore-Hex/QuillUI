@@ -1985,8 +1985,8 @@ public protocol NSPasteboardReading {}
 // NSWorkspace.open semantics on Linux: pick the user's configured
 // default handler for the URL scheme or file MIME type. selectFile/
 // activateFileViewerSelecting open the parent directory in the user's
-// file manager (also via xdg-open). Icon lookup returns a small
-// placeholder with diagnostics for now; real desktop icons need GIO
+// file manager (also via xdg-open). Icon lookup returns a standard
+// icon-sized placeholder with diagnostics for now; real desktop icons need GIO
 // bindings (GContentType + GIcon → file path), a separate Phase B target.
 
 open class NSWorkspace: NSObject, @unchecked Sendable {
@@ -2028,9 +2028,9 @@ open class NSWorkspace: NSObject, @unchecked Sendable {
             subsystem: "QuillAppKit",
             operation: "NSWorkspace.icon(forFile:)",
             severity: .warning,
-            message: "NSWorkspace.icon(forFile:) returns a blank placeholder image for '\(path)' on Linux; desktop file icon lookup is not implemented yet."
+            message: "NSWorkspace.icon(forFile:) returns a 32x32 placeholder image for '\(path)' on Linux; desktop file icon lookup is not implemented yet."
         )
-        return NSImage(size: NSSize(width: 1, height: 1))
+        return _placeholderIcon()
     }
 
     public func icon(forContentType type: Any) -> NSImage {
@@ -2038,9 +2038,9 @@ open class NSWorkspace: NSObject, @unchecked Sendable {
             subsystem: "QuillAppKit",
             operation: "NSWorkspace.icon(forContentType:)",
             severity: .warning,
-            message: "NSWorkspace.icon(forContentType:) returns a blank placeholder image for '\(String(describing: type))' on Linux; desktop content-type icon lookup is not implemented yet."
+            message: "NSWorkspace.icon(forContentType:) returns a 32x32 placeholder image for '\(String(describing: type))' on Linux; desktop content-type icon lookup is not implemented yet."
         )
-        return NSImage(size: NSSize(width: 1, height: 1))
+        return _placeholderIcon()
     }
 
     public func urlForApplication(toOpen: URL) -> URL? {
@@ -2061,6 +2061,10 @@ open class NSWorkspace: NSObject, @unchecked Sendable {
 }
 
 private extension NSWorkspace {
+    func _placeholderIcon() -> NSImage {
+        NSImage(size: NSSize(width: 32, height: 32))
+    }
+
     @discardableResult
     func _xdgOpen(_ target: String) -> Bool {
         guard _hasCommand("xdg-open") else { return false }
