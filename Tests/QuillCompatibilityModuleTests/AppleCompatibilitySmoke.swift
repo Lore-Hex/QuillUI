@@ -82,6 +82,15 @@ enum AppleCompatibilitySmoke {
         var unknownFamilyReturnsNil: Bool
     }
 
+    struct AppKitOpenPanelResult {
+        var defaultConfigurationMatchesMacShape: Bool
+        var configurationRoundTrips: Bool
+        var runModalCancelsHeadless: Bool
+        var beginReportsCancellation: Bool
+        var beginSheetReportsCancellation: Bool
+        var defaultSelectionIsEmpty: Bool
+    }
+
     struct AppKitMenuResult {
         var popupSucceeded: Bool
         var trackingBegan: Bool
@@ -611,6 +620,84 @@ enum AppleCompatibilitySmoke {
                 families.contains("Menlo"),
             unknownFamilyReturnsNil: manager.availableMembers(ofFontFamily: "QuillCustomFamily") == nil
         )
+    }
+
+    @MainActor
+    static func runAppKitOpenPanelSmoke() -> AppKitOpenPanelResult {
+        #if os(Linux)
+        let panel = NSOpenPanel()
+        let defaultConfigurationMatchesMacShape =
+            panel.canChooseFiles &&
+            !panel.canChooseDirectories &&
+            !panel.allowsMultipleSelection &&
+            panel.resolvesAliases
+        let defaultSelectionIsEmpty =
+            panel.urls.isEmpty &&
+            panel.url == nil
+
+        let directoryURL = URL(fileURLWithPath: "/tmp")
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.resolvesAliases = false
+        panel.canCreateDirectories = false
+        panel.showsHiddenFiles = true
+        panel.canSelectHiddenExtension = true
+        panel.isExtensionHidden = true
+        panel.treatsFilePackagesAsDirectories = true
+        panel.allowsOtherFileTypes = true
+        panel.prompt = "Choose"
+        panel.message = "Pick a folder"
+        panel.directoryURL = directoryURL
+        panel.allowedFileTypes = ["png", "jpg"]
+        panel.allowedContentTypes = ["public.png"]
+
+        let configurationRoundTrips =
+            !panel.canChooseFiles &&
+            panel.canChooseDirectories &&
+            panel.allowsMultipleSelection &&
+            !panel.resolvesAliases &&
+            !panel.canCreateDirectories &&
+            panel.showsHiddenFiles &&
+            panel.canSelectHiddenExtension &&
+            panel.isExtensionHidden &&
+            panel.treatsFilePackagesAsDirectories &&
+            panel.allowsOtherFileTypes &&
+            panel.prompt == "Choose" &&
+            panel.message == "Pick a folder" &&
+            panel.directoryURL == directoryURL &&
+            panel.allowedFileTypes == ["png", "jpg"] &&
+            panel.allowedContentTypes.count == 1 &&
+            panel.allowedContentTypes.first as? String == "public.png"
+
+        let runModalCancelsHeadless = panel.runModal() == .cancel
+        var beginResponse: NSApplication.ModalResponse?
+        panel.begin { response in
+            beginResponse = response
+        }
+        var sheetResponse: NSApplication.ModalResponse?
+        panel.beginSheetModal(for: NSWindow()) { response in
+            sheetResponse = response
+        }
+
+        return AppKitOpenPanelResult(
+            defaultConfigurationMatchesMacShape: defaultConfigurationMatchesMacShape,
+            configurationRoundTrips: configurationRoundTrips,
+            runModalCancelsHeadless: runModalCancelsHeadless,
+            beginReportsCancellation: beginResponse == .cancel,
+            beginSheetReportsCancellation: sheetResponse == .cancel,
+            defaultSelectionIsEmpty: defaultSelectionIsEmpty
+        )
+        #else
+        return AppKitOpenPanelResult(
+            defaultConfigurationMatchesMacShape: true,
+            configurationRoundTrips: true,
+            runModalCancelsHeadless: true,
+            beginReportsCancellation: true,
+            beginSheetReportsCancellation: true,
+            defaultSelectionIsEmpty: true
+        )
+        #endif
     }
 
     static func runAppKitImageSmoke() throws -> AppKitImageResult {

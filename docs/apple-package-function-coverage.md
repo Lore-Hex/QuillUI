@@ -151,8 +151,8 @@ platform fallbacks.
 | `NSMenuItem.init(...)` / `separator()` | Usable | Stores title/action/key equivalent metadata. |
 | `NSToolbar.insertItem(withItemIdentifier:at:)` / `removeItem(at:)` / `validateVisibleItems()` | Partial | In-memory toolbar item list only. |
 | `NSAlert.addButton(withTitle:)`, `runModal()`, `beginSheetModal(...)` | Fallback | Deterministic modal response, no native dialog. |
-| `NSSavePanel.runModal()` / `begin(...)` | Fallback | Returns `.OK`/no-op; real file dialog is incomplete. |
-| `NSOpenPanel` properties | Compile-only | Property bag only. |
+| `NSSavePanel.runModal()` / `begin(...)` / `beginSheetModal(...)` | Fallback | Returns `.OK` and completes synchronously; real file dialog is incomplete. |
+| `NSOpenPanel` configuration / `runModal()` / `begin(...)` / `beginSheetModal(...)` | Fallback | Stores picker configuration and deterministically returns `.cancel`; no native dialog or user selection yet. |
 | `NSScrollView` document-view helpers and `flashScrollers()` | Partial | Stores document view; no native scrolling. |
 | `NSTextField` convenience constructors | Partial | Create label/text-field property containers. |
 | `NSTextView.setSelectedRange(_:)`, `replaceCharacters`, `insertText` | Partial | In-memory text mutation only. |

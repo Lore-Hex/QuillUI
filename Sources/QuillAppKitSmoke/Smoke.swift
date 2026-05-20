@@ -121,6 +121,40 @@ func smokeFontManagerFallbacks() -> Bool {
         manager.availableMembers(ofFontFamily: "QuillCustomFamily") == nil
 }
 
+@MainActor
+func smokeOpenPanelFallbacks() -> Bool {
+    let panel = NSOpenPanel()
+    let defaultsMatch =
+        panel.canChooseFiles &&
+        !panel.canChooseDirectories &&
+        !panel.allowsMultipleSelection &&
+        panel.resolvesAliases &&
+        panel.urls.isEmpty &&
+        panel.url == nil
+
+    panel.canChooseFiles = false
+    panel.canChooseDirectories = true
+    panel.allowsMultipleSelection = true
+    panel.resolvesAliases = false
+    panel.directoryURL = URL(fileURLWithPath: "/tmp")
+    panel.allowedFileTypes = ["txt"]
+
+    var beginResponse: NSApplication.ModalResponse?
+    panel.begin { response in
+        beginResponse = response
+    }
+
+    return defaultsMatch &&
+        !panel.canChooseFiles &&
+        panel.canChooseDirectories &&
+        panel.allowsMultipleSelection &&
+        !panel.resolvesAliases &&
+        panel.directoryURL == URL(fileURLWithPath: "/tmp") &&
+        panel.allowedFileTypes == ["txt"] &&
+        panel.runModal() == .cancel &&
+        beginResponse == .cancel
+}
+
 // MARK: - Status item (Maccy menu bar)
 
 @MainActor
@@ -162,7 +196,8 @@ public enum QuillAppKitSmoke {
         // Don't actually run() — this is a compile-only smoke check.
         return smokeGeometryStringHelpers() &&
             smokeAppearanceMatching() &&
-            smokeFontManagerFallbacks()
+            smokeFontManagerFallbacks() &&
+            smokeOpenPanelFallbacks()
     }
 }
 

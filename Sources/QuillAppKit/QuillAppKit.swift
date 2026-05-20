@@ -2669,8 +2669,13 @@ open class NSSavePanel: NSWindow {
     public var accessoryView: NSView?
     public var treatsFilePackagesAsDirectories: Bool = false
     public var allowsOtherFileTypes: Bool = false
-    public func runModal() -> NSApplication.ModalResponse { .OK }
-    public func begin(completionHandler: @escaping (NSApplication.ModalResponse) -> Void) {}
+    open func runModal() -> NSApplication.ModalResponse { .OK }
+    open func begin(completionHandler: @escaping (NSApplication.ModalResponse) -> Void) {
+        completionHandler(runModal())
+    }
+    open func beginSheetModal(for window: NSWindow, completionHandler: ((NSApplication.ModalResponse) -> Void)? = nil) {
+        completionHandler?(runModal())
+    }
 }
 
 open class NSOpenPanel: NSSavePanel {
@@ -2679,6 +2684,8 @@ open class NSOpenPanel: NSSavePanel {
     public var allowsMultipleSelection: Bool = false
     public var resolvesAliases: Bool = true
     public var urls: [URL] = []
+
+    open override func runModal() -> NSApplication.ModalResponse { .cancel }
 }
 
 // MARK: - NSScrollView / NSScroller / NSTextField / NSTextView / NSImageView / NSButton / NSPopUpButton / NSSearchField / NSSplitView / NSSlider

@@ -313,6 +313,19 @@ struct CompatibilityModuleTests {
         #expect(result.unknownFamilyReturnsNil)
     }
 
+    @Test("AppKit open panel preserves configuration and cancels headless")
+    @MainActor
+    func appKitOpenPanelPreservesConfigurationAndCancelsHeadless() {
+        let result = AppleCompatibilitySmoke.runAppKitOpenPanelSmoke()
+
+        #expect(result.defaultConfigurationMatchesMacShape)
+        #expect(result.configurationRoundTrips)
+        #expect(result.runModalCancelsHeadless)
+        #expect(result.beginReportsCancellation)
+        #expect(result.beginSheetReportsCancellation)
+        #expect(result.defaultSelectionIsEmpty)
+    }
+
     @Test("AppKit menu popups update delegates and track presentation")
     @MainActor
     func appKitMenuPopupsUpdateDelegatesAndTrackPresentation() {
