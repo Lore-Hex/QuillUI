@@ -56,6 +56,14 @@ enum AppleCompatibilitySmoke {
         var operations: Set<String>
     }
 
+    struct AppKitGeometryResult {
+        var stringRoundTrip: Bool
+        var bracedFormatParsed: Bool
+        var flatFormatParsed: Bool
+        var exponentFormatParsed: Bool
+        var invalidStringReturnsZero: Bool
+    }
+
     struct AppKitMenuResult {
         var popupSucceeded: Bool
         var trackingBegan: Bool
@@ -499,6 +507,39 @@ enum AppleCompatibilitySmoke {
         return DiagnosticFallbackResult(
             operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation)),
             speechAuthorizationDenied: authorizationStatus == .denied
+        )
+    }
+
+    static func runAppKitGeometrySmoke() -> AppKitGeometryResult {
+        func rectMatches(_ lhs: NSRect, _ rhs: NSRect) -> Bool {
+            lhs.origin.x == rhs.origin.x &&
+                lhs.origin.y == rhs.origin.y &&
+                lhs.size.width == rhs.size.width &&
+                lhs.size.height == rhs.size.height
+        }
+
+        let rect = NSRect(x: -1.5, y: 2.25, width: 300, height: 40.5)
+        let stringRoundTrip = rectMatches(NSRectFromString(NSStringFromRect(rect)), rect)
+        let bracedFormatParsed = rectMatches(
+            NSRectFromString("{{1, 2}, {3, 4}}"),
+            NSRect(x: 1, y: 2, width: 3, height: 4)
+        )
+        let flatFormatParsed = rectMatches(
+            NSRectFromString("{1.25, -2.5, 3.75, 4.5}"),
+            NSRect(x: 1.25, y: -2.5, width: 3.75, height: 4.5)
+        )
+        let exponentFormatParsed = rectMatches(
+            NSRectFromString("{{1e1, -2e0}, {3.5e1, 4.25}}"),
+            NSRect(x: 10, y: -2, width: 35, height: 4.25)
+        )
+        let invalidStringReturnsZero = rectMatches(NSRectFromString("not a rect"), .zero)
+
+        return AppKitGeometryResult(
+            stringRoundTrip: stringRoundTrip,
+            bracedFormatParsed: bracedFormatParsed,
+            flatFormatParsed: flatFormatParsed,
+            exponentFormatParsed: exponentFormatParsed,
+            invalidStringReturnsZero: invalidStringReturnsZero
         )
     }
 

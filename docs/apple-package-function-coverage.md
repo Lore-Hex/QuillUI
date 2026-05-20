@@ -100,8 +100,8 @@ platform fallbacks.
 | `UndoManager.removeAllActions()` / `removeAllActions(withTarget:)` | Partial | Clears current stored closures, not full target/selector semantics. |
 | `UndoManager.setActionName(_:)` | Partial | Stores action metadata only. |
 | `UndoManager.disableUndoRegistration()` / `enableUndoRegistration()` | Usable | Gates current closure registration. |
-| `NSStringFromRect(_:)` | Usable | Produces deterministic rect text. |
-| `NSRectFromString(_:)` | Compile-only | Returns `.zero`; parsing is incomplete. |
+| `NSStringFromRect(_:)` | Usable | Re-exported from Foundation through `QuillFoundation`; deterministic rect text is smoke-tested through the AppKit smoke target. |
+| `NSRectFromString(_:)` | Partial | Re-exported from Foundation through `QuillFoundation`; common AppKit rect strings and `NSStringFromRect` round-trips are covered, while full Apple parser edge-case/fuzz parity is still pending. |
 | `NSBitmapImageRep.init?(data:)` / `representation(using:properties:)` | Partial | Basic data wrapping, not full image codec parity. |
 | `NSFontManager.availableFonts()` / `availableFontFamilies()` | Compile-only | Returns empty lists. |
 | `NSAppearance.init(named:)` / `bestMatch(from:)` | Compile-only | Stores name; matching is incomplete. |

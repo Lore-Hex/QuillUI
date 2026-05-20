@@ -189,10 +189,7 @@ public typealias NSRect = CGRect
 public typealias NSEdgeInsets = (top: CGFloat, left: CGFloat, bottom: CGFloat, right: CGFloat)
 public typealias NSRectPointer = UnsafeMutablePointer<NSRect>
 
-public func NSStringFromRect(_ rect: NSRect) -> String {
-    "{{\(rect.origin.x), \(rect.origin.y)}, {\(rect.size.width), \(rect.size.height)}}"
-}
-public func NSRectFromString(_ s: String) -> NSRect { .zero }
+// NSStringFromRect and NSRectFromString come from Foundation through QuillFoundation.
 
 public let NSNotFound: Int = Int.max
 

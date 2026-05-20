@@ -278,6 +278,17 @@ struct CompatibilityModuleTests {
         ])))
     }
 
+    @Test("AppKit rect string helpers round-trip common geometry formats")
+    func appKitRectStringHelpersRoundTripCommonFormats() {
+        let result = AppleCompatibilitySmoke.runAppKitGeometrySmoke()
+
+        #expect(result.stringRoundTrip)
+        #expect(result.bracedFormatParsed)
+        #expect(result.flatFormatParsed)
+        #expect(result.exponentFormatParsed)
+        #expect(result.invalidStringReturnsZero)
+    }
+
     @Test("AppKit menu popups update delegates and track presentation")
     @MainActor
     func appKitMenuPopupsUpdateDelegatesAndTrackPresentation() {

@@ -11,7 +11,6 @@
 #if os(Linux)
 
 import AppKit
-import Foundation
 
 // MARK: - Window + view + view controller (CodeEdit-shape)
 
@@ -90,6 +89,15 @@ func smokeClipboard() {
     NSCursor.arrow.set()
 }
 
+func smokeGeometryStringHelpers() -> Bool {
+    let rect = NSRect(x: -1.5, y: 2.25, width: 300, height: 40.5)
+    let parsed = NSRectFromString(NSStringFromRect(rect))
+    return parsed.origin.x == rect.origin.x &&
+        parsed.origin.y == rect.origin.y &&
+        parsed.size.width == rect.size.width &&
+        parsed.size.height == rect.size.height
+}
+
 // MARK: - Status item (Maccy menu bar)
 
 @MainActor
@@ -129,7 +137,7 @@ public enum QuillAppKitSmoke {
         app.delegate = delegate
         _ = app.setActivationPolicy(.regular)
         // Don't actually run() — this is a compile-only smoke check.
-        return true
+        return smokeGeometryStringHelpers()
     }
 }
 
