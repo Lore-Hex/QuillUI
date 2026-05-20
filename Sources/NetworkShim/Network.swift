@@ -212,12 +212,30 @@ public struct NWInterface: Hashable, Sendable, CustomStringConvertible, CustomDe
 
 public enum NWProtocolTCP {
     public final class Options: @unchecked Sendable {
+        public var noDelay = false
+        public var noPush = false
+        public var noOptions = false
+        public var enableKeepalive = false
+        public var keepaliveCount = 0
+        public var keepaliveIdle = 0
+        public var keepaliveInterval = 0
+        public var maximumSegmentSize = 0
+        public var connectionTimeout = 0
+        public var persistTimeout = 0
+        public var connectionDropTime = 0
+        public var retransmitFinDrop = false
+        public var disableAckStretching = false
+        public var enableFastOpen = false
+        public var disableECN = false
+
         public init() {}
     }
 }
 
 public enum NWProtocolUDP {
     public final class Options: @unchecked Sendable {
+        public var preferNoChecksum = false
+
         public init() {}
     }
 }

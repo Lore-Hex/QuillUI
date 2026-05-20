@@ -14,6 +14,70 @@ final class NetworkParametersParityTests: XCTestCase {
         XCTAssertTrue(NWProtocolTLS.Options() !== NWProtocolTLS.Options())
     }
 
+    func testTCPOptionDefaultsAndSettersMatchApple() {
+        let options = NWProtocolTCP.Options()
+
+        XCTAssertFalse(options.noDelay)
+        XCTAssertFalse(options.noPush)
+        XCTAssertFalse(options.noOptions)
+        XCTAssertFalse(options.enableKeepalive)
+        XCTAssertEqual(options.keepaliveCount, 0)
+        XCTAssertEqual(options.keepaliveIdle, 0)
+        XCTAssertEqual(options.keepaliveInterval, 0)
+        XCTAssertEqual(options.maximumSegmentSize, 0)
+        XCTAssertEqual(options.connectionTimeout, 0)
+        XCTAssertEqual(options.persistTimeout, 0)
+        XCTAssertEqual(options.connectionDropTime, 0)
+        XCTAssertFalse(options.retransmitFinDrop)
+        XCTAssertFalse(options.disableAckStretching)
+        XCTAssertFalse(options.enableFastOpen)
+        XCTAssertFalse(options.disableECN)
+
+        options.noDelay = true
+        options.noPush = true
+        options.noOptions = true
+        options.enableKeepalive = true
+        options.keepaliveCount = 31
+        options.keepaliveIdle = 23
+        options.keepaliveInterval = 29
+        options.maximumSegmentSize = 1440
+        options.connectionTimeout = 17
+        options.persistTimeout = 19
+        options.connectionDropTime = 37
+        options.retransmitFinDrop = true
+        options.disableAckStretching = true
+        options.enableFastOpen = true
+        options.disableECN = true
+
+        XCTAssertTrue(options.noDelay)
+        XCTAssertTrue(options.noPush)
+        XCTAssertTrue(options.noOptions)
+        XCTAssertTrue(options.enableKeepalive)
+        XCTAssertEqual(options.keepaliveCount, 31)
+        XCTAssertEqual(options.keepaliveIdle, 23)
+        XCTAssertEqual(options.keepaliveInterval, 29)
+        XCTAssertEqual(options.maximumSegmentSize, 1440)
+        XCTAssertEqual(options.connectionTimeout, 17)
+        XCTAssertEqual(options.persistTimeout, 19)
+        XCTAssertEqual(options.connectionDropTime, 37)
+        XCTAssertTrue(options.retransmitFinDrop)
+        XCTAssertTrue(options.disableAckStretching)
+        XCTAssertTrue(options.enableFastOpen)
+        XCTAssertTrue(options.disableECN)
+        assertOption(options, expectedText: "Network.NWProtocolTCP.Options")
+    }
+
+    func testUDPOptionDefaultsAndSettersMatchApple() {
+        let options = NWProtocolUDP.Options()
+
+        XCTAssertFalse(options.preferNoChecksum)
+
+        options.preferNoChecksum = true
+
+        XCTAssertTrue(options.preferNoChecksum)
+        assertOption(options, expectedText: "Network.NWProtocolUDP.Options")
+    }
+
     func testParameterFactoriesMatchAppleTextSurfaceAndInstanceFreshness() {
         assertParameters(NWParameters.tcp, expectedText: "tcp, attribution: developer")
         assertParameters(NWParameters.udp, expectedText: "udp, attribution: developer")
