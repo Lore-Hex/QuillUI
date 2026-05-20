@@ -57,6 +57,7 @@ struct CompatibilityModuleTests {
             .mask(Text("Mask"))
             .contentShape(Rectangle())
             .allowsHitTesting(false)
+            .gesture(DragGesture().onChanged { _ in }.onEnded { _ in })
             .onHover { _ in }
             .focusEffectDisabled(false)
             .edgesIgnoringSafeArea(.top)
@@ -116,6 +117,11 @@ struct CompatibilityModuleTests {
         #expect(hitTesting.enabled == false)
         #expect(quillTextLabel(from: hitTesting) == "Hit Test")
 
+        let gestured = Text("Drag").gesture(DragGesture().onChanged { _ in }.onEnded { _ in })
+        #expect(String(describing: type(of: gestured)).contains("GestureView"))
+        #expect(String(describing: type(of: gestured.gesture)).contains("DragGesture"))
+        #expect(quillTextLabel(from: gestured) == "Drag")
+
         let maskedContent = Text("Masked").mask(Text("Mask"))
         #expect(String(describing: type(of: maskedContent)).contains("ViewMaskView"))
         #expect(quillTextLabel(from: maskedContent) == "Masked")
@@ -168,6 +174,7 @@ struct CompatibilityModuleTests {
             "mask",
             "contentShape",
             "allowsHitTesting",
+            "gesture",
             "onHover",
             "focusEffectDisabled",
             "edgesIgnoringSafeArea",

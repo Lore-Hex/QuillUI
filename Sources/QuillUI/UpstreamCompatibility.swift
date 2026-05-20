@@ -977,6 +977,18 @@ public struct AllowsHitTestingView<Content: View>: View {
     public var body: some View { content }
 }
 
+public struct GestureView<Content: View, GestureValue>: View {
+    public let content: Content
+    public let gesture: GestureValue
+
+    public init(content: Content, gesture: GestureValue) {
+        self.content = content
+        self.gesture = gesture
+    }
+
+    public var body: some View { content }
+}
+
 public struct ViewMaskView<Content: View, MaskContent: View>: View {
     public let content: Content
     public let mask: MaskContent
@@ -1376,12 +1388,12 @@ public extension View {
         return self
     }
 
-    func gesture<Gesture>(_ gesture: Gesture) -> Self {
+    func gesture<Gesture>(_ gesture: Gesture) -> GestureView<Self, Gesture> {
         recordQuillUIFallback(
             "gesture",
-            message: "gesture is currently a source-compatibility fallback on Linux."
+            message: "gesture is preserved as gesture metadata on Linux."
         )
-        return self
+        return GestureView(content: self, gesture: gesture)
     }
 
     func mask<Mask: View>(_ mask: Mask) -> ViewMaskView<Self, Mask> {
@@ -1760,6 +1772,10 @@ extension ContentShapeView: QuillWrappedViewRepresentable {
 }
 
 extension AllowsHitTestingView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension GestureView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
