@@ -370,11 +370,16 @@ subset lives in `QuillUIKit`.
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
+| `SecItemAdd(_:_:)` | Usable | Process-local item creation for generic-password and keychain-shaped rows. Detects duplicate identity across class, service, account, access group, and synchronizable attributes, and can return attributes, data, or references. Not persistent or secure. |
+| `SecItemCopyMatching(_:_:)` | Usable | Process-local matching with data, attributes, reference, not-found status, and `kSecMatchLimitAll` array results for current Signal/keychain storage contracts. |
+| `SecItemUpdate(_:_:)` | Usable | Updates matching process-local item values and attributes, preserving Apple-shaped duplicate and not-found status paths. |
+| `SecItemDelete(_:)` | Usable | Deletes matching process-local items and returns not-found when no row matches. |
+| `kSecClass*`, `kSecAttr*`, `kSecValue*`, `kSecReturn*`, `kSecMatchLimit*`, `errSec*` constants | Usable | Source-compatible constants for current Security, KeychainSwift-adjacent, and Signal-shaped storage contracts. |
 | `SecCertificateCreateWithData(_:_:)` | Partial | Wraps DER data in a certificate container. |
 | `SecTrustSetAnchorCertificates(_:_:)` | Fallback | Returns `errSecSuccess`, stores no trust chain. |
 | `SecTrustSetAnchorCertificatesOnly(_:_:)` | Fallback | Returns `errSecSuccess`, stores no trust chain. |
 | `SecTrustEvaluateWithError(_:_:)` | Fallback | Records diagnostic and returns true. |
-| Keychain, certificate parsing, policy evaluation, platform trust store, Secure Transport parity | Incomplete | Current fallback must not be treated as production TLS trust. |
+| Native secure keychain persistence, access control, access groups, synchronization, cross-process lookup, certificate parsing, policy evaluation, platform trust store, Secure Transport parity | Incomplete | Current keychain rows are process-local compatibility storage, and current trust fallback must not be treated as production TLS trust. |
 
 ## AVFoundation
 
@@ -545,7 +550,7 @@ app progress can be audited with the same status ladder.
 | --- | --- | --- |
 | `Alamofire` | URL string request creation for GET/POST, URLSession-backed transport, status-code validation, and JSON `Decodable` response callbacks. | Upload/download, interceptors, authentication, retry policies, request/response serializers beyond JSON decoding, trust evaluation parity, cancellation/progress, and fuzz parity against upstream Alamofire. |
 | `OllamaKit` | Base URL setup, model listing, reachability probing, current chat streaming contracts, response decoding, and app-facing Codable models. | Full upstream API breadth, retries, tool-call/event streaming details, transport customization edge cases, and Apple/Linux fuzz parity beyond current Enchanted flows. |
-| `KeychainSwift` | Prefix-scoped in-memory string, data, bool, delete, and clear flows. | Secure OS keychain persistence, access control, synchronization, accessibility classes, and cross-process behavior. |
+| `KeychainSwift` and lower-level `Security` `SecItem` storage | Prefix-scoped in-memory string, data, bool, delete, and clear flows; process-local `SecItemAdd`, `SecItemCopyMatching`, `SecItemUpdate`, and `SecItemDelete` generic-password rows for Signal-shaped key-material/account storage. | Secure OS keychain persistence, access control, access groups, synchronization, accessibility classes, native item protection, and cross-process behavior. |
 | Markdown/code packages | `MarkdownUI` parsing/rendering subset, plain-text extraction, highlighter injection, `Splash` theme/token highlighting subset. | Full CommonMark/GitHub Markdown, exact MarkdownUI styling/layout, complete Swift tokenization, HTML output parity, and typography/rendering fidelity. |
 | UI helper packages | `ActivityIndicatorView`, `WrappingHStack`, `Vortex`, `KeyboardShortcuts`, `Magnet`, and `Sparkle` expose app-facing shapes. | Animations, true wrapping layout, particle effects, native shortcut recording/global hotkeys, updater behavior, and platform services. |
 | App support shims | `Tidemark`, `Secrets`, `QuillRS`, `SwiftUIIntrospect`, `SwiftUIDesignSystem`, `Zip`, and `RSDatabase` compile current app source. | CommonMark conversion, secret storage, browser integration, tree/path parity, introspection callbacks, real zip/database APIs, and broader upstream semantics. |
@@ -586,7 +591,8 @@ app progress can be audited with the same status ladder.
 | `get(_:)`, `getData(_:)`, `getBool(_:)` | Usable | Round trips values written through the current shim. |
 | `delete(_:)` | Usable | Removes one prefix-scoped key and returns success. |
 | `clear()` | Usable | Removes all values for the prefix. |
-| Keychain access groups, secure persistence, access-control flags, synchronization, cross-process lookup | Incomplete | Required before claiming KeychainSwift parity. |
+| Lower-level `Security` `SecItem` generic-password add/copy/update/delete | Usable | Supports the process-local keychain-shaped rows Signal-style libraries commonly source-target before a secure backend is attached. |
+| Keychain access groups, secure persistence, access-control flags, synchronization, cross-process lookup | Incomplete | Required before claiming KeychainSwift or Security keychain parity. |
 
 ### MarkdownUI
 

@@ -506,7 +506,7 @@ public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertib
         case udp
     }
 
-    private final class ProtocolStackStorage {
+    fileprivate final class ProtocolStackStorage {
         var applicationProtocols: [NWProtocolOptions]
         var transportProtocol: NWProtocolOptions?
         var internetProtocol: NWProtocolOptions?

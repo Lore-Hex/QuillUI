@@ -85,6 +85,8 @@ Likely first milestone:
 
 Status: compile-green hard-gated. Fixtures-only conversation shell shipped (CP85 + CP89 + CP92) — NavigationSplitView with sidebar list of seeded `Conversation`s, scrollable message timeline with rounded bubbles, and a functional `ChatComposer` (TextField + Send) that appends new self-messages to the active conversation. Bubble / sidebar-row / sidebar-list / timeline / composer chrome shared with Telegram via `QuillChatKit` (CP90 + CP96 + CP128). `QuillSignalCoreTests` (10 tests) pin fixture invariants, ChatMessage routing, and ChatListItem sidebar routing. The full libsignal / RingRTC / GRDB stack stays a follow-up.
 
+A process-local `Security` `SecItem` generic-password contract now covers add/copy/update/delete for key-material-shaped flows, duplicate detection, returned attributes/data, and match-all queries so future libsignal/account storage code has a Linux source target. Native secure persistence, access control, access groups, synchronization, and cross-process keychain behavior remain blockers.
+
 Why it matters:
 
 - Serious messaging app with large-scale state, account setup, secure local storage, media, notifications, database migrations, and high expectations for reliability.

@@ -526,6 +526,7 @@ public typealias CFData = Data
 public typealias CFArray = [Any]
 public typealias CFString = String
 public typealias CFDictionary = [String: Any]
+public typealias CFTypeRef = AnyObject
 public typealias CFError = Error
 
 public func CFErrorCopyDescription(_ error: CFError) -> CFString {
