@@ -56,6 +56,7 @@ struct CompatibilityModuleTests {
             .mask(Rectangle())
             .mask(Text("Mask"))
             .contentShape(Rectangle())
+            .allowsHitTesting(false)
             .onHover { _ in }
             .focusEffectDisabled(false)
             .edgesIgnoringSafeArea(.top)
@@ -110,6 +111,11 @@ struct CompatibilityModuleTests {
         #expect(String(describing: type(of: shapedContent)).contains("ContentShapeView"))
         #expect(String(describing: type(of: shapedContent.shape)).contains("Rectangle"))
 
+        let hitTesting = Text("Hit Test").allowsHitTesting(false)
+        #expect(String(describing: type(of: hitTesting)).contains("AllowsHitTestingView"))
+        #expect(hitTesting.enabled == false)
+        #expect(quillTextLabel(from: hitTesting) == "Hit Test")
+
         let maskedContent = Text("Masked").mask(Text("Mask"))
         #expect(String(describing: type(of: maskedContent)).contains("ViewMaskView"))
         #expect(quillTextLabel(from: maskedContent) == "Masked")
@@ -161,6 +167,7 @@ struct CompatibilityModuleTests {
             "matchedGeometryEffect",
             "mask",
             "contentShape",
+            "allowsHitTesting",
             "onHover",
             "focusEffectDisabled",
             "edgesIgnoringSafeArea",

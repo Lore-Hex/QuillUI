@@ -965,6 +965,18 @@ public struct ContentShapeView<Content: View, ShapeValue: Shape>: View {
     public var body: some View { content }
 }
 
+public struct AllowsHitTestingView<Content: View>: View {
+    public let content: Content
+    public let enabled: Bool
+
+    public init(content: Content, enabled: Bool) {
+        self.content = content
+        self.enabled = enabled
+    }
+
+    public var body: some View { content }
+}
+
 public struct ViewMaskView<Content: View, MaskContent: View>: View {
     public let content: Content
     public let mask: MaskContent
@@ -1142,8 +1154,12 @@ public extension Shape {
 }
 
 public extension View {
-    func allowsHitTesting(_ enabled: Bool) -> some View {
-        disabled(!enabled)
+    func allowsHitTesting(_ enabled: Bool) -> AllowsHitTestingView<Self> {
+        recordQuillUIFallback(
+            "allowsHitTesting",
+            message: "allowsHitTesting is preserved as hit-testing metadata on Linux."
+        )
+        return AllowsHitTestingView(content: self, enabled: enabled)
     }
 
     func contentShape<S: Shape>(_ shape: S) -> ContentShapeView<Self, S> {
@@ -1740,6 +1756,10 @@ extension ScrollContentBackgroundView: QuillWrappedViewRepresentable {
 }
 
 extension ContentShapeView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension AllowsHitTestingView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
