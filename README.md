@@ -8,8 +8,9 @@ usable on Apple platforms.
 for the per-function complete/incomplete status of each cloned Apple package
 and app-facing package clone. Network has the first concentrated parity pocket:
 the [Network function rows](docs/apple-package-function-coverage.md#network)
-separate address/endpoint value APIs that are parity-tested from the still
-incomplete transport, DNS, TLS, connection, listener, VPN, and monitoring work.
+separate path/interface enum value APIs plus address/endpoint value APIs that
+are parity-tested from the still incomplete transport, DNS, TLS, connection,
+listener, VPN, and monitoring work.
 
 The Linux runtime and build graph are selected separately. `QUILLUI_BACKEND`
 requests `gtk` or `qt` at launch for backend smoke/profile parity. App products
@@ -53,12 +54,13 @@ the only rows treated as full Apple/Linux contract matches.
 
 - [Network function coverage](docs/apple-package-function-coverage.md#network): current
   Network rows that have reached Apple/Linux parity. The path/interface enum
-  rows are pinned by `NetworkPathInterfaceParityTests`; the address rows are
-  backed by Apple-observed IPv4/IPv6 parser, data initializer,
-  classifier-boundary, multicast-scope, IPv4 mapping, string, and debug-output
-  tests; the endpoint rows cover scoped and unscoped host parsing, direct-value
-  equality/hash coherence, port parser/constant/equality/hash semantics, and
-  host-port/service/Unix endpoint value behavior.
+  rows are pinned by `NetworkPathInterfaceParityTests` for string,
+  equality, and hash semantics; the address rows are backed by Apple-observed
+  IPv4/IPv6 parser, data initializer, classifier-boundary, multicast-scope,
+  IPv4 mapping, string, and debug-output tests; the endpoint rows cover scoped
+  and unscoped host parsing, direct-value equality/hash coherence, port
+  parser/constant/equality/hash semantics, and host-port/service/Unix endpoint
+  value behavior.
 - [API coverage matrix](docs/api-coverage-matrix.md): backend and app-facing API evidence.
 - [App targets](docs/app-targets.md): target-by-target app progress.
 
@@ -105,7 +107,7 @@ seeded fuzz tests.
 | `SwiftData` / `QuillData` | Table mapping, inserts, deletes, saves, deterministic error text, and current Enchanted persistence flows. | Full Apple SwiftData schema, relationship, predicate, migration, CloudKit, undo, observation, and concurrency semantics. |
 | `AppKit` / `QuillAppKit` | In-memory undo, view hierarchy, window geometry, pasteboard, menu, pop-up, stack, progress, child-controller, and selected workspace/document flows. | Native event loop, Auto Layout, CALayer/drawing, accessibility, file dialogs, cursor/event taps, XPC, sharing, audio, host font metrics, and full window-manager behavior. |
 | `UIKit` / `QuillUIKit` | `UIApplication.shared` and selected source-compatible aliases and in-memory bridges. | Mobile renderer, lifecycle, layout engine, navigation, presentation, text input, events, accessibility, haptics, notifications, and collection/table parity. |
-| Web, network, media, and service Apple kits | Selected compile or fallback shapes for `WebKit`, `AuthenticationServices`, `Network`, `NetworkExtension`, `AVFoundation`, `Speech`, `PhotosUI`, `Charts`, `StoreKit`, and `TipKit`; `Network` address parsing, address constants, address classifier properties, scoped IPv4/IPv6/name host interface literals, port parsing with seeded fuzz coverage, port equality/hash semantics, well-known port constants, path status/reason/type, endpoint-host classification/equality/hash including scoped parsed-to-direct values, and `NWEndpoint` host-port/service/Unix path description/debug/equality/hash value APIs now have Apple-checked parity rows. | Real web rendering, authentication sessions, DNS/TLS/TCP/UDP behavior, VPN tunnels, media I/O, speech, photo library, chart rendering, purchases, and tip persistence. |
+| Web, network, media, and service Apple kits | Selected compile or fallback shapes for `WebKit`, `AuthenticationServices`, `Network`, `NetworkExtension`, `AVFoundation`, `Speech`, `PhotosUI`, `Charts`, `StoreKit`, and `TipKit`; `Network` address parsing, address constants, address classifier properties, scoped IPv4/IPv6/name host interface literals, port parsing with seeded fuzz coverage, port equality/hash semantics, well-known port constants, path status/reason/type string/equality/hash semantics, endpoint-host classification/equality/hash including scoped parsed-to-direct values, and `NWEndpoint` host-port/service/Unix path description/debug/equality/hash value APIs now have Apple-checked parity rows. | Real web rendering, authentication sessions, DNS/TLS/TCP/UDP behavior, VPN tunnels, media I/O, speech, photo library, chart rendering, purchases, and tip persistence. |
 | System and support kits | Focused usable rows for `ServiceManagement`, `AsyncAlgorithms`, `AnyPublisher`, and `Logger` initialization. | Full `CoreGraphics`, `Security`, `Observation`, `ApplicationServices`, `Carbon`, `IOKit`, `os`, and Combine edge-case parity. |
 | Re-export-only Apple shims | Imports compile for current app source. | Standalone framework behavior for `MessageUI`, `SafariServices`, `MobileCoreServices`, `LocalAuthentication`, and `CoreSpotlight`. |
 
@@ -174,7 +176,7 @@ are easier to scan than the raw product list.
 | Data and persistence | `SwiftData`, `QuillData` | Usable for Enchanted conversation storage and source-lowered model tests; not a complete Apple SwiftData clone. |
 | Desktop and mobile UI kits | `AppKit`, `QuillAppKitGTK`, `UIKit` | AppKit-shaped desktop APIs are partial and source-tested. UIKit is primarily an import/type compatibility layer for current ports. |
 | Foundation, drawing, identity, and security | `QuillFoundation`, `QuillRS`, `CoreGraphics`, `Security`, `UniformTypeIdentifiers` | Common app-facing helpers, image/type/security aliases, and source contracts compile; many APIs are focused shims. |
-| Web, network, and extensions | `QuillWebKit`, `Network`, `NetworkExtension` | Web/network imports and selected types compile. Network address parsing, address constants/properties, scoped and unscoped endpoint host address/name parsing/debug/equality/hash behavior, port construction with seeded fuzz coverage plus equality/hash semantics, well-known port constants, path status/reason/type descriptions, and `NWEndpoint` host-port/service/Unix path descriptions/debug/equality/hash behavior are parity-tested for current Apple-observed value behavior; real web rendering, VPN tunnels, system extensions, DNS/TLS/TCP/UDP behavior, connections, listeners, and network monitoring are not implemented. |
+| Web, network, and extensions | `QuillWebKit`, `Network`, `NetworkExtension` | Web/network imports and selected types compile. Network address parsing, address constants/properties, scoped and unscoped endpoint host address/name parsing/debug/equality/hash behavior, port construction with seeded fuzz coverage plus equality/hash semantics, well-known port constants, path status/reason/type string/equality/hash semantics, and `NWEndpoint` host-port/service/Unix path descriptions/debug/equality/hash behavior are parity-tested for current Apple-observed value behavior; real web rendering, VPN tunnels, system extensions, DNS/TLS/TCP/UDP behavior, connections, listeners, and network monitoring are not implemented. |
 | Media, sharing, browser, and mobile services | `AVFoundation`, `Speech`, `PhotosUI`, `MessageUI`, `SafariServices`, `MobileCoreServices` | Service-shaped APIs compile or fallback for app source compatibility. Real device/media/service behavior is mostly absent. |
 | Reactive, logging, async, and system kits | `Combine`, `os`, `AsyncAlgorithms`, `Carbon`, `IOKit`, `ApplicationServices`, `ServiceManagement` | Combine and logging have focused tests; the rest are partial or compile shims for app-facing calls. |
 | Network/client third-party packages | `Alamofire`, `OllamaKit` | `OllamaKit` covers Enchanted model listing and streaming-chat contracts. `Alamofire` covers current GET/POST, status-validation, and decodable-response needs, but not the full upstream client surface. |
