@@ -366,6 +366,18 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
             XCTFail("Expected DNS-name endpoint host")
         }
 
+        let directHosts: [(NWEndpoint.Host, String)] = [
+            (.name("example.com", nil), "example.com"),
+            (.name("", nil), ""),
+            (.ipv4(IPv4Address("192.168.1.10")!), "192.168.1.10"),
+            (.ipv6(IPv6Address("::1")!), "::1"),
+        ]
+        for (host, expectedDescription) in directHosts {
+            XCTAssertEqual(host.description, expectedDescription)
+            XCTAssertEqual(host.debugDescription, expectedDescription)
+            XCTAssertEqual(String(reflecting: host), expectedDescription)
+        }
+
         let literalPort: NWEndpoint.Port = 443
         XCTAssertEqual(literalPort.rawValue, 443)
         XCTAssertEqual(String(describing: literalPort), "443")
@@ -410,24 +422,19 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
         XCTAssertEqual(NWInterface.InterfaceType.wiredEthernet.description, "wiredEthernet")
         XCTAssertEqual(NWInterface.InterfaceType.loopback.description, "loopback")
 
-        XCTAssertEqual(
-            NWEndpoint.hostPort(host: NWEndpoint.Host("example.com"), port: literalPort).description,
-            "example.com:443"
-        )
-        XCTAssertEqual(
-            NWEndpoint.hostPort(host: NWEndpoint.Host("192.168.1.10"), port: literalPort).description,
-            "192.168.1.10:443"
-        )
-        XCTAssertEqual(
-            NWEndpoint.hostPort(host: NWEndpoint.Host("::1"), port: literalPort).description,
-            "::1.443"
-        )
-        XCTAssertEqual(NWEndpoint.unix(path: "/tmp/socket").description, "/tmp/socket")
+        let endpoints: [(NWEndpoint, String)] = [
+            (.hostPort(host: NWEndpoint.Host("example.com"), port: literalPort), "example.com:443"),
+            (.hostPort(host: NWEndpoint.Host("192.168.1.10"), port: literalPort), "192.168.1.10:443"),
+            (.hostPort(host: NWEndpoint.Host("::1"), port: literalPort), "::1.443"),
+            (.unix(path: "/tmp/socket"), "/tmp/socket"),
+            (.service(name: "svc", type: "_http._tcp", domain: "local", interface: nil), "svc._http._tcp.local."),
+        ]
+        for (endpoint, expectedDescription) in endpoints {
+            XCTAssertEqual(endpoint.description, expectedDescription)
+            XCTAssertEqual(endpoint.debugDescription, expectedDescription)
+            XCTAssertEqual(String(reflecting: endpoint), expectedDescription)
+        }
         XCTAssertEqual(NWEndpoint.unix(path: "").description, "")
-        XCTAssertEqual(
-            NWEndpoint.service(name: "svc", type: "_http._tcp", domain: "local", interface: nil).description,
-            "svc._http._tcp.local."
-        )
         XCTAssertEqual(
             NWEndpoint.service(name: "svc", type: "_http._tcp.", domain: "local.", interface: nil).description,
             "svc._http._tcp.local."

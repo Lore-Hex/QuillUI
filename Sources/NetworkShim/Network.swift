@@ -303,8 +303,8 @@ public struct IPv6Address: IPAddress, Hashable, Sendable, CustomStringConvertibl
     }
 }
 
-public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible {
-    public enum Host: Hashable, Sendable, CustomStringConvertible {
+public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
+    public enum Host: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
         case name(String, NWInterface?)
         case ipv4(IPv4Address)
         case ipv6(IPv6Address)
@@ -324,6 +324,10 @@ public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible {
             case .ipv6(let address):
                 return address.description
             }
+        }
+
+        public var debugDescription: String {
+            description
         }
     }
 
@@ -404,6 +408,10 @@ public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible {
         case .unix(let path):
             return path
         }
+    }
+
+    public var debugDescription: String {
+        description
     }
 
     private static func describeService(name: String, type: String, domain: String) -> String {
