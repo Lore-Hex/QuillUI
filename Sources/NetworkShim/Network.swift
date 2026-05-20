@@ -310,9 +310,19 @@ public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible, CustomDebug
         case ipv6(IPv6Address)
 
         public init(_ string: String) {
-            if let v4 = IPv4Address(string) { self = .ipv4(v4) }
-            else if let v6 = IPv6Address(string) { self = .ipv6(v6) }
-            else { self = .name(string, nil) }
+            if string.isEmpty {
+                self = .name(".", nil)
+            } else if let v4 = IPv4Address(string) {
+                self = .ipv4(v4)
+            } else if let v6 = IPv6Address(string) {
+                if v6.isIPv4Mapped, let mappedAddress = v6.asIPv4 {
+                    self = .ipv4(mappedAddress)
+                } else {
+                    self = .ipv6(v6)
+                }
+            } else {
+                self = .name(string, nil)
+            }
         }
 
         public var description: String {
