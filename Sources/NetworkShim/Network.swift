@@ -101,36 +101,85 @@ public protocol IPAddress {
     var isMulticast: Bool { get }
 }
 
-private func parseIPv4Component(_ component: Substring) -> UInt64? {
+private func ipv4DigitValue(_ scalar: Unicode.Scalar, radix: Int) -> UInt64? {
+    let value = scalar.value
+    let digit: UInt64?
+    switch value {
+    case 0x30...0x39:
+        digit = UInt64(value - 0x30)
+    case 0x41...0x46:
+        digit = UInt64(value - 0x41 + 10)
+    case 0x61...0x66:
+        digit = UInt64(value - 0x61 + 10)
+    default:
+        digit = nil
+    }
+
+    guard let digit, digit < UInt64(radix) else { return nil }
+    return digit
+}
+
+private func parseIPv4Digits(_ digits: Substring, radix: Int, maximum: UInt64) -> UInt64? {
+    guard !digits.isEmpty else { return nil }
+
+    var value: UInt64 = 0
+    for scalar in digits.unicodeScalars {
+        guard let digit = ipv4DigitValue(scalar, radix: radix) else { return nil }
+        guard value <= (maximum - digit) / UInt64(radix) else { return nil }
+        value = value * UInt64(radix) + digit
+    }
+    return value
+}
+
+private func parseIPv4DigitsWrapping(_ digits: Substring, radix: Int) -> UInt64? {
+    guard !digits.isEmpty else { return nil }
+
+    var value: UInt64 = 0
+    for scalar in digits.unicodeScalars {
+        guard let digit = ipv4DigitValue(scalar, radix: radix) else { return nil }
+        value = (value * UInt64(radix) + digit) & 0xffff_ffff
+    }
+    return value
+}
+
+private func parseIPv4Component(
+    _ component: Substring,
+    componentIndex: Int,
+    componentCount: Int,
+    maximum: UInt64
+) -> UInt64? {
     guard !component.isEmpty else { return nil }
 
     var digits = component
-    let radix: Int
     if digits.hasPrefix("0x") || digits.hasPrefix("0X") {
         digits = digits.dropFirst(2)
-        radix = 16
-    } else if digits.count > 1 && digits.first == "0" {
-        radix = 8
-    } else {
-        radix = 10
+        if componentCount == 1 {
+            return parseIPv4DigitsWrapping(digits, radix: 16)
+        }
+        if digits.isEmpty {
+            guard componentIndex < componentCount - 1 else { return nil }
+            return 0
+        }
+        return parseIPv4Digits(digits, radix: 16, maximum: maximum)
     }
 
-    guard !digits.isEmpty else { return nil }
-    guard digits.unicodeScalars.allSatisfy({
-        switch radix {
-        case 8:
-            return (0x30...0x37).contains($0.value)
-        case 10:
-            return (0x30...0x39).contains($0.value)
-        case 16:
-            return (0x30...0x39).contains($0.value)
-                || (0x41...0x46).contains($0.value)
-                || (0x61...0x66).contains($0.value)
-        default:
-            return false
+    if componentCount == 1 {
+        let radix = digits.count > 1 && digits.first == "0" ? 8 : 10
+        return parseIPv4DigitsWrapping(digits, radix: radix)
+    }
+
+    if componentCount == 4, digits.count > 1, digits.first == "0" {
+        if let decimalValue = parseIPv4Digits(digits, radix: 10, maximum: maximum) {
+            return decimalValue
         }
-    }) else { return nil }
-    return UInt64(String(digits), radix: radix)
+        return parseIPv4Digits(digits, radix: 8, maximum: maximum)
+    }
+
+    if digits.count > 1 && digits.first == "0" {
+        return parseIPv4Digits(digits, radix: 8, maximum: maximum)
+    } else {
+        return parseIPv4Digits(digits, radix: 10, maximum: maximum)
+    }
 }
 
 private func parseIPv4AddressLiteral(_ string: String) -> (Data, NWInterface?)? {
@@ -149,8 +198,33 @@ private func parseIPv4AddressLiteral(_ string: String) -> (Data, NWInterface?)? 
 private func parseUnscopedIPv4AddressLiteral(_ string: String) -> Data? {
     let components = string.split(separator: ".", omittingEmptySubsequences: false)
     guard (1...4).contains(components.count) else { return nil }
-    let values = components.compactMap(parseIPv4Component)
-    guard values.count == components.count else { return nil }
+    let maximums: [UInt64]
+    switch components.count {
+    case 1:
+        maximums = [0xffff_ffff]
+    case 2:
+        maximums = [0xff, 0xff_ffff]
+    case 3:
+        maximums = [0xff, 0xff, 0xffff]
+    case 4:
+        maximums = [0xff, 0xff, 0xff, 0xff]
+    default:
+        return nil
+    }
+
+    var values: [UInt64] = []
+    values.reserveCapacity(components.count)
+    for (index, component) in components.enumerated() {
+        guard let value = parseIPv4Component(
+            component,
+            componentIndex: index,
+            componentCount: components.count,
+            maximum: maximums[index]
+        ) else {
+            return nil
+        }
+        values.append(value)
+    }
 
     let address: UInt64
     switch values.count {

@@ -57,8 +57,10 @@ the only rows treated as full Apple/Linux contract matches.
   rows are pinned by `NetworkPathInterfaceParityTests` for string,
   equality, and hash semantics; the address rows are backed by Apple-observed
   IPv4/IPv6 parser, data initializer, classifier-boundary, multicast-scope,
-  IPv4 mapping, string, debug-output, equality, and hash tests; the endpoint rows cover scoped
-  and unscoped host parsing, direct-value equality/hash coherence, port
+  IPv4 mapping, string, debug-output, equality, and hash tests, including
+  `IPv4Address.init?(String)` legacy single-value wrapping and dotted-field
+  octal/hex edge cases; the endpoint rows cover scoped and unscoped host parsing,
+  direct-value equality/hash coherence, port
   parser/constant/equality/hash semantics, and host-port/service/Unix endpoint
   value behavior.
 - [API coverage matrix](docs/api-coverage-matrix.md): backend and app-facing API evidence.
