@@ -372,7 +372,15 @@ struct UpstreamCompatibilityTests {
         #expect(UTType.png.conforms(to: .image))
         #expect(UTType.jpeg.conforms(to: .image))
         #expect(UTType.tiff.conforms(to: .image))
+        #expect(UTType.gif.conforms(to: .image))
+        #expect(UTType.heic.conforms(to: .image))
+        #expect(UTType.webP.conforms(to: .image))
         #expect(UTType.image.conforms(to: .png) == false)
+        #expect(UTType(filenameExtension: "JPG", conformingTo: .image) == .jpeg)
+        #expect(UTType(filenameExtension: "webp", conformingTo: .image) == .webP)
+        #expect(UTType(filenameExtension: "jpg")?.preferredFilenameExtension == "jpeg")
+        #expect(UTType(filenameExtension: "heic")?.preferredMIMEType == "image/heic")
+        #expect(UTType.png.localizedDescription == "PNG image")
 
         let directory = try temporaryDirectory()
         let jpgURL = directory.appendingPathComponent("photo").appendingPathExtension("JPG")
@@ -749,8 +757,8 @@ struct UpstreamCompatibilityTests {
         } label: {
             Image(systemName: "textformat")
         }
-        #expect(picker.label == "doc.text")
-        #expect(picker.options == ["a", "folder.badge.plus"])
+        #expect(picker.label == "textformat")
+        #expect(picker.options == ["a", "photo.fill"])
         picker.onChanged?(1)
         #expect(selected == "b")
         picker.onChanged?(99)

@@ -42,7 +42,7 @@ is `Usable` or `Parity`.
 | `UIKit` / `QuillUIKit` | `UIApplication.shared`. | Aliases, app opening, device metadata, pasteboard, views, hierarchy, and notifications are partial/fallback; constraints, scenes, controllers, navigation, split views, collections, alerts, controls, labels/images/key commands, renderer, lifecycle, layout, events, accessibility, and text input are incomplete. |
 | `WebKit` | None yet beyond compile-compatible shapes. | `WKWebView`, configuration, delegates, user scripts, content rules, navigation, HTML rendering, JavaScript, process isolation, and scheme handling are compile-only or incomplete. |
 | `AuthenticationServices` | None yet beyond compile-compatible shapes. | Web authentication session start is fallback; session cancellation, presentation anchors, callback handling, secure storage, and browser flow parity are incomplete. |
-| `UniformTypeIdentifiers` | None yet at `Usable`; current rows are partial. | Identifier parsing, extension lookup, conformance, static types, system registry lookup, dynamic/exported/imported types, and the full conformance graph need parity work. |
+| `UniformTypeIdentifiers` | App-facing known extension lookup, conforming known extension lookup, common static types, local conformance checks, and preferred extension/MIME metadata for known identifiers. | Identifier parsing remains partial; system registry lookup, dynamic/exported/imported types, tag classes, synthesized dynamic identifiers for unknown extensions, and the full conformance graph need parity work. |
 | `Network` | IPv4/IPv6 literal parsing, endpoint host classification, and port construction are `Usable` for current app contracts. | Path monitoring, interfaces, connections, listeners, DNS, TLS, UDP/TCP, and real path probing are incomplete or fallback-only. |
 | `NetworkExtension` | None yet beyond compile/fallback shapes. | Packet flow, VPN lifecycle, tunnel routing, provider hosting, and real tunnel settings are incomplete. |
 | `CoreGraphics` | None yet beyond compile/fallback shapes. | Event sources, key state, keyboard events, event posting, pointer events, event taps, and drawing APIs beyond shared geometry are incomplete. |
@@ -293,10 +293,14 @@ subset lives in `QuillUIKit`.
 | API or function | Linux status | Notes |
 | --- | --- | --- |
 | `UTType.init?(_:)` | Partial | Accepts non-empty identifiers after trimming. |
-| `UTType.init?(filenameExtension:)` | Partial | Maps a fixed known extension set. |
-| `UTType.conforms(to:)` | Partial | Uses a small local parent graph. |
-| Static UTTypes such as `.item`, `.content`, `.data`, `.text`, `.plainText`, `.json`, `.image`, `.png`, `.jpeg`, `.movie`, `.audio`, `.pdf` | Partial | Current common identifiers exist. |
-| System registry lookup, dynamic/exported/imported types, full conformance graph | Incomplete | Required for UTType Parity. |
+| `UTType.init?(filenameExtension:)` | Usable | Maps the current app-facing known extension set case-insensitively, including common image aliases. Unknown-extension dynamic type synthesis is incomplete. |
+| `UTType.init?(filenameExtension:conformingTo:)` | Usable | Filters known extension lookups through the local conformance graph, matching file-importer and item-provider selection needs. Unknown or nonmatching dynamic type synthesis is incomplete. |
+| `UTType.conforms(to:)` | Usable | Covers the current app-facing parent graph for text, data, images, audio, movie, URL, directory, and PDF identifiers. |
+| `UTType.preferredFilenameExtension` | Usable | Returns deterministic preferred extensions for known app-facing identifiers. |
+| `UTType.preferredMIMEType` | Usable | Returns deterministic MIME types for known app-facing identifiers where the Apple API would expose one. |
+| `UTType.localizedDescription` | Usable | Returns deterministic English descriptions for known identifiers. |
+| Static UTTypes such as `.item`, `.content`, `.data`, `.text`, `.plainText`, `.json`, `.image`, `.png`, `.jpeg`, `.tiff`, `.gif`, `.heic`, `.heif`, `.webP`, `.movie`, `.audio`, `.pdf` | Usable | Current common identifiers exist for app source compatibility and file-selection tests. |
+| System registry lookup, dynamic/exported/imported types, tag classes, synthesized dynamic identifiers, full conformance graph | Incomplete | Required for UTType Parity. |
 
 ## Network
 

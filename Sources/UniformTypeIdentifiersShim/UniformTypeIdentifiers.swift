@@ -13,11 +13,16 @@ public struct UTType: Hashable, Sendable {
         self.identifier = identifier
     }
 
-    public init?(filenameExtension: String) {
-        let filenameExtension = filenameExtension
-            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
-            .lowercased()
-        guard let type = Self.typesByFilenameExtension[filenameExtension] else { return nil }
+    public init?(filenameExtension: String, conformingTo supertype: UTType? = nil) {
+        guard
+            let filenameExtension = Self.normalizedFilenameExtension(filenameExtension),
+            let type = Self.typesByFilenameExtension[filenameExtension]
+        else { return nil }
+
+        if let supertype, !type.conforms(to: supertype) {
+            return nil
+        }
+
         self = type
     }
 
@@ -39,11 +44,27 @@ public struct UTType: Hashable, Sendable {
     public static let png = UTType("public.png")!
     public static let jpeg = UTType("public.jpeg")!
     public static let tiff = UTType("public.tiff")!
+    public static let gif = UTType("com.compuserve.gif")!
+    public static let heic = UTType("public.heic")!
+    public static let heif = UTType("public.heif")!
+    public static let webP = UTType("org.webmproject.webp")!
     public static let movie = UTType("public.movie")!
     public static let mpeg4Movie = UTType("public.mpeg-4")!
     public static let audio = UTType("public.audio")!
     public static let mp3 = UTType("public.mp3")!
     public static let pdf = UTType("com.adobe.pdf")!
+
+    public var preferredFilenameExtension: String? {
+        Self.preferredFilenameExtensionsByIdentifier[identifier]
+    }
+
+    public var preferredMIMEType: String? {
+        Self.preferredMIMETypesByIdentifier[identifier]
+    }
+
+    public var localizedDescription: String? {
+        Self.localizedDescriptionsByIdentifier[identifier]
+    }
 
     public func conforms(to other: UTType) -> Bool {
         if self == other { return true }
@@ -76,6 +97,10 @@ public struct UTType: Hashable, Sendable {
         UTType.png.identifier: [UTType.image.identifier],
         UTType.jpeg.identifier: [UTType.image.identifier],
         UTType.tiff.identifier: [UTType.image.identifier],
+        UTType.gif.identifier: [UTType.image.identifier],
+        UTType.heic.identifier: [UTType.image.identifier],
+        UTType.heif.identifier: [UTType.image.identifier],
+        UTType.webP.identifier: [UTType.image.identifier],
         UTType.movie.identifier: [UTType.data.identifier],
         UTType.mpeg4Movie.identifier: [UTType.movie.identifier],
         UTType.audio.identifier: [UTType.data.identifier],
@@ -89,6 +114,10 @@ public struct UTType: Hashable, Sendable {
         "jpg": .jpeg,
         "tiff": .tiff,
         "tif": .tiff,
+        "gif": .gif,
+        "heic": .heic,
+        "heif": .heif,
+        "webp": .webP,
         "html": .html,
         "htm": .html,
         "txt": .plainText,
@@ -101,5 +130,79 @@ public struct UTType: Hashable, Sendable {
         "mp4": .mpeg4Movie,
         "mp3": .mp3
     ]
+
+    private static let preferredFilenameExtensionsByIdentifier: [String: String] = [
+        UTType.plainText.identifier: "txt",
+        UTType.utf8PlainText.identifier: "txt",
+        UTType.rtf.identifier: "rtf",
+        UTType.html.identifier: "html",
+        UTType.xml.identifier: "xml",
+        UTType.json.identifier: "json",
+        UTType.url.identifier: "url",
+        UTType.png.identifier: "png",
+        UTType.jpeg.identifier: "jpeg",
+        UTType.tiff.identifier: "tiff",
+        UTType.gif.identifier: "gif",
+        UTType.heic.identifier: "heic",
+        UTType.heif.identifier: "heif",
+        UTType.webP.identifier: "webp",
+        UTType.mpeg4Movie.identifier: "mp4",
+        UTType.mp3.identifier: "mp3",
+        UTType.pdf.identifier: "pdf"
+    ]
+
+    private static let preferredMIMETypesByIdentifier: [String: String] = [
+        UTType.plainText.identifier: "text/plain",
+        UTType.utf8PlainText.identifier: "text/plain",
+        UTType.rtf.identifier: "application/rtf",
+        UTType.html.identifier: "text/html",
+        UTType.xml.identifier: "application/xml",
+        UTType.json.identifier: "application/json",
+        UTType.png.identifier: "image/png",
+        UTType.jpeg.identifier: "image/jpeg",
+        UTType.tiff.identifier: "image/tiff",
+        UTType.gif.identifier: "image/gif",
+        UTType.heic.identifier: "image/heic",
+        UTType.heif.identifier: "image/heif",
+        UTType.webP.identifier: "image/webp",
+        UTType.mpeg4Movie.identifier: "video/mp4",
+        UTType.mp3.identifier: "audio/mpeg",
+        UTType.pdf.identifier: "application/pdf"
+    ]
+
+    private static let localizedDescriptionsByIdentifier: [String: String] = [
+        UTType.item.identifier: "item",
+        UTType.content.identifier: "content",
+        UTType.data.identifier: "data",
+        UTType.text.identifier: "text",
+        UTType.plainText.identifier: "plain text",
+        UTType.utf8PlainText.identifier: "UTF-8 plain text",
+        UTType.rtf.identifier: "rich text",
+        UTType.html.identifier: "HTML",
+        UTType.xml.identifier: "XML",
+        UTType.json.identifier: "JSON",
+        UTType.url.identifier: "URL",
+        UTType.fileURL.identifier: "file URL",
+        UTType.directory.identifier: "directory",
+        UTType.folder.identifier: "folder",
+        UTType.image.identifier: "image",
+        UTType.png.identifier: "PNG image",
+        UTType.jpeg.identifier: "JPEG image",
+        UTType.tiff.identifier: "TIFF image",
+        UTType.gif.identifier: "GIF image",
+        UTType.heic.identifier: "HEIC image",
+        UTType.heif.identifier: "HEIF image",
+        UTType.webP.identifier: "WebP image",
+        UTType.movie.identifier: "movie",
+        UTType.mpeg4Movie.identifier: "MPEG-4 movie",
+        UTType.audio.identifier: "audio",
+        UTType.mp3.identifier: "MP3 audio",
+        UTType.pdf.identifier: "PDF"
+    ]
+
+    private static func normalizedFilenameExtension(_ filenameExtension: String) -> String? {
+        let normalized = filenameExtension.lowercased()
+        return normalized.isEmpty ? nil : normalized
+    }
 }
 #endif
