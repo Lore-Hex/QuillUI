@@ -514,6 +514,7 @@ app progress can be audited with the same status ladder.
 
 | Package area | Complete function rows today | Incomplete function rows and parity blockers |
 | --- | --- | --- |
+| `Alamofire` | URL string request creation for GET/POST, URLSession-backed transport, status-code validation, and JSON `Decodable` response callbacks. | Upload/download, interceptors, authentication, retry policies, request/response serializers beyond JSON decoding, trust evaluation parity, cancellation/progress, and fuzz parity against upstream Alamofire. |
 | `OllamaKit` | Base URL setup, model listing, reachability probing, current chat streaming contracts, response decoding, and app-facing Codable models. | Full upstream API breadth, retries, tool-call/event streaming details, transport customization edge cases, and Apple/Linux fuzz parity beyond current Enchanted flows. |
 | `KeychainSwift` | Prefix-scoped in-memory string, data, bool, delete, and clear flows. | Secure OS keychain persistence, access control, synchronization, accessibility classes, and cross-process behavior. |
 | Markdown/code packages | `MarkdownUI` parsing/rendering subset, plain-text extraction, highlighter injection, `Splash` theme/token highlighting subset. | Full CommonMark/GitHub Markdown, exact MarkdownUI styling/layout, complete Swift tokenization, HTML output parity, and typography/rendering fidelity. |
@@ -525,12 +526,12 @@ app progress can be audited with the same status ladder.
 | API or function | Linux status | Notes |
 | --- | --- | --- |
 | `ServerTrustEvaluating.evaluate(_:forHost:)` | Compile-only | Protocol spelling exists for app source compatibility. |
-| `ServerTrustManager.init(evaluators:)` | Compile-only | Stores evaluator shape only. |
-| `HTTPMethod.get` / `.post` | Compile-only | Covers current app request declarations. |
-| `Session.request(_:method:)` | Fallback | Returns a `DataRequest` without performing networking. |
-| `DataRequest.validate(statusCode:)` | Fallback | Returns `self`; no status validation occurs. |
-| `DataRequest.responseDecodable(...)` | Fallback | Calls completion with a deterministic trust-evaluation failure. |
-| Upload/download, interceptors, authentication, retries, serializers, real networking | Incomplete | Required before claiming Alamofire parity. |
+| `ServerTrustManager.init(evaluators:)` | Compile-only | Stores evaluator shape for app source compatibility; Linux trust policy is not evaluated yet. |
+| `HTTPMethod.get` / `.post` | Usable | Maps to `GET` and `POST` request methods. |
+| `Session.request(_:method:)` | Usable | Builds URL requests and runs them through URLSession-backed transport. |
+| `DataRequest.validate(statusCode:)` | Usable | Records acceptable HTTP status ranges and rejects out-of-range responses. |
+| `DataRequest.responseDecodable(...)` | Usable | Delivers JSON `Decodable` success/failure results on the requested dispatch queue. |
+| Upload/download, interceptors, authentication, retries, serializers beyond JSON, progress, cancellation, trust evaluation parity | Incomplete | Required before claiming Alamofire parity. |
 
 ### OllamaKit
 
