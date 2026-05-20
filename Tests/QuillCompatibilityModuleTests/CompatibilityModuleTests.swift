@@ -85,6 +85,10 @@ struct CompatibilityModuleTests {
         #expect(rowSeparator.visibility == .hidden)
         #expect(rowSeparator.edges == .vertical)
 
+        let shapedContent = Text("Hit area").contentShape(Rectangle())
+        #expect(String(describing: type(of: shapedContent)).contains("ContentShapeView"))
+        #expect(String(describing: type(of: shapedContent.shape)).contains("Rectangle"))
+
         let keyboardTyped = Text("URL").keyboardType(.URL)
         #expect(String(describing: type(of: keyboardTyped)).contains("KeyboardTypeView"))
         #expect(keyboardTyped.keyboardType == .URL)

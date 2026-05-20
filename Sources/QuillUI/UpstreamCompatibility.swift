@@ -917,6 +917,18 @@ public struct ListRowSeparatorView<Content: View>: View {
     public var body: some View { content }
 }
 
+public struct ContentShapeView<Content: View, ShapeValue: Shape>: View {
+    public let content: Content
+    public let shape: ShapeValue
+
+    public init(content: Content, shape: ShapeValue) {
+        self.content = content
+        self.shape = shape
+    }
+
+    public var body: some View { content }
+}
+
 public struct TextContentTypeView<Content: View>: View {
     public let content: Content
     public let contentType: TextContentType?
@@ -1026,12 +1038,12 @@ public extension View {
         disabled(!enabled)
     }
 
-    func contentShape<S: Shape>(_ shape: S) -> Self {
+    func contentShape<S: Shape>(_ shape: S) -> ContentShapeView<Self, S> {
         recordQuillUIFallback(
             "contentShape",
-            message: "contentShape is currently a hit-testing compatibility fallback on Linux."
+            message: "contentShape is preserved as hit-testing shape metadata on Linux."
         )
-        return self
+        return ContentShapeView(content: self, shape: shape)
     }
 
     func onHover(perform action: @escaping (Bool) -> Void) -> Self {
@@ -1604,6 +1616,10 @@ extension ListRowInsetsView: QuillWrappedViewRepresentable {
 }
 
 extension ListRowSeparatorView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension ContentShapeView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
