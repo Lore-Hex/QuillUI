@@ -127,6 +127,73 @@ final class SecurityKeychainParityTests: XCTestCase {
             .sorted()
         XCTAssertEqual(accounts, ["profile-key", "session-key"])
     }
+
+    func testGenericPasswordPersistentReferenceRoundTrip() {
+        let service = "signal-persistent-\(UUID().uuidString)"
+        let account = "identity-key"
+        let secret = Data([0x31, 0x32, 0x33, 0x34])
+        let baseQuery = cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account
+        ])
+        defer { _ = SecItemDelete(baseQuery) }
+
+        var addResult: CFTypeRef?
+        XCTAssertEqual(SecItemAdd(cfDictionary([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecValueData: secret,
+            kSecReturnPersistentRef: true
+        ]), &addResult), errSecSuccess)
+
+        guard let persistentRef = data(from: addResult) else {
+            XCTFail("SecItemAdd should return a persistent Data handle")
+            return
+        }
+        XCTAssertFalse(persistentRef.isEmpty)
+
+        var copyResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecValuePersistentRef: persistentRef,
+            kSecReturnData: true
+        ]), &copyResult), errSecSuccess)
+        XCTAssertEqual(data(from: copyResult), secret)
+
+        var mixedValueResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecValuePersistentRef: persistentRef,
+            kSecReturnData: true,
+            kSecReturnPersistentRef: true
+        ]), &mixedValueResult), errSecSuccess)
+        let mixedValues = attributes(from: mixedValueResult)
+        XCTAssertEqual(data(from: mixedValues?[string(kSecValueData)]), secret)
+        XCTAssertEqual(data(from: mixedValues?[string(kSecValuePersistentRef)]), persistentRef)
+
+        var attributeResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecValuePersistentRef: persistentRef,
+            kSecReturnAttributes: true,
+            kSecReturnPersistentRef: true
+        ]), &attributeResult), errSecSuccess)
+        let attributes = attributes(from: attributeResult)
+        XCTAssertEqual(attributes?[string(kSecClass)] as? String, string(kSecClassGenericPassword))
+        XCTAssertEqual(attributes?[string(kSecAttrService)] as? String, service)
+        XCTAssertEqual(attributes?[string(kSecAttrAccount)] as? String, account)
+        XCTAssertEqual(data(from: attributes?[string(kSecValuePersistentRef)]), persistentRef)
+
+        XCTAssertEqual(SecItemDelete(cfDictionary([
+            kSecValuePersistentRef: persistentRef
+        ])), errSecSuccess)
+
+        var deletedResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecValuePersistentRef: persistentRef,
+            kSecReturnData: true
+        ]), &deletedResult), errSecItemNotFound)
+        XCTAssertNil(deletedResult)
+    }
 }
 
 private func cfDictionary(_ dictionary: [CFString: Any]) -> CFDictionary {

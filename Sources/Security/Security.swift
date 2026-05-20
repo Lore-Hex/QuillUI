@@ -51,9 +51,11 @@ public let kSecAttrAccessibleAlwaysThisDeviceOnly: CFString = "dku" as CFString
 
 public let kSecValueData: CFString = "v_Data" as CFString
 public let kSecValueRef: CFString = "v_Ref" as CFString
+public let kSecValuePersistentRef: CFString = "v_PersistentRef" as CFString
 public let kSecReturnData: CFString = "r_Data" as CFString
 public let kSecReturnAttributes: CFString = "r_Attributes" as CFString
 public let kSecReturnRef: CFString = "r_Ref" as CFString
+public let kSecReturnPersistentRef: CFString = "r_PersistentRef" as CFString
 public let kSecMatchLimit: CFString = "m_Limit" as CFString
 public let kSecMatchLimitOne: CFString = "m_LimitOne" as CFString
 public let kSecMatchLimitAll: CFString = "m_LimitAll" as CFString
@@ -142,6 +144,7 @@ private struct SecItemRecord {
     var attributes: [String: Any]
     var valueData: Data?
     var valueRef: AnyObject?
+    var persistentRef: Data
 }
 
 private final class SecItemProcessStore: @unchecked Sendable {
@@ -159,7 +162,8 @@ private final class SecItemProcessStore: @unchecked Sendable {
             identity: identity,
             attributes: storedAttributes(from: attributes),
             valueData: dataValue(attributes[secKey(kSecValueData)]),
-            valueRef: attributes[secKey(kSecValueRef)] as AnyObject?
+            valueRef: attributes[secKey(kSecValueRef)] as AnyObject?,
+            persistentRef: makePersistentRef()
         )
 
         lock.lock()
@@ -265,6 +269,8 @@ private final class SecItemProcessStore: @unchecked Sendable {
                 record.valueData = dataValue(value)
             } else if key == secKey(kSecValueRef) {
                 record.valueRef = value as AnyObject?
+            } else if key == secKey(kSecValuePersistentRef) {
+                continue
             } else {
                 record.attributes[key] = value
             }
@@ -276,12 +282,14 @@ private let controlKeys: Set<String> = [
     secKey(kSecReturnData),
     secKey(kSecReturnAttributes),
     secKey(kSecReturnRef),
+    secKey(kSecReturnPersistentRef),
     secKey(kSecMatchLimit)
 ]
 
 private let valueKeys: Set<String> = [
     secKey(kSecValueData),
-    secKey(kSecValueRef)
+    secKey(kSecValueRef),
+    secKey(kSecValuePersistentRef)
 ]
 
 private func makeIdentity(from attributes: [String: Any]) -> SecItemIdentity? {
@@ -322,6 +330,13 @@ private func matches(record: SecItemRecord, query: [String: Any]) -> Bool {
             continue
         }
 
+        if key == secKey(kSecValuePersistentRef) {
+            guard dataValue(queryValue) == record.persistentRef else {
+                return false
+            }
+            continue
+        }
+
         guard let storedValue = record.attributes[key], normalizedEquals(storedValue, queryValue) else {
             return false
         }
@@ -333,6 +348,7 @@ private func resultObject(for record: SecItemRecord, query: [String: Any]) -> CF
     let wantsAttributes = boolValue(query[secKey(kSecReturnAttributes)])
     let wantsData = boolValue(query[secKey(kSecReturnData)])
     let wantsRef = boolValue(query[secKey(kSecReturnRef)])
+    let wantsPersistentRef = boolValue(query[secKey(kSecReturnPersistentRef)])
 
     if wantsAttributes {
         var attributes = record.attributes
@@ -342,7 +358,25 @@ private func resultObject(for record: SecItemRecord, query: [String: Any]) -> CF
         if wantsRef, let valueRef = record.valueRef {
             attributes[secKey(kSecValueRef)] = valueRef
         }
+        if wantsPersistentRef {
+            attributes[secKey(kSecValuePersistentRef)] = record.persistentRef as NSData
+        }
         return attributes as NSDictionary as CFTypeRef
+    }
+
+    let valueRequestCount = [wantsData, wantsRef, wantsPersistentRef].filter { $0 }.count
+    if valueRequestCount > 1 {
+        var values: [String: Any] = [:]
+        if wantsData, let data = record.valueData {
+            values[secKey(kSecValueData)] = data as NSData
+        }
+        if wantsRef, let valueRef = record.valueRef {
+            values[secKey(kSecValueRef)] = valueRef
+        }
+        if wantsPersistentRef {
+            values[secKey(kSecValuePersistentRef)] = record.persistentRef as NSData
+        }
+        return values as NSDictionary as CFTypeRef
     }
 
     if wantsData {
@@ -362,7 +396,15 @@ private func resultObject(for record: SecItemRecord, query: [String: Any]) -> CF
         return record.attributes as NSDictionary as CFTypeRef
     }
 
+    if wantsPersistentRef {
+        return record.persistentRef as NSData as CFTypeRef
+    }
+
     return nil
+}
+
+private func makePersistentRef() -> Data {
+    Data("quillui-security-persistent-ref:\(UUID().uuidString)".utf8)
 }
 
 private func setResult(_ object: CFTypeRef?, _ result: UnsafeMutablePointer<CFTypeRef?>?) {
