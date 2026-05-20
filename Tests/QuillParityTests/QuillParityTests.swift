@@ -51,17 +51,50 @@ struct QuillParityTests {
         // unchanged since Mac OS X 10.4. Quill's UTType shim must use the
         // exact same strings so any code that compares identifiers works
         // unchanged across platforms.
+        #expect(UTType.item.identifier == "public.item")
+        #expect(UTType.content.identifier == "public.content")
+        #expect(UTType.data.identifier == "public.data")
+        #expect(UTType.text.identifier == "public.text")
+        #expect(UTType.plainText.identifier == "public.plain-text")
+        #expect(UTType.utf8PlainText.identifier == "public.utf8-plain-text")
+        #expect(UTType.rtf.identifier == "public.rtf")
+        #expect(UTType.html.identifier == "public.html")
+        #expect(UTType.xml.identifier == "public.xml")
+        #expect(UTType.json.identifier == "public.json")
+        #expect(UTType.url.identifier == "public.url")
+        #expect(UTType.fileURL.identifier == "public.file-url")
+        #expect(UTType.directory.identifier == "public.directory")
+        #expect(UTType.folder.identifier == "public.folder")
+        #expect(UTType.image.identifier == "public.image")
         #expect(UTType.png.identifier == "public.png")
         #expect(UTType.jpeg.identifier == "public.jpeg")
         #expect(UTType.tiff.identifier == "public.tiff")
-        #expect(UTType.image.identifier == "public.image")
+        #expect(UTType.movie.identifier == "public.movie")
+        #expect(UTType.mpeg4Movie.identifier == "public.mpeg-4")
+        #expect(UTType.audio.identifier == "public.audio")
+        #expect(UTType.mp3.identifier == "public.mp3")
+        #expect(UTType.pdf.identifier == "com.adobe.pdf")
     }
 
-    @Test("UTType.image is a supertype of png/jpeg/tiff on both platforms")
-    func utTypeImageIsImageSupertype() {
+    @Test("UTType conformance graph matches Apple's common supertypes")
+    func utTypeConformanceGraphMatchesAppleCommonSupertypes() {
         #expect(UTType.png.conforms(to: UTType.image))
+        #expect(UTType.png.conforms(to: UTType.data))
+        #expect(UTType.png.conforms(to: UTType.content))
+        #expect(UTType.png.conforms(to: UTType.item))
         #expect(UTType.jpeg.conforms(to: UTType.image))
         #expect(UTType.tiff.conforms(to: UTType.image))
+        #expect(UTType.utf8PlainText.conforms(to: UTType.plainText))
+        #expect(UTType.plainText.conforms(to: UTType.text))
+        #expect(UTType.plainText.conforms(to: UTType.content))
+        #expect(UTType.html.conforms(to: UTType.text))
+        #expect(UTType.xml.conforms(to: UTType.text))
+        #expect(UTType.json.conforms(to: UTType.text))
+        #expect(UTType.fileURL.conforms(to: UTType.url))
+        #expect(UTType.url.conforms(to: UTType.data))
+        #expect(UTType.folder.conforms(to: UTType.directory))
+        #expect(UTType.folder.conforms(to: UTType.item))
+        #expect(UTType.directory.conforms(to: UTType.data) == false)
     }
 
     // MARK: - URL / Foundation parity

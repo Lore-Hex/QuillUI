@@ -1133,16 +1133,33 @@ struct CompatibilityModuleTests {
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.tiff")) == .tiff)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.tif")) == .tiff)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/document.txt")) == .plainText)
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/document.rtf")) == .rtf)
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/feed.xml")) == .xml)
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/clip.mp4")) == .mpeg4Movie)
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/audio.mp3")) == .mp3)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/no-extension")) == nil)
 
         // Identity conformance.
         #expect(UTType.png.conforms(to: .png))
         #expect(UTType.jpeg.conforms(to: .jpeg))
 
-        // png/jpeg/tiff conform to the image supertype but a custom type does not.
+        // Apple UTType conformance is transitive through content/data roots.
         #expect(UTType.png.conforms(to: .image))
+        #expect(UTType.png.conforms(to: .data))
+        #expect(UTType.png.conforms(to: .item))
         #expect(UTType.jpeg.conforms(to: .image))
         #expect(UTType.tiff.conforms(to: .image))
+        #expect(UTType.utf8PlainText.conforms(to: .plainText))
+        #expect(UTType.plainText.conforms(to: .text))
+        #expect(UTType.html.conforms(to: .text))
+        #expect(UTType.json.conforms(to: .data))
+        #expect(UTType.fileURL.conforms(to: .url))
+        #expect(UTType.url.conforms(to: .data))
+        #expect(UTType.folder.conforms(to: .directory))
+        #expect(UTType.folder.conforms(to: .item))
+        #expect(UTType.directory.conforms(to: .data) == false)
+
+        // A custom type does not inherit from image unless explicitly modeled.
         #expect(UTType("public.text")?.conforms(to: .image) == false)
 
         // Unrelated concrete types do not conform to each other.
