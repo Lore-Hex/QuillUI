@@ -239,6 +239,12 @@ struct CompatibilityModuleTests {
         #expect(result.hitTestIgnoresHiddenSubview)
         #expect(result.hitTestRejectsOutsideBounds)
         #expect(result.hitTestReturnsReceiverInsideBounds)
+        #expect(result.convertFromDescendantAccumulatesFrameOrigins)
+        #expect(result.convertToDescendantSubtractsFrameOrigins)
+        #expect(result.convertBetweenSiblingsUsesCommonSuperview)
+        #expect(result.convertRectPreservesSize)
+        #expect(result.convertNilUsesWindowCoordinates)
+        #expect(result.convertScaledBoundsAppliesBoundsTransform)
     }
 
     @Test("AppKit responders maintain chain and first responder lifecycle")

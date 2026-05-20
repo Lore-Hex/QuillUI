@@ -149,6 +149,12 @@ enum AppleCompatibilitySmoke {
         var hitTestIgnoresHiddenSubview: Bool
         var hitTestRejectsOutsideBounds: Bool
         var hitTestReturnsReceiverInsideBounds: Bool
+        var convertFromDescendantAccumulatesFrameOrigins: Bool
+        var convertToDescendantSubtractsFrameOrigins: Bool
+        var convertBetweenSiblingsUsesCommonSuperview: Bool
+        var convertRectPreservesSize: Bool
+        var convertNilUsesWindowCoordinates: Bool
+        var convertScaledBoundsAppliesBoundsTransform: Bool
     }
 
     struct AppKitResponderResult {
@@ -1129,6 +1135,37 @@ enum AppleCompatibilitySmoke {
         let hitTestReturnsReceiverInsideBounds =
             hitTestRoot.hitTest(NSPoint(x: 5, y: 5)) === hitTestRoot
 
+        let convertRoot = NSView(frame: NSRect(x: 5, y: 7, width: 100, height: 100))
+        let convertChild = NSView(frame: NSRect(x: 10, y: 20, width: 50, height: 50))
+        let convertGrandchild = NSView(frame: NSRect(x: 3, y: 4, width: 10, height: 10))
+        let convertSibling = NSView(frame: NSRect(x: 30, y: 5, width: 20, height: 20))
+        convertRoot.addSubview(convertChild)
+        convertChild.addSubview(convertGrandchild)
+        convertRoot.addSubview(convertSibling)
+
+        let convertFromDescendantAccumulatesFrameOrigins =
+            convertRoot.convert(NSPoint(x: 0, y: 0), from: convertGrandchild) == NSPoint(x: 13, y: 24)
+        let convertToDescendantSubtractsFrameOrigins =
+            convertGrandchild.convert(NSPoint(x: 13, y: 24), from: convertRoot) == NSPoint(x: 0, y: 0)
+        let convertBetweenSiblingsUsesCommonSuperview =
+            convertSibling.convert(NSPoint(x: 0, y: 0), from: convertChild) == NSPoint(x: -20, y: 15)
+        let convertRectPreservesSize =
+            convertRoot.convert(NSRect(x: 1, y: 2, width: 7, height: 8), from: convertGrandchild) ==
+            NSRect(x: 14, y: 26, width: 7, height: 8)
+        let convertNilUsesWindowCoordinates =
+            convertChild.convert(NSPoint(x: 15, y: 27), from: nil) == NSPoint(x: 0, y: 0) &&
+            convertChild.convert(NSPoint(x: 0, y: 0), to: nil) == NSPoint(x: 15, y: 27)
+
+        let scaledRoot = NSView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
+        let scaledChild = NSView(frame: NSRect(x: 10, y: 20, width: 50, height: 50))
+        scaledRoot.addSubview(scaledChild)
+        scaledChild.bounds = NSRect(x: 2, y: 3, width: 25, height: 25)
+        let convertScaledBoundsAppliesBoundsTransform =
+            scaledRoot.convert(NSPoint(x: 2, y: 3), from: scaledChild) == NSPoint(x: 10, y: 20) &&
+            scaledChild.convert(NSPoint(x: 10, y: 20), from: scaledRoot) == NSPoint(x: 2, y: 3) &&
+            scaledRoot.convert(NSRect(x: 2, y: 3, width: 5, height: 5), from: scaledChild) ==
+            NSRect(x: 10, y: 20, width: 10, height: 10)
+
         return AppKitViewHierarchyResult(
             addEstablishedLinks: addEstablishedLinks,
             addFiredSuperviewCallbacks: addFiredSuperviewCallbacks,
@@ -1146,7 +1183,13 @@ enum AppleCompatibilitySmoke {
             hitTestReturnsTopmostVisibleSubview: hitTestReturnsTopmostVisibleSubview,
             hitTestIgnoresHiddenSubview: hitTestIgnoresHiddenSubview,
             hitTestRejectsOutsideBounds: hitTestRejectsOutsideBounds,
-            hitTestReturnsReceiverInsideBounds: hitTestReturnsReceiverInsideBounds
+            hitTestReturnsReceiverInsideBounds: hitTestReturnsReceiverInsideBounds,
+            convertFromDescendantAccumulatesFrameOrigins: convertFromDescendantAccumulatesFrameOrigins,
+            convertToDescendantSubtractsFrameOrigins: convertToDescendantSubtractsFrameOrigins,
+            convertBetweenSiblingsUsesCommonSuperview: convertBetweenSiblingsUsesCommonSuperview,
+            convertRectPreservesSize: convertRectPreservesSize,
+            convertNilUsesWindowCoordinates: convertNilUsesWindowCoordinates,
+            convertScaledBoundsAppliesBoundsTransform: convertScaledBoundsAppliesBoundsTransform
         )
     }
 

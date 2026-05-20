@@ -477,18 +477,35 @@ open class NSView: NSResponder {
     public func layoutSubtreeIfNeeded() {}
     public func display() {}
     public func setNeedsDisplay(_ rect: NSRect) {}
-    public func convert(_ p: NSPoint, from: NSView?) -> NSPoint { p }
-    public func convert(_ p: NSPoint, to: NSView?) -> NSPoint { p }
-    public func convert(_ r: NSRect, from: NSView?) -> NSRect { r }
-    public func convert(_ r: NSRect, to: NSView?) -> NSRect { r }
+    public func convert(_ p: NSPoint, from sourceView: NSView?) -> NSPoint {
+        let windowPoint = sourceView?.quillConvertPointToWindowCoordinates(p) ?? p
+        return quillConvertPointFromWindowCoordinates(windowPoint)
+    }
+
+    public func convert(_ p: NSPoint, to targetView: NSView?) -> NSPoint {
+        let windowPoint = quillConvertPointToWindowCoordinates(p)
+        return targetView?.quillConvertPointFromWindowCoordinates(windowPoint) ?? windowPoint
+    }
+
+    public func convert(_ r: NSRect, from sourceView: NSView?) -> NSRect {
+        quillRect(
+            from: convert(r.origin, from: sourceView),
+            to: convert(NSPoint(x: r.origin.x + r.size.width, y: r.origin.y + r.size.height), from: sourceView)
+        )
+    }
+
+    public func convert(_ r: NSRect, to targetView: NSView?) -> NSRect {
+        quillRect(
+            from: convert(r.origin, to: targetView),
+            to: convert(NSPoint(x: r.origin.x + r.size.width, y: r.origin.y + r.size.height), to: targetView)
+        )
+    }
+
     public func hitTest(_ p: NSPoint) -> NSView? {
         guard !isHidden, quillBoundsContains(p) else { return nil }
 
         for child in subviews.reversed() {
-            let childPoint = NSPoint(
-                x: p.x - child.frame.origin.x + child.bounds.origin.x,
-                y: p.y - child.frame.origin.y + child.bounds.origin.y
-            )
+            let childPoint = child.convert(p, from: self)
             if let hitView = child.hitTest(childPoint) {
                 return hitView
             }
@@ -560,6 +577,48 @@ open class NSView: NSResponder {
             point.y < bounds.origin.y + bounds.size.height
     }
 
+    private func quillConvertPointToWindowCoordinates(_ point: NSPoint) -> NSPoint {
+        let pointInSuperview = NSPoint(
+            x: frame.origin.x + Self.quillScaleCoordinate(
+                point.x - bounds.origin.x,
+                from: bounds.size.width,
+                to: frame.size.width
+            ),
+            y: frame.origin.y + Self.quillScaleCoordinate(
+                point.y - bounds.origin.y,
+                from: bounds.size.height,
+                to: frame.size.height
+            )
+        )
+
+        return superview?.quillConvertPointToWindowCoordinates(pointInSuperview) ?? pointInSuperview
+    }
+
+    private func quillConvertPointFromWindowCoordinates(_ point: NSPoint) -> NSPoint {
+        let pointInSuperview = superview?.quillConvertPointFromWindowCoordinates(point) ?? point
+        return NSPoint(
+            x: bounds.origin.x + Self.quillScaleCoordinate(
+                pointInSuperview.x - frame.origin.x,
+                from: frame.size.width,
+                to: bounds.size.width
+            ),
+            y: bounds.origin.y + Self.quillScaleCoordinate(
+                pointInSuperview.y - frame.origin.y,
+                from: frame.size.height,
+                to: bounds.size.height
+            )
+        )
+    }
+
+    private func quillRect(from origin: NSPoint, to corner: NSPoint) -> NSRect {
+        NSRect(
+            x: origin.x,
+            y: origin.y,
+            width: corner.x - origin.x,
+            height: corner.y - origin.y
+        )
+    }
+
     private func quillUpdateBoundsSize(from oldFrameSize: NSSize, to newFrameSize: NSSize) {
         bounds.size.width = Self.quillScaleBoundsLength(
             bounds.size.width,
@@ -580,6 +639,15 @@ open class NSView: NSResponder {
     ) -> CGFloat {
         guard oldFrameLength != 0 else { return newFrameLength }
         return length * newFrameLength / oldFrameLength
+    }
+
+    private static func quillScaleCoordinate(
+        _ value: CGFloat,
+        from sourceLength: CGFloat,
+        to targetLength: CGFloat
+    ) -> CGFloat {
+        guard sourceLength != 0 else { return 0 }
+        return value * targetLength / sourceLength
     }
 
     fileprivate func quillSetWindowRecursively(_ newWindow: NSWindow?) {
