@@ -965,6 +965,18 @@ public struct ContentShapeView<Content: View, ShapeValue: Shape>: View {
     public var body: some View { content }
 }
 
+public struct OnHoverView<Content: View>: View {
+    public let content: Content
+    public let action: (Bool) -> Void
+
+    public init(content: Content, action: @escaping (Bool) -> Void) {
+        self.content = content
+        self.action = action
+    }
+
+    public var body: some View { content }
+}
+
 public struct TextSelectionView<Content: View>: View {
     public let content: Content
     public let selection: TextSelectability
@@ -1094,12 +1106,12 @@ public extension View {
         return ContentShapeView(content: self, shape: shape)
     }
 
-    func onHover(perform action: @escaping (Bool) -> Void) -> Self {
+    func onHover(perform action: @escaping (Bool) -> Void) -> OnHoverView<Self> {
         recordQuillUIFallback(
             "onHover",
-            message: "onHover is currently a source-compatibility fallback on Linux."
+            message: "onHover is preserved as hover handler metadata on Linux."
         )
-        return self
+        return OnHoverView(content: self, action: action)
     }
 
     func offset(_ size: CGSize) -> OffsetView<Self> {
@@ -1680,6 +1692,10 @@ extension ScrollContentBackgroundView: QuillWrappedViewRepresentable {
 }
 
 extension ContentShapeView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension OnHoverView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 

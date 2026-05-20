@@ -55,6 +55,7 @@ struct CompatibilityModuleTests {
             .matchedGeometryEffect(id: "title", in: Namespace().wrappedValue)
             .mask(Rectangle())
             .contentShape(Rectangle())
+            .onHover { _ in }
             .listRowInsets(EdgeInsets(top: 1, leading: 2, bottom: 3, trailing: 4))
             .listRowSeparator(.hidden, edges: .vertical)
             .scrollIndicators(.hidden)
@@ -105,6 +106,13 @@ struct CompatibilityModuleTests {
         #expect(String(describing: type(of: shapedContent)).contains("ContentShapeView"))
         #expect(String(describing: type(of: shapedContent.shape)).contains("Rectangle"))
 
+        var hoverStates: [Bool] = []
+        let hoverable = Text("Hover").onHover { hoverStates.append($0) }
+        #expect(String(describing: type(of: hoverable)).contains("OnHoverView"))
+        hoverable.action(true)
+        hoverable.action(false)
+        #expect(hoverStates == [true, false])
+
         let selectable = Text("Selectable").textSelection(.enabled)
         #expect(String(describing: type(of: selectable)).contains("TextSelectionView"))
         #expect(String(describing: selectable.selection).contains("enabled"))
@@ -132,6 +140,7 @@ struct CompatibilityModuleTests {
             "matchedGeometryEffect",
             "mask",
             "contentShape",
+            "onHover",
             "listRowInsets",
             "listRowSeparator",
             "scrollIndicators",
