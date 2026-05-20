@@ -965,6 +965,18 @@ public struct ContentShapeView<Content: View, ShapeValue: Shape>: View {
     public var body: some View { content }
 }
 
+public struct ViewMaskView<Content: View, MaskContent: View>: View {
+    public let content: Content
+    public let mask: MaskContent
+
+    public init(content: Content, mask: MaskContent) {
+        self.content = content
+        self.mask = mask
+    }
+
+    public var body: some View { content }
+}
+
 public struct OnHoverView<Content: View>: View {
     public let content: Content
     public let action: (Bool) -> Void
@@ -1356,12 +1368,12 @@ public extension View {
         return self
     }
 
-    func mask<Mask: View>(_ mask: Mask) -> Self {
+    func mask<Mask: View>(_ mask: Mask) -> ViewMaskView<Self, Mask> {
         recordQuillUIFallback(
             "mask",
-            message: "mask is currently a source-compatibility fallback on Linux."
+            message: "View masks are preserved as mask metadata on Linux."
         )
-        return self
+        return ViewMaskView(content: self, mask: mask)
     }
 
     func mask<S: Shape>(_ shape: S) -> ClipShapeView<Self, S> {
@@ -1728,6 +1740,10 @@ extension ScrollContentBackgroundView: QuillWrappedViewRepresentable {
 }
 
 extension ContentShapeView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension ViewMaskView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 

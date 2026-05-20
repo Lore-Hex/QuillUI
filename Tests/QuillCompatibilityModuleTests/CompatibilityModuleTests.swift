@@ -54,6 +54,7 @@ struct CompatibilityModuleTests {
             .symbolEffect(.variableColor, value: true)
             .matchedGeometryEffect(id: "title", in: Namespace().wrappedValue)
             .mask(Rectangle())
+            .mask(Text("Mask"))
             .contentShape(Rectangle())
             .onHover { _ in }
             .focusEffectDisabled(false)
@@ -108,6 +109,11 @@ struct CompatibilityModuleTests {
         let shapedContent = Text("Hit area").contentShape(Rectangle())
         #expect(String(describing: type(of: shapedContent)).contains("ContentShapeView"))
         #expect(String(describing: type(of: shapedContent.shape)).contains("Rectangle"))
+
+        let maskedContent = Text("Masked").mask(Text("Mask"))
+        #expect(String(describing: type(of: maskedContent)).contains("ViewMaskView"))
+        #expect(quillTextLabel(from: maskedContent) == "Masked")
+        #expect(quillTextLabel(from: maskedContent.mask) == "Mask")
 
         var hoverStates: [Bool] = []
         let hoverable = Text("Hover").onHover { hoverStates.append($0) }
