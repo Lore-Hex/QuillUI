@@ -53,7 +53,7 @@ public struct NWPath: Sendable {
     public var isConstrained: Bool = false
 }
 
-public struct NWInterface: Hashable, Sendable {
+public struct NWInterface: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
     public enum InterfaceType: Hashable, Sendable, CustomStringConvertible {
         case wifi, cellular, wiredEthernet, loopback, other
 
@@ -73,7 +73,20 @@ public struct NWInterface: Hashable, Sendable {
         }
     }
     public var type: InterfaceType
-    public init(type: InterfaceType) { self.type = type }
+    public var name: String
+
+    public init(type: InterfaceType) {
+        self.type = type
+        self.name = type.description
+    }
+
+    fileprivate init(name: String, type: InterfaceType = .other) {
+        self.type = type
+        self.name = name
+    }
+
+    public var description: String { name }
+    public var debugDescription: String { description }
 }
 
 // MARK: - IPAddress / NWEndpoint shims for WireGuardKit
@@ -120,7 +133,20 @@ private func parseIPv4Component(_ component: Substring) -> UInt64? {
     return UInt64(String(digits), radix: radix)
 }
 
-private func parseIPv4AddressLiteral(_ string: String) -> Data? {
+private func parseIPv4AddressLiteral(_ string: String) -> (Data, NWInterface?)? {
+    if let scoped = splitInterfaceScope(string) {
+        guard !scoped.prefix.contains("%"),
+              let rawValue = parseUnscopedIPv4AddressLiteral(scoped.prefix)
+        else {
+            return nil
+        }
+        return (rawValue, scoped.interface)
+    }
+    guard let rawValue = parseUnscopedIPv4AddressLiteral(string) else { return nil }
+    return (rawValue, nil)
+}
+
+private func parseUnscopedIPv4AddressLiteral(_ string: String) -> Data? {
     let components = string.split(separator: ".", omittingEmptySubsequences: false)
     guard (1...4).contains(components.count) else { return nil }
     let values = components.compactMap(parseIPv4Component)
@@ -151,7 +177,46 @@ private func parseIPv4AddressLiteral(_ string: String) -> Data? {
     ])
 }
 
-private func parseIPv6AddressLiteral(_ string: String) -> Data? {
+private func parseIPv6AddressLiteral(_ string: String) -> (Data, NWInterface?)? {
+    if let scoped = splitInterfaceScope(string) {
+        guard let rawValue = parseIPv6AddressBase(scoped.prefix) else { return nil }
+        return (rawValue, scoped.interface)
+    }
+
+    if let rawValue = parseUnscopedIPv6AddressLiteral(string) {
+        return (rawValue, nil)
+    }
+
+    if let percent = string.lastIndex(of: "%") {
+        let prefix = String(string[..<percent])
+        guard !prefix.contains("%"),
+              let rawValue = parseUnscopedIPv6AddressLiteral(prefix)
+        else {
+            return nil
+        }
+        return (rawValue, nil)
+    }
+
+    return nil
+}
+
+private func parseIPv6AddressBase(_ string: String) -> Data? {
+    if let rawValue = parseUnscopedIPv6AddressLiteral(string) {
+        return rawValue
+    }
+
+    guard let percent = string.lastIndex(of: "%") else { return nil }
+    let prefix = String(string[..<percent])
+    let suffix = string[string.index(after: percent)...]
+    if suffix.isEmpty {
+        guard !prefix.contains("%") else { return nil }
+        return parseUnscopedIPv6AddressLiteral(prefix)
+    }
+
+    return parseUnscopedIPv6AddressLiteral(prefix)
+}
+
+private func parseUnscopedIPv6AddressLiteral(_ string: String) -> Data? {
     let byteCount = 16
     var bytes = [UInt8](repeating: 0, count: byteCount)
     let result = string.withCString { cString in
@@ -161,6 +226,48 @@ private func parseIPv6AddressLiteral(_ string: String) -> Data? {
     }
     guard result == 1 else { return nil }
     return Data(bytes)
+}
+
+private func splitInterfaceScope(_ string: String) -> (prefix: String, interface: NWInterface)? {
+    guard let percent = string.lastIndex(of: "%") else { return nil }
+    let scope = String(string[string.index(after: percent)...])
+    guard let interface = resolveInterfaceScope(scope) else { return nil }
+    return (String(string[..<percent]), interface)
+}
+
+private func resolveInterfaceScope(_ scope: String) -> NWInterface? {
+    guard !scope.isEmpty else { return nil }
+
+    if scope.allSatisfy(\.isNumber) {
+        guard let index = UInt32(scope), index > 0 else { return nil }
+        guard let name = interfaceName(forIndex: index) else { return nil }
+        return NWInterface(name: name, type: interfaceType(forInterfaceName: name))
+    }
+
+    let index = scope.withCString { if_nametoindex($0) }
+    guard index != 0 else { return nil }
+    return NWInterface(name: scope, type: interfaceType(forInterfaceName: scope))
+}
+
+private func interfaceName(forIndex index: UInt32) -> String? {
+    var buffer = [CChar](repeating: 0, count: 64)
+    let result = buffer.withUnsafeMutableBufferPointer { nameBuffer in
+        if_indextoname(index, nameBuffer.baseAddress)
+    }
+    guard result != nil else { return nil }
+    let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+    return String(decoding: bytes, as: UTF8.self)
+}
+
+private func interfaceType(forInterfaceName name: String) -> NWInterface.InterfaceType {
+    let lowercasedName = name.lowercased()
+    if lowercasedName == "lo" || lowercasedName.hasPrefix("lo") {
+        return .loopback
+    }
+    if lowercasedName.hasPrefix("en") || lowercasedName.hasPrefix("eth") {
+        return .wiredEthernet
+    }
+    return .other
 }
 
 private func formatIPAddressLiteral(_ data: Data, family: Int32) -> String {
@@ -176,6 +283,11 @@ private func formatIPAddressLiteral(_ data: Data, family: Int32) -> String {
     }
 }
 
+private func appendInterfaceScope(_ value: String, _ interface: NWInterface?) -> String {
+    guard let interface else { return value }
+    return "\(value)%\(interface.name)"
+}
+
 public struct IPv4Address: IPAddress, Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
     public static let any = IPv4Address(Data([0, 0, 0, 0]))!
     public static let broadcast = IPv4Address(Data([255, 255, 255, 255]))!
@@ -189,9 +301,9 @@ public struct IPv4Address: IPAddress, Hashable, Sendable, CustomStringConvertibl
     public let interface: NWInterface?
 
     public init?(_ string: String) {
-        guard let rawValue = parseIPv4AddressLiteral(string) else { return nil }
+        guard let (rawValue, interface) = parseIPv4AddressLiteral(string) else { return nil }
         self.rawValue = rawValue
-        self.interface = nil
+        self.interface = interface
     }
     /// Apple's matches this signature as `init?(_ rawValue: Data)`, so
     /// upstream code does `IPv4Address(bytes)!`.
@@ -214,7 +326,7 @@ public struct IPv4Address: IPAddress, Hashable, Sendable, CustomStringConvertibl
     }
 
     public var description: String {
-        formatIPAddressLiteral(rawValue, family: AF_INET)
+        appendInterfaceScope(formatIPAddressLiteral(rawValue, family: AF_INET), interface)
     }
 
     public var debugDescription: String {
@@ -242,9 +354,9 @@ public struct IPv6Address: IPAddress, Hashable, Sendable, CustomStringConvertibl
     public let interface: NWInterface?
 
     public init?(_ string: String) {
-        guard let rawValue = parseIPv6AddressLiteral(string) else { return nil }
+        guard let (rawValue, interface) = parseIPv6AddressLiteral(string) else { return nil }
         self.rawValue = rawValue
-        self.interface = nil
+        self.interface = interface
     }
     public init?(_ data: Data, _ interface: NWInterface? = nil) {
         guard data.count == 16 else { return nil }
@@ -270,7 +382,7 @@ public struct IPv6Address: IPAddress, Hashable, Sendable, CustomStringConvertibl
 
     public var asIPv4: IPv4Address? {
         guard isIPv4Compatabile || isIPv4Mapped else { return nil }
-        return IPv4Address(Data(rawValue.suffix(4)))
+        return IPv4Address(Data(rawValue.suffix(4)), interface)
     }
 
     public var is6to4: Bool {
@@ -295,7 +407,7 @@ public struct IPv6Address: IPAddress, Hashable, Sendable, CustomStringConvertibl
     }
 
     public var description: String {
-        formatIPAddressLiteral(rawValue, family: AF_INET6)
+        appendInterfaceScope(formatIPAddressLiteral(rawValue, family: AF_INET6), interface)
     }
 
     public var debugDescription: String {
@@ -320,6 +432,8 @@ public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible, CustomDebug
                 } else {
                     self = .ipv6(v6)
                 }
+            } else if let scoped = splitInterfaceScope(string) {
+                self = .name(scoped.prefix, scoped.interface)
             } else {
                 self = .name(string, nil)
             }
@@ -327,8 +441,8 @@ public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible, CustomDebug
 
         public var description: String {
             switch self {
-            case .name(let name, _):
-                return name
+            case .name(let name, let interface):
+                return appendInterfaceScope(name, interface)
             case .ipv4(let address):
                 return address.description
             case .ipv6(let address):
