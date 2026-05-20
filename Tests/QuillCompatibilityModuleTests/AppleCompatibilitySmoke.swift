@@ -145,6 +145,12 @@ enum AppleCompatibilitySmoke {
         var windowCallbacksReachedSubview: Bool
         var frameInitializerEstablishedBounds: Bool
         var frameResizeScaledBounds: Bool
+        var offWindowDisplayInvalidationIgnored: Bool
+        var windowAttachmentMarksDisplayDirty: Bool
+        var displayIfNeededCallsViewWillDrawAndClearsNeedsDisplay: Bool
+        var setNeedsDisplayMarksAncestorDirty: Bool
+        var displayIfNeededClearsDirtyDescendants: Bool
+        var forcedDisplayCallsViewWillDrawWhenClean: Bool
         var newViewsStartNeedingLayout: Bool
         var layoutSubtreeClearsNeedsLayout: Bool
         var layoutSubtreeVisitsDirtyDescendants: Bool
@@ -1131,6 +1137,53 @@ enum AppleCompatibilitySmoke {
             bottomSubview.bounds == NSRect(x: 0, y: 0, width: 100, height: 80)
         bottomSubview.frame = NSRect(x: 10, y: 10, width: 50, height: 50)
 
+        let offWindowDisplayView = DisplayProbe(frame: NSRect(x: 0, y: 0, width: 20, height: 20))
+        offWindowDisplayView.setNeedsDisplay(NSRect(x: 1, y: 1, width: 2, height: 2))
+        offWindowDisplayView.needsDisplay = true
+        offWindowDisplayView.displayIfNeeded()
+        let offWindowDisplayInvalidationIgnored =
+            !offWindowDisplayView.needsDisplay &&
+            offWindowDisplayView.willDrawCount == 0
+
+        let displayWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 120, height: 80),
+            styleMask: [],
+            backing: .buffered,
+            defer: false
+        )
+        let displayParent = DisplayProbe(frame: NSRect(x: 0, y: 0, width: 80, height: 60))
+        let displayChild = DisplayProbe(frame: NSRect(x: 10, y: 10, width: 20, height: 20))
+        displayParent.addSubview(displayChild)
+        displayWindow.contentView = displayParent
+        let windowAttachmentMarksDisplayDirty =
+            displayParent.needsDisplay &&
+            displayChild.needsDisplay
+
+        displayParent.displayIfNeeded()
+        let displayIfNeededCallsViewWillDrawAndClearsNeedsDisplay =
+            displayParent.willDrawCount == 1 &&
+            displayChild.willDrawCount == 0 &&
+            !displayParent.needsDisplay &&
+            !displayChild.needsDisplay
+
+        displayChild.setNeedsDisplay(NSRect(x: 1, y: 1, width: 2, height: 2))
+        let setNeedsDisplayMarksAncestorDirty =
+            displayParent.needsDisplay &&
+            displayChild.needsDisplay
+
+        displayParent.displayIfNeeded()
+        let displayIfNeededClearsDirtyDescendants =
+            displayParent.willDrawCount == 2 &&
+            displayChild.willDrawCount == 0 &&
+            !displayParent.needsDisplay &&
+            !displayChild.needsDisplay
+
+        displayParent.display()
+        let forcedDisplayCallsViewWillDrawWhenClean =
+            displayParent.willDrawCount == 3 &&
+            !displayParent.needsDisplay &&
+            !displayChild.needsDisplay
+
         let layoutRecorder = LayoutRecorder()
         let layoutRoot = LayoutProbe()
         layoutRoot.layoutName = "root"
@@ -1239,6 +1292,12 @@ enum AppleCompatibilitySmoke {
             windowCallbacksReachedSubview: windowCallbacksReachedSubview,
             frameInitializerEstablishedBounds: frameInitializerEstablishedBounds,
             frameResizeScaledBounds: frameResizeScaledBounds,
+            offWindowDisplayInvalidationIgnored: offWindowDisplayInvalidationIgnored,
+            windowAttachmentMarksDisplayDirty: windowAttachmentMarksDisplayDirty,
+            displayIfNeededCallsViewWillDrawAndClearsNeedsDisplay: displayIfNeededCallsViewWillDrawAndClearsNeedsDisplay,
+            setNeedsDisplayMarksAncestorDirty: setNeedsDisplayMarksAncestorDirty,
+            displayIfNeededClearsDirtyDescendants: displayIfNeededClearsDirtyDescendants,
+            forcedDisplayCallsViewWillDrawWhenClean: forcedDisplayCallsViewWillDrawWhenClean,
             newViewsStartNeedingLayout: newViewsStartNeedingLayout,
             layoutSubtreeClearsNeedsLayout: layoutSubtreeClearsNeedsLayout,
             layoutSubtreeVisitsDirtyDescendants: layoutSubtreeVisitsDirtyDescendants,
@@ -2286,6 +2345,14 @@ private final class LayoutProbe: NSView {
     override func layout() {
         layoutCount += 1
         recorder?.events.append(layoutName)
+    }
+}
+
+private final class DisplayProbe: NSView {
+    var willDrawCount = 0
+
+    override func viewWillDraw() {
+        willDrawCount += 1
     }
 }
 

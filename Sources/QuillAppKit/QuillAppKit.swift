@@ -418,7 +418,14 @@ open class NSView: NSResponder {
     public var layer: Any?
     public var translatesAutoresizingMaskIntoConstraints: Bool = true
     public var needsLayout: Bool = true
-    public var needsDisplay: Bool = false
+    private var quillNeedsDisplay: Bool = false
+    public var needsDisplay: Bool {
+        get { window == nil ? false : quillNeedsDisplay }
+        set {
+            guard newValue else { return }
+            quillMarkNeedsDisplay()
+        }
+    }
     public var clipsToBounds: Bool = false
     public var autoresizingMask: AutoresizingMask = []
     public var identifier: NSUserInterfaceItemIdentifier?
@@ -478,6 +485,7 @@ open class NSView: NSResponder {
         parent.subviews.removeAll { $0 === self }
         superview = nil
         quillMoveWindowRecursively(nil)
+        parent.quillMarkNeedsDisplay()
         viewDidMoveToSuperview()
     }
     public func setFrameSize(_ s: NSSize) { frame.size = s }
@@ -492,8 +500,26 @@ open class NSView: NSResponder {
             subview.layoutSubtreeIfNeeded()
         }
     }
-    public func display() {}
-    public func setNeedsDisplay(_ rect: NSRect) {}
+    open func display() {
+        quillDisplayIfWindowBacked()
+    }
+
+    open func display(_ rect: NSRect) {
+        quillDisplayIfWindowBacked()
+    }
+
+    open func displayIfNeeded() {
+        quillDisplayIfWindowBacked()
+    }
+
+    open func displayIfNeededIgnoringOpacity() {
+        quillDisplayIfWindowBacked()
+    }
+
+    public func setNeedsDisplay(_ rect: NSRect) {
+        guard rect.size.width > 0, rect.size.height > 0 else { return }
+        quillMarkNeedsDisplay()
+    }
     public func convert(_ p: NSPoint, from sourceView: NSView?) -> NSPoint {
         let windowPoint = sourceView?.quillConvertPointToWindowCoordinates(p) ?? p
         return quillConvertPointFromWindowCoordinates(windowPoint)
@@ -544,6 +570,7 @@ open class NSView: NSResponder {
 
     open func layout() {}
     open func draw(_ rect: NSRect) {}
+    open func viewWillDraw() {}
     open func viewWillMove(toWindow: NSWindow?) {}
     open func viewDidMoveToWindow() {}
     open func viewWillMove(toSuperview: NSView?) {}
@@ -584,8 +611,33 @@ open class NSView: NSResponder {
         subviews.insert(child, at: index)
         child.superview = self
         child.quillMoveWindowRecursively(newWindow)
+        quillMarkNeedsDisplay()
 
         child.viewDidMoveToSuperview()
+    }
+
+    private func quillMarkNeedsDisplay() {
+        guard window != nil else {
+            quillNeedsDisplay = false
+            return
+        }
+
+        quillNeedsDisplay = true
+        superview?.quillMarkNeedsDisplay()
+    }
+
+    private func quillClearNeedsDisplaySubtree() {
+        quillNeedsDisplay = false
+        for child in subviews {
+            child.quillClearNeedsDisplaySubtree()
+        }
+    }
+
+    private func quillDisplayIfWindowBacked() {
+        guard window != nil else { return }
+
+        viewWillDraw()
+        quillClearNeedsDisplaySubtree()
     }
 
     private func quillBoundsContains(_ point: NSPoint) -> Bool {
@@ -670,6 +722,7 @@ open class NSView: NSResponder {
 
     fileprivate func quillSetWindowRecursively(_ newWindow: NSWindow?) {
         window = newWindow
+        quillNeedsDisplay = newWindow != nil
         for child in subviews {
             child.quillSetWindowRecursively(newWindow)
         }
