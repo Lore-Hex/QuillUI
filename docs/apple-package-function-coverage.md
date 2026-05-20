@@ -1,9 +1,10 @@
-# Apple Package Function Coverage
+# Apple and Package Function Coverage
 
-This ledger tracks the Apple-framework compatibility packages exposed by
-QuillUI on Linux. It is source-inspected from the current repository, not yet a
-generated ABI diff against Apple SDKs. APIs not listed here should be treated as
-incomplete on Linux until a source-contract test or implementation row is added.
+This ledger tracks the Apple-framework compatibility packages and app-facing
+package clones exposed by QuillUI on Linux. It is source-inspected from the
+current repository, not yet a generated ABI diff against Apple SDKs or upstream
+third-party packages. APIs not listed here should be treated as incomplete on
+Linux until a source-contract test or implementation row is added.
 
 Function rows group equivalent overloads or property-only accessors when they
 share the same behavior. "Complete" means complete for QuillUI's current tested
@@ -502,6 +503,201 @@ scope. They do not implement standalone Apple framework behavior yet.
 | `MobileCoreServices` | Compile-only | Re-exports `QuillFoundation`; legacy UTI constants beyond shared fallbacks are incomplete. |
 | `LocalAuthentication` | Compile-only | Re-exports `QuillShims`; biometric/passcode auth is incomplete. |
 | `CoreSpotlight` | Compile-only | Re-exports `QuillShims`; indexing/search APIs are incomplete. |
+
+## Third-Party and App-Support Package Clones
+
+These packages are not Apple frameworks, but current app ports import them as if
+their upstream packages were present. They are listed function by function so
+app progress can be audited with the same status ladder.
+
+### Package Clone Summary
+
+| Package area | Complete function rows today | Incomplete function rows and parity blockers |
+| --- | --- | --- |
+| `OllamaKit` | Base URL setup, model listing, reachability probing, current chat streaming contracts, response decoding, and app-facing Codable models. | Full upstream API breadth, retries, tool-call/event streaming details, transport customization edge cases, and Apple/Linux fuzz parity beyond current Enchanted flows. |
+| `KeychainSwift` | Prefix-scoped in-memory string, data, bool, delete, and clear flows. | Secure OS keychain persistence, access control, synchronization, accessibility classes, and cross-process behavior. |
+| Markdown/code packages | `MarkdownUI` parsing/rendering subset, plain-text extraction, highlighter injection, `Splash` theme/token highlighting subset. | Full CommonMark/GitHub Markdown, exact MarkdownUI styling/layout, complete Swift tokenization, HTML output parity, and typography/rendering fidelity. |
+| UI helper packages | `ActivityIndicatorView`, `WrappingHStack`, `Vortex`, `KeyboardShortcuts`, `Magnet`, and `Sparkle` expose app-facing shapes. | Animations, true wrapping layout, particle effects, native shortcut recording/global hotkeys, updater behavior, and platform services. |
+| App support shims | `Tidemark`, `Secrets`, `QuillRS`, `SwiftUIIntrospect`, `SwiftUIDesignSystem`, `Zip`, and `RSDatabase` compile current app source. | CommonMark conversion, secret storage, browser integration, tree/path parity, introspection callbacks, real zip/database APIs, and broader upstream semantics. |
+
+### Alamofire
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `ServerTrustEvaluating.evaluate(_:forHost:)` | Compile-only | Protocol spelling exists for app source compatibility. |
+| `ServerTrustManager.init(evaluators:)` | Compile-only | Stores evaluator shape only. |
+| `HTTPMethod.get` / `.post` | Compile-only | Covers current app request declarations. |
+| `Session.request(_:method:)` | Fallback | Returns a `DataRequest` without performing networking. |
+| `DataRequest.validate(statusCode:)` | Fallback | Returns `self`; no status validation occurs. |
+| `DataRequest.responseDecodable(...)` | Fallback | Calls completion with a deterministic trust-evaluation failure. |
+| Upload/download, interceptors, authentication, retries, serializers, real networking | Incomplete | Required before claiming Alamofire parity. |
+
+### OllamaKit
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `OllamaKit.init(baseURL:bearerToken:transport:)` | Usable | Builds configured clients for Enchanted model/chat flows. |
+| `URLSessionOllamaKitTransport.data(for:)` | Usable | Uses `URLSession` for real HTTP transport. |
+| `models()` | Usable | Requests `/api/tags`, validates HTTP status, and decodes `OKModelsResponse`. |
+| `reachable()` | Usable | Probes `models()` and returns a boolean. |
+| `chat(data:) -> AnyPublisher<OKChatResponse, Error>` | Usable for current app contract | Runs the chat request and publishes decoded responses; full Combine demand/backpressure parity remains outside this row. |
+| `chat(data:) -> AsyncThrowingStream<OKChatResponse, Error>` | Usable | Streams decoded chat responses through an async sequence. |
+| `decodeChatResponses(from:)` | Usable | Decodes either newline-delimited JSON responses or a single JSON response. |
+| `OKModelsResponse`, `OKModelResponse`, `OKModelDetails` | Usable | Codable model-list payloads used by Enchanted. |
+| `OKCompletionOptions`, `OKChatRequestData`, `OKChatResponse` | Usable | Codable request/response shapes for current chat flows, including text and optional image payloads. |
+| Embeddings, generation-only APIs, tool calls, detailed streaming events, retry policy, cancellation fuzz parity | Incomplete | Required for upstream OllamaKit parity. |
+
+### KeychainSwift
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `KeychainSwift.init()` / `init(keyPrefix:)` | Usable | Creates a process-local in-memory store with optional key prefixing. |
+| `set(_:forKey:)` for `String`, `Data`, and `Bool` | Usable | Stores values in memory and returns success. |
+| `get(_:)`, `getData(_:)`, `getBool(_:)` | Usable | Round trips values written through the current shim. |
+| `delete(_:)` | Usable | Removes one prefix-scoped key and returns success. |
+| `clear()` | Usable | Removes all values for the prefix. |
+| Keychain access groups, secure persistence, access-control flags, synchronization, cross-process lookup | Incomplete | Required before claiming KeychainSwift parity. |
+
+### MarkdownUI
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `Markdown.init(_:)` | Partial | Stores source and renders the local parsed block tree. |
+| `Markdown.body` | Partial | Renders paragraphs, headings, lists, quotes, code blocks, tables, and image placeholders through SwiftUI views. |
+| `Markdown.plainText(from:)` | Usable | Deterministically extracts plain text from the parsed subset. |
+| `CodeSyntaxHighlighter.highlightCode(_:language:)` | Usable | Protocol and plain-text highlighter support current code-block rendering. |
+| `markdownCodeSyntaxHighlighter(_:)` | Usable | Stores the highlighter for `Markdown` rendering; view-level overload is a pass-through. |
+| `markdownTheme(_:)`, `Theme` builder methods | Fallback | Builder closures compile and receive sample configurations, but styling is not applied with MarkdownUI fidelity. |
+| `MarkdownLength`, `markdownMargin`, `relativeLineSpacing`, `relativePadding`, `relativeFrame` | Partial | Converts relative lengths into current SwiftUI padding/spacing/frame metadata where possible. |
+| Full CommonMark/GitHub Markdown, inline/link/image behavior, table layout, styling cascade, accessibility, upstream renderer parity | Incomplete | Required before claiming MarkdownUI parity. |
+
+### Splash
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `SplashColor`, `Color.init(_:)`, `Font` | Usable | App-facing color/font value shapes compile and round trip. |
+| `TokenType` | Usable | Exposes the token categories used by current highlighting tests. |
+| `Theme.sunset(withFont:)` / `wwdc17(withFont:)` | Usable | Builds deterministic theme payloads. |
+| `OutputBuilder` / `OutputFormat` | Usable | Generic builder protocol surface supports current custom output formats. |
+| `SyntaxHighlighter.highlight(_:)` | Usable | Tokenizes deterministically on whitespace and classifies comments, strings, numbers, keywords, uppercase types, and plain text. |
+| Full Swift lexer, grammar-aware highlighting, HTML/attributed output parity, upstream theme fidelity | Incomplete | Required before claiming Splash parity. |
+
+### ActivityIndicatorView
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `ActivityIndicatorView.init(isVisible:type:)` | Usable | Stores visibility binding and style. |
+| `ActivityIndicatorView.IndicatorType.rotatingDots(count:)` / `.growingCircle` | Usable | Covers the styles current app source imports. |
+| `ActivityIndicatorView.body` | Partial | Renders static dots or a circle when visible. |
+| Animation timing, drawing fidelity, all upstream indicator styles | Incomplete | Required for ActivityIndicatorView parity. |
+
+### WrappingHStack
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `WrappingHStack.init(...)` | Usable | Captures alignment, spacing, and content for current source compatibility. |
+| `WrappingHStack.body` | Partial | Renders a plain `HStack`; it does not measure and wrap children. |
+| Dynamic wrapping, line spacing, measurement, accessibility order, upstream layout parity | Incomplete | Required for WrappingHStack parity. |
+
+### Vortex
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `VortexSystem.splash` | Compile-only | Provides the named system used by app source. |
+| `VortexSystem.makeUniqueCopy()` | Fallback | Returns `self`; no unique particle state is allocated. |
+| `VortexView.init(_:content:)` | Usable | Captures the requested system and content. |
+| `VortexView.body` | Partial | Renders content in a `ZStack` without particle effects. |
+| Particle simulation, emitters, timing, animation, rendering fidelity | Incomplete | Required for Vortex parity. |
+
+### KeyboardShortcuts
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `KeyboardShortcuts.Shortcut`, `Key`, `Name` | Usable | Codable/hashable shortcut identity and default values work for current app settings. |
+| `getShortcut(for:)` / `setShortcut(_:for:)` | Usable | Stores shortcuts in `UserDefaults` with locking. |
+| `reset(_:)` / `resetAll()` | Usable | Restores defaults or clears stored shortcut values. |
+| `KeyboardShortcuts.Recorder.body` | Partial | Renders a text label for current settings screens. |
+| `View.onKeyboardShortcut(...)` | Compile-only | Returns `self`; actions are not registered. |
+| Native recorder UI, global shortcut registration, event delivery, conflict handling | Incomplete | Required for KeyboardShortcuts parity. |
+
+### Magnet
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `Key.space`, `Key.escape`, `.character(_:)` | Compile-only | Covers current hot-key declarations. |
+| `_Modifiers` / `KeyCombo.init?` | Compile-only | Stores key/modifier payloads. |
+| `HotKey.init(...)` | Partial | Stores identifier, combo, and handler. |
+| `HotKey.register()` / `unregister()` | Compile-only | No-op; no native hot key is installed. |
+| `HotKey.trigger()` | Usable | Test helper invokes the stored handler. |
+| Global Carbon/AppKit hot-key registration, event routing, conflict detection | Incomplete | Required for Magnet parity. |
+
+### Sparkle
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `SPUUpdater.canCheckForUpdates` | Fallback | Always false. |
+| `SPUUpdater.checkForUpdates()` | Compile-only | No-op. |
+| `SPUStandardUpdaterController.updater` | Compile-only | Exposes an updater object for source compatibility. |
+| Appcast fetching, signature checks, update UI, installer/relaunch behavior | Incomplete | Required for Sparkle parity. |
+
+### Tidemark
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `markdownToHTML(_:)` | Fallback | Escapes `&`, `<`, and `>`, trims whitespace, returns empty output for empty input, and wraps non-empty text in one paragraph. |
+| CommonMark parsing, links/images/lists/tables/code, HTML fidelity | Incomplete | Required for Tidemark parity. |
+
+### Secrets
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `SecretKey` constants | Compile-only | Constants exist but currently return empty strings. |
+| `CredentialsType` | Usable | Defines the credential categories current app source imports. |
+| `Credentials.init(type:username:secret:)` | Usable | Stores credential payloads. |
+| `CredentialsManager.storeCredentials(...)` / `removeCredentials(...)` | Fallback | No-op. |
+| `CredentialsManager.retrieveCredentials(...)` | Fallback | Always returns nil. |
+| Secure secret loading, keychain persistence, OAuth/session storage | Incomplete | Required for Secrets parity. |
+
+### QuillRS
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `TreeController.init(delegate:)` / `rebuild()` | Partial | Builds a root node and refreshes delegate-provided root children. |
+| `Node.init(...)`, `existingOrNewChildNode`, `childNodeRepresentingObject`, `createChildNode` | Usable | Provides in-memory tree nodes for NetNewsWire-style source compatibility. |
+| `NodePath.init(...)` | Compile-only | Initializers currently return nil. |
+| `postUnreadCountDidChangeNotification()` | Compile-only | No-op. |
+| `Browser.open(_:inBackground:)` | Compile-only | No-op. |
+| `NSString.rs_SQLValueList(withPlaceholders:)` | Usable | Returns deterministic SQL placeholder lists or nil for zero. |
+| `NSObject.preferredLink`, `attributionString`, `linkString` | Fallback | Return nil or empty strings. |
+| `IconImage.init(image:isDark:)` / `NonIntrinsicImageView` | Compile-only | App-facing image wrapper and image-view subclass shapes exist. |
+| Browser integration, notification routing, full tree/path behavior, pasteboard ownership | Incomplete | Required for QuillRS parity. |
+
+### SwiftUIIntrospect and SwiftUIDesignSystem
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `View.introspect(_:on:perform:)` | Fallback | Returns `self`; the action is not called. |
+| `View.designSystem()` | Fallback | Returns `self`; no design-system environment is applied. |
+| Native view lookup, platform-specific introspection callbacks, design-system styling | Incomplete | Required for parity with those packages. |
+
+### QuillSwiftUICompatibility and UIKitLinux
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| SwiftOpenUI re-export | Usable | Provides the Linux SwiftUI-shaped base module. |
+| `Font.Weight = FontWeight` | Usable | Alias preserves source compatibility. |
+| `VerticalAlignment.firstTextBaseline` / `.lastTextBaseline` | Fallback | Map to `.top` and `.bottom`. |
+| `CGFloat = Double` | Usable | Keeps UIKit-shaped geometry source compiling. |
+| `UIScreen.main.bounds` | Fallback | Returns a fixed 1000x800 rectangle. |
+| `UIResponder`, `UIView`, `UIViewController.view`, `UISplitViewController.DisplayMode` | Compile-only | Type shapes exist for current Linux source compatibility. |
+| Real SwiftUI baseline metrics, UIKit device/screen state, responders, view hierarchy, controllers | Incomplete | Required for parity. |
+
+### Re-Export-Only App Package Shims
+
+| Package | Linux status | Notes |
+| --- | --- | --- |
+| `Zip` | Compile-only | Re-exports `QuillRS`; zip archive behavior is not implemented here. |
+| `RSDatabase` | Compile-only | Re-exports `QuillShims`; database package behavior is not implemented here. |
 
 ## App Progress Summary
 

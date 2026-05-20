@@ -56,12 +56,12 @@ README is the high-level checklist.
 
 ### Function-Level Compatibility Ledger
 
-The function-by-function Apple package status lives in
-`docs/apple-package-function-coverage.md`. In that ledger, `Usable` and
+The function-by-function Apple package and app-facing package clone status lives
+in `docs/apple-package-function-coverage.md`. In that ledger, `Usable` and
 `Parity` rows are complete for today's tested Linux contract. `Partial`,
 `Fallback`, `Compile-only`, and `Incomplete` rows are intentionally listed as
-incomplete until the missing Apple behavior is implemented and covered by
-source-contract, golden, or seeded fuzz tests.
+incomplete until the missing Apple or upstream package behavior is implemented
+and covered by source-contract, golden, or seeded fuzz tests.
 
 | Apple package area | Complete today | Incomplete today |
 | --- | --- | --- |
