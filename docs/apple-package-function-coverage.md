@@ -104,7 +104,7 @@ platform fallbacks.
 | `NSRectFromString(_:)` | Partial | Re-exported from Foundation through `QuillFoundation`; common AppKit rect strings and `NSStringFromRect` round-trips are covered, while full Apple parser edge-case/fuzz parity is still pending. |
 | `NSBitmapImageRep.init?(data:)` / `representation(using:properties:)` | Partial | Basic data wrapping, not full image codec parity. |
 | `NSFontManager.availableFonts()` / `availableFontFamilies()` | Compile-only | Returns empty lists. |
-| `NSAppearance.init(named:)` / `bestMatch(from:)` | Compile-only | Stores name; matching is incomplete. |
+| `NSAppearance.init(named:)` / `bestMatch(from:)` | Partial | Named appearances retain their names, high-contrast constants use deterministic Apple-shaped raw values, and common light/dark/vibrant best-match fallbacks are smoke-tested. Full system appearance resolution remains incomplete. |
 | `NSResponder` mouse/key/touch handlers | Fallback | Forwarding/no-op behavior only. |
 | `NSResponder.becomeFirstResponder()` / `resignFirstResponder()` | Fallback | Returns true without native focus system. |
 | `NSView.init(frame:)` | Usable | Stores frame and bounds. |

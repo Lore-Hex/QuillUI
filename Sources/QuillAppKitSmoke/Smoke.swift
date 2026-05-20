@@ -98,6 +98,14 @@ func smokeGeometryStringHelpers() -> Bool {
         parsed.size.height == rect.size.height
 }
 
+func smokeAppearanceMatching() -> Bool {
+    let dark = NSAppearance(named: .darkAqua)
+    let highContrastDark = NSAppearance(named: .accessibilityHighContrastDarkAqua)
+    return dark?.name == .darkAqua &&
+        dark?.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua &&
+        highContrastDark?.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+}
+
 // MARK: - Status item (Maccy menu bar)
 
 @MainActor
@@ -137,7 +145,7 @@ public enum QuillAppKitSmoke {
         app.delegate = delegate
         _ = app.setActivationPolicy(.regular)
         // Don't actually run() — this is a compile-only smoke check.
-        return smokeGeometryStringHelpers()
+        return smokeGeometryStringHelpers() && smokeAppearanceMatching()
     }
 }
 

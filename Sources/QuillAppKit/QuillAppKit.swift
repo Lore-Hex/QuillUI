@@ -350,8 +350,6 @@ open class NSFontManager: NSObject, @unchecked Sendable {
 }
 
 open class NSAppearance: NSObject, @unchecked Sendable {
-    public override init() {}
-    public init?(named: NSAppearance.Name) {}
     public struct Name: RawRepresentable, Hashable, Sendable {
         public var rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -359,13 +357,88 @@ open class NSAppearance: NSObject, @unchecked Sendable {
         public static let darkAqua = Name(rawValue: "NSAppearanceNameDarkAqua")
         public static let vibrantLight = Name(rawValue: "NSAppearanceNameVibrantLight")
         public static let vibrantDark = Name(rawValue: "NSAppearanceNameVibrantDark")
-        public static let accessibilityHighContrastAqua = Name(rawValue: "")
-        public static let accessibilityHighContrastDarkAqua = Name(rawValue: "")
-        public static let accessibilityHighContrastVibrantLight = Name(rawValue: "")
-        public static let accessibilityHighContrastVibrantDark = Name(rawValue: "")
+        public static let accessibilityHighContrastAqua = Name(rawValue: "NSAppearanceNameAccessibilityHighContrastAqua")
+        public static let accessibilityHighContrastDarkAqua = Name(rawValue: "NSAppearanceNameAccessibilityHighContrastDarkAqua")
+        public static let accessibilityHighContrastVibrantLight = Name(rawValue: "NSAppearanceNameAccessibilityHighContrastVibrantLight")
+        public static let accessibilityHighContrastVibrantDark = Name(rawValue: "NSAppearanceNameAccessibilityHighContrastVibrantDark")
     }
+
     public var name: Name = .aqua
-    public func bestMatch(from: [Name]) -> Name? { nil }
+
+    public override init() {
+        super.init()
+    }
+
+    public init?(named name: NSAppearance.Name) {
+        self.name = name
+        super.init()
+    }
+
+    public func bestMatch(from appearances: [Name]) -> Name? {
+        guard !appearances.isEmpty else { return nil }
+
+        let available = Set(appearances)
+        if available.contains(name) {
+            return name
+        }
+
+        for fallback in Self.bestMatchPreferences[name] ?? [] where available.contains(fallback) {
+            return fallback
+        }
+
+        return nil
+    }
+
+    private static let bestMatchPreferences: [Name: [Name]] = [
+        .aqua: [
+            .aqua, .accessibilityHighContrastAqua,
+            .vibrantLight, .accessibilityHighContrastVibrantLight,
+            .darkAqua, .accessibilityHighContrastDarkAqua,
+            .vibrantDark, .accessibilityHighContrastVibrantDark
+        ],
+        .darkAqua: [
+            .darkAqua, .accessibilityHighContrastDarkAqua,
+            .vibrantDark, .accessibilityHighContrastVibrantDark,
+            .aqua, .accessibilityHighContrastAqua,
+            .vibrantLight, .accessibilityHighContrastVibrantLight
+        ],
+        .vibrantLight: [
+            .vibrantLight, .accessibilityHighContrastVibrantLight,
+            .aqua, .accessibilityHighContrastAqua,
+            .vibrantDark, .accessibilityHighContrastVibrantDark,
+            .darkAqua, .accessibilityHighContrastDarkAqua
+        ],
+        .vibrantDark: [
+            .vibrantDark, .accessibilityHighContrastVibrantDark,
+            .darkAqua, .accessibilityHighContrastDarkAqua,
+            .vibrantLight, .accessibilityHighContrastVibrantLight,
+            .aqua, .accessibilityHighContrastAqua
+        ],
+        .accessibilityHighContrastAqua: [
+            .accessibilityHighContrastAqua, .aqua,
+            .accessibilityHighContrastVibrantLight, .vibrantLight,
+            .accessibilityHighContrastDarkAqua, .darkAqua,
+            .accessibilityHighContrastVibrantDark, .vibrantDark
+        ],
+        .accessibilityHighContrastDarkAqua: [
+            .accessibilityHighContrastDarkAqua, .darkAqua,
+            .accessibilityHighContrastVibrantDark, .vibrantDark,
+            .accessibilityHighContrastAqua, .aqua,
+            .accessibilityHighContrastVibrantLight, .vibrantLight
+        ],
+        .accessibilityHighContrastVibrantLight: [
+            .accessibilityHighContrastVibrantLight, .vibrantLight,
+            .accessibilityHighContrastAqua, .aqua,
+            .accessibilityHighContrastVibrantDark, .vibrantDark,
+            .accessibilityHighContrastDarkAqua, .darkAqua
+        ],
+        .accessibilityHighContrastVibrantDark: [
+            .accessibilityHighContrastVibrantDark, .vibrantDark,
+            .accessibilityHighContrastDarkAqua, .darkAqua,
+            .accessibilityHighContrastVibrantLight, .vibrantLight,
+            .accessibilityHighContrastAqua, .aqua
+        ]
+    ]
 }
 
 // MARK: - NSResponder / NSView / NSViewController / NSWindow

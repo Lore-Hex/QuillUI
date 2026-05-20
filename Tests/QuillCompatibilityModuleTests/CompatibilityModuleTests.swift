@@ -289,6 +289,18 @@ struct CompatibilityModuleTests {
         #expect(result.invalidStringReturnsZero)
     }
 
+    @Test("AppKit appearance smoke covers names and best matches")
+    func appKitAppearanceSmokeCoversNamesAndBestMatches() {
+        let result = AppleCompatibilitySmoke.runAppKitAppearanceSmoke()
+
+        #expect(result.namedInitializerStoresName)
+        #expect(result.highContrastNamesAreDistinct)
+        #expect(result.directBestMatch)
+        #expect(result.highContrastDarkFallsBackToDark)
+        #expect(result.vibrantLightFallsBackToAqua)
+        #expect(result.unknownAppearanceDoesNotInventMatch)
+    }
+
     @Test("AppKit menu popups update delegates and track presentation")
     @MainActor
     func appKitMenuPopupsUpdateDelegatesAndTrackPresentation() {

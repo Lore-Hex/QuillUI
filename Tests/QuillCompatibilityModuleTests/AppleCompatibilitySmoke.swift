@@ -64,6 +64,15 @@ enum AppleCompatibilitySmoke {
         var invalidStringReturnsZero: Bool
     }
 
+    struct AppKitAppearanceResult {
+        var namedInitializerStoresName: Bool
+        var highContrastNamesAreDistinct: Bool
+        var directBestMatch: Bool
+        var highContrastDarkFallsBackToDark: Bool
+        var vibrantLightFallsBackToAqua: Bool
+        var unknownAppearanceDoesNotInventMatch: Bool
+    }
+
     struct AppKitMenuResult {
         var popupSucceeded: Bool
         var trackingBegan: Bool
@@ -540,6 +549,30 @@ enum AppleCompatibilitySmoke {
             flatFormatParsed: flatFormatParsed,
             exponentFormatParsed: exponentFormatParsed,
             invalidStringReturnsZero: invalidStringReturnsZero
+        )
+    }
+
+    static func runAppKitAppearanceSmoke() -> AppKitAppearanceResult {
+        let dark = NSAppearance(named: .darkAqua)
+        let highContrastDark = NSAppearance(named: .accessibilityHighContrastDarkAqua)
+        let vibrantLight = NSAppearance(named: .vibrantLight)
+        let unknown = NSAppearance(named: NSAppearance.Name(rawValue: "QuillCustomAppearance"))
+
+        let highContrastNames = [
+            NSAppearance.Name.accessibilityHighContrastAqua.rawValue,
+            NSAppearance.Name.accessibilityHighContrastDarkAqua.rawValue,
+            NSAppearance.Name.accessibilityHighContrastVibrantLight.rawValue,
+            NSAppearance.Name.accessibilityHighContrastVibrantDark.rawValue
+        ]
+
+        return AppKitAppearanceResult(
+            namedInitializerStoresName: dark?.name == .darkAqua,
+            highContrastNamesAreDistinct: Set(highContrastNames).count == highContrastNames.count &&
+                !highContrastNames.contains(""),
+            directBestMatch: dark?.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua,
+            highContrastDarkFallsBackToDark: highContrastDark?.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua,
+            vibrantLightFallsBackToAqua: vibrantLight?.bestMatch(from: [.aqua, .darkAqua]) == .aqua,
+            unknownAppearanceDoesNotInventMatch: unknown?.bestMatch(from: [.aqua, .darkAqua]) == nil
         )
     }
 
