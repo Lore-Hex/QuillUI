@@ -8,22 +8,15 @@ import Darwin
 
 final class NetworkPathInterfaceParityTests: XCTestCase {
     func testPathMonitorInitialCurrentPathMatchesApple() {
-        let monitors: [(String, NWPathMonitor)] = [
-            ("default", NWPathMonitor()),
-            ("wifi", NWPathMonitor(requiredInterfaceType: .wifi)),
-            ("cellular", NWPathMonitor(requiredInterfaceType: .cellular)),
-            ("wiredEthernet", NWPathMonitor(requiredInterfaceType: .wiredEthernet)),
-            ("loopback", NWPathMonitor(requiredInterfaceType: .loopback)),
-            ("other", NWPathMonitor(requiredInterfaceType: .other)),
-        ]
+        for (context, monitor) in Self.makePathMonitors() {
+            assertInitialPath(monitor.currentPath, context)
+        }
+    }
 
-        for (context, monitor) in monitors {
-            let path = monitor.currentPath
-            XCTAssertEqual(path.status, .unsatisfied, context)
-            XCTAssertEqual(path.unsatisfiedReason, .notAvailable, context)
-            XCTAssertTrue(path.availableInterfaces.isEmpty, context)
-            XCTAssertFalse(path.isExpensive, context)
-            XCTAssertFalse(path.isConstrained, context)
+    func testPathMonitorPreStartCancelKeepsInitialCurrentPathMatchingApple() {
+        for (context, monitor) in Self.makePathMonitors() {
+            monitor.cancel()
+            assertInitialPath(monitor.currentPath, context)
         }
     }
 
@@ -176,5 +169,29 @@ final class NetworkPathInterfaceParityTests: XCTestCase {
         guard result != nil else { return nil }
         let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
         return String(decoding: bytes, as: UTF8.self)
+    }
+
+    private static func makePathMonitors() -> [(String, NWPathMonitor)] {
+        [
+            ("default", NWPathMonitor()),
+            ("wifi", NWPathMonitor(requiredInterfaceType: .wifi)),
+            ("cellular", NWPathMonitor(requiredInterfaceType: .cellular)),
+            ("wiredEthernet", NWPathMonitor(requiredInterfaceType: .wiredEthernet)),
+            ("loopback", NWPathMonitor(requiredInterfaceType: .loopback)),
+            ("other", NWPathMonitor(requiredInterfaceType: .other)),
+        ]
+    }
+
+    private func assertInitialPath(
+        _ path: NWPath,
+        _ context: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(path.status, .unsatisfied, context, file: file, line: line)
+        XCTAssertEqual(path.unsatisfiedReason, .notAvailable, context, file: file, line: line)
+        XCTAssertTrue(path.availableInterfaces.isEmpty, context, file: file, line: line)
+        XCTAssertFalse(path.isExpensive, context, file: file, line: line)
+        XCTAssertFalse(path.isConstrained, context, file: file, line: line)
     }
 }
