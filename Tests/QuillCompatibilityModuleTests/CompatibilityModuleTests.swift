@@ -233,6 +233,12 @@ struct CompatibilityModuleTests {
         #expect(result.windowContentViewPropagated)
         #expect(result.windowContentViewCleared)
         #expect(result.windowCallbacksReachedSubview)
+        #expect(result.frameInitializerEstablishedBounds)
+        #expect(result.frameResizeScaledBounds)
+        #expect(result.hitTestReturnsTopmostVisibleSubview)
+        #expect(result.hitTestIgnoresHiddenSubview)
+        #expect(result.hitTestRejectsOutsideBounds)
+        #expect(result.hitTestReturnsReceiverInsideBounds)
     }
 
     @Test("AppKit responders maintain chain and first responder lifecycle")

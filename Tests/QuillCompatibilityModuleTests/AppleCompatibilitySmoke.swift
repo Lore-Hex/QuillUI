@@ -143,6 +143,12 @@ enum AppleCompatibilitySmoke {
         var windowContentViewPropagated: Bool
         var windowContentViewCleared: Bool
         var windowCallbacksReachedSubview: Bool
+        var frameInitializerEstablishedBounds: Bool
+        var frameResizeScaledBounds: Bool
+        var hitTestReturnsTopmostVisibleSubview: Bool
+        var hitTestIgnoresHiddenSubview: Bool
+        var hitTestRejectsOutsideBounds: Bool
+        var hitTestReturnsReceiverInsideBounds: Bool
     }
 
     struct AppKitResponderResult {
@@ -1098,6 +1104,31 @@ enum AppleCompatibilitySmoke {
             contentView.window == nil &&
             nestedView.window == nil
 
+        let hitTestRoot = NSView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
+        let bottomSubview = NSView(frame: NSRect(x: 10, y: 10, width: 50, height: 50))
+        let topSubview = NSView(frame: NSRect(x: 20, y: 20, width: 50, height: 50))
+        hitTestRoot.addSubview(bottomSubview)
+        hitTestRoot.addSubview(topSubview)
+
+        let frameInitializerEstablishedBounds =
+            hitTestRoot.bounds == NSRect(x: 0, y: 0, width: 100, height: 100) &&
+            bottomSubview.bounds == NSRect(x: 0, y: 0, width: 50, height: 50)
+
+        bottomSubview.setFrameSize(NSSize(width: 100, height: 80))
+        let frameResizeScaledBounds =
+            bottomSubview.bounds == NSRect(x: 0, y: 0, width: 100, height: 80)
+        bottomSubview.frame = NSRect(x: 10, y: 10, width: 50, height: 50)
+
+        let hitTestReturnsTopmostVisibleSubview =
+            hitTestRoot.hitTest(NSPoint(x: 25, y: 25)) === topSubview
+        topSubview.isHidden = true
+        let hitTestIgnoresHiddenSubview =
+            hitTestRoot.hitTest(NSPoint(x: 25, y: 25)) === bottomSubview
+        let hitTestRejectsOutsideBounds =
+            hitTestRoot.hitTest(NSPoint(x: 150, y: 150)) == nil
+        let hitTestReturnsReceiverInsideBounds =
+            hitTestRoot.hitTest(NSPoint(x: 5, y: 5)) === hitTestRoot
+
         return AppKitViewHierarchyResult(
             addEstablishedLinks: addEstablishedLinks,
             addFiredSuperviewCallbacks: addFiredSuperviewCallbacks,
@@ -1109,7 +1140,13 @@ enum AppleCompatibilitySmoke {
             scrollDocumentViewClearingRemovedDocument: scrollDocumentViewClearingRemovedDocument,
             windowContentViewPropagated: windowContentViewPropagated,
             windowContentViewCleared: windowContentViewCleared,
-            windowCallbacksReachedSubview: windowCallbacksReachedSubview
+            windowCallbacksReachedSubview: windowCallbacksReachedSubview,
+            frameInitializerEstablishedBounds: frameInitializerEstablishedBounds,
+            frameResizeScaledBounds: frameResizeScaledBounds,
+            hitTestReturnsTopmostVisibleSubview: hitTestReturnsTopmostVisibleSubview,
+            hitTestIgnoresHiddenSubview: hitTestIgnoresHiddenSubview,
+            hitTestRejectsOutsideBounds: hitTestRejectsOutsideBounds,
+            hitTestReturnsReceiverInsideBounds: hitTestReturnsReceiverInsideBounds
         )
     }
 

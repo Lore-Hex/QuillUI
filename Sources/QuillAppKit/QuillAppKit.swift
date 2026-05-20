@@ -395,7 +395,11 @@ open class NSResponder: NSObject {
 }
 
 open class NSView: NSResponder {
-    public var frame: NSRect = .zero
+    public var frame: NSRect = .zero {
+        didSet {
+            quillUpdateBoundsSize(from: oldValue.size, to: frame.size)
+        }
+    }
     public var bounds: NSRect = .zero
     public var subviews: [NSView] = []
     public weak var superview: NSView?
@@ -429,7 +433,11 @@ open class NSView: NSResponder {
     }
 
     public override init() { super.init() }
-    public init(frame: NSRect) { super.init(); self.frame = frame }
+    public init(frame: NSRect) {
+        super.init()
+        self.frame = frame
+        bounds = NSRect(origin: .zero, size: frame.size)
+    }
 
     public func addSubview(_ v: NSView) {
         insertSubview(v, at: subviews.count)
@@ -473,7 +481,21 @@ open class NSView: NSResponder {
     public func convert(_ p: NSPoint, to: NSView?) -> NSPoint { p }
     public func convert(_ r: NSRect, from: NSView?) -> NSRect { r }
     public func convert(_ r: NSRect, to: NSView?) -> NSRect { r }
-    public func hitTest(_ p: NSPoint) -> NSView? { nil }
+    public func hitTest(_ p: NSPoint) -> NSView? {
+        guard !isHidden, quillBoundsContains(p) else { return nil }
+
+        for child in subviews.reversed() {
+            let childPoint = NSPoint(
+                x: p.x - child.frame.origin.x + child.bounds.origin.x,
+                y: p.y - child.frame.origin.y + child.bounds.origin.y
+            )
+            if let hitView = child.hitTest(childPoint) {
+                return hitView
+            }
+        }
+
+        return self
+    }
 
     public var topAnchor = NSLayoutYAxisAnchor()
     public var bottomAnchor = NSLayoutYAxisAnchor()
@@ -529,6 +551,35 @@ open class NSView: NSResponder {
         child.quillMoveWindowRecursively(newWindow)
 
         child.viewDidMoveToSuperview()
+    }
+
+    private func quillBoundsContains(_ point: NSPoint) -> Bool {
+        point.x >= bounds.origin.x &&
+            point.y >= bounds.origin.y &&
+            point.x < bounds.origin.x + bounds.size.width &&
+            point.y < bounds.origin.y + bounds.size.height
+    }
+
+    private func quillUpdateBoundsSize(from oldFrameSize: NSSize, to newFrameSize: NSSize) {
+        bounds.size.width = Self.quillScaleBoundsLength(
+            bounds.size.width,
+            from: oldFrameSize.width,
+            to: newFrameSize.width
+        )
+        bounds.size.height = Self.quillScaleBoundsLength(
+            bounds.size.height,
+            from: oldFrameSize.height,
+            to: newFrameSize.height
+        )
+    }
+
+    private static func quillScaleBoundsLength(
+        _ length: CGFloat,
+        from oldFrameLength: CGFloat,
+        to newFrameLength: CGFloat
+    ) -> CGFloat {
+        guard oldFrameLength != 0 else { return newFrameLength }
+        return length * newFrameLength / oldFrameLength
     }
 
     fileprivate func quillSetWindowRecursively(_ newWindow: NSWindow?) {
