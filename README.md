@@ -6,7 +6,10 @@ usable on Apple platforms.
 
 **Function-by-function Apple package coverage:** start with the [Apple package function coverage ledger](docs/apple-package-function-coverage.md)
 for the per-function complete/incomplete status of each cloned Apple package
-and app-facing package clone.
+and app-facing package clone. Network has the first concentrated parity pocket:
+the [Network function rows](docs/apple-package-function-coverage.md#network)
+separate address/endpoint value APIs that are parity-tested from the still
+incomplete transport, DNS, TLS, connection, listener, VPN, and monitoring work.
 
 The Linux runtime and build graph are selected separately. `QUILLUI_BACKEND`
 requests `gtk` or `qt` at launch for backend smoke/profile parity. App products
@@ -49,8 +52,9 @@ kits, third-party package clones, and app progress. Rows marked `Parity` are
 the only rows treated as full Apple/Linux contract matches.
 
 - [Network function coverage](docs/apple-package-function-coverage.md#network): current
-  Network rows that have reached Apple/Linux parity, plus the remaining
-  incomplete transport and monitoring work.
+  Network rows that have reached Apple/Linux parity. The address rows are backed
+  by Apple-observed IPv4/IPv6 parser, data initializer, classifier-boundary,
+  multicast-scope, IPv4 mapping, string, and debug-output tests.
 - [API coverage matrix](docs/api-coverage-matrix.md): backend and app-facing API evidence.
 - [App targets](docs/app-targets.md): target-by-target app progress.
 
@@ -147,7 +151,7 @@ been cloned far enough for current QuillUI app targets.
 | `UniformTypeIdentifiers` | Partial with usable app rows | File-extension lookup, conforming extension filters, common image aliases, preferred extension/MIME metadata, conformance checks, and app-facing item-provider flows are covered by compatibility tests. | It is not Apple's complete type database or LaunchServices-backed identifier system. |
 | `QuillFoundation`, `QuillRS`, `CoreGraphics`, `Security` | Partial | Foundation-like selection helpers, image/color/font/screen aliases, localized string fallback, CoreGraphics image/render helpers, accessibility and security-shaped APIs compile and have focused tests. | Many APIs are placeholders or app-contract shims rather than complete framework implementations. |
 | `QuillWebKit` / `WebKit` | Compile shim | `WKWebView`-shaped configuration, load, evaluate, and delegate APIs are available for source compatibility. | No full embedded web engine, JavaScript runtime, navigation stack, process model, or rendering parity exists yet. |
-| `Network` and `NetworkExtension` | Partial overall; selected `Network` functions at Parity | Imports and app-facing types compile for ports such as WireGuard. `IPv4Address` and `IPv6Address` parsing, constants, classifier properties, multicast scope, IPv4 mapping, scoped interface literals, debug text, plus `NWPath.Status`, `NWPath.UnsatisfiedReason`, `NWInterface.InterfaceType`, `NWEndpoint.Port` parsing/known constants/debug text with seeded fuzz coverage, and the `NWEndpoint.Host.init(_:)` classification/description contract for current scoped and unscoped edge cases now match Apple-observed behavior. `NWEndpoint.service` description/debug text now covers Apple-observed DNS-SD service-name escaping, `_tcp`/`_udp` type formatting, empty-name/domain cases, invalid-type concatenation, and leading/internal domain dot behavior. | Real VPN control, tunnel lifecycle, system extension behavior, DNS/TLS/TCP/UDP behavior, connections, listeners, and network monitoring are not implemented. |
+| `Network` and `NetworkExtension` | Partial overall; selected `Network` functions at Parity | Imports and app-facing types compile for ports such as WireGuard. `IPv4Address` and `IPv6Address` parsing, constants, data initializer lengths, classifier boundary behavior, multicast scope, IPv4 mapping, scoped interface literals, string/debug text, and absence of Linux-only public address classifiers are now covered by Apple-observed parity tests. `NWPath.Status`, `NWPath.UnsatisfiedReason`, `NWInterface.InterfaceType`, `NWEndpoint.Port` parsing/known constants/debug text with seeded fuzz coverage, and the `NWEndpoint.Host.init(_:)` classification/description contract for current scoped and unscoped edge cases now match Apple-observed behavior. `NWEndpoint.service` description/debug text now covers Apple-observed DNS-SD service-name escaping, `_tcp`/`_udp` type formatting, empty-name/domain cases, invalid-type concatenation, and leading/internal domain dot behavior. | Real VPN control, tunnel lifecycle, system extension behavior, DNS/TLS/TCP/UDP behavior, connections, listeners, path monitoring, and live interface/path probing are not implemented. |
 | `AVFoundation`, `Speech`, `PhotosUI`, `MessageUI`, `SafariServices`, `MobileCoreServices` | Compile shim / fallback | Service-shaped modules compile and record diagnostic fallback behavior where applicable. | They do not provide real media capture/playback, speech recognition, photo picker, mail compose, browser, or mobile type services. |
 | `Combine` | Partial | Publishers, subjects, merge, timers, notifications, cancellation, completion, and `AnyCancellable` contracts are tested. | The full Combine operator surface, scheduler semantics, and backpressure behavior are incomplete. |
 | `os` | Partial | `Logger` and privacy diagnostic rendering are tested. | It is not Apple's unified logging system. |
