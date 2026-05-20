@@ -89,6 +89,30 @@ final class NetworkEndpointPortParityTests: XCTestCase {
         }
     }
 
+    func testPortValueEqualityAndHashingMatchApple() throws {
+        let literalHTTPS: NWEndpoint.Port = 443
+        let parsedHTTPS = try XCTUnwrap(NWEndpoint.Port("443"))
+        let rawHTTPS = try XCTUnwrap(NWEndpoint.Port(rawValue: 443))
+        let parsedHTTP = try XCTUnwrap(NWEndpoint.Port("+00080"))
+        let parsedAny = try XCTUnwrap(NWEndpoint.Port("-000"))
+
+        let equalPairs: [(NWEndpoint.Port, NWEndpoint.Port, String)] = [
+            (literalHTTPS, .https, "literal https and known constant"),
+            (parsedHTTPS, .https, "parsed https and known constant"),
+            (rawHTTPS, .https, "raw https and known constant"),
+            (parsedHTTP, .http, "signed padded http and known constant"),
+            (parsedAny, .any, "negative zero parser and any constant"),
+        ]
+
+        for (lhs, rhs, context) in equalPairs {
+            XCTAssertEqual(lhs, rhs, context)
+            XCTAssertEqual(lhs.hashValue, rhs.hashValue, context)
+        }
+
+        XCTAssertNotEqual(NWEndpoint.Port.http, NWEndpoint.Port.https)
+        XCTAssertNotEqual(try XCTUnwrap(NWEndpoint.Port(rawValue: 0)), try XCTUnwrap(NWEndpoint.Port(rawValue: 1)))
+    }
+
     private func assertPort(
         _ port: NWEndpoint.Port?,
         rawValue: UInt16,
