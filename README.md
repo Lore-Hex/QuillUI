@@ -52,9 +52,11 @@ kits, third-party package clones, and app progress. Rows marked `Parity` are
 the only rows treated as full Apple/Linux contract matches.
 
 - [Network function coverage](docs/apple-package-function-coverage.md#network): current
-  Network rows that have reached Apple/Linux parity. The address rows are backed
-  by Apple-observed IPv4/IPv6 parser, data initializer, classifier-boundary,
-  multicast-scope, IPv4 mapping, string, and debug-output tests.
+  Network rows that have reached Apple/Linux parity. The path/interface enum
+  rows are pinned by `NetworkPathInterfaceParityTests`; the address rows are
+  backed by Apple-observed IPv4/IPv6 parser, data initializer,
+  classifier-boundary, multicast-scope, IPv4 mapping, string, and debug-output
+  tests.
 - [API coverage matrix](docs/api-coverage-matrix.md): backend and app-facing API evidence.
 - [App targets](docs/app-targets.md): target-by-target app progress.
 
