@@ -195,6 +195,10 @@ enum AppleCompatibilitySmoke {
     struct AppKitSplitViewResult {
         var arrangedSubviewLinks: Bool
         var arrangedSubviewRemovalUpdatedOrder: Bool
+        var defaultDividerMatchesAppKit: Bool
+        var adjustSubviewsLaysOutTwoPanes: Bool
+        var setPositionMovesAdjacentPanes: Bool
+        var setPositionNotifiesDelegate: Bool
         var controllerAddedItemsInOrder: Bool
         var controllerRemoveClearedLinks: Bool
         var factoryBehaviorsRoundTrip: Bool
@@ -1564,6 +1568,33 @@ enum AppleCompatibilitySmoke {
             splitView.arrangedSubviews.first === first &&
             !splitView.arrangedSubviews.contains { $0 === second }
 
+        let layoutSplitView = NSSplitView(frame: NSRect(x: 0, y: 0, width: 300, height: 120))
+        layoutSplitView.isVertical = true
+        let leadingPane = NSView()
+        let trailingPane = NSView()
+        layoutSplitView.addArrangedSubview(leadingPane)
+        layoutSplitView.addArrangedSubview(trailingPane)
+
+        let defaultDividerMatchesAppKit =
+            layoutSplitView.dividerStyle == .thick &&
+            layoutSplitView.dividerThickness == 9
+
+        layoutSplitView.adjustSubviews()
+        let adjustSubviewsLaysOutTwoPanes =
+            leadingPane.frame == NSRect(x: 0, y: 0, width: 146, height: 120) &&
+            trailingPane.frame == NSRect(x: 155, y: 0, width: 145, height: 120)
+
+        let delegate = SplitViewDelegateProbe()
+        layoutSplitView.delegate = delegate
+        layoutSplitView.setPosition(80, ofDividerAt: 0)
+        let setPositionMovesAdjacentPanes =
+            leadingPane.frame == NSRect(x: 0, y: 0, width: 80, height: 120) &&
+            trailingPane.frame == NSRect(x: 89, y: 0, width: 211, height: 120)
+        let setPositionNotifiesDelegate =
+            delegate.resizeNotifications == 1 &&
+            delegate.lastNotification?.name == NSSplitView.didResizeSubviewsNotification &&
+            (delegate.lastNotification?.object as? NSSplitView) === layoutSplitView
+
         let controller = NSSplitViewController()
         let sidebarController = NSViewController()
         let contentController = NSViewController()
@@ -1599,6 +1630,10 @@ enum AppleCompatibilitySmoke {
         return AppKitSplitViewResult(
             arrangedSubviewLinks: arrangedSubviewLinks,
             arrangedSubviewRemovalUpdatedOrder: arrangedSubviewRemovalUpdatedOrder,
+            defaultDividerMatchesAppKit: defaultDividerMatchesAppKit,
+            adjustSubviewsLaysOutTwoPanes: adjustSubviewsLaysOutTwoPanes,
+            setPositionMovesAdjacentPanes: setPositionMovesAdjacentPanes,
+            setPositionNotifiesDelegate: setPositionNotifiesDelegate,
             controllerAddedItemsInOrder: controllerAddedItemsInOrder,
             controllerRemoveClearedLinks: controllerRemoveClearedLinks,
             factoryBehaviorsRoundTrip: factoryBehaviorsRoundTrip
@@ -2190,6 +2225,16 @@ private final class MenuDelegateProbe: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         events.append("needsUpdate:\(menu.title)")
+    }
+}
+
+private final class SplitViewDelegateProbe: NSObject, NSSplitViewDelegate {
+    var resizeNotifications = 0
+    var lastNotification: Notification?
+
+    func splitViewDidResizeSubviews(_ notification: Notification) {
+        resizeNotifications += 1
+        lastNotification = notification
     }
 }
 

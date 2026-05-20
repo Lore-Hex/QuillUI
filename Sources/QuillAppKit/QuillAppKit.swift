@@ -3211,10 +3211,22 @@ public extension NSSearchFieldDelegate {
 }
 
 open class NSSplitView: NSView {
+    public static let didResizeSubviewsNotification = Notification.Name("NSSplitViewDidResizeSubviewsNotification")
+
     public weak var delegate: NSSplitViewDelegate?
     public var isVertical: Bool = false
     public var arrangedSubviews: [NSView] = []
-    public var dividerStyle: DividerStyle = .thin
+    public var dividerStyle: DividerStyle = .thick
+    public var dividerThickness: CGFloat {
+        switch dividerStyle {
+        case .thick:
+            9
+        case .thin:
+            1
+        case .paneSplitter:
+            10
+        }
+    }
     public var holdingPriorityForSubviewAtIndex: (Int) -> Float = { _ in 250 }
     public var autosaveName: String?
     public func addArrangedSubview(_ v: NSView) {
@@ -3236,9 +3248,82 @@ open class NSSplitView: NSView {
         arrangedSubviews.removeAll { $0 === v }
         v.removeFromSuperview()
     }
-    public func setPosition(_ pos: CGFloat, ofDividerAt idx: Int) {}
-    public func adjustSubviews() {}
+    public func setPosition(_ pos: CGFloat, ofDividerAt idx: Int) {
+        guard idx >= 0, idx < arrangedSubviews.count - 1 else { return }
+
+        let leadingView = arrangedSubviews[idx]
+        let trailingView = arrangedSubviews[idx + 1]
+        let leadingOrigin = primaryOrigin(of: leadingView)
+        let trailingEnd = primaryMax(of: trailingView)
+        guard trailingEnd > leadingOrigin else {
+            resizeSubview(leadingView, primaryOrigin: leadingOrigin, primaryLength: 0)
+            resizeSubview(trailingView, primaryOrigin: leadingOrigin, primaryLength: 0)
+            notifyDidResizeSubviews()
+            return
+        }
+
+        let dividerPosition = min(max(pos, leadingOrigin), max(leadingOrigin, trailingEnd - dividerThickness))
+        let trailingOrigin = min(dividerPosition + dividerThickness, trailingEnd)
+        resizeSubview(
+            leadingView,
+            primaryOrigin: leadingOrigin,
+            primaryLength: max(0, dividerPosition - leadingOrigin)
+        )
+        resizeSubview(
+            trailingView,
+            primaryOrigin: trailingOrigin,
+            primaryLength: max(0, trailingEnd - trailingOrigin)
+        )
+        notifyDidResizeSubviews()
+    }
+    public func adjustSubviews() {
+        guard !arrangedSubviews.isEmpty else { return }
+
+        let availableLength = max(0, primaryLength(of: self) - dividerThickness * CGFloat(arrangedSubviews.count - 1))
+        var allocatedLength: CGFloat = 0
+        var cursor: CGFloat = 0
+
+        for (idx, subview) in arrangedSubviews.enumerated() {
+            let remainingViews = CGFloat(arrangedSubviews.count - idx)
+            let subviewLength: CGFloat
+            if idx == arrangedSubviews.count - 1 {
+                subviewLength = max(0, availableLength - allocatedLength)
+            } else {
+                subviewLength = ceil(max(0, availableLength - allocatedLength) / remainingViews)
+            }
+            resizeSubview(subview, primaryOrigin: cursor, primaryLength: subviewLength)
+            allocatedLength += subviewLength
+            cursor += subviewLength + dividerThickness
+        }
+    }
     public enum DividerStyle: Int, Sendable { case thick = 1, thin = 2, paneSplitter = 3 }
+
+    private func primaryLength(of view: NSView) -> CGFloat {
+        isVertical ? view.frame.width : view.frame.height
+    }
+
+    private func primaryOrigin(of view: NSView) -> CGFloat {
+        isVertical ? view.frame.minX : view.frame.minY
+    }
+
+    private func primaryMax(of view: NSView) -> CGFloat {
+        isVertical ? view.frame.maxX : view.frame.maxY
+    }
+
+    private func resizeSubview(_ view: NSView, primaryOrigin: CGFloat, primaryLength: CGFloat) {
+        let crossLength = isVertical ? frame.height : frame.width
+        if isVertical {
+            view.frame = NSRect(x: primaryOrigin, y: 0, width: primaryLength, height: crossLength)
+        } else {
+            view.frame = NSRect(x: 0, y: primaryOrigin, width: crossLength, height: primaryLength)
+        }
+    }
+
+    private func notifyDidResizeSubviews() {
+        let notification = Notification(name: Self.didResizeSubviewsNotification, object: self)
+        NotificationCenter.default.post(notification)
+        delegate?.splitViewDidResizeSubviews(notification)
+    }
 }
 
 public protocol NSSplitViewDelegate: AnyObject {

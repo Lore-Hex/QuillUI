@@ -297,6 +297,10 @@ struct CompatibilityModuleTests {
 
         #expect(result.arrangedSubviewLinks)
         #expect(result.arrangedSubviewRemovalUpdatedOrder)
+        #expect(result.defaultDividerMatchesAppKit)
+        #expect(result.adjustSubviewsLaysOutTwoPanes)
+        #expect(result.setPositionMovesAdjacentPanes)
+        #expect(result.setPositionNotifiesDelegate)
         #expect(result.controllerAddedItemsInOrder)
         #expect(result.controllerRemoveClearedLinks)
         #expect(result.factoryBehaviorsRoundTrip)
