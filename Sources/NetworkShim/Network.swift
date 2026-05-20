@@ -229,6 +229,98 @@ public enum NWProtocolTLS {
 }
 
 public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertible {
+    public enum Attribution: Hashable, Sendable, CustomStringConvertible {
+        case developer, user
+
+        public var description: String {
+            switch self {
+            case .developer:
+                return "developer"
+            case .user:
+                return "user"
+            }
+        }
+
+        fileprivate var debugToken: String {
+            switch self {
+            case .developer:
+                return "developer"
+            case .user:
+                return "website"
+            }
+        }
+    }
+
+    public enum ExpiredDNSBehavior: Hashable, Sendable, CustomStringConvertible {
+        case systemDefault, allow, prohibit
+
+        public var description: String {
+            switch self {
+            case .systemDefault:
+                return "systemDefault"
+            case .allow:
+                return "allow"
+            case .prohibit:
+                return "prohibit"
+            }
+        }
+    }
+
+    public enum MultipathServiceType: Hashable, Sendable, CustomStringConvertible {
+        case disabled, handover, interactive, aggregate
+
+        public var description: String {
+            switch self {
+            case .disabled:
+                return "disabled"
+            case .handover:
+                return "handover"
+            case .interactive:
+                return "interactive"
+            case .aggregate:
+                return "aggregate"
+            }
+        }
+    }
+
+    public enum ServiceClass: Hashable, Sendable, CustomStringConvertible {
+        case bestEffort, background, interactiveVideo, interactiveVoice, responsiveData, signaling
+
+        public var description: String {
+            switch self {
+            case .bestEffort:
+                return "bestEffort"
+            case .background:
+                return "background"
+            case .interactiveVideo:
+                return "interactiveVideo"
+            case .interactiveVoice:
+                return "interactiveVoice"
+            case .responsiveData:
+                return "responsiveData"
+            case .signaling:
+                return "signaling"
+            }
+        }
+
+        fileprivate var trafficClass: Int? {
+            switch self {
+            case .bestEffort:
+                return nil
+            case .background:
+                return 200
+            case .interactiveVideo:
+                return 700
+            case .interactiveVoice:
+                return 800
+            case .responsiveData:
+                return 300
+            case .signaling:
+                return 10002
+            }
+        }
+    }
+
     private enum Transport: String {
         case tcp
         case udp
@@ -236,6 +328,31 @@ public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertib
 
     private let transport: Transport
     private let usesTLS: Bool
+
+    public var requiredInterfaceType: NWInterface.InterfaceType = .other
+    private var storedProhibitedInterfaceTypes: [NWInterface.InterfaceType]?
+    public var prohibitedInterfaceTypes: [NWInterface.InterfaceType]? {
+        get { storedProhibitedInterfaceTypes }
+        set {
+            if let newValue, newValue.isEmpty {
+                storedProhibitedInterfaceTypes = nil
+            } else {
+                storedProhibitedInterfaceTypes = newValue
+            }
+        }
+    }
+    public var requiredLocalEndpoint: NWEndpoint?
+    public var allowLocalEndpointReuse = false
+    public var includePeerToPeer = false
+    public var serviceClass: ServiceClass = .bestEffort
+    public var multipathServiceType: MultipathServiceType = .disabled
+    public var expiredDNSBehavior: ExpiredDNSBehavior = .systemDefault
+    public var allowFastOpen = false
+    public var prohibitExpensivePaths = false
+    public var prohibitConstrainedPaths = false
+    public var requiresDNSSECValidation = false
+    public var preferNoProxies = false
+    public var attribution: Attribution = .developer
 
     private init(transport: Transport, usesTLS: Bool) {
         self.transport = transport
@@ -271,8 +388,44 @@ public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertib
         if usesTLS {
             components.append("tls")
         }
-        components.append("attribution: developer")
+        if let trafficClass = serviceClass.trafficClass {
+            components.append("traffic class: \(trafficClass)")
+        }
+        if let requiredLocalEndpoint {
+            components.append("local: \(debugDescription(for: requiredLocalEndpoint))")
+        }
+        if multipathServiceType != .disabled {
+            components.append("multipath service: \(multipathServiceType)")
+        }
+        if allowFastOpen {
+            components.append("fast-open")
+        }
+        if prohibitExpensivePaths {
+            components.append("no expensive")
+        }
+        if prohibitConstrainedPaths {
+            components.append("no constrained")
+        }
+        if prohibitedInterfaceTypes?.contains(.cellular) == true {
+            components.append("no cellular")
+        }
+        if preferNoProxies {
+            components.append("prefer no proxy")
+        }
+        components.append("attribution: \(attribution.debugToken)")
+        if requiresDNSSECValidation {
+            components.append("requires DNSSEC")
+        }
         return components.joined(separator: ", ")
+    }
+
+    private func debugDescription(for endpoint: NWEndpoint) -> String {
+        switch endpoint {
+        case .unix(let path):
+            return "AF_UNIX:\"\(path)\""
+        default:
+            return String(describing: endpoint)
+        }
     }
 }
 
