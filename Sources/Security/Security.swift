@@ -36,6 +36,12 @@ public let kSecClassIdentity: CFString = "idnt" as CFString
 
 public let kSecAttrService: CFString = "svce" as CFString
 public let kSecAttrAccount: CFString = "acct" as CFString
+public let kSecAttrServer: CFString = "srvr" as CFString
+public let kSecAttrSecurityDomain: CFString = "sdmn" as CFString
+public let kSecAttrProtocol: CFString = "ptcl" as CFString
+public let kSecAttrAuthenticationType: CFString = "atyp" as CFString
+public let kSecAttrPort: CFString = "port" as CFString
+public let kSecAttrPath: CFString = "path" as CFString
 public let kSecAttrAccessGroup: CFString = "agrp" as CFString
 public let kSecAttrSynchronizable: CFString = "sync" as CFString
 public let kSecAttrSynchronizableAny: CFString = "syna" as CFString
@@ -49,6 +55,47 @@ public let kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly: CFString = "akpu" as
 public let kSecAttrAccessibleWhenUnlockedThisDeviceOnly: CFString = "aku" as CFString
 public let kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly: CFString = "cku" as CFString
 public let kSecAttrAccessibleAlwaysThisDeviceOnly: CFString = "dku" as CFString
+
+public let kSecAttrProtocolFTP: CFString = "ftp " as CFString
+public let kSecAttrProtocolFTPAccount: CFString = "ftpa" as CFString
+public let kSecAttrProtocolHTTP: CFString = "http" as CFString
+public let kSecAttrProtocolIRC: CFString = "irc " as CFString
+public let kSecAttrProtocolNNTP: CFString = "nntp" as CFString
+public let kSecAttrProtocolPOP3: CFString = "pop3" as CFString
+public let kSecAttrProtocolSMTP: CFString = "smtp" as CFString
+public let kSecAttrProtocolSOCKS: CFString = "sox " as CFString
+public let kSecAttrProtocolIMAP: CFString = "imap" as CFString
+public let kSecAttrProtocolLDAP: CFString = "ldap" as CFString
+public let kSecAttrProtocolAppleTalk: CFString = "atlk" as CFString
+public let kSecAttrProtocolAFP: CFString = "afp " as CFString
+public let kSecAttrProtocolTelnet: CFString = "teln" as CFString
+public let kSecAttrProtocolSSH: CFString = "ssh " as CFString
+public let kSecAttrProtocolFTPS: CFString = "ftps" as CFString
+public let kSecAttrProtocolHTTPS: CFString = "htps" as CFString
+public let kSecAttrProtocolHTTPProxy: CFString = "htpx" as CFString
+public let kSecAttrProtocolHTTPSProxy: CFString = "htsx" as CFString
+public let kSecAttrProtocolFTPProxy: CFString = "ftpx" as CFString
+public let kSecAttrProtocolSMB: CFString = "smb " as CFString
+public let kSecAttrProtocolRTSP: CFString = "rtsp" as CFString
+public let kSecAttrProtocolRTSPProxy: CFString = "rtsx" as CFString
+public let kSecAttrProtocolDAAP: CFString = "daap" as CFString
+public let kSecAttrProtocolEPPC: CFString = "eppc" as CFString
+public let kSecAttrProtocolIPP: CFString = "ipp " as CFString
+public let kSecAttrProtocolNNTPS: CFString = "ntps" as CFString
+public let kSecAttrProtocolLDAPS: CFString = "ldps" as CFString
+public let kSecAttrProtocolTelnetS: CFString = "tels" as CFString
+public let kSecAttrProtocolIMAPS: CFString = "imps" as CFString
+public let kSecAttrProtocolIRCS: CFString = "ircs" as CFString
+public let kSecAttrProtocolPOP3S: CFString = "pops" as CFString
+
+public let kSecAttrAuthenticationTypeNTLM: CFString = "ntlm" as CFString
+public let kSecAttrAuthenticationTypeMSN: CFString = "msna" as CFString
+public let kSecAttrAuthenticationTypeDPA: CFString = "dpaa" as CFString
+public let kSecAttrAuthenticationTypeRPA: CFString = "rpaa" as CFString
+public let kSecAttrAuthenticationTypeHTTPBasic: CFString = "http" as CFString
+public let kSecAttrAuthenticationTypeHTTPDigest: CFString = "httd" as CFString
+public let kSecAttrAuthenticationTypeHTMLForm: CFString = "form" as CFString
+public let kSecAttrAuthenticationTypeDefault: CFString = "dflt" as CFString
 
 public let kSecValueData: CFString = "v_Data" as CFString
 public let kSecValueRef: CFString = "v_Ref" as CFString
@@ -120,6 +167,12 @@ private struct SecItemIdentity: Hashable, Comparable {
     var itemClass: String
     var service: String?
     var account: String?
+    var server: String?
+    var securityDomain: String?
+    var keychainProtocol: String?
+    var authenticationType: String?
+    var port: String?
+    var path: String?
     var accessGroup: String?
     var synchronizable: String?
 
@@ -136,7 +189,19 @@ private struct SecItemIdentity: Hashable, Comparable {
     }
 
     private var sortValues: [String] {
-        [itemClass, service ?? "", account ?? "", accessGroup ?? "", synchronizable ?? ""]
+        [
+            itemClass,
+            service ?? "",
+            account ?? "",
+            server ?? "",
+            securityDomain ?? "",
+            keychainProtocol ?? "",
+            authenticationType ?? "",
+            port ?? "",
+            path ?? "",
+            accessGroup ?? "",
+            synchronizable ?? ""
+        ]
     }
 }
 
@@ -302,6 +367,12 @@ private func makeIdentity(from attributes: [String: Any]) -> SecItemIdentity? {
         itemClass: itemClass,
         service: stringValue(attributes[secKey(kSecAttrService)]),
         account: stringValue(attributes[secKey(kSecAttrAccount)]),
+        server: stringValue(attributes[secKey(kSecAttrServer)]),
+        securityDomain: stringValue(attributes[secKey(kSecAttrSecurityDomain)]),
+        keychainProtocol: stringValue(attributes[secKey(kSecAttrProtocol)]),
+        authenticationType: stringValue(attributes[secKey(kSecAttrAuthenticationType)]),
+        port: stringValue(attributes[secKey(kSecAttrPort)]),
+        path: stringValue(attributes[secKey(kSecAttrPath)]),
         accessGroup: stringValue(attributes[secKey(kSecAttrAccessGroup)]),
         synchronizable: stringValue(attributes[secKey(kSecAttrSynchronizable)])
     )

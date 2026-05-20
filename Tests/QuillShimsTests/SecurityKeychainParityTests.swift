@@ -331,10 +331,160 @@ final class SecurityKeychainParityTests: XCTestCase {
         ]), &deletedResult), errSecItemNotFound)
         XCTAssertNil(deletedResult)
     }
+
+    func testInternetPasswordNamespacesByEndpointAttributes() {
+        let server = "chat.signal.example"
+        let account = "primary-\(UUID().uuidString)"
+        let httpsMessages = Data([0x41, 0x42])
+        let httpsAttachments = Data([0x51, 0x52])
+        let httpMessages = Data([0x61, 0x62])
+
+        defer {
+            _ = SecItemDelete(cfDictionary([
+                kSecClass: kSecClassInternetPassword,
+                kSecAttrServer: server,
+                kSecAttrAccount: account
+            ]))
+        }
+
+        let messagesQuery: [CFString: Any] = [
+            kSecClass: kSecClassInternetPassword,
+            kSecAttrServer: server,
+            kSecAttrAccount: account,
+            kSecAttrProtocol: kSecAttrProtocolHTTPS,
+            kSecAttrAuthenticationType: kSecAttrAuthenticationTypeDefault,
+            kSecAttrPort: 443,
+            kSecAttrPath: "/v1/messages"
+        ]
+        let attachmentsQuery: [CFString: Any] = [
+            kSecClass: kSecClassInternetPassword,
+            kSecAttrServer: server,
+            kSecAttrAccount: account,
+            kSecAttrProtocol: kSecAttrProtocolHTTPS,
+            kSecAttrAuthenticationType: kSecAttrAuthenticationTypeDefault,
+            kSecAttrPort: 443,
+            kSecAttrPath: "/v1/attachments"
+        ]
+        let httpQuery: [CFString: Any] = [
+            kSecClass: kSecClassInternetPassword,
+            kSecAttrServer: server,
+            kSecAttrAccount: account,
+            kSecAttrProtocol: kSecAttrProtocolHTTP,
+            kSecAttrAuthenticationType: kSecAttrAuthenticationTypeDefault,
+            kSecAttrPort: 80,
+            kSecAttrPath: "/v1/messages"
+        ]
+
+        XCTAssertEqual(SecItemAdd(cfDictionary(merged(messagesQuery, [
+            kSecValueData: httpsMessages
+        ])), nil), errSecSuccess)
+        XCTAssertEqual(SecItemAdd(cfDictionary(merged(messagesQuery, [
+            kSecValueData: httpsMessages
+        ])), nil), errSecDuplicateItem)
+        XCTAssertEqual(SecItemAdd(cfDictionary(merged(attachmentsQuery, [
+            kSecValueData: httpsAttachments
+        ])), nil), errSecSuccess)
+        XCTAssertEqual(SecItemAdd(cfDictionary(merged(httpQuery, [
+            kSecValueData: httpMessages
+        ])), nil), errSecSuccess)
+
+        var messagesResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary(merged(messagesQuery, [
+            kSecReturnData: true
+        ])), &messagesResult), errSecSuccess)
+        XCTAssertEqual(data(from: messagesResult), httpsMessages)
+
+        var allResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary([
+            kSecClass: kSecClassInternetPassword,
+            kSecAttrServer: server,
+            kSecAttrAccount: account,
+            kSecReturnAttributes: true,
+            kSecMatchLimit: kSecMatchLimitAll
+        ]), &allResult), errSecSuccess)
+
+        let rows = (allResult as? NSArray)?.compactMap { $0 as? NSDictionary }
+        let endpointKeys = rows?
+            .map { row in
+                let proto = row[string(kSecAttrProtocol)] as? String ?? ""
+                let port = row[string(kSecAttrPort)] ?? ""
+                let path = row[string(kSecAttrPath)] as? String ?? ""
+                return "\(proto):\(port):\(path)"
+            }
+            .sorted()
+        XCTAssertEqual(endpointKeys, [
+            "htps:443:/v1/attachments",
+            "htps:443:/v1/messages",
+            "http:80:/v1/messages"
+        ])
+
+        XCTAssertEqual(SecItemDelete(cfDictionary(messagesQuery)), errSecSuccess)
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary(merged(messagesQuery, [
+            kSecReturnData: true
+        ])), nil), errSecItemNotFound)
+
+        var attachmentResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary(merged(attachmentsQuery, [
+            kSecReturnData: true
+        ])), &attachmentResult), errSecSuccess)
+        XCTAssertEqual(data(from: attachmentResult), httpsAttachments)
+    }
+
+    func testInternetPasswordUpdateRejectsDuplicateEndpointIdentity() {
+        let server = "accounts.signal.example"
+        let account = "device-\(UUID().uuidString)"
+        defer {
+            _ = SecItemDelete(cfDictionary([
+                kSecClass: kSecClassInternetPassword,
+                kSecAttrServer: server,
+                kSecAttrAccount: account
+            ]))
+        }
+
+        let messagesQuery: [CFString: Any] = [
+            kSecClass: kSecClassInternetPassword,
+            kSecAttrServer: server,
+            kSecAttrAccount: account,
+            kSecAttrProtocol: kSecAttrProtocolHTTPS,
+            kSecAttrAuthenticationType: kSecAttrAuthenticationTypeDefault,
+            kSecAttrPort: 443,
+            kSecAttrPath: "/v1/messages"
+        ]
+        let attachmentsQuery: [CFString: Any] = [
+            kSecClass: kSecClassInternetPassword,
+            kSecAttrServer: server,
+            kSecAttrAccount: account,
+            kSecAttrProtocol: kSecAttrProtocolHTTPS,
+            kSecAttrAuthenticationType: kSecAttrAuthenticationTypeDefault,
+            kSecAttrPort: 443,
+            kSecAttrPath: "/v1/attachments"
+        ]
+
+        XCTAssertEqual(SecItemAdd(cfDictionary(merged(messagesQuery, [
+            kSecValueData: Data([0x10])
+        ])), nil), errSecSuccess)
+        XCTAssertEqual(SecItemAdd(cfDictionary(merged(attachmentsQuery, [
+            kSecValueData: Data([0x20])
+        ])), nil), errSecSuccess)
+
+        XCTAssertEqual(SecItemUpdate(cfDictionary(messagesQuery), cfDictionary([
+            kSecAttrPath: "/v1/attachments"
+        ])), errSecDuplicateItem)
+
+        var messagesResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary(merged(messagesQuery, [
+            kSecReturnData: true
+        ])), &messagesResult), errSecSuccess)
+        XCTAssertEqual(data(from: messagesResult), Data([0x10]))
+    }
 }
 
 private func cfDictionary(_ dictionary: [CFString: Any]) -> CFDictionary {
     dictionary as CFDictionary
+}
+
+private func merged(_ dictionary: [CFString: Any], _ updates: [CFString: Any]) -> [CFString: Any] {
+    dictionary.merging(updates) { _, new in new }
 }
 
 private func string(_ key: CFString) -> String {
