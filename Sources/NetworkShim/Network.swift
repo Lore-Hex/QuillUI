@@ -9,9 +9,7 @@ import Darwin
 #endif
 
 public final class NWPathMonitor: @unchecked Sendable {
-    public enum Status: Sendable {
-        case satisfied, unsatisfied, requiresConnection
-    }
+    public typealias Status = NWPath.Status
 
     public var pathUpdateHandler: (@Sendable (NWPath) -> Void)?
     public var currentPath: NWPath = NWPath()
@@ -29,15 +27,45 @@ public final class NWPathMonitor: @unchecked Sendable {
 }
 
 public struct NWPath: Sendable {
-    public var status: NWPathMonitor.Status = .satisfied
+    public enum Status: Hashable, Sendable, CustomStringConvertible {
+        case satisfied, unsatisfied, requiresConnection
+
+        public var description: String {
+            switch self {
+            case .satisfied:
+                return "satisfied"
+            case .unsatisfied:
+                return "unsatisfied"
+            case .requiresConnection:
+                return "requiresConnection"
+            }
+        }
+    }
+
+    public var status: Status = .satisfied
     public var availableInterfaces: [NWInterface] = []
     public var isExpensive: Bool = false
     public var isConstrained: Bool = false
 }
 
 public struct NWInterface: Hashable, Sendable {
-    public enum InterfaceType: Hashable, Sendable {
+    public enum InterfaceType: Hashable, Sendable, CustomStringConvertible {
         case wifi, cellular, wiredEthernet, loopback, other
+
+        public var description: String {
+            switch self {
+            case .wifi:
+                return "wifi"
+            case .cellular:
+                return "cellular"
+            case .wiredEthernet:
+                return "wiredEthernet"
+            case .loopback:
+                return "loopback"
+            case .other:
+                return "other"
+            }
+        }
     }
     public var type: InterfaceType
     public init(type: InterfaceType) { self.type = type }
@@ -171,8 +199,8 @@ public struct IPv6Address: IPAddress, Hashable, Sendable, CustomStringConvertibl
     }
 }
 
-public enum NWEndpoint: Hashable, Sendable {
-    public enum Host: Hashable, Sendable {
+public enum NWEndpoint: Hashable, Sendable, CustomStringConvertible {
+    public enum Host: Hashable, Sendable, CustomStringConvertible {
         case name(String, NWInterface?)
         case ipv4(IPv4Address)
         case ipv6(IPv6Address)
@@ -181,6 +209,17 @@ public enum NWEndpoint: Hashable, Sendable {
             if let v4 = IPv4Address(string) { self = .ipv4(v4) }
             else if let v6 = IPv6Address(string) { self = .ipv6(v6) }
             else { self = .name(string, nil) }
+        }
+
+        public var description: String {
+            switch self {
+            case .name(let name, _):
+                return name
+            case .ipv4(let address):
+                return address.description
+            case .ipv6(let address):
+                return address.description
+            }
         }
     }
 
@@ -240,4 +279,61 @@ public enum NWEndpoint: Hashable, Sendable {
     case hostPort(host: Host, port: Port)
     case service(name: String, type: String, domain: String, interface: NWInterface?)
     case unix(path: String)
+
+    public var description: String {
+        switch self {
+        case .hostPort(let host, let port):
+            let separator = host.isIPv6Literal ? "." : ":"
+            return "\(host.description)\(separator)\(port.description)"
+        case .service(let name, let type, let domain, _):
+            return Self.describeService(name: name, type: type, domain: domain)
+        case .unix(let path):
+            return path
+        }
+    }
+
+    private static func describeService(name: String, type: String, domain: String) -> String {
+        let normalizedName = trimDots(name)
+        let normalizedType = trimDots(type)
+        let normalizedDomain = trimDots(domain)
+
+        if normalizedType.isEmpty {
+            return [normalizedName, normalizedDomain]
+                .filter { !$0.isEmpty }
+                .joined(separator: ".")
+        }
+
+        let serviceTypeAndDomain: String
+        if normalizedDomain.isEmpty {
+            serviceTypeAndDomain = normalizedType
+        } else if normalizedType.contains(".") {
+            serviceTypeAndDomain = "\(normalizedType).\(normalizedDomain)."
+        } else {
+            serviceTypeAndDomain = "\(normalizedType)\(normalizedDomain)"
+        }
+
+        return [normalizedName, serviceTypeAndDomain]
+            .filter { !$0.isEmpty }
+            .joined(separator: ".")
+    }
+
+    private static func trimDots(_ value: String) -> String {
+        var result = value
+        while result.first == "." {
+            result.removeFirst()
+        }
+        while result.last == "." {
+            result.removeLast()
+        }
+        return result
+    }
+}
+
+private extension NWEndpoint.Host {
+    var isIPv6Literal: Bool {
+        if case .ipv6 = self {
+            return true
+        }
+        return false
+    }
 }

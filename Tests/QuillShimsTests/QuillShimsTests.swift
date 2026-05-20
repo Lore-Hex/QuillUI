@@ -278,18 +278,21 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
 
         if case .ipv4(let address) = NWEndpoint.Host("192.168.1.10") {
             XCTAssertEqual(address.rawValue, Data([192, 168, 1, 10]))
+            XCTAssertEqual(NWEndpoint.Host("192.168.1.10").description, "192.168.1.10")
         } else {
             XCTFail("Expected IPv4 endpoint host")
         }
 
         if case .ipv6(let address) = NWEndpoint.Host("::1") {
             XCTAssertEqual(address.rawValue, Data(Array(repeating: UInt8(0), count: 15) + [1]))
+            XCTAssertEqual(NWEndpoint.Host("::1").description, "::1")
         } else {
             XCTFail("Expected IPv6 endpoint host")
         }
 
         if case .name(let name, nil) = NWEndpoint.Host("example.com") {
             XCTAssertEqual(name, "example.com")
+            XCTAssertEqual(NWEndpoint.Host("example.com").description, "example.com")
         } else {
             XCTFail("Expected DNS-name endpoint host")
         }
@@ -310,6 +313,42 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
         XCTAssertNil(NWEndpoint.Port("80\n"))
         XCTAssertNil(NWEndpoint.Port("0x50"))
         XCTAssertNil(NWEndpoint.Port("1.0"))
+
+        XCTAssertEqual(NWPath.Status.satisfied.description, "satisfied")
+        XCTAssertEqual(NWPath.Status.unsatisfied.description, "unsatisfied")
+        XCTAssertEqual(NWPath.Status.requiresConnection.description, "requiresConnection")
+        XCTAssertEqual(NWInterface.InterfaceType.other.description, "other")
+        XCTAssertEqual(NWInterface.InterfaceType.wifi.description, "wifi")
+        XCTAssertEqual(NWInterface.InterfaceType.cellular.description, "cellular")
+        XCTAssertEqual(NWInterface.InterfaceType.wiredEthernet.description, "wiredEthernet")
+        XCTAssertEqual(NWInterface.InterfaceType.loopback.description, "loopback")
+
+        XCTAssertEqual(
+            NWEndpoint.hostPort(host: NWEndpoint.Host("example.com"), port: literalPort).description,
+            "example.com:443"
+        )
+        XCTAssertEqual(
+            NWEndpoint.hostPort(host: NWEndpoint.Host("192.168.1.10"), port: literalPort).description,
+            "192.168.1.10:443"
+        )
+        XCTAssertEqual(
+            NWEndpoint.hostPort(host: NWEndpoint.Host("::1"), port: literalPort).description,
+            "::1.443"
+        )
+        XCTAssertEqual(NWEndpoint.unix(path: "/tmp/socket").description, "/tmp/socket")
+        XCTAssertEqual(NWEndpoint.unix(path: "").description, "")
+        XCTAssertEqual(
+            NWEndpoint.service(name: "svc", type: "_http._tcp", domain: "local", interface: nil).description,
+            "svc._http._tcp.local."
+        )
+        XCTAssertEqual(
+            NWEndpoint.service(name: "svc", type: "_http._tcp.", domain: "local.", interface: nil).description,
+            "svc._http._tcp.local."
+        )
+        XCTAssertEqual(
+            NWEndpoint.service(name: "svc", type: "http", domain: "local", interface: nil).description,
+            "svc.httplocal"
+        )
     }
 }
 
