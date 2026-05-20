@@ -66,6 +66,7 @@ import AVFoundation
 import Speech
 import ApplicationServices
 import ServiceManagement
+import Network
 @testable import Alamofire
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -232,6 +233,41 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
         XCTAssertTrue(keychain.set("token", forKey: "access-token"))
         XCTAssertEqual(keychain.get("access-token"), "token")
         XCTAssertTrue(keychain.clear())
+    }
+
+    func testNetworkShimParsesAddressLiteralsAndHosts() {
+        XCTAssertEqual(IPv4Address("192.168.1.10")?.rawValue, Data([192, 168, 1, 10]))
+        XCTAssertNil(IPv4Address("192.168.1.10.extra"))
+        XCTAssertNil(IPv4Address("192.168.1"))
+        XCTAssertNil(IPv4Address("1..2.3.4"))
+
+        XCTAssertEqual(IPv6Address("::1")?.rawValue, Data(Array(repeating: UInt8(0), count: 15) + [1]))
+        XCTAssertNotNil(IPv6Address("2001:db8::1"))
+        XCTAssertNil(IPv6Address("example.com"))
+
+        if case .ipv4(let address) = NWEndpoint.Host("192.168.1.10") {
+            XCTAssertEqual(address.rawValue, Data([192, 168, 1, 10]))
+        } else {
+            XCTFail("Expected IPv4 endpoint host")
+        }
+
+        if case .ipv6(let address) = NWEndpoint.Host("::1") {
+            XCTAssertEqual(address.rawValue, Data(Array(repeating: UInt8(0), count: 15) + [1]))
+        } else {
+            XCTFail("Expected IPv6 endpoint host")
+        }
+
+        if case .name(let name, nil) = NWEndpoint.Host("example.com") {
+            XCTAssertEqual(name, "example.com")
+        } else {
+            XCTFail("Expected DNS-name endpoint host")
+        }
+
+        let literalPort: NWEndpoint.Port = 443
+        XCTAssertEqual(literalPort.rawValue, 443)
+        XCTAssertEqual(NWEndpoint.Port("51820")?.rawValue, 51820)
+        XCTAssertNil(NWEndpoint.Port("-1"))
+        XCTAssertNil(NWEndpoint.Port("65536"))
     }
 }
 

@@ -2,6 +2,11 @@
 // DNSResolver imports it for NWInterface; we provide a minimal
 // surface so upstream compiles unmodified.
 import Foundation
+#if canImport(Glibc)
+import Glibc
+#elseif canImport(Darwin)
+import Darwin
+#endif
 
 public final class NWPathMonitor: @unchecked Sendable {
     public enum Status: Sendable {
@@ -44,12 +49,22 @@ public protocol IPAddress {
     var rawValue: Data { get }
 }
 
+private func parseIPAddressLiteral(_ string: String, family: Int32, byteCount: Int) -> Data? {
+    var bytes = [UInt8](repeating: 0, count: byteCount)
+    let result = string.withCString { cString in
+        bytes.withUnsafeMutableBytes { buffer in
+            inet_pton(family, cString, buffer.baseAddress!)
+        }
+    }
+    guard result == 1 else { return nil }
+    return Data(bytes)
+}
+
 public struct IPv4Address: IPAddress, Hashable, Sendable {
     public var rawValue: Data
     public init?(_ string: String) {
-        let parts = string.split(separator: ".").compactMap { UInt8($0) }
-        guard parts.count == 4 else { return nil }
-        self.rawValue = Data(parts)
+        guard let rawValue = parseIPAddressLiteral(string, family: AF_INET, byteCount: 4) else { return nil }
+        self.rawValue = rawValue
     }
     /// Apple's matches this signature as `init?(_ rawValue: Data)`, so
     /// upstream code does `IPv4Address(bytes)!`.
@@ -62,8 +77,8 @@ public struct IPv4Address: IPAddress, Hashable, Sendable {
 public struct IPv6Address: IPAddress, Hashable, Sendable {
     public var rawValue: Data
     public init?(_ string: String) {
-        // Minimal stub — sufficient for upstream Endpoint/DNS parsing.
-        self.rawValue = Data(repeating: 0, count: 16)
+        guard let rawValue = parseIPAddressLiteral(string, family: AF_INET6, byteCount: 16) else { return nil }
+        self.rawValue = rawValue
     }
     public init?(_ data: Data) {
         guard data.count == 16 else { return nil }
@@ -84,7 +99,7 @@ public enum NWEndpoint: Hashable, Sendable {
         }
     }
 
-    public struct Port: Hashable, Sendable {
+    public struct Port: Hashable, Sendable, RawRepresentable, ExpressibleByIntegerLiteral {
         public let rawValue: UInt16
         public init?(_ string: String) {
             guard let v = UInt16(string) else { return nil }

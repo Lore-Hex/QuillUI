@@ -43,7 +43,7 @@ is `Usable` or `Parity`.
 | `WebKit` | None yet beyond compile-compatible shapes. | `WKWebView`, configuration, delegates, user scripts, content rules, navigation, HTML rendering, JavaScript, process isolation, and scheme handling are compile-only or incomplete. |
 | `AuthenticationServices` | None yet beyond compile-compatible shapes. | Web authentication session start is fallback; session cancellation, presentation anchors, callback handling, secure storage, and browser flow parity are incomplete. |
 | `UniformTypeIdentifiers` | None yet at `Usable`; current rows are partial. | Identifier parsing, extension lookup, conformance, static types, system registry lookup, dynamic/exported/imported types, and the full conformance graph need parity work. |
-| `Network` | None yet at `Usable`; selected parsing rows are partial. | Path monitoring, interfaces, IPv6 parsing, endpoint classification, ports, connections, listeners, DNS, TLS, UDP/TCP, and real path probing are incomplete or fallback-only. |
+| `Network` | IPv4/IPv6 literal parsing, endpoint host classification, and port construction are `Usable` for current app contracts. | Path monitoring, interfaces, connections, listeners, DNS, TLS, UDP/TCP, and real path probing are incomplete or fallback-only. |
 | `NetworkExtension` | None yet beyond compile/fallback shapes. | Packet flow, VPN lifecycle, tunnel routing, provider hosting, and real tunnel settings are incomplete. |
 | `CoreGraphics` | None yet beyond compile/fallback shapes. | Event sources, key state, keyboard events, event posting, pointer events, event taps, and drawing APIs beyond shared geometry are incomplete. |
 | `Security` | None yet at `Usable`; certificate wrapping is partial and trust calls fallback. | Keychain, certificate parsing, policy evaluation, platform trust store, and Secure Transport parity are incomplete. |
@@ -307,10 +307,10 @@ subset lives in `QuillUIKit`.
 | `NWPathMonitor.cancel()` | Compile-only | No-op. |
 | `NWPath` status/interface/expense properties | Compile-only | Static/default metadata only. |
 | `NWInterface.init(type:)` | Compile-only | Stores type only. |
-| `IPv4Address.init?(String)` / `init?(Data)` | Partial | Dotted IPv4 and 4-byte data parsing. |
-| `IPv6Address.init?(String)` / `init?(Data)` | Incomplete | Data length works; string parsing is placeholder-level. |
-| `NWEndpoint.Host.init(_:)` | Partial | IPv4/name shape exists; IPv6/name classification needs stricter parsing. |
-| `NWEndpoint.Port.init?(String)` / `init(rawValue:)` / integer literal | Partial | Numeric port parsing only. |
+| `IPv4Address.init?(String)` / `init?(Data)` | Usable | Strict IPv4 literal parsing plus 4-byte data validation for current endpoint flows. |
+| `IPv6Address.init?(String)` / `init?(Data)` | Usable | Strict IPv6 literal parsing plus 16-byte data validation for current endpoint flows. |
+| `NWEndpoint.Host.init(_:)` | Usable | Classifies IPv4 literals, IPv6 literals, and DNS names without placeholder IPv6 false positives. |
+| `NWEndpoint.Port.init?(String)` / `init(rawValue:)` / integer literal | Usable | UInt16 string parsing, raw-value construction, and integer-literal construction. |
 | Connections, listeners, real path probing, DNS, TLS, UDP/TCP behavior | Incomplete | Required for Network Parity. |
 
 ## NetworkExtension
