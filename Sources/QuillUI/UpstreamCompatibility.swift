@@ -891,6 +891,32 @@ public struct ImageScaleView<Content: View>: View {
     public var body: some View { content }
 }
 
+public struct ListRowInsetsView<Content: View>: View {
+    public let content: Content
+    public let insets: EdgeInsets?
+
+    public init(content: Content, insets: EdgeInsets?) {
+        self.content = content
+        self.insets = insets
+    }
+
+    public var body: some View { content }
+}
+
+public struct ListRowSeparatorView<Content: View>: View {
+    public let content: Content
+    public let visibility: Visibility
+    public let edges: Edge.Set
+
+    public init(content: Content, visibility: Visibility, edges: Edge.Set) {
+        self.content = content
+        self.visibility = visibility
+        self.edges = edges
+    }
+
+    public var body: some View { content }
+}
+
 public struct DragGesture: Sendable {
     public struct Value: Sendable {
         public var translation: CGSize
@@ -993,20 +1019,20 @@ public extension View {
         padding(edges, Int(amount))
     }
 
-    func listRowInsets(_ insets: EdgeInsets?) -> Self {
+    func listRowInsets(_ insets: EdgeInsets?) -> ListRowInsetsView<Self> {
         recordQuillUIFallback(
             "listRowInsets",
-            message: "listRowInsets is currently a source-compatibility fallback on Linux."
+            message: "listRowInsets is preserved as list row layout metadata on Linux."
         )
-        return self
+        return ListRowInsetsView(content: self, insets: insets)
     }
 
-    func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> Self {
+    func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> ListRowSeparatorView<Self> {
         recordQuillUIFallback(
             "listRowSeparator",
-            message: "listRowSeparator is currently a source-compatibility fallback on Linux."
+            message: "listRowSeparator is preserved as list row separator metadata on Linux."
         )
-        return self
+        return ListRowSeparatorView(content: self, visibility: visibility, edges: edges)
     }
 
     func focused<Value>(_ binding: Binding<Value>) -> Self {
@@ -1522,6 +1548,14 @@ extension LayoutPriorityView: QuillWrappedViewRepresentable {
 }
 
 extension FixedSizeView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension ListRowInsetsView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension ListRowSeparatorView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 

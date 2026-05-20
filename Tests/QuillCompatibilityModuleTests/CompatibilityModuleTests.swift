@@ -55,6 +55,8 @@ struct CompatibilityModuleTests {
             .matchedGeometryEffect(id: "title", in: Namespace().wrappedValue)
             .mask(Rectangle())
             .contentShape(Rectangle())
+            .listRowInsets(EdgeInsets(top: 1, leading: 2, bottom: 3, trailing: 4))
+            .listRowSeparator(.hidden, edges: .vertical)
             .minimumScaleFactor(0.5)
             .keyboardType(.URL)
             .autocapitalization(.never)
@@ -73,6 +75,15 @@ struct CompatibilityModuleTests {
         let imageScaled = Text("Icon scaled").imageScale(.large)
         #expect(String(describing: type(of: imageScaled)).contains("ImageScaleView"))
         #expect(String(describing: imageScaled.scale).lowercased().contains("large"))
+
+        let rowInsets = Text("Row").listRowInsets(EdgeInsets(top: 1, leading: 2, bottom: 3, trailing: 4))
+        #expect(String(describing: type(of: rowInsets)).contains("ListRowInsetsView"))
+        #expect(rowInsets.insets == EdgeInsets(top: 1, leading: 2, bottom: 3, trailing: 4))
+
+        let rowSeparator = Text("Row").listRowSeparator(.hidden, edges: .vertical)
+        #expect(String(describing: type(of: rowSeparator)).contains("ListRowSeparatorView"))
+        #expect(rowSeparator.visibility == .hidden)
+        #expect(rowSeparator.edges == .vertical)
 #endif
 
         let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
@@ -81,6 +92,8 @@ struct CompatibilityModuleTests {
             "matchedGeometryEffect",
             "mask",
             "contentShape",
+            "listRowInsets",
+            "listRowSeparator",
             "minimumScaleFactor",
             "keyboardType",
             "autocapitalization",
