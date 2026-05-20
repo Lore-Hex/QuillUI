@@ -7,6 +7,26 @@ import Darwin
 #endif
 
 final class NetworkPathInterfaceParityTests: XCTestCase {
+    func testPathMonitorInitialCurrentPathMatchesApple() {
+        let monitors: [(String, NWPathMonitor)] = [
+            ("default", NWPathMonitor()),
+            ("wifi", NWPathMonitor(requiredInterfaceType: .wifi)),
+            ("cellular", NWPathMonitor(requiredInterfaceType: .cellular)),
+            ("wiredEthernet", NWPathMonitor(requiredInterfaceType: .wiredEthernet)),
+            ("loopback", NWPathMonitor(requiredInterfaceType: .loopback)),
+            ("other", NWPathMonitor(requiredInterfaceType: .other)),
+        ]
+
+        for (context, monitor) in monitors {
+            let path = monitor.currentPath
+            XCTAssertEqual(path.status, .unsatisfied, context)
+            XCTAssertEqual(path.unsatisfiedReason, .notAvailable, context)
+            XCTAssertTrue(path.availableInterfaces.isEmpty, context)
+            XCTAssertFalse(path.isExpensive, context)
+            XCTAssertFalse(path.isConstrained, context)
+        }
+    }
+
     func testPathStatusStringDescriptionsMatchApple() {
         let cases: [(NWPath.Status, String)] = [
             (.satisfied, "satisfied"),

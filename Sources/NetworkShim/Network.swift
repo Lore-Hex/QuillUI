@@ -12,10 +12,10 @@ public final class NWPathMonitor: @unchecked Sendable {
     public typealias Status = NWPath.Status
 
     public var pathUpdateHandler: (@Sendable (NWPath) -> Void)?
-    public var currentPath: NWPath = NWPath()
+    public var currentPath: NWPath = NWPath(status: .unsatisfied)
 
     public init() {}
-    public init(requiredInterfaceType: Any) {}
+    public init(requiredInterfaceType: NWInterface.InterfaceType) {}
 
     public func start(queue: DispatchQueue) {
         let handler = pathUpdateHandler
@@ -46,11 +46,25 @@ public struct NWPath: Sendable {
         case notAvailable, cellularDenied, wifiDenied, localNetworkDenied
     }
 
-    public var status: Status = .satisfied
-    public var unsatisfiedReason: UnsatisfiedReason = .notAvailable
-    public var availableInterfaces: [NWInterface] = []
-    public var isExpensive: Bool = false
-    public var isConstrained: Bool = false
+    public var status: Status
+    public var unsatisfiedReason: UnsatisfiedReason
+    public var availableInterfaces: [NWInterface]
+    public var isExpensive: Bool
+    public var isConstrained: Bool
+
+    init(
+        status: Status = .unsatisfied,
+        unsatisfiedReason: UnsatisfiedReason = .notAvailable,
+        availableInterfaces: [NWInterface] = [],
+        isExpensive: Bool = false,
+        isConstrained: Bool = false
+    ) {
+        self.status = status
+        self.unsatisfiedReason = unsatisfiedReason
+        self.availableInterfaces = availableInterfaces
+        self.isExpensive = isExpensive
+        self.isConstrained = isConstrained
+    }
 }
 
 public struct NWInterface: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
