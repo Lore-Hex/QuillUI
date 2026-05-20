@@ -68,6 +68,36 @@ final class NetworkEndpointHostParityTests: XCTestCase {
         XCTAssertEqual(directIPv4.interface.map { String(describing: $0) }, loopbackName)
     }
 
+    func testScopedHostValueEqualityAndHashingMatchApple() throws {
+        let loopbackName = try XCTUnwrap(Self.interfaceName(forIndex: 1))
+        let directIPv4 = try XCTUnwrap(IPv4Address("192.0.2.1%\(loopbackName)"))
+        let directIPv6 = try XCTUnwrap(IPv6Address("fe80::1%\(loopbackName)"))
+        let directInterface = try XCTUnwrap(directIPv6.interface)
+
+        let scopedIPv6ByName = NWEndpoint.Host("fe80::1%\(loopbackName)")
+        let scopedIPv6ByIndex = NWEndpoint.Host("fe80::1%1")
+        let scopedIPv4ByName = NWEndpoint.Host("192.0.2.1%\(loopbackName)")
+        let scopedIPv4FromMapped = NWEndpoint.Host("::ffff:192.0.2.1%\(loopbackName)")
+        let scopedName = NWEndpoint.Host("example.com%\(loopbackName)")
+
+        let equalHosts: [(NWEndpoint.Host, NWEndpoint.Host, String)] = [
+            (scopedIPv6ByName, scopedIPv6ByIndex, "scoped IPv6 name and numeric scope"),
+            (scopedIPv6ByName, .ipv6(directIPv6), "scoped IPv6 direct value"),
+            (scopedIPv4ByName, .ipv4(directIPv4), "scoped IPv4 direct value"),
+            (scopedIPv4FromMapped, .ipv4(directIPv4), "scoped IPv4-mapped IPv6 literal"),
+            (scopedName, .name("example.com", directInterface), "scoped DNS direct value"),
+        ]
+
+        for (lhs, rhs, context) in equalHosts {
+            XCTAssertEqual(lhs, rhs, context)
+            XCTAssertEqual(lhs.hashValue, rhs.hashValue, context)
+        }
+
+        XCTAssertNotEqual(scopedIPv6ByName, NWEndpoint.Host("fe80::1"))
+        XCTAssertNotEqual(scopedIPv4ByName, NWEndpoint.Host("192.0.2.1"))
+        XCTAssertNotEqual(scopedName, NWEndpoint.Host("example.com"))
+    }
+
     func testDirectHostCaseDescriptionsMatchApple() {
         let directHosts: [(NWEndpoint.Host, String)] = [
             (.name("example.com", nil), "example.com"),
@@ -113,6 +143,8 @@ final class NetworkEndpointHostParityTests: XCTestCase {
         let port: NWEndpoint.Port = 443
         let ipv4 = try XCTUnwrap(IPv4Address("192.0.2.1"))
         let ipv6 = try XCTUnwrap(IPv6Address("2001:db8::1"))
+        let loopbackName = try XCTUnwrap(Self.interfaceName(forIndex: 1))
+        let scopedIPv6 = try XCTUnwrap(IPv6Address("fe80::1%\(loopbackName)"))
 
         let equalEndpoints: [(NWEndpoint, NWEndpoint, String)] = [
             (
@@ -134,6 +166,11 @@ final class NetworkEndpointHostParityTests: XCTestCase {
                 .hostPort(host: NWEndpoint.Host("::ffff:192.0.2.1"), port: port),
                 .hostPort(host: .ipv4(ipv4), port: .https),
                 "host-port IPv4-mapped IPv6 literal"
+            ),
+            (
+                .hostPort(host: NWEndpoint.Host("fe80::1%\(loopbackName)"), port: port),
+                .hostPort(host: .ipv6(scopedIPv6), port: .https),
+                "host-port scoped IPv6 literal"
             ),
             (
                 .service(name: "svc", type: "_http._tcp", domain: "local.", interface: nil),
@@ -159,6 +196,10 @@ final class NetworkEndpointHostParityTests: XCTestCase {
         XCTAssertNotEqual(
             NWEndpoint.hostPort(host: NWEndpoint.Host("example.com"), port: port),
             NWEndpoint.hostPort(host: NWEndpoint.Host("example.com"), port: .http)
+        )
+        XCTAssertNotEqual(
+            NWEndpoint.hostPort(host: NWEndpoint.Host("fe80::1%\(loopbackName)"), port: port),
+            NWEndpoint.hostPort(host: NWEndpoint.Host("fe80::1"), port: port)
         )
         XCTAssertNotEqual(
             NWEndpoint.service(name: "svc", type: "_http._tcp", domain: "local.", interface: nil),
