@@ -123,6 +123,72 @@ public struct NWInterface: Hashable, Sendable, CustomStringConvertible, CustomDe
     public var debugDescription: String { description }
 }
 
+public enum NWProtocolTCP {
+    public final class Options: @unchecked Sendable {
+        public init() {}
+    }
+}
+
+public enum NWProtocolUDP {
+    public final class Options: @unchecked Sendable {
+        public init() {}
+    }
+}
+
+public enum NWProtocolTLS {
+    public final class Options: @unchecked Sendable {
+        public init() {}
+    }
+}
+
+public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertible {
+    private enum Transport: String {
+        case tcp
+        case udp
+    }
+
+    private let transport: Transport
+    private let usesTLS: Bool
+
+    private init(transport: Transport, usesTLS: Bool) {
+        self.transport = transport
+        self.usesTLS = usesTLS
+    }
+
+    public convenience init(tls: NWProtocolTLS.Options?, tcp: NWProtocolTCP.Options) {
+        self.init(transport: .tcp, usesTLS: tls != nil)
+    }
+
+    public convenience init(dtls: NWProtocolTLS.Options?, udp: NWProtocolUDP.Options) {
+        self.init(transport: .udp, usesTLS: dtls != nil)
+    }
+
+    public static var tcp: NWParameters {
+        NWParameters(transport: .tcp, usesTLS: false)
+    }
+
+    public static var udp: NWParameters {
+        NWParameters(transport: .udp, usesTLS: false)
+    }
+
+    public static var tls: NWParameters {
+        NWParameters(transport: .tcp, usesTLS: true)
+    }
+
+    public static var dtls: NWParameters {
+        NWParameters(transport: .udp, usesTLS: true)
+    }
+
+    public var debugDescription: String {
+        var components = [transport.rawValue]
+        if usesTLS {
+            components.append("tls")
+        }
+        components.append("attribution: developer")
+        return components.joined(separator: ", ")
+    }
+}
+
 private func currentLinuxPath(requiredInterfaceType: NWInterface.InterfaceType?) -> NWPath {
     var firstInterface: UnsafeMutablePointer<ifaddrs>?
     guard getifaddrs(&firstInterface) == 0, let firstInterface else {
