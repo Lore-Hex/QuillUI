@@ -17,6 +17,37 @@ public final class SecRandom: @unchecked Sendable {
     public init() {}
 }
 
+public final class SecKey: @unchecked Sendable {
+    private let data: Data
+    private let keyAttributes: [String: Any]
+
+    public init(data: Data, attributes: [String: Any] = [:]) {
+        self.data = data
+        self.keyAttributes = attributes
+    }
+
+    public func copyExternalRepresentation() -> Data {
+        data
+    }
+
+    public func copyAttributes() -> [String: Any] {
+        var attributes = keyAttributes
+        attributes[secKey(kSecClass)] = attributes[secKey(kSecClass)] ?? secString(kSecClassKey)
+        return attributes
+    }
+}
+
+public typealias SecKeyRef = SecKey
+public typealias SecKeyAlgorithm = CFString
+
+public enum SecKeyOperationType: Int, Sendable {
+    case sign
+    case verify
+    case encrypt
+    case decrypt
+    case keyExchange
+}
+
 public final class SecAccessControl: @unchecked Sendable {
     public let protection: Any
     public let flags: SecAccessControlCreateFlags
@@ -104,6 +135,16 @@ public let kSecAttrCanSign: CFString = "sign" as CFString
 public let kSecAttrCanVerify: CFString = "vrfy" as CFString
 public let kSecAttrCanWrap: CFString = "wrap" as CFString
 public let kSecAttrCanUnwrap: CFString = "unwp" as CFString
+public let kSecAttrTokenID: CFString = "tkid" as CFString
+public let kSecAttrTokenIDSecureEnclave: CFString = "SecureEnclave" as CFString
+public let kSecPrivateKeyAttrs: CFString = "private" as CFString
+public let kSecPublicKeyAttrs: CFString = "public" as CFString
+
+public let kSecKeyAlgorithmECDSASignatureMessageX962SHA256: CFString = "algid:sign:ECDSA:message-X962:SHA256" as CFString
+public let kSecKeyAlgorithmECDSASignatureDigestX962SHA256: CFString = "algid:sign:ECDSA:digest-X962:SHA256" as CFString
+public let kSecKeyAlgorithmECDHKeyExchangeStandard: CFString = "algid:keyexchange:ECDH:standard" as CFString
+public let kSecKeyAlgorithmECDHKeyExchangeStandardX963SHA256: CFString = "algid:keyexchange:ECDH:standard-X963:SHA256" as CFString
+public let kSecKeyAlgorithmRSAEncryptionPKCS1: CFString = "algid:encrypt:RSA:PKCS1" as CFString
 
 public let kSecAttrProtocolFTP: CFString = "ftp " as CFString
 public let kSecAttrProtocolFTPAccount: CFString = "ftpa" as CFString
@@ -196,6 +237,29 @@ public func SecRandomCopyBytes(_ _: SecRandomRef?, _ count: Int, _ bytes: Unsafe
         buffer[index] = UInt8.random(in: UInt8.min ... UInt8.max, using: &generator)
     }
     return errSecSuccess
+}
+
+public func SecKeyCreateWithData(_ keyData: CFData, _ attributes: CFDictionary, _ error: UnsafeMutablePointer<CFError?>?) -> SecKey? {
+    let data = keyData as NSData as Data
+    guard !data.isEmpty else {
+        error?.pointee = nil
+        return nil
+    }
+    error?.pointee = nil
+    return SecKey(data: data, attributes: secDictionary(attributes))
+}
+
+public func SecKeyCopyAttributes(_ key: SecKey) -> CFDictionary? {
+    key.copyAttributes()
+}
+
+public func SecKeyCopyExternalRepresentation(_ key: SecKey, _ error: UnsafeMutablePointer<CFError?>?) -> CFData? {
+    error?.pointee = nil
+    return key.copyExternalRepresentation() as NSData as CFData
+}
+
+public func SecKeyIsAlgorithmSupported(_ _: SecKey, _ _: SecKeyOperationType, _ _: SecKeyAlgorithm) -> Bool {
+    false
 }
 
 public func SecItemAdd(_ attributes: CFDictionary, _ result: UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus {
@@ -305,11 +369,13 @@ private final class SecItemProcessStore: @unchecked Sendable {
             return errSecParam
         }
 
+        let storedAttributes = storedAttributes(from: attributes)
+        let valueData = dataValue(attributes[secKey(kSecValueData)])
         let record = SecItemRecord(
             identity: identity,
-            attributes: storedAttributes(from: attributes),
-            valueData: dataValue(attributes[secKey(kSecValueData)]),
-            valueRef: attributes[secKey(kSecValueRef)] as AnyObject?,
+            attributes: storedAttributes,
+            valueData: valueData,
+            valueRef: makeValueReference(from: attributes, storedAttributes: storedAttributes, valueData: valueData),
             persistentRef: makePersistentRef()
         )
 
@@ -411,16 +477,29 @@ private final class SecItemProcessStore: @unchecked Sendable {
     }
 
     private func apply(updates: [String: Any], to record: inout SecItemRecord) {
+        var valueDataChanged = false
+        var valueReferenceChanged = false
+
         for (key, value) in updates where !controlKeys.contains(key) {
             if key == secKey(kSecValueData) {
                 record.valueData = dataValue(value)
+                valueDataChanged = true
             } else if key == secKey(kSecValueRef) {
                 record.valueRef = value as AnyObject?
+                valueReferenceChanged = true
             } else if key == secKey(kSecValuePersistentRef) {
                 continue
             } else {
                 record.attributes[key] = value
             }
+        }
+
+        if valueDataChanged && !valueReferenceChanged {
+            record.valueRef = makeValueReference(
+                from: record.attributes,
+                storedAttributes: record.attributes,
+                valueData: record.valueData
+            )
         }
     }
 }
@@ -574,6 +653,16 @@ private func resultObject(for record: SecItemRecord, query: [String: Any]) -> CF
 
 private func makePersistentRef() -> Data {
     Data("quillui-security-persistent-ref:\(UUID().uuidString)".utf8)
+}
+
+private func makeValueReference(from source: [String: Any], storedAttributes: [String: Any], valueData: Data?) -> AnyObject? {
+    if let explicitReference = source[secKey(kSecValueRef)] as AnyObject? {
+        return explicitReference
+    }
+    guard stringValue(source[secKey(kSecClass)]) == secString(kSecClassKey), let valueData else {
+        return nil
+    }
+    return SecKey(data: valueData, attributes: storedAttributes)
 }
 
 private func setResult(_ object: CFTypeRef?, _ result: UnsafeMutablePointer<CFTypeRef?>?) {

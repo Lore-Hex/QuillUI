@@ -516,6 +516,100 @@ final class SecurityKeychainParityTests: XCTestCase {
         XCTAssertEqual(data(from: publicCopyResult), publicKeyData)
     }
 
+    func testSecKeyCreateWithDataRoundTripsAttributesAndExternalRepresentation() {
+        let keyData = Data([0x04, 0x01, 0x02, 0x03, 0x04])
+        let tag = Data("org.signal.sec-key.\(UUID().uuidString)".utf8)
+        let keyAttributes: [CFString: Any] = [
+            kSecAttrKeyType: kSecAttrKeyTypeEC,
+            kSecAttrKeyClass: kSecAttrKeyClassPublic,
+            kSecAttrKeySizeInBits: 256,
+            kSecAttrApplicationTag: tag,
+            kSecAttrCanVerify: true
+        ]
+
+        guard let key = SecKeyCreateWithData(keyData, cfDictionary(keyAttributes), nil) else {
+            XCTFail("SecKeyCreateWithData should import non-empty key bytes")
+            return
+        }
+
+        guard let attributes = secKeyAttributes(key) else {
+            XCTFail("SecKeyCopyAttributes should return imported key attributes")
+            return
+        }
+        XCTAssertEqual(attributes[string(kSecClass)] as? String, string(kSecClassKey))
+        XCTAssertEqual(attributes[string(kSecAttrKeyType)] as? String, string(kSecAttrKeyTypeEC))
+        XCTAssertEqual(attributes[string(kSecAttrKeyClass)] as? String, string(kSecAttrKeyClassPublic))
+        XCTAssertEqual(String(describing: attributes[string(kSecAttrKeySizeInBits)] ?? ""), "256")
+        XCTAssertEqual(data(from: attributes[string(kSecAttrApplicationTag)]), tag)
+        XCTAssertEqual(bool(from: attributes[string(kSecAttrCanVerify)]), true)
+
+        XCTAssertEqual(data(from: SecKeyCopyExternalRepresentation(key, nil)), keyData)
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(key, .verify, kSecKeyAlgorithmECDSASignatureMessageX962SHA256))
+    }
+
+    func testKeyClassReturnRefSynthesizesSecKeyForStoredKeyData() {
+        let applicationTag = Data("org.signal.return-ref.\(UUID().uuidString)".utf8)
+        let keyData = Data([0x04, 0xAA, 0xBB, 0xCC])
+        let keyQuery: [CFString: Any] = [
+            kSecClass: kSecClassKey,
+            kSecAttrApplicationTag: applicationTag,
+            kSecAttrKeyClass: kSecAttrKeyClassPublic
+        ]
+        defer {
+            _ = SecItemDelete(cfDictionary([
+                kSecClass: kSecClassKey,
+                kSecAttrApplicationTag: applicationTag
+            ]))
+        }
+
+        let keyRow = merged(keyQuery, [
+            kSecAttrApplicationLabel: Data([0x09, 0x08]),
+            kSecAttrKeyType: kSecAttrKeyTypeEC,
+            kSecAttrKeySizeInBits: 256,
+            kSecAttrCanVerify: true,
+            kSecValueData: keyData
+        ])
+
+        var addResult: CFTypeRef?
+        XCTAssertEqual(SecItemAdd(cfDictionary(merged(keyRow, [kSecReturnRef: true])), &addResult), errSecSuccess)
+        guard let addedKey = addResult as? SecKey else {
+            XCTFail("SecItemAdd should return a SecKey reference for key data")
+            return
+        }
+        XCTAssertEqual(data(from: SecKeyCopyExternalRepresentation(addedKey, nil)), keyData)
+        let addedAttributes = secKeyAttributes(addedKey)
+        XCTAssertEqual(data(from: addedAttributes?[string(kSecAttrApplicationTag)]), applicationTag)
+        XCTAssertEqual(addedAttributes?[string(kSecAttrKeyClass)] as? String, string(kSecAttrKeyClassPublic))
+        XCTAssertEqual(addedAttributes?[string(kSecAttrKeyType)] as? String, string(kSecAttrKeyTypeEC))
+
+        var copyRefResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary(merged(keyQuery, [kSecReturnRef: true])), &copyRefResult), errSecSuccess)
+        guard let copiedKey = copyRefResult as? SecKey else {
+            XCTFail("SecItemCopyMatching should synthesize a SecKey reference")
+            return
+        }
+        XCTAssertEqual(data(from: SecKeyCopyExternalRepresentation(copiedKey, nil)), keyData)
+
+        let updatedKeyData = Data([0x04, 0x11, 0x22, 0x33])
+        XCTAssertEqual(SecItemUpdate(cfDictionary(keyQuery), cfDictionary([kSecValueData: updatedKeyData])), errSecSuccess)
+
+        var updatedRefResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary(merged(keyQuery, [kSecReturnRef: true])), &updatedRefResult), errSecSuccess)
+        guard let updatedKey = updatedRefResult as? SecKey else {
+            XCTFail("SecItemUpdate should refresh synthesized SecKey references")
+            return
+        }
+        XCTAssertEqual(data(from: SecKeyCopyExternalRepresentation(updatedKey, nil)), updatedKeyData)
+
+        var attributeResult: CFTypeRef?
+        XCTAssertEqual(SecItemCopyMatching(cfDictionary(merged(keyQuery, [
+            kSecReturnAttributes: true,
+            kSecReturnRef: true
+        ])), &attributeResult), errSecSuccess)
+        let attributes = attributes(from: attributeResult)
+        XCTAssertTrue(attributes?[string(kSecValueRef)] is SecKey)
+    }
+
     func testInternetPasswordNamespacesByEndpointAttributes() {
         let server = "chat.signal.example"
         let account = "primary-\(UUID().uuidString)"
@@ -677,6 +771,10 @@ private func string(_ key: CFString) -> String {
 
 private func attributes(from result: CFTypeRef?) -> [String: Any]? {
     (result as? NSDictionary) as? [String: Any]
+}
+
+private func secKeyAttributes(_ key: SecKey) -> [String: Any]? {
+    SecKeyCopyAttributes(key)
 }
 
 private func data(from value: Any?) -> Data? {
