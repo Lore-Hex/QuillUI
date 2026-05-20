@@ -293,9 +293,9 @@ public extension RSImage {
     static func quillNSImageNamed(_ name: String) -> RSImage {
         recordCompatibilityWarning(
             "NSImage(named:)",
-            message: "NSImage(named:) returns a blank placeholder image for '\(name)' on Linux; app assets are not loaded through AppKit yet."
+            message: "NSImage(named:) returns a 32x32 placeholder image for '\(name)' on Linux; app assets are not loaded through AppKit yet."
         )
-        return RSImage(size: CGSize(width: 1, height: 1))
+        return RSImage(size: CGSize(width: 32, height: 32))
     }
 
     /// Returns the receiver's image bytes as TIFF.
