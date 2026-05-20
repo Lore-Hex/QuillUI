@@ -62,10 +62,36 @@ private struct NWErrorDescriptionPayload {
 
 private func darwinPOSIXDescription(for code: POSIXErrorCode) -> (rawValue: Int32, message: String) {
     switch code {
-    case .ECONNREFUSED:
-        return (61, "Connection refused")
+    case .EPIPE:
+        return (32, "Broken pipe")
+    case .EADDRINUSE:
+        return (48, "Address already in use")
+    case .EADDRNOTAVAIL:
+        return (49, "Can't assign requested address")
+    case .ENETDOWN:
+        return (50, "Network is down")
+    case .ENETUNREACH:
+        return (51, "Network is unreachable")
+    case .ENETRESET:
+        return (52, "Network dropped connection on reset")
+    case .ECONNABORTED:
+        return (53, "Software caused connection abort")
     case .ECONNRESET:
         return (54, "Connection reset by peer")
+    case .EISCONN:
+        return (56, "Socket is already connected")
+    case .ENOTCONN:
+        return (57, "Socket is not connected")
+    case .ESHUTDOWN:
+        return (58, "Can't send after socket shutdown")
+    case .ETIMEDOUT:
+        return (60, "Operation timed out")
+    case .ECONNREFUSED:
+        return (61, "Connection refused")
+    case .EHOSTDOWN:
+        return (64, "Host is down")
+    case .EHOSTUNREACH:
+        return (65, "No route to host")
     default:
         let rawValue = Int32(code.rawValue)
         return (rawValue, posixMessage(for: rawValue))

@@ -106,8 +106,9 @@ Function coverage index:
   direct-value equality/hash coherence, port
   parser/constant/equality/hash semantics, host-port/service/Unix endpoint
   value behavior including scoped service interface suffixes, and
-  `NWError.posix`, `.dns`, and `.tls` equality, Sendable, debug text, and Apple
-  localized error formatting; TCP/UDP protocol option defaults and setters; and
+  `NWError.posix`, `.dns`, and `.tls` equality, Sendable, debug text, Apple
+  localized error formatting, and common Darwin POSIX network failure payloads;
+  TCP/UDP protocol option defaults and setters; and
   `NWParameters` policy enums, defaults, setter normalization, local endpoint
   debug formatting, and traffic, multipath, proxy, and DNSSEC debug segments are
   pinned by shared Apple/Linux tests.

@@ -15,6 +15,40 @@ final class NetworkErrorParityTests: XCTestCase {
         XCTAssertNotEqual(error, .posix(.ECONNRESET))
     }
 
+    func testNWErrorCommonPOSIXNetworkPayloadsMatchApple() {
+        let cases: [(POSIXErrorCode, Int32, String)] = [
+            (.EPIPE, 32, "Broken pipe"),
+            (.EADDRINUSE, 48, "Address already in use"),
+            (.EADDRNOTAVAIL, 49, "Can't assign requested address"),
+            (.ENETDOWN, 50, "Network is down"),
+            (.ENETUNREACH, 51, "Network is unreachable"),
+            (.ENETRESET, 52, "Network dropped connection on reset"),
+            (.ECONNABORTED, 53, "Software caused connection abort"),
+            (.ECONNRESET, 54, "Connection reset by peer"),
+            (.EISCONN, 56, "Socket is already connected"),
+            (.ENOTCONN, 57, "Socket is not connected"),
+            (.ESHUTDOWN, 58, "Can't send after socket shutdown"),
+            (.ETIMEDOUT, 60, "Operation timed out"),
+            (.ECONNREFUSED, 61, "Connection refused"),
+            (.EHOSTDOWN, 64, "Host is down"),
+            (.EHOSTUNREACH, 65, "No route to host"),
+        ]
+
+        for (code, darwinRawValue, message) in cases {
+            let error = NWError.posix(code)
+            let expected = "POSIXErrorCode(rawValue: \(darwinRawValue)): \(message)"
+
+            XCTAssertEqual(error.debugDescription, expected)
+            XCTAssertEqual(String(describing: error), expected)
+            XCTAssertEqual(String(reflecting: error), expected)
+            XCTAssertEqual(
+                error.localizedDescription,
+                "The operation couldn’t be completed. (Network.NWError error \(darwinRawValue) - \(message))"
+            )
+            XCTAssertEqual(error, .posix(code))
+        }
+    }
+
     func testNWErrorTLSSurfaceMatchesApple() {
         let error = NWError.tls(-9807)
 
