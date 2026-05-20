@@ -50,6 +50,45 @@ across SwiftUI, SwiftData, AppKit/UIKit, Network, media/service kits, system
 kits, third-party package clones, and app progress. Rows marked `Parity` are
 the only rows treated as full Apple/Linux contract matches.
 
+Function coverage index:
+
+- [Network](docs/apple-package-function-coverage.md#network): the current first
+  parity pocket, including path monitor initial/pre-start-cancel state,
+  path/interface value semantics, endpoint/host/address/port value behavior,
+  and Apple-checked protocol-surface conformance rows.
+- [SwiftUI](docs/apple-package-function-coverage.md#swiftui),
+  [SwiftData](docs/apple-package-function-coverage.md#swiftdata),
+  [AppKit](docs/apple-package-function-coverage.md#appkit), and
+  [UIKit](docs/apple-package-function-coverage.md#uikit): primary Apple UI and
+  model package clone ledgers.
+- [WebKit](docs/apple-package-function-coverage.md#webkit),
+  [AuthenticationServices](docs/apple-package-function-coverage.md#authenticationservices),
+  [UniformTypeIdentifiers](docs/apple-package-function-coverage.md#uniformtypeidentifiers),
+  [NetworkExtension](docs/apple-package-function-coverage.md#networkextension),
+  [AVFoundation](docs/apple-package-function-coverage.md#avfoundation),
+  [AVKit](docs/apple-package-function-coverage.md#avkit),
+  [Speech](docs/apple-package-function-coverage.md#speech),
+  [PhotosUI and Photos](docs/apple-package-function-coverage.md#photosui-and-photos),
+  [Charts](docs/apple-package-function-coverage.md#charts),
+  [StoreKit](docs/apple-package-function-coverage.md#storekit), and
+  [TipKit](docs/apple-package-function-coverage.md#tipkit): web, network
+  extension, media, and service kit ledgers.
+- [CoreGraphics](docs/apple-package-function-coverage.md#coregraphics),
+  [Security](docs/apple-package-function-coverage.md#security),
+  [Observation](docs/apple-package-function-coverage.md#observation),
+  [ApplicationServices](docs/apple-package-function-coverage.md#applicationservices),
+  [ServiceManagement](docs/apple-package-function-coverage.md#servicemanagement),
+  [AsyncAlgorithms](docs/apple-package-function-coverage.md#asyncalgorithms),
+  [Carbon](docs/apple-package-function-coverage.md#carbon),
+  [Combine](docs/apple-package-function-coverage.md#combine),
+  [os](docs/apple-package-function-coverage.md#os), and
+  [IOKit](docs/apple-package-function-coverage.md#iokit): system and support
+  package clone ledgers.
+- [Re-export-only Apple shims](docs/apple-package-function-coverage.md#re-export-only-apple-shims),
+  [third-party and app-support package clones](docs/apple-package-function-coverage.md#third-party-and-app-support-package-clones),
+  and [app progress](docs/apple-package-function-coverage.md#app-progress-summary):
+  compatibility-only shims, package clone progress, and app target status.
+
 - [Network function coverage](docs/apple-package-function-coverage.md#network): current
   Network rows that have reached Apple/Linux parity. The path monitor initial
   state and pre-start cancellation rows, path/interface enum rows, and scoped-interface value rows are pinned by
@@ -64,8 +103,6 @@ the only rows treated as full Apple/Linux contract matches.
   value behavior, including scoped service interface suffixes.
 - [API coverage matrix](docs/api-coverage-matrix.md): backend and app-facing API evidence.
 - [App targets](docs/app-targets.md): target-by-target app progress.
-
-Direct package anchors in the function coverage ledger: [SwiftUI](docs/apple-package-function-coverage.md#swiftui), [SwiftData](docs/apple-package-function-coverage.md#swiftdata), [AppKit](docs/apple-package-function-coverage.md#appkit), [UIKit](docs/apple-package-function-coverage.md#uikit), [WebKit](docs/apple-package-function-coverage.md#webkit), [AuthenticationServices](docs/apple-package-function-coverage.md#authenticationservices), [UniformTypeIdentifiers](docs/apple-package-function-coverage.md#uniformtypeidentifiers), [Network](docs/apple-package-function-coverage.md#network), [NetworkExtension](docs/apple-package-function-coverage.md#networkextension), [CoreGraphics](docs/apple-package-function-coverage.md#coregraphics), [Security](docs/apple-package-function-coverage.md#security), [AVFoundation](docs/apple-package-function-coverage.md#avfoundation), [AVKit](docs/apple-package-function-coverage.md#avkit), [Speech](docs/apple-package-function-coverage.md#speech), [PhotosUI and Photos](docs/apple-package-function-coverage.md#photosui-and-photos), [Charts](docs/apple-package-function-coverage.md#charts), [StoreKit](docs/apple-package-function-coverage.md#storekit), [TipKit](docs/apple-package-function-coverage.md#tipkit), [Observation](docs/apple-package-function-coverage.md#observation), [ApplicationServices](docs/apple-package-function-coverage.md#applicationservices), [ServiceManagement](docs/apple-package-function-coverage.md#servicemanagement), [AsyncAlgorithms](docs/apple-package-function-coverage.md#asyncalgorithms), [Carbon](docs/apple-package-function-coverage.md#carbon), [Combine](docs/apple-package-function-coverage.md#combine), [os](docs/apple-package-function-coverage.md#os), [IOKit](docs/apple-package-function-coverage.md#iokit), [re-export-only Apple shims](docs/apple-package-function-coverage.md#re-export-only-apple-shims), [third-party and app-support package clones](docs/apple-package-function-coverage.md#third-party-and-app-support-package-clones), and [app progress](docs/apple-package-function-coverage.md#app-progress-summary).
 
 ## Coverage Ledgers
 
