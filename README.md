@@ -50,8 +50,9 @@ Status terms:
 Progress is intentionally conservative. `Compatible today` means either real
 Linux runtime behavior exists or enough metadata is preserved for the GTK/Qt
 backends and source-contract tests to prove the app-facing API shape. The
-detailed evidence lives in `docs/api-coverage-matrix.md` and
-`docs/app-targets.md`; this README is the high-level checklist.
+detailed evidence lives in `docs/api-coverage-matrix.md`,
+`docs/apple-package-function-coverage.md`, and `docs/app-targets.md`; this
+README is the high-level checklist.
 
 ### Current Progress Snapshot
 
