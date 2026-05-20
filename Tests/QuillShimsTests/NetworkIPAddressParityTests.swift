@@ -150,6 +150,45 @@ final class NetworkIPAddressParityTests: XCTestCase {
         }
     }
 
+    func testIPv6ScopeFallbackEdgeCasesMatchApple() throws {
+        let linkLocalLoopback = [UInt8]([0xfe, 0x80] + Array(repeating: 0, count: 13) + [1])
+        let loopback = [UInt8](Array(repeating: UInt8(0), count: 15) + [1])
+        let mapped = [UInt8](Array(repeating: UInt8(0), count: 10) + [255, 255, 192, 0, 2, 1])
+
+        let fallbackCases: [(String, [UInt8], String)] = [
+            ("fe80::1%", linkLocalLoopback, "fe80::1"),
+            ("fe80::1%999999", linkLocalLoopback, "fe80::1"),
+            ("fe80::1%quillui-no-such-interface", linkLocalLoopback, "fe80::1"),
+            ("::1%", loopback, "::1"),
+            ("::1%999999", loopback, "::1"),
+            ("::ffff:192.0.2.1%", mapped, "::ffff:192.0.2.1"),
+            ("::ffff:192.0.2.1%999999", mapped, "::ffff:192.0.2.1"),
+        ]
+
+        for (input, rawValue, expectedDescription) in fallbackCases {
+            let address = try XCTUnwrap(IPv6Address(input), input)
+
+            XCTAssertEqual(Array(address.rawValue), rawValue, input)
+            XCTAssertNil(address.interface, input)
+            XCTAssertEqual(String(describing: address), expectedDescription, input)
+            XCTAssertEqual(address.debugDescription, expectedDescription, input)
+        }
+
+        let invalidCases = [
+            "fe80::1%%",
+            "%%",
+            "%1",
+            "192.0.2.1%",
+            "192.0.2.1%999999",
+            "example.com%",
+            "example.com%999999",
+        ]
+
+        for input in invalidCases {
+            XCTAssertNil(IPv6Address(input), input)
+        }
+    }
+
     func testIPAddressDataInitializersMatchApple() throws {
         XCTAssertNil(IPv4Address(Data([1, 2, 3])))
 

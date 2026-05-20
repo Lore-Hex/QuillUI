@@ -4,13 +4,11 @@ QuillUI is an open-source Swift UI portability layer for bringing
 SwiftUI-shaped app code to Linux desktops while keeping the same app scenes
 usable on Apple platforms.
 
-**Function-by-function Apple package coverage:** start with the [Apple package function coverage ledger](docs/apple-package-function-coverage.md)
-for the per-function complete/incomplete status of each cloned Apple package
-and app-facing package clone. Network has the first concentrated parity pocket:
-the [Network function rows](docs/apple-package-function-coverage.md#network)
-separate path/interface enum value APIs plus address/endpoint value APIs that
-are parity-tested from the still incomplete transport, DNS, TLS, connection,
-listener, VPN, and monitoring work.
+## Start Here
+
+- **Apple package function coverage:** [docs/apple-package-function-coverage.md](docs/apple-package-function-coverage.md) is the function-by-function complete/incomplete ledger for SwiftUI, SwiftData, AppKit/UIKit, Network, media/service kits, system kits, third-party package clones, and app progress.
+- **Network parity pocket:** [Network function rows](docs/apple-package-function-coverage.md#network) list the narrow API rows currently at `Parity`; broader transport, DNS, TLS, connection, listener, VPN, and monitoring work is still incomplete.
+- **App progress:** [App progress summary](docs/apple-package-function-coverage.md#app-progress-summary) and [docs/app-targets.md](docs/app-targets.md) track target-by-target status.
 
 The Linux runtime and build graph are selected separately. `QUILLUI_BACKEND`
 requests `gtk` or `qt` at launch for backend smoke/profile parity. App products

@@ -43,14 +43,26 @@ final class NetworkEndpointHostParityTests: XCTestCase {
     func testScopedInterfaceHostLiteralsMatchApple() throws {
         let loopbackName = try XCTUnwrap(Self.interfaceName(forIndex: 1))
         let scopedIPv6Bytes = [UInt8]([0xfe, 0x80] + Array(repeating: 0, count: 13) + [1])
+        let loopbackIPv6Bytes = [UInt8](Array(repeating: UInt8(0), count: 15) + [1])
         let scopedMappedBytes = [UInt8]([192, 0, 2, 1])
         let cases: [(String, ExpectedHost)] = [
             ("fe80::1%\(loopbackName)", .ipv6(scopedIPv6Bytes, "fe80::1%\(loopbackName)", loopbackName)),
             ("fe80::1%1", .ipv6(scopedIPv6Bytes, "fe80::1%\(loopbackName)", loopbackName)),
-            ("192.0.2.1%\(loopbackName)", .ipv4(scopedMappedBytes, "192.0.2.1%\(loopbackName)", loopbackName)),
-            ("::ffff:192.0.2.1%\(loopbackName)", .ipv4(scopedMappedBytes, "192.0.2.1%\(loopbackName)", loopbackName)),
-            ("example.com%\(loopbackName)", .name("example.com", loopbackName)),
+            ("fe80::1%", .ipv6(scopedIPv6Bytes, "fe80::1", nil)),
             ("fe80::1%999999", .ipv6(scopedIPv6Bytes, "fe80::1", nil)),
+            ("fe80::1%quillui-no-such-interface", .ipv6(scopedIPv6Bytes, "fe80::1", nil)),
+            ("fe80::1%%", .name("fe80::1%%")),
+            ("::1%", .ipv6(loopbackIPv6Bytes, "::1", nil)),
+            ("::1%999999", .ipv6(loopbackIPv6Bytes, "::1", nil)),
+            ("192.0.2.1%\(loopbackName)", .ipv4(scopedMappedBytes, "192.0.2.1%\(loopbackName)", loopbackName)),
+            ("192.0.2.1%", .name("192.0.2.1%")),
+            ("192.0.2.1%999999", .name("192.0.2.1%999999")),
+            ("::ffff:192.0.2.1%\(loopbackName)", .ipv4(scopedMappedBytes, "192.0.2.1%\(loopbackName)", loopbackName)),
+            ("::ffff:192.0.2.1%", .ipv4(scopedMappedBytes, "192.0.2.1", nil)),
+            ("::ffff:192.0.2.1%999999", .ipv4(scopedMappedBytes, "192.0.2.1", nil)),
+            ("example.com%\(loopbackName)", .name("example.com", loopbackName)),
+            ("example.com%", .name("example.com%")),
+            ("example.com%999999", .name("example.com%999999")),
         ]
 
         for (input, expected) in cases {
