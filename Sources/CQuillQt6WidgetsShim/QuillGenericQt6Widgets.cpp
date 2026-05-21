@@ -110,13 +110,42 @@ QString genericStyleSheet(const QJsonObject &style) {
     const QString messageBodyFontSize = cssPixels(style, "messageBodyFontSize", 14);
     const QString conversationTitleFontSize = cssPixels(style, "conversationTitleFontSize", 15);
     const QString conversationTitleFontWeight = QString::number(intValue(style, "conversationTitleFontWeight", 700));
+    const QString cardRadius = cssPixels(style, "cardRadius", 8);
+    const QString activeCardRadius = cssPixels(style, "activeCardRadius", 8);
+    const QString messageCardRadius = cssPixels(style, "messageCardRadius", 8);
+    const QString listItemRadius = cssPixels(style, "listItemRadius", 8);
+    const QString listItemVerticalMargin = cssPixels(style, "listItemVerticalMargin", 2);
+    const QString listItemPadding = cssPixels(style, "listItemPadding", 8);
+    const QString primaryButtonRadius = cssPixels(style, "primaryButtonRadius", 8);
+    const QString primaryButtonVerticalPadding = cssPixels(style, "primaryButtonVerticalPadding", 8);
+    const QString primaryButtonHorizontalPadding = cssPixels(style, "primaryButtonHorizontalPadding", 12);
+    const QString secondaryButtonRadius = cssPixels(style, "secondaryButtonRadius", 7);
+    const QString secondaryButtonVerticalPadding = cssPixels(style, "secondaryButtonVerticalPadding", 7);
+    const QString secondaryButtonHorizontalPadding = cssPixels(style, "secondaryButtonHorizontalPadding", 10);
 
     QString sheet = QStringLiteral(R"(
         QWidget#genericRoot { background: %1; color: %2; font-size: %3; }
         QFrame#sidebar { background: %4; border-right: 1px solid %5; }
         QLabel#subtitle, QLabel#caption, QLabel#statusText, QLabel#itemSubtitle, QLabel#messageMeta { color: %6; font-size: %7; }
-        QFrame#card, QFrame#messageCard { background: %8; border: 1px solid %9; border-radius: 8px; }
-    )").arg(canvas, ink, rootFontSize, sidebar, divider, muted, captionFontSize, card, border);
+    )").arg(
+        canvas,
+        ink,
+        rootFontSize,
+        sidebar,
+        divider,
+        muted,
+        captionFontSize
+    );
+
+    sheet += QStringLiteral(R"(
+        QFrame#card { background: %1; border: 1px solid %2; border-radius: %3; }
+        QFrame#messageCard { background: %1; border: 1px solid %2; border-radius: %4; }
+    )").arg(
+        card,
+        border,
+        cardRadius,
+        messageCardRadius
+    );
 
     sheet += QStringLiteral(R"(
         QLabel#appTitle { color: %1; font-size: %2; font-weight: %3; }
@@ -141,18 +170,34 @@ QString genericStyleSheet(const QJsonObject &style) {
     )").arg(ink, messageBodyFontSize, badge, captionFontSize, sectionTitleFontWeight);
 
     sheet += QStringLiteral(R"(
-        QFrame#activeCard { background: %1; border: 1px solid %2; border-radius: 8px; }
-    )").arg(activeCard, selectedBorder);
+        QFrame#activeCard { background: %1; border: 1px solid %2; border-radius: %3; }
+    )").arg(activeCard, selectedBorder, activeCardRadius);
 
     sheet += QStringLiteral(R"(
         QListWidget#itemList { background: transparent; border: 0; outline: 0; }
-        QListWidget#itemList::item { border-radius: 8px; margin: 2px 0; padding: 8px; }
-        QListWidget#itemList::item:selected { background: %1; color: %2; }
-        QPushButton#primaryButton { background: %3; color: white; border: 0; border-radius: 8px; padding: 8px 12px; text-align: left; }
-        QPushButton#secondaryButton { background: transparent; color: %2; border: 1px solid %4; border-radius: 7px; padding: 7px 10px; text-align: left; }
-        QScrollArea { background: %5; border: 0; }
-        QSplitter::handle { background: %6; }
-    )").arg(selected, ink, primary, controlBorder, canvas, divider);
+        QListWidget#itemList::item { border-radius: %1; margin: %2 0; padding: %3; }
+        QListWidget#itemList::item:selected { background: %4; color: %5; }
+    )").arg(listItemRadius, listItemVerticalMargin, listItemPadding, selected, ink);
+
+    sheet += QStringLiteral(R"(
+        QPushButton#primaryButton { background: %1; color: white; border: 0; border-radius: %2; padding: %3 %4; text-align: left; }
+        QPushButton#secondaryButton { background: transparent; color: %5; border: 1px solid %6; border-radius: %7; padding: %8 %9; text-align: left; }
+    )").arg(
+        primary,
+        primaryButtonRadius,
+        primaryButtonVerticalPadding,
+        primaryButtonHorizontalPadding,
+        ink,
+        controlBorder,
+        secondaryButtonRadius,
+        secondaryButtonVerticalPadding,
+        secondaryButtonHorizontalPadding
+    );
+
+    sheet += QStringLiteral(R"(
+        QScrollArea { background: %1; border: 0; }
+        QSplitter::handle { background: %2; }
+    )").arg(canvas, divider);
 
     return sheet;
 }
@@ -212,18 +257,20 @@ GenericSelection selectionForRow(const QJsonObject &payload, const QJsonArray &i
     };
 }
 
-QFrame *itemRowWidget(const QJsonObject &item) {
+QFrame *itemRowWidget(const QJsonObject &item, const QJsonObject &style) {
     const QString titleText = stringValue(item, "title", QStringLiteral("Untitled"));
     const QString subtitleText = stringValue(item, "subtitle");
     const QString badgeText = stringValue(item, "badge");
     const QString secondaryText = accessibilitySummary(subtitleText, badgeText);
     const QString rowSummary = accessibilitySummary(titleText, secondaryText);
+    const int horizontalPadding = intValue(style, "itemRowHorizontalPadding", 2);
+    const int verticalPadding = intValue(style, "itemRowVerticalPadding", 4);
 
     QFrame *row = QuillQtWidgets::frame(QStringLiteral("itemRow"));
     applyAccessibleText(row, titleText, rowSummary);
     QVBoxLayout *layout = new QVBoxLayout(row);
-    layout->setContentsMargins(2, 4, 2, 4);
-    layout->setSpacing(4);
+    layout->setContentsMargins(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding);
+    layout->setSpacing(intValue(style, "itemRowSpacing", 4));
 
     QLabel *title = label(titleText, QStringLiteral("sectionTitle"));
     applyAccessibleText(title, titleText, rowSummary);
@@ -242,11 +289,11 @@ QFrame *itemRowWidget(const QJsonObject &item) {
     return row;
 }
 
-QListWidget *listWidget(const QJsonArray &items, int selectedIndex) {
+QListWidget *listWidget(const QJsonArray &items, int selectedIndex, const QJsonObject &style) {
     QListWidget *list = new QListWidget();
     list->setObjectName(QStringLiteral("itemList"));
     applyAccessibleText(list, QStringLiteral("App items"), QStringLiteral("App items"));
-    list->setSpacing(4);
+    list->setSpacing(intValue(style, "listSpacing", 4));
     list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     for (const QJsonValue &value : items) {
@@ -254,7 +301,7 @@ QListWidget *listWidget(const QJsonArray &items, int selectedIndex) {
         QListWidgetItem *listItem = new QListWidgetItem();
         listItem->setSizeHint(QSize(264, intValue(item, "height", 76)));
         list->addItem(listItem);
-        list->setItemWidget(listItem, itemRowWidget(item));
+        list->setItemWidget(listItem, itemRowWidget(item, style));
     }
 
     const int boundedIndex = boundedSelectedIndex(items, selectedIndex);
@@ -264,7 +311,7 @@ QListWidget *listWidget(const QJsonArray &items, int selectedIndex) {
     return list;
 }
 
-QWidget *sidebarWidget(const QJsonObject &payload, QListWidget *list) {
+QWidget *sidebarWidget(const QJsonObject &payload, QListWidget *list, const QJsonObject &style) {
     const QString sidebarTitle = stringValue(payload, "sidebarTitle", QStringLiteral("QuillUI"));
     const QString sidebarSubtitle = stringValue(payload, "sidebarSubtitle", QStringLiteral("Qt backend"));
     const QString primaryActionTitle = stringValue(payload, "primaryActionTitle", QStringLiteral("New"));
@@ -278,9 +325,11 @@ QWidget *sidebarWidget(const QJsonObject &payload, QListWidget *list) {
     sidebar->setMinimumWidth(sidebarWidth);
     sidebar->setMaximumWidth(sidebarWidth);
     applyAccessibleText(sidebar, sidebarTitle, sidebarSummary);
+    const int sidebarPadding = intValue(style, "sidebarPadding", 18);
+    const int primaryButtonMinHeight = intValue(style, "primaryButtonMinHeight", 36);
     QVBoxLayout *layout = new QVBoxLayout(sidebar);
-    layout->setContentsMargins(18, 18, 18, 18);
-    layout->setSpacing(12);
+    layout->setContentsMargins(sidebarPadding, sidebarPadding, sidebarPadding, sidebarPadding);
+    layout->setSpacing(intValue(style, "sidebarSpacing", 12));
 
     QLabel *title = label(sidebarTitle, QStringLiteral("appTitle"));
     applyAccessibleText(title, sidebarTitle, sidebarSummary);
@@ -291,15 +340,15 @@ QWidget *sidebarWidget(const QJsonObject &payload, QListWidget *list) {
 
     QHBoxLayout *actions = new QHBoxLayout();
     actions->setContentsMargins(0, 0, 0, 0);
-    actions->setSpacing(8);
+    actions->setSpacing(intValue(style, "sidebarActionSpacing", 8));
     QPushButton *primary = new QPushButton(primaryActionTitle);
     primary->setObjectName(QStringLiteral("primaryButton"));
-    primary->setMinimumHeight(36);
+    primary->setMinimumHeight(primaryButtonMinHeight);
     primary->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     applyAccessibleText(primary, primaryActionTitle, primaryActionTitle);
     QPushButton *secondary = new QPushButton(secondaryActionTitle);
     secondary->setObjectName(QStringLiteral("secondaryButton"));
-    secondary->setMinimumHeight(36);
+    secondary->setMinimumHeight(primaryButtonMinHeight);
     secondary->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     applyAccessibleText(secondary, secondaryActionTitle, secondaryActionTitle);
     actions->addWidget(primary);
@@ -316,7 +365,7 @@ QWidget *sidebarWidget(const QJsonObject &payload, QListWidget *list) {
     return sidebar;
 }
 
-QFrame *detailCard(const QJsonObject &section, bool active) {
+QFrame *detailCard(const QJsonObject &section, bool active, const QJsonObject &style) {
     const QString titleText = stringValue(section, "title", QStringLiteral("Section"));
     const QString bodyText = stringValue(section, "body");
     const QString cardSummary = accessibilitySummary(titleText, bodyText);
@@ -324,8 +373,13 @@ QFrame *detailCard(const QJsonObject &section, bool active) {
     QFrame *card = QuillQtWidgets::frame(active ? QStringLiteral("activeCard") : QStringLiteral("card"));
     applyAccessibleText(card, titleText, cardSummary);
     QVBoxLayout *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(16, 14, 16, 14);
-    layout->setSpacing(7);
+    layout->setContentsMargins(
+        intValue(style, "cardPaddingHorizontal", 16),
+        intValue(style, "cardPaddingVertical", 14),
+        intValue(style, "cardPaddingHorizontal", 16),
+        intValue(style, "cardPaddingVertical", 14)
+    );
+    layout->setSpacing(intValue(style, "cardSpacing", 7));
     QLabel *title = label(titleText, QStringLiteral("headline"));
     applyAccessibleText(title, titleText, cardSummary);
     layout->addWidget(title);
@@ -335,7 +389,7 @@ QFrame *detailCard(const QJsonObject &section, bool active) {
     return card;
 }
 
-QFrame *messageCard(const QJsonObject &message) {
+QFrame *messageCard(const QJsonObject &message, const QJsonObject &style) {
     const QString senderText = stringValue(message, "sender", QStringLiteral("System"));
     const QString bodyText = stringValue(message, "body");
     const QString cardSummary = accessibilitySummary(senderText, bodyText);
@@ -343,8 +397,13 @@ QFrame *messageCard(const QJsonObject &message) {
     QFrame *card = QuillQtWidgets::frame(QStringLiteral("messageCard"));
     applyAccessibleText(card, senderText, cardSummary);
     QVBoxLayout *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(14, 10, 14, 10);
-    layout->setSpacing(6);
+    layout->setContentsMargins(
+        intValue(style, "messageCardPaddingHorizontal", 14),
+        intValue(style, "messageCardPaddingVertical", 10),
+        intValue(style, "messageCardPaddingHorizontal", 14),
+        intValue(style, "messageCardPaddingVertical", 10)
+    );
+    layout->setSpacing(intValue(style, "messageCardSpacing", 6));
     QLabel *sender = label(senderText, QStringLiteral("messageMeta"));
     applyAccessibleText(sender, senderText, cardSummary);
     layout->addWidget(sender);
@@ -356,13 +415,14 @@ QFrame *messageCard(const QJsonObject &message) {
 
 void populateDetailContent(
     QVBoxLayout *layout,
-    const GenericSelection &selection
+    const GenericSelection &selection,
+    const QJsonObject &style
 ) {
     clearLayout(layout);
 
     int sectionIndex = 0;
     for (const QJsonValue &value : selection.sections) {
-        layout->addWidget(detailCard(value.toObject(), sectionIndex == 0));
+        layout->addWidget(detailCard(value.toObject(), sectionIndex == 0, style));
         sectionIndex += 1;
     }
 
@@ -371,28 +431,38 @@ void populateDetailContent(
         applyAccessibleText(messagesTitle, selection.messagesTitle, selection.messagesTitle);
         layout->addWidget(messagesTitle);
         for (const QJsonValue &value : selection.messages) {
-            layout->addWidget(messageCard(value.toObject()));
+            layout->addWidget(messageCard(value.toObject(), style));
         }
     }
 
     layout->addStretch(1);
 }
 
-void applySelection(GenericDetailPane &detailPane, const GenericSelection &selection) {
+void applySelection(GenericDetailPane &detailPane, const GenericSelection &selection, const QJsonObject &style) {
     const QString detailSummary = accessibilitySummary(selection.detailTitle, selection.detailSubtitle);
     detailPane.titleLabel->setText(selection.detailTitle);
     detailPane.subtitleLabel->setText(selection.detailSubtitle);
     applyAccessibleText(detailPane.view, selection.detailTitle, detailSummary);
     applyAccessibleText(detailPane.titleLabel, selection.detailTitle, detailSummary);
     applyAccessibleText(detailPane.subtitleLabel, selection.detailSubtitle, selection.detailSubtitle);
-    populateDetailContent(detailPane.contentLayout, selection);
+    populateDetailContent(detailPane.contentLayout, selection, style);
 }
 
-GenericDetailPane detailWidget(const QJsonObject &payload, const QJsonArray &items, int selectedIndex) {
+GenericDetailPane detailWidget(
+    const QJsonObject &payload,
+    const QJsonArray &items,
+    int selectedIndex,
+    const QJsonObject &style
+) {
     QWidget *detail = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(detail);
-    layout->setContentsMargins(24, 22, 24, 22);
-    layout->setSpacing(14);
+    layout->setContentsMargins(
+        intValue(style, "detailPaddingHorizontal", 24),
+        intValue(style, "detailPaddingVertical", 22),
+        intValue(style, "detailPaddingHorizontal", 24),
+        intValue(style, "detailPaddingVertical", 22)
+    );
+    layout->setSpacing(intValue(style, "detailSpacing", 14));
 
     const GenericSelection selection = selectionForRow(payload, items, selectedIndex);
     const QString detailSummary = accessibilitySummary(selection.detailTitle, selection.detailSubtitle);
@@ -406,9 +476,9 @@ GenericDetailPane detailWidget(const QJsonObject &payload, const QJsonArray &ite
 
     QVBoxLayout *contentLayout = new QVBoxLayout();
     contentLayout->setContentsMargins(0, 0, 0, 0);
-    contentLayout->setSpacing(14);
+    contentLayout->setSpacing(intValue(style, "detailContentSpacing", 14));
     layout->addLayout(contentLayout, 1);
-    populateDetailContent(contentLayout, selection);
+    populateDetailContent(contentLayout, selection, style);
 
     return GenericDetailPane { detail, title, subtitle, contentLayout };
 }
@@ -460,14 +530,14 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
     const QJsonArray items = jsonArrayValue(payload, "items");
     const int rawSelectedIndex = intValue(payload, "selectedIndex", 0);
     const int selectedIndex = boundedSelectedIndex(items, rawSelectedIndex);
-    QListWidget *itemList = listWidget(items, selectedIndex);
-    GenericDetailPane detailPane = detailWidget(payload, items, selectedIndex);
+    QListWidget *itemList = listWidget(items, selectedIndex, style);
+    GenericDetailPane detailPane = detailWidget(payload, items, selectedIndex, style);
     QObject::connect(itemList, &QListWidget::currentRowChanged, [&](int row) {
-        applySelection(detailPane, selectionForRow(payload, items, row));
+        applySelection(detailPane, selectionForRow(payload, items, row), style);
     });
 
     QSplitter *splitter = new QSplitter(Qt::Horizontal);
-    splitter->addWidget(sidebarWidget(payload, itemList));
+    splitter->addWidget(sidebarWidget(payload, itemList, style));
     splitter->addWidget(scrollWrapped(detailPane.view));
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);

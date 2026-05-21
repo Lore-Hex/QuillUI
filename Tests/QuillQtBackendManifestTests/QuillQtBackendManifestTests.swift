@@ -269,6 +269,11 @@ struct QuillQtBackendManifestTests {
         #expect(snapshot.items[0].height == 76)
         #expect(snapshot.style.canvasColor == QuillGenericQtAppSnapshot.Style.desktop.canvasColor)
         #expect(snapshot.style.controlBorderColor == QuillGenericQtAppSnapshot.Style.desktop.controlBorderColor)
+        #expect(snapshot.style.sidebarSpacing == QuillGenericQtAppSnapshot.Style.desktop.sidebarSpacing)
+        #expect(snapshot.style.primaryButtonVerticalPadding == QuillGenericQtAppSnapshot.Style.desktop.primaryButtonVerticalPadding)
+        #expect(snapshot.style.listSpacing == QuillGenericQtAppSnapshot.Style.desktop.listSpacing)
+        #expect(snapshot.style.messageCardRadius == QuillGenericQtAppSnapshot.Style.desktop.messageCardRadius)
+        #expect(snapshot.style.detailContentSpacing == QuillGenericQtAppSnapshot.Style.desktop.detailContentSpacing)
     }
 
     @Test("Generic Qt style decoding defaults missing fields")
@@ -287,6 +292,11 @@ struct QuillQtBackendManifestTests {
         #expect(style.sidebarColor == QuillGenericQtAppSnapshot.Style.desktop.sidebarColor)
         #expect(style.cardColor == QuillGenericQtAppSnapshot.Style.desktop.cardColor)
         #expect(style.controlBorderColor == QuillGenericQtAppSnapshot.Style.desktop.controlBorderColor)
+        #expect(style.sidebarSpacing == QuillGenericQtAppSnapshot.Style.desktop.sidebarSpacing)
+        #expect(style.primaryButtonVerticalPadding == QuillGenericQtAppSnapshot.Style.desktop.primaryButtonVerticalPadding)
+        #expect(style.listSpacing == QuillGenericQtAppSnapshot.Style.desktop.listSpacing)
+        #expect(style.messageCardRadius == QuillGenericQtAppSnapshot.Style.desktop.messageCardRadius)
+        #expect(style.detailContentSpacing == QuillGenericQtAppSnapshot.Style.desktop.detailContentSpacing)
     }
 
     private func assertGenericQtSnapshot(
@@ -374,6 +384,39 @@ struct QuillQtBackendManifestTests {
         #expect(snapshot.style.selectedBorderColor == EnchantedPalette.controlBorderColor)
         #expect(snapshot.style.dividerColor == EnchantedPalette.hairlineColor)
         #expect(snapshot.style.controlBorderColor == EnchantedPalette.controlBorderColor)
+        #expect(snapshot.style.sidebarPadding == EnchantedVisualMetrics.sidebarPadding)
+        #expect(snapshot.style.sidebarSpacing == EnchantedVisualMetrics.sidebarSpacing)
+        #expect(snapshot.style.sidebarActionSpacing == EnchantedVisualMetrics.conversationActionsSpacing)
+        #expect(
+            snapshot.style.primaryButtonMinHeight
+                == EnchantedVisualMetrics.primaryButtonVerticalPadding * 2 + EnchantedTypography.rootFontSize
+        )
+        #expect(snapshot.style.primaryButtonVerticalPadding == EnchantedVisualMetrics.primaryButtonVerticalPadding)
+        #expect(snapshot.style.primaryButtonHorizontalPadding == EnchantedVisualMetrics.primaryButtonHorizontalPadding)
+        #expect(snapshot.style.primaryButtonRadius == EnchantedVisualMetrics.primaryButtonRadius)
+        #expect(snapshot.style.secondaryButtonVerticalPadding == EnchantedVisualMetrics.secondaryButtonVerticalPadding)
+        #expect(snapshot.style.secondaryButtonHorizontalPadding == EnchantedVisualMetrics.secondaryButtonHorizontalPadding)
+        #expect(snapshot.style.secondaryButtonRadius == EnchantedVisualMetrics.secondaryButtonRadius)
+        #expect(snapshot.style.listSpacing == EnchantedVisualMetrics.conversationListSpacing)
+        #expect(snapshot.style.listItemRadius == EnchantedVisualMetrics.conversationListItemRadius)
+        #expect(snapshot.style.listItemVerticalMargin == EnchantedVisualMetrics.conversationListItemVerticalMargin)
+        #expect(snapshot.style.listItemPadding == EnchantedVisualMetrics.conversationListItemPadding)
+        #expect(snapshot.style.itemRowHorizontalPadding == EnchantedVisualMetrics.conversationListItemPadding / 4)
+        #expect(snapshot.style.itemRowVerticalPadding == EnchantedVisualMetrics.conversationListItemPadding / 2)
+        #expect(snapshot.style.itemRowSpacing == EnchantedVisualMetrics.conversationRowSpacing)
+        #expect(snapshot.style.cardRadius == EnchantedVisualMetrics.emptyHistoryRadius)
+        #expect(snapshot.style.cardPaddingHorizontal == EnchantedVisualMetrics.emptyHistoryPadding)
+        #expect(snapshot.style.cardPaddingVertical == EnchantedVisualMetrics.emptyHistoryPadding)
+        #expect(snapshot.style.cardSpacing == EnchantedVisualMetrics.emptyHistorySpacing)
+        #expect(snapshot.style.activeCardRadius == EnchantedVisualMetrics.conversationRowRadius)
+        #expect(snapshot.style.messageCardRadius == EnchantedVisualMetrics.messageBubbleRadius)
+        #expect(snapshot.style.messageCardPaddingHorizontal == EnchantedVisualMetrics.messageBubblePadding)
+        #expect(snapshot.style.messageCardPaddingVertical == EnchantedVisualMetrics.messageBubblePadding)
+        #expect(snapshot.style.messageCardSpacing == EnchantedVisualMetrics.messageBubbleSpacing)
+        #expect(snapshot.style.detailPaddingHorizontal == EnchantedVisualMetrics.contentPadding)
+        #expect(snapshot.style.detailPaddingVertical == EnchantedVisualMetrics.contentPadding)
+        #expect(snapshot.style.detailSpacing == EnchantedVisualMetrics.messageSpacing)
+        #expect(snapshot.style.detailContentSpacing == EnchantedVisualMetrics.messageSpacing)
     }
 
     private func canonicalAppSpecs(in manifest: String) throws -> [QtAppSpec] {

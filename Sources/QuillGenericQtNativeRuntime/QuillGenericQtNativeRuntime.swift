@@ -132,6 +132,36 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         public var messageBodyFontSize: Int
         public var conversationTitleFontSize: Int
         public var conversationTitleFontWeight: Int
+        public var sidebarPadding: Int
+        public var sidebarSpacing: Int
+        public var sidebarActionSpacing: Int
+        public var primaryButtonMinHeight: Int
+        public var primaryButtonVerticalPadding: Int
+        public var primaryButtonHorizontalPadding: Int
+        public var primaryButtonRadius: Int
+        public var secondaryButtonVerticalPadding: Int
+        public var secondaryButtonHorizontalPadding: Int
+        public var secondaryButtonRadius: Int
+        public var listSpacing: Int
+        public var listItemRadius: Int
+        public var listItemVerticalMargin: Int
+        public var listItemPadding: Int
+        public var itemRowHorizontalPadding: Int
+        public var itemRowVerticalPadding: Int
+        public var itemRowSpacing: Int
+        public var cardRadius: Int
+        public var cardPaddingHorizontal: Int
+        public var cardPaddingVertical: Int
+        public var cardSpacing: Int
+        public var activeCardRadius: Int
+        public var messageCardRadius: Int
+        public var messageCardPaddingHorizontal: Int
+        public var messageCardPaddingVertical: Int
+        public var messageCardSpacing: Int
+        public var detailPaddingHorizontal: Int
+        public var detailPaddingVertical: Int
+        public var detailSpacing: Int
+        public var detailContentSpacing: Int
 
         public static let desktop = Style(
             canvasColor: "#F7F8F4",
@@ -157,7 +187,37 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             currentTitleFontWeight: EnchantedTypography.currentTitleFontWeight,
             messageBodyFontSize: EnchantedTypography.messageBodyFontSize,
             conversationTitleFontSize: EnchantedTypography.conversationTitleFontSize,
-            conversationTitleFontWeight: EnchantedTypography.conversationTitleFontWeight
+            conversationTitleFontWeight: EnchantedTypography.conversationTitleFontWeight,
+            sidebarPadding: 18,
+            sidebarSpacing: 12,
+            sidebarActionSpacing: 8,
+            primaryButtonMinHeight: 36,
+            primaryButtonVerticalPadding: 8,
+            primaryButtonHorizontalPadding: 12,
+            primaryButtonRadius: 8,
+            secondaryButtonVerticalPadding: 7,
+            secondaryButtonHorizontalPadding: 10,
+            secondaryButtonRadius: 7,
+            listSpacing: 4,
+            listItemRadius: 8,
+            listItemVerticalMargin: 2,
+            listItemPadding: 8,
+            itemRowHorizontalPadding: 2,
+            itemRowVerticalPadding: 4,
+            itemRowSpacing: 4,
+            cardRadius: 8,
+            cardPaddingHorizontal: 16,
+            cardPaddingVertical: 14,
+            cardSpacing: 7,
+            activeCardRadius: 8,
+            messageCardRadius: 8,
+            messageCardPaddingHorizontal: 14,
+            messageCardPaddingVertical: 10,
+            messageCardSpacing: 6,
+            detailPaddingHorizontal: 24,
+            detailPaddingVertical: 22,
+            detailSpacing: 14,
+            detailContentSpacing: 14
         )
 
         public static let enchanted = Style(
@@ -173,7 +233,38 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             borderColor: EnchantedPalette.hairlineColor,
             selectedBorderColor: EnchantedPalette.controlBorderColor,
             dividerColor: EnchantedPalette.hairlineColor,
-            controlBorderColor: EnchantedPalette.controlBorderColor
+            controlBorderColor: EnchantedPalette.controlBorderColor,
+            sidebarPadding: EnchantedVisualMetrics.sidebarPadding,
+            sidebarSpacing: EnchantedVisualMetrics.sidebarSpacing,
+            sidebarActionSpacing: EnchantedVisualMetrics.conversationActionsSpacing,
+            primaryButtonMinHeight: EnchantedVisualMetrics.primaryButtonVerticalPadding * 2
+                + EnchantedTypography.rootFontSize,
+            primaryButtonVerticalPadding: EnchantedVisualMetrics.primaryButtonVerticalPadding,
+            primaryButtonHorizontalPadding: EnchantedVisualMetrics.primaryButtonHorizontalPadding,
+            primaryButtonRadius: EnchantedVisualMetrics.primaryButtonRadius,
+            secondaryButtonVerticalPadding: EnchantedVisualMetrics.secondaryButtonVerticalPadding,
+            secondaryButtonHorizontalPadding: EnchantedVisualMetrics.secondaryButtonHorizontalPadding,
+            secondaryButtonRadius: EnchantedVisualMetrics.secondaryButtonRadius,
+            listSpacing: EnchantedVisualMetrics.conversationListSpacing,
+            listItemRadius: EnchantedVisualMetrics.conversationListItemRadius,
+            listItemVerticalMargin: EnchantedVisualMetrics.conversationListItemVerticalMargin,
+            listItemPadding: EnchantedVisualMetrics.conversationListItemPadding,
+            itemRowHorizontalPadding: EnchantedVisualMetrics.conversationListItemPadding / 4,
+            itemRowVerticalPadding: EnchantedVisualMetrics.conversationListItemPadding / 2,
+            itemRowSpacing: EnchantedVisualMetrics.conversationRowSpacing,
+            cardRadius: EnchantedVisualMetrics.emptyHistoryRadius,
+            cardPaddingHorizontal: EnchantedVisualMetrics.emptyHistoryPadding,
+            cardPaddingVertical: EnchantedVisualMetrics.emptyHistoryPadding,
+            cardSpacing: EnchantedVisualMetrics.emptyHistorySpacing,
+            activeCardRadius: EnchantedVisualMetrics.conversationRowRadius,
+            messageCardRadius: EnchantedVisualMetrics.messageBubbleRadius,
+            messageCardPaddingHorizontal: EnchantedVisualMetrics.messageBubblePadding,
+            messageCardPaddingVertical: EnchantedVisualMetrics.messageBubblePadding,
+            messageCardSpacing: EnchantedVisualMetrics.messageBubbleSpacing,
+            detailPaddingHorizontal: EnchantedVisualMetrics.contentPadding,
+            detailPaddingVertical: EnchantedVisualMetrics.contentPadding,
+            detailSpacing: EnchantedVisualMetrics.messageSpacing,
+            detailContentSpacing: EnchantedVisualMetrics.messageSpacing
         )
 
         public init(
@@ -200,7 +291,37 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             currentTitleFontWeight: Int = EnchantedTypography.currentTitleFontWeight,
             messageBodyFontSize: Int = EnchantedTypography.messageBodyFontSize,
             conversationTitleFontSize: Int = EnchantedTypography.conversationTitleFontSize,
-            conversationTitleFontWeight: Int = EnchantedTypography.conversationTitleFontWeight
+            conversationTitleFontWeight: Int = EnchantedTypography.conversationTitleFontWeight,
+            sidebarPadding: Int = 18,
+            sidebarSpacing: Int = 12,
+            sidebarActionSpacing: Int = 8,
+            primaryButtonMinHeight: Int = 36,
+            primaryButtonVerticalPadding: Int = 8,
+            primaryButtonHorizontalPadding: Int = 12,
+            primaryButtonRadius: Int = 8,
+            secondaryButtonVerticalPadding: Int = 7,
+            secondaryButtonHorizontalPadding: Int = 10,
+            secondaryButtonRadius: Int = 7,
+            listSpacing: Int = 4,
+            listItemRadius: Int = 8,
+            listItemVerticalMargin: Int = 2,
+            listItemPadding: Int = 8,
+            itemRowHorizontalPadding: Int = 2,
+            itemRowVerticalPadding: Int = 4,
+            itemRowSpacing: Int = 4,
+            cardRadius: Int = 8,
+            cardPaddingHorizontal: Int = 16,
+            cardPaddingVertical: Int = 14,
+            cardSpacing: Int = 7,
+            activeCardRadius: Int = 8,
+            messageCardRadius: Int = 8,
+            messageCardPaddingHorizontal: Int = 14,
+            messageCardPaddingVertical: Int = 10,
+            messageCardSpacing: Int = 6,
+            detailPaddingHorizontal: Int = 24,
+            detailPaddingVertical: Int = 22,
+            detailSpacing: Int = 14,
+            detailContentSpacing: Int = 14
         ) {
             self.canvasColor = canvasColor
             self.sidebarColor = sidebarColor
@@ -226,6 +347,36 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             self.messageBodyFontSize = messageBodyFontSize
             self.conversationTitleFontSize = conversationTitleFontSize
             self.conversationTitleFontWeight = conversationTitleFontWeight
+            self.sidebarPadding = sidebarPadding
+            self.sidebarSpacing = sidebarSpacing
+            self.sidebarActionSpacing = sidebarActionSpacing
+            self.primaryButtonMinHeight = primaryButtonMinHeight
+            self.primaryButtonVerticalPadding = primaryButtonVerticalPadding
+            self.primaryButtonHorizontalPadding = primaryButtonHorizontalPadding
+            self.primaryButtonRadius = primaryButtonRadius
+            self.secondaryButtonVerticalPadding = secondaryButtonVerticalPadding
+            self.secondaryButtonHorizontalPadding = secondaryButtonHorizontalPadding
+            self.secondaryButtonRadius = secondaryButtonRadius
+            self.listSpacing = listSpacing
+            self.listItemRadius = listItemRadius
+            self.listItemVerticalMargin = listItemVerticalMargin
+            self.listItemPadding = listItemPadding
+            self.itemRowHorizontalPadding = itemRowHorizontalPadding
+            self.itemRowVerticalPadding = itemRowVerticalPadding
+            self.itemRowSpacing = itemRowSpacing
+            self.cardRadius = cardRadius
+            self.cardPaddingHorizontal = cardPaddingHorizontal
+            self.cardPaddingVertical = cardPaddingVertical
+            self.cardSpacing = cardSpacing
+            self.activeCardRadius = activeCardRadius
+            self.messageCardRadius = messageCardRadius
+            self.messageCardPaddingHorizontal = messageCardPaddingHorizontal
+            self.messageCardPaddingVertical = messageCardPaddingVertical
+            self.messageCardSpacing = messageCardSpacing
+            self.detailPaddingHorizontal = detailPaddingHorizontal
+            self.detailPaddingVertical = detailPaddingVertical
+            self.detailSpacing = detailSpacing
+            self.detailContentSpacing = detailContentSpacing
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -253,6 +404,36 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             case messageBodyFontSize
             case conversationTitleFontSize
             case conversationTitleFontWeight
+            case sidebarPadding
+            case sidebarSpacing
+            case sidebarActionSpacing
+            case primaryButtonMinHeight
+            case primaryButtonVerticalPadding
+            case primaryButtonHorizontalPadding
+            case primaryButtonRadius
+            case secondaryButtonVerticalPadding
+            case secondaryButtonHorizontalPadding
+            case secondaryButtonRadius
+            case listSpacing
+            case listItemRadius
+            case listItemVerticalMargin
+            case listItemPadding
+            case itemRowHorizontalPadding
+            case itemRowVerticalPadding
+            case itemRowSpacing
+            case cardRadius
+            case cardPaddingHorizontal
+            case cardPaddingVertical
+            case cardSpacing
+            case activeCardRadius
+            case messageCardRadius
+            case messageCardPaddingHorizontal
+            case messageCardPaddingVertical
+            case messageCardSpacing
+            case detailPaddingHorizontal
+            case detailPaddingVertical
+            case detailSpacing
+            case detailContentSpacing
         }
 
         public init(from decoder: Decoder) throws {
@@ -307,7 +488,75 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
                 conversationTitleFontSize: try container.decodeIfPresent(Int.self, forKey: .conversationTitleFontSize)
                     ?? defaults.conversationTitleFontSize,
                 conversationTitleFontWeight: try container.decodeIfPresent(Int.self, forKey: .conversationTitleFontWeight)
-                    ?? defaults.conversationTitleFontWeight
+                    ?? defaults.conversationTitleFontWeight,
+                sidebarPadding: try container.decodeIfPresent(Int.self, forKey: .sidebarPadding)
+                    ?? defaults.sidebarPadding,
+                sidebarSpacing: try container.decodeIfPresent(Int.self, forKey: .sidebarSpacing)
+                    ?? defaults.sidebarSpacing,
+                sidebarActionSpacing: try container.decodeIfPresent(Int.self, forKey: .sidebarActionSpacing)
+                    ?? defaults.sidebarActionSpacing,
+                primaryButtonMinHeight: try container.decodeIfPresent(Int.self, forKey: .primaryButtonMinHeight)
+                    ?? defaults.primaryButtonMinHeight,
+                primaryButtonVerticalPadding: try container.decodeIfPresent(Int.self, forKey: .primaryButtonVerticalPadding)
+                    ?? defaults.primaryButtonVerticalPadding,
+                primaryButtonHorizontalPadding: try container.decodeIfPresent(Int.self, forKey: .primaryButtonHorizontalPadding)
+                    ?? defaults.primaryButtonHorizontalPadding,
+                primaryButtonRadius: try container.decodeIfPresent(Int.self, forKey: .primaryButtonRadius)
+                    ?? defaults.primaryButtonRadius,
+                secondaryButtonVerticalPadding: try container.decodeIfPresent(
+                    Int.self,
+                    forKey: .secondaryButtonVerticalPadding
+                ) ?? defaults.secondaryButtonVerticalPadding,
+                secondaryButtonHorizontalPadding: try container.decodeIfPresent(
+                    Int.self,
+                    forKey: .secondaryButtonHorizontalPadding
+                ) ?? defaults.secondaryButtonHorizontalPadding,
+                secondaryButtonRadius: try container.decodeIfPresent(Int.self, forKey: .secondaryButtonRadius)
+                    ?? defaults.secondaryButtonRadius,
+                listSpacing: try container.decodeIfPresent(Int.self, forKey: .listSpacing)
+                    ?? defaults.listSpacing,
+                listItemRadius: try container.decodeIfPresent(Int.self, forKey: .listItemRadius)
+                    ?? defaults.listItemRadius,
+                listItemVerticalMargin: try container.decodeIfPresent(Int.self, forKey: .listItemVerticalMargin)
+                    ?? defaults.listItemVerticalMargin,
+                listItemPadding: try container.decodeIfPresent(Int.self, forKey: .listItemPadding)
+                    ?? defaults.listItemPadding,
+                itemRowHorizontalPadding: try container.decodeIfPresent(Int.self, forKey: .itemRowHorizontalPadding)
+                    ?? defaults.itemRowHorizontalPadding,
+                itemRowVerticalPadding: try container.decodeIfPresent(Int.self, forKey: .itemRowVerticalPadding)
+                    ?? defaults.itemRowVerticalPadding,
+                itemRowSpacing: try container.decodeIfPresent(Int.self, forKey: .itemRowSpacing)
+                    ?? defaults.itemRowSpacing,
+                cardRadius: try container.decodeIfPresent(Int.self, forKey: .cardRadius)
+                    ?? defaults.cardRadius,
+                cardPaddingHorizontal: try container.decodeIfPresent(Int.self, forKey: .cardPaddingHorizontal)
+                    ?? defaults.cardPaddingHorizontal,
+                cardPaddingVertical: try container.decodeIfPresent(Int.self, forKey: .cardPaddingVertical)
+                    ?? defaults.cardPaddingVertical,
+                cardSpacing: try container.decodeIfPresent(Int.self, forKey: .cardSpacing)
+                    ?? defaults.cardSpacing,
+                activeCardRadius: try container.decodeIfPresent(Int.self, forKey: .activeCardRadius)
+                    ?? defaults.activeCardRadius,
+                messageCardRadius: try container.decodeIfPresent(Int.self, forKey: .messageCardRadius)
+                    ?? defaults.messageCardRadius,
+                messageCardPaddingHorizontal: try container.decodeIfPresent(
+                    Int.self,
+                    forKey: .messageCardPaddingHorizontal
+                ) ?? defaults.messageCardPaddingHorizontal,
+                messageCardPaddingVertical: try container.decodeIfPresent(
+                    Int.self,
+                    forKey: .messageCardPaddingVertical
+                ) ?? defaults.messageCardPaddingVertical,
+                messageCardSpacing: try container.decodeIfPresent(Int.self, forKey: .messageCardSpacing)
+                    ?? defaults.messageCardSpacing,
+                detailPaddingHorizontal: try container.decodeIfPresent(Int.self, forKey: .detailPaddingHorizontal)
+                    ?? defaults.detailPaddingHorizontal,
+                detailPaddingVertical: try container.decodeIfPresent(Int.self, forKey: .detailPaddingVertical)
+                    ?? defaults.detailPaddingVertical,
+                detailSpacing: try container.decodeIfPresent(Int.self, forKey: .detailSpacing)
+                    ?? defaults.detailSpacing,
+                detailContentSpacing: try container.decodeIfPresent(Int.self, forKey: .detailContentSpacing)
+                    ?? defaults.detailContentSpacing
             )
         }
     }
