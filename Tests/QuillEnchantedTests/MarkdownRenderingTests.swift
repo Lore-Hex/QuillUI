@@ -213,6 +213,44 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("drops block HTML comments outside code fences")
+    func dropsBlockHTMLComments() {
+        let blocks = MarkdownParser.parse("""
+        Visible
+        <!--
+        hidden **markdown**
+        -->
+        Still visible
+
+        <!-- inline comment block -->
+        After
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "Visible"),
+            MarkdownBlock(id: 1, kind: .paragraph, text: "Still visible"),
+            MarkdownBlock(id: 2, kind: .paragraph, text: "After")
+        ])
+    }
+
+    @Test("preserves HTML comments inside fenced code")
+    func preservesHTMLCommentsInsideFencedCode() {
+        let blocks = MarkdownParser.parse("""
+        ```html
+        <!-- visible in code -->
+        <p>Visible</p>
+        ```
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(
+                id: 0,
+                kind: .codeBlock(language: "html"),
+                text: "<!-- visible in code -->\n<p>Visible</p>"
+            )
+        ])
+    }
+
     @Test("renders markdown links as readable plain text")
     func cleansLinks() {
         #expect(MarkdownParser.cleanInline("[QuillUI](https://example.com) works") == "QuillUI (https://example.com) works")

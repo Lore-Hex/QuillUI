@@ -1692,6 +1692,22 @@ QString removeMarkdownInlineHtml(const QString &text) {
     return result;
 }
 
+bool markdownHtmlCommentBlock(const QString &rawLine, bool *continues) {
+    const QString line = rawLine.trimmed();
+    if (!line.startsWith(QStringLiteral("<!--"))) {
+        return false;
+    }
+
+    if (continues != nullptr) {
+        *continues = !line.contains(QStringLiteral("-->"));
+    }
+    return true;
+}
+
+bool closesMarkdownHtmlCommentBlock(const QString &rawLine) {
+    return rawLine.contains(QStringLiteral("-->"));
+}
+
 QString markdownCodePointString(const uint codePoint) {
     const char32_t scalar = static_cast<char32_t>(codePoint);
     return QString::fromUcs4(&scalar, 1);
@@ -2070,6 +2086,7 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
     QStringList paragraphLines;
     QStringList codeLines;
     MarkdownFence activeFence;
+    bool skippingHtmlCommentBlock = false;
 
     auto appendBlock = [&](MarkdownBlockKind kind, const QString &text, int level = 0, int number = 0, const QString &language = QString()) {
         MarkdownBlock block;
@@ -2115,6 +2132,20 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
         if (beginMarkdownFence(rawLine, &openingFence)) {
             flushParagraph();
             activeFence = openingFence;
+            continue;
+        }
+
+        if (skippingHtmlCommentBlock) {
+            if (closesMarkdownHtmlCommentBlock(rawLine)) {
+                skippingHtmlCommentBlock = false;
+            }
+            continue;
+        }
+
+        bool commentContinues = false;
+        if (markdownHtmlCommentBlock(rawLine, &commentContinues)) {
+            flushParagraph();
+            skippingHtmlCommentBlock = commentContinues;
             continue;
         }
 

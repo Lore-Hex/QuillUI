@@ -24,6 +24,7 @@ enum MarkdownParser {
         var paragraphLines: [String] = []
         var codeLines: [String] = []
         var activeFence: MarkdownFence?
+        var skippingHTMLCommentBlock = false
 
         func appendBlock(kind: MarkdownBlockKind, text: String) {
             blocks.append(MarkdownBlock(id: blocks.count, kind: kind, text: text))
@@ -60,6 +61,21 @@ enum MarkdownParser {
                 flushParagraph()
                 activeFence = fence
                 codeLines.removeAll(keepingCapacity: true)
+                lineIndex += 1
+                continue
+            }
+
+            if skippingHTMLCommentBlock {
+                if closesHTMLCommentBlock(rawLine) {
+                    skippingHTMLCommentBlock = false
+                }
+                lineIndex += 1
+                continue
+            }
+
+            if let commentContinues = htmlCommentBlock(rawLine) {
+                flushParagraph()
+                skippingHTMLCommentBlock = commentContinues
                 lineIndex += 1
                 continue
             }
@@ -132,6 +148,16 @@ enum MarkdownParser {
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
             .components(separatedBy: "\n")
+    }
+
+    private static func htmlCommentBlock(_ rawLine: String) -> Bool? {
+        let line = rawLine.trimmingCharacters(in: .whitespaces)
+        guard line.hasPrefix("<!--") else { return nil }
+        return !closesHTMLCommentBlock(line)
+    }
+
+    private static func closesHTMLCommentBlock(_ rawLine: String) -> Bool {
+        rawLine.contains("-->")
     }
 
     private static func replaceLinks(in text: String) -> String {
