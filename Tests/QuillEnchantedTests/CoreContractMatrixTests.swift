@@ -1993,6 +1993,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "!?\\\\[([^\\\\]]+)\\\\]\\\\(([^)]+)\\\\)")
         expectContains(nativeShim, "int markdownFenceMarkerCount(const QString &line, const QChar marker)")
         expectContains(nativeShim, "closingCount < fence.markerCount")
+        expectContains(nativeShim, "QString normalizedMarkdownHeadingText(QString text)")
+        expectContains(nativeShim, "normalizedMarkdownHeadingText(line.mid(markerCount))")
         expectContains(nativeShim, "int setextMarkdownHeadingLevel(const QString &rawLine)")
         expectContains(nativeShim, "appendBlock(MarkdownBlockKind::Heading, headingText, setextLevel)")
         expectContains(nativeShim, "bool isMarkdownThematicBreak(const QString &rawLine)")
@@ -2809,7 +2811,10 @@ private let inlineCases: [TextCase] = [
 
 private let blockCases: [BlockCase] = [
     BlockCase(markdown: "# Heading", kind: .heading(level: 1), text: "Heading"),
+    BlockCase(markdown: "# Heading #", kind: .heading(level: 1), text: "Heading"),
     BlockCase(markdown: "## Heading", kind: .heading(level: 2), text: "Heading"),
+    BlockCase(markdown: "### C# guide ###", kind: .heading(level: 3), text: "C# guide"),
+    BlockCase(markdown: "## Heading##", kind: .heading(level: 2), text: "Heading##"),
     BlockCase(markdown: "###### Heading", kind: .heading(level: 6), text: "Heading"),
     BlockCase(markdown: "Overview\n===", kind: .heading(level: 1), text: "Overview"),
     BlockCase(markdown: "Details\n---", kind: .heading(level: 2), text: "Details"),

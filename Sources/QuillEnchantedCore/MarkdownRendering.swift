@@ -137,9 +137,28 @@ enum MarkdownParser {
         guard (1...6).contains(markers) else { return nil }
         let markerEnd = line.index(line.startIndex, offsetBy: markers)
         guard markerEnd < line.endIndex, line[markerEnd].isWhitespace else { return nil }
-        let text = line[markerEnd...].trimmingCharacters(in: .whitespaces)
+        let text = normalizedHeadingText(String(line[markerEnd...]))
         guard !text.isEmpty else { return nil }
         return (markers, text)
+    }
+
+    private static func normalizedHeadingText(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard trimmed.last == "#" else { return trimmed }
+
+        var hashStart = trimmed.endIndex
+        while hashStart > trimmed.startIndex {
+            let previous = trimmed.index(before: hashStart)
+            guard trimmed[previous] == "#" else { break }
+            hashStart = previous
+        }
+
+        guard hashStart > trimmed.startIndex else { return trimmed }
+        let beforeHashes = trimmed.index(before: hashStart)
+        guard trimmed[beforeHashes].isWhitespace else { return trimmed }
+
+        let candidate = trimmed[..<hashStart].trimmingCharacters(in: .whitespaces)
+        return candidate.isEmpty ? trimmed : candidate
     }
 
     private static func setextHeadingLevel(after lineIndex: Int, in lines: [String]) -> Int? {

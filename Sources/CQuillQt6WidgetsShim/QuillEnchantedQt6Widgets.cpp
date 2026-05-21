@@ -1317,6 +1317,25 @@ bool closesMarkdownFence(const QString &rawLine, const MarkdownFence &fence) {
     return markdownFenceSuffix(line, closingCount).trimmed().isEmpty();
 }
 
+QString normalizedMarkdownHeadingText(QString text) {
+    const QString normalized = text.trimmed();
+    if (!normalized.endsWith(QLatin1Char('#'))) {
+        return normalized;
+    }
+
+    int hashStart = normalized.size();
+    while (hashStart > 0 && normalized.at(hashStart - 1) == QLatin1Char('#')) {
+        hashStart -= 1;
+    }
+
+    if (hashStart <= 0 || !normalized.at(hashStart - 1).isSpace()) {
+        return normalized;
+    }
+
+    const QString candidate = normalized.left(hashStart).trimmed();
+    return candidate.isEmpty() ? normalized : candidate;
+}
+
 bool parseHeadingLine(const QString &line, int *level, QString *text) {
     int markerCount = 0;
     while (markerCount < line.size() && line.at(markerCount) == QLatin1Char('#')) {
@@ -1334,7 +1353,7 @@ bool parseHeadingLine(const QString &line, int *level, QString *text) {
         *level = markerCount;
     }
     if (text != nullptr) {
-        *text = cleanMarkdownInline(line.mid(markerCount).trimmed());
+        *text = cleanMarkdownInline(normalizedMarkdownHeadingText(line.mid(markerCount)));
     }
     return true;
 }

@@ -21,7 +21,7 @@ struct MarkdownRenderingTests {
     @Test("parses headings and list items")
     func parsesStructuralBlocks() {
         let blocks = MarkdownParser.parse("""
-        ## Plan
+        ## Plan ##
         - Build the shim
         2. Verify Linux
         3) Match macOS
@@ -34,6 +34,21 @@ struct MarkdownRenderingTests {
             MarkdownBlock(id: 2, kind: .orderedListItem(number: 2), text: "Verify Linux"),
             MarkdownBlock(id: 3, kind: .orderedListItem(number: 3), text: "Match macOS"),
             MarkdownBlock(id: 4, kind: .quote, text: "Keep it native")
+        ])
+    }
+
+    @Test("trims valid closing ATX heading markers")
+    func trimsClosingATXHeadingMarkers() {
+        let blocks = MarkdownParser.parse("""
+        # Heading #
+        ### C# guide ###
+        ## Heading##
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .heading(level: 1), text: "Heading"),
+            MarkdownBlock(id: 1, kind: .heading(level: 3), text: "C# guide"),
+            MarkdownBlock(id: 2, kind: .heading(level: 2), text: "Heading##")
         ])
     }
 
