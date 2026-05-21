@@ -779,6 +779,9 @@ struct CompatibilityModuleTests {
         let nestedDestinationPlainText = Markdown.plainText(
             from: "[Swift Array](https://developer.apple.com/documentation/swift/Array(_:)) and ![Chart](assets/chart(size).png)"
         )
+        let autolinkPlainText = Markdown.plainText(
+            from: "Open <https://example.com/docs?q=1> or email <support@example.com>; keep 2 < 3 > 1"
+        )
         let singleEmphasisPlainText = Markdown.plainText(
             from: "Use *local* and _remote_ models, but keep a literal * marker"
         )
@@ -788,6 +791,7 @@ struct CompatibilityModuleTests {
         #expect(linkAndImagePlainText == "Use bold, strong, code, old, link (https://example.com), and chart (chart.png)")
         #expect(emptyLabelLinkAndImagePlainText == "Status (/health) and (file:///tmp/chart.png)")
         #expect(nestedDestinationPlainText == "Swift Array (https://developer.apple.com/documentation/swift/Array(_:)) and Chart (assets/chart(size).png)")
+        #expect(autolinkPlainText == "Open https://example.com/docs?q=1 or email support@example.com; keep 2 < 3 > 1")
         #expect(singleEmphasisPlainText == "Use local and remote models, but keep a literal * marker")
     }
 

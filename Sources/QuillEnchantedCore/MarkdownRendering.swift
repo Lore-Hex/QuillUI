@@ -112,6 +112,7 @@ enum MarkdownParser {
 
     static func cleanInline(_ text: String) -> String {
         var cleaned = replaceLinks(in: text)
+        cleaned = replaceAutolinks(in: cleaned)
         for marker in ["**", "__", "`", "~~"] {
             cleaned = cleaned.replacingOccurrences(of: marker, with: "")
         }
@@ -216,6 +217,53 @@ enum MarkdownParser {
         }
 
         return nil
+    }
+
+    private static func replaceAutolinks(in text: String) -> String {
+        var result = ""
+        var index = text.startIndex
+
+        while index < text.endIndex {
+            if text[index] == "<",
+               let closingIndex = text[text.index(after: index)...].firstIndex(of: ">") {
+                let content = String(text[text.index(after: index)..<closingIndex])
+                if isAutolinkContent(content) {
+                    result += content
+                    index = text.index(after: closingIndex)
+                    continue
+                }
+            }
+
+            result.append(text[index])
+            index = text.index(after: index)
+        }
+
+        return result
+    }
+
+    private static func isAutolinkContent(_ text: String) -> Bool {
+        guard !text.isEmpty,
+              !text.contains(where: { $0.isWhitespace || $0 == "<" || $0 == ">" }) else {
+            return false
+        }
+
+        if let colonIndex = text.firstIndex(of: ":") {
+            let scheme = text[..<colonIndex]
+            return (2...32).contains(scheme.count)
+                && scheme.first?.isLetter == true
+                && scheme.allSatisfy { $0.isLetter || $0.isNumber || $0 == "+" || $0 == "." || $0 == "-" }
+                && text.index(after: colonIndex) < text.endIndex
+        }
+
+        if let atIndex = text.firstIndex(of: "@") {
+            let localPart = text[..<atIndex]
+            let domainPart = text[text.index(after: atIndex)...]
+            return !localPart.isEmpty
+                && domainPart.contains(".")
+                && !domainPart.isEmpty
+        }
+
+        return false
     }
 
     private static func removePairedSingleMarkers(in text: String, marker: Character) -> String {

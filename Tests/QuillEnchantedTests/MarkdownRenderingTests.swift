@@ -221,6 +221,9 @@ struct MarkdownRenderingTests {
         #expect(MarkdownParser.cleanInline("Drop ![](file:///tmp/chart.png)") == "Drop (file:///tmp/chart.png)")
         #expect(MarkdownParser.cleanInline("[Swift Array](https://developer.apple.com/documentation/swift/Array(_:))") == "Swift Array (https://developer.apple.com/documentation/swift/Array(_:))")
         #expect(MarkdownParser.cleanInline("![Chart](assets/chart(size).png)") == "Chart (assets/chart(size).png)")
+        #expect(MarkdownParser.cleanInline("Open <https://example.com/docs?q=1>") == "Open https://example.com/docs?q=1")
+        #expect(MarkdownParser.cleanInline("Email <support@example.com>") == "Email support@example.com")
+        #expect(MarkdownParser.cleanInline("Keep 2 < 3 > 1") == "Keep 2 < 3 > 1")
         #expect(MarkdownParser.cleanInline("Use *local* and _remote_ models") == "Use local and remote models")
         #expect(MarkdownParser.cleanInline("Keep a literal * marker") == "Keep a literal * marker")
     }
