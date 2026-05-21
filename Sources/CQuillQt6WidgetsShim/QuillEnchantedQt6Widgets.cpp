@@ -1337,6 +1337,26 @@ bool parseHeadingLine(const QString &line, int *level, QString *text) {
     return true;
 }
 
+int setextMarkdownHeadingLevel(const QString &rawLine) {
+    const QString line = rawLine.trimmed();
+    if (line.isEmpty()) {
+        return 0;
+    }
+
+    const QChar marker = line.at(0);
+    if (marker != QLatin1Char('=') && marker != QLatin1Char('-')) {
+        return 0;
+    }
+
+    for (const QChar character : line) {
+        if (character != marker) {
+            return 0;
+        }
+    }
+
+    return marker == QLatin1Char('=') ? 1 : 2;
+}
+
 bool parseUnorderedListLine(const QString &line, QString *text) {
     if (line.size() < 3) {
         return false;
@@ -1438,7 +1458,8 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
     };
 
     const QStringList lines = normalized.split(QLatin1Char('\n'));
-    for (const QString &rawLine : lines) {
+    for (int lineIndex = 0; lineIndex < lines.size(); ++lineIndex) {
+        const QString &rawLine = lines.at(lineIndex);
         if (activeFence.isActive) {
             if (closesMarkdownFence(rawLine, activeFence)) {
                 flushCodeBlock();
@@ -1477,7 +1498,20 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
             flushParagraph();
             appendBlock(MarkdownBlockKind::Quote, text);
         } else {
-            paragraphLines.append(line);
+            const int setextLevel = lineIndex + 1 < lines.size()
+                ? setextMarkdownHeadingLevel(lines.at(lineIndex + 1))
+                : 0;
+            if (setextLevel > 0) {
+                paragraphLines.append(line);
+                const QString headingText = cleanMarkdownInline(paragraphLines.join(QStringLiteral(" ")));
+                paragraphLines.clear();
+                if (!headingText.isEmpty()) {
+                    appendBlock(MarkdownBlockKind::Heading, headingText, setextLevel);
+                }
+                ++lineIndex;
+            } else {
+                paragraphLines.append(line);
+            }
         }
     }
 

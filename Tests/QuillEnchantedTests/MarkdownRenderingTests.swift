@@ -35,6 +35,23 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("parses setext headings")
+    func parsesSetextHeadings() {
+        let blocks = MarkdownParser.parse("""
+        Overview
+        ========
+
+        A **bold**
+        heading
+        ---
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .heading(level: 1), text: "Overview"),
+            MarkdownBlock(id: 1, kind: .heading(level: 2), text: "A bold heading")
+        ])
+    }
+
     @Test("keeps malformed markers as paragraph text")
     func keepsMalformedMarkersAsParagraphText() {
         let blocks = MarkdownParser.parse("""

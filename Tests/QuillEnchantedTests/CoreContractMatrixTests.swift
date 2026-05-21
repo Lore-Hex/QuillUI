@@ -1993,6 +1993,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "!?\\\\[([^\\\\]]+)\\\\]\\\\(([^)]+)\\\\)")
         expectContains(nativeShim, "int markdownFenceMarkerCount(const QString &line, const QChar marker)")
         expectContains(nativeShim, "closingCount < fence.markerCount")
+        expectContains(nativeShim, "int setextMarkdownHeadingLevel(const QString &rawLine)")
+        expectContains(nativeShim, "appendBlock(MarkdownBlockKind::Heading, headingText, setextLevel)")
         expectContains(nativeShim, "QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown)")
         expectContains(nativeShim, "if (!line.at(markerCount).isSpace())")
         expectContains(nativeShim, "if (!line.at(1).isSpace())")
@@ -2801,6 +2803,9 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: "# Heading", kind: .heading(level: 1), text: "Heading"),
     BlockCase(markdown: "## Heading", kind: .heading(level: 2), text: "Heading"),
     BlockCase(markdown: "###### Heading", kind: .heading(level: 6), text: "Heading"),
+    BlockCase(markdown: "Overview\n===", kind: .heading(level: 1), text: "Overview"),
+    BlockCase(markdown: "Details\n---", kind: .heading(level: 2), text: "Details"),
+    BlockCase(markdown: "A **bold**\nheading\n---", kind: .heading(level: 2), text: "A bold heading"),
     BlockCase(markdown: "- Item", kind: .unorderedListItem, text: "Item"),
     BlockCase(markdown: "* Item", kind: .unorderedListItem, text: "Item"),
     BlockCase(markdown: "+ Item", kind: .unorderedListItem, text: "Item"),

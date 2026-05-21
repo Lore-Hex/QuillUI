@@ -41,13 +41,17 @@ enum MarkdownParser {
             activeFence = nil
         }
 
-        for rawLine in splitLines(markdown) {
+        let lines = splitLines(markdown)
+        var lineIndex = 0
+        while lineIndex < lines.count {
+            let rawLine = lines[lineIndex]
             if let fence = activeFence {
                 if fence.matchesClosingLine(rawLine) {
                     flushCodeBlock()
                 } else {
                     codeLines.append(rawLine)
                 }
+                lineIndex += 1
                 continue
             }
 
@@ -55,12 +59,14 @@ enum MarkdownParser {
                 flushParagraph()
                 activeFence = fence
                 codeLines.removeAll(keepingCapacity: true)
+                lineIndex += 1
                 continue
             }
 
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             if line.isEmpty {
                 flushParagraph()
+                lineIndex += 1
                 continue
             }
 
@@ -76,9 +82,19 @@ enum MarkdownParser {
             } else if let quote = quote(in: line) {
                 flushParagraph()
                 appendBlock(kind: .quote, text: cleanInline(quote))
+            } else if let setextLevel = setextHeadingLevel(after: lineIndex, in: lines) {
+                paragraphLines.append(line)
+                let title = cleanInline(paragraphLines.joined(separator: " "))
+                paragraphLines.removeAll(keepingCapacity: true)
+                if let text = title.quillTrimmedNonEmpty {
+                    appendBlock(kind: .heading(level: setextLevel), text: text)
+                }
+                lineIndex += 2
+                continue
             } else {
                 paragraphLines.append(line)
             }
+            lineIndex += 1
         }
 
         if activeFence != nil {
@@ -120,6 +136,17 @@ enum MarkdownParser {
         let text = line[markerEnd...].trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return nil }
         return (markers, text)
+    }
+
+    private static func setextHeadingLevel(after lineIndex: Int, in lines: [String]) -> Int? {
+        let underlineIndex = lineIndex + 1
+        guard underlineIndex < lines.count else { return nil }
+
+        let underline = lines[underlineIndex].trimmingCharacters(in: .whitespaces)
+        guard let marker = underline.first, marker == "=" || marker == "-" else { return nil }
+        guard underline.allSatisfy({ $0 == marker }) else { return nil }
+
+        return marker == "=" ? 1 : 2
     }
 
     private static func unorderedListItem(in line: String) -> String? {
