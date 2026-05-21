@@ -1995,6 +1995,9 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QString cleanMarkdownInline(QString text)")
         expectContains(nativeShim, "int closingMarkdownBracket(const QString &text, const int start)")
         expectContains(nativeShim, "int closingMarkdownParenthesis(const QString &text, const int start)")
+        expectContains(nativeShim, "bool isMarkdownImageLabelStart(const QString &text, const int index)")
+        expectContains(nativeShim, "bool markdownImageReplacement(\n    const QString &text,\n    const int index,")
+        expectContains(nativeShim, "QString replaceMarkdownImages(const QString &text)")
         expectContains(nativeShim, "bool markdownLinkReplacement(\n    const QString &text,\n    const int index,")
         expectContains(nativeShim, "QString replaceMarkdownLinks(const QString &text)")
         expectContains(nativeShim, "bool isMarkdownAutolinkContent(const QString &text)")
@@ -2003,6 +2006,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QString removePairedMarkdownMarkers(QString text, const QString &marker)")
         expectContains(nativeShim, "QString removePairedMarkdownSingleMarkers(QString text, const QChar marker)")
         expectContains(nativeShim, "text = protectMarkdownBackslashEscapes(text)")
+        expectContains(nativeShim, "text = replaceMarkdownImages(text)")
+        expectContains(nativeShim, "text = replaceMarkdownImages(text);\n    text = replaceMarkdownLinks(text)")
         expectContains(nativeShim, "text = replaceMarkdownLinks(text)")
         expectContains(nativeShim, "text = replaceMarkdownAutolinks(text)")
         expectContains(nativeShim, "text = decodeMarkdownCharacterReferences(text)")
@@ -2826,11 +2831,13 @@ private let inlineCases: [TextCase] = [
     TextCase(input: "`code`", expected: "code"),
     TextCase(input: "~~gone~~", expected: "gone"),
     TextCase(input: "[QuillUI](https://example.com)", expected: "QuillUI (https://example.com)"),
-    TextCase(input: "![Preview](file:///tmp/preview.png)", expected: "Preview (file:///tmp/preview.png)"),
+    TextCase(input: "![Preview](file:///tmp/preview.png)", expected: "Preview"),
     TextCase(input: "Status [](/health)", expected: "Status (/health)"),
-    TextCase(input: "Drop ![](file:///tmp/chart.png)", expected: "Drop (file:///tmp/chart.png)"),
+    TextCase(input: "Drop ![](file:///tmp/chart.png)", expected: "Drop"),
     TextCase(input: "[Swift Array](https://developer.apple.com/documentation/swift/Array(_:))", expected: "Swift Array (https://developer.apple.com/documentation/swift/Array(_:))"),
-    TextCase(input: "![Chart](assets/chart(size).png)", expected: "Chart (assets/chart(size).png)"),
+    TextCase(input: "![Chart](assets/chart(size).png)", expected: "Chart"),
+    TextCase(input: "Preview ![Architecture Diagram](assets/architecture.png) done", expected: "Preview Architecture Diagram done"),
+    TextCase(input: "\\![Preview](file:///tmp/preview.png)", expected: "![Preview](file:///tmp/preview.png)"),
     TextCase(input: "Open <https://example.com/docs?q=1>", expected: "Open https://example.com/docs?q=1"),
     TextCase(input: "Email <support@example.com>", expected: "Email support@example.com"),
     TextCase(input: "Keep 2 < 3 > 1", expected: "Keep 2 < 3 > 1"),

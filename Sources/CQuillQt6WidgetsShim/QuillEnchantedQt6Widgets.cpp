@@ -1362,24 +1362,89 @@ int closingMarkdownParenthesis(const QString &text, const int start) {
     return -1;
 }
 
+bool isMarkdownImageLabelStart(const QString &text, const int index) {
+    if (index <= 0) {
+        return false;
+    }
+
+    const QChar previous = text.at(index - 1);
+    return previous == QLatin1Char('!')
+        || previous.unicode() == static_cast<ushort>(0xE000 + static_cast<ushort>('!'));
+}
+
+bool markdownImageReplacement(
+    const QString &text,
+    const int index,
+    QString *replacement,
+    int *endIndex
+) {
+    if (text.at(index) != QLatin1Char('!')) {
+        return false;
+    }
+
+    const int labelStart = index + 1;
+    if (labelStart >= text.size() || text.at(labelStart) != QLatin1Char('[')) {
+        return false;
+    }
+
+    const int labelContentStart = labelStart + 1;
+    const int labelEnd = closingMarkdownBracket(text, labelContentStart);
+    if (labelEnd < 0) {
+        return false;
+    }
+
+    const int destinationStartMarker = labelEnd + 1;
+    if (destinationStartMarker >= text.size()
+        || text.at(destinationStartMarker) != QLatin1Char('(')) {
+        return false;
+    }
+
+    const int destinationStart = destinationStartMarker + 1;
+    const int destinationEnd = closingMarkdownParenthesis(text, destinationStart);
+    if (destinationEnd < 0) {
+        return false;
+    }
+
+    if (replacement != nullptr) {
+        *replacement = text.mid(labelContentStart, labelEnd - labelContentStart);
+    }
+    if (endIndex != nullptr) {
+        *endIndex = destinationEnd + 1;
+    }
+    return true;
+}
+
+QString replaceMarkdownImages(const QString &text) {
+    QString result;
+    result.reserve(text.size());
+
+    int index = 0;
+    while (index < text.size()) {
+        QString replacement;
+        int endIndex = index;
+        if (markdownImageReplacement(text, index, &replacement, &endIndex)) {
+            result.append(replacement);
+            index = endIndex;
+        } else {
+            result.append(text.at(index));
+            index += 1;
+        }
+    }
+
+    return result;
+}
+
 bool markdownLinkReplacement(
     const QString &text,
     const int index,
     QString *replacement,
     int *endIndex
 ) {
-    int labelStart = index;
-    if (text.at(labelStart) == QLatin1Char('!')) {
-        labelStart += 1;
-        if (labelStart >= text.size()) {
-            return false;
-        }
-    }
-
-    if (text.at(labelStart) != QLatin1Char('[')) {
+    if (text.at(index) != QLatin1Char('[') || isMarkdownImageLabelStart(text, index)) {
         return false;
     }
 
+    const int labelStart = index;
     const int labelContentStart = labelStart + 1;
     const int labelEnd = closingMarkdownBracket(text, labelContentStart);
     if (labelEnd < 0) {
@@ -1652,6 +1717,7 @@ QString removePairedMarkdownMarkers(QString text, const QString &marker) {
 
 QString cleanMarkdownInline(QString text) {
     text = protectMarkdownBackslashEscapes(text);
+    text = replaceMarkdownImages(text);
     text = replaceMarkdownLinks(text);
     text = replaceMarkdownAutolinks(text);
     text = decodeMarkdownCharacterReferences(text);

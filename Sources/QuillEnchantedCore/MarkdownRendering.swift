@@ -112,6 +112,7 @@ enum MarkdownParser {
 
     static func cleanInline(_ text: String) -> String {
         var cleaned = protectBackslashEscapes(in: text)
+        cleaned = replaceImages(in: cleaned)
         cleaned = replaceLinks(in: cleaned)
         cleaned = replaceAutolinks(in: cleaned)
         cleaned = decodeCharacterReferences(in: cleaned)
@@ -150,17 +151,57 @@ enum MarkdownParser {
         return result
     }
 
+    private static func replaceImages(in text: String) -> String {
+        var result = ""
+        result.reserveCapacity(text.count)
+        var index = text.startIndex
+
+        while index < text.endIndex {
+            if let replacement = markdownImageReplacement(in: text, at: index) {
+                result += replacement.text
+                index = replacement.endIndex
+            } else {
+                result.append(text[index])
+                index = text.index(after: index)
+            }
+        }
+
+        return result
+    }
+
+    private static func markdownImageReplacement(
+        in text: String,
+        at index: String.Index
+    ) -> (text: String, endIndex: String.Index)? {
+        guard text[index] == "!" else { return nil }
+
+        let labelStart = text.index(after: index)
+        guard labelStart < text.endIndex, text[labelStart] == "[" else { return nil }
+
+        let labelContentStart = text.index(after: labelStart)
+        guard let labelEnd = closingBracket(in: text, from: labelContentStart) else { return nil }
+
+        let destinationStartMarker = text.index(after: labelEnd)
+        guard destinationStartMarker < text.endIndex, text[destinationStartMarker] == "(" else {
+            return nil
+        }
+
+        let destinationStart = text.index(after: destinationStartMarker)
+        guard let destinationEnd = closingParenthesis(in: text, from: destinationStart) else {
+            return nil
+        }
+
+        let label = String(text[labelContentStart..<labelEnd])
+        return (label, text.index(after: destinationEnd))
+    }
+
     private static func markdownLinkReplacement(
         in text: String,
         at index: String.Index
     ) -> (text: String, endIndex: String.Index)? {
-        var labelStart = index
-        if text[labelStart] == "!" {
-            labelStart = text.index(after: labelStart)
-            guard labelStart < text.endIndex else { return nil }
-        }
-
-        guard text[labelStart] == "[" else { return nil }
+        guard text[index] == "[",
+              !isImageLabelStart(in: text, at: index) else { return nil }
+        let labelStart = index
         let labelContentStart = text.index(after: labelStart)
         guard let labelEnd = closingBracket(in: text, from: labelContentStart) else { return nil }
 
@@ -178,6 +219,16 @@ enum MarkdownParser {
         let destination = String(text[destinationStart..<destinationEnd])
         let replacement = label.isEmpty ? "(\(destination))" : "\(label) (\(destination))"
         return (replacement, text.index(after: destinationEnd))
+    }
+
+    private static func isImageLabelStart(in text: String, at index: String.Index) -> Bool {
+        guard index > text.startIndex else { return false }
+        let previous = text[text.index(before: index)]
+        if previous == "!" {
+            return true
+        }
+
+        return previous.unicodeScalars.first?.value == escapedMarkdownScalarBase + 33
     }
 
     private static func closingBracket(in text: String, from start: String.Index) -> String.Index? {
