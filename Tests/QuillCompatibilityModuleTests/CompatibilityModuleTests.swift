@@ -669,7 +669,7 @@ struct CompatibilityModuleTests {
         #expect(inlinePlainText.contains("code"))
         #expect(inlinePlainText.contains("old"))
         #expect(inlinePlainText.contains("link (https://example.com)"))
-        #expect(inlinePlainText.contains("chart"))
+        #expect(inlinePlainText.contains("chart (chart.png)"))
         #expect(tablePlainText.contains("Property | Value"))
         #expect(tablePlainText.contains("display | flex"))
         #expect(tablePlainText.contains("align-items | center"))

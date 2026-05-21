@@ -480,12 +480,19 @@ private enum MarkdownInlineParser {
                     return value
                 case .link(let title, let destination):
                     return destination.isEmpty ? title : "\(title) (\(destination))"
-                case .image(let alt, _):
-                    return alt
+                case .image(let alt, let source):
+                    return imageFallbackText(alt: alt, source: source)
                 }
             }
             .joined()
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func imageFallbackText(alt: String, source: String) -> String {
+        let trimmedAlt = alt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let label = trimmedAlt.isEmpty ? "Image" : trimmedAlt
+        let trimmedSource = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedSource.isEmpty ? label : "\(label) (\(trimmedSource))"
     }
 
     private static func delimitedInline(
@@ -747,10 +754,10 @@ private struct MarkdownInlineText: View {
                 .font(font)
                 .foregroundColor(Color(red: 0.0, green: 0.35, blue: 0.85))
                 .underline()
-        case .image(let alt, _):
+        case .image(let alt, let source):
             HStack(spacing: 3) {
                 Image(systemName: "photo")
-                Text(alt.isEmpty ? "Image" : alt)
+                Text(MarkdownInlineParser.imageFallbackText(alt: alt, source: source))
                     .font(font)
             }
         }
