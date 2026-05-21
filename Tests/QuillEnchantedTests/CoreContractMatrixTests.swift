@@ -2800,13 +2800,21 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: "\(index + 1). Generated item \(index)", kind: .orderedListItem(number: index + 1), text: "Generated item \(index)")
 }
 
-private let streamContentCases: [TextCase] = (0..<70).map { index in
-    let content = "chunk-\(index)"
-    return TextCase(
-        input: #"{"message":{"role":"assistant","content":"\#(content)"},"done":false}"#,
-        expected: content
-    )
-}
+private let streamContentCases: [TextCase] =
+    (0..<70).map { index in
+        let content = "chunk-\(index)"
+        return TextCase(
+            input: #"{"message":{"role":"assistant","content":"\#(content)"},"done":false}"#,
+            expected: content
+        )
+    }
+    + (0..<70).map { index in
+        let content = "response-\(index)"
+        return TextCase(
+            input: #"{"response":"\#(content)","done":false}"#,
+            expected: content
+        )
+    }
 
 private let byteCountCases: [ByteCountCase] = [
     ByteCountCase(byteCount: 0, expected: "0 bytes"),

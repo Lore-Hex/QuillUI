@@ -336,6 +336,9 @@ public enum OllamaStreamParser {
             if let content = chunk.message?.content, !content.isEmpty {
                 return .content(content)
             }
+            if let response = chunk.response, !response.isEmpty {
+                return .content(response)
+            }
             if chunk.done == true {
                 return .done
             }
@@ -373,6 +376,7 @@ private struct ChatResponse: Decodable, Sendable {
 
 private struct StreamChatResponse: Decodable, Sendable {
     var message: APIMessage?
+    var response: String?
     var done: Bool?
     var error: String?
 }
