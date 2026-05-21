@@ -1241,10 +1241,23 @@ struct MarkdownBlock {
 };
 
 struct MarkdownFence {
-    QString delimiter;
+    QChar marker;
+    int markerCount = 0;
     QString language;
     bool isActive = false;
 };
+
+int markdownFenceMarkerCount(const QString &line, const QChar marker) {
+    int count = 0;
+    while (count < line.size() && line.at(count) == marker) {
+        count += 1;
+    }
+    return count;
+}
+
+QString markdownFenceSuffix(const QString &line, const int markerCount) {
+    return line.mid(markerCount);
+}
 
 QString cleanMarkdownInline(QString text) {
     static const QRegularExpression linkPattern(QStringLiteral("\\[([^\\]]+)\\]\\(([^)]+)\\)"));
@@ -1265,25 +1278,41 @@ QString cleanMarkdownInline(QString text) {
 
 bool beginMarkdownFence(const QString &rawLine, MarkdownFence *fence) {
     const QString line = rawLine.trimmed();
-    QString delimiter;
-    if (line.startsWith(QStringLiteral("```"))) {
-        delimiter = QStringLiteral("```");
-    } else if (line.startsWith(QStringLiteral("~~~"))) {
-        delimiter = QStringLiteral("~~~");
-    } else {
+    if (line.isEmpty()) {
+        return false;
+    }
+
+    const QChar marker = line.at(0);
+    if (marker != QLatin1Char('`') && marker != QLatin1Char('~')) {
+        return false;
+    }
+
+    const int markerCount = markdownFenceMarkerCount(line, marker);
+    if (markerCount < 3) {
         return false;
     }
 
     if (fence != nullptr) {
-        fence->delimiter = delimiter;
-        fence->language = line.mid(delimiter.size()).trimmed();
+        fence->marker = marker;
+        fence->markerCount = markerCount;
+        fence->language = markdownFenceSuffix(line, markerCount).trimmed();
         fence->isActive = true;
     }
     return true;
 }
 
 bool closesMarkdownFence(const QString &rawLine, const MarkdownFence &fence) {
-    return fence.isActive && rawLine.trimmed().startsWith(fence.delimiter);
+    if (!fence.isActive) {
+        return false;
+    }
+
+    const QString line = rawLine.trimmed();
+    const int closingCount = markdownFenceMarkerCount(line, fence.marker);
+    if (closingCount < fence.markerCount) {
+        return false;
+    }
+
+    return markdownFenceSuffix(line, closingCount).trimmed().isEmpty();
 }
 
 bool parseHeadingLine(const QString &line, int *level, QString *text) {

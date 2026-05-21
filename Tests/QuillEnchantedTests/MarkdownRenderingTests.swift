@@ -48,6 +48,44 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("matches code fences by marker length")
+    func matchesCodeFencesByMarkerLength() {
+        let blocks = MarkdownParser.parse("""
+        ````swift
+        ```swift
+        let value = 1
+        ```
+        ````
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(
+                id: 0,
+                kind: .codeBlock(language: "swift"),
+                text: "```swift\nlet value = 1\n```"
+            )
+        ])
+    }
+
+    @Test("keeps tilde and backtick fences independent")
+    func keepsTildeAndBacktickFencesIndependent() {
+        let blocks = MarkdownParser.parse("""
+        ~~~~text
+        ```
+        body
+        ```
+        ~~~~
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(
+                id: 0,
+                kind: .codeBlock(language: "text"),
+                text: "```\nbody\n```"
+            )
+        ])
+    }
+
     @Test("renders markdown links as readable plain text")
     func cleansLinks() {
         #expect(MarkdownParser.cleanInline("[QuillUI](https://example.com) works") == "QuillUI (https://example.com) works")
