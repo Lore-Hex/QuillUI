@@ -757,6 +757,28 @@ struct CompatibilityModuleTests {
         #expect(!spacedDividerPlainText.contains("* * *"))
     }
 
+    @Test("MarkdownUI inline cleanup matches Enchanted text contracts")
+    func markdownUIInlineCleanupMatchesEnchantedTextContracts() {
+        let markerOnlyParagraphPlainText = Markdown.plainText(from: """
+        **
+
+        Body
+        """)
+        let emptySetextTitlePlainText = Markdown.plainText(from: """
+        ``
+        ==
+
+        Body
+        """)
+        let linkAndImagePlainText = Markdown.plainText(
+            from: "Use **bold**, __strong__, `code`, ~~old~~, [link](https://example.com), and ![chart](chart.png)"
+        )
+
+        #expect(markerOnlyParagraphPlainText == "Body")
+        #expect(emptySetextTitlePlainText == "Body")
+        #expect(linkAndImagePlainText == "Use bold, strong, code, old, link (https://example.com), and chart (chart.png)")
+    }
+
     @Test("OllamaKit compatibility covers Enchanted model and chat contracts")
     func ollamaKitContractsCompileAndStream() async throws {
         let transport = FakeOllamaTransport(routes: [

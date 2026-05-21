@@ -58,9 +58,9 @@ private struct MarkdownRenderedBlock: Identifiable, Equatable {
     var plainText: String {
         switch kind {
         case .unorderedListItem:
-            return "• \(MarkdownInlineParser.plainText(from: text))"
+            return "• \(MarkdownBlockParser.cleanInline(text))"
         case .orderedListItem(let number):
-            return "\(number). \(MarkdownInlineParser.plainText(from: text))"
+            return "\(number). \(MarkdownBlockParser.cleanInline(text))"
         case .codeBlock:
             return text
         case .divider:
@@ -68,11 +68,11 @@ private struct MarkdownRenderedBlock: Identifiable, Equatable {
         case .table(let headers, let rows):
             return ([headers] + rows)
                 .map { row in
-                    row.map { MarkdownInlineParser.plainText(from: $0) }.joined(separator: " | ")
+                    row.map { MarkdownBlockParser.cleanInline($0) }.joined(separator: " | ")
                 }
                 .joined(separator: "\n")
         default:
-            return MarkdownInlineParser.plainText(from: text)
+            return MarkdownBlockParser.cleanInline(text)
         }
     }
 }
@@ -92,7 +92,7 @@ private enum MarkdownBlockParser {
         func flushParagraph() {
             let text = paragraphLines.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
             paragraphLines.removeAll(keepingCapacity: true)
-            guard !text.isEmpty else { return }
+            guard !cleanInline(text).isEmpty else { return }
             append(.paragraph, text)
         }
 
@@ -163,7 +163,7 @@ private enum MarkdownBlockParser {
                 paragraphLines.append(line)
                 let title = paragraphLines.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
                 paragraphLines.removeAll(keepingCapacity: true)
-                if !title.isEmpty {
+                if !cleanInline(title).isEmpty {
                     append(.heading(level: setextLevel), title)
                 }
                 index += 2
@@ -187,7 +187,11 @@ private enum MarkdownBlockParser {
     }
 
     static func cleanInline(_ text: String) -> String {
-        MarkdownInlineParser.plainText(from: text)
+        var cleaned = replaceLinks(in: text)
+        for marker in ["**", "__", "`", "~~"] {
+            cleaned = cleaned.replacingOccurrences(of: marker, with: "")
+        }
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func splitLines(_ markdown: String) -> [String] {
@@ -195,6 +199,13 @@ private enum MarkdownBlockParser {
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
             .components(separatedBy: "\n")
+    }
+
+    private static func replaceLinks(in text: String) -> String {
+        let pattern = #"!?\[([^\]]+)\]\(([^)]+)\)"#
+        guard let expression = try? NSRegularExpression(pattern: pattern) else { return text }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return expression.stringByReplacingMatches(in: text, range: range, withTemplate: "$1 ($2)")
     }
 
     private static func heading(in line: String) -> (level: Int, text: String)? {
