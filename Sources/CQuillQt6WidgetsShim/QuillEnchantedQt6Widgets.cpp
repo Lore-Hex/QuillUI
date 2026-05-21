@@ -1967,23 +1967,29 @@ bool markdownInlineHtmlTagReplacement(
         return false;
     }
 
-    while (cursor < text.size() && text.at(cursor) != QLatin1Char('>')) {
-        if (text.at(cursor) == QLatin1Char('<')) {
+    QChar quotedAttribute;
+    while (cursor < text.size()) {
+        const QChar character = text.at(cursor);
+        if (!quotedAttribute.isNull()) {
+            if (character == quotedAttribute) {
+                quotedAttribute = QChar();
+            }
+        } else if (character == QLatin1Char('"') || character == QLatin1Char('\'')) {
+            quotedAttribute = character;
+        } else if (character == QLatin1Char('<')) {
             return false;
+        } else if (character == QLatin1Char('>')) {
+            if (endIndex != nullptr) {
+                *endIndex = cursor + 1;
+            }
+            if (insertsSpace != nullptr) {
+                *insertsSpace = markdownInlineHtmlTagInsertsSpace(tagName);
+            }
+            return true;
         }
         cursor += 1;
     }
-    if (cursor >= text.size()) {
-        return false;
-    }
-
-    if (endIndex != nullptr) {
-        *endIndex = cursor + 1;
-    }
-    if (insertsSpace != nullptr) {
-        *insertsSpace = markdownInlineHtmlTagInsertsSpace(tagName);
-    }
-    return true;
+    return false;
 }
 
 QString removeMarkdownInlineHtml(const QString &text) {
@@ -2059,11 +2065,35 @@ QString decodedMarkdownCharacterReference(const QString &reference) {
     if (reference == QStringLiteral("nbsp")) {
         return markdownCodePointString(0x00A0);
     }
+    if (reference == QStringLiteral("ensp")) {
+        return markdownCodePointString(0x2002);
+    }
+    if (reference == QStringLiteral("emsp")) {
+        return markdownCodePointString(0x2003);
+    }
+    if (reference == QStringLiteral("thinsp")) {
+        return markdownCodePointString(0x2009);
+    }
     if (reference == QStringLiteral("copy")) {
         return markdownCodePointString(0x00A9);
     }
     if (reference == QStringLiteral("reg")) {
         return markdownCodePointString(0x00AE);
+    }
+    if (reference == QStringLiteral("deg")) {
+        return markdownCodePointString(0x00B0);
+    }
+    if (reference == QStringLiteral("plusmn")) {
+        return markdownCodePointString(0x00B1);
+    }
+    if (reference == QStringLiteral("middot")) {
+        return markdownCodePointString(0x00B7);
+    }
+    if (reference == QStringLiteral("times")) {
+        return markdownCodePointString(0x00D7);
+    }
+    if (reference == QStringLiteral("divide")) {
+        return markdownCodePointString(0x00F7);
     }
     if (reference == QStringLiteral("trade")) {
         return markdownCodePointString(0x2122);
@@ -2073,6 +2103,27 @@ QString decodedMarkdownCharacterReference(const QString &reference) {
     }
     if (reference == QStringLiteral("mdash")) {
         return markdownCodePointString(0x2014);
+    }
+    if (reference == QStringLiteral("bull")) {
+        return markdownCodePointString(0x2022);
+    }
+    if (reference == QStringLiteral("larr")) {
+        return markdownCodePointString(0x2190);
+    }
+    if (reference == QStringLiteral("rarr")) {
+        return markdownCodePointString(0x2192);
+    }
+    if (reference == QStringLiteral("minus")) {
+        return markdownCodePointString(0x2212);
+    }
+    if (reference == QStringLiteral("ne")) {
+        return markdownCodePointString(0x2260);
+    }
+    if (reference == QStringLiteral("le")) {
+        return markdownCodePointString(0x2264);
+    }
+    if (reference == QStringLiteral("ge")) {
+        return markdownCodePointString(0x2265);
     }
     if (reference == QStringLiteral("lsquo")) {
         return markdownCodePointString(0x2018);

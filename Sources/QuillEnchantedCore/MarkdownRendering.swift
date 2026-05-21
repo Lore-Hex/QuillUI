@@ -680,15 +680,24 @@ enum MarkdownParser {
         let tagName = String(text[tagStart..<cursor]).lowercased()
         guard inlineHTMLTagNames.contains(tagName) else { return nil }
 
-        while cursor < text.endIndex, text[cursor] != ">" {
-            if text[cursor] == "<" {
+        var quotedAttribute: Character?
+        while cursor < text.endIndex {
+            let character = text[cursor]
+            if let quote = quotedAttribute {
+                if character == quote {
+                    quotedAttribute = nil
+                }
+            } else if character == "\"" || character == "'" {
+                quotedAttribute = character
+            } else if character == "<" {
                 return nil
+            } else if character == ">" {
+                return (text.index(after: cursor), inlineHTMLSpaceTags.contains(tagName))
             }
             cursor = text.index(after: cursor)
         }
 
-        guard cursor < text.endIndex else { return nil }
-        return (text.index(after: cursor), inlineHTMLSpaceTags.contains(tagName))
+        return nil
     }
 
     private static let inlineHTMLTagNames: Set<String> = [
@@ -737,16 +746,46 @@ enum MarkdownParser {
             return "'"
         case "nbsp":
             return "\u{00A0}"
+        case "ensp":
+            return "\u{2002}"
+        case "emsp":
+            return "\u{2003}"
+        case "thinsp":
+            return "\u{2009}"
         case "copy":
             return "\u{00A9}"
         case "reg":
             return "\u{00AE}"
+        case "deg":
+            return "\u{00B0}"
+        case "plusmn":
+            return "\u{00B1}"
+        case "middot":
+            return "\u{00B7}"
+        case "times":
+            return "\u{00D7}"
+        case "divide":
+            return "\u{00F7}"
         case "trade":
             return "\u{2122}"
         case "ndash":
             return "\u{2013}"
         case "mdash":
             return "\u{2014}"
+        case "bull":
+            return "\u{2022}"
+        case "larr":
+            return "\u{2190}"
+        case "rarr":
+            return "\u{2192}"
+        case "minus":
+            return "\u{2212}"
+        case "ne":
+            return "\u{2260}"
+        case "le":
+            return "\u{2264}"
+        case "ge":
+            return "\u{2265}"
         case "lsquo":
             return "\u{2018}"
         case "rsquo":

@@ -2015,11 +2015,19 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "bool isMarkdownAutolinkContent(const QString &text)")
         expectContains(nativeShim, "QString replaceMarkdownAutolinks(const QString &text)")
         expectContains(nativeShim, "QString removeMarkdownInlineHtml(const QString &text)")
+        expectContains(nativeShim, "QChar quotedAttribute;")
+        expectContains(nativeShim, #"character == QLatin1Char('"')"#)
+        expectContains(nativeShim, #"character == QLatin1Char('\'')"#)
         expectContains(nativeShim, "bool markdownHtmlCommentBlock(const QString &rawLine, bool *continues)")
         expectContains(nativeShim, "bool markdownLinkReferenceDefinition(const QString &rawLine)")
         expectContains(nativeShim, "if (markdownLinkReferenceDefinition(rawLine))")
         expectContains(nativeShim, "bool skippingHtmlCommentBlock = false")
         expectContains(nativeShim, "QString decodeMarkdownCharacterReferences(const QString &text)")
+        expectContains(nativeShim, "if (reference == QStringLiteral(\"thinsp\"))")
+        expectContains(nativeShim, "if (reference == QStringLiteral(\"rarr\"))")
+        expectContains(nativeShim, "if (reference == QStringLiteral(\"minus\"))")
+        expectContains(nativeShim, "if (reference == QStringLiteral(\"le\"))")
+        expectContains(nativeShim, "if (reference == QStringLiteral(\"ge\"))")
         expectContains(nativeShim, "QString removePairedMarkdownMarkers(QString text, const QString &marker)")
         expectContains(nativeShim, "QString removePairedMarkdownSingleMarkers(QString text, const QChar marker)")
         expectContains(nativeShim, "text = protectMarkdownBackslashEscapes(text)")
@@ -2882,6 +2890,8 @@ private let inlineCases: [TextCase] = [
     TextCase(input: "Press <kbd>Esc</kbd> now", expected: "Press Esc now"),
     TextCase(input: "Line<br>break", expected: "Line break"),
     TextCase(input: "Open <https://example.com> and <kbd>Esc</kbd>", expected: "Open https://example.com and Esc"),
+    TextCase(input: "<span title=\"2 > 1\">Safe</span>", expected: "Safe"),
+    TextCase(input: "<a href='https://example.com?q=1>0'>Docs</a>", expected: "Docs"),
     TextCase(input: "Keep <model> literal", expected: "Keep <model> literal"),
     TextCase(input: "Show \\<kbd\\>Esc\\</kbd\\>", expected: "Show <kbd>Esc</kbd>"),
     TextCase(input: "Use *local* and _remote_ models", expected: "Use local and remote models"),
@@ -2892,6 +2902,8 @@ private let inlineCases: [TextCase] = [
     TextCase(input: "[Docs](https://example.com/docs) **ship**", expected: "Docs (https://example.com/docs) ship"),
     TextCase(input: "Use &lt;model&gt; &amp; tools", expected: "Use <model> & tools"),
     TextCase(input: "It&rsquo;s ready &mdash; ship it &#x2713;", expected: "It\u{2019}s ready \u{2014} ship it \u{2713}"),
+    TextCase(input: "Flow&nbsp;A&thinsp;&rarr;&thinsp;B &le; C &ge; D &ne; E", expected: "Flow\u{00A0}A\u{2009}\u{2192}\u{2009}B \u{2264} C \u{2265} D \u{2260} E"),
+    TextCase(input: "Math &minus; &times; &divide; &plusmn; &deg; &bull; &middot;", expected: "Math \u{2212} \u{00D7} \u{00F7} \u{00B1} \u{00B0} \u{2022} \u{00B7}"),
     TextCase(input: "Keep &unknown; literal", expected: "Keep &unknown; literal"),
     TextCase(input: "Use **local** and __remote__ models", expected: "Use local and remote models"),
     TextCase(input: "Try `swift` code and ~~old~~ text", expected: "Try swift code and old text"),
