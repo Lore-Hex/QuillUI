@@ -1389,8 +1389,12 @@ bool parseQuoteLine(const QString &line, QString *text) {
     if (!line.startsWith(QLatin1Char('>'))) {
         return false;
     }
+    const QString quoteText = line.mid(1).trimmed();
+    if (quoteText.isEmpty()) {
+        return false;
+    }
     if (text != nullptr) {
-        *text = cleanMarkdownInline(line.mid(1).trimmed());
+        *text = cleanMarkdownInline(quoteText);
     }
     return true;
 }

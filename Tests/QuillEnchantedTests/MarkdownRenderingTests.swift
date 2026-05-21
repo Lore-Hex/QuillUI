@@ -29,6 +29,18 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("keeps empty quote markers as paragraph text")
+    func keepsEmptyQuoteMarkersAsParagraphText() {
+        let blocks = MarkdownParser.parse("""
+        >
+        Follow-up
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "> Follow-up")
+        ])
+    }
+
     @Test("preserves fenced code with language labels")
     func parsesCodeFences() {
         let blocks = MarkdownParser.parse("""

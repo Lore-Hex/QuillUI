@@ -1566,6 +1566,8 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("int markdownFenceMarkerCount(const QString &line, const QChar marker)"))
         #expect(enchantedQtHost.contains("closingCount < fence.markerCount"))
         #expect(enchantedQtHost.contains("QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown)"))
+        #expect(enchantedQtHost.contains("const QString quoteText = line.mid(1).trimmed()"))
+        #expect(enchantedQtHost.contains("if (quoteText.isEmpty())"))
         #expect(enchantedQtHost.contains("QWidget *markdownMessageWidget(const QString &markdown, const QJsonObject &style)"))
         #expect(enchantedQtHost.contains("const int markdownBlockSpacing = styleInt(style, \"markdownBlockSpacing\")"))
         #expect(enchantedQtHost.contains("layout->setSpacing(markdownBlockSpacing)"))

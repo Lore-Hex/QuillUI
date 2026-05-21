@@ -1993,6 +1993,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "int markdownFenceMarkerCount(const QString &line, const QChar marker)")
         expectContains(nativeShim, "closingCount < fence.markerCount")
         expectContains(nativeShim, "QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown)")
+        expectContains(nativeShim, "const QString quoteText = line.mid(1).trimmed()")
+        expectContains(nativeShim, "if (quoteText.isEmpty())")
         expectContains(nativeShim, "QLabel#markdownHeading1")
         expectContains(nativeShim, "QFrame#markdownQuoteRule")
         expectContains(nativeShim, "QFrame#markdownCodeBlock")
@@ -2797,6 +2799,7 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: "1. Item", kind: .orderedListItem(number: 1), text: "Item"),
     BlockCase(markdown: "42. Item", kind: .orderedListItem(number: 42), text: "Item"),
     BlockCase(markdown: "> Quoted", kind: .quote, text: "Quoted"),
+    BlockCase(markdown: ">\nFollow-up", kind: .paragraph, text: "> Follow-up"),
     BlockCase(markdown: "````swift\n```swift\nlet value = 1\n````", kind: .codeBlock(language: "swift"), text: "```swift\nlet value = 1"),
     BlockCase(markdown: "Plain paragraph", kind: .paragraph, text: "Plain paragraph")
 ] + (0..<40).map { index in
