@@ -1260,7 +1260,7 @@ QString markdownFenceSuffix(const QString &line, const int markerCount) {
 }
 
 QString cleanMarkdownInline(QString text) {
-    static const QRegularExpression linkPattern(QStringLiteral("\\[([^\\]]+)\\]\\(([^)]+)\\)"));
+    static const QRegularExpression linkPattern(QStringLiteral("!?\\[([^\\]]+)\\]\\(([^)]+)\\)"));
     text.replace(linkPattern, QStringLiteral("\\1 (\\2)"));
 
     const QStringList markers = {

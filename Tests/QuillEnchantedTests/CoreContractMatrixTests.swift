@@ -1990,6 +1990,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "bubble->setAccessibleName(title);\n    bubble->setAccessibleDescription(summary);\n    bubble->setToolTip(summary);\n    bubble->setStatusTip(summary)")
         expectContains(nativeShim, "enum class MarkdownBlockKind")
         expectContains(nativeShim, "QString cleanMarkdownInline(QString text)")
+        expectContains(nativeShim, "!?\\\\[([^\\\\]]+)\\\\]\\\\(([^)]+)\\\\)")
         expectContains(nativeShim, "int markdownFenceMarkerCount(const QString &line, const QChar marker)")
         expectContains(nativeShim, "closingCount < fence.markerCount")
         expectContains(nativeShim, "QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown)")

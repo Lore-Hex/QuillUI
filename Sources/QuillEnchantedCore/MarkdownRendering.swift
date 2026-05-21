@@ -106,7 +106,7 @@ enum MarkdownParser {
     }
 
     private static func replaceLinks(in text: String) -> String {
-        let pattern = #"\[([^\]]+)\]\(([^)]+)\)"#
+        let pattern = #"!?\[([^\]]+)\]\(([^)]+)\)"#
         guard let expression = try? NSRegularExpression(pattern: pattern) else { return text }
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         return expression.stringByReplacingMatches(in: text, range: range, withTemplate: "$1 ($2)")

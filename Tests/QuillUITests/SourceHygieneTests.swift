@@ -1563,6 +1563,7 @@ struct SourceHygieneTests {
         #expect(!enchantedMacMarkdown.contains(".font(.subheadline)"))
         #expect(!enchantedMacMarkdown.contains(".font(.caption)"))
         #expect(enchantedQtHost.contains("enum class MarkdownBlockKind"))
+        #expect(enchantedQtHost.contains("!?\\\\[([^\\\\]]+)\\\\]\\\\(([^)]+)\\\\)"))
         #expect(enchantedQtHost.contains("int markdownFenceMarkerCount(const QString &line, const QChar marker)"))
         #expect(enchantedQtHost.contains("closingCount < fence.markerCount"))
         #expect(enchantedQtHost.contains("QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown)"))
