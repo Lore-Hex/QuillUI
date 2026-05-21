@@ -246,7 +246,7 @@ struct CoreContractMatrixTests {
             "public enum EnchantedIcon",
             "public static let newConversation = \"square.and.pencil\"",
             "public static let attach = \"folder.badge.plus\"",
-            "public static let dropTarget = attach",
+            "public static let dropTarget = \"photo\"",
             "public static let attachment = \"folder\"",
             "public static let completions = \"textformat.abc\"",
             "public static let shortcuts = \"keyboard.fill\"",
@@ -267,6 +267,7 @@ struct CoreContractMatrixTests {
 
         #expect(EnchantedIcon.completions == "textformat.abc")
         #expect(EnchantedIcon.shortcuts == "keyboard.fill")
+        #expect(EnchantedIcon.dropTarget == "photo")
         #expect(EnchantedIcon.clearAll == "trash")
         #expect(EnchantedIcon.imagePreviewFallback == "photo.fill")
         #expect(EnchantedIcon.unavailableModel == "waveform")
@@ -319,7 +320,8 @@ struct CoreContractMatrixTests {
         expectContains(upstreamModelSelectorView, "Image(systemName: \"chevron.down\")")
         expectContains(upstreamMacOSChatView, "Image(systemName: \"sidebar.left\")")
         expectContains(upstreamMacOSToolbarView, "Image(systemName: \"square.and.pencil\")")
-        expectContains(upstreamMacOSDragAndDrop, "Image(systemName: \"photo\")")
+        expectContains(upstreamMacOSDragAndDrop, "Image(systemName: \"\(EnchantedIcon.dropTarget)\")")
+        expectContains(upstreamMacOSDragAndDrop, "Text(\"\(EnchantedCopy.dropTargetTitle)\")")
         for needle in [
             "SimpleFloatingButton(systemImage: \"photo.fill\"",
             "SimpleFloatingButton(systemImage: \"square.fill\"",

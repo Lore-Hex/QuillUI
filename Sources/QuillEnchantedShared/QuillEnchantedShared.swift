@@ -106,7 +106,7 @@ public enum EnchantedPromptCatalog {
 public enum EnchantedIcon {
     public static let newConversation = "square.and.pencil"
     public static let attach = "folder.badge.plus"
-    public static let dropTarget = attach
+    public static let dropTarget = "photo"
     public static let attachment = "folder"
     public static let completions = "textformat.abc"
     public static let shortcuts = "keyboard.fill"
@@ -156,7 +156,7 @@ public enum EnchantedCopy {
     public static let completionsPanelSubtitle = "Prompt completions use the shared Enchanted profile."
     public static let shortcutsPanelSubtitle = "Keyboard shortcuts use the shared QuillKit shortcut surface."
     public static let settingsPanelSubtitle = "Refresh models, choose a local model, or clear history from this sidebar."
-    public static let dropTargetTitle = "Drop image files to attach"
+    public static let dropTargetTitle = "Drop your image here"
     public static let attachmentPlaceholder = "Image path or drop files here"
     public static let attachTitle = "Attach"
     public static let clearAttachmentsTitle = "Clear"

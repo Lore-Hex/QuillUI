@@ -1651,7 +1651,7 @@ struct SourceHygieneTests {
         #expect(enchantedShared.contains("public enum EnchantedIcon"))
         #expect(enchantedShared.contains("public static let newConversation = \"square.and.pencil\""))
         #expect(enchantedShared.contains("public static let attach = \"folder.badge.plus\""))
-        #expect(enchantedShared.contains("public static let dropTarget = attach"))
+        #expect(enchantedShared.contains("public static let dropTarget = \"photo\""))
         #expect(enchantedShared.contains("public static let attachment = \"folder\""))
         #expect(enchantedShared.contains("public static let completions = \"textformat.abc\""))
         #expect(enchantedShared.contains("public static let shortcuts = \"keyboard.fill\""))
