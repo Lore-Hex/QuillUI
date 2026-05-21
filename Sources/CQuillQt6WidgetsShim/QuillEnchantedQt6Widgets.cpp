@@ -2004,6 +2004,26 @@ QString cleanMarkdownInline(QString text) {
     return restoreMarkdownBackslashEscapes(text).trimmed();
 }
 
+bool isMarkdownTaskListMarker(const QChar marker) {
+    return marker == QLatin1Char(' ') || marker == QLatin1Char('x') || marker == QLatin1Char('X');
+}
+
+QString markdownTaskListItemText(const QString &text) {
+    const QString trimmed = text.trimmed();
+    if (trimmed.size() < 3 || trimmed.at(0) != QLatin1Char('[')) {
+        return text;
+    }
+    if (!isMarkdownTaskListMarker(trimmed.at(1)) || trimmed.at(2) != QLatin1Char(']')) {
+        return text;
+    }
+    if (trimmed.size() > 3 && !trimmed.at(3).isSpace()) {
+        return text;
+    }
+
+    const QString remainder = trimmed.mid(3).trimmed();
+    return remainder.isEmpty() ? text : remainder;
+}
+
 bool beginMarkdownFence(const QString &rawLine, MarkdownFence *fence) {
     const QString line = rawLine.trimmed();
     if (line.isEmpty()) {
@@ -2140,7 +2160,7 @@ bool parseUnorderedListLine(const QString &line, QString *text) {
         return false;
     }
 
-    const QString parsedText = cleanMarkdownInline(line.mid(2).trimmed());
+    const QString parsedText = cleanMarkdownInline(markdownTaskListItemText(line.mid(2).trimmed()));
     if (parsedText.isEmpty()) {
         return false;
     }
@@ -2178,7 +2198,7 @@ bool parseOrderedListLine(const QString &line, int *number, QString *text) {
     if (number != nullptr) {
         *number = parsedNumber;
     }
-    const QString parsedText = cleanMarkdownInline(line.mid(textStart + 1).trimmed());
+    const QString parsedText = cleanMarkdownInline(markdownTaskListItemText(line.mid(textStart + 1).trimmed()));
     if (parsedText.isEmpty()) {
         return false;
     }

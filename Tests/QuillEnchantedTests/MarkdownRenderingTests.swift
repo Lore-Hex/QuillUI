@@ -37,6 +37,25 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("renders task list markers as readable list text")
+    func rendersTaskListMarkersAsReadableListText() {
+        let blocks = MarkdownParser.parse("""
+        - [x] Completed
+        - [ ] Pending
+        - [X] Verified
+        - \\[x] Literal marker
+        1. [ ] Ordered
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .unorderedListItem, text: "Completed"),
+            MarkdownBlock(id: 1, kind: .unorderedListItem, text: "Pending"),
+            MarkdownBlock(id: 2, kind: .unorderedListItem, text: "Verified"),
+            MarkdownBlock(id: 3, kind: .unorderedListItem, text: "[x] Literal marker"),
+            MarkdownBlock(id: 4, kind: .orderedListItem(number: 1), text: "Ordered")
+        ])
+    }
+
     @Test("trims valid closing ATX heading markers")
     func trimsClosingATXHeadingMarkers() {
         let blocks = MarkdownParser.parse("""

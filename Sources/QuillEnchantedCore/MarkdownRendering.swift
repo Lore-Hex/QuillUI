@@ -101,10 +101,10 @@ enum MarkdownParser {
                 appendBlock(kind: .divider, text: "")
             } else if let item = unorderedListItem(in: line) {
                 flushParagraph()
-                appendBlock(kind: .unorderedListItem, text: cleanInline(item))
+                appendBlock(kind: .unorderedListItem, text: cleanInline(taskListItemText(in: item)))
             } else if let item = orderedListItem(in: line) {
                 flushParagraph()
-                appendBlock(kind: .orderedListItem(number: item.number), text: cleanInline(item.text))
+                appendBlock(kind: .orderedListItem(number: item.number), text: cleanInline(taskListItemText(in: item.text)))
             } else if let quote = quote(in: line) {
                 flushParagraph()
                 appendBlock(kind: .quote, text: cleanInline(quote))
@@ -759,6 +759,33 @@ enum MarkdownParser {
         }
 
         return markerCount >= 3
+    }
+
+    private static func taskListItemText(in text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard trimmed.count >= 3,
+              trimmed.first == "[" else {
+            return text
+        }
+
+        let markerIndex = trimmed.index(after: trimmed.startIndex)
+        let closingIndex = trimmed.index(after: markerIndex)
+        guard isTaskListMarker(trimmed[markerIndex]),
+              trimmed[closingIndex] == "]" else {
+            return text
+        }
+
+        let afterClosingIndex = trimmed.index(after: closingIndex)
+        guard afterClosingIndex == trimmed.endIndex || trimmed[afterClosingIndex].isWhitespace else {
+            return text
+        }
+
+        let remainder = String(trimmed[afterClosingIndex...]).trimmingCharacters(in: .whitespaces)
+        return remainder.isEmpty ? text : remainder
+    }
+
+    private static func isTaskListMarker(_ character: Character) -> Bool {
+        character == " " || character == "x" || character == "X"
     }
 
     private static func unorderedListItem(in line: String) -> String? {
