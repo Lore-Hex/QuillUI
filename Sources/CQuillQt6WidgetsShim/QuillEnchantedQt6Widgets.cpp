@@ -2514,6 +2514,35 @@ bool parseQuoteLine(const QString &line, QString *text) {
     return true;
 }
 
+bool parseMarkdownQuoteBlock(const QStringList &lines, int startIndex, MarkdownBlock *block, int *endIndex) {
+    QString firstLine;
+    if (!parseQuoteLine(lines.at(startIndex).trimmed(), &firstLine)) {
+        return false;
+    }
+
+    QStringList quoteLines;
+    quoteLines.append(firstLine);
+    int lineIndex = startIndex + 1;
+    while (lineIndex < lines.size()) {
+        const QString line = lines.at(lineIndex).trimmed();
+        if (!line.startsWith(QLatin1Char('>'))) {
+            break;
+        }
+
+        quoteLines.append(cleanMarkdownInline(line.mid(1).trimmed()));
+        ++lineIndex;
+    }
+
+    if (block != nullptr) {
+        block->kind = MarkdownBlockKind::Quote;
+        block->text = quoteLines.join(QStringLiteral("\n"));
+    }
+    if (endIndex != nullptr) {
+        *endIndex = lineIndex;
+    }
+    return true;
+}
+
 bool markdownHardLineBreakSpacesAfter(const QString &rawLine) {
     int trailingSpaces = 0;
     for (int index = rawLine.size() - 1; index >= 0; --index) {
@@ -2903,6 +2932,8 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
             continue;
         }
 
+        MarkdownBlock quoteBlock;
+        int quoteEndIndex = lineIndex;
         int level = 0;
         int number = 0;
         QString text;
@@ -2919,9 +2950,10 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
         } else if (parseOrderedListLine(line, &number, &text, &taskState)) {
             flushParagraph();
             appendBlock(MarkdownBlockKind::OrderedListItem, text, 0, number, QString(), taskState);
-        } else if (parseQuoteLine(line, &text)) {
+        } else if (parseMarkdownQuoteBlock(lines, lineIndex, &quoteBlock, &quoteEndIndex)) {
             flushParagraph();
-            appendBlock(MarkdownBlockKind::Quote, text);
+            blocks.append(quoteBlock);
+            lineIndex = quoteEndIndex - 1;
         } else {
             const int setextLevel = lineIndex + 1 < lines.size()
                 ? setextMarkdownHeadingLevel(lines.at(lineIndex + 1))

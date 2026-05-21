@@ -2070,6 +2070,9 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QString normalizedMarkdownQuoteText(const QString &line)")
         expectContains(nativeShim, "const QString quoteText = normalizedMarkdownQuoteText(line)")
         expectContains(nativeShim, "if (quoteText.isEmpty())")
+        expectContains(nativeShim, "bool parseMarkdownQuoteBlock(const QStringList &lines, int startIndex, MarkdownBlock *block, int *endIndex)")
+        expectContains(nativeShim, "quoteLines.join(QStringLiteral(\"\\n\"))")
+        expectContains(nativeShim, "if (parseMarkdownQuoteBlock(lines, lineIndex, &quoteBlock, &quoteEndIndex))")
         expectContains(nativeShim, "bool markdownHardLineBreakAfter(const QString &rawLine)")
         expectContains(nativeShim, "QString joinedMarkdownParagraphText(const QList<MarkdownParagraphLine> &lines)")
         expectContains(nativeShim, "paragraphLines.append(markdownParagraphLine(rawLine))")
@@ -2978,6 +2981,7 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: "> Quoted", kind: .quote, text: "Quoted"),
     BlockCase(markdown: ">Quoted", kind: .quote, text: "Quoted"),
     BlockCase(markdown: ">   Spaced quote", kind: .quote, text: "Spaced quote"),
+    BlockCase(markdown: "> First\n> second", kind: .quote, text: "First\nsecond"),
     BlockCase(markdown: ">\nFollow-up", kind: .paragraph, text: "> Follow-up"),
     BlockCase(markdown: "#Heading\nNext", kind: .paragraph, text: "#Heading Next"),
     BlockCase(markdown: "\\# Heading", kind: .paragraph, text: "# Heading"),

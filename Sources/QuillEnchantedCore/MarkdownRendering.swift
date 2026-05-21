@@ -169,9 +169,11 @@ enum MarkdownParser {
                     text: cleanInline(taskItem?.text ?? item.text),
                     taskState: taskItem?.state
                 )
-            } else if let quote = quote(in: line) {
+            } else if let quote = quoteBlock(startingAt: lineIndex, in: lines) {
                 flushParagraph()
-                appendBlock(kind: .quote, text: cleanInline(quote))
+                appendBlock(kind: .quote, text: quote.text)
+                lineIndex = quote.endIndex
+                continue
             } else if let setextLevel = setextHeadingLevel(after: lineIndex, in: lines) {
                 paragraphLines.append(Self.paragraphLine(from: rawLine))
                 let title = cleanInline(Self.joinedParagraphText(paragraphLines))
@@ -1329,6 +1331,23 @@ enum MarkdownParser {
 
     private static func quote(in line: String) -> String? {
         normalizedQuoteText(line)
+    }
+
+    private static func quoteBlock(startingAt startIndex: Int, in lines: [String]) -> (text: String, endIndex: Int)? {
+        let line = lines[startIndex].trimmingCharacters(in: .whitespaces)
+        guard let firstQuoteLine = quote(in: line) else { return nil }
+
+        var quoteLines = [cleanInline(firstQuoteLine)]
+        var lineIndex = startIndex + 1
+        while lineIndex < lines.count {
+            let nextLine = lines[lineIndex].trimmingCharacters(in: .whitespaces)
+            guard nextLine.first == ">" else { break }
+            let content = String(nextLine.dropFirst()).trimmingCharacters(in: .whitespaces)
+            quoteLines.append(cleanInline(content))
+            lineIndex += 1
+        }
+
+        return (quoteLines.joined(separator: "\n"), lineIndex)
     }
 
     private static func normalizedQuoteText(_ line: String) -> String? {

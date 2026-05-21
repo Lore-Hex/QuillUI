@@ -253,9 +253,40 @@ struct MarkdownRenderingTests {
         """)
 
         #expect(blocks == [
-            MarkdownBlock(id: 0, kind: .quote, text: "Quoted"),
-            MarkdownBlock(id: 1, kind: .quote, text: "Spaced quote"),
-            MarkdownBlock(id: 2, kind: .quote, text: "Bold")
+            MarkdownBlock(id: 0, kind: .quote, text: "Quoted\nSpaced quote\nBold")
+        ])
+    }
+
+    @Test("groups consecutive block quote lines")
+    func groupsConsecutiveBlockQuoteLines() {
+        let blocks = MarkdownParser.parse("""
+        Intro
+
+        > First
+        > second
+
+        > Third
+        After
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "Intro"),
+            MarkdownBlock(id: 1, kind: .quote, text: "First\nsecond"),
+            MarkdownBlock(id: 2, kind: .quote, text: "Third"),
+            MarkdownBlock(id: 3, kind: .paragraph, text: "After")
+        ])
+    }
+
+    @Test("preserves blank quote markers inside block quotes")
+    func preservesBlankQuoteMarkersInsideBlockQuotes() {
+        let blocks = MarkdownParser.parse("""
+        > First
+        >
+        > Second
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .quote, text: "First\n\nSecond")
         ])
     }
 
