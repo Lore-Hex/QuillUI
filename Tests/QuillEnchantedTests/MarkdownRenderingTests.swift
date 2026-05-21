@@ -106,6 +106,29 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("keeps empty unordered list markers as paragraph text")
+    func keepsEmptyUnorderedListMarkersAsParagraphText() {
+        let markdown = """
+        -
+        Follow-up
+
+        *
+        Follow-up
+
+        +
+        Follow-up
+        """ + "\n\n-   \nFollow-up"
+
+        let blocks = MarkdownParser.parse(markdown)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "- Follow-up"),
+            MarkdownBlock(id: 1, kind: .paragraph, text: "* Follow-up"),
+            MarkdownBlock(id: 2, kind: .paragraph, text: "+ Follow-up"),
+            MarkdownBlock(id: 3, kind: .paragraph, text: "- Follow-up")
+        ])
+    }
+
     @Test("keeps empty quote markers as paragraph text")
     func keepsEmptyQuoteMarkersAsParagraphText() {
         let blocks = MarkdownParser.parse("""

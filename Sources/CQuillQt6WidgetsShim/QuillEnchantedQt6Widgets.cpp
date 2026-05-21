@@ -1414,8 +1414,12 @@ bool parseUnorderedListLine(const QString &line, QString *text) {
         return false;
     }
 
+    const QString parsedText = cleanMarkdownInline(line.mid(2).trimmed());
+    if (parsedText.isEmpty()) {
+        return false;
+    }
     if (text != nullptr) {
-        *text = cleanMarkdownInline(line.mid(2).trimmed());
+        *text = parsedText;
     }
     return true;
 }

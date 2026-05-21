@@ -1573,6 +1573,7 @@ struct SourceHygieneTests {
         #expect(enchantedQtHost.contains("QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown)"))
         #expect(enchantedQtHost.contains("if (!line.at(markerCount).isSpace())"))
         #expect(enchantedQtHost.contains("if (!line.at(1).isSpace())"))
+        #expect(enchantedQtHost.contains("const QString parsedText = cleanMarkdownInline(line.mid(2).trimmed());\n    if (parsedText.isEmpty())"))
         #expect(enchantedQtHost.contains("if (textStart >= line.size() || !line.at(textStart).isSpace())"))
         #expect(enchantedQtHost.contains("QString normalizedMarkdownQuoteText(const QString &line)"))
         #expect(enchantedQtHost.contains("const QString quoteText = normalizedMarkdownQuoteText(line)"))

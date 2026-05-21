@@ -216,7 +216,8 @@ private enum MarkdownBlockParser {
         guard marker == "-" || marker == "*" || marker == "+" else { return nil }
         let space = line.index(after: line.startIndex)
         guard line[space].isWhitespace else { return nil }
-        return String(line[line.index(after: space)...]).trimmingCharacters(in: .whitespaces)
+        let text = String(line[line.index(after: space)...]).trimmingCharacters(in: .whitespaces)
+        return text.isEmpty ? nil : text
     }
 
     private static func orderedListItem(in line: String) -> (number: Int, text: String)? {
