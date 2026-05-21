@@ -38,7 +38,6 @@
 #include <QPixmap>
 #include <QPointF>
 #include <QPushButton>
-#include <QRegularExpression>
 #include <QScrollArea>
 #include <QSize>
 #include <QShortcut>
@@ -1325,10 +1324,310 @@ QString restoreMarkdownBackslashEscapes(const QString &text) {
     return restoredText;
 }
 
+int closingMarkdownBracket(const QString &text, const int start) {
+    bool escaped = false;
+    for (int index = start; index < text.size(); ++index) {
+        const QChar character = text.at(index);
+        if (escaped) {
+            escaped = false;
+        } else if (character == QLatin1Char('\\')) {
+            escaped = true;
+        } else if (character == QLatin1Char(']')) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
+int closingMarkdownParenthesis(const QString &text, const int start) {
+    int depth = 0;
+    bool escaped = false;
+    for (int index = start; index < text.size(); ++index) {
+        const QChar character = text.at(index);
+        if (escaped) {
+            escaped = false;
+        } else if (character == QLatin1Char('\\')) {
+            escaped = true;
+        } else if (character == QLatin1Char('(')) {
+            depth += 1;
+        } else if (character == QLatin1Char(')')) {
+            if (depth == 0) {
+                return index;
+            }
+            depth -= 1;
+        }
+    }
+
+    return -1;
+}
+
+bool markdownLinkReplacement(
+    const QString &text,
+    const int index,
+    QString *replacement,
+    int *endIndex
+) {
+    int labelStart = index;
+    if (text.at(labelStart) == QLatin1Char('!')) {
+        labelStart += 1;
+        if (labelStart >= text.size()) {
+            return false;
+        }
+    }
+
+    if (text.at(labelStart) != QLatin1Char('[')) {
+        return false;
+    }
+
+    const int labelContentStart = labelStart + 1;
+    const int labelEnd = closingMarkdownBracket(text, labelContentStart);
+    if (labelEnd < 0) {
+        return false;
+    }
+
+    const int destinationStartMarker = labelEnd + 1;
+    if (destinationStartMarker >= text.size()
+        || text.at(destinationStartMarker) != QLatin1Char('(')) {
+        return false;
+    }
+
+    const int destinationStart = destinationStartMarker + 1;
+    const int destinationEnd = closingMarkdownParenthesis(text, destinationStart);
+    if (destinationEnd < 0) {
+        return false;
+    }
+
+    const QString label = text.mid(labelContentStart, labelEnd - labelContentStart);
+    const QString destination = text.mid(destinationStart, destinationEnd - destinationStart);
+    if (replacement != nullptr) {
+        *replacement = label.isEmpty()
+            ? QStringLiteral("(") + destination + QStringLiteral(")")
+            : label + QStringLiteral(" (") + destination + QStringLiteral(")");
+    }
+    if (endIndex != nullptr) {
+        *endIndex = destinationEnd + 1;
+    }
+    return true;
+}
+
+QString replaceMarkdownLinks(const QString &text) {
+    QString result;
+    result.reserve(text.size());
+
+    int index = 0;
+    while (index < text.size()) {
+        QString replacement;
+        int endIndex = index;
+        if (markdownLinkReplacement(text, index, &replacement, &endIndex)) {
+            result.append(replacement);
+            index = endIndex;
+        } else {
+            result.append(text.at(index));
+            index += 1;
+        }
+    }
+
+    return result;
+}
+
+bool isMarkdownAutolinkContent(const QString &text) {
+    if (text.isEmpty()) {
+        return false;
+    }
+    for (const QChar character : text) {
+        if (character.isSpace()
+            || character == QLatin1Char('<')
+            || character == QLatin1Char('>')) {
+            return false;
+        }
+    }
+
+    const int colonIndex = text.indexOf(QLatin1Char(':'));
+    if (colonIndex >= 0) {
+        if (colonIndex < 2 || colonIndex > 32 || colonIndex + 1 >= text.size()) {
+            return false;
+        }
+        if (!text.at(0).isLetter()) {
+            return false;
+        }
+        for (int index = 0; index < colonIndex; ++index) {
+            const QChar character = text.at(index);
+            if (!character.isLetter()
+                && !character.isNumber()
+                && character != QLatin1Char('+')
+                && character != QLatin1Char('.')
+                && character != QLatin1Char('-')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    const int atIndex = text.indexOf(QLatin1Char('@'));
+    if (atIndex >= 0) {
+        const QString localPart = text.left(atIndex);
+        const QString domainPart = text.mid(atIndex + 1);
+        return !localPart.isEmpty()
+            && !domainPart.isEmpty()
+            && domainPart.contains(QLatin1Char('.'));
+    }
+
+    return false;
+}
+
+QString replaceMarkdownAutolinks(const QString &text) {
+    QString result;
+    result.reserve(text.size());
+
+    int index = 0;
+    while (index < text.size()) {
+        if (text.at(index) == QLatin1Char('<')) {
+            const int closingIndex = text.indexOf(QLatin1Char('>'), index + 1);
+            if (closingIndex >= 0) {
+                const QString content = text.mid(index + 1, closingIndex - index - 1);
+                if (isMarkdownAutolinkContent(content)) {
+                    result.append(content);
+                    index = closingIndex + 1;
+                    continue;
+                }
+            }
+        }
+
+        result.append(text.at(index));
+        index += 1;
+    }
+
+    return result;
+}
+
+QString markdownCodePointString(const uint codePoint) {
+    const char32_t scalar = static_cast<char32_t>(codePoint);
+    return QString::fromUcs4(&scalar, 1);
+}
+
+QString decodedMarkdownCharacterReference(const QString &reference) {
+    if (reference == QStringLiteral("amp")) {
+        return QStringLiteral("&");
+    }
+    if (reference == QStringLiteral("lt")) {
+        return QStringLiteral("<");
+    }
+    if (reference == QStringLiteral("gt")) {
+        return QStringLiteral(">");
+    }
+    if (reference == QStringLiteral("quot")) {
+        return QStringLiteral("\"");
+    }
+    if (reference == QStringLiteral("apos")) {
+        return QStringLiteral("'");
+    }
+    if (reference == QStringLiteral("nbsp")) {
+        return markdownCodePointString(0x00A0);
+    }
+    if (reference == QStringLiteral("copy")) {
+        return markdownCodePointString(0x00A9);
+    }
+    if (reference == QStringLiteral("reg")) {
+        return markdownCodePointString(0x00AE);
+    }
+    if (reference == QStringLiteral("trade")) {
+        return markdownCodePointString(0x2122);
+    }
+    if (reference == QStringLiteral("ndash")) {
+        return markdownCodePointString(0x2013);
+    }
+    if (reference == QStringLiteral("mdash")) {
+        return markdownCodePointString(0x2014);
+    }
+    if (reference == QStringLiteral("lsquo")) {
+        return markdownCodePointString(0x2018);
+    }
+    if (reference == QStringLiteral("rsquo")) {
+        return markdownCodePointString(0x2019);
+    }
+    if (reference == QStringLiteral("ldquo")) {
+        return markdownCodePointString(0x201C);
+    }
+    if (reference == QStringLiteral("rdquo")) {
+        return markdownCodePointString(0x201D);
+    }
+    if (reference == QStringLiteral("hellip")) {
+        return markdownCodePointString(0x2026);
+    }
+
+    bool ok = false;
+    uint codePoint = 0;
+    if (reference.startsWith(QStringLiteral("#x")) || reference.startsWith(QStringLiteral("#X"))) {
+        codePoint = reference.mid(2).toUInt(&ok, 16);
+    } else if (reference.startsWith(QLatin1Char('#'))) {
+        codePoint = reference.mid(1).toUInt(&ok, 10);
+    }
+
+    if (!ok
+        || codePoint == 0
+        || codePoint > 0x10FFFF
+        || (codePoint >= 0xD800 && codePoint <= 0xDFFF)) {
+        return QString();
+    }
+
+    return markdownCodePointString(codePoint);
+}
+
+QString decodeMarkdownCharacterReferences(const QString &text) {
+    QString result;
+    result.reserve(text.size());
+
+    int index = 0;
+    while (index < text.size()) {
+        if (text.at(index) == QLatin1Char('&')) {
+            const int semicolonIndex = text.indexOf(QLatin1Char(';'), index + 1);
+            if (semicolonIndex >= 0) {
+                const QString reference = text.mid(index + 1, semicolonIndex - index - 1);
+                const QString decoded = decodedMarkdownCharacterReference(reference);
+                if (!decoded.isEmpty()) {
+                    result.append(decoded);
+                    index = semicolonIndex + 1;
+                    continue;
+                }
+            }
+        }
+
+        result.append(text.at(index));
+        index += 1;
+    }
+
+    return result;
+}
+
+QString removePairedMarkdownSingleMarkers(QString text, const QChar marker) {
+    QString result;
+    result.reserve(text.size());
+
+    int index = 0;
+    while (index < text.size()) {
+        if (text.at(index) == marker) {
+            const int contentStart = index + 1;
+            const int closingIndex = text.indexOf(marker, contentStart);
+            if (closingIndex > contentStart) {
+                result.append(text.mid(contentStart, closingIndex - contentStart));
+                index = closingIndex + 1;
+                continue;
+            }
+        }
+
+        result.append(text.at(index));
+        index += 1;
+    }
+
+    return result;
+}
+
 QString cleanMarkdownInline(QString text) {
-    static const QRegularExpression linkPattern(QStringLiteral("!?\\[([^\\]]+)\\]\\(([^)]+)\\)"));
     text = protectMarkdownBackslashEscapes(text);
-    text.replace(linkPattern, QStringLiteral("\\1 (\\2)"));
+    text = replaceMarkdownLinks(text);
+    text = replaceMarkdownAutolinks(text);
+    text = decodeMarkdownCharacterReferences(text);
 
     const QStringList markers = {
         QStringLiteral("**"),
@@ -1339,6 +1638,8 @@ QString cleanMarkdownInline(QString text) {
     for (const QString &marker : markers) {
         text.replace(marker, QString());
     }
+    text = removePairedMarkdownSingleMarkers(text, QLatin1Char('*'));
+    text = removePairedMarkdownSingleMarkers(text, QLatin1Char('_'));
 
     return restoreMarkdownBackslashEscapes(text).trimmed();
 }

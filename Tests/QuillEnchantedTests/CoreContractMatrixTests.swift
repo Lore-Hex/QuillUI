@@ -1478,7 +1478,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QJsonObject actionSnapshot(")
         expectContains(nativeShim, "quill_enchanted_qt_action_callback actionCallback")
         expectContains(nativeShim, "quill_enchanted_qt_free_string_callback freeString")
-        expectContains(nativeShim, "#include <QRegularExpression>")
+        expectDoesNotContain(nativeShim, "#include <QRegularExpression>")
         expectContains(nativeShim, "#include <QSignalBlocker>")
         expectContains(nativeShim, "QComboBox")
         expectContains(nativeShim, "QListWidget")
@@ -1993,9 +1993,22 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QString protectMarkdownBackslashEscapes(const QString &text)")
         expectContains(nativeShim, "QString restoreMarkdownBackslashEscapes(const QString &text)")
         expectContains(nativeShim, "QString cleanMarkdownInline(QString text)")
-        expectContains(nativeShim, "!?\\\\[([^\\\\]]+)\\\\]\\\\(([^)]+)\\\\)")
+        expectContains(nativeShim, "int closingMarkdownBracket(const QString &text, const int start)")
+        expectContains(nativeShim, "int closingMarkdownParenthesis(const QString &text, const int start)")
+        expectContains(nativeShim, "bool markdownLinkReplacement(\n    const QString &text,\n    const int index,")
+        expectContains(nativeShim, "QString replaceMarkdownLinks(const QString &text)")
+        expectContains(nativeShim, "bool isMarkdownAutolinkContent(const QString &text)")
+        expectContains(nativeShim, "QString replaceMarkdownAutolinks(const QString &text)")
+        expectContains(nativeShim, "QString decodeMarkdownCharacterReferences(const QString &text)")
+        expectContains(nativeShim, "QString removePairedMarkdownSingleMarkers(QString text, const QChar marker)")
         expectContains(nativeShim, "text = protectMarkdownBackslashEscapes(text)")
+        expectContains(nativeShim, "text = replaceMarkdownLinks(text)")
+        expectContains(nativeShim, "text = replaceMarkdownAutolinks(text)")
+        expectContains(nativeShim, "text = decodeMarkdownCharacterReferences(text)")
+        expectContains(nativeShim, "text = removePairedMarkdownSingleMarkers(text, QLatin1Char('*'))")
+        expectContains(nativeShim, "text = removePairedMarkdownSingleMarkers(text, QLatin1Char('_'))")
         expectContains(nativeShim, "return restoreMarkdownBackslashEscapes(text).trimmed()")
+        expectDoesNotContain(nativeShim, "!?\\\\[([^\\\\]]+)\\\\]\\\\(([^)]+)\\\\)")
         expectContains(nativeShim, "int markdownFenceMarkerCount(const QString &line, const QChar marker)")
         expectContains(nativeShim, "closingCount < fence.markerCount")
         expectContains(nativeShim, "QString normalizedMarkdownHeadingText(QString text)")
@@ -2808,6 +2821,17 @@ private let inlineCases: [TextCase] = [
     TextCase(input: "`code`", expected: "code"),
     TextCase(input: "~~gone~~", expected: "gone"),
     TextCase(input: "[QuillUI](https://example.com)", expected: "QuillUI (https://example.com)"),
+    TextCase(input: "![Preview](file:///tmp/preview.png)", expected: "Preview (file:///tmp/preview.png)"),
+    TextCase(input: "Status [](/health)", expected: "Status (/health)"),
+    TextCase(input: "Drop ![](file:///tmp/chart.png)", expected: "Drop (file:///tmp/chart.png)"),
+    TextCase(input: "[Swift Array](https://developer.apple.com/documentation/swift/Array(_:))", expected: "Swift Array (https://developer.apple.com/documentation/swift/Array(_:))"),
+    TextCase(input: "![Chart](assets/chart(size).png)", expected: "Chart (assets/chart(size).png)"),
+    TextCase(input: "Open <https://example.com/docs?q=1>", expected: "Open https://example.com/docs?q=1"),
+    TextCase(input: "Email <support@example.com>", expected: "Email support@example.com"),
+    TextCase(input: "Keep 2 < 3 > 1", expected: "Keep 2 < 3 > 1"),
+    TextCase(input: "Use *local* and _remote_ models", expected: "Use local and remote models"),
+    TextCase(input: "Keep a literal * marker", expected: "Keep a literal * marker"),
+    TextCase(input: "\\# Not a heading", expected: "# Not a heading"),
     TextCase(input: "mix **bold** and `code`", expected: "mix bold and code"),
     TextCase(input: "  spaced **text**  ", expected: "spaced text"),
     TextCase(input: "[Docs](https://example.com/docs) **ship**", expected: "Docs (https://example.com/docs) ship"),
