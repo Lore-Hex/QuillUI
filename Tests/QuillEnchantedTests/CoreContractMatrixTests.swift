@@ -2002,6 +2002,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QString replaceMarkdownLinks(const QString &text)")
         expectContains(nativeShim, "bool isMarkdownAutolinkContent(const QString &text)")
         expectContains(nativeShim, "QString replaceMarkdownAutolinks(const QString &text)")
+        expectContains(nativeShim, "QString removeMarkdownInlineHtml(const QString &text)")
         expectContains(nativeShim, "QString decodeMarkdownCharacterReferences(const QString &text)")
         expectContains(nativeShim, "QString removePairedMarkdownMarkers(QString text, const QString &marker)")
         expectContains(nativeShim, "QString removePairedMarkdownSingleMarkers(QString text, const QChar marker)")
@@ -2010,6 +2011,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "text = replaceMarkdownImages(text);\n    text = replaceMarkdownLinks(text)")
         expectContains(nativeShim, "text = replaceMarkdownLinks(text)")
         expectContains(nativeShim, "text = replaceMarkdownAutolinks(text)")
+        expectContains(nativeShim, "text = replaceMarkdownAutolinks(text);\n    text = removeMarkdownInlineHtml(text)")
+        expectContains(nativeShim, "text = removeMarkdownInlineHtml(text);\n    text = decodeMarkdownCharacterReferences(text)")
         expectContains(nativeShim, "text = decodeMarkdownCharacterReferences(text)")
         expectContains(nativeShim, "text = removePairedMarkdownMarkers(text, QStringLiteral(\"**\"))")
         expectContains(nativeShim, "text = removePairedMarkdownMarkers(text, QStringLiteral(\"__\"))")
@@ -2841,6 +2844,12 @@ private let inlineCases: [TextCase] = [
     TextCase(input: "Open <https://example.com/docs?q=1>", expected: "Open https://example.com/docs?q=1"),
     TextCase(input: "Email <support@example.com>", expected: "Email support@example.com"),
     TextCase(input: "Keep 2 < 3 > 1", expected: "Keep 2 < 3 > 1"),
+    TextCase(input: "Visible <!-- hidden --> text", expected: "Visible  text"),
+    TextCase(input: "Press <kbd>Esc</kbd> now", expected: "Press Esc now"),
+    TextCase(input: "Line<br>break", expected: "Line break"),
+    TextCase(input: "Open <https://example.com> and <kbd>Esc</kbd>", expected: "Open https://example.com and Esc"),
+    TextCase(input: "Keep <model> literal", expected: "Keep <model> literal"),
+    TextCase(input: "Show \\<kbd\\>Esc\\</kbd\\>", expected: "Show <kbd>Esc</kbd>"),
     TextCase(input: "Use *local* and _remote_ models", expected: "Use local and remote models"),
     TextCase(input: "Keep a literal * marker", expected: "Keep a literal * marker"),
     TextCase(input: "\\# Not a heading", expected: "# Not a heading"),

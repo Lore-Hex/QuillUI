@@ -115,6 +115,7 @@ enum MarkdownParser {
         cleaned = replaceImages(in: cleaned)
         cleaned = replaceLinks(in: cleaned)
         cleaned = replaceAutolinks(in: cleaned)
+        cleaned = removeInlineHTML(in: cleaned)
         cleaned = decodeCharacterReferences(in: cleaned)
         cleaned = removePairedMarkers(in: cleaned, marker: "**")
         cleaned = removePairedMarkers(in: cleaned, marker: "__")
@@ -321,6 +322,76 @@ enum MarkdownParser {
 
         return false
     }
+
+    private static func removeInlineHTML(in text: String) -> String {
+        var result = ""
+        result.reserveCapacity(text.count)
+        var index = text.startIndex
+
+        while index < text.endIndex {
+            if text[index] == "<" {
+                if text[index...].hasPrefix("<!--"),
+                   let closingRange = text[index...].range(of: "-->") {
+                    index = closingRange.upperBound
+                    continue
+                }
+
+                if let replacement = inlineHTMLTagReplacement(in: text, at: index) {
+                    if replacement.insertsSpace {
+                        result.append(" ")
+                    }
+                    index = replacement.endIndex
+                    continue
+                }
+            }
+
+            result.append(text[index])
+            index = text.index(after: index)
+        }
+
+        return result
+    }
+
+    private static func inlineHTMLTagReplacement(
+        in text: String,
+        at index: String.Index
+    ) -> (endIndex: String.Index, insertsSpace: Bool)? {
+        guard text[index] == "<" else { return nil }
+
+        var cursor = text.index(after: index)
+        if cursor < text.endIndex, text[cursor] == "/" {
+            cursor = text.index(after: cursor)
+        }
+        guard cursor < text.endIndex, text[cursor].isASCIIAlphabetic else { return nil }
+
+        let tagStart = cursor
+        while cursor < text.endIndex, text[cursor].isASCIIHTMLTagNameCharacter {
+            cursor = text.index(after: cursor)
+        }
+
+        let tagName = String(text[tagStart..<cursor]).lowercased()
+        guard inlineHTMLTagNames.contains(tagName) else { return nil }
+
+        while cursor < text.endIndex, text[cursor] != ">" {
+            if text[cursor] == "<" {
+                return nil
+            }
+            cursor = text.index(after: cursor)
+        }
+
+        guard cursor < text.endIndex else { return nil }
+        return (text.index(after: cursor), inlineHTMLSpaceTags.contains(tagName))
+    }
+
+    private static let inlineHTMLTagNames: Set<String> = [
+        "a", "abbr", "b", "br", "button", "code", "del", "div", "em", "i",
+        "kbd", "li", "mark", "ol", "p", "pre", "s", "span", "strong", "sub",
+        "sup", "u", "ul"
+    ]
+
+    private static let inlineHTMLSpaceTags: Set<String> = [
+        "br", "div", "li", "p"
+    ]
 
     private static func decodeCharacterReferences(in text: String) -> String {
         var result = ""
@@ -597,6 +668,27 @@ enum MarkdownParser {
         guard line.first == ">" else { return nil }
         let content = String(line.dropFirst()).trimmingCharacters(in: .whitespaces)
         return content.isEmpty ? nil : content
+    }
+}
+
+private extension Character {
+    var isASCIIAlphabetic: Bool {
+        guard unicodeScalars.count == 1,
+              let scalar = unicodeScalars.first else {
+            return false
+        }
+        return (65...90).contains(scalar.value) || (97...122).contains(scalar.value)
+    }
+
+    var isASCIIHTMLTagNameCharacter: Bool {
+        guard unicodeScalars.count == 1,
+              let scalar = unicodeScalars.first else {
+            return false
+        }
+        return (65...90).contains(scalar.value)
+            || (97...122).contains(scalar.value)
+            || (48...57).contains(scalar.value)
+            || scalar.value == 45
     }
 }
 

@@ -1566,6 +1566,132 @@ QString replaceMarkdownAutolinks(const QString &text) {
     return result;
 }
 
+bool isAsciiMarkdownHtmlTagStart(const QChar ch) {
+    const ushort scalar = ch.unicode();
+    return (scalar >= 'A' && scalar <= 'Z') || (scalar >= 'a' && scalar <= 'z');
+}
+
+bool isAsciiMarkdownHtmlTagNameCharacter(const QChar ch) {
+    const ushort scalar = ch.unicode();
+    return (scalar >= 'A' && scalar <= 'Z')
+        || (scalar >= 'a' && scalar <= 'z')
+        || (scalar >= '0' && scalar <= '9')
+        || scalar == '-';
+}
+
+bool isMarkdownInlineHtmlTagName(const QString &tagName) {
+    return tagName == QStringLiteral("a")
+        || tagName == QStringLiteral("abbr")
+        || tagName == QStringLiteral("b")
+        || tagName == QStringLiteral("br")
+        || tagName == QStringLiteral("button")
+        || tagName == QStringLiteral("code")
+        || tagName == QStringLiteral("del")
+        || tagName == QStringLiteral("div")
+        || tagName == QStringLiteral("em")
+        || tagName == QStringLiteral("i")
+        || tagName == QStringLiteral("kbd")
+        || tagName == QStringLiteral("li")
+        || tagName == QStringLiteral("mark")
+        || tagName == QStringLiteral("ol")
+        || tagName == QStringLiteral("p")
+        || tagName == QStringLiteral("pre")
+        || tagName == QStringLiteral("s")
+        || tagName == QStringLiteral("span")
+        || tagName == QStringLiteral("strong")
+        || tagName == QStringLiteral("sub")
+        || tagName == QStringLiteral("sup")
+        || tagName == QStringLiteral("u")
+        || tagName == QStringLiteral("ul");
+}
+
+bool markdownInlineHtmlTagInsertsSpace(const QString &tagName) {
+    return tagName == QStringLiteral("br")
+        || tagName == QStringLiteral("div")
+        || tagName == QStringLiteral("li")
+        || tagName == QStringLiteral("p");
+}
+
+bool markdownInlineHtmlTagReplacement(
+    const QString &text,
+    const int index,
+    int *endIndex,
+    bool *insertsSpace
+) {
+    if (index >= text.size() || text.at(index) != QLatin1Char('<')) {
+        return false;
+    }
+
+    int cursor = index + 1;
+    if (cursor < text.size() && text.at(cursor) == QLatin1Char('/')) {
+        cursor += 1;
+    }
+    if (cursor >= text.size() || !isAsciiMarkdownHtmlTagStart(text.at(cursor))) {
+        return false;
+    }
+
+    const int tagStart = cursor;
+    while (cursor < text.size() && isAsciiMarkdownHtmlTagNameCharacter(text.at(cursor))) {
+        cursor += 1;
+    }
+
+    const QString tagName = text.mid(tagStart, cursor - tagStart).toLower();
+    if (!isMarkdownInlineHtmlTagName(tagName)) {
+        return false;
+    }
+
+    while (cursor < text.size() && text.at(cursor) != QLatin1Char('>')) {
+        if (text.at(cursor) == QLatin1Char('<')) {
+            return false;
+        }
+        cursor += 1;
+    }
+    if (cursor >= text.size()) {
+        return false;
+    }
+
+    if (endIndex != nullptr) {
+        *endIndex = cursor + 1;
+    }
+    if (insertsSpace != nullptr) {
+        *insertsSpace = markdownInlineHtmlTagInsertsSpace(tagName);
+    }
+    return true;
+}
+
+QString removeMarkdownInlineHtml(const QString &text) {
+    QString result;
+    result.reserve(text.size());
+
+    int index = 0;
+    while (index < text.size()) {
+        if (text.at(index) == QLatin1Char('<')) {
+            if (text.mid(index, 4) == QStringLiteral("<!--")) {
+                const int closingIndex = text.indexOf(QStringLiteral("-->"), index + 4);
+                if (closingIndex >= 0) {
+                    index = closingIndex + 3;
+                    continue;
+                }
+            }
+
+            int endIndex = index;
+            bool insertsSpace = false;
+            if (markdownInlineHtmlTagReplacement(text, index, &endIndex, &insertsSpace)) {
+                if (insertsSpace) {
+                    result.append(QLatin1Char(' '));
+                }
+                index = endIndex;
+                continue;
+            }
+        }
+
+        result.append(text.at(index));
+        index += 1;
+    }
+
+    return result;
+}
+
 QString markdownCodePointString(const uint codePoint) {
     const char32_t scalar = static_cast<char32_t>(codePoint);
     return QString::fromUcs4(&scalar, 1);
@@ -1720,6 +1846,7 @@ QString cleanMarkdownInline(QString text) {
     text = replaceMarkdownImages(text);
     text = replaceMarkdownLinks(text);
     text = replaceMarkdownAutolinks(text);
+    text = removeMarkdownInlineHtml(text);
     text = decodeMarkdownCharacterReferences(text);
     text = removePairedMarkdownMarkers(text, QStringLiteral("**"));
     text = removePairedMarkdownMarkers(text, QStringLiteral("__"));
