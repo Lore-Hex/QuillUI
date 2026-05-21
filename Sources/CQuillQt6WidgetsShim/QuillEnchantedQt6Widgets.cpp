@@ -1516,6 +1516,114 @@ QString replaceMarkdownLinks(const QString &text) {
     return result;
 }
 
+bool markdownReferenceReplacement(
+    const QString &text,
+    const int labelStart,
+    QString *replacement,
+    int *endIndex
+) {
+    const int labelContentStart = labelStart + 1;
+    const int labelEnd = closingMarkdownBracket(text, labelContentStart);
+    if (labelEnd < 0) {
+        return false;
+    }
+
+    const int referenceStart = labelEnd + 1;
+    if (referenceStart >= text.size() || text.at(referenceStart) != QLatin1Char('[')) {
+        return false;
+    }
+
+    const int referenceContentStart = referenceStart + 1;
+    const int referenceEnd = closingMarkdownBracket(text, referenceContentStart);
+    if (referenceEnd < 0) {
+        return false;
+    }
+
+    const QString label = text.mid(labelContentStart, labelEnd - labelContentStart);
+    if (label.isEmpty()) {
+        return false;
+    }
+
+    if (replacement != nullptr) {
+        *replacement = label;
+    }
+    if (endIndex != nullptr) {
+        *endIndex = referenceEnd + 1;
+    }
+    return true;
+}
+
+bool markdownReferenceImageReplacement(
+    const QString &text,
+    const int index,
+    QString *replacement,
+    int *endIndex
+) {
+    if (text.at(index) != QLatin1Char('!')) {
+        return false;
+    }
+
+    const int labelStart = index + 1;
+    if (labelStart >= text.size() || text.at(labelStart) != QLatin1Char('[')) {
+        return false;
+    }
+
+    return markdownReferenceReplacement(text, labelStart, replacement, endIndex);
+}
+
+QString replaceMarkdownReferenceImages(const QString &text) {
+    QString result;
+    result.reserve(text.size());
+
+    int index = 0;
+    while (index < text.size()) {
+        QString replacement;
+        int endIndex = index;
+        if (markdownReferenceImageReplacement(text, index, &replacement, &endIndex)) {
+            result.append(replacement);
+            index = endIndex;
+        } else {
+            result.append(text.at(index));
+            index += 1;
+        }
+    }
+
+    return result;
+}
+
+bool markdownReferenceLinkReplacement(
+    const QString &text,
+    const int index,
+    QString *replacement,
+    int *endIndex
+) {
+    if (text.at(index) != QLatin1Char('[') || isMarkdownImageLabelStart(text, index)) {
+        return false;
+    }
+
+    return markdownReferenceReplacement(text, index, replacement, endIndex);
+}
+
+QString replaceMarkdownReferenceLinks(const QString &text) {
+    QString result;
+    result.reserve(text.size());
+
+    int index = 0;
+    while (index < text.size()) {
+        QString replacement;
+        int endIndex = index;
+        if (markdownReferenceLinkReplacement(text, index, &replacement, &endIndex)) {
+            result.append(replacement);
+            index = endIndex;
+        } else {
+            result.append(text.at(index));
+            index += 1;
+        }
+    }
+
+    return result;
+}
+
 bool isMarkdownAutolinkContent(const QString &text) {
     if (text.isEmpty()) {
         return false;
@@ -1881,6 +1989,8 @@ QString cleanMarkdownInline(QString text) {
     text = protectMarkdownBackslashEscapes(text);
     text = replaceMarkdownImages(text);
     text = replaceMarkdownLinks(text);
+    text = replaceMarkdownReferenceImages(text);
+    text = replaceMarkdownReferenceLinks(text);
     text = replaceMarkdownAutolinks(text);
     text = removeMarkdownInlineHtml(text);
     text = decodeMarkdownCharacterReferences(text);

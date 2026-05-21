@@ -292,6 +292,20 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("renders reference-style links and images as readable text")
+    func rendersReferenceStyleLinksAndImages() {
+        let blocks = MarkdownParser.parse("""
+        See [Docs][docs] and ![Chart][chart].
+
+        [docs]: https://example.com/docs
+        [chart]: assets/chart.png
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "See Docs and Chart.")
+        ])
+    }
+
     @Test("renders markdown links as readable plain text")
     func cleansLinks() {
         #expect(MarkdownParser.cleanInline("[QuillUI](https://example.com) works") == "QuillUI (https://example.com) works")
@@ -302,6 +316,11 @@ struct MarkdownRenderingTests {
         #expect(MarkdownParser.cleanInline("![Chart](assets/chart(size).png)") == "Chart")
         #expect(MarkdownParser.cleanInline("Preview ![Architecture Diagram](assets/architecture.png) done") == "Preview Architecture Diagram done")
         #expect(MarkdownParser.cleanInline("\\![Preview](file:///tmp/preview.png)") == "![Preview](file:///tmp/preview.png)")
+        #expect(MarkdownParser.cleanInline("[Docs][docs] and [Guide][]") == "Docs and Guide")
+        #expect(MarkdownParser.cleanInline("![Diagram][diagram] ready") == "Diagram ready")
+        #expect(MarkdownParser.cleanInline("\\[Docs][docs]") == "[Docs][docs]")
+        #expect(MarkdownParser.cleanInline("\\![Diagram][diagram]") == "![Diagram][diagram]")
+        #expect(MarkdownParser.cleanInline("Keep [literal] text") == "Keep [literal] text")
         #expect(MarkdownParser.cleanInline("Open <https://example.com/docs?q=1>") == "Open https://example.com/docs?q=1")
         #expect(MarkdownParser.cleanInline("Email <support@example.com>") == "Email support@example.com")
         #expect(MarkdownParser.cleanInline("Keep 2 < 3 > 1") == "Keep 2 < 3 > 1")
