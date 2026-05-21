@@ -1995,6 +1995,9 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QString restoreMarkdownBackslashEscapes(const QString &text)")
         expectContains(nativeShim, "QString cleanMarkdownInline(QString text)")
         expectContains(nativeShim, "int closingMarkdownBracket(const QString &text, const int start)")
+        expectContains(nativeShim, "int depth = 0;\n    bool escaped = false;\n    for (int index = start; index < text.size(); ++index)")
+        expectContains(nativeShim, "} else if (character == QLatin1Char('[')) {\n            depth += 1;\n        } else if (character == QLatin1Char(']'))")
+        expectContains(nativeShim, "if (depth == 0) {\n                return index;\n            }\n            depth -= 1;")
         expectContains(nativeShim, "int closingMarkdownParenthesis(const QString &text, const int start)")
         expectContains(nativeShim, "bool isMarkdownImageLabelStart(const QString &text, const int index)")
         expectContains(nativeShim, "bool markdownImageReplacement(\n    const QString &text,\n    const int index,")
@@ -2858,6 +2861,8 @@ private let inlineCases: [TextCase] = [
     TextCase(input: "Drop ![](file:///tmp/chart.png)", expected: "Drop"),
     TextCase(input: "[Swift Array](https://developer.apple.com/documentation/swift/Array(_:))", expected: "Swift Array (https://developer.apple.com/documentation/swift/Array(_:))"),
     TextCase(input: "![Chart](assets/chart(size).png)", expected: "Chart"),
+    TextCase(input: "[Docs [beta]](https://example.com)", expected: "Docs [beta] (https://example.com)"),
+    TextCase(input: "![Chart [draft]](assets/chart.png)", expected: "Chart [draft]"),
     TextCase(input: "Preview ![Architecture Diagram](assets/architecture.png) done", expected: "Preview Architecture Diagram done"),
     TextCase(input: "\\![Preview](file:///tmp/preview.png)", expected: "![Preview](file:///tmp/preview.png)"),
     TextCase(input: "Open <https://example.com/docs?q=1>", expected: "Open https://example.com/docs?q=1"),

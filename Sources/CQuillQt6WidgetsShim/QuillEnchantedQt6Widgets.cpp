@@ -1417,6 +1417,7 @@ QString removePairedMarkdownCodeSpanMarkers(const QString &text) {
 }
 
 int closingMarkdownBracket(const QString &text, const int start) {
+    int depth = 0;
     bool escaped = false;
     for (int index = start; index < text.size(); ++index) {
         const QChar character = text.at(index);
@@ -1424,8 +1425,13 @@ int closingMarkdownBracket(const QString &text, const int start) {
             escaped = false;
         } else if (character == QLatin1Char('\\')) {
             escaped = true;
+        } else if (character == QLatin1Char('[')) {
+            depth += 1;
         } else if (character == QLatin1Char(']')) {
-            return index;
+            if (depth == 0) {
+                return index;
+            }
+            depth -= 1;
         }
     }
 

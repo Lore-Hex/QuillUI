@@ -431,6 +431,7 @@ enum MarkdownParser {
 
     private static func closingBracket(in text: String, from start: String.Index) -> String.Index? {
         var index = start
+        var depth = 0
         var escaped = false
 
         while index < text.endIndex {
@@ -439,8 +440,13 @@ enum MarkdownParser {
                 escaped = false
             } else if character == "\\" {
                 escaped = true
+            } else if character == "[" {
+                depth += 1
             } else if character == "]" {
-                return index
+                if depth == 0 {
+                    return index
+                }
+                depth -= 1
             }
             index = text.index(after: index)
         }
