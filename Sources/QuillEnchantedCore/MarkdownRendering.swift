@@ -216,6 +216,10 @@ enum MarkdownParser {
     }
 
     private static func quote(in line: String) -> String? {
+        normalizedQuoteText(line)
+    }
+
+    private static func normalizedQuoteText(_ line: String) -> String? {
         guard line.first == ">" else { return nil }
         let content = String(line.dropFirst()).trimmingCharacters(in: .whitespaces)
         return content.isEmpty ? nil : content

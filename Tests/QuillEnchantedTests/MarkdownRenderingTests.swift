@@ -118,6 +118,21 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("normalizes block quote marker spacing")
+    func normalizesBlockQuoteMarkerSpacing() {
+        let blocks = MarkdownParser.parse("""
+        >Quoted
+        >   Spaced quote
+        > **Bold**
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .quote, text: "Quoted"),
+            MarkdownBlock(id: 1, kind: .quote, text: "Spaced quote"),
+            MarkdownBlock(id: 2, kind: .quote, text: "Bold")
+        ])
+    }
+
     @Test("preserves fenced code with language labels")
     func parsesCodeFences() {
         let blocks = MarkdownParser.parse("""

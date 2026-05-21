@@ -2003,7 +2003,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "if (!line.at(markerCount).isSpace())")
         expectContains(nativeShim, "if (!line.at(1).isSpace())")
         expectContains(nativeShim, "if (textStart >= line.size() || !line.at(textStart).isSpace())")
-        expectContains(nativeShim, "const QString quoteText = line.mid(1).trimmed()")
+        expectContains(nativeShim, "QString normalizedMarkdownQuoteText(const QString &line)")
+        expectContains(nativeShim, "const QString quoteText = normalizedMarkdownQuoteText(line)")
         expectContains(nativeShim, "if (quoteText.isEmpty())")
         expectContains(nativeShim, "QList<MarkdownBlock> blocks = parseMarkdownBlocks(markdown)")
         expectContains(nativeShim, "MarkdownBlock emptyParagraph")
@@ -2830,6 +2831,8 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: "1) Item", kind: .orderedListItem(number: 1), text: "Item"),
     BlockCase(markdown: "42) Item", kind: .orderedListItem(number: 42), text: "Item"),
     BlockCase(markdown: "> Quoted", kind: .quote, text: "Quoted"),
+    BlockCase(markdown: ">Quoted", kind: .quote, text: "Quoted"),
+    BlockCase(markdown: ">   Spaced quote", kind: .quote, text: "Spaced quote"),
     BlockCase(markdown: ">\nFollow-up", kind: .paragraph, text: "> Follow-up"),
     BlockCase(markdown: "#Heading\nNext", kind: .paragraph, text: "#Heading Next"),
     BlockCase(markdown: "-Item\nNext", kind: .paragraph, text: "-Item Next"),

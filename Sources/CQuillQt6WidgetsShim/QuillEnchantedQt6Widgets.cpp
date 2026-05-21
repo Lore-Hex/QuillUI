@@ -1459,11 +1459,15 @@ bool parseOrderedListLine(const QString &line, int *number, QString *text) {
     return true;
 }
 
-bool parseQuoteLine(const QString &line, QString *text) {
+QString normalizedMarkdownQuoteText(const QString &line) {
     if (!line.startsWith(QLatin1Char('>'))) {
-        return false;
+        return QString();
     }
-    const QString quoteText = line.mid(1).trimmed();
+    return line.mid(1).trimmed();
+}
+
+bool parseQuoteLine(const QString &line, QString *text) {
+    const QString quoteText = normalizedMarkdownQuoteText(line);
     if (quoteText.isEmpty()) {
         return false;
     }
