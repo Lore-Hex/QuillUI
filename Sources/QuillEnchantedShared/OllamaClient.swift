@@ -10,6 +10,7 @@ public enum OllamaClientError: Error, CustomStringConvertible, LocalizedError, S
     case server(Int, String)
     case noModelSelected
     case malformedStream(String)
+    case malformedResponse(String)
     case streamingUnavailable(String)
 
     public var description: String {
@@ -24,6 +25,8 @@ public enum OllamaClientError: Error, CustomStringConvertible, LocalizedError, S
             return "Choose an Ollama model before sending a message."
         case .malformedStream(let line):
             return "Ollama returned malformed stream data: \(line)"
+        case .malformedResponse(let body):
+            return "Ollama returned malformed response data: \(body)"
         case .streamingUnavailable(let message):
             return message
         }
@@ -73,8 +76,7 @@ public struct OllamaClient: Sendable {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         try validate(response: response, data: data)
-        let decoded = try JSONDecoder().decode(ChatResponse.self, from: data)
-        return decoded.message?.content.quillTrimmedNonEmpty ?? decoded.response?.quillTrimmedNonEmpty ?? ""
+        return try OllamaChatResponseParser.parse(data)
     }
 
     public func streamChat(
@@ -120,7 +122,7 @@ public struct OllamaClient: Sendable {
             throw OllamaClientError.invalidResponse
         }
         guard (200..<300).contains(http.statusCode) else {
-            throw OllamaClientError.server(http.statusCode, String(data: data, encoding: .utf8) ?? "")
+            throw OllamaClientError.server(http.statusCode, ollamaErrorBody(from: data))
         }
     }
 
@@ -136,6 +138,14 @@ public struct OllamaClient: Sendable {
 
         return apiMessages
     }
+}
+
+private func ollamaErrorBody(from data: Data) -> String {
+    if let decoded = try? JSONDecoder().decode(OllamaErrorResponse.self, from: data),
+       let error = decoded.error?.quillTrimmedNonEmpty {
+        return error
+    }
+    return String(data: data, encoding: .utf8) ?? ""
 }
 
 /// Locate `curl` on disk. Hard-coding `/usr/bin/curl` broke on systems
@@ -382,6 +392,32 @@ public enum OllamaStreamParser {
     }
 }
 
+public enum OllamaChatResponseParser {
+    public static func parse(_ data: Data) throws -> String {
+        do {
+            let response = try JSONDecoder().decode(ChatResponse.self, from: data)
+            if let error = response.error?.quillTrimmedNonEmpty {
+                throw OllamaClientError.server(500, error)
+            }
+            if let content = response.message?.content, !content.isEmpty {
+                return content
+            }
+            if let fallback = response.response, !fallback.isEmpty {
+                return fallback
+            }
+            return ""
+        } catch let error as OllamaClientError {
+            throw error
+        } catch {
+            throw OllamaClientError.malformedResponse(ollamaMalformedBodyPreview(from: data))
+        }
+    }
+}
+
+private func ollamaMalformedBodyPreview(from data: Data) -> String {
+    String(data: Data(data.prefix(512)), encoding: .utf8) ?? "<\(data.count) bytes>"
+}
+
 private struct TagsResponse: Decodable, Sendable {
     var models: [TagModel]
 }
@@ -402,14 +438,24 @@ private struct APIMessage: Codable, Sendable {
     var images: [String]?
 }
 
+private struct OllamaResponseMessage: Decodable, Sendable {
+    var role: String?
+    var content: String?
+}
+
 private struct ChatResponse: Decodable, Sendable {
-    var message: APIMessage?
+    var message: OllamaResponseMessage?
     var response: String?
+    var error: String?
 }
 
 private struct StreamChatResponse: Decodable, Sendable {
-    var message: APIMessage?
+    var message: OllamaResponseMessage?
     var response: String?
     var done: Bool?
+    var error: String?
+}
+
+private struct OllamaErrorResponse: Decodable, Sendable {
     var error: String?
 }
