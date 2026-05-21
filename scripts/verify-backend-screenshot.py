@@ -314,7 +314,7 @@ def enchanted_sidebar_pixel(rgb: tuple[int, int, int]) -> bool:
     return (
         232 <= red <= 246
         and 235 <= green <= 249
-        and 228 <= blue <= 244
+        and 228 <= blue <= 249
         and max(rgb) - min(rgb) <= 22
     )
 
@@ -324,7 +324,7 @@ def enchanted_canvas_pixel(rgb: tuple[int, int, int]) -> bool:
     return (
         238 <= red <= 252
         and 238 <= green <= 253
-        and 236 <= blue <= 249
+        and 236 <= blue <= 255
         and max(rgb) - min(rgb) <= 18
     )
 
@@ -346,7 +346,19 @@ def enchanted_drop_target_pixel(rgb: tuple[int, int, int]) -> bool:
 
 def enchanted_selected_row_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
-    return 210 <= red <= 232 and 224 <= green <= 242 and 236 <= blue <= 255 and blue - red >= 14
+    blue_tinted_selection = (
+        210 <= red <= 232
+        and 224 <= green <= 242
+        and 236 <= blue <= 255
+        and blue - red >= 14
+    )
+    shared_palette_selection = (
+        222 <= red <= 238
+        and 222 <= green <= 238
+        and 226 <= blue <= 244
+        and max(rgb) - min(rgb) <= 18
+    )
+    return blue_tinted_selection or shared_palette_selection
 
 
 def enchanted_linux_gtk_wordmark_pixel(rgb: tuple[int, int, int]) -> bool:
@@ -1868,11 +1880,17 @@ def validate_quill_generic_gtk_list_selection(image: Screenshot, product: str) -
 
 def validate_quill_generic_qt_list_selection(image: Screenshot, product: str) -> str:
     app_label = product.removesuffix("-qt-list-selection")
+    uses_enchanted_palette = app_label == "quill-enchanted-upstream-slice"
+    palette_label = "Enchanted Qt" if uses_enchanted_palette else "Generic Qt"
+    sidebar_pixel = enchanted_sidebar_pixel if uses_enchanted_palette else generic_qt_sidebar_pixel
+    selected_row_pixel = enchanted_selected_row_pixel if uses_enchanted_palette else generic_qt_selected_row_pixel
+    detail_surface_pixel = enchanted_canvas_pixel if uses_enchanted_palette else generic_qt_detail_surface_pixel
+
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
-    require(900 <= app_width <= 1240, f"Generic Qt window width is unexpected: {app_width}px")
-    require(600 <= app_height <= 840, f"Generic Qt window height is unexpected: {app_height}px")
+    require(900 <= app_width <= 1240, f"{palette_label} window width is unexpected: {app_width}px")
+    require(600 <= app_height <= 840, f"{palette_label} window height is unexpected: {app_height}px")
 
     divider_search = range(left + 270, min(right + 1, left + 390))
     divider_x = max(
@@ -1882,7 +1900,7 @@ def validate_quill_generic_qt_list_selection(image: Screenshot, product: str) ->
     divider_score = line_column_score(image, divider_x, top + 20, bottom - 20)
     require(
         divider_score >= int(app_height * 0.24),
-        f"Generic Qt splitter was not detected: x={divider_x}, score={divider_score}",
+        f"{palette_label} splitter was not detected: x={divider_x}, score={divider_score}",
     )
 
     sidebar_pixels = pixel_count(
@@ -1891,7 +1909,7 @@ def validate_quill_generic_qt_list_selection(image: Screenshot, product: str) ->
         top,
         divider_x,
         bottom + 1,
-        generic_qt_sidebar_pixel,
+        sidebar_pixel,
     )
     selected_row = best_pixel_row_segment(
         image,
@@ -1899,15 +1917,15 @@ def validate_quill_generic_qt_list_selection(image: Screenshot, product: str) ->
         top + 140,
         max(left + 13, divider_x - 12),
         min(bottom + 1, top + 520),
-        generic_qt_selected_row_pixel,
+        selected_row_pixel,
         min_row_pixels=42,
     )
-    require(selected_row is not None, "Generic Qt selected list row was not detected")
+    require(selected_row is not None, f"{palette_label} selected list row was not detected")
     selected_row_segment, selected_row_pixels = selected_row
     selected_row_center_offset = selected_row_segment.center - top
     require(
         selected_row_center_offset >= 270,
-        "Generic Qt list selection did not move to the lower app row: "
+        f"{palette_label} list selection did not move to the lower app row: "
         f"selected_center={selected_row_center_offset:.1f}px",
     )
 
@@ -1917,7 +1935,7 @@ def validate_quill_generic_qt_list_selection(image: Screenshot, product: str) ->
         top,
         right + 1,
         bottom + 1,
-        generic_qt_detail_surface_pixel,
+        detail_surface_pixel,
     )
     card_pixels = pixel_count(
         image,
@@ -1942,15 +1960,15 @@ def validate_quill_generic_qt_list_selection(image: Screenshot, product: str) ->
         bottom - 20,
     )
 
-    require(sidebar_pixels >= 28_000, f"Generic Qt sidebar background was not detected: pixels={sidebar_pixels}")
-    require(selected_row_pixels >= 900, f"Generic Qt selected list row is too small: pixels={selected_row_pixels}")
+    require(sidebar_pixels >= 28_000, f"{palette_label} sidebar background was not detected: pixels={sidebar_pixels}")
+    require(selected_row_pixels >= 900, f"{palette_label} selected list row is too small: pixels={selected_row_pixels}")
     require(
         detail_surface_pixels >= 36_000,
-        f"Generic Qt detail surface was not detected: pixels={detail_surface_pixels}",
+        f"{palette_label} detail surface was not detected: pixels={detail_surface_pixels}",
     )
-    require(card_pixels >= 18_000, f"Generic Qt detail cards were not detected: pixels={card_pixels}")
-    require(sidebar_text_pixels >= 400, f"Generic Qt sidebar text was not detected: pixels={sidebar_text_pixels}")
-    require(detail_text_pixels >= 500, f"Generic Qt detail text was not detected: pixels={detail_text_pixels}")
+    require(card_pixels >= 18_000, f"{palette_label} detail cards were not detected: pixels={card_pixels}")
+    require(sidebar_text_pixels >= 400, f"{palette_label} sidebar text was not detected: pixels={sidebar_text_pixels}")
+    require(detail_text_pixels >= 500, f"{palette_label} detail text was not detected: pixels={detail_text_pixels}")
 
     return (
         f"{app_label} Qt list selection: "

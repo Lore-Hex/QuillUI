@@ -361,6 +361,19 @@ struct QuillQtBackendManifestTests {
         #expect(snapshot.defaultHeight == EnchantedVisualMetrics.defaultWindowHeight)
         #expect(snapshot.sidebarWidth == EnchantedVisualMetrics.sidebarWidth)
         #expect(snapshot.detailWidth == EnchantedVisualMetrics.detailWidth)
+        #expect(snapshot.style.canvasColor == EnchantedPalette.canvasColor)
+        #expect(snapshot.style.sidebarColor == EnchantedPalette.sidebarColor)
+        #expect(snapshot.style.cardColor == EnchantedPalette.cardColor)
+        #expect(snapshot.style.activeCardColor == EnchantedPalette.sidebarSelectedColor)
+        #expect(snapshot.style.primaryColor == EnchantedPalette.accentColor)
+        #expect(snapshot.style.inkColor == EnchantedPalette.textColor)
+        #expect(snapshot.style.mutedColor == EnchantedPalette.secondaryTextColor)
+        #expect(snapshot.style.badgeColor == EnchantedPalette.accentColor)
+        #expect(snapshot.style.selectedMutedColor == EnchantedPalette.sidebarSelectedColor)
+        #expect(snapshot.style.borderColor == EnchantedPalette.hairlineColor)
+        #expect(snapshot.style.selectedBorderColor == EnchantedPalette.controlBorderColor)
+        #expect(snapshot.style.dividerColor == EnchantedPalette.hairlineColor)
+        #expect(snapshot.style.controlBorderColor == EnchantedPalette.controlBorderColor)
     }
 
     private func canonicalAppSpecs(in manifest: String) throws -> [QtAppSpec] {

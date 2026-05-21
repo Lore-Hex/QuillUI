@@ -160,6 +160,22 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             conversationTitleFontWeight: EnchantedTypography.conversationTitleFontWeight
         )
 
+        public static let enchanted = Style(
+            canvasColor: EnchantedPalette.canvasColor,
+            sidebarColor: EnchantedPalette.sidebarColor,
+            cardColor: EnchantedPalette.cardColor,
+            activeCardColor: EnchantedPalette.sidebarSelectedColor,
+            primaryColor: EnchantedPalette.accentColor,
+            inkColor: EnchantedPalette.textColor,
+            mutedColor: EnchantedPalette.secondaryTextColor,
+            badgeColor: EnchantedPalette.accentColor,
+            selectedMutedColor: EnchantedPalette.sidebarSelectedColor,
+            borderColor: EnchantedPalette.hairlineColor,
+            selectedBorderColor: EnchantedPalette.controlBorderColor,
+            dividerColor: EnchantedPalette.hairlineColor,
+            controlBorderColor: EnchantedPalette.controlBorderColor
+        )
+
         public init(
             canvasColor: String,
             sidebarColor: String,
@@ -559,7 +575,8 @@ public enum QuillGenericQtAppCatalog {
         ],
         messages: [
             .init(sender: "assistant", body: "The selected conversation is ready for a local-model response.")
-        ]
+        ],
+        style: .enchanted
     )
 
     public static let iceCubes = QuillGenericQtAppSnapshot(
