@@ -2552,6 +2552,8 @@ bool parseQuoteLine(const QString &line, QString *text) {
     return true;
 }
 
+bool parseMarkdownTable(const QStringList &lines, int startIndex, MarkdownBlock *block, int *endIndex);
+
 bool parseMarkdownQuoteBlock(const QStringList &lines, int startIndex, MarkdownBlock *block, int *endIndex) {
     QString firstLine;
     if (!parseQuoteLine(lines.at(startIndex).trimmed(), &firstLine)) {
@@ -2566,6 +2568,8 @@ bool parseMarkdownQuoteBlock(const QStringList &lines, int startIndex, MarkdownB
         const QString line = rawLine.trimmed();
         if (line.startsWith(QLatin1Char('>'))) {
             quoteLines.append(cleanMarkdownInline(line.mid(1).trimmed()));
+        } else if (parseMarkdownTable(lines, lineIndex, nullptr, nullptr)) {
+            break;
         } else if (isMarkdownLazyQuoteContinuationLine(rawLine)) {
             quoteLines.append(cleanMarkdownInline(normalizedMarkdownParagraphLineText(rawLine)));
         } else {

@@ -1345,6 +1345,8 @@ enum MarkdownParser {
             if nextLine.first == ">" {
                 let content = String(nextLine.dropFirst()).trimmingCharacters(in: .whitespaces)
                 quoteLines.append(cleanInline(content))
+            } else if table(startingAt: lineIndex, in: lines) != nil {
+                break
             } else if lazyQuoteContinuationLine(rawLine) {
                 quoteLines.append(cleanInline(normalizedParagraphLineText(rawLine)))
             } else {

@@ -307,6 +307,25 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("stops lazy block quote continuation before pipe tables")
+    func stopsLazyBlockQuoteContinuationBeforePipeTables() {
+        let blocks = MarkdownParser.parse("""
+        > Summary
+        | Name | Value |
+        | --- | --- |
+        | Status | Ready |
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .quote, text: "Summary"),
+            MarkdownBlock(
+                id: 1,
+                kind: .table(headers: ["Name", "Value"], rows: [["Status", "Ready"]]),
+                text: "Name | Value\nStatus | Ready"
+            )
+        ])
+    }
+
     @Test("preserves blank quote markers inside block quotes")
     func preservesBlankQuoteMarkersInsideBlockQuotes() {
         let blocks = MarkdownParser.parse("""

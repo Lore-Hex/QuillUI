@@ -2071,6 +2071,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "const QString quoteText = normalizedMarkdownQuoteText(line)")
         expectContains(nativeShim, "if (quoteText.isEmpty())")
         expectContains(nativeShim, "bool isMarkdownLazyQuoteContinuationLine(const QString &rawLine)")
+        expectContains(nativeShim, "parseMarkdownTable(lines, lineIndex, nullptr, nullptr)")
         expectContains(nativeShim, "quoteLines.append(cleanMarkdownInline(normalizedMarkdownParagraphLineText(rawLine)))")
         expectContains(nativeShim, "bool parseMarkdownQuoteBlock(const QStringList &lines, int startIndex, MarkdownBlock *block, int *endIndex)")
         expectContains(nativeShim, "quoteLines.join(QStringLiteral(\"\\n\"))")
