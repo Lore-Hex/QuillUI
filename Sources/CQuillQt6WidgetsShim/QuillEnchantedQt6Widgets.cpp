@@ -1241,6 +1241,11 @@ struct MarkdownBlock {
     QString language;
 };
 
+struct MarkdownParagraphLine {
+    QString text;
+    bool hardBreakAfter = false;
+};
+
 struct MarkdownFence {
     QChar marker;
     int markerCount = 0;
@@ -2315,13 +2320,85 @@ bool parseQuoteLine(const QString &line, QString *text) {
     return true;
 }
 
+bool markdownHardLineBreakSpacesAfter(const QString &rawLine) {
+    int trailingSpaces = 0;
+    for (int index = rawLine.size() - 1; index >= 0; --index) {
+        if (rawLine.at(index) == QLatin1Char(' ')) {
+            trailingSpaces += 1;
+        } else {
+            break;
+        }
+    }
+    return trailingSpaces >= 2;
+}
+
+QString normalizedMarkdownParagraphLineText(const QString &rawLine) {
+    QString line = rawLine.trimmed();
+    if (line.endsWith(QLatin1Char('\\'))) {
+        line.chop(1);
+        line = line.trimmed();
+    }
+    return line;
+}
+
+bool emptyMarkdownContainerMarker(const QString &line) {
+    if (line == QLatin1String("-")
+        || line == QLatin1String("*")
+        || line == QLatin1String("+")
+        || line == QLatin1String(">")) {
+        return true;
+    }
+
+    if (line.size() < 2) {
+        return false;
+    }
+
+    const QChar marker = line.at(line.size() - 1);
+    if (marker != QLatin1Char('.') && marker != QLatin1Char(')')) {
+        return false;
+    }
+
+    for (int index = 0; index < line.size() - 1; ++index) {
+        if (!line.at(index).isDigit()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool markdownHardLineBreakAfter(const QString &rawLine) {
+    if (emptyMarkdownContainerMarker(normalizedMarkdownParagraphLineText(rawLine))) {
+        return false;
+    }
+    return markdownHardLineBreakSpacesAfter(rawLine)
+        || rawLine.trimmed().endsWith(QLatin1Char('\\'));
+}
+
+MarkdownParagraphLine markdownParagraphLine(const QString &rawLine) {
+    MarkdownParagraphLine line;
+    line.text = normalizedMarkdownParagraphLineText(rawLine);
+    line.hardBreakAfter = markdownHardLineBreakAfter(rawLine);
+    return line;
+}
+
+QString joinedMarkdownParagraphText(const QList<MarkdownParagraphLine> &lines) {
+    QString text;
+    for (int index = 0; index < lines.size(); ++index) {
+        if (index > 0) {
+            text += lines.at(index - 1).hardBreakAfter ? QLatin1Char('\n') : QLatin1Char(' ');
+        }
+        text += lines.at(index).text;
+    }
+    return text;
+}
+
 QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
     QList<MarkdownBlock> blocks;
     QString normalized = markdown;
     normalized.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
     normalized.replace(QLatin1Char('\r'), QLatin1Char('\n'));
 
-    QStringList paragraphLines;
+    QList<MarkdownParagraphLine> paragraphLines;
     QStringList codeLines;
     MarkdownFence activeFence;
     bool skippingHtmlCommentBlock = false;
@@ -2341,7 +2418,7 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
             return;
         }
 
-        const QString text = cleanMarkdownInline(paragraphLines.join(QStringLiteral(" ")));
+        const QString text = cleanMarkdownInline(joinedMarkdownParagraphText(paragraphLines));
         paragraphLines.clear();
         if (!text.isEmpty()) {
             appendBlock(MarkdownBlockKind::Paragraph, text);
@@ -2421,15 +2498,15 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
                 ? setextMarkdownHeadingLevel(lines.at(lineIndex + 1))
                 : 0;
             if (setextLevel > 0) {
-                paragraphLines.append(line);
-                const QString headingText = cleanMarkdownInline(paragraphLines.join(QStringLiteral(" ")));
+                paragraphLines.append(markdownParagraphLine(rawLine));
+                const QString headingText = cleanMarkdownInline(joinedMarkdownParagraphText(paragraphLines));
                 paragraphLines.clear();
                 if (!headingText.isEmpty()) {
                     appendBlock(MarkdownBlockKind::Heading, headingText, setextLevel);
                 }
                 ++lineIndex;
             } else {
-                paragraphLines.append(line);
+                paragraphLines.append(markdownParagraphLine(rawLine));
             }
         }
     }

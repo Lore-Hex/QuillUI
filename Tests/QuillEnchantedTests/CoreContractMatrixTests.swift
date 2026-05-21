@@ -1989,6 +1989,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "const QString summary = accessibilitySummary(title, content)")
         expectContains(nativeShim, "bubble->setAccessibleName(title);\n    bubble->setAccessibleDescription(summary);\n    bubble->setToolTip(summary);\n    bubble->setStatusTip(summary)")
         expectContains(nativeShim, "enum class MarkdownBlockKind")
+        expectContains(nativeShim, "struct MarkdownParagraphLine")
         expectContains(nativeShim, "bool isEscapableMarkdownPunctuation(const QChar ch)")
         expectContains(nativeShim, "QString protectMarkdownBackslashEscapes(const QString &text)")
         expectContains(nativeShim, "QString restoreMarkdownBackslashEscapes(const QString &text)")
@@ -2047,6 +2048,9 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QString normalizedMarkdownQuoteText(const QString &line)")
         expectContains(nativeShim, "const QString quoteText = normalizedMarkdownQuoteText(line)")
         expectContains(nativeShim, "if (quoteText.isEmpty())")
+        expectContains(nativeShim, "bool markdownHardLineBreakAfter(const QString &rawLine)")
+        expectContains(nativeShim, "QString joinedMarkdownParagraphText(const QList<MarkdownParagraphLine> &lines)")
+        expectContains(nativeShim, "paragraphLines.append(markdownParagraphLine(rawLine))")
         expectContains(nativeShim, "QList<MarkdownBlock> blocks = parseMarkdownBlocks(markdown)")
         expectContains(nativeShim, "MarkdownBlock emptyParagraph")
         expectContains(nativeShim, "blocks.append(emptyParagraph)")
@@ -2924,6 +2928,8 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: "-Item\nNext", kind: .paragraph, text: "-Item Next"),
     BlockCase(markdown: "\\- Item", kind: .paragraph, text: "- Item"),
     BlockCase(markdown: "\\> Quoted", kind: .paragraph, text: "> Quoted"),
+    BlockCase(markdown: "Line one  \nLine two", kind: .paragraph, text: "Line one\nLine two"),
+    BlockCase(markdown: "Slash break\\\nnext", kind: .paragraph, text: "Slash break\nnext"),
     BlockCase(markdown: "-\nNext", kind: .paragraph, text: "- Next"),
     BlockCase(markdown: "-   \nNext", kind: .paragraph, text: "- Next"),
     BlockCase(markdown: "1.Item\nNext", kind: .paragraph, text: "1.Item Next"),

@@ -12,6 +12,15 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("preserves markdown hard line breaks in paragraphs")
+    func preservesMarkdownHardLineBreaksInParagraphs() {
+        let blocks = MarkdownParser.parse("Line one  \nLine two\nSoft line\nwrap\nSlash break\\\nnext")
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "Line one\nLine two Soft line wrap Slash break\nnext")
+        ])
+    }
+
     @Test("keeps blank parser output empty")
     func keepsBlankParserOutputEmpty() {
         #expect(MarkdownParser.parse("").isEmpty)
@@ -157,6 +166,16 @@ struct MarkdownRenderingTests {
 
         #expect(blocks == [
             MarkdownBlock(id: 0, kind: .paragraph, text: "> Follow-up")
+        ])
+    }
+
+    @Test("keeps empty ordered list markers as paragraph text")
+    func keepsEmptyOrderedListMarkersAsParagraphText() {
+        let blocks = MarkdownParser.parse("1.   \nFollow-up\n\n2)  \nNext")
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "1. Follow-up"),
+            MarkdownBlock(id: 1, kind: .paragraph, text: "2) Next")
         ])
     }
 

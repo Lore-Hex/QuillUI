@@ -18,10 +18,15 @@ struct MarkdownBlock: Identifiable, Equatable, Sendable {
     var text: String
 }
 
+private struct MarkdownParagraphLine {
+    var text: String
+    var hardBreakAfter: Bool
+}
+
 enum MarkdownParser {
     static func parse(_ markdown: String) -> [MarkdownBlock] {
         var blocks: [MarkdownBlock] = []
-        var paragraphLines: [String] = []
+        var paragraphLines: [MarkdownParagraphLine] = []
         var codeLines: [String] = []
         var activeFence: MarkdownFence?
         var skippingHTMLCommentBlock = false
@@ -31,7 +36,7 @@ enum MarkdownParser {
         }
 
         func flushParagraph() {
-            let joined = paragraphLines.joined(separator: " ")
+            let joined = Self.joinedParagraphText(paragraphLines)
             paragraphLines.removeAll(keepingCapacity: true)
             guard let text = cleanInline(joined).quillTrimmedNonEmpty else { return }
             appendBlock(kind: .paragraph, text: text)
@@ -109,8 +114,8 @@ enum MarkdownParser {
                 flushParagraph()
                 appendBlock(kind: .quote, text: cleanInline(quote))
             } else if let setextLevel = setextHeadingLevel(after: lineIndex, in: lines) {
-                paragraphLines.append(line)
-                let title = cleanInline(paragraphLines.joined(separator: " "))
+                paragraphLines.append(Self.paragraphLine(from: rawLine))
+                let title = cleanInline(Self.joinedParagraphText(paragraphLines))
                 paragraphLines.removeAll(keepingCapacity: true)
                 if let text = title.quillTrimmedNonEmpty {
                     appendBlock(kind: .heading(level: setextLevel), text: text)
@@ -118,7 +123,7 @@ enum MarkdownParser {
                 lineIndex += 2
                 continue
             } else {
-                paragraphLines.append(line)
+                paragraphLines.append(Self.paragraphLine(from: rawLine))
             }
             lineIndex += 1
         }
@@ -157,6 +162,68 @@ enum MarkdownParser {
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
             .components(separatedBy: "\n")
+    }
+
+    private static func paragraphLine(from rawLine: String) -> MarkdownParagraphLine {
+        MarkdownParagraphLine(
+            text: normalizedParagraphLineText(rawLine),
+            hardBreakAfter: markdownHardLineBreak(after: rawLine)
+        )
+    }
+
+    private static func normalizedParagraphLineText(_ rawLine: String) -> String {
+        var line = rawLine.trimmingCharacters(in: .whitespaces)
+        if line.hasSuffix("\\") {
+            line.removeLast()
+            line = line.trimmingCharacters(in: .whitespaces)
+        }
+        return line
+    }
+
+    private static func markdownHardLineBreak(after rawLine: String) -> Bool {
+        guard !emptyMarkdownContainerMarker(normalizedParagraphLineText(rawLine)) else {
+            return false
+        }
+        return markdownHardLineBreakSpaces(after: rawLine)
+            || rawLine.trimmingCharacters(in: .whitespaces).hasSuffix("\\")
+    }
+
+    private static func emptyMarkdownContainerMarker(_ line: String) -> Bool {
+        switch line {
+        case "-", "*", "+", ">":
+            return true
+        default:
+            guard let marker = line.last,
+                  marker == "." || marker == ")" else {
+                return false
+            }
+
+            let digits = line.dropLast()
+            return !digits.isEmpty && digits.allSatisfy(\.isNumber)
+        }
+    }
+
+    private static func markdownHardLineBreakSpaces(after rawLine: String) -> Bool {
+        var trailingSpaces = 0
+        for scalar in rawLine.unicodeScalars.reversed() {
+            if scalar.value == 32 {
+                trailingSpaces += 1
+            } else {
+                break
+            }
+        }
+        return trailingSpaces >= 2
+    }
+
+    private static func joinedParagraphText(_ lines: [MarkdownParagraphLine]) -> String {
+        var text = ""
+        for (index, line) in lines.enumerated() {
+            if index > 0 {
+                text += lines[index - 1].hardBreakAfter ? "\n" : " "
+            }
+            text += line.text
+        }
+        return text
     }
 
     private static func htmlCommentBlock(_ rawLine: String) -> Bool? {
