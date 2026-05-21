@@ -45,6 +45,7 @@ private enum MarkdownBlockKind: Equatable {
     case unorderedListItem
     case orderedListItem(number: Int)
     case quote
+    case divider
     case codeBlock(language: String?)
     case table(headers: [String], rows: [[String]])
 }
@@ -62,6 +63,8 @@ private struct MarkdownRenderedBlock: Identifiable, Equatable {
             return "\(number). \(MarkdownInlineParser.plainText(from: text))"
         case .codeBlock:
             return text
+        case .divider:
+            return ""
         case .table(let headers, let rows):
             return ([headers] + rows)
                 .map { row in
@@ -144,6 +147,9 @@ private enum MarkdownBlockParser {
             if let heading = heading(in: line) {
                 flushParagraph()
                 append(.heading(level: heading.level), heading.text)
+            } else if thematicBreak(in: line) {
+                flushParagraph()
+                append(.divider, "")
             } else if let item = unorderedListItem(in: line) {
                 flushParagraph()
                 append(.unorderedListItem, item)
@@ -153,6 +159,15 @@ private enum MarkdownBlockParser {
             } else if let quote = quote(in: line) {
                 flushParagraph()
                 append(.quote, quote)
+            } else if let setextLevel = setextHeadingLevel(after: index, in: lines) {
+                paragraphLines.append(line)
+                let title = paragraphLines.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+                paragraphLines.removeAll(keepingCapacity: true)
+                if !title.isEmpty {
+                    append(.heading(level: setextLevel), title)
+                }
+                index += 2
+                continue
             } else {
                 paragraphLines.append(line)
             }
@@ -189,6 +204,33 @@ private enum MarkdownBlockParser {
         guard markerEnd < line.endIndex, line[markerEnd].isWhitespace else { return nil }
         let text = normalizedHeadingText(String(line[markerEnd...]))
         return text.isEmpty ? nil : (count, text)
+    }
+
+    private static func setextHeadingLevel(after lineIndex: Int, in lines: [String]) -> Int? {
+        let underlineIndex = lineIndex + 1
+        guard underlineIndex < lines.count else { return nil }
+
+        let underline = lines[underlineIndex].trimmingCharacters(in: .whitespaces)
+        guard let marker = underline.first, marker == "=" || marker == "-" else { return nil }
+        guard underline.allSatisfy({ $0 == marker }) else { return nil }
+
+        return marker == "=" ? 1 : 2
+    }
+
+    private static func thematicBreak(in line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard let marker = trimmed.first, marker == "-" || marker == "*" || marker == "_" else { return false }
+
+        var markerCount = 0
+        for character in trimmed {
+            if character == marker {
+                markerCount += 1
+            } else if !character.isWhitespace {
+                return false
+            }
+        }
+
+        return markerCount >= 3
     }
 
     private static func normalizedHeadingText(_ text: String) -> String {
@@ -518,6 +560,9 @@ private struct MarkdownDocumentView: View {
                     .lineSpacing(4)
             }
             .padding(.vertical, 2)
+        case .divider:
+            Divider()
+                .padding(.vertical, 2)
         case .codeBlock(let language):
             codeBlock(text: block.text, language: language)
         case .table(let headers, let rows):

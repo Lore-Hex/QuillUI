@@ -726,6 +726,37 @@ struct CompatibilityModuleTests {
         #expect(mixedFencePlainText == "```\nbody\n```")
     }
 
+    @Test("MarkdownUI setext headings and dividers match Enchanted block rules")
+    func markdownUISetextAndDividersMatchEnchantedBlockRules() {
+        let richPlainText = Markdown.plainText(from: """
+        Release Notes
+        =============
+
+        Intro paragraph
+
+        ---
+        Next section
+        """)
+        let lowerLevelPlainText = Markdown.plainText(from: """
+        Minor update
+        -
+        Body
+        """)
+        let spacedDividerPlainText = Markdown.plainText(from: """
+        Before
+
+        * * *
+        After
+        """)
+
+        #expect(richPlainText == "Release Notes\nIntro paragraph\n\nNext section")
+        #expect(lowerLevelPlainText == "Minor update\nBody")
+        #expect(spacedDividerPlainText == "Before\n\nAfter")
+        #expect(!richPlainText.contains("="))
+        #expect(!richPlainText.contains("---"))
+        #expect(!spacedDividerPlainText.contains("* * *"))
+    }
+
     @Test("OllamaKit compatibility covers Enchanted model and chat contracts")
     func ollamaKitContractsCompileAndStream() async throws {
         let transport = FakeOllamaTransport(routes: [
