@@ -2503,6 +2503,44 @@ QString normalizedMarkdownQuoteText(const QString &line) {
     return line.mid(1).trimmed();
 }
 
+QString normalizedMarkdownParagraphLineText(const QString &rawLine);
+
+bool isMarkdownLazyQuoteContinuationLine(const QString &rawLine) {
+    const QString line = rawLine.trimmed();
+    if (line.isEmpty()) {
+        return false;
+    }
+
+    int headingLevel = 0;
+    int orderedNumber = 0;
+    QString text;
+    MarkdownTaskState taskState = MarkdownTaskState::None;
+    MarkdownFence fence;
+    bool commentContinues = false;
+    if (parseHeadingLine(line, &headingLevel, &text)) {
+        return false;
+    }
+    if (isMarkdownThematicBreak(line)) {
+        return false;
+    }
+    if (parseUnorderedListLine(line, &text, &taskState)) {
+        return false;
+    }
+    if (parseOrderedListLine(line, &orderedNumber, &text, &taskState)) {
+        return false;
+    }
+    if (beginMarkdownFence(rawLine, &fence)) {
+        return false;
+    }
+    if (markdownHtmlCommentBlock(rawLine, &commentContinues)) {
+        return false;
+    }
+    if (markdownLinkReferenceDefinition(rawLine)) {
+        return false;
+    }
+    return true;
+}
+
 bool parseQuoteLine(const QString &line, QString *text) {
     const QString quoteText = normalizedMarkdownQuoteText(line);
     if (quoteText.isEmpty()) {
@@ -2524,12 +2562,16 @@ bool parseMarkdownQuoteBlock(const QStringList &lines, int startIndex, MarkdownB
     quoteLines.append(firstLine);
     int lineIndex = startIndex + 1;
     while (lineIndex < lines.size()) {
-        const QString line = lines.at(lineIndex).trimmed();
-        if (!line.startsWith(QLatin1Char('>'))) {
+        const QString rawLine = lines.at(lineIndex);
+        const QString line = rawLine.trimmed();
+        if (line.startsWith(QLatin1Char('>'))) {
+            quoteLines.append(cleanMarkdownInline(line.mid(1).trimmed()));
+        } else if (isMarkdownLazyQuoteContinuationLine(rawLine)) {
+            quoteLines.append(cleanMarkdownInline(normalizedMarkdownParagraphLineText(rawLine)));
+        } else {
             break;
         }
 
-        quoteLines.append(cleanMarkdownInline(line.mid(1).trimmed()));
         ++lineIndex;
     }
 

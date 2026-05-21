@@ -1340,14 +1340,33 @@ enum MarkdownParser {
         var quoteLines = [cleanInline(firstQuoteLine)]
         var lineIndex = startIndex + 1
         while lineIndex < lines.count {
-            let nextLine = lines[lineIndex].trimmingCharacters(in: .whitespaces)
-            guard nextLine.first == ">" else { break }
-            let content = String(nextLine.dropFirst()).trimmingCharacters(in: .whitespaces)
-            quoteLines.append(cleanInline(content))
+            let rawLine = lines[lineIndex]
+            let nextLine = rawLine.trimmingCharacters(in: .whitespaces)
+            if nextLine.first == ">" {
+                let content = String(nextLine.dropFirst()).trimmingCharacters(in: .whitespaces)
+                quoteLines.append(cleanInline(content))
+            } else if lazyQuoteContinuationLine(rawLine) {
+                quoteLines.append(cleanInline(normalizedParagraphLineText(rawLine)))
+            } else {
+                break
+            }
             lineIndex += 1
         }
 
         return (quoteLines.joined(separator: "\n"), lineIndex)
+    }
+
+    private static func lazyQuoteContinuationLine(_ rawLine: String) -> Bool {
+        let line = rawLine.trimmingCharacters(in: .whitespaces)
+        guard !line.isEmpty else { return false }
+        if heading(in: line) != nil { return false }
+        if thematicBreak(in: line) { return false }
+        if unorderedListItem(in: line) != nil { return false }
+        if orderedListItem(in: line) != nil { return false }
+        if MarkdownFence(openingLine: rawLine) != nil { return false }
+        if htmlCommentBlock(rawLine) != nil { return false }
+        if linkReferenceDefinition(in: rawLine) { return false }
+        return true
     }
 
     private static func normalizedQuoteText(_ line: String) -> String? {

@@ -2070,6 +2070,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QString normalizedMarkdownQuoteText(const QString &line)")
         expectContains(nativeShim, "const QString quoteText = normalizedMarkdownQuoteText(line)")
         expectContains(nativeShim, "if (quoteText.isEmpty())")
+        expectContains(nativeShim, "bool isMarkdownLazyQuoteContinuationLine(const QString &rawLine)")
+        expectContains(nativeShim, "quoteLines.append(cleanMarkdownInline(normalizedMarkdownParagraphLineText(rawLine)))")
         expectContains(nativeShim, "bool parseMarkdownQuoteBlock(const QStringList &lines, int startIndex, MarkdownBlock *block, int *endIndex)")
         expectContains(nativeShim, "quoteLines.join(QStringLiteral(\"\\n\"))")
         expectContains(nativeShim, "if (parseMarkdownQuoteBlock(lines, lineIndex, &quoteBlock, &quoteEndIndex))")
@@ -2242,6 +2244,8 @@ struct CoreContractMatrixTests {
         expectContains(macOSMarkdownRendering, "skippingHTMLCommentBlock")
         expectContains(macOSMarkdownRendering, "htmlCommentBlock(_ rawLine: String)")
         expectContains(macOSMarkdownRendering, "linkReferenceDefinition(in rawLine: String)")
+        expectContains(macOSMarkdownRendering, "lazyQuoteContinuationLine(_ rawLine: String)")
+        expectContains(macOSMarkdownRendering, "quoteLines.append(cleanInline(normalizedParagraphLineText(rawLine)))")
         expectContains(macOSMarkdownRendering, "replaceReferenceImages(in: cleaned)")
         expectContains(macOSMarkdownRendering, "replaceReferenceLinks(in: cleaned)")
         expectContains(macOSMarkdownRendering, "enum MarkdownTaskState: Equatable, Sendable")
@@ -2982,6 +2986,7 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: ">Quoted", kind: .quote, text: "Quoted"),
     BlockCase(markdown: ">   Spaced quote", kind: .quote, text: "Spaced quote"),
     BlockCase(markdown: "> First\n> second", kind: .quote, text: "First\nsecond"),
+    BlockCase(markdown: "> First\ncontinued **text**", kind: .quote, text: "First\ncontinued text"),
     BlockCase(markdown: ">\nFollow-up", kind: .paragraph, text: "> Follow-up"),
     BlockCase(markdown: "#Heading\nNext", kind: .paragraph, text: "#Heading Next"),
     BlockCase(markdown: "\\# Heading", kind: .paragraph, text: "# Heading"),

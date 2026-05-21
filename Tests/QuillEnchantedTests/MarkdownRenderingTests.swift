@@ -272,8 +272,38 @@ struct MarkdownRenderingTests {
         #expect(blocks == [
             MarkdownBlock(id: 0, kind: .paragraph, text: "Intro"),
             MarkdownBlock(id: 1, kind: .quote, text: "First\nsecond"),
-            MarkdownBlock(id: 2, kind: .quote, text: "Third"),
-            MarkdownBlock(id: 3, kind: .paragraph, text: "After")
+            MarkdownBlock(id: 2, kind: .quote, text: "Third\nAfter")
+        ])
+    }
+
+    @Test("keeps lazy block quote continuation lines with quote")
+    func keepsLazyBlockQuoteContinuationLinesWithQuote() {
+        let blocks = MarkdownParser.parse("""
+        > First
+        continued **text**
+        > Third
+
+        After
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .quote, text: "First\ncontinued text\nThird"),
+            MarkdownBlock(id: 1, kind: .paragraph, text: "After")
+        ])
+    }
+
+    @Test("stops lazy block quote continuation at block starts")
+    func stopsLazyBlockQuoteContinuationAtBlockStarts() {
+        let blocks = MarkdownParser.parse("""
+        > First
+        - Item
+        # Heading
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .quote, text: "First"),
+            MarkdownBlock(id: 1, kind: .unorderedListItem, text: "Item"),
+            MarkdownBlock(id: 2, kind: .heading(level: 1), text: "Heading")
         ])
     }
 
