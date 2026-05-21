@@ -1261,8 +1261,73 @@ QString markdownFenceSuffix(const QString &line, const int markerCount) {
     return line.mid(markerCount);
 }
 
+bool isEscapableMarkdownPunctuation(const QChar ch) {
+    switch (ch.toLatin1()) {
+    case '!':
+    case '#':
+    case '(':
+    case ')':
+    case '*':
+    case '+':
+    case '-':
+    case '.':
+    case '<':
+    case '>':
+    case '[':
+    case '\\':
+    case ']':
+    case '_':
+    case '`':
+    case '{':
+    case '|':
+    case '}':
+    case '~':
+        return true;
+    default:
+        return false;
+    }
+}
+
+QString protectMarkdownBackslashEscapes(const QString &text) {
+    QString protectedText;
+    protectedText.reserve(text.size());
+
+    for (int index = 0; index < text.size(); ++index) {
+        const QChar character = text.at(index);
+        if (character == QLatin1Char('\\') && index + 1 < text.size()) {
+            const QChar next = text.at(index + 1);
+            if (isEscapableMarkdownPunctuation(next)) {
+                protectedText.append(QChar(static_cast<ushort>(0xE000 + next.unicode())));
+                index += 1;
+                continue;
+            }
+        }
+
+        protectedText.append(character);
+    }
+
+    return protectedText;
+}
+
+QString restoreMarkdownBackslashEscapes(const QString &text) {
+    QString restoredText;
+    restoredText.reserve(text.size());
+
+    for (const QChar character : text) {
+        const ushort code = character.unicode();
+        if (code >= 0xE000 && code <= 0xE07F) {
+            restoredText.append(QChar(static_cast<ushort>(code - 0xE000)));
+        } else {
+            restoredText.append(character);
+        }
+    }
+
+    return restoredText;
+}
+
 QString cleanMarkdownInline(QString text) {
     static const QRegularExpression linkPattern(QStringLiteral("!?\\[([^\\]]+)\\]\\(([^)]+)\\)"));
+    text = protectMarkdownBackslashEscapes(text);
     text.replace(linkPattern, QStringLiteral("\\1 (\\2)"));
 
     const QStringList markers = {
@@ -1275,7 +1340,7 @@ QString cleanMarkdownInline(QString text) {
         text.replace(marker, QString());
     }
 
-    return text.trimmed();
+    return restoreMarkdownBackslashEscapes(text).trimmed();
 }
 
 bool beginMarkdownFence(const QString &rawLine, MarkdownFence *fence) {
