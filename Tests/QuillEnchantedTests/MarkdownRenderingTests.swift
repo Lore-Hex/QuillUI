@@ -229,5 +229,9 @@ struct MarkdownRenderingTests {
         #expect(MarkdownParser.cleanInline("Keep &unknown; literal") == "Keep &unknown; literal")
         #expect(MarkdownParser.cleanInline("Use *local* and _remote_ models") == "Use local and remote models")
         #expect(MarkdownParser.cleanInline("Keep a literal * marker") == "Keep a literal * marker")
+        #expect(MarkdownParser.cleanInline("Show \\*literal\\* and \\[label\\]") == "Show *literal* and [label]")
+        #expect(MarkdownParser.cleanInline("\\# Not a heading") == "# Not a heading")
+        #expect(MarkdownParser.cleanInline("\\[Not a link](https://example.com)") == "[Not a link](https://example.com)")
+        #expect(MarkdownParser.cleanInline("Keep \\path and value\\9") == "Keep \\path and value\\9")
     }
 }

@@ -187,7 +187,8 @@ private enum MarkdownBlockParser {
     }
 
     static func cleanInline(_ text: String) -> String {
-        var cleaned = replaceLinks(in: text)
+        var cleaned = protectBackslashEscapes(in: text)
+        cleaned = replaceLinks(in: cleaned)
         cleaned = replaceAutolinks(in: cleaned)
         cleaned = decodeCharacterReferences(in: cleaned)
         for marker in ["**", "__", "`", "~~"] {
@@ -195,6 +196,7 @@ private enum MarkdownBlockParser {
         }
         cleaned = removePairedSingleMarkers(in: cleaned, marker: "*")
         cleaned = removePairedSingleMarkers(in: cleaned, marker: "_")
+        cleaned = restoreBackslashEscapes(in: cleaned)
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -418,6 +420,66 @@ private enum MarkdownBlockParser {
             return nil
         }
         return String(Character(scalar))
+    }
+
+    private static let escapedMarkdownScalarBase: UInt32 = 0xE000
+
+    private static func protectBackslashEscapes(in text: String) -> String {
+        var result = String.UnicodeScalarView()
+        var index = text.unicodeScalars.startIndex
+
+        while index < text.unicodeScalars.endIndex {
+            let scalar = text.unicodeScalars[index]
+            if scalar.value == 92 {
+                let nextIndex = text.unicodeScalars.index(after: index)
+                if nextIndex < text.unicodeScalars.endIndex,
+                   let protected = protectedEscapedPunctuation(text.unicodeScalars[nextIndex]) {
+                    result.append(protected)
+                    index = text.unicodeScalars.index(after: nextIndex)
+                    continue
+                }
+            }
+
+            result.append(scalar)
+            index = text.unicodeScalars.index(after: index)
+        }
+
+        return String(result)
+    }
+
+    private static func restoreBackslashEscapes(in text: String) -> String {
+        var result = String.UnicodeScalarView()
+        let escapedMarkdownScalarRange = escapedMarkdownScalarBase..<(escapedMarkdownScalarBase + 128)
+
+        for scalar in text.unicodeScalars {
+            if escapedMarkdownScalarRange.contains(scalar.value),
+               let restored = UnicodeScalar(scalar.value - escapedMarkdownScalarBase) {
+                result.append(restored)
+            } else {
+                result.append(scalar)
+            }
+        }
+
+        return String(result)
+    }
+
+    private static func protectedEscapedPunctuation(_ scalar: UnicodeScalar) -> UnicodeScalar? {
+        guard scalar.value < 128,
+              isEscapableMarkdownPunctuation(scalar),
+              let protected = UnicodeScalar(escapedMarkdownScalarBase + scalar.value) else {
+            return nil
+        }
+
+        return protected
+    }
+
+    private static func isEscapableMarkdownPunctuation(_ scalar: UnicodeScalar) -> Bool {
+        switch scalar.value {
+        case 33, 35, 40, 41, 42, 43, 45, 46, 60, 62, 91, 92, 93, 95, 96, 123, 124, 125, 126:
+            return true
+        default:
+            return false
+        }
     }
 
     private static func removePairedSingleMarkers(in text: String, marker: Character) -> String {

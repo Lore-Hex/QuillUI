@@ -788,6 +788,9 @@ struct CompatibilityModuleTests {
         let singleEmphasisPlainText = Markdown.plainText(
             from: "Use *local* and _remote_ models, but keep a literal * marker"
         )
+        let escapedPunctuationPlainText = Markdown.plainText(
+            from: "Show \\*literal\\*, \\[not a link](https://example.com), and \\# heading; keep \\path"
+        )
 
         #expect(markerOnlyParagraphPlainText == "Body")
         #expect(emptySetextTitlePlainText == "Body")
@@ -797,6 +800,7 @@ struct CompatibilityModuleTests {
         #expect(autolinkPlainText == "Open https://example.com/docs?q=1 or email support@example.com; keep 2 < 3 > 1")
         #expect(characterReferencePlainText == "Use <model> & tools; it\u{2019}s ready \u{2014} ship it \u{2713}; keep &unknown; literal")
         #expect(singleEmphasisPlainText == "Use local and remote models, but keep a literal * marker")
+        #expect(escapedPunctuationPlainText == "Show *literal*, [not a link](https://example.com), and # heading; keep \\path")
     }
 
     @Test("OllamaKit compatibility covers Enchanted model and chat contracts")

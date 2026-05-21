@@ -2808,7 +2808,10 @@ private let inlineCases: [TextCase] = [
     TextCase(input: "[Docs](https://example.com/docs) **ship**", expected: "Docs (https://example.com/docs) ship"),
     TextCase(input: "Use &lt;model&gt; &amp; tools", expected: "Use <model> & tools"),
     TextCase(input: "It&rsquo;s ready &mdash; ship it &#x2713;", expected: "It\u{2019}s ready \u{2014} ship it \u{2713}"),
-    TextCase(input: "Keep &unknown; literal", expected: "Keep &unknown; literal")
+    TextCase(input: "Keep &unknown; literal", expected: "Keep &unknown; literal"),
+    TextCase(input: "Show \\*literal\\* and \\[label\\]", expected: "Show *literal* and [label]"),
+    TextCase(input: "\\[Not a link](https://example.com)", expected: "[Not a link](https://example.com)"),
+    TextCase(input: "Keep \\path and value\\9", expected: "Keep \\path and value\\9")
 ] + (0..<62).map { index in
     TextCase(input: "**Generated \(index)** with `inline` markers", expected: "Generated \(index) with inline markers")
 }
