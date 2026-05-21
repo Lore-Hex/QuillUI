@@ -191,6 +191,8 @@ private enum MarkdownBlockParser {
         for marker in ["**", "__", "`", "~~"] {
             cleaned = cleaned.replacingOccurrences(of: marker, with: "")
         }
+        cleaned = removePairedSingleMarkers(in: cleaned, marker: "*")
+        cleaned = removePairedSingleMarkers(in: cleaned, marker: "_")
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -206,6 +208,28 @@ private enum MarkdownBlockParser {
         guard let expression = try? NSRegularExpression(pattern: pattern) else { return text }
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         return expression.stringByReplacingMatches(in: text, range: range, withTemplate: "$1 ($2)")
+    }
+
+    private static func removePairedSingleMarkers(in text: String, marker: Character) -> String {
+        var result = ""
+        var index = text.startIndex
+
+        while index < text.endIndex {
+            if text[index] == marker {
+                let contentStart = text.index(after: index)
+                if let closingIndex = text[contentStart...].firstIndex(of: marker),
+                   closingIndex > contentStart {
+                    result += String(text[contentStart..<closingIndex])
+                    index = text.index(after: closingIndex)
+                    continue
+                }
+            }
+
+            result.append(text[index])
+            index = text.index(after: index)
+        }
+
+        return result
     }
 
     private static func heading(in line: String) -> (level: Int, text: String)? {
