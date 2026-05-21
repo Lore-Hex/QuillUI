@@ -749,7 +749,7 @@ private enum QuillEnchantedQtActionBridge {
                 messages: requestMessages,
                 imagesForLastUserMessage: encodedImages
             )
-            let finalContent = assistantReply.quillTrimmedNonEmpty ?? EnchantedCopy.emptyOllamaResponse
+            let finalContent = EnchantedAssistantResponseFinalizer.finalContent(from: assistantReply)
             try context.insert(ChatMessage(
                 conversationID: conversationID,
                 role: .assistant,

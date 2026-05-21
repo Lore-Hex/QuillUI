@@ -344,7 +344,7 @@ public final class EnchantedModel: ObservableObject {
             }
             try Task.checkCancellation()
 
-            let finalContent = streamedReply.quillTrimmedNonEmpty ?? EnchantedCopy.emptyOllamaResponse
+            let finalContent = EnchantedAssistantResponseFinalizer.finalContent(from: streamedReply)
             updateAssistantDraft(id: assistantID, content: finalContent)
             try modelContext.insert(ChatMessage(
                 id: assistantID,

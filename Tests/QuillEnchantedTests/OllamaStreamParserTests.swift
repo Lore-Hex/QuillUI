@@ -130,3 +130,18 @@ struct OllamaStreamParserTests {
         return try OllamaChatResponseParser.parse(data)
     }
 }
+
+@Suite("Enchanted assistant response finalizer")
+struct EnchantedAssistantResponseFinalizerTests {
+    @Test("preserves exact non-empty Ollama payloads")
+    func preservesExactNonEmptyOllamaPayloads() {
+        #expect(EnchantedAssistantResponseFinalizer.finalContent(from: " ") == " ")
+        #expect(EnchantedAssistantResponseFinalizer.finalContent(from: "\n") == "\n")
+        #expect(EnchantedAssistantResponseFinalizer.finalContent(from: "  hello  ") == "  hello  ")
+    }
+
+    @Test("maps only truly empty Ollama payloads to fallback copy")
+    func mapsOnlyTrulyEmptyOllamaPayloadsToFallbackCopy() {
+        #expect(EnchantedAssistantResponseFinalizer.finalContent(from: "") == EnchantedCopy.emptyOllamaResponse)
+    }
+}

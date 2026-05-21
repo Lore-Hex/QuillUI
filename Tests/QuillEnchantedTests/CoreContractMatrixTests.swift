@@ -2581,7 +2581,7 @@ struct CoreContractMatrixTests {
         expectContains(runtime, "OllamaClient(baseURL: endpoint).chat(")
         expectContains(runtime, "context.insert(ChatMessage(")
         expectContains(runtime, "role: .assistant")
-        expectContains(runtime, "EnchantedCopy.emptyOllamaResponse")
+        expectContains(runtime, "EnchantedAssistantResponseFinalizer.finalContent(from: assistantReply)")
         #expect(runtime.components(separatedBy: "existingConversationID(request.conversationID, context: context)").count == 2)
         expectContains(nativeShim, "void removeConversationRow(QListWidget *list, int row)")
         expectContains(nativeShim, "deleteButton->setEnabled(conversationList->currentItem() != nullptr)")

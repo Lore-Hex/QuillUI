@@ -253,6 +253,12 @@ public enum EnchantedCopy {
     }
 }
 
+public enum EnchantedAssistantResponseFinalizer {
+    public static func finalContent(from ollamaResponse: String) -> String {
+        ollamaResponse.isEmpty ? EnchantedCopy.emptyOllamaResponse : ollamaResponse
+    }
+}
+
 public enum EnchantedPreviewFixture {
     public struct Message: Codable, Equatable, Hashable, Sendable {
         public var id: String
