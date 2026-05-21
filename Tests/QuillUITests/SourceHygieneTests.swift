@@ -2246,6 +2246,8 @@ struct SourceHygieneTests {
         #expect(genericQtRuntime.contains("secondaryButtonRadius: EnchantedVisualMetrics.secondaryButtonRadius"))
         #expect(genericQtRuntime.contains("listSpacing: EnchantedVisualMetrics.conversationListSpacing"))
         #expect(genericQtRuntime.contains("listItemPadding: EnchantedVisualMetrics.conversationListItemPadding"))
+        #expect(genericQtRuntime.contains("itemRowHorizontalPadding: EnchantedVisualMetrics.conversationRowPadding"))
+        #expect(genericQtRuntime.contains("itemRowVerticalPadding: EnchantedVisualMetrics.conversationRowPadding"))
         #expect(genericQtRuntime.contains("itemRowSpacing: EnchantedVisualMetrics.conversationRowSpacing"))
         #expect(genericQtRuntime.contains("cardPaddingHorizontal: EnchantedVisualMetrics.emptyHistoryPadding"))
         #expect(genericQtRuntime.contains("messageCardPaddingHorizontal: EnchantedVisualMetrics.messageBubblePadding"))
