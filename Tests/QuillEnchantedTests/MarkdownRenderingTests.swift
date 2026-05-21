@@ -224,6 +224,9 @@ struct MarkdownRenderingTests {
         #expect(MarkdownParser.cleanInline("Open <https://example.com/docs?q=1>") == "Open https://example.com/docs?q=1")
         #expect(MarkdownParser.cleanInline("Email <support@example.com>") == "Email support@example.com")
         #expect(MarkdownParser.cleanInline("Keep 2 < 3 > 1") == "Keep 2 < 3 > 1")
+        #expect(MarkdownParser.cleanInline("Use &lt;model&gt; &amp; tools") == "Use <model> & tools")
+        #expect(MarkdownParser.cleanInline("It&rsquo;s ready &mdash; ship it &#x2713;") == "It\u{2019}s ready \u{2014} ship it \u{2713}")
+        #expect(MarkdownParser.cleanInline("Keep &unknown; literal") == "Keep &unknown; literal")
         #expect(MarkdownParser.cleanInline("Use *local* and _remote_ models") == "Use local and remote models")
         #expect(MarkdownParser.cleanInline("Keep a literal * marker") == "Keep a literal * marker")
     }

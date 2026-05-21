@@ -2805,7 +2805,10 @@ private let inlineCases: [TextCase] = [
     TextCase(input: "[QuillUI](https://example.com)", expected: "QuillUI (https://example.com)"),
     TextCase(input: "mix **bold** and `code`", expected: "mix bold and code"),
     TextCase(input: "  spaced **text**  ", expected: "spaced text"),
-    TextCase(input: "[Docs](https://example.com/docs) **ship**", expected: "Docs (https://example.com/docs) ship")
+    TextCase(input: "[Docs](https://example.com/docs) **ship**", expected: "Docs (https://example.com/docs) ship"),
+    TextCase(input: "Use &lt;model&gt; &amp; tools", expected: "Use <model> & tools"),
+    TextCase(input: "It&rsquo;s ready &mdash; ship it &#x2713;", expected: "It\u{2019}s ready \u{2014} ship it \u{2713}"),
+    TextCase(input: "Keep &unknown; literal", expected: "Keep &unknown; literal")
 ] + (0..<62).map { index in
     TextCase(input: "**Generated \(index)** with `inline` markers", expected: "Generated \(index) with inline markers")
 }

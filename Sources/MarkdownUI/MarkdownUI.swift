@@ -189,6 +189,7 @@ private enum MarkdownBlockParser {
     static func cleanInline(_ text: String) -> String {
         var cleaned = replaceLinks(in: text)
         cleaned = replaceAutolinks(in: cleaned)
+        cleaned = decodeCharacterReferences(in: cleaned)
         for marker in ["**", "__", "`", "~~"] {
             cleaned = cleaned.replacingOccurrences(of: marker, with: "")
         }
@@ -340,6 +341,83 @@ private enum MarkdownBlockParser {
         }
 
         return false
+    }
+
+    private static func decodeCharacterReferences(in text: String) -> String {
+        var result = ""
+        var index = text.startIndex
+
+        while index < text.endIndex {
+            if text[index] == "&",
+               let semicolonIndex = text[text.index(after: index)...].firstIndex(of: ";") {
+                let reference = String(text[text.index(after: index)..<semicolonIndex])
+                if let decoded = decodedCharacterReference(reference) {
+                    result += decoded
+                    index = text.index(after: semicolonIndex)
+                    continue
+                }
+            }
+
+            result.append(text[index])
+            index = text.index(after: index)
+        }
+
+        return result
+    }
+
+    private static func decodedCharacterReference(_ reference: String) -> String? {
+        switch reference {
+        case "amp":
+            return "&"
+        case "lt":
+            return "<"
+        case "gt":
+            return ">"
+        case "quot":
+            return "\""
+        case "apos":
+            return "'"
+        case "nbsp":
+            return "\u{00A0}"
+        case "copy":
+            return "\u{00A9}"
+        case "reg":
+            return "\u{00AE}"
+        case "trade":
+            return "\u{2122}"
+        case "ndash":
+            return "\u{2013}"
+        case "mdash":
+            return "\u{2014}"
+        case "lsquo":
+            return "\u{2018}"
+        case "rsquo":
+            return "\u{2019}"
+        case "ldquo":
+            return "\u{201C}"
+        case "rdquo":
+            return "\u{201D}"
+        case "hellip":
+            return "\u{2026}"
+        default:
+            break
+        }
+
+        let scalarValue: UInt32?
+        if reference.hasPrefix("#x") || reference.hasPrefix("#X") {
+            scalarValue = UInt32(reference.dropFirst(2), radix: 16)
+        } else if reference.hasPrefix("#") {
+            scalarValue = UInt32(reference.dropFirst(), radix: 10)
+        } else {
+            scalarValue = nil
+        }
+
+        guard let scalarValue,
+              scalarValue != 0,
+              let scalar = UnicodeScalar(scalarValue) else {
+            return nil
+        }
+        return String(Character(scalar))
     }
 
     private static func removePairedSingleMarkers(in text: String, marker: Character) -> String {
