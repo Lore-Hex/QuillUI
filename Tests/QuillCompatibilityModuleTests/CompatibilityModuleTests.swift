@@ -602,11 +602,13 @@ struct CompatibilityModuleTests {
     @Test("KeyboardShortcuts persist defaults and user overrides by raw name")
     func keyboardShortcutsPersistDefaultsAndUserOverrides() {
         let defaultShortcut = KeyboardShortcuts.Shortcut(.k, modifiers: [.command, .option])
-        let overrideShortcut = KeyboardShortcuts.Shortcut(.character("p"), modifiers: [.command, .shift])
+        let overrideShortcut = KeyboardShortcuts.Shortcut(.space, modifiers: [.command, .shift])
         let name = KeyboardShortcuts.Name("togglePanelMode1", default: defaultShortcut)
 
         KeyboardShortcuts.reset(name)
+        KeyboardShortcuts.resetAllHandlers()
         #expect(KeyboardShortcuts.getShortcut(for: name) == defaultShortcut)
+        #expect(KeyboardShortcuts.Shortcut(.character("p")).key == .character("p"))
 
         KeyboardShortcuts.setShortcut(overrideShortcut, for: name)
         #expect(KeyboardShortcuts.getShortcut(for: name) == overrideShortcut)
@@ -614,6 +616,23 @@ struct CompatibilityModuleTests {
 
         KeyboardShortcuts.reset(name)
         #expect(KeyboardShortcuts.getShortcut(for: name) == defaultShortcut)
+
+        var handledEvents: [String] = []
+        _ = Text("Shortcut").onKeyboardShortcut(name, type: .keyDown) {
+            handledEvents.append("down")
+        }
+        #expect(KeyboardShortcuts.trigger(name, type: .keyDown))
+        #expect(handledEvents == ["down"])
+        #expect(!KeyboardShortcuts.trigger(name, type: .keyUp))
+
+        _ = Text("Shortcut").onKeyboardShortcut(name, type: .keyUp) {
+            handledEvents.append("up")
+        }
+        #expect(KeyboardShortcuts.trigger(name, type: .keyUp))
+        #expect(handledEvents == ["down", "up"])
+
+        KeyboardShortcuts.resetAllHandlers()
+        #expect(!KeyboardShortcuts.trigger(name, type: .keyDown))
 
         KeyboardShortcuts.resetAll()
     }

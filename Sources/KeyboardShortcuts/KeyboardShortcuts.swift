@@ -3,10 +3,20 @@ import SwiftUI
 
 public enum KeyboardShortcuts {
     private static let store = ShortcutStore()
+    private static let handlerStore = ShortcutHandlerStore()
 
     public struct Shortcut: Hashable, Sendable {
         public enum Key: Hashable, Sendable {
             case k
+            case space
+            case escape
+            case tab
+            case `return`
+            case delete
+            case upArrow
+            case downArrow
+            case leftArrow
+            case rightArrow
             case character(Character)
         }
 
@@ -59,7 +69,7 @@ public enum KeyboardShortcuts {
         }
     }
 
-    public enum ShortcutType: Sendable {
+    public enum ShortcutType: Hashable, Sendable {
         case keyDown
         case keyUp
     }
@@ -93,6 +103,23 @@ public enum KeyboardShortcuts {
     public static func resetAll() {
         store.removeAll()
     }
+
+    @discardableResult
+    public static func trigger(_ name: Name, type: ShortcutType = .keyDown) -> Bool {
+        handlerStore.trigger(name: name, type: type)
+    }
+
+    public static func resetAllHandlers() {
+        handlerStore.removeAll()
+    }
+
+    fileprivate static func registerHandler(
+        for name: Name,
+        type: ShortcutType,
+        perform: @escaping () -> Void
+    ) {
+        handlerStore.setHandler(perform, for: name, type: type)
+    }
 }
 
 public extension View {
@@ -101,7 +128,8 @@ public extension View {
         type: KeyboardShortcuts.ShortcutType = .keyDown,
         perform: @escaping () -> Void
     ) -> Self {
-        self
+        KeyboardShortcuts.registerHandler(for: name, type: type, perform: perform)
+        return self
     }
 }
 
@@ -159,6 +187,24 @@ private final class ShortcutStore: @unchecked Sendable {
         switch shortcut.key {
         case .k:
             payload["key"] = "k"
+        case .space:
+            payload["key"] = "space"
+        case .escape:
+            payload["key"] = "escape"
+        case .tab:
+            payload["key"] = "tab"
+        case .return:
+            payload["key"] = "return"
+        case .delete:
+            payload["key"] = "delete"
+        case .upArrow:
+            payload["key"] = "upArrow"
+        case .downArrow:
+            payload["key"] = "downArrow"
+        case .leftArrow:
+            payload["key"] = "leftArrow"
+        case .rightArrow:
+            payload["key"] = "rightArrow"
         case .character(let character):
             payload["key"] = "character"
             payload["character"] = String(character)
@@ -178,6 +224,24 @@ private final class ShortcutStore: @unchecked Sendable {
         switch key {
         case "k":
             return KeyboardShortcuts.Shortcut(.k, modifiers: modifiers)
+        case "space":
+            return KeyboardShortcuts.Shortcut(.space, modifiers: modifiers)
+        case "escape":
+            return KeyboardShortcuts.Shortcut(.escape, modifiers: modifiers)
+        case "tab":
+            return KeyboardShortcuts.Shortcut(.tab, modifiers: modifiers)
+        case "return":
+            return KeyboardShortcuts.Shortcut(.return, modifiers: modifiers)
+        case "delete":
+            return KeyboardShortcuts.Shortcut(.delete, modifiers: modifiers)
+        case "upArrow":
+            return KeyboardShortcuts.Shortcut(.upArrow, modifiers: modifiers)
+        case "downArrow":
+            return KeyboardShortcuts.Shortcut(.downArrow, modifiers: modifiers)
+        case "leftArrow":
+            return KeyboardShortcuts.Shortcut(.leftArrow, modifiers: modifiers)
+        case "rightArrow":
+            return KeyboardShortcuts.Shortcut(.rightArrow, modifiers: modifiers)
         case "character":
             guard let string = payload["character"] as? String,
                   let character = string.first else {
@@ -199,5 +263,51 @@ private final class ShortcutStore: @unchecked Sendable {
         }
 
         return nil
+    }
+}
+
+private struct ShortcutHandlerKey: Hashable {
+    var name: KeyboardShortcuts.Name
+    var type: KeyboardShortcuts.ShortcutType
+}
+
+private typealias ShortcutHandler = () -> Void
+
+private final class ShortcutHandlerStore: @unchecked Sendable {
+    private let lock = NSLock()
+    private var handlers: [ShortcutHandlerKey: ShortcutHandler] = [:]
+
+    func setHandler(
+        _ handler: @escaping ShortcutHandler,
+        for name: KeyboardShortcuts.Name,
+        type: KeyboardShortcuts.ShortcutType
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        handlers[ShortcutHandlerKey(name: name, type: type)] = handler
+    }
+
+    @discardableResult
+    func trigger(name: KeyboardShortcuts.Name, type: KeyboardShortcuts.ShortcutType) -> Bool {
+        let handler: ShortcutHandler?
+
+        lock.lock()
+        handler = handlers[ShortcutHandlerKey(name: name, type: type)]
+        lock.unlock()
+
+        guard let handler else {
+            return false
+        }
+
+        handler()
+        return true
+    }
+
+    func removeAll() {
+        lock.lock()
+        defer { lock.unlock() }
+
+        handlers.removeAll()
     }
 }
