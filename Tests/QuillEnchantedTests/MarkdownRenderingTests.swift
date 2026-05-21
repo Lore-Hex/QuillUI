@@ -251,6 +251,45 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("parses indented code blocks")
+    func parsesIndentedCodeBlocks() {
+        let blocks = MarkdownParser.parse(
+            "Intro\n\n    let value = 1\n      print(value)\n\n    let next = value + 1\nAfter"
+        )
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "Intro"),
+            MarkdownBlock(
+                id: 1,
+                kind: .codeBlock(language: nil),
+                text: "let value = 1\n  print(value)\n\nlet next = value + 1"
+            ),
+            MarkdownBlock(id: 2, kind: .paragraph, text: "After")
+        ])
+    }
+
+    @Test("keeps indented lines inside active paragraphs")
+    func keepsIndentedLinesInsideActiveParagraphs() {
+        let blocks = MarkdownParser.parse("Paragraph\n    continuation")
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "Paragraph continuation")
+        ])
+    }
+
+    @Test("treats indented fences as code text")
+    func treatsIndentedFencesAsCodeText() {
+        let blocks = MarkdownParser.parse("    ```swift\n    let value = 1\n    ```")
+
+        #expect(blocks == [
+            MarkdownBlock(
+                id: 0,
+                kind: .codeBlock(language: nil),
+                text: "```swift\nlet value = 1\n```"
+            )
+        ])
+    }
+
     @Test("drops block HTML comments outside code fences")
     func dropsBlockHTMLComments() {
         let blocks = MarkdownParser.parse("""

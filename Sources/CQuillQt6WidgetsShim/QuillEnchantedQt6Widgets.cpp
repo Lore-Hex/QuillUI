@@ -2550,6 +2550,31 @@ QString joinedMarkdownParagraphText(const QList<MarkdownParagraphLine> &lines) {
     return text;
 }
 
+bool indentedMarkdownCodeLine(const QString &rawLine, QString *text) {
+    if (rawLine.startsWith(QStringLiteral("    "))) {
+        if (text != nullptr) {
+            *text = rawLine.mid(4);
+        }
+        return true;
+    }
+
+    if (rawLine.startsWith(QLatin1Char('\t'))) {
+        if (text != nullptr) {
+            *text = rawLine.mid(1);
+        }
+        return true;
+    }
+
+    return false;
+}
+
+QString normalizedMarkdownCodeBlockText(QStringList lines) {
+    while (!lines.isEmpty() && lines.last().isEmpty()) {
+        lines.removeLast();
+    }
+    return lines.join(QStringLiteral("\n"));
+}
+
 QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
     QList<MarkdownBlock> blocks;
     QString normalized = markdown;
@@ -2558,7 +2583,9 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
 
     QList<MarkdownParagraphLine> paragraphLines;
     QStringList codeLines;
+    QStringList indentedCodeLines;
     MarkdownFence activeFence;
+    bool parsingIndentedCodeBlock = false;
     bool skippingHtmlCommentBlock = false;
 
     auto appendBlock = [&](MarkdownBlockKind kind, const QString &text, int level = 0, int number = 0, const QString &language = QString()) {
@@ -2583,10 +2610,16 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
         }
     };
 
-    auto flushCodeBlock = [&]() {
+    auto flushFencedCodeBlock = [&]() {
         appendBlock(MarkdownBlockKind::CodeBlock, codeLines.join(QStringLiteral("\n")), 0, 0, activeFence.language);
         codeLines.clear();
         activeFence = MarkdownFence();
+    };
+
+    auto flushIndentedCodeBlock = [&]() {
+        appendBlock(MarkdownBlockKind::CodeBlock, normalizedMarkdownCodeBlockText(indentedCodeLines));
+        indentedCodeLines.clear();
+        parsingIndentedCodeBlock = false;
     };
 
     const QStringList lines = normalized.split(QLatin1Char('\n'));
@@ -2594,10 +2627,40 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
         const QString &rawLine = lines.at(lineIndex);
         if (activeFence.isActive) {
             if (closesMarkdownFence(rawLine, activeFence)) {
-                flushCodeBlock();
+                flushFencedCodeBlock();
             } else {
                 codeLines.append(rawLine);
             }
+            continue;
+        }
+
+        if (parsingIndentedCodeBlock) {
+            QString codeLine;
+            if (indentedMarkdownCodeLine(rawLine, &codeLine)) {
+                indentedCodeLines.append(codeLine);
+                continue;
+            }
+
+            if (rawLine.trimmed().isEmpty()) {
+                indentedCodeLines.append(QString());
+                continue;
+            }
+
+            flushIndentedCodeBlock();
+            --lineIndex;
+            continue;
+        }
+
+        const QString line = rawLine.trimmed();
+        if (line.isEmpty()) {
+            flushParagraph();
+            continue;
+        }
+
+        QString indentedCodeLineText;
+        if (paragraphLines.isEmpty() && indentedMarkdownCodeLine(rawLine, &indentedCodeLineText)) {
+            indentedCodeLines.append(indentedCodeLineText);
+            parsingIndentedCodeBlock = true;
             continue;
         }
 
@@ -2623,12 +2686,6 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
         }
 
         if (markdownLinkReferenceDefinition(rawLine)) {
-            flushParagraph();
-            continue;
-        }
-
-        const QString line = rawLine.trimmed();
-        if (line.isEmpty()) {
             flushParagraph();
             continue;
         }
@@ -2670,7 +2727,9 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
     }
 
     if (activeFence.isActive) {
-        flushCodeBlock();
+        flushFencedCodeBlock();
+    } else if (parsingIndentedCodeBlock) {
+        flushIndentedCodeBlock();
     } else {
         flushParagraph();
     }

@@ -2964,6 +2964,8 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: "Visible\n<!--\nhidden\n-->\nAfter", kind: .paragraph, text: "Visible"),
     BlockCase(markdown: "[docs]: https://example.com\nVisible", kind: .paragraph, text: "Visible"),
     BlockCase(markdown: "````swift\n```swift\nlet value = 1\n````", kind: .codeBlock(language: "swift"), text: "```swift\nlet value = 1"),
+    BlockCase(markdown: "    let value = 1", kind: .codeBlock(language: nil), text: "let value = 1"),
+    BlockCase(markdown: "\tlet value = 1", kind: .codeBlock(language: nil), text: "let value = 1"),
     BlockCase(markdown: "Plain paragraph", kind: .paragraph, text: "Plain paragraph")
 ] + (0..<40).map { index in
     BlockCase(markdown: "\(index + 1). Generated item \(index)", kind: .orderedListItem(number: index + 1), text: "Generated item \(index)")

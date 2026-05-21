@@ -28,7 +28,9 @@ enum MarkdownParser {
         var blocks: [MarkdownBlock] = []
         var paragraphLines: [MarkdownParagraphLine] = []
         var codeLines: [String] = []
+        var indentedCodeLines: [String] = []
         var activeFence: MarkdownFence?
+        var parsingIndentedCodeBlock = false
         var skippingHTMLCommentBlock = false
 
         func appendBlock(kind: MarkdownBlockKind, text: String) {
@@ -42,10 +44,16 @@ enum MarkdownParser {
             appendBlock(kind: .paragraph, text: text)
         }
 
-        func flushCodeBlock() {
+        func flushFencedCodeBlock() {
             appendBlock(kind: .codeBlock(language: activeFence?.language), text: codeLines.joined(separator: "\n"))
             codeLines.removeAll(keepingCapacity: true)
             activeFence = nil
+        }
+
+        func flushIndentedCodeBlock() {
+            appendBlock(kind: .codeBlock(language: nil), text: Self.normalizedCodeBlockText(indentedCodeLines))
+            indentedCodeLines.removeAll(keepingCapacity: true)
+            parsingIndentedCodeBlock = false
         }
 
         let lines = splitLines(markdown)
@@ -54,10 +62,41 @@ enum MarkdownParser {
             let rawLine = lines[lineIndex]
             if let fence = activeFence {
                 if fence.matchesClosingLine(rawLine) {
-                    flushCodeBlock()
+                    flushFencedCodeBlock()
                 } else {
                     codeLines.append(rawLine)
                 }
+                lineIndex += 1
+                continue
+            }
+
+            if parsingIndentedCodeBlock {
+                if let codeLine = indentedCodeLine(from: rawLine) {
+                    indentedCodeLines.append(codeLine)
+                    lineIndex += 1
+                    continue
+                }
+
+                if rawLine.trimmingCharacters(in: .whitespaces).isEmpty {
+                    indentedCodeLines.append("")
+                    lineIndex += 1
+                    continue
+                }
+
+                flushIndentedCodeBlock()
+                continue
+            }
+
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty {
+                flushParagraph()
+                lineIndex += 1
+                continue
+            }
+
+            if paragraphLines.isEmpty, let codeLine = indentedCodeLine(from: rawLine) {
+                indentedCodeLines.append(codeLine)
+                parsingIndentedCodeBlock = true
                 lineIndex += 1
                 continue
             }
@@ -86,13 +125,6 @@ enum MarkdownParser {
             }
 
             if linkReferenceDefinition(in: rawLine) {
-                flushParagraph()
-                lineIndex += 1
-                continue
-            }
-
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty {
                 flushParagraph()
                 lineIndex += 1
                 continue
@@ -129,7 +161,9 @@ enum MarkdownParser {
         }
 
         if activeFence != nil {
-            flushCodeBlock()
+            flushFencedCodeBlock()
+        } else if parsingIndentedCodeBlock {
+            flushIndentedCodeBlock()
         } else {
             flushParagraph()
         }
@@ -224,6 +258,24 @@ enum MarkdownParser {
             text += line.text
         }
         return text
+    }
+
+    private static func indentedCodeLine(from rawLine: String) -> String? {
+        if rawLine.hasPrefix("    ") {
+            return String(rawLine.dropFirst(4))
+        }
+        if rawLine.hasPrefix("\t") {
+            return String(rawLine.dropFirst())
+        }
+        return nil
+    }
+
+    private static func normalizedCodeBlockText(_ lines: [String]) -> String {
+        var normalized = lines
+        while normalized.last == "" {
+            normalized.removeLast()
+        }
+        return normalized.joined(separator: "\n")
     }
 
     private static func htmlCommentBlock(_ rawLine: String) -> Bool? {
