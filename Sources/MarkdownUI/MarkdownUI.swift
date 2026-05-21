@@ -207,10 +207,12 @@ private enum MarkdownBlockParser {
             digits.append(line[index])
             index = line.index(after: index)
         }
-        guard !digits.isEmpty, index < line.endIndex, line[index] == "." else { return nil }
-        let afterPeriod = line.index(after: index)
-        guard afterPeriod < line.endIndex, line[afterPeriod].isWhitespace else { return nil }
-        let text = String(line[line.index(after: afterPeriod)...]).trimmingCharacters(in: .whitespaces)
+        guard !digits.isEmpty, index < line.endIndex else { return nil }
+        let marker = line[index]
+        guard marker == "." || marker == ")" else { return nil }
+        let afterMarker = line.index(after: index)
+        guard afterMarker < line.endIndex, line[afterMarker].isWhitespace else { return nil }
+        let text = String(line[line.index(after: afterMarker)...]).trimmingCharacters(in: .whitespaces)
         return text.isEmpty ? nil : (Int(digits) ?? 1, text)
     }
 

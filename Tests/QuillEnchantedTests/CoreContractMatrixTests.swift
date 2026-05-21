@@ -2822,11 +2822,14 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: "+ Item", kind: .unorderedListItem, text: "Item"),
     BlockCase(markdown: "1. Item", kind: .orderedListItem(number: 1), text: "Item"),
     BlockCase(markdown: "42. Item", kind: .orderedListItem(number: 42), text: "Item"),
+    BlockCase(markdown: "1) Item", kind: .orderedListItem(number: 1), text: "Item"),
+    BlockCase(markdown: "42) Item", kind: .orderedListItem(number: 42), text: "Item"),
     BlockCase(markdown: "> Quoted", kind: .quote, text: "Quoted"),
     BlockCase(markdown: ">\nFollow-up", kind: .paragraph, text: "> Follow-up"),
     BlockCase(markdown: "#Heading\nNext", kind: .paragraph, text: "#Heading Next"),
     BlockCase(markdown: "-Item\nNext", kind: .paragraph, text: "-Item Next"),
     BlockCase(markdown: "1.Item\nNext", kind: .paragraph, text: "1.Item Next"),
+    BlockCase(markdown: "1)Item\nNext", kind: .paragraph, text: "1)Item Next"),
     BlockCase(markdown: "````swift\n```swift\nlet value = 1\n````", kind: .codeBlock(language: "swift"), text: "```swift\nlet value = 1"),
     BlockCase(markdown: "Plain paragraph", kind: .paragraph, text: "Plain paragraph")
 ] + (0..<40).map { index in

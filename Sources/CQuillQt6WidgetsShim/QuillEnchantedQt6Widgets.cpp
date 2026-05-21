@@ -1406,7 +1406,12 @@ bool parseOrderedListLine(const QString &line, int *number, QString *text) {
     while (index < line.size() && line.at(index).isDigit()) {
         index += 1;
     }
-    if (index == 0 || index >= line.size() || line.at(index) != QLatin1Char('.')) {
+    if (index == 0 || index >= line.size()) {
+        return false;
+    }
+
+    const QChar marker = line.at(index);
+    if (marker != QLatin1Char('.') && marker != QLatin1Char(')')) {
         return false;
     }
 
@@ -1424,8 +1429,13 @@ bool parseOrderedListLine(const QString &line, int *number, QString *text) {
     if (number != nullptr) {
         *number = parsedNumber;
     }
+    const QString parsedText = cleanMarkdownInline(line.mid(textStart + 1).trimmed());
+    if (parsedText.isEmpty()) {
+        return false;
+    }
+
     if (text != nullptr) {
-        *text = cleanMarkdownInline(line.mid(textStart + 1).trimmed());
+        *text = parsedText;
     }
     return true;
 }

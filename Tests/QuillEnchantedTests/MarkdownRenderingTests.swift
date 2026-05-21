@@ -24,6 +24,7 @@ struct MarkdownRenderingTests {
         ## Plan
         - Build the shim
         2. Verify Linux
+        3) Match macOS
         > Keep it native
         """)
 
@@ -31,7 +32,8 @@ struct MarkdownRenderingTests {
             MarkdownBlock(id: 0, kind: .heading(level: 2), text: "Plan"),
             MarkdownBlock(id: 1, kind: .unorderedListItem, text: "Build the shim"),
             MarkdownBlock(id: 2, kind: .orderedListItem(number: 2), text: "Verify Linux"),
-            MarkdownBlock(id: 3, kind: .quote, text: "Keep it native")
+            MarkdownBlock(id: 3, kind: .orderedListItem(number: 3), text: "Match macOS"),
+            MarkdownBlock(id: 4, kind: .quote, text: "Keep it native")
         ])
     }
 
@@ -81,10 +83,11 @@ struct MarkdownRenderingTests {
         #Heading
         -Item
         1.Item
+        2)Item
         """)
 
         #expect(blocks == [
-            MarkdownBlock(id: 0, kind: .paragraph, text: "#Heading -Item 1.Item")
+            MarkdownBlock(id: 0, kind: .paragraph, text: "#Heading -Item 1.Item 2)Item")
         ])
     }
 

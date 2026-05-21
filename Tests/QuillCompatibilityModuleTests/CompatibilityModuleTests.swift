@@ -646,6 +646,7 @@ struct CompatibilityModuleTests {
         # Plan
 
         - Render **Markdown**
+        2) Keep parity
         > Keep code readable
 
         ```swift
@@ -674,6 +675,7 @@ struct CompatibilityModuleTests {
         #expect(tablePlainText.contains("align-items | center"))
         #expect(richPlainText.contains("Plan"))
         #expect(richPlainText.contains("• Render Markdown"))
+        #expect(richPlainText.contains("2. Keep parity"))
         #expect(richPlainText.contains("Keep code readable"))
         #expect(richPlainText.contains("let answer = 42"))
         #expect(configuration.language == "swift")

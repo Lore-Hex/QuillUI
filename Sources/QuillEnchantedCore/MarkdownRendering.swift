@@ -185,10 +185,12 @@ enum MarkdownParser {
             digits.append(line[index])
             index = line.index(after: index)
         }
-        guard !digits.isEmpty, index < line.endIndex, line[index] == "." else { return nil }
-        let afterPeriod = line.index(after: index)
-        guard afterPeriod < line.endIndex, line[afterPeriod].isWhitespace else { return nil }
-        let textStart = line.index(after: afterPeriod)
+        guard !digits.isEmpty, index < line.endIndex else { return nil }
+        let marker = line[index]
+        guard marker == "." || marker == ")" else { return nil }
+        let afterMarker = line.index(after: index)
+        guard afterMarker < line.endIndex, line[afterMarker].isWhitespace else { return nil }
+        let textStart = line.index(after: afterMarker)
         let text = String(line[textStart...]).trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return nil }
         return (Int(digits) ?? 1, text)
