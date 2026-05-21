@@ -1623,21 +1623,42 @@ QString removePairedMarkdownSingleMarkers(QString text, const QChar marker) {
     return result;
 }
 
+QString removePairedMarkdownMarkers(QString text, const QString &marker) {
+    if (marker.isEmpty()) {
+        return text;
+    }
+
+    QString result;
+    result.reserve(text.size());
+
+    int index = 0;
+    while (index < text.size()) {
+        if (text.mid(index, marker.size()) == marker) {
+            const int contentStart = index + marker.size();
+            const int closingIndex = text.indexOf(marker, contentStart);
+            if (closingIndex > contentStart) {
+                result.append(text.mid(contentStart, closingIndex - contentStart));
+                index = closingIndex + marker.size();
+                continue;
+            }
+        }
+
+        result.append(text.at(index));
+        index += 1;
+    }
+
+    return result;
+}
+
 QString cleanMarkdownInline(QString text) {
     text = protectMarkdownBackslashEscapes(text);
     text = replaceMarkdownLinks(text);
     text = replaceMarkdownAutolinks(text);
     text = decodeMarkdownCharacterReferences(text);
-
-    const QStringList markers = {
-        QStringLiteral("**"),
-        QStringLiteral("__"),
-        QStringLiteral("`"),
-        QStringLiteral("~~")
-    };
-    for (const QString &marker : markers) {
-        text.replace(marker, QString());
-    }
+    text = removePairedMarkdownMarkers(text, QStringLiteral("**"));
+    text = removePairedMarkdownMarkers(text, QStringLiteral("__"));
+    text = removePairedMarkdownMarkers(text, QStringLiteral("`"));
+    text = removePairedMarkdownMarkers(text, QStringLiteral("~~"));
     text = removePairedMarkdownSingleMarkers(text, QLatin1Char('*'));
     text = removePairedMarkdownSingleMarkers(text, QLatin1Char('_'));
 

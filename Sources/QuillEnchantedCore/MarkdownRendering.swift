@@ -115,9 +115,10 @@ enum MarkdownParser {
         cleaned = replaceLinks(in: cleaned)
         cleaned = replaceAutolinks(in: cleaned)
         cleaned = decodeCharacterReferences(in: cleaned)
-        for marker in ["**", "__", "`", "~~"] {
-            cleaned = cleaned.replacingOccurrences(of: marker, with: "")
-        }
+        cleaned = removePairedMarkers(in: cleaned, marker: "**")
+        cleaned = removePairedMarkers(in: cleaned, marker: "__")
+        cleaned = removePairedMarkers(in: cleaned, marker: "`")
+        cleaned = removePairedMarkers(in: cleaned, marker: "~~")
         cleaned = removePairedSingleMarkers(in: cleaned, marker: "*")
         cleaned = removePairedSingleMarkers(in: cleaned, marker: "_")
         cleaned = restoreBackslashEscapes(in: cleaned)
@@ -133,6 +134,7 @@ enum MarkdownParser {
 
     private static func replaceLinks(in text: String) -> String {
         var result = ""
+        result.reserveCapacity(text.count)
         var index = text.startIndex
 
         while index < text.endIndex {
@@ -417,6 +419,30 @@ enum MarkdownParser {
                    closingIndex > contentStart {
                     result += String(text[contentStart..<closingIndex])
                     index = text.index(after: closingIndex)
+                    continue
+                }
+            }
+
+            result.append(text[index])
+            index = text.index(after: index)
+        }
+
+        return result
+    }
+
+    private static func removePairedMarkers(in text: String, marker: String) -> String {
+        guard !marker.isEmpty else { return text }
+
+        var result = ""
+        var index = text.startIndex
+
+        while index < text.endIndex {
+            if text[index...].hasPrefix(marker) {
+                let contentStart = text.index(index, offsetBy: marker.count)
+                if let closingRange = text[contentStart...].range(of: marker),
+                   closingRange.lowerBound > contentStart {
+                    result += String(text[contentStart..<closingRange.lowerBound])
+                    index = closingRange.upperBound
                     continue
                 }
             }
