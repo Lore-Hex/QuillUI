@@ -1989,6 +1989,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "const QString summary = accessibilitySummary(title, content)")
         expectContains(nativeShim, "bubble->setAccessibleName(title);\n    bubble->setAccessibleDescription(summary);\n    bubble->setToolTip(summary);\n    bubble->setStatusTip(summary)")
         expectContains(nativeShim, "enum class MarkdownBlockKind")
+        expectContains(nativeShim, "MarkdownBlockKind::Table")
         expectContains(nativeShim, "struct MarkdownParagraphLine")
         expectContains(nativeShim, "bool isEscapableMarkdownPunctuation(const QChar ch)")
         expectContains(nativeShim, "QString protectMarkdownBackslashEscapes(const QString &text)")
@@ -2056,6 +2057,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "appendBlock(MarkdownBlockKind::Heading, headingText, setextLevel)")
         expectContains(nativeShim, "bool isMarkdownThematicBreak(const QString &rawLine)")
         expectContains(nativeShim, "appendBlock(MarkdownBlockKind::Divider, QString())")
+        expectContains(nativeShim, "bool parseMarkdownTable(const QStringList &lines, int startIndex, MarkdownBlock *block, int *endIndex)")
+        expectContains(nativeShim, "if (parseMarkdownTable(lines, lineIndex, &tableBlock, &tableEndIndex))")
         expectContains(nativeShim, "QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown)")
         expectContains(nativeShim, "if (!line.at(markerCount).isSpace())")
         expectContains(nativeShim, "if (!line.at(1).isSpace())")
@@ -2073,9 +2076,11 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QLabel#markdownHeading1")
         expectContains(nativeShim, "QFrame#markdownQuoteRule")
         expectContains(nativeShim, "QFrame#markdownCodeBlock")
+        expectContains(nativeShim, "QFrame#markdownTable")
         expectContains(nativeShim, "QFrame#markdownQuoteRule { background: %1; border-radius: %3; }")
         expectContains(nativeShim, "QFrame#markdownDivider { background: %1; border-radius: %3; }")
         expectContains(nativeShim, "QFrame#markdownCodeBlock { background: %2; border-radius: %4; }")
+        expectContains(nativeShim, "QFrame#markdownTable { background: %2; border-radius: %4; }")
         expectContains(nativeShim, ".arg(quoteRule, codeBlock, markdownQuoteRuleRadius, markdownCodeBlockRadius)")
         expectContains(nativeShim, "const int markdownListItemSpacing = styleInt(style, \"markdownListItemSpacing\")")
         expectContains(nativeShim, "const int markdownNumberWidth = styleInt(style, \"markdownNumberWidth\")")
@@ -2094,6 +2099,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "layout->setContentsMargins(codeBlockPadding, codeBlockPadding, codeBlockPadding, codeBlockPadding)")
         expectContains(nativeShim, "const int markdownCodeBlockSpacing = styleInt(style, \"markdownCodeBlockSpacing\")")
         expectContains(nativeShim, "layout->setSpacing(markdownCodeBlockSpacing)")
+        expectContains(nativeShim, "QWidget *markdownTableWidget(const MarkdownBlock &block, const QJsonObject &style)")
+        expectContains(nativeShim, "layout->addWidget(markdownTableWidget(block, style))")
         expectContains(nativeShim, "QWidget *markdownMessageWidget(const QString &markdown, const QJsonObject &style)")
         expectContains(nativeShim, "const int markdownBlockSpacing = styleInt(style, \"markdownBlockSpacing\")")
         expectContains(nativeShim, "layout->setContentsMargins(0, 0, 0, 0)")
@@ -2934,6 +2941,11 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: "---", kind: .divider, text: ""),
     BlockCase(markdown: "* * *", kind: .divider, text: ""),
     BlockCase(markdown: "_ _ _", kind: .divider, text: ""),
+    BlockCase(
+        markdown: "| Name | Value |\n| --- | --- |\n| Status | Ready |",
+        kind: .table(headers: ["Name", "Value"], rows: [["Status", "Ready"]]),
+        text: "Name | Value\nStatus | Ready"
+    ),
     BlockCase(markdown: "- Item", kind: .unorderedListItem, text: "Item"),
     BlockCase(markdown: "* Item", kind: .unorderedListItem, text: "Item"),
     BlockCase(markdown: "+ Item", kind: .unorderedListItem, text: "Item"),

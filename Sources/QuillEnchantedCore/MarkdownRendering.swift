@@ -9,6 +9,7 @@ enum MarkdownBlockKind: Equatable, Sendable {
     case orderedListItem(number: Int)
     case quote
     case divider
+    case table(headers: [String], rows: [[String]])
     case codeBlock(language: String?)
 }
 
@@ -127,6 +128,16 @@ enum MarkdownParser {
             if linkReferenceDefinition(in: rawLine) {
                 flushParagraph()
                 lineIndex += 1
+                continue
+            }
+
+            if let table = table(startingAt: lineIndex, in: lines) {
+                flushParagraph()
+                appendBlock(
+                    kind: .table(headers: table.headers, rows: table.rows),
+                    text: tableText(headers: table.headers, rows: table.rows)
+                )
+                lineIndex = table.endIndex
                 continue
             }
 
@@ -258,6 +269,82 @@ enum MarkdownParser {
             text += line.text
         }
         return text
+    }
+
+    private static func table(
+        startingAt startIndex: Int,
+        in lines: [String]
+    ) -> (headers: [String], rows: [[String]], endIndex: Int)? {
+        guard startIndex + 1 < lines.count,
+              let headerCells = tableCells(in: lines[startIndex]),
+              let separatorCells = tableCells(in: lines[startIndex + 1]),
+              separatorCells.count == headerCells.count,
+              isTableSeparator(separatorCells)
+        else { return nil }
+
+        let headers = normalizedTableRow(headerCells, columnCount: headerCells.count)
+        guard headers.contains(where: { !$0.isEmpty }) else { return nil }
+
+        var rows: [[String]] = []
+        var index = startIndex + 2
+        while index < lines.count {
+            guard let cells = tableCells(in: lines[index]),
+                  !isTableSeparator(cells)
+            else { break }
+
+            rows.append(normalizedTableRow(cells, columnCount: headers.count))
+            index += 1
+        }
+
+        return (headers, rows, index)
+    }
+
+    private static func tableCells(in rawLine: String) -> [String]? {
+        var line = rawLine.trimmingCharacters(in: .whitespaces)
+        guard line.contains("|") else { return nil }
+
+        if line.first == "|" {
+            line.removeFirst()
+        }
+        if line.last == "|" {
+            line.removeLast()
+        }
+
+        let cells = line
+            .split(separator: "|", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+        guard cells.count >= 2 else { return nil }
+        return cells
+    }
+
+    private static func isTableSeparator(_ cells: [String]) -> Bool {
+        !cells.isEmpty && cells.allSatisfy(isTableSeparatorCell)
+    }
+
+    private static func isTableSeparatorCell(_ cell: String) -> Bool {
+        var text = cell.trimmingCharacters(in: .whitespaces)
+        if text.first == ":" {
+            text.removeFirst()
+        }
+        if text.last == ":" {
+            text.removeLast()
+        }
+
+        return text.count >= 3 && text.allSatisfy { $0 == "-" }
+    }
+
+    private static func normalizedTableRow(_ cells: [String], columnCount: Int) -> [String] {
+        var normalized = Array(cells.prefix(columnCount)).map(cleanInline)
+        if normalized.count < columnCount {
+            normalized.append(contentsOf: Array(repeating: "", count: columnCount - normalized.count))
+        }
+        return normalized
+    }
+
+    private static func tableText(headers: [String], rows: [[String]]) -> String {
+        ([headers] + rows)
+            .map { $0.joined(separator: " | ") }
+            .joined(separator: "\n")
     }
 
     private static func indentedCodeLine(from rawLine: String) -> String? {
@@ -1318,6 +1405,8 @@ public struct MarkdownMessageView: View {
                 .fill(QuillColors.quoteRule)
                 .frame(height: CGFloat(EnchantedVisualMetrics.markdownQuoteRuleWidth))
                 .padding(.vertical, CGFloat(EnchantedVisualMetrics.markdownQuoteVerticalPadding))
+        case .table(let headers, let rows):
+            tableView(headers: headers, rows: rows)
         case .codeBlock(let language):
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.markdownCodeBlockSpacing)) {
                 if let language {
@@ -1335,6 +1424,42 @@ public struct MarkdownMessageView: View {
             .background(QuillColors.codeBlock)
             .cornerRadius(CGFloat(EnchantedVisualMetrics.markdownCodeBlockRadius))
         }
+    }
+
+    private func tableView(headers: [String], rows: [[String]]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            tableRow(cells: headers, isHeader: true)
+
+            Rectangle()
+                .fill(QuillColors.quoteRule)
+                .frame(height: CGFloat(EnchantedVisualMetrics.markdownQuoteRuleWidth))
+
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                tableRow(cells: row, isHeader: false)
+            }
+        }
+        .padding(CGFloat(EnchantedVisualMetrics.markdownCodeBlockPadding))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(QuillColors.codeBlock)
+        .cornerRadius(CGFloat(EnchantedVisualMetrics.markdownCodeBlockRadius))
+    }
+
+    private func tableRow(cells: [String], isHeader: Bool) -> some View {
+        HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.markdownListItemSpacing)) {
+            ForEach(Array(cells.enumerated()), id: \.offset) { _, cell in
+                Text(cell.isEmpty ? " " : cell)
+                    .font(.system(
+                        size: CGFloat(EnchantedTypography.messageBodyFontSize),
+                        weight: isHeader
+                            ? enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight)
+                            : .regular
+                    ))
+                    .foregroundColor(isHeader ? QuillColors.ink : foregroundColor)
+                    .lineSpacing(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.vertical, CGFloat(EnchantedVisualMetrics.markdownQuoteVerticalPadding))
     }
 
     private func headingFont(level: Int) -> Font {

@@ -120,6 +120,51 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("parses pipe tables")
+    func parsesPipeTables() {
+        let blocks = MarkdownParser.parse("""
+        Before
+
+        | Name | Value |
+        | --- | ---: |
+        | **Status** | Ready |
+        | Link | [docs](https://example.com) |
+        | Missing | |
+
+        After
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "Before"),
+            MarkdownBlock(
+                id: 1,
+                kind: .table(
+                    headers: ["Name", "Value"],
+                    rows: [
+                        ["Status", "Ready"],
+                        ["Link", "docs (https://example.com)"],
+                        ["Missing", ""]
+                    ]
+                ),
+                text: "Name | Value\nStatus | Ready\nLink | docs (https://example.com)\nMissing | "
+            ),
+            MarkdownBlock(id: 2, kind: .paragraph, text: "After")
+        ])
+    }
+
+    @Test("keeps malformed pipe tables as paragraph text")
+    func keepsMalformedPipeTablesAsParagraphText() {
+        let blocks = MarkdownParser.parse("""
+        A | B
+        not separator
+        After
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "A | B not separator After")
+        ])
+    }
+
     @Test("keeps malformed markers as paragraph text")
     func keepsMalformedMarkersAsParagraphText() {
         let blocks = MarkdownParser.parse("""

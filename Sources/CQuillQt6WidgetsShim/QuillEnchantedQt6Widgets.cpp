@@ -773,6 +773,7 @@ QString appStyleSheet(const QJsonObject &style) {
         QFrame#markdownQuoteRule { background: %1; border-radius: %3; }
         QFrame#markdownDivider { background: %1; border-radius: %3; }
         QFrame#markdownCodeBlock { background: %2; border-radius: %4; }
+        QFrame#markdownTable { background: %2; border-radius: %4; }
     )")
         .arg(quoteRule, codeBlock, markdownQuoteRuleRadius, markdownCodeBlockRadius);
 
@@ -1230,6 +1231,7 @@ enum class MarkdownBlockKind {
     OrderedListItem,
     Quote,
     Divider,
+    Table,
     CodeBlock
 };
 
@@ -1239,6 +1241,8 @@ struct MarkdownBlock {
     int level = 0;
     int number = 0;
     QString language;
+    QStringList headers;
+    QList<QStringList> rows;
 };
 
 struct MarkdownParagraphLine {
@@ -2575,6 +2579,137 @@ QString normalizedMarkdownCodeBlockText(QStringList lines) {
     return lines.join(QStringLiteral("\n"));
 }
 
+bool markdownTableCells(const QString &rawLine, QStringList *cells) {
+    QString line = rawLine.trimmed();
+    if (!line.contains(QLatin1Char('|'))) {
+        return false;
+    }
+
+    if (line.startsWith(QLatin1Char('|'))) {
+        line.remove(0, 1);
+    }
+    if (line.endsWith(QLatin1Char('|'))) {
+        line.chop(1);
+    }
+
+    const QStringList parsed = line.split(QLatin1Char('|'), Qt::KeepEmptyParts);
+    if (parsed.size() < 2) {
+        return false;
+    }
+
+    QStringList normalized;
+    for (const QString &cell : parsed) {
+        normalized.append(cell.trimmed());
+    }
+    if (cells != nullptr) {
+        *cells = normalized;
+    }
+    return true;
+}
+
+bool isMarkdownTableSeparatorCell(QString cell) {
+    QString text = cell.trimmed();
+    if (text.startsWith(QLatin1Char(':'))) {
+        text.remove(0, 1);
+    }
+    if (text.endsWith(QLatin1Char(':'))) {
+        text.chop(1);
+    }
+    if (text.size() < 3) {
+        return false;
+    }
+
+    for (const QChar character : text) {
+        if (character != QLatin1Char('-')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool isMarkdownTableSeparator(const QStringList &cells) {
+    if (cells.isEmpty()) {
+        return false;
+    }
+
+    for (const QString &cell : cells) {
+        if (!isMarkdownTableSeparatorCell(cell)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+QStringList normalizedMarkdownTableRow(const QStringList &cells, int columnCount) {
+    QStringList row;
+    for (int index = 0; index < columnCount; ++index) {
+        row.append(index < cells.size() ? cleanMarkdownInline(cells.at(index)) : QString());
+    }
+    return row;
+}
+
+QString markdownTableText(const QStringList &headers, const QList<QStringList> &rows) {
+    QStringList lines;
+    lines.append(headers.join(QStringLiteral(" | ")));
+    for (const QStringList &row : rows) {
+        lines.append(row.join(QStringLiteral(" | ")));
+    }
+    return lines.join(QStringLiteral("\n"));
+}
+
+bool parseMarkdownTable(const QStringList &lines, int startIndex, MarkdownBlock *block, int *endIndex) {
+    if (startIndex + 1 >= lines.size()) {
+        return false;
+    }
+
+    QStringList headerCells;
+    QStringList separatorCells;
+    if (!markdownTableCells(lines.at(startIndex), &headerCells)
+        || !markdownTableCells(lines.at(startIndex + 1), &separatorCells)) {
+        return false;
+    }
+    if (separatorCells.size() != headerCells.size()
+        || !isMarkdownTableSeparator(separatorCells)) {
+        return false;
+    }
+
+    const int columnCount = static_cast<int>(headerCells.size());
+    const QStringList headers = normalizedMarkdownTableRow(headerCells, columnCount);
+    bool hasHeaderText = false;
+    for (const QString &header : headers) {
+        if (!header.isEmpty()) {
+            hasHeaderText = true;
+            break;
+        }
+    }
+    if (!hasHeaderText) {
+        return false;
+    }
+
+    QList<QStringList> rows;
+    int index = startIndex + 2;
+    while (index < lines.size()) {
+        QStringList rowCells;
+        if (!markdownTableCells(lines.at(index), &rowCells)
+            || isMarkdownTableSeparator(rowCells)) {
+            break;
+        }
+        rows.append(normalizedMarkdownTableRow(rowCells, columnCount));
+        ++index;
+    }
+
+    if (block != nullptr) {
+        block->kind = MarkdownBlockKind::Table;
+        block->headers = headers;
+        block->rows = rows;
+        block->text = markdownTableText(headers, rows);
+    }
+    if (endIndex != nullptr) {
+        *endIndex = index;
+    }
+    return true;
+}
+
 QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
     QList<MarkdownBlock> blocks;
     QString normalized = markdown;
@@ -2687,6 +2822,15 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
 
         if (markdownLinkReferenceDefinition(rawLine)) {
             flushParagraph();
+            continue;
+        }
+
+        MarkdownBlock tableBlock;
+        int tableEndIndex = lineIndex;
+        if (parseMarkdownTable(lines, lineIndex, &tableBlock, &tableEndIndex)) {
+            flushParagraph();
+            blocks.append(tableBlock);
+            lineIndex = tableEndIndex - 1;
             continue;
         }
 
@@ -2812,6 +2956,46 @@ QWidget *markdownCodeBlockWidget(const MarkdownBlock &block, const QJsonObject &
     return codeBlock;
 }
 
+QWidget *markdownTableWidget(const MarkdownBlock &block, const QJsonObject &style) {
+    QFrame *table = QuillQtWidgets::frame(QStringLiteral("markdownTable"));
+    QVBoxLayout *layout = new QVBoxLayout(table);
+    const int codeBlockPadding = styleInt(style, "markdownCodeBlockPadding");
+    const int markdownCodeBlockSpacing = styleInt(style, "markdownCodeBlockSpacing");
+    const int markdownListItemSpacing = styleInt(style, "markdownListItemSpacing");
+    const int markdownQuoteRuleWidth = styleInt(style, "markdownQuoteRuleWidth");
+    const int verticalPadding = styleInt(style, "markdownQuoteVerticalPadding");
+    layout->setContentsMargins(codeBlockPadding, codeBlockPadding, codeBlockPadding, codeBlockPadding);
+    layout->setSpacing(markdownCodeBlockSpacing);
+
+    auto makeRow = [&](const QStringList &cells, bool isHeader) -> QWidget * {
+        QWidget *row = new QWidget();
+        QHBoxLayout *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(0, verticalPadding, 0, verticalPadding);
+        rowLayout->setSpacing(markdownListItemSpacing);
+        for (const QString &cell : cells) {
+            QLabel *cellLabel = markdownLabel(
+                cell.isEmpty() ? QStringLiteral(" ") : cell,
+                isHeader ? QStringLiteral("markdownHeading") : QStringLiteral("markdownParagraph")
+            );
+            cellLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+            rowLayout->addWidget(cellLabel, 1);
+        }
+        return row;
+    };
+
+    layout->addWidget(makeRow(block.headers, true));
+
+    QFrame *rule = QuillQtWidgets::frame(QStringLiteral("markdownDivider"));
+    rule->setFixedHeight(markdownQuoteRuleWidth);
+    rule->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    layout->addWidget(rule);
+
+    for (const QStringList &row : block.rows) {
+        layout->addWidget(makeRow(row, false));
+    }
+    return table;
+}
+
 void addMarkdownBlocks(QVBoxLayout *layout, const QString &markdown, const QJsonObject &style) {
     QList<MarkdownBlock> blocks = parseMarkdownBlocks(markdown);
     if (blocks.isEmpty()) {
@@ -2852,6 +3036,9 @@ void addMarkdownBlocks(QVBoxLayout *layout, const QString &markdown, const QJson
             break;
         case MarkdownBlockKind::Divider:
             layout->addWidget(markdownDividerWidget(style));
+            break;
+        case MarkdownBlockKind::Table:
+            layout->addWidget(markdownTableWidget(block, style));
             break;
         case MarkdownBlockKind::CodeBlock:
             layout->addWidget(markdownCodeBlockWidget(block, style));
