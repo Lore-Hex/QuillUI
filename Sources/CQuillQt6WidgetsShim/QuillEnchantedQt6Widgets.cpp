@@ -2611,6 +2611,46 @@ QString normalizedMarkdownCodeBlockText(QStringList lines) {
     return lines.join(QStringLiteral("\n"));
 }
 
+bool isEscapedMarkdownCharacter(const QString &text, const int index) {
+    int backslashCount = 0;
+    for (int cursor = index - 1; cursor >= 0 && text.at(cursor) == QLatin1Char('\\'); --cursor) {
+        backslashCount += 1;
+    }
+    return backslashCount % 2 == 1;
+}
+
+QStringList splitMarkdownTableCells(const QString &line) {
+    QStringList cells;
+    QString current;
+    current.reserve(line.size());
+
+    int index = 0;
+    while (index < line.size()) {
+        const int markerLength = markdownBacktickRunLength(line, index);
+        if (markerLength > 0 && !isEscapedMarkdownCharacter(line, index)) {
+            const int contentStart = index + markerLength;
+            const int closingIndex = matchingMarkdownBacktickRun(line, markerLength, contentStart);
+            if (closingIndex > contentStart) {
+                current.append(line.mid(index, closingIndex + markerLength - index));
+                index = closingIndex + markerLength;
+                continue;
+            }
+        }
+
+        const QChar character = line.at(index);
+        if (character == QLatin1Char('|') && !isEscapedMarkdownCharacter(line, index)) {
+            cells.append(current.trimmed());
+            current.clear();
+        } else {
+            current.append(character);
+        }
+        index += 1;
+    }
+
+    cells.append(current.trimmed());
+    return cells;
+}
+
 bool markdownTableCells(const QString &rawLine, QStringList *cells) {
     QString line = rawLine.trimmed();
     if (!line.contains(QLatin1Char('|'))) {
@@ -2620,21 +2660,17 @@ bool markdownTableCells(const QString &rawLine, QStringList *cells) {
     if (line.startsWith(QLatin1Char('|'))) {
         line.remove(0, 1);
     }
-    if (line.endsWith(QLatin1Char('|'))) {
+    if (line.endsWith(QLatin1Char('|')) && !isEscapedMarkdownCharacter(line, line.size() - 1)) {
         line.chop(1);
     }
 
-    const QStringList parsed = line.split(QLatin1Char('|'), Qt::KeepEmptyParts);
+    const QStringList parsed = splitMarkdownTableCells(line);
     if (parsed.size() < 2) {
         return false;
     }
 
-    QStringList normalized;
-    for (const QString &cell : parsed) {
-        normalized.append(cell.trimmed());
-    }
     if (cells != nullptr) {
-        *cells = normalized;
+        *cells = parsed;
     }
     return true;
 }

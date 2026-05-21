@@ -152,6 +152,26 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("parses escaped and code-span table pipes")
+    func parsesEscapedAndCodeSpanTablePipes() {
+        let blocks = MarkdownParser.parse("""
+        | Name \\| Alias | Snippet | Value |
+        | --- | --- | --- |
+        | QuillUI | `a | b` | Ready |
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(
+                id: 0,
+                kind: .table(
+                    headers: ["Name | Alias", "Snippet", "Value"],
+                    rows: [["QuillUI", "a | b", "Ready"]]
+                ),
+                text: "Name | Alias | Snippet | Value\nQuillUI | a | b | Ready"
+            )
+        ])
+    }
+
     @Test("keeps malformed pipe tables as paragraph text")
     func keepsMalformedPipeTablesAsParagraphText() {
         let blocks = MarkdownParser.parse("""

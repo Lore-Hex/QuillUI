@@ -322,15 +322,64 @@ enum MarkdownParser {
         if line.first == "|" {
             line.removeFirst()
         }
-        if line.last == "|" {
+        if let lastIndex = line.indices.last,
+           line[lastIndex] == "|",
+           !isEscapedMarkdownCharacter(in: line, at: lastIndex) {
             line.removeLast()
         }
 
-        let cells = line
-            .split(separator: "|", omittingEmptySubsequences: false)
-            .map { String($0).trimmingCharacters(in: .whitespaces) }
+        let cells = splitTableCells(in: line)
         guard cells.count >= 2 else { return nil }
         return cells
+    }
+
+    private static func splitTableCells(in line: String) -> [String] {
+        var cells: [String] = []
+        var current = ""
+        var index = line.startIndex
+
+        while index < line.endIndex {
+            let markerLength = backtickRunLength(in: line, from: index)
+            if markerLength > 0,
+               !isEscapedMarkdownCharacter(in: line, at: index) {
+                let contentStart = line.index(index, offsetBy: markerLength)
+                if let closingIndex = matchingBacktickRun(in: line, markerLength: markerLength, from: contentStart),
+                   closingIndex > contentStart {
+                    let codeSpanEnd = line.index(closingIndex, offsetBy: markerLength)
+                    current += String(line[index..<codeSpanEnd])
+                    index = codeSpanEnd
+                    continue
+                }
+            }
+
+            if line[index] == "|",
+               !isEscapedMarkdownCharacter(in: line, at: index) {
+                cells.append(current.trimmingCharacters(in: .whitespaces))
+                current = ""
+            } else {
+                current.append(line[index])
+            }
+            index = line.index(after: index)
+        }
+
+        cells.append(current.trimmingCharacters(in: .whitespaces))
+        return cells
+    }
+
+    private static func isEscapedMarkdownCharacter(in line: String, at index: String.Index) -> Bool {
+        var backslashCount = 0
+        var cursor = index
+
+        while cursor > line.startIndex {
+            cursor = line.index(before: cursor)
+            if line[cursor] == "\\" {
+                backslashCount += 1
+            } else {
+                break
+            }
+        }
+
+        return backslashCount % 2 == 1
     }
 
     private static func isTableSeparator(_ cells: [String]) -> Bool {

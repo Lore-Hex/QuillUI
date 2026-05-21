@@ -2058,6 +2058,9 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "appendBlock(MarkdownBlockKind::Heading, headingText, setextLevel)")
         expectContains(nativeShim, "bool isMarkdownThematicBreak(const QString &rawLine)")
         expectContains(nativeShim, "appendBlock(MarkdownBlockKind::Divider, QString())")
+        expectContains(nativeShim, "QStringList splitMarkdownTableCells(const QString &line)")
+        expectContains(nativeShim, "const int closingIndex = matchingMarkdownBacktickRun(line, markerLength, contentStart)")
+        expectContains(nativeShim, "if (character == QLatin1Char('|') && !isEscapedMarkdownCharacter(line, index))")
         expectContains(nativeShim, "bool parseMarkdownTable(const QStringList &lines, int startIndex, MarkdownBlock *block, int *endIndex)")
         expectContains(nativeShim, "if (parseMarkdownTable(lines, lineIndex, &tableBlock, &tableEndIndex))")
         expectContains(nativeShim, "QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown)")
@@ -2954,6 +2957,11 @@ private let blockCases: [BlockCase] = [
         markdown: "| Name | Value |\n| --- | --- |\n| Status | Ready |",
         kind: .table(headers: ["Name", "Value"], rows: [["Status", "Ready"]]),
         text: "Name | Value\nStatus | Ready"
+    ),
+    BlockCase(
+        markdown: "| Name \\| Alias | Snippet | Value |\n| --- | --- | --- |\n| QuillUI | `a | b` | Ready |",
+        kind: .table(headers: ["Name | Alias", "Snippet", "Value"], rows: [["QuillUI", "a | b", "Ready"]]),
+        text: "Name | Alias | Snippet | Value\nQuillUI | a | b | Ready"
     ),
     BlockCase(markdown: "- Item", kind: .unorderedListItem, text: "Item"),
     BlockCase(markdown: "* Item", kind: .unorderedListItem, text: "Item"),
