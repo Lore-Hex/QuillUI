@@ -223,7 +223,19 @@ private func runCurlStream(
     var buffer = Data()
     var sawDone = false
     var totalBytes = 0
-    var contentLines = 0
+    var parsedEvents = 0
+    var yieldedContentChunks = 0
+    var didWaitForExit = false
+
+    defer {
+        if process.isRunning {
+            process.terminate()
+        }
+        if !didWaitForExit {
+            process.waitUntilExit()
+        }
+        try? FileManager.default.removeItem(at: requestFileURL)
+    }
 
     // Read with explicit byte-count semantics rather than relying on
     // availableData. On Linux Foundation availableData has historically
@@ -246,9 +258,17 @@ private func runCurlStream(
             buffer.removeSubrange(...newlineIndex)
             let line = String(decoding: lineData, as: UTF8.self)
             do {
-                let lineFinished = try handleStreamLine(line, continuation: continuation)
-                sawDone = lineFinished || sawDone
-                contentLines += 1
+                if let event = try handleStreamLine(line, continuation: continuation) {
+                    parsedEvents += 1
+                    switch event {
+                    case .content:
+                        yieldedContentChunks += 1
+                    case .done:
+                        sawDone = true
+                    case .error:
+                        break
+                    }
+                }
             } catch {
                 ollamaLog("malformedStream while parsing: \(line.prefix(200))")
                 throw error
@@ -258,14 +278,27 @@ private func runCurlStream(
 
     if !buffer.isEmpty && !sawDone {
         let line = String(decoding: buffer, as: UTF8.self)
-        _ = try handleStreamLine(line, continuation: continuation)
+        if let event = try handleStreamLine(line, continuation: continuation) {
+            parsedEvents += 1
+            switch event {
+            case .content:
+                yieldedContentChunks += 1
+            case .done:
+                sawDone = true
+            case .error:
+                break
+            }
+        }
     }
 
     process.waitUntilExit()
+    didWaitForExit = true
     let stderrText = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-    try? FileManager.default.removeItem(at: requestFileURL)
 
-    ollamaLog("streamChat finished: exit=\(process.terminationStatus) bytes=\(totalBytes) lines=\(contentLines) sawDone=\(sawDone)")
+    ollamaLog(
+        "streamChat finished: exit=\(process.terminationStatus) bytes=\(totalBytes) "
+        + "events=\(parsedEvents) contentChunks=\(yieldedContentChunks) sawDone=\(sawDone)"
+    )
 
     if process.terminationStatus != 0 {
         // curl exited non-zero. Without --fail-with-body the body may
@@ -275,18 +308,18 @@ private func runCurlStream(
         let errorBody = stderrText.quillTrimmedNonEmpty
             ?? "curl exited \(process.terminationStatus) with no stderr"
         ollamaLog("streamChat curl-error: \(errorBody)")
-        if contentLines == 0 {
+        if parsedEvents == 0 {
             throw OllamaClientError.server(Int(process.terminationStatus), errorBody)
         }
     }
 
     // If curl exited cleanly but the parser never saw a content or done
-    // line, that's a silent-empty-stream — historically this caused the
-    // assistant message to stay blank with no error. Surface it
-    // explicitly so the UI can show something useful.
-    if contentLines == 0 {
+    // event, that's a silent-empty-stream. Blank/keepalive lines are not
+    // enough to create a useful assistant response, so surface this
+    // explicitly instead of completing as an empty message.
+    if parsedEvents == 0 {
         throw OllamaClientError.streamingUnavailable(
-            "Ollama stream returned no NDJSON lines (\(totalBytes) bytes total). "
+            "Ollama stream returned no NDJSON events (\(totalBytes) bytes total). "
             + "Check that the model is loaded: `ollama run <model>` once to warm it up."
         )
     }
@@ -298,17 +331,17 @@ private func runCurlStream(
 private func handleStreamLine(
     _ line: String,
     continuation: AsyncThrowingStream<String, Error>.Continuation
-) throws -> Bool {
+) throws -> OllamaStreamEvent? {
     guard let event = try OllamaStreamParser.parseLine(line) else {
-        return false
+        return nil
     }
 
     switch event {
     case .content(let content):
         continuation.yield(content)
-        return false
+        return event
     case .done:
-        return true
+        return event
     case .error(let message):
         throw OllamaClientError.server(500, message)
     }

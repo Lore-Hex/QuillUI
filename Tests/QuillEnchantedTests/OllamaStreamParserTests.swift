@@ -33,6 +33,24 @@ struct OllamaStreamParserTests {
         #expect(try OllamaStreamParser.parseLine(line) == .done)
     }
 
+    @Test("extracts server error chunks")
+    func extractsServerErrorChunks() throws {
+        let line = #"{"error":"model \"llama3\" not found"}"#
+        #expect(try OllamaStreamParser.parseLine(line) == .error(#"model "llama3" not found"#))
+    }
+
+    @Test("ignores metadata-only chunks")
+    func ignoresMetadataOnlyChunks() throws {
+        let line = #"{"created_at":"2026-05-20T00:00:00Z","done":false}"#
+        #expect(try OllamaStreamParser.parseLine(line) == nil)
+    }
+
+    @Test("trims surrounding stream whitespace")
+    func trimsSurroundingStreamWhitespace() throws {
+        let line = "\r\n  " + #"{"message":{"role":"assistant","content":"Hi"},"done":false}"# + "  \r\n"
+        #expect(try OllamaStreamParser.parseLine(line) == .content("Hi"))
+    }
+
     @Test("ignores empty lines")
     func ignoresEmptyLines() throws {
         #expect(try OllamaStreamParser.parseLine("   ") == nil)
