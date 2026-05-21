@@ -219,6 +219,8 @@ struct MarkdownRenderingTests {
         #expect(MarkdownParser.cleanInline("![Preview](file:///tmp/preview.png)") == "Preview (file:///tmp/preview.png)")
         #expect(MarkdownParser.cleanInline("Status [](/health)") == "Status (/health)")
         #expect(MarkdownParser.cleanInline("Drop ![](file:///tmp/chart.png)") == "Drop (file:///tmp/chart.png)")
+        #expect(MarkdownParser.cleanInline("[Swift Array](https://developer.apple.com/documentation/swift/Array(_:))") == "Swift Array (https://developer.apple.com/documentation/swift/Array(_:))")
+        #expect(MarkdownParser.cleanInline("![Chart](assets/chart(size).png)") == "Chart (assets/chart(size).png)")
         #expect(MarkdownParser.cleanInline("Use *local* and _remote_ models") == "Use local and remote models")
         #expect(MarkdownParser.cleanInline("Keep a literal * marker") == "Keep a literal * marker")
     }

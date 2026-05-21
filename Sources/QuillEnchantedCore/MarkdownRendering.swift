@@ -128,20 +128,94 @@ enum MarkdownParser {
     }
 
     private static func replaceLinks(in text: String) -> String {
-        let pattern = #"!?\[([^\]]*)\]\(([^)]+)\)"#
-        guard let expression = try? NSRegularExpression(pattern: pattern) else { return text }
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        let mutableText = NSMutableString(string: text)
-        let originalText = text as NSString
+        var result = ""
+        var index = text.startIndex
 
-        for match in expression.matches(in: text, range: range).reversed() {
-            let label = originalText.substring(with: match.range(at: 1))
-            let destination = originalText.substring(with: match.range(at: 2))
-            let replacement = label.isEmpty ? "(\(destination))" : "\(label) (\(destination))"
-            mutableText.replaceCharacters(in: match.range, with: replacement)
+        while index < text.endIndex {
+            if let replacement = markdownLinkReplacement(in: text, at: index) {
+                result += replacement.text
+                index = replacement.endIndex
+            } else {
+                result.append(text[index])
+                index = text.index(after: index)
+            }
         }
 
-        return String(mutableText)
+        return result
+    }
+
+    private static func markdownLinkReplacement(
+        in text: String,
+        at index: String.Index
+    ) -> (text: String, endIndex: String.Index)? {
+        var labelStart = index
+        if text[labelStart] == "!" {
+            labelStart = text.index(after: labelStart)
+            guard labelStart < text.endIndex else { return nil }
+        }
+
+        guard text[labelStart] == "[" else { return nil }
+        let labelContentStart = text.index(after: labelStart)
+        guard let labelEnd = closingBracket(in: text, from: labelContentStart) else { return nil }
+
+        let destinationStartMarker = text.index(after: labelEnd)
+        guard destinationStartMarker < text.endIndex, text[destinationStartMarker] == "(" else {
+            return nil
+        }
+
+        let destinationStart = text.index(after: destinationStartMarker)
+        guard let destinationEnd = closingParenthesis(in: text, from: destinationStart) else {
+            return nil
+        }
+
+        let label = String(text[labelContentStart..<labelEnd])
+        let destination = String(text[destinationStart..<destinationEnd])
+        let replacement = label.isEmpty ? "(\(destination))" : "\(label) (\(destination))"
+        return (replacement, text.index(after: destinationEnd))
+    }
+
+    private static func closingBracket(in text: String, from start: String.Index) -> String.Index? {
+        var index = start
+        var escaped = false
+
+        while index < text.endIndex {
+            let character = text[index]
+            if escaped {
+                escaped = false
+            } else if character == "\\" {
+                escaped = true
+            } else if character == "]" {
+                return index
+            }
+            index = text.index(after: index)
+        }
+
+        return nil
+    }
+
+    private static func closingParenthesis(in text: String, from start: String.Index) -> String.Index? {
+        var index = start
+        var depth = 0
+        var escaped = false
+
+        while index < text.endIndex {
+            let character = text[index]
+            if escaped {
+                escaped = false
+            } else if character == "\\" {
+                escaped = true
+            } else if character == "(" {
+                depth += 1
+            } else if character == ")" {
+                if depth == 0 {
+                    return index
+                }
+                depth -= 1
+            }
+            index = text.index(after: index)
+        }
+
+        return nil
     }
 
     private static func removePairedSingleMarkers(in text: String, marker: Character) -> String {
