@@ -749,6 +749,115 @@ final class SecurityKeychainParityTests: XCTestCase {
         XCTAssertTrue(storedResult is SecKey)
     }
 
+    func testSecKeyCopyKeyExchangeResultSynthesizesSymmetricECDHMaterial() {
+        let aliceTag = Data("org.signal.ecdh.alice.\(UUID().uuidString)".utf8)
+        let bobTag = Data("org.signal.ecdh.bob.\(UUID().uuidString)".utf8)
+        let baseParameters: [CFString: Any] = [
+            kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
+            kSecAttrKeySizeInBits: 256
+        ]
+        defer {
+            _ = SecItemDelete(cfDictionary([kSecClass: kSecClassKey, kSecAttrApplicationTag: aliceTag]))
+            _ = SecItemDelete(cfDictionary([kSecClass: kSecClassKey, kSecAttrApplicationTag: bobTag]))
+        }
+
+        guard let alicePrivate = SecKeyCreateRandomKey(cfDictionary(merged(baseParameters, [
+            kSecPrivateKeyAttrs: [
+                kSecAttrApplicationTag: aliceTag,
+                kSecAttrIsPermanent: true
+            ] as NSDictionary
+        ])), nil),
+        let bobPrivate = SecKeyCreateRandomKey(cfDictionary(merged(baseParameters, [
+            kSecPrivateKeyAttrs: [
+                kSecAttrApplicationTag: bobTag,
+                kSecAttrIsPermanent: true
+            ] as NSDictionary
+        ])), nil),
+        let alicePublic = SecKeyCopyPublicKey(alicePrivate),
+        let bobPublic = SecKeyCopyPublicKey(bobPrivate) else {
+            XCTFail("Generated EC keys should support key exchange setup")
+            return
+        }
+
+        XCTAssertEqual(bool(from: secKeyAttributes(alicePrivate)?[string(kSecAttrCanDerive)]), true)
+        XCTAssertEqual(bool(from: secKeyAttributes(bobPrivate)?[string(kSecAttrCanDerive)]), true)
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(alicePrivate, .keyExchange, kSecKeyAlgorithmECDHKeyExchangeStandard))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(alicePublic, .keyExchange, kSecKeyAlgorithmECDHKeyExchangeStandard))
+
+        let emptyParameters = cfDictionary([:])
+        let aliceSecret = data(from: SecKeyCopyKeyExchangeResult(
+            alicePrivate,
+            kSecKeyAlgorithmECDHKeyExchangeStandard,
+            bobPublic,
+            emptyParameters,
+            nil
+        ))
+        let bobSecret = data(from: SecKeyCopyKeyExchangeResult(
+            bobPrivate,
+            kSecKeyAlgorithmECDHKeyExchangeStandard,
+            alicePublic,
+            emptyParameters,
+            nil
+        ))
+        XCTAssertEqual(aliceSecret?.count, 32)
+        XCTAssertEqual(aliceSecret, bobSecret)
+
+        let sizedParameters = cfDictionary([kSecKeyKeyExchangeParameterRequestedSize: 48])
+        let aliceSizedSecret = data(from: SecKeyCopyKeyExchangeResult(
+            alicePrivate,
+            kSecKeyAlgorithmECDHKeyExchangeStandard,
+            bobPublic,
+            sizedParameters,
+            nil
+        ))
+        let bobSizedSecret = data(from: SecKeyCopyKeyExchangeResult(
+            bobPrivate,
+            kSecKeyAlgorithmECDHKeyExchangeStandard,
+            alicePublic,
+            sizedParameters,
+            nil
+        ))
+        XCTAssertEqual(aliceSizedSecret?.count, 48)
+        XCTAssertEqual(aliceSizedSecret, bobSizedSecret)
+        XCTAssertNotEqual(aliceSizedSecret.map { Data($0.prefix(32)) }, aliceSecret)
+
+        let sharedInfoParameters = cfDictionary([
+            kSecKeyKeyExchangeParameterSharedInfo: Data("signal-handshake".utf8) as NSData
+        ])
+        let aliceSharedInfoSecret = data(from: SecKeyCopyKeyExchangeResult(
+            alicePrivate,
+            kSecKeyAlgorithmECDHKeyExchangeStandardX963SHA256,
+            bobPublic,
+            sharedInfoParameters,
+            nil
+        ))
+        let bobSharedInfoSecret = data(from: SecKeyCopyKeyExchangeResult(
+            bobPrivate,
+            kSecKeyAlgorithmECDHKeyExchangeStandardX963SHA256,
+            alicePublic,
+            sharedInfoParameters,
+            nil
+        ))
+        XCTAssertEqual(aliceSharedInfoSecret?.count, 32)
+        XCTAssertEqual(aliceSharedInfoSecret, bobSharedInfoSecret)
+        XCTAssertNotEqual(aliceSharedInfoSecret, aliceSecret)
+
+        XCTAssertNil(SecKeyCopyKeyExchangeResult(
+            alicePublic,
+            kSecKeyAlgorithmECDHKeyExchangeStandard,
+            bobPublic,
+            emptyParameters,
+            nil
+        ))
+        XCTAssertNil(SecKeyCopyKeyExchangeResult(
+            alicePrivate,
+            kSecKeyAlgorithmRSAEncryptionPKCS1,
+            bobPublic,
+            emptyParameters,
+            nil
+        ))
+    }
+
     func testSecKeyGeneratePairReturnsClassedKeysAndStoresPermanentRows() {
         let privateTag = Data("org.signal.generated-pair.private.\(UUID().uuidString)".utf8)
         let publicTag = Data("org.signal.generated-pair.public.\(UUID().uuidString)".utf8)

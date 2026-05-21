@@ -47,6 +47,7 @@ public final class SecKey: @unchecked Sendable {
 
 public typealias SecKeyRef = SecKey
 public typealias SecKeyAlgorithm = CFString
+public typealias SecKeyKeyExchangeParameter = CFString
 
 public enum SecKeyOperationType: Int, Sendable {
     case sign
@@ -154,6 +155,8 @@ public let kSecKeyAlgorithmECDSASignatureDigestX962SHA256: CFString = "algid:sig
 public let kSecKeyAlgorithmECDHKeyExchangeStandard: CFString = "algid:keyexchange:ECDH:standard" as CFString
 public let kSecKeyAlgorithmECDHKeyExchangeStandardX963SHA256: CFString = "algid:keyexchange:ECDH:standard-X963:SHA256" as CFString
 public let kSecKeyAlgorithmRSAEncryptionPKCS1: CFString = "algid:encrypt:RSA:PKCS1" as CFString
+public let kSecKeyKeyExchangeParameterRequestedSize: CFString = "requestedSize" as CFString
+public let kSecKeyKeyExchangeParameterSharedInfo: CFString = "sharedInfo" as CFString
 
 public let kSecAttrProtocolFTP: CFString = "ftp " as CFString
 public let kSecAttrProtocolFTPAccount: CFString = "ftpa" as CFString
@@ -381,6 +384,27 @@ public func SecKeyVerifySignature(
     return synthesizedECDSASignatureData(for: key, algorithm: algorithm, payload: payload) == signatureData
 }
 
+public func SecKeyCopyKeyExchangeResult(
+    _ privateKey: SecKey,
+    _ algorithm: SecKeyAlgorithm,
+    _ publicKey: SecKey,
+    _ parameters: CFDictionary,
+    _ error: UnsafeMutablePointer<CFError?>?
+) -> CFData? {
+    error?.pointee = nil
+    guard SecKeyIsAlgorithmSupported(privateKey, .keyExchange, algorithm),
+          secKeyCanActAsECDHPublicPeer(publicKey) else {
+        return nil
+    }
+
+    return synthesizedECDHKeyExchangeData(
+        privateKey: privateKey,
+        algorithm: algorithm,
+        publicKey: publicKey,
+        parameters: secDictionary(parameters)
+    ) as NSData as CFData
+}
+
 public func SecKeyIsAlgorithmSupported(_ key: SecKey, _ operation: SecKeyOperationType, _ algorithm: SecKeyAlgorithm) -> Bool {
     let attributes = key.copyAttributes()
     let algorithmName = secString(algorithm)
@@ -456,6 +480,12 @@ private func secKeySupportsECDH(_ attributes: [String: Any], operation: SecKeyOp
     return secKeyType(attributes) == secString(kSecAttrKeyTypeECSECPrimeRandom)
         && secKeyClass(attributes) == secString(kSecAttrKeyClassPrivate)
         && boolValue(attributes[secKey(kSecAttrCanDerive)])
+}
+
+private func secKeyCanActAsECDHPublicPeer(_ key: SecKey) -> Bool {
+    let attributes = key.copyAttributes()
+    return secKeyType(attributes) == secString(kSecAttrKeyTypeECSECPrimeRandom)
+        && secKeyClass(attributes) != secString(kSecAttrKeyClassSymmetric)
 }
 
 private func secKeySupportsRSAEncryption(_ attributes: [String: Any], operation: SecKeyOperationType) -> Bool {
@@ -894,6 +924,9 @@ private func generatedKeyAttributes(from parameters: [String: Any], keyClass: CF
     } else {
         attributes[secKey(kSecAttrCanSign)] = attributes[secKey(kSecAttrCanSign)] ?? true
         attributes[secKey(kSecAttrCanDecrypt)] = attributes[secKey(kSecAttrCanDecrypt)] ?? true
+        if stringValue(attributes[secKey(kSecAttrKeyType)]) == secString(kSecAttrKeyTypeECSECPrimeRandom) {
+            attributes[secKey(kSecAttrCanDerive)] = attributes[secKey(kSecAttrCanDerive)] ?? true
+        }
     }
 
     return attributes
@@ -954,6 +987,54 @@ private func synthesizedECDSASignatureData(for key: SecKey, algorithm: SecKeyAlg
     return deterministicSecKeyDigest(seed, byteCount: 64)
 }
 
+private func synthesizedECDHKeyExchangeData(
+    privateKey: SecKey,
+    algorithm: SecKeyAlgorithm,
+    publicKey: SecKey,
+    parameters: [String: Any]
+) -> Data {
+    let privateIdentity = secKeyPublicIdentityData(for: privateKey)
+    let publicIdentity = secKeyPublicIdentityData(for: publicKey)
+    let orderedIdentities = orderedSecKeyIdentities(privateIdentity, publicIdentity)
+
+    var seed = Data(secString(algorithm).utf8)
+    seed.append(0)
+    seed.append(orderedIdentities.0)
+    seed.append(0)
+    seed.append(orderedIdentities.1)
+
+    if let sharedInfo = dataValue(parameters[secKey(kSecKeyKeyExchangeParameterSharedInfo)]) {
+        seed.append(0xFE)
+        seed.append(sharedInfo)
+    }
+
+    let requestedSizeParameter = intValue(parameters[secKey(kSecKeyKeyExchangeParameterRequestedSize)])
+    if let requestedSizeParameter {
+        seed.append(0xFD)
+        seed.append(contentsOf: String(requestedSizeParameter).utf8)
+    }
+
+    return deterministicSecKeyDigest(seed, byteCount: max(1, requestedSizeParameter ?? 32))
+}
+
+private func orderedSecKeyIdentities(_ lhs: Data, _ rhs: Data) -> (Data, Data) {
+    if dataPrecedes(lhs, rhs) {
+        return (lhs, rhs)
+    }
+    return (rhs, lhs)
+}
+
+private func dataPrecedes(_ lhs: Data, _ rhs: Data) -> Bool {
+    let lhsBytes = Array(lhs)
+    let rhsBytes = Array(rhs)
+    for index in 0..<min(lhsBytes.count, rhsBytes.count) {
+        if lhsBytes[index] != rhsBytes[index] {
+            return lhsBytes[index] < rhsBytes[index]
+        }
+    }
+    return lhsBytes.count < rhsBytes.count
+}
+
 private func secKeyPublicIdentityData(for key: SecKey) -> Data {
     let attributes = key.copyAttributes()
     if secKeyClass(attributes) == secString(kSecAttrKeyClassPrivate) {
@@ -963,7 +1044,7 @@ private func secKeyPublicIdentityData(for key: SecKey) -> Data {
 }
 
 // Deterministic compatibility material for Linux source paths. This is not
-// cryptographic ECDSA and must be replaced before production signature use.
+// cryptographic ECDSA/ECDH and must be replaced before production crypto use.
 private func deterministicSecKeyDigest(_ seed: Data, byteCount: Int) -> Data {
     guard byteCount > 0 else {
         return Data()
