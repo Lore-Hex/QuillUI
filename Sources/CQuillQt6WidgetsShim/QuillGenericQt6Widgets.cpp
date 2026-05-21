@@ -15,6 +15,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSize>
+#include <QSizePolicy>
 #include <QSplitter>
 #include <QString>
 #include <QVBoxLayout>
@@ -246,6 +247,7 @@ QListWidget *listWidget(const QJsonArray &items, int selectedIndex) {
     list->setObjectName(QStringLiteral("itemList"));
     applyAccessibleText(list, QStringLiteral("App items"), QStringLiteral("App items"));
     list->setSpacing(4);
+    list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     for (const QJsonValue &value : items) {
         const QJsonObject item = value.toObject();
@@ -272,6 +274,9 @@ QWidget *sidebarWidget(const QJsonObject &payload, QListWidget *list) {
     const QString sidebarSummary = accessibilitySummary(sidebarTitle, sidebarSubtitle);
 
     QFrame *sidebar = QuillQtWidgets::frame(QStringLiteral("sidebar"));
+    const int sidebarWidth = intValue(payload, "sidebarWidth", 320);
+    sidebar->setMinimumWidth(sidebarWidth);
+    sidebar->setMaximumWidth(sidebarWidth);
     applyAccessibleText(sidebar, sidebarTitle, sidebarSummary);
     QVBoxLayout *layout = new QVBoxLayout(sidebar);
     layout->setContentsMargins(18, 18, 18, 18);
@@ -285,11 +290,17 @@ QWidget *sidebarWidget(const QJsonObject &payload, QListWidget *list) {
     layout->addWidget(subtitle);
 
     QHBoxLayout *actions = new QHBoxLayout();
+    actions->setContentsMargins(0, 0, 0, 0);
+    actions->setSpacing(8);
     QPushButton *primary = new QPushButton(primaryActionTitle);
     primary->setObjectName(QStringLiteral("primaryButton"));
+    primary->setMinimumHeight(36);
+    primary->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     applyAccessibleText(primary, primaryActionTitle, primaryActionTitle);
     QPushButton *secondary = new QPushButton(secondaryActionTitle);
     secondary->setObjectName(QStringLiteral("secondaryButton"));
+    secondary->setMinimumHeight(36);
+    secondary->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     applyAccessibleText(secondary, secondaryActionTitle, secondaryActionTitle);
     actions->addWidget(primary);
     actions->addWidget(secondary);
@@ -406,6 +417,7 @@ QWidget *scrollWrapped(QWidget *child) {
     QScrollArea *scroll = new QScrollArea();
     applyAccessibleText(scroll, child->accessibleName(), child->accessibleDescription());
     scroll->setWidgetResizable(true);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scroll->setWidget(child);
     return scroll;
 }
