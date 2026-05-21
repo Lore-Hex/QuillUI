@@ -1487,9 +1487,6 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
         flushParagraph();
     }
 
-    if (blocks.isEmpty()) {
-        appendBlock(MarkdownBlockKind::Paragraph, QString());
-    }
     return blocks;
 }
 
@@ -1554,7 +1551,13 @@ QWidget *markdownCodeBlockWidget(const MarkdownBlock &block, const QJsonObject &
 }
 
 void addMarkdownBlocks(QVBoxLayout *layout, const QString &markdown, const QJsonObject &style) {
-    const QList<MarkdownBlock> blocks = parseMarkdownBlocks(markdown);
+    QList<MarkdownBlock> blocks = parseMarkdownBlocks(markdown);
+    if (blocks.isEmpty()) {
+        MarkdownBlock emptyParagraph;
+        emptyParagraph.kind = MarkdownBlockKind::Paragraph;
+        blocks.append(emptyParagraph);
+    }
+
     for (const MarkdownBlock &block : blocks) {
         switch (block.kind) {
         case MarkdownBlockKind::Heading:

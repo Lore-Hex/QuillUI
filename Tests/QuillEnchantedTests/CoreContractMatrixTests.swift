@@ -1993,8 +1993,15 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "int markdownFenceMarkerCount(const QString &line, const QChar marker)")
         expectContains(nativeShim, "closingCount < fence.markerCount")
         expectContains(nativeShim, "QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown)")
+        expectContains(nativeShim, "if (!line.at(markerCount).isSpace())")
+        expectContains(nativeShim, "if (!line.at(1).isSpace())")
+        expectContains(nativeShim, "if (textStart >= line.size() || !line.at(textStart).isSpace())")
         expectContains(nativeShim, "const QString quoteText = line.mid(1).trimmed()")
         expectContains(nativeShim, "if (quoteText.isEmpty())")
+        expectContains(nativeShim, "QList<MarkdownBlock> blocks = parseMarkdownBlocks(markdown)")
+        expectContains(nativeShim, "MarkdownBlock emptyParagraph")
+        expectContains(nativeShim, "blocks.append(emptyParagraph)")
+        expectDoesNotContain(nativeShim, "appendBlock(MarkdownBlockKind::Paragraph, QString())")
         expectContains(nativeShim, "QLabel#markdownHeading1")
         expectContains(nativeShim, "QFrame#markdownQuoteRule")
         expectContains(nativeShim, "QFrame#markdownCodeBlock")
@@ -2800,6 +2807,9 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: "42. Item", kind: .orderedListItem(number: 42), text: "Item"),
     BlockCase(markdown: "> Quoted", kind: .quote, text: "Quoted"),
     BlockCase(markdown: ">\nFollow-up", kind: .paragraph, text: "> Follow-up"),
+    BlockCase(markdown: "#Heading\nNext", kind: .paragraph, text: "#Heading Next"),
+    BlockCase(markdown: "-Item\nNext", kind: .paragraph, text: "-Item Next"),
+    BlockCase(markdown: "1.Item\nNext", kind: .paragraph, text: "1.Item Next"),
     BlockCase(markdown: "````swift\n```swift\nlet value = 1\n````", kind: .codeBlock(language: "swift"), text: "```swift\nlet value = 1"),
     BlockCase(markdown: "Plain paragraph", kind: .paragraph, text: "Plain paragraph")
 ] + (0..<40).map { index in

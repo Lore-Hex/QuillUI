@@ -12,6 +12,12 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("keeps blank parser output empty")
+    func keepsBlankParserOutputEmpty() {
+        #expect(MarkdownParser.parse("").isEmpty)
+        #expect(MarkdownParser.parse(" \n\t ").isEmpty)
+    }
+
     @Test("parses headings and list items")
     func parsesStructuralBlocks() {
         let blocks = MarkdownParser.parse("""
@@ -26,6 +32,19 @@ struct MarkdownRenderingTests {
             MarkdownBlock(id: 1, kind: .unorderedListItem, text: "Build the shim"),
             MarkdownBlock(id: 2, kind: .orderedListItem(number: 2), text: "Verify Linux"),
             MarkdownBlock(id: 3, kind: .quote, text: "Keep it native")
+        ])
+    }
+
+    @Test("keeps malformed markers as paragraph text")
+    func keepsMalformedMarkersAsParagraphText() {
+        let blocks = MarkdownParser.parse("""
+        #Heading
+        -Item
+        1.Item
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "#Heading -Item 1.Item")
         ])
     }
 
