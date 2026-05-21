@@ -52,6 +52,29 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("parses thematic breaks")
+    func parsesThematicBreaks() {
+        let blocks = MarkdownParser.parse("""
+        Before
+
+        ---
+
+        * * *
+
+        _ _ _
+
+        After
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "Before"),
+            MarkdownBlock(id: 1, kind: .divider, text: ""),
+            MarkdownBlock(id: 2, kind: .divider, text: ""),
+            MarkdownBlock(id: 3, kind: .divider, text: ""),
+            MarkdownBlock(id: 4, kind: .paragraph, text: "After")
+        ])
+    }
+
     @Test("keeps malformed markers as paragraph text")
     func keepsMalformedMarkersAsParagraphText() {
         let blocks = MarkdownParser.parse("""

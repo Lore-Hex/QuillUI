@@ -1995,6 +1995,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "closingCount < fence.markerCount")
         expectContains(nativeShim, "int setextMarkdownHeadingLevel(const QString &rawLine)")
         expectContains(nativeShim, "appendBlock(MarkdownBlockKind::Heading, headingText, setextLevel)")
+        expectContains(nativeShim, "bool isMarkdownThematicBreak(const QString &rawLine)")
+        expectContains(nativeShim, "appendBlock(MarkdownBlockKind::Divider, QString())")
         expectContains(nativeShim, "QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown)")
         expectContains(nativeShim, "if (!line.at(markerCount).isSpace())")
         expectContains(nativeShim, "if (!line.at(1).isSpace())")
@@ -2009,6 +2011,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QFrame#markdownQuoteRule")
         expectContains(nativeShim, "QFrame#markdownCodeBlock")
         expectContains(nativeShim, "QFrame#markdownQuoteRule { background: %1; border-radius: %3; }")
+        expectContains(nativeShim, "QFrame#markdownDivider { background: %1; border-radius: %3; }")
         expectContains(nativeShim, "QFrame#markdownCodeBlock { background: %2; border-radius: %4; }")
         expectContains(nativeShim, ".arg(quoteRule, codeBlock, markdownQuoteRuleRadius, markdownCodeBlockRadius)")
         expectContains(nativeShim, "const int markdownListItemSpacing = styleInt(style, \"markdownListItemSpacing\")")
@@ -2021,6 +2024,9 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "const int markdownQuoteRuleWidth = styleInt(style, \"markdownQuoteRuleWidth\")")
         expectContains(nativeShim, "layout->setSpacing(markdownQuoteSpacing)")
         expectContains(nativeShim, "rule->setFixedWidth(markdownQuoteRuleWidth)")
+        expectContains(nativeShim, "QWidget *markdownDividerWidget(const QJsonObject &style)")
+        expectContains(nativeShim, "rule->setFixedHeight(markdownQuoteRuleWidth)")
+        expectContains(nativeShim, "rule->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed)")
         expectContains(nativeShim, "const int codeBlockPadding = styleInt(style, \"markdownCodeBlockPadding\")")
         expectContains(nativeShim, "layout->setContentsMargins(codeBlockPadding, codeBlockPadding, codeBlockPadding, codeBlockPadding)")
         expectContains(nativeShim, "const int markdownCodeBlockSpacing = styleInt(style, \"markdownCodeBlockSpacing\")")
@@ -2143,6 +2149,8 @@ struct CoreContractMatrixTests {
         expectContains(macOSMarkdownRendering, "EnchantedVisualMetrics.markdownQuoteSpacing")
         expectContains(macOSMarkdownRendering, "EnchantedVisualMetrics.markdownQuoteRuleWidth")
         expectContains(macOSMarkdownRendering, "EnchantedVisualMetrics.markdownQuoteVerticalPadding")
+        expectContains(macOSMarkdownRendering, "case .divider")
+        expectContains(macOSMarkdownRendering, "Rectangle()")
         expectContains(macOSMarkdownRendering, "EnchantedVisualMetrics.markdownCodeBlockSpacing")
         expectContains(macOSMarkdownRendering, "EnchantedVisualMetrics.markdownCodeBlockPadding")
         expectContains(macOSMarkdownRendering, "EnchantedVisualMetrics.markdownCodeBlockRadius")
@@ -2806,6 +2814,9 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: "Overview\n===", kind: .heading(level: 1), text: "Overview"),
     BlockCase(markdown: "Details\n---", kind: .heading(level: 2), text: "Details"),
     BlockCase(markdown: "A **bold**\nheading\n---", kind: .heading(level: 2), text: "A bold heading"),
+    BlockCase(markdown: "---", kind: .divider, text: ""),
+    BlockCase(markdown: "* * *", kind: .divider, text: ""),
+    BlockCase(markdown: "_ _ _", kind: .divider, text: ""),
     BlockCase(markdown: "- Item", kind: .unorderedListItem, text: "Item"),
     BlockCase(markdown: "* Item", kind: .unorderedListItem, text: "Item"),
     BlockCase(markdown: "+ Item", kind: .unorderedListItem, text: "Item"),

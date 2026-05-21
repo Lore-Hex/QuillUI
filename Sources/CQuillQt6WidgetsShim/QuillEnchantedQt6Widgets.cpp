@@ -772,6 +772,7 @@ QString appStyleSheet(const QJsonObject &style) {
 
     sheet += QStringLiteral(R"(
         QFrame#markdownQuoteRule { background: %1; border-radius: %3; }
+        QFrame#markdownDivider { background: %1; border-radius: %3; }
         QFrame#markdownCodeBlock { background: %2; border-radius: %4; }
     )")
         .arg(quoteRule, codeBlock, markdownQuoteRuleRadius, markdownCodeBlockRadius);
@@ -1229,6 +1230,7 @@ enum class MarkdownBlockKind {
     UnorderedListItem,
     OrderedListItem,
     Quote,
+    Divider,
     CodeBlock
 };
 
@@ -1355,6 +1357,29 @@ int setextMarkdownHeadingLevel(const QString &rawLine) {
     }
 
     return marker == QLatin1Char('=') ? 1 : 2;
+}
+
+bool isMarkdownThematicBreak(const QString &rawLine) {
+    const QString line = rawLine.trimmed();
+    if (line.isEmpty()) {
+        return false;
+    }
+
+    const QChar marker = line.at(0);
+    if (marker != QLatin1Char('-') && marker != QLatin1Char('*') && marker != QLatin1Char('_')) {
+        return false;
+    }
+
+    int markerCount = 0;
+    for (const QChar character : line) {
+        if (character == marker) {
+            markerCount += 1;
+        } else if (!character.isSpace()) {
+            return false;
+        }
+    }
+
+    return markerCount >= 3;
 }
 
 bool parseUnorderedListLine(const QString &line, QString *text) {
@@ -1488,6 +1513,9 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
         if (parseHeadingLine(line, &level, &text)) {
             flushParagraph();
             appendBlock(MarkdownBlockKind::Heading, text, level);
+        } else if (isMarkdownThematicBreak(line)) {
+            flushParagraph();
+            appendBlock(MarkdownBlockKind::Divider, QString());
         } else if (parseUnorderedListLine(line, &text)) {
             flushParagraph();
             appendBlock(MarkdownBlockKind::UnorderedListItem, text);
@@ -1569,6 +1597,21 @@ QWidget *markdownQuoteWidget(const QString &text, const QJsonObject &style) {
     return row;
 }
 
+QWidget *markdownDividerWidget(const QJsonObject &style) {
+    QWidget *container = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(container);
+    const int verticalPadding = styleInt(style, "markdownQuoteVerticalPadding");
+    const int markdownQuoteRuleWidth = styleInt(style, "markdownQuoteRuleWidth");
+    layout->setContentsMargins(0, verticalPadding, 0, verticalPadding);
+    layout->setSpacing(0);
+
+    QFrame *rule = QuillQtWidgets::frame(QStringLiteral("markdownDivider"));
+    rule->setFixedHeight(markdownQuoteRuleWidth);
+    rule->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    layout->addWidget(rule);
+    return container;
+}
+
 QWidget *markdownCodeBlockWidget(const MarkdownBlock &block, const QJsonObject &style) {
     QFrame *codeBlock = QuillQtWidgets::frame(QStringLiteral("markdownCodeBlock"));
     QVBoxLayout *layout = new QVBoxLayout(codeBlock);
@@ -1621,6 +1664,9 @@ void addMarkdownBlocks(QVBoxLayout *layout, const QString &markdown, const QJson
             break;
         case MarkdownBlockKind::Quote:
             layout->addWidget(markdownQuoteWidget(block.text, style));
+            break;
+        case MarkdownBlockKind::Divider:
+            layout->addWidget(markdownDividerWidget(style));
             break;
         case MarkdownBlockKind::CodeBlock:
             layout->addWidget(markdownCodeBlockWidget(block, style));

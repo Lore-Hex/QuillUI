@@ -8,6 +8,7 @@ enum MarkdownBlockKind: Equatable, Sendable {
     case unorderedListItem
     case orderedListItem(number: Int)
     case quote
+    case divider
     case codeBlock(language: String?)
 }
 
@@ -73,6 +74,9 @@ enum MarkdownParser {
             if let heading = heading(in: line) {
                 flushParagraph()
                 appendBlock(kind: .heading(level: heading.level), text: cleanInline(heading.text))
+            } else if thematicBreak(in: line) {
+                flushParagraph()
+                appendBlock(kind: .divider, text: "")
             } else if let item = unorderedListItem(in: line) {
                 flushParagraph()
                 appendBlock(kind: .unorderedListItem, text: cleanInline(item))
@@ -147,6 +151,22 @@ enum MarkdownParser {
         guard underline.allSatisfy({ $0 == marker }) else { return nil }
 
         return marker == "=" ? 1 : 2
+    }
+
+    private static func thematicBreak(in line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard let marker = trimmed.first, marker == "-" || marker == "*" || marker == "_" else { return false }
+
+        var markerCount = 0
+        for character in trimmed {
+            if character == marker {
+                markerCount += 1
+            } else if !character.isWhitespace {
+                return false
+            }
+        }
+
+        return markerCount >= 3
     }
 
     private static func unorderedListItem(in line: String) -> String? {
@@ -289,6 +309,11 @@ public struct MarkdownMessageView: View {
                     .lineSpacing(3)
             }
             .padding(.vertical, CGFloat(EnchantedVisualMetrics.markdownQuoteVerticalPadding))
+        case .divider:
+            Rectangle()
+                .fill(QuillColors.quoteRule)
+                .frame(height: CGFloat(EnchantedVisualMetrics.markdownQuoteRuleWidth))
+                .padding(.vertical, CGFloat(EnchantedVisualMetrics.markdownQuoteVerticalPadding))
         case .codeBlock(let language):
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.markdownCodeBlockSpacing)) {
                 if let language {
