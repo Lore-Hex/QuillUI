@@ -3329,7 +3329,7 @@ if ! grep -Fq '"textformat.abc"' "$SYMBOLS"; then
     -e 's/(        "square.and.arrow.up":\s+"share",\n)/$1        "selection.pin.in.out":  "select_all",\n        "space":                 "space_bar",\n        "sidebar.left":           "view_sidebar",\n        "speaker.slash.fill":    "volume_off",\n        "speaker.wave.2.fill":   "volume_up",\n        "speaker.wave.3":        "volume_up",\n        "speaker.wave.3.fill":   "volume_up",\n/;' \
     -e 's/(        "square.and.pencil":\s+"edit",\n)/$1        "square":                "check_box_outline_blank",\n        "square.fill":           "stop",\n        "stop.fill":             "stop",\n/;' \
     -e 's/(        "tag.fill":\s+"label",\n)/$1        "sun.max":               "light_mode",\n        "textformat":            "text_fields",\n        "textformat.abc":        "text_fields",\n        "trash":                 "delete",\n        "water.waves":           "water",\n        "waveform":              "graphic_eq",\n/;' \
-    -e 's/(        "xmark.circle.fill":\s+"cancel",\n)/$1        "x.circle.fill":         "cancel",\n        "xmark":                 "cancel",\n/;' \
+    -e 's/(        "xmark.circle.fill":\s+"cancel",\n)/$1        "x.circle.fill":         "cancel",\n        "xmark":                 "close",\n/;' \
     "$SYMBOLS"
 fi
 
@@ -3373,7 +3373,7 @@ required_symbols = [
     ("trash", "delete", ["tag.fill", "calendar"]),
     ("waveform", "graphic_eq", ["water.waves", "calendar"]),
     ("x.circle.fill", "cancel", ["xmark.circle.fill", "calendar"]),
-    ("xmark", "cancel", ["x.circle.fill", "xmark.circle.fill", "calendar"]),
+    ("xmark", "close", ["x.circle.fill", "xmark.circle.fill", "calendar"]),
 ]
 
 
@@ -3399,5 +3399,26 @@ def add_symbol(source: str, sf_name: str, material_name: str, anchors: list[str]
 for sf_name, material_name, anchors in required_symbols:
     text = add_symbol(text, sf_name, material_name, anchors)
 
+
+def deduplicate_map_entries(source: str) -> str:
+    entry_pattern = re.compile(
+        r'(?m)^\s*"(?P<key>(?:\\.|[^"\\])+)":\s*"(?P<value>(?:\\.|[^"\\])*)",\n'
+    )
+    seen: set[str] = set()
+    duplicate_spans: list[tuple[int, int]] = []
+
+    for match in entry_pattern.finditer(source):
+        key = match.group("key")
+        if key in seen:
+            duplicate_spans.append(match.span())
+        else:
+            seen.add(key)
+
+    for start, end in reversed(duplicate_spans):
+        source = source[:start] + source[end:]
+    return source
+
+
+text = deduplicate_map_entries(text)
 path.write_text(text)
 PY

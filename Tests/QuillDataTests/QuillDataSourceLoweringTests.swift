@@ -1765,6 +1765,18 @@ struct QuillDataSourceLoweringTests {
         for symbol in expectedGTKSymbols {
             #expect(patchedSymbols.contains(symbol), Comment(rawValue: symbol))
         }
+        let patchedSymbolPairs = patchedSymbols.split(separator: "\n").compactMap { line -> (String, String)? in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let quotedParts = trimmed.split(separator: "\"", omittingEmptySubsequences: false)
+            guard quotedParts.count >= 4 else { return nil }
+            return (String(quotedParts[1]), String(quotedParts[3]))
+        }
+        var patchedSymbolValues = [String: String]()
+        for (key, value) in patchedSymbolPairs {
+            #expect(patchedSymbolValues[key] == nil, Comment(rawValue: key))
+            patchedSymbolValues[key] = value
+        }
+        #expect(patchedSymbolValues["xmark"] == "close")
     }
 
     private func runScript(
