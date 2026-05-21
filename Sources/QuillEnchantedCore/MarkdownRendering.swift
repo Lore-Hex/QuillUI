@@ -80,6 +80,12 @@ enum MarkdownParser {
                 continue
             }
 
+            if linkReferenceDefinition(in: rawLine) {
+                flushParagraph()
+                lineIndex += 1
+                continue
+            }
+
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             if line.isEmpty {
                 flushParagraph()
@@ -158,6 +164,23 @@ enum MarkdownParser {
 
     private static func closesHTMLCommentBlock(_ rawLine: String) -> Bool {
         rawLine.contains("-->")
+    }
+
+    private static func linkReferenceDefinition(in rawLine: String) -> Bool {
+        let line = rawLine.trimmingCharacters(in: .whitespaces)
+        guard line.hasPrefix("[") else { return false }
+
+        let labelStart = line.index(after: line.startIndex)
+        guard labelStart < line.endIndex,
+              let labelEnd = closingBracket(in: line, from: labelStart),
+              labelEnd > labelStart else { return false }
+
+        let colonIndex = line.index(after: labelEnd)
+        guard colonIndex < line.endIndex, line[colonIndex] == ":" else { return false }
+
+        let destinationStart = line.index(after: colonIndex)
+        let destination = line[destinationStart...].trimmingCharacters(in: .whitespaces)
+        return !destination.isEmpty
     }
 
     private static func replaceLinks(in text: String) -> String {

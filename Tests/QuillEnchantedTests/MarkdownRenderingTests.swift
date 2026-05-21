@@ -251,6 +251,47 @@ struct MarkdownRenderingTests {
         ])
     }
 
+    @Test("drops link reference definitions outside code fences")
+    func dropsLinkReferenceDefinitions() {
+        let blocks = MarkdownParser.parse("""
+        Intro
+        [docs]: https://example.com "Docs"
+        [image]: <file:///tmp/image.png>
+        Still visible
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "Intro"),
+            MarkdownBlock(id: 1, kind: .paragraph, text: "Still visible")
+        ])
+    }
+
+    @Test("preserves link reference definitions inside fenced code")
+    func preservesLinkReferenceDefinitionsInsideFencedCode() {
+        let blocks = MarkdownParser.parse("""
+        ```markdown
+        [docs]: https://example.com
+        ```
+        """)
+
+        #expect(blocks == [
+            MarkdownBlock(
+                id: 0,
+                kind: .codeBlock(language: "markdown"),
+                text: "[docs]: https://example.com"
+            )
+        ])
+    }
+
+    @Test("keeps escaped link reference definitions visible")
+    func keepsEscapedLinkReferenceDefinitionsVisible() {
+        let blocks = MarkdownParser.parse("\\[docs]: https://example.com")
+
+        #expect(blocks == [
+            MarkdownBlock(id: 0, kind: .paragraph, text: "[docs]: https://example.com")
+        ])
+    }
+
     @Test("renders markdown links as readable plain text")
     func cleansLinks() {
         #expect(MarkdownParser.cleanInline("[QuillUI](https://example.com) works") == "QuillUI (https://example.com) works")

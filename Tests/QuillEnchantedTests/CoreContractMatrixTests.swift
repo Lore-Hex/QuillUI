@@ -2004,6 +2004,8 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QString replaceMarkdownAutolinks(const QString &text)")
         expectContains(nativeShim, "QString removeMarkdownInlineHtml(const QString &text)")
         expectContains(nativeShim, "bool markdownHtmlCommentBlock(const QString &rawLine, bool *continues)")
+        expectContains(nativeShim, "bool markdownLinkReferenceDefinition(const QString &rawLine)")
+        expectContains(nativeShim, "if (markdownLinkReferenceDefinition(rawLine))")
         expectContains(nativeShim, "bool skippingHtmlCommentBlock = false")
         expectContains(nativeShim, "QString decodeMarkdownCharacterReferences(const QString &text)")
         expectContains(nativeShim, "QString removePairedMarkdownMarkers(QString text, const QString &marker)")
@@ -2200,6 +2202,7 @@ struct CoreContractMatrixTests {
         expectContains(macOSMarkdownRendering, "weight: enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight)")
         expectContains(macOSMarkdownRendering, "skippingHTMLCommentBlock")
         expectContains(macOSMarkdownRendering, "htmlCommentBlock(_ rawLine: String)")
+        expectContains(macOSMarkdownRendering, "linkReferenceDefinition(in rawLine: String)")
         expectDoesNotContain(macOSMarkdownRendering, "weight: .semibold")
         expectContains(nativeShim, "QListWidget#conversationList::item { border-radius: %1; margin: %2 0; padding: %3; }")
         expectContains(nativeShim, "QFrame#conversationRow { background: %3; border-radius: %6; }")
@@ -2911,6 +2914,7 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: "1.Item\nNext", kind: .paragraph, text: "1.Item Next"),
     BlockCase(markdown: "1)Item\nNext", kind: .paragraph, text: "1)Item Next"),
     BlockCase(markdown: "Visible\n<!--\nhidden\n-->\nAfter", kind: .paragraph, text: "Visible"),
+    BlockCase(markdown: "[docs]: https://example.com\nVisible", kind: .paragraph, text: "Visible"),
     BlockCase(markdown: "````swift\n```swift\nlet value = 1\n````", kind: .codeBlock(language: "swift"), text: "```swift\nlet value = 1"),
     BlockCase(markdown: "Plain paragraph", kind: .paragraph, text: "Plain paragraph")
 ] + (0..<40).map { index in

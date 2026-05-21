@@ -1362,6 +1362,26 @@ int closingMarkdownParenthesis(const QString &text, const int start) {
     return -1;
 }
 
+bool markdownLinkReferenceDefinition(const QString &rawLine) {
+    const QString line = rawLine.trimmed();
+    if (!line.startsWith(QLatin1Char('['))) {
+        return false;
+    }
+
+    const int labelStart = 1;
+    const int labelEnd = closingMarkdownBracket(line, labelStart);
+    if (labelEnd <= labelStart) {
+        return false;
+    }
+
+    const int colonIndex = labelEnd + 1;
+    if (colonIndex >= line.size() || line.at(colonIndex) != QLatin1Char(':')) {
+        return false;
+    }
+
+    return !line.mid(colonIndex + 1).trimmed().isEmpty();
+}
+
 bool isMarkdownImageLabelStart(const QString &text, const int index) {
     if (index <= 0) {
         return false;
@@ -2146,6 +2166,11 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
         if (markdownHtmlCommentBlock(rawLine, &commentContinues)) {
             flushParagraph();
             skippingHtmlCommentBlock = commentContinues;
+            continue;
+        }
+
+        if (markdownLinkReferenceDefinition(rawLine)) {
+            flushParagraph();
             continue;
         }
 
