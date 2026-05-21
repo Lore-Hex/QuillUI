@@ -134,6 +134,7 @@ enum MarkdownParser {
 
     static func cleanInline(_ text: String) -> String {
         var cleaned = protectBackslashEscapes(in: text)
+        cleaned = removePairedCodeSpanMarkers(in: cleaned)
         cleaned = replaceImages(in: cleaned)
         cleaned = replaceLinks(in: cleaned)
         cleaned = replaceReferenceImages(in: cleaned)
@@ -703,6 +704,93 @@ enum MarkdownParser {
         }
 
         return result
+    }
+
+    private static func removePairedCodeSpanMarkers(in text: String) -> String {
+        var result = ""
+        var index = text.startIndex
+
+        while index < text.endIndex {
+            let markerLength = backtickRunLength(in: text, from: index)
+            if markerLength > 0 {
+                let contentStart = text.index(index, offsetBy: markerLength)
+                if let closingIndex = matchingBacktickRun(in: text, markerLength: markerLength, from: contentStart),
+                   closingIndex > contentStart {
+                    let content = String(text[contentStart..<closingIndex])
+                    result += protectedCodeSpanContent(normalizedCodeSpanContent(content))
+                    index = text.index(closingIndex, offsetBy: markerLength)
+                    continue
+                }
+            }
+
+            result.append(text[index])
+            index = text.index(after: index)
+        }
+
+        return result
+    }
+
+    private static func backtickRunLength(in text: String, from start: String.Index) -> Int {
+        guard start < text.endIndex, text[start] == "`" else { return 0 }
+
+        var length = 0
+        var index = start
+        while index < text.endIndex, text[index] == "`" {
+            length += 1
+            index = text.index(after: index)
+        }
+        return length
+    }
+
+    private static func matchingBacktickRun(
+        in text: String,
+        markerLength: Int,
+        from start: String.Index
+    ) -> String.Index? {
+        var index = start
+        while index < text.endIndex {
+            if backtickRunLength(in: text, from: index) == markerLength {
+                return index
+            }
+            index = text.index(after: index)
+        }
+        return nil
+    }
+
+    private static func normalizedCodeSpanContent(_ text: String) -> String {
+        guard let first = text.first,
+              let last = text.last,
+              first.isWhitespace,
+              last.isWhitespace,
+              text.contains(where: { !$0.isWhitespace }) else {
+            return text
+        }
+
+        return String(text.dropFirst().dropLast())
+    }
+
+    private static func protectedCodeSpanContent(_ text: String) -> String {
+        var result = String.UnicodeScalarView()
+
+        for scalar in text.unicodeScalars {
+            if let protected = protectedCodeSpanScalar(scalar) {
+                result.append(protected)
+            } else {
+                result.append(scalar)
+            }
+        }
+
+        return String(result)
+    }
+
+    private static func protectedCodeSpanScalar(_ scalar: UnicodeScalar) -> UnicodeScalar? {
+        guard scalar.value < 128,
+              (scalar.value == 38 || isEscapableMarkdownPunctuation(scalar)),
+              let protected = UnicodeScalar(escapedMarkdownScalarBase + scalar.value) else {
+            return nil
+        }
+
+        return protected
     }
 
     private static func heading(in line: String) -> (level: Int, text: String)? {

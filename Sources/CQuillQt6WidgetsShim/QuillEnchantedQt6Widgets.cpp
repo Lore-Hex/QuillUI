@@ -1324,6 +1324,93 @@ QString restoreMarkdownBackslashEscapes(const QString &text) {
     return restoredText;
 }
 
+QChar protectedMarkdownCodeSpanCharacter(const QChar character) {
+    const ushort code = character.unicode();
+    if (code < 128 && (character == QLatin1Char('&') || isEscapableMarkdownPunctuation(character))) {
+        return QChar(static_cast<ushort>(0xE000 + code));
+    }
+
+    return character;
+}
+
+QString protectedMarkdownCodeSpanContent(const QString &text) {
+    QString protectedText;
+    protectedText.reserve(text.size());
+
+    for (const QChar character : text) {
+        protectedText.append(protectedMarkdownCodeSpanCharacter(character));
+    }
+
+    return protectedText;
+}
+
+QString normalizedMarkdownCodeSpanContent(const QString &text) {
+    if (text.size() < 2 || !text.at(0).isSpace() || !text.at(text.size() - 1).isSpace()) {
+        return text;
+    }
+
+    bool hasContent = false;
+    for (const QChar character : text) {
+        if (!character.isSpace()) {
+            hasContent = true;
+            break;
+        }
+    }
+    if (!hasContent) {
+        return text;
+    }
+
+    return text.mid(1, text.size() - 2);
+}
+
+int markdownBacktickRunLength(const QString &text, const int start) {
+    if (start >= text.size() || text.at(start) != QLatin1Char('`')) {
+        return 0;
+    }
+
+    int length = 0;
+    while (start + length < text.size() && text.at(start + length) == QLatin1Char('`')) {
+        length += 1;
+    }
+    return length;
+}
+
+int matchingMarkdownBacktickRun(const QString &text, const int markerLength, const int start) {
+    int index = start;
+    while (index < text.size()) {
+        if (markdownBacktickRunLength(text, index) == markerLength) {
+            return index;
+        }
+        index += 1;
+    }
+    return -1;
+}
+
+QString removePairedMarkdownCodeSpanMarkers(const QString &text) {
+    QString result;
+    result.reserve(text.size());
+
+    int index = 0;
+    while (index < text.size()) {
+        const int markerLength = markdownBacktickRunLength(text, index);
+        if (markerLength > 0) {
+            const int contentStart = index + markerLength;
+            const int closingIndex = matchingMarkdownBacktickRun(text, markerLength, contentStart);
+            if (closingIndex > contentStart) {
+                const QString content = text.mid(contentStart, closingIndex - contentStart);
+                result.append(protectedMarkdownCodeSpanContent(normalizedMarkdownCodeSpanContent(content)));
+                index = closingIndex + markerLength;
+                continue;
+            }
+        }
+
+        result.append(text.at(index));
+        index += 1;
+    }
+
+    return result;
+}
+
 int closingMarkdownBracket(const QString &text, const int start) {
     bool escaped = false;
     for (int index = start; index < text.size(); ++index) {
@@ -1987,6 +2074,7 @@ QString removePairedMarkdownMarkers(QString text, const QString &marker) {
 
 QString cleanMarkdownInline(QString text) {
     text = protectMarkdownBackslashEscapes(text);
+    text = removePairedMarkdownCodeSpanMarkers(text);
     text = replaceMarkdownImages(text);
     text = replaceMarkdownLinks(text);
     text = replaceMarkdownReferenceImages(text);
