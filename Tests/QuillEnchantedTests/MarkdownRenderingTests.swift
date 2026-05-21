@@ -57,11 +57,11 @@ struct MarkdownRenderingTests {
         """)
 
         #expect(blocks == [
-            MarkdownBlock(id: 0, kind: .unorderedListItem, text: "Completed"),
-            MarkdownBlock(id: 1, kind: .unorderedListItem, text: "Pending"),
-            MarkdownBlock(id: 2, kind: .unorderedListItem, text: "Verified"),
+            MarkdownBlock(id: 0, kind: .unorderedListItem, text: "Completed", taskState: .checked),
+            MarkdownBlock(id: 1, kind: .unorderedListItem, text: "Pending", taskState: .unchecked),
+            MarkdownBlock(id: 2, kind: .unorderedListItem, text: "Verified", taskState: .checked),
             MarkdownBlock(id: 3, kind: .unorderedListItem, text: "[x] Literal marker"),
-            MarkdownBlock(id: 4, kind: .orderedListItem(number: 1), text: "Ordered")
+            MarkdownBlock(id: 4, kind: .orderedListItem(number: 1), text: "Ordered", taskState: .unchecked)
         ])
     }
 

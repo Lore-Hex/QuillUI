@@ -4,6 +4,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QByteArray>
+#include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
 #include <QClipboard>
@@ -1235,6 +1236,12 @@ enum class MarkdownBlockKind {
     CodeBlock
 };
 
+enum class MarkdownTaskState {
+    None,
+    Checked,
+    Unchecked
+};
+
 struct MarkdownBlock {
     MarkdownBlockKind kind = MarkdownBlockKind::Paragraph;
     QString text;
@@ -1243,6 +1250,7 @@ struct MarkdownBlock {
     QString language;
     QStringList headers;
     QList<QStringList> rows;
+    MarkdownTaskState taskState = MarkdownTaskState::None;
 };
 
 struct MarkdownParagraphLine {
@@ -2263,20 +2271,34 @@ bool isMarkdownTaskListMarker(const QChar marker) {
     return marker == QLatin1Char(' ') || marker == QLatin1Char('x') || marker == QLatin1Char('X');
 }
 
-QString markdownTaskListItemText(const QString &text) {
+struct MarkdownTaskListItem {
+    QString text;
+    MarkdownTaskState state = MarkdownTaskState::None;
+};
+
+MarkdownTaskListItem markdownTaskListItem(const QString &text) {
+    MarkdownTaskListItem item;
     const QString trimmed = text.trimmed();
     if (trimmed.size() < 3 || trimmed.at(0) != QLatin1Char('[')) {
-        return text;
+        return item;
     }
     if (!isMarkdownTaskListMarker(trimmed.at(1)) || trimmed.at(2) != QLatin1Char(']')) {
-        return text;
+        return item;
     }
     if (trimmed.size() > 3 && !trimmed.at(3).isSpace()) {
-        return text;
+        return item;
     }
 
     const QString remainder = trimmed.mid(3).trimmed();
-    return remainder.isEmpty() ? text : remainder;
+    if (remainder.isEmpty()) {
+        return item;
+    }
+
+    item.text = remainder;
+    item.state = trimmed.at(1) == QLatin1Char(' ')
+        ? MarkdownTaskState::Unchecked
+        : MarkdownTaskState::Checked;
+    return item;
 }
 
 bool beginMarkdownFence(const QString &rawLine, MarkdownFence *fence) {
@@ -2402,7 +2424,7 @@ bool isMarkdownThematicBreak(const QString &rawLine) {
     return markerCount >= 3;
 }
 
-bool parseUnorderedListLine(const QString &line, QString *text) {
+bool parseUnorderedListLine(const QString &line, QString *text, MarkdownTaskState *taskState) {
     if (line.size() < 3) {
         return false;
     }
@@ -2415,17 +2437,22 @@ bool parseUnorderedListLine(const QString &line, QString *text) {
         return false;
     }
 
-    const QString parsedText = cleanMarkdownInline(markdownTaskListItemText(line.mid(2).trimmed()));
+    const QString rawText = line.mid(2).trimmed();
+    const MarkdownTaskListItem taskItem = markdownTaskListItem(rawText);
+    const QString parsedText = cleanMarkdownInline(taskItem.state == MarkdownTaskState::None ? rawText : taskItem.text);
     if (parsedText.isEmpty()) {
         return false;
     }
     if (text != nullptr) {
         *text = parsedText;
     }
+    if (taskState != nullptr) {
+        *taskState = taskItem.state;
+    }
     return true;
 }
 
-bool parseOrderedListLine(const QString &line, int *number, QString *text) {
+bool parseOrderedListLine(const QString &line, int *number, QString *text, MarkdownTaskState *taskState) {
     int index = 0;
     while (index < line.size() && line.at(index).isDigit()) {
         index += 1;
@@ -2453,13 +2480,18 @@ bool parseOrderedListLine(const QString &line, int *number, QString *text) {
     if (number != nullptr) {
         *number = parsedNumber;
     }
-    const QString parsedText = cleanMarkdownInline(markdownTaskListItemText(line.mid(textStart + 1).trimmed()));
+    const QString rawText = line.mid(textStart + 1).trimmed();
+    const MarkdownTaskListItem taskItem = markdownTaskListItem(rawText);
+    const QString parsedText = cleanMarkdownInline(taskItem.state == MarkdownTaskState::None ? rawText : taskItem.text);
     if (parsedText.isEmpty()) {
         return false;
     }
 
     if (text != nullptr) {
         *text = parsedText;
+    }
+    if (taskState != nullptr) {
+        *taskState = taskItem.state;
     }
     return true;
 }
@@ -2723,13 +2755,14 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
     bool parsingIndentedCodeBlock = false;
     bool skippingHtmlCommentBlock = false;
 
-    auto appendBlock = [&](MarkdownBlockKind kind, const QString &text, int level = 0, int number = 0, const QString &language = QString()) {
+    auto appendBlock = [&](MarkdownBlockKind kind, const QString &text, int level = 0, int number = 0, const QString &language = QString(), MarkdownTaskState taskState = MarkdownTaskState::None) {
         MarkdownBlock block;
         block.kind = kind;
         block.text = text;
         block.level = level;
         block.number = number;
         block.language = language;
+        block.taskState = taskState;
         blocks.append(block);
     };
 
@@ -2837,18 +2870,19 @@ QList<MarkdownBlock> parseMarkdownBlocks(const QString &markdown) {
         int level = 0;
         int number = 0;
         QString text;
+        MarkdownTaskState taskState = MarkdownTaskState::None;
         if (parseHeadingLine(line, &level, &text)) {
             flushParagraph();
             appendBlock(MarkdownBlockKind::Heading, text, level);
         } else if (isMarkdownThematicBreak(line)) {
             flushParagraph();
             appendBlock(MarkdownBlockKind::Divider, QString());
-        } else if (parseUnorderedListLine(line, &text)) {
+        } else if (parseUnorderedListLine(line, &text, &taskState)) {
             flushParagraph();
-            appendBlock(MarkdownBlockKind::UnorderedListItem, text);
-        } else if (parseOrderedListLine(line, &number, &text)) {
+            appendBlock(MarkdownBlockKind::UnorderedListItem, text, 0, 0, QString(), taskState);
+        } else if (parseOrderedListLine(line, &number, &text, &taskState)) {
             flushParagraph();
-            appendBlock(MarkdownBlockKind::OrderedListItem, text, 0, number);
+            appendBlock(MarkdownBlockKind::OrderedListItem, text, 0, number, QString(), taskState);
         } else if (parseQuoteLine(line, &text)) {
             flushParagraph();
             appendBlock(MarkdownBlockKind::Quote, text);
@@ -2907,6 +2941,26 @@ QWidget *markdownListItemWidget(
     markerLabel->setAlignment(Qt::AlignTop | Qt::AlignRight);
     layout->addWidget(markerLabel);
     layout->addWidget(markdownLabel(text, QStringLiteral("markdownParagraph")), 1);
+    return row;
+}
+
+QWidget *markdownTaskListItemWidget(const MarkdownBlock &block, const QJsonObject &style) {
+    QWidget *row = new QWidget();
+    QHBoxLayout *layout = new QHBoxLayout(row);
+    const int markdownListItemSpacing = styleInt(style, "markdownListItemSpacing");
+    const int markdownNumberWidth = styleInt(style, "markdownNumberWidth");
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(markdownListItemSpacing);
+
+    QCheckBox *checkbox = new QCheckBox();
+    checkbox->setObjectName(QStringLiteral("markdownTaskCheckbox"));
+    checkbox->setChecked(block.taskState == MarkdownTaskState::Checked);
+    checkbox->setEnabled(false);
+    checkbox->setFocusPolicy(Qt::NoFocus);
+    checkbox->setFixedWidth(markdownNumberWidth);
+    checkbox->setStyleSheet(QStringLiteral("QCheckBox { spacing: 0px; }"));
+    layout->addWidget(checkbox, 0, Qt::AlignTop | Qt::AlignRight);
+    layout->addWidget(markdownLabel(block.text, QStringLiteral("markdownParagraph")), 1);
     return row;
 }
 
@@ -3016,20 +3070,28 @@ void addMarkdownBlocks(QVBoxLayout *layout, const QString &markdown, const QJson
             }
             break;
         case MarkdownBlockKind::UnorderedListItem:
-            layout->addWidget(markdownListItemWidget(
-                QString::fromUtf8("\xE2\x80\xA2"),
-                block.text,
-                QStringLiteral("markdownBullet"),
-                style
-            ));
+            if (block.taskState != MarkdownTaskState::None) {
+                layout->addWidget(markdownTaskListItemWidget(block, style));
+            } else {
+                layout->addWidget(markdownListItemWidget(
+                    QString::fromUtf8("\xE2\x80\xA2"),
+                    block.text,
+                    QStringLiteral("markdownBullet"),
+                    style
+                ));
+            }
             break;
         case MarkdownBlockKind::OrderedListItem:
-            layout->addWidget(markdownListItemWidget(
-                QStringLiteral("%1.").arg(block.number),
-                block.text,
-                QStringLiteral("markdownNumber"),
-                style
-            ));
+            if (block.taskState != MarkdownTaskState::None) {
+                layout->addWidget(markdownTaskListItemWidget(block, style));
+            } else {
+                layout->addWidget(markdownListItemWidget(
+                    QStringLiteral("%1.").arg(block.number),
+                    block.text,
+                    QStringLiteral("markdownNumber"),
+                    style
+                ));
+            }
             break;
         case MarkdownBlockKind::Quote:
             layout->addWidget(markdownQuoteWidget(block.text, style));

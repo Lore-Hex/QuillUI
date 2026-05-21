@@ -13,10 +13,16 @@ enum MarkdownBlockKind: Equatable, Sendable {
     case codeBlock(language: String?)
 }
 
+enum MarkdownTaskState: Equatable, Sendable {
+    case checked
+    case unchecked
+}
+
 struct MarkdownBlock: Identifiable, Equatable, Sendable {
     var id: Int
     var kind: MarkdownBlockKind
     var text: String
+    var taskState: MarkdownTaskState? = nil
 }
 
 private struct MarkdownParagraphLine {
@@ -34,8 +40,8 @@ enum MarkdownParser {
         var parsingIndentedCodeBlock = false
         var skippingHTMLCommentBlock = false
 
-        func appendBlock(kind: MarkdownBlockKind, text: String) {
-            blocks.append(MarkdownBlock(id: blocks.count, kind: kind, text: text))
+        func appendBlock(kind: MarkdownBlockKind, text: String, taskState: MarkdownTaskState? = nil) {
+            blocks.append(MarkdownBlock(id: blocks.count, kind: kind, text: text, taskState: taskState))
         }
 
         func flushParagraph() {
@@ -149,10 +155,20 @@ enum MarkdownParser {
                 appendBlock(kind: .divider, text: "")
             } else if let item = unorderedListItem(in: line) {
                 flushParagraph()
-                appendBlock(kind: .unorderedListItem, text: cleanInline(taskListItemText(in: item)))
+                let taskItem = taskListItem(in: item)
+                appendBlock(
+                    kind: .unorderedListItem,
+                    text: cleanInline(taskItem?.text ?? item),
+                    taskState: taskItem?.state
+                )
             } else if let item = orderedListItem(in: line) {
                 flushParagraph()
-                appendBlock(kind: .orderedListItem(number: item.number), text: cleanInline(taskListItemText(in: item.text)))
+                let taskItem = taskListItem(in: item.text)
+                appendBlock(
+                    kind: .orderedListItem(number: item.number),
+                    text: cleanInline(taskItem?.text ?? item.text),
+                    taskState: taskItem?.state
+                )
             } else if let quote = quote(in: line) {
                 flushParagraph()
                 appendBlock(kind: .quote, text: cleanInline(quote))
@@ -1205,27 +1221,29 @@ enum MarkdownParser {
         return markerCount >= 3
     }
 
-    private static func taskListItemText(in text: String) -> String {
+    private static func taskListItem(in text: String) -> (state: MarkdownTaskState, text: String)? {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard trimmed.count >= 3,
               trimmed.first == "[" else {
-            return text
+            return nil
         }
 
         let markerIndex = trimmed.index(after: trimmed.startIndex)
         let closingIndex = trimmed.index(after: markerIndex)
         guard isTaskListMarker(trimmed[markerIndex]),
               trimmed[closingIndex] == "]" else {
-            return text
+            return nil
         }
 
         let afterClosingIndex = trimmed.index(after: closingIndex)
         guard afterClosingIndex == trimmed.endIndex || trimmed[afterClosingIndex].isWhitespace else {
-            return text
+            return nil
         }
 
         let remainder = String(trimmed[afterClosingIndex...]).trimmingCharacters(in: .whitespaces)
-        return remainder.isEmpty ? text : remainder
+        guard !remainder.isEmpty else { return nil }
+        let state: MarkdownTaskState = trimmed[markerIndex] == " " ? .unchecked : .checked
+        return (state, remainder)
     }
 
     private static func isTaskListMarker(_ character: Character) -> Bool {
@@ -1370,24 +1388,13 @@ public struct MarkdownMessageView: View {
                 .lineSpacing(2)
         case .unorderedListItem:
             HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.markdownListItemSpacing)) {
-                Text("•")
-                    .font(.system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize), weight: enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight)))
-                    .foregroundColor(QuillColors.primary)
-                Text(block.text)
-                    .font(.system(size: CGFloat(EnchantedTypography.messageBodyFontSize)))
-                    .foregroundColor(foregroundColor)
-                    .lineSpacing(3)
+                listMarkerView(marker: "•", taskState: block.taskState)
+                listText(block.text)
             }
         case .orderedListItem(let number):
             HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.markdownListItemSpacing)) {
-                Text("\(number).")
-                    .font(.system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize), weight: enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight)))
-                    .foregroundColor(QuillColors.primary)
-                    .frame(width: CGFloat(EnchantedVisualMetrics.markdownNumberWidth), alignment: .trailing)
-                Text(block.text)
-                    .font(.system(size: CGFloat(EnchantedTypography.messageBodyFontSize)))
-                    .foregroundColor(foregroundColor)
-                    .lineSpacing(3)
+                listMarkerView(marker: "\(number).", taskState: block.taskState, reservesNumberWidth: true)
+                listText(block.text)
             }
         case .quote:
             HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.markdownQuoteSpacing)) {
@@ -1460,6 +1467,33 @@ public struct MarkdownMessageView: View {
             }
         }
         .padding(.vertical, CGFloat(EnchantedVisualMetrics.markdownQuoteVerticalPadding))
+    }
+
+    @ViewBuilder
+    private func listMarkerView(marker: String, taskState: MarkdownTaskState?, reservesNumberWidth: Bool = false) -> some View {
+        if let taskState {
+            Image(systemName: taskState == .checked ? "checkmark.square.fill" : "square")
+                .font(.system(size: CGFloat(EnchantedTypography.messageBodyFontSize), weight: enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight)))
+                .foregroundColor(taskState == .checked ? QuillColors.primary : QuillColors.muted)
+                .frame(width: CGFloat(EnchantedVisualMetrics.markdownNumberWidth), alignment: .trailing)
+                .accessibilityLabel(taskState == .checked ? "Completed task" : "Incomplete task")
+        } else if reservesNumberWidth {
+            Text(marker)
+                .font(.system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize), weight: enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight)))
+                .foregroundColor(QuillColors.primary)
+                .frame(width: CGFloat(EnchantedVisualMetrics.markdownNumberWidth), alignment: .trailing)
+        } else {
+            Text(marker)
+                .font(.system(size: CGFloat(EnchantedTypography.markdownHeadingFontSize), weight: enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight)))
+                .foregroundColor(QuillColors.primary)
+        }
+    }
+
+    private func listText(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: CGFloat(EnchantedTypography.messageBodyFontSize)))
+            .foregroundColor(foregroundColor)
+            .lineSpacing(3)
     }
 
     private func headingFont(level: Int) -> Font {

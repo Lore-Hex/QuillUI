@@ -31,6 +31,7 @@ struct CoreContractMatrixTests {
 
         #expect(block?.kind == testCase.kind)
         #expect(block?.text == testCase.text)
+        #expect(block?.taskState == testCase.taskState)
     }
 
     @Test("parses Ollama stream content chunks", arguments: streamContentCases)
@@ -2237,6 +2238,13 @@ struct CoreContractMatrixTests {
         expectContains(macOSMarkdownRendering, "linkReferenceDefinition(in rawLine: String)")
         expectContains(macOSMarkdownRendering, "replaceReferenceImages(in: cleaned)")
         expectContains(macOSMarkdownRendering, "replaceReferenceLinks(in: cleaned)")
+        expectContains(macOSMarkdownRendering, "enum MarkdownTaskState: Equatable, Sendable")
+        expectContains(macOSMarkdownRendering, "Image(systemName: taskState == .checked ? \"checkmark.square.fill\" : \"square\")")
+        expectContains(nativeShim, "enum class MarkdownTaskState")
+        expectContains(nativeShim, "struct MarkdownTaskListItem")
+        expectContains(nativeShim, "QCheckBox *checkbox = new QCheckBox()")
+        expectContains(nativeShim, "checkbox->setChecked(block.taskState == MarkdownTaskState::Checked)")
+        expectContains(nativeShim, "const MarkdownTaskListItem taskItem = markdownTaskListItem(rawText)")
         expectDoesNotContain(macOSMarkdownRendering, "weight: .semibold")
         expectContains(nativeShim, "QListWidget#conversationList::item { border-radius: %1; margin: %2 0; padding: %3; }")
         expectContains(nativeShim, "QFrame#conversationRow { background: %3; border-radius: %6; }")
@@ -2814,6 +2822,7 @@ struct BlockCase: Sendable {
     var markdown: String
     var kind: MarkdownBlockKind
     var text: String
+    var taskState: MarkdownTaskState? = nil
 }
 
 struct ByteCountCase: Sendable {
@@ -2951,10 +2960,10 @@ private let blockCases: [BlockCase] = [
     BlockCase(markdown: "+ Item", kind: .unorderedListItem, text: "Item"),
     BlockCase(markdown: "-   Spaced item", kind: .unorderedListItem, text: "Spaced item"),
     BlockCase(markdown: "- **Bold item**", kind: .unorderedListItem, text: "Bold item"),
-    BlockCase(markdown: "- [x] Complete task", kind: .unorderedListItem, text: "Complete task"),
-    BlockCase(markdown: "- [ ] Pending task", kind: .unorderedListItem, text: "Pending task"),
+    BlockCase(markdown: "- [x] Complete task", kind: .unorderedListItem, text: "Complete task", taskState: .checked),
+    BlockCase(markdown: "- [ ] Pending task", kind: .unorderedListItem, text: "Pending task", taskState: .unchecked),
     BlockCase(markdown: "1. Item", kind: .orderedListItem(number: 1), text: "Item"),
-    BlockCase(markdown: "1. [x] Ordered task", kind: .orderedListItem(number: 1), text: "Ordered task"),
+    BlockCase(markdown: "1. [x] Ordered task", kind: .orderedListItem(number: 1), text: "Ordered task", taskState: .checked),
     BlockCase(markdown: "42. Item", kind: .orderedListItem(number: 42), text: "Item"),
     BlockCase(markdown: "1) Item", kind: .orderedListItem(number: 1), text: "Item"),
     BlockCase(markdown: "42) Item", kind: .orderedListItem(number: 42), text: "Item"),
