@@ -697,6 +697,35 @@ struct CompatibilityModuleTests {
             .markdownMargin(top: .zero, bottom: .em(0.8))
     }
 
+    @Test("MarkdownUI code fences match Enchanted parser closing rules")
+    func markdownUICodeFencesMatchEnchantedClosingRules() {
+        let nestedBacktickPlainText = Markdown.plainText(from: """
+        ````swift
+        ```swift
+        let value = 1
+        ```
+        ````
+        """)
+        let trailingTextPlainText = Markdown.plainText(from: """
+        ```swift
+        let value = 1
+        ``` trailing
+        still code
+        ```
+        """)
+        let mixedFencePlainText = Markdown.plainText(from: """
+        ~~~~text
+        ```
+        body
+        ```
+        ~~~~
+        """)
+
+        #expect(nestedBacktickPlainText == "```swift\nlet value = 1\n```")
+        #expect(trailingTextPlainText == "let value = 1\n``` trailing\nstill code")
+        #expect(mixedFencePlainText == "```\nbody\n```")
+    }
+
     @Test("OllamaKit compatibility covers Enchanted model and chat contracts")
     func ollamaKitContractsCompileAndStream() async throws {
         let transport = FakeOllamaTransport(routes: [

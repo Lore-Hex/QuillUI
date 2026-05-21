@@ -305,25 +305,35 @@ private enum MarkdownBlockParser {
 }
 
 private struct MarkdownFence {
-    var delimiter: String
+    var marker: Character
+    var markerCount: Int
     var language: String?
 
     init?(openingLine: String) {
         let trimmed = openingLine.trimmingCharacters(in: .whitespaces)
-        if trimmed.hasPrefix("```") {
-            delimiter = "```"
-        } else if trimmed.hasPrefix("~~~") {
-            delimiter = "~~~"
-        } else {
+        guard let first = trimmed.first, first == "`" || first == "~" else {
             return nil
         }
-        let labelStart = trimmed.index(trimmed.startIndex, offsetBy: delimiter.count)
+
+        let count = trimmed.prefix(while: { $0 == first }).count
+        guard count >= 3 else { return nil }
+
+        marker = first
+        markerCount = count
+        let labelStart = trimmed.index(trimmed.startIndex, offsetBy: count)
         let label = String(trimmed[labelStart...]).trimmingCharacters(in: .whitespaces)
         language = label.isEmpty ? nil : label
     }
 
     func matchesClosingLine(_ line: String) -> Bool {
-        line.trimmingCharacters(in: .whitespaces).hasPrefix(delimiter)
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.first == marker else { return false }
+
+        let closingCount = trimmed.prefix(while: { $0 == marker }).count
+        guard closingCount >= markerCount else { return false }
+
+        let suffixStart = trimmed.index(trimmed.startIndex, offsetBy: closingCount)
+        return String(trimmed[suffixStart...]).trimmingCharacters(in: .whitespaces).isEmpty
     }
 }
 
