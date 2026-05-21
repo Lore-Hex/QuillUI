@@ -217,6 +217,8 @@ struct MarkdownRenderingTests {
     func cleansLinks() {
         #expect(MarkdownParser.cleanInline("[QuillUI](https://example.com) works") == "QuillUI (https://example.com) works")
         #expect(MarkdownParser.cleanInline("![Preview](file:///tmp/preview.png)") == "Preview (file:///tmp/preview.png)")
+        #expect(MarkdownParser.cleanInline("Status [](/health)") == "Status (/health)")
+        #expect(MarkdownParser.cleanInline("Drop ![](file:///tmp/chart.png)") == "Drop (file:///tmp/chart.png)")
         #expect(MarkdownParser.cleanInline("Use *local* and _remote_ models") == "Use local and remote models")
         #expect(MarkdownParser.cleanInline("Keep a literal * marker") == "Keep a literal * marker")
     }

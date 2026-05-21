@@ -128,10 +128,20 @@ enum MarkdownParser {
     }
 
     private static func replaceLinks(in text: String) -> String {
-        let pattern = #"!?\[([^\]]+)\]\(([^)]+)\)"#
+        let pattern = #"!?\[([^\]]*)\]\(([^)]+)\)"#
         guard let expression = try? NSRegularExpression(pattern: pattern) else { return text }
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        return expression.stringByReplacingMatches(in: text, range: range, withTemplate: "$1 ($2)")
+        let mutableText = NSMutableString(string: text)
+        let originalText = text as NSString
+
+        for match in expression.matches(in: text, range: range).reversed() {
+            let label = originalText.substring(with: match.range(at: 1))
+            let destination = originalText.substring(with: match.range(at: 2))
+            let replacement = label.isEmpty ? "(\(destination))" : "\(label) (\(destination))"
+            mutableText.replaceCharacters(in: match.range, with: replacement)
+        }
+
+        return String(mutableText)
     }
 
     private static func removePairedSingleMarkers(in text: String, marker: Character) -> String {

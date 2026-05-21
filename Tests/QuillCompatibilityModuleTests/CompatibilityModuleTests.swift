@@ -773,6 +773,9 @@ struct CompatibilityModuleTests {
         let linkAndImagePlainText = Markdown.plainText(
             from: "Use **bold**, __strong__, `code`, ~~old~~, [link](https://example.com), and ![chart](chart.png)"
         )
+        let emptyLabelLinkAndImagePlainText = Markdown.plainText(
+            from: "Status [](/health) and ![](file:///tmp/chart.png)"
+        )
         let singleEmphasisPlainText = Markdown.plainText(
             from: "Use *local* and _remote_ models, but keep a literal * marker"
         )
@@ -780,6 +783,7 @@ struct CompatibilityModuleTests {
         #expect(markerOnlyParagraphPlainText == "Body")
         #expect(emptySetextTitlePlainText == "Body")
         #expect(linkAndImagePlainText == "Use bold, strong, code, old, link (https://example.com), and chart (chart.png)")
+        #expect(emptyLabelLinkAndImagePlainText == "Status (/health) and (file:///tmp/chart.png)")
         #expect(singleEmphasisPlainText == "Use local and remote models, but keep a literal * marker")
     }
 
