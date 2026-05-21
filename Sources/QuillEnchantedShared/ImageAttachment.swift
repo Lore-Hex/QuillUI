@@ -106,9 +106,59 @@ public struct PendingImageAttachment: Identifiable, Hashable, Sendable {
     }
 
     public static func attachmentPathCandidates(from rawPaths: String) -> [String] {
-        rawPaths
-            .components(separatedBy: CharacterSet.newlines.union(CharacterSet(charactersIn: ";")))
-            .compactMap(\.quillTrimmedNonEmpty)
+        var candidates: [String] = []
+        var current = ""
+        var quote: Character?
+        var isEscaping = false
+        var index = rawPaths.startIndex
+
+        func appendCandidate() {
+            if let candidate = current.quillTrimmedNonEmpty {
+                candidates.append(candidate)
+            }
+            current.removeAll(keepingCapacity: true)
+        }
+
+        while index < rawPaths.endIndex {
+            let character = rawPaths[index]
+
+            if isEscaping {
+                current.append(character)
+                isEscaping = false
+            } else if let activeQuote = quote {
+                if character == "\\" {
+                    isEscaping = true
+                } else if character == activeQuote {
+                    quote = nil
+                } else {
+                    current.append(character)
+                }
+            } else if character == "\\" {
+                isEscaping = true
+            } else if character == "\"" || character == "'" {
+                quote = character
+            } else if isHardPathSeparator(character) {
+                appendCandidate()
+            } else if isSoftPathSeparator(character) {
+                if current.quillTrimmedNonEmpty == nil {
+                    // Ignore leading whitespace between paths.
+                } else if beginsNewAttachmentCandidate(in: rawPaths, after: index) {
+                    appendCandidate()
+                } else {
+                    current.append(character)
+                }
+            } else {
+                current.append(character)
+            }
+
+            index = rawPaths.index(after: index)
+        }
+
+        if isEscaping {
+            current.append("\\")
+        }
+        appendCandidate()
+        return candidates
     }
 
     public static func fileURLs(from rawPaths: String) -> [URL] {
@@ -184,6 +234,34 @@ public struct PendingImageAttachment: Identifiable, Hashable, Sendable {
             return "image/webp"
         default:
             return "application/octet-stream"
+        }
+    }
+
+    private static func isHardPathSeparator(_ character: Character) -> Bool {
+        character == ";" || character == "\n" || character == "\r"
+    }
+
+    private static func isSoftPathSeparator(_ character: Character) -> Bool {
+        character.unicodeScalars.allSatisfy { CharacterSet.whitespaces.contains($0) }
+    }
+
+    private static func beginsNewAttachmentCandidate(in rawPaths: String, after index: String.Index) -> Bool {
+        var lookahead = rawPaths.index(after: index)
+        while lookahead < rawPaths.endIndex, isSoftPathSeparator(rawPaths[lookahead]) {
+            lookahead = rawPaths.index(after: lookahead)
+        }
+        guard lookahead < rawPaths.endIndex else { return false }
+
+        let tail = rawPaths[lookahead...]
+        if tail.lowercased().hasPrefix("file://") {
+            return true
+        }
+
+        switch rawPaths[lookahead] {
+        case "/", "~", ".", "\"", "'":
+            return true
+        default:
+            return false
         }
     }
 

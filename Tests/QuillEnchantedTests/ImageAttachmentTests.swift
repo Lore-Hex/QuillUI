@@ -56,6 +56,30 @@ struct ImageAttachmentTests {
         ])
     }
 
+    @Test("splits quoted and shell escaped attachment paths")
+    func splitsQuotedAndShellEscapedAttachmentPaths() throws {
+        let rawPaths = #" "/tmp/First Image.png" /tmp/Second\ Image.jpg file:///tmp/third.webp ~/fourth.heic "#
+
+        #expect(PendingImageAttachment.attachmentPathCandidates(from: rawPaths) == [
+            "/tmp/First Image.png",
+            "/tmp/Second Image.jpg",
+            "file:///tmp/third.webp",
+            "~/fourth.heic"
+        ])
+
+        #expect(PendingImageAttachment.attachmentPathCandidates(from: "/tmp/Folder Image.png") == [
+            "/tmp/Folder Image.png"
+        ])
+
+        let urls = PendingImageAttachment.fileURLs(from: rawPaths)
+        #expect(urls.map(\.path) == [
+            "/tmp/First Image.png",
+            "/tmp/Second Image.jpg",
+            "/tmp/third.webp",
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("fourth.heic").path
+        ])
+    }
+
     @Test("builds display content with attachment summary")
     func buildsDisplayContent() throws {
         let url = try temporaryFile(name: "diagram.webp", bytes: [0x52, 0x49, 0x46, 0x46])
