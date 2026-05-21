@@ -39,9 +39,21 @@ struct OllamaStreamParserTests {
         #expect(try OllamaStreamParser.parseLine(line) == .done)
     }
 
+    @Test("recognizes done sentinels from SSE bridges")
+    func recognizesSSEDoneSentinels() throws {
+        #expect(try OllamaStreamParser.parseLine("[DONE]") == .done)
+        #expect(try OllamaStreamParser.parseLine("data: [DONE]") == .done)
+    }
+
     @Test("extracts server error chunks")
     func extractsServerErrorChunks() throws {
         let line = #"{"error":"model \"llama3\" not found"}"#
+        #expect(try OllamaStreamParser.parseLine(line) == .error(#"model "llama3" not found"#))
+    }
+
+    @Test("extracts server error chunks from SSE bridges")
+    func extractsSSEServerErrorChunks() throws {
+        let line = #"data: {"error":"model \"llama3\" not found"}"#
         #expect(try OllamaStreamParser.parseLine(line) == .error(#"model "llama3" not found"#))
     }
 
@@ -49,6 +61,24 @@ struct OllamaStreamParserTests {
     func ignoresMetadataOnlyChunks() throws {
         let line = #"{"created_at":"2026-05-20T00:00:00Z","done":false}"#
         #expect(try OllamaStreamParser.parseLine(line) == nil)
+    }
+
+    @Test("extracts streamed message content from SSE bridges")
+    func extractsSSEContent() throws {
+        let line = #"data: {"message":{"role":"assistant","content":"Hello"},"done":false}"#
+        #expect(try OllamaStreamParser.parseLine(line) == .content("Hello"))
+    }
+
+    @Test("preserves whitespace-only response chunks from SSE bridges")
+    func preservesSSEResponseWhitespaceChunks() throws {
+        let line = #"data: {"response":" ","done":false}"#
+        #expect(try OllamaStreamParser.parseLine(line) == .content(" "))
+    }
+
+    @Test("ignores empty SSE bridge frames")
+    func ignoresEmptySSEBridgeFrames() throws {
+        #expect(try OllamaStreamParser.parseLine("data:   ") == nil)
+        #expect(try OllamaStreamParser.parseLine(": keepalive") == nil)
     }
 
     @Test("trims surrounding stream whitespace")

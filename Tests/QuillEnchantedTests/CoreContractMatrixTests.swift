@@ -2815,6 +2815,13 @@ private let streamContentCases: [TextCase] =
             expected: content
         )
     }
+    + (0..<20).map { index in
+        let content = "sse-\(index)"
+        return TextCase(
+            input: #"data: {"message":{"role":"assistant","content":"\#(content)"},"done":false}"#,
+            expected: content
+        )
+    }
 
 private let byteCountCases: [ByteCountCase] = [
     ByteCountCase(byteCount: 0, expected: "0 bytes"),

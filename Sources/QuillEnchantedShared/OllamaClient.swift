@@ -365,9 +365,12 @@ public enum OllamaStreamEvent: Equatable {
 
 public enum OllamaStreamParser {
     public static func parseLine(_ line: String) throws -> OllamaStreamEvent? {
-        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        guard let data = trimmed.data(using: .utf8) else {
+        guard let payload = streamPayload(from: line) else { return nil }
+        if payload == "[DONE]" {
+            return .done
+        }
+
+        guard let data = payload.data(using: .utf8) else {
             throw OllamaClientError.malformedStream(line)
         }
 
@@ -389,6 +392,20 @@ public enum OllamaStreamParser {
         } catch {
             throw OllamaClientError.malformedStream(line)
         }
+    }
+
+    private static func streamPayload(from line: String) -> String? {
+        var payload = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !payload.isEmpty else { return nil }
+        if payload.hasPrefix(":") { return nil }
+
+        if payload.hasPrefix("data:") {
+            payload = String(payload.dropFirst("data:".count))
+                .trimmingCharacters(in: .whitespaces)
+            guard !payload.isEmpty else { return nil }
+        }
+
+        return payload
     }
 }
 
