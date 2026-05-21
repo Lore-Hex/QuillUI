@@ -1460,6 +1460,105 @@ int closingMarkdownParenthesis(const QString &text, const int start) {
     return -1;
 }
 
+int closingMarkdownAngleLinkDestination(const QString &text, const int start) {
+    bool escaped = false;
+    for (int index = start; index < text.size(); ++index) {
+        const QChar character = text.at(index);
+        if (escaped) {
+            escaped = false;
+        } else if (character == QLatin1Char('\\')) {
+            escaped = true;
+        } else if (character == QLatin1Char('>')) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
+int markdownLinkDestinationTitleStart(const QString &text) {
+    int depth = 0;
+    bool escaped = false;
+    for (int index = 0; index < text.size(); ++index) {
+        const QChar character = text.at(index);
+        if (escaped) {
+            escaped = false;
+        } else if (character == QLatin1Char('\\')) {
+            escaped = true;
+        } else if (character == QLatin1Char('(')) {
+            depth += 1;
+        } else if (character == QLatin1Char(')')) {
+            if (depth > 0) {
+                depth -= 1;
+            }
+        } else if (character.isSpace() && depth == 0) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
+int closingMarkdownQuotedLinkTitle(const QString &text, const QChar quote) {
+    bool escaped = false;
+    for (int index = 1; index < text.size(); ++index) {
+        const QChar character = text.at(index);
+        if (escaped) {
+            escaped = false;
+        } else if (character == QLatin1Char('\\')) {
+            escaped = true;
+        } else if (character == quote) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
+bool markdownLinkTitle(const QString &text) {
+    if (text.isEmpty()) {
+        return false;
+    }
+
+    const QChar first = text.at(0);
+    if (first == QLatin1Char('"') || first == QLatin1Char('\'')) {
+        const int closingIndex = closingMarkdownQuotedLinkTitle(text, first);
+        return closingIndex >= 0 && closingIndex == text.size() - 1;
+    }
+
+    if (first == QLatin1Char('(')) {
+        const int closingIndex = closingMarkdownParenthesis(text, 1);
+        return closingIndex >= 0 && closingIndex == text.size() - 1;
+    }
+
+    return false;
+}
+
+QString normalizedMarkdownLinkDestination(const QString &rawDestination) {
+    QString destination = rawDestination.trimmed();
+
+    if (destination.startsWith(QLatin1Char('<'))) {
+        const int contentStart = 1;
+        const int contentEnd = closingMarkdownAngleLinkDestination(destination, contentStart);
+        if (contentEnd >= 0) {
+            const QString tail = destination.mid(contentEnd + 1).trimmed();
+            if (tail.isEmpty() || markdownLinkTitle(tail)) {
+                return destination.mid(contentStart, contentEnd - contentStart);
+            }
+        }
+    }
+
+    const int titleStart = markdownLinkDestinationTitleStart(destination);
+    if (titleStart >= 0) {
+        const QString title = destination.mid(titleStart).trimmed();
+        if (title.isEmpty() || markdownLinkTitle(title)) {
+            destination = destination.left(titleStart).trimmed();
+        }
+    }
+
+    return destination;
+}
+
 bool markdownLinkReferenceDefinition(const QString &rawLine) {
     const QString line = rawLine.trimmed();
     if (!line.startsWith(QLatin1Char('['))) {
@@ -1582,7 +1681,9 @@ bool markdownLinkReplacement(
     }
 
     const QString label = text.mid(labelContentStart, labelEnd - labelContentStart);
-    const QString destination = text.mid(destinationStart, destinationEnd - destinationStart);
+    const QString destination = normalizedMarkdownLinkDestination(
+        text.mid(destinationStart, destinationEnd - destinationStart)
+    );
     if (replacement != nullptr) {
         *replacement = label.isEmpty()
             ? QStringLiteral("(") + destination + QStringLiteral(")")

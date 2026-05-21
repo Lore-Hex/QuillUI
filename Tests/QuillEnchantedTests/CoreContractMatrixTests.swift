@@ -1999,10 +1999,14 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "} else if (character == QLatin1Char('[')) {\n            depth += 1;\n        } else if (character == QLatin1Char(']'))")
         expectContains(nativeShim, "if (depth == 0) {\n                return index;\n            }\n            depth -= 1;")
         expectContains(nativeShim, "int closingMarkdownParenthesis(const QString &text, const int start)")
+        expectContains(nativeShim, "int closingMarkdownAngleLinkDestination(const QString &text, const int start)")
+        expectContains(nativeShim, "bool markdownLinkTitle(const QString &text)")
+        expectContains(nativeShim, "QString normalizedMarkdownLinkDestination(const QString &rawDestination)")
         expectContains(nativeShim, "bool isMarkdownImageLabelStart(const QString &text, const int index)")
         expectContains(nativeShim, "bool markdownImageReplacement(\n    const QString &text,\n    const int index,")
         expectContains(nativeShim, "QString replaceMarkdownImages(const QString &text)")
         expectContains(nativeShim, "bool markdownLinkReplacement(\n    const QString &text,\n    const int index,")
+        expectContains(nativeShim, "const QString destination = normalizedMarkdownLinkDestination(")
         expectContains(nativeShim, "QString replaceMarkdownLinks(const QString &text)")
         expectContains(nativeShim, "bool markdownReferenceImageReplacement(\n    const QString &text,\n    const int index,")
         expectContains(nativeShim, "QString replaceMarkdownReferenceImages(const QString &text)")
@@ -2863,6 +2867,12 @@ private let inlineCases: [TextCase] = [
     TextCase(input: "![Chart](assets/chart(size).png)", expected: "Chart"),
     TextCase(input: "[Docs [beta]](https://example.com)", expected: "Docs [beta] (https://example.com)"),
     TextCase(input: "![Chart [draft]](assets/chart.png)", expected: "Chart [draft]"),
+    TextCase(input: "[Docs](https://example.com/docs \"Docs page\")", expected: "Docs (https://example.com/docs)"),
+    TextCase(input: "[Docs](https://example.com/docs 'Docs page')", expected: "Docs (https://example.com/docs)"),
+    TextCase(input: "[Docs](https://example.com/docs (Docs page))", expected: "Docs (https://example.com/docs)"),
+    TextCase(input: "[Search](<https://example.com/query with spaces> \"Search page\")", expected: "Search (https://example.com/query with spaces)"),
+    TextCase(input: "Status []( https://example.com/docs \"Docs page\")", expected: "Status (https://example.com/docs)"),
+    TextCase(input: "![Chart](<assets/chart size.png> \"Chart title\")", expected: "Chart"),
     TextCase(input: "Preview ![Architecture Diagram](assets/architecture.png) done", expected: "Preview Architecture Diagram done"),
     TextCase(input: "\\![Preview](file:///tmp/preview.png)", expected: "![Preview](file:///tmp/preview.png)"),
     TextCase(input: "Open <https://example.com/docs?q=1>", expected: "Open https://example.com/docs?q=1"),

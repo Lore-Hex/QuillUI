@@ -372,9 +372,114 @@ enum MarkdownParser {
         }
 
         let label = String(text[labelContentStart..<labelEnd])
-        let destination = String(text[destinationStart..<destinationEnd])
+        let destination = normalizedLinkDestination(String(text[destinationStart..<destinationEnd]))
         let replacement = label.isEmpty ? "(\(destination))" : "\(label) (\(destination))"
         return (replacement, text.index(after: destinationEnd))
+    }
+
+    private static func normalizedLinkDestination(_ rawDestination: String) -> String {
+        var destination = rawDestination.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if destination.first == "<" {
+            let contentStart = destination.index(after: destination.startIndex)
+            if let contentEnd = closingAngleLinkDestination(in: destination, from: contentStart) {
+                let tailStart = destination.index(after: contentEnd)
+                let tail = destination[tailStart...].trimmingCharacters(in: .whitespacesAndNewlines)
+                if tail.isEmpty || markdownLinkTitle(tail) {
+                    return String(destination[contentStart..<contentEnd])
+                }
+            }
+        }
+
+        if let titleStart = markdownLinkTitleStart(in: destination) {
+            let title = destination[titleStart...].trimmingCharacters(in: .whitespacesAndNewlines)
+            if title.isEmpty || markdownLinkTitle(title) {
+                destination = String(destination[..<titleStart]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        return destination
+    }
+
+    private static func closingAngleLinkDestination(in text: String, from start: String.Index) -> String.Index? {
+        var index = start
+        var escaped = false
+
+        while index < text.endIndex {
+            let character = text[index]
+            if escaped {
+                escaped = false
+            } else if character == "\\" {
+                escaped = true
+            } else if character == ">" {
+                return index
+            }
+            index = text.index(after: index)
+        }
+
+        return nil
+    }
+
+    private static func markdownLinkTitleStart(in text: String) -> String.Index? {
+        var index = text.startIndex
+        var depth = 0
+        var escaped = false
+
+        while index < text.endIndex {
+            let character = text[index]
+            if escaped {
+                escaped = false
+            } else if character == "\\" {
+                escaped = true
+            } else if character == "(" {
+                depth += 1
+            } else if character == ")" {
+                if depth > 0 {
+                    depth -= 1
+                }
+            } else if character.isWhitespace, depth == 0 {
+                return index
+            }
+            index = text.index(after: index)
+        }
+
+        return nil
+    }
+
+    private static func markdownLinkTitle(_ text: String) -> Bool {
+        guard let first = text.first else { return false }
+
+        if first == "\"" || first == "'" {
+            guard let closing = closingQuotedLinkTitle(in: text, quote: first) else { return false }
+            return text.index(after: closing) == text.endIndex
+        }
+
+        if first == "(" {
+            let contentStart = text.index(after: text.startIndex)
+            guard let closing = closingParenthesis(in: text, from: contentStart) else { return false }
+            return text.index(after: closing) == text.endIndex
+        }
+
+        return false
+    }
+
+    private static func closingQuotedLinkTitle(in text: String, quote: Character) -> String.Index? {
+        var index = text.index(after: text.startIndex)
+        var escaped = false
+
+        while index < text.endIndex {
+            let character = text[index]
+            if escaped {
+                escaped = false
+            } else if character == "\\" {
+                escaped = true
+            } else if character == quote {
+                return index
+            }
+            index = text.index(after: index)
+        }
+
+        return nil
     }
 
     private static func markdownReferenceImageReplacement(
