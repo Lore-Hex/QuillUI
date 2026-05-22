@@ -260,6 +260,38 @@ Current tooling checkpoint:
 - `scripts/run-linux-backend-smoke-matrix.sh`: shared visual/interaction matrix runner so local and CI GTK/Qt smoke rows stay identical.
 - `scripts/linux-backend-check.sh`: guarded aggregate check for the current Linux backend matrix.
 
+## Roadmap
+
+QuillUI's product position is **pixel-perfect macOS appearance on Linux**, not
+native-Linux feel. Same look on every platform reduces per-platform debugging
+and UX surprises for Apple-dev users (Slack/Discord/Notion model). The Linux
+backend is SwiftOpenUI on GTK as the primary runtime, with Qt maintained in
+parallel to enforce abstraction discipline — neither backend's specifics can
+leak into the SwiftUI compatibility layer if both must build the same source.
+
+The strict Mac-reference visual verifier currently passes the GTK row at 0.230
+of the Mac reference, with sidebar divider, prompt-card, alert, and composer
+mismatches. The data suggests CSS-on-SwiftOpenUI patching is asymptotic — GTK
+widget geometry and draw model bound pixel parity to roughly 70–80% of the Mac
+reference. Reaching 0.95+ requires a custom paint layer behind SwiftOpenUI
+rather than more CSS patches.
+
+### Next milestones
+
+1. **SwiftSyntax SwiftPM build plugin.** Replaces `scripts/lower-swiftdata-for-quilldata.sh` and `scripts/lower-swiftui-source-for-linux.sh` regex pipelines with structured macros. Unlocks `@Model`, `@Observable`, and platform-gate lowering. Shippable as a public Swift package so external apps adopt the lowering without copying scripts.
+2. **`QuillPaint` custom paint layer.** Keep SwiftOpenUI for layout, state, diffing, and event routing; override widget draw calls with a Cairo (or Skia) pass that renders Button, TextField, Scrollbar, focus ring, and titlebar at exact macOS metrics, colors, and an SF-Pro-equivalent font (Inter as Linux fallback). Verify per-control against the strict Mac-reference verifier.
+3. **Qt paint pipeline through `QuillPaint`.** Qt visual/profile smoke rows currently sample the GTK fallback binary because no native Qt renderer is linked. Linking Qt against `QuillPaint` makes the Qt matrix load-bearing and validates the abstraction.
+4. **Re-run the strict Mac-reference verifier across the app matrix.** Target ratio 0.95+. The Mac reference becomes a binding contract.
+5. **NetNewsWire to Flathub** as the marquee port. Move from fixtures-only RSS shell to a real reader with OPML import, smart feeds, and persistent state. `flatpak install` is the demo that recruits Apple-dev users.
+6. **Recruit flagship maintainers.** Email NetNewsWire's Brent Simmons and Ice Cubes' Dimillian with installable builds. Offer paid port + maintenance + featured App Center slot at 0% cut.
+7. **`quill doctor` CLI.** Scans an Apple SwiftPM target and reports which APIs are covered, partial, or missing. Apple devs run it against their own app for a tailored gap report.
+8. **Public coverage site at quillui.dev.** Auto-generated from the same source contracts that drive `docs/apple-package-function-coverage.md`.
+
+### Parallel infrastructure
+
+- GitHub Actions CI matrix: Linux x86_64 + aarch64, GTK runtime, Qt compile-check.
+- App Center stub: curated Flathub remote or Flatpak set as the v0 surface for 0% cut distribution.
+
 ## Run
 
 On macOS:
