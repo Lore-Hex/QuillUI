@@ -198,7 +198,13 @@ var products: [Product] = [
     .library(name: "QuillUIKit", targets: ["QuillUIKit"]),
     .library(name: "QuillWebKit", targets: ["QuillWebKit"]),
     .library(name: "QuillShims", targets: ["QuillShims"]),
-    .library(name: "KeychainSwift", targets: ["KeychainSwift"])
+    .library(name: "KeychainSwift", targets: ["KeychainSwift"]),
+    // QuillSourceLowering is the SwiftSyntax-based replacement for the
+    // regex transformations in scripts/lower-swiftdata-for-quilldata.sh.
+    // Currently covers @Model / @Transient / #Predicate; the executable
+    // wrapper ships as `quill-source-lower`.
+    .library(name: "QuillSourceLowering", targets: ["QuillSourceLowering"]),
+    .executable(name: "quill-source-lower", targets: ["quill-source-lower"])
 ] + quillCanonicalLinuxAppProducts
 
 #if !os(Linux)
@@ -556,6 +562,24 @@ var targets: [Target] = [
     ),
     quillDataMacroTarget,
     quillDataTarget,
+    // SwiftSyntax-based replacement for the SwiftData lowering regex
+    // pipeline in scripts/lower-swiftdata-for-quilldata.sh. The library
+    // is the long-lived ground truth; quill-source-lower is the CLI
+    // wrapper that mirrors the shell script's SOURCE_DIR + OUTPUT_DIR
+    // contract for generated-source profiles.
+    .target(
+        name: "QuillSourceLowering",
+        dependencies: [
+            .product(name: "SwiftSyntax", package: "swift-syntax"),
+            .product(name: "SwiftParser", package: "swift-syntax")
+        ],
+        path: "Sources/QuillSourceLowering"
+    ),
+    .executableTarget(
+        name: "quill-source-lower",
+        dependencies: ["QuillSourceLowering"],
+        path: "Sources/quill-source-lower"
+    ),
     .target(
         name: "QuillKit",
         dependencies: []
@@ -1368,6 +1392,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillDataTests",
             dependencies: ["QuillData"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "QuillSourceLoweringTests",
+            dependencies: ["QuillSourceLowering"],
             swiftSettings: appSwiftSettings
         ),
         // Pins Enchanted's core compatibility surface: markdown /
