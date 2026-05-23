@@ -1,5 +1,6 @@
 .build/
 .build-*/
+.build-*.sh
 .build-linux/
 .build-linux-cov/
 .build-linux-coverage/
