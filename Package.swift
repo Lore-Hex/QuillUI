@@ -200,11 +200,13 @@ var products: [Product] = [
     .library(name: "QuillShims", targets: ["QuillShims"]),
     .library(name: "KeychainSwift", targets: ["KeychainSwift"]),
     // QuillSourceLowering is the SwiftSyntax-based replacement for the
-    // regex transformations in scripts/lower-swiftdata-for-quilldata.sh.
-    // Currently covers @Model / @Transient / #Predicate; the executable
-    // wrapper ships as `quill-source-lower`.
+    // regex transformations in scripts/lower-swiftdata-for-quilldata.sh
+    // and scripts/lower-swiftui-source-for-linux.sh. The SwiftData CLI
+    // ships as `quill-source-lower`; the SwiftUI CLI (in-place edits)
+    // ships as `quill-lower-swiftui`.
     .library(name: "QuillSourceLowering", targets: ["QuillSourceLowering"]),
-    .executable(name: "quill-source-lower", targets: ["quill-source-lower"])
+    .executable(name: "quill-source-lower", targets: ["quill-source-lower"]),
+    .executable(name: "quill-lower-swiftui", targets: ["quill-lower-swiftui"])
 ] + quillCanonicalLinuxAppProducts
 
 #if !os(Linux)
@@ -579,6 +581,11 @@ var targets: [Target] = [
         name: "quill-source-lower",
         dependencies: ["QuillSourceLowering"],
         path: "Sources/quill-source-lower"
+    ),
+    .executableTarget(
+        name: "quill-lower-swiftui",
+        dependencies: ["QuillSourceLowering"],
+        path: "Sources/quill-lower-swiftui"
     ),
     .target(
         name: "QuillKit",
