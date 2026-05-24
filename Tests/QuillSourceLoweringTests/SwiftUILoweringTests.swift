@@ -169,6 +169,90 @@ struct SwiftUILoweringTests {
         #expect(first.contains("struct Root: View {"))
     }
 
+    @Test("os(macOS) in #if conditions is widened to (os(macOS) || os(Linux))")
+    func osMacOSWidenedInIfConfig() {
+        let source = """
+        #if os(macOS) && canImport(AppKit)
+        import AppKit
+        #endif
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("#if (os(macOS) || os(Linux)) && canImport(AppKit)"))
+    }
+
+    @Test("Negated os(macOS) is left alone")
+    func negatedOSMacOSPreserved() {
+        let source = """
+        #if !os(macOS)
+        let mobile = true
+        #endif
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("#if !os(macOS)"))
+        #expect(!lowered.contains("(os(macOS) || os(Linux))"))
+    }
+
+    @Test("Already-widened os(macOS) || os(Linux) is idempotent")
+    func alreadyWidenedIsIdempotent() {
+        let source = """
+        #if os(macOS) || os(Linux)
+        let desktop = true
+        #endif
+        """
+        let lowered = SwiftUILowering().lower(source)
+        // The inner os(macOS) should NOT get re-wrapped.
+        #expect(lowered.contains("#if os(macOS) || os(Linux)"))
+        #expect(!lowered.contains("(os(macOS) || os(Linux)) || os(Linux)"))
+    }
+
+    @Test("Paren-wrapped negation widens (matches bash regex behavior)")
+    func parenWrappedNegationWidens() {
+        let source = """
+        #if !(os(macOS))
+        let weirdNeg = false
+        #endif
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("(os(macOS) || os(Linux))"))
+    }
+
+    @Test("Top-level #Preview blocks are removed")
+    func previewBlockRemoved() {
+        let source = """
+        import SwiftUI
+
+        struct Root: View {
+            var body: some View { Text("hi") }
+        }
+
+        #Preview {
+            Root()
+        }
+
+        #Preview("named") {
+            Root()
+        }
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(!lowered.contains("#Preview"))
+        #expect(lowered.contains("struct Root: View"))
+    }
+
+    @Test("os(macOS) widening only affects #if conditions, not regular code")
+    func osMacOSNotWidenedOutsideIfConfig() {
+        // A bare `os(macOS)` reference in regular code is unusual but possible
+        // (e.g. inside a string or as part of an unrelated function named `os`).
+        // The widening must only fire inside #if conditions.
+        let source = """
+        func describePlatform() -> String {
+            return "os(macOS)"
+        }
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("\"os(macOS)\""))
+        #expect(!lowered.contains("|| os(Linux)"))
+    }
+
     @Test("lowerInPlace rewrites .swift files and leaves other files alone")
     func lowerInPlaceTouchesOnlySwift() throws {
         let fm = FileManager.default

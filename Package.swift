@@ -573,6 +573,7 @@ var targets: [Target] = [
         name: "QuillSourceLowering",
         dependencies: [
             .product(name: "SwiftSyntax", package: "swift-syntax"),
+            .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
             .product(name: "SwiftParser", package: "swift-syntax")
         ],
         path: "Sources/QuillSourceLowering"

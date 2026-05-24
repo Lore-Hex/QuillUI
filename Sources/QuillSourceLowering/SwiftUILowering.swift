@@ -1,12 +1,12 @@
 import Foundation
 import SwiftParser
 import SwiftSyntax
+import SwiftSyntaxBuilder
 
 /// Lowers SwiftUI-only Swift syntax into Linux-compatible Swift.
 ///
-/// Mirrors a *subset* of the regex transformations in
-/// `scripts/lower-swiftui-source-for-linux.sh`. The first SwiftSyntax slice
-/// covers cleanly-structural attribute and inheritance rewrites:
+/// Mirrors most of the regex transformations in
+/// `scripts/lower-swiftui-source-for-linux.sh`. Currently covers:
 ///
 ///   * `@main` attribute removal from any declaration
 ///   * `@MainActor` attribute removal from any declaration
@@ -18,17 +18,18 @@ import SwiftSyntax
 ///     still handled by the shell script's Python helper)
 ///   * `Sendable` removal from inheritance lists whenever `View` is also
 ///     present (so `struct Foo: View, Sendable` → `struct Foo: View`)
+///   * `#Preview { … }` top-level declaration deletion (any `#Preview` macro
+///     expansion at file scope is removed entirely)
+///   * `os(macOS)` widening to `(os(macOS) || os(Linux))` inside `#if`
+///     condition expression trees, with carve-outs for negated forms (`!os(macOS)`)
+///     and already-widened forms (`os(macOS) || os(Linux)`)
 ///
-/// Out of scope for this slice (still handled by the shell script):
+/// Out of scope for this implementation (still handled by the shell script):
 ///   * `@Observable` → `QuillObservableObject` rewrite with `@QuillPublished`
-///     wrapping of stored properties
-///   * `#Preview` block deletion, including the special case where the block
-///     is wrapped in a `#if … #endif` extending to EOF
-///   * `os(macOS)` widening to `(os(macOS) || os(Linux))` in compilation
-///     conditions, with carve-outs for negated and already-widened forms
-///
-/// Until the SwiftSyntax implementation catches up to the above, the shell
-/// script remains the canonical entry point for generated-source profiles.
+///     wrapping of stored properties — full Observable class transformation
+///   * `#Preview` blocks wrapped in `#if … #endif` whose `#endif` is the
+///     end-of-file marker. Top-level `#Preview` is deleted but the `#if`
+///     wrapper is not collapsed.
 public struct SwiftUILowering {
     public init() {}
 
@@ -134,5 +135,142 @@ private final class SwiftUIRewriter: SyntaxRewriter {
         var updated = recursed
         updated.inheritedTypes = newTypes
         return updated
+    }
+
+    /// Drop top-level `#Preview` macro expansions. These have no Linux
+    /// equivalent and exist only for Xcode preview rendering. The Swift
+    /// parser sometimes models the freestanding `#Preview` as a
+    /// `MacroExpansionDeclSyntax` and sometimes as a
+    /// `MacroExpansionExprSyntax` depending on parse ambiguity — handle both.
+    override func visit(_ node: CodeBlockItemListSyntax) -> CodeBlockItemListSyntax {
+        let recursed = super.visit(node)
+        let filtered = recursed.filter { item in
+            if let macroDecl = item.item.as(MacroExpansionDeclSyntax.self),
+               macroDecl.macroName.text == "Preview" {
+                return false
+            }
+            if let macroExpr = item.item.as(MacroExpansionExprSyntax.self),
+               macroExpr.macroName.text == "Preview" {
+                return false
+            }
+            return true
+        }
+        if filtered.count == recursed.count { return recursed }
+        return filtered
+    }
+
+    /// Widen `os(macOS)` to `(os(macOS) || os(Linux))` inside `#if` condition
+    /// expression trees. The rewrite only fires inside compile-config
+    /// conditions, never in regular code, so we run a nested rewriter
+    /// scoped to `IfConfigClauseSyntax.condition`.
+    override func visit(_ node: IfConfigClauseSyntax) -> IfConfigClauseSyntax {
+        let recursed = super.visit(node)
+        guard let condition = recursed.condition else { return recursed }
+
+        // Two-pass: first scan the condition tree for `os(macOS)` calls that
+        // should be skipped (negated form or already-widened form), then rewrite.
+        let scanner = OSMacOSSkipScanner(viewMode: .sourceAccurate)
+        scanner.walk(condition)
+        let widener = OSMacOSWidener(skipIDs: scanner.skipIDs)
+        let rewritten = widener.rewrite(Syntax(condition))
+        guard let newCondition = rewritten.as(ExprSyntax.self) else { return recursed }
+        var updated = recursed
+        updated.condition = newCondition
+        return updated
+    }
+}
+
+// MARK: - os(macOS) widening (nested rewriter, scoped to #if conditions)
+
+/// Pre-scan pass that records the `os(macOS)` call IDs to leave alone:
+/// those that are immediately negated (`!os(macOS)`) or already part of an
+/// `os(macOS) || os(Linux)` pair. Doing this in a separate pass means the
+/// rewriter doesn't have to rely on parent traversal mid-rewrite, which
+/// `SyntaxRewriter` doesn't reliably support.
+private final class OSMacOSSkipScanner: SyntaxVisitor {
+    var skipIDs: Set<SyntaxIdentifier> = []
+
+    override func visit(_ node: PrefixOperatorExprSyntax) -> SyntaxVisitorContinueKind {
+        if node.operator.text == "!",
+           let call = node.expression.as(FunctionCallExprSyntax.self),
+           OSMacOSWidener.isOSMacOSCall(call) {
+            skipIDs.insert(Syntax(call).id)
+        }
+        return .visitChildren
+    }
+
+    override func visit(_ node: InfixOperatorExprSyntax) -> SyntaxVisitorContinueKind {
+        if let op = node.operator.as(BinaryOperatorExprSyntax.self),
+           op.operator.text == "||",
+           let left = node.leftOperand.as(FunctionCallExprSyntax.self),
+           OSMacOSWidener.isOSMacOSCall(left),
+           let right = node.rightOperand.as(FunctionCallExprSyntax.self),
+           OSMacOSWidener.isOSCall(right, argument: "Linux") {
+            skipIDs.insert(Syntax(left).id)
+        }
+        return .visitChildren
+    }
+
+    /// Compile-config conditions like `#if os(macOS) || os(Linux)` typically
+    /// parse as `SequenceExprSyntax` (an unfolded chain of operands and
+    /// operator tokens) rather than `InfixOperatorExprSyntax`. Scan the
+    /// sequence for the `os(macOS) || os(Linux)` triple and skip the
+    /// left-hand call so the widening pass doesn't re-wrap it.
+    override func visit(_ node: SequenceExprSyntax) -> SyntaxVisitorContinueKind {
+        let elements = Array(node.elements)
+        guard elements.count >= 3 else { return .visitChildren }
+        for i in 0...(elements.count - 3) {
+            if let left = elements[i].as(FunctionCallExprSyntax.self),
+               OSMacOSWidener.isOSMacOSCall(left),
+               let op = elements[i + 1].as(BinaryOperatorExprSyntax.self),
+               op.operator.text == "||",
+               let right = elements[i + 2].as(FunctionCallExprSyntax.self),
+               OSMacOSWidener.isOSCall(right, argument: "Linux") {
+                skipIDs.insert(Syntax(left).id)
+            }
+        }
+        return .visitChildren
+    }
+}
+
+private final class OSMacOSWidener: SyntaxRewriter {
+    private let skipIDs: Set<SyntaxIdentifier>
+
+    init(skipIDs: Set<SyntaxIdentifier>) {
+        self.skipIDs = skipIDs
+        super.init(viewMode: .sourceAccurate)
+    }
+
+    override func visit(_ node: FunctionCallExprSyntax) -> ExprSyntax {
+        guard Self.isOSMacOSCall(node) else { return ExprSyntax(super.visit(node)) }
+        if skipIDs.contains(Syntax(node).id) {
+            return ExprSyntax(node)
+        }
+        // Widen. Preserve trivia so surrounding spaces and newlines survive.
+        let replacement: ExprSyntax = "(os(macOS) || os(Linux))"
+        return ExprSyntax(
+            replacement
+                .with(\.leadingTrivia, node.leadingTrivia)
+                .with(\.trailingTrivia, node.trailingTrivia)
+        )
+    }
+
+    fileprivate static func isOSMacOSCall(_ call: FunctionCallExprSyntax) -> Bool {
+        isOSCall(call, argument: "macOS")
+    }
+
+    fileprivate static func isOSCall(_ call: FunctionCallExprSyntax, argument expected: String) -> Bool {
+        guard let calledName = call.calledExpression.as(DeclReferenceExprSyntax.self),
+              calledName.baseName.text == "os" else {
+            return false
+        }
+        guard call.arguments.count == 1, let onlyArgument = call.arguments.first else {
+            return false
+        }
+        if let identifier = onlyArgument.expression.as(DeclReferenceExprSyntax.self),
+           identifier.baseName.text == expected {
+            return true
+        }
+        return false
     }
 }
