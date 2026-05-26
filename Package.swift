@@ -203,10 +203,14 @@ var products: [Product] = [
     // regex transformations in scripts/lower-swiftdata-for-quilldata.sh
     // and scripts/lower-swiftui-source-for-linux.sh. The SwiftData CLI
     // ships as `quill-source-lower`; the SwiftUI CLI (in-place edits)
-    // ships as `quill-lower-swiftui`.
+    // ships as `quill-lower-swiftui`. QuillDoctor scans an external
+    // Apple SwiftPM project's imports and reports coverage against the
+    // QuillUI compatibility matrix; the CLI ships as `quill-doctor`.
     .library(name: "QuillSourceLowering", targets: ["QuillSourceLowering"]),
     .executable(name: "quill-source-lower", targets: ["quill-source-lower"]),
-    .executable(name: "quill-lower-swiftui", targets: ["quill-lower-swiftui"])
+    .executable(name: "quill-lower-swiftui", targets: ["quill-lower-swiftui"]),
+    .library(name: "QuillDoctor", targets: ["QuillDoctor"]),
+    .executable(name: "quill-doctor", targets: ["quill-doctor"])
 ] + quillCanonicalLinuxAppProducts
 
 #if !os(Linux)
@@ -587,6 +591,19 @@ var targets: [Target] = [
         name: "quill-lower-swiftui",
         dependencies: ["QuillSourceLowering"],
         path: "Sources/quill-lower-swiftui"
+    ),
+    .target(
+        name: "QuillDoctor",
+        dependencies: [
+            .product(name: "SwiftSyntax", package: "swift-syntax"),
+            .product(name: "SwiftParser", package: "swift-syntax")
+        ],
+        path: "Sources/QuillDoctor"
+    ),
+    .executableTarget(
+        name: "quill-doctor",
+        dependencies: ["QuillDoctor"],
+        path: "Sources/quill-doctor"
     ),
     .target(
         name: "QuillKit",
@@ -1405,6 +1422,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillSourceLoweringTests",
             dependencies: ["QuillSourceLowering"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "QuillDoctorTests",
+            dependencies: ["QuillDoctor"],
             swiftSettings: appSwiftSettings
         ),
         // Pins Enchanted's core compatibility surface: markdown /
