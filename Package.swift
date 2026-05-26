@@ -210,7 +210,12 @@ var products: [Product] = [
     .executable(name: "quill-source-lower", targets: ["quill-source-lower"]),
     .executable(name: "quill-lower-swiftui", targets: ["quill-lower-swiftui"]),
     .library(name: "QuillDoctor", targets: ["QuillDoctor"]),
-    .executable(name: "quill-doctor", targets: ["quill-doctor"])
+    .executable(name: "quill-doctor", targets: ["quill-doctor"]),
+    // QuillPaint is the renderer-agnostic control paint layer. Apps using
+    // QuillUI on Linux paint through QuillPaint's PaintContext protocol;
+    // backend integrations (Cairo on GTK, Skia/QPainter on Qt, CoreGraphics
+    // for Mac-reference snapshots) live in separate adapter targets.
+    .library(name: "QuillPaint", targets: ["QuillPaint"])
 ] + quillCanonicalLinuxAppProducts
 
 #if !os(Linux)
@@ -604,6 +609,11 @@ var targets: [Target] = [
         name: "quill-doctor",
         dependencies: ["QuillDoctor"],
         path: "Sources/quill-doctor"
+    ),
+    .target(
+        name: "QuillPaint",
+        dependencies: [],
+        path: "Sources/QuillPaint"
     ),
     .target(
         name: "QuillKit",
@@ -1427,6 +1437,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillDoctorTests",
             dependencies: ["QuillDoctor"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "QuillPaintTests",
+            dependencies: ["QuillPaint"],
             swiftSettings: appSwiftSettings
         ),
         // Pins Enchanted's core compatibility surface: markdown /
