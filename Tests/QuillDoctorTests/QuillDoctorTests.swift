@@ -130,4 +130,44 @@ struct QuillDoctorTests {
         let tickets = report.ticketMarkdown()
         #expect(tickets.contains("No tickets to generate"))
     }
+
+    @Test("JSON encoding matches required schema and sorts modules alphabetically")
+    func jsonEncoding() throws {
+        let report = QuillDoctorReport(modules: [
+            .init(module: "B_Module", status: .covered, usedInFiles: ["B.swift"]),
+            .init(module: "A_Module", status: .missing, usedInFiles: ["A.swift"])
+        ])
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys] // For stable testing
+        let data = try encoder.encode(report)
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        #expect(json["covered_count"] as? Int == 1)
+        #expect(json["missing_count"] as? Int == 1)
+
+        let modules = try #require(json["modules"] as? [[String: Any]])
+        #expect(modules.count == 2)
+
+        // Verify alphabetical sort (A_Module before B_Module)
+        #expect(modules[0]["name"] as? String == "A_Module")
+        #expect(modules[0]["status"] as? String == "missing")
+        #expect(modules[0]["used_in_files"] as? [String] == ["A.swift"])
+
+        #expect(modules[1]["name"] as? String == "B_Module")
+        #expect(modules[1]["status"] as? String == "covered")
+        #expect(modules[1]["used_in_files"] as? [String] == ["B.swift"])
+    }
+
+    @Test("JSON encoding handles empty report")
+    func jsonEncodingEmpty() throws {
+        let report = QuillDoctorReport(modules: [])
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(report)
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        #expect(json["covered_count"] as? Int == 0)
+        #expect(json["missing_count"] as? Int == 0)
+        #expect((json["modules"] as? [Any])?.isEmpty == true)
+    }
 }
