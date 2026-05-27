@@ -21,6 +21,12 @@ public protocol PaintContext: AnyObject {
 
     /// Stroke a single straight line segment.
     func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double)
+
+    /// Draw a single line of text.
+    func drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor)
+
+    /// Measure the size of a string when rendered with a specific font.
+    func measureText(_ string: String, font: PaintFont) -> PaintSize
 }
 
 public extension PaintContext {
@@ -41,6 +47,7 @@ public final class RecordingPaintContext: PaintContext {
         case fillRoundedRect(rect: PaintRect, cornerRadius: Double, color: PaintColor)
         case strokeRoundedRect(rect: PaintRect, cornerRadius: Double, color: PaintColor, lineWidth: Double)
         case strokeLine(from: PaintPoint, to: PaintPoint, color: PaintColor, lineWidth: Double)
+        case drawText(string: String, at: PaintPoint, font: PaintFont, color: PaintColor)
     }
 
     public private(set) var calls: [DrawCall] = []
@@ -61,5 +68,14 @@ public final class RecordingPaintContext: PaintContext {
 
     public func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double) {
         calls.append(.strokeLine(from: start, to: end, color: color, lineWidth: lineWidth))
+    }
+
+    public func drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor) {
+        calls.append(.drawText(string: string, at: point, font: font, color: color))
+    }
+
+    public func measureText(_ string: String, font: PaintFont) -> PaintSize {
+        // Return a deterministic heuristic size for testing purposes.
+        PaintSize(width: Double(string.count) * 7.0, height: font.size)
     }
 }

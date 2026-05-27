@@ -49,6 +49,44 @@ public enum MacMetrics {
     }
 }
 
+/// Helper for resolving the best available font family.
+public enum MacFontResolution {
+    /// The best available font family matching SF Pro metrics.
+    /// "SF Pro Text" -> "Inter" -> "Helvetica Neue" -> system default.
+    public static let bestAvailableFamily: String = {
+        // Note: In a renderer-agnostic layer, we can't easily probe the system
+        // for font existence. We return the preferred family and expect the
+        // backend's font matching logic to handle the fallback chain.
+        // For the Mac reference renderer, "SF Pro Text" will be found.
+        // For Linux, "Inter" is the expected substitute.
+        "SF Pro Text"
+    }()
+}
+
+/// macOS-exact font tokens.
+public enum MacFonts {
+    /// 13pt regular label font.
+    public static let controlLabel = PaintFont(
+        family: MacFontResolution.bestAvailableFamily,
+        size: 13,
+        weight: 400
+    )
+
+    /// 13pt semibold label font.
+    public static let controlLabelEmphasized = PaintFont(
+        family: MacFontResolution.bestAvailableFamily,
+        size: 13,
+        weight: 600
+    )
+
+    /// 13pt regular titlebar font.
+    public static let titlebarTitle = PaintFont(
+        family: MacFontResolution.bestAvailableFamily,
+        size: 13,
+        weight: 400
+    )
+}
+
 /// macOS system color tokens used by QuillPaint controls.
 ///
 /// Values are the standard appearance ("Aqua") light-mode hexes. Dark mode

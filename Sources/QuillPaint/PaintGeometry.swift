@@ -85,3 +85,17 @@ public struct PaintColor: Equatable, Hashable, Sendable {
     public static let white = PaintColor(red: 1, green: 1, blue: 1)
     public static let black = PaintColor(red: 0, green: 0, blue: 0)
 }
+
+/// Font specification for text rendering.
+public struct PaintFont: Equatable, Hashable, Sendable {
+    public var family: String
+    public var size: Double
+    /// Numeric weight (100-900). 400 is regular, 700 is bold.
+    public var weight: Int
+
+    public init(family: String, size: Double, weight: Int = 400) {
+        self.family = family
+        self.size = size
+        self.weight = weight
+    }
+}
