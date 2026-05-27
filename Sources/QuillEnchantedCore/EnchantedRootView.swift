@@ -166,6 +166,12 @@ public struct EnchantedRootView: View {
         VStack(alignment: .leading, spacing: 0) {
             chatHeader
                 .padding(CGFloat(EnchantedVisualMetrics.headerPadding))
+                .frame(
+                    minHeight: CGFloat(EnchantedVisualMetrics.headerHeight),
+                    idealHeight: CGFloat(EnchantedVisualMetrics.headerHeight),
+                    maxHeight: CGFloat(EnchantedVisualMetrics.headerHeight)
+                )
+                .quillGTKSizeRequest(height: EnchantedVisualMetrics.headerHeight)
                 .background(QuillColors.header)
 
             Divider()

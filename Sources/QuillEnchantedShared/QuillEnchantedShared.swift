@@ -450,6 +450,7 @@ public enum EnchantedVisualMetrics {
     public static let statusDotSize = 9
     public static let statusDotRadius = 9
     public static let headerTitleWidth = 560
+    public static let headerHeight = 102
     public static let headerSpacing = 12
     public static let headerTitleSpacing = 4
     public static let headerPadding = 18
