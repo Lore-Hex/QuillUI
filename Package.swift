@@ -41,7 +41,6 @@ enum QuillUILinuxBuildBackend: String {
 
 let quillUILinuxBuildBackendEnvironmentKey = "QUILLUI_LINUX_BACKEND"
 
-#if os(Linux)
 func pkgConfigPackagePresent(_ name: String) -> Bool {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -58,6 +57,7 @@ func pkgConfigPackagePresent(_ name: String) -> Bool {
     }
 }
 
+#if os(Linux)
 func pkgConfigArguments(_ name: String, _ arguments: [String]) -> [String] {
     let process = Process()
     let output = Pipe()
@@ -220,6 +220,8 @@ var products: [Product] = [
     // from the same paint code that Linux backends use, so reference
     // images can't drift from production output.
     .library(name: "QuillPaintCoreGraphics", targets: ["QuillPaintCoreGraphics"]),
+    // Cairo adapter for GTK/Linux paint integration.
+    .library(name: "QuillPaintCairo", targets: ["QuillPaintCairo"]),
     // CLI that regenerates the Mac-reference PNG fixture set under
     // Tests/Fixtures/MacReference/ using QuillPaintCoreGraphics. Apple-only.
     .executable(name: "quill-render-mac-references", targets: ["quill-render-mac-references"])
@@ -501,6 +503,28 @@ let cSQLiteTarget: Target = .systemLibrary(
     ]
 )
 
+let cCairoTarget: Target = .systemLibrary(
+    name: "CCairo",
+    pkgConfig: "cairo",
+    providers: [
+        .apt(["libcairo2-dev"]),
+        .brew(["cairo"])
+    ]
+)
+
+let cairoPkgConfigPresent: Bool = pkgConfigPackagePresent("cairo")
+
+#if os(Linux)
+let quillPaintCairoDependencies: [Target.Dependency] = ["QuillPaint", "CCairo"]
+#else
+let quillPaintCairoDependencies: [Target.Dependency] = cairoPkgConfigPresent
+    ? ["QuillPaint", "CCairo"]
+    : ["QuillPaint"]
+#endif
+let quillPaintCairoSwiftSettings: [SwiftSetting] = cairoPkgConfigPresent
+    ? [.define("QUILLPAINT_HAS_CAIRO")]
+    : []
+
 // QuillDataMacros declares the @QuillModel / @Attribute /
 // @Relationship / @QuillPredicate / @Observable macros used
 // by QuillData. The compiler loads it as an out-of-process
@@ -536,6 +560,7 @@ let quillEnchantedDataTarget: Target = .target(
 
 var targets: [Target] = [
     cSQLiteTarget,
+    cCairoTarget,
     .target(
         name: "QuillUI",
         dependencies: quillUIDependencies,
@@ -626,6 +651,12 @@ var targets: [Target] = [
         name: "QuillPaintCoreGraphics",
         dependencies: ["QuillPaint"],
         path: "Sources/QuillPaintCoreGraphics"
+    ),
+    .target(
+        name: "QuillPaintCairo",
+        dependencies: quillPaintCairoDependencies,
+        path: "Sources/QuillPaintCairo",
+        swiftSettings: quillPaintCairoSwiftSettings
     ),
     .executableTarget(
         name: "quill-render-mac-references",
