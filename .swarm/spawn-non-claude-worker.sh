@@ -29,20 +29,50 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-# Pick an unclaimed loom:issue (filter out any already claimed by anyone)
+# Pick an unclaimed loom:issue (filter out any already claimed by anyone).
+# Gemini picks only complexity:simple issues; Codex prefers complex but will
+# fall back to simple if the complex queue is empty.
 ISSUE_JSON=$(gh issue list --repo Lore-Hex/QuillUI \
   --label "loom:issue" --state open \
   --json number,title,body,labels --limit 30)
 
-ISSUE_NUMBER=$(echo "$ISSUE_JSON" | python3 -c "
-import json, sys
+ISSUE_NUMBER=$(echo "$ISSUE_JSON" | ENGINE="$ENGINE" python3 -c "
+import json, os, sys
+engine = os.environ['ENGINE']
 issues = json.load(sys.stdin)
-for issue in sorted(issues, key=lambda x: x['number']):
-    labels = [l['name'] for l in issue['labels']]
-    if any(l in labels for l in ('loom:building', 'codex:claimed', 'gemini:claimed', 'loom:curating', 'loom:treating', 'loom:reviewing')):
-        continue
-    print(issue['number'])
-    break
+busy = ('loom:building', 'codex:claimed', 'gemini:claimed', 'claude:claimed', 'loom:curating', 'loom:treating', 'loom:reviewing')
+simple_label = 'complexity:simple'
+
+def candidates(issues):
+    for issue in sorted(issues, key=lambda x: x['number']):
+        labels = [l['name'] for l in issue['labels']]
+        if any(l in labels for l in busy):
+            continue
+        yield issue, labels
+
+# Gemini: only complexity:simple. If none available, exit empty.
+if engine == 'gemini':
+    for issue, labels in candidates(issues):
+        if simple_label in labels:
+            print(issue['number'])
+            break
+else:
+    # Codex: prefer non-simple, fall back to simple.
+    complex_pick = None
+    simple_pick = None
+    for issue, labels in candidates(issues):
+        if simple_label in labels:
+            if simple_pick is None:
+                simple_pick = issue['number']
+        else:
+            if complex_pick is None:
+                complex_pick = issue['number']
+        if complex_pick is not None:
+            break
+    if complex_pick is not None:
+        print(complex_pick)
+    elif simple_pick is not None:
+        print(simple_pick)
 ")
 
 if [[ -z "$ISSUE_NUMBER" ]]; then
