@@ -4,6 +4,7 @@ import QuillPaint
 #if canImport(CoreGraphics) && canImport(ImageIO)
 import CoreGraphics
 import ImageIO
+import UniformTypeIdentifiers
 
 /// CG-side helpers for feeding `PixelComparator`: extract raw RGBA bytes
 /// from a `CGImage` and load a PNG from disk into a `CGImage`.
@@ -31,6 +32,17 @@ public enum CGPixelExtraction {
             throw Error.decodeFailed
         }
         return image
+    }
+
+    /// Save a `CGImage` as a PNG to the specified URL.
+    public static func saveImage(_ image: CGImage, to url: URL) throws {
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
+            throw Error.decodeFailed // Or a more specific error if needed
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            throw Error.decodeFailed
+        }
     }
 
     /// Re-rasterize a `CGImage` into a packed RGBA8 byte buffer with

@@ -87,8 +87,22 @@ struct MacReferenceGoldenTests {
             width: candidateImage.width,
             height: candidateImage.height
         )
-        #expect(result.isPerfect,
-                "Reference fixture \(name).png drifted from current renderer (maxChannelDelta=\(result.maxChannelDelta), differingPixels=\(result.differingPixels)/\(result.totalPixels)). Regenerate with `swift run quill-render-mac-references`.")
+
+        if !result.isPerfect {
+            let diffImage = try PaintDiffRenderer.renderDiff(
+                reference: referenceImage,
+                candidate: candidateImage,
+                tolerance: 0
+            )
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("QuillPaintDiffs", isDirectory: true)
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            let diffURL = tempDir.appendingPathComponent("\(name)-diff.png")
+            try CGPixelExtraction.saveImage(diffImage, to: diffURL)
+
+            Issue.record("Reference fixture \(name).png drifted from current renderer (maxChannelDelta=\(result.maxChannelDelta), differingPixels=\(result.differingPixels)/\(result.totalPixels)). Diff saved to: \(diffURL.path). Regenerate with `swift run quill-render-mac-references`.")
+        }
     }
 
     /// Locate the canonical fixture directory by walking up from this source
