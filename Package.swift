@@ -262,6 +262,7 @@ products += [
 #if os(Linux)
 if quillUILinuxBuildBackend == .gtk {
     products.append(.executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]))
+    products.append(.executable(name: "quill-paint-gtk-button-demo", targets: ["QuillPaintGtkButtonDemo"]))
 }
 
 products += [
@@ -315,6 +316,23 @@ let quillUIDependencies: [Target.Dependency] = [
     "QuillKit",
     .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
 ]
+#endif
+
+#if os(Linux)
+let quillUIGtkDependencies: [Target.Dependency] = [
+    "QuillUI",
+    "QuillPaint",
+    .product(name: "CGTK", package: "SwiftOpenUI"),
+    .product(name: "BackendGTK4", package: "SwiftOpenUI")
+]
+let quillUIGtkTestDependencies: [Target.Dependency] = [
+    "QuillUIGtk",
+    "QuillPaint",
+    "CGdkPixbuf"
+]
+#else
+let quillUIGtkDependencies: [Target.Dependency] = ["QuillUI"]
+let quillUIGtkTestDependencies: [Target.Dependency] = ["QuillUIGtk"]
 #endif
 
 #if os(Linux)
@@ -544,7 +562,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillUIGtk",
-        dependencies: ["QuillUI"],
+        dependencies: quillUIGtkDependencies,
         path: "Sources/QuillUIGtk",
         swiftSettings: appSwiftSettings
     ),
@@ -1186,6 +1204,12 @@ targets.append(contentsOf: [
         path: "Sources/QuillGtkInteractionSmoke",
         swiftSettings: appSwiftSettings
     ),
+    .executableTarget(
+        name: "QuillPaintGtkButtonDemo",
+        dependencies: ["QuillUIGtk"],
+        path: "Sources/QuillPaintGtkButtonDemo",
+        swiftSettings: appSwiftSettings
+    ),
     // Apple-framework compatibility shims that the generated
     // Enchanted package references by canonical name. Each target
     // shadows a real Apple module on Linux; the matching products
@@ -1464,6 +1488,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillPaintCoreGraphicsTests",
             dependencies: ["QuillPaintCoreGraphics", "QuillPaint"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "QuillUIGtkTests",
+            dependencies: quillUIGtkTestDependencies,
             swiftSettings: appSwiftSettings
         ),
         // Pins Enchanted's core compatibility surface: markdown /

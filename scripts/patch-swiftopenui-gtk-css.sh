@@ -1014,6 +1014,237 @@ if "private func gtkDebugLog(_ message: String)" not in text:
 '''
     text = text.replace(marker, debug_helper + marker, 1)
 
+if "public struct GTKButtonPaintState" not in text:
+    quillpaint_button_hook = '''// MARK: - QuillPaint button hook
+
+public struct GTKButtonPaintState {
+    public let isPressed: Bool
+    public let isFocused: Bool
+    public let isDisabled: Bool
+    public let isHovered: Bool
+    public let isDefault: Bool
+
+    public init(
+        isPressed: Bool = false,
+        isFocused: Bool = false,
+        isDisabled: Bool = false,
+        isHovered: Bool = false,
+        isDefault: Bool = false
+    ) {
+        self.isPressed = isPressed
+        self.isFocused = isFocused
+        self.isDisabled = isDisabled
+        self.isHovered = isHovered
+        self.isDefault = isDefault
+    }
+}
+
+public typealias GTKButtonPaintHook = (OpaquePointer, Double, Double, GTKButtonPaintState) -> Void
+
+private var gtkButtonPaintHook: GTKButtonPaintHook?
+
+public func gtkSetButtonPaintHook(_ hook: GTKButtonPaintHook?) {
+    gtkButtonPaintHook = hook
+}
+
+public func gtkClearButtonPaintHook() {
+    gtkButtonPaintHook = nil
+}
+
+private func gtkButtonPaintHookIsInstalled() -> Bool {
+    gtkButtonPaintHook != nil
+}
+
+private final class GTKQuillPaintButtonStateBox {
+    var isPressed = false
+    var isFocused = false
+    var isDisabled: Bool
+    var isHovered = false
+    var isDefault: Bool
+    var drawingArea: UnsafeMutablePointer<GtkWidget>?
+
+    init(isDisabled: Bool, isDefault: Bool) {
+        self.isDisabled = isDisabled
+        self.isDefault = isDefault
+    }
+
+    var snapshot: GTKButtonPaintState {
+        GTKButtonPaintState(
+            isPressed: isPressed,
+            isFocused: isFocused,
+            isDisabled: isDisabled,
+            isHovered: isHovered,
+            isDefault: isDefault
+        )
+    }
+
+    func queueDraw() {
+        guard let drawingArea else { return }
+        gtk_swift_widget_queue_draw(drawingArea)
+    }
+}
+
+private func gtkCreateQuillPaintButtonChild(
+    labelWidget: UnsafeMutablePointer<GtkWidget>,
+    stateBox: GTKQuillPaintButtonStateBox,
+    usesStandardPadding: Bool
+) -> UnsafeMutablePointer<GtkWidget> {
+    let drawingArea = gtk_drawing_area_new()!
+    stateBox.drawingArea = drawingArea
+
+    gtk_widget_set_can_target(drawingArea, 0)
+    gtk_widget_set_hexpand(drawingArea, 1)
+    gtk_widget_set_vexpand(drawingArea, 1)
+    gtk_widget_set_halign(drawingArea, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(drawingArea, GTK_ALIGN_FILL)
+    gtk_swift_drawing_area_set_content_width(drawingArea, 80)
+    gtk_swift_drawing_area_set_content_height(drawingArea, 22)
+    gtk_swift_drawing_area_set_draw_func(
+        drawingArea,
+        { (_: UnsafeMutablePointer<GtkWidget>?,
+           cr: OpaquePointer?,
+           width: gint,
+           height: gint,
+           userData: gpointer?) in
+            guard let cr, let userData else { return }
+            let stateBox = Unmanaged<GTKQuillPaintButtonStateBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+            gtkButtonPaintHook?(cr, Double(width), Double(height), stateBox.snapshot)
+        },
+        Unmanaged.passUnretained(stateBox).toOpaque(),
+        nil
+    )
+
+    let overlay = gtk_overlay_new()!
+    gtk_overlay_set_child(OpaquePointer(overlay), drawingArea)
+    gtk_overlay_add_overlay(OpaquePointer(overlay), labelWidget)
+    gtk_overlay_set_measure_overlay(OpaquePointer(overlay), labelWidget, 1)
+
+    gtk_widget_set_can_target(labelWidget, 0)
+    gtk_widget_set_halign(labelWidget, GTK_ALIGN_CENTER)
+    gtk_widget_set_valign(labelWidget, GTK_ALIGN_CENTER)
+    if usesStandardPadding {
+        gtk_widget_set_margin_start(labelWidget, 12)
+        gtk_widget_set_margin_end(labelWidget, 12)
+        gtk_widget_set_margin_top(labelWidget, 3)
+        gtk_widget_set_margin_bottom(labelWidget, 3)
+    }
+
+    gtk_widget_set_hexpand(overlay, gtk_widget_get_hexpand(labelWidget))
+    gtk_widget_set_vexpand(overlay, gtk_widget_get_vexpand(labelWidget))
+    gtk_widget_set_halign(overlay, gtk_widget_get_hexpand(labelWidget) != 0 ? GTK_ALIGN_FILL : GTK_ALIGN_START)
+    gtk_widget_set_valign(overlay, gtk_widget_get_vexpand(labelWidget) != 0 ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
+    return overlay
+}
+
+private func gtkInstallQuillPaintButtonTracking(
+    button: UnsafeMutablePointer<GtkWidget>,
+    stateBox: GTKQuillPaintButtonStateBox
+) {
+    let retainedState = Unmanaged.passRetained(stateBox).toOpaque()
+    let gobject = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GObject.self)
+    g_object_set_data_full(gobject, "gtk-swift-quillpaint-button-state", retainedState) { data in
+        guard let data else { return }
+        Unmanaged<GTKQuillPaintButtonStateBox>.fromOpaque(data).release()
+    }
+    let unretainedState = Unmanaged.passUnretained(stateBox).toOpaque()
+
+    let motion = gtk_event_controller_motion_new()!
+    g_signal_connect_data(
+        gpointer(motion),
+        "enter",
+        unsafeBitCast({ (_: gpointer?, _: Double, _: Double, userData: gpointer?) in
+            guard let userData else { return }
+            let stateBox = Unmanaged<GTKQuillPaintButtonStateBox>.fromOpaque(userData).takeUnretainedValue()
+            stateBox.isHovered = true
+            stateBox.queueDraw()
+        } as @convention(c) (gpointer?, Double, Double, gpointer?) -> Void, to: GCallback.self),
+        unretainedState,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    g_signal_connect_data(
+        gpointer(motion),
+        "leave",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let stateBox = Unmanaged<GTKQuillPaintButtonStateBox>.fromOpaque(userData).takeUnretainedValue()
+            stateBox.isHovered = false
+            stateBox.isPressed = false
+            stateBox.queueDraw()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        unretainedState,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_widget_add_controller(button, motion)
+
+    let focus = gtk_event_controller_focus_new()!
+    g_signal_connect_data(
+        gpointer(focus),
+        "enter",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let stateBox = Unmanaged<GTKQuillPaintButtonStateBox>.fromOpaque(userData).takeUnretainedValue()
+            stateBox.isFocused = true
+            stateBox.queueDraw()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        unretainedState,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    g_signal_connect_data(
+        gpointer(focus),
+        "leave",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let stateBox = Unmanaged<GTKQuillPaintButtonStateBox>.fromOpaque(userData).takeUnretainedValue()
+            stateBox.isFocused = false
+            stateBox.queueDraw()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        unretainedState,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_widget_add_controller(button, focus)
+
+    let click = gtk_gesture_click_new()!
+    g_signal_connect_data(
+        gpointer(click),
+        "pressed",
+        unsafeBitCast({ (_: gpointer?, _: gint, _: Double, _: Double, userData: gpointer?) in
+            guard let userData else { return }
+            let stateBox = Unmanaged<GTKQuillPaintButtonStateBox>.fromOpaque(userData).takeUnretainedValue()
+            stateBox.isPressed = true
+            stateBox.queueDraw()
+        } as @convention(c) (gpointer?, gint, Double, Double, gpointer?) -> Void, to: GCallback.self),
+        unretainedState,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    g_signal_connect_data(
+        gpointer(click),
+        "released",
+        unsafeBitCast({ (_: gpointer?, _: gint, _: Double, _: Double, userData: gpointer?) in
+            guard let userData else { return }
+            let stateBox = Unmanaged<GTKQuillPaintButtonStateBox>.fromOpaque(userData).takeUnretainedValue()
+            stateBox.isPressed = false
+            stateBox.queueDraw()
+        } as @convention(c) (gpointer?, gint, Double, Double, gpointer?) -> Void, to: GCallback.self),
+        unretainedState,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_gesture(button, click)
+}
+
+'''
+    protocol_marker = "// MARK: - GTK rendering protocol\n"
+    if protocol_marker not in text:
+        raise SystemExit("SwiftOpenUI GTK rendering protocol marker was not recognized")
+    text = text.replace(protocol_marker, quillpaint_button_hook + protocol_marker, 1)
+
 if "gtkRestoreAndInstallState(view, host: host)" not in text:
     old_install_state = "    installState(view, host: host)\n"
     if old_install_state not in text:
@@ -1033,6 +1264,362 @@ if 'gtkDebugLog("state install type=' not in text:
 """,
         1,
     )
+
+if "gtkButtonPaintHookIsInstalled() && buttonStyleType != .plain" not in text:
+    old_button_create = '''    public func gtkCreateWidget() -> OpaquePointer {
+        let button: UnsafeMutablePointer<GtkWidget>
+
+        if let textLabel = label as? Text {
+            // Simple text label — use native label button
+            button = gtk_button_new_with_label(textLabel.content)!
+        } else {
+            // Custom label view — render it and set as button child
+            button = gtk_button_new()!
+            let childWidget = widgetFromOpaque(gtkRenderView(label))
+            let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
+            gtk_button_set_child(btnPtr, childWidget)
+            // Remove GTK default button border/padding so custom-styled
+            // labels (with .background/.frame) render cleanly.
+            applyCSSToWidget(button, properties: """
+                border: none;
+                outline: none;
+                padding: 0;
+                min-height: 0;
+                min-width: 0;
+                """)
+        }
+
+        gtk_widget_set_hexpand(button, 0)
+        gtk_widget_set_halign(button, GTK_ALIGN_START)
+
+        // Apply button style from environment
+        let buttonStyleType = getCurrentEnvironment().buttonStyle
+        switch buttonStyleType {
+        case .plain:
+            applyCSSToWidget(button, properties: """
+                border: none; background: none; padding: 0;
+                min-height: 0; min-width: 0;
+                """)
+        case .borderedProminent:
+            // Concrete macOS-like accent blue with explicit overrides of
+            // GTK's default button gradient and inset shadow, both of which
+            // stack on top of `background-color` and render it invisible
+            // otherwise. App-configurable tint via a future `.tint()`
+            // modifier; theme-aware tint via `@theme_selected_bg_color` /
+            // `@accent_bg_color` is a future refinement — a previous attempt
+            // at a CSS cascade `background-color: X; background-color: Y;`
+            // made the button vanish (GTK CSS doesn't skip undefined-named-
+            // color declarations gracefully), so that's parked.
+            //
+            // Disabled state: use a faded translucent blue with muted text
+            // so .disabled() has a visual signal. Without this override, our
+            // base rules apply even when the button is insensitive, so a
+            // .borderedProminent + .disabled() button looks identical to the
+            // enabled version (only click handling differs).
+            applyCSSToWidget(
+                button,
+                properties: """
+                    background-color: #3584e4;
+                    background-image: none;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                    box-shadow: none;
+                    text-shadow: none;
+                    min-height: 0;
+                    """,
+                disabledProperties: """
+                    background-color: rgba(53, 132, 228, 0.4);
+                    color: rgba(255, 255, 255, 0.7);
+                    """
+            )
+        case .bordered:
+            applyCSSToWidget(button, properties: """
+                border: 1px solid @borders; border-radius: 6px;
+                padding: 6px 12px;
+                """)
+        case .automatic:
+            break // default GTK button styling
+        }
+
+        let boundAction = bindActionToCurrentEnvironment(action)
+        let box = Unmanaged.passRetained(ClosureBox(boundAction)).toOpaque()
+        g_signal_connect_data(
+            gpointer(button),
+            "clicked",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                let box = Unmanaged<ClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+                box.closure()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            box,
+            { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                Unmanaged<ClosureBox>.fromOpaque(userData!).release()
+            },
+            GConnectFlags(rawValue: 0)
+        )
+        // Register keyboard shortcut if present in environment
+        if let ks = getCurrentEnvironment().keyboardShortcut {
+            let windowID = getCurrentEnvironment().windowID
+            let actionClosure = bindActionToCurrentEnvironment(action)
+            let regID = KeyboardShortcutRegistry.shared.register(ks, windowID: windowID, action: actionClosure)
+
+            // Unregister by registration ID when the button widget is destroyed
+            let destroyBox = Unmanaged.passRetained(ClosureBox {
+                KeyboardShortcutRegistry.shared.unregister(id: regID)
+            }).toOpaque()
+            g_signal_connect_data(
+                gpointer(button), "destroy",
+                unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                    guard let userData else { return }
+                    Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+                } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+                destroyBox,
+                { (data: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                    if let data { Unmanaged<ClosureBox>.fromOpaque(data).release() }
+                },
+                GConnectFlags(rawValue: 0)
+            )
+        }
+
+        gtkApplyEnabledState(to: button)
+        return opaqueFromWidget(button)
+    }
+'''
+    new_button_create = '''    public func gtkCreateWidget() -> OpaquePointer {
+        let buttonStyleType = getCurrentEnvironment().buttonStyle
+        let useQuillPaintChrome = gtkButtonPaintHookIsInstalled() && buttonStyleType != .plain
+        let button: UnsafeMutablePointer<GtkWidget>
+        var buttonWantsHExpand = false
+        var buttonWantsVExpand = false
+
+        if useQuillPaintChrome {
+            button = gtk_button_new()!
+
+            let labelWidget: UnsafeMutablePointer<GtkWidget>
+            let usesStandardPadding: Bool
+            if let textLabel = label as? Text {
+                labelWidget = gtk_label_new(textLabel.content)!
+                gtk_swift_label_set_xalign(labelWidget, 0.5)
+                gtk_swift_label_set_yalign(labelWidget, 0.5)
+                usesStandardPadding = true
+            } else {
+                labelWidget = widgetFromOpaque(gtkRenderView(label))
+                usesStandardPadding = false
+                if gtk_widget_get_hexpand(labelWidget) != 0 {
+                    buttonWantsHExpand = true
+                    gtk_widget_set_halign(labelWidget, GTK_ALIGN_FILL)
+                }
+                if gtk_widget_get_vexpand(labelWidget) != 0 {
+                    buttonWantsVExpand = true
+                    gtk_widget_set_valign(labelWidget, GTK_ALIGN_FILL)
+                }
+            }
+
+            if buttonStyleType == .borderedProminent {
+                applyCSSToWidget(labelWidget, properties: "color: white; text-shadow: none;")
+            }
+
+            let stateBox = GTKQuillPaintButtonStateBox(
+                isDisabled: !getCurrentEnvironment().isEnabled,
+                isDefault: buttonStyleType == .borderedProminent
+            )
+            let childWidget = gtkCreateQuillPaintButtonChild(
+                labelWidget: labelWidget,
+                stateBox: stateBox,
+                usesStandardPadding: usesStandardPadding
+            )
+            let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
+            gtk_button_set_child(btnPtr, childWidget)
+            gtkInstallQuillPaintButtonTracking(button: button, stateBox: stateBox)
+            applyCSSToWidget(button, properties: """
+                background: none;
+                background-color: transparent;
+                background-image: none;
+                border: none;
+                box-shadow: none;
+                outline: none;
+                padding: 0;
+                min-height: 0;
+                min-width: 0;
+                text-shadow: none;
+                """)
+        } else if let textLabel = label as? Text {
+            // Simple text label — use native label button
+            button = gtk_button_new_with_label(textLabel.content)!
+        } else {
+            // Custom label view — render it and set as button child
+            button = gtk_button_new()!
+            let childWidget = widgetFromOpaque(gtkRenderView(label))
+            let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
+            gtk_button_set_child(btnPtr, childWidget)
+            if gtk_widget_get_hexpand(childWidget) != 0 {
+                buttonWantsHExpand = true
+                gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
+            }
+            if gtk_widget_get_vexpand(childWidget) != 0 {
+                buttonWantsVExpand = true
+                gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
+            }
+            // Remove GTK default button border/padding so custom-styled
+            // labels (with .background/.frame) render cleanly.
+            applyCSSToWidget(button, properties: """
+                border: none;
+                outline: none;
+                padding: 0;
+                min-height: 0;
+                min-width: 0;
+                """)
+        }
+
+        gtk_widget_set_hexpand(button, buttonWantsHExpand ? 1 : 0)
+        gtk_widget_set_vexpand(button, buttonWantsVExpand ? 1 : 0)
+        gtk_widget_set_halign(button, buttonWantsHExpand ? GTK_ALIGN_FILL : GTK_ALIGN_START)
+        gtk_widget_set_valign(button, buttonWantsVExpand ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
+
+        if !useQuillPaintChrome {
+            // Apply button style from environment
+            switch buttonStyleType {
+            case .plain:
+                applyCSSToWidget(button, properties: """
+                    border: none; background: none; padding: 0;
+                    min-height: 0; min-width: 0;
+                    """)
+            case .borderedProminent:
+                // Concrete macOS-like accent blue with explicit overrides of
+                // GTK's default button gradient and inset shadow, both of which
+                // stack on top of `background-color` and render it invisible
+                // otherwise. App-configurable tint via a future `.tint()`
+                // modifier; theme-aware tint via `@theme_selected_bg_color` /
+                // `@accent_bg_color` is a future refinement — a previous attempt
+                // at a CSS cascade `background-color: X; background-color: Y;`
+                // made the button vanish (GTK CSS doesn't skip undefined-named-
+                // color declarations gracefully), so that's parked.
+                //
+                // Disabled state: use a faded translucent blue with muted text
+                // so .disabled() has a visual signal. Without this override, our
+                // base rules apply even when the button is insensitive, so a
+                // .borderedProminent + .disabled() button looks identical to the
+                // enabled version (only click handling differs).
+                applyCSSToWidget(
+                    button,
+                    properties: """
+                        background-color: #3584e4;
+                        background-image: none;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        padding: 6px 12px;
+                        box-shadow: none;
+                        text-shadow: none;
+                        min-height: 0;
+                        """,
+                    disabledProperties: """
+                        background-color: rgba(53, 132, 228, 0.4);
+                        color: rgba(255, 255, 255, 0.7);
+                        """
+                )
+            case .bordered:
+                applyCSSToWidget(button, properties: """
+                    border: 1px solid @borders; border-radius: 6px;
+                    padding: 6px 12px;
+                    """)
+            case .automatic:
+                break // default GTK button styling
+            }
+        }
+
+        let boundAction = bindActionToCurrentEnvironment(action)
+        let box = Unmanaged.passRetained(ClosureBox(boundAction)).toOpaque()
+        g_signal_connect_data(
+            gpointer(button),
+            "clicked",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                gtkDebugLog("button clicked")
+                let retainedBox = Unmanaged<ClosureBox>.fromOpaque(userData).retain().toOpaque()
+                g_idle_add({ idleData -> gboolean in
+                    let box = Unmanaged<ClosureBox>.fromOpaque(idleData!).takeRetainedValue()
+                    gtkDebugLog("button action")
+                    box.closure()
+                    return 0
+                }, retainedBox)
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            box,
+            { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                Unmanaged<ClosureBox>.fromOpaque(userData!).release()
+            },
+            GConnectFlags(rawValue: 0)
+        )
+        // Register keyboard shortcut if present in environment
+        if let ks = getCurrentEnvironment().keyboardShortcut {
+            let windowID = getCurrentEnvironment().windowID
+            let actionClosure = bindActionToCurrentEnvironment(action)
+            let regID = KeyboardShortcutRegistry.shared.register(ks, windowID: windowID, action: actionClosure)
+
+            // Unregister by registration ID when the button widget is destroyed
+            let destroyBox = Unmanaged.passRetained(ClosureBox {
+                KeyboardShortcutRegistry.shared.unregister(id: regID)
+            }).toOpaque()
+            g_signal_connect_data(
+                gpointer(button), "destroy",
+                unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                    guard let userData else { return }
+                    Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+                } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+                destroyBox,
+                { (data: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                    if let data { Unmanaged<ClosureBox>.fromOpaque(data).release() }
+                },
+                GConnectFlags(rawValue: 0)
+            )
+        }
+
+        gtkApplyEnabledState(to: button)
+        return opaqueFromWidget(button)
+    }
+'''
+    old_button_create_simple = '''    public func gtkCreateWidget() -> OpaquePointer {
+        let button: UnsafeMutablePointer<GtkWidget>
+
+        if let textLabel = label as? Text {
+            button = gtk_button_new_with_label(textLabel.content)!
+        } else {
+            button = gtk_button_new()!
+            let childWidget = widgetFromOpaque(gtkRenderView(label))
+            let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
+            gtk_button_set_child(btnPtr, childWidget)
+            // Remove GTK default button border/padding so custom-styled
+            // labels (with .background/.frame) render cleanly.
+            applyCSSToWidget(button, properties: "border: none;")
+        }
+
+        gtk_widget_set_hexpand(button, 0)
+        gtk_widget_set_halign(button, GTK_ALIGN_START)
+        let boundAction = bindActionToCurrentEnvironment(action)
+        let box = Unmanaged.passRetained(ClosureBox(boundAction)).toOpaque()
+        g_signal_connect_data(
+            gpointer(button),
+            "clicked",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                let box = Unmanaged<ClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+                box.closure()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            box,
+            { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                Unmanaged<ClosureBox>.fromOpaque(userData!).release()
+            },
+            GConnectFlags(rawValue: 0)
+        )
+        return opaqueFromWidget(button)
+    }
+'''
+    if old_button_create in text:
+        text = text.replace(old_button_create, new_button_create, 1)
+    elif old_button_create_simple in text:
+        text = text.replace(old_button_create_simple, new_button_create, 1)
+    else:
+        raise SystemExit("SwiftOpenUI Button renderer shape was not recognized")
 
 if "buttonWantsHExpand" not in text:
     old_button_decl = '''    public func gtkCreateWidget() -> OpaquePointer {
