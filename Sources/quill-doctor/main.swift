@@ -15,6 +15,7 @@ struct QuillDoctorCLI {
         let projectRoot = URL(fileURLWithPath: arguments[1], isDirectory: true)
         var coverageDocPath: URL? = nil
         var outputTickets = false
+        var outputJSON = false
 
         var i = 2
         while i < arguments.count {
@@ -30,6 +31,9 @@ struct QuillDoctorCLI {
             case "--tickets":
                 outputTickets = true
                 i += 1
+            case "--json":
+                outputJSON = true
+                i += 1
             case "-h", "--help":
                 emitUsage(toolName: toolName, to: FileHandle.standardOutput)
                 exit(0)
@@ -38,6 +42,12 @@ struct QuillDoctorCLI {
                 emitUsage(toolName: toolName, to: FileHandle.standardError)
                 exit(64)
             }
+        }
+
+        if outputTickets && outputJSON {
+            FileHandle.standardError.write(Data("--tickets and --json are mutually exclusive\n".utf8))
+            emitUsage(toolName: toolName, to: FileHandle.standardError)
+            exit(64)
         }
 
         // If --coverage-doc wasn't passed, try to discover it relative to the
@@ -75,7 +85,12 @@ struct QuillDoctorCLI {
                 projectRoot: projectRoot,
                 coverageDocPath: resolvedCoverageDoc
             )
-            if outputTickets {
+            if outputJSON {
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                let data = try encoder.encode(report)
+                print(String(data: data, encoding: .utf8)!)
+            } else if outputTickets {
                 print(report.ticketMarkdown())
             } else {
                 print(report.formattedReport())
@@ -102,7 +117,7 @@ struct QuillDoctorCLI {
 
     private static func emitUsage(toolName: String, to stream: FileHandle) {
         let usage = """
-        Usage: \(toolName) PROJECT_ROOT [--coverage-doc PATH] [--tickets]
+        Usage: \(toolName) PROJECT_ROOT [--coverage-doc PATH] [--tickets | --json]
 
         Scans a Swift project for `import ModuleName` statements and reports
         which modules are covered by QuillUI's compatibility matrix.
@@ -118,6 +133,9 @@ struct QuillDoctorCLI {
                                 module) instead of the human-readable report.
                                 Pipe into `gh issue create --body-file -` or
                                 paste into a roadmap.
+          --json                Emit a structured JSON report. Alphabetically
+                                sorted by module name. Mutually exclusive with
+                                --tickets.
 
         Exit codes:
           0  All imported modules are covered.

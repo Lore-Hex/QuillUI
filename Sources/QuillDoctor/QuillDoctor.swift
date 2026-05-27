@@ -149,9 +149,9 @@ public struct QuillDoctor {
 
 // MARK: - Report
 
-public struct QuillDoctorReport: Equatable {
-    public struct ModuleStatus: Equatable {
-        public enum Status: String, Equatable {
+public struct QuillDoctorReport: Equatable, Codable {
+    public struct ModuleStatus: Equatable, Codable {
+        public enum Status: String, Equatable, Codable {
             case covered
             case missing
 
@@ -166,9 +166,39 @@ public struct QuillDoctorReport: Equatable {
         public let module: String
         public let status: Status
         public let usedInFiles: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case module = "name"
+            case status
+            case usedInFiles = "used_in_files"
+        }
     }
 
     public let modules: [ModuleStatus]
+
+    enum CodingKeys: String, CodingKey {
+        case modules
+        case coveredCount = "covered_count"
+        case missingCount = "missing_count"
+    }
+
+    public init(modules: [ModuleStatus]) {
+        self.modules = modules
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.modules = try container.decode([ModuleStatus].self, forKey: .modules)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(coveredCount, forKey: .coveredCount)
+        try container.encode(missingCount, forKey: .missingCount)
+        // Sort modules alphabetically as required by acceptance criteria
+        let sortedModules = modules.sorted { $0.module < $1.module }
+        try container.encode(sortedModules, forKey: .modules)
+    }
 
     public var hasMissing: Bool {
         modules.contains { $0.status == .missing }
