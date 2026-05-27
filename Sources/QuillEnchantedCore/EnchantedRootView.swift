@@ -560,7 +560,8 @@ private struct MessageBubble: View {
                     MarkdownMessageView(markdown: message.content, foregroundColor: textColor)
                 }
             }
-            .padding(CGFloat(EnchantedVisualMetrics.messageBubblePadding))
+            .padding(.horizontal, CGFloat(EnchantedVisualMetrics.messageBubbleHorizontalPadding))
+            .padding(.vertical, CGFloat(EnchantedVisualMetrics.messageBubbleVerticalPadding))
             .frame(maxWidth: CGFloat(EnchantedVisualMetrics.messageMaxWidth), alignment: .leading)
             .background(backgroundColor)
             .cornerRadius(CGFloat(EnchantedVisualMetrics.messageBubbleRadius))
@@ -629,9 +630,9 @@ private struct MessageBubble: View {
     private var backgroundColor: Color {
         switch message.role {
         case .user:
-            return QuillColors.primary
+            return QuillColors.messageUserBubble
         case .assistant:
-            return QuillColors.card
+            return QuillColors.messageAssistantBubble
         case .system:
             return QuillColors.system
         }
@@ -666,6 +667,8 @@ enum QuillColors {
     static var ink: Color { Color(hex: EnchantedPalette.inkColor) }
     static var muted: Color { Color(hex: EnchantedPalette.mutedColor) }
     static var selectedMuted: Color { Color(hex: EnchantedPalette.selectedMutedColor) }
+    static var messageUserBubble: Color { Color(hex: EnchantedPalette.messageUserBubbleColor) }
+    static var messageAssistantBubble: Color { Color(hex: EnchantedPalette.messageAssistantBubbleColor) }
     static var quoteRule: Color { Color(hex: EnchantedPalette.quoteRuleColor) }
     static var codeBlock: Color { Color(hex: EnchantedPalette.codeBlockColor) }
     static var dropTarget: Color { Color(hex: EnchantedPalette.dropTargetColor) }

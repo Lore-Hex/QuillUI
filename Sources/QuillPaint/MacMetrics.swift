@@ -49,6 +49,12 @@ public enum MacMetrics {
         public static let cornerRadius: Double = 6
     }
 
+    public enum ChatBubble {
+        public static let cornerRadius: Double = 16
+        public static let horizontalPadding: Double = 12
+        public static let verticalPadding: Double = 8
+    }
+
     public enum FocusRing {
         public static let lineWidth: Double = 3
         /// macOS focus rings have a soft outer halo; the line width above
@@ -92,6 +98,13 @@ public enum MacColors {
     /// `NSColor.controlAccentColor` — default blue (system accent). Apps
     /// can override per user preference.
     public static let accent = PaintColor(r: 0, g: 122, b: 255)
+
+    /// Enchanted user-message bubble fill. Matches the standard macOS
+    /// control accent used by the native app.
+    public static let chatBubbleUserFill = accent
+
+    /// Enchanted assistant-message bubble fill.
+    public static let chatBubbleAssistantFill = control
 
     /// Default-button highlight color when the button is the default action
     /// (the pulsing key button). Matches the accent in modern macOS.

@@ -29,6 +29,7 @@ public enum MacReferenceManifest {
         let buttonSize = PaintSize(width: 80, height: 22)
         let wideButtonSize = PaintSize(width: 160, height: 22)
         let sidebarRowSize = PaintSize(width: 220, height: 44)
+        let chatBubbleSize = PaintSize(width: 220, height: 52)
 
         return [
             ReferenceEntry(
@@ -186,6 +187,24 @@ public enum MacReferenceManifest {
                 control: MacWindowChromePaint(title: "My Window"),
                 size: PaintSize(width: 400, height: 28),
                 state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "chat-bubble-user-normal",
+                control: MacChatBubblePaint(sender: .user),
+                size: chatBubbleSize,
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "chat-bubble-assistant-normal",
+                control: MacChatBubblePaint(sender: .assistant),
+                size: chatBubbleSize,
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "chat-bubble-user-pressed",
+                control: MacChatBubblePaint(sender: .user),
+                size: chatBubbleSize,
+                state: PaintControlState(isPressed: true)
             )
         ]
     }
