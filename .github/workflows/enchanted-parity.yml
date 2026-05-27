@@ -1,0 +1,65 @@
+name: Enchanted Parity
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  strict-mac-reference:
+    name: Strict Mac-reference verifier
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    container:
+      image: swift:6.2-noble
+    env:
+      QUILLUI_SKIP_APT: "1"
+      QUILLUI_BACKEND_MAC_REFERENCE: "1"
+      QUILLUI_BACKEND_MAC_REFERENCE_MIN_RATIO: "0.95"
+      QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Linux dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates \
+            dbus-x11 \
+            git \
+            imagemagick \
+            libgdk-pixbuf-2.0-dev \
+            libgtk-4-dev \
+            libsqlite3-dev \
+            pkg-config \
+            qt6-base-dev \
+            ripgrep \
+            x11-apps \
+            xdotool \
+            xvfb
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Fetch Enchanted upstream source
+        run: scripts/fetch-upstream.sh enchanted
+
+      - name: Run strict Enchanted GTK verifier
+        run: QUILLUI_BACKEND_VISUAL_APP_LOG=.qa/quillui-backend-app.log scripts/linux-backend-visual-check.sh .qa/quill-enchanted-mac-reference-gtk.png quill-enchanted-linux gtk
+
+      - name: Upload verifier artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: enchanted-parity-verifier
+          path: |
+            .qa/*.png
+            .qa/*reference-home/**
+            .qa/quillui-backend-app.log
+          if-no-files-found: ignore

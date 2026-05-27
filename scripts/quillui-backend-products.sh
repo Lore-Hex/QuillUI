@@ -526,6 +526,34 @@ quillui_is_quill_chat_mac_reference_product() {
   [[ "$product" == "quill-chat-linux" && "${QUILLUI_BACKEND_MAC_REFERENCE:-0}" == "1" ]]
 }
 
+quillui_is_enchanted_mac_reference_product() {
+  local product="$1"
+  case "$product" in
+    quill-enchanted-linux|quill-chat-linux)
+      [[ "${QUILLUI_BACKEND_MAC_REFERENCE:-0}" == "1" ]]
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+quillui_backend_mac_reference_verify_product() {
+  local product="$1"
+
+  case "$product" in
+    quill-enchanted-linux)
+      printf '%s\n' "quill-enchanted-linux-mac-reference"
+      ;;
+    quill-chat-linux)
+      printf '%s\n' "quill-chat-linux-mac-reference"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 quillui_backend_quill_chat_interaction_verify_product() {
   local selected_backend
   local interaction_mode="$2"
@@ -757,6 +785,11 @@ quillui_backend_visual_verify_product_for_product() {
   local verify_product="$product"
 
   selected_backend="$(quillui_require_backend_identifier "$2")" || return $?
+
+  if quillui_is_enchanted_mac_reference_product "$product"; then
+    quillui_backend_mac_reference_verify_product "$product"
+    return
+  fi
 
   case "$product" in
     quill-enchanted-linux)

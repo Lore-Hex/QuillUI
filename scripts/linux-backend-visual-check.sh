@@ -70,8 +70,8 @@ app_pid=$!
 sleep 4
 capture_window="root"
 window_id=""
-if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-  window_id="$(quillui_find_quill_chat_reference_window "$DISPLAY_ID")"
+if quillui_is_enchanted_mac_reference_product "$PRODUCT"; then
+  window_id="$(quillui_find_enchanted_reference_window "$DISPLAY_ID" "$PRODUCT")"
 else
   window_id="$(quillui_find_visible_window_for_pid "$DISPLAY_ID" "$app_pid")"
   if [[ -z "$window_id" ]]; then
@@ -79,7 +79,7 @@ else
   fi
 fi
 if [[ -n "$window_id" ]]; then
-  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+  if quillui_is_enchanted_mac_reference_product "$PRODUCT"; then
     quillui_place_reference_window "$DISPLAY_ID" "$window_id" "$reference_window_width" "$reference_window_height"
   else
     quillui_move_window_to_origin "$DISPLAY_ID" "$window_id"

@@ -458,17 +458,21 @@ struct QuillDataSourceLoweringTests {
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_PROFILE_MODE=1"))
         #expect(smokeLib.contains("seed-quill-chat-reference-data.py"))
-        #expect(visualScript.contains("quillui_find_quill_chat_reference_window \"$DISPLAY_ID\""))
+        #expect(visualScript.contains("quillui_find_enchanted_reference_window \"$DISPLAY_ID\" \"$PRODUCT\""))
         #expect(smokeLib.contains("quillui_find_quill_chat_reference_window()"))
+        #expect(smokeLib.contains("quillui_find_enchanted_reference_window()"))
         #expect(smokeLib.contains("quillui_place_reference_window()"))
         #expect(visualScript.contains("capture_window=\"$window_id\""))
         #expect(smokeLib.contains("quillui_backend_visual_verify_product()"))
-        #expect(smokeLib.contains("quill-chat-linux-mac-reference"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference"))
+        #expect(backendProducts.contains("quill-enchanted-linux-mac-reference"))
 
         let verifier = try String(
             contentsOf: root.appendingPathComponent("scripts/verify-backend-screenshot.py"),
             encoding: .utf8
         )
+        #expect(verifier.contains("validate_quill_enchanted_mac_reference"))
+        #expect(verifier.contains("Enchanted Mac-reference pixel match ratio="))
         #expect(verifier.contains("validate_quill_chat_mac_reference"))
         #expect(verifier.contains("Mac-reference prompt card row was not detected"))
         #expect(verifier.contains("Mac-reference sidebar history text was not detected"))

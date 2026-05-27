@@ -64,7 +64,7 @@ quillui_backend_screen_size() {
 
   if [[ -n "$requested_screen_size" ]]; then
     echo "$requested_screen_size"
-  elif quillui_is_quill_chat_mac_reference_product "$product"; then
+  elif quillui_is_enchanted_mac_reference_product "$product"; then
     echo "${reference_window_width}x${reference_window_height}x24"
   else
     echo "$default_screen_size"
@@ -125,6 +125,25 @@ quillui_find_quill_chat_reference_window() {
   quillui_find_visible_window_by_name "$display_id" ".*"
 }
 
+quillui_find_enchanted_reference_window() {
+  local display_id="$1"
+  local product="$2"
+  local window_id
+
+  if [[ "$product" == "quill-chat-linux" ]]; then
+    quillui_find_quill_chat_reference_window "$display_id"
+    return
+  fi
+
+  window_id="$(quillui_find_visible_window_by_name "$display_id" "Enchanted")"
+  if [[ -n "$window_id" ]]; then
+    echo "$window_id"
+    return
+  fi
+
+  quillui_find_visible_window_by_name "$display_id" ".*"
+}
+
 quillui_move_window_to_origin() {
   local display_id="$1"
   local window_id="$2"
@@ -149,8 +168,8 @@ quillui_backend_visual_verify_product() {
   local verify_product="$product"
   local selected_backend=""
 
-  if quillui_is_quill_chat_mac_reference_product "$product"; then
-    verify_product="quill-chat-linux-mac-reference"
+  if quillui_is_enchanted_mac_reference_product "$product"; then
+    verify_product="$(quillui_backend_mac_reference_verify_product "$product")" || return $?
   else
     selected_backend="$(quillui_require_requested_backend_for_product "$product" 2>/dev/null || true)"
     if [[ -n "$selected_backend" ]]; then
@@ -445,8 +464,8 @@ quillui_append_quill_chat_reference_environment_if_needed() {
   local reference_window_height="$5"
   local hide_window_menubar_label="$6"
 
-  if quillui_is_quill_chat_mac_reference_product "$product"; then
-    local reference_home="$output_dir/quill-chat-linux-reference-home"
+  if quillui_is_enchanted_mac_reference_product "$product"; then
+    local reference_home="$output_dir/$product-reference-home"
     quillui_append_quill_chat_reference_environment \
       "$output_array" \
       "$reference_home" \
@@ -486,7 +505,7 @@ quillui_append_enchanted_profile_fixture_environment_if_needed() {
   if ! quillui_is_generated_enchanted_linux_product "$product"; then
     return 0
   fi
-  if quillui_is_quill_chat_mac_reference_product "$product"; then
+  if quillui_is_enchanted_mac_reference_product "$product"; then
     return 0
   fi
 

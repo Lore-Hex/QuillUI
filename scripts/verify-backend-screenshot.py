@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -53,6 +54,11 @@ CHAT_GTK_LIST_SELECTION_PRODUCTS = frozenset(
     f"{product}-list-selection"
     for product in CHAT_GTK_LIST_SELECTION_APP_PRODUCTS
 )
+ENCHANTED_MAC_REFERENCE_PRODUCTS = {
+    "quill-enchanted-linux-mac-reference",
+    "quill-chat-linux-mac-reference",
+    "quill-chat-mac-reference",
+}
 
 
 @dataclass(frozen=True)
@@ -125,9 +131,113 @@ class Screenshot:
         return segments
 
 
+@dataclass(frozen=True)
+class PixelMatchResult:
+    match_ratio: float
+    differing_pixels: int
+    total_pixels: int
+    max_channel_delta: int
+
+
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise SystemExit(message)
+
+
+def repository_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def enchanted_macos_reference_path() -> Path:
+    return repository_root() / "Tests" / "Fixtures" / "Enchanted" / "macos-reference.png"
+
+
+def compare_rgba(reference: Screenshot, candidate: Screenshot, tolerance: int) -> PixelMatchResult:
+    require(
+        reference.width == candidate.width and reference.height == candidate.height,
+        "Enchanted Mac-reference dimensions mismatch: "
+        f"reference={reference.width}x{reference.height}, "
+        f"candidate={candidate.width}x{candidate.height}",
+    )
+    require(
+        len(reference._rgba) == len(candidate._rgba),
+        "Enchanted Mac-reference decoded byte lengths mismatch: "
+        f"reference={len(reference._rgba)}, candidate={len(candidate._rgba)}",
+    )
+
+    total_pixels = reference.width * reference.height
+    if total_pixels == 0:
+        return PixelMatchResult(
+            match_ratio=1.0,
+            differing_pixels=0,
+            total_pixels=0,
+            max_channel_delta=0,
+        )
+
+    differing_pixels = 0
+    max_channel_delta = 0
+    reference_rgba = reference._rgba
+    candidate_rgba = candidate._rgba
+    for offset in range(0, len(reference_rgba), 4):
+        red_delta = abs(reference_rgba[offset] - candidate_rgba[offset])
+        green_delta = abs(reference_rgba[offset + 1] - candidate_rgba[offset + 1])
+        blue_delta = abs(reference_rgba[offset + 2] - candidate_rgba[offset + 2])
+        alpha_delta = abs(reference_rgba[offset + 3] - candidate_rgba[offset + 3])
+        pixel_delta = max(red_delta, green_delta, blue_delta, alpha_delta)
+        if pixel_delta > max_channel_delta:
+            max_channel_delta = pixel_delta
+        if pixel_delta > tolerance:
+            differing_pixels += 1
+
+    return PixelMatchResult(
+        match_ratio=(total_pixels - differing_pixels) / total_pixels,
+        differing_pixels=differing_pixels,
+        total_pixels=total_pixels,
+        max_channel_delta=max_channel_delta,
+    )
+
+
+def write_reference_diff(
+    reference: Screenshot,
+    candidate: Screenshot,
+    tolerance: int,
+    output_path: Path,
+) -> Path | None:
+    if reference.width != candidate.width or reference.height != candidate.height:
+        return None
+
+    reference_rgba = reference._rgba
+    candidate_rgba = candidate._rgba
+    diff_rgba = bytearray(len(reference_rgba))
+    for offset in range(0, len(reference_rgba), 4):
+        red_delta = abs(reference_rgba[offset] - candidate_rgba[offset])
+        green_delta = abs(reference_rgba[offset + 1] - candidate_rgba[offset + 1])
+        blue_delta = abs(reference_rgba[offset + 2] - candidate_rgba[offset + 2])
+        alpha_delta = abs(reference_rgba[offset + 3] - candidate_rgba[offset + 3])
+        if max(red_delta, green_delta, blue_delta, alpha_delta) > tolerance:
+            diff_rgba[offset] = 255
+            diff_rgba[offset + 1] = 0
+            diff_rgba[offset + 2] = 0
+            diff_rgba[offset + 3] = 255
+        else:
+            diff_rgba[offset] = reference_rgba[offset] // 2
+            diff_rgba[offset + 1] = reference_rgba[offset + 1] // 2
+            diff_rgba[offset + 2] = reference_rgba[offset + 2] // 2
+            diff_rgba[offset + 3] = reference_rgba[offset + 3] // 2
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            "convert",
+            "-size",
+            f"{reference.width}x{reference.height}",
+            "rgba:-",
+            str(output_path),
+        ],
+        input=bytes(diff_rgba),
+        check=True,
+    )
+    return output_path
 
 
 def gray_line_pixel(rgb: tuple[int, int, int]) -> bool:
@@ -709,6 +819,61 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         f"prompt_text_pixels={prompt_text_pixels}, "
         f"alert={alert_segment.width}px@{alert_y}/{alert_height}px, "
         f"composer={composer_segment.width}px@{composer_y}"
+    )
+
+
+def validate_quill_enchanted_mac_reference(image: Screenshot) -> str:
+    reference_path = enchanted_macos_reference_path()
+    require(
+        reference_path.exists() and reference_path.stat().st_size > 0,
+        f"Enchanted Mac-reference fixture is missing: {reference_path}",
+    )
+
+    reference = Screenshot(reference_path)
+    tolerance = int(os.environ.get("QUILLUI_BACKEND_MAC_REFERENCE_TOLERANCE", "2"))
+    minimum_ratio = float(os.environ.get("QUILLUI_BACKEND_MAC_REFERENCE_MIN_RATIO", "0.95"))
+    result = compare_rgba(reference, image, tolerance=tolerance)
+
+    diff_path: Path | None = None
+    if result.match_ratio < minimum_ratio:
+        diff_candidate = image.path.with_name(f"{image.path.stem}-mac-reference-diff.png")
+        try:
+            diff_path = write_reference_diff(reference, image, tolerance, diff_candidate)
+        except Exception as error:  # pragma: no cover - best-effort failure artifact
+            print(f"Could not write Enchanted Mac-reference diff: {error}", file=sys.stderr)
+
+    require(
+        result.match_ratio >= minimum_ratio,
+        "Enchanted Mac-reference match ratio "
+        f"{result.match_ratio:.4f} is below {minimum_ratio:.2f}: "
+        f"differing_pixels={result.differing_pixels}/{result.total_pixels}, "
+        f"max_channel_delta={result.max_channel_delta}"
+        + (f", diff={diff_path}" if diff_path else ""),
+    )
+
+    try:
+        landmark_report = validate_quill_chat_mac_reference(image).replace(
+            "Quill Chat Mac-reference",
+            "Enchanted Mac-reference",
+        )
+    except SystemExit as error:
+        diff_candidate = image.path.with_name(f"{image.path.stem}-mac-reference-diff.png")
+        try:
+            diff_path = write_reference_diff(reference, image, tolerance, diff_candidate)
+        except Exception as diff_error:  # pragma: no cover - best-effort failure artifact
+            print(f"Could not write Enchanted Mac-reference diff: {diff_error}", file=sys.stderr)
+        raise SystemExit(
+            f"{error}"
+            + (f"; diff={diff_path}" if diff_path else "")
+        )
+
+    return (
+        "Enchanted Mac-reference pixel match ratio="
+        f"{result.match_ratio:.4f}, "
+        f"differing_pixels={result.differing_pixels}/{result.total_pixels}, "
+        f"max_channel_delta={result.max_channel_delta}, "
+        f"tolerance={tolerance}, fixture={reference_path}\n"
+        f"{landmark_report}"
     )
 
 
@@ -2395,8 +2560,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_long_transcript_selection(image))
     elif product == "quill-chat-linux-mac-reference-prompt-send":
         print(validate_quill_chat_mac_reference_prompt_send(image))
-    elif product in {"quill-chat-mac-reference", "quill-chat-linux-mac-reference"}:
-        print(validate_quill_chat_mac_reference(image))
+    elif product in ENCHANTED_MAC_REFERENCE_PRODUCTS:
+        print(validate_quill_enchanted_mac_reference(image))
     elif product == "quill-enchanted-qt":
         print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-enchanted-qt-list-selection":

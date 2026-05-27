@@ -792,6 +792,14 @@ struct LinuxBackendAppMatrixTests {
         printf 'visual-verify-enchanted-qt=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-enchanted qt)"
         printf 'visual-verify-enchanted-linux-qt=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-enchanted-linux qt)"
         printf 'visual-verify-enchanted-linux-gtk=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-enchanted-linux gtk)"
+        QUILLUI_BACKEND_MAC_REFERENCE=1
+        mac_reference_verify_product=""
+        quillui_backend_visual_verify_product quill-enchanted-linux mac_reference_verify_product
+        printf 'visual-verify-enchanted-linux-mac-reference=%s\\n' "$mac_reference_verify_product"
+        legacy_mac_reference_verify_product=""
+        quillui_backend_visual_verify_product quill-chat-linux legacy_mac_reference_verify_product
+        printf 'visual-verify-chat-linux-mac-reference=%s\\n' "$legacy_mac_reference_verify_product"
+        unset QUILLUI_BACKEND_MAC_REFERENCE
         printf 'visual-verify-wireguard-qt=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-wireguard qt)"
         printf 'visual-verify-signal-qt=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-signal qt)"
         printf 'visual-verify-wireguard-gtk=%s\\n' "$(quillui_backend_visual_verify_product_for_product quill-wireguard gtk)"
@@ -928,6 +936,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("visual-verify-enchanted-qt=quill-enchanted-qt"))
         #expect(result.output.contains("visual-verify-enchanted-linux-qt=quill-enchanted-linux-qt"))
         #expect(result.output.contains("visual-verify-enchanted-linux-gtk=quill-enchanted-linux-gtk"))
+        #expect(result.output.contains("visual-verify-enchanted-linux-mac-reference=quill-enchanted-linux-mac-reference"))
+        #expect(result.output.contains("visual-verify-chat-linux-mac-reference=quill-chat-linux-mac-reference"))
         #expect(result.output.contains("visual-verify-wireguard-qt=quill-wireguard-qt"))
         #expect(result.output.contains("visual-verify-signal-qt=quill-signal"))
         #expect(result.output.contains("visual-verify-wireguard-gtk=quill-wireguard"))
