@@ -151,6 +151,8 @@ quillui_backend_visual_verify_product() {
 
   if quillui_is_quill_chat_mac_reference_product "$product"; then
     verify_product="quill-chat-linux-mac-reference"
+  elif quillui_is_enchanted_mac_reference_product "$product"; then
+    verify_product="quill-enchanted-mac-reference"
   else
     selected_backend="$(quillui_require_requested_backend_for_product "$product" 2>/dev/null || true)"
     if [[ -n "$selected_backend" ]]; then

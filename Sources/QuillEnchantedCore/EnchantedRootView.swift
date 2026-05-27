@@ -18,7 +18,11 @@ public struct EnchantedRootView: View {
 
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated {
-            HStack(spacing: 0) {
+            let useReferenceSize = ProcessInfo.processInfo.environment["QUILLUI_ENCHANTED_REFERENCE_MODE"] == "1"
+            let width = useReferenceSize ? 1114.0 : nil
+            let height = useReferenceSize ? 749.0 : nil
+
+            let content = HStack(spacing: 0) {
                 sidebar
                     .frame(width: CGFloat(EnchantedVisualMetrics.sidebarWidth))
                     .background(QuillColors.sidebar)
@@ -30,15 +34,28 @@ public struct EnchantedRootView: View {
                     .background(QuillColors.canvas)
             }
             .font(.system(size: CGFloat(EnchantedTypography.rootFontSize)))
-            .frame(
-                minWidth: CGFloat(EnchantedVisualMetrics.minimumWindowWidth),
-                minHeight: CGFloat(EnchantedVisualMetrics.minimumWindowHeight)
-            )
-            .onAppear {
-                model.boot(endpoint: endpoint)
-            }
-            .onChange(of: endpoint) { _, value in
-                model.configureEndpoint(value)
+
+            let finalView = content
+                .onAppear {
+                    model.boot(endpoint: endpoint)
+                }
+                .onChange(of: endpoint) { _, value in
+                    model.configureEndpoint(value)
+                }
+
+            if useReferenceSize {
+                return AnyView(finalView
+                    .frame(width: 1114, height: 721)
+                    .frame(
+                        minWidth: 1114,
+                        minHeight: 721
+                    ))
+            } else {
+                return AnyView(finalView
+                    .frame(
+                        minWidth: CGFloat(EnchantedVisualMetrics.minimumWindowWidth),
+                        minHeight: CGFloat(EnchantedVisualMetrics.minimumWindowHeight)
+                    ))
             }
         }
     }

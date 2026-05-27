@@ -526,6 +526,11 @@ quillui_is_quill_chat_mac_reference_product() {
   [[ "$product" == "quill-chat-linux" && "${QUILLUI_BACKEND_MAC_REFERENCE:-0}" == "1" ]]
 }
 
+quillui_is_enchanted_mac_reference_product() {
+  local product="$1"
+  [[ "$product" == "quill-enchanted" && "${QUILLUI_BACKEND_MAC_REFERENCE:-0}" == "1" ]]
+}
+
 quillui_backend_quill_chat_interaction_verify_product() {
   local selected_backend
   local interaction_mode="$2"
