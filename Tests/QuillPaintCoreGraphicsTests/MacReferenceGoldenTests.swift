@@ -5,6 +5,7 @@ import QuillPaint
 
 #if canImport(CoreGraphics) && canImport(ImageIO)
 import CoreGraphics
+import ImageIO
 
 /// Golden tests: render each Mac-reference fixture in-memory via the
 /// current code and assert it matches the PNG committed under
@@ -81,14 +82,24 @@ struct MacReferenceGoldenTests {
             return  // already reported above
         }
 
-        let result = try PixelComparator(tolerance: 0).compare(
+        let tolerance: UInt8 = 0
+        let result = try PixelComparator(tolerance: tolerance).compare(
             reference: referenceBytes,
             candidate: candidateBytes,
             width: candidateImage.width,
             height: candidateImage.height
         )
-        #expect(result.isPerfect,
-                "Reference fixture \(name).png drifted from current renderer (maxChannelDelta=\(result.maxChannelDelta), differingPixels=\(result.differingPixels)/\(result.totalPixels)). Regenerate with `swift run quill-render-mac-references`.")
+
+        let diffMessage = result.differingPixels == 0
+            ? ""
+            : Self.writeDiffImageMessage(
+                name: name,
+                reference: referenceImage,
+                candidate: candidateImage,
+                tolerance: tolerance
+            )
+        #expect(result.passes,
+                "Reference fixture \(name).png drifted from current renderer (maxChannelDelta=\(result.maxChannelDelta), differingPixels=\(result.differingPixels)/\(result.totalPixels)).\(diffMessage) Regenerate with `swift run quill-render-mac-references`.")
     }
 
     /// Locate the canonical fixture directory by walking up from this source
@@ -121,6 +132,61 @@ struct MacReferenceGoldenTests {
         var description: String {
             switch self {
             case .notFound(let name): return "Could not locate fixture \(name); searched ancestors of this test file."
+            }
+        }
+    }
+
+    private static func writeDiffImageMessage(
+        name: String,
+        reference: CGImage,
+        candidate: CGImage,
+        tolerance: UInt8,
+        fileManager: FileManager = .default
+    ) -> String {
+        let safeName = name.replacingOccurrences(of: "/", with: "-")
+        let directory = fileManager.temporaryDirectory
+            .appendingPathComponent("MacReferenceGoldenTests-\(safeName)-\(UUID().uuidString)", isDirectory: true)
+        let diffURL = directory.appendingPathComponent("\(safeName)-diff.png")
+
+        do {
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            let diffImage = PaintDiffRenderer().renderDiff(
+                reference: reference,
+                candidate: candidate,
+                tolerance: tolerance
+            )
+            try Self.writePNG(diffImage, to: diffURL)
+            return " Diff image: \(diffURL.path)."
+        } catch {
+            return " Diff image: \(diffURL.path) (failed to write: \(error))."
+        }
+    }
+
+    private static func writePNG(_ image: CGImage, to url: URL) throws {
+        guard let destination = CGImageDestinationCreateWithURL(
+            url as CFURL,
+            "public.png" as CFString,
+            1,
+            nil
+        ) else {
+            throw DiffImageWriteError.destinationCreationFailed(url.path)
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        if !CGImageDestinationFinalize(destination) {
+            throw DiffImageWriteError.finalizeFailed(url.path)
+        }
+    }
+
+    enum DiffImageWriteError: Error, CustomStringConvertible {
+        case destinationCreationFailed(String)
+        case finalizeFailed(String)
+
+        var description: String {
+            switch self {
+            case .destinationCreationFailed(let path):
+                return "Failed to create PNG destination for \(path)."
+            case .finalizeFailed(let path):
+                return "Failed to finalize PNG at \(path)."
             }
         }
     }
