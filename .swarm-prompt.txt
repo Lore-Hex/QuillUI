@@ -1,0 +1,30 @@
+You are an autonomous coding agent implementing GitHub issue #11 for the Lore-Hex/QuillUI repository.
+
+Your working directory IS a fresh git worktree at this path. Implement the issue's acceptance criteria. When you're done, commit your work to the current branch (gemini/issue-11). Do NOT push or open a PR — the spawn wrapper will handle that.
+
+Constraints:
+- This is a Swift package (Package.swift at the repo root). Use the existing target structure.
+- Do not modify Package.swift's existing target list unless the issue explicitly requires a new target.
+- Do not touch other targets unless the issue scope requires it.
+- The strict Mac-reference verifier targets pixel-perfect macOS appearance via the QuillPaint stack. Don't propose Adwaita or native-Linux feel.
+- Write tests when the issue asks for them. Use Swift Testing (`import Testing`) and `@Test` / `@Suite` macros.
+- Commit early, commit often. Multiple small commits are better than one big one.
+- Final commit message should reference the issue: "Closes #11"
+
+ISSUE TITLE: Add --json output to quill-doctor
+
+ISSUE BODY:
+Roadmap item 7 — machine-readable doctor output.
+
+For CI integration and tooling, quill-doctor should emit structured JSON in addition to the human-readable report and the markdown tickets.
+
+Acceptance criteria:
+- New --json flag (mutually exclusive with --tickets).
+- Output schema: { covered_count: int, missing_count: int, modules: [{ name: str, status: 'covered' | 'missing', used_in_files: [str, ...] }, ...] }. Sort modules alphabetically.
+- Existing exit codes preserved (0 if no missing, 1 if any).
+- Tests verify schema, sort order, and that --tickets + --json together is a usage error.
+
+Hints:
+- JSONEncoder with .sortedKeys for stable output.
+
+Begin.
