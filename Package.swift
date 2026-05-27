@@ -220,6 +220,8 @@ var products: [Product] = [
     // from the same paint code that Linux backends use, so reference
     // images can't drift from production output.
     .library(name: "QuillPaintCoreGraphics", targets: ["QuillPaintCoreGraphics"]),
+    // Cairo adapter — Linux/GTK backend.
+    .library(name: "QuillPaintCairo", targets: ["QuillPaintCairo"]),
     // CLI that regenerates the Mac-reference PNG fixture set under
     // Tests/Fixtures/MacReference/ using QuillPaintCoreGraphics. Apple-only.
     .executable(name: "quill-render-mac-references", targets: ["quill-render-mac-references"])
@@ -501,6 +503,15 @@ let cSQLiteTarget: Target = .systemLibrary(
     ]
 )
 
+let cCairoTarget: Target = .systemLibrary(
+    name: "CCairo",
+    pkgConfig: "cairo",
+    providers: [
+        .apt(["libcairo2-dev"]),
+        .brew(["cairo"])
+    ]
+)
+
 // QuillDataMacros declares the @QuillModel / @Attribute /
 // @Relationship / @QuillPredicate / @Observable macros used
 // by QuillData. The compiler loads it as an out-of-process
@@ -536,6 +547,7 @@ let quillEnchantedDataTarget: Target = .target(
 
 var targets: [Target] = [
     cSQLiteTarget,
+    cCairoTarget,
     .target(
         name: "QuillUI",
         dependencies: quillUIDependencies,
@@ -626,6 +638,11 @@ var targets: [Target] = [
         name: "QuillPaintCoreGraphics",
         dependencies: ["QuillPaint"],
         path: "Sources/QuillPaintCoreGraphics"
+    ),
+    .target(
+        name: "QuillPaintCairo",
+        dependencies: ["QuillPaint", "CCairo"],
+        path: "Sources/QuillPaintCairo"
     ),
     .executableTarget(
         name: "quill-render-mac-references",
@@ -1464,6 +1481,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillPaintCoreGraphicsTests",
             dependencies: ["QuillPaintCoreGraphics", "QuillPaint"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "QuillPaintCairoTests",
+            dependencies: ["QuillPaintCairo", "QuillPaint"],
             swiftSettings: appSwiftSettings
         ),
         // Pins Enchanted's core compatibility surface: markdown /
