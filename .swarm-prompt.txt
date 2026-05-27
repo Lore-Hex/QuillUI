@@ -1,0 +1,29 @@
+You are an autonomous coding agent implementing GitHub issue #13 for the Lore-Hex/QuillUI repository.
+
+Your working directory IS a fresh git worktree at this path. Implement the issue's acceptance criteria. When you're done, commit your work to the current branch (gemini/issue-13). Do NOT push or open a PR — the spawn wrapper will handle that.
+
+Constraints:
+- This is a Swift package (Package.swift at the repo root). Use the existing target structure.
+- Do not modify Package.swift's existing target list unless the issue explicitly requires a new target.
+- Do not touch other targets unless the issue scope requires it.
+- The strict Mac-reference verifier targets pixel-perfect macOS appearance via the QuillPaint stack. Don't propose Adwaita or native-Linux feel.
+- Write tests when the issue asks for them. Use Swift Testing (`import Testing`) and `@Test` / `@Suite` macros.
+- Commit early, commit often. Multiple small commits are better than one big one.
+- Final commit message should reference the issue: "Closes #13"
+
+ISSUE TITLE: Emit PaintComparator visual diff as PNG
+
+ISSUE BODY:
+Roadmap item 4 — visual diff for the Mac-reference verifier.
+
+When PixelComparator reports a non-zero differingPixels, today the test message is just the count + max delta. A diff image (red where pixels differ, original where they match) makes the failure visually diagnosable.
+
+Acceptance criteria:
+- New PaintDiffRenderer (Apple-only, in QuillPaintCoreGraphics) with renderDiff(reference: CGImage, candidate: CGImage, tolerance: UInt8) -> CGImage. Output: a CGImage same size as inputs where matching pixels are drawn at 50% opacity (context visible) and differing pixels are solid red.
+- MacReferenceGoldenTests failure messages should include the path to a written diff image when the test fails, written to a per-test temp dir.
+- Tests verify: identical inputs produce a diff with no red pixels; a 1-pixel-different input produces a diff with exactly one red pixel.
+
+Hints:
+- Iterate over rawRGBA bytes; for each pixel, if max channel delta > tolerance, write red (255, 0, 0, 255); else write reference pixel's RGB at 50% alpha.
+
+Begin.
