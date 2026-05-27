@@ -294,6 +294,11 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var emptyStateHeaderSpacing: Int
         var emptyStateMaxWidth: Int
         var promptListSpacing: Int
+        var promptGridColumns: Int
+        var promptGridSpacing: Int
+        var promptCardWidth: Int
+        var promptCardHeight: Int
+        var promptGridWidth: Int
         var promptButtonIconSpacing: Int
         var promptButtonTextWidthInset: Int
         var promptButtonMinHeight: Int
@@ -503,6 +508,11 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             emptyStateHeaderSpacing: EnchantedVisualMetrics.emptyStateHeaderSpacing,
             emptyStateMaxWidth: EnchantedVisualMetrics.emptyStateMaxWidth,
             promptListSpacing: EnchantedVisualMetrics.promptListSpacing,
+            promptGridColumns: EnchantedVisualMetrics.promptGridColumns,
+            promptGridSpacing: EnchantedVisualMetrics.promptGridSpacing,
+            promptCardWidth: EnchantedVisualMetrics.promptCardWidth,
+            promptCardHeight: EnchantedVisualMetrics.promptCardHeight,
+            promptGridWidth: EnchantedVisualMetrics.promptGridWidth,
             promptButtonIconSpacing: EnchantedVisualMetrics.promptButtonIconSpacing,
             promptButtonTextWidthInset: EnchantedVisualMetrics.promptButtonTextWidthInset,
             promptButtonMinHeight: EnchantedVisualMetrics.promptButtonMinHeight,
