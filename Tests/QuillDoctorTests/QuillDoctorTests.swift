@@ -91,6 +91,96 @@ struct QuillDoctorTests {
         #expect(!report.hasMissing)
     }
 
+    @Test("--target scans only the selected SwiftPM target path")
+    func targetNameScansOnlySelectedSwiftPMTarget() throws {
+        let fm = FileManager.default
+        let scratch = fm.temporaryDirectory
+            .appendingPathComponent("QuillDoctorTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: scratch) }
+
+        let project = try makeSwiftPackageFixture(in: scratch)
+        let coverageDoc = try writeCoverageDoc(in: scratch, coveredModules: ["SwiftUI"])
+
+        let report = try QuillDoctor().scan(
+            projectRoot: project,
+            coverageDocPath: coverageDoc,
+            targetName: "AppTarget"
+        )
+
+        let modules = Set(report.modules.map(\.module))
+        #expect(modules == Set(["SwiftUI"]))
+        #expect(!modules.contains("MissingOtherKit"))
+        #expect(!report.hasMissing)
+
+        let swiftUI = try #require(report.modules.first { $0.module == "SwiftUI" })
+        #expect(swiftUI.usedInFiles == ["Sources/AppTarget/App.swift"])
+    }
+
+    @Test("--target reports available SwiftPM targets when the name is invalid")
+    func invalidTargetReportsAvailableTargets() throws {
+        let fm = FileManager.default
+        let scratch = fm.temporaryDirectory
+            .appendingPathComponent("QuillDoctorTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: scratch) }
+
+        let project = try makeSwiftPackageFixture(in: scratch)
+        let coverageDoc = try writeCoverageDoc(in: scratch, coveredModules: ["SwiftUI"])
+
+        do {
+            _ = try QuillDoctor().scan(
+                projectRoot: project,
+                coverageDocPath: coverageDoc,
+                targetName: "MissingTarget"
+            )
+            Issue.record("Expected targetNotFound")
+        } catch let error as QuillDoctorTargetResolutionError {
+            guard case .targetNotFound(let name, let availableTargets) = error else {
+                Issue.record("Expected targetNotFound, got \(error)")
+                return
+            }
+            #expect(name == "MissingTarget")
+            #expect(availableTargets == ["AppTarget", "OtherTarget"])
+            #expect(error.description.contains("Available targets:"))
+            #expect(error.description.contains("  - AppTarget"))
+            #expect(error.description.contains("  - OtherTarget"))
+        } catch {
+            Issue.record("Expected QuillDoctorTargetResolutionError, got \(error)")
+        }
+    }
+
+    @Test("--target errors clearly when the project root is not a SwiftPM package")
+    func targetNameRequiresSwiftPMPackage() throws {
+        let fm = FileManager.default
+        let scratch = fm.temporaryDirectory
+            .appendingPathComponent("QuillDoctorTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: scratch) }
+
+        let project = scratch.appendingPathComponent("NotAPackage", isDirectory: true)
+        try fm.createDirectory(at: project, withIntermediateDirectories: true)
+        try """
+        import SwiftUI
+        """.write(to: project.appendingPathComponent("App.swift"), atomically: true, encoding: .utf8)
+        let coverageDoc = try writeCoverageDoc(in: scratch, coveredModules: ["SwiftUI"])
+
+        do {
+            _ = try QuillDoctor().scan(
+                projectRoot: project,
+                coverageDocPath: coverageDoc,
+                targetName: "AppTarget"
+            )
+            Issue.record("Expected packageManifestMissing")
+        } catch let error as QuillDoctorTargetResolutionError {
+            guard case .packageManifestMissing(let projectRoot) = error else {
+                Issue.record("Expected packageManifestMissing, got \(error)")
+                return
+            }
+            #expect(projectRoot == project.resolvingSymlinksInPath().path)
+            #expect(error.description.contains("--target requires PROJECT_ROOT to be a SwiftPM package"))
+        } catch {
+            Issue.record("Expected QuillDoctorTargetResolutionError, got \(error)")
+        }
+    }
+
     @Test("formattedReport prints MISSING block with usage locations")
     func formattedReportShape() throws {
         let report = QuillDoctorReport(modules: [
@@ -169,5 +259,61 @@ struct QuillDoctorTests {
         #expect(json["covered_count"] as? Int == 0)
         #expect(json["missing_count"] as? Int == 0)
         #expect((json["modules"] as? [Any])?.isEmpty == true)
+    }
+
+    private func makeSwiftPackageFixture(in scratch: URL) throws -> URL {
+        let fm = FileManager.default
+        let project = scratch.appendingPathComponent("PackageProject", isDirectory: true)
+        try fm.createDirectory(
+            at: project.appendingPathComponent("Sources/AppTarget", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        try fm.createDirectory(
+            at: project.appendingPathComponent("Sources/OtherTarget", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "DoctorFixture",
+            products: [],
+            targets: [
+                .target(name: "AppTarget", path: "Sources/AppTarget"),
+                .target(name: "OtherTarget", path: "Sources/OtherTarget")
+            ]
+        )
+        """.write(to: project.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+
+        try """
+        import SwiftUI
+
+        public struct App {}
+        """.write(
+            to: project.appendingPathComponent("Sources/AppTarget/App.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        try """
+        import MissingOtherKit
+
+        public struct Other {}
+        """.write(
+            to: project.appendingPathComponent("Sources/OtherTarget/Other.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        return project
+    }
+
+    private func writeCoverageDoc(in scratch: URL, coveredModules: [String]) throws -> URL {
+        let coverageDoc = scratch.appendingPathComponent("coverage.md")
+        let headings = coveredModules.map { "## \($0)\nCovered." }.joined(separator: "\n\n")
+        try headings.write(to: coverageDoc, atomically: true, encoding: .utf8)
+        return coverageDoc
     }
 }

@@ -29,10 +29,26 @@ public struct QuillDoctor {
     public func scan(
         projectRoot: URL,
         coverageDocPath: URL,
+        targetName: String? = nil,
         fileManager: FileManager = .default,
         additionalCoveredBaseline: Set<String> = []
     ) throws -> QuillDoctorReport {
-        let importsByModule = try collectImports(in: projectRoot, fileManager: fileManager)
+        let scanRoot: URL
+        if let targetName {
+            scanRoot = try resolveSwiftPMTargetSourcePath(
+                named: targetName,
+                packageRoot: projectRoot,
+                fileManager: fileManager
+            )
+        } else {
+            scanRoot = projectRoot
+        }
+
+        let importsByModule = try collectImports(
+            in: scanRoot,
+            relativeTo: projectRoot,
+            fileManager: fileManager
+        )
         var coveredModules = try parseCoveredModules(coverageDoc: coverageDocPath)
         coveredModules.formUnion(Self.alwaysCoveredBaseline)
         coveredModules.formUnion(additionalCoveredBaseline)
@@ -55,23 +71,25 @@ public struct QuillDoctor {
     }
 
     private func collectImports(
-        in projectRoot: URL,
+        in scanRoot: URL,
+        relativeTo projectRoot: URL,
         fileManager: FileManager
     ) throws -> [String: Set<String>] {
-        let normalized = projectRoot.resolvingSymlinksInPath()
+        let normalizedScanRoot = scanRoot.resolvingSymlinksInPath()
+        let normalizedProjectRoot = projectRoot.resolvingSymlinksInPath()
         var importsByModule: [String: Set<String>] = [:]
 
         guard let enumerator = fileManager.enumerator(
-            at: normalized,
+            at: normalizedScanRoot,
             includingPropertiesForKeys: [.isRegularFileKey],
             options: [.skipsHiddenFiles]
         ) else {
             return importsByModule
         }
 
-        let rootPathWithSlash = normalized.path.hasSuffix("/")
-            ? normalized.path
-            : normalized.path + "/"
+        let projectRootPathWithSlash = normalizedProjectRoot.path.hasSuffix("/")
+            ? normalizedProjectRoot.path
+            : normalizedProjectRoot.path + "/"
 
         for case let fileURL as URL in enumerator {
             let resolved = fileURL.resolvingSymlinksInPath()
@@ -91,8 +109,8 @@ public struct QuillDoctor {
             collector.walk(tree)
 
             let relativePath: String
-            if resolved.path.hasPrefix(rootPathWithSlash) {
-                relativePath = String(resolved.path.dropFirst(rootPathWithSlash.count))
+            if resolved.path.hasPrefix(projectRootPathWithSlash) {
+                relativePath = String(resolved.path.dropFirst(projectRootPathWithSlash.count))
             } else {
                 relativePath = resolved.lastPathComponent
             }
@@ -102,6 +120,90 @@ public struct QuillDoctor {
             }
         }
         return importsByModule
+    }
+
+    func resolveSwiftPMTargetSourcePath(
+        named targetName: String,
+        packageRoot: URL,
+        fileManager: FileManager = .default
+    ) throws -> URL {
+        let normalizedPackageRoot = packageRoot.resolvingSymlinksInPath()
+        let manifest = normalizedPackageRoot.appendingPathComponent("Package.swift")
+        guard fileManager.fileExists(atPath: manifest.path) else {
+            throw QuillDoctorTargetResolutionError.packageManifestMissing(
+                projectRoot: normalizedPackageRoot.path
+            )
+        }
+
+        let packageDescription = try swiftPackageDescription(packageRoot: normalizedPackageRoot)
+        let availableTargets = packageDescription.targets.map(\.name).sorted()
+        guard let target = packageDescription.targets.first(where: { $0.name == targetName }) else {
+            throw QuillDoctorTargetResolutionError.targetNotFound(
+                name: targetName,
+                availableTargets: availableTargets
+            )
+        }
+        guard let path = target.path, !path.isEmpty else {
+            throw QuillDoctorTargetResolutionError.targetPathMissing(name: targetName)
+        }
+        if path.hasPrefix("/") {
+            return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+        }
+        return normalizedPackageRoot
+            .appendingPathComponent(path, isDirectory: true)
+            .standardizedFileURL
+    }
+
+    private func swiftPackageDescription(packageRoot: URL) throws -> SwiftPackageDescription {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = [
+            "swift", "package",
+            "--package-path", packageRoot.path,
+            "describe", "--type", "json"
+        ]
+
+        let standardOutput = Pipe()
+        let standardError = Pipe()
+        process.standardOutput = standardOutput
+        process.standardError = standardError
+
+        do {
+            try process.run()
+        } catch {
+            throw QuillDoctorTargetResolutionError.packageDescribeFailed(
+                projectRoot: packageRoot.path,
+                details: error.localizedDescription
+            )
+        }
+        process.waitUntilExit()
+
+        let outputData = standardOutput.fileHandleForReading.readDataToEndOfFile()
+        let errorData = standardError.fileHandleForReading.readDataToEndOfFile()
+        let errorOutput = String(data: errorData, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard process.terminationStatus == 0 else {
+            let failureDetails: String
+            if let errorOutput, !errorOutput.isEmpty {
+                failureDetails = errorOutput
+            } else {
+                failureDetails = "swift package describe exited with status \(process.terminationStatus)"
+            }
+            throw QuillDoctorTargetResolutionError.packageDescribeFailed(
+                projectRoot: packageRoot.path,
+                details: failureDetails
+            )
+        }
+
+        do {
+            return try JSONDecoder().decode(SwiftPackageDescription.self, from: outputData)
+        } catch {
+            throw QuillDoctorTargetResolutionError.packageDescribeFailed(
+                projectRoot: packageRoot.path,
+                details: "could not decode swift package describe output: \(error)"
+            )
+        }
     }
 
     private func parseCoveredModules(coverageDoc: URL) throws -> Set<String> {
@@ -145,6 +247,42 @@ public struct QuillDoctor {
         if hyphenCount > 1 { return false }
         return true
     }
+}
+
+public enum QuillDoctorTargetResolutionError: Error, Equatable, CustomStringConvertible {
+    case packageManifestMissing(projectRoot: String)
+    case packageDescribeFailed(projectRoot: String, details: String)
+    case targetNotFound(name: String, availableTargets: [String])
+    case targetPathMissing(name: String)
+
+    public var description: String {
+        switch self {
+        case .packageManifestMissing(let projectRoot):
+            return "--target requires PROJECT_ROOT to be a SwiftPM package with a Package.swift: \(projectRoot)"
+        case .packageDescribeFailed(let projectRoot, let details):
+            return "Could not describe SwiftPM package at \(projectRoot): \(details)"
+        case .targetNotFound(let name, let availableTargets):
+            let available = availableTargets.isEmpty
+                ? "  (none)"
+                : availableTargets.map { "  - \($0)" }.joined(separator: "\n")
+            return """
+            No SwiftPM target named '\(name)'.
+            Available targets:
+            \(available)
+            """
+        case .targetPathMissing(let name):
+            return "SwiftPM target '\(name)' did not include a source path in swift package describe output."
+        }
+    }
+}
+
+private struct SwiftPackageDescription: Decodable {
+    var targets: [SwiftPackageTarget]
+}
+
+private struct SwiftPackageTarget: Decodable {
+    var name: String
+    var path: String?
 }
 
 // MARK: - Report
