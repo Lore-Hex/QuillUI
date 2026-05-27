@@ -104,6 +104,7 @@ private struct QuillUncheckedSendableAppType<A: App>: @unchecked Sendable {
 /// `QuillUIGtk` and `QuillUIQt`.
 public enum QuillBackendApp<Backend: QuillBackend> {
     public static func run<A: App>(_ appType: A.Type) {
+        Backend.initialize()
         QuillApp.run(appType, preferredBackend: Backend.identifier)
     }
 }

@@ -3422,3 +3422,6 @@ def deduplicate_map_entries(source: str) -> str:
 text = deduplicate_map_entries(text)
 path.write_text(text)
 PY
+
+# Apply QuillPaint integration to GTKRenderer
+python3 "$ROOT_DIR/scripts/patch-swiftopenui-quillpaint.py" "$RENDERER"

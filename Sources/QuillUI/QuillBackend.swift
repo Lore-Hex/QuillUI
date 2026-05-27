@@ -299,9 +299,12 @@ public enum QuillBackendRuntimeContext {
 public protocol QuillBackend {
     static var identifier: QuillBackendIdentifier { get }
     static var descriptor: QuillBackendDescriptor { get }
+    static func initialize()
 }
 
 public extension QuillBackend {
+    static func initialize() {}
+
     static var descriptor: QuillBackendDescriptor {
         QuillBackendRegistry.descriptor(for: identifier)
     }
