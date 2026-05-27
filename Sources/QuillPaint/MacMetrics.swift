@@ -47,6 +47,20 @@ public enum MacMetrics {
         /// at full opacity.
         public static let outset: Double = 3
     }
+
+    public enum WindowChrome {
+        /// Height of the standard macOS titlebar.
+        public static let titlebarHeight: Double = 28
+
+        /// Diameter of the traffic-light buttons (close, minimize, maximize).
+        public static let trafficLightDiameter: Double = 12
+
+        /// Horizontal spacing between the traffic-light buttons.
+        public static let trafficLightSpacing: Double = 8
+
+        /// Horizontal padding from the left edge of the window to the first traffic light.
+        public static let horizontalPadding: Double = 20
+    }
 }
 
 /// macOS system color tokens used by QuillPaint controls.
@@ -93,4 +107,24 @@ public enum MacColors {
     /// Hovered-state overlay (rarely visible on macOS — buttons don't have
     /// strong hover states — but kept for hosts that emit it).
     public static let hoveredOverlay = PaintColor(red: 0, green: 0, blue: 0, alpha: 0.03)
+
+    // MARK: - Window Chrome
+
+    /// Traffic light "close" button color (focused).
+    public static let windowCloseRed = PaintColor(r: 255, g: 95, b: 87)
+
+    /// Traffic light "minimize" button color (focused).
+    public static let windowMinimizeYellow = PaintColor(r: 254, g: 188, b: 46)
+
+    /// Traffic light "maximize" button color (focused).
+    public static let windowMaximizeGreen = PaintColor(r: 40, g: 200, b: 64)
+
+    /// Background color for the window titlebar.
+    public static let windowChromeBackground = PaintColor(r: 246, g: 246, b: 246)
+
+    /// Bottom border of the window titlebar.
+    public static let windowChromeBorderBottom = PaintColor(r: 0, g: 0, b: 0, a: 51)
+
+    /// Color for traffic light dots when the window is unfocused.
+    public static let windowChromeUnfocusedDot = PaintColor(r: 206, g: 206, b: 206)
 }
