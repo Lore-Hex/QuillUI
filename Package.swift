@@ -301,6 +301,7 @@ products += [
 #if os(Linux)
 let quillUIDependencies: [Target.Dependency] = [
     "QuillKit",
+    "QuillPaint",
     // QuillFoundation provides `RSImage` (which QuillUI's Linux
     // `NSImage` typealiases to) and other CoreGraphics-shaped
     // bridge types. macOS uses Apple's real frameworks instead.
@@ -315,6 +316,7 @@ let quillUIDependencies: [Target.Dependency] = [
 #else
 let quillUIDependencies: [Target.Dependency] = [
     "QuillKit",
+    "QuillPaint",
     .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
 ]
 #endif

@@ -28,6 +28,7 @@ public enum MacReferenceManifest {
     public static var entries: [ReferenceEntry] {
         let buttonSize = PaintSize(width: 80, height: 22)
         let wideButtonSize = PaintSize(width: 160, height: 22)
+        let sidebarRowSize = PaintSize(width: 220, height: 44)
 
         return [
             ReferenceEntry(
@@ -119,6 +120,24 @@ public enum MacReferenceManifest {
                 control: MacButtonPaint(label: "Continue"),
                 size: wideButtonSize,
                 state: PaintControlState(isFocused: true, isDefault: true)
+            ),
+            ReferenceEntry(
+                name: "sidebar-row-normal",
+                control: MacListRowPaint(),
+                size: sidebarRowSize,
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "sidebar-row-hovered",
+                control: MacListRowPaint(),
+                size: sidebarRowSize,
+                state: PaintControlState(isHovered: true)
+            ),
+            ReferenceEntry(
+                name: "sidebar-row-selected",
+                control: MacListRowPaint(),
+                size: sidebarRowSize,
+                state: PaintControlState(isSelected: true)
             ),
             ReferenceEntry(
                 name: "textfield-normal",
