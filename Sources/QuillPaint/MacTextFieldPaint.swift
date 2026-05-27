@@ -8,9 +8,9 @@ import Foundation
 ///   2. field fill (white normally, slightly dimmed when disabled)
 ///   3. field border (subtle separator stroke)
 ///
-/// Like `MacButtonPaint`, text content is NOT painted here — text runs are
-/// composited on top by the SwiftOpenUI integration layer once the typography
-/// pipeline lands. This keeps the chrome paint code free of font dependencies.
+/// Text field content is still composited by the host; this paint primitive
+/// owns only the field chrome until selection, caret, and editable text
+/// layout land together.
 ///
 /// Text fields ignore `isPressed`, `isHovered`, and `isDefault` — those
 /// affordances don't apply to text input on macOS.

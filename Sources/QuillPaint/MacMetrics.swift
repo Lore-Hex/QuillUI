@@ -22,6 +22,10 @@ public enum MacMetrics {
         /// Height of a regular control size button. Mini and small are smaller.
         public static let regularHeight: Double = 22
 
+        /// Optical centering adjustment for regular button labels. Positive Y
+        /// moves text down in paint coordinates.
+        public static let labelVerticalOpticalOffset: Double = 1
+
         /// Line width of the bordered chrome's outline.
         public static let borderLineWidth: Double = 1
 

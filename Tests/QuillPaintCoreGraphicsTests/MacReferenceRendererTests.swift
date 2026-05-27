@@ -145,6 +145,38 @@ struct CGPaintContextTests {
         }
         #expect(foundRed, "Solid red fill should produce a red pixel in the bitmap")
     }
+
+    @Test("CGPaintContext drawText paints non-transparent pixels")
+    func drawTextPaintsPixels() throws {
+        let renderer = MacReferenceRenderer(margin: 0, scale: 2.0)
+        struct TextOnly: PaintControl {
+            func paint(into context: PaintContext, frame: PaintRect, state: PaintControlState) {
+                context.drawText(
+                    "OK",
+                    at: PaintPoint(x: 0, y: 0),
+                    font: MacFonts.controlLabel,
+                    color: MacColors.controlText
+                )
+            }
+        }
+
+        let image = try renderer.renderImage(
+            control: TextOnly(),
+            frame: PaintSize(width: 40, height: 20),
+            state: .normal
+        )
+        let data = MacReferenceRendererTests.rawRGBA(from: image)
+        var foundInk = false
+        var idx = 3
+        while idx < data.count {
+            if data[idx] > 0 {
+                foundInk = true
+                break
+            }
+            idx += 4
+        }
+        #expect(foundInk, "Core Text drawing should place visible glyph pixels into the bitmap")
+    }
 }
 
 #endif

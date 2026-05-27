@@ -124,6 +124,64 @@ struct MacButtonPaintTests {
             #expect(color == MacColors.pressedOverlay)
         }
     }
+
+    @Test("Labeled button draws centered control text last")
+    func labeledButtonDrawsTextLast() {
+        let ctx = RecordingPaintContext()
+        MacButtonPaint(label: "OK").paint(into: ctx, frame: frame, state: .normal)
+
+        #expect(ctx.calls.count == 3)
+        guard let last = ctx.calls.last else { return }
+        if case let .drawText(string, point, font, color) = last {
+            let size = PaintTextMetrics.measure("OK", font: MacFonts.controlLabel)
+            let expected = PaintPoint(
+                x: frame.midX - size.width / 2,
+                y: frame.midY - size.height / 2 + MacMetrics.Button.labelVerticalOpticalOffset
+            )
+            #expect(string == "OK")
+            #expect(point == expected)
+            #expect(font == MacFonts.controlLabel)
+            #expect(color == MacColors.controlText)
+        } else {
+            Issue.record("Expected final call to be drawText, got \(last)")
+        }
+    }
+
+    @Test("Default labeled button uses default text color")
+    func defaultLabeledButtonUsesDefaultTextColor() {
+        let ctx = RecordingPaintContext()
+        MacButtonPaint(label: "OK").paint(
+            into: ctx,
+            frame: frame,
+            state: PaintControlState(isDefault: true)
+        )
+
+        #expect(ctx.calls.count == 2)
+        guard let last = ctx.calls.last else { return }
+        if case let .drawText(_, _, _, color) = last {
+            #expect(color == MacColors.defaultButtonText)
+        } else {
+            Issue.record("Expected final call to be drawText, got \(last)")
+        }
+    }
+
+    @Test("Disabled labeled button uses disabled text color")
+    func disabledLabeledButtonUsesDisabledTextColor() {
+        let ctx = RecordingPaintContext()
+        MacButtonPaint(label: "OK").paint(
+            into: ctx,
+            frame: frame,
+            state: PaintControlState(isDisabled: true)
+        )
+
+        #expect(ctx.calls.count == 3)
+        guard let last = ctx.calls.last else { return }
+        if case let .drawText(_, _, _, color) = last {
+            #expect(color == MacColors.disabledControlText)
+        } else {
+            Issue.record("Expected final call to be drawText, got \(last)")
+        }
+    }
 }
 
 @Suite("PaintRect geometry helpers")
