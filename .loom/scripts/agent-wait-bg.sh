@@ -1144,7 +1144,8 @@ main() {
                     local role_cmd=""
                     if [[ "$name" == builder-issue-* ]]; then
                         local issue_num="${name#builder-issue-}"
-                        role_cmd="/builder ${issue_num}"
+                        # Namespaced /loom:builder form for Claude Code 2.1+ command discovery
+                        role_cmd="/loom:builder ${issue_num}"
                     elif [[ "$name" == judge-* ]] || [[ "$name" == curator-* ]] || [[ "$name" == doctor-* ]]; then
                         # For other roles, we can't easily reconstruct the command
                         # Enter nudge is still attempted
