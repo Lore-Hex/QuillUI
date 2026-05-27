@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuillUI Coverage Matrix</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #24292e;
+            max-width: 1012px;
+            margin: 0 auto;
+            padding: 2rem;
+            background-color: #fff;
+        }
+        h1, h2, h3 { border-bottom: 1px solid #eaecef; padding-bottom: .3em; }
+        table {
+            border-spacing: 0;
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+        th, td {
+            padding: 6px 13px;
+            border: 1px solid #dfe2e5;
+        }
+        tr:nth-child(2n) { background-color: #f6f8fa; }
+        code {
+            padding: .2em .4em;
+            margin: 0;
+            font-size: 85%;
+            background-color: rgba(27,31,35,.05);
+            border-radius: 3px;
+            font-family: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
+        }
+        pre {
+            padding: 16px;
+            overflow: auto;
+            font-size: 85%;
+            line-height: 1.45;
+            background-color: #f6f8fa;
+            border-radius: 3px;
+        }
+        .filter-container {
+            margin-bottom: 20px;
+        }
+        #module-filter {
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #dfe2e5;
+            border-radius: 3px;
+            font-size: 16px;
+        }
+        .summary-table th { background-color: #f6f8fa; }
+        a { color: #0366d6; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="intro">
+        <h1 id="apple-and-package-function-coverage">Apple and Package Function Coverage</h1>
+<br>
+<p>This ledger tracks the Apple-framework compatibility packages and app-facing</p>
+<p>package clones exposed by QuillUI on Linux. It is source-inspected from the</p>
+<p>current repository, not yet a generated ABI diff against Apple SDKs or upstream</p>
+<p>third-party packages. APIs not listed here should be treated as incomplete on</p>
+<p>Linux until a source-contract test or implementation row is added.</p>
+<br>
+<p>Function rows group equivalent overloads or property-only accessors when they</p>
+<p>share the same behavior. "Complete" means complete for QuillUI's current tested</p>
+<p>contract, not complete Apple SDK parity.</p>
+<br>
+<p>For triage purposes, <code>Usable</code> and <code>Parity</code> rows are complete for today's tested</p>
+<p>Linux contract. <code>Partial</code>, <code>Fallback</code>, <code>Compile-only</code>, and <code>Incomplete</code> rows are</p>
+<p>still incomplete until the missing behavior is implemented and covered by</p>
+<p>source-contract, golden, or fuzz tests.</p>
+<br>
+<p>Status ladder:</p>
+<br>
+<ul>
+<li><code>Compile-only</code>: the import, type, or call compiles, but runtime behavior is a</li>
+</ul>
+<p>  placeholder.</p>
+<ul>
+<li><code>Fallback</code>: the call has deterministic fallback behavior, usually recording a</li>
+</ul>
+<p>  compatibility diagnostic, but it does not perform the native OS side effect.</p>
+<ul>
+<li><code>Partial</code>: a real subset works, with documented gaps.</li>
+<li><code>Usable</code>: enough runtime behavior exists for current app workflows and tests.</li>
+<li><code>Parity</code>: above Usable. The same source compiles and runs on Apple and Linux,</li>
+</ul>
+<p>  deterministic APIs produce the same outputs under golden and seeded fuzz</p>
+<p>  tests, UI flows have backend-equivalent behavior and rendering, and any</p>
+<p>  unavoidable OS differences are explicit.</p>
+<br>
+<p>A <code>Parity</code> row is intentionally narrow: it means the named function or value</p>
+<p>contract has Apple/Linux tests, not that the whole framework is complete.</p>
+<br>
+    </div>
+
+    <h2>Package Coverage Summary</h2>
+    <div class="filter-container">
+        <input type="text" id="module-filter" placeholder="Search module name..." onkeyup="filterModules()">
+    </div>
+    <table class="summary-table" id="summary-table">
+        <thead>
+            <tr>
+                <th>Module Name</th>
+                <th>Total Rows</th>
+                <th>Parity</th>
+                <th>Usable</th>
+                <th>Partial</th>
+                <th>Fallback</th>
+                <th>Compile-only</th>
+            </tr>
+        </thead>
+        <tbody>
+            
+        <tr>
+            <td><a href="#swiftui">SwiftUI</a></td>
+            <td>6</td>
+            <td>0</td>
+            <td>1</td>
+            <td>2</td>
+            <td>2</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td><a href="#swiftdata">SwiftData</a></td>
+            <td>37</td>
+            <td>0</td>
+            <td>9</td>
+            <td>19</td>
+            <td>0</td>
+            <td>8</td>
+        </tr>
+        <tr>
+            <td><a href="#appkit">AppKit</a></td>
+            <td>92</td>
+            <td>0</td>
+            <td>21</td>
+            <td>34</td>
+            <td>22</td>
+            <td>15</td>
+        </tr>
+        <tr>
+            <td><a href="#uikit">UIKit</a></td>
+            <td>27</td>
+            <td>0</td>
+            <td>1</td>
+            <td>6</td>
+            <td>7</td>
+            <td>12</td>
+        </tr>
+        <tr>
+            <td><a href="#webkit">WebKit</a></td>
+            <td>12</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>11</td>
+        </tr>
+        <tr>
+            <td><a href="#authenticationservices">AuthenticationServices</a></td>
+            <td>5</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>1</td>
+            <td>3</td>
+        </tr>
+        <tr>
+            <td><a href="#uniformtypeidentifiers">UniformTypeIdentifiers</a></td>
+            <td>9</td>
+            <td>0</td>
+            <td>7</td>
+            <td>1</td>
+            <td>0</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td><a href="#network">Network</a></td>
+            <td>32</td>
+            <td>28</td>
+            <td>1</td>
+            <td>0</td>
+            <td>1</td>
+            <td>1</td>
+        </tr>
+        <tr>
+            <td><a href="#networkextension">NetworkExtension</a></td>
+            <td>8</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>1</td>
+            <td>6</td>
+        </tr>
+        <tr>
+            <td><a href="#coregraphics">CoreGraphics</a></td>
+            <td>6</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>2</td>
+            <td>3</td>
+        </tr>
+        <tr>
+            <td><a href="#security">Security</a></td>
+            <td>19</td>
+            <td>1</td>
+            <td>6</td>
+            <td>1</td>
+            <td>3</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td><a href="#avfoundation">AVFoundation</a></td>
+            <td>12</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>5</td>
+            <td>6</td>
+        </tr>
+        <tr>
+            <td><a href="#avkit">AVKit</a></td>
+            <td>2</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>2</td>
+        </tr>
+        <tr>
+            <td><a href="#speech">Speech</a></td>
+            <td>7</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>4</td>
+            <td>2</td>
+        </tr>
+        <tr>
+            <td><a href="#photosui-and-photos">PhotosUI and Photos</a></td>
+            <td>4</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>3</td>
+        </tr>
+        <tr>
+            <td><a href="#charts">Charts</a></td>
+            <td>4</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>3</td>
+        </tr>
+        <tr>
+            <td><a href="#storekit">StoreKit</a></td>
+            <td>2</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>1</td>
+        </tr>
+        <tr>
+            <td><a href="#tipkit">TipKit</a></td>
+            <td>4</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>3</td>
+        </tr>
+        <tr>
+            <td><a href="#observation">Observation</a></td>
+            <td>2</td>
+            <td>0</td>
+            <td>0</td>
+            <td>1</td>
+            <td>0</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td><a href="#applicationservices">ApplicationServices</a></td>
+            <td>4</td>
+            <td>0</td>
+            <td>0</td>
+            <td>1</td>
+            <td>0</td>
+            <td>2</td>
+        </tr>
+        <tr>
+            <td><a href="#servicemanagement">ServiceManagement</a></td>
+            <td>4</td>
+            <td>0</td>
+            <td>1</td>
+            <td>2</td>
+            <td>0</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td><a href="#asyncalgorithms">AsyncAlgorithms</a></td>
+            <td>3</td>
+            <td>0</td>
+            <td>2</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td><a href="#carbon">Carbon</a></td>
+            <td>3</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>2</td>
+        </tr>
+        <tr>
+            <td><a href="#combine">Combine</a></td>
+            <td>4</td>
+            <td>0</td>
+            <td>1</td>
+            <td>2</td>
+            <td>0</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td><a href="#os">os</a></td>
+            <td>7</td>
+            <td>0</td>
+            <td>1</td>
+            <td>3</td>
+            <td>0</td>
+            <td>2</td>
+        </tr>
+        <tr>
+            <td><a href="#iokit">IOKit</a></td>
+            <td>7</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>3</td>
+            <td>3</td>
+        </tr>
+        <tr>
+            <td><a href="#re-export-only-apple-shims">Re-export-only Apple shims</a></td>
+            <td>5</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>5</td>
+        </tr>
+        <tr>
+            <td><a href="#third-party-and-app-support-package-clones">Third-Party and App-Support Package Clones</a></td>
+            <td>110</td>
+            <td>1</td>
+            <td>44</td>
+            <td>9</td>
+            <td>11</td>
+            <td>17</td>
+        </tr>
+        <tr>
+            <td><a href="#app-progress-summary">App Progress Summary</a></td>
+            <td>5</td>
+            <td>0</td>
+            <td>0</td>
+            <td>1</td>
+            <td>0</td>
+            <td>0</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <hr>
+
+    <div class="full-content">
+        <h1 id="apple-and-package-function-coverage">Apple and Package Function Coverage</h1>
+<br>
+<p>This ledger tracks the Apple-framework compatibility packages and app-facing</p>
+<p>package clones exposed by QuillUI on Linux. It is source-inspected from the</p>
+<p>current repository, not yet a generated ABI diff against Apple SDKs or upstream</p>
+<p>third-party packages. APIs not listed here should be treated as incomplete on</p>
+<p>Linux until a source-contract test or implementation row is added.</p>
+<br>
+<p>Function rows group equivalent overloads or property-only accessors when they</p>
+<p>share the same behavior. "Complete" means complete for QuillUI's current tested</p>
+<p>contract, not complete Apple SDK parity.</p>
+<br>
+<p>For triage purposes, <code>Usable</code> and <code>Parity</code> rows are complete for today's tested</p>
+<p>Linux contract. <code>Partial</code>, <code>Fallback</code>, <code>Compile-only</code>, and <code>Incomplete</code> rows are</p>
+<p>still incomplete until the missing behavior is implemented and covered by</p>
+<p>source-contract, golden, or fuzz tests.</p>
+<br>
+<p>Status ladder:</p>
+<br>
+<ul>
+<li><code>Compile-only</code>: the import, type, or call compiles, but runtime behavior is a</li>
+</ul>
+<p>  placeholder.</p>
+<ul>
+<li><code>Fallback</code>: the call has deterministic fallback behavior, usually recording a</li>
+</ul>
+<p>  compatibility diagnostic, but it does not perform the native OS side effect.</p>
+<ul>
+<li><code>Partial</code>: a real subset works, with documented gaps.</li>
+<li><code>Usable</code>: enough runtime behavior exists for current app workflows and tests.</li>
+<li><code>Parity</code>: above Usable. The same source compiles and runs on Apple and Linux,</li>
+</ul>
+<p>  deterministic APIs produce the same outputs under golden and seeded fuzz</p>
+<p>  tests, UI flows have backend-equivalent behavior and rendering, and any</p>
+<p>  unavoidable OS differences are explicit.</p>
+<br>
+<p>A <code>Parity</code> row is intentionally narrow: it means the named function or value</p>
+<p>contract has Apple/Linux tests, not that the whole framework is complete.</p>
+<br>
+<h2 id="package-summary">Package Summary</h2>
+<br>
+<p>Use this table to find the detailed package section below. The per-function</p>
+<p>rows remain the source of truth: a function is complete today only when its row</p>
+<p>is <code>Usable</code> or <code>Parity</code>.</p>
+<br>
+<table>
+<tr><th>Apple package</th><th>Complete function rows today</th><th>Incomplete function rows and parity blockers</th></tr>
+<tr><td><code>SwiftUI</code> clone layer</td><td><code>Font.Weight</code>.</td><td>Module boundary and app-facing view/modifier metadata paths are partial; baseline alignments fallback; full layout, diffing, animation, transition, gesture, accessibility, focus, scene, and rendering behavior is incomplete.</td></tr>
+<tr><td><code>SwiftData</code> / <code>QuillData</code></td><td><code>QuillTableMappable</code> table/name/convert/update helpers, <code>ModelContext.insert</code>, <code>delete</code>, <code>save</code>, and <code>QuillDataError.description</code>.</td><td>Database scalar conversion, fetches, predicates, configuration, schemas, containers, sorting, and macros are partial or compile-only; migrations, relationships, undo, CloudKit, constraints, predicate lowering, and concurrency are incomplete.</td></tr>
+<tr><td><code>AppKit</code> / <code>QuillAppKit</code></td><td>Undo execution and registration gates, <code>NSStringFromRect</code>, view hierarchy and geometry mutation, child-controller links, window geometry mutation, pasteboard string/data/item storage, menu item models, arranged stack subviews, progress value mutation, pop-up item selection, and selected singleton/property flows.</td><td>Most native OS behavior is partial, fallback, compile-only, or incomplete: event loop and dispatch, focus, dialogs, window manager integration, Auto Layout, drawing/layers, accessibility, cursor/event taps, native menus, drag/drop, text layout, document architecture, SwiftUI hosting, status items, popovers, visual effects, animation timing, haptics, sharing, audio, XPC, font discovery, file icons, and workspace services.</td></tr>
+<tr><td><code>UIKit</code> / <code>QuillUIKit</code></td><td><code>UIApplication.shared</code>.</td><td>Aliases, app opening, device metadata, pasteboard, views, hierarchy, and notifications are partial/fallback; constraints, scenes, controllers, navigation, split views, collections, alerts, controls, labels/images/key commands, renderer, lifecycle, layout, events, accessibility, and text input are incomplete.</td></tr>
+<tr><td><code>WebKit</code></td><td>None yet beyond compile-compatible shapes.</td><td><code>WKWebView</code>, configuration, delegates, user scripts, content rules, navigation, HTML rendering, JavaScript, process isolation, and scheme handling are compile-only or incomplete.</td></tr>
+<tr><td><code>AuthenticationServices</code></td><td>None yet beyond compile-compatible shapes.</td><td>Web authentication session start is fallback; session cancellation, presentation anchors, callback handling, secure storage, and browser flow parity are incomplete.</td></tr>
+<tr><td><code>UniformTypeIdentifiers</code></td><td>App-facing known extension lookup, conforming known extension lookup, common static types, local conformance checks, and preferred extension/MIME metadata for known identifiers.</td><td>Identifier parsing remains partial; system registry lookup, dynamic/exported/imported types, tag classes, synthesized dynamic identifiers for unknown extensions, and the full conformance graph need parity work.</td></tr>
+<tr><td><code>Network</code></td><td><code>IPv4Address</code>, <code>IPv6Address</code>, <code>NWPathMonitor</code> initial <code>currentPath</code> and pre-start <code>cancel()</code>, <code>NWPath.Status</code>, <code>NWPath.UnsatisfiedReason</code>, <code>NWPath.supportsIPv4</code>, <code>NWPath.supportsIPv6</code>, <code>NWPath.supportsDNS</code>, <code>NWPath.usesInterfaceType(_:)</code>, <code>NWInterface.InterfaceType</code>, <code>NWInterface</code> values returned by scoped address/host parsing, <code>NWEndpoint.Port</code> parsing/known constants/properties/debug text/equality/hash behavior, scoped and unscoped <code>NWEndpoint.Host.init(_:)</code> classification/description/equality/hash behavior, common <code>NWEndpoint</code> host-port/service/Unix path value descriptions, equality, hashing, <code>NWError.posix(_:)</code>, <code>.dns(_:)</code>, <code>.tls(_:)</code>, equality, debug/describing/reflecting/localized text, <code>NWProtocolTCP.Options</code> constructor/default/getter/setter surface, <code>NWProtocolUDP.Options.preferNoChecksum</code>, <code>NWProtocolTLS.Options</code>, <code>NWProtocolOptions</code>, <code>NWParameters.defaultProtocolStack</code>, <code>NWParameters.ProtocolStack</code>, <code>NWProtocolIP.Options</code>, IP option enums, <code>NWParameters.tcp</code>, <code>.udp</code>, <code>.tls</code>, <code>.dtls</code>, <code>NWParameters.init(tls:tcp:)</code>, <code>init(dtls:udp:)</code>, <code>NWParameters.Attribution</code>, <code>ExpiredDNSBehavior</code>, <code>MultipathServiceType</code>, <code>ServiceClass</code>, parameter policy setters/defaults, and <code>NWParameters</code> debug/string text now have Apple-checked <code>Parity</code> rows for current tested contracts. <code>NWPathMonitor.start(queue:)</code> is <code>Usable</code> for a Linux one-shot current-interface snapshot. <code>NetworkPathInterfaceParityTests</code> pins the path monitor pre-start state, pre-start cancel state, path helper-query results, path/interface enum string, resolved scoped interface value, Linux start snapshot consistency, equality, and hash contracts. <code>NetworkIPAddressParityTests</code> captures the IPv4/IPv6 parser, legacy IPv4 single-component wrapping, dotted octal/hex IPv4 edge cases, data length, classifier-boundary, multicast-scope, IPv4 mapping, empty/unresolved IPv6 scope fallback, string, debug-output, address equality/hash, and <code>IPv6Address.Scope</code> raw-value edge matrix observed on Apple Network. <code>NetworkEndpointPortParityTests</code> now covers port parser, constant, equality, and hash semantics. <code>NetworkEndpointHostParityTests</code> now covers scoped parsed-to-direct host equality/hash, empty/unresolved/malformed scope fallback classification, scoped host-port endpoint equality/hash, and endpoint value text. <code>NetworkErrorParityTests</code> covers <code>NWError</code> Sendable/Equatable value surface, Darwin POSIX payload text for common network failures, DNS/TLS payload text, Apple localizedDescription formatting, and the intentionally non-Hashable protocol shape. <code>NetworkParametersParityTests</code> covers parameter and protocol option constructor/value text, TCP Bool/Int option defaults and setters, UDP checksum-preference defaults and setters, fresh reference identity, Sendable surface, protocol-stack/default-stack/IP option value surfaces, policy enum text, defaults, setter normalization, local endpoint debug formatting, and Apple-matched traffic/multipath/proxy/DNSSEC debug segments.</td><td>Continuous live path monitoring, exact Apple path/DNS policy flags, synthetic constructed interfaces, connections, listeners, DNS/TLS transport behavior, UDP/TCP socket behavior, IP packet/socket option effects, and NetworkExtension VPN behavior are incomplete or fallback-only.</td></tr>
+<tr><td><code>NetworkExtension</code></td><td>None yet beyond compile/fallback shapes.</td><td>Packet flow, VPN lifecycle, tunnel routing, provider hosting, and real tunnel settings are incomplete.</td></tr>
+<tr><td><code>CoreGraphics</code></td><td>None yet beyond compile/fallback shapes.</td><td>Event sources, key state, keyboard events, event posting, pointer events, event taps, and drawing APIs beyond shared geometry are incomplete.</td></tr>
+<tr><td><code>Security</code></td><td><code>SecRandomCopyBytes</code>, process-local <code>SecKeyCreateWithData</code>, <code>SecKeyCreateRandomKey</code>, <code>SecKeyGeneratePair</code>, <code>SecKeyCopyPublicKey</code>, <code>SecKeyGetBlockSize</code>, <code>SecKeyCopyAttributes</code>, <code>SecKeyCopyExternalRepresentation</code>, metadata-gated <code>SecKeyIsAlgorithmSupported</code>, deterministic ECDSA message/digest <code>SecKeyCreateSignature</code> and <code>SecKeyVerifySignature</code> compatibility, deterministic symmetric ECDH <code>SecKeyCopyKeyExchangeResult</code> compatibility, key-exchange parameter constants, synthesized <code>SecKey</code> references, <code>SecItemAdd</code>, <code>SecItemCopyMatching</code>, <code>SecItemUpdate</code>, <code>SecItemDelete</code> generic-password, internet-password, and key-class rows, persistent-reference returns/lookups/deletes, access-control metadata, authentication/use query controls, access-group namespace filters, synchronizable filters, <code>kSecAttrSynchronizableAny</code>, server/security-domain/protocol/authentication/port/path endpoint identity, key-item application-tag/application-label/key-class/key-type/key-size/capability metadata, and current keychain constants.</td><td>Native secure keychain persistence/access-control enforcement, OS-enforced keychain sharing, real keychain synchronization, cross-process lookup, native key validation/handles, native cryptographic key generation, cryptographically valid sign/verify, native/cryptographically valid key agreement, Secure Enclave behavior, certificate parsing, policy evaluation, platform trust store, and Secure Transport parity are incomplete.</td></tr>
+<tr><td><code>AVFoundation</code> / <code>AVKit</code></td><td>None yet beyond compile/fallback shapes.</td><td>Speech synthesis, audio session, playback, audio engine graph processing, taps, buffers, formats, video rendering, media decoding, capture, and real media I/O are incomplete.</td></tr>
+<tr><td><code>Speech</code></td><td>None yet beyond compile/fallback shapes.</td><td>Authorization, recognizer availability, recognition tasks, audio transcription, and audio bridge behavior are incomplete.</td></tr>
+<tr><td><code>PhotosUI</code> / <code>Photos</code></td><td>None yet beyond compile-compatible shapes.</td><td>Photo-library authorization, asset fetching, picker UI, transferable item loading, and photo service behavior are incomplete.</td></tr>
+<tr><td><code>Charts</code>, <code>StoreKit</code>, <code>TipKit</code></td><td>None yet beyond compile-compatible shapes.</td><td>Chart marks/rendering/axes/scales/interaction/accessibility, product lookup, purchases, transactions, subscriptions, tip rules, persistence, display frequency, and popovers are incomplete.</td></tr>
+<tr><td><code>Observation</code></td><td>None yet at <code>Usable</code>; <code>@Observable</code> lowering is partial.</td><td>Tracking, invalidation, access lists, registrar behavior, and observation parity are incomplete.</td></tr>
+<tr><td><code>ApplicationServices</code></td><td>None yet at <code>Usable</code>; process trust check is partial.</td><td>Accessibility tree inspection, mutation, notifications, app targeting, and attribute access are incomplete.</td></tr>
+<tr><td><code>ServiceManagement</code></td><td><code>SMAppService.register()</code> and <code>unregister()</code>.</td><td>Main-app/status behavior is partial; login item parity, privileged helpers, and platform service managers are incomplete.</td></tr>
+<tr><td><code>AsyncAlgorithms</code></td><td><code>AsyncTimerSequence.init(interval:clock:)</code> and iterator <code>next()</code>.</td><td>Other AsyncAlgorithms package algorithms are incomplete.</td></tr>
+<tr><td><code>Carbon</code></td><td>None yet beyond compile-compatible shapes.</td><td>Hot-key registration, event targets, and classic Carbon APIs are incomplete.</td></tr>
+<tr><td><code>Combine</code></td><td><code>AnyPublisher.init()</code> where <code>Failure == Never</code>.</td><td>OpenCombine coverage, merge behavior, backpressure, schedulers, demand, cancellation, operators, and seeded edge-case parity remain partial or incomplete.</td></tr>
+<tr><td><code>os</code></td><td><code>Logger.init(...)</code>.</td><td>Logging calls, <code>os_log</code>, dyld inspection, unfair-lock semantics, signposts, persistence, and tooling parity are partial, compile-only, or incomplete.</td></tr>
+<tr><td><code>IOKit</code></td><td>None yet beyond compile/fallback shapes.</td><td>USB/device discovery, notifications, registry traversal, matching, iterators, and object lifetime behavior are incomplete.</td></tr>
+<tr><td>Re-export-only Apple shims</td><td>Imports compile for current app source.</td><td><code>MessageUI</code>, <code>SafariServices</code>, <code>MobileCoreServices</code>, <code>LocalAuthentication</code>, and <code>CoreSpotlight</code> do not implement standalone framework behavior yet.</td></tr>
+</table>
+<br>
+<h2 id="swiftui">SwiftUI</h2>
+<br>
+<p>Linux <code>SwiftUI</code> re-exports <code>SwiftOpenUI</code> plus local compatibility extensions.</p>
+<p>The upstream <code>SwiftOpenUI</code> surface is not exhaustively duplicated here; this</p>
+<p>table covers the local Apple-package clone layer.</p>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>import SwiftUI</code></td><td>Partial</td><td>Resolves to <code>SwiftOpenUI</code> plus <code>QuillSwiftUICompatibility</code>; it intentionally does not ambiently re-export <code>QuillUI</code> to avoid AppKit symbol collisions.</td></tr>
+<tr><td><code>Font.Weight</code></td><td>Usable</td><td>Local typealias to <code>FontWeight</code>; enough for app source compatibility.</td></tr>
+<tr><td><code>VerticalAlignment.firstTextBaseline</code></td><td>Fallback</td><td>Maps to <code>.top</code>; true text-baseline metrics are incomplete.</td></tr>
+<tr><td><code>VerticalAlignment.lastTextBaseline</code></td><td>Fallback</td><td>Maps to <code>.bottom</code>; true text-baseline metrics are incomplete.</td></tr>
+<tr><td>Common view declarations, modifiers, focus wrappers, menu/picker/list metadata</td><td>Partial</td><td>Covered through <code>SwiftOpenUI</code>, QuillUI metadata, and focused source-contract tests.</td></tr>
+<tr><td>Layout, diffing, animation, transition, gesture, accessibility, focus routing, multi-window semantics</td><td>Incomplete</td><td>These are the main blockers between Usable and Parity.</td></tr>
+</table>
+<br>
+<h2 id="swiftdata">SwiftData</h2>
+<br>
+<p>The Linux <code>SwiftData</code> product re-exports <code>QuillData</code>.</p>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>PersistentModel.databaseValue</code></td><td>Partial</td><td>Converts supported scalar and Codable values for SQLite persistence.</td></tr>
+<tr><td><code>PersistentModel.fromDatabaseValue(_:)</code></td><td>Partial</td><td>Supports current database-backed model value decoding paths.</td></tr>
+<tr><td><code>PersistentModel.decode(from:)</code></td><td>Partial</td><td>Codable-backed decode helper, not full SwiftData materialization parity.</td></tr>
+<tr><td><code>Array.databaseValue</code> and <code>Array.fromDatabaseValue(_:)</code></td><td>Partial</td><td>Codable array conversion for supported stored values.</td></tr>
+<tr><td><code>QuillTableMappable.createTableSQL</code></td><td>Usable</td><td>Implemented for macro-generated table models.</td></tr>
+<tr><td><code>QuillTableMappable.tableName</code></td><td>Usable</td><td>Stable name support exists for current generated models.</td></tr>
+<tr><td><code>QuillTableMappable.toTableStruct()</code></td><td>Usable</td><td>Used by persistence bridge.</td></tr>
+<tr><td><code>QuillTableMappable.update(from:)</code></td><td>Usable</td><td>Used by persistence bridge.</td></tr>
+<tr><td><code>QuillTableMappable.fromTableStruct(_:)</code></td><td>Usable</td><td>Used by persistence bridge.</td></tr>
+<tr><td><code>QuillTableMappable.fetchPersistentModels(_:sql:)</code></td><td>Partial</td><td>SQLite-backed fetch path, not full SwiftData query behavior.</td></tr>
+<tr><td><code>@Attribute</code></td><td>Compile-only</td><td>Macro spelling exists; option behavior is narrow.</td></tr>
+<tr><td><code>@Relationship</code></td><td>Compile-only</td><td>Relationship spelling exists; relationship graph behavior is incomplete.</td></tr>
+<tr><td><code>@QuillModel</code></td><td>Partial</td><td>Generates current model/table bridge, not full <code>@Model</code> parity.</td></tr>
+<tr><td><code>#QuillPredicate</code></td><td>Partial</td><td>Supports current SQL-filter path, not full Swift predicate translation.</td></tr>
+<tr><td><code>AttributeOption</code></td><td>Compile-only</td><td>Selected option names compile; full semantics are incomplete.</td></tr>
+<tr><td><code>RelationshipOption.deleteRule(_:)</code></td><td>Compile-only</td><td>Spelling exists; full relationship/delete-rule semantics are incomplete.</td></tr>
+<tr><td><code>Schema.init(_:)</code></td><td>Partial</td><td>Records model types for current container setup.</td></tr>
+<tr><td><code>ModelContainer.init(for:configurations:)</code></td><td>Partial</td><td>Creates current SQLite/in-memory container paths.</td></tr>
+<tr><td><code>ModelActor</code></td><td>Compile-only</td><td>Protocol spelling exists; full actor/executor isolation parity is incomplete.</td></tr>
+<tr><td><code>ModelExecutor.init(modelContext:)</code></td><td>Compile-only</td><td>Stores context for current code shape.</td></tr>
+<tr><td><code>DefaultSerialModelExecutor</code></td><td>Compile-only</td><td>Shape exists; full SwiftData executor semantics are incomplete.</td></tr>
+<tr><td><code>FetchDescriptor.init(predicate:sortBy:fetchLimit:)</code></td><td>Partial</td><td>Supports current fetch input shape.</td></tr>
+<tr><td><code>FetchDescriptor.init(filter:sortBy:fetchLimit:)</code></td><td>Partial</td><td>Supports current SQL filter path.</td></tr>
+<tr><td><code>Predicate.init(_:)</code></td><td>Partial</td><td>In-memory predicate closure path.</td></tr>
+<tr><td><code>Predicate.init(sqlFilter:_:)</code></td><td>Partial</td><td>SQL-filter carrier for current persistence bridge.</td></tr>
+<tr><td><code>Predicate.evaluate(_:)</code></td><td>Partial</td><td>Evaluates closure predicates only.</td></tr>
+<tr><td><code>ModelConfiguration.init(schema:url:isStoredInMemoryOnly:)</code></td><td>Partial</td><td>Current URL and in-memory flags are honored where the bridge supports them.</td></tr>
+<tr><td><code>QuillDataError.description</code></td><td>Usable</td><td>Deterministic error text.</td></tr>
+<tr><td><code>ModelContext.init(_:)</code></td><td>Partial</td><td>Current context setup works for supported containers.</td></tr>
+<tr><td><code>ModelContext.insert(_:)</code></td><td>Usable</td><td>Works for supported persistent models.</td></tr>
+<tr><td><code>ModelContext.fetch(_:)</code></td><td>Partial</td><td>Works for supported descriptors and table models.</td></tr>
+<tr><td><code>ModelContext.delete(_:)</code></td><td>Usable</td><td>Works for supported persistent models.</td></tr>
+<tr><td><code>ModelContext.delete(model:where:)</code></td><td>Partial</td><td>SQL-filter delete path only.</td></tr>
+<tr><td><code>ModelContext.save()</code></td><td>Usable</td><td>Commits current context changes.</td></tr>
+<tr><td><code>SortDescriptor.init(_:order:)</code></td><td>Partial</td><td>Stores key-path/order metadata for supported fetches.</td></tr>
+<tr><td>SQLite snapshot helpers</td><td>Compile-only</td><td>Present as zero/no-op stubs.</td></tr>
+<tr><td>Migrations, relationships, undo, CloudKit, rich schema constraints, full predicate lowering</td><td>Incomplete</td><td>Required for SwiftData Parity.</td></tr>
+</table>
+<br>
+<h2 id="appkit">AppKit</h2>
+<br>
+<p>The Linux <code>AppKit</code> product is backed by <code>QuillAppKit</code>. It is the broadest</p>
+<p>Apple shim and mixes usable in-memory widget behavior with compile-only</p>
+<p>platform fallbacks.</p>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>UndoManager.registerUndo(withTarget:handler:)</code></td><td>Usable</td><td>In-memory undo stack for current app code.</td></tr>
+<tr><td><code>UndoManager.beginUndoGrouping()</code> / <code>endUndoGrouping()</code></td><td>Partial</td><td>Basic grouping exists; full AppKit undo grouping behavior is incomplete.</td></tr>
+<tr><td><code>UndoManager.undo()</code> / <code>redo()</code></td><td>Usable</td><td>Executes stored closures.</td></tr>
+<tr><td><code>UndoManager.removeAllActions()</code> / <code>removeAllActions(withTarget:)</code></td><td>Partial</td><td>Clears current stored closures, not full target/selector semantics.</td></tr>
+<tr><td><code>UndoManager.setActionName(_:)</code></td><td>Partial</td><td>Stores action metadata only.</td></tr>
+<tr><td><code>UndoManager.disableUndoRegistration()</code> / <code>enableUndoRegistration()</code></td><td>Usable</td><td>Gates current closure registration.</td></tr>
+<tr><td><code>NSStringFromRect(_:)</code></td><td>Usable</td><td>Re-exported from Foundation through <code>QuillFoundation</code>; deterministic rect text is smoke-tested through the AppKit smoke target.</td></tr>
+<tr><td><code>NSRectFromString(_:)</code></td><td>Partial</td><td>Re-exported from Foundation through <code>QuillFoundation</code>; common AppKit rect strings and <code>NSStringFromRect</code> round-trips are covered, while full Apple parser edge-case/fuzz parity is still pending.</td></tr>
+<tr><td><code>NSBitmapImageRep.init?(data:)</code> / <code>representation(using:properties:)</code></td><td>Partial</td><td>Basic data wrapping, not full image codec parity.</td></tr>
+<tr><td><code>NSFontManager.availableFonts()</code> / <code>availableFontFamilies()</code></td><td>Partial</td><td>Returns deterministic fallback Mac-shaped font and family names for source compatibility; no host font discovery or metrics yet.</td></tr>
+<tr><td><code>NSFontManager.availableMembers(ofFontFamily:)</code></td><td>Partial</td><td>Returns deterministic member rows for fallback families and <code>nil</code> for unknown families; trait values are compatibility placeholders.</td></tr>
+<tr><td><code>NSAppearance.init(named:)</code> / <code>bestMatch(from:)</code></td><td>Partial</td><td>Named appearances retain their names, high-contrast constants use deterministic Apple-shaped raw values, and common light/dark/vibrant best-match fallbacks are smoke-tested. Full system appearance resolution remains incomplete.</td></tr>
+<tr><td><code>NSResponder</code> mouse/key/touch handlers</td><td>Fallback</td><td>Forwarding/no-op behavior only.</td></tr>
+<tr><td><code>NSResponder.becomeFirstResponder()</code> / <code>resignFirstResponder()</code></td><td>Fallback</td><td>Returns true without native focus system.</td></tr>
+<tr><td><code>NSView.init(frame:)</code></td><td>Usable</td><td>Stores frame and bounds.</td></tr>
+<tr><td><code>NSView.addSubview(_:)</code> / positioned add</td><td>Usable</td><td>Maintains in-memory hierarchy.</td></tr>
+<tr><td><code>NSView.removeFromSuperview()</code></td><td>Usable</td><td>Updates in-memory hierarchy.</td></tr>
+<tr><td><code>NSView.setFrameSize(_:)</code> / <code>setFrameOrigin(_:)</code></td><td>Usable</td><td>Updates in-memory geometry.</td></tr>
+<tr><td><code>NSView.layoutSubtreeIfNeeded()</code> / display invalidation calls</td><td>Fallback</td><td>Marks simple flags; no native layout/render pass.</td></tr>
+<tr><td><code>NSView.convert(_:from:)</code> / <code>convert(_:to:)</code></td><td>Partial</td><td>Basic coordinate conversion only.</td></tr>
+<tr><td><code>NSView.hitTest(_:)</code></td><td>Partial</td><td>In-memory bounds/subview hit testing.</td></tr>
+<tr><td><code>NSView.addTrackingArea(_:)</code> / <code>removeTrackingArea(_:)</code></td><td>Partial</td><td>Tracks registered areas without native event delivery.</td></tr>
+<tr><td><code>NSViewController.loadView()</code> / lifecycle hooks</td><td>Fallback</td><td>Hook shape exists; no platform lifecycle.</td></tr>
+<tr><td><code>NSViewController.addChild(_:)</code> / <code>removeFromParent()</code></td><td>Usable</td><td>Maintains child relationships.</td></tr>
+<tr><td><code>NSViewController.presentAsSheet(_:)</code> / <code>presentAsModalWindow(_:)</code> / <code>dismiss(_:)</code></td><td>Fallback</td><td>Presentation state only.</td></tr>
+<tr><td><code>NSWindow.init(...)</code></td><td>Usable</td><td>Stores content, frame, style, and state.</td></tr>
+<tr><td><code>NSWindow.makeKeyAndOrderFront(_:)</code> / <code>orderFront(_:)</code> / <code>orderOut(_:)</code></td><td>Partial</td><td>Updates visibility/key state without native window manager.</td></tr>
+<tr><td><code>NSWindow.close()</code> / <code>performClose(_:)</code></td><td>Partial</td><td>Updates state and notifications used by tests.</td></tr>
+<tr><td><code>NSWindow.miniaturize(_:)</code> / <code>deminiaturize(_:)</code> / <code>zoom(_:)</code></td><td>Fallback</td><td>State/no-op behavior only.</td></tr>
+<tr><td><code>NSWindow.toggleFullScreen(_:)</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>NSWindow.setFrame(...)</code>, <code>setFrameOrigin(_:)</code>, <code>setContentSize(_:)</code></td><td>Usable</td><td>Updates stored geometry.</td></tr>
+<tr><td><code>NSWindow.center()</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>NSWindow.makeFirstResponder(_:)</code></td><td>Partial</td><td>Stores responder without native focus routing.</td></tr>
+<tr><td><code>NSWindow.setFrameAutosaveName(_:)</code> / <code>saveFrame(usingName:)</code> / <code>setFrameUsingName(_:)</code></td><td>Compile-only</td><td>Autosave is not implemented.</td></tr>
+<tr><td><code>NSWindow.registerForDraggedTypes(_:)</code></td><td>Compile-only</td><td>No native drag registration.</td></tr>
+<tr><td><code>NSPanel</code> initializers and properties</td><td>Partial</td><td>Property bag over <code>NSWindow</code>.</td></tr>
+<tr><td><code>NSApplication.shared</code></td><td>Usable</td><td>Singleton app object.</td></tr>
+<tr><td><code>NSApplication.setActivationPolicy(_:)</code> / <code>activate(...)</code> / <code>deactivate()</code></td><td>Fallback</td><td>Records state only.</td></tr>
+<tr><td><code>NSApplication.run()</code> / <code>stop(_:)</code></td><td>Fallback</td><td>Hook/no-op loop, not a native event loop.</td></tr>
+<tr><td><code>NSApplication.sendEvent(_:)</code> / <code>nextEvent(...)</code></td><td>Compile-only</td><td>Event dispatch is incomplete.</td></tr>
+<tr><td><code>NSApplication.beginModalSession(...)</code>, <code>runModal(...)</code>, sheet helpers</td><td>Fallback</td><td>Modal state only.</td></tr>
+<tr><td><code>NSApplication.sendAction(...)</code></td><td>Partial</td><td>Basic target/action bridge only.</td></tr>
+<tr><td><code>NSDockTile.display()</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>NSEvent.addLocalMonitorForEvents(...)</code> / global monitor helpers</td><td>Compile-only</td><td>No real OS event taps.</td></tr>
+<tr><td><code>NSPasteboard.clearContents()</code></td><td>Usable</td><td>Clears in-memory pasteboard.</td></tr>
+<tr><td><code>NSPasteboard.setString(_:forType:)</code> / <code>string(forType:)</code></td><td>Usable</td><td>In-memory string storage.</td></tr>
+<tr><td><code>NSPasteboard.setData(_:forType:)</code> / <code>data(forType:)</code></td><td>Usable</td><td>In-memory data storage.</td></tr>
+<tr><td><code>NSPasteboard.writeObjects(_:)</code> / <code>readObjects(...)</code></td><td>Partial</td><td>Current pasteboard item paths only.</td></tr>
+<tr><td><code>NSPasteboardItem.setString</code>, <code>setData</code>, <code>setPropertyList</code> and getters</td><td>Usable</td><td>In-memory item storage.</td></tr>
+<tr><td><code>NSWorkspace.open(_:)</code> and overloads</td><td>Fallback</td><td>Delegates where host support exists, otherwise records diagnostic/no-op.</td></tr>
+<tr><td><code>NSWorkspace.selectFile</code>, <code>activateFileViewerSelecting</code></td><td>Fallback</td><td>Opens containing directories through <code>xdg-open</code> when a Linux desktop session is available; records diagnostics and no-ops in headless environments.</td></tr>
+<tr><td><code>NSWorkspace.icon(forFile:)</code>, <code>icon(forContentType:)</code></td><td>Fallback</td><td>Returns deterministic 32x32 placeholders with diagnostics; desktop icon lookup is not implemented yet.</td></tr>
+<tr><td><code>NSWorkspace.urlForApplication(...)</code></td><td>Partial</td><td>Uses <code>xdg-mime</code> plus XDG application directories for existing <code>.desktop</code> files; bundle identifiers only resolve when they already map to a Linux desktop entry.</td></tr>
+<tr><td><code>NSCursor.push()</code> / <code>pop()</code> / <code>set()</code> / hide helpers</td><td>Compile-only</td><td>No native cursor effects.</td></tr>
+<tr><td><code>NSMenu.addItem(_:)</code>, <code>insertItem</code>, <code>removeItem</code>, <code>item(at:)</code></td><td>Usable</td><td>In-memory menu model.</td></tr>
+<tr><td><code>NSMenu.popUp(...)</code>, <code>update()</code>, <code>cancelTracking()</code></td><td>Fallback</td><td>No native menu display.</td></tr>
+<tr><td><code>NSMenuItem.init(...)</code> / <code>separator()</code></td><td>Usable</td><td>Stores title/action/key equivalent metadata.</td></tr>
+<tr><td><code>NSToolbar.insertItem(withItemIdentifier:at:)</code> / <code>removeItem(at:)</code> / <code>validateVisibleItems()</code></td><td>Partial</td><td>In-memory toolbar item list only.</td></tr>
+<tr><td><code>NSAlert.addButton(withTitle:)</code>, <code>runModal()</code>, <code>beginSheetModal(...)</code></td><td>Fallback</td><td>Deterministic modal response, no native dialog.</td></tr>
+<tr><td><code>NSSavePanel.runModal()</code> / <code>begin(...)</code> / <code>beginSheetModal(...)</code></td><td>Fallback</td><td>Returns <code>.OK</code> and completes synchronously; real file dialog is incomplete.</td></tr>
+<tr><td><code>NSOpenPanel</code> configuration / <code>runModal()</code> / <code>begin(...)</code> / <code>beginSheetModal(...)</code></td><td>Fallback</td><td>Stores picker configuration and deterministically returns <code>.cancel</code>; no native dialog or user selection yet.</td></tr>
+<tr><td><code>NSScrollView</code> document-view helpers and <code>flashScrollers()</code></td><td>Partial</td><td>Stores document view; no native scrolling.</td></tr>
+<tr><td><code>NSTextField</code> convenience constructors</td><td>Partial</td><td>Create label/text-field property containers.</td></tr>
+<tr><td><code>NSTextView.setSelectedRange(_:)</code>, <code>replaceCharacters</code>, <code>insertText</code></td><td>Partial</td><td>In-memory text mutation only.</td></tr>
+<tr><td><code>NSTextView.scrollRangeToVisible(_:)</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>NSTextStorage.addLayoutManager(_:)</code> / <code>removeLayoutManager(_:)</code></td><td>Compile-only</td><td>No text layout engine.</td></tr>
+<tr><td><code>NSLayoutManager.addTextContainer(_:)</code></td><td>Partial</td><td>Stores container metadata only.</td></tr>
+<tr><td><code>NSControl.sendAction(_:)</code>, <code>sizeToFit()</code></td><td>Partial</td><td>Action/property behavior only.</td></tr>
+<tr><td><code>NSButton.setButtonType(_:)</code>, radio/checkbox constructors</td><td>Partial</td><td>Stores button state, no native widget.</td></tr>
+<tr><td><code>NSSlider</code> initializers and value configuration</td><td>Partial</td><td>Property bag only.</td></tr>
+<tr><td><code>NSStackView.addArrangedSubview</code>, <code>insertArrangedSubview</code>, <code>removeArrangedSubview</code></td><td>Usable</td><td>Maintains arranged subview list.</td></tr>
+<tr><td><code>NSProgressIndicator.startAnimation(_:)</code> / <code>stopAnimation(_:)</code></td><td>Fallback</td><td>Updates animation state only.</td></tr>
+<tr><td><code>NSProgressIndicator.increment(by:)</code></td><td>Usable</td><td>Updates stored double value.</td></tr>
+<tr><td><code>NSPopUpButton.addItem</code>, <code>addItems</code>, select/remove/item lookup helpers</td><td>Usable</td><td>In-memory item selection model.</td></tr>
+<tr><td><code>NSSplitView.addArrangedSubview</code>, <code>insertArrangedSubview</code>, <code>removeArrangedSubview</code>, <code>setPosition</code>, <code>adjustSubviews</code></td><td>Partial</td><td>Stores panes/positions without native layout.</td></tr>
+<tr><td><code>NSSplitViewController.addSplitViewItem</code>, <code>insertSplitViewItem</code>, <code>removeSplitViewItem</code></td><td>Partial</td><td>Maintains controller list.</td></tr>
+<tr><td><code>NSTableView.reloadData</code>, row/column mutation, selection helpers</td><td>Partial</td><td>In-memory table bookkeeping, no native cell lifecycle parity.</td></tr>
+<tr><td><code>NSTableView.makeView</code>, <code>view(atColumn:row:)</code>, <code>rowView(atRow:makeIfNecessary:)</code></td><td>Compile-only</td><td>Returns stored/empty views only where available.</td></tr>
+<tr><td><code>NSOutlineView.reloadItem</code>, expand/collapse, item/row lookup helpers</td><td>Partial</td><td>In-memory outline state; full delegate/data-source parity is incomplete.</td></tr>
+<tr><td><code>NSDocument</code> initializers and file/window-controller helpers</td><td>Partial</td><td>Stores document metadata; real document architecture is incomplete.</td></tr>
+<tr><td><code>NSDocumentController.openDocument(...)</code>, <code>newDocument(...)</code>, document add/remove</td><td>Partial</td><td>Current callback shape exists; real app document flow is incomplete.</td></tr>
+<tr><td><code>NSHostingView</code> / <code>NSHostingController</code> initializers</td><td>Partial</td><td>Holds root view for source compatibility; full SwiftUI hosting parity is incomplete.</td></tr>
+<tr><td><code>NSViewRepresentable</code> / <code>NSViewControllerRepresentable</code> context types</td><td>Compile-only</td><td>Protocol shape exists for current source lowering.</td></tr>
+<tr><td><code>NSStatusBar.statusItem(withLength:)</code> / <code>removeStatusItem(_:)</code></td><td>Partial</td><td>In-memory status item model only.</td></tr>
+<tr><td><code>NSPopover.show(...)</code>, <code>performClose(_:)</code>, <code>close()</code></td><td>Fallback</td><td>Visibility state only.</td></tr>
+<tr><td><code>NSVisualEffectView</code> / <code>NSBox</code> initializers and properties</td><td>Compile-only</td><td>Property containers; no visual effects.</td></tr>
+<tr><td><code>NSAnimationContext.runAnimationGroup(...)</code></td><td>Fallback</td><td>Runs closure immediately.</td></tr>
+<tr><td><code>NSHapticFeedbackManager.perform(...)</code></td><td>Fallback</td><td>No haptic hardware effect.</td></tr>
+<tr><td><code>NSSharingService.perform(withItems:)</code> / <code>sharingServices(forItems:)</code></td><td>Compile-only</td><td>Sharing integration is absent.</td></tr>
+<tr><td><code>NSSound.play()</code> / <code>stop()</code> / <code>NSBeep()</code></td><td>Fallback</td><td>No native audio playback.</td></tr>
+<tr><td><code>NSXPCConnection.resume()</code> / <code>suspend()</code> / <code>invalidate()</code> / <code>remoteObjectProxy()</code></td><td>Compile-only</td><td>XPC is not implemented.</td></tr>
+<tr><td><code>NSHumanReadableCopyright()</code>, <code>NSFullUserName()</code>, <code>NSFindPanelAction()</code></td><td>Fallback</td><td>Deterministic helper values only.</td></tr>
+</table>
+<br>
+<h2 id="uikit">UIKit</h2>
+<br>
+<p>The Linux <code>UIKit</code> product combines <code>UIKitShim</code> with <code>QuillUIKit</code>.</p>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>UIImage</code>, <code>UIColor</code>, <code>UIFont</code>, <code>UIScreen</code> aliases</td><td>Partial</td><td>Map to AppKit types when importable, otherwise to QuillFoundation fallbacks.</td></tr>
+<tr><td><code>UIApplication.shared</code></td><td>Usable</td><td>Singleton shape exists.</td></tr>
+<tr><td><code>UIApplication.open(_:options:completionHandler:)</code></td><td>Partial</td><td>Uses <code>NSWorkspace</code> when AppKit is available; otherwise completion is <code>false</code>.</td></tr>
+<tr><td><code>UIApplication.registerForRemoteNotifications()</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>UIApplication.setAlternateIconName(_:completionHandler:)</code></td><td>Fallback</td><td>Calls completion with nil, no icon change.</td></tr>
+<tr><td><code>UIApplication.connectedScenes</code>, <code>applicationState</code>, <code>alternateIconName</code></td><td>Compile-only</td><td>Static/default metadata only.</td></tr>
+<tr><td><code>UIScene.delegate</code></td><td>Compile-only</td><td>Property only.</td></tr>
+<tr><td><code>UIImpactFeedbackGenerator.prepare()</code> / <code>impactOccurred(...)</code></td><td>Fallback</td><td>Records diagnostics, no haptics.</td></tr>
+<tr><td><code>UISelectionFeedbackGenerator.prepare()</code> / <code>selectionChanged()</code></td><td>Fallback</td><td>Records diagnostics, no haptics.</td></tr>
+<tr><td><code>UINotificationFeedbackGenerator.prepare()</code> / <code>notificationOccurred(_:)</code></td><td>Fallback</td><td>Records diagnostics, no haptics.</td></tr>
+<tr><td><code>UIDevice.current</code>, <code>name</code>, <code>userInterfaceIdiom</code></td><td>Partial</td><td>Host-name and <code>.mac</code> style metadata.</td></tr>
+<tr><td><code>NSLayoutDimension.constraint(equalToConstant:)</code></td><td>Compile-only</td><td>Constraint object shape only.</td></tr>
+<tr><td><code>NSLayoutConstraint.activate(_:)</code></td><td>Compile-only</td><td>No layout solver.</td></tr>
+<tr><td><code>UIView.init(frame:)</code></td><td>Partial</td><td>Stores frame and common view metadata.</td></tr>
+<tr><td><code>UIView.addSubview(_:)</code> / <code>removeFromSuperview()</code></td><td>Partial</td><td>Current hierarchy bookkeeping only.</td></tr>
+<tr><td><code>UIView.setNeedsLayout()</code> / <code>layoutIfNeeded()</code></td><td>Fallback</td><td>No native UIKit layout engine.</td></tr>
+<tr><td><code>UIView.animate(...)</code> overloads</td><td>Fallback</td><td>Runs animation closure immediately, then completion.</td></tr>
+<tr><td><code>UIViewController.present(...)</code> / <code>dismiss(...)</code></td><td>Compile-only</td><td>No native presentation.</td></tr>
+<tr><td><code>UINavigationController.pushViewController</code>, <code>popViewController</code></td><td>Compile-only</td><td>No real navigation stack behavior.</td></tr>
+<tr><td><code>UISplitViewController.show(...)</code></td><td>Compile-only</td><td>No real split-view presentation.</td></tr>
+<tr><td><code>UICollectionView.cellForItem(at:)</code></td><td>Compile-only</td><td>Returns nil.</td></tr>
+<tr><td><code>UIAlertController.addAction(_:)</code></td><td>Compile-only</td><td>No real alert action handling.</td></tr>
+<tr><td><code>UIPasteboard.general</code> string/data helpers</td><td>Partial</td><td>In-memory pasteboard bridge.</td></tr>
+<tr><td><code>UIControl.setTitle(_:for:)</code> and value/action helpers</td><td>Compile-only</td><td>Property shape only.</td></tr>
+<tr><td><code>UIImageView</code>, <code>UILabel</code>, <code>UIKeyCommand</code> initializers</td><td>Compile-only</td><td>Source compatibility only.</td></tr>
+<tr><td><code>UNUserNotificationCenter.requestAuthorization(...)</code></td><td>Fallback</td><td>Callback shape exists; no platform notification registration.</td></tr>
+<tr><td>UIKit layout engine, rendering, event delivery, accessibility, text input, collection/table data-source parity</td><td>Incomplete</td><td>Required for UIKit Parity.</td></tr>
+</table>
+<br>
+<h2 id="webkit">WebKit</h2>
+<br>
+<p>The Linux <code>WebKit</code> product re-exports <code>QuillShims</code>; WebKit behavior is in</p>
+<p><code>QuillWebKit</code>.</p>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>WKWebView.init()</code> / <code>init(frame:configuration:)</code> / <code>init(coder:)</code></td><td>Compile-only</td><td>Creates object/configuration shape.</td></tr>
+<tr><td><code>WKWebView.loadFileURL(_:allowingReadAccessTo:)</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>WKWebView.load(_:)</code></td><td>Compile-only</td><td>Returns nil; no navigation.</td></tr>
+<tr><td><code>WKWebView.loadHTMLString(_:baseURL:)</code></td><td>Compile-only</td><td>Returns nil; no rendering.</td></tr>
+<tr><td><code>WKWebView.reload()</code> / <code>stopLoading()</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>WKWebView.evaluateJavaScript(_:)</code></td><td>Compile-only</td><td>Async returns nil.</td></tr>
+<tr><td><code>WKUserContentController.addUserScript</code>, <code>add(_:)</code>, <code>removeAllUserScripts()</code></td><td>Compile-only</td><td>No script injection.</td></tr>
+<tr><td><code>WKWebViewConfiguration.setURLSchemeHandler(_:forURLScheme:)</code></td><td>Compile-only</td><td>No scheme handling.</td></tr>
+<tr><td><code>WKContentRuleListStore.default()</code> / <code>compileContentRuleList(...)</code></td><td>Compile-only</td><td>Returns nil rule list.</td></tr>
+<tr><td><code>WKNavigationDelegate.webView(_:didFinish:)</code></td><td>Compile-only</td><td>Protocol shape only.</td></tr>
+<tr><td><code>WKNavigationAction.request</code>, <code>WKNavigationActionPolicy</code>, preferences, webpage preferences</td><td>Compile-only</td><td>Metadata/property shapes only.</td></tr>
+<tr><td>HTML rendering, navigation, JavaScript execution, process isolation, content rules</td><td>Incomplete</td><td>Required for WebKit Parity.</td></tr>
+</table>
+<br>
+<h2 id="authenticationservices">AuthenticationServices</h2>
+<br>
+<p>The Linux <code>AuthenticationServices</code> product re-exports <code>QuillShims</code>; the usable</p>
+<p>subset lives in <code>QuillUIKit</code>.</p>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>ASWebAuthenticationSession.init(url:callbackURLScheme:completionHandler:)</code></td><td>Compile-only</td><td>Stores shape only; callback is not driven by a browser flow.</td></tr>
+<tr><td><code>ASWebAuthenticationSession.start()</code></td><td>Fallback</td><td>Returns true without performing authentication.</td></tr>
+<tr><td><code>ASWebAuthenticationSession.cancel()</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>ASWebAuthenticationPresentationContextProviding.presentationAnchor(for:)</code></td><td>Compile-only</td><td>Protocol shape only.</td></tr>
+<tr><td>Real browser authentication, callback URL handling, secure session storage</td><td>Incomplete</td><td>Required for AuthenticationServices Parity.</td></tr>
+</table>
+<br>
+<h2 id="uniformtypeidentifiers">UniformTypeIdentifiers</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>UTType.init?(_:)</code></td><td>Partial</td><td>Accepts non-empty identifiers after trimming.</td></tr>
+<tr><td><code>UTType.init?(filenameExtension:)</code></td><td>Usable</td><td>Maps the current app-facing known extension set case-insensitively, including common image aliases. Unknown-extension dynamic type synthesis is incomplete.</td></tr>
+<tr><td><code>UTType.init?(filenameExtension:conformingTo:)</code></td><td>Usable</td><td>Filters known extension lookups through the local conformance graph, matching file-importer and item-provider selection needs. Unknown or nonmatching dynamic type synthesis is incomplete.</td></tr>
+<tr><td><code>UTType.conforms(to:)</code></td><td>Usable</td><td>Covers the current app-facing parent graph for text, data, images, audio, movie, URL, directory, and PDF identifiers.</td></tr>
+<tr><td><code>UTType.preferredFilenameExtension</code></td><td>Usable</td><td>Returns deterministic preferred extensions for known app-facing identifiers.</td></tr>
+<tr><td><code>UTType.preferredMIMEType</code></td><td>Usable</td><td>Returns deterministic MIME types for known app-facing identifiers where the Apple API would expose one.</td></tr>
+<tr><td><code>UTType.localizedDescription</code></td><td>Usable</td><td>Returns deterministic English descriptions for known identifiers.</td></tr>
+<tr><td>Static UTTypes such as <code>.item</code>, <code>.content</code>, <code>.data</code>, <code>.text</code>, <code>.plainText</code>, <code>.json</code>, <code>.image</code>, <code>.png</code>, <code>.jpeg</code>, <code>.tiff</code>, <code>.gif</code>, <code>.heic</code>, <code>.heif</code>, <code>.webP</code>, <code>.movie</code>, <code>.audio</code>, <code>.pdf</code></td><td>Usable</td><td>Current common identifiers exist for app source compatibility and file-selection tests.</td></tr>
+<tr><td>System registry lookup, dynamic/exported/imported types, tag classes, synthesized dynamic identifiers, full conformance graph</td><td>Incomplete</td><td>Required for UTType Parity.</td></tr>
+</table>
+<br>
+<h2 id="network">Network</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>NWPathMonitor.init()</code> / <code>init(requiredInterfaceType:)</code> / pre-start <code>currentPath</code></td><td>Parity</td><td>Apple-checked constructor shape and initial <code>currentPath</code> for the default monitor and every required <code>NWInterface.InterfaceType</code> filter: status <code>unsatisfied</code>, reason <code>notAvailable</code>, no interfaces, not expensive, not constrained, no IPv4/IPv6/DNS support, and no used interface type. <code>NetworkPathInterfaceParityTests</code> runs the same contract on Apple Network and the Linux shim. Live path updates remain covered by <code>start(queue:)</code> and are not parity.</td></tr>
+<tr><td><code>NWPathMonitor.cancel()</code> before <code>start(queue:)</code></td><td>Parity</td><td>Apple-checked pre-start cancellation is non-throwing and preserves the same initial <code>currentPath</code> for the default monitor and every required interface filter. <code>NetworkPathInterfaceParityTests.testPathMonitorPreStartCancelKeepsInitialCurrentPathMatchingApple</code> runs that shared contract on Apple Network and the Linux shim.</td></tr>
+<tr><td><code>NWPathMonitor.start(queue:)</code></td><td>Usable</td><td>On Linux, probes currently-up IPv4/IPv6 interfaces once, applies the required interface-type filter, updates <code>currentPath</code>, and delivers that snapshot asynchronously. Apple starts a live path subscription; continuous updates, exact Apple path selection, and system DNS policy remain incomplete.</td></tr>
+<tr><td><code>NWPathMonitor.cancel()</code> after <code>start(queue:)</code> / live monitor teardown</td><td>Fallback</td><td>The shim has no live OS path subscription to tear down, so post-start cancellation is outside the proven pre-start parity contract. Full Apple monitor lifecycle parity depends on a continuous live path subscription.</td></tr>
+<tr><td><code>NWPath</code> status/unsatisfiedReason/interface/expense/support properties and <code>usesInterfaceType(_:)</code></td><td>Parity</td><td>The initial monitor path metadata and helper-query results are Apple-checked for the default monitor and every required interface filter. Linux <code>start(queue:)</code> snapshots are covered as a usable one-shot contract, but changing interface state and exact live support flags are not at parity.</td></tr>
+<tr><td><code>NWPath.Status</code> cases / <code>String(describing:)</code> / equality / hashing</td><td>Parity</td><td>Apple-checked status case spellings, string descriptions, same-case equality, cross-case inequality, and equal-value hash coherence; <code>NetworkPathInterfaceParityTests</code> runs the same contract on Apple Network and the Linux shim. Linux also exposes <code>.description</code> as a compatibility alias, but Apple exposes no direct public <code>.description</code> member for this enum, so it is not part of the parity contract. <code>NWPathMonitor.Status</code> remains a Linux compatibility alias.</td></tr>
+<tr><td><code>NWPath.UnsatisfiedReason</code> cases / <code>String(describing:)</code> / equality / hashing</td><td>Parity</td><td>Apple-checked case spellings for <code>notAvailable</code>, <code>cellularDenied</code>, <code>wifiDenied</code>, and <code>localNetworkDenied</code>, plus same-case equality, cross-case inequality, and equal-value hash coherence; <code>NetworkPathInterfaceParityTests</code> runs the same contract on Apple Network and the Linux shim. Apple exposes no direct <code>.description</code> member for this enum, and Linux mirrors that.</td></tr>
+<tr><td><code>NWInterface.InterfaceType</code> cases / <code>String(describing:)</code> / equality / hashing</td><td>Parity</td><td>Apple-checked interface type case spellings, string descriptions, same-case equality, cross-case inequality, and equal-value hash coherence; <code>NetworkPathInterfaceParityTests</code> runs the same contract on Apple Network and the Linux shim. Linux also exposes <code>.description</code> as a compatibility alias, but Apple exposes no direct public <code>.description</code> member for this enum, so it is not part of the parity contract.</td></tr>
+<tr><td><code>NWInterface</code> values returned by scoped <code>IPv4Address</code>, <code>IPv6Address</code>, and <code>NWEndpoint.Host</code> parsing</td><td>Parity</td><td>Apple-checked loopback scope resolution via the local interface index covers <code>name</code>, <code>type</code>, <code>String(describing:)</code>, <code>debugDescription</code>, equality, and equal-value hash coherence across named IPv6 scopes, numeric IPv6 scopes, named IPv4 scopes, and scoped DNS host literals. <code>NetworkPathInterfaceParityTests</code> resolves the platform loopback name on each OS before running the shared contract.</td></tr>
+<tr><td><code>NWInterface.init(type:)</code></td><td>Compile-only</td><td>Linux compatibility initializer for app source that constructs synthetic interfaces by type. Apple <code>NWInterface</code> has no public equivalent initializer, so this constructor is intentionally not marked Parity.</td></tr>
+<tr><td>Network value protocol surface (<code>Sendable</code>, <code>Hashable</code>, <code>CustomDebugStringConvertible</code>, <code>RawRepresentable</code>, <code>IPAddress</code>)</td><td>Parity</td><td>Apple-probed and shared macOS/Linux <code>NetworkProtocolSurfaceParityTests</code> pin each value's public protocol constraints and observable string/debug output for <code>NWEndpoint.Port</code>, <code>NWEndpoint.Host</code>, <code>NWEndpoint</code>, <code>IPv4Address</code>, <code>IPv6Address</code>, <code>NWPath.Status</code>, <code>NWPath.UnsatisfiedReason</code>, <code>NWInterface.InterfaceType</code>, and resolved <code>NWInterface</code> values. <code>IPv6Address.Scope</code> is pinned to Apple's raw-value and hashable surface without overclaiming <code>Sendable</code> or string/debug behavior. Direct <code>.description</code> and <code>CustomStringConvertible</code> conformance are intentionally excluded for address, host, endpoint, and interface values because Apple does not expose that protocol surface, even where Linux keeps compatibility aliases for app source.</td></tr>
+<tr><td><code>NWProtocolTCP.Options.init()</code></td><td>Parity</td><td>Apple-probed and shared macOS/Linux <code>NetworkParametersParityTests</code> pin constructor value text, reference identity, and Sendable surface. This is options-object value-surface parity only; TCP socket behavior remains incomplete.</td></tr>
+<tr><td><code>NWProtocolTCP.Options.noDelay</code> / <code>noPush</code> / <code>noOptions</code> / <code>enableKeepalive</code> / <code>retransmitFinDrop</code> / <code>disableAckStretching</code> / <code>enableFastOpen</code> / <code>disableECN</code></td><td>Parity</td><td>Apple-probed defaults are all <code>false</code>, and shared macOS/Linux tests pin getter/setter behavior plus unchanged <code>String(describing:)</code> and <code>String(reflecting:)</code> text after mutation. These properties are stored and reported at parity, but Linux does not yet apply them to real TCP sockets.</td></tr>
+<tr><td><code>NWProtocolTCP.Options.keepaliveCount</code> / <code>keepaliveIdle</code> / <code>keepaliveInterval</code> / <code>maximumSegmentSize</code> / <code>connectionTimeout</code> / <code>persistTimeout</code> / <code>connectionDropTime</code></td><td>Parity</td><td>Apple-probed defaults are all <code>0</code>, and shared macOS/Linux tests pin getter/setter behavior plus unchanged value text after mutation. These properties are stored and reported at parity, but Linux does not yet apply them to real TCP sockets.</td></tr>
+<tr><td><code>NWProtocolUDP.Options.init()</code> / <code>NWProtocolUDP.Options.preferNoChecksum</code></td><td>Parity</td><td>Apple-probed default for <code>preferNoChecksum</code> is <code>false</code>, setter behavior stores <code>true</code>, and shared macOS/Linux tests pin the constructor/value text. This is UDP option value-surface parity only; datagram checksum/socket behavior remains incomplete.</td></tr>
+<tr><td><code>NWProtocolOptions</code> / <code>NWParameters.defaultProtocolStack</code> / <code>NWParameters.ProtocolStack.applicationProtocols</code> / <code>transportProtocol</code> / <code>internetProtocol</code></td><td>Parity</td><td>Apple-probed and shared macOS/Linux <code>NetworkParametersParityTests</code> pin the base option type surface, default stack composition for TCP, UDP, TLS, and DTLS parameters, fresh stack wrappers over shared parameter storage, setter copy behavior for application and transport protocol options, and Apple's nil-ignored <code>internetProtocol</code> setter behavior. This is protocol-stack value-surface parity only; it does not make connections/listeners or sockets functional.</td></tr>
+<tr><td><code>NWProtocolIP.Options</code> via <code>NWParameters.defaultProtocolStack.internetProtocol</code> / <code>version</code> / <code>hopLimit</code> / <code>useMinimumMTU</code> / <code>disableFragmentation</code> / <code>shouldCalculateReceiveTime</code> / <code>localAddressPreference</code> / <code>disableMulticastLoopback</code></td><td>Parity</td><td>Apple does not expose a public <code>NWProtocolIP.Options()</code> constructor, so the shared tests obtain it through <code>NWParameters.defaultProtocolStack</code>. They pin default values, getter/setter persistence through the protocol stack, Sendable/reference surface, and <code>String(describing:)</code> / <code>String(reflecting:)</code> text. This is IP option value-surface parity only; Linux does not yet apply these settings to packets or sockets.</td></tr>
+<tr><td><code>NWProtocolIP.Options.Version</code> / <code>NWProtocolIP.Options.AddressPreference</code> / <code>NWProtocolIP.ECN</code></td><td>Parity</td><td>Apple-probed enum case spellings, <code>String(describing:)</code>, <code>String(reflecting:)</code>, equality, hashability, and Sendable-compatible value surface are covered by shared tests.</td></tr>
+<tr><td><code>NWProtocolTLS.Options.init()</code> / <code>NWParameters.tcp</code> / <code>.udp</code> / <code>.tls</code> / <code>.dtls</code> / <code>NWParameters.init(tls:tcp:)</code> / <code>init(dtls:udp:)</code> / <code>NWParameters.Attribution</code> / <code>ExpiredDNSBehavior</code> / <code>MultipathServiceType</code> / <code>ServiceClass</code> / <code>requiredInterfaceType</code> / <code>prohibitedInterfaceTypes</code> / <code>requiredLocalEndpoint</code> / <code>allowLocalEndpointReuse</code> / <code>includePeerToPeer</code> / <code>serviceClass</code> / <code>multipathServiceType</code> / <code>expiredDNSBehavior</code> / <code>allowFastOpen</code> / <code>prohibitExpensivePaths</code> / <code>prohibitConstrainedPaths</code> / <code>requiresDNSSECValidation</code> / <code>preferNoProxies</code> / <code>attribution</code> / <code>NWParameters.debugDescription</code> / <code>String(describing:)</code> / <code>String(reflecting:)</code></td><td>Parity</td><td>Apple-probed and shared macOS/Linux <code>NetworkParametersParityTests</code> pin parameter factory and initializer text for TCP, UDP, TLS, and DTLS, fresh factory identity, policy enum string/reflecting text, policy defaults, getter/setter behavior, empty prohibited-interface normalization, required local endpoint debug formatting including Unix <code>AF_UNIX:"..."</code>, and traffic/multipath/fast-open/expense/constrained/cellular/proxy/attribution/DNSSEC debug segments. This is constructor/value/policy-surface parity only; socket creation, TLS policy effects, datagram behavior, and connection/listener semantics remain incomplete.</td></tr>
+<tr><td><code>NWError.posix(_:)</code> / <code>.dns(_:)</code> / <code>.tls(_:)</code> / equality / <code>debugDescription</code> / <code>String(describing:)</code> / <code>String(reflecting:)</code> / <code>localizedDescription</code></td><td>Parity</td><td>Apple-probed and shared macOS/Linux <code>NetworkErrorParityTests</code> pin Sendable and Equatable but intentionally not Hashable, Darwin POSIX raw/message output for common network failures (<code>EPIPE</code>, <code>EADDRINUSE</code>, <code>EADDRNOTAVAIL</code>, <code>ENETDOWN</code>, <code>ENETUNREACH</code>, <code>ENETRESET</code>, <code>ECONNABORTED</code>, <code>ECONNRESET</code>, <code>EISCONN</code>, <code>ENOTCONN</code>, <code>ESHUTDOWN</code>, <code>ETIMEDOUT</code>, <code>ECONNREFUSED</code>, <code>EHOSTDOWN</code>, and <code>EHOSTUNREACH</code>), <code>DNSServiceErrorType</code>/<code>OSStatus</code> <code>Int32</code> payloads, TLS <code>-9807</code> invalid-certificate-chain text, DNS unknown text, and Apple localizedDescription formatting. This is value-surface parity only; DNS/TLS transport behavior, connections, listeners, and socket behavior remain incomplete.</td></tr>
+<tr><td><code>IPv4Address.init?(String)</code> / <code>init?(Data)</code> / <code>String(describing:)</code> / <code>debugDescription</code></td><td>Parity</td><td>Apple-checked IPv4 parser covers strict whitespace rejection, legacy 1-4 component forms, decimal/octal/hex components, single-component modulo-32-bit wrapping for oversized decimal and hex values, exact dotted-field bound rejection, empty non-final hex components such as <code>0x.0.0.1</code>, four-component decimal-first zero-prefix parsing with octal fallback for over-range octal-compatible fields, 4-byte data validation, scoped interface literals through resolved OS interface names, canonical dotted-decimal string/debug output, and equality/hash coherence across parsed, data-backed, and scoped name-backed values. <code>NetworkIPAddressParityTests</code> adds Apple-observed 3/4/5-byte data initializer boundaries, classifier-edge string/debug checks, direct address equality/hash checks, and a seeded IPv4 parser corpus for these legacy initializer edge cases. Linux also exposes <code>.description</code> as a compatibility alias, but direct <code>.description</code> is not an Apple public API for this value.</td></tr>
+<tr><td><code>IPv4Address.any</code> / <code>.broadcast</code> / <code>.loopback</code> / <code>.allHostsGroup</code> / <code>.allRoutersGroup</code> / <code>.allReportsGroup</code> / <code>.mdnsGroup</code></td><td>Parity</td><td>Apple-checked raw values and string/debug output for the public IPv4 address constants.</td></tr>
+<tr><td><code>IPv4Address.interface</code> / <code>isLoopback</code> / <code>isLinkLocal</code> / <code>isMulticast</code></td><td>Parity</td><td>Apple-checked nil interface for unscoped literal/data construction, scoped literal interface preservation through resolved OS interface names, scoped name-backed equality/hash behavior, plus exact loopback, <code>169.254/16</code> link-local, and <code>224/4</code> multicast classification for tested edge cases. The dedicated parity matrix includes Apple boundary behavior such as only <code>127.0.0.1</code> reporting loopback, <code>169.254.0.0</code> through <code>169.254.255.255</code> reporting link-local, and <code>224.0.0.0</code> through <code>239.255.255.255</code> reporting multicast.</td></tr>
+<tr><td><code>IPv6Address.init?(String)</code> / <code>init?(Data)</code> / <code>String(describing:)</code> / <code>debugDescription</code></td><td>Parity</td><td>Apple-checked IPv6 parser covers <code>inet_pton</code> literal acceptance, whitespace rejection, 16-byte data validation, scoped interface literals through resolved OS interface names, empty and unresolved scope suffix fallback to unscoped IPv6 values, malformed double-scope rejection, canonical <code>inet_ntop</code> string/debug output, and equality/hash coherence across parsed, data-backed, and scoped name-vs-numeric-interface values. <code>NetworkIPAddressParityTests</code> adds Apple-observed 15/16/17-byte data initializer boundaries, string/debug checks for classifier edges, invalid scoped non-IPv6 rejection, and direct address equality/hash checks. Linux also exposes <code>.description</code> as a compatibility alias, but direct <code>.description</code> is not an Apple public API for this value.</td></tr>
+<tr><td><code>IPv6Address.any</code> / <code>.broadcast</code> / <code>.loopback</code> / <code>.nodeLocalNodes</code> / <code>.linkLocalNodes</code> / <code>.linkLocalRouters</code></td><td>Parity</td><td>Apple-checked raw values and string/debug output for the public IPv6 address constants. Apple reports <code>.broadcast</code> as the all-zero <code>::</code> value.</td></tr>
+<tr><td><code>IPv6Address.Scope</code> / <code>interface</code> / <code>isAny</code> / <code>isLoopback</code> / <code>isIPv4Compatabile</code> / <code>isIPv4Mapped</code> / <code>asIPv4</code> / <code>is6to4</code> / <code>isLinkLocal</code> / <code>isMulticast</code> / <code>multicastScope</code> / <code>isUniqueLocal</code></td><td>Parity</td><td>Apple-checked nil interface for unscoped literal/data construction, scoped literal interface preservation through resolved OS interface names, scoped name-vs-numeric interface equality/hash behavior, the Apple spelling <code>isIPv4Compatabile</code>, IPv4-compatible/mapped extraction behavior, <code>2002::/16</code> 6to4 detection, <code>fe80::/10</code> link-local detection, <code>fc00::/7</code> unique-local detection, multicast scope raw values for the tested edge cases, <code>IPv6Address.Scope</code> failable raw construction for known/unknown raw values, and scope equality/hash coherence. Apple Network does not expose an <code>IPv6Address.isSiteLocal</code> address classifier, and the Linux shim keeps that Linux-only surface absent while still supporting <code>.siteLocal</code> multicast scope.</td></tr>
+<tr><td><code>NWEndpoint.Host.init(_:)</code> / direct host cases / <code>description</code> / <code>debugDescription</code> / equality / hashing</td><td>Parity</td><td>Shared macOS/Linux <code>NetworkEndpointHostParityTests</code> cover Apple-matching scoped and unscoped IPv4 literals, IPv6 literals, DNS names, empty-string normalization to <code>.</code>, IPv4-mapped IPv6 host literals such as <code>::ffff:192.0.2.1</code>, direct <code>.name</code>, <code>.ipv4</code>, and <code>.ipv6</code> case descriptions, debug text, parsed-to-direct case equality, scoped name-vs-numeric-scope equality, scoped-vs-unscoped inequality, and equal-value hash coherence.</td></tr>
+<tr><td><code>NWEndpoint.Host</code> scoped interface literals</td><td>Parity</td><td>Shared macOS/Linux tests cover IPv6 link-local scopes, numeric scope normalization through <code>if_indextoname</code>, scoped IPv4 literals, IPv4-mapped scoped IPv6 normalization, scoped DNS names, empty or unresolved IPv6 scope fallback to an unscoped address, empty or unresolved IPv4-mapped scope fallback to an unscoped IPv4 host, malformed double-scope and scoped DNS/IPv4 fallback to <code>.name</code>, scoped parsed-to-direct equality, and scoped equal-value hash coherence. Platform interface names differ, so the contract resolves the local loopback interface by index on each OS.</td></tr>
+<tr><td><code>NWEndpoint.Port.init?(String)</code> / <code>init?(rawValue:)</code> / integer literal / <code>rawValue</code> / equality / hashing / <code>String(describing:)</code> / <code>debugDescription</code></td><td>Parity</td><td>Apple-checked port parsing covers leading C whitespace, plus signs, negative zero variants, decimal-only input, UInt16 bounds, trailing-character rejection, non-ASCII whitespace rejection, failable raw-value construction, integer literals, decimal debug/string-describing output, and equality/hash coherence across parsed, raw, literal, and known-constant values. The shared macOS/Linux <code>NetworkEndpointPortParityTests</code> contract now includes a deterministic seeded fuzz corpus and runs against Apple <code>Network</code> on macOS and the shim on Linux. Direct <code>.description</code> is not an Apple public API for this value and is intentionally not cloned.</td></tr>
+<tr><td><code>NWEndpoint.Port.any</code> / <code>.ssh</code> / <code>.smtp</code> / <code>.http</code> / <code>.pop</code> / <code>.imap</code> / <code>.https</code> / <code>.imaps</code> / <code>.socks</code></td><td>Parity</td><td>Apple-checked well-known port constants expose raw values <code>0</code>, <code>22</code>, <code>25</code>, <code>80</code>, <code>110</code>, <code>143</code>, <code>443</code>, <code>993</code>, and <code>1080</code>, with matching debug/string-describing output. The shared macOS/Linux <code>NetworkEndpointPortParityTests</code> contract keeps this narrow public value surface at Parity while the broader Network stack remains incomplete.</td></tr>
+<tr><td><code>NWEndpoint.hostPort</code>, <code>service</code>, and <code>unix</code> value <code>description</code> / <code>debugDescription</code> / equality / hashing</td><td>Parity</td><td>Shared macOS/Linux <code>NetworkEndpointHostParityTests</code> cover Apple-checked host-port, Unix path, and DNS-SD service string/debug descriptions, including IPv6 host-port separator behavior, IPv4-mapped host-port normalization, service type/domain trailing-dot normalization, service-name escaping for dots, spaces, and backslashes, empty-name/domain cases, valid <code>_tcp</code>/<code>_udp</code> service type formatting, invalid-type raw concatenation, leading/internal domain dot preservation, scoped service <code>@interface</code> suffixes for valid DNS-SD names with a non-empty domain, scoped <code>%interface</code> suffixes for invalid or domainless service forms, and associated service interface value preservation. The same shared contract verifies exact value equality, scoped host-port and scoped service equality, cross-case and changed-associated-value inequality, scoped-vs-unscoped host-port and service inequality, and equal-value hash coherence for host-port, service, and Unix endpoints.</td></tr>
+<tr><td>Connections, listeners, continuous path subscriptions, DNS/TLS transport behavior, UDP/TCP socket behavior, IP packet/socket option effects</td><td>Incomplete</td><td>Required for Network Parity.</td></tr>
+</table>
+<br>
+<h2 id="networkextension">NetworkExtension</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>NEPacketTunnelProvider.setTunnelNetworkSettings(_:completionHandler:)</code></td><td>Fallback</td><td>Calls completion with nil; no tunnel configuration.</td></tr>
+<tr><td><code>NEPacketTunnelNetworkSettings.init(tunnelRemoteAddress:)</code></td><td>Compile-only</td><td>Property bag.</td></tr>
+<tr><td><code>NEIPv4Settings.init(addresses:subnetMasks:)</code> / route properties</td><td>Compile-only</td><td>Property bag.</td></tr>
+<tr><td><code>NEIPv4Route.default()</code></td><td>Compile-only</td><td>Default route shape only.</td></tr>
+<tr><td><code>NEIPv6Settings.init(addresses:networkPrefixLengths:)</code> / route properties</td><td>Compile-only</td><td>Property bag.</td></tr>
+<tr><td><code>NEIPv6Route.default()</code></td><td>Compile-only</td><td>Default route shape only.</td></tr>
+<tr><td><code>NEDNSSettings.init(servers:)</code></td><td>Compile-only</td><td>Property bag.</td></tr>
+<tr><td>Packet flow, VPN lifecycle, tunnel routing, provider extension hosting</td><td>Incomplete</td><td>Required for NetworkExtension Parity.</td></tr>
+</table>
+<br>
+<h2 id="coregraphics">CoreGraphics</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>CGEventSource.init?(stateID:)</code></td><td>Compile-only</td><td>Source object shape only.</td></tr>
+<tr><td><code>CGEventSource.keyState(_:key:)</code></td><td>Fallback</td><td>Records diagnostic and returns false.</td></tr>
+<tr><td><code>CGEvent.init?(keyboardEventSource:virtualKey:keyDown:)</code></td><td>Compile-only</td><td>Event object shape only.</td></tr>
+<tr><td><code>CGEvent.post(tap:)</code></td><td>Fallback</td><td>Records diagnostic, no synthetic input.</td></tr>
+<tr><td><code>CGEvent.keyboardSetUnicodeString(stringLength:unicodeString:)</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td>Real event taps, keyboard state, pointer events, drawing APIs beyond imported Foundation/CoreFoundation geometry</td><td>Incomplete</td><td>Required for CoreGraphics Parity.</td></tr>
+</table>
+<br>
+<h2 id="security">Security</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>SecRandomCopyBytes(_:_:)</code> / <code>kSecRandomDefault</code></td><td>Parity</td><td>Matches Apple's observed valid-count fill and zero-count status/mutation contract for Signal-style key-material generation. Random byte values intentionally differ.</td></tr>
+<tr><td><code>SecKeyCreateWithData(_:_:)</code>, <code>SecKeyCopyAttributes(_:)</code>, <code>SecKeyCopyExternalRepresentation(_:_:)</code></td><td>Usable source compatibility</td><td>Imports non-empty key bytes into process-local <code>SecKey</code> objects and round-trips attributes/external bytes for Signal/libsignal-style imported key material. It does not perform Apple key validation or bind to native key handles or secure storage. Signing/verification is limited to deterministic compatibility signatures when EC key metadata permits it.</td></tr>
+<tr><td><code>SecKeyCreateRandomKey(_:_:)</code>, <code>SecKeyGeneratePair(_:_:_:)</code>, <code>SecKeyCopyPublicKey(_:)</code>, <code>SecKeyGetBlockSize(_:)</code></td><td>Usable source compatibility</td><td>Synthesizes process-local private/public <code>SecKey</code> objects with requested key type/size/class/application-tag/capability metadata, fills random bytes through <code>SecRandomCopyBytes</code>, derives deterministic public-key bytes for reference wiring, can store permanent generated rows, and reports block size from external byte length. It does not perform native cryptographic key generation or validation, bind to native handles, or provide cryptographically valid signing, verification, or native/cryptographically valid key agreement.</td></tr>
+<tr><td><code>SecKeyIsAlgorithmSupported(_:_:_:)</code> and common <code>SecKeyAlgorithm</code> constants</td><td>Usable source compatibility</td><td>Common ECDSA, ECDH, and RSA algorithm constants plus the operation enum compile for Signal/libsignal source. The shim reports support for common ECDSA sign/verify, ECDH key exchange, and RSA PKCS1 encrypt/decrypt only when the <code>SecKey</code> type, class, and capability metadata allow the requested operation. <code>SecKeyCreateSignature</code>, <code>SecKeyVerifySignature</code>, and <code>SecKeyCopyKeyExchangeResult</code> are deterministic compatibility operations only, not native crypto or key validation.</td></tr>
+<tr><td><code>SecKeyCreateSignature(_:_:_:_:)</code>, <code>SecKeyVerifySignature(_:_:_:_:_:)</code></td><td>Usable source compatibility</td><td>Deterministically signs and verifies common ECDSA SHA-256 message/digest payloads from matching process-local private/public <code>SecKey</code> metadata so Signal/libsignal-style source paths can exercise sign/verify control flow on Linux. This is not Apple DER ECDSA, not cryptographically secure, not native keychain-backed, and not suitable for production signatures.</td></tr>
+<tr><td><code>SecKeyCopyKeyExchangeResult(_:_:_:_:_:)</code>, <code>kSecKeyKeyExchangeParameterRequestedSize</code>, and <code>kSecKeyKeyExchangeParameterSharedInfo</code></td><td>Usable source compatibility</td><td>Synthesizes deterministic, symmetric ECDH Standard/X963-SHA256 shared material from generated/imported EC key metadata and honors requested-size/shared-info parameters so Signal/libsignal-style handshake control flow can run on Linux. This is not real ECDH, not cryptographically secure, and not native keychain-backed key agreement.</td></tr>
+<tr><td><code>SecItemAdd(_:_:)</code></td><td>Usable</td><td>Process-local item creation for generic-password, internet-password, and key-class rows. Detects duplicate identity across class, service, account, server, security domain, protocol, authentication type, port, path, access group, synchronizable attributes, application tag, application label, key class, key type, and key size, and can return attributes, data, object references, or persistent-reference <code>Data</code>. Key-class rows with stored key data synthesize process-local <code>SecKey</code> references when <code>kSecReturnRef</code> is requested. Not persistent or secure.</td></tr>
+<tr><td><code>SecItemCopyMatching(_:_:)</code></td><td>Usable</td><td>Process-local matching with data, attributes, object reference, persistent reference, mixed data/persistent-reference dictionaries, internet endpoint filters, key-item metadata filters, access-group namespace filters, synchronizable filters, <code>kSecAttrSynchronizableAny</code> local-plus-synchronizable matching, not-found status, and <code>kSecMatchLimitAll</code> array results for current Signal/keychain storage contracts. Key-class data rows can return synthesized process-local <code>SecKey</code> references through <code>kSecReturnRef</code> or <code>kSecValueRef</code>.</td></tr>
+<tr><td><code>SecItemUpdate(_:_:)</code></td><td>Usable</td><td>Updates matching process-local item values and attributes, preserving Apple-shaped duplicate and not-found status paths for generic-password, internet-password, and key-class identities. Updating key-class <code>kSecValueData</code> refreshes the synthesized process-local <code>SecKey</code> reference unless an explicit <code>kSecValueRef</code> is supplied.</td></tr>
+<tr><td><code>SecItemDelete(_:)</code></td><td>Usable</td><td>Deletes matching process-local generic-password, internet-password, and key-class items, including delete-by-persistent-reference, endpoint-scoped deletes, and key metadata-scoped deletes, and returns not-found when no row matches.</td></tr>
+<tr><td><code>kSecReturnPersistentRef</code> / <code>kSecValuePersistentRef</code></td><td>Usable</td><td>Apple-observed opaque <code>Data</code> handles round trip inside the process-local store for add, copy, mixed returns, and delete. Handles are not stable across processes or launches.</td></tr>
+<tr><td><code>SecItem</code> key-class rows (<code>kSecClassKey</code>, <code>kSecAttrApplicationTag</code>, <code>kSecAttrApplicationLabel</code>, <code>kSecAttrKeyClass</code>, <code>kSecAttrKeyType</code>, key size, permanence, and capability metadata)</td><td>Usable source compatibility</td><td>Stores, matches, and returns process-local key metadata/data and synthesized <code>SecKey</code> references for Signal/libsignal-style imported/generated key material. It does not validate native key encodings, bind to native key handles, perform native cryptographic key generation, cryptographically valid sign/verify, perform native/cryptographically valid key agreement, enforce access-control/Secure Enclave policy, or persist outside the process.</td></tr>
+<tr><td><code>SecAccessControlCreateWithFlags</code>, <code>SecAccessControlCreateFlags</code>, <code>kSecAttrAccessControl</code>, and <code>kSecUse*</code> authentication/query controls</td><td>Usable source compatibility</td><td>Creates, stores, and returns access-control metadata and treats data-protection/authentication use keys as query controls for Signal/libsignal-style keychain calls. Linux does not enforce access policy, biometric/passcode prompts, authentication context, or OS keychain selection.</td></tr>
+<tr><td><code>kSecRandomDefault</code>, <code>kSecClass*</code>, <code>kSecAttr*</code>, <code>kSecAttrSynchronizableAny</code>, <code>kSecValue*</code>, <code>kSecReturn*</code>, <code>kSecMatchLimit*</code>, <code>kSecUse*</code>, common internet-password protocol/authentication constants, key-item constants, common key algorithm/token/private/public-key constants, <code>errSec*</code> constants</td><td>Usable</td><td>Source-compatible constants for current Security, KeychainSwift-adjacent, and Signal-shaped storage contracts, including server/security-domain/protocol/authentication/port/path endpoint attributes, key application-tag/application-label/key-class/key-type/key-size/capability/token attributes, imported-key attribute dictionaries, and authentication/use query controls.</td></tr>
+<tr><td><code>SecCertificateCreateWithData(_:_:)</code></td><td>Partial</td><td>Wraps DER data in a certificate container.</td></tr>
+<tr><td><code>SecTrustSetAnchorCertificates(_:_:)</code></td><td>Fallback</td><td>Returns <code>errSecSuccess</code>, stores no trust chain.</td></tr>
+<tr><td><code>SecTrustSetAnchorCertificatesOnly(_:_:)</code></td><td>Fallback</td><td>Returns <code>errSecSuccess</code>, stores no trust chain.</td></tr>
+<tr><td><code>SecTrustEvaluateWithError(_:_:)</code></td><td>Fallback</td><td>Records diagnostic and returns true.</td></tr>
+<tr><td>Native secure keychain persistence, access-control enforcement, OS-enforced keychain sharing, real keychain synchronization, cross-process lookup, certificate parsing, policy evaluation, platform trust store, Secure Transport parity</td><td>Incomplete</td><td>Current keychain rows are process-local compatibility storage, and current trust fallback must not be treated as production TLS trust.</td></tr>
+</table>
+<br>
+<h2 id="avfoundation">AVFoundation</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>AVSpeechSynthesizer.speak(_:)</code></td><td>Fallback</td><td>Records diagnostic and calls start/finish delegate callbacks immediately.</td></tr>
+<tr><td><code>AVSpeechSynthesizer.stopSpeaking(at:)</code></td><td>Fallback</td><td>Returns true without native speech output.</td></tr>
+<tr><td><code>AVSpeechSynthesizer.continueSpeaking()</code> / <code>pauseSpeaking(at:)</code></td><td>Compile-only</td><td>Return false.</td></tr>
+<tr><td><code>AVSpeechUtterance.init(string:)</code></td><td>Compile-only</td><td>Stores utterance metadata.</td></tr>
+<tr><td><code>AVSpeechSynthesisVoice</code> initializers and voice metadata</td><td>Compile-only</td><td>Static metadata only.</td></tr>
+<tr><td><code>AVAudioSession.sharedInstance()</code>, <code>setCategory</code>, <code>setActive</code></td><td>Fallback</td><td>No native audio-session effect.</td></tr>
+<tr><td><code>AVPlayer.init(url:)</code></td><td>Compile-only</td><td>Stores URL/player shape only.</td></tr>
+<tr><td><code>AVAudioEngine.prepare()</code> / <code>start()</code> / <code>stop()</code> / <code>reset()</code></td><td>Fallback</td><td>Records diagnostics and toggles <code>isRunning</code>; no audio I/O.</td></tr>
+<tr><td><code>AVAudioEngine.attach(_:)</code> / <code>connect(...)</code></td><td>Compile-only</td><td>No real graph processing.</td></tr>
+<tr><td><code>AVAudioNode.installTap(...)</code> / <code>removeTap(onBus:)</code></td><td>Fallback</td><td>Records diagnostic, no audio tap stream.</td></tr>
+<tr><td><code>AVAudioFormat</code>, <code>AVAudioPCMBuffer</code>, <code>AVAudioTime</code> initializers</td><td>Compile-only</td><td>Data containers only.</td></tr>
+<tr><td>Real synthesis, playback, capture, engine graph processing, media decoding</td><td>Incomplete</td><td>Required for AVFoundation Parity.</td></tr>
+</table>
+<br>
+<h2 id="avkit">AVKit</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>VideoPlayer.init(player:)</code></td><td>Compile-only</td><td>Source-compatible SwiftUI view.</td></tr>
+<tr><td><code>VideoPlayer.body</code></td><td>Compile-only</td><td>Empty view; no video rendering.</td></tr>
+</table>
+<br>
+<h2 id="speech">Speech</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>SFSpeechRecognizer.init(locale:)</code></td><td>Fallback</td><td>Creates unavailable recognizer shape.</td></tr>
+<tr><td><code>SFSpeechRecognizer.authorizationStatus()</code></td><td>Fallback</td><td>Returns <code>.denied</code>.</td></tr>
+<tr><td><code>SFSpeechRecognizer.requestAuthorization(_:)</code></td><td>Fallback</td><td>Records diagnostic and returns <code>.denied</code>.</td></tr>
+<tr><td><code>SFSpeechRecognizer.recognitionTask(with:resultHandler:)</code></td><td>Fallback</td><td>Records diagnostic and returns task object only.</td></tr>
+<tr><td><code>SFSpeechAudioBufferRecognitionRequest.append(_:)</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>SFSpeechRecognitionTask.cancel()</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td>Real speech recognition, audio transcription, authorization bridge</td><td>Incomplete</td><td>Required for Speech Parity.</td></tr>
+</table>
+<br>
+<h2 id="photosui-and-photos">PhotosUI and Photos</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>PhotosPickerItem.init()</code></td><td>Compile-only</td><td>Item shape only.</td></tr>
+<tr><td><code>PhotosPicker.init(selection:label:)</code></td><td>Compile-only</td><td>Returns label body; no picker.</td></tr>
+<tr><td><code>Photos</code> product import</td><td>Compile-only</td><td>Re-exports shared shims only.</td></tr>
+<tr><td>Photo-library authorization, asset fetching, picker UI, transferable item loading</td><td>Incomplete</td><td>Required for Photos parity.</td></tr>
+</table>
+<br>
+<h2 id="charts">Charts</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>Chart.init(content:)</code></td><td>Compile-only</td><td>Source-compatible view wrapper.</td></tr>
+<tr><td><code>BarMark</code>, <code>LineMark</code>, <code>PointMark</code>, <code>AreaMark</code>, <code>RuleMark</code>, <code>SectorMark</code> initializers</td><td>Compile-only</td><td>Empty mark views.</td></tr>
+<tr><td><code>PlottableValue.value(_:_:)</code> and global <code>value(_:_:)</code> helpers</td><td>Compile-only</td><td>Metadata spelling only.</td></tr>
+<tr><td>Axes, scales, legends, rendering, interaction, accessibility</td><td>Incomplete</td><td>Required for Charts Parity.</td></tr>
+</table>
+<br>
+<h2 id="storekit">StoreKit</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>Product</code> type</td><td>Compile-only</td><td>Placeholder type only.</td></tr>
+<tr><td>Product lookup, purchases, transactions, verification, subscriptions</td><td>Incomplete</td><td>Required for StoreKit Parity.</td></tr>
+</table>
+<br>
+<h2 id="tipkit">TipKit</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>Tip</code> protocol</td><td>Compile-only</td><td>Protocol spelling only.</td></tr>
+<tr><td><code>TipView.init(_:)</code></td><td>Compile-only</td><td>Source-compatible view wrapper.</td></tr>
+<tr><td><code>TipView.body</code></td><td>Compile-only</td><td>Empty view.</td></tr>
+<tr><td>Tip rules, persistence, display frequency, popovers</td><td>Incomplete</td><td>Required for TipKit Parity.</td></tr>
+</table>
+<br>
+<h2 id="observation">Observation</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>@Observable</code></td><td>Partial</td><td>Lowers through <code>QuillObservableMacro</code>; enough for current source transforms.</td></tr>
+<tr><td>Observation tracking, invalidation, access lists, registrar parity</td><td>Incomplete</td><td>Required for Observation Parity.</td></tr>
+</table>
+<br>
+<h2 id="applicationservices">ApplicationServices</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>AXIsProcessTrustedWithOptions(_:)</code></td><td>Partial</td><td>Returns <code>QuillAccessibility.isTrusted</code>.</td></tr>
+<tr><td><code>AXUIElementCreateSystemWide()</code></td><td>Compile-only</td><td>Creates system-wide element shape.</td></tr>
+<tr><td><code>AXUIElementCopyAttributeValue(...)</code></td><td>Compile-only</td><td>Returns failure.</td></tr>
+<tr><td>Accessibility tree inspection, mutation, notifications, app targeting</td><td>Incomplete</td><td>Required for ApplicationServices Parity.</td></tr>
+</table>
+<br>
+<h2 id="servicemanagement">ServiceManagement</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>SMAppService.mainApp</code></td><td>Partial</td><td>Backed by current <code>QuillLaunchService</code>.</td></tr>
+<tr><td><code>SMAppService.status</code></td><td>Partial</td><td>Mirrors current launch-service state.</td></tr>
+<tr><td><code>SMAppService.register()</code> / <code>unregister()</code></td><td>Usable</td><td>Registers/unregisters through the current Quill launch-service abstraction.</td></tr>
+<tr><td>Full login item parity, privileged helpers, platform service managers</td><td>Incomplete</td><td>Required for ServiceManagement Parity.</td></tr>
+</table>
+<br>
+<h2 id="asyncalgorithms">AsyncAlgorithms</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>AsyncTimerSequence.init(interval:clock:)</code></td><td>Usable</td><td>Stores interval and clock.</td></tr>
+<tr><td><code>AsyncTimerSequence.Iterator.next()</code></td><td>Usable</td><td>Sleeps for the interval and yields <code>clock.now</code>, stops on cancellation.</td></tr>
+<tr><td>Other AsyncAlgorithms package algorithms</td><td>Incomplete</td><td>Only timer sequence subset exists here.</td></tr>
+</table>
+<br>
+<h2 id="carbon">Carbon</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>CarbonEventHotKeyID</code></td><td>Compile-only</td><td>Struct spelling only.</td></tr>
+<tr><td><code>CarbonCompatibility.available</code></td><td>Compile-only</td><td>Always false.</td></tr>
+<tr><td>Hot-key registration, event targets, classic Carbon APIs</td><td>Incomplete</td><td>Required for any Carbon behavior parity.</td></tr>
+</table>
+<br>
+<h2 id="combine">Combine</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td>OpenCombine re-export</td><td>Partial</td><td>Broad Combine surface comes from OpenCombine, not local Apple SDK code.</td></tr>
+<tr><td><code>AnyPublisher.init()</code> where <code>Failure == Never</code></td><td>Usable</td><td>Creates an empty publisher.</td></tr>
+<tr><td><code>Publishers.Merge</code> local implementation</td><td>Partial</td><td>Current merge behavior exists, but full Apple Combine edge-case parity is incomplete.</td></tr>
+<tr><td>Backpressure, scheduler, demand, cancellation, and operator fuzz parity</td><td>Incomplete</td><td>Required before claiming Combine Parity.</td></tr>
+</table>
+<br>
+<h2 id="os">os</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>Logger.init(...)</code></td><td>Usable</td><td>Stores subsystem/category.</td></tr>
+<tr><td><code>Logger.debug/info/notice/warning/error/fault/critical/trace</code> overloads</td><td>Partial</td><td>Records diagnostics and prints; not Apple unified logging.</td></tr>
+<tr><td><code>os_log(...)</code></td><td>Partial</td><td>Diagnostic print path only.</td></tr>
+<tr><td><code>_dyld_image_count()</code> / <code>_dyld_get_image_name(_:)</code></td><td>Compile-only</td><td>Return zero/nil.</td></tr>
+<tr><td><code>OSAllocatedUnfairLock.withLock(_:)</code></td><td>Partial</td><td>Provides local locking semantics, not kernel unfair-lock parity.</td></tr>
+<tr><td><code>OSSignposter</code> methods</td><td>Compile-only</td><td>No real signpost tracing.</td></tr>
+<tr><td>Unified logging persistence, signpost tooling, dyld image inspection parity</td><td>Incomplete</td><td>Required for os Parity.</td></tr>
+</table>
+<br>
+<h2 id="iokit">IOKit</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>IONotificationPortCreate(_:)</code></td><td>Compile-only</td><td>Returns null.</td></tr>
+<tr><td><code>IONotificationPortDestroy(_:)</code> / <code>IONotificationPortSetDispatchQueue(_:_:)</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>IOServiceMatching(_:)</code></td><td>Compile-only</td><td>Returns null.</td></tr>
+<tr><td><code>IOServiceAddMatchingNotification(...)</code></td><td>Fallback</td><td>Returns unsupported.</td></tr>
+<tr><td><code>IOIteratorNext(_:)</code></td><td>Fallback</td><td>Returns zero.</td></tr>
+<tr><td><code>IOObjectRelease(_:)</code></td><td>Fallback</td><td>Returns success.</td></tr>
+<tr><td>USB/device discovery, notifications, registry traversal</td><td>Incomplete</td><td>Required for IOKit Parity.</td></tr>
+</table>
+<br>
+<h2 id="re-export-only-apple-shims">Re-export-only Apple shims</h2>
+<br>
+<p>These packages currently exist so imports compile and shared Quill types are in</p>
+<p>scope. They do not implement standalone Apple framework behavior yet.</p>
+<br>
+<table>
+<tr><th>Package</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>MessageUI</code></td><td>Compile-only</td><td>Re-exports <code>QuillFoundation</code> and <code>QuillUIKit</code>; mail composer behavior is incomplete.</td></tr>
+<tr><td><code>SafariServices</code></td><td>Compile-only</td><td>Re-exports <code>QuillFoundation</code> and <code>QuillUIKit</code>; Safari view services are incomplete.</td></tr>
+<tr><td><code>MobileCoreServices</code></td><td>Compile-only</td><td>Re-exports <code>QuillFoundation</code>; legacy UTI constants beyond shared fallbacks are incomplete.</td></tr>
+<tr><td><code>LocalAuthentication</code></td><td>Compile-only</td><td>Re-exports <code>QuillShims</code>; biometric/passcode auth is incomplete.</td></tr>
+<tr><td><code>CoreSpotlight</code></td><td>Compile-only</td><td>Re-exports <code>QuillShims</code>; indexing/search APIs are incomplete.</td></tr>
+</table>
+<br>
+<h2 id="third-party-and-app-support-package-clones">Third-Party and App-Support Package Clones</h2>
+<br>
+<p>These packages are not Apple frameworks, but current app ports import them as if</p>
+<p>their upstream packages were present. They are listed function by function so</p>
+<p>app progress can be audited with the same status ladder.</p>
+<br>
+<h3 id="package-clone-summary">Package Clone Summary</h3>
+<br>
+<table>
+<tr><th>Package area</th><th>Complete function rows today</th><th>Incomplete function rows and parity blockers</th></tr>
+<tr><td><code>Alamofire</code></td><td>URL string request creation for GET/POST, URLSession-backed transport, status-code validation, and JSON <code>Decodable</code> response callbacks.</td><td>Upload/download, interceptors, authentication, retry policies, request/response serializers beyond JSON decoding, trust evaluation parity, cancellation/progress, and fuzz parity against upstream Alamofire.</td></tr>
+<tr><td><code>OllamaKit</code></td><td>Base URL setup, model listing, reachability probing, current chat streaming contracts, response decoding, and app-facing Codable models.</td><td>Full upstream API breadth, retries, tool-call/event streaming details, transport customization edge cases, and Apple/Linux fuzz parity beyond current Enchanted flows.</td></tr>
+<tr><td><code>KeychainSwift</code> and lower-level <code>Security</code> random/keychain storage</td><td>Upstream-shaped in-memory <code>KeychainSwift</code> UTF-8 string storage, raw data storage, single-byte bool storage, <code>getData(_:asReference:)</code>, deterministic reference handles, <code>allKeys</code>, delete, access-group/synchronizable namespaces, accessibility option metadata, result-code tracking, prefix read isolation, and namespace <code>clear()</code> behavior; <code>SecRandomCopyBytes</code> for Signal-shaped key-material generation; process-local <code>SecKeyCreateWithData</code>, <code>SecKeyCreateRandomKey</code>, <code>SecKeyGeneratePair</code>, <code>SecKeyCopyPublicKey</code>, <code>SecKeyGetBlockSize</code>, <code>SecKeyCopyAttributes</code>, <code>SecKeyCopyExternalRepresentation</code>, metadata-gated <code>SecKeyIsAlgorithmSupported</code>, deterministic ECDSA message/digest <code>SecKeyCreateSignature</code> and <code>SecKeyVerifySignature</code> compatibility, deterministic symmetric ECDH <code>SecKeyCopyKeyExchangeResult</code> compatibility with requested-size/shared-info parameters, and synthesized <code>SecKey</code> references for imported/generated key material; process-local <code>SecItemAdd</code>, <code>SecItemCopyMatching</code>, <code>SecItemUpdate</code>, and <code>SecItemDelete</code> generic-password, internet-password, and key-class rows with access-control metadata, authentication/use query controls, server/protocol/authentication/port/path endpoint separation, key-item application-tag/application-label/key-class/key-type/key-size/capability metadata, access-group namespace filters, synchronizable filters, <code>kSecAttrSynchronizableAny</code>, and persistent-reference handles for account storage.</td><td>Secure OS keychain persistence, native access-control enforcement, true keychain sharing, iCloud synchronization, native item protection, cross-process behavior, native key validation/handles, native cryptographic key generation, cryptographically valid sign/verify, native/cryptographically valid key agreement, Secure Enclave behavior, and cryptographic equivalence beyond the valid-count random-byte contract.</td></tr>
+<tr><td>Markdown/code packages</td><td><code>MarkdownUI</code> parsing/rendering subset, plain-text extraction, highlighter injection, <code>Splash</code> theme/token highlighting subset.</td><td>Full CommonMark/GitHub Markdown, exact MarkdownUI styling/layout, complete Swift tokenization, HTML output parity, and typography/rendering fidelity.</td></tr>
+<tr><td>UI helper packages</td><td><code>ActivityIndicatorView</code>, <code>WrappingHStack</code>, <code>Vortex</code>, <code>KeyboardShortcuts</code>, <code>Magnet</code>, and <code>Sparkle</code> expose app-facing shapes.</td><td>Animations, true wrapping layout, particle effects, native shortcut recording/global hotkeys, updater behavior, and platform services.</td></tr>
+<tr><td>App support shims</td><td><code>Tidemark</code>, <code>Secrets</code>, <code>QuillRS</code>, <code>SwiftUIIntrospect</code>, <code>SwiftUIDesignSystem</code>, <code>Zip</code>, and <code>RSDatabase</code> compile current app source.</td><td>CommonMark conversion, secret storage, browser integration, tree/path parity, introspection callbacks, real zip/database APIs, and broader upstream semantics.</td></tr>
+</table>
+<br>
+<h3 id="alamofire">Alamofire</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>ServerTrustEvaluating.evaluate(_:forHost:)</code></td><td>Compile-only</td><td>Protocol spelling exists for app source compatibility.</td></tr>
+<tr><td><code>ServerTrustManager.init(evaluators:)</code></td><td>Compile-only</td><td>Stores evaluator shape for app source compatibility; Linux trust policy is not evaluated yet.</td></tr>
+<tr><td><code>HTTPMethod.get</code> / <code>.post</code></td><td>Usable</td><td>Maps to <code>GET</code> and <code>POST</code> request methods.</td></tr>
+<tr><td><code>Session.request(_:method:)</code></td><td>Usable</td><td>Builds URL requests and runs them through URLSession-backed transport.</td></tr>
+<tr><td><code>DataRequest.validate(statusCode:)</code></td><td>Usable</td><td>Records acceptable HTTP status ranges and rejects out-of-range responses.</td></tr>
+<tr><td><code>DataRequest.responseDecodable(...)</code></td><td>Usable</td><td>Delivers JSON <code>Decodable</code> success/failure results on the requested dispatch queue.</td></tr>
+<tr><td>Upload/download, interceptors, authentication, retries, serializers beyond JSON, progress, cancellation, trust evaluation parity</td><td>Incomplete</td><td>Required before claiming Alamofire parity.</td></tr>
+</table>
+<br>
+<h3 id="ollamakit">OllamaKit</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>OllamaKit.init(baseURL:bearerToken:transport:)</code></td><td>Usable</td><td>Builds configured clients for Enchanted model/chat flows.</td></tr>
+<tr><td><code>URLSessionOllamaKitTransport.data(for:)</code></td><td>Usable</td><td>Uses <code>URLSession</code> for real HTTP transport.</td></tr>
+<tr><td><code>models()</code></td><td>Usable</td><td>Requests <code>/api/tags</code>, validates HTTP status, and decodes <code>OKModelsResponse</code>.</td></tr>
+<tr><td><code>reachable()</code></td><td>Usable</td><td>Probes <code>models()</code> and returns a boolean.</td></tr>
+<tr><td><code>chat(data:) -> AnyPublisher<OKChatResponse, Error></code></td><td>Usable for current app contract</td><td>Runs the chat request and publishes decoded responses; full Combine demand/backpressure parity remains outside this row.</td></tr>
+<tr><td><code>chat(data:) -> AsyncThrowingStream<OKChatResponse, Error></code></td><td>Usable</td><td>Streams decoded chat responses through an async sequence.</td></tr>
+<tr><td><code>decodeChatResponses(from:)</code></td><td>Usable</td><td>Decodes either newline-delimited JSON responses or a single JSON response.</td></tr>
+<tr><td><code>OKModelsResponse</code>, <code>OKModelResponse</code>, <code>OKModelDetails</code></td><td>Usable</td><td>Codable model-list payloads used by Enchanted.</td></tr>
+<tr><td><code>OKCompletionOptions</code>, <code>OKChatRequestData</code>, <code>OKChatResponse</code></td><td>Usable</td><td>Codable request/response shapes for current chat flows, including text and optional image payloads.</td></tr>
+<tr><td>Embeddings, generation-only APIs, tool calls, detailed streaming events, retry policy, cancellation fuzz parity</td><td>Incomplete</td><td>Required for upstream OllamaKit parity.</td></tr>
+</table>
+<br>
+<h3 id="keychainswift">KeychainSwift</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>KeychainSwift.init()</code> / <code>init(keyPrefix:accessGroup:synchronizable:)</code></td><td>Usable</td><td>Creates a process-local in-memory store with optional key prefixing, access-group namespace, and synchronizable namespace.</td></tr>
+<tr><td><code>set(_:forKey:)</code> for <code>String</code>, <code>Data</code>, and <code>Bool</code></td><td>Usable</td><td>Stores strings as UTF-8 bytes, data as raw bytes, and bools as upstream-shaped single bytes <code>[1]</code> / <code>[0]</code>.</td></tr>
+<tr><td><code>get(_:)</code>, <code>getData(_:asReference:)</code>, <code>getBool(_:)</code></td><td>Usable</td><td><code>get</code> decodes UTF-8 bytes, <code>getData</code> returns either stored bytes or deterministic reference handles, and <code>getBool</code> follows upstream first-byte behavior.</td></tr>
+<tr><td><code>allKeys</code></td><td>Usable</td><td>Returns sorted keys for the current access-group/synchronizable namespace, including prefixed keys.</td></tr>
+<tr><td><code>delete(_:)</code></td><td>Usable</td><td>Removes one prefix-scoped key, returns false for missing keys, and updates <code>lastResultCode</code>.</td></tr>
+<tr><td><code>clear()</code></td><td>Usable</td><td>Removes all values for the current access-group/synchronizable namespace, matching upstream behavior that does not restrict the deletion to <code>keyPrefix</code>.</td></tr>
+<tr><td><code>accessGroup</code>, <code>synchronizable</code>, <code>KeychainSwiftAccessOptions</code></td><td>Usable</td><td>Source-compatible knobs isolate in-memory namespaces and preserve accessibility metadata for current app/library contracts; they do not enforce native keychain sharing, synchronization, or item protection.</td></tr>
+<tr><td><code>lastResultCode</code></td><td>Usable</td><td>Tracks success, not-found, and invalid-encoding statuses for the current process-local operations.</td></tr>
+<tr><td>Lower-level <code>Security</code> <code>SecRandomCopyBytes</code></td><td>Parity</td><td>Supports Signal-style key-material generation with Apple-matched valid-count fill and zero-count status/mutation behavior.</td></tr>
+<tr><td>Lower-level <code>Security</code> <code>SecKeyCreateWithData</code>, <code>SecKeyCopyAttributes</code>, <code>SecKeyCopyExternalRepresentation</code>, and synthesized <code>SecKey</code> references</td><td>Usable source compatibility</td><td>Supports process-local imported-key byte/attribute round-trips and object references for Signal/libsignal-style key material. It does not validate native key encodings or bind to native key handles. Signing/verification is limited to deterministic compatibility signatures when EC key metadata permits it.</td></tr>
+<tr><td>Lower-level <code>Security</code> <code>SecKeyCreateRandomKey</code>, <code>SecKeyGeneratePair</code>, <code>SecKeyCopyPublicKey</code>, <code>SecKeyGetBlockSize</code>, and <code>SecKeyIsAlgorithmSupported</code></td><td>Usable source compatibility</td><td>Synthesizes process-local generated private/public key references with requested metadata, stores permanent rows, derives stable public-key bytes, reports byte-length block sizes, and answers common ECDSA/ECDH/RSA support checks from key type/class/capability metadata for Signal/libsignal-style source compatibility. It is not native cryptographic key generation and does not provide cryptographically valid sign/verify, encrypt, decrypt, or native/cryptographically valid key agreement.</td></tr>
+<tr><td>Lower-level <code>Security</code> <code>SecKeyCreateSignature</code> and <code>SecKeyVerifySignature</code></td><td>Usable source compatibility</td><td>Deterministically signs and verifies common ECDSA SHA-256 message/digest payloads for matching generated/imported key metadata, giving Signal/libsignal-style source a Linux control-flow target. This is not Apple DER ECDSA, not cryptographically secure, and not suitable for production signatures.</td></tr>
+<tr><td>Lower-level <code>Security</code> <code>SecKeyCopyKeyExchangeResult</code></td><td>Usable source compatibility</td><td>Synthesizes deterministic, symmetric ECDH Standard/X963-SHA256 shared material from process-local EC key metadata and honors requested-size/shared-info parameters so Signal/libsignal-style key-agreement control flow can run on Linux. This is not real ECDH, not cryptographically secure, and not native keychain-backed key agreement.</td></tr>
+<tr><td>Lower-level <code>Security</code> <code>SecItem</code> generic-password, internet-password, and key-class add/copy/update/delete</td><td>Usable</td><td>Supports process-local keychain-shaped rows, access-control metadata, authentication/use query controls, server/protocol/authentication/port/path endpoint separation, key-item application-tag/application-label/key-class/key-type/key-size/capability metadata, synthesized <code>SecKey</code> object references, access-group namespace filters, synchronizable filters, <code>kSecAttrSynchronizableAny</code>, and persistent-reference handles Signal-style libraries commonly source-target before a secure backend is attached.</td></tr>
+<tr><td>Native secure persistence, access-control enforcement, keychain sharing, synchronization, cross-process lookup, native key validation/handles, native cryptographic key generation, cryptographically valid sign/verify, native/cryptographically valid key agreement, Secure Enclave policy</td><td>Incomplete</td><td>Required before claiming KeychainSwift or Security keychain parity.</td></tr>
+</table>
+<br>
+<h3 id="markdownui">MarkdownUI</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>Markdown.init(_:)</code></td><td>Partial</td><td>Stores source and renders the local parsed block tree.</td></tr>
+<tr><td><code>Markdown.body</code></td><td>Partial</td><td>Renders paragraphs, headings, lists, quotes, code blocks, tables, and image placeholders through SwiftUI views.</td></tr>
+<tr><td><code>Markdown.plainText(from:)</code></td><td>Usable</td><td>Deterministically extracts plain text from the parsed subset.</td></tr>
+<tr><td><code>CodeSyntaxHighlighter.highlightCode(_:language:)</code></td><td>Usable</td><td>Protocol and plain-text highlighter support current code-block rendering.</td></tr>
+<tr><td><code>markdownCodeSyntaxHighlighter(_:)</code></td><td>Usable</td><td>Stores the highlighter for <code>Markdown</code> rendering; view-level overload is a pass-through.</td></tr>
+<tr><td><code>markdownTheme(_:)</code>, <code>Theme</code> builder methods</td><td>Fallback</td><td>Builder closures compile and receive sample configurations, but styling is not applied with MarkdownUI fidelity.</td></tr>
+<tr><td><code>MarkdownLength</code>, <code>markdownMargin</code>, <code>relativeLineSpacing</code>, <code>relativePadding</code>, <code>relativeFrame</code></td><td>Partial</td><td>Converts relative lengths into current SwiftUI padding/spacing/frame metadata where possible.</td></tr>
+<tr><td>Full CommonMark/GitHub Markdown, inline/link/image behavior, table layout, styling cascade, accessibility, upstream renderer parity</td><td>Incomplete</td><td>Required before claiming MarkdownUI parity.</td></tr>
+</table>
+<br>
+<h3 id="splash">Splash</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>SplashColor</code>, <code>Color.init(_:)</code>, <code>Font</code></td><td>Usable</td><td>App-facing color/font value shapes compile and round trip.</td></tr>
+<tr><td><code>TokenType</code></td><td>Usable</td><td>Exposes the token categories used by current highlighting tests.</td></tr>
+<tr><td><code>Theme.sunset(withFont:)</code> / <code>wwdc17(withFont:)</code></td><td>Usable</td><td>Builds deterministic theme payloads.</td></tr>
+<tr><td><code>OutputBuilder</code> / <code>OutputFormat</code></td><td>Usable</td><td>Generic builder protocol surface supports current custom output formats.</td></tr>
+<tr><td><code>SyntaxHighlighter.highlight(_:)</code></td><td>Usable</td><td>Tokenizes deterministically on whitespace and classifies comments, strings, numbers, keywords, uppercase types, and plain text.</td></tr>
+<tr><td>Full Swift lexer, grammar-aware highlighting, HTML/attributed output parity, upstream theme fidelity</td><td>Incomplete</td><td>Required before claiming Splash parity.</td></tr>
+</table>
+<br>
+<h3 id="activityindicatorview">ActivityIndicatorView</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>ActivityIndicatorView.init(isVisible:type:)</code></td><td>Usable</td><td>Stores visibility binding and style.</td></tr>
+<tr><td><code>ActivityIndicatorView.IndicatorType.rotatingDots(count:)</code> / <code>.growingCircle</code></td><td>Usable</td><td>Covers the styles current app source imports.</td></tr>
+<tr><td><code>ActivityIndicatorView.body</code></td><td>Partial</td><td>Renders static dots or a circle when visible.</td></tr>
+<tr><td>Animation timing, drawing fidelity, all upstream indicator styles</td><td>Incomplete</td><td>Required for ActivityIndicatorView parity.</td></tr>
+</table>
+<br>
+<h3 id="wrappinghstack">WrappingHStack</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>WrappingHStack.init(...)</code></td><td>Usable</td><td>Captures alignment, spacing, and content for current source compatibility.</td></tr>
+<tr><td><code>WrappingHStack.body</code></td><td>Partial</td><td>Renders a plain <code>HStack</code>; it does not measure and wrap children.</td></tr>
+<tr><td>Dynamic wrapping, line spacing, measurement, accessibility order, upstream layout parity</td><td>Incomplete</td><td>Required for WrappingHStack parity.</td></tr>
+</table>
+<br>
+<h3 id="vortex">Vortex</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>VortexSystem.splash</code></td><td>Compile-only</td><td>Provides the named system used by app source.</td></tr>
+<tr><td><code>VortexSystem.makeUniqueCopy()</code></td><td>Fallback</td><td>Returns <code>self</code>; no unique particle state is allocated.</td></tr>
+<tr><td><code>VortexView.init(_:content:)</code></td><td>Usable</td><td>Captures the requested system and content.</td></tr>
+<tr><td><code>VortexView.body</code></td><td>Partial</td><td>Renders content in a <code>ZStack</code> without particle effects.</td></tr>
+<tr><td>Particle simulation, emitters, timing, animation, rendering fidelity</td><td>Incomplete</td><td>Required for Vortex parity.</td></tr>
+</table>
+<br>
+<h3 id="keyboardshortcuts">KeyboardShortcuts</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>KeyboardShortcuts.Shortcut</code>, <code>Key</code>, <code>Name</code></td><td>Usable</td><td>Codable/hashable shortcut identity and default values work for current app settings.</td></tr>
+<tr><td><code>getShortcut(for:)</code> / <code>setShortcut(_:for:)</code></td><td>Usable</td><td>Stores shortcuts in <code>UserDefaults</code> with locking.</td></tr>
+<tr><td><code>reset(_:)</code> / <code>resetAll()</code></td><td>Usable</td><td>Restores defaults or clears stored shortcut values.</td></tr>
+<tr><td><code>KeyboardShortcuts.Recorder.body</code></td><td>Partial</td><td>Renders a text label for current settings screens.</td></tr>
+<tr><td><code>View.onKeyboardShortcut(...)</code></td><td>Compile-only</td><td>Returns <code>self</code>; actions are not registered.</td></tr>
+<tr><td>Native recorder UI, global shortcut registration, event delivery, conflict handling</td><td>Incomplete</td><td>Required for KeyboardShortcuts parity.</td></tr>
+</table>
+<br>
+<h3 id="magnet">Magnet</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>Key.space</code>, <code>Key.escape</code>, <code>.character(_:)</code></td><td>Compile-only</td><td>Covers current hot-key declarations.</td></tr>
+<tr><td><code>_Modifiers</code> / <code>KeyCombo.init?</code></td><td>Compile-only</td><td>Stores key/modifier payloads.</td></tr>
+<tr><td><code>HotKey.init(...)</code></td><td>Partial</td><td>Stores identifier, combo, and handler.</td></tr>
+<tr><td><code>HotKey.register()</code> / <code>unregister()</code></td><td>Compile-only</td><td>No-op; no native hot key is installed.</td></tr>
+<tr><td><code>HotKey.trigger()</code></td><td>Usable</td><td>Test helper invokes the stored handler.</td></tr>
+<tr><td>Global Carbon/AppKit hot-key registration, event routing, conflict detection</td><td>Incomplete</td><td>Required for Magnet parity.</td></tr>
+</table>
+<br>
+<h3 id="sparkle">Sparkle</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>SPUUpdater.canCheckForUpdates</code></td><td>Fallback</td><td>Always false.</td></tr>
+<tr><td><code>SPUUpdater.checkForUpdates()</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>SPUStandardUpdaterController.updater</code></td><td>Compile-only</td><td>Exposes an updater object for source compatibility.</td></tr>
+<tr><td>Appcast fetching, signature checks, update UI, installer/relaunch behavior</td><td>Incomplete</td><td>Required for Sparkle parity.</td></tr>
+</table>
+<br>
+<h3 id="tidemark">Tidemark</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>markdownToHTML(_:)</code></td><td>Fallback</td><td>Escapes <code>&</code>, <code><</code>, and <code>></code>, trims whitespace, returns empty output for empty input, and wraps non-empty text in one paragraph.</td></tr>
+<tr><td>CommonMark parsing, links/images/lists/tables/code, HTML fidelity</td><td>Incomplete</td><td>Required for Tidemark parity.</td></tr>
+</table>
+<br>
+<h3 id="secrets">Secrets</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>SecretKey</code> constants</td><td>Compile-only</td><td>Constants exist but currently return empty strings.</td></tr>
+<tr><td><code>CredentialsType</code></td><td>Usable</td><td>Defines the credential categories current app source imports.</td></tr>
+<tr><td><code>Credentials.init(type:username:secret:)</code></td><td>Usable</td><td>Stores credential payloads.</td></tr>
+<tr><td><code>CredentialsManager.storeCredentials(...)</code> / <code>removeCredentials(...)</code></td><td>Fallback</td><td>No-op.</td></tr>
+<tr><td><code>CredentialsManager.retrieveCredentials(...)</code></td><td>Fallback</td><td>Always returns nil.</td></tr>
+<tr><td>Secure secret loading, keychain persistence, OAuth/session storage</td><td>Incomplete</td><td>Required for Secrets parity.</td></tr>
+</table>
+<br>
+<h3 id="quillrs">QuillRS</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>TreeController.init(delegate:)</code> / <code>rebuild()</code></td><td>Partial</td><td>Builds a root node and refreshes delegate-provided root children.</td></tr>
+<tr><td><code>Node.init(...)</code>, <code>existingOrNewChildNode</code>, <code>childNodeRepresentingObject</code>, <code>createChildNode</code></td><td>Usable</td><td>Provides in-memory tree nodes for NetNewsWire-style source compatibility.</td></tr>
+<tr><td><code>NodePath.init(...)</code></td><td>Compile-only</td><td>Initializers currently return nil.</td></tr>
+<tr><td><code>postUnreadCountDidChangeNotification()</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>Browser.open(_:inBackground:)</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>NSString.rs_SQLValueList(withPlaceholders:)</code></td><td>Usable</td><td>Returns deterministic SQL placeholder lists or nil for zero.</td></tr>
+<tr><td><code>NSObject.preferredLink</code>, <code>attributionString</code>, <code>linkString</code></td><td>Fallback</td><td>Return nil or empty strings.</td></tr>
+<tr><td><code>IconImage.init(image:isDark:)</code> / <code>NonIntrinsicImageView</code></td><td>Compile-only</td><td>App-facing image wrapper and image-view subclass shapes exist.</td></tr>
+<tr><td>Browser integration, notification routing, full tree/path behavior, pasteboard ownership</td><td>Incomplete</td><td>Required for QuillRS parity.</td></tr>
+</table>
+<br>
+<h3 id="swiftuiintrospect-and-swiftuidesignsystem">SwiftUIIntrospect and SwiftUIDesignSystem</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>View.introspect(_:on:perform:)</code></td><td>Fallback</td><td>Returns <code>self</code>; the action is not called.</td></tr>
+<tr><td><code>View.designSystem()</code></td><td>Fallback</td><td>Returns <code>self</code>; no design-system environment is applied.</td></tr>
+<tr><td>Native view lookup, platform-specific introspection callbacks, design-system styling</td><td>Incomplete</td><td>Required for parity with those packages.</td></tr>
+</table>
+<br>
+<h3 id="quillswiftuicompatibility-and-uikitlinux">QuillSwiftUICompatibility and UIKitLinux</h3>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td>SwiftOpenUI re-export</td><td>Usable</td><td>Provides the Linux SwiftUI-shaped base module.</td></tr>
+<tr><td><code>Font.Weight = FontWeight</code></td><td>Usable</td><td>Alias preserves source compatibility.</td></tr>
+<tr><td><code>VerticalAlignment.firstTextBaseline</code> / <code>.lastTextBaseline</code></td><td>Fallback</td><td>Map to <code>.top</code> and <code>.bottom</code>.</td></tr>
+<tr><td><code>CGFloat = Double</code></td><td>Usable</td><td>Keeps UIKit-shaped geometry source compiling.</td></tr>
+<tr><td><code>UIScreen.main.bounds</code></td><td>Fallback</td><td>Returns a fixed 1000x800 rectangle.</td></tr>
+<tr><td><code>UIResponder</code>, <code>UIView</code>, <code>UIViewController.view</code>, <code>UISplitViewController.DisplayMode</code></td><td>Compile-only</td><td>Type shapes exist for current Linux source compatibility.</td></tr>
+<tr><td>Real SwiftUI baseline metrics, UIKit device/screen state, responders, view hierarchy, controllers</td><td>Incomplete</td><td>Required for parity.</td></tr>
+</table>
+<br>
+<h3 id="re-export-only-app-package-shims">Re-Export-Only App Package Shims</h3>
+<br>
+<table>
+<tr><th>Package</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>Zip</code></td><td>Compile-only</td><td>Re-exports <code>QuillRS</code>; zip archive behavior is not implemented here.</td></tr>
+<tr><td><code>RSDatabase</code></td><td>Compile-only</td><td>Re-exports <code>QuillShims</code>; database package behavior is not implemented here.</td></tr>
+</table>
+<br>
+<h2 id="app-progress-summary">App Progress Summary</h2>
+<br>
+<p>Function coverage only matters if app targets can use it. Current app-level</p>
+<p>progress is tracked in more detail in <code>docs/app-targets.md</code>.</p>
+<br>
+<table>
+<tr><th>App target</th><th>Current level</th><th>Main blockers to Parity</th></tr>
+<tr><td>Enchanted GTK</td><td>Usable target in progress</td><td>Remaining SwiftUI/AppKit behavior gaps, visual parity checks against macOS, and performance baselines.</td></tr>
+<tr><td>Enchanted Qt</td><td>Usable target in progress</td><td>Same macOS parity target as GTK, plus independent Qt backend rendering and interaction validation.</td></tr>
+<tr><td>Quill Chat / legacy aliases</td><td>Partial</td><td>Naming compatibility is secondary to Enchanted, but aliases must keep building.</td></tr>
+<tr><td>Smoke/demo targets</td><td>Usable for contract checks</td><td>Need broader generated source-contract and fuzz coverage across every Apple shim.</td></tr>
+</table>
+<br>
+    </div>
+
+    <script>
+        function filterModules() {
+            var input, filter, table, tr, td, i, txtValue;
+            input = document.getElementById("module-filter");
+            filter = input.value.toUpperCase();
+            table = document.getElementById("summary-table");
+            tr = table.getElementsByTagName("tr");
+            for (i = 1; i < tr.length; i++) {
+                td = tr[i].getElementsByTagName("td")[0];
+                if (td) {
+                    txtValue = td.textContent || td.innerText;
+                    if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                        tr[i].style.display = "";
+                    } else {
+                        tr[i].style.display = "none";
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
