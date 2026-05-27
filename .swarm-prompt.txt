@@ -1,0 +1,118 @@
+You are an autonomous coding agent implementing GitHub issue #3 for the Lore-Hex/QuillUI repository.
+
+Your working directory IS a fresh git worktree at this path. Implement the issue's acceptance criteria. When you're done, commit your work to the current branch (codex/issue-3). Do NOT push or open a PR — the spawn wrapper will handle that.
+
+Constraints:
+- This is a Swift package (Package.swift at the repo root). Use the existing target structure.
+- Do not modify Package.swift's existing target list unless the issue explicitly requires a new target.
+- Do not touch other targets unless the issue scope requires it.
+- The strict Mac-reference verifier targets pixel-perfect macOS appearance via the QuillPaint stack. Don't propose Adwaita or native-Linux feel.
+- Write tests when the issue asks for them. Use Swift Testing (`import Testing`) and `@Test` / `@Suite` macros.
+- Commit early, commit often. Multiple small commits are better than one big one.
+- Final commit message should reference the issue: "Closes #3"
+
+ISSUE TITLE: GTK4 backend: `maxWidth: .infinity` inside ScrollView / HStack does not expand to parent width (Enchanted sidebar + bubble bug)
+
+ISSUE BODY:
+## Symptom
+
+The QuillEnchanted Linux preview, run unmodified on a 1920×1025 GTK4 window backed by SwiftOpenUI/BackendGTK4, has two visible layout regressions vs the same code on macOS SwiftUI:
+
+### 1. Sidebar conversation row clips to ~2 characters
+
+The sidebar's conversation list (`ConversationRow` inside a `ScrollView { VStack { ForEach { … } } }`) renders each row at the *intrinsic content width* instead of expanding to fill the 300pt sidebar column. Result: a conversation titled `hello` shows as `H-` truncated to about 30px wide, despite the row having `.frame(maxWidth: .infinity, alignment: .leading)`.
+
+![sidebar bug](https://i.imgur.com/PLACEHOLDER1.png)
+*(See attached screenshot — sidebar row at the bottom-left.)*
+
+### 2. Message bubble is tiny instead of message-row sized
+
+`MessageBubble` is structured as:
+
+```swift
+HStack(alignment: .top, spacing: 10) {
+    if message.role == .user { Spacer() }
+    VStack { ... }
+        .padding(13)
+        .frame(maxWidth: 680, alignment: .leading)
+        .background(backgroundColor)
+        .cornerRadius(10)
+    if message.role != .user { Spacer() }
+}
+.frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+```
+
+On macOS SwiftUI this produces a typical chat bubble — wide enough to fit content comfortably, capped at 680pt, pushed left/right by the `Spacer()`. On Linux GTK4 the bubble sticks to its intrinsic width (the literal width of the text "You\nhello"), ignoring `maxWidth: 680`. Spacer pushes correctly to left/right, but the bubble itself is tiny.
+
+![bubble bug](https://i.imgur.com/PLACEHOLDER2.png)
+
+## Reproduction
+
+Pure QuillUI / SwiftOpenUI repro (no Enchanted dependency):
+
+```swift
+import SwiftOpenUI
+struct Repro: View {
+    var body: some View {
+        HStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(0..<3) { _ in
+                        Button(action: {}) {
+                            Text("expected-to-fill-300pt-column")
+                                .lineLimit(1)
+                                .padding(11)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.blue)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .frame(width: 300)
+
+            HStack {
+                Spacer()
+                VStack {
+                    Text("hello")
+                }
+                .padding(13)
+                .frame(maxWidth: 680, alignment: .leading)
+                .background(Color.gray)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .frame(minWidth: 980, minHeight: 200)
+    }
+}
+```
+
+On macOS SwiftUI this renders as:
+- Left: three blue buttons each ~280pt wide
+- Right: gray rectangle ~680pt centered
+
+On Linux GTK4 via SwiftOpenUI it renders as:
+- Left: three blue buttons each ~120pt wide (just the text width)
+- Right: gray rectangle ~50pt wide (just "hello" + padding)
+
+## Likely cause
+
+Two suspects in `.build/checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift`:
+
+- The fallback HStack/VStack layout path (`gtkRenderFallback{VStack,HStack}`) does not call `gtk_widget_set_hexpand` on children that have a `.frame(maxWidth: .infinity)` modifier.
+- ScrollView's content allocation: GtkScrolledWindow's child must have hexpand set for `.frame(maxWidth: .infinity)` to translate to the scroll viewport's width.
+
+The "shared" layout path (`gtkRenderSharedVStack`, `gtkCanUseSharedVStackLayout`) may already do this — but the test cases above contain a `Button` (which probably forces the fallback path).
+
+## Why this matters
+
+The QuillEnchanted app is a clone of [Enchanted](https://github.com/AugustDev/enchanted) and is intentionally not modified to "work around" the rendering — visual fidelity is the QuillUI/SwiftOpenUI contract. Fixing the bug here means every flagship app (NetNewsWire, Ice Cubes, etc.) inherits correct layout without per-app patches.
+
+## What I tried
+
+Smoke tested on q-003 (Allwinner H618, OPi Zero 3W, GSK_RENDERER=cairo to avoid Mali GL hangs). Both symptoms are deterministic across restarts.
+
+Happy to PR a fix once the team confirms the right backend file / approach (whether the fix lives in QuillUI's shim layer or upstream in SwiftOpenUI's BackendGTK4).
+
+Begin.
