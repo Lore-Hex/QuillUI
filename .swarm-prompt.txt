@@ -1,0 +1,52 @@
+You are an autonomous coding agent implementing GitHub issue #7 for the Lore-Hex/QuillUI repository.
+
+Your working directory IS a fresh git worktree at this path. Implement the issue's acceptance criteria. When you're done, commit your work to the current branch (gemini/issue-7). Do NOT push or open a PR — the spawn wrapper will handle that.
+
+Constraints:
+- This is a Swift package (Package.swift at the repo root). Use the existing target structure.
+- Do not modify Package.swift's existing target list unless the issue explicitly requires a new target.
+- Do not touch other targets unless the issue scope requires it.
+- The strict Mac-reference verifier targets pixel-perfect macOS appearance via the QuillPaint stack. Don't propose Adwaita or native-Linux feel.
+- Write tests when the issue asks for them. Use Swift Testing (`import Testing`) and `@Test` / `@Suite` macros.
+- Commit early, commit often. Multiple small commits are better than one big one.
+- Final commit message should reference the issue: "Closes #7"
+
+ISSUE TITLE: Add PaintTypography helper with SF-Pro / Inter fallback
+
+ISSUE BODY:
+**Roadmap item 2 — text rendering primitives.**
+
+The current QuillPaint controls don't paint text — the chrome is rendered correctly but labels sit on top via the host. To make the controls truly self-contained AND match macOS metrics, QuillPaint needs a typography helper that emits text into a `PaintContext`.
+
+### Context
+- SF Pro is Apple-licensed and can't be redistributed
+- Inter is the standard SF Pro substitute on Linux (Apache 2.0, very close metrics)
+- macOS body label size: 13pt regular, weight 400, color matches `MacColors.controlText`
+- macOS default button label: 13pt regular, color `MacColors.controlText` for normal, `defaultButtonText` for default
+
+### Acceptance criteria
+- [ ] Extend `PaintContext` protocol with `drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor)`.
+- [ ] `PaintFont` struct with family, size, weight (numeric 100-900).
+- [ ] `MacFonts` namespace: `MacFonts.controlLabel` (13pt regular), `MacFonts.controlLabelEmphasized` (13pt semibold), `MacFonts.titlebarTitle` (13pt regular).
+- [ ] `MacFontResolution` helper that maps `MacFonts.X` to the best-available family ("SF Pro Text" if installed, else "Inter", else "Helvetica Neue", else system default).
+- [ ] Implement `drawText` in `CGPaintContext` using Core Text. Cairo impl can be stubbed if `QuillPaintCairo` isn't done yet.
+- [ ] Wire `MacButtonPaint` to optionally paint a label (new `label: String?` field). Default `nil` (existing behavior preserved). When non-nil, paint centered at button frame.
+- [ ] Extend renderer manifest with labeled button variants. Regenerate fixtures.
+
+### Hints
+- For Cairo, use Pango (cairo_show_text is deprecated for proportional fonts). But Pango is a separate dep — keep the Cairo impl behind `#if canImport(CCairo) && canImport(CPango)` or just stub for now.
+- macOS button labels are vertically off-center by ~1pt (visually optical centering). Use the same offset.
+  - Searchable table: columns = module name, total rows, parity rows, usable rows, partial rows, compile-only rows. Counts derived from the maturity labels in each section. Each module name anchors to the rendered section below.
+  - Client-side filter input that hides/shows table rows by substring match.
+  - The full markdown rendered as HTML below the table.
+- [ ]  — runs the generator and grep-asserts the output has: the title, the table with >= 5 rows, the  filter, and the rendered markdown.
+- [ ] Commit the initial generated  (browsable directly on GitHub).
+- [ ] Idempotent: re-running the script produces byte-identical output.
+
+### Hints
+- The maturity labels in the markdown are , , , , . Count instances of each per section.
+- For a stdlib-only markdown-to-HTML converter, a minimal regex-based pass handling headings, paragraphs, lists, code blocks, and links is enough. Full table rendering not required since the table is already extracted at the top.
+BODY
+)
+
+Begin.
