@@ -37,6 +37,10 @@ struct UpstreamCompatibilityTests {
             .preferredColorScheme(.dark)
             .listStyle(PlainListStyle())
             .matchedGeometryEffect(id: "card", in: Namespace().wrappedValue)
+        _ = Button("Send") {}
+            .buttonStyle(.quillPaint(.macDefault))
+        _ = Button("Prompt") {}
+            .quillPaint(.macBordered)
         _ = Color(.label)
         _ = Color(.systemGray)
         _ = Color(.systemRed)

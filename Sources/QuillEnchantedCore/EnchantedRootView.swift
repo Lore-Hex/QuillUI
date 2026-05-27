@@ -326,11 +326,9 @@ public struct EnchantedRootView: View {
                         Text(sendActionTitle)
                     }
                     .padding(CGFloat(EnchantedVisualMetrics.primaryButtonPadding))
-                    .background(model.isLoading ? QuillColors.warning : QuillColors.primary)
                     .foregroundColor(.white)
-                    .cornerRadius(CGFloat(EnchantedVisualMetrics.primaryButtonRadius))
                 }
-                .buttonStyle(.plain)
+                .quillPaint(.macDefault)
                 .disabled(sendDisabled)
                 .accessibilityLabel(sendActionTitle)
                 .help(sendActionTitle)
@@ -505,10 +503,8 @@ private struct EmptyConversationView: View {
                         }
                         .padding(CGFloat(EnchantedVisualMetrics.promptButtonPadding))
                         .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth), alignment: .leading)
-                        .background(QuillColors.card)
-                        .cornerRadius(CGFloat(EnchantedVisualMetrics.promptButtonRadius))
                     }
-                    .buttonStyle(.plain)
+                    .quillPaint(.macBordered)
                     .frame(width: CGFloat(EnchantedVisualMetrics.promptButtonWidth), alignment: .leading)
                     .accessibilityLabel(prompt.title)
                     .help(prompt.title)

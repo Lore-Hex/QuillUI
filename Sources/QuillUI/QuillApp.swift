@@ -213,6 +213,7 @@ enum QuillLinuxRuntimeHost: CaseIterable, Sendable {
     func run<A: App>(_ appType: A.Type) {
         switch self {
         case .gtk4:
+            QuillGTKButtonPaintAdapter.install()
             GTK4Backend().run(appType)
         case .qt6:
             preconditionFailure("Native Qt6 Linux runtime host is declared but not linked.")

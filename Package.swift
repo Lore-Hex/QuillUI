@@ -305,6 +305,8 @@ let quillUIDependencies: [Target.Dependency] = [
     // `NSImage` typealiases to) and other CoreGraphics-shaped
     // bridge types. macOS uses Apple's real frameworks instead.
     "QuillFoundation",
+    "QuillPaint",
+    "QuillPaintCairo",
     "QuillSwiftUICompatibility",
     "UniformTypeIdentifiers",
     .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
@@ -316,6 +318,19 @@ let quillUIDependencies: [Target.Dependency] = [
 let quillUIDependencies: [Target.Dependency] = [
     "QuillKit",
     .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
+]
+#endif
+
+#if os(Linux)
+let quillPaintCairoTestDependencies: [Target.Dependency] = [
+    "QuillPaintCairo",
+    "QuillPaint",
+    "CGdkPixbuf"
+]
+#else
+let quillPaintCairoTestDependencies: [Target.Dependency] = [
+    "QuillPaintCairo",
+    "QuillPaint"
 ]
 #endif
 
@@ -1485,7 +1500,7 @@ let packageTestTargets: [Target] = {
         ),
         .testTarget(
             name: "QuillPaintCairoTests",
-            dependencies: ["QuillPaintCairo", "QuillPaint"],
+            dependencies: quillPaintCairoTestDependencies,
             swiftSettings: appSwiftSettings
         ),
         // Pins Enchanted's core compatibility surface: markdown /

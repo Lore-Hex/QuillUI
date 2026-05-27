@@ -679,7 +679,6 @@ struct CoreContractMatrixTests {
             "EnchantedVisualMetrics.promptButtonTextWidthInset",
             "EnchantedVisualMetrics.promptButtonWidth",
             "EnchantedVisualMetrics.promptButtonPadding",
-            "EnchantedVisualMetrics.promptButtonRadius",
             "EnchantedVisualMetrics.primaryButtonPadding",
             "EnchantedVisualMetrics.primaryButtonIconSpacing",
             "EnchantedVisualMetrics.primaryButtonRadius",
@@ -708,6 +707,8 @@ struct CoreContractMatrixTests {
             "EnchantedTypography.conversationTitleFontWeight",
             "EnchantedTypography.conversationPreviewFontSize",
             "EnchantedTypography.warningTextFontSize",
+            ".quillPaint(.macDefault)",
+            ".quillPaint(.macBordered)",
             "weight: enchantedFontWeight(EnchantedTypography.appTitleFontWeight)",
             "weight: enchantedFontWeight(EnchantedTypography.sectionTitleFontWeight)",
             "weight: enchantedFontWeight(EnchantedTypography.currentTitleFontWeight)",
@@ -1401,7 +1402,6 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "EnchantedVisualMetrics.promptButtonIconSpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.promptButtonTextWidthInset")
         expectContains(macOSRootView, "EnchantedVisualMetrics.promptButtonPadding")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.promptButtonRadius")
         expectContains(macOSRootView, "Image(systemName: enchantedSystemImageName(prompt.systemImage))")
         expectContains(macOSRootView, "EnchantedVisualMetrics.primaryButtonPadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.primaryButtonIconSpacing")
