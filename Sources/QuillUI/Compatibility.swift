@@ -128,6 +128,13 @@ public struct LayoutPriority: Equatable, Sendable, ExpressibleByFloatLiteral, Ex
     public static let required = LayoutPriority(1000.0)
 }
 
+public extension View {
+    @ViewBuilder
+    func quillGTKSizeRequest(width: Int = -1, height: Int = -1) -> some View {
+        self
+    }
+}
+
 #else
 public struct QuillPlatformColor: @unchecked Sendable {
     public let color: Color
@@ -777,7 +784,48 @@ public extension View {
     func task(priority: TaskPriority = .userInitiated, _ action: @escaping @Sendable () async -> Void) -> some View {
         modifier(QuillTaskOnceViewModifier(priority: priority, action: action))
     }
+
+    @ViewBuilder
+    func quillGTKSizeRequest(width: Int = -1, height: Int = -1) -> some View {
+        #if os(Linux)
+        if QuillBackendRuntimeContext.selectedBackend == .gtk {
+            QuillGTKSizeRequestView(content: self, width: width, height: height)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
+    }
 }
+
+#if os(Linux)
+import CGTK
+import BackendGTK4
+
+private func quillGTKWidgetPointer(_ pointer: OpaquePointer) -> UnsafeMutablePointer<GtkWidget> {
+    UnsafeMutableRawPointer(pointer).assumingMemoryBound(to: GtkWidget.self)
+}
+
+private func quillGTKOpaquePointer(_ widget: UnsafeMutablePointer<GtkWidget>) -> OpaquePointer {
+    OpaquePointer(widget)
+}
+
+struct QuillGTKSizeRequestView<Content: View>: View, PrimitiveView, GTKRenderable {
+    typealias Body = Never
+    var content: Content
+    var width: Int
+    var height: Int
+
+    var body: Never { fatalError("QuillGTKSizeRequestView is a primitive view") }
+
+    func gtkCreateWidget() -> OpaquePointer {
+        let widget = quillGTKWidgetPointer(gtkRenderView(content))
+        gtk_widget_set_size_request(widget, gint(width), gint(height))
+        return quillGTKOpaquePointer(widget)
+    }
+}
+#endif
 #endif
 // (Removed dangling outer #endif — the buggy Linux-only outer wrapper
 // at the top of this file was deleted along with this closer.)
