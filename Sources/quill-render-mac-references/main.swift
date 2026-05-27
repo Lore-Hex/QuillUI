@@ -135,6 +135,30 @@ struct QuillRenderMacReferences {
                 control: MacButtonPaint(),
                 size: wideButtonSize,
                 state: PaintControlState(isFocused: true, isDefault: true)
+            ),
+            ReferenceEntry(
+                name: "textfield-normal",
+                control: MacTextFieldPaint(),
+                size: PaintSize(width: 140, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "textfield-focused",
+                control: MacTextFieldPaint(),
+                size: PaintSize(width: 140, height: 22),
+                state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "textfield-disabled",
+                control: MacTextFieldPaint(),
+                size: PaintSize(width: 140, height: 22),
+                state: PaintControlState(isDisabled: true)
+            ),
+            ReferenceEntry(
+                name: "textfield-wide-normal",
+                control: MacTextFieldPaint(),
+                size: PaintSize(width: 240, height: 22),
+                state: .normal
             )
         ]
     }
