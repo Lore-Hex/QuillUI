@@ -81,7 +81,7 @@ if [[ -z "$ISSUE_NUMBER" ]]; then
 fi
 
 echo "[$ENGINE] Claiming issue #$ISSUE_NUMBER..."
-gh issue edit "$ISSUE_NUMBER" --repo Lore-Hex/QuillUI --add-label "$ENGINE:claimed" >/dev/null
+gh issue edit "$ISSUE_NUMBER" --repo Lore-Hex/QuillUI --add-label "$ENGINE:claimed" --remove-label "loom:issue" >/dev/null
 
 # Pull issue body fresh (post-claim, in case curator updated it)
 ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" --repo Lore-Hex/QuillUI --json title --jq '.title')
