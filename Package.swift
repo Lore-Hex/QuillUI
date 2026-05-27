@@ -219,7 +219,10 @@ var products: [Product] = [
     // CoreGraphics adapter — Apple-only. Generates Mac-reference snapshots
     // from the same paint code that Linux backends use, so reference
     // images can't drift from production output.
-    .library(name: "QuillPaintCoreGraphics", targets: ["QuillPaintCoreGraphics"])
+    .library(name: "QuillPaintCoreGraphics", targets: ["QuillPaintCoreGraphics"]),
+    // CLI that regenerates the Mac-reference PNG fixture set under
+    // Tests/Fixtures/MacReference/ using QuillPaintCoreGraphics. Apple-only.
+    .executable(name: "quill-render-mac-references", targets: ["quill-render-mac-references"])
 ] + quillCanonicalLinuxAppProducts
 
 #if !os(Linux)
@@ -623,6 +626,11 @@ var targets: [Target] = [
         name: "QuillPaintCoreGraphics",
         dependencies: ["QuillPaint"],
         path: "Sources/QuillPaintCoreGraphics"
+    ),
+    .executableTarget(
+        name: "quill-render-mac-references",
+        dependencies: ["QuillPaint", "QuillPaintCoreGraphics"],
+        path: "Sources/quill-render-mac-references"
     ),
     .target(
         name: "QuillKit",
