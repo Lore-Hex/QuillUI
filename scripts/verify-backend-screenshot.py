@@ -511,6 +511,67 @@ def best_prompt_card_row(
     return best
 
 
+def validate_quill_enchanted_mac_reference(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(app_width >= 2220, f"Enchanted reference window is too narrow: {app_width}px")
+    require(app_height >= 1490, f"Enchanted reference window is too short: {app_height}px")
+
+    divider_search = range(left + 590, left + 615)
+    divider_x = max(
+        divider_search,
+        key=lambda x: line_column_score(image, x, top + 50, bottom - 50),
+    )
+    divider_score = line_column_score(image, divider_x, top + 50, bottom - 50)
+    sidebar_width = divider_x - left
+    require(
+        600 <= sidebar_width <= 604 and divider_score >= app_height * 0.70,
+        f"Enchanted-reference sidebar divider mismatch: x={divider_x}, width={sidebar_width}, score={divider_score}",
+    )
+
+    detail_left = divider_x + 1
+    detail_width = right - detail_left + 1
+
+    header_candidates = range(top + 80, top + 120)
+    header_y = max(
+        header_candidates,
+        key=lambda y: line_row_score(image, y, detail_left, right + 1),
+    )
+    header_score = line_row_score(image, header_y, detail_left, right + 1)
+    header_height = header_y - top
+    require(
+        100 <= header_height <= 104 and header_score >= detail_width * 0.70,
+        f"Enchanted-reference header divider mismatch: y={header_y}, height={header_height}, score={header_score}",
+    )
+
+    prompt_card_pixels = pixel_count(
+        image,
+        detail_left + 20,
+        header_y + 20,
+        right - 20,
+        bottom - 300,
+        prompt_card_pixel,
+    )
+    require(
+        prompt_card_pixels >= 20000,
+        f"Enchanted-reference prompt cards were not detected: pixels={prompt_card_pixels}",
+    )
+
+    composer_y_search = range(bottom - 220, bottom - 120)
+    composer_y = max(
+        composer_y_search,
+        key=lambda y: line_row_score(image, y, detail_left, right + 1),
+    )
+    composer_y_score = line_row_score(image, composer_y, detail_left, right + 1)
+    require(
+        composer_y_score >= detail_width * 0.60,
+        f"Enchanted-reference composer divider mismatch: y={composer_y}, score={composer_y_score}",
+    )
+
+    return f"Enchanted reference ok: {app_width}x{app_height}, sidebar={sidebar_width}, header={header_height}"
+
+
 def validate_quill_chat_mac_reference(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -2395,9 +2456,11 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_long_transcript_selection(image))
     elif product == "quill-chat-linux-mac-reference-prompt-send":
         print(validate_quill_chat_mac_reference_prompt_send(image))
+    elif product in {"quill-enchanted-mac-reference", "quill-enchanted-linux-mac-reference"}:
+        print(validate_quill_enchanted_mac_reference(image))
     elif product in {"quill-chat-mac-reference", "quill-chat-linux-mac-reference"}:
         print(validate_quill_chat_mac_reference(image))
-    elif product == "quill-enchanted-qt":
+    elif product == "quill-enchanted-linux-gtk":
         print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-enchanted-qt-list-selection":
         print(validate_quill_enchanted_qt_native(image, minimum_selected_center_offset=430))

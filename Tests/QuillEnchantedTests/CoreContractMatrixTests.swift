@@ -562,9 +562,8 @@ struct CoreContractMatrixTests {
         for needle in [
             "import QuillEnchantedShared",
             "QuillAppWindow.scene(",
-            "EnchantedCopy.windowTitle",
-            "width: Double(EnchantedVisualMetrics.defaultWindowWidth)",
-            "height: Double(EnchantedVisualMetrics.defaultWindowHeight)",
+            "let width = useReferenceSize ? 1114.0 : Double(EnchantedVisualMetrics.defaultWindowWidth)",
+            "let height = useReferenceSize ? 721.0 : Double(EnchantedVisualMetrics.defaultWindowHeight)",
             "EnchantedRootView()"
         ] {
             expectContains(coreApp, needle)
