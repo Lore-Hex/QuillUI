@@ -30,6 +30,8 @@ public enum MacReferenceManifest {
         let wideButtonSize = PaintSize(width: 160, height: 22)
         let sidebarRowSize = PaintSize(width: 220, height: 44)
         let chatBubbleSize = PaintSize(width: 220, height: 52)
+        let verticalScrollerSize = PaintSize(width: 12, height: 120)
+        let horizontalScrollerSize = PaintSize(width: 120, height: 12)
 
         return [
             ReferenceEntry(
@@ -205,6 +207,30 @@ public enum MacReferenceManifest {
                 control: MacChatBubblePaint(sender: .user),
                 size: chatBubbleSize,
                 state: PaintControlState(isPressed: true)
+            ),
+            ReferenceEntry(
+                name: "scroller-vertical-normal",
+                control: MacScrollerPaint(orientation: .vertical, progress: 0.35, coverage: 0.3),
+                size: verticalScrollerSize,
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "scroller-vertical-hovered",
+                control: MacScrollerPaint(orientation: .vertical, progress: 0.35, coverage: 0.3),
+                size: verticalScrollerSize,
+                state: PaintControlState(isHovered: true)
+            ),
+            ReferenceEntry(
+                name: "scroller-horizontal-normal",
+                control: MacScrollerPaint(orientation: .horizontal, progress: 0.35, coverage: 0.3),
+                size: horizontalScrollerSize,
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "scroller-vertical-full-coverage",
+                control: MacScrollerPaint(orientation: .vertical, progress: 1, coverage: 1),
+                size: verticalScrollerSize,
+                state: .normal
             )
         ]
     }
