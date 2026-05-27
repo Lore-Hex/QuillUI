@@ -107,6 +107,30 @@ public enum MacReferenceManifest {
                 control: MacTextFieldPaint(),
                 size: PaintSize(width: 240, height: 22),
                 state: .normal
+            ),
+            ReferenceEntry(
+                name: "windowchrome-focused",
+                control: MacWindowChromePaint(),
+                size: PaintSize(width: 400, height: 28),
+                state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "windowchrome-unfocused",
+                control: MacWindowChromePaint(),
+                size: PaintSize(width: 400, height: 28),
+                state: PaintControlState(isFocused: false)
+            ),
+            ReferenceEntry(
+                name: "windowchrome-focused-hovered-traffic-lights",
+                control: MacWindowChromePaint(),
+                size: PaintSize(width: 400, height: 28),
+                state: PaintControlState(isFocused: true, isHoveringTrafficLights: true)
+            ),
+            ReferenceEntry(
+                name: "windowchrome-with-title",
+                control: MacWindowChromePaint(title: "My Window"),
+                size: PaintSize(width: 400, height: 28),
+                state: PaintControlState(isFocused: true)
             )
         ]
     }
