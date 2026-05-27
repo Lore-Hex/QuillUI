@@ -49,7 +49,17 @@ struct MacReferenceGoldenTests {
                  state: PaintControlState(isFocused: true)),
             Case(name: "textfield-disabled", control: MacTextFieldPaint(),
                  size: PaintSize(width: 140, height: 22),
-                 state: PaintControlState(isDisabled: true))
+                 state: PaintControlState(isDisabled: true)),
+            Case(name: "window-chrome-focused", control: MacWindowChromePaint(title: "QuillUI"),
+                 size: PaintSize(width: 240, height: MacMetrics.WindowChrome.titlebarHeight),
+                 state: PaintControlState(isFocused: true)),
+            Case(name: "window-chrome-unfocused", control: MacWindowChromePaint(title: "QuillUI"),
+                 size: PaintSize(width: 240, height: MacMetrics.WindowChrome.titlebarHeight),
+                 state: .normal),
+            Case(name: "window-chrome-focused-hovered-traffic-lights",
+                 control: MacWindowChromePaint(title: "QuillUI"),
+                 size: PaintSize(width: 240, height: MacMetrics.WindowChrome.titlebarHeight),
+                 state: PaintControlState(isFocused: true, isHoveringTrafficLights: true))
         ]
     }
 

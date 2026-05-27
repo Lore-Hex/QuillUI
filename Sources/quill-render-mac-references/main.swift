@@ -80,6 +80,10 @@ struct QuillRenderMacReferences {
     static func referenceManifest() -> [ReferenceEntry] {
         let buttonSize = PaintSize(width: 80, height: 22)
         let wideButtonSize = PaintSize(width: 160, height: 22)
+        let windowChromeSize = PaintSize(
+            width: 240,
+            height: MacMetrics.WindowChrome.titlebarHeight
+        )
 
         return [
             ReferenceEntry(
@@ -159,6 +163,24 @@ struct QuillRenderMacReferences {
                 control: MacTextFieldPaint(),
                 size: PaintSize(width: 240, height: 22),
                 state: .normal
+            ),
+            ReferenceEntry(
+                name: "window-chrome-focused",
+                control: MacWindowChromePaint(title: "QuillUI"),
+                size: windowChromeSize,
+                state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "window-chrome-unfocused",
+                control: MacWindowChromePaint(title: "QuillUI"),
+                size: windowChromeSize,
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "window-chrome-focused-hovered-traffic-lights",
+                control: MacWindowChromePaint(title: "QuillUI"),
+                size: windowChromeSize,
+                state: PaintControlState(isFocused: true, isHoveringTrafficLights: true)
             )
         ]
     }

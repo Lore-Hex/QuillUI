@@ -1,0 +1,39 @@
+You are an autonomous coding agent implementing GitHub issue #6 for the Lore-Hex/QuillUI repository.
+
+Your working directory IS a fresh git worktree at this path. Implement the issue's acceptance criteria. When you're done, commit your work to the current branch (codex/issue-6). Do NOT push or open a PR — the spawn wrapper will handle that.
+
+Constraints:
+- This is a Swift package (Package.swift at the repo root). Use the existing target structure.
+- Do not modify Package.swift's existing target list unless the issue explicitly requires a new target.
+- Do not touch other targets unless the issue scope requires it.
+- The strict Mac-reference verifier targets pixel-perfect macOS appearance via the QuillPaint stack. Don't propose Adwaita or native-Linux feel.
+- Write tests when the issue asks for them. Use Swift Testing (`import Testing`) and `@Test` / `@Suite` macros.
+- Commit early, commit often. Multiple small commits are better than one big one.
+- Final commit message should reference the issue: "Closes #6"
+
+ISSUE TITLE: Add MacWindowChromePaint (title bar + traffic lights)
+
+ISSUE BODY:
+**Roadmap item 2 — fourth QuillPaint control.**
+
+macOS window chrome — the title bar with three traffic-light buttons (close/minimize/maximize) at the top-left and an optional centered title — is the most distinctively-Apple visual element. Even imperfect Linux ports look macOS-shaped once they have this.
+
+### Context
+- `Sources/QuillPaint/MacButtonPaint.swift` is the pattern
+- macOS reference: standard `NSWindow` titlebar at regular control size
+- Traffic-light buttons are 12pt diameter circles, 8pt horizontal spacing, vertically centered in a 28pt-tall titlebar
+- Colors: close `#FF5F57`, minimize `#FEBC2E`, maximize `#28C840` — only when window is focused. Unfocused state shows three flat grey dots.
+
+### Acceptance criteria
+- [ ] `MacMetrics.WindowChrome` namespace (titlebar height 28, traffic-light diameter 12, horizontal padding 20, button spacing 8, etc.)
+- [ ] `MacColors.windowCloseRed`, `windowMinimizeYellow`, `windowMaximizeGreen`, `windowChromeBackground`, `windowChromeBorderBottom`, `windowChromeUnfocusedDot`.
+- [ ] `MacWindowChromePaint: PaintControl` that paints the full titlebar given a frame. Optional `title: String?` field (paint it for now as a stubbed centered region; real text rendering lands later when typography ships).
+- [ ] State: `isFocused` (Bool — controls traffic-light coloring), `isHoveringTrafficLights` (Bool — shows the close/minimize/maximize glyphs inside the circles).
+- [ ] Tests + at least 3 renderer manifest entries (focused, unfocused, focused-hovered-traffic-lights).
+- [ ] Regenerate fixtures.
+
+### Hints
+- macOS draws subtle gradients on the traffic-light buttons. For v1 just use flat fills; gradient comes later.
+- Traffic lights centered vertically in titlebar: `circleY = titlebarY + (titlebarHeight - diameter) / 2`.
+
+Begin.

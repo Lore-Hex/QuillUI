@@ -40,6 +40,31 @@ public enum MacMetrics {
         public static let borderLineWidth: Double = 1
     }
 
+    public enum WindowChrome {
+        /// Standard regular macOS `NSWindow` titlebar height.
+        public static let titlebarHeight: Double = 28
+
+        /// Window traffic-light buttons are circular 12pt controls.
+        public static let trafficLightDiameter: Double = 12
+
+        /// Left edge of the close button from the titlebar's leading edge.
+        public static let horizontalPadding: Double = 20
+
+        /// Horizontal gap between adjacent traffic-light buttons.
+        public static let buttonSpacing: Double = 8
+
+        public static let borderLineWidth: Double = 1
+
+        /// Hover glyphs are drawn with compact strokes inside each circle.
+        public static let trafficLightGlyphInset: Double = 3.25
+        public static let trafficLightGlyphLineWidth: Double = 1.25
+
+        /// Placeholder for the centered title until real typography lands.
+        public static let titleStubMaxWidth: Double = 72
+        public static let titleStubHeight: Double = 4
+        public static let titleStubCornerRadius: Double = 2
+    }
+
     public enum FocusRing {
         public static let lineWidth: Double = 3
         /// macOS focus rings have a soft outer halo; the line width above
@@ -93,4 +118,16 @@ public enum MacColors {
     /// Hovered-state overlay (rarely visible on macOS — buttons don't have
     /// strong hover states — but kept for hosts that emit it).
     public static let hoveredOverlay = PaintColor(red: 0, green: 0, blue: 0, alpha: 0.03)
+
+    /// Focused macOS titlebar traffic-light colors.
+    public static let windowCloseRed = PaintColor(r: 255, g: 95, b: 87)
+    public static let windowMinimizeYellow = PaintColor(r: 254, g: 188, b: 46)
+    public static let windowMaximizeGreen = PaintColor(r: 40, g: 200, b: 64)
+
+    /// Light-mode macOS titlebar background and bottom hairline.
+    public static let windowChromeBackground = PaintColor(r: 236, g: 236, b: 236)
+    public static let windowChromeBorderBottom = PaintColor(r: 0, g: 0, b: 0, a: 36)
+
+    /// Flat inactive traffic-light dot color used when the window is not focused.
+    public static let windowChromeUnfocusedDot = PaintColor(r: 196, g: 196, b: 196)
 }

@@ -11,19 +11,22 @@ public struct PaintControlState: Equatable, Hashable, Sendable {
     public var isDisabled: Bool
     public var isHovered: Bool
     public var isDefault: Bool
+    public var isHoveringTrafficLights: Bool
 
     public init(
         isPressed: Bool = false,
         isFocused: Bool = false,
         isDisabled: Bool = false,
         isHovered: Bool = false,
-        isDefault: Bool = false
+        isDefault: Bool = false,
+        isHoveringTrafficLights: Bool = false
     ) {
         self.isPressed = isPressed
         self.isFocused = isFocused
         self.isDisabled = isDisabled
         self.isHovered = isHovered
         self.isDefault = isDefault
+        self.isHoveringTrafficLights = isHoveringTrafficLights
     }
 
     public static let normal = PaintControlState()
