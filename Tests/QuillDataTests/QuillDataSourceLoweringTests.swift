@@ -1632,6 +1632,8 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtkCreateStaticLazyGridWidget("))
         #expect(patchedRenderer.contains("views.count <= 64"))
         #expect(patchedRenderer.contains("gtk_swift_grid_attach("))
+        #expect(patchedRenderer.contains("gint(index % columns)"))
+        #expect(patchedRenderer.contains("gint(index / columns)"))
         #expect(patchedRenderer.contains("let staticGrid = gtkCreateStaticLazyGridWidget"))
         #expect(patchedRenderer.contains("for child in multi.children"))
         #expect(patchedRenderer.contains("gtkPropagateSingleChildLayoutMarkers("))

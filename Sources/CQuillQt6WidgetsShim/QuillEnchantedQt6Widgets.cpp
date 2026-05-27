@@ -16,6 +16,7 @@
 #include <QEvent>
 #include <QFileInfo>
 #include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QJsonArray>
@@ -3437,25 +3438,31 @@ void addPromptCards(
     );
     layout->setSpacing(styleInt(style, "emptyStateSpacing"));
     layout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-    const int promptButtonWidth = styleInt(style, "promptButtonWidth");
+    const int promptGridWidth = styleInt(style, "promptGridWidth");
     QVBoxLayout *headerLayout = new QVBoxLayout();
     headerLayout->setContentsMargins(0, 0, 0, 0);
     headerLayout->setSpacing(styleInt(style, "emptyStateHeaderSpacing"));
     headerLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     headerLayout->addWidget(label(title, QStringLiteral("currentTitle")));
     QLabel *subtitleLabel = label(subtitle, QStringLiteral("caption"));
-    subtitleLabel->setFixedWidth(promptButtonWidth);
+    subtitleLabel->setFixedWidth(promptGridWidth);
     subtitleLabel->setVisible(!subtitle.trimmed().isEmpty());
     headerLayout->addWidget(subtitleLabel);
     layout->addLayout(headerLayout);
 
-    QVBoxLayout *promptList = new QVBoxLayout();
-    promptList->setContentsMargins(0, 0, 0, 0);
-    promptList->setSpacing(styleInt(style, "promptListSpacing"));
+    QGridLayout *promptGrid = new QGridLayout();
+    promptGrid->setContentsMargins(0, 0, 0, 0);
+    promptGrid->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    const int promptGridSpacing = styleInt(style, "promptGridSpacing");
+    promptGrid->setHorizontalSpacing(promptGridSpacing);
+    promptGrid->setVerticalSpacing(promptGridSpacing);
+    const int promptGridColumns = std::max(1, styleInt(style, "promptGridColumns"));
+    const int promptCardWidth = styleInt(style, "promptCardWidth");
+    const int promptCardHeight = styleInt(style, "promptCardHeight");
     const int promptButtonIconSpacing = styleInt(style, "promptButtonIconSpacing");
-    const int promptButtonTextWidth = promptButtonWidth - styleInt(style, "promptButtonTextWidthInset");
     const int promptButtonPadding = styleInt(style, "promptButtonPadding");
-    const int promptButtonMinHeight = styleInt(style, "promptButtonMinHeight");
+    const int promptButtonTextWidth = promptCardWidth - (promptButtonPadding * 2);
+    int promptIndex = 0;
     for (const QJsonValue &value : prompts) {
         const QJsonObject promptPayload = requiredPromptObject(value);
         const QString prompt = promptTitle(promptPayload);
@@ -3466,9 +3473,8 @@ void addPromptCards(
         button->setAccessibleDescription(prompt);
         button->setToolTip(prompt);
         button->setStatusTip(prompt);
-        button->setMinimumHeight(promptButtonMinHeight);
-        button->setFixedWidth(promptButtonWidth);
-        QHBoxLayout *buttonLayout = new QHBoxLayout(button);
+        button->setFixedSize(promptCardWidth, promptCardHeight);
+        QVBoxLayout *buttonLayout = new QVBoxLayout(button);
         buttonLayout->setContentsMargins(
             promptButtonPadding,
             promptButtonPadding,
@@ -3476,22 +3482,27 @@ void addPromptCards(
             promptButtonPadding
         );
         buttonLayout->setSpacing(promptButtonIconSpacing);
-        QLabel *promptIcon = iconLabel(promptButtonIcon(systemImage), QStringLiteral("promptButtonIcon"), style);
-        promptIcon->setAttribute(Qt::WA_TransparentForMouseEvents);
         QLabel *promptText = label(prompt, QStringLiteral("promptButtonText"));
         promptText->setWordWrap(true);
         promptText->setFixedWidth(promptButtonTextWidth > 0 ? promptButtonTextWidth : 0);
         promptText->setAttribute(Qt::WA_TransparentForMouseEvents);
-        buttonLayout->addWidget(promptIcon, 0, Qt::AlignVCenter);
-        buttonLayout->addWidget(promptText, 0, Qt::AlignVCenter);
+        buttonLayout->addWidget(promptText, 0, Qt::AlignLeft | Qt::AlignTop);
         buttonLayout->addStretch(1);
+        QHBoxLayout *iconRow = new QHBoxLayout();
+        iconRow->setContentsMargins(0, 0, 0, 0);
+        iconRow->addStretch(1);
+        QLabel *promptIcon = iconLabel(promptButtonIcon(systemImage), QStringLiteral("promptButtonIcon"), style);
+        promptIcon->setAttribute(Qt::WA_TransparentForMouseEvents);
+        iconRow->addWidget(promptIcon, 0, Qt::AlignRight | Qt::AlignBottom);
+        buttonLayout->addLayout(iconRow);
         QObject::connect(button, &QPushButton::clicked, [prompt, promptAction]() {
             promptAction(prompt);
         });
-        promptList->addWidget(button);
+        promptGrid->addWidget(button, promptIndex / promptGridColumns, promptIndex % promptGridColumns);
+        promptIndex += 1;
     }
 
-    layout->addLayout(promptList);
+    layout->addLayout(promptGrid);
     emptyState->setMaximumWidth(styleInt(style, "emptyStateMaxWidth"));
     messageLayout->addWidget(emptyState, 0, Qt::AlignLeft | Qt::AlignTop);
     messageLayout->addStretch(1);

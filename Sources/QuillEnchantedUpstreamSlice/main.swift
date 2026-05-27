@@ -690,7 +690,14 @@ struct EmptyConversaitonView: View {
     }
 
     var body: some View {
-        QuillChatEmptyState(brandTitle: EnchantedCopy.appTitle, prompts: prompts, columns: 4) { prompt in
+        QuillChatEmptyState(
+            brandTitle: EnchantedCopy.appTitle,
+            prompts: prompts,
+            columns: EnchantedVisualMetrics.promptGridColumns,
+            cardWidth: CGFloat(EnchantedVisualMetrics.promptCardWidth),
+            cardHeight: CGFloat(EnchantedVisualMetrics.promptCardHeight),
+            spacing: EnchantedVisualMetrics.promptGridSpacing
+        ) { prompt in
             sendPrompt(prompt.title)
         }
     }

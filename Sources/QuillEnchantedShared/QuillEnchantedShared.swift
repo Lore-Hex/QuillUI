@@ -465,6 +465,11 @@ public enum EnchantedVisualMetrics {
     public static let emptyStateSpacing = 18
     public static let emptyStateHeaderSpacing = 8
     public static let promptListSpacing = 10
+    public static let promptGridColumns = 2
+    public static let promptGridSpacing = 15
+    public static let promptCardWidth = 302
+    public static let promptCardHeight = 128
+    public static let promptGridWidth = promptCardWidth * promptGridColumns + promptGridSpacing * (promptGridColumns - 1)
     public static let promptButtonIconSpacing = 10
     public static let promptButtonTextWidthInset = 80
     public static let promptButtonPadding = 12

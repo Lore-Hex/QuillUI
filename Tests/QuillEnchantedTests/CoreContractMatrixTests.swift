@@ -108,6 +108,35 @@ struct CoreContractMatrixTests {
         #expect(EnchantedPromptCatalog.visibleEmptyConversationPrompts.map(\.kind) == Array(expectedKinds.prefix(4)))
     }
 
+    @Test("empty conversation renders four prompts in a 2x2 grid")
+    func emptyConversationPromptGridMirrorsMacLayout() throws {
+        let rootView = try packageSource("Sources/QuillEnchantedCore/EnchantedRootView.swift")
+        let controls = try packageSource("Sources/QuillUI/Controls.swift")
+        let gtkPatchScript = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+        let fullSourceEmptyStateTemplate = try packageSource("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/EmptyConversaitonView.swift")
+
+        #expect(EnchantedPromptCatalog.visibleEmptyConversationPrompts.count == 4)
+        #expect(EnchantedVisualMetrics.promptGridColumns == 2)
+        #expect(EnchantedVisualMetrics.promptGridWidth == 619)
+        #expect(EnchantedVisualMetrics.promptCardWidth * 2 + EnchantedVisualMetrics.promptGridSpacing == EnchantedVisualMetrics.promptGridWidth)
+        expectContains(rootView, "QuillPrompt(title: $0.title, systemImage: $0.systemImage)")
+        expectContains(rootView, "QuillPromptGrid(")
+        expectContains(rootView, "columns: EnchantedVisualMetrics.promptGridColumns")
+        expectContains(rootView, "cardWidth: CGFloat(EnchantedVisualMetrics.promptCardWidth)")
+        expectContains(rootView, "cardHeight: CGFloat(EnchantedVisualMetrics.promptCardHeight)")
+        expectContains(rootView, "spacing: EnchantedVisualMetrics.promptGridSpacing")
+        expectContains(rootView, ".frame(width: CGFloat(EnchantedVisualMetrics.promptGridWidth), alignment: .leading)")
+        expectDoesNotContain(rootView, "ForEach(prompts, id: \\.title)")
+
+        expectContains(controls, "LazyVGrid(columns: gridColumns, alignment: .leading, spacing: gridSpacing)")
+        expectContains(controls, "Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columns)")
+        expectContains(gtkPatchScript, "views.count <= 64")
+        expectContains(gtkPatchScript, "gint(index / columns)")
+        expectContains(fullSourceEmptyStateTemplate, "SamplePrompts.samples.prefix(4)")
+        expectContains(fullSourceEmptyStateTemplate, "columns: 2")
+        expectDoesNotContain(fullSourceEmptyStateTemplate, "macReferenceOrder")
+    }
+
     @Test("normalizes attachment paths", arguments: pathCases)
     func pathNormalizationContracts(testCase: PathCase) throws {
         let url = try #require(PendingImageAttachment.fileURL(from: testCase.rawPath))
@@ -673,12 +702,12 @@ struct CoreContractMatrixTests {
             "EnchantedVisualMetrics.emptyStateSpacing",
             "EnchantedVisualMetrics.emptyStateHeaderSpacing",
             "EnchantedVisualMetrics.emptyStateMaxWidth",
-            "EnchantedVisualMetrics.promptListSpacing",
-            "EnchantedVisualMetrics.promptButtonIconSpacing",
-            "EnchantedVisualMetrics.promptButtonTextWidthInset",
-            "EnchantedVisualMetrics.promptButtonWidth",
-            "EnchantedVisualMetrics.promptButtonPadding",
-            "EnchantedVisualMetrics.promptButtonRadius",
+            "EnchantedVisualMetrics.promptGridColumns",
+            "EnchantedVisualMetrics.promptGridSpacing",
+            "EnchantedVisualMetrics.promptCardWidth",
+            "EnchantedVisualMetrics.promptCardHeight",
+            "EnchantedVisualMetrics.promptGridWidth",
+            "QuillPromptGrid(",
             "EnchantedVisualMetrics.primaryButtonPadding",
             "EnchantedVisualMetrics.primaryButtonIconSpacing",
             "EnchantedVisualMetrics.primaryButtonRadius",
@@ -948,7 +977,8 @@ struct CoreContractMatrixTests {
         expectContains(upstreamSlice, "EnchantedTypography.messageBodyFontSize")
         expectContains(upstreamSlice, "EnchantedCopy.appTitle")
         expectContains(upstreamSlice, "QuillAppWindow.scene(\n            EnchantedCopy.windowTitle,")
-        expectContains(upstreamSlice, "QuillChatEmptyState(brandTitle: EnchantedCopy.appTitle")
+        expectContains(upstreamSlice, "QuillChatEmptyState(")
+        expectContains(upstreamSlice, "brandTitle: EnchantedCopy.appTitle")
         expectContains(upstreamSlice, "message: EnchantedCopy.unreachableOllamaMessage")
         expectContains(upstreamSlice, "actionTitle: EnchantedCopy.settingsTitle")
         expectContains(upstreamSlice, "content: EnchantedCopy.systemLaunchMessage")
@@ -1203,6 +1233,11 @@ struct CoreContractMatrixTests {
         expectContains(runtime, "emptyStateHeaderSpacing: EnchantedVisualMetrics.emptyStateHeaderSpacing")
         expectContains(runtime, "emptyStateMaxWidth: EnchantedVisualMetrics.emptyStateMaxWidth")
         expectContains(runtime, "promptListSpacing: EnchantedVisualMetrics.promptListSpacing")
+        expectContains(runtime, "promptGridColumns: EnchantedVisualMetrics.promptGridColumns")
+        expectContains(runtime, "promptGridSpacing: EnchantedVisualMetrics.promptGridSpacing")
+        expectContains(runtime, "promptCardWidth: EnchantedVisualMetrics.promptCardWidth")
+        expectContains(runtime, "promptCardHeight: EnchantedVisualMetrics.promptCardHeight")
+        expectContains(runtime, "promptGridWidth: EnchantedVisualMetrics.promptGridWidth")
         expectContains(runtime, "promptButtonIconSpacing: EnchantedVisualMetrics.promptButtonIconSpacing")
         expectContains(runtime, "promptButtonTextWidthInset: EnchantedVisualMetrics.promptButtonTextWidthInset")
         expectContains(runtime, "promptButtonMinHeight: EnchantedVisualMetrics.promptButtonMinHeight")
@@ -1305,6 +1340,11 @@ struct CoreContractMatrixTests {
         expectContains(sharedPrompts, "public static let emptyStateSpacing = 18")
         expectContains(sharedPrompts, "public static let emptyStateHeaderSpacing = 8")
         expectContains(sharedPrompts, "public static let promptListSpacing = 10")
+        expectContains(sharedPrompts, "public static let promptGridColumns = 2")
+        expectContains(sharedPrompts, "public static let promptGridSpacing = 15")
+        expectContains(sharedPrompts, "public static let promptCardWidth = 302")
+        expectContains(sharedPrompts, "public static let promptCardHeight = 128")
+        expectContains(sharedPrompts, "public static let promptGridWidth = promptCardWidth * promptGridColumns + promptGridSpacing * (promptGridColumns - 1)")
         expectContains(sharedPrompts, "public static let promptButtonIconSpacing = 10")
         expectContains(sharedPrompts, "public static let promptButtonTextWidthInset = 80")
         expectContains(sharedPrompts, "public static let promptButtonPadding = 12")
@@ -1391,17 +1431,17 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "EnchantedVisualMetrics.contentPadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.loadingRowSpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.loadingTopPadding")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.promptButtonWidth")
         expectContains(macOSRootView, "EnchantedVisualMetrics.emptyStateMaxWidth")
         expectContains(macOSRootView, "EnchantedVisualMetrics.emptyStatePadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.emptyStateSpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.emptyStateHeaderSpacing")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.promptListSpacing")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.promptButtonIconSpacing")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.promptButtonTextWidthInset")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.promptButtonPadding")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.promptButtonRadius")
-        expectContains(macOSRootView, "Image(systemName: enchantedSystemImageName(prompt.systemImage))")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.promptGridColumns")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.promptGridSpacing")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.promptCardWidth")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.promptCardHeight")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.promptGridWidth")
+        expectContains(macOSRootView, "QuillPrompt(title: $0.title, systemImage: $0.systemImage)")
+        expectContains(macOSRootView, "QuillPromptGrid(")
         expectContains(macOSRootView, "EnchantedVisualMetrics.primaryButtonPadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.primaryButtonIconSpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.primaryButtonRadius")
@@ -1675,16 +1715,21 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateHeaderSpacing))")
         expectContains(macOSRootView, "if !EnchantedCopy.emptyStateSubtitle.isEmpty")
         expectContains(nativeShim, "headerLayout->setSpacing(styleInt(style, \"emptyStateHeaderSpacing\"));\n    headerLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft)")
-        expectContains(nativeShim, "subtitleLabel->setFixedWidth(promptButtonWidth)")
+        expectContains(nativeShim, "subtitleLabel->setFixedWidth(promptGridWidth)")
         expectContains(nativeShim, "subtitleLabel->setVisible(!subtitle.trimmed().isEmpty())")
         expectContains(nativeShim, "headerLayout->addWidget(subtitleLabel)")
-        expectContains(nativeShim, "promptList->setContentsMargins(0, 0, 0, 0)")
-        expectContains(nativeShim, "promptList->setSpacing(styleInt(style, \"promptListSpacing\"))")
-        expectContains(nativeShim, "const int promptButtonWidth = styleInt(style, \"promptButtonWidth\")")
+        expectContains(nativeShim, "QGridLayout *promptGrid = new QGridLayout()")
+        expectContains(nativeShim, "promptGrid->setContentsMargins(0, 0, 0, 0)")
+        expectContains(nativeShim, "promptGrid->setAlignment(Qt::AlignTop | Qt::AlignLeft)")
+        expectContains(nativeShim, "const int promptGridSpacing = styleInt(style, \"promptGridSpacing\")")
+        expectContains(nativeShim, "promptGrid->setHorizontalSpacing(promptGridSpacing)")
+        expectContains(nativeShim, "promptGrid->setVerticalSpacing(promptGridSpacing)")
+        expectContains(nativeShim, "const int promptGridColumns = std::max(1, styleInt(style, \"promptGridColumns\"))")
+        expectContains(nativeShim, "const int promptCardWidth = styleInt(style, \"promptCardWidth\")")
+        expectContains(nativeShim, "const int promptCardHeight = styleInt(style, \"promptCardHeight\")")
         expectContains(nativeShim, "const int promptButtonIconSpacing = styleInt(style, \"promptButtonIconSpacing\")")
-        expectContains(nativeShim, "const int promptButtonTextWidth = promptButtonWidth - styleInt(style, \"promptButtonTextWidthInset\")")
         expectContains(nativeShim, "const int promptButtonPadding = styleInt(style, \"promptButtonPadding\")")
-        expectContains(nativeShim, "const int promptButtonMinHeight = styleInt(style, \"promptButtonMinHeight\")")
+        expectContains(nativeShim, "const int promptButtonTextWidth = promptCardWidth - (promptButtonPadding * 2)")
         expectContains(nativeShim, "buttonLayout->setContentsMargins(\n            promptButtonPadding,\n            promptButtonPadding,\n            promptButtonPadding,\n            promptButtonPadding\n        )")
         expectContains(nativeShim, "buttonLayout->setSpacing(promptButtonIconSpacing)")
         expectContains(nativeShim, "QLabel *promptIcon = iconLabel(promptButtonIcon(systemImage), QStringLiteral(\"promptButtonIcon\"), style)")
@@ -1694,9 +1739,10 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "button->setAccessibleDescription(prompt)")
         expectContains(nativeShim, "button->setToolTip(prompt)")
         expectContains(nativeShim, "button->setStatusTip(prompt)")
-        expectContains(nativeShim, "button->setMinimumHeight(promptButtonMinHeight)")
-        expectContains(nativeShim, "button->setFixedWidth(promptButtonWidth)")
-        expectContains(nativeShim, "buttonLayout->addWidget(promptIcon, 0, Qt::AlignVCenter)")
+        expectContains(nativeShim, "button->setFixedSize(promptCardWidth, promptCardHeight)")
+        expectContains(nativeShim, "buttonLayout->addWidget(promptText, 0, Qt::AlignLeft | Qt::AlignTop)")
+        expectContains(nativeShim, "iconRow->addWidget(promptIcon, 0, Qt::AlignRight | Qt::AlignBottom)")
+        expectContains(nativeShim, "promptGrid->addWidget(button, promptIndex / promptGridColumns, promptIndex % promptGridColumns)")
         expectDoesNotContain(nativeShim, "buttonLayout->setContentsMargins(0, 0, 0, 0)")
         expectDoesNotContain(nativeShim, "buttonLayout->addWidget(promptIcon, 0, Qt::AlignTop)")
         expectContains(nativeShim, "emptyState->setMaximumWidth(styleInt(style, \"emptyStateMaxWidth\"))")

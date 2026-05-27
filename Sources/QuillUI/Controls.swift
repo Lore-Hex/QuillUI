@@ -199,33 +199,21 @@ public struct QuillPromptGrid: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: stackSpacing) {
-            ForEach(0..<rowCount, id: \.self) { row in
-                HStack(alignment: .top, spacing: stackSpacing) {
-                    ForEach(indices(for: row), id: \.self) { index in
-                        promptButton(prompts[index])
-                    }
-                }
+        LazyVGrid(columns: gridColumns, alignment: .leading, spacing: gridSpacing) {
+            ForEach(prompts) { prompt in
+                promptButton(prompt)
             }
         }
     }
 
     #if os(macOS) || os(iOS) || os(visionOS)
-    private var stackSpacing: CGFloat { CGFloat(spacing) }
+    private var gridSpacing: CGFloat { CGFloat(spacing) }
     #else
-    private var stackSpacing: Int { spacing }
+    private var gridSpacing: Double { Double(spacing) }
     #endif
 
-    private var rowCount: Int {
-        guard !prompts.isEmpty else { return 0 }
-        return Int(ceil(Double(prompts.count) / Double(columns)))
-    }
-
-    private func indices(for row: Int) -> [Int] {
-        let start = row * columns
-        let end = min(start + columns, prompts.count)
-        guard start < end else { return [] }
-        return Array(start..<end)
+    private var gridColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columns)
     }
 
     @ViewBuilder
@@ -234,6 +222,8 @@ public struct QuillPromptGrid: View {
             promptCard(prompt)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(prompt.title)
+        .help(prompt.title)
     }
 
     private func promptCard(_ prompt: QuillPrompt) -> some View {
@@ -254,24 +244,17 @@ public struct QuillPromptGrid: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    #if os(Linux)
-    private var promptFontSize: CGFloat { 24 }
-    private var promptCardPadding: Int { 28 }
-    private var promptCardPaddingWidth: CGFloat { CGFloat(promptCardPadding) }
-    private var promptIconSize: CGFloat { 20 }
-    #else
     private var promptFontSize: CGFloat { 15 }
+    #if os(macOS) || os(iOS) || os(visionOS)
     private var promptCardPadding: CGFloat { 15 }
-    private var promptCardPaddingWidth: CGFloat { promptCardPadding }
-    private var promptIconSize: CGFloat { 16 }
+    #else
+    private var promptCardPadding: Int { 15 }
     #endif
+    private var promptCardPaddingWidth: CGFloat { CGFloat(promptCardPadding) }
+    private var promptIconSize: CGFloat { 16 }
 
     private var cardBackgroundColor: Color {
-        #if os(Linux)
-        return Color(hex: "#E8E8EE")
-        #else
-        return Color(hex: "#F4F4F6")
-        #endif
+        Color(hex: "#F4F4F6")
     }
 
     private func promptAccessory(for prompt: QuillPrompt) -> some View {
