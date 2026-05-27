@@ -278,19 +278,33 @@ rather than more CSS patches.
 
 ### Next milestones
 
-1. **SwiftSyntax SwiftPM build plugin.** Replaces `scripts/lower-swiftdata-for-quilldata.sh` and `scripts/lower-swiftui-source-for-linux.sh` regex pipelines with structured macros. Unlocks `@Model`, `@Observable`, and platform-gate lowering. Shippable as a public Swift package so external apps adopt the lowering without copying scripts.
-2. **`QuillPaint` custom paint layer.** Keep SwiftOpenUI for layout, state, diffing, and event routing; override widget draw calls with a Cairo (or Skia) pass that renders Button, TextField, Scrollbar, focus ring, and titlebar at exact macOS metrics, colors, and an SF-Pro-equivalent font (Inter as Linux fallback). Verify per-control against the strict Mac-reference verifier.
-3. **Qt paint pipeline through `QuillPaint`.** Qt visual/profile smoke rows currently sample the GTK fallback binary because no native Qt renderer is linked. Linking Qt against `QuillPaint` makes the Qt matrix load-bearing and validates the abstraction.
-4. **Re-run the strict Mac-reference verifier across the app matrix.** Target ratio 0.95+. The Mac reference becomes a binding contract.
+1. **SwiftSyntax SwiftPM build plugin** — _substantial progress_. Structured SwiftSyntax rewriters in `QuillSourceLowering` replace the regex pipelines for SwiftData (`@Model` / `@Transient` / `#Predicate` → `PersistentModel` / `QuillPredicate`) and SwiftUI (`@main` / `@MainActor` / `@Observable` attribute removal, inline `@MainActor` in function types, `: View, Sendable` → `: View`, `os(macOS)` widening in `#if` conditions with carve-outs for negated and already-widened forms, top-level `#Preview` deletion). CLIs ship as `quill-source-lower` (SwiftData) and `quill-lower-swiftui` (SwiftUI). Remaining: full `@Observable` class rewrite with `@QuillPublished` stored-property wrapping.
+2. **`QuillPaint` custom paint layer** — _scaffold + first controls live_. Renderer-agnostic `PaintControl` / `PaintContext` protocols, macOS-exact `MacMetrics` and `MacColors` tokens, `MacButtonPaint` and `MacTextFieldPaint` controls, and a `QuillPaintCoreGraphics` adapter that paints to a `CGContext`. `quill-render-mac-references` walks a manifest and emits 13 canonical PNG fixtures under `Tests/Fixtures/MacReference/` using the CoreGraphics backend; those fixtures are the literal Mac reference for the strict verifier. Remaining: Cairo binding for real Linux rendering, more controls (Scroller, focus ring typography, SF-Pro-Inter fallback font), and wiring into SwiftOpenUI's GTK button surface.
+3. **Qt paint pipeline through `QuillPaint`.** Qt visual/profile smoke rows currently sample the GTK fallback binary because no native Qt renderer is linked. Linking Qt against `QuillPaint` (through a future QPainter backend) makes the Qt matrix load-bearing and validates the abstraction.
+4. **Re-run the strict Mac-reference verifier across the app matrix** — _foundation laid_. `PixelComparator` is the format-agnostic core: feed it two RGBA byte buffers + a per-channel tolerance, get back match ratio, differing-pixel count, and max channel delta. `MacReferenceGoldenTests` re-renders every committed fixture via the current code and asserts byte-equal match. When the Cairo backend lands, the same comparator powers the strict GTK verifier. Target ratio 0.95+ once Linux output is being compared.
 5. **NetNewsWire to Flathub** as the marquee port. Move from fixtures-only RSS shell to a real reader with OPML import, smart feeds, and persistent state. `flatpak install` is the demo that recruits Apple-dev users.
 6. **Recruit flagship maintainers.** Email NetNewsWire's Brent Simmons and Ice Cubes' Dimillian with installable builds. Offer paid port + maintenance + featured App Center slot at 0% cut.
-7. **`quill doctor` CLI.** Scans an Apple SwiftPM target and reports which APIs are covered, partial, or missing. Apple devs run it against their own app for a tailored gap report.
+7. **`quill-doctor` CLI** — _shipped_. Scans an Apple SwiftPM target for `import ModuleName` statements and cross-references against `docs/apple-package-function-coverage.md`. Reports `MISSING` vs `COVERED` modules with usage locations; `--tickets` flag emits a markdown ticket list with acceptance-criteria checklists, ready to pipe into `gh issue create --body-file -`. Built-in baseline allowlist for Swift stdlib / Foundation / Dispatch / platform modules.
 8. **Public coverage site at quillui.dev.** Auto-generated from the same source contracts that drive `docs/apple-package-function-coverage.md`.
 
 ### Parallel infrastructure
 
 - GitHub Actions CI matrix: Linux x86_64 + aarch64, GTK runtime, Qt compile-check.
 - App Center stub: curated Flathub remote or Flatpak set as the v0 surface for 0% cut distribution.
+
+### Try it on your own Mac app
+
+```sh
+swift run quill-doctor /path/to/your-mac-app --tickets > tickets.md
+swift run quill-doctor /path/to/your-mac-app --tickets | gh issue create --title "Coverage gap" --body-file -
+```
+
+### Regenerate the Mac-reference fixtures (Apple-only)
+
+```sh
+swift run quill-render-mac-references
+ls Tests/Fixtures/MacReference/
+```
 
 ## Run
 
