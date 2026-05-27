@@ -215,7 +215,11 @@ var products: [Product] = [
     // QuillUI on Linux paint through QuillPaint's PaintContext protocol;
     // backend integrations (Cairo on GTK, Skia/QPainter on Qt, CoreGraphics
     // for Mac-reference snapshots) live in separate adapter targets.
-    .library(name: "QuillPaint", targets: ["QuillPaint"])
+    .library(name: "QuillPaint", targets: ["QuillPaint"]),
+    // CoreGraphics adapter — Apple-only. Generates Mac-reference snapshots
+    // from the same paint code that Linux backends use, so reference
+    // images can't drift from production output.
+    .library(name: "QuillPaintCoreGraphics", targets: ["QuillPaintCoreGraphics"])
 ] + quillCanonicalLinuxAppProducts
 
 #if !os(Linux)
@@ -614,6 +618,11 @@ var targets: [Target] = [
         name: "QuillPaint",
         dependencies: [],
         path: "Sources/QuillPaint"
+    ),
+    .target(
+        name: "QuillPaintCoreGraphics",
+        dependencies: ["QuillPaint"],
+        path: "Sources/QuillPaintCoreGraphics"
     ),
     .target(
         name: "QuillKit",
@@ -1442,6 +1451,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillPaintTests",
             dependencies: ["QuillPaint"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "QuillPaintCoreGraphicsTests",
+            dependencies: ["QuillPaintCoreGraphics", "QuillPaint"],
             swiftSettings: appSwiftSettings
         ),
         // Pins Enchanted's core compatibility surface: markdown /
