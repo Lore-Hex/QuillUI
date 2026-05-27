@@ -292,7 +292,7 @@ final class SwiftDataRewriter: SyntaxRewriter {
     }
 }
 
-private extension Trivia {
+extension Trivia {
     var containsNewlineOrSpace: Bool {
         contains { piece in
             switch piece {

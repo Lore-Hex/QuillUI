@@ -12,10 +12,8 @@ import SwiftSyntaxBuilder
 ///   * `@MainActor` attribute removal from any declaration
 ///   * `@MainActor` removal from inline function type expressions
 ///     (e.g. `let action: (@MainActor () -> Void)?` → `let action: (() -> Void)?`)
-///   * `@Observable` attribute removal from any declaration (note: this is
-///     the lightweight removal pass; the full `@Observable` → `QuillObservableObject`
-///     class transformation with `@QuillPublished` stored-property wrapping is
-///     still handled by the shell script's Python helper)
+///   * `@Observable` class lowering to `QuillObservableObject` inheritance
+///     with `@QuillPublished` wrapping for eligible stored properties
 ///   * `Sendable` removal from inheritance lists whenever `View` is also
 ///     present (so `struct Foo: View, Sendable` → `struct Foo: View`)
 ///   * `#Preview { … }` top-level declaration deletion (any `#Preview` macro
@@ -25,8 +23,6 @@ import SwiftSyntaxBuilder
 ///     and already-widened forms (`os(macOS) || os(Linux)`)
 ///
 /// Out of scope for this implementation (still handled by the shell script):
-///   * `@Observable` → `QuillObservableObject` rewrite with `@QuillPublished`
-///     wrapping of stored properties — full Observable class transformation
 ///   * `#Preview` blocks wrapped in `#if … #endif` whose `#endif` is the
 ///     end-of-file marker. Top-level `#Preview` is deleted but the `#if`
 ///     wrapper is not collapsed.
@@ -84,6 +80,28 @@ private final class SwiftUIRewriter: SyntaxRewriter {
     /// Attribute names removed wholesale whether they appear on a declaration
     /// or wrapped around an inline type expression.
     private static let strippedAttributeNames: Set<String> = ["main", "MainActor", "Observable"]
+
+    override func visit(_ node: ClassDeclSyntax) -> DeclSyntax {
+        // Check the input node before recursion: the AttributeListSyntax
+        // override strips @Observable from the recursed class declaration.
+        let isObservableClass = node.attributes.contains { Self.isAttribute($0, named: "Observable") }
+
+        let recursed: ClassDeclSyntax
+        if let visited = super.visit(node).as(ClassDeclSyntax.self) {
+            recursed = visited
+        } else {
+            recursed = node
+        }
+
+        guard isObservableClass else {
+            return DeclSyntax(recursed)
+        }
+
+        var updated = recursed
+        Self.prependQuillObservableObject(to: &updated)
+        Self.wrapEligibleStoredVars(in: &updated)
+        return DeclSyntax(updated)
+    }
 
     /// Overriding `visit(_ node: AttributeListSyntax)` catches every place
     /// SwiftSyntax models an attribute list — decl-level (`@MainActor func`),
@@ -177,6 +195,123 @@ private final class SwiftUIRewriter: SyntaxRewriter {
         var updated = recursed
         updated.condition = newCondition
         return updated
+    }
+
+    // MARK: Observable lowering helpers
+
+    private static func prependQuillObservableObject(to classDecl: inout ClassDeclSyntax) {
+        if var clause = classDecl.inheritanceClause {
+            let alreadyHasObservableObject = clause.inheritedTypes.contains { entry in
+                let type = entry.type.trimmedDescription
+                return type == "ObservableObject" || type == "QuillObservableObject"
+            }
+            if alreadyHasObservableObject { return }
+
+            var types = clause.inheritedTypes
+            let entry = InheritedTypeSyntax(
+                type: TypeSyntax(
+                    IdentifierTypeSyntax(
+                        name: .identifier("QuillObservableObject")
+                    )
+                ),
+                trailingComma: .commaToken(trailingTrivia: .space)
+            )
+            types.insert(entry, at: types.startIndex)
+            clause.inheritedTypes = types
+            classDecl.inheritanceClause = clause
+            return
+        }
+
+        // No existing inheritance clause — create one. Normalize surrounding
+        // trivia so the inserted conformance separates cleanly from both the
+        // class name and opening brace.
+        let nameTrailing = classDecl.name.trailingTrivia
+        classDecl.name = classDecl.name.with(\.trailingTrivia, [])
+
+        var memberBlock = classDecl.memberBlock
+        let braceLeading = memberBlock.leftBrace.leadingTrivia
+        memberBlock.leftBrace = memberBlock.leftBrace.with(\.leadingTrivia, [])
+        classDecl.memberBlock = memberBlock
+
+        let combinedTail = nameTrailing + braceLeading
+        let trailingForObservableObject: Trivia = combinedTail.containsNewlineOrSpace
+            ? combinedTail
+            : .space
+
+        let entry = InheritedTypeSyntax(
+            type: TypeSyntax(
+                IdentifierTypeSyntax(
+                    name: .identifier("QuillObservableObject", trailingTrivia: trailingForObservableObject)
+                )
+            )
+        )
+
+        classDecl.inheritanceClause = InheritanceClauseSyntax(
+            colon: .colonToken(trailingTrivia: .space),
+            inheritedTypes: InheritedTypeListSyntax([entry])
+        )
+    }
+
+    private static func wrapEligibleStoredVars(in classDecl: inout ClassDeclSyntax) {
+        var members = classDecl.memberBlock.members
+        for index in members.indices {
+            var member = members[index]
+            guard var variable = member.decl.as(VariableDeclSyntax.self),
+                  isEligibleStoredObservableVar(variable) else {
+                continue
+            }
+
+            variable = prependQuillPublished(to: variable)
+            member.decl = DeclSyntax(variable)
+            members[index] = member
+        }
+
+        var memberBlock = classDecl.memberBlock
+        memberBlock.members = members
+        classDecl.memberBlock = memberBlock
+    }
+
+    private static func isEligibleStoredObservableVar(_ variable: VariableDeclSyntax) -> Bool {
+        guard variable.bindingSpecifier.text == "var" else { return false }
+
+        let alreadyPublished = variable.attributes.contains {
+            isAttribute($0, named: "Published") || isAttribute($0, named: "QuillPublished")
+        }
+        if alreadyPublished {
+            return false
+        }
+
+        if variable.modifiers.contains(where: { modifier in
+            let name = modifier.name.text
+            return name == "static" || name == "class" || name == "private"
+        }) {
+            return false
+        }
+
+        if variable.bindings.contains(where: { $0.accessorBlock != nil }) {
+            return false
+        }
+
+        return true
+    }
+
+    private static func prependQuillPublished(to variable: VariableDeclSyntax) -> VariableDeclSyntax {
+        let leadingTrivia = variable.leadingTrivia
+        var updated = variable.with(\.leadingTrivia, [])
+        let publishedAttribute = AttributeSyntax(
+            leadingTrivia: leadingTrivia,
+            attributeName: IdentifierTypeSyntax(
+                name: .identifier("QuillPublished", trailingTrivia: .space)
+            )
+        )
+        let attributes = [AttributeListSyntax.Element.attribute(publishedAttribute)] + Array(updated.attributes)
+        updated.attributes = AttributeListSyntax(attributes)
+        return updated
+    }
+
+    private static func isAttribute(_ element: AttributeListSyntax.Element, named name: String) -> Bool {
+        guard case let .attribute(attribute) = element else { return false }
+        return attribute.attributeName.trimmedDescription == name
     }
 }
 
