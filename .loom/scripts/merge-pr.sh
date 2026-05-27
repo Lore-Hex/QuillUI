@@ -1,0 +1,441 @@
+#!/usr/bin/env bash
+# Loom PR Merge - Worktree-safe merge using forge API (GitHub or Gitea)
+# Usage: ./.loom/scripts/merge-pr.sh <pr-number> [options]
+#
+# Merges a PR via the forge API (not `gh pr merge`) to avoid
+# "already used by worktree" errors when merging from inside a worktree.
+#
+# Supports both GitHub and Gitea forges. Forge detection is automatic
+# (see forge-helpers.sh for details).
+#
+# Options:
+#   --no-cleanup-worktree  Skip local worktree cleanup after merge
+#   --cleanup-worktree     (no-op, worktree cleanup is now the default)
+#   --dry-run              Show what would happen without merging
+#   --auto                 Enable auto-merge instead of immediate merge
+#
+# By default, the local worktree is cleaned up after a successful merge.
+# Pass --no-cleanup-worktree to skip this (e.g., when other terminals may
+# have their CWD inside the worktree).
+#
+# Cleanup is restricted to Loom-managed worktrees (those containing the
+# .loom-managed sentinel written by worktree.sh). Worktrees lacking the
+# sentinel are treated as user-owned and never removed. Set
+# LOOM_PRESERVE_WORKTREE=1 to disable cleanup unconditionally for a session.
+#
+# Exit codes:
+#   0 = merged (or auto-merge enabled)
+#   1 = failed
+
+set -euo pipefail
+
+# ANSI color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+error() { echo -e "${RED}Error: $*${NC}" >&2; exit 1; }
+info() { echo -e "${BLUE}$*${NC}"; }
+success() { echo -e "${GREEN}$*${NC}"; }
+warning() { echo -e "${YELLOW}$*${NC}"; }
+
+# Function to show help
+show_help() {
+    cat << EOF
+Loom PR Merge - Worktree-safe merge using forge API (GitHub or Gitea)
+
+Usage: ./.loom/scripts/merge-pr.sh <pr-number> [options]
+
+Merges a PR via the forge API (not 'gh pr merge') to avoid
+"already used by worktree" errors when merging from inside a worktree.
+
+Supports both GitHub and Gitea forges. Forge detection is automatic
+(see forge-helpers.sh for details).
+
+Options:
+  --no-cleanup-worktree  Skip local worktree cleanup after merge
+  --cleanup-worktree     (no-op, worktree cleanup is now the default)
+  --dry-run              Show what would happen without merging
+  --auto                 Enable auto-merge instead of immediate merge
+  -h, --help             Show this help and exit
+
+By default, the local worktree is cleaned up after a successful merge.
+Pass --no-cleanup-worktree to skip this (e.g., when other terminals may
+have their CWD inside the worktree).
+
+Cleanup is restricted to Loom-managed worktrees (those under
+.loom/worktrees/issue-N that contain a .loom-managed sentinel file written
+by worktree.sh). User-provisioned worktrees at other paths are never
+removed. Set LOOM_PRESERVE_WORKTREE=1 to disable cleanup unconditionally
+for a session.
+
+Exit codes:
+  0 = merged (or auto-merge enabled, or --help)
+  1 = failed
+
+Examples:
+  ./.loom/scripts/merge-pr.sh 123
+    Merges PR #123 (squash), deletes remote branch, cleans up worktree
+
+  ./.loom/scripts/merge-pr.sh 123 --dry-run
+    Shows what would happen without merging
+
+  ./.loom/scripts/merge-pr.sh 123 --auto
+    Enables auto-merge instead of merging immediately
+
+  ./.loom/scripts/merge-pr.sh 123 --no-cleanup-worktree
+    Merges PR but leaves the local worktree in place
+EOF
+}
+
+# Early help check — runs before any git/forge initialization so --help works
+# in any directory and without forge authentication.
+if [[ $# -gt 0 ]] && { [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; }; then
+    show_help
+    exit 0
+fi
+
+# Find the main repository root (works from worktrees too)
+# When run from a worktree, git rev-parse --show-toplevel returns the worktree path,
+# not the main repository. This function navigates via the gitdir to find the actual root.
+find_main_repo_root() {
+  local dir
+  dir="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+
+  # Check if this is a worktree (has .git file, not directory)
+  if [[ -f "$dir/.git" ]]; then
+    local gitdir
+    gitdir=$(cat "$dir/.git" | sed 's/^gitdir: //')
+    # gitdir is like /path/to/repo/.git/worktrees/issue-123
+    # main repo is 3 levels up from there
+    local main_repo
+    main_repo=$(dirname "$(dirname "$(dirname "$gitdir")")")
+    if [[ -d "$main_repo/.loom" ]]; then
+      echo "$main_repo"
+      return 0
+    fi
+  fi
+
+  # Not a worktree or fallback - return the git root
+  echo "$dir"
+}
+
+REPO_ROOT="$(find_main_repo_root)" || \
+  error "Not in a git repository"
+
+# Source forge helpers for multi-forge support
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/forge-helpers.sh"
+forge_detect
+
+# Use gh-cached for read-only queries to reduce API calls (see issue #1609)
+# Verify the Python interpreter works too — a broken runtime (e.g. unaccepted
+# Xcode license) would make every subsequent gh call fail with a misleading error.
+GH_CACHED="$REPO_ROOT/.loom/scripts/gh-cached"
+if [[ "$FORGE_TYPE" == "github" ]] && [[ -x "$GH_CACHED" ]] && "$GH_CACHED" --version &>/dev/null; then
+    GH="$GH_CACHED"
+else
+    GH="gh"
+fi
+
+REPO_NWO="$(forge_get_repo_nwo "$GH")" || \
+  error "Could not determine repository. Is 'gh' authenticated?"
+
+# Parse arguments
+PR_NUMBER=""
+CLEANUP_WORKTREE=true
+DRY_RUN=false
+AUTO_MERGE=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --cleanup-worktree) shift ;;  # no-op, cleanup is now the default
+    --no-cleanup-worktree) CLEANUP_WORKTREE=false; shift ;;
+    --dry-run) DRY_RUN=true; shift ;;
+    --auto) AUTO_MERGE=true; shift ;;
+    -*)  error "Unknown option: $1" ;;
+    *)
+      if [[ -z "$PR_NUMBER" ]]; then
+        PR_NUMBER="$1"
+      else
+        error "Unexpected argument: $1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+[[ -z "$PR_NUMBER" ]] && error "Usage: merge-pr.sh <pr-number> [--no-cleanup-worktree] [--dry-run] [--auto]"
+[[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || error "PR number must be numeric: $PR_NUMBER"
+
+# Fetch PR state
+PR_JSON=$(forge_get_pr "$REPO_NWO" "$PR_NUMBER" "$GH") || \
+  error "Could not fetch PR #$PR_NUMBER"
+
+PR_STATE=$(echo "$PR_JSON" | jq -r '.state')
+PR_MERGED=$(echo "$PR_JSON" | jq -r '.merged')
+PR_BRANCH=$(echo "$PR_JSON" | jq -r '.head.ref')
+PR_TITLE=$(echo "$PR_JSON" | jq -r '.title')
+PR_MERGEABLE=$(echo "$PR_JSON" | jq -r '.mergeable')
+
+# Check if already merged
+if [[ "$PR_MERGED" == "true" ]]; then
+  warning "PR #$PR_NUMBER is already merged"
+  exit 0
+fi
+
+# Check if closed (not merged)
+if [[ "$PR_STATE" == "closed" ]]; then
+  error "PR #$PR_NUMBER is closed (not merged)"
+fi
+
+info "Merging PR #$PR_NUMBER: $PR_TITLE"
+info "Branch: $PR_BRANCH"
+
+# Handle auto-merge mode
+#
+# The auto-merge path now mirrors the sync path's resilience patterns:
+#   - Retry on "Base branch was modified" with the same backoff loop.
+#   - Recheck PR state on failure (concurrent shepherd may have already
+#     merged it).
+#   - Fall through to the shared cleanup block (lines below) instead of
+#     exiting early. Cleanup is gated on `PR.merged == true`; if the
+#     server-side merge is still queued, we skip local cleanup and let
+#     loom-clean handle it.
+#
+# See issue #3279.
+if [[ "$AUTO_MERGE" == "true" ]]; then
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "[dry-run] Would enable auto-merge for PR #$PR_NUMBER"
+    exit 0
+  fi
+
+  MAX_MERGE_RETRIES=3
+  MERGE_RETRY_DELAY=5
+  AUTO_MERGE_OK=false
+
+  for MERGE_ATTEMPT in $(seq 1 $MAX_MERGE_RETRIES); do
+    AUTO_MERGE_OUTPUT=""
+    # Prefer loom-auto-merge CLI (forge-agnostic, with poll-and-merge for Gitea)
+    if command -v loom-auto-merge &>/dev/null; then
+      [[ $MERGE_ATTEMPT -eq 1 ]] && info "Using loom-auto-merge (forge-agnostic auto-merge)"
+      if AUTO_MERGE_OUTPUT=$(loom-auto-merge "$PR_NUMBER" --method squash 2>&1); then
+        AUTO_MERGE_OK=true
+        break
+      fi
+    else
+      # Fallback: shell-based forge_auto_merge
+      if AUTO_MERGE_OUTPUT=$(forge_auto_merge "$REPO_NWO" "$PR_NUMBER" 2>&1); then
+        AUTO_MERGE_OK=true
+        break
+      fi
+    fi
+
+    # Check if PR merged despite error (concurrent merge by another shepherd)
+    RECHECK_JSON=$(forge_get_pr_nocache "$REPO_NWO" "$PR_NUMBER" "$GH" 2>/dev/null || echo '{}')
+    RECHECK=$(echo "$RECHECK_JSON" | jq -r '.merged // false')
+    if [[ "$RECHECK" == "true" ]]; then
+      warning "Auto-merge reported error but PR is already merged (race condition)"
+      AUTO_MERGE_OK=true
+      break
+    fi
+
+    # Retry on stale-branch race ("Base branch was modified")
+    if echo "$AUTO_MERGE_OUTPUT" | grep -q "Base branch was modified"; then
+      if [[ $MERGE_ATTEMPT -lt $MAX_MERGE_RETRIES ]]; then
+        info "Branch is behind base branch, updating... (attempt $MERGE_ATTEMPT/$MAX_MERGE_RETRIES)"
+        forge_update_branch "$REPO_NWO" "$PR_NUMBER" 2>/dev/null || \
+          warning "Failed to update branch (continuing anyway)"
+        info "Waiting ${MERGE_RETRY_DELAY}s for branch to sync..."
+        sleep "$MERGE_RETRY_DELAY"
+        MERGE_RETRY_DELAY=$((MERGE_RETRY_DELAY * 2))
+        continue
+      fi
+    fi
+
+    # Other auto-merge errors — fail immediately (no retry would help)
+    error "Failed to enable auto-merge for PR #$PR_NUMBER: $AUTO_MERGE_OUTPUT"
+  done
+
+  if [[ "$AUTO_MERGE_OK" != "true" ]]; then
+    error "Failed to enable auto-merge for PR #$PR_NUMBER after $MAX_MERGE_RETRIES attempts"
+  fi
+
+  success "Auto-merge enabled for PR #$PR_NUMBER"
+
+  # Check whether the server-side merge has already completed. GitHub
+  # auto-merge queues until checks pass, so on most PRs this is still
+  # false right after enabling. If merged, fall through to the shared
+  # cleanup block below. Otherwise skip cleanup — loom-clean will
+  # handle the stale worktree later.
+  POST_AUTO_JSON=$(forge_get_pr_nocache "$REPO_NWO" "$PR_NUMBER" "$GH" 2>/dev/null || echo '{}')
+  POST_AUTO_MERGED=$(echo "$POST_AUTO_JSON" | jq -r '.merged // false')
+  if [[ "$POST_AUTO_MERGED" != "true" ]]; then
+    info "Auto-merge queued (server-side merge pending checks); skipping local cleanup"
+    info "Run loom-clean later to remove the worktree once GitHub completes the merge"
+    exit 0
+  fi
+  info "PR #$PR_NUMBER already merged server-side; running cleanup"
+  # Fall through to the shared cleanup block (branch deletion + worktree).
+fi
+
+# Synchronous-merge path. Skipped when --auto already succeeded server-side
+# (in which case we fall through to the shared cleanup block below).
+if [[ "$AUTO_MERGE" != "true" ]]; then
+
+# Check mergeability
+if [[ "$PR_MERGEABLE" == "false" ]]; then
+  error "PR #$PR_NUMBER has merge conflicts — resolve before merging"
+fi
+
+if [[ "$DRY_RUN" == "true" ]]; then
+  info "[dry-run] Would merge PR #$PR_NUMBER (squash) and delete branch '$PR_BRANCH'"
+  [[ "$CLEANUP_WORKTREE" == "true" ]] && info "[dry-run] Would clean up local worktree"
+  exit 0
+fi
+
+# Merge via API (squash) with retry for stale branch
+MAX_MERGE_RETRIES=3
+MERGE_RETRY_DELAY=5
+
+for MERGE_ATTEMPT in $(seq 1 $MAX_MERGE_RETRIES); do
+  MERGE_RESPONSE=$(forge_merge_pr "$REPO_NWO" "$PR_NUMBER" 2>&1) && break  # Success, exit loop
+
+  # Check if it merged despite error (race condition)
+  RECHECK_JSON=$(forge_get_pr_nocache "$REPO_NWO" "$PR_NUMBER" "$GH" 2>/dev/null || echo '{}')
+  RECHECK=$(echo "$RECHECK_JSON" | jq -r '.merged // false')
+  if [[ "$RECHECK" == "true" ]]; then
+    warning "Merge reported error but PR is merged (race condition)"
+    break
+  fi
+
+  # Check for "Merge already in progress" (HTTP 405)
+  # This happens when auto-merge triggers at the same time as our merge attempt
+  if echo "$MERGE_RESPONSE" | grep -q "Merge already in progress"; then
+    info "Merge already in progress (HTTP 405), waiting for completion..."
+    sleep 5
+    RECHECK_JSON=$(forge_get_pr_nocache "$REPO_NWO" "$PR_NUMBER" "$GH" 2>/dev/null || echo '{}')
+    RECHECK=$(echo "$RECHECK_JSON" | jq -r '.merged // false')
+    if [[ "$RECHECK" == "true" ]]; then
+      success "PR #$PR_NUMBER merged (concurrent merge completed)"
+      break
+    fi
+    # Still not merged after wait - continue retry loop
+    warning "Concurrent merge not yet complete, retrying..."
+    continue
+  fi
+
+  # Check for stale branch error (base branch was modified)
+  if echo "$MERGE_RESPONSE" | grep -q "Base branch was modified"; then
+    if [[ $MERGE_ATTEMPT -lt $MAX_MERGE_RETRIES ]]; then
+      info "Branch is behind base branch, updating... (attempt $MERGE_ATTEMPT/$MAX_MERGE_RETRIES)"
+
+      # Update branch via forge API
+      UPDATE_RESPONSE=$(forge_update_branch "$REPO_NWO" "$PR_NUMBER" 2>&1) || {
+        warning "Failed to update branch: $UPDATE_RESPONSE"
+        # Continue to retry merge anyway - update may have partially succeeded
+      }
+
+      # Wait for branch to sync
+      info "Waiting ${MERGE_RETRY_DELAY}s for branch to sync..."
+      sleep "$MERGE_RETRY_DELAY"
+
+      # Increase delay for next attempt (exponential backoff)
+      MERGE_RETRY_DELAY=$((MERGE_RETRY_DELAY * 2))
+      continue
+    else
+      error "Failed to merge PR #$PR_NUMBER after $MAX_MERGE_RETRIES attempts: Branch remains behind base branch"
+    fi
+  fi
+
+  # Other merge errors - fail immediately
+  error "Failed to merge PR #$PR_NUMBER: $MERGE_RESPONSE"
+done
+
+# Verify merge
+VERIFY_JSON=$(forge_get_pr_nocache "$REPO_NWO" "$PR_NUMBER" "$GH" 2>/dev/null || echo '{}')
+VERIFY_MERGED=$(echo "$VERIFY_JSON" | jq -r '.merged // false')
+if [[ "$VERIFY_MERGED" != "true" ]]; then
+  error "Merge API call returned but PR #$PR_NUMBER is not merged"
+fi
+
+success "PR #$PR_NUMBER merged successfully"
+
+fi  # end synchronous-merge path (AUTO_MERGE != "true")
+
+# NOTE: Label cleanup on linked issues is intentionally skipped.
+# Labels on closed/merged items are harmless — all agents filter by open state.
+# See: https://github.com/rjwalters/loom/issues/2838
+#
+# NOTE: This script does NOT close linked issues. Issue auto-close is GitHub's
+# responsibility — GitHub's PR parser closes issues referenced via `Closes #N`,
+# `Fixes #N`, `Resolves #N` (and the case/tense variants) on merge. Champion's
+# "Verify Issue Auto-Close" step is a belt-and-suspenders check that uses
+# `forge_pr_close_targets` (which delegates to GitHub's GraphQL
+# `closingIssuesReferences` field) to confirm closure. If you are debugging
+# why an unintended issue was closed, look at the PR body and Champion logs,
+# not at this script. See: https://github.com/rjwalters/loom/issues/3267
+
+# Delete remote branch (skip if forge auto-deletes on merge)
+DELETE_BRANCH_ON_MERGE=$(forge_check_auto_delete "$REPO_NWO" "$GH")
+if [[ "$DELETE_BRANCH_ON_MERGE" == "true" ]]; then
+  info "Skipping branch deletion (auto-delete is enabled)"
+else
+  info "Deleting remote branch: $PR_BRANCH"
+  forge_delete_branch "$REPO_NWO" "$PR_BRANCH" && \
+    success "Branch '$PR_BRANCH' deleted" || \
+    warning "Could not delete branch '$PR_BRANCH' (may already be deleted)"
+fi
+
+# Cleanup worktree if requested.
+#
+# Ownership model (see issue #3334): Loom owns worktrees it created under
+# .loom/worktrees/ (marked with a .loom-managed sentinel file by worktree.sh).
+# Any worktree lacking the sentinel is treated as user-owned and is never
+# removed by this script. Operators can also set LOOM_PRESERVE_WORKTREE=1 to
+# skip cleanup unconditionally.
+if [[ "$CLEANUP_WORKTREE" == "true" ]]; then
+  if [[ "${LOOM_PRESERVE_WORKTREE:-0}" == "1" ]]; then
+    info "Worktree cleanup skipped (LOOM_PRESERVE_WORKTREE=1)"
+  else
+    # Extract issue number from branch name (feature/issue-N pattern)
+    ISSUE_NUM=$(echo "$PR_BRANCH" | grep -oE '[0-9]+$' || true)
+    if [[ -n "$ISSUE_NUM" ]]; then
+      WORKTREE_PATH="$REPO_ROOT/.loom/worktrees/issue-$ISSUE_NUM"
+      if [[ -d "$WORKTREE_PATH" ]]; then
+        if [[ ! -f "$WORKTREE_PATH/.loom-managed" ]]; then
+          warning "Worktree at $WORKTREE_PATH lacks .loom-managed sentinel — refusing to remove (user-owned)"
+        else
+          # Check if we're currently inside the worktree being removed
+          CURRENT_DIR="$(pwd -P 2>/dev/null || pwd)"
+          WORKTREE_REAL="$(cd "$WORKTREE_PATH" 2>/dev/null && pwd -P || echo "$WORKTREE_PATH")"
+          IN_WORKTREE=false
+          if [[ "$CURRENT_DIR" == "$WORKTREE_REAL"* ]]; then
+            IN_WORKTREE=true
+            cd "$REPO_ROOT"
+          fi
+          info "Removing worktree: $WORKTREE_PATH"
+          if git -C "$REPO_ROOT" worktree remove "$WORKTREE_PATH" --force 2>/dev/null; then
+            success "Worktree removed"
+            if [[ "$IN_WORKTREE" == "true" ]]; then
+              echo ""
+              warning "Your shell's working directory was inside the removed worktree."
+              warning "Run this command to fix:"
+              echo "  cd $REPO_ROOT"
+            fi
+          else
+            warning "Could not remove worktree at $WORKTREE_PATH"
+          fi
+        fi
+      else
+        info "No worktree found at $WORKTREE_PATH"
+      fi
+    else
+      warning "Could not determine issue number from branch '$PR_BRANCH' for worktree cleanup"
+    fi
+  fi
+fi
+
+success "Done"
