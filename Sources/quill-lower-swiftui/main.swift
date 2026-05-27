@@ -50,14 +50,11 @@ struct QuillLowerSwiftUI {
         pipelines.
 
         Currently lowers:
-          @main, @MainActor, @Observable     attribute removal (decl + inline type)
+          @main, @MainActor                  attribute removal (decl + inline type)
+          @Observable                        -> QuillObservableObject + @QuillPublished
           : View, Sendable                   -> : View
-
-        Out of scope here (still handled by the shell script):
-          * @Observable -> QuillObservableObject class rewrite with @QuillPublished
-            wrapping of stored properties
-          * #Preview block deletion
-          * os(macOS) widening to (os(macOS) || os(Linux)) in #if conditions
+          #Preview blocks                    deleted at top level
+          os(macOS)                          -> (os(macOS) || os(Linux)) in #if conditions
         """
         stream.write(Data((usage + "\n").utf8))
     }

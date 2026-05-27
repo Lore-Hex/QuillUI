@@ -47,8 +47,8 @@ struct SwiftUILoweringTests {
         #expect(lowered.contains("let action: (() -> Void)?"))
     }
 
-    @Test("@Observable attribute is stripped from class decls")
-    func observableAttributeStripped() {
+    @Test("@Observable classes gain QuillObservableObject and publish stored vars")
+    func observableClassLowered() {
         let source = """
         @Observable
         final class AppModel {
@@ -57,8 +57,77 @@ struct SwiftUILoweringTests {
         """
         let lowered = SwiftUILowering().lower(source)
         #expect(!lowered.contains("@Observable"))
-        #expect(lowered.contains("final class AppModel"))
-        #expect(lowered.contains("var title"))
+        #expect(lowered.contains("final class AppModel: QuillObservableObject {"))
+        #expect(lowered.contains("@QuillPublished var title = \"Quill\""))
+    }
+
+    @Test("@Observable inheritance prepends QuillObservableObject")
+    func observableInheritancePrepended() {
+        let source = """
+        @Observable
+        final class Store: Identifiable {}
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("final class Store: QuillObservableObject, Identifiable {}"))
+    }
+
+    @Test("@Observable classes already conforming to ObservableObject are not double-added")
+    func observableExistingObservableObjectIsIdempotent() {
+        let source = """
+        @Observable
+        final class Store: ObservableObject {
+            var value = 1
+        }
+
+        @Observable
+        final class OtherStore: QuillObservableObject {
+            var value = 2
+        }
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("final class Store: ObservableObject {"))
+        #expect(lowered.contains("final class OtherStore: QuillObservableObject {"))
+        #expect(!lowered.contains("QuillObservableObject, ObservableObject"))
+        #expect(!lowered.contains("QuillObservableObject, QuillObservableObject"))
+    }
+
+    @Test("@Observable stored var allowlist matches SwiftOpenUI helper")
+    func observableStoredVarAllowlist() {
+        let source = """
+        @Observable
+        final class Store {
+            var stored = 1
+            public var publicValue = 2
+            internal var internalValue = 3
+            fileprivate var fileValue = 4
+            static var shared = 5
+            class var subclassValue: Int { 6 }
+            private var cached = 7
+            private(set) var readOnly = 8
+            var computed: Int { 9 }
+            @Published var alreadyPublished = 10
+            @QuillPublished var alreadyQuillPublished = 11
+        }
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("@QuillPublished var stored = 1"))
+        #expect(lowered.contains("@QuillPublished public var publicValue = 2"))
+        #expect(lowered.contains("@QuillPublished internal var internalValue = 3"))
+        #expect(lowered.contains("@QuillPublished fileprivate var fileValue = 4"))
+        #expect(lowered.contains("static var shared = 5"))
+        #expect(lowered.contains("class var subclassValue: Int { 6 }"))
+        #expect(lowered.contains("private var cached = 7"))
+        #expect(lowered.contains("private(set) var readOnly = 8"))
+        #expect(lowered.contains("var computed: Int { 9 }"))
+        #expect(lowered.contains("@Published var alreadyPublished = 10"))
+        #expect(lowered.contains("@QuillPublished var alreadyQuillPublished = 11"))
+        #expect(!lowered.contains("@QuillPublished static var"))
+        #expect(!lowered.contains("@QuillPublished class var"))
+        #expect(!lowered.contains("@QuillPublished private var"))
+        #expect(!lowered.contains("@QuillPublished private(set)"))
+        #expect(!lowered.contains("@QuillPublished var computed"))
+        #expect(!lowered.contains("@QuillPublished @Published"))
+        #expect(!lowered.contains("@QuillPublished @QuillPublished"))
     }
 
     @Test("Sendable is dropped from inheritance when View is present")
@@ -124,6 +193,8 @@ struct SwiftUILoweringTests {
         #expect(!lowered.contains("@main"))
         #expect(!lowered.contains("@MainActor"))
         #expect(!lowered.contains("@Observable"))
+        #expect(lowered.contains("final class AppModel: QuillObservableObject"))
+        #expect(lowered.contains("@QuillPublished var title = \"Quill\""))
         #expect(lowered.contains("struct Root: View {"))
         #expect(lowered.contains("let action: (() -> Void)?"))
     }
@@ -150,6 +221,11 @@ struct SwiftUILoweringTests {
     @Test("Idempotent across two passes")
     func idempotent() {
         let source = """
+        @Observable
+        final class AppModel {
+            var count = 0
+        }
+
         @main
         struct MyApp: App {
             @MainActor var state = 0
@@ -166,6 +242,9 @@ struct SwiftUILoweringTests {
         #expect(first == second)
         #expect(!first.contains("@main"))
         #expect(!first.contains("@MainActor"))
+        #expect(!first.contains("@Observable"))
+        #expect(first.contains("final class AppModel: QuillObservableObject {"))
+        #expect(first.contains("@QuillPublished var count = 0"))
         #expect(first.contains("struct Root: View {"))
     }
 
