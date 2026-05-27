@@ -906,6 +906,55 @@ struct QuillDataSourceLoweringTests {
             }
         }
 
+        extension FrameView: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let child = widgetFromOpaque(gtkRenderView(content))
+                let childExpH = gtk_widget_get_hexpand(child) != 0
+                let childExpV = gtk_widget_get_vexpand(child) != 0
+                let wrapper = gtk_swift_fixed_new()!
+                let naturalSize = gtkMeasureWidgetNaturalSize(child)
+                let layout = computeFrameLayout(
+                    childNaturalSize: naturalSize,
+                    width: width,
+                    height: height,
+                    minWidth: minWidth,
+                    minHeight: minHeight,
+                    maxWidth: maxWidth,
+                    maxHeight: maxHeight,
+                    alignment: alignment,
+                    expandsToFillWidth: childExpH,
+                    expandsToFillHeight: childExpV
+                )
+                gtk_widget_set_size_request(
+                    wrapper,
+                    gtkPixelSize(layout.containerSize.width),
+                    gtkPixelSize(layout.containerSize.height)
+                )
+                return opaqueFromWidget(wrapper)
+            }
+
+            private func gtkFrameFlexibleAxis(
+                child: UnsafeMutablePointer<GtkWidget>,
+                childExpH: Bool
+            ) -> OpaquePointer {
+                let naturalSize = gtkMeasureWidgetNaturalSize(child)
+                let layout = computeFrameLayout(
+                    childNaturalSize: naturalSize,
+                    width: width,
+                    height: height,
+                    minWidth: minWidth,
+                    minHeight: minHeight,
+                    maxWidth: maxWidth,
+                    maxHeight: maxHeight,
+                    alignment: alignment,
+                    expandsToFillWidth: childExpH,
+                    expandsToFillHeight: gtk_widget_get_vexpand(child) != 0
+                )
+                gtk_widget_set_size_request(child, gtkPixelSize(layout.containerSize.width), -1)
+                return opaqueFromWidget(child)
+            }
+        }
+
         private class SheetInfo {
             let anchor: UnsafeMutablePointer<GtkWidget>
             let render: () -> OpaquePointer
@@ -1603,6 +1652,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("if gtk_widget_get_hexpand(childWidget) != 0"))
         #expect(patchedRenderer.contains("gtk_widget_set_hexpand(button, buttonWantsHExpand ? 1 : 0)"))
         #expect(patchedRenderer.contains("gtk_widget_set_halign(button, buttonWantsHExpand ? GTK_ALIGN_FILL : GTK_ALIGN_START)"))
+        #expect(patchedRenderer.contains("expandsToFillWidth: childExpH || (width == nil && maxWidth != nil && maxWidth != .infinity)"))
+        #expect(patchedRenderer.contains("expandsToFillHeight: childExpV || (height == nil && maxHeight != nil && maxHeight != .infinity)"))
+        #expect(patchedRenderer.contains("expandsToFillHeight: gtk_widget_get_vexpand(child) != 0 || (height == nil && maxHeight != nil && maxHeight != .infinity)"))
         #expect(patchedRenderer.contains("retainedBox = Unmanaged<ClosureBox>.fromOpaque(userData).retain().toOpaque()"))
         #expect(patchedRenderer.contains("private var gtkStateCache: [String: [AnyStateStorage]] = [:]"))
         #expect(patchedRenderer.contains("private var gtkStateTypeCounters: [String: [String: Int]] = [:]"))

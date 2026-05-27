@@ -1116,6 +1116,30 @@ elif 'gtkDebugLog("button clicked")' not in text:
         1,
     )
 
+finite_frame_width = "childExpH || (width == nil && maxWidth != nil && maxWidth != .infinity)"
+finite_frame_height = "childExpV || (height == nil && maxHeight != nil && maxHeight != .infinity)"
+if finite_frame_width not in text or finite_frame_height not in text:
+    old_frame_fill = '''            expandsToFillWidth: childExpH,
+            expandsToFillHeight: childExpV
+'''
+    new_frame_fill = '''            expandsToFillWidth: childExpH || (width == nil && maxWidth != nil && maxWidth != .infinity),
+            expandsToFillHeight: childExpV || (height == nil && maxHeight != nil && maxHeight != .infinity)
+'''
+    if old_frame_fill not in text:
+        raise SystemExit("SwiftOpenUI FrameView fill sizing shape was not recognized")
+    text = text.replace(old_frame_fill, new_frame_fill)
+
+finite_frame_flexible_height = "gtk_widget_get_vexpand(child) != 0 || (height == nil && maxHeight != nil && maxHeight != .infinity)"
+if finite_frame_flexible_height not in text:
+    old_flexible_axis_frame_fill = '''            expandsToFillWidth: childExpH,
+            expandsToFillHeight: gtk_widget_get_vexpand(child) != 0
+'''
+    new_flexible_axis_frame_fill = '''            expandsToFillWidth: childExpH || (width == nil && maxWidth != nil && maxWidth != .infinity),
+            expandsToFillHeight: gtk_widget_get_vexpand(child) != 0 || (height == nil && maxHeight != nil && maxHeight != .infinity)
+'''
+    if old_flexible_axis_frame_fill in text:
+        text = text.replace(old_flexible_axis_frame_fill, new_flexible_axis_frame_fill)
+
 if "let transientRoot: gpointer?" not in text:
     old_sheet_info = '''private class SheetInfo {
     let anchor: UnsafeMutablePointer<GtkWidget>
