@@ -45,7 +45,7 @@ struct QuillRenderMacReferences {
 
         let resolvedOutput = outputDir ?? Self.defaultOutputDir()
         let renderer = MacReferenceRenderer(margin: 8, scale: scale)
-        let manifest = Self.referenceManifest()
+        let manifest = MacReferenceManifest.entries
 
         do {
             for entry in manifest {
@@ -75,101 +75,6 @@ struct QuillRenderMacReferences {
     }
 
     #if canImport(CoreGraphics) && canImport(ImageIO)
-    /// The full reference manifest. Each entry produces one PNG. Add to this
-    /// list whenever a new control or state combination needs a reference.
-    static func referenceManifest() -> [ReferenceEntry] {
-        let buttonSize = PaintSize(width: 80, height: 22)
-        let wideButtonSize = PaintSize(width: 160, height: 22)
-
-        return [
-            ReferenceEntry(
-                name: "button-normal",
-                control: MacButtonPaint(),
-                size: buttonSize,
-                state: .normal
-            ),
-            ReferenceEntry(
-                name: "button-pressed",
-                control: MacButtonPaint(),
-                size: buttonSize,
-                state: PaintControlState(isPressed: true)
-            ),
-            ReferenceEntry(
-                name: "button-focused",
-                control: MacButtonPaint(),
-                size: buttonSize,
-                state: PaintControlState(isFocused: true)
-            ),
-            ReferenceEntry(
-                name: "button-hovered",
-                control: MacButtonPaint(),
-                size: buttonSize,
-                state: PaintControlState(isHovered: true)
-            ),
-            ReferenceEntry(
-                name: "button-disabled",
-                control: MacButtonPaint(),
-                size: buttonSize,
-                state: PaintControlState(isDisabled: true)
-            ),
-            ReferenceEntry(
-                name: "button-default",
-                control: MacButtonPaint(),
-                size: buttonSize,
-                state: PaintControlState(isDefault: true)
-            ),
-            ReferenceEntry(
-                name: "button-default-pressed",
-                control: MacButtonPaint(),
-                size: buttonSize,
-                state: PaintControlState(isPressed: true, isDefault: true)
-            ),
-            ReferenceEntry(
-                name: "button-wide-normal",
-                control: MacButtonPaint(),
-                size: wideButtonSize,
-                state: .normal
-            ),
-            ReferenceEntry(
-                name: "button-wide-focused-default",
-                control: MacButtonPaint(),
-                size: wideButtonSize,
-                state: PaintControlState(isFocused: true, isDefault: true)
-            ),
-            ReferenceEntry(
-                name: "textfield-normal",
-                control: MacTextFieldPaint(),
-                size: PaintSize(width: 140, height: 22),
-                state: .normal
-            ),
-            ReferenceEntry(
-                name: "textfield-focused",
-                control: MacTextFieldPaint(),
-                size: PaintSize(width: 140, height: 22),
-                state: PaintControlState(isFocused: true)
-            ),
-            ReferenceEntry(
-                name: "textfield-disabled",
-                control: MacTextFieldPaint(),
-                size: PaintSize(width: 140, height: 22),
-                state: PaintControlState(isDisabled: true)
-            ),
-            ReferenceEntry(
-                name: "textfield-wide-normal",
-                control: MacTextFieldPaint(),
-                size: PaintSize(width: 240, height: 22),
-                state: .normal
-            )
-        ]
-    }
-
-    struct ReferenceEntry {
-        let name: String
-        let control: PaintControl
-        let size: PaintSize
-        let state: PaintControlState
-    }
-
     /// Default output path: walk up from the cwd looking for a Package.swift
     /// alongside a Tests/ directory. If found, write to
     /// `Tests/Fixtures/MacReference/`. Otherwise fall back to ./MacReference/.

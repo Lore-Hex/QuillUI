@@ -19,43 +19,9 @@ import CoreGraphics
 /// `swift run quill-render-mac-references` regeneration in the same PR.
 @Suite("Mac-reference fixtures stay in sync with the current renderer")
 struct MacReferenceGoldenTests {
-    struct Case {
-        let name: String
-        let control: PaintControl
-        let size: PaintSize
-        let state: PaintControlState
-    }
-
-    static var cases: [Case] {
-        [
-            Case(name: "button-normal", control: MacButtonPaint(),
-                 size: PaintSize(width: 80, height: 22), state: .normal),
-            Case(name: "button-pressed", control: MacButtonPaint(),
-                 size: PaintSize(width: 80, height: 22),
-                 state: PaintControlState(isPressed: true)),
-            Case(name: "button-focused", control: MacButtonPaint(),
-                 size: PaintSize(width: 80, height: 22),
-                 state: PaintControlState(isFocused: true)),
-            Case(name: "button-disabled", control: MacButtonPaint(),
-                 size: PaintSize(width: 80, height: 22),
-                 state: PaintControlState(isDisabled: true)),
-            Case(name: "button-default", control: MacButtonPaint(),
-                 size: PaintSize(width: 80, height: 22),
-                 state: PaintControlState(isDefault: true)),
-            Case(name: "textfield-normal", control: MacTextFieldPaint(),
-                 size: PaintSize(width: 140, height: 22), state: .normal),
-            Case(name: "textfield-focused", control: MacTextFieldPaint(),
-                 size: PaintSize(width: 140, height: 22),
-                 state: PaintControlState(isFocused: true)),
-            Case(name: "textfield-disabled", control: MacTextFieldPaint(),
-                 size: PaintSize(width: 140, height: 22),
-                 state: PaintControlState(isDisabled: true))
-        ]
-    }
-
-    @Test("Every fixture round-trips through the current renderer", arguments: cases.map(\.name))
+    @Test("Every fixture round-trips through the current renderer", arguments: MacReferenceManifest.entries.map(\.name))
     func fixtureRoundTrip(name: String) throws {
-        let testCase = Self.cases.first { $0.name == name }!
+        let testCase = MacReferenceManifest.entries.first { $0.name == name }!
         let renderer = MacReferenceRenderer(margin: 8, scale: 2.0)
 
         // Render the candidate via the current paint code.

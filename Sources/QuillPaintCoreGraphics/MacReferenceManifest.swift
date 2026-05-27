@@ -1,0 +1,114 @@
+import Foundation
+import QuillPaint
+
+#if canImport(CoreGraphics) && canImport(ImageIO)
+import CoreGraphics
+
+/// A single entry in the Mac-reference manifest.
+public struct ReferenceEntry {
+    public let name: String
+    public let control: PaintControl
+    public let size: PaintSize
+    public let state: PaintControlState
+
+    public init(name: String, control: PaintControl, size: PaintSize, state: PaintControlState) {
+        self.name = name
+        self.control = control
+        self.size = size
+        self.state = state
+    }
+}
+
+/// The canonical list of controls and states that define the "macOS look"
+/// for QuillPaint.
+///
+/// Both the `quill-render-mac-references` tool and `MacReferenceGoldenTests`
+/// use this list to ensure they stay in sync.
+public enum MacReferenceManifest {
+    public static var entries: [ReferenceEntry] {
+        let buttonSize = PaintSize(width: 80, height: 22)
+        let wideButtonSize = PaintSize(width: 160, height: 22)
+
+        return [
+            ReferenceEntry(
+                name: "button-normal",
+                control: MacButtonPaint(),
+                size: buttonSize,
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "button-pressed",
+                control: MacButtonPaint(),
+                size: buttonSize,
+                state: PaintControlState(isPressed: true)
+            ),
+            ReferenceEntry(
+                name: "button-focused",
+                control: MacButtonPaint(),
+                size: buttonSize,
+                state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "button-hovered",
+                control: MacButtonPaint(),
+                size: buttonSize,
+                state: PaintControlState(isHovered: true)
+            ),
+            ReferenceEntry(
+                name: "button-disabled",
+                control: MacButtonPaint(),
+                size: buttonSize,
+                state: PaintControlState(isDisabled: true)
+            ),
+            ReferenceEntry(
+                name: "button-default",
+                control: MacButtonPaint(),
+                size: buttonSize,
+                state: PaintControlState(isDefault: true)
+            ),
+            ReferenceEntry(
+                name: "button-default-pressed",
+                control: MacButtonPaint(),
+                size: buttonSize,
+                state: PaintControlState(isPressed: true, isDefault: true)
+            ),
+            ReferenceEntry(
+                name: "button-wide-normal",
+                control: MacButtonPaint(),
+                size: wideButtonSize,
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "button-wide-focused-default",
+                control: MacButtonPaint(),
+                size: wideButtonSize,
+                state: PaintControlState(isFocused: true, isDefault: true)
+            ),
+            ReferenceEntry(
+                name: "textfield-normal",
+                control: MacTextFieldPaint(),
+                size: PaintSize(width: 140, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "textfield-focused",
+                control: MacTextFieldPaint(),
+                size: PaintSize(width: 140, height: 22),
+                state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "textfield-disabled",
+                control: MacTextFieldPaint(),
+                size: PaintSize(width: 140, height: 22),
+                state: PaintControlState(isDisabled: true)
+            ),
+            ReferenceEntry(
+                name: "textfield-wide-normal",
+                control: MacTextFieldPaint(),
+                size: PaintSize(width: 240, height: 22),
+                state: .normal
+            )
+        ]
+    }
+}
+#endif
