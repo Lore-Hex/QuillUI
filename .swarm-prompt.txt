@@ -1,0 +1,40 @@
+You are an autonomous coding agent implementing GitHub issue #5 for the Lore-Hex/QuillUI repository.
+
+Your working directory IS a fresh git worktree at this path. Implement the issue's acceptance criteria. When you're done, commit your work to the current branch (gemini/issue-5). Do NOT push or open a PR — the spawn wrapper will handle that.
+
+Constraints:
+- This is a Swift package (Package.swift at the repo root). Use the existing target structure.
+- Do not modify Package.swift's existing target list unless the issue explicitly requires a new target.
+- Do not touch other targets unless the issue scope requires it.
+- The strict Mac-reference verifier targets pixel-perfect macOS appearance via the QuillPaint stack. Don't propose Adwaita or native-Linux feel.
+- Write tests when the issue asks for them. Use Swift Testing (`import Testing`) and `@Test` / `@Suite` macros.
+- Commit early, commit often. Multiple small commits are better than one big one.
+- Final commit message should reference the issue: "Closes #5"
+
+ISSUE TITLE: Add MacScrollerPaint as third QuillPaint control
+
+ISSUE BODY:
+**Roadmap item 2 — third QuillPaint control.**
+
+Pattern is well-proven (`MacButtonPaint`, `MacTextFieldPaint` already shipped). Adding `MacScrollerPaint` broadens the matrix and exercises the architecture on a control with substantially different visual primitives.
+
+### Context
+- `Sources/QuillPaint/MacButtonPaint.swift` and `MacTextFieldPaint.swift` are the templates
+- `Sources/QuillPaint/MacMetrics.swift` needs a `Scroller` namespace with macOS-exact metrics
+- macOS reference: `NSScroller` in "overlay" mode (the modern variant) at regular control size
+- Overlay scrollers are a thin track + capsule knob that auto-fades. For the paint layer, draw the knob always; fade animation lives in the host layer.
+
+### Acceptance criteria
+- [ ] `MacMetrics.Scroller` namespace with knob corner radius, track inset, knob width (vertical) / height (horizontal), minimum knob length.
+- [ ] `MacColors.scrollerKnob` and `scrollerTrack` tokens.
+- [ ] `MacScrollerPaint: PaintControl` with `orientation: Orientation` (vertical/horizontal) and a `progress: Double` (0...1) field that controls knob position, plus a `coverage: Double` (0...1) that controls knob length proportional to viewport / content ratio.
+- [ ] State matrix: normal / hovered / pressed (when dragging). Disabled hides the knob entirely.
+- [ ] Tests in `Tests/QuillPaintTests/MacScrollerPaintTests.swift` covering z-order, knob positioning math, and orientation symmetry.
+- [ ] Extend the renderer manifest in `Sources/quill-render-mac-references/main.swift` with at least 4 entries (vertical normal, vertical hovered, horizontal normal, vertical full-coverage where the knob fills the track).
+- [ ] Regenerate fixtures: `swift run quill-render-mac-references` produces the new PNGs in `Tests/Fixtures/MacReference/`.
+
+### Hints
+- The knob's position math: `knobY = trackY + (trackHeight - knobLength) * progress`. Clamp progress to [0, 1].
+- macOS hovered overlay scrollers visibly thicken — bump the knob's width by ~2pt when hovered.
+
+Begin.
