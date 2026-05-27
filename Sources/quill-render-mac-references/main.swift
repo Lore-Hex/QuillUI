@@ -159,6 +159,30 @@ struct QuillRenderMacReferences {
                 control: MacTextFieldPaint(),
                 size: PaintSize(width: 240, height: 22),
                 state: .normal
+            ),
+            ReferenceEntry(
+                name: "scroller-vertical-normal",
+                control: MacScrollerPaint(orientation: .vertical, progress: 0.3, coverage: 0.2),
+                size: PaintSize(width: 14, height: 100),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "scroller-vertical-hovered",
+                control: MacScrollerPaint(orientation: .vertical, progress: 0.3, coverage: 0.2),
+                size: PaintSize(width: 14, height: 100),
+                state: PaintControlState(isHovered: true)
+            ),
+            ReferenceEntry(
+                name: "scroller-horizontal-normal",
+                control: MacScrollerPaint(orientation: .horizontal, progress: 0.7, coverage: 0.3),
+                size: PaintSize(width: 100, height: 14),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "scroller-vertical-full",
+                control: MacScrollerPaint(orientation: .vertical, progress: 0, coverage: 1.0),
+                size: PaintSize(width: 14, height: 100),
+                state: .normal
             )
         ]
     }

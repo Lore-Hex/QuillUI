@@ -47,6 +47,22 @@ public enum MacMetrics {
         /// at full opacity.
         public static let outset: Double = 3
     }
+
+    public enum Scroller {
+        /// Corner radius of the capsule-shaped scroller knob.
+        public static let knobCornerRadius: Double = 3
+
+        /// Inset of the scroller track from the edge of the scroll view.
+        public static let trackInset: Double = 2
+
+        /// Width (vertical) or height (horizontal) of a modern overlay scroller
+        /// knob in its normal state.
+        public static let knobWidth: Double = 6
+
+        /// Minimum length of the scroller knob to ensure it remains a usable
+        /// hit target even in very long content.
+        public static let minKnobLength: Double = 26
+    }
 }
 
 /// macOS system color tokens used by QuillPaint controls.
@@ -93,4 +109,10 @@ public enum MacColors {
     /// Hovered-state overlay (rarely visible on macOS — buttons don't have
     /// strong hover states — but kept for hosts that emit it).
     public static let hoveredOverlay = PaintColor(red: 0, green: 0, blue: 0, alpha: 0.03)
+
+    /// macOS overlay scroller knob color.
+    public static let scrollerKnob = PaintColor(red: 0, green: 0, blue: 0, alpha: 0.35)
+
+    /// macOS overlay scroller track color (very subtle background).
+    public static let scrollerTrack = PaintColor(red: 0, green: 0, blue: 0, alpha: 0.05)
 }
