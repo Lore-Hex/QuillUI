@@ -53,3 +53,8 @@ swiftly-*.tar.gz
 .loom/*.log
 .loom/*.sock
 .loom/logs/
+
+# Swarm worker temp files (written into the worktree by
+# .swarm/spawn-non-claude-worker.sh; should never enter a PR).
+.swarm-prompt.txt
+.swarm-run.log

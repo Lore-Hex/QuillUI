@@ -2,3 +2,8 @@ worktrees/
 logs/
 stop-codex
 stop-gemini
+
+# Per-worktree files written by spawn-non-claude-worker.sh — these
+# accidentally got committed in PR #26 / #27 / #28 because they live
+# inside the worktree at the repo root. Add a sibling .gitignore at
+# the repo root that matches by name regardless of location.
