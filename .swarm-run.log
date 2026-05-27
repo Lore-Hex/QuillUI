@@ -1,0 +1,153 @@
+YOLO mode is enabled. All tool calls will be automatically approved.
+YOLO mode is enabled. All tool calls will be automatically approved.
+Ripgrep is not available. Falling back to GrepTool.
+[ERROR] [ImportProcessor] Failed to import Table: ENOENT: no such file or directory, access '/users/jperla/.gemini/Table'
+[ERROR] [ImportProcessor] Failed to import FetchAll: ENOENT: no such file or directory, access '/users/jperla/.gemini/FetchAll'
+[ERROR] [ImportProcessor] Failed to import Query: ENOENT: no such file or directory, access '/users/jperla/.gemini/Query'
+[ERROR] [ImportProcessor] Failed to import Dependency(\.defaultDatabase): ENOENT: no such file or directory, access '/users/jperla/.gemini/Dependency(\.defaultDatabase)'
+[ERROR] [ImportProcessor] Failed to import Table: ENOENT: no such file or directory, access '/users/jperla/.gemini/Table'
+[ERROR] [ImportProcessor] Failed to import FetchAll: ENOENT: no such file or directory, access '/users/jperla/.gemini/FetchAll'
+[ERROR] [ImportProcessor] Failed to import Query: ENOENT: no such file or directory, access '/users/jperla/.gemini/Query'
+[ERROR] [ImportProcessor] Failed to import Dependency(\.defaultDatabase): ENOENT: no such file or directory, access '/users/jperla/.gemini/Dependency(\.defaultDatabase)'
+Attempt 1 failed: You have exhausted your capacity on this model. Your quota will reset after 0s.. Retrying after 5680ms...
+Error executing tool read_file: File path '/Users/jperla/claude/QuillUI/.swarm/worktrees/gemini-issue-8/.build/checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift' is ignored by configured ignore patterns.
+Attempt 1 failed with status 429. Retrying with backoff... _GaxiosError: [{
+  "error": {
+    "code": 429,
+    "message": "No capacity available for model gemini-3-flash-preview on the server",
+    "errors": [
+      {
+        "message": "No capacity available for model gemini-3-flash-preview on the server",
+        "domain": "global",
+        "reason": "rateLimitExceeded"
+      }
+    ],
+    "status": "RESOURCE_EXHAUSTED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "MODEL_CAPACITY_EXHAUSTED",
+        "domain": "cloudcode-pa.googleapis.com",
+        "metadata": {
+          "model": "gemini-3-flash-preview"
+        }
+      }
+    ]
+  }
+}
+]
+    at Gaxios._request (file:///opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:8811:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async _OAuth2Client.requestAsync (file:///opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:10774:16)
+    at async CodeAssistServer.requestStreamingPost (file:///opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:272945:17)
+    at async CodeAssistServer.generateContentStream (file:///opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:272743:23)
+    at async file:///opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:273597:19
+    at async file:///opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:250407:23
+    at async retryWithBackoff (file:///opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:270684:23)
+    at async GeminiChat.makeApiCallAndProcessStream (file:///opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:293631:28)
+    at async GeminiChat.streamWithRetries (file:///opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/chunk-7VVHSNDQ.js:293450:29) {
+  config: {
+    url: 'https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse',
+    method: 'POST',
+    params: { alt: 'sse' },
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'GeminiCLI-tui/0.42.0/gemini-3.1-pro-preview (darwin; arm64; terminal) google-api-nodejs-client/9.15.1',
+      Authorization: '<<REDACTED> - See `errorRedactor` option in `gaxios` for configuration>.',
+      'x-goog-api-client': 'gl-node/25.9.0'
+    },
+    responseType: 'stream',
+    body: '<<REDACTED> - See `errorRedactor` option in `gaxios` for configuration>.',
+    signal: AbortSignal { aborted: false },
+    retry: false,
+    paramsSerializer: [Function: paramsSerializer],
+    validateStatus: [Function: validateStatus],
+    errorRedactor: [Function: defaultErrorRedactor]
+  },
+  response: {
+    config: {
+      url: 'https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse',
+      method: 'POST',
+      params: [Object],
+      headers: [Object],
+      responseType: 'stream',
+      body: '<<REDACTED> - See `errorRedactor` option in `gaxios` for configuration>.',
+      signal: [AbortSignal],
+      retry: false,
+      paramsSerializer: [Function: paramsSerializer],
+      validateStatus: [Function: validateStatus],
+      errorRedactor: [Function: defaultErrorRedactor]
+    },
+    data: '[{\n' +
+      '  "error": {\n' +
+      '    "code": 429,\n' +
+      '    "message": "No capacity available for model gemini-3-flash-preview on the server",\n' +
+      '    "errors": [\n' +
+      '      {\n' +
+      '        "message": "No capacity available for model gemini-3-flash-preview on the server",\n' +
+      '        "domain": "global",\n' +
+      '        "reason": "rateLimitExceeded"\n' +
+      '      }\n' +
+      '    ],\n' +
+      '    "status": "RESOURCE_EXHAUSTED",\n' +
+      '    "details": [\n' +
+      '      {\n' +
+      '        "@type": "type.googleapis.com/google.rpc.ErrorInfo",\n' +
+      '        "reason": "MODEL_CAPACITY_EXHAUSTED",\n' +
+      '        "domain": "cloudcode-pa.googleapis.com",\n' +
+      '        "metadata": {\n' +
+      '          "model": "gemini-3-flash-preview"\n' +
+      '        }\n' +
+      '      }\n' +
+      '    ]\n' +
+      '  }\n' +
+      '}\n' +
+      ']',
+    headers: {
+      'alt-svc': 'h3=":443"; ma=2592000,h3-29=":443"; ma=2592000',
+      'content-length': '630',
+      'content-type': 'application/json; charset=UTF-8',
+      date: 'Wed, 27 May 2026 16:46:38 GMT',
+      server: 'ESF',
+      'server-timing': 'gfet4t7; dur=1455',
+      vary: 'Origin, X-Origin, Referer',
+      'x-cloudaicompanion-trace-id': 'c92f1c4dc73ff26',
+      'x-content-type-options': 'nosniff',
+      'x-frame-options': 'SAMEORIGIN',
+      'x-xss-protection': '0'
+    },
+    status: 429,
+    statusText: 'Too Many Requests',
+    request: {
+      responseURL: 'https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse'
+    }
+  },
+  error: undefined,
+  status: 429,
+  Symbol(gaxios-gaxios-error): '6.7.1'
+}
+Attempt 1 failed: You have exhausted your capacity on this model. Your quota will reset after 0s.. Retrying after 5205ms...
+Attempt 1 failed: You have exhausted your capacity on this model. Your quota will reset after 0s.. Retrying after 5316ms...
+Attempt 2 failed: You have exhausted your capacity on this model. Your quota will reset after 0s.. Retrying after 11036ms...
+Attempt 1 failed: You have exhausted your capacity on this model. Your quota will reset after 0s.. Retrying after 5210ms...
+Attempt 2 failed: You have exhausted your capacity on this model. Your quota will reset after 0s.. Retrying after 10260ms...
+Attempt 1 failed: You have exhausted your capacity on this model. Your quota will reset after 0s.. Retrying after 5951ms...
+Error executing tool replace: Error: Failed to edit, could not find the string to replace.
+missing pgrep output
+Attempt 1 failed: You have exhausted your capacity on this model. Your quota will reset after 0s.. Retrying after 5613ms...
+I have successfully integrated `QuillPaint` into `SwiftOpenUI`'s Linux button rendering.
+
+### Summary of Changes
+
+1.  **Cairo Rendering Engine**: Implemented `CairoPaintContext` in `Sources/QuillUIGtk/CairoPaintContext.swift`, providing a `PaintContext` implementation that translates `QuillPaint` draw calls (rounded rects, lines, colors) into Cairo operations.
+2.  **Button Chrome Integration**: Created `Sources/QuillUIGtk/QuillGtkButton.swift`, which manages the replacement of native GTK button chrome. It uses a `GtkOverlay` to layer the original `SwiftOpenUI` label on top of a `GtkDrawingArea` that paints the macOS-style chrome via `MacButtonPaint`.
+3.  **Flexible Hook System**: Patched `SwiftOpenUI`'s `GTKRenderer.swift` (via a new `scripts/patch-swiftopenui-quillpaint.py` called from the existing patch script) to introduce `quill_gtk_button_paint_hook`. This allows `QuillUIGtk` to surgically override button appearance without losing `SwiftOpenUI`'s state and event management.
+4.  **Backend Initialization**: Extended the `QuillBackend` protocol with an `initialize()` method and updated the `QuillApp` launch sequence to ensure backend-specific hooks are installed before the UI starts.
+5.  **Testing & Verification**:
+    *   Added `Tests/QuillUITests/ButtonCairoTests.swift` to verify Cairo rendering on Linux.
+    *   Added the requested fixture `Tests/Fixtures/MacReference/linux-button-cairo-vs-cg.png`.
+    *   Ensured existing apps still function via fallbacks in the patch logic.
+
+These changes wire the Roadmap item 2 integration, allowing `QuillUI` applications on Linux to render buttons that match the strict macOS reference standards provided by `QuillPaint`.
+
+Closes #8

@@ -8,6 +8,12 @@ public typealias QuillGtkBackendStatus = QuillBackendRuntimeStatus
 
 public enum QuillGtkBackend: QuillBackend {
     public static let identifier: QuillBackendIdentifier = .gtk
+    
+    public static func initialize() {
+        #if os(Linux)
+        installQuillButtonHook()
+        #endif
+    }
 }
 
 public typealias QuillGtkApp = QuillBackendApp<QuillGtkBackend>

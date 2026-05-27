@@ -1,0 +1,34 @@
+You are an autonomous coding agent implementing GitHub issue #8 for the Lore-Hex/QuillUI repository.
+
+Your working directory IS a fresh git worktree at this path. Implement the issue's acceptance criteria. When you're done, commit your work to the current branch (gemini/issue-8). Do NOT push or open a PR — the spawn wrapper will handle that.
+
+Constraints:
+- This is a Swift package (Package.swift at the repo root). Use the existing target structure.
+- Do not modify Package.swift's existing target list unless the issue explicitly requires a new target.
+- Do not touch other targets unless the issue scope requires it.
+- The strict Mac-reference verifier targets pixel-perfect macOS appearance via the QuillPaint stack. Don't propose Adwaita or native-Linux feel.
+- Write tests when the issue asks for them. Use Swift Testing (`import Testing`) and `@Test` / `@Suite` macros.
+- Commit early, commit often. Multiple small commits are better than one big one.
+- Final commit message should reference the issue: "Closes #8"
+
+ISSUE TITLE: Wire QuillPaint into SwiftOpenUI Linux button rendering
+
+ISSUE BODY:
+Roadmap item 2 — actual integration. Until now QuillPaint is a parallel paint layer with no consumer. This issue wires it into SwiftOpenUI's GTK button so an existing QuillUI app on Linux switches to QuillPaint rendering for buttons. Once this lands, the strict Mac-reference verifier has real Linux output to compare against the committed Tests/Fixtures/MacReference/*.png.
+
+Context:
+- Depends on Cairo binding (issue #4). Coordinate with that ticket — this should land second.
+- SwiftOpenUI is a vendored dep under .build/checkouts/SwiftOpenUI (and patched via scripts/patch-swiftopenui-gtk-css.sh). Look at how GTKRenderer.swift's Button: GTKRenderable extension constructs the GTK button widget — replace the GTK paint with a Cairo-backed QuillPaintContext that calls MacButtonPaint.paint.
+- Strategy: keep SwiftOpenUI for layout, state, events, diffing; override only the paint.
+
+Acceptance criteria:
+- QuillUIGtk (or sibling adapter) provides a Cairo paint hook SwiftOpenUI calls instead of its native GTK button chrome.
+- A renderable demo target launches a window with one button rendered through MacButtonPaint.
+- scripts/linux-backend-check.sh still passes for existing apps that don't opt into QuillPaint yet.
+- Add fixture under Tests/Fixtures/MacReference/linux-button-cairo-vs-cg.png; a comparator test asserts Cairo output matches CG reference within tolerance 4 (anti-aliasing slack).
+
+Hints:
+- AA differs slightly between Cairo and CG. Tolerance 0 will fail; 4-8 per channel is realistic.
+- Demo with one sample app; broader rollout is separate.
+
+Begin.
