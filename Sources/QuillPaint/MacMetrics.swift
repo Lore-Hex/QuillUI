@@ -96,6 +96,26 @@ public enum MacMetrics {
         /// Horizontal padding from the left edge of the window to the first traffic light.
         public static let horizontalPadding: Double = 20
     }
+
+    public enum Slider {
+        /// Height of a regular control size horizontal slider.
+        public static let regularHeight: Double = 22
+
+        /// Diameter of the round knob in a regular size slider.
+        public static let knobDiameter: Double = 16
+
+        /// Thickness of the slider track.
+        public static let trackThickness: Double = 4
+
+        /// Corner radius for the track (capsule).
+        public static let trackCornerRadius: Double = 2
+
+        /// Line width for the knob's subtle border.
+        public static let knobBorderLineWidth: Double = 0.5
+
+        /// Outset of the focus ring from the knob's frame.
+        public static let focusRingOutset: Double = 2
+    }
 }
 
 /// macOS system color tokens used by QuillPaint controls.
@@ -178,4 +198,15 @@ public enum MacColors {
 
     /// Color for traffic light dots when the window is unfocused.
     public static let windowChromeUnfocusedDot = PaintColor(r: 206, g: 206, b: 206)
+
+    // MARK: - Slider
+
+    /// `NSSlider` track fill color (light appearance).
+    public static let sliderTrack = PaintColor(r: 0, g: 0, b: 0, a: 38)
+
+    /// `NSSlider` knob fill color.
+    public static let sliderKnobFill = PaintColor.white
+
+    /// `NSSlider` knob border color.
+    public static let sliderKnobBorder = PaintColor(r: 0, g: 0, b: 0, a: 48)
 }
