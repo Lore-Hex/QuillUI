@@ -116,6 +116,46 @@ public enum MacMetrics {
         /// Outset of the focus ring from the knob's frame.
         public static let focusRingOutset: Double = 2
     }
+
+    public enum PopUpButton {
+        /// Corner radius of a standard `.bordered` `NSPopUpButton` at regular control size.
+        public static let cornerRadius: Double = 5
+
+        /// Height of a regular control size pop-up button.
+        public static let regularHeight: Double = 22
+
+        /// Line width of the bordered chrome's outline.
+        public static let borderLineWidth: Double = 1
+
+        /// Outset of the focus ring from the button's frame.
+        public static let focusRingOutset: Double = 3
+        public static let focusRingLineWidth: Double = 3
+        public static let focusRingCornerRadiusAdjust: Double = 2
+
+        /// Width of the trailing indicator (the double-arrow area).
+        public static let indicatorWidth: Double = 20
+
+        /// Horizontal padding from the leading edge to the label.
+        public static let labelLeadingPadding: Double = 8
+
+        /// Horizontal padding from the trailing edge to the indicator glyph center.
+        public static let indicatorTrailingPadding: Double = 10
+
+        /// Optical centering adjustment for pop-up button labels.
+        public static let labelVerticalOpticalOffset: Double = 1
+
+        /// Width of the chevron (double-arrow) glyph.
+        public static let chevronWidth: Double = 7
+
+        /// Height of each individual arrow in the double-arrow glyph.
+        public static let chevronHeight: Double = 4
+
+        /// Spacing between the up and down arrows in the double-arrow glyph.
+        public static let chevronSpacing: Double = 2
+
+        /// Line width for the chevron stroke.
+        public static let chevronLineWidth: Double = 1.0
+    }
 }
 
 /// macOS system color tokens used by QuillPaint controls.

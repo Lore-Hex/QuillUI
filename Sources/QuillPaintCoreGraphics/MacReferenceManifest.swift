@@ -255,6 +255,30 @@ public enum MacReferenceManifest {
                 control: MacSliderPaint(orientation: .horizontal, progress: 0.5),
                 size: PaintSize(width: 120, height: 22),
                 state: PaintControlState(isDisabled: true)
+            ),
+            ReferenceEntry(
+                name: "popupbutton-normal",
+                control: MacPopUpButtonPaint(label: "Selection"),
+                size: PaintSize(width: 120, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "popupbutton-pressed",
+                control: MacPopUpButtonPaint(label: "Selection"),
+                size: PaintSize(width: 120, height: 22),
+                state: PaintControlState(isPressed: true)
+            ),
+            ReferenceEntry(
+                name: "popupbutton-focused",
+                control: MacPopUpButtonPaint(label: "Selection"),
+                size: PaintSize(width: 120, height: 22),
+                state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "popupbutton-disabled",
+                control: MacPopUpButtonPaint(label: "Selection"),
+                size: PaintSize(width: 120, height: 22),
+                state: PaintControlState(isDisabled: true)
             )
         ]
     }
