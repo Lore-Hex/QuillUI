@@ -1,10 +1,10 @@
 import Foundation
-import CGTK
 import QuillPaint
 import QuillUI
-import BackendGTK4
 
 #if os(Linux)
+import CGTK
+import BackendGTK4
 /// Sets up the QuillPaint button hook in BackendGTK4.
 /// This is called automatically when QuillUIGtk is used.
 private let installHook: Void = {
