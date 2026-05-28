@@ -42,6 +42,16 @@ public final class CairoPaintContext: PaintContext {
         gtk_swift_cairo_stroke(cr)
     }
 
+    public func drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor) {
+        // TODO(quillui): wire GTK/Cairo text rendering. This needs cairo text
+        // shims added to CGTK (gtk_swift_cairo_select_font_face / set_font_size /
+        // show_text / font_extents); until those exist this is a no-op so the
+        // type conforms to PaintContext. Button labels will not render on the
+        // GTK backend yet. The macOS-reference renderer (CGPaintContext) and the
+        // standalone QuillPaintCairo context both implement drawText fully.
+        _ = (string, point, font, color)
+    }
+
     private func addRoundedRectPath(rect: PaintRect, cornerRadius: Double) {
         let x = rect.origin.x
         let y = rect.origin.y
