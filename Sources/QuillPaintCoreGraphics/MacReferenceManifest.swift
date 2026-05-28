@@ -273,6 +273,132 @@ public enum MacReferenceManifest {
                 control: MacSwitchPaint(isOn: true),
                 size: PaintSize(width: MacMetrics.Switch.width, height: MacMetrics.Switch.height),
                 state: PaintControlState(isDisabled: true)
+            ),
+            ReferenceEntry(
+                name: "checkbox-off-normal",
+                control: MacCheckboxPaint(value: .off),
+                size: PaintSize(width: MacMetrics.Checkbox.size, height: MacMetrics.Checkbox.size),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "checkbox-on-normal",
+                control: MacCheckboxPaint(value: .on),
+                size: PaintSize(width: MacMetrics.Checkbox.size, height: MacMetrics.Checkbox.size),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "checkbox-mixed-normal",
+                control: MacCheckboxPaint(value: .mixed),
+                size: PaintSize(width: MacMetrics.Checkbox.size, height: MacMetrics.Checkbox.size),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "checkbox-on-focused",
+                control: MacCheckboxPaint(value: .on),
+                size: PaintSize(width: MacMetrics.Checkbox.size, height: MacMetrics.Checkbox.size),
+                state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "radio-off-normal",
+                control: MacRadioButtonPaint(),
+                size: PaintSize(width: 16, height: 16),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "radio-on-normal",
+                control: MacRadioButtonPaint(),
+                size: PaintSize(width: 16, height: 16),
+                state: PaintControlState(isSelected: true)
+            ),
+            ReferenceEntry(
+                name: "radio-on-focused",
+                control: MacRadioButtonPaint(),
+                size: PaintSize(width: 16, height: 16),
+                state: PaintControlState(isFocused: true, isSelected: true)
+            ),
+            ReferenceEntry(
+                name: "searchfield-normal",
+                control: MacSearchFieldPaint(),
+                size: PaintSize(width: 140, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "searchfield-focused",
+                control: MacSearchFieldPaint(),
+                size: PaintSize(width: 140, height: 22),
+                state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "searchfield-disabled",
+                control: MacSearchFieldPaint(),
+                size: PaintSize(width: 140, height: 22),
+                state: PaintControlState(isDisabled: true)
+            ),
+            ReferenceEntry(
+                name: "searchfield-wide-normal",
+                control: MacSearchFieldPaint(),
+                size: PaintSize(width: 240, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "progressbar-empty",
+                control: MacProgressBarPaint(progress: 0),
+                size: PaintSize(width: 120, height: MacMetrics.ProgressBar.regularHeight),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "progressbar-half",
+                control: MacProgressBarPaint(progress: 0.5),
+                size: PaintSize(width: 120, height: MacMetrics.ProgressBar.regularHeight),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "progressbar-full",
+                control: MacProgressBarPaint(progress: 1.0),
+                size: PaintSize(width: 120, height: MacMetrics.ProgressBar.regularHeight),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "segmented-first-selected",
+                control: MacSegmentedControlPaint(segments: ["One", "Two", "Three"], selectedIndex: 0),
+                size: PaintSize(width: 150, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "segmented-middle-selected",
+                control: MacSegmentedControlPaint(segments: ["One", "Two", "Three"], selectedIndex: 1),
+                size: PaintSize(width: 150, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "segmented-focused",
+                control: MacSegmentedControlPaint(segments: ["One", "Two", "Three"], selectedIndex: 0),
+                size: PaintSize(width: 150, height: 22),
+                state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "segmented-disabled",
+                control: MacSegmentedControlPaint(segments: ["One", "Two", "Three"], selectedIndex: 0),
+                size: PaintSize(width: 150, height: 22),
+                state: PaintControlState(isDisabled: true)
+            ),
+            ReferenceEntry(
+                name: "popupbutton-normal",
+                control: MacPopUpButtonPaint(label: "Selection"),
+                size: PaintSize(width: 120, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "popupbutton-pressed",
+                control: MacPopUpButtonPaint(label: "Selection"),
+                size: PaintSize(width: 120, height: 22),
+                state: PaintControlState(isPressed: true)
+            ),
+            ReferenceEntry(
+                name: "popupbutton-focused",
+                control: MacPopUpButtonPaint(label: "Selection"),
+                size: PaintSize(width: 120, height: 22),
+                state: PaintControlState(isFocused: true)
             )
         ]
     }
