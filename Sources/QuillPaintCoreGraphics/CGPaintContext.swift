@@ -80,6 +80,25 @@ public final class CGPaintContext: PaintContext {
         cgContext.restoreGState()
     }
 
+    public func fillPolygon(_ points: [PaintPoint], color: PaintColor) {
+        guard points.count >= 3 else { return }
+        cgContext.saveGState()
+        cgContext.setFillColor(
+            red: CGFloat(color.red),
+            green: CGFloat(color.green),
+            blue: CGFloat(color.blue),
+            alpha: CGFloat(color.alpha)
+        )
+        cgContext.beginPath()
+        cgContext.move(to: CGPoint(x: points[0].x, y: points[0].y))
+        for point in points.dropFirst() {
+            cgContext.addLine(to: CGPoint(x: point.x, y: point.y))
+        }
+        cgContext.closePath()
+        cgContext.fillPath()
+        cgContext.restoreGState()
+    }
+
     public func drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor) {
         guard !string.isEmpty else { return }
 

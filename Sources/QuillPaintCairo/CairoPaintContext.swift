@@ -45,6 +45,20 @@ public final class CairoPaintContext: PaintContext {
         cairo_restore(pointer)
     }
 
+    public func fillPolygon(_ points: [PaintPoint], color: PaintColor) {
+        guard points.count >= 3 else { return }
+        cairo_save(pointer)
+        applyColor(color)
+        cairo_new_path(pointer)
+        cairo_move_to(pointer, points[0].x, points[0].y)
+        for point in points.dropFirst() {
+            cairo_line_to(pointer, point.x, point.y)
+        }
+        cairo_close_path(pointer)
+        cairo_fill(pointer)
+        cairo_restore(pointer)
+    }
+
     public func drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor) {
         guard !string.isEmpty else { return }
         cairo_save(pointer)

@@ -22,6 +22,9 @@ public protocol PaintContext: AnyObject {
     /// Stroke a single straight line segment.
     func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double)
 
+    /// Fill a closed polygon defined by the given points.
+    func fillPolygon(_ points: [PaintPoint], color: PaintColor)
+
     /// Draw a single text run with `point` as the top-left typographic bounds
     /// origin in paint coordinates.
     func drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor)
@@ -45,6 +48,7 @@ public final class RecordingPaintContext: PaintContext {
         case fillRoundedRect(rect: PaintRect, cornerRadius: Double, color: PaintColor)
         case strokeRoundedRect(rect: PaintRect, cornerRadius: Double, color: PaintColor, lineWidth: Double)
         case strokeLine(from: PaintPoint, to: PaintPoint, color: PaintColor, lineWidth: Double)
+        case fillPolygon(points: [PaintPoint], color: PaintColor)
         case drawText(string: String, point: PaintPoint, font: PaintFont, color: PaintColor)
     }
 
@@ -66,6 +70,10 @@ public final class RecordingPaintContext: PaintContext {
 
     public func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double) {
         calls.append(.strokeLine(from: start, to: end, color: color, lineWidth: lineWidth))
+    }
+
+    public func fillPolygon(_ points: [PaintPoint], color: PaintColor) {
+        calls.append(.fillPolygon(points: points, color: color))
     }
 
     public func drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor) {

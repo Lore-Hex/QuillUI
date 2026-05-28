@@ -231,6 +231,24 @@ public enum MacReferenceManifest {
                 control: MacScrollerPaint(orientation: .vertical, progress: 1, coverage: 1),
                 size: verticalScrollerSize,
                 state: .normal
+            ),
+            ReferenceEntry(
+                name: "disclosure-collapsed",
+                control: MacDisclosureTrianglePaint(isExpanded: false),
+                size: PaintSize(width: 13, height: 13),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "disclosure-expanded",
+                control: MacDisclosureTrianglePaint(isExpanded: true),
+                size: PaintSize(width: 13, height: 13),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "disclosure-disabled",
+                control: MacDisclosureTrianglePaint(isExpanded: false),
+                size: PaintSize(width: 13, height: 13),
+                state: PaintControlState(isDisabled: true)
             )
         ]
     }

@@ -44,6 +44,13 @@ public enum MacMetrics {
         public static let borderLineWidth: Double = 1
     }
 
+    public enum DisclosureTriangle {
+        /// The size of the square bounding box for the disclosure triangle.
+        /// Measured from a standard `NSButton` with `disclosure` bezel style
+        /// on macOS 14.
+        public static let size: Double = 9
+    }
+
     public enum ListRow {
         /// Corner radius for Enchanted sidebar conversation rows.
         public static let cornerRadius: Double = 6
