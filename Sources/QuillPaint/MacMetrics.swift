@@ -116,6 +116,26 @@ public enum MacMetrics {
         /// Outset of the focus ring from the knob's frame.
         public static let focusRingOutset: Double = 2
     }
+
+    public enum Switch {
+        /// Width of a standard `NSSwitch` on macOS 14 Sonoma (1x).
+        public static let width: Double = 38
+
+        /// Height of a standard `NSSwitch` on macOS 14 Sonoma (1x).
+        public static let height: Double = 21
+
+        /// Corner radius of the switch pill (half of height for a full pill).
+        public static let cornerRadius: Double = 10.5
+
+        /// Diameter of the sliding knob.
+        public static let knobDiameter: Double = 19
+
+        /// Inset of the knob from the edges of the pill.
+        public static let knobInset: Double = 1
+
+        /// Width of the subtle border around the switch when OFF.
+        public static let borderLineWidth: Double = 1
+    }
 }
 
 /// macOS system color tokens used by QuillPaint controls.
