@@ -17,6 +17,8 @@ public enum MacMetrics {
         /// Inner padding inside the bordered chrome. Used for the focus ring
         /// inset and the hit target's text/image padding.
         public static let horizontalPadding: Double = 12
+
+        /// Vertical inner padding on macOS 14 Sonoma (1x).
         public static let verticalPadding: Double = 4
 
         /// Height of a regular control size button. Mini and small are smaller.
@@ -31,16 +33,28 @@ public enum MacMetrics {
 
         /// Outset of the focus ring from the button's frame.
         public static let focusRingOutset: Double = 3
+
+        /// Line width of the focus ring on macOS 14 Sonoma (1x).
         public static let focusRingLineWidth: Double = 3
+
+        /// Corner radius adjustment for the focus ring on macOS 14 Sonoma (1x).
         public static let focusRingCornerRadiusAdjust: Double = 2
     }
 
     public enum TextField {
         /// Corner radius of a regular `.bezelStyle = .roundedBezel` text field.
         public static let cornerRadius: Double = 4
+
+        /// Horizontal inner padding on macOS 14 Sonoma (1x).
         public static let horizontalPadding: Double = 5
+
+        /// Vertical inner padding on macOS 14 Sonoma (1x).
         public static let verticalPadding: Double = 3
+
+        /// Height of a regular control size text field on macOS 14 Sonoma (1x).
         public static let regularHeight: Double = 22
+
+        /// Line width of the text field border on macOS 14 Sonoma (1x).
         public static let borderLineWidth: Double = 1
     }
 
@@ -50,8 +64,13 @@ public enum MacMetrics {
     }
 
     public enum ChatBubble {
+        /// Corner radius of Enchanted chat bubbles on macOS 14 Sonoma (1x).
         public static let cornerRadius: Double = 16
+
+        /// Horizontal inner padding for chat bubbles on macOS 14 Sonoma (1x).
         public static let horizontalPadding: Double = 12
+
+        /// Vertical inner padding for chat bubbles on macOS 14 Sonoma (1x).
         public static let verticalPadding: Double = 8
     }
 
@@ -76,6 +95,7 @@ public enum MacMetrics {
     }
 
     public enum FocusRing {
+        /// Width of the focus ring stroke on macOS 14 Sonoma (1x).
         public static let lineWidth: Double = 3
         /// macOS focus rings have a soft outer halo; the line width above
         /// is the main visible stroke and corresponds to the highlight color
