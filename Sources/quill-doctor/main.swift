@@ -7,6 +7,16 @@ struct QuillDoctorCLI {
         let arguments = CommandLine.arguments
         let toolName = (arguments.first as NSString?)?.lastPathComponent ?? "quill-doctor"
 
+        if arguments.contains("--version") {
+            print("quill-doctor \(QuillDoctor.version)")
+            exit(0)
+        }
+
+        if arguments.contains("--help") || arguments.contains("-h") {
+            emitUsage(toolName: toolName, to: FileHandle.standardOutput)
+            exit(0)
+        }
+
         guard arguments.count >= 2 else {
             emitUsage(toolName: toolName, to: FileHandle.standardError)
             exit(64)
@@ -47,6 +57,9 @@ struct QuillDoctorCLI {
             case "--workspace":
                 workspaceMode = true
                 i += 1
+            case "--version":
+                print("quill-doctor \(QuillDoctor.version)")
+                exit(0)
             case "-h", "--help":
                 emitUsage(toolName: toolName, to: FileHandle.standardOutput)
                 exit(0)
@@ -152,6 +165,7 @@ struct QuillDoctorCLI {
     private static func emitUsage(toolName: String, to stream: FileHandle) {
         let usage = """
         Usage: \(toolName) PROJECT_ROOT [--target NAME] [--coverage-doc PATH] [--tickets | --json] [--workspace]
+        Usage: \(toolName) --version
 
         Scans a Swift project for `import ModuleName` statements and reports
         which modules are covered by QuillUI's compatibility matrix.
