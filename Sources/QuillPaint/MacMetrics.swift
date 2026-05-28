@@ -116,6 +116,15 @@ public enum MacMetrics {
         /// Outset of the focus ring from the knob's frame.
         public static let focusRingOutset: Double = 2
     }
+
+    public enum ProgressBar {
+        /// Height of a standard macOS progress bar at regular size.
+        /// Measured from NSProgressIndicator(style: .bar) on macOS 14.
+        public static let regularHeight: Double = 6
+
+        /// Corner radius for the progress bar track and fill (capsule).
+        public static let cornerRadius: Double = 3
+    }
 }
 
 /// macOS system color tokens used by QuillPaint controls.
@@ -209,4 +218,12 @@ public enum MacColors {
 
     /// `NSSlider` knob border color.
     public static let sliderKnobBorder = PaintColor(r: 0, g: 0, b: 0, a: 48)
+
+    // MARK: - Progress Bar
+
+    /// `NSProgressIndicator` track fill color (light appearance).
+    public static let progressBarTrack = PaintColor(r: 0, g: 0, b: 0, a: 24)
+
+    /// `NSProgressIndicator` progress fill color. Matches system accent.
+    public static let progressBarFill = accent
 }

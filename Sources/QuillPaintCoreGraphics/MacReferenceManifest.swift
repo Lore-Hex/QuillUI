@@ -255,6 +255,30 @@ public enum MacReferenceManifest {
                 control: MacSliderPaint(orientation: .horizontal, progress: 0.5),
                 size: PaintSize(width: 120, height: 22),
                 state: PaintControlState(isDisabled: true)
+            ),
+            ReferenceEntry(
+                name: "progressbar-empty",
+                control: MacProgressBarPaint(progress: 0),
+                size: PaintSize(width: 120, height: MacMetrics.ProgressBar.regularHeight),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "progressbar-half",
+                control: MacProgressBarPaint(progress: 0.5),
+                size: PaintSize(width: 120, height: MacMetrics.ProgressBar.regularHeight),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "progressbar-full",
+                control: MacProgressBarPaint(progress: 1.0),
+                size: PaintSize(width: 120, height: MacMetrics.ProgressBar.regularHeight),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "progressbar-disabled",
+                control: MacProgressBarPaint(progress: 0.5),
+                size: PaintSize(width: 120, height: MacMetrics.ProgressBar.regularHeight),
+                state: PaintControlState(isDisabled: true)
             )
         ]
     }
