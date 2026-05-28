@@ -85,6 +85,42 @@ public enum MacReferenceManifest {
                 state: PaintControlState(isFocused: true, isDefault: true)
             ),
             ReferenceEntry(
+                name: "button-labeled-normal",
+                control: MacButtonPaint(label: "OK"),
+                size: buttonSize,
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "button-labeled-pressed",
+                control: MacButtonPaint(label: "OK"),
+                size: buttonSize,
+                state: PaintControlState(isPressed: true)
+            ),
+            ReferenceEntry(
+                name: "button-labeled-disabled",
+                control: MacButtonPaint(label: "OK"),
+                size: buttonSize,
+                state: PaintControlState(isDisabled: true)
+            ),
+            ReferenceEntry(
+                name: "button-labeled-default",
+                control: MacButtonPaint(label: "OK"),
+                size: buttonSize,
+                state: PaintControlState(isDefault: true)
+            ),
+            ReferenceEntry(
+                name: "button-wide-labeled-normal",
+                control: MacButtonPaint(label: "Cancel"),
+                size: wideButtonSize,
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "button-wide-labeled-focused-default",
+                control: MacButtonPaint(label: "Continue"),
+                size: wideButtonSize,
+                state: PaintControlState(isFocused: true, isDefault: true)
+            ),
+            ReferenceEntry(
                 name: "textfield-normal",
                 control: MacTextFieldPaint(),
                 size: PaintSize(width: 140, height: 22),

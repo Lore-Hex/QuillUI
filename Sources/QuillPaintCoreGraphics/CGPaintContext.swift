@@ -4,6 +4,10 @@ import QuillPaint
 #if canImport(CoreGraphics)
 import CoreGraphics
 
+#if canImport(CoreText)
+import CoreText
+#endif
+
 /// `PaintContext` adapter that draws into a `CGContext`. The CoreGraphics
 /// backend is Apple-only — its primary use is generating Mac-reference
 /// snapshots from the same paint code that the GTK Cairo and Qt Skia
@@ -76,6 +80,41 @@ public final class CGPaintContext: PaintContext {
         cgContext.restoreGState()
     }
 
+    public func drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor) {
+        guard !string.isEmpty else { return }
+
+        #if canImport(CoreText)
+        let ctFont = Self.coreTextFont(from: font)
+        let line = CTLineCreateWithAttributedString(
+            NSAttributedString(
+                string: string,
+                attributes: [
+                    kCTFontAttributeName as NSAttributedString.Key: ctFont,
+                    kCTForegroundColorAttributeName as NSAttributedString.Key: CGColor(
+                        red: CGFloat(color.red),
+                        green: CGFloat(color.green),
+                        blue: CGFloat(color.blue),
+                        alpha: CGFloat(color.alpha)
+                    )
+                ]
+            )
+        )
+        var ascent: CGFloat = 0
+        var descent: CGFloat = 0
+        var leading: CGFloat = 0
+        CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+        let lineHeight = ascent + descent + leading
+
+        cgContext.saveGState()
+        cgContext.textMatrix = .identity
+        cgContext.translateBy(x: CGFloat(point.x), y: CGFloat(point.y) + lineHeight)
+        cgContext.scaleBy(x: 1, y: -1)
+        cgContext.textPosition = CGPoint(x: 0, y: descent + leading / 2)
+        CTLineDraw(line, cgContext)
+        cgContext.restoreGState()
+        #endif
+    }
+
     private static func cgRect(from rect: PaintRect) -> CGRect {
         CGRect(
             x: rect.origin.x,
@@ -84,6 +123,38 @@ public final class CGPaintContext: PaintContext {
             height: rect.size.height
         )
     }
+
+    #if canImport(CoreText)
+    private static func coreTextFont(from font: PaintFont) -> CTFont {
+        let resolved = MacFontResolution.resolve(font)
+        let traits: [String: Any] = [
+            kCTFontWeightTrait as String: coreTextWeight(from: resolved.weight)
+        ]
+        var attributes: [String: Any] = [
+            kCTFontTraitsAttribute as String: traits
+        ]
+        if resolved.family != MacFontResolution.systemDefaultFamily {
+            attributes[kCTFontFamilyNameAttribute as String] = resolved.family
+        }
+
+        let descriptor = CTFontDescriptorCreateWithAttributes(attributes as CFDictionary)
+        return CTFontCreateWithFontDescriptor(descriptor, CGFloat(resolved.size), nil)
+    }
+
+    private static func coreTextWeight(from weight: Int) -> CGFloat {
+        switch max(100, min(900, weight)) {
+        case 100: return -0.80
+        case 200: return -0.60
+        case 300: return -0.40
+        case 400: return 0.00
+        case 500: return 0.23
+        case 600: return 0.30
+        case 700: return 0.40
+        case 800: return 0.56
+        default: return 0.62
+        }
+    }
+    #endif
 }
 
 #endif

@@ -8,13 +8,14 @@ import Foundation
 ///      `control` light grey)
 ///   3. button chrome border (subtle separator stroke)
 ///   4. (optional) pressed-state darkening overlay
+///   5. (optional) centered label
 ///
-/// Text and image content are NOT painted here — labels are layered on top
-/// by the SwiftOpenUI integration layer (a later iteration). That keeps
-/// `MacButtonPaint` purely about chrome and lets it stay testable without
-/// pulling in font rendering.
 public struct MacButtonPaint: PaintControl {
-    public init() {}
+    public var label: String?
+
+    public init(label: String? = nil) {
+        self.label = label
+    }
 
     public func paint(into context: PaintContext, frame: PaintRect, state: PaintControlState) {
         // Focus ring (behind, when focused and not disabled)
@@ -61,6 +62,16 @@ public struct MacButtonPaint: PaintControl {
                 color: MacColors.hoveredOverlay
             )
         }
+
+        if let label, !label.isEmpty {
+            let font = MacFonts.controlLabel
+            let size = PaintTextMetrics.measure(label, font: font)
+            let point = PaintPoint(
+                x: frame.midX - size.width / 2,
+                y: frame.midY - size.height / 2 + MacMetrics.Button.labelVerticalOpticalOffset
+            )
+            context.drawText(label, at: point, font: font, color: Self.labelColor(for: state))
+        }
     }
 
     /// Color used to fill the button chrome based on the current state.
@@ -80,5 +91,15 @@ public struct MacButtonPaint: PaintControl {
             return MacColors.defaultButtonFill
         }
         return MacColors.control
+    }
+
+    static func labelColor(for state: PaintControlState) -> PaintColor {
+        if state.isDisabled {
+            return MacColors.disabledControlText
+        }
+        if state.isDefault {
+            return MacColors.defaultButtonText
+        }
+        return MacColors.controlText
     }
 }

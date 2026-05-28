@@ -45,6 +45,29 @@ public final class CairoPaintContext: PaintContext {
         cairo_restore(pointer)
     }
 
+    public func drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor) {
+        guard !string.isEmpty else { return }
+        cairo_save(pointer)
+        applyColor(color)
+        // Cairo's "toy" text API is sufficient for the simple single-run labels
+        // QuillPaint draws (button titles, etc.). Heavier i18n/shaping would use
+        // Pango, but that's out of scope for the macOS-parity control set.
+        cairo_select_font_face(
+            pointer,
+            font.family,
+            CAIRO_FONT_SLANT_NORMAL,
+            font.weight >= 600 ? CAIRO_FONT_WEIGHT_BOLD : CAIRO_FONT_WEIGHT_NORMAL
+        )
+        cairo_set_font_size(pointer, font.size)
+        // `cairo_show_text` positions glyphs on the baseline; `point` is the
+        // top-left typographic origin, so drop down by the font ascent.
+        var extents = cairo_font_extents_t()
+        cairo_font_extents(pointer, &extents)
+        cairo_move_to(pointer, point.x, point.y + extents.ascent)
+        cairo_show_text(pointer, string)
+        cairo_restore(pointer)
+    }
+
     private func applyColor(_ color: PaintColor) {
         cairo_set_source_rgba(pointer, color.red, color.green, color.blue, color.alpha)
     }
