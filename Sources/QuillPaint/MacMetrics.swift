@@ -55,6 +55,26 @@ public enum MacMetrics {
         public static let verticalPadding: Double = 8
     }
 
+    public enum Scroller {
+        /// Corner radius of the overlay scroller capsule knob at regular size.
+        public static let knobCornerRadius: Double = 3
+
+        /// Inset from the scroller frame to the visible overlay track.
+        public static let trackInset: Double = 2
+
+        /// Width of the vertical overlay knob at rest.
+        public static let verticalKnobWidth: Double = 6
+
+        /// Height of the horizontal overlay knob at rest.
+        public static let horizontalKnobHeight: Double = 6
+
+        /// Minimum visible knob length along the scroll axis.
+        public static let minimumKnobLength: Double = 24
+
+        /// Hovered and dragging overlay scrollers expand slightly on macOS.
+        public static let hoveredKnobExpansion: Double = 2
+    }
+
     public enum FocusRing {
         public static let lineWidth: Double = 3
         /// macOS focus rings have a soft outer halo; the line width above
@@ -132,6 +152,12 @@ public enum MacColors {
     /// Hovered-state overlay. Subtle on buttons (macOS buttons barely show a
     /// hover state) but used more visibly by sidebar/list row chrome.
     public static let hoveredOverlay = PaintColor(red: 0, green: 0, blue: 0, alpha: 0.06)
+
+    /// `NSScroller` overlay knob, light appearance.
+    public static let scrollerKnob = PaintColor(r: 0, g: 0, b: 0, a: 96)
+
+    /// Subtle overlay track behind the scroller knob.
+    public static let scrollerTrack = PaintColor(r: 0, g: 0, b: 0, a: 18)
 
     // MARK: - Window Chrome
 
