@@ -49,6 +49,22 @@ public enum MacMetrics {
         public static let cornerRadius: Double = 6
     }
 
+    public enum RadioButton {
+        /// Diameter of the outer circle of a regular-size radio button.
+        /// Measured from macOS 14 Sonoma at 1x.
+        public static let diameter: Double = 14
+
+        /// Diameter of the inner dot when the radio button is selected.
+        /// Measured from macOS 14 Sonoma at 1x.
+        public static let dotDiameter: Double = 6
+
+        /// Line width of the radio button's outer ring.
+        public static let borderLineWidth: Double = 1
+
+        /// Outset of the focus ring from the radio button's frame.
+        public static let focusRingOutset: Double = 2.5
+    }
+
     public enum ChatBubble {
         public static let cornerRadius: Double = 16
         public static let horizontalPadding: Double = 12

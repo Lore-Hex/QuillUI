@@ -231,6 +231,30 @@ public enum MacReferenceManifest {
                 control: MacScrollerPaint(orientation: .vertical, progress: 1, coverage: 1),
                 size: verticalScrollerSize,
                 state: .normal
+            ),
+            ReferenceEntry(
+                name: "radio-off-normal",
+                control: MacRadioButtonPaint(),
+                size: PaintSize(width: 16, height: 16),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "radio-on-normal",
+                control: MacRadioButtonPaint(),
+                size: PaintSize(width: 16, height: 16),
+                state: PaintControlState(isSelected: true)
+            ),
+            ReferenceEntry(
+                name: "radio-on-focused",
+                control: MacRadioButtonPaint(),
+                size: PaintSize(width: 16, height: 16),
+                state: PaintControlState(isFocused: true, isSelected: true)
+            ),
+            ReferenceEntry(
+                name: "radio-on-disabled",
+                control: MacRadioButtonPaint(),
+                size: PaintSize(width: 16, height: 16),
+                state: PaintControlState(isDisabled: true, isSelected: true)
             )
         ]
     }
