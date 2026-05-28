@@ -587,6 +587,8 @@ QString appStyleSheet(const QJsonObject &style) {
     const QString header = styleValue(style, "headerColor");
     const QString card = styleValue(style, "cardColor");
     const QString primary = styleValue(style, "primaryColor");
+    const QString messageUserBubble = styleValue(style, "messageUserBubbleColor");
+    const QString messageAssistantBubble = styleValue(style, "messageAssistantBubbleColor");
     const QString system = styleValue(style, "systemColor");
     const QString muted = styleValue(style, "mutedColor");
     const QString selected = styleValue(style, "selectedMutedColor");
@@ -712,12 +714,12 @@ QString appStyleSheet(const QJsonObject &style) {
 
     sheet += QStringLiteral(R"(
         QFrame#emptyHistory, QFrame#sidebarUtilityPanel { background: %1; border: 1px solid %2; border-radius: %3; }
-        QFrame#messageAssistant { background: %1; border: 1px solid %2; border-radius: %4; }
-        QFrame#messageSystem { background: %5; border: 1px solid %6; border-radius: %4; }
-        QFrame#messageUser { background: %7; border: 1px solid %6; border-radius: %4; }
+        QFrame#messageAssistant { background: %5; border: 0; border-radius: %4; }
+        QFrame#messageSystem { background: %6; border: 0; border-radius: %4; }
+        QFrame#messageUser { background: %7; border: 0; border-radius: %4; }
         QFrame#attachmentChip { background: %1; border: 1px solid %2; border-radius: %8; }
     )")
-        .arg(card, cardBorder, emptyHistoryRadius, messageBubbleRadius, system, messageBorder, primary, attachmentChipRadius);
+        .arg(card, cardBorder, emptyHistoryRadius, messageBubbleRadius, messageAssistantBubble, system, messageUserBubble, attachmentChipRadius);
 
     sheet += QStringLiteral(R"(
         QFrame#messageUser[editing="true"] { border: %2 solid %1; }
@@ -3340,13 +3342,14 @@ QFrame *messageBubble(
     bubble->setMaximumWidth(messageMaxWidth);
 
     QVBoxLayout *layout = new QVBoxLayout(bubble);
-    const int messageBubblePadding = styleInt(style, "messageBubblePadding");
+    const int messageBubbleHorizontalPadding = styleInt(style, "messageBubbleHorizontalPadding");
+    const int messageBubbleVerticalPadding = styleInt(style, "messageBubbleVerticalPadding");
     const int messageBubbleSpacing = styleInt(style, "messageBubbleSpacing");
     layout->setContentsMargins(
-        messageBubblePadding,
-        messageBubblePadding,
-        messageBubblePadding,
-        messageBubblePadding
+        messageBubbleHorizontalPadding,
+        messageBubbleVerticalPadding,
+        messageBubbleHorizontalPadding,
+        messageBubbleVerticalPadding
     );
     layout->setSpacing(messageBubbleSpacing);
     layout->setAlignment(Qt::AlignTop | Qt::AlignLeft);

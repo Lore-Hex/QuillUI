@@ -430,6 +430,8 @@ public enum EnchantedPalette {
     public static let disabledButtonBackgroundColor = EnchantedPalette.hairlineColor
     public static let disabledButtonForegroundColor = EnchantedPalette.secondaryTextColor
     public static let disabledTextColor = EnchantedPalette.secondaryTextColor
+    public static let messageUserBubbleColor = "#007AFF"
+    public static let messageAssistantBubbleColor = "#F6F6F6"
 }
 
 public enum EnchantedVisualMetrics {
@@ -514,9 +516,10 @@ public enum EnchantedVisualMetrics {
     public static let messageMaxWidth = 680
     public static let messageSpacing = 14
     public static let messageBubbleRowSpacing = 10
-    public static let messageBubblePadding = 13
+    public static let messageBubbleHorizontalPadding = 12
+    public static let messageBubbleVerticalPadding = 8
     public static let messageBubbleSpacing = 7
-    public static let messageBubbleRadius = 10
+    public static let messageBubbleRadius = 16
     public static let messageEditBorderWidth = 2
     public static let markdownBlockSpacing = 9
     public static let markdownListItemSpacing = 8

@@ -205,6 +205,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var inkColor: String
         var mutedColor: String
         var selectedMutedColor: String
+        var messageUserBubbleColor: String
+        var messageAssistantBubbleColor: String
         var quoteRuleColor: String
         var codeBlockColor: String
         var dropTargetColor: String
@@ -273,7 +275,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
         var loadingSpinnerSize: Int
         var messageSpacing: Int
         var messageBubbleRowSpacing: Int
-        var messageBubblePadding: Int
+        var messageBubbleHorizontalPadding: Int
+        var messageBubbleVerticalPadding: Int
         var messageBubbleSpacing: Int
         var messageBubbleRadius: Int
         var messageEditBorderWidth: Int
@@ -420,6 +423,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             inkColor: EnchantedPalette.inkColor,
             mutedColor: EnchantedPalette.mutedColor,
             selectedMutedColor: EnchantedPalette.selectedMutedColor,
+            messageUserBubbleColor: EnchantedPalette.messageUserBubbleColor,
+            messageAssistantBubbleColor: EnchantedPalette.messageAssistantBubbleColor,
             quoteRuleColor: EnchantedPalette.quoteRuleColor,
             codeBlockColor: EnchantedPalette.codeBlockColor,
             dropTargetColor: EnchantedPalette.dropTargetColor,
@@ -488,7 +493,8 @@ struct QuillEnchantedQtSnapshot: Codable, Sendable {
             loadingSpinnerSize: EnchantedVisualMetrics.loadingSpinnerSize,
             messageSpacing: EnchantedVisualMetrics.messageSpacing,
             messageBubbleRowSpacing: EnchantedVisualMetrics.messageBubbleRowSpacing,
-            messageBubblePadding: EnchantedVisualMetrics.messageBubblePadding,
+            messageBubbleHorizontalPadding: EnchantedVisualMetrics.messageBubbleHorizontalPadding,
+            messageBubbleVerticalPadding: EnchantedVisualMetrics.messageBubbleVerticalPadding,
             messageBubbleSpacing: EnchantedVisualMetrics.messageBubbleSpacing,
             messageBubbleRadius: EnchantedVisualMetrics.messageBubbleRadius,
             messageEditBorderWidth: EnchantedVisualMetrics.messageEditBorderWidth,

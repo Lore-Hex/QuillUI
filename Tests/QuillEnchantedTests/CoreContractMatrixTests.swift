@@ -686,7 +686,8 @@ struct CoreContractMatrixTests {
             "EnchantedVisualMetrics.messageMaxWidth",
             "EnchantedVisualMetrics.messageSpacing",
             "EnchantedVisualMetrics.messageBubbleRowSpacing",
-            "EnchantedVisualMetrics.messageBubblePadding",
+            "EnchantedVisualMetrics.messageBubbleHorizontalPadding",
+            "EnchantedVisualMetrics.messageBubbleVerticalPadding",
             "EnchantedVisualMetrics.messageBubbleSpacing",
             "EnchantedVisualMetrics.messageBubbleRadius",
             "EnchantedVisualMetrics.messageEditBorderWidth",
@@ -1211,7 +1212,8 @@ struct CoreContractMatrixTests {
         expectContains(runtime, "loadingSpinnerSize: EnchantedVisualMetrics.loadingSpinnerSize")
         expectContains(runtime, "messageSpacing: EnchantedVisualMetrics.messageSpacing")
         expectContains(runtime, "messageBubbleRowSpacing: EnchantedVisualMetrics.messageBubbleRowSpacing")
-        expectContains(runtime, "messageBubblePadding: EnchantedVisualMetrics.messageBubblePadding")
+        expectContains(runtime, "messageBubbleHorizontalPadding: EnchantedVisualMetrics.messageBubbleHorizontalPadding")
+        expectContains(runtime, "messageBubbleVerticalPadding: EnchantedVisualMetrics.messageBubbleVerticalPadding")
         expectContains(runtime, "messageBubbleSpacing: EnchantedVisualMetrics.messageBubbleSpacing")
         expectContains(runtime, "messageBubbleRadius: EnchantedVisualMetrics.messageBubbleRadius")
         expectContains(runtime, "messageEditBorderWidth: EnchantedVisualMetrics.messageEditBorderWidth")
@@ -1385,9 +1387,10 @@ struct CoreContractMatrixTests {
         expectContains(sharedPrompts, "public static let messageMaxWidth = 680")
         expectContains(sharedPrompts, "public static let messageSpacing = 14")
         expectContains(sharedPrompts, "public static let messageBubbleRowSpacing = 10")
-        expectContains(sharedPrompts, "public static let messageBubblePadding = 13")
+        expectContains(sharedPrompts, "public static let messageBubbleHorizontalPadding = 12")
+        expectContains(sharedPrompts, "public static let messageBubbleVerticalPadding = 8")
         expectContains(sharedPrompts, "public static let messageBubbleSpacing = 7")
-        expectContains(sharedPrompts, "public static let messageBubbleRadius = 10")
+        expectContains(sharedPrompts, "public static let messageBubbleRadius = 16")
         expectContains(sharedPrompts, "public static let messageEditBorderWidth = 2")
         expectContains(sharedPrompts, "public static let markdownBlockSpacing = 9")
         expectContains(sharedPrompts, "public static let markdownListItemSpacing = 8")
@@ -1485,7 +1488,8 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, ".frame(maxWidth: .infinity, alignment: .leading)")
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleRowSpacing")
         expectContains(macOSRootView, "HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleRowSpacing))")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubblePadding")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleHorizontalPadding")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleVerticalPadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleSpacing")
         expectContains(macOSRootView, "VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleSpacing))")
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleRadius")
@@ -1703,9 +1707,10 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "copyMessageTitle,\n        editMessageTitle,\n        unselectMessageTitle,\n        editingMessageID,\n        editMessage,\n        cancelEdit\n    ), 0, Qt::AlignTop)")
         expectContains(nativeShim, "const int messageMaxWidth = styleInt(style, \"messageMaxWidth\")")
         expectContains(nativeShim, "bubble->setMaximumWidth(messageMaxWidth)")
-        expectContains(nativeShim, "const int messageBubblePadding = styleInt(style, \"messageBubblePadding\")")
+        expectContains(nativeShim, "const int messageBubbleHorizontalPadding = styleInt(style, \"messageBubbleHorizontalPadding\")")
+        expectContains(nativeShim, "const int messageBubbleVerticalPadding = styleInt(style, \"messageBubbleVerticalPadding\")")
         expectContains(nativeShim, "const int messageBubbleSpacing = styleInt(style, \"messageBubbleSpacing\")")
-        expectContains(nativeShim, "layout->setContentsMargins(\n        messageBubblePadding,\n        messageBubblePadding,\n        messageBubblePadding,\n        messageBubblePadding\n    )")
+        expectContains(nativeShim, "layout->setContentsMargins(\n        messageBubbleHorizontalPadding,\n        messageBubbleVerticalPadding,\n        messageBubbleHorizontalPadding,\n        messageBubbleVerticalPadding\n    )")
         expectContains(nativeShim, "layout->setSpacing(messageBubbleSpacing)")
         expectContains(nativeShim, "layout->setSpacing(messageBubbleSpacing);\n    layout->setAlignment(Qt::AlignTop | Qt::AlignLeft)")
         expectContains(nativeShim, "const int emptyStatePadding = styleInt(style, \"emptyStatePadding\")")
@@ -1802,9 +1807,9 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "QFrame#sidebar { background: %1; border-right: 1px solid %2; }")
         expectContains(nativeShim, "QLabel#messageUserRole { color: %3; font-size: %4; }")
         expectContains(nativeShim, "QFrame#emptyHistory, QFrame#sidebarUtilityPanel { background: %1; border: 1px solid %2; border-radius: %3; }")
-        expectContains(nativeShim, "QFrame#messageAssistant { background: %1; border: 1px solid %2; border-radius: %4; }")
-        expectContains(nativeShim, "QFrame#messageSystem { background: %5; border: 1px solid %6; border-radius: %4; }")
-        expectContains(nativeShim, "QFrame#messageUser { background: %7; border: 1px solid %6; border-radius: %4; }")
+        expectContains(nativeShim, "QFrame#messageAssistant { background: %5; border: 0; border-radius: %4; }")
+        expectContains(nativeShim, "QFrame#messageSystem { background: %6; border: 0; border-radius: %4; }")
+        expectContains(nativeShim, "QFrame#messageUser { background: %7; border: 0; border-radius: %4; }")
         expectContains(nativeShim, "QFrame#messageUser[editing=\"true\"] { border: %2 solid %1; }")
         expectContains(nativeShim, "QFrame#attachmentChip { background: %1; border: 1px solid %2; border-radius: %8; }")
         expectContains(nativeShim, "QPushButton#primaryButton, QPushButton#sendButton { background: %1; color: white; border: 0; border-radius: %2; padding: %3 %4; text-align: left; }")
