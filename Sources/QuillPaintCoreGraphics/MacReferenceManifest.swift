@@ -399,6 +399,18 @@ public enum MacReferenceManifest {
                 control: MacPopUpButtonPaint(label: "Selection"),
                 size: PaintSize(width: 120, height: 22),
                 state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "spinner-normal",
+                control: MacSpinnerPaint(),
+                size: PaintSize(width: MacMetrics.Spinner.regularSize, height: MacMetrics.Spinner.regularSize),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "spinner-disabled",
+                control: MacSpinnerPaint(),
+                size: PaintSize(width: MacMetrics.Spinner.regularSize, height: MacMetrics.Spinner.regularSize),
+                state: PaintControlState(isDisabled: true)
             )
         ]
     }
