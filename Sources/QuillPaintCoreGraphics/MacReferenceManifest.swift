@@ -231,6 +231,36 @@ public enum MacReferenceManifest {
                 control: MacScrollerPaint(orientation: .vertical, progress: 1, coverage: 1),
                 size: verticalScrollerSize,
                 state: .normal
+            ),
+            ReferenceEntry(
+                name: "segmented-first-selected",
+                control: MacSegmentedControlPaint(segments: ["One", "Two", "Three"], selectedIndex: 0),
+                size: PaintSize(width: 150, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "segmented-middle-selected",
+                control: MacSegmentedControlPaint(segments: ["One", "Two", "Three"], selectedIndex: 1),
+                size: PaintSize(width: 150, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "segmented-focused",
+                control: MacSegmentedControlPaint(segments: ["One", "Two", "Three"], selectedIndex: 0),
+                size: PaintSize(width: 150, height: 22),
+                state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "segmented-disabled",
+                control: MacSegmentedControlPaint(segments: ["One", "Two", "Three"], selectedIndex: 0),
+                size: PaintSize(width: 150, height: 22),
+                state: PaintControlState(isDisabled: true)
+            ),
+            ReferenceEntry(
+                name: "segmented-accent-selected",
+                control: MacSegmentedControlPaint(segments: ["One", "Two", "Three"], selectedIndex: 0),
+                size: PaintSize(width: 150, height: 22),
+                state: PaintControlState(isDefault: true)
             )
         ]
     }

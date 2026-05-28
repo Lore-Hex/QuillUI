@@ -75,6 +75,19 @@ public enum MacMetrics {
         public static let hoveredKnobExpansion: Double = 2
     }
 
+    public enum SegmentedControl {
+        /// Corner radius of a standard `NSSegmentedControl`.
+        /// Matches macOS 14 Sonoma (measured from `NSSegmentedControl` at 1x).
+        public static let cornerRadius: Double = 5
+        /// Height of a regular control size segmented control.
+        public static let regularHeight: Double = 22
+        public static let borderLineWidth: Double = 1
+        public static let separatorLineWidth: Double = 1
+        public static let horizontalPadding: Double = 8
+        /// Optical centering adjustment for labels.
+        public static let labelVerticalOpticalOffset: Double = 1
+    }
+
     public enum FocusRing {
         public static let lineWidth: Double = 3
         /// macOS focus rings have a soft outer halo; the line width above
