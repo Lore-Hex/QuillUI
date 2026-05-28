@@ -1,8 +1,8 @@
 import Foundation
 import QuillPaint
-import CGTK
 
 #if os(Linux)
+import CGTK
 /// Cairo-backed implementation of `PaintContext`.
 public final class CairoPaintContext: PaintContext {
     private let cr: OpaquePointer
