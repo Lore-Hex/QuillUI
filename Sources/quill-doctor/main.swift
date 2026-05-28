@@ -14,6 +14,7 @@ struct QuillDoctorCLI {
 
         let projectRoot = URL(fileURLWithPath: arguments[1], isDirectory: true)
         var coverageDocPath: URL? = nil
+        var targetName: String? = nil
         var outputTickets = false
         var outputJSON = false
 
@@ -26,6 +27,14 @@ struct QuillDoctorCLI {
                     i += 2
                 } else {
                     FileHandle.standardError.write(Data("--coverage-doc requires a path argument\n".utf8))
+                    exit(64)
+                }
+            case "--target":
+                if i + 1 < arguments.count {
+                    targetName = arguments[i + 1]
+                    i += 2
+                } else {
+                    FileHandle.standardError.write(Data("--target requires a target name\n".utf8))
                     exit(64)
                 }
             case "--tickets":
@@ -83,7 +92,8 @@ struct QuillDoctorCLI {
         do {
             let report = try QuillDoctor().scan(
                 projectRoot: projectRoot,
-                coverageDocPath: resolvedCoverageDoc
+                coverageDocPath: resolvedCoverageDoc,
+                targetName: targetName
             )
             if outputJSON {
                 let encoder = JSONEncoder()
@@ -96,6 +106,9 @@ struct QuillDoctorCLI {
                 print(report.formattedReport())
             }
             exit(report.hasMissing ? 1 : 0)
+        } catch let error as QuillDoctorTargetResolutionError {
+            FileHandle.standardError.write(Data((error.description + "\n").utf8))
+            exit(64)
         } catch {
             FileHandle.standardError.write(Data("\(error)\n".utf8))
             exit(70)
@@ -117,7 +130,7 @@ struct QuillDoctorCLI {
 
     private static func emitUsage(toolName: String, to stream: FileHandle) {
         let usage = """
-        Usage: \(toolName) PROJECT_ROOT [--coverage-doc PATH] [--tickets | --json]
+        Usage: \(toolName) PROJECT_ROOT [--target NAME] [--coverage-doc PATH] [--tickets | --json]
 
         Scans a Swift project for `import ModuleName` statements and reports
         which modules are covered by QuillUI's compatibility matrix.
@@ -125,6 +138,9 @@ struct QuillDoctorCLI {
         Arguments:
           PROJECT_ROOT          Path to the project root (any directory that
                                 contains .swift sources, recursive).
+          --target NAME         Resolve NAME through `swift package describe
+                                --type json` and scan only that SwiftPM
+                                target's source path.
           --coverage-doc PATH   Path to QuillUI's
                                 docs/apple-package-function-coverage.md. If
                                 omitted, the tool walks up from the current
