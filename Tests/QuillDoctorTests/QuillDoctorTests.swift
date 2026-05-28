@@ -203,7 +203,7 @@ struct QuillDoctorTests {
             .init(module: "FrameworkB", status: .missing, usedInFiles: ["B.swift"]),
             .init(module: "SwiftUI", status: .covered, usedInFiles: ["C.swift"])
         ])
-        let tickets = report.ticketMarkdown()
+        let tickets = try report.ticketMarkdown()
         #expect(tickets.contains("# QuillUI coverage tickets"))
         #expect(tickets.contains("## Add coverage for `FrameworkA`"))
         #expect(tickets.contains("## Add coverage for `FrameworkB`"))
@@ -217,7 +217,7 @@ struct QuillDoctorTests {
         let report = QuillDoctorReport(modules: [
             .init(module: "SwiftUI", status: .covered, usedInFiles: ["C.swift"])
         ])
-        let tickets = report.ticketMarkdown()
+        let tickets = try report.ticketMarkdown()
         #expect(tickets.contains("No tickets to generate"))
     }
 

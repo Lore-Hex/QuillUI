@@ -17,6 +17,7 @@ struct QuillDoctorCLI {
         var targetName: String? = nil
         var outputTickets = false
         var outputJSON = false
+        var workspaceMode = false
 
         var i = 2
         while i < arguments.count {
@@ -42,6 +43,9 @@ struct QuillDoctorCLI {
                 i += 1
             case "--json":
                 outputJSON = true
+                i += 1
+            case "--workspace":
+                workspaceMode = true
                 i += 1
             case "-h", "--help":
                 emitUsage(toolName: toolName, to: FileHandle.standardOutput)
@@ -90,22 +94,39 @@ struct QuillDoctorCLI {
         }
 
         do {
-            let report = try QuillDoctor().scan(
-                projectRoot: projectRoot,
-                coverageDocPath: resolvedCoverageDoc,
-                targetName: targetName
-            )
-            if outputJSON {
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                let data = try encoder.encode(report)
-                print(String(data: data, encoding: .utf8)!)
-            } else if outputTickets {
-                print(report.ticketMarkdown())
+            if workspaceMode {
+                let report = try QuillDoctor().scanWorkspace(
+                    workspaceRoot: projectRoot,
+                    coverageDocPath: resolvedCoverageDoc
+                )
+                if report.packages.isEmpty {
+                    FileHandle.standardError.write(Data("No Package.swift files found in workspace: \(projectRoot.path)\n".utf8))
+                    exit(64)
+                }
+                if outputTickets {
+                    print(try report.ticketMarkdown())
+                } else {
+                    print(report.formattedReport())
+                }
+                exit(report.hasMissing ? 1 : 0)
             } else {
-                print(report.formattedReport())
+                let report = try QuillDoctor().scan(
+                    projectRoot: projectRoot,
+                    coverageDocPath: resolvedCoverageDoc,
+                    targetName: targetName
+                )
+                if outputJSON {
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                    let data = try encoder.encode(report)
+                    print(String(data: data, encoding: .utf8)!)
+                } else if outputTickets {
+                    print(try report.ticketMarkdown())
+                } else {
+                    print(report.formattedReport())
+                }
+                exit(report.hasMissing ? 1 : 0)
             }
-            exit(report.hasMissing ? 1 : 0)
         } catch let error as QuillDoctorTargetResolutionError {
             FileHandle.standardError.write(Data((error.description + "\n").utf8))
             exit(64)
@@ -130,7 +151,7 @@ struct QuillDoctorCLI {
 
     private static func emitUsage(toolName: String, to stream: FileHandle) {
         let usage = """
-        Usage: \(toolName) PROJECT_ROOT [--target NAME] [--coverage-doc PATH] [--tickets | --json]
+        Usage: \(toolName) PROJECT_ROOT [--target NAME] [--coverage-doc PATH] [--tickets | --json] [--workspace]
 
         Scans a Swift project for `import ModuleName` statements and reports
         which modules are covered by QuillUI's compatibility matrix.
@@ -152,6 +173,8 @@ struct QuillDoctorCLI {
           --json                Emit a structured JSON report. Alphabetically
                                 sorted by module name. Mutually exclusive with
                                 --tickets.
+          --workspace           Recursive mode. Walks PROJECT_ROOT looking for
+                                all Package.swift files and reports per-package.
 
         Exit codes:
           0  All imported modules are covered.
