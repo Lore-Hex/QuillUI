@@ -446,20 +446,11 @@ public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertib
         }
     }
 
-    public enum MultipathServiceType: Hashable, Sendable, CustomStringConvertible {
-        case disabled, handover, interactive, aggregate
+    public enum MultipathServiceType: Int, Hashable, Sendable, CustomStringConvertible {
+        case disabled = 0, handover = 1, interactive = 2, aggregate = 3
 
         public var description: String {
-            switch self {
-            case .disabled:
-                return "disabled"
-            case .handover:
-                return "handover"
-            case .interactive:
-                return "interactive"
-            case .aggregate:
-                return "aggregate"
-            }
+            String(rawValue)
         }
     }
 
@@ -673,7 +664,7 @@ public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertib
         }
         components.append("attribution: \(attribution.debugToken)")
         if requiresDNSSECValidation {
-            components.append("requires DNSSEC")
+            components.append("requires DNSSEC validation")
         }
         return components.joined(separator: ", ")
     }
