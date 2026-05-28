@@ -136,6 +136,117 @@ public enum MacMetrics {
         /// Width of the subtle border around the switch when OFF.
         public static let borderLineWidth: Double = 1
     }
+
+    public enum Checkbox {
+        /// Size of a standard checkbox (it's square).
+        /// Measured from NSButton(checkbox) on macOS 14 Sonoma at 1x.
+        public static let size: Double = 14
+
+        /// Corner radius of the checkbox box.
+        public static let cornerRadius: Double = 3
+
+        /// Line width of the checkmark and mixed dash glyphs.
+        public static let checkmarkLineWidth: Double = 1.5
+
+        /// Outset of the focus ring from the checkbox frame.
+        public static let focusRingOutset: Double = 3
+    }
+
+    public enum RadioButton {
+        /// Diameter of the outer circle of a regular-size radio button.
+        /// Measured from macOS 14 Sonoma at 1x.
+        public static let diameter: Double = 14
+
+        /// Diameter of the inner dot when the radio button is selected.
+        /// Measured from macOS 14 Sonoma at 1x.
+        public static let dotDiameter: Double = 6
+
+        /// Line width of the radio button's outer ring.
+        public static let borderLineWidth: Double = 1
+
+        /// Outset of the focus ring from the radio button's frame.
+        public static let focusRingOutset: Double = 2.5
+    }
+
+    public enum SearchField {
+        /// macOS 14 Sonoma search fields are fully rounded (capsule shape).
+        public static let cornerRadius: Double = 11
+        /// Default height for a regular-sized search field.
+        public static let regularHeight: Double = 22
+        public static let borderLineWidth: Double = 1
+
+        /// Width/height of the magnifier icon's bounding square.
+        public static let magnifierSize: Double = 13
+        /// Left inset for the magnifier icon.
+        public static let magnifierLeadingPadding: Double = 7
+        /// Spacing between the magnifier and the placeholder text.
+        public static let magnifierTrailingPadding: Double = 4
+
+        /// Color alpha for the magnifier icon.
+        public static let magnifierOpacity: Double = 0.5
+    }
+
+    public enum ProgressBar {
+        /// Height of a standard macOS progress bar at regular size.
+        /// Measured from NSProgressIndicator(style: .bar) on macOS 14.
+        public static let regularHeight: Double = 6
+
+        /// Corner radius for the progress bar track and fill (capsule).
+        public static let cornerRadius: Double = 3
+    }
+
+    public enum SegmentedControl {
+        /// Corner radius of a standard `NSSegmentedControl`.
+        /// Matches macOS 14 Sonoma (measured from `NSSegmentedControl` at 1x).
+        public static let cornerRadius: Double = 5
+        /// Height of a regular control size segmented control.
+        public static let regularHeight: Double = 22
+        public static let borderLineWidth: Double = 1
+        public static let separatorLineWidth: Double = 1
+        public static let horizontalPadding: Double = 8
+        /// Optical centering adjustment for labels.
+        public static let labelVerticalOpticalOffset: Double = 1
+    }
+
+    public enum PopUpButton {
+        /// Corner radius of a standard `.bordered` `NSPopUpButton` at regular control size.
+        public static let cornerRadius: Double = 5
+
+        /// Height of a regular control size pop-up button.
+        public static let regularHeight: Double = 22
+
+        /// Line width of the bordered chrome's outline.
+        public static let borderLineWidth: Double = 1
+
+        /// Outset of the focus ring from the button's frame.
+        public static let focusRingOutset: Double = 3
+        public static let focusRingLineWidth: Double = 3
+        public static let focusRingCornerRadiusAdjust: Double = 2
+
+        /// Width of the trailing indicator (the double-arrow area).
+        public static let indicatorWidth: Double = 20
+
+        /// Horizontal padding from the leading edge to the label.
+        public static let labelLeadingPadding: Double = 8
+
+        /// Horizontal padding from the trailing edge to the indicator glyph center.
+        public static let indicatorTrailingPadding: Double = 10
+
+        /// Optical centering adjustment for pop-up button labels.
+        public static let labelVerticalOpticalOffset: Double = 1
+
+        /// Width of the chevron (double-arrow) glyph.
+        public static let chevronWidth: Double = 7
+
+        /// Height of each individual arrow in the double-arrow glyph.
+        public static let chevronHeight: Double = 4
+
+        /// Spacing between the up and down arrows in the double-arrow glyph.
+        public static let chevronSpacing: Double = 2
+
+        /// Line width for the chevron stroke.
+        public static let chevronLineWidth: Double = 1.0
+    }
 }
 
 /// macOS system color tokens used by QuillPaint controls.
@@ -229,4 +340,10 @@ public enum MacColors {
 
     /// `NSSlider` knob border color.
     public static let sliderKnobBorder = PaintColor(r: 0, g: 0, b: 0, a: 48)
+
+    // MARK: - Progress Bar
+    /// `NSProgressIndicator` track fill color (light appearance).
+    public static let progressBarTrack = PaintColor(r: 0, g: 0, b: 0, a: 24)
+    /// `NSProgressIndicator` progress fill color. Matches system accent.
+    public static let progressBarFill = accent
 }
