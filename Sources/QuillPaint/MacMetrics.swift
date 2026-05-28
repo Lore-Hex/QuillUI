@@ -96,6 +96,29 @@ public enum MacMetrics {
         /// Horizontal padding from the left edge of the window to the first traffic light.
         public static let horizontalPadding: Double = 20
     }
+
+    public enum Stepper {
+        /// Standard width of an `NSStepper` at regular size.
+        public static let width: Double = 13
+
+        /// Height of a regular size stepper, matching `NSTextField`.
+        public static let regularHeight: Double = 22
+
+        /// Corner radius of the bordered capsule.
+        public static let cornerRadius: Double = 4
+
+        /// Line width of the border and internal separator.
+        public static let borderLineWidth: Double = 1
+
+        /// Width of the chevron symbols.
+        public static let chevronWidth: Double = 7
+
+        /// Height of each chevron symbol.
+        public static let chevronHeight: Double = 4
+
+        /// Line width for the chevron paths.
+        public static let chevronLineWidth: Double = 1.5
+    }
 }
 
 /// macOS system color tokens used by QuillPaint controls.

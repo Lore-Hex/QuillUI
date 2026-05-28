@@ -16,6 +16,10 @@ public struct PaintControlState: Equatable, Hashable, Sendable {
     public var isHoveringTrafficLights: Bool
     /// True if the control is in a selected state (e.g. a selected sidebar row).
     public var isSelected: Bool
+    /// Specifically for MacStepperPaint: true if the up button is pressed.
+    public var isUpPressed: Bool
+    /// Specifically for MacStepperPaint: true if the down button is pressed.
+    public var isDownPressed: Bool
 
     public init(
         isPressed: Bool = false,
@@ -24,7 +28,9 @@ public struct PaintControlState: Equatable, Hashable, Sendable {
         isHovered: Bool = false,
         isDefault: Bool = false,
         isHoveringTrafficLights: Bool = false,
-        isSelected: Bool = false
+        isSelected: Bool = false,
+        isUpPressed: Bool = false,
+        isDownPressed: Bool = false
     ) {
         self.isPressed = isPressed
         self.isFocused = isFocused
@@ -33,6 +39,8 @@ public struct PaintControlState: Equatable, Hashable, Sendable {
         self.isDefault = isDefault
         self.isHoveringTrafficLights = isHoveringTrafficLights
         self.isSelected = isSelected
+        self.isUpPressed = isUpPressed
+        self.isDownPressed = isDownPressed
     }
 
     public static let normal = PaintControlState()

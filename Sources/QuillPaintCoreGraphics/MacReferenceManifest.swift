@@ -231,6 +231,30 @@ public enum MacReferenceManifest {
                 control: MacScrollerPaint(orientation: .vertical, progress: 1, coverage: 1),
                 size: verticalScrollerSize,
                 state: .normal
+            ),
+            ReferenceEntry(
+                name: "stepper-normal",
+                control: MacStepperPaint(),
+                size: PaintSize(width: 13, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "stepper-up-pressed",
+                control: MacStepperPaint(),
+                size: PaintSize(width: 13, height: 22),
+                state: PaintControlState(isUpPressed: true)
+            ),
+            ReferenceEntry(
+                name: "stepper-down-pressed",
+                control: MacStepperPaint(),
+                size: PaintSize(width: 13, height: 22),
+                state: PaintControlState(isDownPressed: true)
+            ),
+            ReferenceEntry(
+                name: "stepper-disabled",
+                control: MacStepperPaint(),
+                size: PaintSize(width: 13, height: 22),
+                state: PaintControlState(isDisabled: true)
             )
         ]
     }
