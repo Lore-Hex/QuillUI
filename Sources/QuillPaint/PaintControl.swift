@@ -14,6 +14,8 @@ public struct PaintControlState: Equatable, Hashable, Sendable {
     /// Specifically for MacWindowChromePaint: true if the mouse is hovering
     /// over the traffic lights region.
     public var isHoveringTrafficLights: Bool
+    /// True if the control is in a selected state (e.g. a selected sidebar row).
+    public var isSelected: Bool
 
     public init(
         isPressed: Bool = false,
@@ -21,7 +23,8 @@ public struct PaintControlState: Equatable, Hashable, Sendable {
         isDisabled: Bool = false,
         isHovered: Bool = false,
         isDefault: Bool = false,
-        isHoveringTrafficLights: Bool = false
+        isHoveringTrafficLights: Bool = false,
+        isSelected: Bool = false
     ) {
         self.isPressed = isPressed
         self.isFocused = isFocused
@@ -29,6 +32,7 @@ public struct PaintControlState: Equatable, Hashable, Sendable {
         self.isHovered = isHovered
         self.isDefault = isDefault
         self.isHoveringTrafficLights = isHoveringTrafficLights
+        self.isSelected = isSelected
     }
 
     public static let normal = PaintControlState()

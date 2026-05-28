@@ -44,6 +44,11 @@ public enum MacMetrics {
         public static let borderLineWidth: Double = 1
     }
 
+    public enum ListRow {
+        /// Corner radius for Enchanted sidebar conversation rows.
+        public static let cornerRadius: Double = 6
+    }
+
     public enum FocusRing {
         public static let lineWidth: Double = 3
         /// macOS focus rings have a soft outer halo; the line width above
@@ -98,6 +103,9 @@ public enum MacColors {
     /// Standard button text (`NSColor.controlTextColor`).
     public static let controlText = PaintColor(r: 0, g: 0, b: 0, a: 217)
 
+    /// Secondary label text used by subdued list-row previews.
+    public static let secondaryLabel = PaintColor(r: 110, g: 110, b: 115)
+
     /// Disabled control text.
     public static let disabledControlText = PaintColor(r: 0, g: 0, b: 0, a: 64)
 
@@ -108,9 +116,9 @@ public enum MacColors {
     /// the normal control fill while the mouse is down.
     public static let pressedOverlay = PaintColor(red: 0, green: 0, blue: 0, alpha: 0.08)
 
-    /// Hovered-state overlay (rarely visible on macOS — buttons don't have
-    /// strong hover states — but kept for hosts that emit it).
-    public static let hoveredOverlay = PaintColor(red: 0, green: 0, blue: 0, alpha: 0.03)
+    /// Hovered-state overlay. Subtle on buttons (macOS buttons barely show a
+    /// hover state) but used more visibly by sidebar/list row chrome.
+    public static let hoveredOverlay = PaintColor(red: 0, green: 0, blue: 0, alpha: 0.06)
 
     // MARK: - Window Chrome
 

@@ -3,6 +3,7 @@
 // QuillSystemSymbol, etc.) invisible on macOS even though the inner
 // branches looked correct.
 import Foundation
+import QuillPaint
 #if os(macOS) || os(iOS) || os(visionOS)
 import SwiftUI
 #else
@@ -313,6 +314,7 @@ public struct QuillConversationHistoryList: View {
     public var emptyTitle: String
     public var emptySubtitle: String
     public var onSelect: (QuillConversationHistoryItem) -> Void
+    @State private var hoveredItemID: String?
 
     public init(
         items: [QuillConversationHistoryItem],
@@ -336,29 +338,34 @@ public struct QuillConversationHistoryList: View {
                 } else {
                     ForEach(sortedItems) { item in
                         let isSelected = selectedID == item.id
+                        let isHovered = hoveredItemID == item.id
+                        let rowState = PaintControlState(isHovered: isHovered, isSelected: isSelected)
                         let lastMessage = lastMessagePreview(for: item)
                         VStack(alignment: .leading, spacing: rowTextSpacing) {
                             Text(item.title)
                                 .font(.system(size: rowFontSize))
                                 .lineLimit(1)
-                                .foregroundColor(isSelected ? selectedRowTitleColor : rowTitleColor)
+                                .foregroundColor(rowTitleColor(for: rowState))
 
                             if !lastMessage.isEmpty {
                                 Text(lastMessage)
                                     .font(.system(size: rowPreviewFontSize))
                                     .lineLimit(2)
-                                    .foregroundColor(isSelected ? selectedRowPreviewColor : rowPreviewColor)
+                                    .foregroundColor(rowPreviewColor(for: rowState))
                             }
                         }
                         .padding(rowPadding)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(isSelected ? selectedRowBackgroundColor : rowBackgroundColor)
+                        .background(rowBackgroundColor(for: rowState))
                         .cornerRadius(rowCornerRadius)
                         .contentShape(Rectangle())
                         .accessibilityElement(children: .combine)
                         .accessibilityLabel(item.title)
                         .accessibilityValue(item.lastMessage)
                         .help(accessibilitySummary(for: item))
+                        .onHover { hovering in
+                            hoveredItemID = hovering ? item.id : nil
+                        }
                         .onTapGesture { onSelect(item) }
                     }
                 }
@@ -370,7 +377,7 @@ public struct QuillConversationHistoryList: View {
     private var rowPreviewFontSize: CGFloat { 12 }
     private var rowPadding: CGFloat { 11 }
     private var rowTextSpacing: CGFloat { 5 }
-    private var rowCornerRadius: CGFloat { 8 }
+    private var rowCornerRadius: CGFloat { CGFloat(MacMetrics.ListRow.cornerRadius) }
     private var listSpacing: CGFloat { 8 }
     private var emptyTitleFontSize: CGFloat { 15 }
     private var emptySubtitleFontSize: CGFloat { 12 }
@@ -379,12 +386,21 @@ public struct QuillConversationHistoryList: View {
     private var emptyHistorySpacing: CGFloat { 8 }
     private var emptyHistoryCornerRadius: CGFloat { 8 }
 
-    private var rowBackgroundColor: Color { Color(hex: "#FFFFFF") }
-    private var selectedRowBackgroundColor: Color { Color(hex: "#4285F4") }
-    private var rowTitleColor: Color { Color(hex: "#1D1D1F") }
-    private var selectedRowTitleColor: Color { Color(hex: "#FFFFFF") }
-    private var rowPreviewColor: Color { Color(hex: "#6E6E73") }
-    private var selectedRowPreviewColor: Color { Color(hex: "#FFFFFF") }
+    private var rowBackgroundColor: Color { Color(quillPaint: MacColors.controlBackground) }
+    private var rowTitleColor: Color { rowTitleColor(for: .normal) }
+    private var rowPreviewColor: Color { rowPreviewColor(for: .normal) }
+
+    private func rowBackgroundColor(for state: PaintControlState) -> Color {
+        Color(quillPaint: MacListRowPaint.effectiveFillColor(for: state))
+    }
+
+    private func rowTitleColor(for state: PaintControlState) -> Color {
+        Color(quillPaint: MacListRowPaint.primaryTextColor(for: state))
+    }
+
+    private func rowPreviewColor(for state: PaintControlState) -> Color {
+        Color(quillPaint: MacListRowPaint.secondaryTextColor(for: state))
+    }
 
     private var sortedItems: [QuillConversationHistoryItem] {
         items.sorted { $0.updatedAt > $1.updatedAt }
@@ -417,6 +433,12 @@ public struct QuillConversationHistoryList: View {
 
     private func lastMessagePreview(for item: QuillConversationHistoryItem) -> String {
         item.lastMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+private extension Color {
+    init(quillPaint color: PaintColor) {
+        self.init(red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
     }
 }
 
