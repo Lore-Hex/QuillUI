@@ -267,6 +267,20 @@ public enum MacMetrics {
         /// Line width for the chevron stroke.
         public static let chevronLineWidth: Double = 1.0
     }
+
+    public enum Spinner {
+        /// Standard regular control size for a spinning NSProgressIndicator.
+        /// Measured from macOS 14 Sonoma at 1x: 16x16 paint units.
+        public static let regularSize: Double = 16
+        /// Number of spokes in the indeterminate radial spinner.
+        public static let spokeCount: Int = 12
+        /// Width (thickness) of a single spoke.
+        public static let spokeWidth: Double = 2
+        /// Length of a single spoke from inner to outer radius.
+        public static let spokeLength: Double = 4
+        /// Distance from the center to the start of the spoke.
+        public static let innerRadius: Double = 4
+    }
 }
 
 /// macOS system color tokens used by QuillPaint controls.
@@ -366,4 +380,6 @@ public enum MacColors {
     public static let progressBarTrack = PaintColor(r: 0, g: 0, b: 0, a: 24)
     /// `NSProgressIndicator` progress fill color. Matches system accent.
     public static let progressBarFill = accent
+    /// Base color for spinner spokes (alpha varied per spoke).
+    public static let spinnerSpoke = PaintColor(r: 0, g: 0, b: 0)
 }
