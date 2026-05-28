@@ -1077,6 +1077,25 @@ if "buttonWantsHExpand" not in text:
     text = text.replace(old_button_child, new_button_child, 1)
     text = text.replace(old_button_expand, new_button_expand, 1)
 
+    # Ensure finite maxWidth/maxHeight also trigger hexpand/vexpand so they can grow
+    # to fill available space in an HStack/VStack up to the limit (if enforced).
+    text = text.replace('(maxWidth != nil && maxWidth == .infinity)', '(maxWidth != nil)')
+    text = text.replace('(maxHeight != nil && maxHeight == .infinity)', '(maxHeight != nil)')
+    text = text.replace('if let xw = maxWidth, xw == .infinity {', 'if let xw = maxWidth, xw != nil {')
+    text = text.replace('if let xh = maxHeight, xh == .infinity {', 'if let xh = maxHeight, xh != nil {')
+    text = text.replace('let hexp: gint = (maxWidth != nil && maxWidth == .infinity) ? 1 : 0', 'let hexp: gint = (maxWidth != nil) ? 1 : 0')
+    text = text.replace('let vexp: gint = (maxHeight != nil && maxHeight == .infinity) ? 1 : 0', 'let vexp: gint = (maxHeight != nil) ? 1 : 0')
+
+    # Ensure fallback stacks fill the cross-axis when children expand.
+    text = text.replace(
+        'if gtk_widget_get_vexpand(widget) != 0 { needsVExpand = true }',
+        'if gtk_widget_get_vexpand(widget) != 0 { needsVExpand = true; gtk_widget_set_valign(widget, GTK_ALIGN_FILL) }'
+    )
+    text = text.replace(
+        'if gtk_widget_get_hexpand(widget) != 0 { needsHExpand = true }',
+        'if gtk_widget_get_hexpand(widget) != 0 { needsHExpand = true; gtk_widget_set_halign(widget, GTK_ALIGN_FILL) }'
+    )
+
 old_button_clicked = '''        g_signal_connect_data(
             gpointer(button),
             "clicked",
