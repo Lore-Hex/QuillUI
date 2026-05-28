@@ -255,6 +255,24 @@ public enum MacReferenceManifest {
                 control: MacSliderPaint(orientation: .horizontal, progress: 0.5),
                 size: PaintSize(width: 120, height: 22),
                 state: PaintControlState(isDisabled: true)
+            ),
+            ReferenceEntry(
+                name: "switch-off-normal",
+                control: MacSwitchPaint(isOn: false),
+                size: PaintSize(width: MacMetrics.Switch.width, height: MacMetrics.Switch.height),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "switch-on-normal",
+                control: MacSwitchPaint(isOn: true),
+                size: PaintSize(width: MacMetrics.Switch.width, height: MacMetrics.Switch.height),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "switch-on-disabled",
+                control: MacSwitchPaint(isOn: true),
+                size: PaintSize(width: MacMetrics.Switch.width, height: MacMetrics.Switch.height),
+                state: PaintControlState(isDisabled: true)
             )
         ]
     }
