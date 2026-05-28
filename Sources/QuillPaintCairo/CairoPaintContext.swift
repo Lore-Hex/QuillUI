@@ -35,10 +35,11 @@ public final class CairoPaintContext: PaintContext {
         cairo_restore(pointer)
     }
 
-    public func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double) {
+    public func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double, lineCap: PaintLineCap) {
         cairo_save(pointer)
         applyColor(color)
         cairo_set_line_width(pointer, lineWidth)
+        cairo_set_line_cap(pointer, Self.cairoLineCap(from: lineCap))
         cairo_move_to(pointer, start.x, start.y)
         cairo_line_to(pointer, end.x, end.y)
         cairo_stroke(pointer)
@@ -70,6 +71,14 @@ public final class CairoPaintContext: PaintContext {
 
     private func applyColor(_ color: PaintColor) {
         cairo_set_source_rgba(pointer, color.red, color.green, color.blue, color.alpha)
+    }
+
+    private static func cairoLineCap(from cap: PaintLineCap) -> cairo_line_cap_t {
+        switch cap {
+        case .butt: return CAIRO_LINE_CAP_BUTT
+        case .round: return CAIRO_LINE_CAP_ROUND
+        case .square: return CAIRO_LINE_CAP_SQUARE
+        }
     }
 
     private func appendRoundedRect(_ rect: PaintRect, cornerRadius: Double) {

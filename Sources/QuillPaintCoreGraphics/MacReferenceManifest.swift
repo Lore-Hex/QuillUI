@@ -231,6 +231,18 @@ public enum MacReferenceManifest {
                 control: MacScrollerPaint(orientation: .vertical, progress: 1, coverage: 1),
                 size: verticalScrollerSize,
                 state: .normal
+            ),
+            ReferenceEntry(
+                name: "spinner-normal",
+                control: MacSpinnerPaint(),
+                size: PaintSize(width: MacMetrics.Spinner.regularSize, height: MacMetrics.Spinner.regularSize),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "spinner-disabled",
+                control: MacSpinnerPaint(),
+                size: PaintSize(width: MacMetrics.Spinner.regularSize, height: MacMetrics.Spinner.regularSize),
+                state: PaintControlState(isDisabled: true)
             )
         ]
     }

@@ -65,7 +65,7 @@ public final class CGPaintContext: PaintContext {
         cgContext.restoreGState()
     }
 
-    public func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double) {
+    public func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double, lineCap: PaintLineCap) {
         cgContext.saveGState()
         cgContext.setStrokeColor(
             red: CGFloat(color.red),
@@ -74,6 +74,7 @@ public final class CGPaintContext: PaintContext {
             alpha: CGFloat(color.alpha)
         )
         cgContext.setLineWidth(CGFloat(lineWidth))
+        cgContext.setLineCap(Self.cgLineCap(from: lineCap))
         cgContext.move(to: CGPoint(x: start.x, y: start.y))
         cgContext.addLine(to: CGPoint(x: end.x, y: end.y))
         cgContext.strokePath()
@@ -122,6 +123,14 @@ public final class CGPaintContext: PaintContext {
             width: rect.size.width,
             height: rect.size.height
         )
+    }
+
+    private static func cgLineCap(from cap: PaintLineCap) -> CGLineCap {
+        switch cap {
+        case .butt: return .butt
+        case .round: return .round
+        case .square: return .square
+        }
     }
 
     #if canImport(CoreText)

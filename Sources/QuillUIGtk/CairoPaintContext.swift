@@ -34,9 +34,11 @@ public final class CairoPaintContext: PaintContext {
         }
     }
 
-    public func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double) {
+    public func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double, lineCap: PaintLineCap) {
         gtk_swift_cairo_set_source_rgba(cr, color.red, color.green, color.blue, color.alpha)
         gtk_swift_cairo_set_line_width(cr, lineWidth)
+        // TODO(quillui): add gtk_swift_cairo_set_line_cap shim to CGTK and use it here.
+        _ = lineCap
         gtk_swift_cairo_move_to(cr, start.x, start.y)
         gtk_swift_cairo_line_to(cr, end.x, end.y)
         gtk_swift_cairo_stroke(cr)

@@ -84,4 +84,19 @@ public struct PaintColor: Equatable, Hashable, Sendable {
     public static let clear = PaintColor(red: 0, green: 0, blue: 0, alpha: 0)
     public static let white = PaintColor(red: 1, green: 1, blue: 1)
     public static let black = PaintColor(red: 0, green: 0, blue: 0)
+
+    /// Returns a copy of this color with the provided alpha.
+    public func withAlpha(_ alpha: Double) -> PaintColor {
+        PaintColor(red: red, green: green, blue: blue, alpha: min(max(alpha, 0), 1))
+    }
+}
+
+/// Line cap styles for stroking operations.
+public enum PaintLineCap: Equatable, Hashable, Sendable {
+    /// Square end that stops exactly at the terminal point.
+    case butt
+    /// Semicircular end with a radius of half the line width.
+    case round
+    /// Square end that extends past the terminal point by half the line width.
+    case square
 }

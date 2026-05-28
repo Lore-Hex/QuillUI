@@ -20,7 +20,7 @@ public protocol PaintContext: AnyObject {
     func strokeRoundedRect(_ rect: PaintRect, cornerRadius: Double, color: PaintColor, lineWidth: Double)
 
     /// Stroke a single straight line segment.
-    func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double)
+    func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double, lineCap: PaintLineCap)
 
     /// Draw a single text run with `point` as the top-left typographic bounds
     /// origin in paint coordinates.
@@ -31,6 +31,11 @@ public extension PaintContext {
     /// Convenience: fill a rectangle with sharp corners.
     func fillRect(_ rect: PaintRect, color: PaintColor) {
         fillRoundedRect(rect, cornerRadius: 0, color: color)
+    }
+
+    /// Convenience: stroke a line with the default butt cap.
+    func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double) {
+        strokeLine(from: start, to: end, color: color, lineWidth: lineWidth, lineCap: .butt)
     }
 }
 
@@ -44,7 +49,7 @@ public final class RecordingPaintContext: PaintContext {
     public enum DrawCall: Equatable {
         case fillRoundedRect(rect: PaintRect, cornerRadius: Double, color: PaintColor)
         case strokeRoundedRect(rect: PaintRect, cornerRadius: Double, color: PaintColor, lineWidth: Double)
-        case strokeLine(from: PaintPoint, to: PaintPoint, color: PaintColor, lineWidth: Double)
+        case strokeLine(from: PaintPoint, to: PaintPoint, color: PaintColor, lineWidth: Double, lineCap: PaintLineCap)
         case drawText(string: String, point: PaintPoint, font: PaintFont, color: PaintColor)
     }
 
@@ -64,8 +69,8 @@ public final class RecordingPaintContext: PaintContext {
         calls.append(.strokeRoundedRect(rect: rect, cornerRadius: cornerRadius, color: color, lineWidth: lineWidth))
     }
 
-    public func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double) {
-        calls.append(.strokeLine(from: start, to: end, color: color, lineWidth: lineWidth))
+    public func strokeLine(from start: PaintPoint, to end: PaintPoint, color: PaintColor, lineWidth: Double, lineCap: PaintLineCap) {
+        calls.append(.strokeLine(from: start, to: end, color: color, lineWidth: lineWidth, lineCap: lineCap))
     }
 
     public func drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor) {

@@ -96,6 +96,28 @@ public enum MacMetrics {
         /// Horizontal padding from the left edge of the window to the first traffic light.
         public static let horizontalPadding: Double = 20
     }
+
+    public enum Spinner {
+        /// Standard regular control size for a spinning NSProgressIndicator.
+        /// Measured from macOS 14 Sonoma at 1x: 16x16 paint units.
+        public static let regularSize: Double = 16
+
+        /// Number of spokes in the indeterminate radial spinner.
+        /// Matches macOS 14 Sonoma standard.
+        public static let spokeCount: Int = 12
+
+        /// Width (thickness) of a single spoke.
+        /// Measured from macOS 14 Sonoma at 1x: 2pt.
+        public static let spokeWidth: Double = 2
+
+        /// Length of a single spoke from inner to outer radius.
+        /// Measured from macOS 14 Sonoma at 1x: 4pt.
+        public static let spokeLength: Double = 4
+
+        /// Distance from the center to the start of the spoke.
+        /// Measured from macOS 14 Sonoma at 1x: 4pt.
+        public static let innerRadius: Double = 4
+    }
 }
 
 /// macOS system color tokens used by QuillPaint controls.
@@ -158,6 +180,10 @@ public enum MacColors {
 
     /// Subtle overlay track behind the scroller knob.
     public static let scrollerTrack = PaintColor(r: 0, g: 0, b: 0, a: 18)
+
+    /// Base color for spinner spokes. The final color is this base with
+    /// varying alpha applied per spoke.
+    public static let spinnerSpoke = PaintColor(r: 0, g: 0, b: 0)
 
     // MARK: - Window Chrome
 

@@ -120,9 +120,3 @@ private extension Double {
         min(max(self, range.lowerBound), range.upperBound)
     }
 }
-
-private extension PaintColor {
-    func withAlpha(_ alpha: Double) -> PaintColor {
-        PaintColor(red: red, green: green, blue: blue, alpha: min(max(alpha, 0), 1))
-    }
-}
