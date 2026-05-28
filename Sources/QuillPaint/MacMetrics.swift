@@ -44,6 +44,24 @@ public enum MacMetrics {
         public static let borderLineWidth: Double = 1
     }
 
+    public enum SearchField {
+        /// macOS 14 Sonoma search fields are fully rounded (capsule shape).
+        public static let cornerRadius: Double = 11
+        /// Default height for a regular-sized search field.
+        public static let regularHeight: Double = 22
+        public static let borderLineWidth: Double = 1
+
+        /// Width/height of the magnifier icon's bounding square.
+        public static let magnifierSize: Double = 13
+        /// Left inset for the magnifier icon.
+        public static let magnifierLeadingPadding: Double = 7
+        /// Spacing between the magnifier and the placeholder text.
+        public static let magnifierTrailingPadding: Double = 4
+
+        /// Color alpha for the magnifier icon.
+        public static let magnifierOpacity: Double = 0.5
+    }
+
     public enum ListRow {
         /// Corner radius for Enchanted sidebar conversation rows.
         public static let cornerRadius: Double = 6

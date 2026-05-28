@@ -167,6 +167,30 @@ public enum MacReferenceManifest {
                 state: .normal
             ),
             ReferenceEntry(
+                name: "searchfield-normal",
+                control: MacSearchFieldPaint(),
+                size: PaintSize(width: 140, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "searchfield-focused",
+                control: MacSearchFieldPaint(),
+                size: PaintSize(width: 140, height: 22),
+                state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "searchfield-disabled",
+                control: MacSearchFieldPaint(),
+                size: PaintSize(width: 140, height: 22),
+                state: PaintControlState(isDisabled: true)
+            ),
+            ReferenceEntry(
+                name: "searchfield-wide-normal",
+                control: MacSearchFieldPaint(),
+                size: PaintSize(width: 240, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
                 name: "windowchrome-focused",
                 control: MacWindowChromePaint(),
                 size: PaintSize(width: 400, height: 28),
