@@ -231,6 +231,30 @@ public enum MacReferenceManifest {
                 control: MacScrollerPaint(orientation: .vertical, progress: 1, coverage: 1),
                 size: verticalScrollerSize,
                 state: .normal
+            ),
+            ReferenceEntry(
+                name: "slider-horizontal-mid",
+                control: MacSliderPaint(orientation: .horizontal, progress: 0.5),
+                size: PaintSize(width: 120, height: 22),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "slider-horizontal-focused",
+                control: MacSliderPaint(orientation: .horizontal, progress: 0.5),
+                size: PaintSize(width: 120, height: 22),
+                state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "slider-vertical-mid",
+                control: MacSliderPaint(orientation: .vertical, progress: 0.5),
+                size: PaintSize(width: 22, height: 120),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "slider-disabled",
+                control: MacSliderPaint(orientation: .horizontal, progress: 0.5),
+                size: PaintSize(width: 120, height: 22),
+                state: PaintControlState(isDisabled: true)
             )
         ]
     }
