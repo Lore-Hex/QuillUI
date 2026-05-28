@@ -1,110 +1,67 @@
-import os
 import sys
+from pathlib import Path
 
-def patch_renderer(renderer_path):
-    with open(renderer_path, 'r') as f:
-        text = f.read()
 
-    # 1. Add hook declaration at the top
-    hook_decl = 'public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n'
-    if hook_decl not in text and 'extension Text' in text:
-        text = hook_decl + text
+def patch_renderer(renderer_path: str) -> None:
+    path = Path(renderer_path)
+    text = path.read_text()
 
-    # 2. Patch Button.gtkCreateWidget
-    # We want to insert the hook call after the button and label widget are created.
-    # The original code handles Text separately from custom views.
-    
-    old_button_create = '''    public func gtkCreateWidget() -> OpaquePointer {
-        let button: UnsafeMutablePointer<GtkWidget>
+    hook_decl = "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n\n"
+    if "quill_gtk_button_paint_hook" not in text:
+        marker = "// MARK: - GTK rendering protocol\n"
+        if marker not in text:
+            raise SystemExit("SwiftOpenUI GTK rendering protocol marker was not recognized")
+        text = text.replace(marker, hook_decl + marker, 1)
+
+    if "case .quillPaintMacDefault:" not in text:
+        extension_index = text.find("extension Button: GTKRenderable")
+        if extension_index == -1:
+            raise SystemExit("SwiftOpenUI Button GTKRenderable extension was not recognized")
+
+        create_index = text.find("    public func gtkCreateWidget() -> OpaquePointer {", extension_index)
+        if create_index == -1:
+            raise SystemExit("SwiftOpenUI Button gtkCreateWidget shape was not recognized")
+
+        start = text.find("        let button: UnsafeMutablePointer<GtkWidget>", create_index)
+        end = text.find("        let boundAction = bindActionToCurrentEnvironment(action)", start)
+        if start == -1 or end == -1:
+            raise SystemExit("SwiftOpenUI Button setup shape was not recognized")
+
+        replacement = '''        let button: UnsafeMutablePointer<GtkWidget>
+        let childWidget: UnsafeMutablePointer<GtkWidget>
         var buttonWantsHExpand = false
         var buttonWantsVExpand = false
 
+        button = gtk_button_new()!
         if let textLabel = label as? Text {
-            // Simple text label — use native label button
-            button = gtk_button_new_with_label(textLabel.content)!
-        } else {'''
-    
-    new_button_create = '''    public func gtkCreateWidget() -> OpaquePointer {
-        let button: UnsafeMutablePointer<GtkWidget>
-        let labelWidget: UnsafeMutablePointer<GtkWidget>
-        var buttonWantsHExpand = false
-        var buttonWantsVExpand = false
-
-        if let textLabel = label as? Text {
-            button = gtk_button_new()!
-            labelWidget = widgetFromOpaque(textLabel.gtkCreateWidget())
+            childWidget = widgetFromOpaque(textLabel.gtkCreateWidget())
         } else {
-            labelWidget = widgetFromOpaque(gtkRenderView(label))
-            button = gtk_button_new()!
-        }
-
-        let isDefault = getCurrentEnvironment().buttonStyle == .borderedProminent
-        if let hook = quill_gtk_button_paint_hook, hook(OpaquePointer(button), OpaquePointer(labelWidget), isDefault) {
-             // Handled by hook
-        } else {
-            if let textLabel = label as? Text {
-                // Fallback for Text if hook declined
-                gtk_button_set_child(UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self), labelWidget)
-            } else {'''
-
-    # This is tricky because the 'else' block continues.
-    # Let's try a different approach: replace the whole block.
-    
-    start_match = '    public func gtkCreateWidget() -> OpaquePointer {'
-    # Find the extension Button block
-    btn_ext_index = text.find('extension Button: GTKRenderable')
-    if btn_ext_index != -1:
-        create_widget_index = text.find(start_match, btn_ext_index)
-        if create_widget_index != -1:
-             # Find the end of the if-else block
-             # The block we want to replace ends with:
-             #             gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
-             #         }
-             #         // Remove GTK default button border/padding
-             
-             end_match = '            // Remove GTK default button border/padding'
-             end_index = text.find(end_match, create_widget_index)
-             if end_index != -1:
-                 # We also need to include the next few lines of applyCSSToWidget
-                 # and the closing brace of the else block.
-                 
-                 # Actually, let's just replace from 'let button' to the end of the if/else.
-                 
-                 target_block_start = text.find('let button:', create_widget_index)
-                 # Find the end of the if/else block.
-                 # It ends after the applyCSSToWidget(...) call.
-                 target_block_end = text.find('        }', end_index) + 9 # include the closing brace and newline
-                 
-                 new_block = '''        let button: UnsafeMutablePointer<GtkWidget>
-        let labelWidget: UnsafeMutablePointer<GtkWidget>
-        var buttonWantsHExpand = false
-        var buttonWantsVExpand = false
-
-        if let textLabel = label as? Text {
-            button = gtk_button_new()!
-            labelWidget = widgetFromOpaque(textLabel.gtkCreateWidget())
-        } else {
-            labelWidget = widgetFromOpaque(gtkRenderView(label))
-            button = gtk_button_new()!
-            if gtk_widget_get_hexpand(labelWidget) != 0 {
+            childWidget = widgetFromOpaque(gtkRenderView(label))
+            if gtk_widget_get_hexpand(childWidget) != 0 {
                 buttonWantsHExpand = true
-                gtk_widget_set_halign(labelWidget, GTK_ALIGN_FILL)
+                gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
             }
-            if gtk_widget_get_vexpand(labelWidget) != 0 {
+            if gtk_widget_get_vexpand(childWidget) != 0 {
                 buttonWantsVExpand = true
-                gtk_widget_set_valign(labelWidget, GTK_ALIGN_FILL)
+                gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
             }
         }
 
-        let isDefault = getCurrentEnvironment().buttonStyle == .borderedProminent
-        if let hook = quill_gtk_button_paint_hook, hook(OpaquePointer(button), OpaquePointer(labelWidget), isDefault) {
-            // Handled by hook (QuillPaint)
-        } else {
+        let buttonStyleType = getCurrentEnvironment().buttonStyle
+        let handledByQuillPaint: Bool
+        switch buttonStyleType {
+        case .quillPaintMacDefault:
+            handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), true) ?? false
+        case .quillPaintMacBordered:
+            handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), false) ?? false
+        default:
+            handledByQuillPaint = false
+        }
+
+        if !handledByQuillPaint {
             let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
-            gtk_button_set_child(btnPtr, labelWidget)
+            gtk_button_set_child(btnPtr, childWidget)
             if !(label is Text) {
-                // Remove GTK default button border/padding so custom-styled
-                // labels (with .background/.frame) render cleanly.
                 applyCSSToWidget(button, properties: """
                     border: none;
                     outline: none;
@@ -113,15 +70,55 @@ def patch_renderer(renderer_path):
                     min-width: 0;
                     """)
             }
+
+            switch buttonStyleType {
+            case .plain:
+                applyCSSToWidget(button, properties: """
+                    border: none; background: none; padding: 0;
+                    min-height: 0; min-width: 0;
+                    """)
+            case .borderedProminent:
+                applyCSSToWidget(
+                    button,
+                    properties: """
+                        background-color: #3584e4;
+                        background-image: none;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        padding: 6px 12px;
+                        box-shadow: none;
+                        text-shadow: none;
+                        min-height: 0;
+                        """,
+                    disabledProperties: """
+                        background-color: rgba(53, 132, 228, 0.4);
+                        color: rgba(255, 255, 255, 0.7);
+                        """
+                )
+            case .bordered:
+                applyCSSToWidget(button, properties: """
+                    border: 1px solid @borders; border-radius: 6px;
+                    padding: 6px 12px;
+                    """)
+            case .automatic, .quillPaintMacDefault, .quillPaintMacBordered:
+                break
+            }
         }
+
+        gtk_widget_set_hexpand(button, buttonWantsHExpand ? 1 : 0)
+        gtk_widget_set_vexpand(button, buttonWantsVExpand ? 1 : 0)
+        gtk_widget_set_halign(button, buttonWantsHExpand ? GTK_ALIGN_FILL : GTK_ALIGN_START)
+        gtk_widget_set_valign(button, buttonWantsVExpand ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
+
 '''
-                 text = text[:target_block_start] + new_block + text[target_block_end:]
+        text = text[:start] + replacement + text[end:]
 
-    with open(renderer_path, 'w') as f:
-        f.write(text)
+    path.write_text(text)
 
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Usage: patch_quillpaint.py <renderer_path>")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: patch-swiftopenui-quillpaint.py <renderer_path>")
         sys.exit(1)
     patch_renderer(sys.argv[1])
