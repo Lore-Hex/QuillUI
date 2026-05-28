@@ -350,7 +350,7 @@ final class NetworkParametersParityTests: XCTestCase {
         XCTAssertEqual(parameters.attribution, .user)
         assertParameters(
             parameters,
-            expectedText: "tcp, traffic class: 300, local: 127.0.0.1:8080, multipath service: handover, fast-open, no expensive, no constrained, no cellular, prefer no proxy, attribution: website, requires DNSSEC"
+            expectedText: "tcp, traffic class: 300, local: 127.0.0.1:8080, multipath service: 1, fast-open, no expensive, no constrained, no cellular, prefer no proxy, attribution: website, requires DNSSEC validation"
         )
     }
 
