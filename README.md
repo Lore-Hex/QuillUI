@@ -260,6 +260,21 @@ Current tooling checkpoint:
 - `scripts/run-linux-backend-smoke-matrix.sh`: shared visual/interaction matrix runner so local and CI GTK/Qt smoke rows stay identical.
 - `scripts/linux-backend-check.sh`: guarded aggregate check for the current Linux backend matrix.
 
+## QuillPaint macOS Control Set
+
+`QuillPaint` provides renderer-agnostic primitives that mirror the visual appearance of standard macOS controls. These are used by the Linux backends to achieve pixel-perfect parity with the native macOS experience.
+
+| Control | macOS Mirror | Implementation |
+| --- | --- | --- |
+| Button | `NSButton` | `MacButtonPaint.swift` |
+| Text Field | `NSTextField` | `MacTextFieldPaint.swift` |
+| Window Chrome | Window Titlebar | `MacWindowChromePaint.swift` |
+| Scroller | `NSScroller` | `MacScrollerPaint.swift` |
+| Slider | `NSSlider` | `MacSliderPaint.swift` |
+| Switch | `NSSwitch` | `MacSwitchPaint.swift` |
+| List Row | `NSTableRowView` | `MacListRowPaint.swift` |
+| Chat Bubble | Enchanted Message Bubble | `MacChatBubblePaint.swift` |
+
 ## Roadmap
 
 QuillUI's product position is **pixel-perfect macOS appearance on Linux**, not
