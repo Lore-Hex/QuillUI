@@ -55,6 +55,21 @@ public enum MacMetrics {
         public static let verticalPadding: Double = 8
     }
 
+    public enum Checkbox {
+        /// Size of a standard checkbox (it's square).
+        /// Measured from NSButton(checkbox) on macOS 14 Sonoma at 1x.
+        public static let size: Double = 14
+
+        /// Corner radius of the checkbox box.
+        public static let cornerRadius: Double = 3
+
+        /// Line width of the checkmark and mixed dash glyphs.
+        public static let checkmarkLineWidth: Double = 1.5
+
+        /// Outset of the focus ring from the checkbox frame.
+        public static let focusRingOutset: Double = 3
+    }
+
     public enum Scroller {
         /// Corner radius of the overlay scroller capsule knob at regular size.
         public static let knobCornerRadius: Double = 3

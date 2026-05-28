@@ -231,6 +231,36 @@ public enum MacReferenceManifest {
                 control: MacScrollerPaint(orientation: .vertical, progress: 1, coverage: 1),
                 size: verticalScrollerSize,
                 state: .normal
+            ),
+            ReferenceEntry(
+                name: "checkbox-off-normal",
+                control: MacCheckboxPaint(value: .off),
+                size: PaintSize(width: MacMetrics.Checkbox.size, height: MacMetrics.Checkbox.size),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "checkbox-on-normal",
+                control: MacCheckboxPaint(value: .on),
+                size: PaintSize(width: MacMetrics.Checkbox.size, height: MacMetrics.Checkbox.size),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "checkbox-mixed-normal",
+                control: MacCheckboxPaint(value: .mixed),
+                size: PaintSize(width: MacMetrics.Checkbox.size, height: MacMetrics.Checkbox.size),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "checkbox-on-focused",
+                control: MacCheckboxPaint(value: .on),
+                size: PaintSize(width: MacMetrics.Checkbox.size, height: MacMetrics.Checkbox.size),
+                state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "checkbox-on-disabled",
+                control: MacCheckboxPaint(value: .on),
+                size: PaintSize(width: MacMetrics.Checkbox.size, height: MacMetrics.Checkbox.size),
+                state: PaintControlState(isDisabled: true)
             )
         ]
     }
