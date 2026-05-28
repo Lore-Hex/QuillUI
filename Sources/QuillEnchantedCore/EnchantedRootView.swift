@@ -349,11 +349,9 @@ public struct EnchantedRootView: View {
                         Text(sendActionTitle)
                     }
                     .padding(CGFloat(EnchantedVisualMetrics.primaryButtonPadding))
-                    .background(model.isLoading ? QuillColors.warning : QuillColors.primary)
                     .foregroundColor(.white)
-                    .cornerRadius(CGFloat(EnchantedVisualMetrics.primaryButtonRadius))
                 }
-                .buttonStyle(.plain)
+                .quillPaint(.macDefault)
                 .disabled(sendDisabled)
                 .accessibilityLabel(sendActionTitle)
                 .help(sendActionTitle)

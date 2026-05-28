@@ -222,7 +222,7 @@ public struct QuillPromptGrid: View {
         Button(action: { action(prompt) }) {
             promptCard(prompt)
         }
-        .buttonStyle(.plain)
+        .quillPaint(.macBordered)
         .accessibilityLabel(prompt.title)
         .help(prompt.title)
     }
