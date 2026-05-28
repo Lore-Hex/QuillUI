@@ -4,6 +4,17 @@ import Testing
 
 @Suite("quill-doctor coverage scan")
 struct QuillDoctorTests {
+    @Test("version string follows semantic versioning format")
+    func versionStringFormat() {
+        let version = QuillDoctor.version
+        // Simple regex-like check for x.y.z
+        let parts = version.split(separator: ".")
+        #expect(parts.count == 3)
+        for part in parts {
+            #expect(Int(part) != nil)
+        }
+    }
+
     @Test("imports cross-referenced against coverage doc produce covered/missing statuses")
     func coveredAndMissingStatuses() throws {
         let fm = FileManager.default

@@ -9,6 +9,7 @@ import SwiftSyntax
 /// separate from the CLI binary so tests can drive the scan in-process
 /// without spawning subprocesses.
 public struct QuillDoctor {
+    public static let version = "0.1.0"
     public init() {}
 
     /// Modules considered covered by default even when they don't appear as
