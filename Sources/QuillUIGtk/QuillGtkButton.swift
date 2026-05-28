@@ -38,8 +38,12 @@ public func setupQuillButtonChrome(button: OpaquePointer, label: OpaquePointer, 
 
     // 3. Add original label as an overlay (on top of chrome)
     gtk_overlay_add_overlay(overlayPtr, labelPtr)
-    gtk_widget_set_halign(labelPtr, GTK_ALIGN_CENTER)
-    gtk_widget_set_valign(labelPtr, GTK_ALIGN_CENTER)
+    
+    let labelWantsHExpand = gtk_widget_get_hexpand(labelPtr) != 0
+    let labelWantsVExpand = gtk_widget_get_vexpand(labelPtr) != 0
+    
+    gtk_widget_set_halign(labelPtr, labelWantsHExpand ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
+    gtk_widget_set_valign(labelPtr, labelWantsVExpand ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
     
     // Ensure the label doesn't intercept clicks, so the button gets them
     gtk_widget_set_can_target(labelPtr, 0)
