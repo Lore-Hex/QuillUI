@@ -65,7 +65,8 @@ struct ChatView: View {
                 conversations: conversations,
                 onConversationTap: onConversationTap,
                 onConversationDelete: onConversationDelete,
-                onDeleteDailyConversations: onDeleteDailyConversations
+                onDeleteDailyConversations: onDeleteDailyConversations,
+                onNewConversationTap: onNewConversationTap
             )
         } toolbar: {
             QuillToolbarActionRow {

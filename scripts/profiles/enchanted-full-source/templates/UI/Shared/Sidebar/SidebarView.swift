@@ -12,6 +12,7 @@ struct SidebarView: View {
     var onConversationTap: (_ conversation: ConversationSD) -> ()
     var onConversationDelete: (_ conversation: ConversationSD) -> ()
     var onDeleteDailyConversations: (_ date: Date) -> ()
+    var onNewConversationTap: () -> () = {}
     @State var showSettings = false
     @State var showCompletions = false
     @State var showKeyboardShortcutas = false
@@ -25,6 +26,26 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Primary "New chat" action — matches the macOS Enchanted sidebar
+            // (a full-width accent-blue button at the sidebar top, above the
+            // conversation list). Color is the Enchanted accent #4285F4.
+            Button(action: onNewConversationTap) {
+                HStack(spacing: 8) {
+                    Image(systemName: "square.and.pencil")
+                    Text("New chat")
+                        .fontWeight(.semibold)
+                    Spacer()
+                }
+                .foregroundColor(.white)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .background(Color(red: 0.259, green: 0.522, blue: 0.957))
+                .cornerRadius(10)
+            }
+            .buttonStyle(.plain)
+            .padding(.bottom, 16)
+
             ConversationHistoryList(
                 selectedConversation: selectedConversation,
                 conversations: conversations,
