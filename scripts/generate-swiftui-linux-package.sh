@@ -255,16 +255,43 @@ if [[ "$BACKEND_FACADE" != "qt" ]]; then
   QUILLUI_SWIFT_PACKAGE_PATH="$PACKAGE_DIR" "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$BUILD_SCRATCH"
 fi
 
+# The generated package compiles CGdkPixbuf (a system module wrapping
+# <gdk-pixbuf/gdk-pixbuf.h>) regardless of backend facade, and the GTK facade
+# additionally needs the gtk4 headers. The root Package.swift feeds these
+# include paths to its own build via pkgConfigSwiftImporterFlags(); the
+# generated scratch build needs the same, otherwise the compile fails with
+# "'gdk-pixbuf/gdk-pixbuf.h' file not found" / "could not build C module
+# 'CGdkPixbuf'". Mirror that here by passing pkg-config -I/-L/-l flags through.
+quillui_build_args=(
+  --package-path "$PACKAGE_DIR"
+  --scratch-path "$BUILD_SCRATCH"
+  --product "$PRODUCT_NAME"
+)
+
+quillui_append_pkgconfig_flags() {
+  local pkg="$1" flag
+  if ! pkg-config --exists "$pkg" 2>/dev/null; then
+    echo "warning: pkg-config has no '$pkg'; generated build may miss its include path" >&2
+    return 0
+  fi
+  for flag in $(pkg-config --cflags-only-I "$pkg" 2>/dev/null); do
+    quillui_build_args+=("-Xcc" "$flag")
+  done
+  for flag in $(pkg-config --libs-only-L --libs-only-l "$pkg" 2>/dev/null); do
+    quillui_build_args+=("-Xlinker" "$flag")
+  done
+}
+
+quillui_append_pkgconfig_flags "gdk-pixbuf-2.0"
+if [[ "$BACKEND_FACADE" != "qt" ]]; then
+  quillui_append_pkgconfig_flags "gtk4"
+fi
+
 if [[ "$BACKEND_FACADE" == "qt" ]]; then
   QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
-    --package-path "$PACKAGE_DIR" \
-    --scratch-path "$BUILD_SCRATCH" \
-    --product "$PRODUCT_NAME"
+    "${quillui_build_args[@]}"
 else
-  swift build \
-    --package-path "$PACKAGE_DIR" \
-    --scratch-path "$BUILD_SCRATCH" \
-    --product "$PRODUCT_NAME"
+  swift build "${quillui_build_args[@]}"
 fi
 
 cat <<MSG
