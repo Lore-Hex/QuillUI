@@ -844,7 +844,11 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
             HStack(spacing: 0) {
                 sidebar
                     .frame(width: resolvedSidebarWidth, alignment: .leading)
-                    .background(Color(hex: "#E9E9E7"))
+                    // macOS source-list sidebar color (matches EnchantedPalette.sidebarColor
+                    // and the Enchanted macOS reference screenshot). The previous #E9E9E7 was
+                    // slightly too dark/neutral — it rendered (233,233,231), failing the
+                    // backend visual verifier's sidebar check (needs green >= 235).
+                    .background(Color(hex: "#F5F5F7"))
                     .overlay(alignment: .topLeading) {
                         #if os(Linux)
                         if Self.showsMacWindowControls {
