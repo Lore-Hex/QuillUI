@@ -14,6 +14,10 @@ public typealias DNSServiceErrorType = Int32
 public typealias OSStatus = Int32
 #endif
 
+private func networkEnumDebugDescription<T>(_ type: T.Type, caseName: String) -> String {
+    "\(String(reflecting: type)).\(caseName)"
+}
+
 public enum NWError: Error, Equatable, Sendable, CustomDebugStringConvertible, LocalizedError {
     case posix(POSIXErrorCode)
     case dns(DNSServiceErrorType)
@@ -147,7 +151,7 @@ public final class NWPathMonitor: @unchecked Sendable {
 }
 
 public struct NWPath: Sendable {
-    public enum Status: Hashable, Sendable, CustomStringConvertible {
+    public enum Status: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
         case satisfied, unsatisfied, requiresConnection
 
         public var description: String {
@@ -160,10 +164,31 @@ public struct NWPath: Sendable {
                 return "requiresConnection"
             }
         }
+
+        public var debugDescription: String {
+            networkEnumDebugDescription(Self.self, caseName: description)
+        }
     }
 
-    public enum UnsatisfiedReason: Hashable, Sendable {
+    public enum UnsatisfiedReason: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
         case notAvailable, cellularDenied, wifiDenied, localNetworkDenied
+
+        public var description: String {
+            switch self {
+            case .notAvailable:
+                return "notAvailable"
+            case .cellularDenied:
+                return "cellularDenied"
+            case .wifiDenied:
+                return "wifiDenied"
+            case .localNetworkDenied:
+                return "localNetworkDenied"
+            }
+        }
+
+        public var debugDescription: String {
+            networkEnumDebugDescription(Self.self, caseName: description)
+        }
     }
 
     public var status: Status
@@ -201,7 +226,7 @@ public struct NWPath: Sendable {
 }
 
 public struct NWInterface: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
-    public enum InterfaceType: Hashable, Sendable, CustomStringConvertible {
+    public enum InterfaceType: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
         case wifi, cellular, wiredEthernet, loopback, other
 
         public var description: String {
@@ -217,6 +242,10 @@ public struct NWInterface: Hashable, Sendable, CustomStringConvertible, CustomDe
             case .other:
                 return "other"
             }
+        }
+
+        public var debugDescription: String {
+            networkEnumDebugDescription(Self.self, caseName: description)
         }
     }
     public var type: InterfaceType
@@ -314,7 +343,7 @@ public enum NWProtocolTLS {
 
 public enum NWProtocolIP {
     public final class Options: NWProtocolOptions {
-        public enum Version: Hashable, Sendable, CustomStringConvertible {
+        public enum Version: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
             case any, v4, v6
 
             public var description: String {
@@ -327,9 +356,13 @@ public enum NWProtocolIP {
                     return "v6"
                 }
             }
+
+            public var debugDescription: String {
+                networkEnumDebugDescription(Self.self, caseName: description)
+            }
         }
 
-        public enum AddressPreference: Hashable, Sendable, CustomStringConvertible {
+        public enum AddressPreference: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
             case `default`, temporary, stable
 
             public var description: String {
@@ -341,6 +374,10 @@ public enum NWProtocolIP {
                 case .stable:
                     return "stable"
                 }
+            }
+
+            public var debugDescription: String {
+                networkEnumDebugDescription(Self.self, caseName: description)
             }
         }
 
@@ -369,7 +406,7 @@ public enum NWProtocolIP {
         }
     }
 
-    public enum ECN: Hashable, Sendable, CustomStringConvertible {
+    public enum ECN: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
         case nonECT, ect0, ect1, ce
 
         public var description: String {
@@ -383,6 +420,10 @@ public enum NWProtocolIP {
             case .ce:
                 return "ce"
             }
+        }
+
+        public var debugDescription: String {
+            networkEnumDebugDescription(Self.self, caseName: description)
         }
     }
 }
@@ -409,7 +450,7 @@ private func copiedProtocolOptions(_ options: [NWProtocolOptions]) -> [NWProtoco
 }
 
 public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertible {
-    public enum Attribution: Hashable, Sendable, CustomStringConvertible {
+    public enum Attribution: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
         case developer, user
 
         public var description: String {
@@ -419,6 +460,10 @@ public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertib
             case .user:
                 return "user"
             }
+        }
+
+        public var debugDescription: String {
+            networkEnumDebugDescription(Self.self, caseName: description)
         }
 
         fileprivate var debugToken: String {
@@ -431,7 +476,7 @@ public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertib
         }
     }
 
-    public enum ExpiredDNSBehavior: Hashable, Sendable, CustomStringConvertible {
+    public enum ExpiredDNSBehavior: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
         case systemDefault, allow, prohibit
 
         public var description: String {
@@ -444,17 +489,34 @@ public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertib
                 return "prohibit"
             }
         }
-    }
 
-    public enum MultipathServiceType: Int, Hashable, Sendable, CustomStringConvertible {
-        case disabled = 0, handover = 1, interactive = 2, aggregate = 3
-
-        public var description: String {
-            String(rawValue)
+        public var debugDescription: String {
+            networkEnumDebugDescription(Self.self, caseName: description)
         }
     }
 
-    public enum ServiceClass: Hashable, Sendable, CustomStringConvertible {
+    public enum MultipathServiceType: Int, Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
+        case disabled = 0, handover = 1, interactive = 2, aggregate = 3
+
+        public var description: String {
+            switch self {
+            case .disabled:
+                return "disabled"
+            case .handover:
+                return "handover"
+            case .interactive:
+                return "interactive"
+            case .aggregate:
+                return "aggregate"
+            }
+        }
+
+        public var debugDescription: String {
+            networkEnumDebugDescription(Self.self, caseName: description)
+        }
+    }
+
+    public enum ServiceClass: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
         case bestEffort, background, interactiveVideo, interactiveVoice, responsiveData, signaling
 
         public var description: String {
@@ -472,6 +534,10 @@ public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertib
             case .signaling:
                 return "signaling"
             }
+        }
+
+        public var debugDescription: String {
+            networkEnumDebugDescription(Self.self, caseName: description)
         }
 
         fileprivate var trafficClass: Int? {
@@ -645,7 +711,7 @@ public final class NWParameters: @unchecked Sendable, CustomDebugStringConvertib
             components.append("local: \(debugDescription(for: requiredLocalEndpoint))")
         }
         if multipathServiceType != .disabled {
-            components.append("multipath service: \(multipathServiceType)")
+            components.append("multipath service: \(multipathServiceType.rawValue)")
         }
         if allowFastOpen {
             components.append("fast-open")
