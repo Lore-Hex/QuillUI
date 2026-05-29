@@ -1867,6 +1867,13 @@ def validate_quill_chatkit_gtk_list_selection(image: Screenshot, product: str) -
 
 def validate_quill_generic_gtk_list_selection(image: Screenshot, product: str) -> str:
     app_label = product.removesuffix("-gtk-list-selection")
+    # The upstream-slice uses the Enchanted palette; its selected row is the neutral
+    # #E8E8ED tint (matches enchanted_selected_row_pixel's shared-palette band), not
+    # the bluer generic_gtk tint. Mirror validate_quill_generic_qt_list_selection.
+    uses_enchanted_palette = app_label == "quill-enchanted-upstream-slice"
+    selected_row_pixel = (
+        enchanted_selected_row_pixel if uses_enchanted_palette else generic_gtk_selected_row_pixel
+    )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1896,7 +1903,7 @@ def validate_quill_generic_gtk_list_selection(image: Screenshot, product: str) -
         top + 120,
         max(left + 13, divider_x - 12),
         min(bottom + 1, top + 560),
-        generic_gtk_selected_row_pixel,
+        selected_row_pixel,
         min_row_pixels=28,
     )
     require(selected_row is not None, "Generic GTK selected list row was not detected")

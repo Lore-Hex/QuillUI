@@ -203,11 +203,10 @@ click_at() {
 }
 
 generic_backend_list_selection_y() {
-  if [[ "$SELECTED_BACKEND" == "gtk" && "$PRODUCT" == "quill-enchanted-upstream-slice" ]]; then
-    printf '%s\n' "$((window_y + 250))"
-  else
-    printf '%s\n' "$((window_y + 350))"
-  fi
+  # Target window_y+350 for all generic list-selection clicks: a lower row whose
+  # center clears the validator's >=220 floor with margin. (upstream-slice GTK
+  # previously used +250, which selected the first row right at the 220 boundary.)
+  printf '%s\n' "$((window_y + 350))"
 }
 
 click_generic_backend_list_selection() {
