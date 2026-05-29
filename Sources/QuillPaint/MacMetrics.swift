@@ -268,6 +268,52 @@ public enum MacMetrics {
         public static let chevronLineWidth: Double = 1.0
     }
 
+    public enum Stepper {
+        /// Width of a regular `NSStepper`.
+        /// Measured from `NSStepper(frame: .zero).controlSize = .regular; sizeToFit()` on macOS 14 Sonoma at 1x.
+        public static let regularWidth: Double = 19
+
+        /// Height of a regular `NSStepper`.
+        /// Measured from `NSStepper(frame: .zero).controlSize = .regular; sizeToFit()` on macOS 14 Sonoma at 1x.
+        public static let regularHeight: Double = 28
+
+        /// Horizontal inset from the control bounds to the visible capsule chrome.
+        /// Measured from a regular `NSStepper` bitmap on macOS 14 Sonoma at 1x.
+        public static let chromeHorizontalInset: Double = 1
+
+        /// Vertical inset from the control bounds to the visible capsule chrome.
+        /// Measured from a regular `NSStepper` bitmap on macOS 14 Sonoma at 1x.
+        public static let chromeVerticalInset: Double = 2
+
+        /// Corner radius of the visible regular `NSStepper` capsule.
+        /// Measured from the 17x24 visible capsule bounds on macOS 14 Sonoma at 1x.
+        public static let cornerRadius: Double = 8.5
+
+        /// Corner radius used for the active half's pressed overlay.
+        /// Measured from a regular `NSStepper` pressed-half bitmap on macOS 14 Sonoma at 1x.
+        public static let segmentCornerRadius: Double = 5
+
+        /// Line width of the outer capsule border.
+        /// Measured from a regular `NSStepper` bitmap on macOS 14 Sonoma at 1x.
+        public static let borderLineWidth: Double = 1
+
+        /// Line width of the horizontal divider between the up and down buttons.
+        /// Measured from a regular `NSStepper` bitmap on macOS 14 Sonoma at 1x.
+        public static let dividerLineWidth: Double = 1
+
+        /// Width of each stepper chevron glyph.
+        /// Measured from a regular `NSStepper` bitmap on macOS 14 Sonoma at 1x.
+        public static let chevronWidth: Double = 5
+
+        /// Height of each stepper chevron glyph.
+        /// Measured from a regular `NSStepper` bitmap on macOS 14 Sonoma at 1x.
+        public static let chevronHeight: Double = 3
+
+        /// Line width for the up/down chevron strokes.
+        /// Measured from a regular `NSStepper` bitmap on macOS 14 Sonoma at 1x.
+        public static let chevronLineWidth: Double = 1.4
+    }
+
     public enum Spinner {
         /// Standard regular control size for a spinning NSProgressIndicator.
         /// Measured from macOS 14 Sonoma at 1x: 16x16 paint units.
@@ -382,4 +428,21 @@ public enum MacColors {
     public static let progressBarFill = accent
     /// Base color for spinner spokes (alpha varied per spoke).
     public static let spinnerSpoke = PaintColor(r: 0, g: 0, b: 0)
+
+    // MARK: - Stepper
+
+    /// `NSStepper` capsule fill in light appearance.
+    public static let stepperFill = PaintColor.white
+
+    /// `NSStepper` outer border in light appearance.
+    public static let stepperBorder = PaintColor(r: 0, g: 0, b: 0, a: 72)
+
+    /// `NSStepper` divider between the up and down buttons.
+    public static let stepperDivider = PaintColor(r: 0, g: 0, b: 0, a: 32)
+
+    /// `NSStepper` chevron glyph color in light appearance.
+    public static let stepperGlyph = PaintColor(r: 38, g: 38, b: 38)
+
+    /// Pressed-state overlay for an active `NSStepper` half.
+    public static let stepperPressedOverlay = PaintColor(red: 0, green: 0, blue: 0, alpha: 0.10)
 }

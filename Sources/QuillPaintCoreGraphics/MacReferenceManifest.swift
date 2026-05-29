@@ -32,6 +32,7 @@ public enum MacReferenceManifest {
         let chatBubbleSize = PaintSize(width: 220, height: 52)
         let verticalScrollerSize = PaintSize(width: 12, height: 120)
         let horizontalScrollerSize = PaintSize(width: 120, height: 12)
+        let stepperSize = PaintSize(width: MacMetrics.Stepper.regularWidth, height: MacMetrics.Stepper.regularHeight)
 
         return [
             ReferenceEntry(
@@ -399,6 +400,30 @@ public enum MacReferenceManifest {
                 control: MacPopUpButtonPaint(label: "Selection"),
                 size: PaintSize(width: 120, height: 22),
                 state: PaintControlState(isFocused: true)
+            ),
+            ReferenceEntry(
+                name: "stepper-normal",
+                control: MacStepperPaint(),
+                size: stepperSize,
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "stepper-up-pressed",
+                control: MacStepperPaint(pressedSegment: .up),
+                size: stepperSize,
+                state: PaintControlState(isPressed: true)
+            ),
+            ReferenceEntry(
+                name: "stepper-down-pressed",
+                control: MacStepperPaint(pressedSegment: .down),
+                size: stepperSize,
+                state: PaintControlState(isPressed: true)
+            ),
+            ReferenceEntry(
+                name: "stepper-disabled",
+                control: MacStepperPaint(),
+                size: stepperSize,
+                state: PaintControlState(isDisabled: true)
             ),
             ReferenceEntry(
                 name: "spinner-normal",
