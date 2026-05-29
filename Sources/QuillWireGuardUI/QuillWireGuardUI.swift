@@ -252,6 +252,11 @@ public struct WireGuardFallbackConfigurationView: View {
                 TextEditor(text: $importConfigurationText)
                     .font(.system(size: WireGuardFallbackStyle.monospacedFontSize, design: .monospaced))
                     .frame(height: WireGuardFallbackStyle.importEditorHeight)
+                    // Without an explicit background the GTK/SwiftOpenUI TextEditor
+                    // composites as a solid black surface (no compositor under Xvfb),
+                    // which hides the pasted config and visually occludes the action
+                    // row below it. Match the Enchanted composer's white editor.
+                    .background(.white)
 
                 Text(importErrorText ?? "")
                     .font(.caption)
@@ -260,6 +265,10 @@ public struct WireGuardFallbackConfigurationView: View {
 
                 HStack(spacing: 8) {
                     Button(QuillWireGuardPresentation.importActionLabel, action: importPastedConfiguration)
+                        // Cmd+Return (macOS) / Ctrl+Return (Linux) submits the pasted
+                        // config. SwiftOpenUI registers this window-level, so it fires
+                        // even though the expanding TextEditor occludes the button on GTK.
+                        .keyboardShortcut(.return)
                     Button(QuillWireGuardPresentation.importFileActionLabel, action: importConfigurationFromFile)
                     Spacer()
                     Button(QuillWireGuardPresentation.importCancelActionLabel, action: hideImportPanel)

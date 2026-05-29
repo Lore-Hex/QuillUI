@@ -489,8 +489,6 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
         import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
         editor_x="${QUILLUI_BACKEND_IMPORT_EDITOR_X:-$((window_x + 520))}"
         editor_y="${QUILLUI_BACKEND_IMPORT_EDITOR_Y:-$((window_y + 190))}"
-        submit_x="${QUILLUI_BACKEND_IMPORT_SUBMIT_CLICK_X:-$((window_x + 330))}"
-        submit_y="${QUILLUI_BACKEND_IMPORT_SUBMIT_CLICK_Y:-$((window_y + 300))}"
         click_at "$import_x" "$import_y"
         sleep 0.8
         click_at "$editor_x" "$editor_y"
@@ -498,7 +496,13 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
         import_configuration="$(wireguard_import_configuration_for_mode "$INTERACTION_MODE")" || exit $?
         type_multiline_text "$import_configuration"
         sleep 0.4
-        click_at "$submit_x" "$submit_y"
+        # Submit via Ctrl+Return instead of clicking the Import button. The GTK
+        # TextEditor expands to fill the panel and renders over the action row, so a
+        # positional submit click can't reliably reach the button. SwiftOpenUI maps
+        # Ctrl (-> .command) + Return to the button's .keyboardShortcut(.return) at the
+        # window level (a plain Return would only insert a newline in the focused
+        # editor). Mirrors the Qt import branch below.
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+Return
         sleep "$post_click_sleep"
         ;;
       import-file|file-import|import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
