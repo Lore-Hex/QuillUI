@@ -255,6 +255,15 @@ struct QuillWireGuardCoreTests {
         #expect(source.contains("frame(width: WireGuardFallbackStyle.sidebarListContentWidth"))
         #expect(source.contains(".lineLimit(nil)"))
         #expect(source.contains("TextEditor(text: $importConfigurationText)"))
+        // The import editor needs an explicit background (GTK composites an
+        // unbacked TextEditor as a black box under Xvfb) and the Import button
+        // needs a keyboard shortcut to stay submittable when the expanding editor
+        // occludes it.
+        // The import editor needs an explicit background (GTK composites an unbacked
+        // TextEditor as a black box) and the Import button needs a keyboard shortcut
+        // so the paste/import can be submitted when the expanding editor occludes it.
+        #expect(source.contains(".background(.white)"))
+        #expect(source.contains(".keyboardShortcut(.return)"))
         #expect(source.contains("QuillFileImporter.selectURL(allowedContentTypes: [])"))
         #expect(source.contains("QuillWireGuardImportService.importTunnel"))
         #expect(source.contains("QuillWireGuardPresentation.importButtonLabel"))
@@ -295,10 +304,14 @@ struct QuillWireGuardCoreTests {
         #expect(interactionScript.contains("QUILLUI_FILE_IMPORTER_SELECTION=$import_file"))
         #expect(interactionScript.contains("QUILLUI_WIREGUARD_QT_IMPORT_CONFIGURATION_FILE_ON_START=$import_file"))
         #expect(interactionScript.contains("QUILLUI_WIREGUARD_QT_IMPORT_DIALOG_ON_START=1"))
-        #expect(interactionScript.contains("QUILLUI_BACKEND_IMPORT_SUBMIT_CLICK_X"))
-        #expect(interactionScript.contains("QUILLUI_BACKEND_IMPORT_FILE_CLICK_X"))
+        // Paste imports submit via Ctrl+Return; the GTK file import drives the same
+        // path by loading the selected .conf fixture into the editor (the
+        // Import-from-File button is occluded by the expanding TextEditor, so there
+        // is no positional file-click hook).
+        #expect(interactionScript.contains("xdotool key --clearmodifiers ctrl+Return"))
+        #expect(interactionScript.contains("file_configuration=\"$(cat \"$import_file\")\""))
+        #expect(!interactionScript.contains("QUILLUI_BACKEND_IMPORT_FILE_CLICK_X"))
         #expect(interactionScript.contains("window_x + 260"))
-        #expect(interactionScript.contains("window_x + 466"))
         #expect(interactionScript.contains("import-invalid-paste"))
         #expect(interactionScript.contains("import-invalid-file"))
         #expect(interactionScript.contains("refresh_capture_window_for_active_child_window"))
