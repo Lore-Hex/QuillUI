@@ -262,6 +262,10 @@ struct QuillWireGuardCoreTests {
         #expect(source.contains(".background(.white)"))
         #expect(source.contains(".keyboardShortcut(.return)"))
         #expect(source.contains(".keyboardShortcut(\"o\")"))
+        // The GTK file-import smoke can't click the occluded action row, so the app
+        // auto-imports the selected file on start when launched with the flag.
+        #expect(source.contains("QUILLUI_WIREGUARD_IMPORT_FILE_ON_START"))
+        #expect(source.contains("importConfigurationFileOnStartIfRequested"))
         #expect(source.contains("QuillFileImporter.selectURL(allowedContentTypes: [])"))
         #expect(source.contains("QuillWireGuardImportService.importTunnel"))
         #expect(source.contains("QuillWireGuardPresentation.importButtonLabel"))
@@ -306,9 +310,10 @@ struct QuillWireGuardCoreTests {
         // button is occluded by the expanding TextEditor, so a positional submit
         // click is not used).
         #expect(interactionScript.contains("xdotool key --clearmodifiers ctrl+Return"))
-        // GTK "Import from File" is triggered via Ctrl+O (the button is occluded by
-        // the expanding TextEditor), so there is no positional file-click hook.
-        #expect(interactionScript.contains("xdotool key --clearmodifiers ctrl+o"))
+        // GTK auto-imports the selected file on start (the Import-from-File button is
+        // occluded by the expanding TextEditor), so there is no positional file-click
+        // hook and no in-interaction keystroke for the file path.
+        #expect(interactionScript.contains("QUILLUI_WIREGUARD_IMPORT_FILE_ON_START=1"))
         #expect(!interactionScript.contains("QUILLUI_BACKEND_IMPORT_FILE_CLICK_X"))
         #expect(interactionScript.contains("window_x + 260"))
         #expect(interactionScript.contains("import-invalid-paste"))

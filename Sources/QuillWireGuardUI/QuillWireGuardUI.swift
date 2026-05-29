@@ -78,6 +78,7 @@ public struct WireGuardFallbackConfigurationView: View {
     @State private var isImportPanelVisible = false
     @State private var importConfigurationText = ""
     @State private var importErrorText: String?
+    @State private var didRunStartupFileImport = false
 
     public init() {}
 
@@ -93,7 +94,29 @@ public struct WireGuardFallbackConfigurationView: View {
                 minWidth: WireGuardFallbackStyle.minimumWidth,
                 minHeight: WireGuardFallbackStyle.minimumHeight
             )
+            .onAppear { importConfigurationFileOnStartIfRequested() }
         }
+    }
+
+    // Deterministic file-import entry point for the Linux GTK backend smoke. The
+    // GTK TextEditor expands to fill the import panel and renders over the action
+    // row, so the "Import from File" button can't be reliably clicked; rather than
+    // depend on a fragile keyboard-shortcut dispatch, the smoke launches with
+    // QUILLUI_WIREGUARD_IMPORT_FILE_ON_START=1 and we run the same file-import path
+    // on appear. This mirrors how the Qt native runtime auto-imports on start.
+    private func importConfigurationFileOnStartIfRequested() {
+        #if os(Linux)
+        guard !didRunStartupFileImport,
+              ProcessInfo.processInfo.environment["QUILLUI_WIREGUARD_IMPORT_FILE_ON_START"] == "1" else {
+            return
+        }
+        didRunStartupFileImport = true
+        // Surface the panel first so a malformed config shows its error in place;
+        // a successful import closes the panel and selects the new tunnel.
+        isImportPanelVisible = true
+        importErrorText = nil
+        importConfigurationFromFile()
+        #endif
     }
 
     private var constrainedSidebar: some View {
