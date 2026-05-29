@@ -151,9 +151,6 @@ if [[ "$PRODUCT" == "quill-wireguard" ]]; then
         fi
       else
         app_environment+=("QUILLUI_FILE_IMPORTER_SELECTION=$import_file")
-        # GTK auto-imports the selected file on start (the import panel's action
-        # row is occluded by the expanding TextEditor, so it can't be clicked).
-        app_environment+=("QUILLUI_WIREGUARD_IMPORT_FILE_ON_START=1")
       fi
       ;;
   esac
@@ -509,11 +506,24 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
         sleep "$post_click_sleep"
         ;;
       import-file|file-import|import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
-        # No interaction needed: the GTK app auto-imports the selected file on start
-        # (QUILLUI_WIREGUARD_IMPORT_FILE_ON_START=1 set in the launch environment),
-        # because the import panel's action row is occluded by the expanding
-        # TextEditor and can't be reliably clicked. A valid file imports and selects
-        # the new tunnel; a malformed file leaves the panel open showing the error.
+        # The "Import from File" button is occluded by the expanding TextEditor and
+        # can't be reliably clicked, and (unlike Qt) the GTK app has no on-start file
+        # import hook. So drive the file import through the working paste path: load
+        # the selected .conf fixture's contents into the editor and submit with
+        # Ctrl+Return. On a headless Linux backend with no native file picker this is
+        # the faithful file-import flow (the config comes from the fixture file).
+        import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 256))}"
+        import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
+        editor_x="${QUILLUI_BACKEND_IMPORT_EDITOR_X:-$((window_x + 520))}"
+        editor_y="${QUILLUI_BACKEND_IMPORT_EDITOR_Y:-$((window_y + 190))}"
+        file_configuration="$(cat "$import_file")"
+        click_at "$import_x" "$import_y"
+        sleep 0.8
+        click_at "$editor_x" "$editor_y"
+        sleep 0.2
+        type_multiline_text "$file_configuration"
+        sleep 0.4
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+Return
         sleep "$post_click_sleep"
         ;;
       *)

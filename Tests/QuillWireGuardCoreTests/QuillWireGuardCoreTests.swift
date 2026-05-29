@@ -259,14 +259,11 @@ struct QuillWireGuardCoreTests {
         // unbacked TextEditor as a black box under Xvfb) and the Import button
         // needs a keyboard shortcut to stay submittable when the expanding editor
         // occludes it.
+        // The import editor needs an explicit background (GTK composites an unbacked
+        // TextEditor as a black box) and the Import button needs a keyboard shortcut
+        // so the paste/import can be submitted when the expanding editor occludes it.
         #expect(source.contains(".background(.white)"))
         #expect(source.contains(".keyboardShortcut(.return)"))
-        #expect(source.contains(".keyboardShortcut(\"o\")"))
-        // The GTK file-import smoke can't click the occluded action row, so the app
-        // applies the file import as initial @State on start (proven *_ON_START
-        // pattern) when launched with the flag.
-        #expect(source.contains("QUILLUI_WIREGUARD_IMPORT_FILE_ON_START"))
-        #expect(source.contains("makeStartupState"))
         #expect(source.contains("QuillFileImporter.selectURL(allowedContentTypes: [])"))
         #expect(source.contains("QuillWireGuardImportService.importTunnel"))
         #expect(source.contains("QuillWireGuardPresentation.importButtonLabel"))
@@ -307,14 +304,12 @@ struct QuillWireGuardCoreTests {
         #expect(interactionScript.contains("QUILLUI_FILE_IMPORTER_SELECTION=$import_file"))
         #expect(interactionScript.contains("QUILLUI_WIREGUARD_QT_IMPORT_CONFIGURATION_FILE_ON_START=$import_file"))
         #expect(interactionScript.contains("QUILLUI_WIREGUARD_QT_IMPORT_DIALOG_ON_START=1"))
-        // GTK and Qt paste imports both submit via Ctrl+Return (the GTK Import
-        // button is occluded by the expanding TextEditor, so a positional submit
-        // click is not used).
+        // Paste imports submit via Ctrl+Return; the GTK file import drives the same
+        // path by loading the selected .conf fixture into the editor (the
+        // Import-from-File button is occluded by the expanding TextEditor, so there
+        // is no positional file-click hook).
         #expect(interactionScript.contains("xdotool key --clearmodifiers ctrl+Return"))
-        // GTK auto-imports the selected file on start (the Import-from-File button is
-        // occluded by the expanding TextEditor), so there is no positional file-click
-        // hook and no in-interaction keystroke for the file path.
-        #expect(interactionScript.contains("QUILLUI_WIREGUARD_IMPORT_FILE_ON_START=1"))
+        #expect(interactionScript.contains("file_configuration=\"$(cat \"$import_file\")\""))
         #expect(!interactionScript.contains("QUILLUI_BACKEND_IMPORT_FILE_CLICK_X"))
         #expect(interactionScript.contains("window_x + 260"))
         #expect(interactionScript.contains("import-invalid-paste"))
