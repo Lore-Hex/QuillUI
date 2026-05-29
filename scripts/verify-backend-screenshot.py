@@ -335,13 +335,16 @@ def enchanted_header_pixel(rgb: tuple[int, int, int]) -> bool:
 
 
 def enchanted_primary_pixel(rgb: tuple[int, int, int]) -> bool:
-    # The Enchanted primary action is the accent-blue "New chat" button.
-    # Calibrated to the actual accent EnchantedPalette.accentColor = #4285F4
-    # (66,133,244), which is also what the macOS reference renders (~83,131,236).
-    # (The previous dark-blue range r35-75/g70-110/b95-140 did not match the real
-    # accent and would have rejected the correct color.)
+    # Two disjoint bands, unioned: the muted steel-blue selection tint that the
+    # selected-row checks reuse this predicate for, OR the bright accent-blue
+    # primary button (EnchantedPalette.accentColor #4285F4 = 66,133,244; the macOS
+    # reference renders ~83,131,236) that the Enchanted sidebar/catalog emits.
+    # Keeping ONLY the accent band would break row detection; keeping ONLY the old
+    # muted band rejected the real accent (primary_pixels=0). Union covers both.
     red, green, blue = rgb
-    return 55 <= red <= 95 and 118 <= green <= 145 and 215 <= blue <= 250 and blue > red
+    muted = 35 <= red <= 75 and 70 <= green <= 110 and 95 <= blue <= 140 and blue > red
+    accent = 45 <= red <= 95 and 110 <= green <= 155 and 210 <= blue <= 255 and blue > green > red
+    return muted or accent
 
 
 def enchanted_drop_target_pixel(rgb: tuple[int, int, int]) -> bool:
@@ -1671,7 +1674,10 @@ def validate_quill_enchanted_linux_qt_snapshot(image: Screenshot) -> str:
         left + 20,
         top + 20,
         left + sidebar_width - 20,
-        top + 92,
+        # The qt catalog paints the "New chat" primary button a bit lower than the
+        # native layout (~y98-136), just below the old top+92 cutoff — extend the
+        # band so the accent-blue button is inside the sampled region.
+        top + 150,
         enchanted_primary_pixel,
     )
     detail_card_pixels = pixel_count(
