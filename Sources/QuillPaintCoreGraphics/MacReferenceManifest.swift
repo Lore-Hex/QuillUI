@@ -318,6 +318,33 @@ public enum MacReferenceManifest {
                 state: PaintControlState(isFocused: true, isSelected: true)
             ),
             ReferenceEntry(
+                name: "disclosuretriangle-collapsed",
+                control: MacDisclosureTrianglePaint(isExpanded: false),
+                size: PaintSize(
+                    width: MacMetrics.DisclosureTriangle.regularSize,
+                    height: MacMetrics.DisclosureTriangle.regularSize
+                ),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "disclosuretriangle-expanded",
+                control: MacDisclosureTrianglePaint(isExpanded: true),
+                size: PaintSize(
+                    width: MacMetrics.DisclosureTriangle.regularSize,
+                    height: MacMetrics.DisclosureTriangle.regularSize
+                ),
+                state: .normal
+            ),
+            ReferenceEntry(
+                name: "disclosuretriangle-disabled",
+                control: MacDisclosureTrianglePaint(isExpanded: false),
+                size: PaintSize(
+                    width: MacMetrics.DisclosureTriangle.regularSize,
+                    height: MacMetrics.DisclosureTriangle.regularSize
+                ),
+                state: PaintControlState(isDisabled: true)
+            ),
+            ReferenceEntry(
                 name: "searchfield-normal",
                 control: MacSearchFieldPaint(),
                 size: PaintSize(width: 140, height: 22),
