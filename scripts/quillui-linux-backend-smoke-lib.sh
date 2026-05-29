@@ -447,8 +447,16 @@ quillui_append_quill_chat_reference_environment_if_needed() {
   local reference_window_height="$5"
   local hide_window_menubar_label="$6"
 
-  if quillui_is_quill_chat_mac_reference_product "$product"; then
-    local reference_home="$output_dir/quill-chat-linux-reference-home"
+  # The macOS-reference product AND the generated Enchanted product
+  # (quill-enchanted-linux, the only generated app product) both need a
+  # deterministic render: seeded fixtures + FORCE_UNREACHABLE (so the app does
+  # NOT reach for a live Ollama endpoint, which floods NSURLErrorDomain -1004
+  # and leaves the sidebar empty) + the fixed reference window. Without this the
+  # generated visual smoke launched live and failed "Enchanted sidebar not
+  # detected".
+  if quillui_is_quill_chat_mac_reference_product "$product" \
+    || quillui_is_backend_generated_app_product "$product"; then
+    local reference_home="$output_dir/$product-reference-home"
     quillui_append_quill_chat_reference_environment \
       "$output_array" \
       "$reference_home" \
