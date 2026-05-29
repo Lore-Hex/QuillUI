@@ -111,7 +111,12 @@ public struct WireGuardFallbackConfigurationView: View {
             importErrorText: nil
         )
         #if os(Linux)
-        guard ProcessInfo.processInfo.environment["QUILLUI_WIREGUARD_IMPORT_FILE_ON_START"] == "1" else {
+        let onStartFlag = ProcessInfo.processInfo.environment["QUILLUI_WIREGUARD_IMPORT_FILE_ON_START"]
+        let selectionEnv = ProcessInfo.processInfo.environment["QUILLUI_FILE_IMPORTER_SELECTION"]
+        FileHandle.standardError.write(Data(
+            "WG_STARTUP_DIAG onStart=\(onStartFlag ?? "nil") selection=\(selectionEnv ?? "nil")\n".utf8
+        ))
+        guard onStartFlag == "1" else {
             return state
         }
         switch QuillFileImporter.selectURL(allowedContentTypes: []) {
@@ -145,6 +150,9 @@ public struct WireGuardFallbackConfigurationView: View {
             state.isImportPanelVisible = true
             state.importErrorText = error.localizedDescription
         }
+        FileHandle.standardError.write(Data(
+            "WG_STARTUP_DIAG result tunnels=\(state.tunnels.count) selected=\(state.selectedTunnelID ?? "nil") panel=\(state.isImportPanelVisible) err=\(state.importErrorText ?? "nil")\n".utf8
+        ))
         #endif
         return state
     }
