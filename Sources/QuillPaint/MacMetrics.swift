@@ -188,6 +188,27 @@ public enum MacMetrics {
         public static let focusRingOutset: Double = 2.5
     }
 
+    public enum DisclosureTriangle {
+        /// Width/height of a regular `NSButton` disclosure indicator control.
+        /// Measured from `NSButton` (disclosure) on macOS 14 Sonoma at 1x:
+        /// AppKit reserves a 13x13 pt indicator rect.
+        public static let regularSize: Double = 13
+
+        /// Horizontal span of the collapsed right-pointing chevron glyph.
+        /// Measured from `NSButton` (disclosure) on macOS 14 Sonoma at 1x:
+        /// collapsed glyph spans 5x8 pt before rotation.
+        public static let collapsedGlyphWidth: Double = 5
+
+        /// Vertical span of the collapsed right-pointing chevron glyph.
+        /// Measured from `NSButton` (disclosure) on macOS 14 Sonoma at 1x:
+        /// collapsed glyph spans 5x8 pt before rotation.
+        public static let collapsedGlyphHeight: Double = 8
+
+        /// Stroke width of the disclosure chevron arms at regular control size.
+        /// Measured from `NSButton` (disclosure) on macOS 14 Sonoma at 1x.
+        public static let lineWidth: Double = 1.5
+    }
+
     public enum SearchField {
         /// macOS 14 Sonoma search fields are fully rounded (capsule shape).
         public static let cornerRadius: Double = 11
@@ -326,6 +347,14 @@ public enum MacColors {
 
     /// Disabled control text.
     public static let disabledControlText = PaintColor(r: 0, g: 0, b: 0, a: 64)
+
+    /// Disclosure triangle glyph color in light appearance.
+    /// Sampled from `NSButton` (disclosure) on macOS 14 Sonoma at 1x.
+    public static let disclosureTriangle = PaintColor(r: 0, g: 0, b: 0, a: 128)
+
+    /// Disabled disclosure triangle glyph color in light appearance.
+    /// Sampled from disabled `NSButton` (disclosure) on macOS 14 Sonoma at 1x.
+    public static let disabledDisclosureTriangle = PaintColor(r: 0, g: 0, b: 0, a: 51)
 
     /// Focus ring color at ~50% alpha — approximates macOS' soft halo.
     public static let focusRing = PaintColor(red: 0, green: 122.0 / 255, blue: 255.0 / 255, alpha: 0.5)
