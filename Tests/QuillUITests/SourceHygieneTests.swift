@@ -2566,7 +2566,10 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("QUILLUI_WIREGUARD_QT_IMPORT_DIALOG_ON_START=1"))
         #expect(backendScript.contains("QUILLUI_BACKEND_NAME_CLICK_X"))
         #expect(backendScript.contains("QUILLUI_BACKEND_IMPORT_EDITOR_X"))
-        #expect(backendScript.contains("QUILLUI_BACKEND_IMPORT_SUBMIT_CLICK_X"))
+        // The GTK paste import submits via Ctrl+Return (asserted below), not a
+        // positional submit click — the Import button is occluded by the
+        // expanding TextEditor, so no QUILLUI_BACKEND_IMPORT_SUBMIT_CLICK_* hook.
+        #expect(!backendScript.contains("QUILLUI_BACKEND_IMPORT_SUBMIT_CLICK_X"))
         #expect(backendScript.contains("import_configuration=\"$(wireguard_import_configuration_for_mode \"$INTERACTION_MODE\")\" || exit $?"))
         #expect(backendScript.contains("xdotool key --clearmodifiers ctrl+a"))
         #expect(backendScript.contains("xdotool key --clearmodifiers ctrl+Return"))
