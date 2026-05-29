@@ -263,9 +263,10 @@ struct QuillWireGuardCoreTests {
         #expect(source.contains(".keyboardShortcut(.return)"))
         #expect(source.contains(".keyboardShortcut(\"o\")"))
         // The GTK file-import smoke can't click the occluded action row, so the app
-        // auto-imports the selected file on start when launched with the flag.
+        // applies the file import as initial @State on start (proven *_ON_START
+        // pattern) when launched with the flag.
         #expect(source.contains("QUILLUI_WIREGUARD_IMPORT_FILE_ON_START"))
-        #expect(source.contains("importConfigurationFileOnStartIfRequested"))
+        #expect(source.contains("makeStartupState"))
         #expect(source.contains("QuillFileImporter.selectURL(allowedContentTypes: [])"))
         #expect(source.contains("QuillWireGuardImportService.importTunnel"))
         #expect(source.contains("QuillWireGuardPresentation.importButtonLabel"))

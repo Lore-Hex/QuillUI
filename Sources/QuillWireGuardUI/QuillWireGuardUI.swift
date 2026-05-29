@@ -73,14 +73,81 @@ private enum WireGuardFallbackStyle {
 // list/edit/export UI rendering consistently now.
 @MainActor
 public struct WireGuardFallbackConfigurationView: View {
-    @State private var tunnels = QuillWireGuardFixtures.tunnels
-    @State private var selectedTunnelID = QuillWireGuardFixtures.defaultTunnelID
-    @State private var isImportPanelVisible = false
-    @State private var importConfigurationText = ""
+    @State private var tunnels: [QuillWireGuardTunnel]
+    @State private var selectedTunnelID: QuillWireGuardTunnel.ID?
+    @State private var isImportPanelVisible: Bool
+    @State private var importConfigurationText: String
     @State private var importErrorText: String?
-    @State private var didRunStartupFileImport = false
 
-    public init() {}
+    public init() {
+        let startup = Self.makeStartupState()
+        _tunnels = State(initialValue: startup.tunnels)
+        _selectedTunnelID = State(initialValue: startup.selectedTunnelID)
+        _isImportPanelVisible = State(initialValue: startup.isImportPanelVisible)
+        _importConfigurationText = State(initialValue: startup.importConfigurationText)
+        _importErrorText = State(initialValue: startup.importErrorText)
+    }
+
+    private struct StartupState {
+        var tunnels: [QuillWireGuardTunnel]
+        var selectedTunnelID: QuillWireGuardTunnel.ID?
+        var isImportPanelVisible: Bool
+        var importConfigurationText: String
+        var importErrorText: String?
+    }
+
+    // The GTK file-import smoke can't click the import panel's action row (the
+    // expanding TextEditor occludes it), so when launched with
+    // QUILLUI_WIREGUARD_IMPORT_FILE_ON_START=1 we apply the file import as the
+    // view's *initial* state. This mirrors how other Quill apps apply their
+    // `*_ON_START` selection: SwiftOpenUI reliably honors initial @State, whereas
+    // mutating @State from `.onAppear` does not re-render in this backend.
+    private static func makeStartupState() -> StartupState {
+        var state = StartupState(
+            tunnels: QuillWireGuardFixtures.tunnels,
+            selectedTunnelID: QuillWireGuardFixtures.defaultTunnelID,
+            isImportPanelVisible: false,
+            importConfigurationText: "",
+            importErrorText: nil
+        )
+        #if os(Linux)
+        guard ProcessInfo.processInfo.environment["QUILLUI_WIREGUARD_IMPORT_FILE_ON_START"] == "1" else {
+            return state
+        }
+        switch QuillFileImporter.selectURL(allowedContentTypes: []) {
+        case .success(let url):
+            let configuration: String
+            do {
+                configuration = try String(contentsOf: url, encoding: .utf8)
+            } catch {
+                state.isImportPanelVisible = true
+                state.importErrorText = error.localizedDescription
+                return state
+            }
+            do {
+                let tunnel = try QuillWireGuardImportService.importTunnel(
+                    configuration,
+                    id: QuillWireGuardImportService.tunnelID(existingTunnelCount: state.tunnels.count),
+                    name: QuillWireGuardImportService.tunnelName(existingTunnelCount: state.tunnels.count)
+                )
+                state.tunnels.append(tunnel)
+                state.selectedTunnelID = tunnel.id
+            } catch let error as CustomStringConvertible {
+                state.isImportPanelVisible = true
+                state.importConfigurationText = configuration
+                state.importErrorText = error.description
+            } catch {
+                state.isImportPanelVisible = true
+                state.importConfigurationText = configuration
+                state.importErrorText = String(describing: error)
+            }
+        case .failure(let error):
+            state.isImportPanelVisible = true
+            state.importErrorText = error.localizedDescription
+        }
+        #endif
+        return state
+    }
 
     public nonisolated var body: some View {
         QuillMainActorView.assumeIsolated {
@@ -94,29 +161,7 @@ public struct WireGuardFallbackConfigurationView: View {
                 minWidth: WireGuardFallbackStyle.minimumWidth,
                 minHeight: WireGuardFallbackStyle.minimumHeight
             )
-            .onAppear { importConfigurationFileOnStartIfRequested() }
         }
-    }
-
-    // Deterministic file-import entry point for the Linux GTK backend smoke. The
-    // GTK TextEditor expands to fill the import panel and renders over the action
-    // row, so the "Import from File" button can't be reliably clicked; rather than
-    // depend on a fragile keyboard-shortcut dispatch, the smoke launches with
-    // QUILLUI_WIREGUARD_IMPORT_FILE_ON_START=1 and we run the same file-import path
-    // on appear. This mirrors how the Qt native runtime auto-imports on start.
-    private func importConfigurationFileOnStartIfRequested() {
-        #if os(Linux)
-        guard !didRunStartupFileImport,
-              ProcessInfo.processInfo.environment["QUILLUI_WIREGUARD_IMPORT_FILE_ON_START"] == "1" else {
-            return
-        }
-        didRunStartupFileImport = true
-        // Surface the panel first so a malformed config shows its error in place;
-        // a successful import closes the panel and selects the new tunnel.
-        isImportPanelVisible = true
-        importErrorText = nil
-        importConfigurationFromFile()
-        #endif
     }
 
     private var constrainedSidebar: some View {
