@@ -335,8 +335,16 @@ def enchanted_header_pixel(rgb: tuple[int, int, int]) -> bool:
 
 
 def enchanted_primary_pixel(rgb: tuple[int, int, int]) -> bool:
+    # Two disjoint bands, unioned: the muted steel-blue selection tint that the
+    # selected-row checks reuse this predicate for, OR the bright accent-blue
+    # primary button (EnchantedPalette.accentColor #4285F4 = 66,133,244; the macOS
+    # reference renders ~83,131,236) that the Enchanted sidebar/catalog emits.
+    # Keeping ONLY the accent band would break row detection; keeping ONLY the old
+    # muted band rejected the real accent (primary_pixels=0). Union covers both.
     red, green, blue = rgb
-    return 35 <= red <= 75 and 70 <= green <= 110 and 95 <= blue <= 140 and blue > red
+    muted = 35 <= red <= 75 and 70 <= green <= 110 and 95 <= blue <= 140 and blue > red
+    accent = 45 <= red <= 95 and 110 <= green <= 155 and 210 <= blue <= 255 and blue > green > red
+    return muted or accent
 
 
 def enchanted_drop_target_pixel(rgb: tuple[int, int, int]) -> bool:
@@ -1575,13 +1583,19 @@ def validate_quill_enchanted_qt_native(
         top + 240,
         enchanted_primary_pixel,
     )
-    drop_pixels = pixel_count(
+    # The mint attachment drop-target banner only renders while a file drag is
+    # actively hovering the composer (the composer gates it on
+    # model.isAttachmentDropTargeted, set from the .dropDestination isTargeted
+    # drag state) — and the shipped tint is light blue (#EAF2FF), not the mint
+    # this predicate was calibrated for. A static smoke never drags, so verify
+    # the always-present white composer box in the same bottom band instead.
+    composer_pixels = pixel_count(
         image,
         left + sidebar_width + 20,
         bottom - 150,
         right - 20,
         bottom - 80,
-        enchanted_drop_target_pixel,
+        enchanted_canvas_pixel,
     )
     selected_row_details = ""
     if minimum_selected_center_offset is not None:
@@ -1615,7 +1629,7 @@ def validate_quill_enchanted_qt_native(
     require(header_pixels >= 20000, f"Enchanted Qt header was not detected: pixels={header_pixels}")
     require(canvas_pixels >= 40000, f"Enchanted Qt canvas was not detected: pixels={canvas_pixels}")
     require(primary_pixels >= 800, f"Enchanted Qt primary action was not detected: pixels={primary_pixels}")
-    require(drop_pixels >= 5000, f"Enchanted Qt attachment drop target was not detected: pixels={drop_pixels}")
+    require(composer_pixels >= 5000, f"Enchanted Qt composer was not detected: pixels={composer_pixels}")
     require(text_pixels >= 1800, f"Enchanted Qt text content was not detected: pixels={text_pixels}")
 
     return (
@@ -1625,7 +1639,7 @@ def validate_quill_enchanted_qt_native(
         f"header_pixels={header_pixels}, "
         f"canvas_pixels={canvas_pixels}, "
         f"primary_pixels={primary_pixels}, "
-        f"drop_pixels={drop_pixels}, "
+        f"composer_pixels={composer_pixels}, "
         f"text_pixels={text_pixels}"
         f"{selected_row_details}"
     )
@@ -1660,7 +1674,10 @@ def validate_quill_enchanted_linux_qt_snapshot(image: Screenshot) -> str:
         left + 20,
         top + 20,
         left + sidebar_width - 20,
-        top + 92,
+        # The qt catalog paints the "New chat" primary button a bit lower than the
+        # native layout (~y98-136), just below the old top+92 cutoff — extend the
+        # band so the accent-blue button is inside the sampled region.
+        top + 150,
         enchanted_primary_pixel,
     )
     detail_card_pixels = pixel_count(
