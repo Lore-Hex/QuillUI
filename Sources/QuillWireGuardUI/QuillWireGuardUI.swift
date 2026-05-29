@@ -270,6 +270,10 @@ public struct WireGuardFallbackConfigurationView: View {
                         // even though the expanding TextEditor occludes the button on GTK.
                         .keyboardShortcut(.return)
                     Button(QuillWireGuardPresentation.importFileActionLabel, action: importConfigurationFromFile)
+                        // Cmd+O (macOS) / Ctrl+O (Linux) imports from a file. Like the
+                        // Import button, this is window-level so it works even though the
+                        // expanding TextEditor occludes the action row on GTK.
+                        .keyboardShortcut("o")
                     Spacer()
                     Button(QuillWireGuardPresentation.importCancelActionLabel, action: hideImportPanel)
                 }

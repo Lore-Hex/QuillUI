@@ -261,6 +261,7 @@ struct QuillWireGuardCoreTests {
         // occludes it.
         #expect(source.contains(".background(.white)"))
         #expect(source.contains(".keyboardShortcut(.return)"))
+        #expect(source.contains(".keyboardShortcut(\"o\")"))
         #expect(source.contains("QuillFileImporter.selectURL(allowedContentTypes: [])"))
         #expect(source.contains("QuillWireGuardImportService.importTunnel"))
         #expect(source.contains("QuillWireGuardPresentation.importButtonLabel"))
@@ -305,9 +306,11 @@ struct QuillWireGuardCoreTests {
         // button is occluded by the expanding TextEditor, so a positional submit
         // click is not used).
         #expect(interactionScript.contains("xdotool key --clearmodifiers ctrl+Return"))
-        #expect(interactionScript.contains("QUILLUI_BACKEND_IMPORT_FILE_CLICK_X"))
+        // GTK "Import from File" is triggered via Ctrl+O (the button is occluded by
+        // the expanding TextEditor), so there is no positional file-click hook.
+        #expect(interactionScript.contains("xdotool key --clearmodifiers ctrl+o"))
+        #expect(!interactionScript.contains("QUILLUI_BACKEND_IMPORT_FILE_CLICK_X"))
         #expect(interactionScript.contains("window_x + 260"))
-        #expect(interactionScript.contains("window_x + 466"))
         #expect(interactionScript.contains("import-invalid-paste"))
         #expect(interactionScript.contains("import-invalid-file"))
         #expect(interactionScript.contains("refresh_capture_window_for_active_child_window"))

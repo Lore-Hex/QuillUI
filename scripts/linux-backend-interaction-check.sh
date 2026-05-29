@@ -508,11 +508,14 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
       import-file|file-import|import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
         import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 256))}"
         import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
-        file_x="${QUILLUI_BACKEND_IMPORT_FILE_CLICK_X:-$((window_x + 466))}"
-        file_y="${QUILLUI_BACKEND_IMPORT_FILE_CLICK_Y:-$((window_y + 300))}"
         click_at "$import_x" "$import_y"
         sleep 0.8
-        click_at "$file_x" "$file_y"
+        # Trigger "Import from File" via Ctrl+O instead of clicking the button: the
+        # GTK TextEditor expands to fill the panel and renders over the action row,
+        # so a positional click can't reliably reach the button. SwiftOpenUI maps
+        # Ctrl (-> .command) + O to the button's .keyboardShortcut("o") at the window
+        # level. The pasted-file path reads QUILLUI_FILE_IMPORTER_SELECTION on import.
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+o
         sleep "$post_click_sleep"
         ;;
       *)
