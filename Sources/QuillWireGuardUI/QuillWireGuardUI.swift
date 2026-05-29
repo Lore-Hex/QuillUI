@@ -110,11 +110,17 @@ public struct WireGuardFallbackConfigurationView: View {
             importConfigurationText: "",
             importErrorText: nil
         )
+        // NOTE: intentionally NOT gated by `#if os(Linux)`. The GTK app build
+        // evaluates os(Linux) as false for this module, which silently disabled the
+        // previous Linux-gated import path. The env-var flag below is only set by the
+        // backend smoke harness, so the import stays inert in normal (macOS) use.
+        var platform = "other"
         #if os(Linux)
+        platform = "linux"
+        #endif
         let onStartFlag = ProcessInfo.processInfo.environment["QUILLUI_WIREGUARD_IMPORT_FILE_ON_START"]
-        let selectionEnv = ProcessInfo.processInfo.environment["QUILLUI_FILE_IMPORTER_SELECTION"]
         FileHandle.standardError.write(Data(
-            "WG_STARTUP_DIAG onStart=\(onStartFlag ?? "nil") selection=\(selectionEnv ?? "nil")\n".utf8
+            "WG_STARTUP_DIAG platform=\(platform) onStart=\(onStartFlag ?? "nil")\n".utf8
         ))
         guard onStartFlag == "1" else {
             return state
@@ -151,9 +157,8 @@ public struct WireGuardFallbackConfigurationView: View {
             state.importErrorText = error.localizedDescription
         }
         FileHandle.standardError.write(Data(
-            "WG_STARTUP_DIAG result tunnels=\(state.tunnels.count) selected=\(state.selectedTunnelID ?? "nil") panel=\(state.isImportPanelVisible) err=\(state.importErrorText ?? "nil")\n".utf8
+            "WG_STARTUP_DIAG result tunnels=\(state.tunnels.count) selected=\(state.selectedTunnelID ?? "nil") panel=\(state.isImportPanelVisible)\n".utf8
         ))
-        #endif
         return state
     }
 
