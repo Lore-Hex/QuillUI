@@ -2462,6 +2462,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference(image))
     elif product == "quill-enchanted-linux-gtk":
         print(validate_quill_enchanted_qt_native(image))
+    elif product == "quill-enchanted-qt":
+        print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-enchanted-qt-list-selection":
         print(validate_quill_enchanted_qt_native(image, minimum_selected_center_offset=430))
     elif product in ENCHANTED_LINUX_SNAPSHOT_VALIDATORS:

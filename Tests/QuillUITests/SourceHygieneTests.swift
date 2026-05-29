@@ -1862,7 +1862,7 @@ struct SourceHygieneTests {
         #expect(enchantedMacRoot.contains("Image(systemName: enchantedSystemImageName(EnchantedIcon.clearAll))"))
         #expect(enchantedMacRoot.contains("EnchantedVisualMetrics.composerEditorRadius"))
         #expect(enchantedMacRoot.contains("EnchantedVisualMetrics.messageEditBorderWidth"))
-        #expect(enchantedMacRoot.contains(".background(model.isLoading ? QuillColors.warning : QuillColors.primary)"))
+        #expect(enchantedMacRoot.contains(".quillPaint(.macDefault)"))
         #expect(enchantedMacRoot.contains(".dropDestination(for: URL.self)"))
         #expect(enchantedMacRoot.contains("private var selectedModelSupportsImages: Bool"))
         #expect(enchantedMacRoot.contains("model.selectedModelSupportsImages"))
