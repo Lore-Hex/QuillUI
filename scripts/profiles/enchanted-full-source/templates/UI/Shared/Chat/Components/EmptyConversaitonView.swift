@@ -23,9 +23,9 @@ struct EmptyConversaitonView: View, KeyboardReadable {
         QuillChatEmptyState(
             brandTitle: "Enchanted",
             prompts: prompts,
-            columns: 2,
-            cardWidth: 302,
-            cardHeight: 128,
+            columns: 1,
+            cardWidth: 619,
+            cardHeight: 64,
             spacing: 15
         ) { prompt in
             sendPrompt(prompt.title)
