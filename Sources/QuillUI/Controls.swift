@@ -765,23 +765,30 @@ public struct QuillChatEmptyState: View {
         var resolvedSpacing = spacing
 
         #if os(Linux)
-        if totalWidth >= 1200 {
-            let availableGridWidth = CGFloat(totalWidth) * 0.86
-            if columns <= 1 {
-                // Single-column layout (macOS Enchanted parity): full-width rows,
-                // one line of text each. Fill the available width rather than
-                // capping to the legacy multi-column card width.
-                resolvedSpacing = max(12, spacing)
-                resolvedCardWidth = max(cardWidth, availableGridWidth)
+        let horizontalInset: CGFloat = 28
+        let availableWidth = max(240, CGFloat(totalWidth) - horizontalInset * 2)
+        if columns <= 1 {
+            // Single-column rows (macOS Enchanted parity): size the card to the
+            // available pane width so the fixed card frame matches the flexible
+            // LazyVGrid column. A fixed card WIDER than its column makes
+            // SwiftOpenUI's GTK4 LazyVGrid relayout in a loop -- on the generated
+            // upstream Enchanted profile that spun CPU to ~170% and blew the
+            // CPU/RSS budget. Clamping the card to the column width avoids it.
+            resolvedSpacing = max(12, spacing)
+            resolvedCardWidth = min(cardWidth, availableWidth)
+            if totalWidth >= 1200 {
+                // Reference-window mode renders ~2x: fill the pane, taller row.
+                resolvedCardWidth = min(CGFloat(totalWidth) * 0.86, availableWidth)
                 resolvedCardHeight = max(cardHeight, 96)
-            } else {
-                let visible = CGFloat(min(columns, max(1, prompts.count)))
-                resolvedSpacing = 28
-                let spacingWidth = CGFloat(max(0, Int(visible) - 1) * resolvedSpacing)
-                let candidateWidth = (availableGridWidth - spacingWidth) / visible
-                resolvedCardWidth = min(305, max(cardWidth, candidateWidth))
-                resolvedCardHeight = max(cardHeight, 280)
             }
+        } else if totalWidth >= 1200 {
+            let visible = CGFloat(min(columns, max(1, prompts.count)))
+            resolvedSpacing = 28
+            let availableGridWidth = CGFloat(totalWidth) * 0.86
+            let spacingWidth = CGFloat(max(0, Int(visible) - 1) * resolvedSpacing)
+            let candidateWidth = (availableGridWidth - spacingWidth) / visible
+            resolvedCardWidth = min(305, max(cardWidth, candidateWidth))
+            resolvedCardHeight = max(cardHeight, 280)
         }
         #endif
 
