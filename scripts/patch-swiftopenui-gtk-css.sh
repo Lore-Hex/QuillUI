@@ -2736,17 +2736,25 @@ static_grid_helper = '''private func gtkCreateStaticLazyGridWidget(
     let grid = gtk_grid_new()!
     gtk_swift_grid_set_row_spacing(grid, 15)
     gtk_swift_grid_set_column_spacing(grid, 15)
-    gtk_swift_grid_set_column_homogeneous(grid, 1)
-    gtk_widget_set_hexpand(grid, 1)
-    gtk_widget_set_halign(grid, GTK_ALIGN_FILL)
+    let fillCells = columns > 1
+    if fillCells {
+        gtk_swift_grid_set_column_homogeneous(grid, 1)
+        gtk_widget_set_hexpand(grid, 1)
+        gtk_widget_set_halign(grid, GTK_ALIGN_FILL)
+    } else {
+        // Single column: size to the card's natural width and align leading.
+        // Homogeneous + hexpand + FILL would force the grid to the pane width
+        // and fight the card's fixed width every allocation -> relayout spin (#120).
+        gtk_widget_set_halign(grid, GTK_ALIGN_START)
+    }
 
     for (index, view) in views.enumerated() {
         let child = widgetFromOpaque(gtkRenderAnyView(view))
         let slot = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-        gtk_widget_set_hexpand(slot, 1)
-        gtk_widget_set_halign(slot, GTK_ALIGN_FILL)
-        gtk_widget_set_hexpand(child, 1)
-        gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_hexpand(slot, fillCells ? 1 : 0)
+        gtk_widget_set_halign(slot, fillCells ? GTK_ALIGN_FILL : GTK_ALIGN_START)
+        gtk_widget_set_hexpand(child, fillCells ? 1 : 0)
+        gtk_widget_set_halign(child, fillCells ? GTK_ALIGN_FILL : GTK_ALIGN_START)
         if cellMinWidth > 0 {
             gtk_widget_set_size_request(slot, gint(cellMinWidth), -1)
         }
