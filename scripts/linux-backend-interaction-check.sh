@@ -609,6 +609,19 @@ elif [[ "$PRODUCT" == "quill-enchanted" && ( "$SELECTED_BACKEND" == "gtk" || "$S
         click_at "$send_x" "$send_y"
         sleep 2
         ;;
+      message-sent-keyboard)
+        # Behavioral parity: type a message then press Ctrl+Return to send via the
+        # keyboard (maps to the Send button's .keyboardShortcut(.return)). Same
+        # end state as message-sent (blue "You" bubble in the transcript).
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 96))}"
+        click_at "$click_x" "$click_y"
+        sleep 1
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
+        sleep 1
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+Return
+        sleep 2
+        ;;
       clear-all)
         # Behavioral parity: with conversations seeded, click "Clear all" to
         # remove them; the sidebar returns to its "No saved chats yet" state.

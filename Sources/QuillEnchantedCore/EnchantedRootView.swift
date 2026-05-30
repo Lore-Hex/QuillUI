@@ -358,6 +358,7 @@ public struct EnchantedRootView: View {
                     .foregroundColor(.white)
                 }
                 .quillPaint(.macDefault)
+                .keyboardShortcut(.return)
                 .disabled(sendDisabled)
                 .accessibilityLabel(sendActionTitle)
                 .help(sendActionTitle)
