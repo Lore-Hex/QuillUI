@@ -587,6 +587,20 @@ elif [[ "$PRODUCT" == "quill-enchanted" && ( "$SELECTED_BACKEND" == "gtk" || "$S
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
         sleep 1
         ;;
+      message-sent)
+        # Behavioral parity: type a message then click Send. A successful send
+        # clears the composer and moves the text into the transcript.
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 96))}"
+        click_at "$click_x" "$click_y"
+        sleep 1
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
+        sleep 1
+        send_x="${QUILLUI_BACKEND_SEND_CLICK_X:-$((window_x + (window_width * 84 / 100)))}"
+        send_y="${QUILLUI_BACKEND_SEND_CLICK_Y:-$((window_y + window_height - 39))}"
+        click_at "$send_x" "$send_y"
+        sleep 2
+        ;;
       *)
         run_list_selection_or_header_interaction "Enchanted $(backend_label_for_message "$SELECTED_BACKEND")" click_enchanted_list_selection
         ;;

@@ -1847,6 +1847,47 @@ def validate_quill_enchanted_composer_typed(image: Screenshot) -> str:
     )
 
 
+def enchanted_user_bubble_pixel(rgb: tuple[int, int, int]) -> bool:
+    # The trailing user message bubble uses macOS system blue (#007AFF ~
+    # (0, 122, 255)) -- bluer and far less red than the accent button fill that
+    # enchanted_primary_pixel matches (~#4285F4, red ~66).
+    red, green, blue = rgb
+    return red <= 45 and 95 <= green <= 160 and blue >= 230 and blue - red >= 150
+
+
+def validate_quill_enchanted_message_sent(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(900 <= app_width <= 1260, f"Enchanted message-sent window width is unexpected: {app_width}px")
+    require(560 <= app_height <= 900, f"Enchanted message-sent window height is unexpected: {app_height}px")
+
+    sidebar_width = min(340, max(260, int(app_width * 0.30)))
+    detail_left = left + sidebar_width
+    detail_width = right - detail_left + 1
+    # A sent message renders as an accent-blue trailing "You" bubble at the top
+    # of the transcript. The empty state / unsent composer has no accent-blue in
+    # the detail pane (the blue New-chat button + selected sidebar row are left
+    # of detail_left), so this cleanly confirms the message was sent.
+    bubble_pixels = pixel_count(
+        image,
+        detail_left + int(detail_width * 0.45),
+        top + int(app_height * 0.06),
+        right - 6,
+        top + int(app_height * 0.34),
+        enchanted_user_bubble_pixel,
+    )
+    require(
+        bubble_pixels >= 500,
+        "Enchanted sent user message bubble was not detected in the transcript "
+        f"(message may not have sent): pixels={bubble_pixels}",
+    )
+    return (
+        "Quill Enchanted message sent: "
+        f"app={app_width}x{app_height}, user_bubble_pixels={bubble_pixels}"
+    )
+
+
 def validate_quill_chatkit_gtk_list_selection(image: Screenshot, product: str) -> str:
     app_label = product.removesuffix("-list-selection")
     left, right, top, bottom = content_bounds(image)
@@ -2532,6 +2573,8 @@ def main() -> int:
         print(validate_quill_enchanted_gtk_list_selection(image))
     elif product == "quill-enchanted-composer-typed":
         print(validate_quill_enchanted_composer_typed(image))
+    elif product == "quill-enchanted-message-sent":
+        print(validate_quill_enchanted_message_sent(image))
     elif product in CHAT_GTK_LIST_SELECTION_PRODUCTS:
         print(validate_quill_chatkit_gtk_list_selection(image, product))
     elif product in GENERIC_GTK_LIST_SELECTION_PRODUCTS:
