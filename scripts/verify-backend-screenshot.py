@@ -1847,6 +1847,42 @@ def validate_quill_enchanted_composer_typed(image: Screenshot) -> str:
     )
 
 
+def validate_quill_enchanted_message_sent(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(900 <= app_width <= 1260, f"Enchanted message-sent window width is unexpected: {app_width}px")
+    require(560 <= app_height <= 900, f"Enchanted message-sent window height is unexpected: {app_height}px")
+
+    sidebar_width = min(340, max(260, int(app_width * 0.30)))
+    detail_left = left + sidebar_width
+    # A successful send clears the composer (the message left the input field).
+    composer_left = detail_left + 16
+    composer_right = right - int(app_width * 0.14)
+    composer_top = bottom - int(app_height * 0.40)
+    composer_bottom = bottom - int(app_height * 0.04)
+    composer_pixels = dark_pixel_count(image, composer_left, composer_top, composer_right, composer_bottom)
+    require(
+        composer_pixels <= 40,
+        "Enchanted composer was not cleared after send (the message may not have sent): "
+        f"pixels={composer_pixels}",
+    )
+    # The sent text now appears in the transcript above the composer.
+    transcript_left = detail_left + 16
+    transcript_right = right - 16
+    transcript_top = top + int(app_height * 0.12)
+    transcript_bottom = bottom - int(app_height * 0.36)
+    transcript_pixels = dark_pixel_count(image, transcript_left, transcript_top, transcript_right, transcript_bottom)
+    require(
+        transcript_pixels >= 80,
+        f"Enchanted sent message was not detected in the transcript: pixels={transcript_pixels}",
+    )
+    return (
+        "Quill Enchanted message sent: "
+        f"app={app_width}x{app_height}, composer_cleared={composer_pixels}, transcript={transcript_pixels}"
+    )
+
+
 def validate_quill_chatkit_gtk_list_selection(image: Screenshot, product: str) -> str:
     app_label = product.removesuffix("-list-selection")
     left, right, top, bottom = content_bounds(image)
@@ -2532,6 +2568,8 @@ def main() -> int:
         print(validate_quill_enchanted_gtk_list_selection(image))
     elif product == "quill-enchanted-composer-typed":
         print(validate_quill_enchanted_composer_typed(image))
+    elif product == "quill-enchanted-message-sent":
+        print(validate_quill_enchanted_message_sent(image))
     elif product in CHAT_GTK_LIST_SELECTION_PRODUCTS:
         print(validate_quill_chatkit_gtk_list_selection(image, product))
     elif product in GENERIC_GTK_LIST_SELECTION_PRODUCTS:
