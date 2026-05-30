@@ -228,21 +228,42 @@ public struct QuillPromptGrid: View {
     }
 
     private func promptCard(_ prompt: QuillPrompt) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(prompt.title.quillPromptGridDisplayTitle)
-                .font(.system(size: promptFontSize))
-                .foregroundColor(Color(hex: "#1D1D1F"))
-                .frame(width: max(40, cardWidth - (promptCardPaddingWidth * 2)), alignment: .leading)
-            Spacer()
-            HStack {
-                Spacer()
+        promptCardContent(prompt)
+            .padding(promptCardPadding)
+            .frame(width: cardWidth, height: cardHeight, alignment: .leading)
+            .background(cardBackgroundColor)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    @ViewBuilder
+    private func promptCardContent(_ prompt: QuillPrompt) -> some View {
+        if cardWidth >= 400 {
+            // Wide single-column row (macOS Enchanted parity): icon-left, one line
+            // of text, vertically centered. Used by the core app + upstream slice.
+            HStack(spacing: 10) {
                 promptAccessory(for: prompt)
+                Text(prompt.title)
+                    .font(.system(size: promptFontSize))
+                    .foregroundColor(Color(hex: "#1D1D1F"))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+        } else {
+            // Narrow multi-column card: wrapped title top-left, icon bottom-right.
+            // Kept for the generated upstream profile's 2-column grid (a single
+            // truncated line there is too little text for the visual-smoke budget).
+            VStack(alignment: .leading, spacing: 10) {
+                Text(prompt.title.quillPromptGridDisplayTitle)
+                    .font(.system(size: promptFontSize))
+                    .foregroundColor(Color(hex: "#1D1D1F"))
+                    .frame(width: max(40, cardWidth - (promptCardPaddingWidth * 2)), alignment: .leading)
+                Spacer()
+                HStack {
+                    Spacer()
+                    promptAccessory(for: prompt)
+                }
             }
         }
-        .padding(promptCardPadding)
-        .frame(width: cardWidth, height: cardHeight, alignment: .leading)
-        .background(cardBackgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private var promptFontSize: CGFloat { 15 }
@@ -768,7 +789,23 @@ public struct QuillChatEmptyState: View {
         var resolvedSpacing = spacing
 
         #if os(Linux)
-        if totalWidth >= 1200 {
+        let horizontalInset: CGFloat = 28
+        let availableWidth = max(240, CGFloat(totalWidth) - horizontalInset * 2)
+        if columns <= 1 {
+            // Single-column rows (macOS Enchanted parity): size the card to the
+            // available pane width so the fixed card frame matches the flexible
+            // LazyVGrid column. A fixed card WIDER than its column makes
+            // SwiftOpenUI's GTK4 LazyVGrid relayout in a loop -- on the generated
+            // upstream Enchanted profile that spun CPU to ~170% and blew the
+            // CPU/RSS budget. Clamping the card to the column width avoids it.
+            resolvedSpacing = max(12, spacing)
+            resolvedCardWidth = min(cardWidth, availableWidth)
+            if totalWidth >= 1200 {
+                // Reference-window mode renders ~2x: fill the pane, taller row.
+                resolvedCardWidth = min(CGFloat(totalWidth) * 0.86, availableWidth)
+                resolvedCardHeight = max(cardHeight, 96)
+            }
+        } else if totalWidth >= 1200 {
             let visible = CGFloat(min(columns, max(1, prompts.count)))
             resolvedSpacing = 28
             let availableGridWidth = CGFloat(totalWidth) * 0.86
