@@ -274,6 +274,7 @@ public struct EnchantedRootView: View {
                     Text(EnchantedCopy.refreshModelsTitle)
                 }
             }
+            .quillPaint(.macBordered)
             .disabled(model.isLoading)
             .accessibilityLabel(EnchantedCopy.refreshModelsTitle)
             .help(EnchantedCopy.refreshModelsTitle)
@@ -353,6 +354,7 @@ public struct EnchantedRootView: View {
                         Text(sendActionTitle)
                     }
                     .padding(CGFloat(EnchantedVisualMetrics.primaryButtonPadding))
+                    .frame(minWidth: 80)
                     .foregroundColor(.white)
                 }
                 .quillPaint(.macDefault)
