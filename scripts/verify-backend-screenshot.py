@@ -1888,6 +1888,41 @@ def validate_quill_enchanted_message_sent(image: Screenshot) -> str:
     )
 
 
+def validate_quill_enchanted_clear_all(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(900 <= app_width <= 1260, f"Enchanted clear-all window width is unexpected: {app_width}px")
+    require(560 <= app_height <= 900, f"Enchanted clear-all window height is unexpected: {app_height}px")
+
+    sidebar_width = min(340, max(260, int(app_width * 0.30)))
+    region_left = left + 16
+    region_right = left + sidebar_width - 16
+    region_top = top + int(app_height * 0.40)
+    region_bottom = bottom - int(app_height * 0.18)
+    # The smoke seeds + selects a conversation, then clicks "Clear all". After a
+    # successful clear no conversation rows remain, so the selected-row accent
+    # (enchanted_primary_pixel) is gone from the sidebar conversation list.
+    selected_row_pixels = pixel_count(
+        image, region_left, region_top, region_right, region_bottom, enchanted_primary_pixel
+    )
+    require(
+        selected_row_pixels <= 120,
+        "Enchanted conversations were not cleared (a selected conversation row remains): "
+        f"pixels={selected_row_pixels}",
+    )
+    # The cleared sidebar still renders content (the "No saved chats yet" card).
+    sidebar_text_pixels = dark_pixel_count(image, region_left, region_top, region_right, region_bottom)
+    require(
+        sidebar_text_pixels >= 60,
+        f"Enchanted cleared sidebar content was not detected: pixels={sidebar_text_pixels}",
+    )
+    return (
+        "Quill Enchanted clear-all: "
+        f"app={app_width}x{app_height}, selected_row={selected_row_pixels}, sidebar_text={sidebar_text_pixels}"
+    )
+
+
 def validate_quill_chatkit_gtk_list_selection(image: Screenshot, product: str) -> str:
     app_label = product.removesuffix("-list-selection")
     left, right, top, bottom = content_bounds(image)
@@ -2575,6 +2610,8 @@ def main() -> int:
         print(validate_quill_enchanted_composer_typed(image))
     elif product == "quill-enchanted-message-sent":
         print(validate_quill_enchanted_message_sent(image))
+    elif product == "quill-enchanted-clear-all":
+        print(validate_quill_enchanted_clear_all(image))
     elif product in CHAT_GTK_LIST_SELECTION_PRODUCTS:
         print(validate_quill_chatkit_gtk_list_selection(image, product))
     elif product in GENERIC_GTK_LIST_SELECTION_PRODUCTS:
