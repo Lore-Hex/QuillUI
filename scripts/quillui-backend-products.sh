@@ -410,6 +410,8 @@ quillui_backend_interaction_extra_mode_matrix() {
     quill-wireguard qt import-invalid-file \
     quill-enchanted gtk composer-typed \
     quill-enchanted qt composer-typed \
+    quill-enchanted gtk new-chat \
+    quill-enchanted qt new-chat \
     quill-enchanted gtk message-sent \
     quill-enchanted qt message-sent \
     quill-enchanted gtk clear-all \
@@ -666,6 +668,9 @@ quillui_backend_app_interaction_verify_product_for_product() {
       case "$interaction_mode" in
         composer-typed)
           printf 'quill-enchanted-composer-typed\n'
+          ;;
+        new-chat)
+          printf 'quill-enchanted-new-chat\n'
           ;;
         message-sent)
           printf 'quill-enchanted-message-sent\n'

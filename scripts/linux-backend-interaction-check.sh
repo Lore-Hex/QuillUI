@@ -587,6 +587,14 @@ elif [[ "$PRODUCT" == "quill-enchanted" && ( "$SELECTED_BACKEND" == "gtk" || "$S
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
         sleep 1
         ;;
+      new-chat)
+        # Behavioral parity: click "New chat" to create + select a conversation.
+        # An accent-selected conversation row then appears in the sidebar list.
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 124))}"
+        click_at "$click_x" "$click_y"
+        sleep 1
+        ;;
       message-sent)
         # Behavioral parity: type a message then click Send. A successful send
         # clears the composer and moves the text into the transcript.

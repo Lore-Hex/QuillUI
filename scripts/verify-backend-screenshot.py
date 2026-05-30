@@ -1923,6 +1923,35 @@ def validate_quill_enchanted_clear_all(image: Screenshot) -> str:
     )
 
 
+def validate_quill_enchanted_new_chat(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(900 <= app_width <= 1260, f"Enchanted new-chat window width is unexpected: {app_width}px")
+    require(560 <= app_height <= 900, f"Enchanted new-chat window height is unexpected: {app_height}px")
+
+    sidebar_width = min(340, max(260, int(app_width * 0.30)))
+    # Clicking "New chat" creates + selects a conversation, so an accent-selected
+    # row appears in the sidebar conversation list. The region starts well below
+    # the top so the accent New-chat button itself is not counted.
+    region_left = left + 16
+    region_right = left + sidebar_width - 16
+    region_top = top + int(app_height * 0.40)
+    region_bottom = bottom - int(app_height * 0.22)
+    selected_row_pixels = pixel_count(
+        image, region_left, region_top, region_right, region_bottom, enchanted_primary_pixel
+    )
+    require(
+        selected_row_pixels >= 300,
+        "Enchanted New chat did not create a selected conversation row: "
+        f"pixels={selected_row_pixels}",
+    )
+    return (
+        "Quill Enchanted new chat: "
+        f"app={app_width}x{app_height}, selected_row_pixels={selected_row_pixels}"
+    )
+
+
 def validate_quill_chatkit_gtk_list_selection(image: Screenshot, product: str) -> str:
     app_label = product.removesuffix("-list-selection")
     left, right, top, bottom = content_bounds(image)
@@ -2608,6 +2637,8 @@ def main() -> int:
         print(validate_quill_enchanted_gtk_list_selection(image))
     elif product == "quill-enchanted-composer-typed":
         print(validate_quill_enchanted_composer_typed(image))
+    elif product == "quill-enchanted-new-chat":
+        print(validate_quill_enchanted_new_chat(image))
     elif product == "quill-enchanted-message-sent":
         print(validate_quill_enchanted_message_sent(image))
     elif product == "quill-enchanted-clear-all":
