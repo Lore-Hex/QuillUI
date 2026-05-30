@@ -149,6 +149,10 @@ public struct EnchantedRootView: View {
                 }
             }
 
+            Spacer()
+
+            Divider()
+
             HStack(spacing: CGFloat(EnchantedVisualMetrics.conversationActionsSpacing)) {
                 Button {
                     model.deleteSelectedConversation()
