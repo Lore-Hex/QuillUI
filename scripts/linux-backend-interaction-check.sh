@@ -601,6 +601,14 @@ elif [[ "$PRODUCT" == "quill-enchanted" && ( "$SELECTED_BACKEND" == "gtk" || "$S
         click_at "$send_x" "$send_y"
         sleep 2
         ;;
+      clear-all)
+        # Behavioral parity: with conversations seeded, click "Clear all" to
+        # remove them; the sidebar returns to its "No saved chats yet" state.
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 205))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 158))}"
+        click_at "$click_x" "$click_y"
+        sleep 1
+        ;;
       *)
         run_list_selection_or_header_interaction "Enchanted $(backend_label_for_message "$SELECTED_BACKEND")" click_enchanted_list_selection
         ;;

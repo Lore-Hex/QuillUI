@@ -412,6 +412,8 @@ quillui_backend_interaction_extra_mode_matrix() {
     quill-enchanted qt composer-typed \
     quill-enchanted gtk message-sent \
     quill-enchanted qt message-sent \
+    quill-enchanted gtk clear-all \
+    quill-enchanted qt clear-all \
     quill-enchanted gtk list-selection \
     quill-enchanted qt list-selection
 
@@ -667,6 +669,9 @@ quillui_backend_app_interaction_verify_product_for_product() {
           ;;
         message-sent)
           printf 'quill-enchanted-message-sent\n'
+          ;;
+        clear-all)
+          printf 'quill-enchanted-clear-all\n'
           ;;
         *)
           # Other modes (e.g. list-selection) fall through to the shared mapping.

@@ -688,14 +688,16 @@ quillui_append_backend_selection_start_environment() {
   local selection_assignment
 
   selected_backend="$(quillui_require_backend_identifier "$selected_backend")" || return $?
-  if [[ "$interaction_mode" != "list-selection" ]]; then
-    return 0
-  fi
+  case "$interaction_mode" in
+    list-selection|clear-all) ;;
+    *) return 0 ;;
+  esac
 
-  # Seed conversation fixtures for BOTH backends (this helper only runs in
-  # list-selection mode). The Qt native runtime loads conversations from the same
-  # QuillDataConversationStore (QUILLDATA_HOME/HOME) as GTK via persisted(), so
-  # without seeding the Qt list shows "No saved chats yet" and has no row to select.
+  # Seed conversation fixtures for BOTH backends (this helper only runs in the
+  # list-selection / clear-all modes -- clear-all needs seeded conversations so
+  # there is something to clear). The Qt native runtime loads conversations from
+  # the same QuillDataConversationStore (QUILLDATA_HOME/HOME) as GTK via
+  # persisted(), so without seeding the Qt list shows "No saved chats yet".
   if [[ "$product" == "quill-enchanted" ]]; then
     quillui_append_enchanted_fixture_data_environment \
       "$output_array" \
