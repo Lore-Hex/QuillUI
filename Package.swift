@@ -140,7 +140,19 @@ let gtk4LinkerFlags: [String] = []
 let quillUIGTKSwiftImporterSettings: [SwiftSetting] = []
 let quillUIGTKLinkerSettings: [LinkerSetting] = []
 #endif
+#if os(Linux)
 let nnwUpstreamPresent: Bool = upstreamPresent(".upstream/netnewswire/Modules/RSCore")
+#else
+// The .upstream NetNewsWire full-source tree is a Linux-only port: it pulls
+// macOS-incompatible RSCore/Account/etc. sources that clash with the Quill
+// shadow framework (e.g. duplicate ImageLuminanceType, unresolved RSTree.Node).
+// macOS CI never has it (fresh clone). Gating to a Linux host also stops a local
+// macOS checkout that *does* have .upstream populated from trying to build it,
+// which otherwise breaks `swift build` / `swift test` on macOS. The
+// quill-netnewswire product still exists on macOS via the self-contained
+// QuillNetNewsWireCore.
+let nnwUpstreamPresent: Bool = false
+#endif
 let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/Sources/WireGuardKit")
 let codeEditSourceUpstreamPresent: Bool = upstreamPresent(".upstream/codeedit/CodeEdit")
 let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsymbols")
