@@ -1847,6 +1847,14 @@ def validate_quill_enchanted_composer_typed(image: Screenshot) -> str:
     )
 
 
+def enchanted_user_bubble_pixel(rgb: tuple[int, int, int]) -> bool:
+    # The trailing user message bubble uses macOS system blue (#007AFF ~
+    # (0, 122, 255)) -- bluer and far less red than the accent button fill that
+    # enchanted_primary_pixel matches (~#4285F4, red ~66).
+    red, green, blue = rgb
+    return red <= 45 and 95 <= green <= 160 and blue >= 230 and blue - red >= 150
+
+
 def validate_quill_enchanted_message_sent(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1867,7 +1875,7 @@ def validate_quill_enchanted_message_sent(image: Screenshot) -> str:
         top + int(app_height * 0.06),
         right - 6,
         top + int(app_height * 0.34),
-        enchanted_primary_pixel,
+        enchanted_user_bubble_pixel,
     )
     require(
         bubble_pixels >= 500,
