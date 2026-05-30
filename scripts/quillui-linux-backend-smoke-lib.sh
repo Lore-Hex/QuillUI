@@ -692,7 +692,11 @@ quillui_append_backend_selection_start_environment() {
     return 0
   fi
 
-  if [[ "$product" == "quill-enchanted" && "$selected_backend" == "gtk" ]]; then
+  # Seed conversation fixtures for BOTH backends (this helper only runs in
+  # list-selection mode). The Qt native runtime loads conversations from the same
+  # QuillDataConversationStore (QUILLDATA_HOME/HOME) as GTK via persisted(), so
+  # without seeding the Qt list shows "No saved chats yet" and has no row to select.
+  if [[ "$product" == "quill-enchanted" ]]; then
     quillui_append_enchanted_fixture_data_environment \
       "$output_array" \
       "$output_dir/quill-enchanted-reference-home" || return $?

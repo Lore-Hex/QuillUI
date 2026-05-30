@@ -1605,7 +1605,12 @@ def validate_quill_enchanted_qt_native(
             top + 250,
             left + sidebar_width - 16,
             min(bottom + 1, top + 590),
-            enchanted_selected_row_pixel,
+            # The selected conversation row is the accent-blue fill (EnchantedRootView
+            # uses .background(isSelected ? QuillColors.primary : ...) = #4285F4), the
+            # same predicate the GTK list-selection validator uses. The old
+            # enchanted_selected_row_pixel matched only a light tint that this app
+            # never renders for the selected row.
+            enchanted_primary_pixel,
             min_row_pixels=42,
         )
         require(selected_row is not None, "Enchanted Qt selected conversation row was not detected")
@@ -1862,6 +1867,13 @@ def validate_quill_chatkit_gtk_list_selection(image: Screenshot, product: str) -
 
 def validate_quill_generic_gtk_list_selection(image: Screenshot, product: str) -> str:
     app_label = product.removesuffix("-gtk-list-selection")
+    # The upstream-slice uses the Enchanted palette; its selected row is the neutral
+    # #E8E8ED tint (matches enchanted_selected_row_pixel's shared-palette band), not
+    # the bluer generic_gtk tint. Mirror validate_quill_generic_qt_list_selection.
+    uses_enchanted_palette = app_label == "quill-enchanted-upstream-slice"
+    selected_row_pixel = (
+        enchanted_selected_row_pixel if uses_enchanted_palette else generic_gtk_selected_row_pixel
+    )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1891,7 +1903,7 @@ def validate_quill_generic_gtk_list_selection(image: Screenshot, product: str) -
         top + 120,
         max(left + 13, divider_x - 12),
         min(bottom + 1, top + 560),
-        generic_gtk_selected_row_pixel,
+        selected_row_pixel,
         min_row_pixels=28,
     )
     require(selected_row is not None, "Generic GTK selected list row was not detected")
@@ -2482,7 +2494,10 @@ def main() -> int:
     elif product == "quill-enchanted-qt":
         print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-enchanted-qt-list-selection":
-        print(validate_quill_enchanted_qt_native(image, minimum_selected_center_offset=430))
+        # Index 0 is selected (same as the GTK list-selection), so the selected
+        # conversation sits at the same height as GTK's (which uses 360); 430 was an
+        # over-specified guess that never ran (the gate never reached this smoke).
+        print(validate_quill_enchanted_qt_native(image, minimum_selected_center_offset=360))
     elif product in ENCHANTED_LINUX_SNAPSHOT_VALIDATORS:
         print(ENCHANTED_LINUX_SNAPSHOT_VALIDATORS[product](image))
     elif product == "quill-enchanted-list-selection":

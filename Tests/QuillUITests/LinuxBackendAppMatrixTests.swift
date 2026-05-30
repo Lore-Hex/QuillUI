@@ -900,7 +900,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("codeedit-gtk-selection-env=QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START=1|"))
         #expect(result.output.contains("iina-gtk-selection-env=QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START=2|"))
         #expect(result.output.contains("upstream-slice-gtk-selection-env=QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=3|"))
-        #expect(result.output.contains("enchanted-selection-env=QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=0|"))
+        // Enchanted seeds conversation fixtures for BOTH backends now (the Qt native
+        // runtime loads from the same QuillDataConversationStore as GTK), so the Qt
+        // selection env carries HOME/QUILLDATA_HOME just like GTK.
+        #expect(result.output.contains("enchanted-selection-env=HOME=\(temporaryDirectory.path)/selection/quill-enchanted-reference-home|QUILLDATA_HOME=\(temporaryDirectory.path)/selection/quill-enchanted-reference-home|QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=0|"))
         #expect(result.output.contains("enchanted-gtk-selection-env=HOME=\(temporaryDirectory.path)/selection/quill-enchanted-reference-home|QUILLDATA_HOME=\(temporaryDirectory.path)/selection/quill-enchanted-reference-home|QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=0|"))
         #expect(result.output.contains("enchanted-gtk-fixture=ok"))
         #expect(result.output.contains("gtk-selection-env=QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START=1|"))
