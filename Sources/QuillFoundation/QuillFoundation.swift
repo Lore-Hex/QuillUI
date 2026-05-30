@@ -227,17 +227,19 @@ public class RSScreen: NSObject, @unchecked Sendable {
 public typealias UIScreen = RSScreen
 #endif
 
-// MARK: - CGImage luminance (cross-platform)
+// MARK: - CGImage luminance (Linux shim for the netnewswire port)
 
+// The generated netnewswire app compiles its own RSCore.ImageLuminanceType and
+// CGImage.calculateLuminanceType(). On macOS those are in scope, so defining
+// ours too makes `.dark`/`.bright` ambiguous and breaks local `swift build` /
+// `swift test` for the whole package. Quill itself never uses these symbols --
+// they exist only so the port resolves on Linux (where RSCore is not in scope).
+// Scope the shim to Linux so it can't collide with RSCore on macOS.
+#if os(Linux)
 public enum ImageLuminanceType: Int, Sendable {
     case regular, dark, bright
 }
 
-#if canImport(CoreGraphics)
-public extension CGImage {
-    func calculateLuminanceType() -> ImageLuminanceType? { .regular }
-}
-#else
 public extension CGImage {
     func calculateLuminanceType() -> ImageLuminanceType? { .regular }
 }
