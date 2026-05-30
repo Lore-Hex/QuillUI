@@ -408,6 +408,8 @@ quillui_backend_interaction_extra_mode_matrix() {
     quill-wireguard qt import-file \
     quill-wireguard qt import-invalid-paste \
     quill-wireguard qt import-invalid-file \
+    quill-enchanted gtk composer-typed \
+    quill-enchanted qt composer-typed \
     quill-enchanted gtk list-selection \
     quill-enchanted qt list-selection
 
@@ -655,6 +657,17 @@ quillui_backend_app_interaction_verify_product_for_product() {
       ;;
     quill-wireguard)
       quillui_backend_wireguard_interaction_verify_product "$selected_backend" "$interaction_mode"
+      ;;
+    quill-enchanted)
+      case "$interaction_mode" in
+        composer-typed)
+          printf 'quill-enchanted-composer-typed\n'
+          ;;
+        *)
+          # Other modes (e.g. list-selection) fall through to the shared mapping.
+          return 1
+          ;;
+      esac
       ;;
     *)
       return 1

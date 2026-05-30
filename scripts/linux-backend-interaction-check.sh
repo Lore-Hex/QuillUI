@@ -575,7 +575,22 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "qt" ]]; then
         ;;
     esac
 elif [[ "$PRODUCT" == "quill-enchanted" && ( "$SELECTED_BACKEND" == "gtk" || "$SELECTED_BACKEND" == "qt" ) ]]; then
-    run_list_selection_or_header_interaction "Enchanted $(backend_label_for_message "$SELECTED_BACKEND")" click_enchanted_list_selection
+    case "$INTERACTION_MODE" in
+      composer-typed)
+        # Behavioral parity: type into the Enchanted composer (lower portion of
+        # the detail pane) and verify the text renders. The composer accepts
+        # input without an Ollama model selected.
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 96))}"
+        click_at "$click_x" "$click_y"
+        sleep 1
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
+        sleep 1
+        ;;
+      *)
+        run_list_selection_or_header_interaction "Enchanted $(backend_label_for_message "$SELECTED_BACKEND")" click_enchanted_list_selection
+        ;;
+    esac
 elif [[ "$SELECTED_BACKEND" == "gtk" ]] && quillui_is_backend_chat_gtk_list_selection_app_product "$PRODUCT"; then
     run_list_selection_or_header_interaction "chat GTK" click_chat_list_selection
 elif [[ "$SELECTED_BACKEND" == "gtk" ]] && quillui_is_backend_generic_gtk_list_selection_app_product "$PRODUCT"; then
