@@ -228,18 +228,42 @@ public struct QuillPromptGrid: View {
     }
 
     private func promptCard(_ prompt: QuillPrompt) -> some View {
-        HStack(spacing: 10) {
-            promptAccessory(for: prompt)
-            Text(prompt.title)
-                .font(.system(size: promptFontSize))
-                .foregroundColor(Color(hex: "#1D1D1F"))
-                .lineLimit(1)
-            Spacer(minLength: 0)
+        promptCardContent(prompt)
+            .padding(promptCardPadding)
+            .frame(width: cardWidth, height: cardHeight, alignment: .leading)
+            .background(cardBackgroundColor)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    @ViewBuilder
+    private func promptCardContent(_ prompt: QuillPrompt) -> some View {
+        if cardWidth >= 400 {
+            // Wide single-column row (macOS Enchanted parity): icon-left, one line
+            // of text, vertically centered. Used by the core app + upstream slice.
+            HStack(spacing: 10) {
+                promptAccessory(for: prompt)
+                Text(prompt.title)
+                    .font(.system(size: promptFontSize))
+                    .foregroundColor(Color(hex: "#1D1D1F"))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+        } else {
+            // Narrow multi-column card: wrapped title top-left, icon bottom-right.
+            // Kept for the generated upstream profile's 2-column grid (a single
+            // truncated line there is too little text for the visual-smoke budget).
+            VStack(alignment: .leading, spacing: 10) {
+                Text(prompt.title.quillPromptGridDisplayTitle)
+                    .font(.system(size: promptFontSize))
+                    .foregroundColor(Color(hex: "#1D1D1F"))
+                    .frame(width: max(40, cardWidth - (promptCardPaddingWidth * 2)), alignment: .leading)
+                Spacer()
+                HStack {
+                    Spacer()
+                    promptAccessory(for: prompt)
+                }
+            }
         }
-        .padding(promptCardPadding)
-        .frame(width: cardWidth, height: cardHeight, alignment: .leading)
-        .background(cardBackgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private var promptFontSize: CGFloat { 15 }
