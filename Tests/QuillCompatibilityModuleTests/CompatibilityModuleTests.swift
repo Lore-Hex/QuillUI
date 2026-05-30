@@ -838,26 +838,26 @@ struct CompatibilityModuleTests {
         )
         request.options = OKCompletionOptions(temperature: 0)
 
+        // Collect the stream with structured concurrency: iterating the
+        // AsyncThrowingStream overload keeps every append and the reads below
+        // on a single task, so the reads happen-after the writes. The previous
+        // Combine `.sink` + polling loop mutated `values`/`finished` from the
+        // sink's delivery thread while the test thread polled them without
+        // synchronization, so `.finished` could become visible before the
+        // appended values did — an intermittent data race that left `values`
+        // empty despite `finished` being true.
         var values: [OKChatResponse] = []
         var finished = false
         var failure: Error?
-        let cancellable = kit.chat(data: request)
-            .sink { completion in
-                switch completion {
-                case .finished:
-                    finished = true
-                case .failure(let error):
-                    failure = error
-                }
-            } receiveValue: { response in
+        do {
+            let stream: AsyncThrowingStream<OKChatResponse, Error> = kit.chat(data: request)
+            for try await response in stream {
                 values.append(response)
             }
-
-        let deadline = Date().addingTimeInterval(1)
-        while !finished && failure == nil && Date() < deadline {
-            try await Task.sleep(nanoseconds: 10_000_000)
+            finished = true
+        } catch {
+            failure = error
         }
-        cancellable.cancel()
 
         #expect(failure == nil)
         #expect(finished)
