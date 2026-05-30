@@ -414,6 +414,8 @@ quillui_backend_interaction_extra_mode_matrix() {
     quill-enchanted qt new-chat \
     quill-enchanted gtk message-sent \
     quill-enchanted qt message-sent \
+    quill-enchanted gtk message-sent-keyboard \
+    quill-enchanted qt message-sent-keyboard \
     quill-enchanted gtk clear-all \
     quill-enchanted qt clear-all \
     quill-enchanted gtk list-selection \
@@ -673,6 +675,10 @@ quillui_backend_app_interaction_verify_product_for_product() {
           printf 'quill-enchanted-new-chat\n'
           ;;
         message-sent)
+          printf 'quill-enchanted-message-sent\n'
+          ;;
+        message-sent-keyboard)
+          # Same end state as message-sent (blue "You" bubble) -> reuse validator.
           printf 'quill-enchanted-message-sent\n'
           ;;
         clear-all)
