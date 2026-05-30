@@ -23,16 +23,14 @@ struct EmptyConversaitonView: View, KeyboardReadable {
         QuillChatEmptyState(
             brandTitle: "Enchanted",
             prompts: prompts,
-            // NOTE: the generated upstream Enchanted profile keeps the legacy
-            // 2-column grid. The single-column macOS-parity layout (shared
-            // EnchantedVisualMetrics) is used by the core app + upstream slice,
-            // but inside the real Enchanted view hierarchy SwiftOpenUI's GTK4
-            // LazyVGrid relayout-spins on a single column, blowing the CPU/RSS
-            // profile budget. Tracked separately; revisit once that GTK4 grid
-            // path is fixed.
-            columns: 2,
-            cardWidth: 302,
-            cardHeight: 128,
+            // Single-column macOS-parity layout, matching the core app + slice.
+            // The GTK4 single-column relayout spin is fixed in the shared
+            // ScrollView cross-axis tick (gtkScrollViewCrossAxisTickCallback now
+            // clamps fill width to the child's min), so the generated profile no
+            // longer blows the CPU/RSS budget.
+            columns: 1,
+            cardWidth: 619,
+            cardHeight: 64,
             spacing: 15
         ) { prompt in
             sendPrompt(prompt.title)

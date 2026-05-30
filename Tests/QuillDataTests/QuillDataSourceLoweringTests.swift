@@ -1681,7 +1681,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("private final class GTKScrollViewCrossAxisContext"))
         #expect(patchedRenderer.contains("gtkScrollViewCrossAxisTickCallback"))
         #expect(patchedRenderer.contains("gtkInstallScrollViewCrossAxisFill("))
-        #expect(patchedRenderer.contains("gtk_widget_set_size_request(context.child, width, -1)"))
+        #expect(patchedRenderer.contains("gtk_widget_set_size_request(context.child, max(width, childMinWidth), -1)"))
         #expect(patchedRenderer.contains("private final class GTKScrollToContext"))
         #expect(patchedRenderer.contains("private var gtkPendingScrollRequests"))
         #expect(patchedRenderer.contains("gtk_widget_translate_coordinates(target, scrolled"))

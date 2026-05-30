@@ -1501,12 +1501,22 @@ private let gtkScrollViewCrossAxisTickCallback: GtkTickCallback = { widget, _, u
 
     if context.fillWidth, width > 1, width != context.lastWidth {
         context.lastWidth = width
-        gtk_widget_set_size_request(context.child, width, -1)
+        // Never force the child narrower than its intrinsic minimum width:
+        // doing so is futile (the child keeps its min) and oscillates the
+        // scroll viewport vs content width every tick -> relayout spin (e.g. a
+        // single wide card in a pane narrower than the card). Fill to >= min.
+        var childMinWidth: gint = 0
+        var childNatWidth: gint = 0
+        gtk_widget_measure(context.child, GTK_ORIENTATION_HORIZONTAL, -1, &childMinWidth, &childNatWidth, nil, nil)
+        gtk_widget_set_size_request(context.child, max(width, childMinWidth), -1)
         gtk_widget_queue_resize(context.child)
     }
     if context.fillHeight, height > 1, height != context.lastHeight {
         context.lastHeight = height
-        gtk_widget_set_size_request(context.child, -1, height)
+        var childMinHeight: gint = 0
+        var childNatHeight: gint = 0
+        gtk_widget_measure(context.child, GTK_ORIENTATION_VERTICAL, -1, &childMinHeight, &childNatHeight, nil, nil)
+        gtk_widget_set_size_request(context.child, -1, max(height, childMinHeight))
         gtk_widget_queue_resize(context.child)
     }
 
