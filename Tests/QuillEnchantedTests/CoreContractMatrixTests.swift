@@ -147,7 +147,7 @@ struct CoreContractMatrixTests {
         expectContains(gtkPatchScript, "case quillPaintMacBordered")
         expectContains(gtkPatchScript, "quill_gtk_button_paint_hook")
         expectContains(fullSourceEmptyStateTemplate, "SamplePrompts.samples.prefix(4)")
-        expectContains(fullSourceEmptyStateTemplate, "columns: 1")
+        expectContains(fullSourceEmptyStateTemplate, "columns: 2")
         expectDoesNotContain(fullSourceEmptyStateTemplate, "macReferenceOrder")
     }
 
