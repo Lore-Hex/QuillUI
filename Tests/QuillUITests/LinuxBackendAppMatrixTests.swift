@@ -224,6 +224,18 @@ struct LinuxBackendAppMatrixTests {
             Self.expectedInteractionExtraModeRow(
                 product: "quill-enchanted",
                 backend: "gtk",
+                mode: "composer-typed",
+                verifyProduct: "quill-enchanted-composer-typed"
+            ),
+            Self.expectedInteractionExtraModeRow(
+                product: "quill-enchanted",
+                backend: "qt",
+                mode: "composer-typed",
+                verifyProduct: "quill-enchanted-composer-typed"
+            ),
+            Self.expectedInteractionExtraModeRow(
+                product: "quill-enchanted",
+                backend: "gtk",
                 mode: "list-selection",
                 verifyProduct: "quill-enchanted-list-selection"
             ),

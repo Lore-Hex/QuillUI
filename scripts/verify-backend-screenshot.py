@@ -1819,6 +1819,34 @@ def validate_quill_enchanted_gtk_list_selection(image: Screenshot) -> str:
     )
 
 
+def validate_quill_enchanted_composer_typed(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(900 <= app_width <= 1260, f"Enchanted composer window width is unexpected: {app_width}px")
+    require(560 <= app_height <= 900, f"Enchanted composer window height is unexpected: {app_height}px")
+
+    sidebar_width = min(340, max(260, int(app_width * 0.30)))
+    detail_left = left + sidebar_width
+    # The composer occupies the lower portion of the detail pane. Freshly typed
+    # text lands at its leading edge, away from the trailing Send pill, so sample
+    # the lower-left of the detail pane for the entered glyphs.
+    region_left = detail_left + 16
+    region_right = right - int(app_width * 0.14)
+    region_top = bottom - int(app_height * 0.32)
+    region_bottom = bottom - int(app_height * 0.05)
+    typed_text_pixels = dark_pixel_count(image, region_left, region_top, region_right, region_bottom)
+    require(
+        typed_text_pixels >= 120,
+        "Enchanted composer typed text was not detected (composer did not accept input): "
+        f"pixels={typed_text_pixels}",
+    )
+    return (
+        "Quill Enchanted composer typed: "
+        f"app={app_width}x{app_height}, typed_text_pixels={typed_text_pixels}"
+    )
+
+
 def validate_quill_chatkit_gtk_list_selection(image: Screenshot, product: str) -> str:
     app_label = product.removesuffix("-list-selection")
     left, right, top, bottom = content_bounds(image)
@@ -2502,6 +2530,8 @@ def main() -> int:
         print(ENCHANTED_LINUX_SNAPSHOT_VALIDATORS[product](image))
     elif product == "quill-enchanted-list-selection":
         print(validate_quill_enchanted_gtk_list_selection(image))
+    elif product == "quill-enchanted-composer-typed":
+        print(validate_quill_enchanted_composer_typed(image))
     elif product in CHAT_GTK_LIST_SELECTION_PRODUCTS:
         print(validate_quill_chatkit_gtk_list_selection(image, product))
     elif product in GENERIC_GTK_LIST_SELECTION_PRODUCTS:
