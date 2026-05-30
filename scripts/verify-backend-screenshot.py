@@ -1856,30 +1856,27 @@ def validate_quill_enchanted_message_sent(image: Screenshot) -> str:
 
     sidebar_width = min(340, max(260, int(app_width * 0.30)))
     detail_left = left + sidebar_width
-    # A successful send clears the composer (the message left the input field).
-    composer_left = detail_left + 16
-    composer_right = right - int(app_width * 0.14)
-    composer_top = bottom - int(app_height * 0.40)
-    composer_bottom = bottom - int(app_height * 0.04)
-    composer_pixels = dark_pixel_count(image, composer_left, composer_top, composer_right, composer_bottom)
-    require(
-        composer_pixels <= 40,
-        "Enchanted composer was not cleared after send (the message may not have sent): "
-        f"pixels={composer_pixels}",
+    detail_width = right - detail_left + 1
+    # A sent message renders as an accent-blue trailing "You" bubble at the top
+    # of the transcript. The empty state / unsent composer has no accent-blue in
+    # the detail pane (the blue New-chat button + selected sidebar row are left
+    # of detail_left), so this cleanly confirms the message was sent.
+    bubble_pixels = pixel_count(
+        image,
+        detail_left + int(detail_width * 0.45),
+        top + int(app_height * 0.06),
+        right - 6,
+        top + int(app_height * 0.34),
+        enchanted_primary_pixel,
     )
-    # The sent text now appears in the transcript above the composer.
-    transcript_left = detail_left + 16
-    transcript_right = right - 16
-    transcript_top = top + int(app_height * 0.12)
-    transcript_bottom = bottom - int(app_height * 0.36)
-    transcript_pixels = dark_pixel_count(image, transcript_left, transcript_top, transcript_right, transcript_bottom)
     require(
-        transcript_pixels >= 80,
-        f"Enchanted sent message was not detected in the transcript: pixels={transcript_pixels}",
+        bubble_pixels >= 500,
+        "Enchanted sent user message bubble was not detected in the transcript "
+        f"(message may not have sent): pixels={bubble_pixels}",
     )
     return (
         "Quill Enchanted message sent: "
-        f"app={app_width}x{app_height}, composer_cleared={composer_pixels}, transcript={transcript_pixels}"
+        f"app={app_width}x{app_height}, user_bubble_pixels={bubble_pixels}"
     )
 
 
