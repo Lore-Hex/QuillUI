@@ -59,26 +59,32 @@ def candidates(issues):
         yield issue, labels
 
 if engine == 'gemini':
+    # Gemini ONLY takes complexity:simple work. On complex tasks it produces
+    # unreliable changes (e.g. bloating the shared PaintControlState with
+    # per-control flags, or assuming PaintContext primitives that don't exist),
+    # which then need rework. Better for gemini to idle than to generate trash;
+    # complex work is reserved for codex (and Claude). Each simple task must be
+    # narrow and thoroughly verifiable (token values, doc/measurement comments,
+    # unit tests for existing controls, mechanical refactors).
     for issue, labels in candidates(issues):
         if simple_label in labels:
             print(issue['number'])
             break
 else:
+    # codex (and Claude) take COMPLEX work only. complexity:simple is reserved
+    # exclusively for gemini. Codex must NOT fall back to simple tickets: when it
+    # did, and only simple work was left unclaimed, both a codex worker (fallback)
+    # and the gemini worker would grab the same ticket simultaneously, producing a
+    # double-claim race + duplicate PRs (observed on #84). Better for an idle codex
+    # worker to wait for complex work than to race gemini on a simple ticket.
     complex_pick = None
-    simple_pick = None
     for issue, labels in candidates(issues):
         if simple_label in labels:
-            if simple_pick is None:
-                simple_pick = issue['number']
-        else:
-            if complex_pick is None:
-                complex_pick = issue['number']
-        if complex_pick is not None:
-            break
+            continue
+        complex_pick = issue['number']
+        break
     if complex_pick is not None:
         print(complex_pick)
-    elif simple_pick is not None:
-        print(simple_pick)
 ")
 
 if [[ -z "$ISSUE_NUMBER" ]]; then
@@ -100,9 +106,14 @@ ISSUE_BODY=$(gh issue view "$ISSUE_NUMBER" --repo Lore-Hex/QuillUI --json body -
 BRANCH="$ENGINE/issue-$ISSUE_NUMBER"
 WORKTREE=".swarm/worktrees/$ENGINE-issue-$ISSUE_NUMBER"
 mkdir -p .swarm/worktrees
-if [[ -d "$WORKTREE" ]]; then
-  git worktree remove --force "$WORKTREE" 2>/dev/null || rm -rf "$WORKTREE"
-fi
+# Clean any stale worktree AND its leftover branch. `git worktree remove`
+# leaves the branch behind, so a retry of the same issue hits
+# "fatal: a branch named '<branch>' already exists". Prune + delete the
+# local branch (NOT the remote — an open PR may still reference it) so the
+# fresh `worktree add -b` below always succeeds.
+git worktree remove --force "$WORKTREE" 2>/dev/null || rm -rf "$WORKTREE"
+git worktree prune 2>/dev/null || true
+git branch -D "$BRANCH" 2>/dev/null || true
 git fetch origin main >/dev/null 2>&1 || true
 git worktree add -b "$BRANCH" "$WORKTREE" origin/main
 
@@ -110,7 +121,12 @@ echo "[$ENGINE] Worktree at $WORKTREE on branch $BRANCH"
 
 # Drop a local .gitignore inside the worktree (NOT committed) so the
 # wrapper's stuff never enters a commit even if the engine runs `git add -A`.
-cat > "$WORKTREE/.git/info/exclude" <<'EXCLUDE'
+# A linked worktree's `.git` is a FILE (gitdir pointer), not a directory, so
+# "$WORKTREE/.git/info/exclude" fails with "Not a directory". Resolve the
+# real per-worktree info/exclude path via rev-parse instead.
+EXCLUDE_FILE="$(git -C "$WORKTREE" rev-parse --git-path info/exclude)"
+mkdir -p "$(dirname "$EXCLUDE_FILE")"
+cat > "$EXCLUDE_FILE" <<'EXCLUDE'
 .swarm-prompt.txt
 .swarm-run.log
 .swarm-build-after.log
@@ -127,7 +143,7 @@ Your working directory IS a fresh git worktree at this path. Implement the issue
 
 QUALITY BAR — read carefully:
 
-1. **The build must pass before you commit.** Run \`swift build\` after every meaningful edit. If it fails, fix it before continuing. The wrapper that runs after you exits will run \`swift build\` itself and ABANDON your PR if it fails — your work is discarded if the build is broken.
+1. **Make the build pass — but don't get stuck on sandbox-environment failures.** Run \`swift build\` after meaningful edits and fix real compile errors in your code. HOWEVER: if \`swift build\` fails ONLY with environment errors that are NOT about your source — e.g. \`Invalid manifest\`, \`Could not resolve host: github.com\`, SwiftPM cache "not writable" warnings, or SDK/toolchain version mismatches — that is a known limitation of this sandbox, NOT a bug in your code. In that case, COMMIT your work anyway and exit. The spawn wrapper runs an authoritative \`swift build\` OUTSIDE the sandbox (full network + toolchain access) after you exit, and will ABANDON the PR if your code genuinely doesn't compile — so committing despite a sandbox-only build failure is safe and correct. Never loop forever trying to fix an \`Invalid manifest\`/network error you cannot fix from inside the sandbox.
 
 2. **Tests must pass for any test you touch.** If the issue says "add tests" or you write tests, run \`swift test --filter <SuiteName>\` and confirm green before committing.
 
@@ -161,7 +177,13 @@ cd "$WORKTREE"
 echo "[$ENGINE] Running $ENGINE on issue #$ISSUE_NUMBER..."
 case "$ENGINE" in
   codex)
-    codex exec --sandbox workspace-write --skip-git-repo-check "$(cat .swarm-prompt.txt)" \
+    # network_access=true: workspace-write blocks network by default, which makes
+    # codex's internal `swift build` fail ("Could not resolve host: github.com" when
+    # fetching SwiftPM deps) → codex can't self-verify and ships unbuildable/guessed
+    # code. Allowing network (still write-confined to the workspace) lets it build.
+    codex exec --sandbox workspace-write \
+      -c sandbox_workspace_write.network_access=true \
+      --skip-git-repo-check "$(cat .swarm-prompt.txt)" \
       2>&1 | tee .swarm-run.log
     ;;
   gemini)
