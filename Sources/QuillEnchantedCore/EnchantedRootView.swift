@@ -71,20 +71,8 @@ public struct EnchantedRootView: View {
                     .foregroundColor(QuillColors.muted)
             }
 
-            Button(action: model.newConversation) {
-                HStack(spacing: CGFloat(EnchantedVisualMetrics.primaryButtonIconSpacing)) {
-                    Image(systemName: enchantedSystemImageName(EnchantedIcon.newConversation))
-                    Text(EnchantedCopy.newChatTitle)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(CGFloat(EnchantedVisualMetrics.primaryButtonPadding))
-                .background(QuillColors.primary)
-                .foregroundColor(.white)
-                .cornerRadius(CGFloat(EnchantedVisualMetrics.primaryButtonRadius))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(EnchantedCopy.newChatTitle)
-            .help(EnchantedCopy.newChatTitle)
+            // New-chat moved to the toolbar compose icon (genuine native layout)
+            // — see chatHeader.
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
                 Text(EnchantedCopy.endpointLabel)
@@ -96,24 +84,8 @@ public struct EnchantedRootView: View {
                     .help(EnchantedCopy.endpointLabel)
             }
 
-            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
-                Text(EnchantedCopy.modelLabel)
-                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
-                    .foregroundColor(QuillColors.muted)
-                if model.models.isEmpty {
-                    Text(EnchantedCopy.noModelsTitle)
-                        .font(.system(size: CGFloat(EnchantedTypography.warningTextFontSize)))
-                        .foregroundColor(QuillColors.warning)
-                } else {
-                    Picker(EnchantedCopy.modelLabel, selection: modelSelection) {
-                        ForEach(model.models) { ollamaModel in
-                            Text(ollamaModel.name).tag(ollamaModel.name)
-                        }
-                    }
-                    .accessibilityLabel(EnchantedCopy.modelLabel)
-                    .help(EnchantedCopy.modelLabel)
-                }
-            }
+            // Model picker moved to the top toolbar (genuine native Enchanted
+            // layout) — see chatHeader / headerModelPicker.
 
             HStack(spacing: CGFloat(EnchantedVisualMetrics.statusRowSpacing)) {
                 statusDot
@@ -263,6 +235,24 @@ public struct EnchantedRootView: View {
 
             Spacer()
 
+            // Genuine native Enchanted: the model picker lives in the top toolbar.
+            if model.models.isEmpty {
+                Text(EnchantedCopy.noModelsTitle)
+                    .font(.system(size: CGFloat(EnchantedTypography.warningTextFontSize)))
+                    .foregroundColor(QuillColors.warning)
+                    .accessibilityLabel(EnchantedCopy.noModelsTitle)
+            } else {
+                Picker(EnchantedCopy.modelLabel, selection: modelSelection) {
+                    ForEach(model.models) { ollamaModel in
+                        Text(ollamaModel.name).tag(ollamaModel.name)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: 220)
+                .accessibilityLabel(EnchantedCopy.modelLabel)
+                .help(EnchantedCopy.modelLabel)
+            }
+
             Button {
                 let model = model
                 Task {
@@ -278,6 +268,17 @@ public struct EnchantedRootView: View {
             .disabled(model.isLoading)
             .accessibilityLabel(EnchantedCopy.refreshModelsTitle)
             .help(EnchantedCopy.refreshModelsTitle)
+
+            // Genuine native Enchanted: a compose (new chat) icon in the toolbar.
+            Button(action: model.newConversation) {
+                HStack(spacing: CGFloat(EnchantedVisualMetrics.primaryButtonIconSpacing)) {
+                    Image(systemName: enchantedSystemImageName(EnchantedIcon.newConversation))
+                }
+                .cornerRadius(CGFloat(EnchantedVisualMetrics.primaryButtonRadius))
+            }
+            .quillPaint(.macBordered)
+            .accessibilityLabel(EnchantedCopy.newChatTitle)
+            .help(EnchantedCopy.newChatTitle)
         }
     }
 
@@ -511,11 +512,17 @@ private struct EmptyConversationView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateSpacing)) {
-            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateHeaderSpacing)) {
+        VStack(alignment: .center, spacing: CGFloat(EnchantedVisualMetrics.emptyStateSpacing)) {
+            VStack(alignment: .center, spacing: CGFloat(EnchantedVisualMetrics.emptyStateHeaderSpacing)) {
                 Text(EnchantedCopy.emptyStateTitle)
-                    .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.currentTitleFontWeight)))
-                    .foregroundColor(QuillColors.ink)
+                    .font(.system(size: CGFloat(EnchantedTypography.emptyStateWordmarkFontSize), weight: enchantedFontWeight(EnchantedTypography.emptyStateWordmarkFontWeight)))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color(hex: "#4F86F7"), Color(hex: "#9B6DD6"), Color(hex: "#E05A6B")],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                 if !EnchantedCopy.emptyStateSubtitle.isEmpty {
                     Text(EnchantedCopy.emptyStateSubtitle)
                         .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
@@ -536,7 +543,10 @@ private struct EmptyConversationView: View {
             .frame(width: CGFloat(EnchantedVisualMetrics.promptGridWidth), alignment: .leading)
         }
         .padding(CGFloat(EnchantedVisualMetrics.emptyStatePadding))
-        .frame(maxWidth: CGFloat(EnchantedVisualMetrics.emptyStateMaxWidth), alignment: .leading)
+        // Cap the content width, then center the whole block in the detail pane
+        // (the genuine native empty state is centered, not leading-aligned).
+        .frame(maxWidth: CGFloat(EnchantedVisualMetrics.emptyStateMaxWidth))
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 }
 

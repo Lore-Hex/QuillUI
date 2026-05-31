@@ -538,10 +538,12 @@ public enum EnchantedVisualMetrics {
     public static let composerMaxWidth = 800
     public static let composerPadding = 18
     public static let composerSpacing = 10
-    public static let composerEditorRadius = 8
+    // Genuine native composer is a short, fully-rounded pill (single line at
+    // rest, growing to composerMaxHeight while typing). radius == minHeight/2.
+    public static let composerEditorRadius = 23
     public static let promptRowSpacing = 12
     public static let composerSendButtonMinWidth = 86
-    public static let composerMinHeight = 74
+    public static let composerMinHeight = 46
     public static let composerMaxHeight = 120
 }
 
@@ -554,6 +556,10 @@ public enum EnchantedTypography {
     public static let sectionTitleFontWeight = 700
     public static let currentTitleFontSize = 20
     public static let currentTitleFontWeight = 650
+    // Genuine native Enchanted empty-state wordmark: a large, light-weight
+    // gradient "Enchanted" title centered above the prompt row.
+    public static let emptyStateWordmarkFontSize = 52
+    public static let emptyStateWordmarkFontWeight = 500
     public static let messageBodyFontSize = 14
     public static let markdownHeading1FontSize = 17
     public static let markdownHeading2FontSize = 15
