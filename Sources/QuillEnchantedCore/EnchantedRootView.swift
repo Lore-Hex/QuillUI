@@ -71,20 +71,8 @@ public struct EnchantedRootView: View {
                     .foregroundColor(QuillColors.muted)
             }
 
-            Button(action: model.newConversation) {
-                HStack(spacing: CGFloat(EnchantedVisualMetrics.primaryButtonIconSpacing)) {
-                    Image(systemName: enchantedSystemImageName(EnchantedIcon.newConversation))
-                    Text(EnchantedCopy.newChatTitle)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(CGFloat(EnchantedVisualMetrics.primaryButtonPadding))
-                .background(QuillColors.primary)
-                .foregroundColor(.white)
-                .cornerRadius(CGFloat(EnchantedVisualMetrics.primaryButtonRadius))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(EnchantedCopy.newChatTitle)
-            .help(EnchantedCopy.newChatTitle)
+            // New-chat moved to the toolbar compose icon (genuine native layout)
+            // — see chatHeader.
 
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
                 Text(EnchantedCopy.endpointLabel)
@@ -280,6 +268,17 @@ public struct EnchantedRootView: View {
             .disabled(model.isLoading)
             .accessibilityLabel(EnchantedCopy.refreshModelsTitle)
             .help(EnchantedCopy.refreshModelsTitle)
+
+            // Genuine native Enchanted: a compose (new chat) icon in the toolbar.
+            Button(action: model.newConversation) {
+                HStack(spacing: CGFloat(EnchantedVisualMetrics.primaryButtonIconSpacing)) {
+                    Image(systemName: enchantedSystemImageName(EnchantedIcon.newConversation))
+                }
+                .cornerRadius(CGFloat(EnchantedVisualMetrics.primaryButtonRadius))
+            }
+            .quillPaint(.macBordered)
+            .accessibilityLabel(EnchantedCopy.newChatTitle)
+            .help(EnchantedCopy.newChatTitle)
         }
     }
 
