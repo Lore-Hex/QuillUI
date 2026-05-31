@@ -289,13 +289,29 @@ public struct QuillPromptGrid: View {
         Color(hex: "#F4F4F6")
     }
 
+    @ViewBuilder
     private func promptAccessory(for prompt: QuillPrompt) -> some View {
-        Image(systemName: QuillSystemSymbol.compatibleName(prompt.systemImage))
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
+        if prompt.systemImage.lowercased().contains("questionmark") {
+            // Draw the circled "?" directly so it renders cleanly on every
+            // backend. The mapped Material glyph (help_outline) renders as a
+            // broken partial arc on GTK — matching the genuine native app's
+            // clean "?" circle is more reliable with an explicit Circle + Text.
+            ZStack {
+                Circle()
+                    .stroke(Color(hex: "#2E2E31"), lineWidth: 1.3)
+                Text("?")
+                    .font(.system(size: promptIconSize * 0.62, weight: .medium))
+                    .foregroundColor(Color(hex: "#2E2E31"))
+            }
             .frame(width: promptIconSize, height: promptIconSize)
-            .foregroundColor(Color(hex: "#2E2E31"))
+        } else {
+            Image(systemName: QuillSystemSymbol.compatibleName(prompt.systemImage))
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: promptIconSize, height: promptIconSize)
+                .foregroundColor(Color(hex: "#2E2E31"))
+        }
     }
 }
 
