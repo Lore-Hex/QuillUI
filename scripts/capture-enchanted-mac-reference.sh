@@ -1,118 +1,101 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Assert macOS
+# Capture the canonical macOS parity reference from the GENUINE upstream
+# Enchanted app (gluonfield / AugustDev "Enchanted by Freysa"), built straight
+# from .upstream/enchanted/Enchanted.xcodeproj.
+#
+# IMPORTANT: the reference MUST be the real Mac app, NOT `swift run
+# quill-enchanted` (our own QuillUI port). Screenshotting our own port and
+# calling it the "reference" makes the parity gate circular and blind to every
+# place the port diverges from the real app. See issue #134.
+
 if [[ "$(uname)" != "Darwin" ]]; then
-  echo "This script must be run on macOS."
+  echo "This script must be run on macOS (it builds + screenshots the real Enchanted.app)."
   exit 1
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIXTURE_DIR="$ROOT_DIR/Tests/Fixtures/Enchanted"
 FIXTURE_PATH="$FIXTURE_DIR/macos-reference.png"
+UPSTREAM_PROJ="$ROOT_DIR/.upstream/enchanted/Enchanted.xcodeproj"
+DD="${ENCHANTED_DERIVED_DATA:-/tmp/enchanted-mac-reference-dd}"
 
 mkdir -p "$FIXTURE_DIR"
 
-# Launch app in deterministic mode
-echo "Launching quill-enchanted in reference mode..."
-killall quill-enchanted 2>/dev/null || true
-
-# We use a custom window title to avoid system state restoration of window size
-QUILLUI_ENCHANTED_REFERENCE_MODE=1 swift run quill-enchanted > enchanted-capture.log 2>&1 &
-APP_PID=$!
-
-# Wait for app to launch and window to appear
-echo "Waiting for Enchanted to launch..."
-sleep 15
-
-# Find window ID
-echo "Finding Enchanted window..."
-WINDOW_ID=$(swift - <<EOT
-import AppKit
-import Quartz
-
-let options = CGWindowListOption(arrayLiteral: .excludeDesktopElements, .optionOnScreenOnly)
-guard let windowListInfo = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
-    exit(1)
-}
-
-for window in windowListInfo {
-    let ownerName = window[kCGWindowOwnerName as String] as? String ?? "Unknown"
-    let windowID = window[kCGWindowNumber as String] as? Int ?? 0
-    
-    if ownerName == "quill-enchanted" || ownerName == "Enchanted" || ownerName == "Enchanted Reference" {
-        print("\(windowID)")
-        exit(0)
-    }
-}
-exit(1)
-EOT
-)
-
-if [[ -z "$WINDOW_ID" ]]; then
-  echo "Could not find Enchanted window. Check enchanted-capture.log"
-  kill "$APP_PID" 2>/dev/null || true
+if [[ ! -d "$UPSTREAM_PROJ" ]]; then
+  echo "Upstream Enchanted project not found at $UPSTREAM_PROJ — run scripts/fetch-upstream.sh first."
   exit 1
 fi
 
-echo "Found Enchanted window ID: $WINDOW_ID"
+# 1. Build the genuine upstream app (unsigned Debug, macOS).
+echo "Building the genuine upstream Enchanted.app (this resolves SPM deps on first run)..."
+xcodebuild \
+  -project "$UPSTREAM_PROJ" \
+  -scheme Enchanted \
+  -configuration Debug \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath "$DD" \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+  build
 
-# Capture window
-# -o to not capture shadow
+APP="$DD/Build/Products/Debug/Enchanted.app"
+if [[ ! -d "$APP" ]]; then
+  echo "Build did not produce $APP"
+  exit 1
+fi
+
+# 2. Launch it and bring its window on-screen.
+#    NOTE: macOS may restore the window onto a different Mission Control Space.
+#    `screencapture -l <windowid>` only succeeds once the window is on the
+#    CURRENT space and rendered. If this script reports a wallpaper/black grab,
+#    click the Enchanted window once (or run from the Space it opens on) and
+#    re-run. Clearing saved state helps it open on the current Space.
+killall Enchanted 2>/dev/null || true
+sleep 1
+BID="$(defaults read "$APP/Contents/Info" CFBundleIdentifier 2>/dev/null || echo subj.Enchanted)"
+rm -rf "$HOME/Library/Saved Application State/$BID.savedState" 2>/dev/null || true
+open "$APP"
+echo "Waiting for Enchanted to launch + render the empty-conversation view..."
+sleep 12
+
+# 3. Find the main window id (owner name contains "Enchanted", real height).
+WINDOW_ID="$(/usr/bin/swift - <<'EOT'
+import AppKit
+import Quartz
+let opt = CGWindowListOption(arrayLiteral: .excludeDesktopElements, .optionOnScreenOnly)
+let wl = (CGWindowListCopyWindowInfo(opt, kCGNullWindowID) as? [[String: Any]]) ?? []
+for w in wl where (w[kCGWindowOwnerName as String] as? String ?? "").contains("Enchanted") {
+    let b = w[kCGWindowBounds as String] as? [String: Any] ?? [:]
+    if ((b["Height"] as? Double) ?? 0) > 200 {
+        print(w[kCGWindowNumber as String] as? Int ?? 0); break
+    }
+}
+EOT
+)"
+
+if [[ -z "$WINDOW_ID" ]]; then
+  echo "Could not find a real Enchanted window. Is the app showing its main window?"
+  exit 1
+fi
+echo "Found Enchanted window id: $WINDOW_ID"
+
+# 4. Capture the window's own surface (-l is unoccluded by other windows).
 screencapture -l "$WINDOW_ID" -o "$FIXTURE_PATH"
 
-# Kill the app
-kill "$APP_PID" 2>/dev/null || true
-
-# Validate and crop if needed
-ACTUAL_WIDTH=$(sips -g pixelWidth "$FIXTURE_PATH" | awk '/pixelWidth/ {print $2}')
-ACTUAL_HEIGHT=$(sips -g pixelHeight "$FIXTURE_PATH" | awk '/pixelHeight/ {print $2}')
-
-echo "Captured screenshot: ${ACTUAL_WIDTH}x${ACTUAL_HEIGHT}"
-
-# macOS screencapture -l includes the title bar (28pt = 56px on Retina)
-# If we requested 1114x721pt, we get 2228x1554px total if it adds 28pt title bar.
-# 1554 - 56 = 1498.
-if [[ "$ACTUAL_WIDTH" == "2228" && "$ACTUAL_HEIGHT" == "1554" ]]; then
-  echo "Detected title bar. Cropping to 2228x1498..."
-  swift - "$FIXTURE_PATH" "$FIXTURE_PATH" 0 56 2228 1498 <<EOT
-import AppKit
-let args = CommandLine.arguments
-let inputPath = args[1]
-let outputPath = args[2]
-let x = Double(args[3])!, y = Double(args[4])!, w = Double(args[5])!, h = Double(args[6])!
-guard let image = NSImage(contentsOfFile: inputPath) else { exit(1) }
-var imageRect = NSRect(x: 0, y: 0, width: image.size.width, height: image.size.height)
-guard let cgImage = image.cgImage(forProposedRect: &imageRect, context: nil, hints: nil) else { exit(1) }
-guard let cropped = cgImage.cropping(to: CGRect(x: x, y: y, width: w, height: h)) else { exit(1) }
-let bitmapRep = NSBitmapImageRep(cgImage: cropped)
-guard let pngData = bitmapRep.representation(using: .png, properties: [:]) else { exit(1) }
-try? pngData.write(to: URL(fileURLWithPath: outputPath))
-EOT
-  ACTUAL_HEIGHT=1498
+if [[ ! -f "$FIXTURE_PATH" ]]; then
+  echo "screencapture produced no file (window likely on another Space — see NOTE above)."
+  exit 1
 fi
 
-if [[ "$ACTUAL_WIDTH" != "2228" || "$ACTUAL_HEIGHT" != "1498" ]]; then
-  echo "Warning: Screenshot size is ${ACTUAL_WIDTH}x${ACTUAL_HEIGHT}, expected 2228x1498."
-fi
+# 5. Report the captured size. Eyeball the PNG to confirm it shows the app
+#    (a light UI), not the desktop wallpaper — a wallpaper grab means the
+#    window was on another Space (see NOTE above); re-run after focusing it.
+echo "Captured $(sips -g pixelWidth -g pixelHeight "$FIXTURE_PATH" 2>/dev/null | awk '/pixel/{print $2}' | paste -sd x -)"
 
-# Optimize PNG to get it < 200KB
+# 6. Keep it committable (<200KB).
 if command -v pngquant &>/dev/null; then
-  echo "Optimizing PNG with pngquant..."
-  pngquant --force --ext .png --quality 60-80 "$FIXTURE_PATH"
-elif command -v optipng &>/dev/null; then
-  echo "Optimizing PNG with optipng..."
-  optipng -o2 "$FIXTURE_PATH"
-else
-  echo "No PNG optimization tools found. Using sips..."
-  sips -s format png "$FIXTURE_PATH" --out "$FIXTURE_PATH"
+  pngquant --force --ext .png --quality 60-85 "$FIXTURE_PATH" || true
 fi
-
-# Final check
-FILE_SIZE=$(du -k "$FIXTURE_PATH" | cut -f1)
-echo "Final fixture size: ${FILE_SIZE}KB"
-if (( FILE_SIZE > 200 )); then
-  echo "Warning: Fixture size is ${FILE_SIZE}KB, which is over the 200KB target."
-fi
-
-echo "Reference captured to $FIXTURE_PATH"
+echo "Reference captured to $FIXTURE_PATH ($(du -k "$FIXTURE_PATH" | cut -f1)KB)"
+echo "Done. This is the GENUINE upstream Enchanted macOS app — use it as the parity ground truth."
