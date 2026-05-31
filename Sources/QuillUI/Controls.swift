@@ -304,6 +304,21 @@ public struct QuillPromptGrid: View {
                     .foregroundColor(Color(hex: "#2E2E31"))
             }
             .frame(width: promptIconSize, height: promptIconSize)
+        } else if prompt.systemImage.lowercased().contains("lightbulb") {
+            // Same approach for the action prompts: draw the circle, overlay the
+            // plain (non-.circle) lightbulb glyph, matching the genuine app's
+            // circled bulb without the partial-arc .circle composite.
+            ZStack {
+                Circle()
+                    .stroke(Color(hex: "#2E2E31"), lineWidth: 1.3)
+                Image(systemName: QuillSystemSymbol.compatibleName("lightbulb"))
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: promptIconSize * 0.52, height: promptIconSize * 0.52)
+                    .foregroundColor(Color(hex: "#2E2E31"))
+            }
+            .frame(width: promptIconSize, height: promptIconSize)
         } else {
             Image(systemName: QuillSystemSymbol.compatibleName(prompt.systemImage))
                 .renderingMode(.template)
