@@ -462,15 +462,18 @@ public enum EnchantedVisualMetrics {
     public static let loadingSpinnerSize = 16
     public static let promptButtonWidth = 620
     public static let promptButtonMinHeight = 48
-    public static let emptyStateMaxWidth = 680
+    public static let emptyStateMaxWidth = 760
     public static let emptyStatePadding = 26
     public static let emptyStateSpacing = 18
     public static let emptyStateHeaderSpacing = 8
     public static let promptListSpacing = 10
-    public static let promptGridColumns = 1
+    // Genuine native Enchanted empty state: a single HORIZONTAL ROW of 4 narrow
+    // prompt cards (text top-left, "?" icon bottom-right). cardWidth < 400 selects
+    // QuillPromptGrid's narrow card layout; the cards fill their flexible columns.
+    public static let promptGridColumns = 4
     public static let promptGridSpacing = 15
-    public static let promptCardWidth = 619
-    public static let promptCardHeight = 64
+    public static let promptCardWidth = 160
+    public static let promptCardHeight = 128
     public static let promptGridWidth = promptCardWidth * promptGridColumns + promptGridSpacing * (promptGridColumns - 1)
     public static let promptButtonIconSpacing = 10
     public static let promptButtonTextWidthInset = 80

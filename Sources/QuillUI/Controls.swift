@@ -230,7 +230,17 @@ public struct QuillPromptGrid: View {
     private func promptCard(_ prompt: QuillPrompt) -> some View {
         promptCardContent(prompt)
             .padding(promptCardPadding)
-            .frame(width: cardWidth, height: cardHeight, alignment: .leading)
+            // Wide branch (single-column macOS slice) keeps a fixed width; narrow
+            // branch (multi-column row, e.g. Enchanted's genuine 4-card empty
+            // state) fills its flexible LazyVGrid slot so the cards form an even
+            // row like the real macOS app instead of fixed-width cards with a
+            // ragged right edge.
+            .frame(
+                maxWidth: cardWidth >= 400 ? cardWidth : .infinity,
+                minHeight: cardHeight,
+                maxHeight: cardHeight,
+                alignment: .leading
+            )
             .background(cardBackgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: 10))
     }
