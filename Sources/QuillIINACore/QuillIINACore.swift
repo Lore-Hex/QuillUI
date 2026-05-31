@@ -117,9 +117,17 @@ public struct QuillIINAContentView: View {
     private var playerCanvas: some View {
         VStack {
             Spacer()
-            Text(isPlaying ? "▶ Playing" : "⏸ Paused")
-                .font(.system(size: 40, weight: .light))
-                .foregroundColor(.secondary)
+            HStack(spacing: 14) {
+                Image(systemName: QuillSystemSymbol.compatibleName(isPlaying ? "play.fill" : "pause.fill"))
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundColor(.secondary)
+                    .frame(width: 38, height: 38)
+                Text(isPlaying ? "Playing" : "Paused")
+                    .font(.system(size: 40, weight: .light))
+                    .foregroundColor(.secondary)
+            }
             if let item = currentItem {
                 Text(item.title)
                     .font(.title3)

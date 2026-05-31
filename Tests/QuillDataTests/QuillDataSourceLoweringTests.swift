@@ -1796,7 +1796,9 @@ struct QuillDataSourceLoweringTests {
             "\"arrow.forward.circle.fill\"",
             "\"checkmark.seal.fill\"",
             "\"chevron.down\"",
+            "\"curlybraces\"",
             "\"doc.on.doc\"",
+            "\"doc.text\"",
             "\"ellipsis.circle\"",
             "\"folder\"",
             "\"folder.badge.plus\"",
@@ -1808,6 +1810,8 @@ struct QuillDataSourceLoweringTests {
             "\"lock.shield\"",
             "\"paperclip\"",
             "\"paperplane.fill\"",
+            "\"pause.fill\"",
+            "\"play.fill\"",
             "\"questionmark.circle\"",
             "\"shield.lefthalf.filled\"",
             "\"square.fill\"",
@@ -1831,6 +1835,10 @@ struct QuillDataSourceLoweringTests {
             patchedSymbolValues[key] = value
         }
         #expect(patchedSymbolValues["xmark"] == "close")
+        #expect(patchedSymbolValues["curlybraces"] == "code")
+        #expect(patchedSymbolValues["doc.text"] == "description")
+        #expect(patchedSymbolValues["pause.fill"] == "pause")
+        #expect(patchedSymbolValues["play.fill"] == "play_arrow")
     }
 
     private func runScript(
