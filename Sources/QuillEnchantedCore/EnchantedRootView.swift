@@ -244,6 +244,8 @@ public struct EnchantedRootView: View {
                                 },
                                 cancelEdit: model.cancelMessageEdit
                             )
+                            .padding(.vertical, CGFloat(EnchantedVisualMetrics.messageRowVerticalPadding))
+                            .padding(.horizontal, CGFloat(EnchantedVisualMetrics.messageRowHorizontalPadding))
                         }
                     }
 
@@ -629,70 +631,90 @@ private struct MessageBubble: View {
     var cancelEdit: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleRowSpacing)) {
+        HStack(alignment: .firstTextBaseline, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleRowSpacing)) {
             if message.role == .user {
                 Spacer()
+            } else {
+                assistantRoleIndicator
+                    .offset(CGSize(
+                        width: 0,
+                        height: CGFloat(EnchantedVisualMetrics.messageAvatarBaselineOffset)
+                    ))
             }
 
-            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleSpacing)) {
-                Text(label)
-                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
-                    .foregroundColor(labelColor)
-                if message.role == .user {
-                    Text(message.content)
-                        .font(.system(size: CGFloat(EnchantedTypography.messageBodyFontSize)))
-                        .foregroundColor(textColor)
-                        .lineSpacing(3)
-                } else {
-                    MarkdownMessageView(markdown: message.content, foregroundColor: textColor)
-                }
-            }
-            .padding(.horizontal, CGFloat(EnchantedVisualMetrics.messageBubbleHorizontalPadding))
-            .padding(.vertical, CGFloat(EnchantedVisualMetrics.messageBubbleVerticalPadding))
-            .frame(maxWidth: CGFloat(EnchantedVisualMetrics.messageMaxWidth), alignment: .leading)
-            .background(backgroundColor)
-            .cornerRadius(CGFloat(EnchantedVisualMetrics.messageBubbleRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: CGFloat(EnchantedVisualMetrics.messageBubbleRadius))
-                    .stroke(
-                        isEditing ? editingBorderColor : Color.clear,
-                        lineWidth: CGFloat(EnchantedVisualMetrics.messageEditBorderWidth)
-                    )
-            )
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(label)
-            .accessibilityValue(message.content)
-            .help(accessibilitySummary)
-            .contextMenu {
-                Button(action: copyMessageContent) {
-                    Label(
-                        EnchantedCopy.copyMessageTitle,
-                        systemImage: enchantedSystemImageName(EnchantedIcon.copyMessage)
-                    )
-                }
-                if message.role == .user {
-                    Button(action: editMessageContent) {
+            messageContent
+                .frame(maxWidth: CGFloat(EnchantedVisualMetrics.messageMaxWidth), alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(label)
+                .accessibilityValue(message.content)
+                .help(accessibilitySummary)
+                .contextMenu {
+                    Button(action: copyMessageContent) {
                         Label(
-                            EnchantedCopy.editMessageTitle,
-                            systemImage: enchantedSystemImageName(EnchantedIcon.editMessage)
+                            EnchantedCopy.copyMessageTitle,
+                            systemImage: enchantedSystemImageName(EnchantedIcon.copyMessage)
                         )
                     }
-                    if isEditing {
-                        Button(action: cancelEdit) {
+                    if message.role == .user {
+                        Button(action: editMessageContent) {
                             Label(
-                                EnchantedCopy.unselectMessageTitle,
+                                EnchantedCopy.editMessageTitle,
                                 systemImage: enchantedSystemImageName(EnchantedIcon.editMessage)
                             )
                         }
+                        if isEditing {
+                            Button(action: cancelEdit) {
+                                Label(
+                                    EnchantedCopy.unselectMessageTitle,
+                                    systemImage: enchantedSystemImageName(EnchantedIcon.editMessage)
+                                )
+                            }
+                        }
                     }
                 }
-            }
 
             if message.role != .user {
                 Spacer()
             }
         }
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+    }
+
+    @ViewBuilder
+    private var messageContent: some View {
+        if message.role == .user {
+            Text(message.content)
+                .font(.system(size: CGFloat(EnchantedTypography.messageBodyFontSize)))
+                .foregroundColor(QuillColors.ink)
+                .lineSpacing(3)
+                .padding(CGFloat(EnchantedVisualMetrics.userMessageBubblePadding))
+                .background(
+                    RoundedRectangle(cornerRadius: CGFloat(EnchantedVisualMetrics.userMessageBubbleRadius))
+                        .fill(.regularMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: CGFloat(EnchantedVisualMetrics.userMessageBubbleRadius))
+                        .stroke(
+                            isEditing ? editingBorderColor : Color.clear,
+                            lineWidth: CGFloat(EnchantedVisualMetrics.messageEditBorderWidth)
+                        )
+                )
+        } else {
+            MarkdownMessageView(markdown: message.content, foregroundColor: QuillColors.ink)
+        }
+    }
+
+    private var assistantRoleIndicator: some View {
+        Text("AI")
+            .font(.system(
+                size: CGFloat(EnchantedTypography.captionFontSize),
+                weight: enchantedFontWeight(EnchantedTypography.markdownHeadingFontWeight)
+            ))
+            .foregroundColor(QuillColors.muted)
+            .frame(
+                width: CGFloat(EnchantedVisualMetrics.messageAvatarSize),
+                height: CGFloat(EnchantedVisualMetrics.messageAvatarSize)
+            )
     }
 
     private func copyMessageContent() {
@@ -714,27 +736,8 @@ private struct MessageBubble: View {
         }
     }
 
-    private var backgroundColor: Color {
-        switch message.role {
-        case .user:
-            return QuillColors.messageUserBubble
-        case .assistant:
-            return QuillColors.messageAssistantBubble
-        case .system:
-            return QuillColors.system
-        }
-    }
-
-    private var labelColor: Color {
-        message.role == .user ? QuillColors.selectedMuted : QuillColors.muted
-    }
-
-    private var textColor: Color {
-        message.role == .user ? .white : QuillColors.ink
-    }
-
     private var editingBorderColor: Color {
-        message.role == .user ? .white : QuillColors.primary
+        QuillColors.primary
     }
 
     private var accessibilitySummary: String {
