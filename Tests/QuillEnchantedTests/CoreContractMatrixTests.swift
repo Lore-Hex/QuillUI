@@ -108,7 +108,7 @@ struct CoreContractMatrixTests {
         #expect(EnchantedPromptCatalog.visibleEmptyConversationPrompts.map(\.kind) == Array(expectedKinds.prefix(4)))
     }
 
-    @Test("empty conversation renders four prompts in a 2x2 grid")
+    @Test("empty conversation renders four prompts in a single horizontal row (genuine mac layout)")
     func emptyConversationPromptGridMirrorsMacLayout() throws {
         let rootView = try packageSource("Sources/QuillEnchantedCore/EnchantedRootView.swift")
         let controls = try packageSource("Sources/QuillUI/Controls.swift")
@@ -117,9 +117,16 @@ struct CoreContractMatrixTests {
         let fullSourceEmptyStateTemplate = try packageSource("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/EmptyConversaitonView.swift")
 
         #expect(EnchantedPromptCatalog.visibleEmptyConversationPrompts.count == 4)
-        #expect(EnchantedVisualMetrics.promptGridColumns == 1)
-        #expect(EnchantedVisualMetrics.promptGridWidth == 619)
-        #expect(EnchantedVisualMetrics.promptCardWidth == EnchantedVisualMetrics.promptGridWidth)
+        // The genuine native Enchanted empty state lays the 4 prompts out as a
+        // single HORIZONTAL ROW of 4 narrow cards (text top-left, "?" icon
+        // bottom-right) — not the former single-column list (which mirrored the
+        // old self-referential reference, since corrected in #135/#136).
+        #expect(EnchantedVisualMetrics.promptGridColumns == 4)
+        #expect(EnchantedVisualMetrics.promptGridWidth
+            == EnchantedVisualMetrics.promptCardWidth * EnchantedVisualMetrics.promptGridColumns
+                + EnchantedVisualMetrics.promptGridSpacing * (EnchantedVisualMetrics.promptGridColumns - 1))
+        // cardWidth < 400 selects QuillPromptGrid's narrow card layout (icon bottom-right).
+        #expect(EnchantedVisualMetrics.promptCardWidth < 400)
         expectContains(rootView, "QuillPrompt(title: $0.title, systemImage: $0.systemImage)")
         expectContains(rootView, "QuillPromptGrid(")
         expectContains(rootView, "columns: EnchantedVisualMetrics.promptGridColumns")
@@ -1351,15 +1358,15 @@ struct CoreContractMatrixTests {
         expectContains(sharedPrompts, "public static let loadingSpinnerSize = 16")
         expectContains(sharedPrompts, "public static let promptButtonWidth = 620")
         expectContains(sharedPrompts, "public static let promptButtonMinHeight = 48")
-        expectContains(sharedPrompts, "public static let emptyStateMaxWidth = 680")
+        expectContains(sharedPrompts, "public static let emptyStateMaxWidth = 760")
         expectContains(sharedPrompts, "public static let emptyStatePadding = 26")
         expectContains(sharedPrompts, "public static let emptyStateSpacing = 18")
         expectContains(sharedPrompts, "public static let emptyStateHeaderSpacing = 8")
         expectContains(sharedPrompts, "public static let promptListSpacing = 10")
-        expectContains(sharedPrompts, "public static let promptGridColumns = 1")
+        expectContains(sharedPrompts, "public static let promptGridColumns = 4")
         expectContains(sharedPrompts, "public static let promptGridSpacing = 15")
-        expectContains(sharedPrompts, "public static let promptCardWidth = 619")
-        expectContains(sharedPrompts, "public static let promptCardHeight = 64")
+        expectContains(sharedPrompts, "public static let promptCardWidth = 160")
+        expectContains(sharedPrompts, "public static let promptCardHeight = 128")
         expectContains(sharedPrompts, "public static let promptGridWidth = promptCardWidth * promptGridColumns + promptGridSpacing * (promptGridColumns - 1)")
         expectContains(sharedPrompts, "public static let promptButtonIconSpacing = 10")
         expectContains(sharedPrompts, "public static let promptButtonTextWidthInset = 80")
