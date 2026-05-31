@@ -514,8 +514,14 @@ private struct EmptyConversationView: View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateSpacing)) {
             VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateHeaderSpacing)) {
                 Text(EnchantedCopy.emptyStateTitle)
-                    .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.currentTitleFontWeight)))
-                    .foregroundColor(QuillColors.ink)
+                    .font(.system(size: CGFloat(EnchantedTypography.emptyStateWordmarkFontSize), weight: enchantedFontWeight(EnchantedTypography.emptyStateWordmarkFontWeight)))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color(hex: "#4F86F7"), Color(hex: "#9B6DD6"), Color(hex: "#E05A6B")],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                 if !EnchantedCopy.emptyStateSubtitle.isEmpty {
                     Text(EnchantedCopy.emptyStateSubtitle)
                         .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))

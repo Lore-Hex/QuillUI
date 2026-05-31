@@ -554,6 +554,10 @@ public enum EnchantedTypography {
     public static let sectionTitleFontWeight = 700
     public static let currentTitleFontSize = 20
     public static let currentTitleFontWeight = 650
+    // Genuine native Enchanted empty-state wordmark: a large, light-weight
+    // gradient "Enchanted" title centered above the prompt row.
+    public static let emptyStateWordmarkFontSize = 52
+    public static let emptyStateWordmarkFontWeight = 500
     public static let messageBodyFontSize = 14
     public static let markdownHeading1FontSize = 17
     public static let markdownHeading2FontSize = 15
