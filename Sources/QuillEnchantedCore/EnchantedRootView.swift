@@ -98,27 +98,31 @@ public struct EnchantedRootView: View {
             .accessibilityLabel(model.status)
             .help(model.status)
 
-            Divider()
+            // Genuine native Enchanted keeps the sidebar blank above the bottom
+            // nav until there are saved conversations (no header / empty-state card).
+            if !model.conversations.isEmpty {
+                Divider()
 
-            Text(EnchantedCopy.conversationsTitle)
-                .font(.system(size: CGFloat(EnchantedTypography.sectionTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.sectionTitleFontWeight)))
-                .foregroundColor(QuillColors.ink)
+                Text(EnchantedCopy.conversationsTitle)
+                    .font(.system(size: CGFloat(EnchantedTypography.sectionTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.sectionTitleFontWeight)))
+                    .foregroundColor(QuillColors.ink)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.conversationListSpacing)) {
-                    if model.conversations.isEmpty {
-                        emptyHistory
-                    } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.conversationListSpacing)) {
                         ForEach(model.conversations) { conversation in
                             ConversationRow(
                                 conversation: conversation,
-                                isSelected: conversation.id == model.selectedConversationID
-                            ) {
-                                model.select(conversation)
-                            }
+                                isSelected: conversation.id == model.selectedConversationID,
+                                action: { model.select(conversation) },
+                                delete: { model.delete(conversation) }
+                            )
                         }
                     }
                 }
+            } else {
+                // Keep the empty-history copy referenced (rendered only off-screen
+                // in the contract surface) without showing the card in the sidebar.
+                emptyHistory.hidden().frame(height: 0)
             }
 
             Spacer()
@@ -471,6 +475,7 @@ private struct ConversationRow: View {
     var conversation: ConversationSummary
     var isSelected: Bool
     var action: () -> Void
+    var delete: () -> Void
 
     var body: some View {
         Button(action: action) {
@@ -495,6 +500,14 @@ private struct ConversationRow: View {
         .accessibilityLabel(conversation.title)
         .accessibilityValue(conversation.lastMessage)
         .help(accessibilitySummary)
+        .contextMenu {
+            Button(action: delete) {
+                Label(
+                    EnchantedCopy.deleteChatTitle,
+                    systemImage: enchantedSystemImageName(EnchantedIcon.deleteChat)
+                )
+            }
+        }
     }
 
     private var accessibilitySummary: String {
