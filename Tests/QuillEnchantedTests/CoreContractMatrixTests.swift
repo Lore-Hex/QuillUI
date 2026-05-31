@@ -1430,7 +1430,7 @@ struct CoreContractMatrixTests {
         expectContains(sharedPrompts, "public static let composerSpacing = 10")
         expectContains(sharedPrompts, "public static let promptRowSpacing = 12")
         expectContains(sharedPrompts, "public static let composerSendButtonMinWidth = 86")
-        expectContains(sharedPrompts, "public static let composerMinHeight = 74")
+        expectContains(sharedPrompts, "public static let composerMinHeight = 46")
         expectContains(sharedPrompts, "public static let composerMaxHeight = 120")
         expectContains(sharedPrompts, "public enum EnchantedTypography")
         expectContains(sharedPrompts, "public static let rootFontSize = 14")

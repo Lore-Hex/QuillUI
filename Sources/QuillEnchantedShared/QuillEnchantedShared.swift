@@ -538,10 +538,12 @@ public enum EnchantedVisualMetrics {
     public static let composerMaxWidth = 800
     public static let composerPadding = 18
     public static let composerSpacing = 10
-    public static let composerEditorRadius = 8
+    // Genuine native composer is a short, fully-rounded pill (single line at
+    // rest, growing to composerMaxHeight while typing). radius == minHeight/2.
+    public static let composerEditorRadius = 23
     public static let promptRowSpacing = 12
     public static let composerSendButtonMinWidth = 86
-    public static let composerMinHeight = 74
+    public static let composerMinHeight = 46
     public static let composerMaxHeight = 120
 }
 
