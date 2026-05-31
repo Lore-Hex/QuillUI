@@ -269,6 +269,9 @@ public struct EnchantedRootView: View {
                     minWidth: CGFloat(EnchantedVisualMetrics.composerMinWidth),
                     maxWidth: CGFloat(EnchantedVisualMetrics.composerMaxWidth)
                 )
+                // Bound the composer's height so it sits as a short bar at the
+                // bottom (genuine layout) instead of expanding to fill the column.
+                .frame(maxHeight: CGFloat(EnchantedVisualMetrics.composerMaxHeight))
                 .frame(maxWidth: .infinity, alignment: .center)
                 .background(QuillColors.header)
         }
@@ -392,10 +395,12 @@ public struct EnchantedRootView: View {
 
             HStack(alignment: .bottom, spacing: CGFloat(EnchantedVisualMetrics.promptRowSpacing)) {
                 TextEditor(text: composerText)
-                    .frame(
-                        minHeight: CGFloat(EnchantedVisualMetrics.composerMinHeight),
-                        maxHeight: CGFloat(EnchantedVisualMetrics.composerMaxHeight)
-                    )
+                    // Fixed short height so the empty composer renders as a short
+                    // rounded pill (genuine native layout). GTK's TextView ignores
+                    // a maxHeight cap and would otherwise expand to fill the whole
+                    // column; composerMaxHeight still bounds the composer container
+                    // (see chatSurface).
+                    .frame(height: CGFloat(EnchantedVisualMetrics.composerMinHeight))
                     .background(.white)
                     .cornerRadius(CGFloat(EnchantedVisualMetrics.composerEditorRadius))
                     .accessibilityLabel(EnchantedCopy.composerPlaceholder)
