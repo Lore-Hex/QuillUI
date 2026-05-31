@@ -96,24 +96,8 @@ public struct EnchantedRootView: View {
                     .help(EnchantedCopy.endpointLabel)
             }
 
-            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
-                Text(EnchantedCopy.modelLabel)
-                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
-                    .foregroundColor(QuillColors.muted)
-                if model.models.isEmpty {
-                    Text(EnchantedCopy.noModelsTitle)
-                        .font(.system(size: CGFloat(EnchantedTypography.warningTextFontSize)))
-                        .foregroundColor(QuillColors.warning)
-                } else {
-                    Picker(EnchantedCopy.modelLabel, selection: modelSelection) {
-                        ForEach(model.models) { ollamaModel in
-                            Text(ollamaModel.name).tag(ollamaModel.name)
-                        }
-                    }
-                    .accessibilityLabel(EnchantedCopy.modelLabel)
-                    .help(EnchantedCopy.modelLabel)
-                }
-            }
+            // Model picker moved to the top toolbar (genuine native Enchanted
+            // layout) — see chatHeader / headerModelPicker.
 
             HStack(spacing: CGFloat(EnchantedVisualMetrics.statusRowSpacing)) {
                 statusDot
@@ -262,6 +246,24 @@ public struct EnchantedRootView: View {
             }
 
             Spacer()
+
+            // Genuine native Enchanted: the model picker lives in the top toolbar.
+            if model.models.isEmpty {
+                Text(EnchantedCopy.noModelsTitle)
+                    .font(.system(size: CGFloat(EnchantedTypography.warningTextFontSize)))
+                    .foregroundColor(QuillColors.warning)
+                    .accessibilityLabel(EnchantedCopy.noModelsTitle)
+            } else {
+                Picker(EnchantedCopy.modelLabel, selection: modelSelection) {
+                    ForEach(model.models) { ollamaModel in
+                        Text(ollamaModel.name).tag(ollamaModel.name)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: 220)
+                .accessibilityLabel(EnchantedCopy.modelLabel)
+                .help(EnchantedCopy.modelLabel)
+            }
 
             Button {
                 let model = model
