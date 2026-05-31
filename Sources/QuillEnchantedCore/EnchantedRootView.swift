@@ -511,8 +511,8 @@ private struct EmptyConversationView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateSpacing)) {
-            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateHeaderSpacing)) {
+        VStack(alignment: .center, spacing: CGFloat(EnchantedVisualMetrics.emptyStateSpacing)) {
+            VStack(alignment: .center, spacing: CGFloat(EnchantedVisualMetrics.emptyStateHeaderSpacing)) {
                 Text(EnchantedCopy.emptyStateTitle)
                     .font(.system(size: CGFloat(EnchantedTypography.emptyStateWordmarkFontSize), weight: enchantedFontWeight(EnchantedTypography.emptyStateWordmarkFontWeight)))
                     .foregroundStyle(
@@ -542,7 +542,10 @@ private struct EmptyConversationView: View {
             .frame(width: CGFloat(EnchantedVisualMetrics.promptGridWidth), alignment: .leading)
         }
         .padding(CGFloat(EnchantedVisualMetrics.emptyStatePadding))
-        .frame(maxWidth: CGFloat(EnchantedVisualMetrics.emptyStateMaxWidth), alignment: .leading)
+        // Cap the content width, then center the whole block in the detail pane
+        // (the genuine native empty state is centered, not leading-aligned).
+        .frame(maxWidth: CGFloat(EnchantedVisualMetrics.emptyStateMaxWidth))
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 }
 
