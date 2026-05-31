@@ -2264,7 +2264,7 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "Text(EnchantedCopy.emptyHistorySubtitle)")
         expectContains(macOSRootView, "Image(systemName: enchantedSystemImageName(EnchantedIcon.deleteChat))")
         expectContains(macOSRootView, "Text(EnchantedCopy.deleteChatTitle)")
-        expectContains(macOSRootView, "model.deleteSelectedConversation()")
+        expectContains(macOSRootView, "model.delete(conversation)")
         expectContains(macOSRootView, "Image(systemName: enchantedSystemImageName(EnchantedIcon.clearAll))")
         expectContains(macOSRootView, "Text(EnchantedCopy.clearAllTitle)")
         expectContains(macOSRootView, "model.deleteAllConversations()")

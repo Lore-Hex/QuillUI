@@ -9,10 +9,39 @@ private func enchantedSystemImageName(_ systemImage: String) -> String {
     QuillSystemSymbol.compatibleName(systemImage)
 }
 
+private enum EnchantedSidebarPanel: Hashable {
+    case completions, shortcuts, settings
+
+    var title: String {
+        switch self {
+        case .completions: return EnchantedCopy.completionsTitle
+        case .shortcuts: return EnchantedCopy.shortcutsTitle
+        case .settings: return EnchantedCopy.settingsTitle
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .completions: return EnchantedCopy.completionsPanelSubtitle
+        case .shortcuts: return EnchantedCopy.shortcutsPanelSubtitle
+        case .settings: return EnchantedCopy.settingsPanelSubtitle
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .completions: return EnchantedIcon.completions
+        case .shortcuts: return EnchantedIcon.shortcuts
+        case .settings: return EnchantedIcon.settings
+        }
+    }
+}
+
 @MainActor
 public struct EnchantedRootView: View {
     @StateObject private var model = EnchantedModel()
     @AppStorage("quill.enchanted.ollamaEndpoint") private var endpoint = EnchantedCopy.defaultEndpoint
+    @State private var activePanel: EnchantedSidebarPanel?
 
     public init() {}
 
@@ -129,19 +158,41 @@ public struct EnchantedRootView: View {
 
             Divider()
 
-            HStack(spacing: CGFloat(EnchantedVisualMetrics.conversationActionsSpacing)) {
-                Button {
-                    model.deleteSelectedConversation()
-                } label: {
-                    HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
-                        Image(systemName: enchantedSystemImageName(EnchantedIcon.deleteChat))
-                        Text(EnchantedCopy.deleteChatTitle)
+            // Genuine native Enchanted sidebar bottom nav: Completions / Shortcuts /
+            // Settings (each opens an inline panel). Delete moved to a per-row
+            // context menu; Clear-all lives in the Settings panel.
+            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.conversationActionsSpacing)) {
+                ForEach([EnchantedSidebarPanel.completions, .shortcuts, .settings], id: \.self) { panel in
+                    Button {
+                        activePanel = (activePanel == panel) ? nil : panel
+                    } label: {
+                        HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
+                            Image(systemName: enchantedSystemImageName(panel.icon))
+                            Text(panel.title)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .buttonStyle(.plain)
+                    .foregroundColor(activePanel == panel ? QuillColors.primary : QuillColors.ink)
+                    .accessibilityLabel(panel.title)
+                    .help(panel.title)
                 }
-                .disabled(model.selectedConversationID == nil)
-                .accessibilityLabel(EnchantedCopy.deleteChatTitle)
-                .help(EnchantedCopy.deleteChatTitle)
+            }
+            .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
+        }
+        .padding(CGFloat(EnchantedVisualMetrics.sidebarPadding))
+    }
 
+    @ViewBuilder
+    private func sidebarPanelView(_ panel: EnchantedSidebarPanel) -> some View {
+        VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateHeaderSpacing)) {
+            Text(panel.title)
+                .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.currentTitleFontWeight)))
+                .foregroundColor(QuillColors.ink)
+            Text(panel.subtitle)
+                .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
+                .foregroundColor(QuillColors.muted)
+            if panel == .settings {
                 Button {
                     model.deleteAllConversations()
                 } label: {
@@ -154,9 +205,9 @@ public struct EnchantedRootView: View {
                 .accessibilityLabel(EnchantedCopy.clearAllTitle)
                 .help(EnchantedCopy.clearAllTitle)
             }
-            .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
         }
-        .padding(CGFloat(EnchantedVisualMetrics.sidebarPadding))
+        .padding(CGFloat(EnchantedVisualMetrics.emptyStatePadding))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var chatSurface: some View {
@@ -175,7 +226,9 @@ public struct EnchantedRootView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.messageSpacing)) {
-                    if model.messages.isEmpty {
+                    if let panel = activePanel {
+                        sidebarPanelView(panel)
+                    } else if model.messages.isEmpty {
                         EmptyConversationView { prompt in
                             model.startSend(prompt)
                         }
@@ -502,10 +555,10 @@ private struct ConversationRow: View {
         .help(accessibilitySummary)
         .contextMenu {
             Button(action: delete) {
-                Label(
-                    EnchantedCopy.deleteChatTitle,
-                    systemImage: enchantedSystemImageName(EnchantedIcon.deleteChat)
-                )
+                HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
+                    Image(systemName: enchantedSystemImageName(EnchantedIcon.deleteChat))
+                    Text(EnchantedCopy.deleteChatTitle)
+                }
             }
         }
     }
