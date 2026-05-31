@@ -103,29 +103,9 @@ public struct EnchantedRootView: View {
             // New-chat moved to the toolbar compose icon (genuine native layout)
             // — see chatHeader.
 
-            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
-                Text(EnchantedCopy.endpointLabel)
-                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
-                    .foregroundColor(QuillColors.muted)
-                TextField(EnchantedCopy.defaultEndpoint, text: $endpoint)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel(EnchantedCopy.endpointLabel)
-                    .help(EnchantedCopy.endpointLabel)
-            }
-
-            // Model picker moved to the top toolbar (genuine native Enchanted
-            // layout) — see chatHeader / headerModelPicker.
-
-            HStack(spacing: CGFloat(EnchantedVisualMetrics.statusRowSpacing)) {
-                statusDot
-                Text(model.status)
-                    .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
-                    .foregroundColor(QuillColors.muted)
-                    .frame(width: CGFloat(EnchantedVisualMetrics.statusTextWidth), alignment: .leading)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(model.status)
-            .help(model.status)
+            // Model picker → top toolbar; endpoint + connection status → the
+            // Settings panel (genuine native sidebar is minimal) — see
+            // chatHeader / headerModelPicker and sidebarPanelView.
 
             // Genuine native Enchanted keeps the sidebar blank above the bottom
             // nav until there are saved conversations (no header / empty-state card).
@@ -193,6 +173,27 @@ public struct EnchantedRootView: View {
                 .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
                 .foregroundColor(QuillColors.muted)
             if panel == .settings {
+                VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
+                    Text(EnchantedCopy.endpointLabel)
+                        .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
+                        .foregroundColor(QuillColors.muted)
+                    TextField(EnchantedCopy.defaultEndpoint, text: $endpoint)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(EnchantedCopy.endpointLabel)
+                        .help(EnchantedCopy.endpointLabel)
+                }
+
+                HStack(spacing: CGFloat(EnchantedVisualMetrics.statusRowSpacing)) {
+                    statusDot
+                    Text(model.status)
+                        .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
+                        .foregroundColor(QuillColors.muted)
+                        .frame(width: CGFloat(EnchantedVisualMetrics.statusTextWidth), alignment: .leading)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(model.status)
+                .help(model.status)
+
                 Button {
                     model.deleteAllConversations()
                 } label: {
