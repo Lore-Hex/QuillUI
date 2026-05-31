@@ -1508,7 +1508,7 @@ struct SourceHygieneTests {
         #expect(enchantedMacRoot.contains("Text(EnchantedCopy.emptyHistorySubtitle)"))
         #expect(enchantedMacRoot.contains("Image(systemName: enchantedSystemImageName(EnchantedIcon.deleteChat))"))
         #expect(enchantedMacRoot.contains("Text(EnchantedCopy.deleteChatTitle)"))
-        #expect(enchantedMacRoot.contains("model.deleteSelectedConversation()"))
+        #expect(enchantedMacRoot.contains("model.delete(conversation)"))
         #expect(enchantedMacRoot.contains("Image(systemName: enchantedSystemImageName(EnchantedIcon.clearAll))"))
         #expect(enchantedMacRoot.contains("Text(EnchantedCopy.clearAllTitle)"))
         #expect(enchantedMacRoot.contains("model.deleteAllConversations()"))
