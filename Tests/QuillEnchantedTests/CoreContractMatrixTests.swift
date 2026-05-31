@@ -158,6 +158,51 @@ struct CoreContractMatrixTests {
         expectDoesNotContain(fullSourceEmptyStateTemplate, "macReferenceOrder")
     }
 
+    @Test("in-conversation message rows mirror upstream role layout metrics")
+    func messageRowsMirrorUpstreamRoleLayoutMetrics() throws {
+        let rootView = try packageSource("Sources/QuillEnchantedCore/EnchantedRootView.swift")
+        let shared = try packageSource("Sources/QuillEnchantedShared/QuillEnchantedShared.swift")
+        let upstreamMessageList = try packageSource(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/MessageListVIew.swift")
+        let upstreamChatMessage = try packageSource(".upstream/enchanted/Enchanted/UI/Shared/Chat/Components/ChatMessages/ChatMessageView.swift")
+
+        expectContains(upstreamMessageList, ".padding(.vertical, 10)")
+        expectContains(upstreamMessageList, ".padding(.horizontal, 10)")
+        expectContains(upstreamChatMessage, "VStack(alignment: .trailing, spacing: 0)")
+        expectContains(upstreamChatMessage, "HStack(alignment: .firstTextBaseline)")
+        expectContains(upstreamChatMessage, ".frame(width: 24, height: 24)")
+        expectContains(upstreamChatMessage, ".offset(CGSize(width: 0, height: 6))")
+        expectContains(upstreamChatMessage, "v.padding()")
+        expectContains(upstreamChatMessage, ".background(RoundedRectangle(cornerRadius: 25).fill(.regularMaterial))")
+
+        #expect(EnchantedVisualMetrics.messageSpacing == 8)
+        #expect(EnchantedVisualMetrics.messageRowVerticalPadding == 10)
+        #expect(EnchantedVisualMetrics.messageRowHorizontalPadding == 10)
+        #expect(EnchantedVisualMetrics.messageBubbleRowSpacing == 8)
+        #expect(EnchantedVisualMetrics.messageAvatarSize == 24)
+        #expect(EnchantedVisualMetrics.messageAvatarBaselineOffset == 6)
+        #expect(EnchantedVisualMetrics.userMessageBubblePadding == 16)
+        #expect(EnchantedVisualMetrics.userMessageBubbleRadius == 25)
+
+        expectContains(shared, "public static let messageRowHorizontalPadding = 10")
+        expectContains(shared, "public static let messageRowVerticalPadding = 10")
+        expectContains(shared, "public static let messageAvatarSize = 24")
+        expectContains(shared, "public static let messageAvatarBaselineOffset = 6")
+        expectContains(shared, "public static let userMessageBubblePadding = 16")
+        expectContains(shared, "public static let userMessageBubbleRadius = 25")
+
+        expectContains(rootView, ".padding(.vertical, CGFloat(EnchantedVisualMetrics.messageRowVerticalPadding))")
+        expectContains(rootView, ".padding(.horizontal, CGFloat(EnchantedVisualMetrics.messageRowHorizontalPadding))")
+        expectContains(rootView, "HStack(alignment: .firstTextBaseline, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleRowSpacing))")
+        expectContains(rootView, "EnchantedVisualMetrics.messageAvatarBaselineOffset")
+        expectContains(rootView, "EnchantedVisualMetrics.messageAvatarSize")
+        expectContains(rootView, "EnchantedVisualMetrics.userMessageBubblePadding")
+        expectContains(rootView, "EnchantedVisualMetrics.userMessageBubbleRadius")
+        expectContains(rootView, "MarkdownMessageView(markdown: message.content, foregroundColor: QuillColors.ink)")
+        expectContains(rootView, ".fill(.regularMaterial)")
+        expectDoesNotContain(rootView, "Text(label)")
+        expectDoesNotContain(rootView, ".background(backgroundColor)")
+    }
+
     @Test("normalizes attachment paths", arguments: pathCases)
     func pathNormalizationContracts(testCase: PathCase) throws {
         let url = try #require(PendingImageAttachment.fileURL(from: testCase.rawPath))
@@ -706,11 +751,13 @@ struct CoreContractMatrixTests {
             "EnchantedVisualMetrics.promptRowSpacing",
             "EnchantedVisualMetrics.messageMaxWidth",
             "EnchantedVisualMetrics.messageSpacing",
+            "EnchantedVisualMetrics.messageRowHorizontalPadding",
+            "EnchantedVisualMetrics.messageRowVerticalPadding",
             "EnchantedVisualMetrics.messageBubbleRowSpacing",
-            "EnchantedVisualMetrics.messageBubbleHorizontalPadding",
-            "EnchantedVisualMetrics.messageBubbleVerticalPadding",
-            "EnchantedVisualMetrics.messageBubbleSpacing",
-            "EnchantedVisualMetrics.messageBubbleRadius",
+            "EnchantedVisualMetrics.messageAvatarSize",
+            "EnchantedVisualMetrics.messageAvatarBaselineOffset",
+            "EnchantedVisualMetrics.userMessageBubblePadding",
+            "EnchantedVisualMetrics.userMessageBubbleRadius",
             "EnchantedVisualMetrics.messageEditBorderWidth",
             "EnchantedVisualMetrics.conversationListSpacing",
             "EnchantedVisualMetrics.conversationActionsSpacing",
@@ -1406,12 +1453,18 @@ struct CoreContractMatrixTests {
         expectContains(sharedPrompts, "public static let attachmentInputVerticalPadding = 7")
         expectContains(sharedPrompts, "public static let attachmentInputSpacing = 8")
         expectContains(sharedPrompts, "public static let messageMaxWidth = 680")
-        expectContains(sharedPrompts, "public static let messageSpacing = 14")
-        expectContains(sharedPrompts, "public static let messageBubbleRowSpacing = 10")
+        expectContains(sharedPrompts, "public static let messageSpacing = 8")
+        expectContains(sharedPrompts, "public static let messageRowHorizontalPadding = 10")
+        expectContains(sharedPrompts, "public static let messageRowVerticalPadding = 10")
+        expectContains(sharedPrompts, "public static let messageBubbleRowSpacing = 8")
         expectContains(sharedPrompts, "public static let messageBubbleHorizontalPadding = 12")
         expectContains(sharedPrompts, "public static let messageBubbleVerticalPadding = 8")
         expectContains(sharedPrompts, "public static let messageBubbleSpacing = 7")
         expectContains(sharedPrompts, "public static let messageBubbleRadius = 16")
+        expectContains(sharedPrompts, "public static let messageAvatarSize = 24")
+        expectContains(sharedPrompts, "public static let messageAvatarBaselineOffset = 6")
+        expectContains(sharedPrompts, "public static let userMessageBubblePadding = 16")
+        expectContains(sharedPrompts, "public static let userMessageBubbleRadius = 25")
         expectContains(sharedPrompts, "public static let messageEditBorderWidth = 2")
         expectContains(sharedPrompts, "public static let markdownBlockSpacing = 9")
         expectContains(sharedPrompts, "public static let markdownListItemSpacing = 8")
@@ -1507,13 +1560,14 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageMaxWidth")
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageSpacing")
         expectContains(macOSRootView, ".frame(maxWidth: .infinity, alignment: .leading)")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.messageRowVerticalPadding")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.messageRowHorizontalPadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleRowSpacing")
-        expectContains(macOSRootView, "HStack(alignment: .top, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleRowSpacing))")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleHorizontalPadding")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleVerticalPadding")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleSpacing")
-        expectContains(macOSRootView, "VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleSpacing))")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleRadius")
+        expectContains(macOSRootView, "HStack(alignment: .firstTextBaseline, spacing: CGFloat(EnchantedVisualMetrics.messageBubbleRowSpacing))")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.messageAvatarSize")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.messageAvatarBaselineOffset")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.userMessageBubblePadding")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.userMessageBubbleRadius")
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageEditBorderWidth")
         expectContains(macOSRootView, "EnchantedVisualMetrics.composerPadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.composerSpacing")
@@ -2292,7 +2346,7 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, ".foregroundColor(isSelected ? QuillColors.selectedMuted : QuillColors.muted)")
         expectContains(macOSRootView, ".background(isSelected ? QuillColors.primary : QuillColors.card)")
         expectContains(macOSRootView, "EnchantedVisualMetrics.composerEditorRadius")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleRadius")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.userMessageBubbleRadius")
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageEditBorderWidth")
         expectContains(macOSMarkdownRendering, "EnchantedVisualMetrics.markdownBlockSpacing")
         expectContains(macOSMarkdownRendering, "EnchantedVisualMetrics.markdownListItemSpacing")
