@@ -33,6 +33,13 @@ public protocol QtRenderable {
     func qtCreateWidget() -> OpaquePointer
 }
 
+/// Protocol for views that provide multiple Qt child widgets to their parent.
+/// This lets transparent aggregators like ForEach expand into stacks/lists
+/// while still having a fallback widget when rendered directly.
+public protocol QtMultiChildRenderable {
+    func qtRenderChildren() -> [OpaquePointer]
+}
+
 /// Marker stored as an objectName prefix so containers can recognise Spacer
 /// widgets and opt out of the shared (absolute) layout, exactly like GTK's
 /// `gtkSwiftSpacerMarker`.
@@ -67,7 +74,7 @@ public func qtRenderView<V: View>(_ view: V) -> OpaquePointer {
     // children into a vertical container. Must precede the reactive/body
     // checks because these types have Body == Never.
     if let multi = view as? MultiChildView {
-        let children = multi.children.map { qtRenderAnyView($0) }
+        let children = qtRenderExpandedChildren(multi.children)
         return qtRenderVerticalContainer(children, spacing: 0, alignment: .leading)
     }
 
@@ -89,10 +96,28 @@ public func qtRenderAnyView(_ view: any View) -> OpaquePointer {
 
 /// Enumerate a view's children as individual widgets (VStack/HStack use this).
 func qtRenderChildren<V: View>(_ view: V) -> [OpaquePointer] {
+    if let multi = view as? QtMultiChildRenderable {
+        return multi.qtRenderChildren()
+    }
+    if let transparent = view as? TransparentMultiChildView {
+        return qtRenderExpandedChildren(transparent.children)
+    }
     if let multi = view as? MultiChildView {
-        return multi.children.map { qtRenderAnyView($0) }
+        return qtRenderExpandedChildren(multi.children)
     }
     return [qtRenderView(view)]
+}
+
+func qtRenderExpandedChildren(_ children: [any View]) -> [OpaquePointer] {
+    children.flatMap { child in
+        if let multi = child as? QtMultiChildRenderable {
+            return multi.qtRenderChildren()
+        }
+        if let transparent = child as? TransparentMultiChildView {
+            return qtRenderExpandedChildren(transparent.children)
+        }
+        return [qtRenderAnyView(child)]
+    }
 }
 
 /// Wrap a reactive composite view in a QtViewHost and return its container.
@@ -376,6 +401,28 @@ extension HStack: QtRenderable {
         let effectiveSpacing = resolveStackSpacing(spacing)
         let children = qtRenderChildren(content)
         return qtRenderHorizontalContainer(children, spacing: effectiveSpacing, alignment: alignment)
+    }
+}
+
+extension ForEach: QtRenderable, QtMultiChildRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderVerticalContainer(qtRenderChildren(), spacing: 0, alignment: .leading)
+    }
+
+    public func qtRenderChildren() -> [OpaquePointer] {
+        data.map { item in
+            qtRenderView(content(item))
+        }
+    }
+}
+
+extension List: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let list = qtOpaque(quill_qt_bridge_list_widget_create())
+        for child in qtRenderChildren(content) {
+            quill_qt_bridge_list_widget_add_row_widget(qtHandle(list), qtHandle(child))
+        }
+        return list
     }
 }
 
