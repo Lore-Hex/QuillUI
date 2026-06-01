@@ -12,12 +12,19 @@
 #if canImport(CQtBridge)
 import CQtBridge
 import SwiftOpenUI
+import SwiftOpenUISymbols
 import Foundation
 
 /// Default window size used when a WindowGroup does not specify one. Matches the
 /// GTK backend's automatic-sizing fallback closely enough for the smoke gate.
 private let qtDefaultAutomaticWindowWidth: Double = 800
 private let qtDefaultAutomaticWindowHeight: Double = 600
+
+private func qtRegisterBundledIconFont() {
+    quill_qt_bridge_material_symbols_register_font(
+        MaterialSymbolsResources.roundedRegularFontURL.path
+    )
+}
 
 /// Stderr breadcrumb for the Swift side of the generic-backend smoke. The
 /// startup segfault this backend hit produced only a bare "*** Signal 11 ***"
@@ -50,6 +57,7 @@ public struct QtBackend: RenderBackend {
             quill_qt_bridge_application_create(CommandLine.argc, CommandLine.unsafeArgv)
         )
         qtBackendTrace("run: after QApplication create")
+        qtRegisterBundledIconFont()
 
         // Apply a baseline stylesheet so the smoke window's light chrome and
         // dark panel render with the colors the screenshot verifier expects.

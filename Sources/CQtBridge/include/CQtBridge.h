@@ -11,8 +11,8 @@
 // include/cxx flags supplied by the SwiftPM manifest.
 //
 // SCOPE (vertical slice #1): only the primitives needed to render a real
-// SwiftUI tree of Text / VStack / HStack / Button / Spacer / Color / EmptyView
-// into a single window and run the Qt event loop. Everything here is
+// SwiftUI tree of Text / Image / VStack / HStack / Button / Spacer / Color /
+// EmptyView into a single window and run the Qt event loop. Everything here is
 // deliberately minimal; the continuation plan grows it primitive-by-primitive.
 //
 // Threading: all functions must be called on the Qt GUI (main) thread. The
@@ -126,6 +126,26 @@ void quill_qt_bridge_widget_set_fixed_size(
 // label reports its single-line intrinsic size to the layout engine, matching
 // SwiftUI Text's default (no line limit imposed by the container).
 QuillQtWidgetHandle quill_qt_bridge_label_create(const char *text);
+
+// Register the bundled Material Symbols font for this QApplication process.
+// `font_path` points at SwiftOpenUISymbols' MaterialSymbolsRounded-Regular.ttf.
+void quill_qt_bridge_material_symbols_register_font(const char *font_path);
+
+// Create a QLabel that renders Material Symbols text using the registered font
+// family. `glyph` is UTF-8 text: usually a Unicode private-use codepoint
+// resolved by SwiftOpenUISymbols, with ligature names allowed as a fallback.
+QuillQtWidgetHandle quill_qt_bridge_material_symbol_label_create(
+    const char *glyph,
+    const char *font_family,
+    int point_size
+);
+
+// Create a QLabel-backed image from a filesystem path. When `resizable` is
+// true, QLabel scales the pixmap to whatever geometry the SwiftUI frame assigns.
+QuillQtWidgetHandle quill_qt_bridge_image_create_from_file(
+    const char *path,
+    int resizable
+);
 
 // Create a QPushButton with the given UTF-8 title and connect its clicked()
 // signal to `callback(user_data)`. `user_data` is owned by Swift (a retained
