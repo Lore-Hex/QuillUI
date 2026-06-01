@@ -19,6 +19,19 @@ import Foundation
 private let qtDefaultAutomaticWindowWidth: Double = 800
 private let qtDefaultAutomaticWindowHeight: Double = 600
 
+/// Stderr breadcrumb for the Swift side of the generic-backend smoke. The
+/// startup segfault this backend hit produced only a bare "*** Signal 11 ***"
+/// under Xvfb with no Swift backtrace, so the whole launch path now logs each
+/// step to stderr and flushes. Paired with CQtBridge's `[cqtbridge]` traces,
+/// the CI app-log (/tmp/quillui-qt-generic-smoke-app.log) shows exactly how far
+/// the App→Scene→View walk got before any future crash — splitting "crashed in
+/// QApplication startup" from "crashed building the SwiftUI tree" from "crashed
+/// entering the event loop".
+@inline(__always)
+func qtBackendTrace(_ message: String) {
+    FileHandle.standardError.write(Data("[backendqt] \(message)\n".utf8))
+}
+
 /// Protocol for scenes that can render onto the Qt application. Mirror of GTK's
 /// `GTKWindowRenderable`.
 protocol QtWindowRenderable {
@@ -30,21 +43,29 @@ public struct QtBackend: RenderBackend {
     public init() {}
 
     public func run<A: App>(_ appType: A.Type) {
+        qtBackendTrace("run: enter")
+
+        qtBackendTrace("run: before QApplication create")
         let app = qtOpaque(
             quill_qt_bridge_application_create(CommandLine.argc, CommandLine.unsafeArgv)
         )
+        qtBackendTrace("run: after QApplication create")
 
         // Apply a baseline stylesheet so the smoke window's light chrome and
         // dark panel render with the colors the screenshot verifier expects.
         // App-authored styling flows through per-widget QSS in a later slice.
         quill_qt_bridge_application_set_stylesheet(qtHandle(app), QtBaselineStyle.qss)
 
+        qtBackendTrace("run: before App init + scene render")
         let instance = A()
         qtRenderScene(instance.body, app: app)
+        qtBackendTrace("run: after scene render")
 
         // Pump Foundation RunLoop sources alongside Qt's loop in a later slice
         // (Timer-driven SwiftUI work). Slice #1's smoke is event-driven only.
+        qtBackendTrace("run: before event loop")
         let status = quill_qt_bridge_application_exec(qtHandle(app))
+        qtBackendTrace("run: event loop returned status \(status)")
         if status != 0 {
             FileHandle.standardError.write(
                 Data("Qt application exited with status \(status)\n".utf8)
@@ -67,6 +88,7 @@ func qtRenderScene<S: Scene>(_ scene: S, app: OpaquePointer) {
 
 extension WindowGroup: QtWindowRenderable {
     func qtRender(app: OpaquePointer) {
+        qtBackendTrace("WindowGroup.qtRender: creating window")
         let window = qtOpaque(quill_qt_bridge_window_create(title))
 
         let width = defaultWindowWidth ?? qtDefaultAutomaticWindowWidth
@@ -77,13 +99,17 @@ extension WindowGroup: QtWindowRenderable {
             quill_qt_bridge_window_set_minimum_size(qtHandle(window), Int32(minW), Int32(minH))
         }
 
+        qtBackendTrace("WindowGroup.qtRender: building root content view")
         let content = qtRenderView(self.content)
+        qtBackendTrace("WindowGroup.qtRender: root content view built")
         quill_qt_bridge_window_set_content(qtHandle(window), qtHandle(content))
         // Root content fills the window's client area.
         quill_qt_bridge_widget_set_geometry(
             qtHandle(content), 0, 0, Int32(width), Int32(height)
         )
+        qtBackendTrace("WindowGroup.qtRender: before window show")
         quill_qt_bridge_widget_show(qtHandle(window))
+        qtBackendTrace("WindowGroup.qtRender: window shown")
     }
 }
 

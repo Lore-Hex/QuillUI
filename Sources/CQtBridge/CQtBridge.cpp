@@ -16,6 +16,7 @@
 #include <QString>
 #include <QTimer>
 #include <QWidget>
+#include <cstdio>
 
 namespace {
 
@@ -27,16 +28,53 @@ inline QString utf8(const char *value) {
     return value == nullptr ? QString() : QString::fromUtf8(value);
 }
 
+// Stderr breadcrumb for the generic-backend smoke. The runtime crash this fix
+// addresses (a dangling QApplication argc reference) produced a bare
+// "*** Signal 11 ***" with no Swift backtrace under Xvfb, so each application
+// lifecycle step now logs to stderr and flushes immediately. If a regression
+// reappears, the CI app-log (/tmp/quillui-qt-generic-smoke-app.log) pinpoints
+// the exact bridge call that ran last before the crash.
+inline void bridgeTrace(const char *message) {
+    std::fprintf(stderr, "[cqtbridge] %s\n", message);
+    std::fflush(stderr);
+}
+
 } // namespace
 
 // --- Application lifecycle -------------------------------------------------
 
 QuillQtAppHandle quill_qt_bridge_application_create(int argc, char **argv) {
-    // QApplication requires argc to outlive it; SwiftPM main passes the real
-    // process argc/argv (CommandLine.unsafeArgv), which lives for the whole
-    // process. We intentionally leak the QApplication for the process lifetime
-    // (it is a singleton and torn down at exit), matching the per-app shims.
-    QApplication *app = new QApplication(argc, argv);
+    bridgeTrace("application_create: enter");
+
+    // CRASH FIX (Signal 11 at startup): QApplication's constructor is
+    // `QApplication(int &argc, char **argv)` — it stores a POINTER to the int
+    // it is handed and keeps reading through it for the entire lifetime of the
+    // application (argument parsing, QCoreApplication::arguments(), session
+    // restore, etc.). The previous code passed the *by-value* `argc` parameter,
+    // which lives only until this function returns. Because this generic backend
+    // splits application_create from application_exec across SEPARATE call
+    // frames (unlike the per-app shims, which build AND exec the QApplication in
+    // one `..._run_app_json` frame so their local `argc` outlives exec()), that
+    // parameter was destroyed the moment we returned the handle to Swift, and
+    // the later `application_exec` ran QApplication::exec() on top of a dangling
+    // `int&` — a use-after-scope segfault before the first widget rendered.
+    //
+    // Fix: copy argc/argv into process-lifetime storage and hand QApplication a
+    // stable `int&`. The storage is function-local `static`, so it outlives
+    // every subsequent bridge call (create is invoked exactly once — the app is
+    // a singleton). Qt may also mutate argc/argv in place (it strips recognized
+    // Qt arguments), which the mutable static supports. `argv` from Swift's
+    // CommandLine.unsafeArgv already has process lifetime; we stash the pointer
+    // too so argc and argv come from the same long-lived place. The QApplication
+    // itself is intentionally leaked for the process lifetime (singleton, torn
+    // down at exit), matching the per-app shims.
+    static int stableArgc = argc;
+    static char **stableArgv = argv;
+    stableArgc = argc;
+    stableArgv = argv;
+
+    QApplication *app = new QApplication(stableArgc, stableArgv);
+    bridgeTrace("application_create: QApplication constructed");
     return reinterpret_cast<QuillQtAppHandle>(app);
 }
 
@@ -52,14 +90,19 @@ void quill_qt_bridge_application_set_stylesheet(
 
 int quill_qt_bridge_application_exec(QuillQtAppHandle app) {
     if (app == nullptr) {
+        bridgeTrace("application_exec: null app handle");
         return 1;
     }
-    return reinterpret_cast<QApplication *>(app)->exec();
+    bridgeTrace("application_exec: entering event loop");
+    const int status = reinterpret_cast<QApplication *>(app)->exec();
+    bridgeTrace("application_exec: event loop returned");
+    return status;
 }
 
 // --- Window ----------------------------------------------------------------
 
 QuillQtWidgetHandle quill_qt_bridge_window_create(const char *title) {
+    bridgeTrace("window_create: enter (first top-level QWidget)");
     QWidget *window = new QWidget();
     window->setWindowTitle(utf8(title));
     return reinterpret_cast<QuillQtWidgetHandle>(window);
@@ -224,7 +267,9 @@ void quill_qt_bridge_widget_set_stylesheet(
 
 void quill_qt_bridge_widget_show(QuillQtWidgetHandle widget) {
     if (QWidget *target = asWidget(widget)) {
+        bridgeTrace("widget_show: showing widget");
         target->show();
+        bridgeTrace("widget_show: shown");
     }
 }
 
