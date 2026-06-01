@@ -28,9 +28,8 @@ struct QuillCodeEditCoreTests {
 
     @Test("ProjectFile.extension treats a leading dot as the only dot — dotfiles")
     func extensionLeadingDot() {
-        // `.swiftformat` is in the fixture project — the icon
-        // switch maps "swiftformat" → ⚙️, which is what the
-        // sidebar paints.
+        // `.swiftformat` is in the fixture project and is treated
+        // as a config-like file by the sidebar icon selector.
         #expect(ProjectFile(name: ".swiftformat", contents: "").extension == "swiftformat")
         #expect(ProjectFile(name: ".gitignore", contents: "").extension == "gitignore")
     }
@@ -70,6 +69,22 @@ struct QuillCodeEditCoreTests {
         #expect(exts["README.md"] == "md")
         #expect(exts["Package.swift"] == "swift")
         #expect(exts[".swiftformat"] == "swiftformat")
+    }
+
+    @Test("Sidebar file icons use SF symbols instead of emoji text glyphs")
+    func sidebarFileIconsUseMappedSystemSymbols() {
+        #expect(ProjectFile(name: "main.swift", contents: "").sidebarSystemImageName == "curlybraces")
+        #expect(ProjectFile(name: "README.md", contents: "").sidebarSystemImageName == "doc.text")
+        #expect(ProjectFile(name: "Package.json", contents: "").sidebarSystemImageName == "curlybraces")
+        #expect(ProjectFile(name: ".swiftformat", contents: "").sidebarSystemImageName == "gearshape")
+        #expect(ProjectFile(name: "config.yaml", contents: "").sidebarSystemImageName == "gearshape")
+        #expect(ProjectFile(name: "LICENSE", contents: "").sidebarSystemImageName == "doc.text")
+
+        for file in QuillCodeEditFixtures.project.files {
+            let iconName = file.sidebarSystemImageName
+            let isASCIIOnly = iconName.unicodeScalars.allSatisfy { $0.isASCII }
+            #expect(isASCIIOnly, "\(file.name) uses non-ASCII icon text: \(iconName)")
+        }
     }
 
     @Test("Every fixture file ships non-empty contents — no placeholders")

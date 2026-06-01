@@ -71,7 +71,12 @@ public struct QuillCodeEditContentView: View {
 
     private func fileTreeRow(_ file: ProjectFile) -> some View {
         HStack(spacing: 6) {
-            Text(icon(for: file))
+            Image(systemName: QuillSystemSymbol.compatibleName(file.sidebarSystemImageName))
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundColor(.secondary)
+                .frame(width: 14, height: 14, alignment: .center)
             Text(file.name).font(.caption)
                 .lineLimit(1)
         }
@@ -172,16 +177,6 @@ public struct QuillCodeEditContentView: View {
         }
     }
 
-    private func icon(for file: ProjectFile) -> String {
-        switch file.extension {
-        case "swift": return "🪶"
-        case "md": return "📝"
-        case "json": return "📦"
-        case "yaml", "yml": return "⚙️"
-        default: return "📄"
-        }
-    }
-
     private var activeFile: ProjectFile? {
         guard let id = activeID else { return nil }
         return project.files.first(where: { $0.id == id })
@@ -198,6 +193,19 @@ public struct ProjectFile: Identifiable, Hashable, Sendable {
     public var `extension`: String {
         guard let dot = name.lastIndex(of: ".") else { return "" }
         return String(name[name.index(after: dot)...])
+    }
+
+    var sidebarSystemImageName: String {
+        switch self.extension.lowercased() {
+        case "swift", "json":
+            return "curlybraces"
+        case "md", "markdown":
+            return "doc.text"
+        case "swiftformat", "yaml", "yml":
+            return "gearshape"
+        default:
+            return "doc.text"
+        }
     }
 
     public init(id: UUID = UUID(), name: String, contents: String) {
