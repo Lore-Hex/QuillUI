@@ -6,6 +6,9 @@ import QuillUI
 @MainActor
 public final class EnchantedModel: ObservableObject {
     @Published public var endpoint: String
+    @Published public var systemPrompt: String
+    @Published public var bearerToken: String
+    @Published public var pingInterval: String
     @Published public var models: [OllamaModel] = []
     @Published public var selectedModel: String = ""
     @Published public var conversations: [ConversationSummary] = []
@@ -25,10 +28,20 @@ public final class EnchantedModel: ObservableObject {
 
     private let modelContext: EnchantedModelContext?
     private var generationTask: Task<Void, Never>?
+    private var modelRefreshTask: Task<Void, Never>?
     private var didBoot = false
 
-    public init(endpoint: String = EnchantedCopy.defaultEndpoint, store: SQLiteConversationStore? = nil) {
+    public init(
+        endpoint: String = EnchantedCopy.defaultEndpoint,
+        systemPrompt: String = EnchantedSettingsStorage.defaultSystemPrompt,
+        bearerToken: String = EnchantedSettingsStorage.defaultBearerToken,
+        pingInterval: String = EnchantedSettingsStorage.defaultPingInterval,
+        store: SQLiteConversationStore? = nil
+    ) {
         self.endpoint = endpoint
+        self.systemPrompt = systemPrompt
+        self.bearerToken = bearerToken
+        self.pingInterval = pingInterval
         if let store {
             self.modelContext = EnchantedModelContext(persistence: store)
         } else {
@@ -36,19 +49,51 @@ public final class EnchantedModel: ObservableObject {
         }
     }
 
-    public init(endpoint: String = EnchantedCopy.defaultEndpoint, persistence: any ConversationPersistence) {
+    public init(
+        endpoint: String = EnchantedCopy.defaultEndpoint,
+        systemPrompt: String = EnchantedSettingsStorage.defaultSystemPrompt,
+        bearerToken: String = EnchantedSettingsStorage.defaultBearerToken,
+        pingInterval: String = EnchantedSettingsStorage.defaultPingInterval,
+        persistence: any ConversationPersistence
+    ) {
         self.endpoint = endpoint
+        self.systemPrompt = systemPrompt
+        self.bearerToken = bearerToken
+        self.pingInterval = pingInterval
         self.modelContext = EnchantedModelContext(persistence: persistence)
     }
 
-    public init(endpoint: String = EnchantedCopy.defaultEndpoint, modelContext: EnchantedModelContext) {
+    public init(
+        endpoint: String = EnchantedCopy.defaultEndpoint,
+        systemPrompt: String = EnchantedSettingsStorage.defaultSystemPrompt,
+        bearerToken: String = EnchantedSettingsStorage.defaultBearerToken,
+        pingInterval: String = EnchantedSettingsStorage.defaultPingInterval,
+        modelContext: EnchantedModelContext
+    ) {
         self.endpoint = endpoint
+        self.systemPrompt = systemPrompt
+        self.bearerToken = bearerToken
+        self.pingInterval = pingInterval
         self.modelContext = modelContext
     }
 
-    public func boot(endpoint: String? = nil) {
+    public func boot(
+        endpoint: String? = nil,
+        systemPrompt: String? = nil,
+        bearerToken: String? = nil,
+        pingInterval: String? = nil
+    ) {
         if let endpoint {
             self.endpoint = endpoint
+        }
+        if let systemPrompt {
+            self.systemPrompt = systemPrompt
+        }
+        if let bearerToken {
+            self.bearerToken = bearerToken
+        }
+        if let pingInterval {
+            self.pingInterval = pingInterval
         }
         guard !didBoot else { return }
         didBoot = true
@@ -63,6 +108,7 @@ public final class EnchantedModel: ObservableObject {
         Task {
             await refreshModels()
         }
+        restartModelRefreshTask()
     }
 
     public func configureEndpoint(_ endpoint: String) {
@@ -73,10 +119,29 @@ public final class EnchantedModel: ObservableObject {
         }
     }
 
+    public func configureSystemPrompt(_ systemPrompt: String) {
+        guard self.systemPrompt != systemPrompt else { return }
+        self.systemPrompt = systemPrompt
+    }
+
+    public func configureBearerToken(_ bearerToken: String) {
+        guard self.bearerToken != bearerToken else { return }
+        self.bearerToken = bearerToken
+        Task {
+            await refreshModels()
+        }
+    }
+
+    public func configurePingInterval(_ pingInterval: String) {
+        guard self.pingInterval != pingInterval else { return }
+        self.pingInterval = pingInterval
+        restartModelRefreshTask()
+    }
+
     public func refreshModels() async {
         do {
             status = EnchantedCopy.checkingOllamaStatus
-            let client = try OllamaClient(baseURL: endpoint)
+            let client = try OllamaClient(baseURL: endpoint, bearerToken: bearerToken)
             let fetched = try await client.fetchModels()
             models = fetched
             if selectedModel.isEmpty || !fetched.contains(where: { $0.name == selectedModel }) {
@@ -344,9 +409,11 @@ public final class EnchantedModel: ObservableObject {
             isLoading = true
             status = EnchantedCopy.openingStreamStatus
             let currentEndpoint = endpoint
+            let currentSystemPrompt = systemPrompt
+            let currentBearerToken = bearerToken
             let currentModel = selectedModel
             let currentMessages = messages
-            let client = try OllamaClient(baseURL: currentEndpoint)
+            let client = try OllamaClient(baseURL: currentEndpoint, bearerToken: currentBearerToken)
 
             let assistantID = UUID().uuidString
             assistantDraftID = assistantID
@@ -363,7 +430,8 @@ public final class EnchantedModel: ObservableObject {
             let stream = try client.streamChat(
                 model: currentModel,
                 messages: currentMessages,
-                imagesForLastUserMessage: encodedImages
+                imagesForLastUserMessage: encodedImages,
+                systemPrompt: currentSystemPrompt
             )
             for try await chunk in stream {
                 try Task.checkCancellation()
@@ -418,6 +486,28 @@ public final class EnchantedModel: ObservableObject {
             messages = try requireModelContext().fetchMessages(for: selectedConversationID)
         } catch {
             status = EnchantedCopy.couldNotLoadMessagesStatus(error.localizedDescription)
+        }
+    }
+
+    private func restartModelRefreshTask() {
+        modelRefreshTask?.cancel()
+        guard didBoot,
+              let delay = EnchantedPingInterval.refreshDelayNanoseconds(from: pingInterval) else {
+            modelRefreshTask = nil
+            return
+        }
+
+        modelRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: delay)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                guard let self else { return }
+                await self.refreshModels()
+            }
         }
     }
 
