@@ -1695,9 +1695,28 @@ def validate_quill_enchanted_empty_state_gtk(image: Screenshot) -> str:
         image, detail_left + 20, top + 225, right - 20, top + 410, prompt_card_pixel
     )
     best_card_segments = 0
+    best_card_span = 0
     for probe_y in range(top + 300, top + 360, 10):
         segments = image.segments_at(probe_y, detail_left, right, prompt_card_pixel, 40)
         best_card_segments = max(best_card_segments, len(segments))
+        if segments:
+            best_card_span = max(best_card_span, segments[-1].end - segments[0].start)
+    # Wordmark horizontal centroid: the gradient wordmark should sit ~centered in
+    # the detail canvas (a left/right-aligned regression would still have pixels
+    # but an off-center centroid).
+    wordmark_x_sum = 0
+    wordmark_x_count = 0
+    for probe_y in range(top + 120, top + 240, 2):
+        for probe_x in range(detail_left + 20, right - 20, 2):
+            if enchanted_linux_gtk_wordmark_pixel(image.rgb(probe_x, probe_y)):
+                wordmark_x_sum += probe_x
+                wordmark_x_count += 1
+    canvas_center_x = detail_left + (right - detail_left) / 2
+    wordmark_centroid_x = (wordmark_x_sum / wordmark_x_count) if wordmark_x_count else -1
+    wordmark_centered = (
+        wordmark_x_count > 0
+        and abs(wordmark_centroid_x - canvas_center_x) <= (right - detail_left) * 0.20
+    )
     # Short composer bar: a band of near-white composer surface near the bottom.
     composer_pixels = pixel_count(
         image, detail_left + 20, bottom - 210, right - 20, bottom - 120, enchanted_canvas_pixel
@@ -1711,6 +1730,8 @@ def validate_quill_enchanted_empty_state_gtk(image: Screenshot) -> str:
         "gradient_wordmark": wordmark_pixels >= 1200,
         "minimal_sidebar_no_blue_button": sidebar_blue < 400,
         "horizontal_card_row": card_pixels >= 30000 and best_card_segments >= 3,
+        "card_row_spans_width": best_card_span >= (right - detail_left) * 0.50,
+        "wordmark_centered": wordmark_centered,
         "short_composer_bar": composer_pixels >= 8000,
         "bottom_nav": bottom_nav_pixels >= 500,
     }
@@ -1725,6 +1746,8 @@ def validate_quill_enchanted_empty_state_gtk(image: Screenshot) -> str:
         f"divider_x={divider_x}, divider_score={divider_score}, sidebar_width={sidebar_width}, "
         f"wordmark_pixels={wordmark_pixels}, sidebar_blue={sidebar_blue}, "
         f"card_pixels={card_pixels}, card_segments={best_card_segments}, "
+        f"card_span={best_card_span}, wordmark_centroid_x={wordmark_centroid_x:.0f}, "
+        f"canvas_center_x={canvas_center_x:.0f}, "
         f"composer_pixels={composer_pixels}, bottom_nav_pixels={bottom_nav_pixels}",
     )
 
@@ -1733,8 +1756,9 @@ def validate_quill_enchanted_empty_state_gtk(image: Screenshot) -> str:
         f"ratio={ratio:.2f} ({detected}/{total}), app={app_width}x{app_height}, "
         f"sidebar_width={sidebar_width}, wordmark_pixels={wordmark_pixels}, "
         f"sidebar_blue={sidebar_blue}, card_pixels={card_pixels}, "
-        f"card_segments={best_card_segments}, composer_pixels={composer_pixels}, "
-        f"bottom_nav_pixels={bottom_nav_pixels}"
+        f"card_segments={best_card_segments}, card_span={best_card_span}, "
+        f"wordmark_centroid_x={wordmark_centroid_x:.0f}/canvas_center_x={canvas_center_x:.0f}, "
+        f"composer_pixels={composer_pixels}, bottom_nav_pixels={bottom_nav_pixels}"
     )
 
 
