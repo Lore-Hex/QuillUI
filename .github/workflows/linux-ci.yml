@@ -25,14 +25,18 @@ jobs:
       QUILLUI_SKIP_APT: "1"
       QUILLUI_SMOKE_SECONDS: "4"
       QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted
-      # The resource guard's default 12 GiB free-disk floor began failing
-      # (runner had ~11.75 GiB free) as the repo/build footprint grew, turning
-      # the Linux gate red on main. The Swift Linux Backends build has run
-      # green all along at ~12 GiB free, so its actual peak need is below that;
-      # 10 GiB is still an ample pre-build floor. The job runs inside the
+      # The resource guard's default 12 GiB free-disk floor began failing as the
+      # repo/build footprint grew, turning the Linux gate flaky/red on main. The
+      # guard runs before MULTIPLE steps; free disk drops as the build proceeds
+      # (~12 GiB pre-build → ~9.6 GiB by the visual-smokes step) and varies by
+      # runner, so 12 (and even 10) trips it intermittently at a late checkpoint.
+      # The build itself completes fine at that level — the guard is just an
+      # over-conservative pre-step margin now. The job runs inside the
       # swift:6.2-noble container, so the usual "remove host SDKs" disk cleanup
-      # isn't available — tune the guard's purpose-built env knob instead.
-      QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB: "10"
+      # isn't reachable; tune the guard's purpose-built env knob instead. 6 GiB
+      # clears the observed ~9.6 GiB worst case with margin while still catching
+      # genuine disk exhaustion. (Memory guard MIN_AVAILABLE_MEMORY_MIB unchanged.)
+      QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB: "6"
 
     steps:
       - name: Checkout
