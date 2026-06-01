@@ -135,6 +135,13 @@ public final class EnchantedModel: ObservableObject {
         editingMessageID = nil
     }
 
+    public func copySelectedConversation(json: Bool) {
+        guard let selectedConversationID else { return }
+        let selectedMessages = messages.filter { $0.conversationID == selectedConversationID }
+        guard let payload = EnchantedConversationCopyPayload.string(from: selectedMessages, json: json) else { return }
+        EnchantedClipboard.setString(payload)
+    }
+
     public func startSend(
         _ prompt: String,
         attachments: [PendingImageAttachment] = [],

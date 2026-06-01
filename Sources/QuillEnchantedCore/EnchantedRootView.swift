@@ -330,6 +330,23 @@ public struct EnchantedRootView: View {
             .accessibilityLabel(EnchantedCopy.refreshModelsTitle)
             .help(EnchantedCopy.refreshModelsTitle)
 
+            Menu {
+                Button(EnchantedCopy.copyChatTitle) {
+                    model.copySelectedConversation(json: false)
+                }
+                Button(EnchantedCopy.copyChatAsJSONTitle) {
+                    model.copySelectedConversation(json: true)
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
+            }
+            .accessibilityLabel(EnchantedCopy.copyChatTitle)
+            .help(EnchantedCopy.copyChatTitle)
+
             // Genuine native Enchanted: a compose (new chat) icon in the toolbar.
             Button(action: model.newConversation) {
                 HStack(spacing: CGFloat(EnchantedVisualMetrics.primaryButtonIconSpacing)) {
@@ -338,6 +355,7 @@ public struct EnchantedRootView: View {
                 .cornerRadius(CGFloat(EnchantedVisualMetrics.primaryButtonRadius))
             }
             .quillPaint(.macBordered)
+            .keyboardShortcut("n", modifiers: .command)
             .accessibilityLabel(EnchantedCopy.newChatTitle)
             .help(EnchantedCopy.newChatTitle)
         }

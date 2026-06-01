@@ -324,6 +324,8 @@ struct CoreContractMatrixTests {
         #expect(EnchantedIcon.unavailableModel == "waveform")
         #expect(EnchantedIcon.copyMessage == "doc.on.doc")
         #expect(EnchantedIcon.editMessage == "pencil")
+        #expect(EnchantedCopy.copyChatTitle == "Copy Chat")
+        #expect(EnchantedCopy.copyChatAsJSONTitle == "Copy Chat as JSON")
         #expect(EnchantedCopy.copyMessageTitle == "Copy")
         #expect(EnchantedCopy.editMessageTitle == "Edit")
         #expect(EnchantedCopy.unselectMessageTitle == "Unselect")
@@ -367,6 +369,8 @@ struct CoreContractMatrixTests {
             expectContains(upstreamRecorderView, needle)
         }
         expectContains(upstreamOptionsMenuView, "Image(systemName: \"ellipsis\")")
+        expectContains(upstreamOptionsMenuView, "Text(\"Copy Chat\")")
+        expectContains(upstreamOptionsMenuView, "Text(\"Copy Chat as JSON\")")
         expectContains(upstreamRemovableImage, "Image(systemName: \"x.circle.fill\")")
         expectContains(upstreamModelSelectorView, "Image(systemName: \"chevron.down\")")
         expectContains(upstreamMacOSChatView, "Image(systemName: \"sidebar.left\")")
@@ -403,12 +407,18 @@ struct CoreContractMatrixTests {
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.dropTarget))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.attachment))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.removeAttachment))",
+            "Image(systemName: \"ellipsis\")",
             "enchantedSystemImageName(EnchantedIcon.editMessage)"
         ] {
             expectContains(macOSRootView, needle)
         }
 
         for needle in [
+            "Button(EnchantedCopy.copyChatTitle)",
+            "model.copySelectedConversation(json: false)",
+            "Button(EnchantedCopy.copyChatAsJSONTitle)",
+            "model.copySelectedConversation(json: true)",
+            ".keyboardShortcut(\"n\", modifiers: .command)",
             "MessageBubble(\n                                message: message,",
             "isEditing: message.id == model.editingMessageID",
             "cancelEdit: model.cancelMessageEdit",
@@ -437,6 +447,9 @@ struct CoreContractMatrixTests {
             "@Published public var editingMessageID: String?",
             "public func editMessage(_ message: ChatMessage)",
             "public func cancelMessageEdit()",
+            "public func copySelectedConversation(json: Bool)",
+            "messages.filter { $0.conversationID == selectedConversationID }",
+            "EnchantedConversationCopyPayload.string(from: selectedMessages, json: json)",
             "guard message.role == .user else { return }",
             "composerText = message.content",
             "editingMessageID = message.id",
@@ -632,6 +645,8 @@ struct CoreContractMatrixTests {
         expectContains(shared, "public static let emptyStateTitle = appTitle")
         expectContains(shared, "public static let emptyStateSubtitle = \"\"")
         expectContains(shared, "public static let sidebarSubtitle = \"Local AI conversations\"")
+        expectContains(shared, "public static let copyChatTitle = \"Copy Chat\"")
+        expectContains(shared, "public static let copyChatAsJSONTitle = \"Copy Chat as JSON\"")
         expectContains(shared, "public static let copyMessageTitle = \"Copy\"")
         expectContains(shared, "public static let editMessageTitle = \"Edit\"")
         expectContains(shared, "public static let unselectMessageTitle = \"Unselect\"")
@@ -665,6 +680,12 @@ struct CoreContractMatrixTests {
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.dropTarget))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.attachment))",
             "Image(systemName: enchantedSystemImageName(EnchantedIcon.removeAttachment))",
+            "Image(systemName: \"ellipsis\")",
+            "Button(EnchantedCopy.copyChatTitle)",
+            "model.copySelectedConversation(json: false)",
+            "Button(EnchantedCopy.copyChatAsJSONTitle)",
+            "model.copySelectedConversation(json: true)",
+            ".keyboardShortcut(\"n\", modifiers: .command)",
             "enchantedSystemImageName(EnchantedIcon.editMessage)",
             "Image(systemName: enchantedSystemImageName(model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send))",
             "Color(hex: EnchantedPalette.canvasColor)",
@@ -2370,6 +2391,16 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, ".accessibilityLabel(label)")
         expectContains(macOSRootView, ".accessibilityValue(message.content)")
         expectContains(macOSRootView, ".accessibilityElement(children: .combine)")
+        for needle in [
+            "Button(EnchantedCopy.copyChatTitle)",
+            "model.copySelectedConversation(json: false)",
+            "Button(EnchantedCopy.copyChatAsJSONTitle)",
+            "model.copySelectedConversation(json: true)",
+            "Image(systemName: \"ellipsis\")",
+            ".keyboardShortcut(\"n\", modifiers: .command)"
+        ] {
+            expectContains(macOSRootView, needle)
+        }
         for needle in [
             "Button(action: copyMessageContent)",
             "EnchantedCopy.copyMessageTitle",
