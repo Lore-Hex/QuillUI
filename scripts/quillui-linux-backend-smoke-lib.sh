@@ -848,3 +848,93 @@ quillui_seed_quill_chat_reference_data() {
   rm -rf "$qa_home"
   python3 "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/seed-quill-chat-reference-data.py" "$qa_home"
 }
+
+# Measure the error-text (red) pixel fraction of a window capture within the
+# WireGuard GTK import-error region of interest. Mirrors the verifier's
+# import-error ROI: x0=0.30*W, y0=100, x1=W-20, y1=H-40 (the detail pane below
+# the toolbar, where SwiftOpenUI paints the invalid-import error overlay). The
+# WireGuard detail pane has no red anywhere else, so the error-hue fraction is
+# ~0 until the overlay paints and is the cleanest signal that it has appeared --
+# it tracks the same red glyphs the verifier counts as error_pixels. The fx
+# mask mirrors wireguard_error_text_pixel (120<=R<=210, G<=95, B<=95, R-G>=45,
+# R-B>=45) in normalized [0,1] channel space. Prints a fraction in [0,1], or
+# empty on any tooling failure so the caller can fall back to a fixed settle.
+quillui_wireguard_import_error_roi_error_fraction() {
+  local image_path="$1"
+  local geometry
+  local image_width
+  local image_height
+  local x0 y0 x1 y1 crop_width crop_height
+
+  [[ -s "$image_path" ]] || return 1
+  geometry="$(identify -format '%w %h' "$image_path" 2>/dev/null)" || return 1
+  read -r image_width image_height <<<"$geometry"
+  [[ "$image_width" =~ ^[0-9]+$ && "$image_height" =~ ^[0-9]+$ ]] || return 1
+
+  x0=$(( image_width * 30 / 100 ))
+  y0=100
+  x1=$(( image_width - 20 ))
+  y1=$(( image_height - 40 ))
+  crop_width=$(( x1 - x0 ))
+  crop_height=$(( y1 - y0 ))
+  (( crop_width > 0 && crop_height > 0 )) || return 1
+
+  convert "$image_path" \
+    -crop "${crop_width}x${crop_height}+${x0}+${y0}" +repage \
+    -fx '(r>=0.470 && r<=0.824 && g<=0.373 && b<=0.373 && (r-g)>=0.176 && (r-b)>=0.176) ? 1.0 : 0.0' \
+    -format '%[fx:mean]' info: 2>/dev/null
+}
+
+# Poll a window capture until the WireGuard import-error overlay has finished
+# painting, then leave the final settled frame at SCREENSHOT_PATH. The invalid
+# import flow submits via Ctrl+Return and SwiftOpenUI paints the error overlay
+# asynchronously, so a single fixed post-submit sleep races the paint and the
+# verifier intermittently sees error_pixels below threshold. This re-captures
+# until the ROI error-hue fraction is both present (above a small floor) and
+# stable across two consecutive samples, or a bounded timeout elapses. Degrades to a
+# fixed settle if ImageMagick measurement is unavailable, so it can never block
+# indefinitely or hard-fail the smoke.
+quillui_settle_wireguard_import_error_capture() {
+  local display_id="$1"
+  local capture_window="$2"
+  local screenshot_path="$3"
+  local max_attempts="${4:-25}"
+  local poll_interval="${5:-0.2}"
+  # present_floor (~14px in the ROI) keeps an empty / not-yet-painted frame from
+  # being read as "stable"; it sits below the fully-painted error fraction
+  # (~220px) yet above the verifier's >=10px error floor. stable_tolerance
+  # (~20px) is tight enough that a half-painted overlay differs from the final
+  # frame, but loose enough that the static painted text reads as settled.
+  local present_floor="${6:-0.00005}"
+  local stable_tolerance="${7:-0.00007}"
+  local attempt
+  local current_fraction=""
+  local previous_fraction=""
+
+  for (( attempt = 1; attempt <= max_attempts; attempt++ )); do
+    DISPLAY="$display_id" import -window "$capture_window" "$screenshot_path" 2>/dev/null || true
+
+    current_fraction="$(quillui_wireguard_import_error_roi_error_fraction "$screenshot_path")"
+    if [[ -z "$current_fraction" ]]; then
+      # Measurement unavailable (e.g. convert/identify missing). Fall back to a
+      # fixed settle that is comfortably longer than the old single 1s sleep so
+      # the async overlay still has time to paint, then keep the last capture.
+      sleep 2
+      return 0
+    fi
+
+    if [[ -n "$previous_fraction" ]] \
+      && awk -v cur="$current_fraction" -v prev="$previous_fraction" \
+           -v floor="$present_floor" -v tol="$stable_tolerance" \
+           'BEGIN { d = cur - prev; if (d < 0) d = -d; exit !(cur >= floor && d <= tol) }'; then
+      return 0
+    fi
+
+    previous_fraction="$current_fraction"
+    sleep "$poll_interval"
+  done
+
+  # Bounded timeout reached: the last capture is already at SCREENSHOT_PATH, so
+  # let the verifier judge it rather than hanging or failing here.
+  return 0
+}

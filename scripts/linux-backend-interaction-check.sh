@@ -167,6 +167,10 @@ app_pid=$!
 sleep 4
 
 capture_window="root"
+# Set to 1 once an interaction has already taken the authoritative, render-stable
+# screenshot itself (e.g. the WireGuard invalid-import settle); the final capture
+# below then skips re-grabbing a possibly-mid-repaint frame over it.
+settled_capture_taken=0
 window_x=0
 window_y=0
 window_width="$screen_width"
@@ -507,6 +511,16 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
         # editor). Mirrors the Qt import branch below.
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+Return
         sleep "$post_click_sleep"
+        # A valid import settles into static detail landmarks the post-click sleep
+        # already covers, but an invalid import paints an async error overlay that
+        # can land after the fixed sleep -- so poll-capture until that overlay is
+        # render-stable before the verifier reads it. (Mirrors the Qt invalid
+        # branch, which already re-resolves the active child window.)
+        if quillui_is_wireguard_malformed_import_interaction "$INTERACTION_MODE"; then
+          quillui_settle_wireguard_import_error_capture \
+            "$DISPLAY_ID" "$capture_window" "$SCREENSHOT_PATH"
+          settled_capture_taken=1
+        fi
         ;;
       import-file|file-import|import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
         # The "Import from File" button is occluded by the expanding TextEditor and
@@ -528,6 +542,13 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
         sleep 0.4
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+Return
         sleep "$post_click_sleep"
+        # Invalid file imports paint the same async error overlay as the invalid
+        # paste path, so settle on a render-stable error frame before verifying.
+        if quillui_is_wireguard_malformed_import_interaction "$INTERACTION_MODE"; then
+          quillui_settle_wireguard_import_error_capture \
+            "$DISPLAY_ID" "$capture_window" "$SCREENSHOT_PATH"
+          settled_capture_taken=1
+        fi
         ;;
       *)
         echo "Unsupported WireGuard GTK interaction mode: $INTERACTION_MODE" >&2
@@ -676,7 +697,9 @@ elif quillui_is_backend_smoke_product "$PRODUCT"; then
 else
     click_backend_header_action
 fi
-DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
+if [[ "$settled_capture_taken" != "1" ]]; then
+  DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
+fi
 
 VERIFY_PRODUCT=""
 quillui_backend_interaction_verify_product "$PRODUCT" "$INTERACTION_MODE" VERIFY_PRODUCT
