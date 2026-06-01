@@ -329,6 +329,10 @@ struct CoreContractMatrixTests {
         #expect(EnchantedCopy.copyMessageTitle == "Copy")
         #expect(EnchantedCopy.editMessageTitle == "Edit")
         #expect(EnchantedCopy.unselectMessageTitle == "Unselect")
+        #expect(EnchantedCopy.deleteDailyConversationsTitle == "Delete daily conversations")
+        #expect(EnchantedCopy.todayTitle == "Today")
+        #expect(EnchantedCopy.yesterdayTitle == "Yesterday")
+        #expect(EnchantedCopy.daysAgoSuffix == "days ago")
 
         for needle in [
             "SidebarButton(title: \"Completions\", image: \"textformat.abc\"",
@@ -438,7 +442,14 @@ struct CoreContractMatrixTests {
             "private func copyMessageContent()",
             "EnchantedClipboard.setString(message.content)",
             "private func editMessageContent()",
-            "editMessage(message)"
+            "editMessage(message)",
+            "ForEach(EnchantedConversationHistory.groups(conversations: model.conversations))",
+            "private struct ConversationHistorySection: View",
+            "Text(EnchantedConversationHistory.relativeDayTitle(for: group.date))",
+            "Button(role: .destructive, action: { deleteDailyConversations(group.date) })",
+            "EnchantedCopy.deleteDailyConversationsTitle",
+            "model.deleteDailyConversations(on: date)",
+            "Divider()"
         ] {
             expectContains(macOSRootView, needle)
         }
@@ -456,7 +467,9 @@ struct CoreContractMatrixTests {
             "trimmingMessageID: draft.trimmingMessageID",
             "let trimmingMessageID = editingMessageID",
             "editingMessageID = nil",
-            "return (prompt, attachments, trimmingMessageID)"
+            "return (prompt, attachments, trimmingMessageID)",
+            "public func deleteDailyConversations(on day: Date, calendar: Calendar = .current)",
+            ".filter { calendar.isDate($0.updatedAt, inSameDayAs: day) }"
         ] {
             expectContains(enchantedModelSource, needle)
         }
@@ -1149,6 +1162,14 @@ struct CoreContractMatrixTests {
         expectContains(runtime, "status: EnchantedCopy.readyForLocalInferenceStatus")
         expectContains(runtime, "endpoint: EnchantedCopy.defaultEndpoint")
         expectContains(runtime, "isLoading: false")
+        expectContains(sharedPrompts, "public static let deleteDailyConversationsTitle = \"Delete daily conversations\"")
+        expectContains(sharedPrompts, "public static let todayTitle = \"Today\"")
+        expectContains(sharedPrompts, "public static let yesterdayTitle = \"Yesterday\"")
+        expectContains(sharedPrompts, "public static let daysAgoSuffix = \"days ago\"")
+        expectContains(sharedPrompts, "public struct EnchantedConversationDayGroup")
+        expectContains(sharedPrompts, "public enum EnchantedConversationHistory")
+        expectContains(sharedPrompts, "calendar.startOfDay(for: conversation.updatedAt)")
+        expectContains(sharedPrompts, ".sorted { $0.date > $1.date }")
         expectContains(sharedPrompts, "public enum EnchantedPreviewFixture")
         expectContains(sharedPrompts, "public static let selectedModel = \"llama3.1:8b\"")
         expectContains(sharedPrompts, "public static let selectedConversationID = \"daily-brief\"")
@@ -1410,6 +1431,7 @@ struct CoreContractMatrixTests {
         expectContains(sharedPrompts, "public static let conversationRowPadding = 11")
         expectContains(sharedPrompts, "public static let conversationRowSpacing = 5")
         expectContains(sharedPrompts, "public static let conversationRowRadius = 8")
+        expectContains(sharedPrompts, "public static let conversationDayGroupSpacing = 17")
         expectContains(sharedPrompts, "public static let conversationListItemRadius = 8")
         expectContains(sharedPrompts, "public static let conversationListItemVerticalMargin = 2")
         expectContains(sharedPrompts, "public static let conversationListItemPadding = 8")
@@ -1498,6 +1520,7 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "EnchantedVisualMetrics.conversationRowPadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.conversationRowSpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.conversationRowRadius")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.conversationDayGroupSpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.emptyHistoryPadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.emptyHistorySpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.emptyHistoryRadius")
@@ -1515,6 +1538,8 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "EnchantedTypography.attachmentNameFontSize")
         expectContains(macOSRootView, "EnchantedTypography.attachmentSizeFontSize")
         expectContains(macOSRootView, "EnchantedTypography.conversationTitleFontSize")
+        expectContains(macOSRootView, "EnchantedTypography.conversationDayHeaderFontSize")
+        expectContains(macOSRootView, "EnchantedTypography.conversationDayHeaderFontWeight")
         expectContains(macOSRootView, "EnchantedTypography.conversationPreviewFontSize")
         expectContains(macOSRootView, "EnchantedTypography.warningTextFontSize")
         expectContains(macOSRootView, "EnchantedVisualMetrics.attachmentTraySpacing")
@@ -2286,6 +2311,12 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "Image(systemName: enchantedSystemImageName(EnchantedIcon.deleteChat))")
         expectContains(macOSRootView, "Text(EnchantedCopy.deleteChatTitle)")
         expectContains(macOSRootView, "model.delete(conversation)")
+        expectContains(macOSRootView, "ForEach(EnchantedConversationHistory.groups(conversations: model.conversations))")
+        expectContains(macOSRootView, "private struct ConversationHistorySection: View")
+        expectContains(macOSRootView, "Text(EnchantedConversationHistory.relativeDayTitle(for: group.date))")
+        expectContains(macOSRootView, "Button(role: .destructive, action: { deleteDailyConversations(group.date) })")
+        expectContains(macOSRootView, "EnchantedCopy.deleteDailyConversationsTitle")
+        expectContains(macOSRootView, "model.deleteDailyConversations(on: date)")
         expectContains(macOSRootView, "Image(systemName: enchantedSystemImageName(EnchantedIcon.clearAll))")
         expectContains(macOSRootView, "Text(EnchantedCopy.clearAllTitle)")
         expectContains(macOSRootView, "model.deleteAllConversations()")
@@ -2373,6 +2404,8 @@ struct CoreContractMatrixTests {
         expectContains(enchantedModelSource, "models.first(where: { $0.name == selectedModel })?.name.quillLikelySupportsImages ?? false")
         expectContains(enchantedModelSource, "guard selectedModelSupportsImages else { return false }")
         expectContains(enchantedModelSource, "private func discardUnsupportedImageAttachmentsIfNeeded()")
+        expectContains(enchantedModelSource, "public func deleteDailyConversations(on day: Date, calendar: Calendar = .current)")
+        expectContains(enchantedModelSource, ".filter { calendar.isDate($0.updatedAt, inSameDayAs: day) }")
         expectContains(macOSRootView, "set: { model.selectModel(named: $0) }")
         expectContains(macOSRootView, "private var sendActionTitle: String")
         expectContains(macOSRootView, "Text(sendActionTitle)")
