@@ -2399,9 +2399,11 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "payloadString(payload, \"emptyHistorySubtitle\")")
         expectDoesNotContain(nativeShim, "stringValue(payload, \"emptyHistoryTitle\", QStringLiteral(\"No saved chats yet\"))")
         expectDoesNotContain(nativeShim, "stringValue(payload, \"emptyHistorySubtitle\", QStringLiteral(\"Start a chat and it will be saved locally.\"))")
-        expectContains(macOSRootView, ".foregroundColor(isSelected ? .white : QuillColors.ink)")
-        expectContains(macOSRootView, ".foregroundColor(isSelected ? QuillColors.selectedMuted : QuillColors.muted)")
-        expectContains(macOSRootView, ".background(isSelected ? QuillColors.primary : QuillColors.card)")
+        // Genuine single-line row: title keeps label color, leading accent selection dot,
+        // no card fill and no preview color.
+        expectDoesNotContain(macOSRootView, ".foregroundColor(isSelected ? .white : QuillColors.ink)")
+        expectDoesNotContain(macOSRootView, ".foregroundColor(isSelected ? QuillColors.selectedMuted : QuillColors.muted)")
+        expectDoesNotContain(macOSRootView, ".background(isSelected ? QuillColors.primary : QuillColors.card)")
         expectContains(macOSRootView, "EnchantedVisualMetrics.composerEditorRadius")
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageBubbleRadius")
         expectContains(macOSRootView, "EnchantedVisualMetrics.messageEditBorderWidth")
@@ -2440,7 +2442,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "const MarkdownTaskListItem taskItem = markdownTaskListItem(rawText)")
         expectDoesNotContain(macOSMarkdownRendering, "weight: .semibold")
         expectContains(nativeShim, "QListWidget#conversationList::item { border-radius: %1; margin: %2 0; padding: %3; }")
-        expectContains(nativeShim, "QFrame#conversationRow { background: %3; border-radius: %6; }")
+        expectContains(nativeShim, "QFrame#conversationRow { background: transparent; }")
         expectDoesNotContain(nativeShim, "QFrame#conversationRow[active=\"true\"] { background: %5; }")
         expectDoesNotContain(nativeShim, "QLabel#conversationTitle[active=\"true\"] { color: white; }")
         expectContains(nativeShim, "QLabel#conversationTitle { color: %2; font-size: %7; font-weight: %8; }")
