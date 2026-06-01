@@ -1650,6 +1650,94 @@ def validate_quill_enchanted_qt_native(
     )
 
 
+def validate_quill_enchanted_empty_state_gtk(image: Screenshot) -> str:
+    """Landmark-coverage parity gate for the genuine-native Enchanted empty state
+    on the GTK backend (quill-enchanted-gtk.png), post the #138-#145 rework.
+
+    Asserts the new-conversation landmarks that match the genuine macOS app
+    (Tests/Fixtures/Enchanted/macos-reference.png): a sidebar/canvas divider, a
+    centered gradient wordmark, a MINIMAL sidebar (no blue "New chat" button —
+    that moved to the toolbar), a horizontal 4-card prompt row, a short composer
+    bar, and a 3-item bottom nav. Reports a landmark-coverage ratio and requires
+    it to be >= 0.95 (i.e. every critical landmark present), so any regression of
+    the empty-state layout fails the gate.
+    """
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(1100 <= app_width <= 1280, f"Enchanted empty-state GTK width is unexpected: {app_width}px")
+    require(680 <= app_height <= 840, f"Enchanted empty-state GTK height is unexpected: {app_height}px")
+
+    # Sidebar/canvas divider: strong vertical gray line ~26% across.
+    divider_x = max(
+        range(left + 250, left + 360),
+        key=lambda x: line_column_score(image, x, top + 10, bottom - 10),
+    )
+    divider_score = line_column_score(image, divider_x, top + 10, bottom - 10)
+    sidebar_width = divider_x - left
+    detail_left = divider_x + 1
+
+    # Centered gradient wordmark ("Enchanted") in the canvas top band — the GTK
+    # backend renders the gradient as a ~uniform purple, matched by
+    # enchanted_linux_gtk_wordmark_pixel.
+    wordmark_pixels = pixel_count(
+        image, detail_left + 20, top + 120, right - 20, top + 240, enchanted_linux_gtk_wordmark_pixel
+    )
+    # Minimal sidebar: the genuine empty state has NO blue primary "New chat"
+    # button (it moved to the toolbar compose icon in #139), so the sidebar must
+    # carry essentially no accent-blue fill.
+    sidebar_blue = pixel_count(
+        image, left + 10, top + 10, divider_x - 10, bottom - 10, enchanted_primary_pixel
+    )
+    # Horizontal prompt-card row: light cards spread across the canvas, resolving
+    # into multiple distinct segments along a row.
+    card_pixels = pixel_count(
+        image, detail_left + 20, top + 225, right - 20, top + 410, prompt_card_pixel
+    )
+    best_card_segments = 0
+    for probe_y in range(top + 300, top + 360, 10):
+        segments = image.segments_at(probe_y, detail_left, right, prompt_card_pixel, 40)
+        best_card_segments = max(best_card_segments, len(segments))
+    # Short composer bar: a band of near-white composer surface near the bottom.
+    composer_pixels = pixel_count(
+        image, detail_left + 20, bottom - 210, right - 20, bottom - 120, enchanted_canvas_pixel
+    )
+    # Bottom nav (Completions / Shortcuts / Settings): dark text in the sidebar
+    # lower band.
+    bottom_nav_pixels = dark_pixel_count(image, left + 10, bottom - 160, divider_x - 10, bottom - 10)
+
+    landmarks = {
+        "sidebar_divider": 250 <= sidebar_width <= 340 and divider_score >= app_height * 0.60,
+        "gradient_wordmark": wordmark_pixels >= 1200,
+        "minimal_sidebar_no_blue_button": sidebar_blue < 400,
+        "horizontal_card_row": card_pixels >= 30000 and best_card_segments >= 3,
+        "short_composer_bar": composer_pixels >= 8000,
+        "bottom_nav": bottom_nav_pixels >= 500,
+    }
+    detected = sum(1 for present in landmarks.values() if present)
+    total = len(landmarks)
+    ratio = detected / total
+    missing = sorted(name for name, present in landmarks.items() if not present)
+    require(
+        ratio >= 0.95,
+        f"Enchanted empty-state parity ratio {ratio:.2f} (<0.95): "
+        f"{detected}/{total} landmarks; missing={missing}; "
+        f"divider_x={divider_x}, divider_score={divider_score}, sidebar_width={sidebar_width}, "
+        f"wordmark_pixels={wordmark_pixels}, sidebar_blue={sidebar_blue}, "
+        f"card_pixels={card_pixels}, card_segments={best_card_segments}, "
+        f"composer_pixels={composer_pixels}, bottom_nav_pixels={bottom_nav_pixels}",
+    )
+
+    return (
+        "Quill Enchanted empty-state GTK parity ok: "
+        f"ratio={ratio:.2f} ({detected}/{total}), app={app_width}x{app_height}, "
+        f"sidebar_width={sidebar_width}, wordmark_pixels={wordmark_pixels}, "
+        f"sidebar_blue={sidebar_blue}, card_pixels={card_pixels}, "
+        f"card_segments={best_card_segments}, composer_pixels={composer_pixels}, "
+        f"bottom_nav_pixels={bottom_nav_pixels}"
+    )
+
+
 def validate_quill_enchanted_linux_qt_snapshot(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -2626,6 +2714,12 @@ def main() -> int:
         print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-enchanted-qt":
         print(validate_quill_enchanted_qt_native(image))
+    elif product == "quill-enchanted":
+        # Bare gtk empty-state (new-conversation) render. Previously fell through
+        # unvalidated; now gated against the genuine-native empty-state landmarks
+        # (#24): centered gradient wordmark, minimal sidebar (no blue New-chat
+        # button), horizontal 4-card row, short composer, 3-item bottom nav.
+        print(validate_quill_enchanted_empty_state_gtk(image))
     elif product == "quill-enchanted-qt-list-selection":
         # Index 0 is selected (same as the GTK list-selection), so the selected
         # conversation sits at the same height as GTK's (which uses 360); 430 was an
