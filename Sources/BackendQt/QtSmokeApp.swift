@@ -66,6 +66,9 @@ struct QtSmokeView: View {
                 isOpen.toggle()
             }
 
+            Image(systemName: "checkmark.circle.fill")
+                .imageScale(.large)
+
             // Always-on dark panel. Leading-aligned at the content origin and
             // tall enough to fill the verifier's panel ROI deterministically.
             Color(

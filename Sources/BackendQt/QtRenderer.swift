@@ -15,12 +15,13 @@
 //     the exact SwiftUI proposal/intrinsic math the GTK backend uses, instead
 //     of nesting QBoxLayouts.
 //
-// SLICE #1 conforms only: Text, VStack, HStack, Button, Spacer, Color,
-// EmptyView. The continuation plan fans the remaining ~70 views out from here.
+// SLICE #1 conforms only: Text, Image, VStack, HStack, Button, Spacer, Color,
+// EmptyView. The continuation plan fans the remaining views out from here.
 
 #if canImport(CQtBridge)
 import CQtBridge
 import SwiftOpenUI
+import SwiftOpenUISymbols
 import Foundation
 
 // MARK: - Qt rendering protocol
@@ -225,6 +226,52 @@ extension Text: QtRenderable {
     }
 }
 
+extension Image: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        switch source {
+        case .systemName(let sfName):
+            let materialName = SFSymbolCompatibility.materialName(for: sfName)
+                ?? SFSymbolCompatibility.missingSymbolPlaceholderName
+            #if DEBUG
+            if SFSymbolCompatibility.materialName(for: sfName) == nil {
+                FileHandle.standardError.write(Data(
+                    "[BackendQt] Image(systemName: \"\(sfName)\") has no Material mapping; rendering placeholder\n".utf8
+                ))
+            }
+            #endif
+            return qtRenderMaterialSymbol(materialName, scale: scale)
+
+        case .filePath(let path):
+            return qtOpaque(
+                quill_qt_bridge_image_create_from_file(
+                    path,
+                    Int32(isResizable ? 1 : 0)
+                )
+            )
+
+        case .materialSymbol(let name):
+            return qtRenderMaterialSymbol(name, scale: scale)
+        }
+    }
+}
+
+private func qtRenderMaterialSymbol(_ name: String, scale: ImageScale) -> OpaquePointer {
+    let glyph: String
+    if let codepoint = MaterialSymbolsCodepoints.codepoint(for: name),
+       let scalar = Unicode.Scalar(codepoint) {
+        glyph = String(scalar)
+    } else {
+        glyph = name
+    }
+    return qtOpaque(
+        quill_qt_bridge_material_symbol_label_create(
+            glyph,
+            MaterialSymbolsResources.roundedRegularFamilyName,
+            Int32(scale.pointSize)
+        )
+    )
+}
+
 extension EmptyView: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         // A zero-size container, matching GTK's empty box.
@@ -347,7 +394,11 @@ extension FrameView: QtRenderable {
 
         var naturalW: Int32 = 0
         var naturalH: Int32 = 0
-        quill_qt_bridge_widget_size_hint(qtHandle(child), &naturalW, &naturalH)
+        quill_qt_bridge_widget_resolved_size(qtHandle(child), &naturalW, &naturalH)
+
+        let childImage = content as? Image
+        let expandsWidth = width != nil && (childImage?.isResizable ?? true)
+        let expandsHeight = height != nil && (childImage?.isResizable ?? true)
 
         let layout = computeFrameLayout(
             childNaturalSize: ViewSize(width: Double(naturalW), height: Double(naturalH)),
@@ -360,10 +411,10 @@ extension FrameView: QtRenderable {
             alignment: alignment,
             // Color/Rectangle and similar fills expand to fill the frame; the
             // continuation plan reads a real per-view expansion flag. For the
-            // slice we expand when an explicit dimension is given so a framed
-            // Color fully paints its panel.
-            expandsToFillWidth: width != nil,
-            expandsToFillHeight: height != nil
+            // slice we preserve SwiftUI's non-resizable Image behavior while
+            // keeping explicit frames expansive for existing fill views.
+            expandsToFillWidth: expandsWidth,
+            expandsToFillHeight: expandsHeight
         )
 
         let container = qtOpaque(quill_qt_bridge_container_create())

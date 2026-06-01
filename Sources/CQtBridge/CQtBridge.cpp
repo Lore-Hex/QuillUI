@@ -7,9 +7,12 @@
 #include "CQtBridge.h"
 
 #include <QApplication>
+#include <QFont>
+#include <QFontDatabase>
 #include <QLabel>
 #include <QList>
 #include <QObject>
+#include <QPixmap>
 #include <QPushButton>
 #include <QRect>
 #include <QSize>
@@ -38,6 +41,8 @@ inline void bridgeTrace(const char *message) {
     std::fprintf(stderr, "[cqtbridge] %s\n", message);
     std::fflush(stderr);
 }
+
+bool materialSymbolsFontRegistered = false;
 
 } // namespace
 
@@ -211,6 +216,58 @@ QuillQtWidgetHandle quill_qt_bridge_label_create(const char *text) {
     QLabel *label = new QLabel(utf8(text));
     // SwiftUI Text reports its intrinsic single-line size to the layout
     // engine; leave word-wrap off so sizeHint() is the natural text size.
+    label->setWordWrap(false);
+    return reinterpret_cast<QuillQtWidgetHandle>(label);
+}
+
+void quill_qt_bridge_material_symbols_register_font(const char *font_path) {
+    if (materialSymbolsFontRegistered) {
+        return;
+    }
+
+    const QString path = utf8(font_path);
+    if (path.isEmpty()) {
+        return;
+    }
+
+    const int fontId = QFontDatabase::addApplicationFont(path);
+    if (fontId < 0) {
+        std::fprintf(
+            stderr,
+            "[cqtbridge] failed to register Material Symbols font at %s\n",
+            path.toUtf8().constData()
+        );
+        std::fflush(stderr);
+        return;
+    }
+
+    materialSymbolsFontRegistered = true;
+}
+
+QuillQtWidgetHandle quill_qt_bridge_material_symbol_label_create(
+    const char *glyph,
+    const char *font_family,
+    int point_size
+) {
+    QLabel *label = new QLabel(utf8(glyph));
+    QFont font(utf8(font_family));
+    font.setPointSize(point_size);
+    font.setWeight(QFont::Normal);
+    label->setFont(font);
+    label->setAlignment(Qt::AlignCenter);
+    label->setWordWrap(false);
+    label->setFixedSize(QSize(point_size, point_size));
+    return reinterpret_cast<QuillQtWidgetHandle>(label);
+}
+
+QuillQtWidgetHandle quill_qt_bridge_image_create_from_file(
+    const char *path,
+    int resizable
+) {
+    QLabel *label = new QLabel();
+    label->setAlignment(Qt::AlignCenter);
+    label->setPixmap(QPixmap(utf8(path)));
+    label->setScaledContents(resizable != 0);
     label->setWordWrap(false);
     return reinterpret_cast<QuillQtWidgetHandle>(label);
 }

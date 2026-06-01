@@ -1478,6 +1478,7 @@ if quillUILinuxBuildBackend == .qt {
                 name: "BackendQt",
                 dependencies: [
                     .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
+                    .product(name: "SwiftOpenUISymbols", package: "SwiftOpenUI"),
                     "CQtBridge"
                 ],
                 path: "Sources/BackendQt",
