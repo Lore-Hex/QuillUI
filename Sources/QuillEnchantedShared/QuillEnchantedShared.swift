@@ -122,6 +122,7 @@ public enum EnchantedIcon {
     public static let send = "arrow.forward.circle.fill"
     public static let stop = "square.fill"
     public static let removeAttachment = "xmark.circle.fill"
+    public static let appearance = "sun.max"
 }
 
 public enum EnchantedCopy {
@@ -134,6 +135,13 @@ public enum EnchantedCopy {
     public static let systemPromptLabel = "System prompt"
     public static let bearerTokenLabel = "Bearer Token"
     public static let pingIntervalLabel = "Ping Interval (seconds)"
+    public static let appSectionTitle = "APP"
+    public static let appearanceLabel = "Appearance"
+    public static let appearanceSystemOption = "System"
+    public static let appearanceLightOption = "Light"
+    public static let appearanceDarkOption = "Dark"
+    public static let initialsLabel = "Initials"
+    public static let defaultUserInitials = "Q"
     public static let defaultEndpoint = "http://localhost:11434"
     public static let modelLabel = "Model"
     public static let noModelsTitle = "No models detected"
@@ -267,6 +275,23 @@ public enum EnchantedCopy {
     }
 }
 
+public enum EnchantedAppearance: String, CaseIterable, Codable, Equatable, Hashable, Sendable {
+    case system
+    case light
+    case dark
+
+    public var displayName: String {
+        switch self {
+        case .system:
+            return EnchantedCopy.appearanceSystemOption
+        case .light:
+            return EnchantedCopy.appearanceLightOption
+        case .dark:
+            return EnchantedCopy.appearanceDarkOption
+        }
+    }
+}
+
 public struct EnchantedConversationDayGroup: Identifiable, Hashable, Sendable {
     public var id: Date { date }
     public var date: Date
@@ -323,10 +348,14 @@ public enum EnchantedSettingsStorage {
     public static let systemPromptKey = "quill.enchanted.systemPrompt"
     public static let bearerTokenKey = "quill.enchanted.ollamaBearerToken"
     public static let pingIntervalKey = "quill.enchanted.pingInterval"
+    public static let appearanceKey = "quill.enchanted.colorScheme"
+    public static let userInitialsKey = "quill.enchanted.appUserInitials"
 
     public static let defaultSystemPrompt = ""
     public static let defaultBearerToken = ""
     public static let defaultPingInterval = "5"
+    public static let defaultAppearance = EnchantedAppearance.system
+    public static let defaultUserInitials = EnchantedCopy.defaultUserInitials
 }
 
 public struct EnchantedSettingsSnapshot: Equatable, Sendable {
@@ -334,17 +363,23 @@ public struct EnchantedSettingsSnapshot: Equatable, Sendable {
     public var systemPrompt: String
     public var bearerToken: String
     public var pingInterval: String
+    public var appearance: EnchantedAppearance
+    public var userInitials: String
 
     public init(
         endpoint: String = EnchantedCopy.defaultEndpoint,
         systemPrompt: String = EnchantedSettingsStorage.defaultSystemPrompt,
         bearerToken: String = EnchantedSettingsStorage.defaultBearerToken,
-        pingInterval: String = EnchantedSettingsStorage.defaultPingInterval
+        pingInterval: String = EnchantedSettingsStorage.defaultPingInterval,
+        appearance: EnchantedAppearance = EnchantedSettingsStorage.defaultAppearance,
+        userInitials: String = EnchantedSettingsStorage.defaultUserInitials
     ) {
         self.endpoint = endpoint
         self.systemPrompt = systemPrompt
         self.bearerToken = bearerToken
         self.pingInterval = pingInterval
+        self.appearance = appearance
+        self.userInitials = userInitials
     }
 
     public static func load(from defaults: UserDefaults = .standard) -> EnchantedSettingsSnapshot {
@@ -355,7 +390,12 @@ public struct EnchantedSettingsSnapshot: Equatable, Sendable {
             bearerToken: defaults.string(forKey: EnchantedSettingsStorage.bearerTokenKey)
                 ?? EnchantedSettingsStorage.defaultBearerToken,
             pingInterval: defaults.string(forKey: EnchantedSettingsStorage.pingIntervalKey)
-                ?? EnchantedSettingsStorage.defaultPingInterval
+                ?? EnchantedSettingsStorage.defaultPingInterval,
+            appearance: defaults.string(forKey: EnchantedSettingsStorage.appearanceKey)
+                .flatMap(EnchantedAppearance.init(rawValue:))
+                ?? EnchantedSettingsStorage.defaultAppearance,
+            userInitials: defaults.string(forKey: EnchantedSettingsStorage.userInitialsKey)
+                ?? EnchantedSettingsStorage.defaultUserInitials
         )
     }
 
@@ -364,6 +404,8 @@ public struct EnchantedSettingsSnapshot: Equatable, Sendable {
         defaults.set(systemPrompt, forKey: EnchantedSettingsStorage.systemPromptKey)
         defaults.set(bearerToken, forKey: EnchantedSettingsStorage.bearerTokenKey)
         defaults.set(pingInterval, forKey: EnchantedSettingsStorage.pingIntervalKey)
+        defaults.set(appearance.rawValue, forKey: EnchantedSettingsStorage.appearanceKey)
+        defaults.set(userInitials, forKey: EnchantedSettingsStorage.userInitialsKey)
     }
 }
 
