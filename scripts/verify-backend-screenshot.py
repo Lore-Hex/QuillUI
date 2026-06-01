@@ -2715,11 +2715,24 @@ def main() -> int:
     elif product == "quill-enchanted-qt":
         print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-enchanted":
-        # Bare gtk empty-state (new-conversation) render. Previously fell through
-        # unvalidated; now gated against the genuine-native empty-state landmarks
-        # (#24): centered gradient wordmark, minimal sidebar (no blue New-chat
-        # button), horizontal 4-card row, short composer, 3-item bottom nav.
-        print(validate_quill_enchanted_empty_state_gtk(image))
+        # The bare "quill-enchanted" verify product covers TWO different gtk
+        # captures: the empty-state visual smoke (quill-enchanted-gtk.png, the
+        # direct EnchantedRootView build) and the backend-interaction smoke
+        # (quill-enchanted-*interaction*-gtk.png), which renders the stale
+        # pre-#138-#145 runtime sidebar (blue New-chat button, inline endpoint —
+        # tracked in #151) and is NOT the empty state. Gate ONLY the empty-state
+        # capture against the genuine-native landmarks (#24): centered gradient
+        # wordmark, minimal sidebar (no blue New-chat button), horizontal 4-card
+        # row, short composer, 3-item bottom nav. The interaction capture keeps
+        # its prior (structural) treatment until #151 brings the runtime sidebar
+        # in line.
+        if "interaction" in str(image.path):
+            print(
+                "Quill Enchanted interaction-smoke capture: not gated by the "
+                "empty-state parity validator (stale runtime sidebar tracked in #151)"
+            )
+        else:
+            print(validate_quill_enchanted_empty_state_gtk(image))
     elif product == "quill-enchanted-qt-list-selection":
         # Index 0 is selected (same as the GTK list-selection), so the selected
         # conversation sits at the same height as GTK's (which uses 360); 430 was an
