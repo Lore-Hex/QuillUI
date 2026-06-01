@@ -122,6 +122,19 @@ jobs:
       - name: Backend launch target interaction smokes
         run: scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'
 
+      # Generic SwiftUI→Qt backend smoke (BackendQt, behind QUILLUI_QT_GENERIC).
+      # This is the ONLY step that compiles the CQtBridge C++ wrapper, links
+      # SwiftOpenUI into the Qt graph, and runs the real QtBackend().run(QtSmokeApp)
+      # SwiftUI tree under Xvfb — proving a generic (zero app-specific code)
+      # renderer can host a real SwiftUI tree on Qt, as GTK already does. It is
+      # fully isolated: its own SwiftPM scratch (.build-linux-qt-generic, never the
+      # shared .build-linux), the opt-in QUILLUI_QT_GENERIC manifest graph, and the
+      # single quill-qt-generic-smoke product, validated by the EXISTING
+      # validate_quill_backend_interaction_smoke. A failure here cannot affect the
+      # canonical apps or the other backend smokes built above.
+      - name: Generic SwiftUI to Qt backend smoke
+        run: scripts/linux-qt-generic-smoke-check.sh '.qa/quill-qt-generic-smoke.png'
+
       - name: Generated Enchanted toolbar interaction smokes
         run: QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction generated-app-matrix '.qa/{product}-toolbar-menu-{backend}.png'
 
