@@ -1601,19 +1601,20 @@ def validate_quill_enchanted_qt_native(
     if minimum_selected_center_offset is not None:
         selected_row = best_pixel_row_segment(
             image,
-            left + 16,
+            left + 4,
             top + 250,
             left + sidebar_width - 16,
             min(bottom + 1, top + 590),
-            # The selected conversation row is the accent-blue fill (EnchantedRootView
-            # uses .background(isSelected ? QuillColors.primary : ...) = #4285F4), the
-            # same predicate the GTK list-selection validator uses. The old
-            # enchanted_selected_row_pixel matched only a light tint that this app
-            # never renders for the selected row.
+            # Genuine native Enchanted (ConversationHistoryListView) marks the selected
+            # conversation with a small leading accent dot (QuillColors.primary = #4285F4),
+            # NOT a filled row. EnchantedRootView + QuillEnchantedQt6Widgets now render that
+            # dot, so detect accent blue near the row's leading edge (hence x0 = left + 4).
+            # Accent blue appears nowhere else in the sidebar rows band, so even a small
+            # pixel count is an unambiguous selection signal.
             enchanted_primary_pixel,
-            min_row_pixels=42,
+            min_row_pixels=3,
         )
-        require(selected_row is not None, "Enchanted Qt selected conversation row was not detected")
+        require(selected_row is not None, "Enchanted Qt selected conversation row dot was not detected")
         selected_row_segment, selected_row_pixels = selected_row
         selected_row_center_offset = selected_row_segment.center - top
         require(
@@ -1622,8 +1623,8 @@ def validate_quill_enchanted_qt_native(
             f"selected_center={selected_row_center_offset:.1f}px",
         )
         require(
-            selected_row_pixels >= 900,
-            f"Enchanted Qt selected conversation row is too small: pixels={selected_row_pixels}",
+            selected_row_pixels >= 12,
+            f"Enchanted Qt selected conversation row dot is too small: pixels={selected_row_pixels}",
         )
         selected_row_details = (
             f", selected_row_pixels={selected_row_pixels}, "
@@ -1894,16 +1895,20 @@ def validate_quill_enchanted_gtk_list_selection(image: Screenshot) -> str:
     require(620 <= app_height <= 860, f"Enchanted GTK window height is unexpected: {app_height}px")
 
     sidebar_width = min(340, max(260, int(app_width * 0.30)))
+    # Genuine native Enchanted marks the selected conversation with a small leading
+    # accent dot (QuillColors.primary), not a filled row, so detect accent blue near the
+    # row's leading edge (x0 = left + 4) with dot-sized thresholds. Accent blue appears
+    # nowhere else in the sidebar rows band, so a small pixel count is unambiguous.
     selected_row = best_pixel_row_segment(
         image,
-        left + 16,
+        left + 4,
         top + 280,
         left + sidebar_width - 16,
         min(bottom + 1, top + 620),
         enchanted_primary_pixel,
-        min_row_pixels=32,
+        min_row_pixels=3,
     )
-    require(selected_row is not None, "Enchanted GTK selected conversation row was not detected")
+    require(selected_row is not None, "Enchanted GTK selected conversation row dot was not detected")
     selected_row_segment, selected_row_pixels = selected_row
     selected_row_center_offset = selected_row_segment.center - top
     require(
@@ -1912,8 +1917,8 @@ def validate_quill_enchanted_gtk_list_selection(image: Screenshot) -> str:
         f"selected_center={selected_row_center_offset:.1f}px",
     )
     require(
-        selected_row_pixels >= 900,
-        f"Enchanted GTK selected conversation row is too small: pixels={selected_row_pixels}",
+        selected_row_pixels >= 12,
+        f"Enchanted GTK selected conversation row dot is too small: pixels={selected_row_pixels}",
     )
 
     sidebar_text_pixels = dark_pixel_count(image, left + 20, top + 20, left + sidebar_width - 12, bottom - 20)
@@ -2054,7 +2059,7 @@ def validate_quill_enchanted_new_chat(image: Screenshot) -> str:
         image, region_left, region_top, region_right, region_bottom, enchanted_primary_pixel
     )
     require(
-        selected_row_pixels >= 300,
+        selected_row_pixels >= 12,
         "Enchanted New chat did not create a selected conversation row: "
         f"pixels={selected_row_pixels}",
     )

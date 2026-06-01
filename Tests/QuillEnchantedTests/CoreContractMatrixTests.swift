@@ -808,9 +808,8 @@ struct CoreContractMatrixTests {
             "EnchantedVisualMetrics.messageEditBorderWidth",
             "EnchantedVisualMetrics.conversationListSpacing",
             "EnchantedVisualMetrics.conversationActionsSpacing",
-            "EnchantedVisualMetrics.conversationRowPadding",
             "EnchantedVisualMetrics.conversationRowSpacing",
-            "EnchantedVisualMetrics.conversationRowRadius",
+            "EnchantedVisualMetrics.conversationSelectionDotSize",
             "EnchantedVisualMetrics.emptyHistoryPadding",
             "EnchantedVisualMetrics.emptyHistorySpacing",
             "EnchantedVisualMetrics.emptyHistoryRadius",
@@ -850,7 +849,6 @@ struct CoreContractMatrixTests {
             "EnchantedTypography.attachmentSizeFontSize",
             "EnchantedTypography.conversationTitleFontSize",
             "EnchantedTypography.conversationTitleFontWeight",
-            "EnchantedTypography.conversationPreviewFontSize",
             "EnchantedTypography.warningTextFontSize",
             "weight: enchantedFontWeight(EnchantedTypography.appTitleFontWeight)",
             "weight: enchantedFontWeight(EnchantedTypography.sectionTitleFontWeight)",
@@ -1578,9 +1576,8 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "EnchantedVisualMetrics.dropTargetRadius")
         expectContains(macOSRootView, "EnchantedVisualMetrics.conversationListSpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.conversationActionsSpacing")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.conversationRowPadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.conversationRowSpacing")
-        expectContains(macOSRootView, "EnchantedVisualMetrics.conversationRowRadius")
+        expectContains(macOSRootView, "EnchantedVisualMetrics.conversationSelectionDotSize")
         expectContains(macOSRootView, "EnchantedVisualMetrics.conversationDayGroupSpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.emptyHistoryPadding")
         expectContains(macOSRootView, "EnchantedVisualMetrics.emptyHistorySpacing")
@@ -1601,7 +1598,6 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "EnchantedTypography.conversationTitleFontSize")
         expectContains(macOSRootView, "EnchantedTypography.conversationDayHeaderFontSize")
         expectContains(macOSRootView, "EnchantedTypography.conversationDayHeaderFontWeight")
-        expectContains(macOSRootView, "EnchantedTypography.conversationPreviewFontSize")
         expectContains(macOSRootView, "EnchantedTypography.warningTextFontSize")
         expectContains(macOSRootView, "EnchantedVisualMetrics.attachmentTraySpacing")
         expectContains(macOSRootView, "EnchantedVisualMetrics.attachmentTrayChipSpacing")
@@ -1727,7 +1723,7 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "row->setAccessibleName(titleText);\n    row->setAccessibleDescription(rowSummary);\n    row->setToolTip(rowSummary);\n    row->setStatusTip(rowSummary)")
         expectContains(nativeShim, "const int conversationRowPadding = styleInt(style, \"conversationRowPadding\")")
         expectContains(nativeShim, "const int conversationRowSpacing = styleInt(style, \"conversationRowSpacing\")")
-        expectContains(nativeShim, "layout->setContentsMargins(\n        conversationRowPadding,\n        conversationRowPadding,\n        conversationRowPadding,\n        conversationRowPadding\n    )")
+        expectContains(nativeShim, "layout->setContentsMargins(\n        conversationRowPadding,\n        conversationRowSpacing,\n        conversationRowPadding,\n        conversationRowSpacing\n    )")
         expectContains(nativeShim, "layout->setSpacing(conversationRowSpacing)")
         expectContains(nativeShim, "conversationTitle(conversation)")
         expectContains(nativeShim, "QLabel *title = label(titleText, QStringLiteral(\"conversationTitle\"))")
@@ -1737,12 +1733,14 @@ struct CoreContractMatrixTests {
         expectContains(nativeShim, "const QString previewText = conversationLastMessage(conversation)")
         expectDoesNotContain(nativeShim, "stringValue(conversation, \"title\", newConversationTitle)")
         expectDoesNotContain(nativeShim, "stringValue(conversation, \"lastMessage\", noMessagesYet)")
-        expectContains(nativeShim, "if (!previewText.isEmpty())")
-        expectContains(nativeShim, "QLabel *preview = label(previewText, QStringLiteral(\"conversationPreview\"))")
-        expectContains(macOSRootView, ".lineLimit(2)")
-        expectContains(nativeShim, "preview->setWordWrap(true)")
-        expectContains(nativeShim, "preview->setMaximumHeight(preview->fontMetrics().lineSpacing() * 2)")
-        expectContains(nativeShim, "preview->setToolTip(rowSummary);\n        preview->setStatusTip(rowSummary)")
+        // Genuine single-line row: no preview label / 2-line text — a leading selection
+        // dot QFrame (shown only when selected) replaces the old card + preview.
+        expectDoesNotContain(nativeShim, "if (!previewText.isEmpty())")
+        expectDoesNotContain(nativeShim, "QLabel *preview = label(previewText, QStringLiteral(\"conversationPreview\"))")
+        expectDoesNotContain(macOSRootView, ".lineLimit(2)")
+        expectContains(nativeShim, "QFrame *selectionDot = QuillQtWidgets::frame(QStringLiteral(\"conversationSelectionDot\"))")
+        expectContains(nativeShim, "selectionDot->setVisible(false)")
+        expectContains(nativeShim, "selectionDot->setVisible(isSelected)")
         expectContains(nativeShim, "QWidget *rowWidget = conversationRowWidget(")
         expectContains(nativeShim, "const QSize rowSizeHint = rowWidget->sizeHint()")
         expectContains(nativeShim, "item->setSizeHint(QSize(0, rowSizeHint.height()))")

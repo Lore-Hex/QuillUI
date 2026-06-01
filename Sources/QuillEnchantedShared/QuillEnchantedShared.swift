@@ -669,6 +669,10 @@ public enum EnchantedVisualMetrics {
     public static let conversationRowPadding = 11
     public static let conversationRowSpacing = 5
     public static let conversationRowRadius = 8
+    // Genuine native Enchanted shows the selected conversation with a small leading
+    // dot (ConversationHistoryListView uses a ~6pt Circle), not a filled row. We use 8
+    // so the dot stays robustly detectable by the cross-backend screenshot gate.
+    public static let conversationSelectionDotSize = 8
     public static let conversationDayGroupSpacing = 17
     public static let conversationListItemRadius = 8
     public static let conversationListItemVerticalMargin = 2
