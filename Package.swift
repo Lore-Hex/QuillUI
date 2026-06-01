@@ -41,6 +41,28 @@ enum QuillUILinuxBuildBackend: String {
 
 let quillUILinuxBuildBackendEnvironmentKey = "QUILLUI_LINUX_BACKEND"
 
+// SPIKE flag for the generic SwiftUI→Qt backend (BackendQt).
+//
+// The Qt graph deliberately EXCLUDES SwiftOpenUI (see the comment above the
+// `quillUILinuxBuildBackend == .qt` block) so the existing native-Qt apps build
+// without dragging in SwiftOpenUI's GTK pkg-config graph. The generic backend
+// vertical slice needs SwiftOpenUI linked into the Qt graph — but ONLY when
+// explicitly opted in, so the default Qt build (and its CI gate) is byte-for-
+// byte unchanged. Setting QUILLUI_QT_GENERIC=1 (alongside QUILLUI_LINUX_BACKEND=qt)
+// re-adds SwiftOpenUI and the BackendQt targets + quill-qt-generic-smoke product.
+let quillUIQtGenericEnvironmentKey = "QUILLUI_QT_GENERIC"
+let quillUIQtGenericEnabled: Bool = {
+    let raw = ProcessInfo.processInfo.environment[quillUIQtGenericEnvironmentKey]?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    switch raw {
+    case "1", "true", "yes", "on":
+        return true
+    default:
+        return false
+    }
+}()
+
 #if os(Linux)
 func pkgConfigPackagePresent(_ name: String) -> Bool {
     let process = Process()
@@ -1427,6 +1449,55 @@ if quillUILinuxBuildBackend == .qt {
             path: "Sources/QuillQtInteractionSmoke"
         )
     ] + quillCanonicalLinuxApps.map(quillCanonicalLinuxAppQtTarget)
+
+    // --- Generic SwiftUI→Qt backend (BackendQt), opt-in via QUILLUI_QT_GENERIC ---
+    //
+    // Everything below is gated so the default Qt build is unchanged. When the
+    // flag is on we (1) re-add SwiftOpenUI to the Qt dependency graph, (2) add a
+    // CQtBridge C++ wrapper, the BackendQt Swift renderer, and a sibling
+    // quill-qt-generic-smoke executable that renders a REAL SwiftUI tree through
+    // QtBackend().run(QtSmokeApp.self). The 9 production apps keep their existing
+    // per-app C++ shims and are not touched.
+    if quillUIQtGenericEnabled {
+        allPackageDependencies.append(
+            .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433")
+        )
+        targets += [
+            .target(
+                name: "CQtBridge",
+                path: "Sources/CQtBridge",
+                publicHeadersPath: "include",
+                cxxSettings: [
+                    .unsafeFlags(qt6WidgetsCxxFlags)
+                ],
+                linkerSettings: [
+                    .unsafeFlags(qt6WidgetsLinkerFlags)
+                ]
+            ),
+            .target(
+                name: "BackendQt",
+                dependencies: [
+                    .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
+                    "CQtBridge"
+                ],
+                path: "Sources/BackendQt",
+                swiftSettings: appSwiftSettings + [
+                    .define("QUILLUI_QT_GENERIC")
+                ]
+            ),
+            .executableTarget(
+                name: "QuillQtGenericSmoke",
+                dependencies: ["BackendQt"],
+                path: "Sources/QuillQtGenericSmoke",
+                swiftSettings: appSwiftSettings + [
+                    .define("QUILLUI_QT_GENERIC")
+                ]
+            )
+        ]
+        products.append(
+            .executable(name: "quill-qt-generic-smoke", targets: ["QuillQtGenericSmoke"])
+        )
+    }
 }
 #endif
 

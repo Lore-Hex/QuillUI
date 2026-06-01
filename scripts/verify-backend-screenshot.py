@@ -2677,6 +2677,11 @@ def main() -> int:
     smoke_product = (
         product.startswith("quill-gtk-interaction-smoke")
         or product.startswith("quill-qt-interaction-smoke")
+        # Generic SwiftUI→Qt backend smoke (BackendQt, QUILLUI_QT_GENERIC). It
+        # renders the same ~640x760 panel surface as the hand-built Qt smoke, so
+        # it shares the smoke launch-window size floor (600x560) rather than the
+        # larger full-app default. Additive: existing products are unaffected.
+        or product.startswith("quill-qt-generic-smoke")
     )
     compact_wireguard_dialog_product = product in {
         "quill-wireguard-qt-import-invalid-paste",
@@ -2806,7 +2811,14 @@ def main() -> int:
         print(validate_quill_wireguard_gtk_import(image))
     elif product in {"quill-wireguard-import-invalid-paste", "quill-wireguard-import-invalid-file"}:
         print(validate_quill_wireguard_import_error(image, backend="gtk"))
-    elif product in {"quill-gtk-interaction-smoke-open", "quill-qt-interaction-smoke-open"}:
+    elif product in {
+        "quill-gtk-interaction-smoke-open",
+        "quill-qt-interaction-smoke-open",
+        # Generic SwiftUI→Qt backend smoke reuses the exact interaction-smoke
+        # validator (window 600-700x720-800 + a dark panel >=10000 px in the ROI).
+        # No validator code is weakened; this is an additive product mapping.
+        "quill-qt-generic-smoke-open",
+    }:
         print(validate_quill_backend_interaction_smoke(image))
     elif product in {"quill-gtk-interaction-smoke-sidebar", "quill-qt-interaction-smoke-sidebar"}:
         print(validate_quill_backend_interaction_sidebar(image))
