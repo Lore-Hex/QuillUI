@@ -129,7 +129,11 @@ public enum EnchantedCopy {
     public static let appTitle = "Enchanted"
     public static let sidebarSubtitle = "Local AI conversations"
     public static let newChatTitle = "New chat"
-    public static let endpointLabel = "Ollama endpoint"
+    public static let quillSectionTitle = "Quill"
+    public static let endpointLabel = "Quill API endpoint"
+    public static let systemPromptLabel = "System prompt"
+    public static let bearerTokenLabel = "Bearer Token"
+    public static let pingIntervalLabel = "Ping Interval (seconds)"
     public static let defaultEndpoint = "http://localhost:11434"
     public static let modelLabel = "Model"
     public static let noModelsTitle = "No models detected"
@@ -147,7 +151,10 @@ public enum EnchantedCopy {
     public static let todayTitle = "Today"
     public static let yesterdayTitle = "Yesterday"
     public static let daysAgoSuffix = "days ago"
-    public static let clearAllTitle = "Clear all"
+    public static let clearAllTitle = "Clear All Data"
+    public static let deleteAllConversationsConfirmationTitle = "Delete All Conversations?"
+    public static let deleteAllConversationsConfirmTitle = "Delete"
+    public static let cancelTitle = "Cancel"
     public static let copyChatTitle = "Copy Chat"
     public static let copyChatAsJSONTitle = "Copy Chat as JSON"
     public static let copyMessageTitle = "Copy"
@@ -308,6 +315,75 @@ public enum EnchantedConversationHistory {
 public enum EnchantedAssistantResponseFinalizer {
     public static func finalContent(from ollamaResponse: String) -> String {
         ollamaResponse.isEmpty ? EnchantedCopy.emptyOllamaResponse : ollamaResponse
+    }
+}
+
+public enum EnchantedSettingsStorage {
+    public static let endpointKey = "quill.enchanted.ollamaEndpoint"
+    public static let systemPromptKey = "quill.enchanted.systemPrompt"
+    public static let bearerTokenKey = "quill.enchanted.ollamaBearerToken"
+    public static let pingIntervalKey = "quill.enchanted.pingInterval"
+
+    public static let defaultSystemPrompt = ""
+    public static let defaultBearerToken = ""
+    public static let defaultPingInterval = "5"
+}
+
+public struct EnchantedSettingsSnapshot: Equatable, Sendable {
+    public var endpoint: String
+    public var systemPrompt: String
+    public var bearerToken: String
+    public var pingInterval: String
+
+    public init(
+        endpoint: String = EnchantedCopy.defaultEndpoint,
+        systemPrompt: String = EnchantedSettingsStorage.defaultSystemPrompt,
+        bearerToken: String = EnchantedSettingsStorage.defaultBearerToken,
+        pingInterval: String = EnchantedSettingsStorage.defaultPingInterval
+    ) {
+        self.endpoint = endpoint
+        self.systemPrompt = systemPrompt
+        self.bearerToken = bearerToken
+        self.pingInterval = pingInterval
+    }
+
+    public static func load(from defaults: UserDefaults = .standard) -> EnchantedSettingsSnapshot {
+        EnchantedSettingsSnapshot(
+            endpoint: defaults.string(forKey: EnchantedSettingsStorage.endpointKey) ?? EnchantedCopy.defaultEndpoint,
+            systemPrompt: defaults.string(forKey: EnchantedSettingsStorage.systemPromptKey)
+                ?? EnchantedSettingsStorage.defaultSystemPrompt,
+            bearerToken: defaults.string(forKey: EnchantedSettingsStorage.bearerTokenKey)
+                ?? EnchantedSettingsStorage.defaultBearerToken,
+            pingInterval: defaults.string(forKey: EnchantedSettingsStorage.pingIntervalKey)
+                ?? EnchantedSettingsStorage.defaultPingInterval
+        )
+    }
+
+    public func save(to defaults: UserDefaults = .standard) {
+        defaults.set(endpoint, forKey: EnchantedSettingsStorage.endpointKey)
+        defaults.set(systemPrompt, forKey: EnchantedSettingsStorage.systemPromptKey)
+        defaults.set(bearerToken, forKey: EnchantedSettingsStorage.bearerTokenKey)
+        defaults.set(pingInterval, forKey: EnchantedSettingsStorage.pingIntervalKey)
+    }
+}
+
+public enum EnchantedPingInterval {
+    public static let defaultSeconds: TimeInterval = 5
+
+    public static func seconds(from rawValue: String) -> TimeInterval {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let seconds = TimeInterval(trimmed), seconds.isFinite else {
+            return defaultSeconds
+        }
+        return seconds > 0 ? seconds : .infinity
+    }
+
+    public static func refreshDelayNanoseconds(from rawValue: String) -> UInt64? {
+        let seconds = seconds(from: rawValue)
+        guard seconds.isFinite else { return nil }
+        let maxSeconds = TimeInterval(UInt64.max) / 1_000_000_000
+        guard seconds < maxSeconds else { return UInt64.max }
+        return max(UInt64((seconds * 1_000_000_000).rounded(.toNearestOrAwayFromZero)), 1)
     }
 }
 
@@ -499,6 +575,7 @@ public enum EnchantedVisualMetrics {
     public static let sidebarSpacing = 14
     public static let sidebarTitleSpacing = 4
     public static let sidebarControlGroupSpacing = 7
+    public static let systemPromptEditorMinHeight = 100
     public static let statusRowSpacing = 8
     public static let statusTextWidth = 240
     public static let statusDotSize = 9

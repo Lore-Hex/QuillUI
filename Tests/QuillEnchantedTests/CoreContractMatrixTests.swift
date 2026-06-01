@@ -455,7 +455,16 @@ struct CoreContractMatrixTests {
         }
 
         for needle in [
+            "@Published public var systemPrompt: String",
+            "@Published public var bearerToken: String",
+            "@Published public var pingInterval: String",
             "@Published public var editingMessageID: String?",
+            "public func configureSystemPrompt(_ systemPrompt: String)",
+            "public func configureBearerToken(_ bearerToken: String)",
+            "public func configurePingInterval(_ pingInterval: String)",
+            "OllamaClient(baseURL: endpoint, bearerToken: bearerToken)",
+            "systemPrompt: currentSystemPrompt",
+            "EnchantedPingInterval.refreshDelayNanoseconds(from: pingInterval)",
             "public func editMessage(_ message: ChatMessage)",
             "public func cancelMessageEdit()",
             "public func copySelectedConversation(json: Bool)",
@@ -658,6 +667,13 @@ struct CoreContractMatrixTests {
         expectContains(shared, "public static let emptyStateTitle = appTitle")
         expectContains(shared, "public static let emptyStateSubtitle = \"\"")
         expectContains(shared, "public static let sidebarSubtitle = \"Local AI conversations\"")
+        expectContains(shared, "public static let quillSectionTitle = \"Quill\"")
+        expectContains(shared, "public static let endpointLabel = \"Quill API endpoint\"")
+        expectContains(shared, "public static let systemPromptLabel = \"System prompt\"")
+        expectContains(shared, "public static let bearerTokenLabel = \"Bearer Token\"")
+        expectContains(shared, "public static let pingIntervalLabel = \"Ping Interval (seconds)\"")
+        expectContains(shared, "public static let clearAllTitle = \"Clear All Data\"")
+        expectContains(shared, "public static let deleteAllConversationsConfirmationTitle = \"Delete All Conversations?\"")
         expectContains(shared, "public static let copyChatTitle = \"Copy Chat\"")
         expectContains(shared, "public static let copyChatAsJSONTitle = \"Copy Chat as JSON\"")
         expectContains(shared, "public static let copyMessageTitle = \"Copy\"")
@@ -665,6 +681,10 @@ struct CoreContractMatrixTests {
         expectContains(shared, "public static let unselectMessageTitle = \"Unselect\"")
         expectContains(shared, "public static let copyMessage = \"doc.on.doc\"")
         expectContains(shared, "public static let editMessage = \"pencil\"")
+        expectContains(shared, "public enum EnchantedSettingsStorage")
+        expectContains(shared, "public enum EnchantedPingInterval")
+        expectDoesNotContain(shared, "public static let endpointLabel = \"Ollama endpoint\"")
+        expectDoesNotContain(shared, "public static let clearAllTitle = \"Clear all\"")
         expectDoesNotContain(shared, "Quill Enchanted")
         expectDoesNotContain(shared, "QuillUI Linux preview")
         expectContains(shared, "public static let unreachableOllamaMessage = \"Ollama is unreachable. Go to Settings and update your Ollama API endpoint. \"")
@@ -672,10 +692,18 @@ struct CoreContractMatrixTests {
         for needle in [
             "import QuillEnchantedShared",
             "QuillMainActorView.assumeIsolated",
+            "@AppStorage(EnchantedSettingsStorage.endpointKey)",
+            "@AppStorage(EnchantedSettingsStorage.systemPromptKey)",
+            "@AppStorage(EnchantedSettingsStorage.bearerTokenKey)",
+            "@AppStorage(EnchantedSettingsStorage.pingIntervalKey)",
             "EnchantedCopy.defaultEndpoint",
             "EnchantedCopy.appTitle",
             "EnchantedCopy.sidebarSubtitle",
+            "EnchantedCopy.quillSectionTitle",
             "EnchantedCopy.endpointLabel",
+            "EnchantedCopy.systemPromptLabel",
+            "EnchantedCopy.bearerTokenLabel",
+            "EnchantedCopy.pingIntervalLabel",
             "EnchantedCopy.modelLabel",
             "EnchantedCopy.noModelsTitle",
             "EnchantedCopy.chooseLocalModelStatus",
@@ -701,6 +729,11 @@ struct CoreContractMatrixTests {
             ".keyboardShortcut(\"n\", modifiers: .command)",
             "enchantedSystemImageName(EnchantedIcon.editMessage)",
             "Image(systemName: enchantedSystemImageName(model.isLoading ? EnchantedIcon.stop : EnchantedIcon.send))",
+            "TextEditor(text: $systemPrompt)",
+            "TextField(EnchantedCopy.bearerTokenLabel, text: $bearerToken)",
+            "TextField(EnchantedSettingsStorage.defaultPingInterval, text: $pingInterval)",
+            ".confirmationDialog(",
+            "EnchantedCopy.deleteAllConversationsConfirmationTitle",
             "Color(hex: EnchantedPalette.canvasColor)",
             "Color(hex: EnchantedPalette.sidebarColor)",
             "Color(hex: EnchantedPalette.headerColor)",
@@ -720,6 +753,7 @@ struct CoreContractMatrixTests {
             "EnchantedVisualMetrics.sidebarSpacing",
             "EnchantedVisualMetrics.sidebarTitleSpacing",
             "EnchantedVisualMetrics.sidebarControlGroupSpacing",
+            "EnchantedVisualMetrics.systemPromptEditorMinHeight",
             "EnchantedVisualMetrics.headerPadding",
             "EnchantedVisualMetrics.headerSpacing",
             "EnchantedVisualMetrics.headerTitleSpacing",
@@ -1386,6 +1420,7 @@ struct CoreContractMatrixTests {
         expectContains(sharedPrompts, "public static let sidebarSpacing = 14")
         expectContains(sharedPrompts, "public static let sidebarTitleSpacing = 4")
         expectContains(sharedPrompts, "public static let sidebarControlGroupSpacing = 7")
+        expectContains(sharedPrompts, "public static let systemPromptEditorMinHeight = 100")
         expectContains(sharedPrompts, "public static let statusRowSpacing = 8")
         expectContains(sharedPrompts, "public static let statusTextWidth = 240")
         expectContains(sharedPrompts, "public static let statusDotSize = 9")
@@ -2410,6 +2445,9 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, "private var sendActionTitle: String")
         expectContains(macOSRootView, "Text(sendActionTitle)")
         expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.endpointLabel)")
+        expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.systemPromptLabel)")
+        expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.bearerTokenLabel)")
+        expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.pingIntervalLabel)")
         expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.modelLabel)")
         expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.attachmentPlaceholder)")
         expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.composerPlaceholder)")

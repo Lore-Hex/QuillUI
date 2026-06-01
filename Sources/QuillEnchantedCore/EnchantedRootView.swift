@@ -20,6 +20,13 @@ private enum EnchantedSidebarPanel: Hashable {
         }
     }
 
+    var headingTitle: String {
+        switch self {
+        case .settings: return EnchantedCopy.quillSectionTitle
+        default: return title
+        }
+    }
+
     var subtitle: String {
         switch self {
         case .completions: return EnchantedCopy.completionsPanelSubtitle
@@ -40,8 +47,12 @@ private enum EnchantedSidebarPanel: Hashable {
 @MainActor
 public struct EnchantedRootView: View {
     @StateObject private var model = EnchantedModel()
-    @AppStorage("quill.enchanted.ollamaEndpoint") private var endpoint = EnchantedCopy.defaultEndpoint
+    @AppStorage(EnchantedSettingsStorage.endpointKey) private var endpoint = EnchantedCopy.defaultEndpoint
+    @AppStorage(EnchantedSettingsStorage.systemPromptKey) private var systemPrompt = EnchantedSettingsStorage.defaultSystemPrompt
+    @AppStorage(EnchantedSettingsStorage.bearerTokenKey) private var bearerToken = EnchantedSettingsStorage.defaultBearerToken
+    @AppStorage(EnchantedSettingsStorage.pingIntervalKey) private var pingInterval = EnchantedSettingsStorage.defaultPingInterval
     @State private var activePanel: EnchantedSidebarPanel?
+    @State private var showingDeleteAllConversationsDialog = false
 
     public init() {}
 
@@ -66,10 +77,35 @@ public struct EnchantedRootView: View {
 
             let finalView = content
                 .onAppear {
-                    model.boot(endpoint: endpoint)
+                    model.boot(
+                        endpoint: endpoint,
+                        systemPrompt: systemPrompt,
+                        bearerToken: bearerToken,
+                        pingInterval: pingInterval
+                    )
                 }
                 .onChange(of: endpoint) { _, value in
                     model.configureEndpoint(value)
+                }
+                .onChange(of: systemPrompt) { _, value in
+                    model.configureSystemPrompt(value)
+                }
+                .onChange(of: bearerToken) { _, value in
+                    model.configureBearerToken(value)
+                }
+                .onChange(of: pingInterval) { _, value in
+                    model.configurePingInterval(value)
+                }
+                .confirmationDialog(
+                    EnchantedCopy.deleteAllConversationsConfirmationTitle,
+                    isPresented: $showingDeleteAllConversationsDialog
+                ) {
+                    Button(EnchantedCopy.deleteAllConversationsConfirmTitle, role: .destructive) {
+                        model.deleteAllConversations()
+                    }
+                    Button(EnchantedCopy.cancelTitle, role: .cancel) {}
+                } message: {
+                    Text(EnchantedCopy.deleteAllConversationsConfirmationTitle)
                 }
 
             if useReferenceSize {
@@ -163,7 +199,7 @@ public struct EnchantedRootView: View {
     @ViewBuilder
     private func sidebarPanelView(_ panel: EnchantedSidebarPanel) -> some View {
         VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.emptyStateHeaderSpacing)) {
-            Text(panel.title)
+            Text(panel.headingTitle)
                 .font(.system(size: CGFloat(EnchantedTypography.currentTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.currentTitleFontWeight)))
                 .foregroundColor(QuillColors.ink)
             Text(panel.subtitle)
@@ -180,6 +216,37 @@ public struct EnchantedRootView: View {
                         .help(EnchantedCopy.endpointLabel)
                 }
 
+                VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
+                    Text(EnchantedCopy.systemPromptLabel)
+                        .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
+                        .foregroundColor(QuillColors.muted)
+                    TextEditor(text: $systemPrompt)
+                        .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
+                        .frame(minHeight: CGFloat(EnchantedVisualMetrics.systemPromptEditorMinHeight))
+                        .accessibilityLabel(EnchantedCopy.systemPromptLabel)
+                        .help(EnchantedCopy.systemPromptLabel)
+                }
+
+                VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
+                    Text(EnchantedCopy.bearerTokenLabel)
+                        .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
+                        .foregroundColor(QuillColors.muted)
+                    TextField(EnchantedCopy.bearerTokenLabel, text: $bearerToken)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(EnchantedCopy.bearerTokenLabel)
+                        .help(EnchantedCopy.bearerTokenLabel)
+                }
+
+                VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
+                    Text(EnchantedCopy.pingIntervalLabel)
+                        .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
+                        .foregroundColor(QuillColors.muted)
+                    TextField(EnchantedSettingsStorage.defaultPingInterval, text: $pingInterval)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(EnchantedCopy.pingIntervalLabel)
+                        .help(EnchantedCopy.pingIntervalLabel)
+                }
+
                 HStack(spacing: CGFloat(EnchantedVisualMetrics.statusRowSpacing)) {
                     statusDot
                     Text(model.status)
@@ -192,7 +259,7 @@ public struct EnchantedRootView: View {
                 .help(model.status)
 
                 Button {
-                    model.deleteAllConversations()
+                    showingDeleteAllConversationsDialog = true
                 } label: {
                     HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
                         Image(systemName: enchantedSystemImageName(EnchantedIcon.clearAll))

@@ -39,18 +39,20 @@ public enum OllamaClientError: Error, CustomStringConvertible, LocalizedError, S
 
 public struct OllamaClient: Sendable {
     private let baseURL: URL
+    private let bearerToken: String?
 
-    public init(baseURL: String) throws {
+    public init(baseURL: String, bearerToken: String? = nil) throws {
         let normalized = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
         guard let url = URL(string: normalized), url.scheme != nil, url.host != nil else {
             throw OllamaClientError.invalidBaseURL(baseURL)
         }
         self.baseURL = url
+        self.bearerToken = bearerToken?.quillTrimmedNonEmpty
     }
 
     public func fetchModels() async throws -> [OllamaModel] {
-        let url = baseURL.appendingPathComponent("api/tags")
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let request = makeFetchModelsRequest()
+        let (data, response) = try await URLSession.shared.data(for: request)
         try validate(response: response, data: data)
         let decoded = try JSONDecoder().decode(TagsResponse.self, from: data)
         return decoded.models
@@ -58,20 +60,18 @@ public struct OllamaClient: Sendable {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    public func chat(model: String, messages: [ChatMessage], imagesForLastUserMessage: [String] = []) async throws -> String {
-        guard model.quillTrimmedNonEmpty != nil else {
-            throw OllamaClientError.noModelSelected
-        }
-
-        var request = URLRequest(url: baseURL.appendingPathComponent("api/chat"))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(
-            ChatRequest(
-                model: model,
-                messages: apiMessages(from: messages, imagesForLastUserMessage: imagesForLastUserMessage),
-                stream: false
-            )
+    public func chat(
+        model: String,
+        messages: [ChatMessage],
+        imagesForLastUserMessage: [String] = [],
+        systemPrompt: String = ""
+    ) async throws -> String {
+        let request = try makeChatRequest(
+            model: model,
+            messages: messages,
+            imagesForLastUserMessage: imagesForLastUserMessage,
+            systemPrompt: systemPrompt,
+            stream: false
         )
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -82,20 +82,18 @@ public struct OllamaClient: Sendable {
     public func streamChat(
         model: String,
         messages: [ChatMessage],
-        imagesForLastUserMessage: [String] = []
+        imagesForLastUserMessage: [String] = [],
+        systemPrompt: String = ""
     ) throws -> AsyncThrowingStream<String, Error> {
-        guard model.quillTrimmedNonEmpty != nil else {
-            throw OllamaClientError.noModelSelected
-        }
-
-        let requestBody = try JSONEncoder().encode(
-            ChatRequest(
-                model: model,
-                messages: apiMessages(from: messages, imagesForLastUserMessage: imagesForLastUserMessage),
-                stream: true
-            )
+        let request = try makeChatRequest(
+            model: model,
+            messages: messages,
+            imagesForLastUserMessage: imagesForLastUserMessage,
+            systemPrompt: systemPrompt,
+            stream: true
         )
-        let requestURL = baseURL.appendingPathComponent("api/chat")
+        let requestBody = request.httpBody ?? Data()
+        let requestURL = request.url ?? baseURL.appendingPathComponent("api/chat")
         let requestFileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("quillui-ollama-\(UUID().uuidString)")
             .appendingPathExtension("json")
@@ -107,6 +105,7 @@ public struct OllamaClient: Sendable {
                     try runCurlStream(
                         requestURL: requestURL,
                         requestFileURL: requestFileURL,
+                        bearerToken: bearerToken,
                         continuation: continuation
                     )
                 } catch {
@@ -115,6 +114,41 @@ public struct OllamaClient: Sendable {
                 }
             }
         }
+    }
+
+    public func makeFetchModelsRequest() -> URLRequest {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/tags"))
+        applyAuthorizationHeader(to: &request)
+        return request
+    }
+
+    public func makeChatRequest(
+        model: String,
+        messages: [ChatMessage],
+        imagesForLastUserMessage: [String] = [],
+        systemPrompt: String = "",
+        stream: Bool
+    ) throws -> URLRequest {
+        guard model.quillTrimmedNonEmpty != nil else {
+            throw OllamaClientError.noModelSelected
+        }
+
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/chat"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAuthorizationHeader(to: &request)
+        request.httpBody = try JSONEncoder().encode(
+            ChatRequest(
+                model: model,
+                messages: apiMessages(
+                    from: messages,
+                    imagesForLastUserMessage: imagesForLastUserMessage,
+                    systemPrompt: systemPrompt
+                ),
+                stream: stream
+            )
+        )
+        return request
     }
 
     private func validate(response: URLResponse, data: Data) throws {
@@ -126,9 +160,23 @@ public struct OllamaClient: Sendable {
         }
     }
 
-    private func apiMessages(from messages: [ChatMessage], imagesForLastUserMessage: [String]) -> [APIMessage] {
+    private func applyAuthorizationHeader(to request: inout URLRequest) {
+        guard let bearerToken else { return }
+        request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+    }
+
+    private func apiMessages(
+        from messages: [ChatMessage],
+        imagesForLastUserMessage: [String],
+        systemPrompt: String
+    ) -> [APIMessage] {
         var apiMessages = messages.map {
             APIMessage(role: $0.role.rawValue, content: $0.content)
+        }
+
+        if let prompt = systemPrompt.quillTrimmedNonEmpty,
+           !apiMessages.contains(where: { $0.role == ChatRole.system.rawValue }) {
+            apiMessages.insert(APIMessage(role: ChatRole.system.rawValue, content: prompt), at: 0)
         }
 
         if !imagesForLastUserMessage.isEmpty,
@@ -180,6 +228,7 @@ private func ollamaLog(_ message: @autoclosure () -> String) {
 private func runCurlStream(
     requestURL: URL,
     requestFileURL: URL,
+    bearerToken: String?,
     continuation: AsyncThrowingStream<String, Error>.Continuation
 ) throws {
     guard let curlURL = locateCurlExecutable() else {
@@ -191,7 +240,7 @@ private func runCurlStream(
 
     let process = Process()
     process.executableURL = curlURL
-    process.arguments = [
+    var arguments = [
         "--no-buffer",
         "--silent",
         "--show-error",
@@ -206,7 +255,15 @@ private func runCurlStream(
         "--data-binary", "@\(requestFileURL.path)",
         requestURL.absoluteString,
     ]
-    ollamaLog("streamChat → \(curlURL.path) \(process.arguments?.joined(separator: " ") ?? "")")
+    if let bearerToken {
+        arguments.insert(contentsOf: ["--header", "Authorization: Bearer \(bearerToken)"], at: arguments.count - 1)
+    }
+    process.arguments = arguments
+
+    let loggedArguments = arguments.map {
+        $0.hasPrefix("Authorization: Bearer ") ? "Authorization: Bearer <redacted>" : $0
+    }
+    ollamaLog("streamChat → \(curlURL.path) \(loggedArguments.joined(separator: " "))")
 
     let stdout = Pipe()
     let stderr = Pipe()
