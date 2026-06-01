@@ -1,4 +1,5 @@
 import Foundation
+import QuillEnchantedData
 import QuillFoundation
 
 public struct EnchantedPrompt: Codable, Equatable, Hashable, Sendable {
@@ -142,6 +143,10 @@ public enum EnchantedCopy {
 
     public static let conversationsTitle = "Conversations"
     public static let deleteChatTitle = "Delete chat"
+    public static let deleteDailyConversationsTitle = "Delete daily conversations"
+    public static let todayTitle = "Today"
+    public static let yesterdayTitle = "Yesterday"
+    public static let daysAgoSuffix = "days ago"
     public static let clearAllTitle = "Clear all"
     public static let copyChatTitle = "Copy Chat"
     public static let copyChatAsJSONTitle = "Copy Chat as JSON"
@@ -252,6 +257,51 @@ public enum EnchantedCopy {
 
     public static func couldNotUpdateHistoryStatus(_ message: String) -> String {
         "Could not update history: \(message)"
+    }
+}
+
+public struct EnchantedConversationDayGroup: Identifiable, Hashable, Sendable {
+    public var id: Date { date }
+    public var date: Date
+    public var conversations: [ConversationSummary]
+
+    public init(date: Date, conversations: [ConversationSummary]) {
+        self.date = date
+        self.conversations = conversations
+    }
+}
+
+public enum EnchantedConversationHistory {
+    public static func groups(
+        conversations: [ConversationSummary],
+        calendar: Calendar = .current
+    ) -> [EnchantedConversationDayGroup] {
+        Dictionary(grouping: conversations) { conversation in
+            calendar.startOfDay(for: conversation.updatedAt)
+        }
+        .map { date, conversations in
+            EnchantedConversationDayGroup(date: date, conversations: conversations)
+        }
+        .sorted { $0.date > $1.date }
+    }
+
+    public static func relativeDayTitle(
+        for date: Date,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> String {
+        let day = calendar.startOfDay(for: date)
+        let referenceDay = calendar.startOfDay(for: referenceDate)
+        let daysAgo = calendar.dateComponents([.day], from: day, to: referenceDay).day ?? 0
+
+        switch daysAgo {
+        case ...0:
+            return EnchantedCopy.todayTitle
+        case 1:
+            return EnchantedCopy.yesterdayTitle
+        default:
+            return "\(daysAgo) \(EnchantedCopy.daysAgoSuffix)"
+        }
     }
 }
 
@@ -500,6 +550,7 @@ public enum EnchantedVisualMetrics {
     public static let conversationRowPadding = 11
     public static let conversationRowSpacing = 5
     public static let conversationRowRadius = 8
+    public static let conversationDayGroupSpacing = 17
     public static let conversationListItemRadius = 8
     public static let conversationListItemVerticalMargin = 2
     public static let conversationListItemPadding = 8
@@ -573,6 +624,8 @@ public enum EnchantedTypography {
     public static let attachmentSizeFontSize = 11
     public static let conversationTitleFontSize = 15
     public static let conversationTitleFontWeight = 700
+    public static let conversationDayHeaderFontSize = 14
+    public static let conversationDayHeaderFontWeight = 650
     public static let conversationPreviewFontSize = 12
     public static let warningTextFontSize = 12
     public static let chipRemoveButtonFontWeight = 700

@@ -120,6 +120,28 @@ public final class EnchantedModel: ObservableObject {
         deleteConversation(id: conversation.id)
     }
 
+    public func deleteDailyConversations(on day: Date, calendar: Calendar = .current) {
+        let ids = conversations
+            .filter { calendar.isDate($0.updatedAt, inSameDayAs: day) }
+            .map(\.id)
+        guard !ids.isEmpty else { return }
+
+        do {
+            let modelContext = try requireModelContext()
+            for id in ids {
+                try modelContext.deleteConversation(id: id)
+            }
+            reloadConversations()
+            if let selectedConversationID, ids.contains(selectedConversationID) {
+                self.selectedConversationID = conversations.first?.id
+                editingMessageID = nil
+                reloadMessages()
+            }
+        } catch {
+            status = EnchantedCopy.couldNotDeleteConversationStatus(error.localizedDescription)
+        }
+    }
+
     public func selectModel(named modelName: String?) {
         selectedModel = modelName ?? ""
         discardUnsupportedImageAttachmentsIfNeeded()

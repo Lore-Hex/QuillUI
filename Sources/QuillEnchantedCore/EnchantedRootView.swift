@@ -112,18 +112,15 @@ public struct EnchantedRootView: View {
             if !model.conversations.isEmpty {
                 Divider()
 
-                Text(EnchantedCopy.conversationsTitle)
-                    .font(.system(size: CGFloat(EnchantedTypography.sectionTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.sectionTitleFontWeight)))
-                    .foregroundColor(QuillColors.ink)
-
                 ScrollView {
-                    VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.conversationListSpacing)) {
-                        ForEach(model.conversations) { conversation in
-                            ConversationRow(
-                                conversation: conversation,
-                                isSelected: conversation.id == model.selectedConversationID,
-                                action: { model.select(conversation) },
-                                delete: { model.delete(conversation) }
+                    VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.conversationDayGroupSpacing)) {
+                        ForEach(EnchantedConversationHistory.groups(conversations: model.conversations)) { group in
+                            ConversationHistorySection(
+                                group: group,
+                                selectedConversationID: model.selectedConversationID,
+                                select: { conversation in model.select(conversation) },
+                                delete: { conversation in model.delete(conversation) },
+                                deleteDailyConversations: { date in model.deleteDailyConversations(on: date) }
                             )
                         }
                     }
@@ -589,6 +586,48 @@ private struct ConversationRow: View {
 
     private var accessibilitySummary: String {
         conversation.lastMessage.isEmpty ? conversation.title : "\(conversation.title)\n\(conversation.lastMessage)"
+    }
+}
+
+private struct ConversationHistorySection: View {
+    var group: EnchantedConversationDayGroup
+    var selectedConversationID: String?
+    var select: (ConversationSummary) -> Void
+    var delete: (ConversationSummary) -> Void
+    var deleteDailyConversations: (Date) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.conversationListSpacing)) {
+            HStack {
+                Text(EnchantedConversationHistory.relativeDayTitle(for: group.date))
+                    .font(.system(
+                        size: CGFloat(EnchantedTypography.conversationDayHeaderFontSize),
+                        weight: enchantedFontWeight(EnchantedTypography.conversationDayHeaderFontWeight)
+                    ))
+                    .foregroundColor(QuillColors.muted)
+
+                Spacer()
+            }
+            .contextMenu {
+                Button(role: .destructive, action: { deleteDailyConversations(group.date) }) {
+                    Label(
+                        EnchantedCopy.deleteDailyConversationsTitle,
+                        systemImage: enchantedSystemImageName(EnchantedIcon.deleteChat)
+                    )
+                }
+            }
+
+            ForEach(group.conversations) { conversation in
+                ConversationRow(
+                    conversation: conversation,
+                    isSelected: conversation.id == selectedConversationID,
+                    action: { select(conversation) },
+                    delete: { delete(conversation) }
+                )
+            }
+
+            Divider()
+        }
     }
 }
 
