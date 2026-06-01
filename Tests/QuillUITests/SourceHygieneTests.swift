@@ -1226,7 +1226,7 @@ struct SourceHygieneTests {
         #expect(!enchantedQtHost.contains("if (!previewText.isEmpty())"))
         #expect(enchantedQtHost.contains("QFrame *selectionDot = QuillQtWidgets::frame(QStringLiteral(\"conversationSelectionDot\"))"))
         #expect(enchantedQtHost.contains("selectionDot->setVisible(isSelected)"))
-        #expect(enchantedQtHost.contains("preview->setToolTip(rowSummary);\n        preview->setStatusTip(rowSummary)"))
+        #expect(!enchantedQtHost.contains("QLabel *preview = label(previewText"))
         #expect(enchantedQtHost.contains("QWidget *rowWidget = conversationRowWidget("))
         #expect(enchantedQtHost.contains("const QSize rowSizeHint = rowWidget->sizeHint()"))
         #expect(enchantedQtHost.contains("item->setSizeHint(QSize(0, rowSizeHint.height()))"))
