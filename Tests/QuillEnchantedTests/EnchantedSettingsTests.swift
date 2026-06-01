@@ -17,14 +17,53 @@ struct EnchantedSettingsTests {
             endpoint: "https://quill.local.lorehex.co",
             systemPrompt: "Answer tersely.",
             bearerToken: "local-key",
-            pingInterval: "15"
+            pingInterval: "15",
+            appearance: .dark,
+            userInitials: "LH"
         )
         stored.save(to: defaults)
 
         #expect(defaults.string(forKey: EnchantedSettingsStorage.systemPromptKey) == "Answer tersely.")
         #expect(defaults.string(forKey: EnchantedSettingsStorage.bearerTokenKey) == "local-key")
         #expect(defaults.string(forKey: EnchantedSettingsStorage.pingIntervalKey) == "15")
+        #expect(defaults.string(forKey: EnchantedSettingsStorage.appearanceKey) == EnchantedAppearance.dark.rawValue)
+        #expect(defaults.string(forKey: EnchantedSettingsStorage.userInitialsKey) == "LH")
         #expect(EnchantedSettingsSnapshot.load(from: defaults) == stored)
+    }
+
+    @Test("appearance storage round-trips valid values and falls back to system")
+    func appearancePersistenceRoundTrip() throws {
+        let suiteName = "quill.enchanted.appearance.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(EnchantedSettingsSnapshot.load(from: defaults).appearance == .system)
+
+        defaults.set(EnchantedAppearance.light.rawValue, forKey: EnchantedSettingsStorage.appearanceKey)
+        #expect(EnchantedSettingsSnapshot.load(from: defaults).appearance == .light)
+
+        defaults.set("not-a-color-scheme", forKey: EnchantedSettingsStorage.appearanceKey)
+        #expect(EnchantedSettingsSnapshot.load(from: defaults).appearance == .system)
+    }
+
+    @Test("initials storage falls back to the shared default and preserves saved values")
+    func initialsPersistence() throws {
+        let suiteName = "quill.enchanted.initials.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(EnchantedSettingsSnapshot.load(from: defaults).userInitials == EnchantedSettingsStorage.defaultUserInitials)
+
+        defaults.set("JP", forKey: EnchantedSettingsStorage.userInitialsKey)
+        #expect(EnchantedSettingsSnapshot.load(from: defaults).userInitials == "JP")
+    }
+
+    @Test("appearance options expose upstream display strings and preferred color scheme mapping")
+    func appearancePreferredColorSchemeMapping() {
+        #expect(EnchantedAppearance.allCases.map(\.displayName) == ["System", "Light", "Dark"])
+        #expect(EnchantedAppearance.system.preferredColorScheme == nil)
+        #expect(EnchantedAppearance.light.preferredColorScheme == .light)
+        #expect(EnchantedAppearance.dark.preferredColorScheme == .dark)
     }
 
     @Test("ping interval parser defaults invalid values and disables non-positive values")

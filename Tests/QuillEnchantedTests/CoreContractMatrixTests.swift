@@ -311,7 +311,8 @@ struct CoreContractMatrixTests {
             "public static let stop = \"square.fill\"",
             "public static let copyMessage = \"doc.on.doc\"",
             "public static let editMessage = \"pencil\"",
-            "public static let removeAttachment = \"xmark.circle.fill\""
+            "public static let removeAttachment = \"xmark.circle.fill\"",
+            "public static let appearance = \"sun.max\""
         ] {
             expectContains(sharedPrompts, needle)
         }
@@ -324,6 +325,7 @@ struct CoreContractMatrixTests {
         #expect(EnchantedIcon.unavailableModel == "waveform")
         #expect(EnchantedIcon.copyMessage == "doc.on.doc")
         #expect(EnchantedIcon.editMessage == "pencil")
+        #expect(EnchantedIcon.appearance == "sun.max")
         #expect(EnchantedCopy.copyChatTitle == "Copy Chat")
         #expect(EnchantedCopy.copyChatAsJSONTitle == "Copy Chat as JSON")
         #expect(EnchantedCopy.copyMessageTitle == "Copy")
@@ -333,6 +335,9 @@ struct CoreContractMatrixTests {
         #expect(EnchantedCopy.todayTitle == "Today")
         #expect(EnchantedCopy.yesterdayTitle == "Yesterday")
         #expect(EnchantedCopy.daysAgoSuffix == "days ago")
+        #expect(EnchantedCopy.appearanceLabel == "Appearance")
+        #expect(EnchantedCopy.initialsLabel == "Initials")
+        #expect(EnchantedAppearance.allCases.map(\.displayName) == ["System", "Light", "Dark"])
 
         for needle in [
             "SidebarButton(title: \"Completions\", image: \"textformat.abc\"",
@@ -672,6 +677,13 @@ struct CoreContractMatrixTests {
         expectContains(shared, "public static let systemPromptLabel = \"System prompt\"")
         expectContains(shared, "public static let bearerTokenLabel = \"Bearer Token\"")
         expectContains(shared, "public static let pingIntervalLabel = \"Ping Interval (seconds)\"")
+        expectContains(shared, "public static let appSectionTitle = \"APP\"")
+        expectContains(shared, "public static let appearanceLabel = \"Appearance\"")
+        expectContains(shared, "public static let appearanceSystemOption = \"System\"")
+        expectContains(shared, "public static let appearanceLightOption = \"Light\"")
+        expectContains(shared, "public static let appearanceDarkOption = \"Dark\"")
+        expectContains(shared, "public static let initialsLabel = \"Initials\"")
+        expectContains(shared, "public static let defaultUserInitials = \"Q\"")
         expectContains(shared, "public static let clearAllTitle = \"Clear All Data\"")
         expectContains(shared, "public static let deleteAllConversationsConfirmationTitle = \"Delete All Conversations?\"")
         expectContains(shared, "public static let copyChatTitle = \"Copy Chat\"")
@@ -682,6 +694,11 @@ struct CoreContractMatrixTests {
         expectContains(shared, "public static let copyMessage = \"doc.on.doc\"")
         expectContains(shared, "public static let editMessage = \"pencil\"")
         expectContains(shared, "public enum EnchantedSettingsStorage")
+        expectContains(shared, "public static let appearanceKey = \"quill.enchanted.colorScheme\"")
+        expectContains(shared, "public static let userInitialsKey = \"quill.enchanted.appUserInitials\"")
+        expectContains(shared, "public static let defaultAppearance = EnchantedAppearance.system")
+        expectContains(shared, "public static let defaultUserInitials = EnchantedCopy.defaultUserInitials")
+        expectContains(shared, "public enum EnchantedAppearance")
         expectContains(shared, "public enum EnchantedPingInterval")
         expectDoesNotContain(shared, "public static let endpointLabel = \"Ollama endpoint\"")
         expectDoesNotContain(shared, "public static let clearAllTitle = \"Clear all\"")
@@ -696,6 +713,8 @@ struct CoreContractMatrixTests {
             "@AppStorage(EnchantedSettingsStorage.systemPromptKey)",
             "@AppStorage(EnchantedSettingsStorage.bearerTokenKey)",
             "@AppStorage(EnchantedSettingsStorage.pingIntervalKey)",
+            "@AppStorage(EnchantedSettingsStorage.appearanceKey)",
+            "@AppStorage(EnchantedSettingsStorage.userInitialsKey)",
             "EnchantedCopy.defaultEndpoint",
             "EnchantedCopy.appTitle",
             "EnchantedCopy.sidebarSubtitle",
@@ -704,6 +723,10 @@ struct CoreContractMatrixTests {
             "EnchantedCopy.systemPromptLabel",
             "EnchantedCopy.bearerTokenLabel",
             "EnchantedCopy.pingIntervalLabel",
+            "EnchantedCopy.appSectionTitle",
+            "EnchantedCopy.appearanceLabel",
+            "EnchantedCopy.initialsLabel",
+            ".preferredColorScheme(appearance.preferredColorScheme)",
             "EnchantedCopy.modelLabel",
             "EnchantedCopy.noModelsTitle",
             "EnchantedCopy.chooseLocalModelStatus",
@@ -732,6 +755,9 @@ struct CoreContractMatrixTests {
             "TextEditor(text: $systemPrompt)",
             "TextField(EnchantedCopy.bearerTokenLabel, text: $bearerToken)",
             "TextField(EnchantedSettingsStorage.defaultPingInterval, text: $pingInterval)",
+            "ForEach(EnchantedAppearance.allCases, id: \\.self)",
+            "TextField(EnchantedCopy.initialsLabel, text: $userInitials)",
+            "userInitials: userInitials",
             ".confirmationDialog(",
             "EnchantedCopy.deleteAllConversationsConfirmationTitle",
             "Color(hex: EnchantedPalette.canvasColor)",
@@ -2448,6 +2474,8 @@ struct CoreContractMatrixTests {
         expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.systemPromptLabel)")
         expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.bearerTokenLabel)")
         expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.pingIntervalLabel)")
+        expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.appearanceLabel)")
+        expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.initialsLabel)")
         expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.modelLabel)")
         expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.attachmentPlaceholder)")
         expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.composerPlaceholder)")

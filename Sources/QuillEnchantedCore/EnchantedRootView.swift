@@ -9,6 +9,19 @@ private func enchantedSystemImageName(_ systemImage: String) -> String {
     QuillSystemSymbol.compatibleName(systemImage)
 }
 
+public extension EnchantedAppearance {
+    var preferredColorScheme: ColorScheme? {
+        switch self {
+        case .system:
+            return nil
+        case .light:
+            return .light
+        case .dark:
+            return .dark
+        }
+    }
+}
+
 private enum EnchantedSidebarPanel: Hashable {
     case completions, shortcuts, settings
 
@@ -51,6 +64,8 @@ public struct EnchantedRootView: View {
     @AppStorage(EnchantedSettingsStorage.systemPromptKey) private var systemPrompt = EnchantedSettingsStorage.defaultSystemPrompt
     @AppStorage(EnchantedSettingsStorage.bearerTokenKey) private var bearerToken = EnchantedSettingsStorage.defaultBearerToken
     @AppStorage(EnchantedSettingsStorage.pingIntervalKey) private var pingInterval = EnchantedSettingsStorage.defaultPingInterval
+    @AppStorage(EnchantedSettingsStorage.appearanceKey) private var appearance = EnchantedSettingsStorage.defaultAppearance
+    @AppStorage(EnchantedSettingsStorage.userInitialsKey) private var userInitials = EnchantedSettingsStorage.defaultUserInitials
     @State private var activePanel: EnchantedSidebarPanel?
     @State private var showingDeleteAllConversationsDialog = false
 
@@ -76,6 +91,7 @@ public struct EnchantedRootView: View {
             .font(.system(size: CGFloat(EnchantedTypography.rootFontSize)))
 
             let finalView = content
+                .preferredColorScheme(appearance.preferredColorScheme)
                 .onAppear {
                     model.boot(
                         endpoint: endpoint,
@@ -258,6 +274,33 @@ public struct EnchantedRootView: View {
                 .accessibilityLabel(model.status)
                 .help(model.status)
 
+                Text(EnchantedCopy.appSectionTitle)
+                    .font(.system(size: CGFloat(EnchantedTypography.sectionTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.sectionTitleFontWeight)))
+                    .foregroundColor(QuillColors.ink)
+
+                Picker(selection: $appearance) {
+                    ForEach(EnchantedAppearance.allCases, id: \.self) { option in
+                        Text(option.displayName).tag(option)
+                    }
+                } label: {
+                    Label(
+                        EnchantedCopy.appearanceLabel,
+                        systemImage: enchantedSystemImageName(EnchantedIcon.appearance)
+                    )
+                }
+                .accessibilityLabel(EnchantedCopy.appearanceLabel)
+                .help(EnchantedCopy.appearanceLabel)
+
+                VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.sidebarControlGroupSpacing)) {
+                    Text(EnchantedCopy.initialsLabel)
+                        .font(.system(size: CGFloat(EnchantedTypography.captionFontSize)))
+                        .foregroundColor(QuillColors.muted)
+                    TextField(EnchantedCopy.initialsLabel, text: $userInitials)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(EnchantedCopy.initialsLabel)
+                        .help(EnchantedCopy.initialsLabel)
+                }
+
                 Button {
                     showingDeleteAllConversationsDialog = true
                 } label: {
@@ -302,6 +345,7 @@ public struct EnchantedRootView: View {
                         ForEach(model.messages) { message in
                             MessageBubble(
                                 message: message,
+                                userInitials: userInitials,
                                 isEditing: message.id == model.editingMessageID,
                                 editMessage: { message in
                                     model.editMessage(message)
@@ -748,6 +792,7 @@ private struct EmptyConversationView: View {
 
 private struct MessageBubble: View {
     var message: ChatMessage
+    var userInitials: String
     var isEditing: Bool
     var editMessage: (ChatMessage) -> Void
     var cancelEdit: () -> Void
@@ -830,7 +875,8 @@ private struct MessageBubble: View {
     private var label: String {
         switch message.role {
         case .user:
-            return EnchantedCopy.userRoleLabel
+            let trimmedInitials = userInitials.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmedInitials.isEmpty ? EnchantedSettingsStorage.defaultUserInitials : trimmedInitials
         case .assistant:
             return EnchantedCopy.assistantRoleLabel
         case .system:
