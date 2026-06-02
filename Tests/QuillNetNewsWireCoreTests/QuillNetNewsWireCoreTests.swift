@@ -634,4 +634,68 @@ struct QuillNetNewsWireCoreTests {
         #expect(added == 0)
         #expect(model.subscribedFeeds.count == 2)
     }
+
+    // MARK: - Search / filter
+
+    @MainActor
+    @Test("RSSReaderModel.filteredRows == rows when searchQuery is empty")
+    func searchEmptyQueryReturnsAllRows() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        #expect(model.searchQuery.isEmpty)
+        #expect(model.filteredRows.map(\.id) == model.rows.map(\.id))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.filteredRows matches case-insensitively on title")
+    func searchMatchesTitleCaseInsensitive() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.searchQuery = "SWIFT"
+        let ids = model.filteredRows.map(\.id)
+        // Fixture "3" is the Swift.org toolchain article.
+        #expect(ids == ["3"])
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.filteredRows matches against article body too")
+    func searchMatchesBody() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.searchQuery = "second"
+        // Fixture "2" body: 'Body of the second fixture article.'
+        #expect(model.filteredRows.map(\.id) == ["2"])
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.filteredRows returns empty when no match")
+    func searchEmptyOnNoMatch() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.searchQuery = "zzz-nothing-matches"
+        #expect(model.filteredRows.isEmpty)
+        #expect(model.statusText.contains("0 matching"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.searchQuery trims whitespace for both filter + status")
+    func searchTrimsWhitespace() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.searchQuery = "   "
+        // Whitespace-only is treated as empty: full timeline, unread-flavored status.
+        #expect(model.filteredRows.map(\.id) == model.rows.map(\.id))
+        #expect(model.statusText.contains("unread"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.statusText surfaces matching count when filter is active")
+    func searchStatusTextShowsMatching() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.searchQuery = "Profile"  // matches title prefix of fixtures 1 and 2
+        let matching = model.filteredRows.count
+        #expect(matching >= 1)
+        #expect(model.statusText == "\(matching) matching · \(model.items.count) items")
+    }
 }

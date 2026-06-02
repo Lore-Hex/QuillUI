@@ -124,6 +124,14 @@ public struct QuillNetNewsWireContentView: View {
             }
             .padding(14)
 
+            // Live timeline filter. Bound directly to model.searchQuery
+            // so onChange isn't needed — filteredRows is a computed
+            // view that re-evaluates whenever items or searchQuery
+            // emit a @Published change.
+            TextField("Search articles", text: $model.searchQuery)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
+
             if let error = model.error {
                 Text(error)
                     .font(.caption)
@@ -133,7 +141,7 @@ public struct QuillNetNewsWireContentView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(model.rows) { item in
+                    ForEach(model.filteredRows) { item in
                         articleRow(item)
                             .onTapGesture {
                                 model.selectItem(id: item.id)
@@ -424,6 +432,15 @@ final class RSSReaderModel: ObservableObject {
     /// star toggle in the detail header.
     @Published private(set) var starredArticleIDs: Set<String> = []
 
+    /// Live search query bound to the timeline filter field.
+    /// Empty string → no filter (filteredRows == rows). Matching
+    /// is case-insensitive and runs against the article title
+    /// and the plain-text body — same coverage as upstream
+    /// NetNewsWire's timeline search.
+    @Published var searchQuery: String = "" {
+        didSet { updateStatusText() }
+    }
+
     /// Multi-feed subscription list. Single-feed callers can
     /// ignore this and keep using `fetch(urlString:)` directly;
     /// the three-pane sidebar iteration will drive selection
@@ -627,6 +644,28 @@ final class RSSReaderModel: ObservableObject {
         }
     }
 
+    /// Items in the current timeline that match the active search
+    /// query (case-insensitive title or plain-text body match).
+    /// When searchQuery is empty, returns the full items list.
+    var filteredItems: [RSSItem] {
+        let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return items }
+        let needle = trimmed.lowercased()
+        return items.filter { item in
+            if item.title.lowercased().contains(needle) { return true }
+            if item.plainTextBody.lowercased().contains(needle) { return true }
+            return false
+        }
+    }
+
+    /// Row projection of `filteredItems` for the timeline view to
+    /// render. Kept as a computed (rather than a stored @Published
+    /// shadow) so the search filter doesn't require a parallel
+    /// invalidation path for every items / searchQuery change.
+    var filteredRows: [RSSArticleRow] {
+        filteredItems.map(RSSArticleRow.init(item:))
+    }
+
     /// Number of items currently loaded that the user has not yet
     /// read. Excludes items from feeds not currently fetched (read
     /// status is global, but the count is per loaded timeline).
@@ -660,6 +699,9 @@ final class RSSReaderModel: ObservableObject {
             nextStatusText = "Fetching feed…"
         } else if let error {
             nextStatusText = "Error: \(error)"
+        } else if !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let matching = filteredItems.count
+            nextStatusText = "\(matching) matching · \(items.count) items"
         } else {
             let unread = unreadCount
             if unread == 0 {
