@@ -986,12 +986,14 @@ public struct QuillNetNewsWireContentView: View {
                             .font(.title2)
                         }
                         // In cross-feed contexts (smart feed /
-                        // search) surface the source feed name
-                        // under the title — matches upstream
-                        // NetNewsWire's detail-pane breadcrumb so
-                        // users know which feed they're reading
-                        // without flipping back to the timeline.
+                        // search / folder view) surface the
+                        // source feed name under the title —
+                        // matches upstream NetNewsWire's detail-
+                        // pane breadcrumb so users know which
+                        // feed they're reading without flipping
+                        // back to the timeline.
                         if (model.selectedSmartFeed != nil ||
+                            model.selectedFolderName != nil ||
                             !model.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty),
                             let sourceFeed = model.feedTitle(forItemID: item.id) {
                             Text(sourceFeed)
@@ -3217,7 +3219,9 @@ final class RSSReaderModel: ObservableObject {
             // the row when markRead flips its bit. In default
             // active-feed view the article stays visible naturally.
             let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-            let isCrossFeedView = selectedSmartFeed != nil || !trimmedQuery.isEmpty
+            let isCrossFeedView = selectedSmartFeed != nil
+                || selectedFolderName != nil
+                || !trimmedQuery.isEmpty
             if isCrossFeedView {
                 sessionStickyVisibleIDs.insert(id)
             }
@@ -4355,7 +4359,12 @@ final class RSSReaderModel: ObservableObject {
     /// the feed, repeating it per-row is noise).
     var filteredRows: [RSSArticleRow] {
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        let crossFeed = selectedSmartFeed != nil || !trimmed.isEmpty
+        // Folder view is cross-feed too — label rows with their
+        // source feed so the user can tell which feed each
+        // article came from inside the folder pool.
+        let crossFeed = selectedSmartFeed != nil
+            || selectedFolderName != nil
+            || !trimmed.isEmpty
         guard crossFeed else {
             return filteredItems.map { item in
                 RSSArticleRow(

@@ -4144,6 +4144,31 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("filteredRows labels per-row source feed in folder view")
+    func filteredRowsLabelInFolderView() {
+        let feedA = Feed(title: "Alpha", url: "https://a.test/feed")
+        let feedB = Feed(title: "Bravo", url: "https://b.test/feed")
+        let model = RSSReaderModel(subscribedFeeds: [feedA, feedB])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [feedA, feedB], subfolders: [])]
+        )
+        model.items = [
+            RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "Y", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        model.selectFolder("Tech")
+        let byID = Dictionary(uniqueKeysWithValues: model.filteredRows.map { ($0.id, $0.feedTitle) })
+        // Source-feed labels populated in folder view, matching
+        // smart-feed cross-feed behavior (#71).
+        #expect(byID["a1"] == "Alpha")
+        #expect(byID["b1"] == "Bravo")
+    }
+
+    @MainActor
     @Test("selectFolder switches filteredItems to the folder's union")
     func selectFolderScopesFilteredItems() {
         let feedA = Feed(title: "A", url: "https://a.test/feed")
