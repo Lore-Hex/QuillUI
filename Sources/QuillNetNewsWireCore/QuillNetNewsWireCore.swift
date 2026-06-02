@@ -267,6 +267,43 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
     }
 }
 
+/// A subscribed feed: just enough metadata to drive a sidebar
+/// row + an URL the reader can fetch on selection. Upstream
+/// NetNewsWire's `Account`/`Feed` model carries far more (sync
+/// state, folder hierarchy, favicon, settings, etc.); this
+/// type is the minimum slice that lets the Quill reader hold
+/// more than one subscription. Future iterations grow the
+/// type alongside the sidebar UI and persistence layers.
+public struct Feed: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let url: String
+
+    public init(id: String, title: String, url: String) {
+        self.id = id
+        self.title = title
+        self.url = url
+    }
+
+    public init(title: String, url: String) {
+        self.init(id: url, title: title, url: url)
+    }
+}
+
+public enum DefaultFeedList {
+    /// Initial subscription list seeded when no persisted list
+    /// exists. Mirrors what an upstream NetNewsWire fresh
+    /// install used to ship in its bundled OPML: a handful of
+    /// widely-followed dev/news feeds so the timeline isn't
+    /// empty on first launch.
+    public static let seed: [Feed] = [
+        Feed(title: "Daring Fireball", url: "https://daringfireball.net/feeds/main"),
+        Feed(title: "Swift.org Blog", url: "https://www.swift.org/atom.xml"),
+        Feed(title: "Hacker News Front Page", url: "https://hnrss.org/frontpage"),
+        Feed(title: "NetNewsWire Blog", url: "https://netnewswire.blog/feed/"),
+    ]
+}
+
 @MainActor
 final class RSSReaderModel: ObservableObject {
     @Published var items: [RSSItem] = [] {
@@ -290,11 +327,24 @@ final class RSSReaderModel: ObservableObject {
     @Published private(set) var rows: [RSSArticleRow] = []
     @Published private(set) var selectedDetail: RSSArticleDetail?
     @Published private(set) var statusText = "0 items"
+
+    /// Multi-feed subscription list. Single-feed callers can
+    /// ignore this and keep using `fetch(urlString:)` directly;
+    /// the three-pane sidebar iteration will drive selection
+    /// through `selectedFeedID`.
+    @Published var subscribedFeeds: [Feed]
+    @Published var selectedFeedID: Feed.ID?
+
     private var didStartInitialLoad = false
     private let initialSelectionEnvironment: [String: String]
 
-    init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+    init(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        subscribedFeeds: [Feed] = DefaultFeedList.seed
+    ) {
         self.initialSelectionEnvironment = environment
+        self.subscribedFeeds = subscribedFeeds
+        self.selectedFeedID = subscribedFeeds.first?.id
     }
 
     /// Profile-mode bypass: populate `items` + `feedTitle` with
