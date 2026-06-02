@@ -92,6 +92,22 @@ public struct PersistenceStore: Sendable {
         saveStringSet(ids, named: "starredArticleIDs.json")
     }
 
+    /// Write an OPML 2.0 export to a fixed file under the store
+    /// directory. Returns the URL on success, nil if the disk
+    /// write failed. Callers should hold the returned URL and
+    /// surface it in the UI (open-in-Finder, copy-path, share).
+    @discardableResult
+    public func saveOPMLExport(_ data: Data) -> URL? {
+        try? FileManager.default.createDirectory(
+            at: directoryURL, withIntermediateDirectories: true, attributes: nil
+        )
+        let url = directoryURL.appendingPathComponent("subscriptions.opml")
+        guard (try? data.write(to: url, options: .atomic)) != nil else {
+            return nil
+        }
+        return url
+    }
+
     private func loadStringSet(named filename: String) -> Set<String> {
         let url = directoryURL.appendingPathComponent(filename)
         guard let data = try? Data(contentsOf: url) else { return [] }

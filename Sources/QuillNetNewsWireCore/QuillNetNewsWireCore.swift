@@ -200,6 +200,18 @@ public struct QuillNetNewsWireContentView: View {
                     .font(.caption2)
                     .disabled(addSubscriptionInput.trimmingWhitespace.isEmpty)
                 }
+                HStack(spacing: 6) {
+                    Button("Export OPML") {
+                        model.saveOPMLExportToDisk()
+                    }
+                    .font(.caption2)
+                    if let url = model.lastOPMLExportURL {
+                        Text(url.lastPathComponent)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                }
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 14)
@@ -1160,6 +1172,24 @@ final class RSSReaderModel: ObservableObject {
     func exportOPMLData(title: String? = nil) -> Data {
         OPMLExporter.exportData(feeds: subscribedFeeds, title: title)
     }
+
+    /// Write the current OPML 2.0 export to disk under the
+    /// PersistenceStore directory. Returns the URL on success.
+    /// Used by the feedsPane Export button to give the user a
+    /// concrete path they can open / copy / share. Also pins
+    /// `lastOPMLExportURL` so the UI can show "Exported to ..."
+    @discardableResult
+    func saveOPMLExportToDisk() -> URL? {
+        let data = exportOPMLData()
+        guard let url = persistence.saveOPMLExport(data) else { return nil }
+        lastOPMLExportURL = url
+        return url
+    }
+
+    /// Path of the most recent OPML export, or nil when nothing
+    /// has been exported yet. Surfaces in feedsPane footer so
+    /// the user sees where the file landed.
+    @Published var lastOPMLExportURL: URL?
 
     /// Profile-mode bypass: populate `items` + `feedTitle` with
     /// fixture content so the rendered timeline has shape, then

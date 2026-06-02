@@ -492,6 +492,29 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("saveOPMLExportToDisk writes subscriptions.opml + sets lastOPMLExportURL")
+    func persistenceOPMLExportToDisk() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-opml-\(UUID().uuidString)")
+        let store = PersistenceStore(directoryURL: dir)
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "Test", url: "https://test.example/feed")],
+            persistence: store
+        )
+        let url = model.saveOPMLExportToDisk()
+        #expect(url != nil)
+        #expect(url?.lastPathComponent == "subscriptions.opml")
+        #expect(model.lastOPMLExportURL == url)
+        // Round-trip: read the file back and feed it to OPMLImporter.
+        if let url, let data = try? Data(contentsOf: url) {
+            let parsed = OPMLImporter.parse(data: data)
+            #expect(parsed.feeds.count == 1)
+            #expect(parsed.feeds.first?.url == "https://test.example/feed")
+        }
+        try? FileManager.default.removeItem(at: dir)
+    }
+
+    @MainActor
     @Test("RSSReaderModel restores readArticleIDs across reinit via shared persistence")
     func persistenceModelRoundTrip() {
         let dir = FileManager.default.temporaryDirectory
