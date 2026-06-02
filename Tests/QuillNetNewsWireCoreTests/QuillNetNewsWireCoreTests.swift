@@ -1,147 +1,22 @@
 import Foundation
 import Testing
 @testable import QuillNetNewsWireCore
+import QuillArticles
 
 @Suite("QuillNetNewsWireCore RSS / Atom parser")
 struct QuillNetNewsWireCoreTests {
 
     // MARK: - RSS 2.0
 
-    @Test("RSS 2.0 channel title + items decode title / link / pubDate / description")
-    func rss2ChannelParses() throws {
-        let xml = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <rss version="2.0">
-          <channel>
-            <title>Example Feed</title>
-            <link>https://example.test/</link>
-            <description>Site description</description>
-            <item>
-              <title>First Article</title>
-              <link>https://example.test/1</link>
-              <pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate>
-              <description>Hello &amp; welcome.</description>
-            </item>
-            <item>
-              <title>Second Article</title>
-              <link>https://example.test/2</link>
-              <pubDate>Tue, 02 Jan 2024 12:00:00 GMT</pubDate>
-              <description>Another post.</description>
-            </item>
-          </channel>
-        </rss>
-        """.data(using: .utf8)!
-
-        let result = RSSFeedParser.parse(data: xml)
-        #expect(result.title == "Example Feed")
-        #expect(result.items.count == 2)
-
-        let first = result.items[0]
-        #expect(first.title == "First Article")
-        #expect(first.link == "https://example.test/1")
-        #expect(first.pubDate == "Mon, 01 Jan 2024 12:00:00 GMT")
-        #expect(first.descriptionHTML == "Hello & welcome.")
-        #expect(first.id == "https://example.test/1")
-    }
-
-    @Test("RSS item with CDATA description preserves the HTML payload")
-    func rss2ItemCDATADescription() throws {
-        let xml = """
-        <rss version="2.0">
-          <channel>
-            <title>Feed</title>
-            <item>
-              <title>Post</title>
-              <link>https://example.test/cdata</link>
-              <description><![CDATA[<p>Hello <b>world</b></p>]]></description>
-            </item>
-          </channel>
-        </rss>
-        """.data(using: .utf8)!
-
-        let result = RSSFeedParser.parse(data: xml)
-        #expect(result.items.count == 1)
-        #expect(result.items[0].descriptionHTML == "<p>Hello <b>world</b></p>")
-    }
-
-    @Test("RSS item with no title falls back to \"Untitled\"")
-    func rss2UntitledFallback() throws {
-        let xml = """
-        <rss version="2.0">
-          <channel>
-            <title>Feed</title>
-            <item>
-              <link>https://example.test/x</link>
-              <pubDate>Wed, 03 Jan 2024 12:00:00 GMT</pubDate>
-            </item>
-          </channel>
-        </rss>
-        """.data(using: .utf8)!
-
-        let result = RSSFeedParser.parse(data: xml)
-        #expect(result.items.count == 1)
-        #expect(result.items[0].title == "Untitled")
-    }
-
-    @Test("RSS item with no link composes id from title + pubDate")
-    func rss2IdFallbackToTitleAndDate() throws {
-        let xml = """
-        <rss version="2.0">
-          <channel>
-            <title>Feed</title>
-            <item>
-              <title>Linkless</title>
-              <pubDate>2024-01-04</pubDate>
-            </item>
-          </channel>
-        </rss>
-        """.data(using: .utf8)!
-
-        let result = RSSFeedParser.parse(data: xml)
-        #expect(result.items.count == 1)
-        let item = result.items[0]
-        #expect(item.link == nil)
-        #expect(item.id == "Linkless2024-01-04")
-    }
-
-    // MARK: - Atom 1.0
-
-    @Test("Atom feed title + entries decode title / link[@href] / updated / summary")
-    func atomFeedParses() throws {
-        let xml = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <feed xmlns="http://www.w3.org/2005/Atom">
-          <title>Atom Feed</title>
-          <link href="https://example.test/" />
-          <entry>
-            <title>Entry One</title>
-            <link href="https://example.test/a1" />
-            <updated>2024-01-10T12:00:00Z</updated>
-            <summary>Entry summary.</summary>
-          </entry>
-          <entry>
-            <title>Entry Two</title>
-            <link href="https://example.test/a2" />
-            <published>2024-01-11T12:00:00Z</published>
-            <summary>Second entry.</summary>
-          </entry>
-        </feed>
-        """.data(using: .utf8)!
-
-        let result = RSSFeedParser.parse(data: xml)
-        #expect(result.title == "Atom Feed")
-        #expect(result.items.count == 2)
-
-        let first = result.items[0]
-        #expect(first.title == "Entry One")
-        #expect(first.link == "https://example.test/a1")
-        #expect(first.pubDate == "2024-01-10T12:00:00Z")
-        #expect(first.descriptionHTML == "Entry summary.")
-
-        // `published` is also accepted as a date.
-        let second = result.items[1]
-        #expect(second.pubDate == "2024-01-11T12:00:00Z")
-    }
+    // Legacy RSSFeedParser.parse(data:) was retired with this
+    // iteration — the production fetch() path flows through
+    // QuillRSParser (vendored upstream Ranchero-Software/NetNewsWire
+    // FeedParser). RSS / Atom / JSON / RSS-in-JSON decoding is
+    // covered by parseUpstream-based tests below and by upstream's
+    // own much larger test suite (.upstream/netnewswire/Modules/
+    // RSParser/Tests/RSParserTests). What remains in this file is
+    // RSSItem property behavior (linkURL/publishedSummary/HTML
+    // body) plus reader-model wiring.
 
     // MARK: - RSSItem derived properties
 
@@ -195,13 +70,6 @@ struct QuillNetNewsWireCoreTests {
             descriptionHTML: "&amp;lt;script&amp;gt;"
         )
         #expect(item.plainTextBody == "&lt;script&gt;")
-    }
-
-    @Test("Empty XML yields an empty parse result, not a crash")
-    func emptyXMLEmptyResult() {
-        let result = RSSFeedParser.parse(data: Data())
-        #expect(result.title == nil)
-        #expect(result.items.isEmpty)
     }
 
     // MARK: - Reader model derived state
@@ -418,6 +286,187 @@ struct QuillNetNewsWireCoreTests {
         model.toggleStarredOnSelection()
         #expect(model.isStarred(id: "3"))
         #expect(model.starredArticleIDs == ["1", "3"])
+    }
+
+    // MARK: - Upstream FeedParser adapter (parseUpstream)
+
+    @Test("parseUpstream parses RSS 2.0 via upstream FeedParser, falls back Untitled and ISO-8601 pubDate")
+    func parseUpstreamRSS2() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Upstream Example</title>
+            <link>https://example.test/</link>
+            <description>An example feed for the upstream FeedParser adapter — padded over 128 bytes.</description>
+            <item>
+              <title>Has Title</title>
+              <link>https://example.test/1</link>
+              <pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate>
+              <description>Body one.</description>
+            </item>
+            <item>
+              <link>https://example.test/2</link>
+              <pubDate>Tue, 02 Jan 2024 12:00:00 GMT</pubDate>
+              <description>Body two.</description>
+            </item>
+          </channel>
+        </rss>
+        """
+        let result = RSSFeedParser.parseUpstream(data: Data(xml.utf8), url: "https://example.test/feed.xml")
+        #expect(result.title == "Upstream Example")
+        #expect(result.items.count == 2)
+        // Sort is newest-first, so item 2 (Jan 2) sorts before item 1 (Jan 1).
+        let titles = result.items.map(\.title)
+        #expect(titles.contains("Has Title"))
+        #expect(titles.contains("Untitled"))
+        // pubDate is ISO-8601 normalized (legacy parser preserved
+        // the raw header — the adapter intentionally normalizes).
+        let pubs = result.items.compactMap(\.pubDate)
+        #expect(pubs.allSatisfy { $0.contains("T") && $0.hasSuffix("Z") })
+    }
+
+    @Test("parseUpstream sorts items newest-first with uniqueID tiebreaker")
+    func parseUpstreamSortOrder() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Sort Test</title>
+            <description>Sort-order pin against upstream FeedParser adapter — fill to 128 bytes minimum.</description>
+            <item><title>Older</title><link>https://example.test/a</link><pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate><description>x</description></item>
+            <item><title>Newer</title><link>https://example.test/b</link><pubDate>Wed, 03 Jan 2024 12:00:00 GMT</pubDate><description>y</description></item>
+          </channel>
+        </rss>
+        """
+        let result = RSSFeedParser.parseUpstream(data: Data(xml.utf8), url: "https://example.test/feed.xml")
+        #expect(result.items.first?.title == "Newer")
+        #expect(result.items.last?.title == "Older")
+    }
+
+    @Test("parseUpstream returns empty Result for unrecognized input")
+    func parseUpstreamEmpty() {
+        let result = RSSFeedParser.parseUpstream(data: Data("not-a-feed".utf8), url: "https://example.test/")
+        #expect(result.title == nil)
+        #expect(result.items.isEmpty)
+    }
+
+    // MARK: - Upstream Article materialization
+
+    @Test("parseUpstreamArticles produces Article values from RSS 2.0")
+    func parseUpstreamArticlesRSS2() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Articles Test Feed</title>
+            <description>Pinning Article materialization from upstream RSParser — padded to clear 128.</description>
+            <item><title>Alpha</title><link>https://example.test/a</link><pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate><description>One.</description></item>
+            <item><title>Beta</title><link>https://example.test/b</link><pubDate>Wed, 03 Jan 2024 12:00:00 GMT</pubDate><description>Two.</description></item>
+          </channel>
+        </rss>
+        """
+        let articles = RSSFeedParser.parseUpstreamArticles(
+            data: Data(xml.utf8),
+            url: "https://example.test/feed.xml"
+        )
+        #expect(articles.count == 2)
+        // Newest-first ordering matches parseUpstream / timeline sort.
+        #expect(articles.first?.title == "Beta")
+        #expect(articles.last?.title == "Alpha")
+        // articleID is the md5-via-shim synthesis — 32 hex chars.
+        #expect(articles.allSatisfy { $0.articleID.count == 32 })
+        // accountID defaults to "Local" until a real Account lands.
+        #expect(articles.allSatisfy { $0.accountID == "Local" })
+        // feedID round-trips the URL we passed in.
+        #expect(articles.allSatisfy { $0.feedID == "https://example.test/feed.xml" })
+    }
+
+    @Test("parseUpstreamArticles returns [] for unrecognized input")
+    func parseUpstreamArticlesEmpty() {
+        let articles = RSSFeedParser.parseUpstreamArticles(
+            data: Data("not-a-feed".utf8),
+            url: "https://example.test/"
+        )
+        #expect(articles.isEmpty)
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.articles is empty before any fetch")
+    func readerModelArticlesEmptyInitially() {
+        let model = RSSReaderModel()
+        #expect(model.articles.isEmpty)
+    }
+
+    // MARK: - Today smart feed (date-based)
+
+    @MainActor
+    @Test("Today smart feed filters items by datePublished within 24h via articles")
+    func smartFeedTodayFiltersByDate() {
+        let model = RSSReaderModel()
+        // Build items + parallel articles where two have today's
+        // date and two have last-week dates. Today should keep
+        // only the recent two.
+        let now = Date()
+        let recent1 = now.addingTimeInterval(-3600)        // 1h ago — today
+        let recent2 = now.addingTimeInterval(-43_200)      // 12h ago — today
+        let old1 = now.addingTimeInterval(-86_400 * 3)     // 3 days ago — not today
+        let old2 = now.addingTimeInterval(-86_400 * 7)     // 7 days ago — not today
+
+        let items = [
+            RSSItem(id: "r1", title: "Recent 1", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "r2", title: "Recent 2", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "o1", title: "Old 1", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "o2", title: "Old 2", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        let articles = [
+            articleStub(id: "r1", date: recent1),
+            articleStub(id: "r2", date: recent2),
+            articleStub(id: "o1", date: old1),
+            articleStub(id: "o2", date: old2),
+        ]
+
+        model.items = items
+        model.articles = articles
+
+        model.selectSmartFeed(.today)
+        let ids = Set(model.filteredItems.map(\.id))
+        #expect(ids == ["r1", "r2"])
+        #expect(model.count(for: .today) == 2)
+        #expect(model.statusText.contains("Today"))
+    }
+
+    @MainActor
+    @Test("Today smart feed ignores items with nil datePublished")
+    func smartFeedTodaySkipsUndated() {
+        let model = RSSReaderModel()
+        model.items = [
+            RSSItem(id: "u", title: "Undated", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.articles = [articleStub(id: "u", date: nil)]
+        model.selectSmartFeed(.today)
+        #expect(model.filteredItems.isEmpty)
+        #expect(model.count(for: .today) == 0)
+    }
+
+    @MainActor
+    @Test("SmartFeed.allCases includes Today + All Unread + Starred")
+    func smartFeedAllCasesIncludesToday() {
+        let ids = Set(SmartFeed.allCases.map(\.id))
+        #expect(ids == ["today", "allUnread", "starred"])
+    }
+
+    private func articleStub(id: String, date: Date?) -> Article {
+        let status = ArticleStatus(
+            articleID: id, read: false, starred: false,
+            dateArrived: Date(timeIntervalSince1970: 0)
+        )
+        return Article(
+            accountID: "Local", articleID: nil, feedID: "https://stub.test/feed",
+            uniqueID: id, title: nil, contentHTML: nil, contentText: nil, markdown: nil,
+            url: nil, externalURL: nil, summary: nil, imageURL: nil,
+            datePublished: date, dateModified: nil, authors: nil, status: status
+        )
     }
 
     @MainActor
@@ -779,5 +828,225 @@ struct QuillNetNewsWireCoreTests {
 
         model.selectSmartFeed(nil)
         #expect(model.filteredRows.count == model.rows.count)
+    }
+
+    // MARK: - Keyboard navigation
+
+    @MainActor
+    @Test("selectNextItem advances through the filtered timeline")
+    func keyboardSelectNextItem() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Seeded selection = "1".
+        #expect(model.selectedID == "1")
+        model.selectNextItem()
+        #expect(model.selectedID == "2")
+        model.selectNextItem()
+        #expect(model.selectedID == "3")
+    }
+
+    @MainActor
+    @Test("selectNextItem stops at the end (no wraparound)")
+    func keyboardSelectNextItemStopsAtEnd() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.selectItem(id: "5")  // last fixture
+        model.selectNextItem()
+        #expect(model.selectedID == "5")
+    }
+
+    @MainActor
+    @Test("selectNextItem selects the first item when nothing is selected")
+    func keyboardSelectNextItemSeedsSelection() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.items = [
+            RSSItem(id: "a", title: "A", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "b", title: "B", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.selectItem(id: nil)
+        model.selectNextItem()
+        #expect(model.selectedID == "a")
+    }
+
+    @MainActor
+    @Test("selectPreviousItem steps back through the timeline")
+    func keyboardSelectPreviousItem() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.selectItem(id: "3")
+        model.selectPreviousItem()
+        #expect(model.selectedID == "2")
+        model.selectPreviousItem()
+        #expect(model.selectedID == "1")
+        // No-op at the top.
+        model.selectPreviousItem()
+        #expect(model.selectedID == "1")
+    }
+
+    @MainActor
+    @Test("markReadAndAdvance marks current read and moves to next")
+    func keyboardMarkReadAndAdvance() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Initial: selected "1", auto-marked read.
+        #expect(model.isRead(id: "1"))
+        model.markReadAndAdvance()
+        #expect(model.selectedID == "2")
+        #expect(model.isRead(id: "2"))
+        model.markReadAndAdvance()
+        #expect(model.selectedID == "3")
+    }
+
+    @MainActor
+    @Test("keyboard navigation respects the active smart-feed filter")
+    func keyboardNavRespectsSmartFeed() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Pre-mark items "2" + "4" read so allUnread shows 1, 3, 5
+        // (item 1 is unread because selectSmartFeed clears the selection
+        // before the auto-mark from seeding sticks via post-seed taps).
+        model.toggleReadOnSelection()  // unmark item 1 first
+        model.markRead(id: "2")
+        model.markRead(id: "4")
+        model.selectSmartFeed(.allUnread)
+        // filteredItems should be 1, 3, 5
+        #expect(model.filteredItems.map(\.id) == ["1", "3", "5"])
+
+        // selectNextItem from no selection picks first of filtered.
+        model.selectNextItem()
+        #expect(model.selectedID == "1")
+        model.selectNextItem()
+        #expect(model.selectedID == "3")
+        model.selectNextItem()
+        #expect(model.selectedID == "5")
+    }
+
+    @MainActor
+    @Test("markReadAndAdvance with no selection selects first (which auto-marks read)")
+    func keyboardMarkReadAndAdvanceNoSelection() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.items = [
+            RSSItem(id: "a", title: "A", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.selectItem(id: nil)
+        model.markReadAndAdvance()
+        // selectItem(id:) auto-marks read, so the spacebar's
+        // no-selection branch lands on a read article. This
+        // matches upstream NetNewsWire's behavior — pressing
+        // space on an empty selection picks up the first
+        // article and treats it as read.
+        #expect(model.selectedID == "a")
+        #expect(model.isRead(id: "a"))
+    }
+
+    // MARK: - Background refresh
+
+    @MainActor
+    @Test("isAutoRefreshDue is true when no fetch has happened")
+    func backgroundRefreshDueWhenNeverFetched() {
+        let model = RSSReaderModel()
+        #expect(model.lastFetchAt == nil)
+        #expect(model.isAutoRefreshDue())
+    }
+
+    @MainActor
+    @Test("isAutoRefreshDue is false within the interval window")
+    func backgroundRefreshNotDueWithinInterval() {
+        let model = RSSReaderModel()
+        model.refreshIntervalSeconds = 30 * 60
+        let now = Date()
+        model.lastFetchAt = now.addingTimeInterval(-5 * 60)  // fetched 5 min ago
+        #expect(!model.isAutoRefreshDue(now: now))
+    }
+
+    @MainActor
+    @Test("isAutoRefreshDue becomes true once the interval has elapsed")
+    func backgroundRefreshDueAfterInterval() {
+        let model = RSSReaderModel()
+        model.refreshIntervalSeconds = 60  // 1 min cadence
+        let now = Date()
+        model.lastFetchAt = now.addingTimeInterval(-120)  // fetched 2 min ago
+        #expect(model.isAutoRefreshDue(now: now))
+    }
+
+    @MainActor
+    @Test("isAutoRefreshDue honors a disabled (nil) interval")
+    func backgroundRefreshDisabledWhenNil() {
+        let model = RSSReaderModel()
+        model.refreshIntervalSeconds = nil
+        #expect(!model.isAutoRefreshDue())
+    }
+
+    @MainActor
+    @Test("backgroundRefreshTick no-ops when no feed URL is available")
+    func backgroundRefreshTickNoOpsWithoutFeed() async {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        await model.backgroundRefreshTick()
+        // No crash, no items, no fetchedAt update.
+        #expect(model.items.isEmpty)
+        #expect(model.lastFetchAt == nil)
+    }
+
+    @MainActor
+    @Test("startBackgroundRefresh is a no-op when interval is nil")
+    func startBackgroundRefreshNoOpsWhenDisabled() {
+        let model = RSSReaderModel()
+        model.refreshIntervalSeconds = nil
+        model.startBackgroundRefresh()
+        // No task should be running.
+        model.stopBackgroundRefresh()  // idempotent
+    }
+
+    @MainActor
+    @Test("startBackgroundRefresh + stopBackgroundRefresh are idempotent")
+    func startStopBackgroundRefreshIdempotent() {
+        let model = RSSReaderModel()
+        model.refreshIntervalSeconds = 60
+        model.startBackgroundRefresh()
+        model.startBackgroundRefresh()  // replaces the prior task safely
+        model.stopBackgroundRefresh()
+        model.stopBackgroundRefresh()   // double-stop is fine
+    }
+
+    // MARK: - Per-feed unread badges
+
+    @MainActor
+    @Test("count(for: .allUnread) mirrors unreadCount")
+    func badgeAllUnreadCount() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Seeded: 5 fixtures, 1 auto-read → 4 unread.
+        #expect(model.count(for: .allUnread) == 4)
+        #expect(model.count(for: .allUnread) == model.unreadCount)
+    }
+
+    @MainActor
+    @Test("count(for: .starred) mirrors starredCount")
+    func badgeStarredCount() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.toggleStarred(id: "1")
+        model.toggleStarred(id: "3")
+        #expect(model.count(for: .starred) == 2)
+        #expect(model.count(for: .starred) == model.starredCount)
+    }
+
+    @MainActor
+    @Test("unreadCount(forFeed:) reports only for the active feed")
+    func badgePerFeedUnreadActiveOnly() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "Active", url: "https://active.test/feed"),
+            Feed(title: "Other", url: "https://other.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "x", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "y", title: "Y", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        // selectedFeedID is the first subscription.
+        #expect(model.unreadCount(forFeed: "https://active.test/feed") == 2)
+        #expect(model.unreadCount(forFeed: "https://other.test/feed") == 0)
+
+        model.selectItem(id: "x")  // auto-marks "x" read
+        #expect(model.unreadCount(forFeed: "https://active.test/feed") == 1)
     }
 }
