@@ -1211,6 +1211,70 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("All Unread smart feed aggregates across cached feeds")
+    func smartFeedAllUnreadCrossFeed() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        // Active feed items.
+        model.items = [
+            RSSItem(id: "a1", title: "A1", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "A2", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        // Cached items for the other feed.
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "B1", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "b2", title: "B2", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        model.markRead(id: "a1")
+        model.markRead(id: "b2")
+        model.selectSmartFeed(.allUnread)
+        let ids = Set(model.filteredItems.map(\.id))
+        #expect(ids == ["a2", "b1"])
+        // Count badge matches.
+        #expect(model.count(for: .allUnread) == 2)
+    }
+
+    @MainActor
+    @Test("Starred smart feed aggregates across cached feeds")
+    func smartFeedStarredCrossFeed() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "A1", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "B1", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "b2", title: "B2", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        model.toggleStarred(id: "a1")
+        model.toggleStarred(id: "b2")
+        model.selectSmartFeed(.starred)
+        let ids = Set(model.filteredItems.map(\.id))
+        #expect(ids == ["a1", "b2"])
+        #expect(model.count(for: .starred) == 2)
+    }
+
+    @MainActor
+    @Test("Cross-feed pool dedupes items shared across caches")
+    func smartFeedCrossFeedDedupes() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        let shared = RSSItem(id: "x", title: "Shared", link: nil, pubDate: nil, descriptionHTML: nil)
+        model.items = [shared]
+        // Same item appears in the cache for a different feed —
+        // smart-feed pool should dedupe by id.
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [shared])
+        model.selectSmartFeed(.allUnread)
+        #expect(model.filteredItems.map(\.id) == ["x"])
+        #expect(model.count(for: .allUnread) == 1)
+    }
+
+    @MainActor
     @Test("RSSReaderModel.allUnread smart feed filters to unread items")
     func smartFeedAllUnreadFiltersUnread() {
         let model = RSSReaderModel()

@@ -1390,19 +1390,36 @@ final class RSSReaderModel: ObservableObject {
         return f
     }()
 
-    /// Item count for a given smart feed against the
-    /// currently-loaded timeline. Used by the feedsPane badge
-    /// next to each Smart Feed row. Persistence iteration will
-    /// switch this to a cross-feed aggregation.
+    /// Item count for a given smart feed across every cached
+    /// feed (plus the active feed's live items, deduped). Used
+    /// by the feedsPane badge next to each Smart Feed row.
+    /// Mirrors filteredItems' cross-feed scope so the badge
+    /// matches what selecting the smart feed will reveal.
     func count(for smart: SmartFeed) -> Int {
+        // Build the same deduped union as filteredItems.
+        var seen = Set<String>()
+        var union: [RSSItem] = []
+        for item in items {
+            if seen.insert(item.id).inserted { union.append(item) }
+        }
+        for (_, cache) in feedCaches {
+            for item in cache.items {
+                if seen.insert(item.id).inserted { union.append(item) }
+            }
+        }
         switch smart {
         case .today:
             let cutoff = Date().addingTimeInterval(-86_400)
-            return articles.reduce(0) { acc, article in
-                acc + ((article.datePublished.map { $0 >= cutoff }) == true ? 1 : 0)
-            }
-        case .allUnread: return unreadCount
-        case .starred:   return starredCount
+            let allArticles = articles + feedCaches.values.flatMap(\.articles)
+            let recentIDs = Set(allArticles.compactMap { article -> String? in
+                guard let d = article.datePublished, d >= cutoff else { return nil }
+                return article.uniqueID
+            })
+            return union.reduce(0) { $0 + (recentIDs.contains($1.id) ? 1 : 0) }
+        case .allUnread:
+            return union.reduce(0) { $0 + (readArticleIDs.contains($1.id) ? 0 : 1) }
+        case .starred:
+            return union.reduce(0) { $0 + (starredArticleIDs.contains($1.id) ? 1 : 0) }
         }
     }
 
@@ -1440,34 +1457,55 @@ final class RSSReaderModel: ObservableObject {
     /// both filters are empty, returns the full items list. Smart
     /// feed runs first so the search field narrows whatever the
     /// smart-feed view is showing.
+    ///
+    /// Smart feeds aggregate ACROSS every fetched feed via the
+    /// per-feed cache (the active feed's items are merged in
+    /// since they may be newer than its cached snapshot). When
+    /// no smart feed is active, scope is the active feed's
+    /// timeline only.
     var filteredItems: [RSSItem] {
-        var pool = items
+        let pool: [RSSItem]
         if let smart = selectedSmartFeed {
+            // Cross-feed pool: union of every cached feed's
+            // items + the active feed's live items, deduped
+            // by id. Newer fetches win the dup (active feed's
+            // items reflect the most recent parse).
+            var seen = Set<String>()
+            var combined: [RSSItem] = []
+            for item in items {
+                if seen.insert(item.id).inserted { combined.append(item) }
+            }
+            for (_, cache) in feedCaches {
+                for item in cache.items {
+                    if seen.insert(item.id).inserted { combined.append(item) }
+                }
+            }
             switch smart {
             case .today:
-                // Use the parallel articles array (real Date from
-                // upstream DateParser) to determine which uniqueIDs
-                // fall inside the last-24h window, then narrow
-                // items to that set so the existing RSSItem render
-                // path keeps working unchanged.
+                // Use the parallel article caches (real Date
+                // from upstream DateParser) to determine which
+                // uniqueIDs fall inside the last-24h window.
                 let cutoff = Date().addingTimeInterval(-86_400)
-                let todayIDs = Set(articles.compactMap { article -> String? in
+                let allArticles = articles + feedCaches.values.flatMap(\.articles)
+                let todayIDs = Set(allArticles.compactMap { article -> String? in
                     guard let published = article.datePublished, published >= cutoff else {
                         return nil
                     }
                     return article.uniqueID
                 })
-                pool = pool.filter { todayIDs.contains($0.id) }
+                pool = combined.filter { todayIDs.contains($0.id) }
             case .allUnread:
-                pool = pool.filter { !readArticleIDs.contains($0.id) }
+                pool = combined.filter { !readArticleIDs.contains($0.id) }
             case .starred:
-                pool = pool.filter { starredArticleIDs.contains($0.id) }
+                pool = combined.filter { starredArticleIDs.contains($0.id) }
             }
+        } else {
+            pool = items
         }
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             let needle = trimmed.lowercased()
-            pool = pool.filter { item in
+            return pool.filter { item in
                 if item.title.lowercased().contains(needle) { return true }
                 if item.plainTextBody.lowercased().contains(needle) { return true }
                 return false
