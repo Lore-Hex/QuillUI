@@ -46,17 +46,27 @@ public struct QuillNetNewsWireContentView: View {
 
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated {
-            HStack(spacing: 0) {
-                feedsPane
-                    .frame(width: 220)
-                    .frame(maxHeight: .infinity, alignment: .topLeading)
-                Divider()
-                sidebar
-                    .frame(width: 300)
-                    .frame(maxHeight: .infinity, alignment: .topLeading)
-                Divider()
-                detail
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    feedsPane
+                        .frame(width: 220)
+                        .frame(maxHeight: .infinity, alignment: .topLeading)
+                    Divider()
+                    sidebar
+                        .frame(width: 300)
+                        .frame(maxHeight: .infinity, alignment: .topLeading)
+                    Divider()
+                    detail
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                // Hidden keyboard-shortcut surface. The buttons
+                // are not visible but keep their shortcut
+                // registrations live so single-key NetNewsWire
+                // bindings work without focus management on
+                // every row. Same pattern upstream apps use to
+                // attach .keyboardShortcut to invisible action
+                // buttons in the view tree.
+                keyboardShortcutSurface
             }
             // `QUILLUI_DISABLE_FETCH=1` is a profile-mode escape
             // hatch: it seeds fixture content + skips URLSession,
@@ -74,6 +84,27 @@ public struct QuillNetNewsWireContentView: View {
                 }
             }
         }
+    }
+
+    private var keyboardShortcutSurface: some View {
+        HStack(spacing: 0) {
+            Button("next") { model.selectNextItem() }
+                .keyboardShortcut("j", modifiers: [])
+            Button("prev") { model.selectPreviousItem() }
+                .keyboardShortcut("k", modifiers: [])
+            Button("read+next") { model.markReadAndAdvance() }
+                .keyboardShortcut(.space, modifiers: [])
+            Button("toggle starred") { model.toggleStarredOnSelection() }
+                .keyboardShortcut("s", modifiers: [])
+            Button("toggle read") { model.toggleReadOnSelection() }
+                .keyboardShortcut("r", modifiers: [])
+            Button("refresh") {
+                Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
+            }
+            .keyboardShortcut("r", modifiers: .command)
+        }
+        .frame(height: 0)
+        .hidden()
     }
 
     private var feedsPane: some View {
@@ -569,6 +600,50 @@ final class RSSReaderModel: ObservableObject {
     func selectSmartFeed(_ kind: SmartFeed?) {
         selectedSmartFeed = kind
         selectItem(id: nil)
+    }
+
+    /// Advance the selection to the next article in the
+    /// currently-filtered timeline. Wraps to the first item when
+    /// no selection exists yet. No-op when filteredItems is empty.
+    /// Powers the J keyboard shortcut.
+    func selectNextItem() {
+        let pool = filteredItems
+        guard !pool.isEmpty else { return }
+        guard let current = selectedID,
+              let index = pool.firstIndex(where: { $0.id == current })
+        else {
+            selectItem(id: pool.first?.id)
+            return
+        }
+        let nextIndex = pool.index(after: index)
+        if nextIndex < pool.endIndex {
+            selectItem(id: pool[nextIndex].id)
+        }
+    }
+
+    /// Step the selection one article earlier in the filtered
+    /// timeline. No-op at the top. Powers the K keyboard shortcut.
+    func selectPreviousItem() {
+        let pool = filteredItems
+        guard !pool.isEmpty else { return }
+        guard let current = selectedID,
+              let index = pool.firstIndex(where: { $0.id == current }),
+              index > 0
+        else { return }
+        selectItem(id: pool[index - 1].id)
+    }
+
+    /// Mark the current article read and advance to the next.
+    /// Mirrors NetNewsWire's spacebar default: when there's no
+    /// selection yet, just select the first item without
+    /// advancing. Powers the spacebar shortcut.
+    func markReadAndAdvance() {
+        if let id = selectedID {
+            markRead(id: id)
+            selectNextItem()
+        } else {
+            selectItem(id: filteredItems.first?.id)
+        }
     }
 
     /// Import an OPML subscription list and merge it into

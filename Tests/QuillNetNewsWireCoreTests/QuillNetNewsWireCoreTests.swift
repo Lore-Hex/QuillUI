@@ -780,4 +780,113 @@ struct QuillNetNewsWireCoreTests {
         model.selectSmartFeed(nil)
         #expect(model.filteredRows.count == model.rows.count)
     }
+
+    // MARK: - Keyboard navigation
+
+    @MainActor
+    @Test("selectNextItem advances through the filtered timeline")
+    func keyboardSelectNextItem() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Seeded selection = "1".
+        #expect(model.selectedID == "1")
+        model.selectNextItem()
+        #expect(model.selectedID == "2")
+        model.selectNextItem()
+        #expect(model.selectedID == "3")
+    }
+
+    @MainActor
+    @Test("selectNextItem stops at the end (no wraparound)")
+    func keyboardSelectNextItemStopsAtEnd() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.selectItem(id: "5")  // last fixture
+        model.selectNextItem()
+        #expect(model.selectedID == "5")
+    }
+
+    @MainActor
+    @Test("selectNextItem selects the first item when nothing is selected")
+    func keyboardSelectNextItemSeedsSelection() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.items = [
+            RSSItem(id: "a", title: "A", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "b", title: "B", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.selectItem(id: nil)
+        model.selectNextItem()
+        #expect(model.selectedID == "a")
+    }
+
+    @MainActor
+    @Test("selectPreviousItem steps back through the timeline")
+    func keyboardSelectPreviousItem() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.selectItem(id: "3")
+        model.selectPreviousItem()
+        #expect(model.selectedID == "2")
+        model.selectPreviousItem()
+        #expect(model.selectedID == "1")
+        // No-op at the top.
+        model.selectPreviousItem()
+        #expect(model.selectedID == "1")
+    }
+
+    @MainActor
+    @Test("markReadAndAdvance marks current read and moves to next")
+    func keyboardMarkReadAndAdvance() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Initial: selected "1", auto-marked read.
+        #expect(model.isRead(id: "1"))
+        model.markReadAndAdvance()
+        #expect(model.selectedID == "2")
+        #expect(model.isRead(id: "2"))
+        model.markReadAndAdvance()
+        #expect(model.selectedID == "3")
+    }
+
+    @MainActor
+    @Test("keyboard navigation respects the active smart-feed filter")
+    func keyboardNavRespectsSmartFeed() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Pre-mark items "2" + "4" read so allUnread shows 1, 3, 5
+        // (item 1 is unread because selectSmartFeed clears the selection
+        // before the auto-mark from seeding sticks via post-seed taps).
+        model.toggleReadOnSelection()  // unmark item 1 first
+        model.markRead(id: "2")
+        model.markRead(id: "4")
+        model.selectSmartFeed(.allUnread)
+        // filteredItems should be 1, 3, 5
+        #expect(model.filteredItems.map(\.id) == ["1", "3", "5"])
+
+        // selectNextItem from no selection picks first of filtered.
+        model.selectNextItem()
+        #expect(model.selectedID == "1")
+        model.selectNextItem()
+        #expect(model.selectedID == "3")
+        model.selectNextItem()
+        #expect(model.selectedID == "5")
+    }
+
+    @MainActor
+    @Test("markReadAndAdvance with no selection selects first (which auto-marks read)")
+    func keyboardMarkReadAndAdvanceNoSelection() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.items = [
+            RSSItem(id: "a", title: "A", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.selectItem(id: nil)
+        model.markReadAndAdvance()
+        // selectItem(id:) auto-marks read, so the spacebar's
+        // no-selection branch lands on a read article. This
+        // matches upstream NetNewsWire's behavior — pressing
+        // space on an empty selection picks up the first
+        // article and treats it as read.
+        #expect(model.selectedID == "a")
+        #expect(model.isRead(id: "a"))
+    }
 }
