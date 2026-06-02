@@ -983,7 +983,93 @@ final class RSSReaderModel: ObservableObject {
         // model just starts fresh.
         self.readArticleIDs = persistence.loadReadArticleIDs()
         self.starredArticleIDs = persistence.loadStarredArticleIDs()
+        // Hydrate feedCaches from any persisted articles so the
+        // timeline shows yesterday's items before today's fetch
+        // even fires. Bucket by feedID, build the (items,
+        // articles, lastFetchAt) triple per group. Errors swallow
+        // — the in-memory empty caches keep the reader running.
+        hydrateFeedCachesFromStoreIfReady()
         self.persistenceReady = true
+    }
+
+    /// Read every PersistentArticle from the QuillData store
+    /// and rebuild `feedCaches` from the groups. Called from
+    /// init's tail so the timeline can render persisted state
+    /// before any network fetch. Doesn't reach the active
+    /// feed's `items` / `articles` arrays directly — they get
+    /// populated when the user selects (or auto-selects) a
+    /// feed; for now those still start empty pending fetch.
+    /// The lastFetchAt per group uses the newest dateArrived
+    /// across that group's rows so 'Updated N ago' is honest.
+    private func hydrateFeedCachesFromStoreIfReady() {
+        guard let articleStore else { return }
+        guard let rows = try? articleStore.fetchAll(), !rows.isEmpty else { return }
+        var grouped: [String: [PersistentArticle]] = [:]
+        for row in rows {
+            grouped[row.feedID, default: []].append(row)
+        }
+        for (feedID, group) in grouped {
+            // Newest first by datePublished; matches the live
+            // fetch path's sort.
+            let sorted = group.sorted { lhs, rhs in
+                switch (lhs.datePublished, rhs.datePublished) {
+                case let (l?, r?) where l != r: return l > r
+                case (_?, nil): return true
+                case (nil, _?): return false
+                default: return lhs.id < rhs.id
+                }
+            }
+            let items = sorted.map { row in
+                RSSItem(
+                    id: row.uniqueID,
+                    title: row.title ?? "Untitled",
+                    link: row.url,
+                    pubDate: row.datePublished?.description,
+                    descriptionHTML: row.contentHTML ?? row.contentText ?? row.summary
+                )
+            }
+            let articles = sorted.map { row in
+                Article(
+                    accountID: row.accountID,
+                    articleID: row.id,
+                    feedID: row.feedID,
+                    uniqueID: row.uniqueID,
+                    title: row.title,
+                    contentHTML: row.contentHTML,
+                    contentText: row.contentText,
+                    markdown: nil,
+                    url: row.url,
+                    externalURL: row.externalURL,
+                    summary: row.summary,
+                    imageURL: row.imageURL,
+                    datePublished: row.datePublished,
+                    dateModified: row.dateModified,
+                    authors: nil,
+                    status: ArticleStatus(
+                        articleID: row.id,
+                        read: row.isRead,
+                        starred: row.isStarred,
+                        dateArrived: row.dateArrived
+                    )
+                )
+            }
+            let lastFetchAt = sorted.map(\.dateArrived).max() ?? Date()
+            feedCaches[feedID] = FeedCache(
+                items: items,
+                articles: articles,
+                lastFetchAt: lastFetchAt
+            )
+        }
+        // If the active feed has a cache now, surface its items
+        // as the live timeline so the user sees content
+        // immediately on launch.
+        if let activeFeedID = selectedFeedID,
+           let active = feedCaches[activeFeedID] {
+            self.items = active.items
+            self.articles = active.articles
+            self.lastFetchAt = active.lastFetchAt
+            self.didStartInitialLoad = true
+        }
     }
 
     /// Called from subscribedFeeds.didSet. Writes the current

@@ -638,6 +638,42 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("RSSReaderModel hydrates feedCaches from a persisted ArticleStore on init")
+    func articleStoreHydratesOnInit() throws {
+        let store = try ArticleStore()
+        // Seed two articles for one feed.
+        let feedID = "https://hydrated.test/feed"
+        try store.upsert([
+            PersistentArticle(
+                id: "p1", accountID: "Local", feedID: feedID,
+                uniqueID: "u1", title: "First", contentHTML: "<p>1</p>",
+                datePublished: Date(timeIntervalSince1970: 1_700_000_100)
+            ),
+            PersistentArticle(
+                id: "p2", accountID: "Local", feedID: feedID,
+                uniqueID: "u2", title: "Second", contentHTML: "<p>2</p>",
+                datePublished: Date(timeIntervalSince1970: 1_700_000_200),
+                isStarred: true
+            ),
+        ])
+        // Init a model with that store + matching subscription.
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "Hydrated", url: feedID)],
+            articleStore: store
+        )
+        // Active feed's items + articles should populate from cache.
+        #expect(model.feedCaches[feedID] != nil)
+        let cache = model.feedCaches[feedID]!
+        #expect(cache.items.count == 2)
+        // Newest first sort.
+        #expect(cache.items.first?.id == "u2")
+        #expect(cache.articles.first?.title == "Second")
+        // Live timeline mirror.
+        #expect(model.items.count == 2)
+        #expect(model.articles.first?.uniqueID == "u2")
+    }
+
+    @MainActor
     @Test("RSSReaderModel.fetch writes parsed articles into ArticleStore")
     func articleStoreFetchWrites() async throws {
         // Use an explicit in-memory ArticleStore so the test
