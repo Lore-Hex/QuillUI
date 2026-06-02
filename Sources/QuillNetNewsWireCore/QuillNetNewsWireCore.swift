@@ -2740,6 +2740,15 @@ final class RSSReaderModel: ObservableObject {
                     cache.lastFetchAt = Date()
                     feedCaches[urlString] = cache
                 }
+                // Refresh ETag / Last-Modified from the 304
+                // response — RFC 7232 §4.1 allows servers to
+                // update validators on a 304 (weak ETag bumped
+                // without a body change). Without this, we'd
+                // keep sending stale conditional headers and
+                // potentially miss a real future update.
+                if let dict = Self.dictFromConditionalGetInfo(HTTPConditionalGetInfo(urlResponse: http)) {
+                    conditionalGetInfo[urlString] = dict
+                }
                 return
             }
             // Same HTTP-status guard as the active-feed fetch()
@@ -2841,6 +2850,13 @@ final class RSSReaderModel: ObservableObject {
                 resetFailureCount(forFeed: urlString)
                 if let activeURL = currentFeedURL, activeURL == urlString {
                     self.lastFetchAt = Date()
+                }
+                // RFC 7232 §4.1 — servers can update validators
+                // on a 304 (weak ETag bump without body change).
+                // Refresh our stored conditional info so we
+                // don't keep sending stale headers forever.
+                if let dict = Self.dictFromConditionalGetInfo(HTTPConditionalGetInfo(urlResponse: http)) {
+                    self.conditionalGetInfo[urlString] = dict
                 }
                 return
             }
