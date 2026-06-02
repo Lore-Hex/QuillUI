@@ -1601,7 +1601,10 @@ final class RSSReaderModel: ObservableObject {
     /// selectedSmartFeed AND the default active-feed view; the
     /// select* methods enforce the invariant.
     @Published var selectedFolderName: String? {
-        didSet { updateStatusText() }
+        didSet {
+            updateStatusText()
+            persistSelectionIfReady()
+        }
     }
 
     /// Auto-refresh cadence in seconds for the active feed.
@@ -1851,6 +1854,14 @@ final class RSSReaderModel: ObservableObject {
         if let saved = persistence.loadSelection() {
             if let smart = saved.smartFeed, let kind = SmartFeed(rawValue: smart) {
                 self.selectedSmartFeed = kind
+            } else if let folder = saved.folderName,
+                      Self.findFolder(named: folder, in: resolvedRoot) != nil {
+                // Restore folder view only when the folder
+                // still exists in the tree — a folder that was
+                // removed across launches falls through to the
+                // default first-feed selection (already set
+                // above).
+                self.selectedFolderName = folder
             } else if let feedID = saved.feedID,
                       resolvedFeeds.contains(where: { $0.id == feedID }) {
                 self.selectedFeedID = feedID
@@ -2121,10 +2132,15 @@ final class RSSReaderModel: ObservableObject {
     private func persistSelectionIfReady() {
         guard persistenceReady else { return }
         let state: PersistenceStore.SelectionState
+        // Folder wins over feed (folder view supersedes the
+        // active-feed selection it's blocking). Smart feed wins
+        // over both — smart-feed select* clears the others.
         if let smart = selectedSmartFeed {
-            state = PersistenceStore.SelectionState(smartFeed: smart.rawValue, feedID: nil)
+            state = PersistenceStore.SelectionState(smartFeed: smart.rawValue)
+        } else if let folder = selectedFolderName {
+            state = PersistenceStore.SelectionState(folderName: folder)
         } else if let feedID = selectedFeedID {
-            state = PersistenceStore.SelectionState(smartFeed: nil, feedID: feedID)
+            state = PersistenceStore.SelectionState(feedID: feedID)
         } else {
             state = PersistenceStore.SelectionState()
         }

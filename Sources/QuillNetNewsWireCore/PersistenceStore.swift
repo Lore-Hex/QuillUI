@@ -237,9 +237,14 @@ public struct PersistenceStore: Sendable {
     public struct SelectionState: Codable, Equatable, Sendable {
         public var smartFeed: String?
         public var feedID: String?
-        public init(smartFeed: String? = nil, feedID: String? = nil) {
+        /// Folder name when the user was in folder-as-smart-feed
+        /// view (#159). Mutually exclusive with smartFeed and
+        /// feedID — the model's select* methods enforce that.
+        public var folderName: String?
+        public init(smartFeed: String? = nil, feedID: String? = nil, folderName: String? = nil) {
             self.smartFeed = smartFeed
             self.feedID = feedID
+            self.folderName = folderName
         }
     }
 

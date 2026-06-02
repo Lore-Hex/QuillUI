@@ -2564,6 +2564,49 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Folder selection persists across reinit")
+    func folderSelectionPersists() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-foldersel-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        let seed = [Feed(title: "HN", url: "https://hn.test/feed")]
+        do {
+            let first = RSSReaderModel(subscribedFeeds: seed, persistence: store)
+            first.subscriptionRoot = OPMLImporter.Folder(
+                name: "",
+                feeds: [],
+                subfolders: [OPMLImporter.Folder(name: "Tech", feeds: seed, subfolders: [])]
+            )
+            first.selectFolder("Tech")
+        }
+        let restored = RSSReaderModel(subscribedFeeds: seed, persistence: store)
+        #expect(restored.selectedFolderName == "Tech")
+    }
+
+    @MainActor
+    @Test("Folder selection falls back when the folder no longer exists")
+    func folderSelectionFallsBackWhenMissing() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-foldersel-missing-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        // Manually write a selection.json pointing at a folder
+        // we never put in subscriptionRoot — simulates the case
+        // where the user renamed/removed the folder via direct
+        // ViewOptions edit or a future "rename folder" between
+        // launches.
+        store.saveSelection(PersistenceStore.SelectionState(folderName: "Gone"))
+        let restored = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "HN", url: "https://hn.test/feed")],
+            persistence: store
+        )
+        #expect(restored.selectedFolderName == nil)
+    }
+
+    @MainActor
     @Test("Persisted feed selection that no longer exists falls back to default")
     func staleFeedSelectionFallsBack() async {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
