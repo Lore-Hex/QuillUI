@@ -2314,6 +2314,21 @@ final class RSSReaderModel: ObservableObject {
                 data: data, url: urlString
             )
             self.setFeedTitle(parsed.title)
+            // If the parsed feed title is meaningful AND differs
+            // from the user's sidebar entry, rename the
+            // subscribed feed so the sidebar reads the canonical
+            // <title> rather than the raw URL that was typed in
+            // at subscribe time. Matches upstream NetNewsWire:
+            // type "https://daringfireball.net/feeds/main", get
+            // back "Daring Fireball" in the sidebar after the
+            // first successful fetch. Only fires when the parsed
+            // title is non-empty (preserves user's manual title
+            // for feeds that lack <title>) and the sidebar entry
+            // looks unedited (still equal to the feed URL —
+            // signals "never been renamed yet").
+            self.updateSubscribedFeedTitleFromParse(
+                urlString: urlString, parsedTitle: parsed.title
+            )
             let trimmedItems = Array(parsed.items.prefix(50))
             let trimmedArticles = Array(upstreamArticles.prefix(50))
             let now = Date()
@@ -3513,6 +3528,30 @@ final class RSSReaderModel: ObservableObject {
         if feedTitle != newTitle {
             feedTitle = newTitle
         }
+    }
+
+    /// Rename a subscribed feed's title when the parsed RSS
+    /// <title> is meaningful AND the user hasn't manually
+    /// renamed it (sidebar title still equals the feed URL).
+    /// Skipped for empty/whitespace parsed titles so a feed
+    /// without a <title> element keeps the URL fallback. Routes
+    /// through the subscribedFeeds setter so persistence picks
+    /// up the change.
+    func updateSubscribedFeedTitleFromParse(
+        urlString: String, parsedTitle: String?
+    ) {
+        let trimmed = parsedTitle?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return }
+        guard let idx = subscribedFeeds.firstIndex(where: { $0.url == urlString }) else {
+            return
+        }
+        let current = subscribedFeeds[idx]
+        // Skip if title is already this. Skip if title has been
+        // user-edited (no longer equals the URL).
+        guard current.title != trimmed else { return }
+        guard current.title == current.url else { return }
+        subscribedFeeds[idx] = Feed(title: trimmed, url: current.url)
     }
 
     private func setError(_ newError: String?) {

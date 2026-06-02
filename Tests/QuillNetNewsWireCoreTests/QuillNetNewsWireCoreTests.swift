@@ -1931,6 +1931,56 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Parsed title renames a URL-titled subscribed feed")
+    func parsedTitleRenamesURLTitled() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            // User typed the URL — title defaulted to URL.
+            Feed(title: "https://df.test/feed", url: "https://df.test/feed"),
+        ])
+        model.updateSubscribedFeedTitleFromParse(
+            urlString: "https://df.test/feed",
+            parsedTitle: "Daring Fireball"
+        )
+        #expect(model.subscribedFeeds.first?.title == "Daring Fireball")
+    }
+
+    @MainActor
+    @Test("Parsed title does not overwrite a user-edited title")
+    func parsedTitleSkipsUserEdited() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            // User-set title (not equal to URL).
+            Feed(title: "My DF", url: "https://df.test/feed"),
+        ])
+        model.updateSubscribedFeedTitleFromParse(
+            urlString: "https://df.test/feed",
+            parsedTitle: "Daring Fireball"
+        )
+        // Stays "My DF" — user edit is sacred.
+        #expect(model.subscribedFeeds.first?.title == "My DF")
+    }
+
+    @MainActor
+    @Test("Empty parsed title is a no-op (keeps URL fallback)")
+    func parsedTitleEmptyIsNoOp() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "https://df.test/feed", url: "https://df.test/feed"),
+        ])
+        model.updateSubscribedFeedTitleFromParse(
+            urlString: "https://df.test/feed",
+            parsedTitle: ""
+        )
+        model.updateSubscribedFeedTitleFromParse(
+            urlString: "https://df.test/feed",
+            parsedTitle: "   "
+        )
+        model.updateSubscribedFeedTitleFromParse(
+            urlString: "https://df.test/feed",
+            parsedTitle: nil
+        )
+        #expect(model.subscribedFeeds.first?.title == "https://df.test/feed")
+    }
+
+    @MainActor
     @Test("Article search matches on author name (in addition to title/body)")
     func searchMatchesAuthorName() {
         let model = RSSReaderModel(subscribedFeeds: [
