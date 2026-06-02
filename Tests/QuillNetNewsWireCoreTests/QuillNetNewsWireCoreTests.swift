@@ -327,6 +327,37 @@ struct QuillNetNewsWireCoreTests {
         #expect(pubs.allSatisfy { $0.contains("T") && $0.hasSuffix("Z") })
     }
 
+    @Test("parseUpstream captures iconURL + homePageURL from RSS 2.0 channel/image")
+    func parseUpstreamCapturesIconURL() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Icon Test Feed</title>
+            <link>https://icon.example.test/</link>
+            <description>Pinning iconURL harvest from upstream ParsedFeed — pad over 128 bytes minimum.</description>
+            <image>
+              <url>https://icon.example.test/favicon.png</url>
+              <title>Icon Test Feed</title>
+              <link>https://icon.example.test/</link>
+            </image>
+            <item>
+              <title>Sample</title>
+              <link>https://icon.example.test/1</link>
+              <description>Body.</description>
+            </item>
+          </channel>
+        </rss>
+        """
+        let result = RSSFeedParser.parseUpstream(
+            data: Data(xml.utf8),
+            url: "https://icon.example.test/feed.xml"
+        )
+        #expect(result.homePageURL == "https://icon.example.test/")
+        // RSS 2.0 <image><url> populates iconURL via upstream parser.
+        #expect(result.iconURL == "https://icon.example.test/favicon.png")
+    }
+
     @Test("parseUpstream sorts items newest-first with uniqueID tiebreaker")
     func parseUpstreamSortOrder() {
         let xml = """
@@ -918,6 +949,18 @@ struct QuillNetNewsWireCoreTests {
         let badURL = ""
         await model.fetch(urlString: badURL)
         #expect(model.feedErrors[badURL] != nil)
+    }
+
+    @MainActor
+    @Test("feedIconURLs is initially empty + accepts set/clear")
+    func feedIconURLsState() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        #expect(model.feedIconURLs.isEmpty)
+        let url = "https://x.test/feed"
+        model.feedIconURLs[url] = "https://x.test/favicon.png"
+        #expect(model.feedIconURLs[url] == "https://x.test/favicon.png")
+        model.feedIconURLs[url] = nil
+        #expect(model.feedIconURLs[url] == nil)
     }
 
     @MainActor

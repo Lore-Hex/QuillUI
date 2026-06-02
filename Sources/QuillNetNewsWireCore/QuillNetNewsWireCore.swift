@@ -913,6 +913,15 @@ final class RSSReaderModel: ObservableObject {
     /// invalid XML, etc.). Mirrors NetNewsWire's stale-feed
     /// warning behavior in its sidebar.
     @Published var feedErrors: [Feed.ID: String] = [:]
+
+    /// Icon / favicon URL per subscribed feed, harvested from
+    /// upstream ParsedFeed.iconURL (preferred) or faviconURL
+    /// (fallback) at fetch time. Populated for every successful
+    /// fetch and persisted to disk via the OPML export round-trip
+    /// (upstream OPML's `iconURL` attribute mirrors this). Used
+    /// by the feedsPane to show a per-feed icon once an
+    /// async-image-loader iteration lands.
+    @Published var feedIconURLs: [Feed.ID: String] = [:]
     @Published var feedTitle: String?
     @Published var error: String? {
         didSet { updateStatusText() }
@@ -1553,6 +1562,10 @@ final class RSSReaderModel: ObservableObject {
             }
             // Successful refresh-all path clears any prior error.
             feedErrors[urlString] = nil
+            // Same icon-URL harvest as the active fetch path.
+            if let icon = parsed.iconURL ?? parsed.faviconURL {
+                feedIconURLs[urlString] = icon
+            }
         } catch {
             // Quiet on the global Refresh-All path — one bad
             // feed shouldn't bust the whole pass — but stash
@@ -1636,6 +1649,14 @@ final class RSSReaderModel: ObservableObject {
             // Successful fetch clears any prior error tracked
             // for this feed.
             self.feedErrors[urlString] = nil
+            // Harvest the feed-declared icon URL if present.
+            // Prefer iconURL (RSS image / Atom logo / JSON Feed
+            // icon — the spec-canonical site icon) over
+            // faviconURL (which upstream populates from
+            // <link rel="icon"> when present).
+            if let icon = parsed.iconURL ?? parsed.faviconURL {
+                self.feedIconURLs[urlString] = icon
+            }
         } catch {
             self.setError("\(error)")
             self.feedErrors[urlString] = "\(error)"
@@ -2246,6 +2267,15 @@ struct RSSFeedParser {
     struct Result: Equatable {
         var title: String?
         var items: [RSSItem] = []
+        /// Feed-level metadata captured from upstream ParsedFeed.
+        /// homePageURL is the feed's site; iconURL/faviconURL
+        /// are the channel-declared icons (RSS 2.0 channel/image,
+        /// Atom <icon>/<logo>, JSON Feed icon/favicon). The model
+        /// stashes these in feedIconURLs so the sidebar can show
+        /// per-feed favicons once an image-loader lands.
+        var homePageURL: String?
+        var iconURL: String?
+        var faviconURL: String?
     }
 
     /// Upstream Ranchero-Software/NetNewsWire `FeedParser` path.
@@ -2286,7 +2316,13 @@ struct RSSFeedParser {
             }
         }
         let rssItems = sortedItems.map(adaptParsedItem(_:))
-        return Result(title: parsed.title, items: rssItems)
+        return Result(
+            title: parsed.title,
+            items: rssItems,
+            homePageURL: parsed.homePageURL,
+            iconURL: parsed.iconURL,
+            faviconURL: parsed.faviconURL
+        )
     }
 
     /// Translate one upstream ParsedItem into our local RSSItem
