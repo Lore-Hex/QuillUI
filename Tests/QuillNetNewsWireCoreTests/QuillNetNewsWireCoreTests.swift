@@ -1931,6 +1931,53 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("autoSelectFirstUnreadIfNoSelection picks the first unread item")
+    func autoSelectPicksFirstUnread() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "Read", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "Unread", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a3", title: "Also Unread", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.markRead(id: "a1")
+        model.selectedID = nil
+        model.autoSelectFirstUnreadIfNoSelection()
+        #expect(model.selectedID == "a2")
+    }
+
+    @MainActor
+    @Test("autoSelectFirstUnreadIfNoSelection is a no-op when something is selected")
+    func autoSelectNoOpWhenSelected() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "Y", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.selectedID = "a2"
+        model.autoSelectFirstUnreadIfNoSelection()
+        #expect(model.selectedID == "a2") // stays
+    }
+
+    @MainActor
+    @Test("autoSelectFirstUnreadIfNoSelection is a no-op when nothing is unread")
+    func autoSelectNoOpWhenAllRead() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.markRead(id: "a1")
+        model.selectedID = nil
+        model.autoSelectFirstUnreadIfNoSelection()
+        #expect(model.selectedID == nil)
+    }
+
+    @MainActor
     @Test("crossFeedItemsCount dedupes overlapping cache items")
     func crossFeedItemsCountDedupes() {
         let model = RSSReaderModel(subscribedFeeds: [

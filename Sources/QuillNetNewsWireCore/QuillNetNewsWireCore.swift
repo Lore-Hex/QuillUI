@@ -1645,6 +1645,23 @@ final class RSSReaderModel: ObservableObject {
         selectItem(id: nil)
         didStartInitialLoad = true
         await fetch(urlString: feed.url)
+        autoSelectFirstUnreadIfNoSelection()
+    }
+
+    /// Auto-select the first unread item in `items` if nothing is
+    /// currently selected. Called at the tail of selectFeed so
+    /// the detail pane isn't blank when the user switches feeds
+    /// (matches upstream NetNewsWire's behavior). selectItem
+    /// marks-read as a side effect; calling auto-select on a
+    /// feed where every item is already read is a no-op, so the
+    /// behavior matches "user clicked the first unread article
+    /// in the timeline".
+    func autoSelectFirstUnreadIfNoSelection() {
+        guard selectedID == nil else { return }
+        guard let firstUnread = items.first(where: { !readArticleIDs.contains($0.id) }) else {
+            return
+        }
+        selectItem(id: firstUnread.id)
     }
 
     /// Pin the timeline to a smart-feed view (All Unread / Starred
