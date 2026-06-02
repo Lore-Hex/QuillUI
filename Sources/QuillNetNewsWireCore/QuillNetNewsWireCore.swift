@@ -2909,6 +2909,111 @@ final class RSSReaderModel: ObservableObject {
         return true
     }
 
+    /// Move a feed (by id) into the named folder, or to the
+    /// top level when folderName is nil. Two-step mutation:
+    /// first removes the feed from every existing location
+    /// (top-level + every subfolder), then inserts at the
+    /// destination. Returns true when the feed was found and
+    /// moved; false when:
+    ///   - feed id doesn't exist in subscriptionRoot
+    ///   - target folder name doesn't exist (nil destination
+    ///     is always valid — moves to top-level root)
+    ///
+    /// Idempotent in the same-destination case (moving a feed
+    /// to its current folder is a successful no-op).
+    ///
+    /// Doesn't touch subscribedFeeds (the flat list is
+    /// orthogonal to folder organization — the feed stays
+    /// subscribed throughout the move). Mutation triggers
+    /// persistence via the subscriptionRoot didSet chain.
+    @discardableResult
+    func moveFeed(_ feedID: Feed.ID, toFolder folderName: String?) -> Bool {
+        // Verify the target folder exists (or destination is
+        // root) before mutating — otherwise we'd strip the feed
+        // from its current home and have nowhere to put it.
+        if let folderName,
+           !Self.folderExists(named: folderName, in: subscriptionRoot) {
+            return false
+        }
+        // Snapshot the feed before removal so we can re-insert
+        // after the tree is updated.
+        guard let feed = Self.findFeed(feedID: feedID, in: subscriptionRoot) else {
+            return false
+        }
+        let (stripped, _) = Self.removeFeedFromTree(feedID: feedID, in: subscriptionRoot)
+        let updated = Self.insertFeed(feed, intoFolderNamed: folderName, in: stripped)
+        subscriptionRoot = updated
+        return true
+    }
+
+    private static func folderExists(
+        named name: String,
+        in folder: OPMLImporter.Folder
+    ) -> Bool {
+        if folder.subfolders.contains(where: { $0.name == name }) { return true }
+        return folder.subfolders.contains { folderExists(named: name, in: $0) }
+    }
+
+    private static func findFeed(
+        feedID: Feed.ID,
+        in folder: OPMLImporter.Folder
+    ) -> Feed? {
+        if let feed = folder.feeds.first(where: { $0.id == feedID }) {
+            return feed
+        }
+        for sub in folder.subfolders {
+            if let feed = findFeed(feedID: feedID, in: sub) {
+                return feed
+            }
+        }
+        return nil
+    }
+
+    /// Pure recursive feed-removal — strips every occurrence of
+    /// the feed across the whole tree. Doesn't migrate anything
+    /// (unlike removeFolderRecursively); the caller (moveFeed)
+    /// re-inserts at the new destination.
+    private static func removeFeedFromTree(
+        feedID: Feed.ID,
+        in folder: OPMLImporter.Folder
+    ) -> (OPMLImporter.Folder, Bool) {
+        var copy = folder
+        let before = copy.feeds.count
+        copy.feeds.removeAll { $0.id == feedID }
+        var didRemove = copy.feeds.count != before
+        var newSubfolders: [OPMLImporter.Folder] = []
+        for sub in copy.subfolders {
+            let (updatedSub, subDid) = removeFeedFromTree(feedID: feedID, in: sub)
+            if subDid { didRemove = true }
+            newSubfolders.append(updatedSub)
+        }
+        copy.subfolders = newSubfolders
+        return (copy, didRemove)
+    }
+
+    /// Pure recursive insert. Walks subfolders; appends to the
+    /// first one with matching name. When folderName is nil,
+    /// appends to root.feeds.
+    private static func insertFeed(
+        _ feed: Feed,
+        intoFolderNamed folderName: String?,
+        in folder: OPMLImporter.Folder
+    ) -> OPMLImporter.Folder {
+        var copy = folder
+        guard let folderName else {
+            copy.feeds.append(feed)
+            return copy
+        }
+        if let idx = copy.subfolders.firstIndex(where: { $0.name == folderName }) {
+            copy.subfolders[idx].feeds.append(feed)
+            return copy
+        }
+        copy.subfolders = copy.subfolders.map {
+            insertFeed(feed, intoFolderNamed: folderName, in: $0)
+        }
+        return copy
+    }
+
     /// Pure recursive helper for removeFolder. Returns
     /// (updatedFolder, didRemove). At each level, if a direct
     /// subfolder matches, its feeds + subfolders bubble up

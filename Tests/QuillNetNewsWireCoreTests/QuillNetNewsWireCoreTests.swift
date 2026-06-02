@@ -1931,6 +1931,101 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("moveFeed moves a top-level feed into a folder")
+    func moveFeedTopLevelToFolder() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let feed = Feed(title: "HN", url: "https://hn.test/feed")
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [feed],
+            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [], subfolders: [])]
+        )
+        #expect(model.moveFeed(feed.id, toFolder: "Tech"))
+        // Feed left top-level, arrived in Tech.
+        #expect(model.subscriptionRoot.feeds.isEmpty)
+        #expect(model.subscriptionRoot.subfolders[0].feeds.map(\.id) == [feed.id])
+    }
+
+    @MainActor
+    @Test("moveFeed moves a folder-resident feed back to top-level (nil target)")
+    func moveFeedFolderToRoot() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let feed = Feed(title: "HN", url: "https://hn.test/feed")
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [feed], subfolders: [])]
+        )
+        #expect(model.moveFeed(feed.id, toFolder: nil))
+        #expect(model.subscriptionRoot.subfolders[0].feeds.isEmpty)
+        #expect(model.subscriptionRoot.feeds.map(\.id) == [feed.id])
+    }
+
+    @MainActor
+    @Test("moveFeed between folders strips source + adds to destination")
+    func moveFeedBetweenFolders() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let feed = Feed(title: "HN", url: "https://hn.test/feed")
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(name: "Tech", feeds: [feed], subfolders: []),
+                OPMLImporter.Folder(name: "News", feeds: [], subfolders: []),
+            ]
+        )
+        #expect(model.moveFeed(feed.id, toFolder: "News"))
+        #expect(model.subscriptionRoot.subfolders[0].feeds.isEmpty)
+        #expect(model.subscriptionRoot.subfolders[1].feeds.map(\.id) == [feed.id])
+    }
+
+    @MainActor
+    @Test("moveFeed returns false for unknown feed id")
+    func moveFeedUnknown() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [], subfolders: [])]
+        )
+        #expect(!model.moveFeed("https://nope.test/feed", toFolder: "Tech"))
+    }
+
+    @MainActor
+    @Test("moveFeed returns false for unknown destination folder")
+    func moveFeedUnknownDestination() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let feed = Feed(title: "HN", url: "https://hn.test/feed")
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "", feeds: [feed], subfolders: []
+        )
+        #expect(!model.moveFeed(feed.id, toFolder: "NoSuchFolder"))
+        // Feed wasn't stripped — pre-flight check protects against
+        // partial mutation.
+        #expect(model.subscriptionRoot.feeds.map(\.id) == [feed.id])
+    }
+
+    @MainActor
+    @Test("moveFeed targets nested folders too")
+    func moveFeedNestedDestination() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let feed = Feed(title: "HN", url: "https://hn.test/feed")
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [feed],
+            subfolders: [
+                OPMLImporter.Folder(
+                    name: "Tech",
+                    feeds: [],
+                    subfolders: [OPMLImporter.Folder(name: "Apple", feeds: [], subfolders: [])]
+                ),
+            ]
+        )
+        #expect(model.moveFeed(feed.id, toFolder: "Apple"))
+        #expect(model.subscriptionRoot.subfolders[0].subfolders[0].feeds.map(\.id) == [feed.id])
+    }
+
+    @MainActor
     @Test("addFolder creates a new top-level folder")
     func addFolderCreatesTopLevel() {
         let model = RSSReaderModel(subscribedFeeds: [])
