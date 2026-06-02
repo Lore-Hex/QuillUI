@@ -1920,6 +1920,55 @@ struct QuillNetNewsWireCoreTests {
     // MARK: - Detail view helpers (friendly date + author)
 
     @MainActor
+    @Test("filteredRows surfaces friendly date instead of raw RSS pubDate")
+    func filteredRowsUsesFriendlyDate() {
+        let model = RSSReaderModel()
+        // The RSS feed handed us a verbose RFC822 string in
+        // pubDate. Without the friendly-date injection at row
+        // build time, the timeline showed that raw string. The
+        // parallel Article has a real datePublished close to now,
+        // so friendlyDateString should yield a relative form
+        // ("1 minute ago" or similar) and the row should
+        // display that instead.
+        let recent = Date().addingTimeInterval(-60)
+        model.items = [
+            RSSItem(
+                id: "x", title: "Hi",
+                link: nil, pubDate: "Sun, 01 Jun 2026 14:30:00 +0000",
+                descriptionHTML: nil
+            ),
+        ]
+        model.articles = [articleStub(id: "x", date: recent)]
+
+        let rows = model.filteredRows
+        #expect(rows.count == 1)
+        let row = rows[0]
+        // Raw verbose pubDate must NOT make it into the row's
+        // published summary; the friendly form replaces it.
+        #expect(!row.publishedSummary.contains("Sun, 01 Jun 2026"))
+        #expect(!row.publishedSummary.isEmpty)
+    }
+
+    @MainActor
+    @Test("filteredRows falls back to raw pubDate when no Article parsed")
+    func filteredRowsFallsBackWhenNoArticle() {
+        let model = RSSReaderModel()
+        // No parallel article record → friendlyDateString returns
+        // "" → row should fall back to the raw pubDate string so
+        // the timeline still shows SOMETHING dated.
+        model.items = [
+            RSSItem(
+                id: "y", title: "Y",
+                link: nil, pubDate: "Mon, 02 Jun 2026 09:00:00 +0000",
+                descriptionHTML: nil
+            ),
+        ]
+        let rows = model.filteredRows
+        #expect(rows.count == 1)
+        #expect(rows[0].publishedSummary == "Mon, 02 Jun 2026 09:00:00 +0000")
+    }
+
+    @MainActor
     @Test("friendlyDateString returns empty string when no parsed Date")
     func friendlyDateStringNoDate() {
         let model = RSSReaderModel()

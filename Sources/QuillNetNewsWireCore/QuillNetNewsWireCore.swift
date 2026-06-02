@@ -1342,6 +1342,30 @@ public struct RSSArticleRow: Identifiable, Hashable, Sendable {
         )
     }
 
+    /// Convenience init that prefers a model-derived friendly
+    /// date ("3h ago", "Jun 1") over the raw RSS pubDate string.
+    /// Falls back to publishedSummary when friendly is empty
+    /// (e.g. the parallel article record didn't have a parsed
+    /// Date). Matches upstream NetNewsWire's timeline rows,
+    /// which show compact friendly dates instead of the verbose
+    /// "Sun, 01 Jun 2026 14:30:00 +0000" form from the feed.
+    public init(
+        item: RSSItem,
+        feedTitle: String? = nil,
+        authorLine: String? = nil,
+        friendlyDate: String
+    ) {
+        let displayDate = friendlyDate.isEmpty ? item.publishedSummary : friendlyDate
+        self.init(
+            id: item.id,
+            title: item.title,
+            publishedSummary: displayDate,
+            previewText: Self.makePreview(from: item.plainTextBody),
+            feedTitle: feedTitle,
+            authorLine: authorLine
+        )
+    }
+
     /// Composed "date · by Author" line for the timeline row.
     /// Bridges both fields so the view doesn't repeat the
     /// detail-header logic.
@@ -4576,7 +4600,8 @@ final class RSSReaderModel: ObservableObject {
                 RSSArticleRow(
                     item: item,
                     feedTitle: nil,
-                    authorLine: authorLine(forItemID: item.id)
+                    authorLine: authorLine(forItemID: item.id),
+                    friendlyDate: friendlyDateString(forItemID: item.id)
                 )
             }
         }
@@ -4603,7 +4628,8 @@ final class RSSReaderModel: ObservableObject {
             return RSSArticleRow(
                 item: item,
                 feedTitle: title,
-                authorLine: authorLine(forItemID: item.id)
+                authorLine: authorLine(forItemID: item.id),
+                friendlyDate: friendlyDateString(forItemID: item.id)
             )
         }
     }
