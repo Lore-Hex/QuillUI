@@ -191,6 +191,34 @@ public final class ArticleStore: @unchecked Sendable {
         }
     }
 
+    /// Delete a feed's older rows, keeping only the `keeping`
+    /// most recent (by datePublished newest-first; nil dates
+    /// sort last so they get pruned first when the cap is
+    /// reached). Called after every fetch upsert so SQLite
+    /// doesn't grow unbounded over the install's lifetime.
+    /// Starred / unread rows still get pruned — the JSON sets
+    /// (readArticleIDs / starredArticleIDs) are authoritative
+    /// for "ever read / starred"; the pruned row's bit is
+    /// already captured there.
+    ///
+    /// Keep retention generous (smartFeedStoredLimit's default
+    /// 500 per feed → 500 × 100 feeds = 50k rows, fine) but
+    /// bounded so a dead-but-still-subscribed feed can't grow
+    /// SQLite forever.
+    public func pruneFeed(_ feedID: String, keeping: Int) throws {
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<PersistentArticle>(
+            filter: { $0.feedID == feedID }
+        )
+        let rows = try context.fetch(descriptor)
+        guard rows.count > keeping else { return }
+        let sorted = rows.sorted(by: Self.newestFirst)
+        for row in sorted.dropFirst(keeping) {
+            context.delete(row)
+        }
+        try context.save()
+    }
+
     /// Delete every row belonging to a feed. Called from
     /// RSSReaderModel.removeSubscription so the SQLite store
     /// doesn't carry articles for feeds the user has unsub-

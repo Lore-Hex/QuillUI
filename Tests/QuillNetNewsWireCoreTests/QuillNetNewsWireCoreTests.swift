@@ -1196,6 +1196,42 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.filteredItems.map(\.id).contains("ux-starred"))
     }
 
+    @Test("ArticleStore.pruneFeed keeps N newest by datePublished")
+    func articleStorePruneFeed() throws {
+        let store = try ArticleStore()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        var rows: [PersistentArticle] = []
+        for i in 0..<10 {
+            // i=0 newest, i=9 oldest.
+            rows.append(PersistentArticle(
+                id: "r\(i)", accountID: "Local",
+                feedID: "https://x.test/feed",
+                uniqueID: "u\(i)", title: "T\(i)",
+                datePublished: now.addingTimeInterval(-Double(i) * 3600)
+            ))
+        }
+        try store.upsert(rows)
+        try store.pruneFeed("https://x.test/feed", keeping: 3)
+        let remaining = try store.fetchAll()
+        // Only the 3 newest should survive (r0, r1, r2).
+        #expect(Set(remaining.map(\.id)) == ["r0", "r1", "r2"])
+    }
+
+    @Test("ArticleStore.pruneFeed is a no-op when row count <= keeping")
+    func articleStorePruneFeedNoOpUnderCap() throws {
+        let store = try ArticleStore()
+        try store.upsert([
+            PersistentArticle(id: "a", accountID: "Local",
+                              feedID: "https://x.test/feed",
+                              uniqueID: "ua", title: "A"),
+            PersistentArticle(id: "b", accountID: "Local",
+                              feedID: "https://x.test/feed",
+                              uniqueID: "ub", title: "B"),
+        ])
+        try store.pruneFeed("https://x.test/feed", keeping: 5)
+        #expect(try store.fetchAll().count == 2)
+    }
+
     @Test("ArticleStore.deleteForFeed removes only that feed's rows")
     func articleStoreDeleteForFeed() throws {
         let store = try ArticleStore()

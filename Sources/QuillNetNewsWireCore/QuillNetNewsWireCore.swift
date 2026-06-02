@@ -1540,6 +1540,14 @@ final class RSSReaderModel: ObservableObject {
     /// trim to this; in-memory render cost stays O(N) per feed.
     static let articlesPerFeedLimit = 100
 
+    /// Per-feed SQLite retention. After every fetch upsert, the
+    /// feed's SQLite rows get pruned to the N newest. Larger
+    /// than articlesPerFeedLimit (which caps the in-memory
+    /// fetch batch) so SQLite preserves history beyond the
+    /// per-batch slice — Starred / All Unread smart feeds rely
+    /// on this for the full-history span (#113/#114).
+    static let articleHistoryLimit = 500
+
     /// Wall-clock time of the most recent successful fetch.
     /// Drives `isAutoRefreshDue()`. Exposed as @Published so
     /// future UI (a "last updated 3m ago" footer line) can
@@ -2680,6 +2688,13 @@ final class RSSReaderModel: ObservableObject {
                     )
                 }
                 try? articleStore.upsert(rows)
+                // Bound SQLite growth: drop the feed's oldest
+                // rows beyond articleHistoryLimit. Per-feed
+                // (not global) so popular feeds don't crowd
+                // out infrequent ones. Read paths (stored*Items)
+                // still see the kept window, which is way
+                // beyond articlesPerFeedLimit.
+                try? articleStore.pruneFeed(urlString, keeping: Self.articleHistoryLimit)
             }
             // Successful refresh-all path clears any prior error.
             feedErrors[urlString] = nil
@@ -2799,6 +2814,13 @@ final class RSSReaderModel: ObservableObject {
                     )
                 }
                 try? articleStore.upsert(rows)
+                // Bound SQLite growth: drop the feed's oldest
+                // rows beyond articleHistoryLimit. Per-feed
+                // (not global) so popular feeds don't crowd
+                // out infrequent ones. Read paths (stored*Items)
+                // still see the kept window, which is way
+                // beyond articlesPerFeedLimit.
+                try? articleStore.pruneFeed(urlString, keeping: Self.articleHistoryLimit)
             }
             if self.selectedID == nil {
                 self.selectItem(id: self.preferredInitialItemID(in: self.items))
