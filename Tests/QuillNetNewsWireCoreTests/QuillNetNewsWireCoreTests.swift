@@ -1930,6 +1930,109 @@ struct QuillNetNewsWireCoreTests {
         #expect(restored.selectedFeedID == "https://a.test/feed")
     }
 
+    @MainActor
+    @Test("renameFolder renames a top-level folder")
+    func renameFolderTopLevel() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(name: "Tech", feeds: [], subfolders: []),
+            ]
+        )
+        #expect(model.renameFolder(from: "Tech", to: "News"))
+        #expect(model.subscriptionRoot.subfolders.first?.name == "News")
+    }
+
+    @MainActor
+    @Test("renameFolder finds folders nested in subfolders")
+    func renameFolderNested() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(
+                    name: "Tech",
+                    feeds: [],
+                    subfolders: [
+                        OPMLImporter.Folder(name: "Apple", feeds: [], subfolders: []),
+                    ]
+                ),
+            ]
+        )
+        #expect(model.renameFolder(from: "Apple", to: "Cupertino"))
+        #expect(model.subscriptionRoot.subfolders[0].subfolders.first?.name == "Cupertino")
+    }
+
+    @MainActor
+    @Test("renameFolder refuses an empty new name")
+    func renameFolderRefusesEmpty() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(name: "Tech", feeds: [], subfolders: []),
+            ]
+        )
+        #expect(!model.renameFolder(from: "Tech", to: ""))
+        #expect(!model.renameFolder(from: "Tech", to: "   "))
+        #expect(model.subscriptionRoot.subfolders.first?.name == "Tech")
+    }
+
+    @MainActor
+    @Test("renameFolder refuses a sibling-name conflict")
+    func renameFolderRefusesSiblingConflict() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(name: "Tech", feeds: [], subfolders: []),
+                OPMLImporter.Folder(name: "News", feeds: [], subfolders: []),
+            ]
+        )
+        // "News" already exists as a sibling → rename rejected.
+        #expect(!model.renameFolder(from: "Tech", to: "News"))
+        #expect(model.subscriptionRoot.subfolders.map(\.name) == ["Tech", "News"])
+    }
+
+    @MainActor
+    @Test("renameFolder returns false for an unknown folder")
+    func renameFolderUnknown() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(name: "", feeds: [], subfolders: [])
+        #expect(!model.renameFolder(from: "Nope", to: "Anything"))
+    }
+
+    @MainActor
+    @Test("renameFolder persists across reinit (round-trips through saved OPML)")
+    func renameFolderPersists() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-rename-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        let first = RSSReaderModel(subscribedFeeds: [], persistence: store)
+        first.subscribedFeeds.append(Feed(title: "HN", url: "https://hn.test/feed"))
+        first.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(
+                    name: "OldName",
+                    feeds: [Feed(title: "HN", url: "https://hn.test/feed")],
+                    subfolders: []
+                ),
+            ]
+        )
+        #expect(first.renameFolder(from: "OldName", to: "NewName"))
+        let second = RSSReaderModel(subscribedFeeds: [], persistence: store)
+        #expect(second.subscriptionRoot.subfolders.first?.name == "NewName")
+    }
+
     @Test("OPMLExporter.exportTree wraps named subfolders as group outlines")
     func opmlExportTreeWrapsSubfolders() {
         let root = OPMLImporter.Folder(

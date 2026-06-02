@@ -2836,6 +2836,69 @@ final class RSSReaderModel: ObservableObject {
     /// + the ArticleStore + the JSON persistence. Returns the
     /// count of newly-marked rows. Mirrors upstream NetNewsWire's
     /// 'Mark All as Read in [Folder]' menu command.
+    /// Rename a folder anywhere in the subscriptionRoot
+    /// hierarchy (recursive walk by name match). Returns true
+    /// when a folder was found and renamed. Mirrors upstream
+    /// NetNewsWire's sidebar folder-rename action. The mutation
+    /// triggers persistence via the subscriptionRoot didSet, so
+    /// the new name survives relaunch (now that exportTree
+    /// preserves folder hierarchy).
+    ///
+    /// Conflict guard: refuses to rename when `to` is empty
+    /// (would lose folder identity) or when a sibling folder
+    /// already has the target name (would create a duplicate
+    /// that Folder.id-by-name can't distinguish). Returns false
+    /// in both cases without mutating.
+    @discardableResult
+    func renameFolder(from oldName: String, to newName: String) -> Bool {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard trimmed != oldName else { return true } // no-op success
+        let (updated, didRename) = Self.renameFolderRecursively(
+            in: subscriptionRoot, from: oldName, to: trimmed
+        )
+        guard didRename else { return false }
+        subscriptionRoot = updated
+        return true
+    }
+
+    /// Pure recursive helper. Returns (updatedFolder, didRename).
+    /// Walks every subfolder; at each level, checks for a
+    /// sibling name conflict before applying the rename so the
+    /// caller's no-duplicates invariant is preserved tree-wide.
+    private static func renameFolderRecursively(
+        in folder: OPMLImporter.Folder,
+        from oldName: String,
+        to newName: String
+    ) -> (OPMLImporter.Folder, Bool) {
+        var copy = folder
+        // Conflict check at this level: refuse if a sibling
+        // already owns the new name (and isn't the rename target
+        // itself).
+        let siblingHasNewName = copy.subfolders.contains { $0.name == newName }
+        var didRename = false
+        var newSubfolders: [OPMLImporter.Folder] = []
+        for var sub in copy.subfolders {
+            if sub.name == oldName {
+                guard !siblingHasNewName else {
+                    newSubfolders.append(sub) // no rename — conflict
+                    continue
+                }
+                sub.name = newName
+                didRename = true
+                newSubfolders.append(sub)
+            } else {
+                let (renamed, subDid) = renameFolderRecursively(
+                    in: sub, from: oldName, to: newName
+                )
+                if subDid { didRename = true }
+                newSubfolders.append(renamed)
+            }
+        }
+        copy.subfolders = newSubfolders
+        return (copy, didRename)
+    }
+
     @discardableResult
     func markFolderAsRead(_ folder: OPMLImporter.Folder) -> Int {
         let before = readArticleIDs.count
