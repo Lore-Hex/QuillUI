@@ -1401,6 +1401,31 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("lastFetchSummary is empty when no fetch has happened")
+    func lastFetchSummaryEmpty() {
+        let model = RSSReaderModel()
+        #expect(model.lastFetchSummary.isEmpty)
+    }
+
+    @MainActor
+    @Test("lastFetchSummary is 'Updated just now' immediately after a fetch")
+    func lastFetchSummaryJustNow() {
+        let model = RSSReaderModel()
+        model.lastFetchAt = Date()
+        #expect(model.lastFetchSummary == "Updated just now")
+    }
+
+    @MainActor
+    @Test("lastFetchSummary uses relative form for older fetches")
+    func lastFetchSummaryRelative() {
+        let model = RSSReaderModel()
+        model.lastFetchAt = Date().addingTimeInterval(-3600)
+        let summary = model.lastFetchSummary
+        #expect(summary.hasPrefix("Updated "))
+        #expect(!summary.contains("just now"))
+    }
+
+    @MainActor
     @Test("isAutoRefreshDue is false within the interval window")
     func backgroundRefreshNotDueWithinInterval() {
         let model = RSSReaderModel()

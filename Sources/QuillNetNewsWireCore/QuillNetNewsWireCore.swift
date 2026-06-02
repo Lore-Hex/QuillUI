@@ -382,9 +382,17 @@ public struct QuillNetNewsWireContentView: View {
 
     private var footerStatus: some View {
         HStack(spacing: 8) {
-            Text(model.statusText)
-                .font(.caption2)
-                .foregroundColor(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.statusText)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                let updated = model.lastFetchSummary
+                if !updated.isEmpty {
+                    Text(updated)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
             Spacer()
             Button("All Read") {
                 model.markAllVisibleAsRead()
@@ -1118,6 +1126,23 @@ final class RSSReaderModel: ObservableObject {
             self.setError("\(error)")
         }
         setLoading(false)
+    }
+
+    /// Human-readable "Updated N ago" string for the footer
+    /// status bar. Empty when no fetch has happened yet so the
+    /// footer falls through to the regular item-count text.
+    /// Refreshes on every call against the current wall clock
+    /// (callers should re-read whenever they re-render the
+    /// footer; relativeFormatter is locale-aware).
+    var lastFetchSummary: String {
+        guard let date = lastFetchAt else { return "" }
+        let now = Date()
+        let elapsed = now.timeIntervalSince(date)
+        if elapsed < 5 {
+            return "Updated just now"
+        }
+        let formatted = Self.relativeFormatter.localizedString(for: date, relativeTo: now)
+        return "Updated \(formatted)"
     }
 
     /// True when the auto-refresh interval has elapsed since the
