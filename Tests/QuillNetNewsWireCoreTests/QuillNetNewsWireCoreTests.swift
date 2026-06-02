@@ -4601,19 +4601,24 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
-    @Test("refreshFeed is a no-op while another refresh is in flight")
-    func refreshFeedRespectsIsLoading() async {
+    @Test("refreshFeed is a no-op while THIS feed's URL is in flight (per-URL gate)")
+    func refreshFeedRespectsPerURLGate() async {
         let model = RSSReaderModel(subscribedFeeds: [
             Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
         ])
-        // Pin isLoading manually to simulate an in-flight fetch
-        // (without making a real network round-trip in tests).
-        model.isLoading = true
-        await model.refreshFeed(urlString: "https://a.test/feed")
-        // Cache stays empty — the call short-circuited before
-        // hitting the network.
+        // Simulate B in flight (matches #141's per-URL tracking).
+        model.pushLoading(forURL: "https://b.test/feed")
+        defer { model.popLoading(forURL: "https://b.test/feed") }
+        // Same URL → skipped.
+        await model.refreshFeed(urlString: "https://b.test/feed")
         #expect(model.feedCaches.isEmpty)
-        #expect(model.items.isEmpty)
+        // Different URL → NOT skipped (would proceed to fetch).
+        // We can't easily verify the fetch starts without a
+        // network stub, but the per-URL semantic is: only the
+        // exact same URL gets the no-op. Pinned by the predicate:
+        #expect(!model.isLoading(forURL: "https://a.test/feed"))
+        #expect(model.isLoading(forURL: "https://b.test/feed"))
     }
 
     @MainActor

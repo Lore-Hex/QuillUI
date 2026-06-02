@@ -196,15 +196,18 @@ public struct QuillNetNewsWireContentView: View {
                 if let feed {
                     // Per-feed refresh — fetches just this feed's
                     // contents into the cache (or active timeline
-                    // when it's the selection). Disabled while a
-                    // refresh is already in flight to avoid
-                    // overlapping requests for the same URL.
+                    // when it's the selection). Disabled only when
+                    // THIS feed's URL is in flight, not when ANY
+                    // global fetch is loading (so the inspector
+                    // stays usable during Refresh All on other
+                    // feeds — matches #141's per-URL gate for
+                    // refresh).
                     Button("Refresh") {
                         Task { @MainActor in
                             await model.refreshFeed(urlString: feed.url)
                         }
                     }
-                    .disabled(model.isLoading)
+                    .disabled(model.isLoading(forURL: feed.url))
                 }
                 Spacer()
                 Button("Done") { inspectedFeedID = nil }
@@ -2738,7 +2741,11 @@ final class RSSReaderModel: ObservableObject {
     /// circular-arrow button next to a feed row in inspector
     /// and the keyboard-driven "Refresh Feed" command).
     func refreshFeed(urlString: String) async {
-        guard !isLoading else { return }
+        // Per-URL gate — Refresh All on OTHER feeds doesn't
+        // block this one. Matches #141's refresh(urlString:)
+        // semantic and the inspector button's disabled state
+        // (#148).
+        guard !isLoading(forURL: urlString) else { return }
         if urlString == currentFeedURL {
             await refresh(urlString: urlString)
         } else {
