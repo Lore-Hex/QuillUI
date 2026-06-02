@@ -80,6 +80,8 @@ struct QtSmokeView: View {
                 )
                 .frame(width: QtSmokeMetrics.panelWidth, height: QtSmokeMetrics.panelHeight)
 
+                Divider()
+
                 ZStack {
                     Color(red: 0.89, green: 0.95, blue: 1.0)
                         .frame(width: 220, height: 48)

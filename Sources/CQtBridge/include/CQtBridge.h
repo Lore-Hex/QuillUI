@@ -171,6 +171,20 @@ QuillQtWidgetHandle quill_qt_bridge_image_create_from_file(
     int resizable
 );
 
+// Create a thin QFrame-backed SwiftUI Divider. It defaults to QFrame::HLine
+// and can be re-oriented by stack containers when needed.
+QuillQtWidgetHandle quill_qt_make_divider(void);
+
+// Return non-zero when the handle is a divider created by quill_qt_make_divider.
+int quill_qt_widget_is_divider(QuillQtWidgetHandle widget);
+
+// Configure a divider's line orientation. vertical=0 => QFrame::HLine;
+// vertical!=0 => QFrame::VLine. Non-divider/null handles are ignored.
+void quill_qt_divider_set_orientation(
+    QuillQtWidgetHandle divider,
+    int vertical
+);
+
 // Create a QPushButton with the given UTF-8 title and connect its clicked()
 // signal to `callback(user_data)`. `user_data` is owned by Swift (a retained
 // box); `destroy` is invoked when the button is destroyed so Swift can release
