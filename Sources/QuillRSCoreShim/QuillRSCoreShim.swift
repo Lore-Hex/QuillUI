@@ -70,6 +70,91 @@ public extension Notification.Name {
     /// string ("LowMemoryNotification") is matched byte-for-byte
     /// so notifications posted from either side route the same.
     static let lowMemory = Notification.Name("LowMemoryNotification")
+
+    /// Posted when the app moves to background. Matches the
+    /// raw string upstream RSCore uses.
+    static let appDidGoToBackground = Notification.Name("AppDidGoToBackgroundNotification")
+}
+
+public extension TimeInterval {
+    /// Whole-day TimeInterval, mirrors RSCore.TimeInterval(days:).
+    /// Used by upstream RSWeb's 4xx cache expiry, downloader
+    /// backoff, etc.
+    init(days: Int) {
+        self.init(days * 24 * 60 * 60)
+    }
+
+    /// Whole-hour TimeInterval, mirrors RSCore.TimeInterval(hours:).
+    init(hours: Int) {
+        self.init(hours * 60 * 60)
+    }
+
+    /// Whole-minute TimeInterval, mirrors RSCore.TimeInterval(minutes:).
+    init(minutes: Int) {
+        self.init(minutes * 60)
+    }
+}
+
+/// Mirrors `RSCore.ProgressInfo`. Carries a snapshot of an
+/// in-flight batch's task count + how many have completed.
+/// Used by upstream RSWeb's DownloadSession + post-fetch
+/// observers; structured the same way so observers wired against
+/// upstream's `.progressInfoDidChange` notification read the
+/// same shape regardless of which side posted.
+public struct ProgressInfo: Sendable, Equatable {
+    public let numberOfTasks: Int
+    public let numberCompleted: Int
+    public let numberRemaining: Int
+
+    public var isComplete: Bool { numberRemaining < 1 }
+
+    public init(numberOfTasks: Int = 0, numberCompleted: Int = 0, numberRemaining: Int = 0) {
+        assert(numberOfTasks >= 0 && numberCompleted >= 0 && numberRemaining >= 0)
+        self.numberOfTasks = numberOfTasks
+        self.numberCompleted = numberCompleted
+        self.numberRemaining = numberRemaining
+    }
+}
+
+/// Mirrors `RSCore.ProgressInfoReporter`. RSWeb's DownloadSession
+/// conforms; UI surfaces (sidebar refresh spinner, status bar)
+/// observe via the matching notification name.
+@MainActor public protocol ProgressInfoReporter: AnyObject {
+    var progressInfo: ProgressInfo { get }
+}
+
+public extension Notification.Name {
+    /// Posted when a ProgressInfoReporter's snapshot changes.
+    /// Same raw string as upstream `RSCore.AppNotifications` so
+    /// cross-side observers route together.
+    static let progressInfoDidChange = Notification.Name(rawValue: "ProgressInfoDidChangeNotification")
+}
+
+@MainActor public extension ProgressInfoReporter {
+    func postProgressInfoDidChangeNotification() {
+        NotificationCenter.default.post(name: .progressInfoDidChange, object: self)
+    }
+}
+
+public extension Date {
+    /// Add a day count, returning a new Date. Mirrors
+    /// RSCore.Date.byAdding(days:).
+    func byAdding(days: Int) -> Date {
+        return addingTimeInterval(TimeInterval(days: days))
+    }
+
+    /// Subtract a day count, returning a new Date. Mirrors
+    /// RSCore.Date.bySubtracting(days:).
+    func bySubtracting(days: Int) -> Date {
+        return addingTimeInterval(-TimeInterval(days: days))
+    }
+
+    /// Subtract an hour count, returning a new Date. Mirrors
+    /// RSCore.Date.bySubtracting(hours:). Used by upstream RSWeb's
+    /// DownloadSession.cleanUp4xxResponsesCache().
+    func bySubtracting(hours: Int) -> Date {
+        return addingTimeInterval(-TimeInterval(hours: hours))
+    }
 }
 
 /// Pure-Swift MD5 implementation (RFC 1321). The intent is to
