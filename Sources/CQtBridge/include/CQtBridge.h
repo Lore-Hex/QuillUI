@@ -38,6 +38,9 @@ typedef void (*quill_qt_bridge_toggle_callback)(int checked, void *user_data);
 // Text callback for line edits. `text` is a UTF-8 string valid for the call.
 typedef void (*quill_qt_bridge_text_callback)(const char *text, void *user_data);
 
+// Index callback for combo boxes. `index` is the selected item index.
+typedef void (*quill_qt_bridge_index_callback)(int index, void *user_data);
+
 // Deferred (queued) callback used by QtViewHost to coalesce reactive rebuilds,
 // mirroring GTK's `g_idle_add`. Posted via QTimer::singleShot(0, ...).
 typedef void (*quill_qt_bridge_idle_callback)(void *user_data);
@@ -210,6 +213,32 @@ void quill_qt_line_edit_set_text(
 void quill_qt_line_edit_connect_text_changed(
     QuillQtWidgetHandle line_edit,
     quill_qt_bridge_text_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
+// Create a QComboBox. Swift configures items, current index, and signal wiring
+// separately so the initial setCurrentIndex() does not fire the Swift binding
+// callback.
+QuillQtWidgetHandle quill_qt_make_combo_box(void);
+
+// Add one UTF-8 item to the QComboBox.
+void quill_qt_combo_box_add_item(
+    QuillQtWidgetHandle combo_box,
+    const char *text
+);
+
+// Set the current QComboBox index.
+void quill_qt_combo_box_set_current_index(
+    QuillQtWidgetHandle combo_box,
+    int index
+);
+
+// Connect QComboBox::currentIndexChanged(int) to Swift. `destroy` releases
+// `user_data` when the combo box is destroyed.
+void quill_qt_combo_box_connect_current_index_changed(
+    QuillQtWidgetHandle combo_box,
+    quill_qt_bridge_index_callback callback,
     void *user_data,
     quill_qt_bridge_click_callback destroy
 );

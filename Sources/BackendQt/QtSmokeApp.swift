@@ -2,7 +2,8 @@
 //
 // This is the payload the spike proves: a genuine SwiftOpenUI `App` (NOT
 // hand-built C++ Qt widgets) whose WindowGroup → VStack { Text; Button; Toggle;
-// Menu; panel } is walked by the generic QtBackend and rendered with native Qt widgets.
+// TextField; Picker; Menu; panel } is walked by the generic QtBackend and
+// rendered with native Qt widgets.
 //
 // It is shaped to exercise the SAME surface the screenshot verifier checks via
 // `validate_quill_backend_interaction_smoke`:
@@ -60,6 +61,7 @@ struct QtSmokeView: View {
     @State private var isCheckboxOn = false
     @State private var textFieldValue = "Qt TextField"
     @State private var menuSelection = "none"
+    @State private var pickerSelection = "alpha"
 
     var body: some View {
         ScrollView(.vertical) {
@@ -79,6 +81,13 @@ struct QtSmokeView: View {
 
                 TextField("QLineEdit placeholder", text: $textFieldValue)
                 Text("TextField echo: \(textFieldValue)")
+
+                Picker("QComboBox Picker", selection: $pickerSelection) {
+                    Text("Picker Alpha").tag("alpha")
+                    Text("Picker Beta").tag("beta")
+                    Text("Picker Gamma").tag("gamma")
+                }
+                Text("Picker choice: \(pickerSelection)")
 
                 Menu("QToolButton Menu") {
                     Button("Choose Alpha") {
