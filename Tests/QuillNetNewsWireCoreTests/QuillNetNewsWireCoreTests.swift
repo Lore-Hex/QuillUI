@@ -68,6 +68,35 @@ struct QuillNetNewsWireCoreTests {
         #expect(HTMLEntities.decode(raw) == "AT&T announces\u{2026}")
     }
 
+    @Test("HTMLEntities decodes accented Latin entities for author names")
+    func htmlEntitiesDecodesAccentedLatin() {
+        #expect(HTMLEntities.decode("Jos&eacute; Garc&iacute;a") == "José García")
+        #expect(HTMLEntities.decode("Fran&ccedil;ois") == "François")
+        #expect(HTMLEntities.decode("M&uuml;ller") == "Müller")
+        #expect(HTMLEntities.decode("M&aacute;rquez") == "Márquez")
+        #expect(HTMLEntities.decode("N&ouml;el") == "Nöel")
+    }
+
+    @MainActor
+    @Test("authorLine decodes accented entities in author names")
+    func authorLineDecodesEntities() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "X", url: "https://x.test/feed"),
+        ])
+        let article = Article(
+            accountID: "", articleID: "1",
+            feedID: "https://x.test/feed",
+            uniqueID: "a1", title: "T", contentHTML: nil,
+            contentText: nil, markdown: nil, url: nil, externalURL: nil,
+            summary: nil, imageURL: nil,
+            datePublished: nil, dateModified: nil,
+            authors: [Author(authorID: nil, name: "Jos&eacute; Garc&iacute;a", url: nil, avatarURL: nil, emailAddress: nil)!],
+            status: ArticleStatus(articleID: "1", read: false, starred: false, dateArrived: Date(timeIntervalSince1970: 0))
+        )
+        model.articles = [article]
+        #expect(model.authorLine(forItemID: "a1") == "José García")
+    }
+
     @Test("RSSItem.plainTextBody decodes common typographical entities")
     func rssItemPlainTextBodyDecodesTypography() {
         let html = "Hello&hellip; and &mdash; &ldquo;quoted&rdquo; &copy; 2026"

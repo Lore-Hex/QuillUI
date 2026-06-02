@@ -3087,7 +3087,14 @@ final class RSSReaderModel: ObservableObject {
               let authors = article.authors, !authors.isEmpty else {
             return nil
         }
-        let names = authors.compactMap(\.name).filter { !$0.isEmpty }
+        // Decode HTML entities in author names — same Wordpress-
+        // pattern reason as title decoding in #121. "Jos&eacute;
+        // Garc&iacute;a" should read as the actual name in the
+        // timeline byline.
+        let names = authors
+            .compactMap(\.name)
+            .filter { !$0.isEmpty }
+            .map(HTMLEntities.decode)
         guard !names.isEmpty else { return nil }
         return names.sorted().joined(separator: ", ")
     }
