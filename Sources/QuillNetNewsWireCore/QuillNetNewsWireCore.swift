@@ -2623,6 +2623,15 @@ final class RSSReaderModel: ObservableObject {
             feedErrors[urlString] = "Invalid URL"
             return
         }
+        // Toggle isLoading for the duration so the UI's
+        // disable-while-loading affordances (Refresh button,
+        // Refresh All button, inspector Refresh) honor the
+        // in-flight state. Without this, refreshAllFeeds'
+        // inactive-feed loop would leave isLoading=false
+        // between iterations and the user could trigger
+        // overlapping fetches mid-batch.
+        setLoading(true)
+        defer { setLoading(false) }
         do {
             let (maybeData, maybeResponse) = try await Downloader.shared.download(url)
             // Same HTTP-status guard as the active-feed fetch()
