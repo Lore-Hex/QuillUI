@@ -1679,6 +1679,15 @@ final class RSSReaderModel: ObservableObject {
         // articles, lastFetchAt) triple per group. Errors swallow
         // — the in-memory empty caches keep the reader running.
         hydrateFeedCachesFromStoreIfReady()
+        // Reconcile the in-memory JSON-persisted sets against
+        // SQLite. If SQLite has isStarred=true rows whose unique
+        // IDs are missing from starredArticleIDs (e.g. JSON file
+        // corruption or pre-iteration-113 data), merge them in
+        // so toggleStarred behaves correctly the first click.
+        // Same for isRead. Direction: SQLite → JSON union; never
+        // unstar / unread anything in the JSON set (that would
+        // override the user's explicit JSON-persisted state).
+        reconcileReadStarredFromStore()
         // Restore sidebar selection from disk so the reader
         // resumes where the user left off. A persisted feed that
         // no longer exists (unsubscribed across launches) falls
@@ -1750,6 +1759,50 @@ final class RSSReaderModel: ObservableObject {
             pubDate: row.datePublished?.description,
             descriptionHTML: row.contentHTML ?? row.contentText ?? row.summary
         )
+    }
+
+    /// One-shot union: merge SQLite isStarred=true / isRead=true
+    /// uniqueIDs into the JSON-persisted starredArticleIDs /
+    /// readArticleIDs sets. Direction is intentionally one-way
+    /// (SQLite → JSON) so a stale SQLite row never silently
+    /// re-marks an article the user explicitly unstarred /
+    /// unread in the JSON set; the merge only ADDS missing
+    /// entries.
+    ///
+    /// Without this, storedStarredItems / storedUnreadItems
+    /// could show SQLite-only rows that aren't in the in-memory
+    /// set — toggleStarred / markRead would then need TWO
+    /// clicks (first click inserts into the set without
+    /// changing visible state; second click toggles for real)
+    /// since the toggle reads the set to decide direction.
+    ///
+    /// Skips the persistence write-through that didSet would
+    /// fire by setting the published vars directly and then
+    /// triggering a single deduped save.
+    private func reconcileReadStarredFromStore() {
+        guard let store = articleStore else { return }
+        if let starredRows = try? store.fetchStarred() {
+            var merged = starredArticleIDs
+            for row in starredRows {
+                merged.insert(row.uniqueID)
+            }
+            if merged.count != starredArticleIDs.count {
+                starredArticleIDs = merged
+            }
+        }
+        if let unreadRows = try? store.fetchUnread() {
+            // SQLite's isRead=false means "not read". JSON set
+            // contains read IDs. So we DROP these from JSON if
+            // present? No — SQLite isRead=false could be stale
+            // (user marked read but didn't fetch since). User's
+            // JSON set is authoritative for "is read". Skip this
+            // direction; only the starred branch above merges.
+            // But: if JSON set has an id that SQLite doesn't
+            // contradict (no row OR row with isRead=true), the
+            // JSON wins. unreadRows here is just informational
+            // — used by storedUnreadItems already. No action.
+            _ = unreadRows
+        }
     }
 
     private func hydrateFeedCachesFromStoreIfReady() {

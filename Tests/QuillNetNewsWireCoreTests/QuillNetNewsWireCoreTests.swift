@@ -737,6 +737,35 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Init reconciles starredArticleIDs from SQLite isStarred rows")
+    func reconcileStarredFromStore() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-reconcile-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try ArticleStore(directoryURL: dir)
+        let persistenceStore = PersistenceStore(directoryURL: dir)
+        // Pin a SQLite-only starred row.
+        try store.upsert([
+            PersistentArticle(
+                id: "x", accountID: "Local",
+                feedID: "https://x.test/feed",
+                uniqueID: "ux", title: "X", isStarred: true
+            ),
+        ])
+        // Persistence JSON for starredArticleIDs is empty.
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "X", url: "https://x.test/feed")],
+            persistence: persistenceStore,
+            articleStore: store
+        )
+        // After init, the SQLite starred id should have been
+        // merged into the in-memory set — so isStarred returns
+        // true and toggleStarred would unstar in one click.
+        #expect(model.isStarred(id: "ux"))
+    }
+
+    @MainActor
     @Test("All Unread surfaces SQLite-only unread (older than cache)")
     func allUnreadSpansSQLiteHistory() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
