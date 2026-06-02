@@ -39,6 +39,7 @@ public struct QuillNetNewsWireContentView: View {
     @State private var showingSettings: Bool = false
     @State private var inspectedFeedID: Feed.ID? = nil
     @State private var pendingDeleteFeedID: Feed.ID? = nil
+    @State private var renameFeedInput: String = ""
     @Environment(\.openURL) private var openURL
 
     public init() {}
@@ -205,6 +206,35 @@ public struct QuillNetNewsWireContentView: View {
                         .font(.caption2)
                         .foregroundColor(.orange)
                 }
+                // Rename affordance. Upstream NetNewsWire's
+                // sidebar action "Rename Feed…" is the standard
+                // place to override a publisher's generic title
+                // ("News" → "Pat's News"). The model already had
+                // renameFeed(_:to:) wired through subscribedFeeds
+                // and subscriptionRoot — only the UI surface was
+                // missing.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Rename")
+                        .font(.subheadline)
+                    HStack(spacing: 6) {
+                        TextField(feed.title, text: Binding(
+                            get: { renameFeedInput },
+                            set: { renameFeedInput = $0 }
+                        ))
+                        Button("Save") {
+                            let trimmed = renameFeedInput
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !trimmed.isEmpty else { return }
+                            _ = model.renameFeed(feed.id, to: trimmed)
+                            renameFeedInput = ""
+                        }
+                        .disabled(
+                            renameFeedInput
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                                .isEmpty
+                        )
+                    }
+                }
             } else {
                 Text("Feed not found")
                     .font(.caption)
@@ -232,7 +262,10 @@ public struct QuillNetNewsWireContentView: View {
                     .disabled(model.isLoading(forURL: feed.url))
                 }
                 Spacer()
-                Button("Done") { inspectedFeedID = nil }
+                Button("Done") {
+                    inspectedFeedID = nil
+                    renameFeedInput = ""
+                }
             }
         }
         .padding(24)
