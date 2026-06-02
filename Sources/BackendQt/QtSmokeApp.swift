@@ -82,6 +82,19 @@ struct QtSmokeView: View {
 
                 Divider()
 
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible), count: 2),
+                    data: [0, 1, 2, 3]
+                ) { index in
+                    if index == 1 {
+                        Button("Grid Button") {
+                            menuSelection = "grid"
+                        }
+                    } else {
+                        Text("Grid cell \(index + 1)")
+                    }
+                }
+
                 ZStack {
                     Color(red: 0.89, green: 0.95, blue: 1.0)
                         .frame(width: 220, height: 48)

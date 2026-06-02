@@ -3,10 +3,9 @@ import QuillFoundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-#if canImport(FoundationXML)
-import FoundationXML
-#endif
 import QuillUI
+import QuillRSParser
+import QuillArticles
 
 /// Quill NetNewsWire content view — a self-contained RSS reader.
 ///
@@ -33,19 +32,40 @@ import QuillUI
 @MainActor
 public struct QuillNetNewsWireContentView: View {
     @StateObject private var model = RSSReaderModel()
-    @State private var feedURL: String = "https://daringfireball.net/feeds/main"
 
     public init() {}
 
+    /// Feed URL fed into refresh / initial load — derived from the
+    /// model's currently-selected subscribed feed, with the historic
+    /// Daring Fireball fallback kept so an empty subscription list
+    /// still renders something.
+    private var activeFeedURL: String {
+        model.currentFeedURL ?? "https://daringfireball.net/feeds/main"
+    }
+
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated {
-            HStack(spacing: 0) {
-                sidebar
-                    .frame(width: 320)
-                    .frame(maxHeight: .infinity, alignment: .topLeading)
-                Divider()
-                detail
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    feedsPane
+                        .frame(width: 220)
+                        .frame(maxHeight: .infinity, alignment: .topLeading)
+                    Divider()
+                    sidebar
+                        .frame(width: 300)
+                        .frame(maxHeight: .infinity, alignment: .topLeading)
+                    Divider()
+                    detail
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                // Hidden keyboard-shortcut surface. The buttons
+                // are not visible but keep their shortcut
+                // registrations live so single-key NetNewsWire
+                // bindings work without focus management on
+                // every row. Same pattern upstream apps use to
+                // attach .keyboardShortcut to invisible action
+                // buttons in the view tree.
+                keyboardShortcutSurface
             }
             // `QUILLUI_DISABLE_FETCH=1` is a profile-mode escape
             // hatch: it seeds fixture content + skips URLSession,
@@ -59,10 +79,132 @@ public struct QuillNetNewsWireContentView: View {
                 if env["QUILLUI_DISABLE_FETCH"] == "1" {
                     model.seedProfileFixtures()
                 } else {
-                    Task { @MainActor in await model.loadIfNeeded(urlString: feedURL) }
+                    Task { @MainActor in await model.loadIfNeeded(urlString: activeFeedURL) }
+                    // Kick off the periodic auto-refresh Task.
+                    // Skipped in profile/disable-fetch mode so the
+                    // Linux profile script doesn't see URLSession
+                    // traffic from the background timer.
+                    model.startBackgroundRefresh()
                 }
             }
         }
+    }
+
+    private var keyboardShortcutSurface: some View {
+        HStack(spacing: 0) {
+            Button("next") { model.selectNextItem() }
+                .keyboardShortcut("j", modifiers: [])
+            Button("prev") { model.selectPreviousItem() }
+                .keyboardShortcut("k", modifiers: [])
+            Button("read+next") { model.markReadAndAdvance() }
+                .keyboardShortcut(.space, modifiers: [])
+            Button("toggle starred") { model.toggleStarredOnSelection() }
+                .keyboardShortcut("s", modifiers: [])
+            Button("toggle read") { model.toggleReadOnSelection() }
+                .keyboardShortcut("r", modifiers: [])
+            Button("refresh") {
+                Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
+            }
+            .keyboardShortcut("r", modifiers: .command)
+        }
+        .frame(height: 0)
+        .hidden()
+    }
+
+    private var feedsPane: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Smart Feeds")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 14)
+                .padding(.top, 14)
+                .padding(.bottom, 6)
+
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(SmartFeed.allCases) { kind in
+                    smartFeedRow(kind)
+                        .onTapGesture {
+                            model.selectSmartFeed(kind)
+                        }
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+
+            Text("Feeds")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(model.subscribedFeeds) { feed in
+                        feedRow(feed)
+                            .onTapGesture {
+                                Task { @MainActor in await model.selectFeed(id: feed.id) }
+                            }
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 18)
+            }
+        }
+        .background(QuillDesktopChromeStyle.sidebarBackground)
+    }
+
+    private func smartFeedRow(_ kind: SmartFeed) -> some View {
+        let count = model.count(for: kind)
+        return HStack(spacing: 6) {
+            Text(kind.symbol)
+                .font(.caption)
+                .foregroundColor(.blue)
+                .frame(width: 14, alignment: .leading)
+            Text(kind.displayName)
+                .font(.subheadline)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if count > 0 {
+                Text("\(count)")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(model.selectedSmartFeed == kind ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+        .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
+        .contentShape(Rectangle())
+    }
+
+    private func feedRow(_ feed: Feed) -> some View {
+        let isSelected = (model.selectedSmartFeed == nil) && (model.selectedFeedID == feed.id)
+        let unread = model.unreadCount(forFeed: feed.id)
+        return HStack(spacing: 6) {
+            Text(feed.title)
+                .font(.subheadline)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if unread > 0 {
+                // Compact NetNewsWire-style unread badge. Only
+                // the active feed shows a count today because the
+                // model hasn't yet cached items for inactive
+                // feeds — persistence iteration enables badges
+                // for every subscription.
+                Text("\(unread)")
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.blue)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isSelected ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+        .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
+        .contentShape(Rectangle())
     }
 
     private var sidebar: some View {
@@ -76,6 +218,21 @@ public struct QuillNetNewsWireContentView: View {
             }
             .padding(14)
 
+            // Live timeline filter. Bound to model.searchQuery via an
+            // explicit Binding(get:set:) rather than $model.searchQuery
+            // because SwiftOpenUI on Linux does not synthesize the `$`
+            // projected-value accessor for @StateObject members. The
+            // explicit form compiles on both backends without a
+            // platform branch. filteredRows is a computed view that
+            // re-evaluates whenever items or searchQuery emit a
+            // @Published change.
+            TextField("Search articles", text: Binding(
+                get: { model.searchQuery },
+                set: { model.searchQuery = $0 }
+            ))
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
+
             if let error = model.error {
                 Text(error)
                     .font(.caption)
@@ -85,7 +242,7 @@ public struct QuillNetNewsWireContentView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(model.rows) { item in
+                    ForEach(model.filteredRows) { item in
                         articleRow(item)
                             .onTapGesture {
                                 model.selectItem(id: item.id)
@@ -102,16 +259,36 @@ public struct QuillNetNewsWireContentView: View {
     }
 
     private func articleRow(_ item: RSSArticleRow) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(item.title)
+        let isUnread = !model.isRead(id: item.id)
+        let isStarred = model.isStarred(id: item.id)
+        return HStack(alignment: .top, spacing: 6) {
+            // Unread indicator: an upstream-NetNewsWire-style filled
+            // circle in the leading gutter. Reserves the same width
+            // even when read so titles don't shift on mark-as-read.
+            Text(isUnread ? "•" : " ")
                 .font(.subheadline)
-                .lineLimit(2)
-                .frame(width: 264, alignment: .leading)
-            if !item.publishedSummary.isEmpty {
-                Text(item.publishedSummary)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .frame(width: 264, alignment: .leading)
+                .foregroundColor(.blue)
+                .frame(width: 10, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 4) {
+                    Text(item.title)
+                        .font(.subheadline)
+                        .fontWeight(isUnread ? .bold : .regular)
+                        .lineLimit(2)
+                        .frame(width: isStarred ? 226 : 244, alignment: .leading)
+                    if isStarred {
+                        Text("★")
+                            .font(.caption)
+                            .foregroundColor(.yellow)
+                            .frame(width: 14, alignment: .trailing)
+                    }
+                }
+                if !item.publishedSummary.isEmpty {
+                    Text(item.publishedSummary)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .frame(width: 244, alignment: .leading)
+                }
             }
         }
         .padding(.horizontal, 8)
@@ -128,6 +305,12 @@ public struct QuillNetNewsWireContentView: View {
             Text(model.statusText)
                 .font(.caption2)
                 .foregroundColor(.secondary)
+            Spacer()
+            Button(model.isLoading ? "Refreshing…" : "Refresh") {
+                Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
+            }
+            .font(.caption2)
+            .disabled(model.isLoading)
         }
         .padding(10)
     }
@@ -137,7 +320,18 @@ public struct QuillNetNewsWireContentView: View {
             if let item = model.selectedDetail {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text(item.title).font(.title).bold()
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(item.title).font(.title).bold()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            // Star toggle in the detail header. A
+                            // filled glyph when starred, hollow when
+                            // not — same affordance as upstream
+                            // NetNewsWire's toolbar star button.
+                            Button(model.isStarred(id: item.id) ? "★" : "☆") {
+                                model.toggleStarred(id: item.id)
+                            }
+                            .font(.title2)
+                        }
                         if !item.publishedSummary.isEmpty {
                             Text(item.publishedSummary)
                                 .font(.caption)
@@ -170,7 +364,7 @@ public struct QuillNetNewsWireContentView: View {
                     Text("Select an article")
                         .font(.title2)
                         .foregroundColor(.secondary)
-                    Text("Self-contained RSS reader is fetching live items from \(feedURL).")
+                    Text("Self-contained RSS reader is fetching live items from \(activeFeedURL).")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -261,6 +455,73 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
     }
 }
 
+/// A subscribed feed: just enough metadata to drive a sidebar
+/// row + an URL the reader can fetch on selection. Upstream
+/// NetNewsWire's `Account`/`Feed` model carries far more (sync
+/// state, folder hierarchy, favicon, settings, etc.); this
+/// type is the minimum slice that lets the Quill reader hold
+/// more than one subscription. Future iterations grow the
+/// type alongside the sidebar UI and persistence layers.
+public struct Feed: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let url: String
+
+    public init(id: String, title: String, url: String) {
+        self.id = id
+        self.title = title
+        self.url = url
+    }
+
+    public init(title: String, url: String) {
+        self.init(id: url, title: title, url: url)
+    }
+}
+
+/// Virtual feed kinds that aggregate articles by status or age
+/// rather than by source. Upstream NetNewsWire pins these to
+/// the top of the sidebar above the subscribed-feed list. The
+/// active feed's items are filtered through whichever kind is
+/// selected; cross-feed aggregation arrives with the
+/// persistence iteration.
+public enum SmartFeed: String, CaseIterable, Identifiable, Sendable {
+    case today
+    case allUnread
+    case starred
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .today:     return "Today"
+        case .allUnread: return "All Unread"
+        case .starred:   return "Starred"
+        }
+    }
+
+    public var symbol: String {
+        switch self {
+        case .today:     return "☀"
+        case .allUnread: return "●"
+        case .starred:   return "★"
+        }
+    }
+}
+
+public enum DefaultFeedList {
+    /// Initial subscription list seeded when no persisted list
+    /// exists. Mirrors what an upstream NetNewsWire fresh
+    /// install used to ship in its bundled OPML: a handful of
+    /// widely-followed dev/news feeds so the timeline isn't
+    /// empty on first launch.
+    public static let seed: [Feed] = [
+        Feed(title: "Daring Fireball", url: "https://daringfireball.net/feeds/main"),
+        Feed(title: "Swift.org Blog", url: "https://www.swift.org/atom.xml"),
+        Feed(title: "Hacker News Front Page", url: "https://hnrss.org/frontpage"),
+        Feed(title: "NetNewsWire Blog", url: "https://netnewswire.blog/feed/"),
+    ]
+}
+
 @MainActor
 final class RSSReaderModel: ObservableObject {
     @Published var items: [RSSItem] = [] {
@@ -270,6 +531,16 @@ final class RSSReaderModel: ObservableObject {
             updateStatusText()
         }
     }
+
+    /// Upstream-shaped articles populated in parallel to `items`.
+    /// Same source ParsedFeed; same newest-first sort; same set
+    /// of records. View code still reads `items` / `rows` today;
+    /// the future migration retires `items` in favor of this.
+    /// Setter is internal (rather than private) so tests can pin
+    /// a synthetic article list without going through fetch();
+    /// production code only writes via the fetch() / refresh()
+    /// network path.
+    @Published var articles: [Article] = []
     @Published var feedTitle: String?
     @Published var error: String? {
         didSet { updateStatusText() }
@@ -284,11 +555,200 @@ final class RSSReaderModel: ObservableObject {
     @Published private(set) var rows: [RSSArticleRow] = []
     @Published private(set) var selectedDetail: RSSArticleDetail?
     @Published private(set) var statusText = "0 items"
+
+    /// Set of article IDs the user has read. Held in memory only
+    /// for now; the persistence iteration will back this with
+    /// QuillData/SQLite so reads survive relaunches. Stored as a
+    /// flat set rather than per-feed so a re-fetched article keeps
+    /// its read state across feed-list refreshes — same shape as
+    /// upstream NetNewsWire's `articleIDs` read-status table.
+    @Published private(set) var readArticleIDs: Set<String> = [] {
+        didSet { updateStatusText() }
+    }
+
+    /// Set of starred article IDs. Same flat-set shape as
+    /// readArticleIDs; will share its persistence backend in the
+    /// SQLite iteration. Upstream NetNewsWire surfaces starred
+    /// articles via the Starred smart feed and a per-article
+    /// star toggle in the detail header.
+    @Published private(set) var starredArticleIDs: Set<String> = []
+
+    /// Live search query bound to the timeline filter field.
+    /// Empty string → no filter (filteredRows == rows). Matching
+    /// is case-insensitive and runs against the article title
+    /// and the plain-text body — same coverage as upstream
+    /// NetNewsWire's timeline search.
+    @Published var searchQuery: String = "" {
+        didSet { updateStatusText() }
+    }
+
+    /// Active smart feed (All Unread / Starred), or nil when the
+    /// timeline is showing a subscribed feed's items directly.
+    /// Setting this overrides the feed selection's contribution
+    /// to filteredItems — the smart filter runs first, then the
+    /// search query narrows further.
+    @Published var selectedSmartFeed: SmartFeed? {
+        didSet { updateStatusText() }
+    }
+
+    /// Auto-refresh cadence in seconds for the active feed.
+    /// Matches upstream NetNewsWire's default 30-minute refresh
+    /// interval. Setting to nil disables background polling.
+    @Published var refreshIntervalSeconds: TimeInterval? = 30 * 60
+
+    /// Wall-clock time of the most recent successful fetch.
+    /// Drives `isAutoRefreshDue()`. Exposed as @Published so
+    /// future UI (a "last updated 3m ago" footer line) can
+    /// observe it directly. Setter is internal so tests can
+    /// pin a synthetic last-fetch time without going through
+    /// real URLSession; production code only writes via fetch().
+    @Published var lastFetchAt: Date?
+
+    private var backgroundRefreshTask: Task<Void, Never>?
+
+    /// Multi-feed subscription list. Single-feed callers can
+    /// ignore this and keep using `fetch(urlString:)` directly;
+    /// the three-pane sidebar iteration will drive selection
+    /// through `selectedFeedID`.
+    @Published var subscribedFeeds: [Feed]
+    @Published var selectedFeedID: Feed.ID?
+
     private var didStartInitialLoad = false
     private let initialSelectionEnvironment: [String: String]
 
-    init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+    init(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        subscribedFeeds: [Feed] = DefaultFeedList.seed
+    ) {
         self.initialSelectionEnvironment = environment
+        self.subscribedFeeds = subscribedFeeds
+        self.selectedFeedID = subscribedFeeds.first?.id
+    }
+
+    /// URL of the currently-selected subscribed feed. `nil` when
+    /// the list is empty or the selection has been cleared.
+    var currentFeedURL: String? {
+        guard let selectedFeedID else { return subscribedFeeds.first?.url }
+        return subscribedFeeds.first(where: { $0.id == selectedFeedID })?.url
+            ?? subscribedFeeds.first?.url
+    }
+
+    /// Switch the active feed and re-fetch. Clears the in-flight
+    /// item selection so the timeline doesn't keep a stale article
+    /// highlighted across feed switches. No-op when the user taps
+    /// the already-selected feed.
+    func selectFeed(id: Feed.ID) async {
+        guard let feed = subscribedFeeds.first(where: { $0.id == id }) else { return }
+        // Always clear an active smart feed when the user taps a
+        // real feed row, even if it's the currently-selected feed
+        // ID — tapping the feed name is how you exit a smart-feed
+        // view back to the per-feed timeline.
+        let wasShowingSmartFeed = selectedSmartFeed != nil
+        selectedSmartFeed = nil
+        guard id != selectedFeedID || wasShowingSmartFeed else { return }
+        selectedFeedID = id
+        selectItem(id: nil)
+        didStartInitialLoad = true
+        await fetch(urlString: feed.url)
+    }
+
+    /// Pin the timeline to a smart-feed view (All Unread / Starred
+    /// for now). Doesn't fetch — operates on whatever items the
+    /// current feed already has loaded. Cross-feed aggregation
+    /// arrives with the persistence iteration; until then, the
+    /// smart feed effectively narrows the active feed's timeline.
+    func selectSmartFeed(_ kind: SmartFeed?) {
+        selectedSmartFeed = kind
+        selectItem(id: nil)
+    }
+
+    /// Advance the selection to the next article in the
+    /// currently-filtered timeline. Wraps to the first item when
+    /// no selection exists yet. No-op when filteredItems is empty.
+    /// Powers the J keyboard shortcut.
+    func selectNextItem() {
+        let pool = filteredItems
+        guard !pool.isEmpty else { return }
+        guard let current = selectedID,
+              let index = pool.firstIndex(where: { $0.id == current })
+        else {
+            selectItem(id: pool.first?.id)
+            return
+        }
+        let nextIndex = pool.index(after: index)
+        if nextIndex < pool.endIndex {
+            selectItem(id: pool[nextIndex].id)
+        }
+    }
+
+    /// Step the selection one article earlier in the filtered
+    /// timeline. No-op at the top. Powers the K keyboard shortcut.
+    func selectPreviousItem() {
+        let pool = filteredItems
+        guard !pool.isEmpty else { return }
+        guard let current = selectedID,
+              let index = pool.firstIndex(where: { $0.id == current }),
+              index > 0
+        else { return }
+        selectItem(id: pool[index - 1].id)
+    }
+
+    /// Mark the current article read and advance to the next.
+    /// Mirrors NetNewsWire's spacebar default: when there's no
+    /// selection yet, just select the first item without
+    /// advancing. Powers the spacebar shortcut.
+    func markReadAndAdvance() {
+        if let id = selectedID {
+            markRead(id: id)
+            selectNextItem()
+        } else {
+            selectItem(id: filteredItems.first?.id)
+        }
+    }
+
+    /// Import an OPML subscription list and merge it into
+    /// `subscribedFeeds`. Existing subscriptions (matched by
+    /// xmlUrl, since `Feed.id` defaults to the URL) are kept;
+    /// only feeds whose URL is not already in the list get
+    /// appended. Returns the number of newly-added feeds so a UI
+    /// can surface "Imported N feeds".
+    @discardableResult
+    func importOPML(data: Data) -> Int {
+        let result = OPMLImporter.parse(data: data)
+        return mergeImportedFeeds(result.feeds)
+    }
+
+    @discardableResult
+    func importOPML(xml: String) -> Int {
+        importOPML(data: Data(xml.utf8))
+    }
+
+    /// Internal merge step kept separate so future iterations
+    /// (folder grouping, sync round-trip) can reuse the dedupe
+    /// path without re-parsing.
+    @discardableResult
+    func mergeImportedFeeds(_ imported: [Feed]) -> Int {
+        let existing = Set(subscribedFeeds.map(\.id))
+        var added = 0
+        for feed in imported where !existing.contains(feed.id) {
+            subscribedFeeds.append(feed)
+            added += 1
+        }
+        if selectedFeedID == nil {
+            selectedFeedID = subscribedFeeds.first?.id
+        }
+        return added
+    }
+
+    /// Serialize the current subscribed feed list as OPML 2.0.
+    /// The result round-trips through `importOPML(xml:)` to the
+    /// same feed list (modulo the optional list title).
+    func exportOPML(title: String? = nil) -> String {
+        OPMLExporter.export(feeds: subscribedFeeds, title: title)
+    }
+
+    func exportOPMLData(title: String? = nil) -> Data {
+        OPMLExporter.exportData(feeds: subscribedFeeds, title: title)
     }
 
     /// Profile-mode bypass: populate `items` + `feedTitle` with
@@ -313,6 +773,16 @@ final class RSSReaderModel: ObservableObject {
         await fetch(urlString: urlString)
     }
 
+    /// User-triggered refresh. Unlike `loadIfNeeded(urlString:)` this
+    /// always re-fetches, even if the initial load has already run.
+    /// No-op while a load is already in flight so rapid Refresh clicks
+    /// don't pile up overlapping URLSession tasks.
+    func refresh(urlString: String) async {
+        guard !isLoading else { return }
+        didStartInitialLoad = true
+        await fetch(urlString: urlString)
+    }
+
     func fetch(urlString: String) async {
         guard let url = URL(string: urlString) else {
             setError("Invalid URL")
@@ -325,21 +795,218 @@ final class RSSReaderModel: ObservableObject {
             var request = URLRequest(url: url)
             request.setValue("Quill-NetNewsWire/0.1", forHTTPHeaderField: "User-Agent")
             let (data, _) = try await URLSession.shared.data(for: request)
-            let parsed = RSSFeedParser.parse(data: data)
+            // Upstream RSParser via QuillRSParser; covers RSS 2.0,
+            // Atom, JSON Feed, RSS-in-JSON. Produces both the
+            // legacy RSSItem view-shape (consumed by the
+            // timeline + filters today) and the upstream
+            // Article shape (consumed by the cache / smart-feed
+            // aggregation paths the persistence iteration will
+            // bring online).
+            let parsed = RSSFeedParser.parseUpstream(data: data, url: urlString)
+            let upstreamArticles = RSSFeedParser.parseUpstreamArticles(
+                data: data, url: urlString
+            )
             self.setFeedTitle(parsed.title)
             self.setItems(Array(parsed.items.prefix(50)))
+            self.articles = Array(upstreamArticles.prefix(50))
             if self.selectedID == nil {
                 self.selectItem(id: self.preferredInitialItemID(in: self.items))
             }
+            self.lastFetchAt = Date()
         } catch {
             self.setError("\(error)")
         }
         setLoading(false)
     }
 
+    /// True when the auto-refresh interval has elapsed since the
+    /// last successful fetch (or no fetch has ever happened).
+    /// Honors `refreshIntervalSeconds == nil` as 'disabled'.
+    /// Compares against an injected `now` so unit tests can pin
+    /// time without driving a real clock.
+    func isAutoRefreshDue(now: Date = Date()) -> Bool {
+        guard let interval = refreshIntervalSeconds else { return false }
+        guard let last = lastFetchAt else { return true }
+        return now.timeIntervalSince(last) >= interval
+    }
+
+    /// Single background-refresh tick: if the interval has
+    /// elapsed and we have an active feed URL, re-fetch. Pure
+    /// async function — the looping Task in
+    /// `startBackgroundRefresh()` calls this between sleeps so
+    /// tests can exercise the eligibility logic without a timer.
+    func backgroundRefreshTick(now: Date = Date()) async {
+        guard isAutoRefreshDue(now: now) else { return }
+        guard let url = currentFeedURL else { return }
+        await refresh(urlString: url)
+    }
+
+    /// Start the auto-refresh Task that polls
+    /// `backgroundRefreshTick()` on `refreshIntervalSeconds`
+    /// cadence. Cancels any prior background task first so this
+    /// is safe to call from onAppear or after a settings change.
+    /// No-op when refreshIntervalSeconds is nil.
+    func startBackgroundRefresh() {
+        stopBackgroundRefresh()
+        guard let interval = refreshIntervalSeconds else { return }
+        let nanos = UInt64(max(1, interval) * 1_000_000_000)
+        backgroundRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: nanos)
+                if Task.isCancelled { return }
+                await self?.backgroundRefreshTick()
+            }
+        }
+    }
+
+    func stopBackgroundRefresh() {
+        backgroundRefreshTask?.cancel()
+        backgroundRefreshTask = nil
+    }
+
     func selectItem(id: String?) {
         if selectedID != id {
             selectedID = id
+        }
+        if let id { markRead(id: id) }
+    }
+
+    /// Mark an article as read. Idempotent; firing the didSet on
+    /// `readArticleIDs` only when the set actually grows so we
+    /// don't bounce statusText for every redundant tap.
+    func markRead(id: String) {
+        if readArticleIDs.insert(id).inserted {
+            // didSet on readArticleIDs handles status text refresh.
+        }
+    }
+
+    /// Toggle read state on the currently-selected article. Wired
+    /// to a future keyboard shortcut + a Mark Unread menu item.
+    func toggleReadOnSelection() {
+        guard let selectedID else { return }
+        if readArticleIDs.contains(selectedID) {
+            readArticleIDs.remove(selectedID)
+        } else {
+            readArticleIDs.insert(selectedID)
+        }
+    }
+
+    func isRead(id: String) -> Bool {
+        readArticleIDs.contains(id)
+    }
+
+    func isStarred(id: String) -> Bool {
+        starredArticleIDs.contains(id)
+    }
+
+    /// Toggle starred state for any article ID. Used by the
+    /// detail-pane star button and (later) the S keyboard
+    /// shortcut. Mirrors readArticleIDs' insert-or-remove shape.
+    func toggleStarred(id: String) {
+        if starredArticleIDs.contains(id) {
+            starredArticleIDs.remove(id)
+        } else {
+            starredArticleIDs.insert(id)
+        }
+    }
+
+    /// Toggle starred state on the currently-selected article.
+    /// No-op when nothing is selected.
+    func toggleStarredOnSelection() {
+        guard let selectedID else { return }
+        toggleStarred(id: selectedID)
+    }
+
+    /// Count of starred items in the currently-loaded timeline.
+    /// Doesn't yet aggregate across feeds (the smart-feed iteration
+    /// will introduce a separate fetch-all-starred view).
+    var starredCount: Int {
+        items.reduce(0) { acc, item in
+            acc + (starredArticleIDs.contains(item.id) ? 1 : 0)
+        }
+    }
+
+    /// Item count for a given smart feed against the
+    /// currently-loaded timeline. Used by the feedsPane badge
+    /// next to each Smart Feed row. Persistence iteration will
+    /// switch this to a cross-feed aggregation.
+    func count(for smart: SmartFeed) -> Int {
+        switch smart {
+        case .today:
+            let cutoff = Date().addingTimeInterval(-86_400)
+            return articles.reduce(0) { acc, article in
+                acc + ((article.datePublished.map { $0 >= cutoff }) == true ? 1 : 0)
+            }
+        case .allUnread: return unreadCount
+        case .starred:   return starredCount
+        }
+    }
+
+    /// Unread count for a subscribed feed. Today only the
+    /// active feed has loaded items, so the count is exact for
+    /// the selected feed and 0 for everything else. When the
+    /// persistence iteration lands a per-feed article cache,
+    /// this will report accurate counts for every subscription.
+    func unreadCount(forFeed feedID: Feed.ID) -> Int {
+        guard feedID == selectedFeedID else { return 0 }
+        return unreadCount
+    }
+
+    /// Items in the current timeline that match the active smart
+    /// feed (if any) AND the active search query (if any). When
+    /// both filters are empty, returns the full items list. Smart
+    /// feed runs first so the search field narrows whatever the
+    /// smart-feed view is showing.
+    var filteredItems: [RSSItem] {
+        var pool = items
+        if let smart = selectedSmartFeed {
+            switch smart {
+            case .today:
+                // Use the parallel articles array (real Date from
+                // upstream DateParser) to determine which uniqueIDs
+                // fall inside the last-24h window, then narrow
+                // items to that set so the existing RSSItem render
+                // path keeps working unchanged.
+                let cutoff = Date().addingTimeInterval(-86_400)
+                let todayIDs = Set(articles.compactMap { article -> String? in
+                    guard let published = article.datePublished, published >= cutoff else {
+                        return nil
+                    }
+                    return article.uniqueID
+                })
+                pool = pool.filter { todayIDs.contains($0.id) }
+            case .allUnread:
+                pool = pool.filter { !readArticleIDs.contains($0.id) }
+            case .starred:
+                pool = pool.filter { starredArticleIDs.contains($0.id) }
+            }
+        }
+        let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            let needle = trimmed.lowercased()
+            pool = pool.filter { item in
+                if item.title.lowercased().contains(needle) { return true }
+                if item.plainTextBody.lowercased().contains(needle) { return true }
+                return false
+            }
+        }
+        return pool
+    }
+
+    /// Row projection of `filteredItems` for the timeline view to
+    /// render. Kept as a computed (rather than a stored @Published
+    /// shadow) so the search filter doesn't require a parallel
+    /// invalidation path for every items / searchQuery change.
+    var filteredRows: [RSSArticleRow] {
+        filteredItems.map(RSSArticleRow.init(item:))
+    }
+
+    /// Number of items currently loaded that the user has not yet
+    /// read. Excludes items from feeds not currently fetched (read
+    /// status is global, but the count is per loaded timeline).
+    var unreadCount: Int {
+        items.reduce(0) { acc, item in
+            acc + (readArticleIDs.contains(item.id) ? 0 : 1)
         }
     }
 
@@ -363,12 +1030,27 @@ final class RSSReaderModel: ObservableObject {
 
     private func updateStatusText() {
         let nextStatusText: String
+        let searchActive = !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if isLoading {
             nextStatusText = "Fetching feed…"
         } else if let error {
             nextStatusText = "Error: \(error)"
+        } else if let smart = selectedSmartFeed {
+            // Smart-feed view: count vs total items currently
+            // loaded. Search narrowing folds into the same count.
+            let matching = filteredItems.count
+            let suffix = searchActive ? " (search)" : ""
+            nextStatusText = "\(smart.displayName): \(matching) of \(items.count)\(suffix)"
+        } else if searchActive {
+            let matching = filteredItems.count
+            nextStatusText = "\(matching) matching · \(items.count) items"
         } else {
-            nextStatusText = "\(items.count) items"
+            let unread = unreadCount
+            if unread == 0 {
+                nextStatusText = "\(items.count) items"
+            } else {
+                nextStatusText = "\(unread) unread · \(items.count) items"
+            }
         }
         if statusText != nextStatusText {
             statusText = nextStatusText
@@ -464,102 +1146,164 @@ public enum QuillNetNewsWireInitialSelection {
     }
 }
 
-/// Minimal RSS 2.0 + Atom parser backed by `Foundation.XMLParser`.
-/// Captures `title`, `link`, `pubDate`/`updated`, and
-/// `description`/`content` per item — enough to drive the
-/// reader's sidebar list and detail pane.
+/// Adapter from the upstream Ranchero-Software/NetNewsWire
+/// `FeedParser` to the local `RSSItem` shape that the reader
+/// model, sidebar, search filter, smart feeds, OPML import,
+/// and keyboard navigation already consume. Same Result
+/// container is returned regardless of feed format (RSS 2.0,
+/// Atom, JSON Feed, RSS-in-JSON) since the upstream parser
+/// dispatches by content sniff.
 ///
-/// Internal (not private) so QuillNetNewsWireCoreTests can pin
-/// the parse behavior via `@testable import` without going
-/// through `URLSession`.
+/// The historical homegrown Foundation.XMLParser implementation
+/// was retired once parseUpstream covered every fetch() call
+/// site — see git log for the legacy path. Internal (not
+/// private) so QuillNetNewsWireCoreTests can pin the upstream
+/// adapter via `@testable import` without going through
+/// URLSession.
 struct RSSFeedParser {
     struct Result: Equatable {
         var title: String?
         var items: [RSSItem] = []
     }
 
-    static func parse(data: Data) -> Result {
-        let delegate = Delegate()
-        let parser = XMLParser(data: data)
-        parser.delegate = delegate
-        _ = parser.parse()
-        return Result(title: delegate.feedTitle, items: delegate.items)
+    /// Upstream Ranchero-Software/NetNewsWire `FeedParser` path.
+    /// Same Result shape as the legacy parse(data:), so the model
+    /// + view + smart-feed pipeline all keep working unchanged.
+    ///
+    /// Differences from the legacy XMLParser path:
+    ///   - Covers RSS 2.0, Atom, JSON Feed, RSS-in-JSON (legacy
+    ///     only handled the RSS 2.0/Atom subset)
+    ///   - DateParser converts pubDate strings to Date and we
+    ///     re-emit ISO 8601 (legacy preserved the raw header)
+    ///   - Items arrive as Set<ParsedItem>; we sort newest-first
+    ///     with a uniqueID tiebreaker so timeline ordering is
+    ///     deterministic
+    ///   - uniqueIDs are content-addressed MD5 hashes via
+    ///     QuillRSCoreShim when upstream falls back from guid
+    static func parseUpstream(data: Data, url: String) -> Result {
+        let parserData = ParserData(url: url, data: data)
+        // FeedParser.parse(_:) signature is `throws -> ParsedFeed?`,
+        // so `try?` would yield ParsedFeed?? — handle both axes
+        // (parse error and unidentified-feed) with do/catch so the
+        // empty Result fallback is reachable from either path.
+        let parsed: ParsedFeed?
+        do {
+            parsed = try FeedParser.parse(parserData)
+        } catch {
+            parsed = nil
+        }
+        guard let parsed else { return Result() }
+        let sortedItems = parsed.items.sorted { lhs, rhs in
+            // Newest first; nil dates sort last; deterministic
+            // uniqueID tiebreaker so repeated parses don't churn.
+            switch (lhs.datePublished, rhs.datePublished) {
+            case let (l?, r?) where l != r: return l > r
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: return lhs.uniqueID < rhs.uniqueID
+            }
+        }
+        let rssItems = sortedItems.map(adaptParsedItem(_:))
+        return Result(title: parsed.title, items: rssItems)
     }
 
-    final class Delegate: NSObject, XMLParserDelegate {
-        var feedTitle: String?
-        var items: [RSSItem] = []
+    /// Translate one upstream ParsedItem into our local RSSItem
+    /// shape. Body falls back through contentHTML → contentText
+    /// → summary → nil. Title falls back to "Untitled" so the
+    /// timeline always renders something. pubDate gets ISO 8601
+    /// formatted when the upstream DateParser produced a Date.
+    static func adaptParsedItem(_ item: ParsedItem) -> RSSItem {
+        let title = (item.title?.isEmpty == false) ? item.title! : "Untitled"
+        let body = item.contentHTML ?? item.contentText ?? item.summary
+        return RSSItem(
+            id: item.uniqueID,
+            title: title,
+            link: item.url,
+            pubDate: formatPubDate(item.datePublished),
+            descriptionHTML: body
+        )
+    }
 
-        private var path: [String] = []
-        private var inItem = false
-        private var currentTitle = ""
-        private var currentLink = ""
-        private var currentDate = ""
-        private var currentDescription = ""
-        private var buffer = ""
+    static func formatPubDate(_ date: Date?) -> String? {
+        guard let date else { return nil }
+        return Self.iso8601Formatter.string(from: date)
+    }
 
-        /// The element that contains the one we just finished —
-        /// used to scope the feed-level `<title>` lookup (RSS
-        /// channels nest title under `<channel>`, Atom feeds
-        /// nest it under `<feed>`). On end-element the path
-        /// still includes the element we're closing, so the
-        /// parent is `path.dropLast().last`.
-        private var parentElement: String? {
-            path.dropLast().last
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    /// Materialize upstream `[Article]` values from the same
+    /// `ParsedFeed` that drives the existing RSSItem timeline.
+    /// Quill's reader has no real Account today — accountID
+    /// defaults to the singleton "Local" identity so per-article
+    /// IDs are stable across launches once persistence lands.
+    ///
+    /// Order mirrors parseUpstream: newest-first, uniqueID
+    /// tiebreaker. Returned via array (not Set) so the call site
+    /// can pin the same sort the timeline uses.
+    static func parseUpstreamArticles(
+        data: Data,
+        url: String,
+        accountID: String = "Local"
+    ) -> [Article] {
+        let parserData = ParserData(url: url, data: data)
+        let parsed: ParsedFeed?
+        do {
+            parsed = try FeedParser.parse(parserData)
+        } catch {
+            parsed = nil
         }
+        guard let parsed else { return [] }
+        return toArticles(parsed: parsed, feedID: url, accountID: accountID)
+    }
 
-        func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String] = [:]) {
-            path.append(elementName)
-            buffer = ""
-            if elementName == "item" || elementName == "entry" {
-                inItem = true
-                currentTitle = ""
-                currentLink = ""
-                currentDate = ""
-                currentDescription = ""
-            }
-            if inItem && elementName == "link" {
-                if let href = attributeDict["href"] {
-                    currentLink = href
-                }
-            }
-        }
-
-        func parser(_ parser: XMLParser, foundCharacters string: String) {
-            buffer += string
-        }
-
-        func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
-            if let text = String(data: CDATABlock, encoding: .utf8) {
-                buffer += text
+    /// Convert ParsedFeed.items → [Article] with the sort the
+    /// QuillNetNewsWireCore reader uses (newest first, tiebreak
+    /// by uniqueID for deterministic timeline ordering). The
+    /// articleID gets synthesized by upstream when nil — md5
+    /// over accountID+feedID+uniqueID via QuillRSCoreShim.
+    static func toArticles(
+        parsed: ParsedFeed,
+        feedID: String,
+        accountID: String
+    ) -> [Article] {
+        let sorted = parsed.items.sorted { lhs, rhs in
+            switch (lhs.datePublished, rhs.datePublished) {
+            case let (l?, r?) where l != r: return l > r
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: return lhs.uniqueID < rhs.uniqueID
             }
         }
-
-        func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
-            let trimmed = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
-            if inItem {
-                switch elementName {
-                case "title": currentTitle = trimmed
-                case "link" where currentLink.isEmpty: currentLink = trimmed
-                case "pubDate", "updated", "published": currentDate = trimmed
-                case "description", "summary", "content:encoded": currentDescription = trimmed
-                case "item", "entry":
-                    let id = !currentLink.isEmpty ? currentLink : (currentTitle + currentDate)
-                    items.append(RSSItem(
-                        id: id,
-                        title: currentTitle.isEmpty ? "Untitled" : currentTitle,
-                        link: currentLink.isEmpty ? nil : currentLink,
-                        pubDate: currentDate.isEmpty ? nil : currentDate,
-                        descriptionHTML: currentDescription.isEmpty ? nil : currentDescription
-                    ))
-                    inItem = false
-                default: break
-                }
-            } else if elementName == "title", parentElement == "channel" || parentElement == "feed" {
-                if feedTitle == nil { feedTitle = trimmed }
-            }
-            buffer = ""
-            if !path.isEmpty { path.removeLast() }
+        let now = Date()
+        return sorted.map { parsed in
+            let status = ArticleStatus(
+                articleID: parsed.uniqueID,
+                read: false,
+                starred: false,
+                dateArrived: now
+            )
+            return Article(
+                accountID: accountID,
+                articleID: nil,  // upstream synthesizes via md5
+                feedID: feedID,
+                uniqueID: parsed.uniqueID,
+                title: parsed.title,
+                contentHTML: parsed.contentHTML,
+                contentText: parsed.contentText,
+                markdown: parsed.markdown,
+                url: parsed.url,
+                externalURL: parsed.externalURL,
+                summary: parsed.summary,
+                imageURL: parsed.imageURL,
+                datePublished: parsed.datePublished,
+                dateModified: parsed.dateModified,
+                authors: nil,
+                status: status
+            )
         }
     }
 }

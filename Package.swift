@@ -761,7 +761,100 @@ var targets: [Target] = [
     // Linux unmodified.
     .target(
         name: "QuillNetNewsWireCore",
-        dependencies: ["QuillUI", "QuillFoundation"],
+        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles"],
+        swiftSettings: appSwiftSettings
+    ),
+    // Minimal RSCore-shaped shim. Reproduces the slice of
+    // upstream Ranchero-Software/NetNewsWire's RSCore surface
+    // (String.md5String first, more arrive as upstream parser
+    // sources are vendored over) so we can bring RSParser /
+    // Articles / RSWeb / Account into the Linux build via
+    // SwiftPM `moduleAliases: ["RSCore": "QuillRSCoreShim"]`
+    // without dragging RSCore's AppKit/UIKit/os imports or its
+    // ObjC sibling. Pure-Foundation target — compiles on macOS
+    // and Linux unchanged.
+    .target(
+        name: "QuillRSCoreShim",
+        dependencies: [],
+        swiftSettings: appSwiftSettings
+    ),
+    // Vendored Ranchero-Software/NetNewsWire RSParser sources
+    // (Sources/RSParser → Sources/QuillRSParser) with the lone
+    // `import RSCore` rewritten to `import QuillRSCoreShim`.
+    //
+    // Goes around the dead-code upstream RSCore wiring lower in
+    // this file (which fails because RSCoreObjC requires
+    // <Foundation/Foundation.h> on Linux). The shim provides
+    // the only RSCore symbol RSParser actually touches
+    // (String.md5String) — see QuillRSCoreShim above.
+    //
+    // Refresh procedure: re-run `cp -R .upstream/netnewswire/
+    // Modules/RSParser/Sources/RSParser/. Sources/QuillRSParser/`
+    // and `sed -i 's/^import RSCore$/import QuillRSCoreShim/'`
+    // across the tree, then re-run the parser tests.
+    .target(
+        name: "QuillRSParser",
+        dependencies: [
+            "QuillRSCoreShim",
+            "Tidemark",
+            // CoreGraphics (for CGSize in HTMLMetadata) is satisfied
+            // by Apple's system framework on Darwin and by the
+            // in-tree Sources/CoreGraphics shim on Linux. Both
+            // resolve automatically from `import CoreGraphics` —
+            // no explicit dep here because the Quill CoreGraphics
+            // target + library product only exist inside the
+            // #if os(Linux) block of this manifest, so an
+            // unconditional reference would fail on macOS.
+        ],
+        path: "Sources/QuillRSParser",
+        swiftSettings: appSwiftSettings
+    ),
+    // Vendored Ranchero-Software/NetNewsWire Articles module
+    // (Sources/Articles → Sources/QuillArticles). Pure-model
+    // target — Article, Author, Attachment, ArticleStatus — used
+    // by upstream for in-memory + persistence article shape.
+    //
+    // Only RSCore symbol touched: String.md5String (for content-
+    // addressed article IDs and author IDs), routed through
+    // QuillRSCoreShim via the same `import RSCore` →
+    // `import QuillRSCoreShim` rewrite as QuillRSParser.
+    //
+    // `import os` resolves to Apple's system framework on Darwin
+    // and the Quill osShim on Linux — no explicit dep needed
+    // (the Quill os library product is gated #if os(Linux)).
+    //
+    // Refresh procedure mirrors QuillRSParser: `cp -R .upstream/
+    // netnewswire/Modules/Articles/Sources/Articles/.
+    // Sources/QuillArticles/` then `sed -i
+    // 's/^import RSCore$/import QuillRSCoreShim/'`.
+    .target(
+        name: "QuillArticles",
+        dependencies: ["QuillRSCoreShim"],
+        path: "Sources/QuillArticles",
+        swiftSettings: appSwiftSettings
+    ),
+    // Vendored Ranchero-Software/NetNewsWire RSTree module
+    // (Sources/RSTree → Sources/QuillRSTree). Pure-Foundation
+    // tree data structures: Node, NodePath, RSTree,
+    // TopLevelRepresentedObject, TreeController. Used in
+    // upstream by the sidebar feed-tree controller; the
+    // Quill feedsPane will migrate to it after vendoring.
+    //
+    // The upstream Sources/RSTree directory has one extra file
+    // (NSOutlineView+RSTree.swift) that imports AppKit; it's
+    // intentionally NOT copied here so the target stays
+    // pure-Foundation. The audit at docs/netnewswire-audit.md
+    // already confirmed the rest builds standalone on Linux.
+    //
+    // Refresh procedure: re-run the per-file cp loop in
+    // .upstream/netnewswire/Modules/RSTree/Sources/RSTree
+    // (skipping NSOutlineView+RSTree.swift) — RSTree has no
+    // RSCore dependency today so the import-rewrite sed step
+    // QuillRSParser/QuillArticles need does not apply here.
+    .target(
+        name: "QuillRSTree",
+        dependencies: [],
+        path: "Sources/QuillRSTree",
         swiftSettings: appSwiftSettings
     ),
     .executableTarget(
@@ -1327,7 +1420,7 @@ if codeEditSourceUpstreamPresent {
 // etc. On Linux the upstream CodeEdit source itself can't compile (it's a
 // pure AppKit/SwiftUI Mac app) so we only resolve these on macOS.
 var allPackageDependencies: [Package.Dependency] = [
-    .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433")
+    .package(name: "SwiftOpenUI", path: "third_party/SwiftOpenUI")
 ] + quillDataPackageDependencies
 #if os(Linux)
 // OpenCombine backs the Linux `Combine` compatibility shim
@@ -1460,7 +1553,7 @@ if quillUILinuxBuildBackend == .qt {
     // per-app C++ shims and are not touched.
     if quillUIQtGenericEnabled {
         allPackageDependencies.append(
-            .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433")
+            .package(name: "SwiftOpenUI", path: "third_party/SwiftOpenUI")
         )
         targets += [
             .target(
@@ -1617,7 +1710,45 @@ let packageTestTargets: [Target] = {
         // shared entity set).
         .testTarget(
             name: "QuillNetNewsWireCoreTests",
-            dependencies: ["QuillNetNewsWireCore"],
+            dependencies: ["QuillNetNewsWireCore", "QuillArticles"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Pins QuillRSCoreShim against RFC 1321 MD5 test vectors
+        // plus the upstream Insecure.MD5.hash equivalence (empty
+        // string, "a", "abc", and the message digest test set
+        // from the RFC). Guards against shim drift if the
+        // pure-Swift MD5 ever gets touched.
+        .testTarget(
+            name: "QuillRSCoreShimTests",
+            dependencies: ["QuillRSCoreShim"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Smoke tests for the vendored upstream RSParser. Pins
+        // RSS 2.0 + Atom + FeedType detection so the
+        // import-rewrite path (RSCore → QuillRSCoreShim) and the
+        // cross-platform compile both stay green when upstream
+        // refreshes.
+        .testTarget(
+            name: "QuillRSParserTests",
+            dependencies: ["QuillRSParser"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Smoke tests for the vendored upstream Articles module.
+        // Pins articleID synthesis (md5 over accountID+feedID+
+        // uniqueID via QuillRSCoreShim), authorID content
+        // addressing, and ArticleStatus value-equality.
+        .testTarget(
+            name: "QuillArticlesTests",
+            dependencies: ["QuillArticles"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Smoke tests for the vendored upstream RSTree module.
+        // Pins Node parent/child wiring, indexPath, and the
+        // TreeController.rebuild() path the sidebar feedsPane
+        // migration will lean on.
+        .testTarget(
+            name: "QuillRSTreeTests",
+            dependencies: ["QuillRSTree"],
             swiftSettings: appSwiftSettings
         ),
         // Pins QuillCodeEditCore: the `ProjectFile.extension`

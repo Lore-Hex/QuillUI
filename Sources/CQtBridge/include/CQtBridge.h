@@ -105,6 +105,10 @@ QuillQtWidgetHandle quill_qt_bridge_container_create(void);
 // earlier ones.
 QuillQtWidgetHandle quill_qt_make_overlay_container(void);
 
+// Create a QWidget backed by a QGridLayout for LazyVGrid. Columns are stretched
+// evenly by default so flexible GridItem columns share the available width.
+QuillQtWidgetHandle quill_qt_make_grid_container(int column_count);
+
 // Add `child` into `parent` (re-parents; does NOT set geometry).
 void quill_qt_bridge_widget_add_child(
     QuillQtWidgetHandle parent,
@@ -119,6 +123,21 @@ void quill_qt_overlay_container_add_child(
     QuillQtWidgetHandle child,
     int horizontal_alignment,
     int vertical_alignment
+);
+
+// Configure horizontal/vertical cell gaps on a grid container.
+void quill_qt_grid_container_set_spacing(
+    QuillQtWidgetHandle container,
+    int horizontal_spacing,
+    int vertical_spacing
+);
+
+// Add `child` into a LazyVGrid grid container at row/column.
+void quill_qt_grid_container_add_child(
+    QuillQtWidgetHandle container,
+    QuillQtWidgetHandle child,
+    int row,
+    int column
 );
 
 // Delete (deleteLater) every direct child widget of `parent`. Used by

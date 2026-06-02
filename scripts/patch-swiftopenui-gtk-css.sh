@@ -4,19 +4,20 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRATCH_PATH="${1:-$ROOT_DIR/.build-linux}"
 PACKAGE_PATH="${QUILLUI_SWIFT_PACKAGE_PATH:-$ROOT_DIR}"
-SWIFTOPENUI_MANIFEST="$SCRATCH_PATH/checkouts/SwiftOpenUI/Package.swift"
-RENDERER="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift"
-DESCRIPTOR_TREE="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift"
-GTK_BACKEND="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4Backend.swift"
-GTK_VIEW_HOST="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift"
-NAVIGATION="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"
-GTK_SHIM="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h"
-TOOLBAR_MODIFIER="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ToolbarModifier.swift"
-LAYOUT="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Layout/Layout.swift"
-STATE="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/SwiftOpenUI/State/State.swift"
-CONTROL_STYLE_MODIFIERS="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"
-SYMBOLS="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"
-SCROLL_VIEW_READER="$SCRATCH_PATH/checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Views/ScrollViewReader.swift"
+SWIFTOPENUI_ROOT="${QUILLUI_SWIFTOPENUI_ROOT:-$PACKAGE_PATH/third_party/SwiftOpenUI}"
+SWIFTOPENUI_MANIFEST="$SWIFTOPENUI_ROOT/Package.swift"
+RENDERER="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKRenderer.swift"
+DESCRIPTOR_TREE="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift"
+GTK_BACKEND="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4Backend.swift"
+GTK_VIEW_HOST="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKViewHost.swift"
+NAVIGATION="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"
+GTK_SHIM="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/CGTK/shim.h"
+TOOLBAR_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ToolbarModifier.swift"
+LAYOUT="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Layout/Layout.swift"
+STATE="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/State/State.swift"
+CONTROL_STYLE_MODIFIERS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"
+SYMBOLS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"
+SCROLL_VIEW_READER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Views/ScrollViewReader.swift"
 SWIFT_DEPENDENCIES_MAIN_QUEUE="$SCRATCH_PATH/checkouts/swift-dependencies/Sources/Dependencies/DependencyValues/MainQueue.swift"
 SWIFT_DEPENDENCIES_MAIN_RUN_LOOP="$SCRATCH_PATH/checkouts/swift-dependencies/Sources/Dependencies/DependencyValues/MainRunLoop.swift"
 SWIFT_DEPENDENCIES_SOURCE_DIR="$SCRATCH_PATH/checkouts/swift-dependencies/Sources/Dependencies"
@@ -31,7 +32,16 @@ XCTEST_DYNAMIC_OVERLAY_SOURCE_DIR="$SCRATCH_PATH/checkouts/xctest-dynamic-overla
 GRDB_SOURCE_DIR="$SCRATCH_PATH/checkouts/GRDB.swift/GRDB"
 SQLITE_DATA_SOURCE_DIR="$SCRATCH_PATH/checkouts/sqlite-data/Sources/SQLiteData"
 
-if [[ ! -f "$SWIFTOPENUI_MANIFEST" || ! -f "$RENDERER" || ! -f "$GTK_BACKEND" || ! -f "$GTK_VIEW_HOST" || ! -f "$SYMBOLS" || ! -f "$SCROLL_VIEW_READER" ]]; then
+# Resolve unconditionally so $SCRATCH_PATH/checkouts/ is populated BEFORE the
+# patches below run against it (OpenCombine/GRDB/swift-dependencies/etc.). The
+# subsequent `swift test --scratch-path "$SCRATCH_PATH"` REUSES these patched
+# checkouts; if we skip the resolve, the build re-resolves them UNPATCHED and
+# fails with `missing required module 'COpenCombineHelpers'`. Do NOT gate this
+# on SwiftOpenUI-file presence — SwiftOpenUI is now vendored in-tree
+# (third_party/SwiftOpenUI) so such a gate is always true and silently disables
+# the resolve in the real build. Only the hermetic patcher unit-test (which sets
+# up its own stub checkouts and has no real package to resolve) opts out.
+if [[ "${QUILLUI_SKIP_PACKAGE_RESOLVE:-0}" != "1" ]]; then
   swift package resolve --package-path "$PACKAGE_PATH" --scratch-path "$SCRATCH_PATH" >/dev/null
 fi
 
