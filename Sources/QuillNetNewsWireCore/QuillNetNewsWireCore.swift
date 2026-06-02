@@ -1660,10 +1660,14 @@ final class RSSReaderModel: ObservableObject {
         let visibleIDs = filteredItems.map(\.id)
         let before = readArticleIDs.count
         for id in visibleIDs {
-            readArticleIDs.insert(id)
+            // Route through markRead (not direct Set insert) so
+            // each newly-marked article also propagates to the
+            // ArticleStore. didSet still fires once per inserted
+            // ID; persistence is per-row but batched closely so
+            // SQLite handles it as one transaction.
+            markRead(id: id)
         }
-        let added = readArticleIDs.count - before
-        return added
+        return readArticleIDs.count - before
     }
 
     /// Mark every article above the current selection (in the
@@ -1678,7 +1682,7 @@ final class RSSReaderModel: ObservableObject {
         else { return 0 }
         let before = readArticleIDs.count
         for item in filteredItems.prefix(index) {
-            readArticleIDs.insert(item.id)
+            markRead(id: item.id)
         }
         return readArticleIDs.count - before
     }
@@ -1695,7 +1699,7 @@ final class RSSReaderModel: ObservableObject {
         else { return 0 }
         let before = readArticleIDs.count
         for item in filteredItems.suffix(from: index + 1) {
-            readArticleIDs.insert(item.id)
+            markRead(id: item.id)
         }
         return readArticleIDs.count - before
     }

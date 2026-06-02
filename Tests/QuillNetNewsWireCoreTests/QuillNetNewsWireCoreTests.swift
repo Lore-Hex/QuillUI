@@ -638,6 +638,41 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("markAllVisibleAsRead propagates each row to ArticleStore")
+    func articleStoreBatchMarkAllRead() throws {
+        let store = try ArticleStore()
+        let feedID = "https://batch.test/feed"
+        try store.upsert([
+            PersistentArticle(
+                id: "p1", accountID: "Local", feedID: feedID,
+                uniqueID: "u1", title: "1",
+                datePublished: Date(timeIntervalSince1970: 1_700_000_300)
+            ),
+            PersistentArticle(
+                id: "p2", accountID: "Local", feedID: feedID,
+                uniqueID: "u2", title: "2",
+                datePublished: Date(timeIntervalSince1970: 1_700_000_200)
+            ),
+            PersistentArticle(
+                id: "p3", accountID: "Local", feedID: feedID,
+                uniqueID: "u3", title: "3",
+                datePublished: Date(timeIntervalSince1970: 1_700_000_100)
+            ),
+        ])
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "Batch", url: feedID)],
+            articleStore: store
+        )
+        // Hydration populated feedCaches + items.
+        #expect(model.items.count == 3)
+        let added = model.markAllVisibleAsRead()
+        #expect(added == 3)
+        // Every row on disk should now report isRead = true.
+        let rows = try store.fetchAll()
+        #expect(rows.allSatisfy { $0.isRead })
+    }
+
+    @MainActor
     @Test("markRead / toggleStarred propagate to the ArticleStore live")
     func articleStoreLiveReadStateMutation() throws {
         let store = try ArticleStore()
