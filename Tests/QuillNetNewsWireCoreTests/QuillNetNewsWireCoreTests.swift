@@ -1813,6 +1813,40 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.statusText.contains("unread"))
     }
 
+    @Test("Article row preview collapses whitespace + trims edges")
+    func previewCollapsesWhitespace() {
+        let body = "  Hello\n\n  world  \tagain  "
+        #expect(RSSArticleRow.makePreview(from: body) == "Hello world again")
+    }
+
+    @Test("Article row preview truncates long bodies with ellipsis")
+    func previewTruncatesLongBody() {
+        let body = String(repeating: "abcdefghij ", count: 30) // ~330 chars
+        let preview = RSSArticleRow.makePreview(from: body)
+        #expect(preview.hasSuffix("…"))
+        // Ellipsis is appended to ≤160 char cut so result is at most 161.
+        #expect(preview.count <= 161)
+    }
+
+    @Test("Article row preview is empty for empty body")
+    func previewEmptyForEmptyBody() {
+        #expect(RSSArticleRow.makePreview(from: "") == "")
+        #expect(RSSArticleRow.makePreview(from: "   \n\t  ") == "")
+    }
+
+    @Test("Article row built from item carries the preview text")
+    func articleRowCarriesPreview() {
+        let item = RSSItem(
+            id: "x",
+            title: "Title",
+            link: nil,
+            pubDate: nil,
+            descriptionHTML: "<p>This is the body text.</p>"
+        )
+        let row = RSSArticleRow(item: item)
+        #expect(row.previewText == "This is the body text.")
+    }
+
     @MainActor
     @Test("Sidebar feed selection survives relaunch via persistence")
     func feedSelectionPersists() async {

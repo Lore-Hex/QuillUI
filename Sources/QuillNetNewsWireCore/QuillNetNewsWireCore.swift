@@ -621,11 +621,21 @@ public struct QuillNetNewsWireContentView: View {
                         .foregroundColor(.secondary)
                         .frame(width: 244, alignment: .leading)
                 }
+                if !item.previewText.isEmpty {
+                    // 2-line body snippet so users can scan the
+                    // timeline. Matches upstream NetNewsWire's
+                    // 2-line preview under the date.
+                    Text(item.previewText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                        .frame(width: 244, alignment: .leading)
+                }
             }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .frame(height: 74, alignment: .leading)
+        .frame(height: 92, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(model.selectedID == item.id ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
         .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
@@ -875,15 +885,44 @@ public struct RSSArticleRow: Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let publishedSummary: String
+    /// Short body preview for the timeline. Upstream NetNewsWire
+    /// renders ~2 lines of the article body under the title +
+    /// date so users can scan the timeline without opening every
+    /// article. Built from RSSItem.plainTextBody (already HTML-
+    /// stripped) with whitespace runs collapsed and truncated to
+    /// 160 chars with an ellipsis. Empty when the source body
+    /// was empty (title-only feeds).
+    public let previewText: String
 
-    public init(id: String, title: String, publishedSummary: String) {
+    public init(id: String, title: String, publishedSummary: String, previewText: String = "") {
         self.id = id
         self.title = title
         self.publishedSummary = publishedSummary
+        self.previewText = previewText
     }
 
     public init(item: RSSItem) {
-        self.init(id: item.id, title: item.title, publishedSummary: item.publishedSummary)
+        self.init(
+            id: item.id,
+            title: item.title,
+            publishedSummary: item.publishedSummary,
+            previewText: Self.makePreview(from: item.plainTextBody)
+        )
+    }
+
+    /// Collapses internal whitespace runs to single spaces, trims
+    /// edges, truncates to 160 chars with an ellipsis. Exposed
+    /// so tests can pin the truncation behavior.
+    public static func makePreview(from body: String) -> String {
+        let collapsed = body
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        if collapsed.count <= 160 {
+            return collapsed
+        }
+        let cut = collapsed.prefix(160).trimmingCharacters(in: .whitespaces)
+        return cut + "…"
     }
 }
 
