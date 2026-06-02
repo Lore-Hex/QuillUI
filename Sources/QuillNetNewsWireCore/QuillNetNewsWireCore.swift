@@ -158,6 +158,28 @@ public struct QuillNetNewsWireContentView: View {
                             .lineLimit(4)
                     }
                 }
+                let failCount = model.feedFailureCount[feed.id] ?? 0
+                if failCount >= RSSReaderModel.feedFailureSkipThreshold {
+                    // Tell the user the background batch is now
+                    // skipping this feed and how to recover. The
+                    // Refresh button (above) is the recovery
+                    // path — explicit fetches always try.
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Skipped by Refresh All")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                        Text("Failed \(failCount) times. Press Refresh to retry.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                    }
+                } else if failCount > 0 {
+                    // Soft hint: the feed has failed recently but
+                    // hasn't crossed the back-off line yet.
+                    Text("Failed \(failCount) time\(failCount == 1 ? "" : "s") in a row")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                }
             } else {
                 Text("Feed not found")
                     .font(.caption)
@@ -505,8 +527,19 @@ public struct QuillNetNewsWireContentView: View {
         let isSelected = (model.selectedSmartFeed == nil) && (model.selectedFeedID == feed.id)
         let unread = model.unreadCount(forFeed: feed.id)
         let hasError = model.feedErrors[feed.id] != nil
+        let isSkipped = (model.feedFailureCount[feed.id] ?? 0)
+            >= RSSReaderModel.feedFailureSkipThreshold
         return HStack(spacing: 6) {
-            if hasError {
+            if isSkipped {
+                // Distinct glyph for "feed has been backed off and
+                // is being skipped by Refresh All" — different
+                // from the per-fetch warning so the user can tell
+                // at a glance whether one bad refresh happened
+                // vs. the feed is now being ignored.
+                Text("⊘")
+                    .font(.caption2)
+                    .foregroundColor(.red)
+            } else if hasError {
                 // Compact stale-feed warning. Mirrors NetNewsWire's
                 // sidebar amber-warning glyph next to feeds whose
                 // most recent fetch failed (HTTP 4xx/5xx, parse
