@@ -296,4 +296,35 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.subscribedFeeds == custom)
         #expect(model.selectedFeedID == "https://a.test/feed")
     }
+
+    @MainActor
+    @Test("RSSReaderModel.currentFeedURL resolves the selected feed's URL")
+    func readerModelCurrentFeedURLResolvesSelection() {
+        let custom = [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ]
+        let model = RSSReaderModel(subscribedFeeds: custom)
+        #expect(model.currentFeedURL == "https://a.test/feed")
+
+        model.selectedFeedID = "https://b.test/feed"
+        #expect(model.currentFeedURL == "https://b.test/feed")
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.currentFeedURL falls back to the first feed when selection is missing")
+    func readerModelCurrentFeedURLFallsBack() {
+        let custom = [Feed(title: "A", url: "https://a.test/feed")]
+        let model = RSSReaderModel(subscribedFeeds: custom)
+        model.selectedFeedID = "https://bogus.test/feed"
+        #expect(model.currentFeedURL == "https://a.test/feed")
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.currentFeedURL is nil when no feeds are subscribed")
+    func readerModelCurrentFeedURLNilWhenEmpty() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        #expect(model.currentFeedURL == nil)
+        #expect(model.selectedFeedID == nil)
+    }
 }
