@@ -1143,7 +1143,10 @@ final class RSSReaderModel: ObservableObject {
     /// to filteredItems — the smart filter runs first, then the
     /// search query narrows further.
     @Published var selectedSmartFeed: SmartFeed? {
-        didSet { updateStatusText() }
+        didSet {
+            updateStatusText()
+            persistSelectionIfReady()
+        }
     }
 
     /// Auto-refresh cadence in seconds for the active feed.
@@ -1178,7 +1181,9 @@ final class RSSReaderModel: ObservableObject {
     /// callers that don't care about folders). Defaults to a
     /// single root folder holding all seeded feeds.
     @Published var subscriptionRoot: OPMLImporter.Folder
-    @Published var selectedFeedID: Feed.ID?
+    @Published var selectedFeedID: Feed.ID? {
+        didSet { persistSelectionIfReady() }
+    }
 
     private var didStartInitialLoad = false
     private let initialSelectionEnvironment: [String: String]
@@ -1245,6 +1250,20 @@ final class RSSReaderModel: ObservableObject {
         // articles, lastFetchAt) triple per group. Errors swallow
         // — the in-memory empty caches keep the reader running.
         hydrateFeedCachesFromStoreIfReady()
+        // Restore sidebar selection from disk so the reader
+        // resumes where the user left off. A persisted feed that
+        // no longer exists (unsubscribed across launches) falls
+        // through to the default first-feed selection set above.
+        // Smart feed wins over feed when both are set (the
+        // serializer never writes both, but be defensive).
+        if let saved = persistence.loadSelection() {
+            if let smart = saved.smartFeed, let kind = SmartFeed(rawValue: smart) {
+                self.selectedSmartFeed = kind
+            } else if let feedID = saved.feedID,
+                      resolvedFeeds.contains(where: { $0.id == feedID }) {
+                self.selectedFeedID = feedID
+            }
+        }
         self.persistenceReady = true
     }
 
@@ -1337,6 +1356,25 @@ final class RSSReaderModel: ObservableObject {
     private func persistSubscriptionsIfReady() {
         guard persistenceReady else { return }
         persistence.saveOPMLExport(exportOPMLData())
+    }
+
+    /// Mirrors persistSubscriptionsIfReady for sidebar selection
+    /// (smart feed kind or subscribed feed URL). Smart feed takes
+    /// priority so toggling between a feed and a smart feed
+    /// writes one or the other, never both. Same persistenceReady
+    /// gate prevents init-time setter chains from racing the disk
+    /// write before the restored value is applied.
+    private func persistSelectionIfReady() {
+        guard persistenceReady else { return }
+        let state: PersistenceStore.SelectionState
+        if let smart = selectedSmartFeed {
+            state = PersistenceStore.SelectionState(smartFeed: smart.rawValue, feedID: nil)
+        } else if let feedID = selectedFeedID {
+            state = PersistenceStore.SelectionState(smartFeed: nil, feedID: feedID)
+        } else {
+            state = PersistenceStore.SelectionState()
+        }
+        persistence.saveSelection(state)
     }
 
     /// URL of the currently-selected subscribed feed. `nil` when

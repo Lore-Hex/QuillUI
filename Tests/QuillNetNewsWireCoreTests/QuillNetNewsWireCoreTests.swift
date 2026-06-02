@@ -1814,6 +1814,70 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Sidebar feed selection survives relaunch via persistence")
+    func feedSelectionPersists() async {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-selection-feed-\(UUID().uuidString)", isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        let seed = [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ]
+        do {
+            let model = RSSReaderModel(subscribedFeeds: seed, persistence: store)
+            await model.selectFeed(id: "https://b.test/feed")
+            #expect(model.selectedFeedID == "https://b.test/feed")
+        }
+        let restored = RSSReaderModel(subscribedFeeds: seed, persistence: store)
+        #expect(restored.selectedFeedID == "https://b.test/feed")
+        #expect(restored.selectedSmartFeed == nil)
+    }
+
+    @MainActor
+    @Test("Sidebar smart-feed selection survives relaunch")
+    func smartFeedSelectionPersists() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-selection-smart-\(UUID().uuidString)", isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        let seed = [Feed(title: "A", url: "https://a.test/feed")]
+        do {
+            let model = RSSReaderModel(subscribedFeeds: seed, persistence: store)
+            model.selectSmartFeed(.starred)
+            #expect(model.selectedSmartFeed == .starred)
+        }
+        let restored = RSSReaderModel(subscribedFeeds: seed, persistence: store)
+        #expect(restored.selectedSmartFeed == .starred)
+    }
+
+    @MainActor
+    @Test("Persisted feed selection that no longer exists falls back to default")
+    func staleFeedSelectionFallsBack() async {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-selection-stale-\(UUID().uuidString)", isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        let originalSeed = [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ]
+        do {
+            let model = RSSReaderModel(subscribedFeeds: originalSeed, persistence: store)
+            await model.selectFeed(id: "https://b.test/feed")
+        }
+        // Second launch with B unsubscribed — should not crash
+        // or stick on the missing feed; should fall back to the
+        // first subscribed feed.
+        let newSeed = [Feed(title: "A", url: "https://a.test/feed")]
+        let restored = RSSReaderModel(subscribedFeeds: newSeed, persistence: store)
+        #expect(restored.selectedFeedID == "https://a.test/feed")
+    }
+
+    @MainActor
     @Test("refreshFeed is a no-op while another refresh is in flight")
     func refreshFeedRespectsIsLoading() async {
         let model = RSSReaderModel(subscribedFeeds: [

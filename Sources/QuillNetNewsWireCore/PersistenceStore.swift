@@ -158,6 +158,40 @@ public struct PersistenceStore: Sendable {
         try? data.write(to: url, options: .atomic)
     }
 
+    /// Persisted sidebar selection. Upstream NetNewsWire restores
+    /// the last-selected feed (or smart feed) on launch so the
+    /// reader resumes where the user left off. A pair of optional
+    /// strings: one for a smart-feed kind ("today"/"allUnread"/
+    /// "starred"), one for a subscribed-feed URL. Exactly one is
+    /// non-nil when something is selected; both nil means no
+    /// prior selection (first launch). The model applies the
+    /// restored selection only when the referenced feed still
+    /// exists — feeds removed since last launch fall back to
+    /// the first subscription, matching upstream's behavior.
+    public struct SelectionState: Codable, Equatable, Sendable {
+        public var smartFeed: String?
+        public var feedID: String?
+        public init(smartFeed: String? = nil, feedID: String? = nil) {
+            self.smartFeed = smartFeed
+            self.feedID = feedID
+        }
+    }
+
+    public func loadSelection() -> SelectionState? {
+        let url = directoryURL.appendingPathComponent("selection.json")
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(SelectionState.self, from: data)
+    }
+
+    public func saveSelection(_ state: SelectionState) {
+        try? FileManager.default.createDirectory(
+            at: directoryURL, withIntermediateDirectories: true, attributes: nil
+        )
+        let url = directoryURL.appendingPathComponent("selection.json")
+        guard let data = try? JSONEncoder().encode(state) else { return }
+        try? data.write(to: url, options: .atomic)
+    }
+
     private func loadStringSet(named filename: String) -> Set<String> {
         let url = directoryURL.appendingPathComponent(filename)
         guard let data = try? Data(contentsOf: url) else { return [] }
