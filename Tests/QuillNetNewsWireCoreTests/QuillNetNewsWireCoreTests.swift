@@ -1931,6 +1931,64 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("reorderFolder moves a top-level folder up/down")
+    func reorderFolderTopLevel() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(name: "A", feeds: [], subfolders: []),
+                OPMLImporter.Folder(name: "B", feeds: [], subfolders: []),
+                OPMLImporter.Folder(name: "C", feeds: [], subfolders: []),
+            ]
+        )
+        #expect(model.reorderFolder(named: "B", by: 1))
+        #expect(model.subscriptionRoot.subfolders.map(\.name) == ["A", "C", "B"])
+        #expect(model.reorderFolder(named: "C", by: -1))
+        #expect(model.subscriptionRoot.subfolders.map(\.name) == ["C", "A", "B"])
+    }
+
+    @MainActor
+    @Test("reorderFolder works inside a parent folder")
+    func reorderFolderNested() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [OPMLImporter.Folder(
+                name: "Tech",
+                feeds: [],
+                subfolders: [
+                    OPMLImporter.Folder(name: "Apple", feeds: [], subfolders: []),
+                    OPMLImporter.Folder(name: "Google", feeds: [], subfolders: []),
+                ]
+            )]
+        )
+        #expect(model.reorderFolder(named: "Apple", by: 1))
+        #expect(model.subscriptionRoot.subfolders[0].subfolders.map(\.name) == ["Google", "Apple"])
+    }
+
+    @MainActor
+    @Test("reorderFolder saturates at boundaries; zero delta is no-op")
+    func reorderFolderSaturates() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(name: "A", feeds: [], subfolders: []),
+                OPMLImporter.Folder(name: "B", feeds: [], subfolders: []),
+            ]
+        )
+        #expect(!model.reorderFolder(named: "A", by: -1)) // already top
+        #expect(!model.reorderFolder(named: "B", by: 1))  // already bottom
+        #expect(!model.reorderFolder(named: "A", by: 0))  // zero delta
+        #expect(!model.reorderFolder(named: "Nope", by: 1)) // unknown
+        #expect(model.subscriptionRoot.subfolders.map(\.name) == ["A", "B"])
+    }
+
+    @MainActor
     @Test("reorderFeed moves a feed up/down within top-level root")
     func reorderFeedTopLevel() {
         let model = RSSReaderModel(subscribedFeeds: [])

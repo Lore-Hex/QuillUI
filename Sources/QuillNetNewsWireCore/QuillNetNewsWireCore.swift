@@ -2997,6 +2997,48 @@ final class RSSReaderModel: ObservableObject {
         return (copy, didMove)
     }
 
+    /// Reorder a folder within its current parent (root or
+    /// a parent folder when nested) by `delta` slots. Symmetric
+    /// to reorderFeed: positive moves down, negative moves up,
+    /// saturates at parent bounds. Returns true when the folder
+    /// actually moved.
+    @discardableResult
+    func reorderFolder(named name: String, by delta: Int) -> Bool {
+        guard delta != 0 else { return false }
+        let (updated, didMove) = Self.reorderFolderInTree(
+            named: name, by: delta, in: subscriptionRoot
+        )
+        guard didMove else { return false }
+        subscriptionRoot = updated
+        return true
+    }
+
+    private static func reorderFolderInTree(
+        named name: String,
+        by delta: Int,
+        in folder: OPMLImporter.Folder
+    ) -> (OPMLImporter.Folder, Bool) {
+        var copy = folder
+        if let idx = copy.subfolders.firstIndex(where: { $0.name == name }) {
+            let target = max(0, min(copy.subfolders.count - 1, idx + delta))
+            guard target != idx else { return (copy, false) }
+            let f = copy.subfolders.remove(at: idx)
+            copy.subfolders.insert(f, at: target)
+            return (copy, true)
+        }
+        var didMove = false
+        var newSubfolders: [OPMLImporter.Folder] = []
+        for sub in copy.subfolders {
+            let (updatedSub, subDid) = reorderFolderInTree(
+                named: name, by: delta, in: sub
+            )
+            if subDid { didMove = true }
+            newSubfolders.append(updatedSub)
+        }
+        copy.subfolders = newSubfolders
+        return (copy, didMove)
+    }
+
     private static func folderExists(
         named name: String,
         in folder: OPMLImporter.Folder
