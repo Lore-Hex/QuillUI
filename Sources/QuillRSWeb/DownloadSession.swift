@@ -58,7 +58,7 @@ struct HTTP4xxResponse {
 	/// These URLs are skipped for a period of time.
 	private var http4xxResponses = [URL: HTTP4xxResponse]()
 
-	private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "DownloadSession")
+	private static let logger = Logger(subsystem: (Bundle.main.bundleIdentifier ?? "co.lorehex.QuillRSWeb"), category: "DownloadSession")
 
 	public init(delegate: DownloadSessionDelegate) {
 
