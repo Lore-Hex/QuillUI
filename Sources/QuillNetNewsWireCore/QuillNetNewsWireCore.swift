@@ -851,11 +851,15 @@ public struct QuillNetNewsWireContentView: View {
             }
             .font(.caption2)
             .disabled(model.unreadCount == 0)
-            Button(model.isLoading ? "Refreshing…" : "Refresh") {
+            // Per-URL gate matches the inspector Refresh button
+            // (#148) — only disabled when the active feed
+            // itself is loading, not when Refresh All is busy
+            // on inactive feeds.
+            Button(model.isLoading(forURL: activeFeedURL) ? "Refreshing…" : "Refresh") {
                 Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
             }
             .font(.caption2)
-            .disabled(model.isLoading)
+            .disabled(model.isLoading(forURL: activeFeedURL))
         }
         .padding(10)
     }
