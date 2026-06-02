@@ -315,6 +315,14 @@ public struct QuillNetNewsWireContentView: View {
                 model.markAllVisibleAsRead()
             }
             .keyboardShortcut("k", modifiers: [.command, .shift])
+            // ⌘⌥K = Mark Older Articles as Read — upstream NNW's
+            // canonical "I've triaged down to here, nuke the rest"
+            // shortcut. Direction follows sortOrder so it stays
+            // intuitive regardless of newest/oldest-first view.
+            Button("mark older read") {
+                model.markOlderThanSelectionAsRead()
+            }
+            .keyboardShortcut("k", modifiers: [.command, .option])
             Button("refresh all") {
                 Task { @MainActor in await model.refreshAllFeeds() }
             }
@@ -3412,6 +3420,21 @@ final class RSSReaderModel: ObservableObject {
             markRead(id: item.id)
         }
         return readArticleIDs.count - before
+    }
+
+    /// Mark every article older than the selection as read.
+    /// "Older" is defined relative to the current `sortOrder`:
+    /// newest-first puts older articles BELOW the selection,
+    /// oldest-first puts them ABOVE. Mirrors upstream
+    /// NetNewsWire's 'Mark Older Articles as Read' (⌘⌥K) —
+    /// the canonical end-of-triage shortcut. No-op when
+    /// there's no selection.
+    @discardableResult
+    func markOlderThanSelectionAsRead() -> Int {
+        switch sortOrder {
+        case .newestFirst: return markBelowSelectionAsRead()
+        case .oldestFirst: return markAboveSelectionAsRead()
+        }
     }
 
     /// Mark every article below the current selection (in the

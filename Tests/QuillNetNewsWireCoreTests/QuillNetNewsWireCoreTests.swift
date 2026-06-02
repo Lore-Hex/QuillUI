@@ -2819,6 +2819,36 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("markOlderThanSelectionAsRead dispatches by sortOrder")
+    func markOlderThanSelectionDispatch() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Newest-first: older items live BELOW selection in
+        // upstream NNW's reader. markOlder should mark suffix
+        // (items 4 + 5 — item 1 was auto-marked at seed; item
+        // 3 is the selection, which markRead-on-select handles).
+        model.sortOrder = .newestFirst
+        model.selectItem(id: "3")
+        let nf = model.markOlderThanSelectionAsRead()
+        #expect(nf == 2)
+        #expect(model.isRead(id: "4"))
+        #expect(model.isRead(id: "5"))
+
+        // Reset reads (mark every fixture unread), flip sort,
+        // re-select middle. Now markOlder should mark PREFIX
+        // (items 1, 2) instead.
+        for id in ["1", "2", "3", "4", "5"] { model.markUnread(id: id) }
+        model.sortOrder = .oldestFirst
+        model.selectItem(id: "3")
+        let of = model.markOlderThanSelectionAsRead()
+        #expect(of == 2)
+        #expect(model.isRead(id: "1"))
+        #expect(model.isRead(id: "2"))
+        #expect(!model.isRead(id: "4"))
+        #expect(!model.isRead(id: "5"))
+    }
+
+    @MainActor
     @Test("selectedItemBrowserURL returns the link of the selected article")
     func selectedItemBrowserURLReturnsLink() {
         let model = RSSReaderModel(subscribedFeeds: [
