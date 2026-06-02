@@ -4415,19 +4415,28 @@ struct RSSFeedParser {
 }
 
 private extension String {
-    func stripBasicHTML() -> String {
-        // Drop entire <script>...</script> and <style>...</style>
-        // BLOCKS (tag + content) first; many feeds (ad-supported,
-        // analytics-instrumented) ship tracking JS / inline CSS
-        // in descriptionHTML. The default `<[^>]+>` tag-only
-        // strip would leak the script source code into the
-        // plain-text body — ugly in the timeline preview and
-        // search match.
-        let withoutBlocks = self.replacingOccurrences(
+    /// Drop entire <script>...</script> and <style>...</style>
+    /// BLOCKS (tag + content). Many feeds (ad-supported,
+    /// analytics-instrumented) ship tracking JS / inline CSS
+    /// in descriptionHTML. The default `<[^>]+>` tag-only
+    /// strip would leak the script source code into:
+    ///   - plain-text body / preview / search (#119)
+    ///   - detail-pane paragraphs (#123)
+    ///   - inline-link / inline-image extraction (#124 — a
+    ///     literal `<a>` string inside a script body would
+    ///     otherwise show up as a clickable link)
+    /// All four call sites delegate here so the regex stays
+    /// in one place and any future tweak applies uniformly.
+    func htmlWithoutScriptStyleBlocks() -> String {
+        replacingOccurrences(
             of: "<(script|style)\\b[^>]*>[\\s\\S]*?</\\1>",
             with: "",
             options: [.regularExpression, .caseInsensitive]
         )
+    }
+
+    func stripBasicHTML() -> String {
+        let withoutBlocks = htmlWithoutScriptStyleBlocks()
         let withoutTags = withoutBlocks.replacingOccurrences(
             of: "<[^>]+>", with: "", options: .regularExpression
         )
@@ -4454,8 +4463,13 @@ private extension String {
             pattern: pattern,
             options: [.dotMatchesLineSeparators, .caseInsensitive]
         ) else { return [] }
-        let nsself = self as NSString
-        let matches = regex.matches(in: self, range: NSRange(location: 0, length: nsself.length))
+        // Strip script/style blocks BEFORE the link-extraction
+        // regex so a literal "<a href=...>" inside a tracker
+        // script body doesn't surface as a clickable link in
+        // the detail-pane "Links" footer.
+        let source = htmlWithoutScriptStyleBlocks()
+        let nsself = source as NSString
+        let matches = regex.matches(in: source, range: NSRange(location: 0, length: nsself.length))
         var out: [InlineLink] = []
         for m in matches {
             let hrefRange = m.range(at: 1).location != NSNotFound ? m.range(at: 1) : m.range(at: 2)
@@ -4489,9 +4503,14 @@ private extension String {
             pattern: tagPattern,
             options: [.caseInsensitive]
         ) else { return [] }
-        let nsself = self as NSString
+        // Same script/style strip as htmlInlineLinks so tracker
+        // pixel <img> tags inside <noscript> wrappers (which
+        // sit inside <script> bodies in some ad inserts) don't
+        // get extracted.
+        let source = htmlWithoutScriptStyleBlocks()
+        let nsself = source as NSString
         let tagMatches = tagRegex.matches(
-            in: self, range: NSRange(location: 0, length: nsself.length)
+            in: source, range: NSRange(location: 0, length: nsself.length)
         )
         var out: [InlineImage] = []
         for tm in tagMatches {
@@ -4534,16 +4553,7 @@ private extension String {
     /// pass produces the segments.
     func htmlParagraphs() -> [String] {
         guard !isEmpty else { return [] }
-        // Strip <script> / <style> blocks (tag + content) so
-        // tracker JS / inline CSS doesn't leak into the detail
-        // paragraphs. Same fix stripBasicHTML got in #119; this
-        // path needs it too because htmlParagraphs goes straight
-        // to the detail-pane render and skips stripBasicHTML.
-        let withoutBlocks = self.replacingOccurrences(
-            of: "<(script|style)\\b[^>]*>[\\s\\S]*?</\\1>",
-            with: "",
-            options: [.regularExpression, .caseInsensitive]
-        )
+        let withoutBlocks = htmlWithoutScriptStyleBlocks()
         // Insert a marker character at every block-level boundary,
         // then split on it. The marker is `\u{2029}` (PARAGRAPH
         // SEPARATOR) so it can't collide with any feed content.

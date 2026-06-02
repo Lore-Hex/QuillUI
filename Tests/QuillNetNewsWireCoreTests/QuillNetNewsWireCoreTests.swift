@@ -122,6 +122,32 @@ struct QuillNetNewsWireCoreTests {
         #expect(!item.plainTextBody.contains("&#169"))
     }
 
+    @Test("RSSItem.inlineLinks skips anchors inside script bodies")
+    func rssItemInlineLinksSkipsScriptInteriors() {
+        let html = """
+        <p>Hello</p>
+        <a href="https://real.test/x">Real link</a>
+        <script>document.write('<a href="https://evil.test/track">tracker</a>');</script>
+        """
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        let urls = item.inlineLinks.map(\.urlString)
+        #expect(urls.contains("https://real.test/x"))
+        #expect(!urls.contains("https://evil.test/track"))
+    }
+
+    @Test("RSSItem.inlineImages skips images inside script bodies")
+    func rssItemInlineImagesSkipsScriptInteriors() {
+        let html = """
+        <p>Hello</p>
+        <img src="https://real.test/photo.jpg" alt="Real"/>
+        <script>document.write('<img src="https://tracker.test/1px.gif">');</script>
+        """
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        let urls = item.inlineImages.map(\.urlString)
+        #expect(urls.contains("https://real.test/photo.jpg"))
+        #expect(!urls.contains("https://tracker.test/1px.gif"))
+    }
+
     @Test("RSSItem.bodyParagraphs drops script blocks (detail-pane safety)")
     func rssItemBodyParagraphsStripsScripts() {
         let html = "<p>Para one.</p><script>tracker('hit');</script><p>Para two.</p>"
