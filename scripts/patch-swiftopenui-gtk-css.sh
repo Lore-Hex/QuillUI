@@ -31,9 +31,11 @@ XCTEST_DYNAMIC_OVERLAY_SOURCE_DIR="$SCRATCH_PATH/checkouts/xctest-dynamic-overla
 GRDB_SOURCE_DIR="$SCRATCH_PATH/checkouts/GRDB.swift/GRDB"
 SQLITE_DATA_SOURCE_DIR="$SCRATCH_PATH/checkouts/sqlite-data/Sources/SQLiteData"
 
-if [[ ! -f "$SWIFTOPENUI_MANIFEST" || ! -f "$RENDERER" || ! -f "$GTK_BACKEND" || ! -f "$GTK_VIEW_HOST" || ! -f "$SYMBOLS" || ! -f "$SCROLL_VIEW_READER" ]]; then
-  swift package resolve --package-path "$PACKAGE_PATH" --scratch-path "$SCRATCH_PATH" >/dev/null
-fi
+# SwiftOpenUI is now an in-tree path package (third_party/SwiftOpenUI), so its
+# files always exist; resolve unconditionally to populate the OTHER external
+# dependency checkouts (OpenCombine, swift-dependencies, GRDB, ...) this script
+# patches below.
+swift package resolve --package-path "$PACKAGE_PATH" --scratch-path "$SCRATCH_PATH" >/dev/null
 
 if [[ ! -f "$SWIFTOPENUI_MANIFEST" ]]; then
   echo "SwiftOpenUI manifest was not found at $SWIFTOPENUI_MANIFEST" >&2
