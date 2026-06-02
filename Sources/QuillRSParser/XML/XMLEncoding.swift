@@ -69,54 +69,65 @@ enum XMLEncoding {
 	/// `cf(...)` come from the `CFStringEncodings` enum and are bridged via
 	/// `CFStringConvertEncodingToNSStringEncoding` — Swift's `String.Encoding`
 	/// directly exposes only a subset of what Foundation can actually decode.
-	private static let foundationEncodings: [String: String.Encoding] = [
-		// UTF-16 variants. "utf-16" without BOM defaults to BE per spec.
-		"utf-16": .utf16BigEndian,
-		"utf16": .utf16BigEndian,
-		"utf-16be": .utf16BigEndian,
-		"utf-16le": .utf16LittleEndian,
+	///
+	/// Linux note: `CFStringEncodings` and the corresponding bridge function are
+	/// CoreFoundation symbols that swift-corelibs-foundation does not vend. The
+	/// CF-bridged entries are wrapped in `#if !os(Linux)` so Linux still decodes
+	/// every UTF / ISO-8859 / Windows-CP variant exposed directly on
+	/// `String.Encoding`; the missing entries (`iso-8859-5/9/15`, `koi8-r`, `gbk`,
+	/// `big5`, `euc-kr`) just fall through to the caller's nil-path, which logs
+	/// and falls back to UTF-8.
+	private static let foundationEncodings: [String: String.Encoding] = {
+		var table: [String: String.Encoding] = [
+			// UTF-16 variants. "utf-16" without BOM defaults to BE per spec.
+			"utf-16": .utf16BigEndian,
+			"utf16": .utf16BigEndian,
+			"utf-16be": .utf16BigEndian,
+			"utf-16le": .utf16LittleEndian,
 
-		// Other Latin / European
-		"iso-8859-2": .isoLatin2,
-		"latin2": .isoLatin2,
-		"iso-8859-5": cf(.isoLatinCyrillic),
-		"iso-8859-9": cf(.isoLatin5),           // Turkish
-		"iso-8859-15": cf(.isoLatin9),          // Euro
+			// Latin / European (all in Swift's String.Encoding directly)
+			"iso-8859-2": .isoLatin2,
+			"latin2": .isoLatin2,
 
-		// Cyrillic
-		"windows-1251": .windowsCP1251,
-		"cp1251": .windowsCP1251,
-		"koi8-r": cf(.KOI8_R),
+			// Cyrillic
+			"windows-1251": .windowsCP1251,
+			"cp1251": .windowsCP1251,
 
-		// Japanese
-		"shift_jis": .shiftJIS,
-		"shift-jis": .shiftJIS,
-		"sjis": .shiftJIS,
-		"euc-jp": .japaneseEUC,
-		"iso-2022-jp": .iso2022JP,
+			// Japanese
+			"shift_jis": .shiftJIS,
+			"shift-jis": .shiftJIS,
+			"sjis": .shiftJIS,
+			"euc-jp": .japaneseEUC,
+			"iso-2022-jp": .iso2022JP,
 
+			// Other Windows code pages occasionally seen in European feeds
+			"windows-1250": .windowsCP1250,         // Central/Eastern European
+			"cp1250": .windowsCP1250,
+			"windows-1253": .windowsCP1253,         // Greek
+			"cp1253": .windowsCP1253,
+			"windows-1254": .windowsCP1254,         // Turkish
+			"cp1254": .windowsCP1254
+		]
+		#if !os(Linux)
+		// CF-bridged encodings — only available where CoreFoundation is.
+		table["iso-8859-5"] = cf(.isoLatinCyrillic)
+		table["iso-8859-9"] = cf(.isoLatin5)           // Turkish
+		table["iso-8859-15"] = cf(.isoLatin9)          // Euro
+		table["koi8-r"] = cf(.KOI8_R)
 		// Simplified Chinese
 		// Real-world files labelled gb2312 are usually GBK (which is a superset),
 		// and libxml2 treats them as such. Using the stricter GB_2312_80 table
 		// loses characters in common feeds; fall through to GBK to match.
-		"gb2312": cf(.GBK_95),
-		"gbk": cf(.GBK_95),
-		"gb18030": cf(.GB_18030_2000),
-
+		table["gb2312"] = cf(.GBK_95)
+		table["gbk"] = cf(.GBK_95)
+		table["gb18030"] = cf(.GB_18030_2000)
 		// Traditional Chinese
-		"big5": cf(.big5),
-
+		table["big5"] = cf(.big5)
 		// Korean
-		"euc-kr": cf(.EUC_KR),
-
-		// Other Windows code pages occasionally seen in European feeds
-		"windows-1250": .windowsCP1250,         // Central/Eastern European
-		"cp1250": .windowsCP1250,
-		"windows-1253": .windowsCP1253,         // Greek
-		"cp1253": .windowsCP1253,
-		"windows-1254": .windowsCP1254,         // Turkish
-		"cp1254": .windowsCP1254
-	]
+		table["euc-kr"] = cf(.EUC_KR)
+		#endif
+		return table
+	}()
 }
 
 private extension XMLEncoding {
@@ -265,9 +276,14 @@ private extension XMLEncoding {
 		return nil
 	}
 
+	#if !os(Linux)
+	/// Bridge a CFStringEncodings raw value to the matching Foundation
+	/// String.Encoding. Available only where CoreFoundation is vended
+	/// (Darwin); Linux callers must use the table above directly.
 	static func cf(_ encoding: CFStringEncodings) -> String.Encoding {
 		String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(encoding.rawValue)))
 	}
+	#endif
 
 	// MARK: - Transcoding
 
