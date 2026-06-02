@@ -4144,6 +4144,60 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("selectFolder switches filteredItems to the folder's union")
+    func selectFolderScopesFilteredItems() {
+        let feedA = Feed(title: "A", url: "https://a.test/feed")
+        let feedB = Feed(title: "B", url: "https://b.test/feed")
+        let model = RSSReaderModel(subscribedFeeds: [feedA, feedB])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [feedA, feedB], subfolders: [])]
+        )
+        model.items = [
+            RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        // Default — filteredItems scoped to active feed (items).
+        #expect(Set(model.filteredItems.map(\.id)) == ["a1"])
+        // Enter folder view — should show A + B union.
+        model.selectFolder("Tech")
+        #expect(Set(model.filteredItems.map(\.id)) == ["a1", "b1"])
+        // Exit folder view — back to active feed.
+        model.selectFolder(nil)
+        #expect(Set(model.filteredItems.map(\.id)) == ["a1"])
+    }
+
+    @MainActor
+    @Test("selectFolder clears smart-feed selection (mutual exclusion)")
+    func selectFolderClearsSmartFeed() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.selectSmartFeed(.allUnread)
+        #expect(model.selectedSmartFeed == .allUnread)
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [], subfolders: [])]
+        )
+        model.selectFolder("Tech")
+        #expect(model.selectedSmartFeed == nil)
+        #expect(model.selectedFolderName == "Tech")
+    }
+
+    @MainActor
+    @Test("selectSmartFeed clears folder selection")
+    func selectSmartFeedClearsFolder() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.selectedFolderName = "Tech"
+        model.selectSmartFeed(.starred)
+        #expect(model.selectedFolderName == nil)
+    }
+
+    @MainActor
     @Test("itemsInFolder returns the union of feed-cache items inside a folder")
     func itemsInFolderUnionsFeedCaches() {
         let feedA = Feed(title: "A", url: "https://a.test/feed")

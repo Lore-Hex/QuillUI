@@ -1564,6 +1564,16 @@ final class RSSReaderModel: ObservableObject {
         }
     }
 
+    /// Folder-as-smart-feed selection. When non-nil, the
+    /// timeline shows the union of articles across every feed
+    /// inside that folder (matches upstream NetNewsWire's
+    /// folder-click behavior). Mutually exclusive with
+    /// selectedSmartFeed AND the default active-feed view; the
+    /// select* methods enforce the invariant.
+    @Published var selectedFolderName: String? {
+        didSet { updateStatusText() }
+    }
+
     /// Auto-refresh cadence in seconds for the active feed.
     /// Matches upstream NetNewsWire's default 30-minute refresh
     /// interval. Setting to nil disables background polling.
@@ -2127,8 +2137,10 @@ final class RSSReaderModel: ObservableObject {
         // ID — tapping the feed name is how you exit a smart-feed
         // view back to the per-feed timeline.
         let wasShowingSmartFeed = selectedSmartFeed != nil
+        let wasShowingFolder = selectedFolderName != nil
         selectedSmartFeed = nil
-        guard id != selectedFeedID || wasShowingSmartFeed else { return }
+        selectedFolderName = nil
+        guard id != selectedFeedID || wasShowingSmartFeed || wasShowingFolder else { return }
         selectedFeedID = id
         selectItem(id: nil)
         // Reset sticky-visible carry-over from the prior view.
@@ -2165,11 +2177,27 @@ final class RSSReaderModel: ObservableObject {
     /// smart feed effectively narrows the active feed's timeline.
     func selectSmartFeed(_ kind: SmartFeed?) {
         selectedSmartFeed = kind
+        // Smart feed wins over folder; clear folder selection
+        // so the two states don't compete in filteredItems.
+        if kind != nil { selectedFolderName = nil }
         selectItem(id: nil)
         // Reset sticky-visible set on view change so the next
         // smart-feed visit starts with a clean filter; items
         // that were marked-read during the prior session no
         // longer linger.
+        sessionStickyVisibleIDs.removeAll()
+    }
+
+    /// Select a folder-as-smart-feed view. Clears active smart
+    /// feed AND active feed selection so filteredItems' folder
+    /// branch engages. Pass nil to exit the folder view back to
+    /// the active feed.
+    func selectFolder(_ name: String?) {
+        selectedFolderName = name
+        if name != nil {
+            selectedSmartFeed = nil
+        }
+        selectItem(id: nil)
         sessionStickyVisibleIDs.removeAll()
     }
 
@@ -4081,12 +4109,15 @@ final class RSSReaderModel: ObservableObject {
     var filteredItems: [RSSItem] {
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let searchActive = !trimmed.isEmpty
-        // Smart feeds and active-search both want cross-feed
-        // scope (the user's intent in both cases is "find this
-        // across everything I'm subscribed to"). Only the
-        // default-active-feed view stays scoped to items.
+        // Folder view wins over default active-feed (but loses
+        // to smart feed + search since those have explicit
+        // cross-feed scope). The folder branch reads the
+        // already-computed itemsInFolder helper (#158).
         let pool: [RSSItem]
-        if selectedSmartFeed != nil || searchActive {
+        if let folderName = selectedFolderName,
+           selectedSmartFeed == nil, !searchActive {
+            pool = itemsInFolder(named: folderName)
+        } else if selectedSmartFeed != nil || searchActive {
             var seen = Set<String>()
             var combined: [RSSItem] = []
             for item in items {
