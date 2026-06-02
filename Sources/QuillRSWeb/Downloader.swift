@@ -60,12 +60,16 @@ public typealias DownloadCallback = @MainActor (Data?, URLResponse?, Error?) -> 
 	}
 
 	public func download(_ url: URL, _ callback: @escaping DownloadCallback) {
+		#if canImport(Darwin)
 		assert(Thread.isMainThread)
+		#endif
 		download(URLRequest(url: url), callback)
 	}
 
 	public func download(_ urlRequest: URLRequest, _ callback: @escaping DownloadCallback) {
+		#if canImport(Darwin)
 		assert(Thread.isMainThread)
+		#endif
 
 		guard let url = urlRequest.url else {
 			Self.logger.fault("Downloader: skipping download for URLRequest without a URL")
@@ -122,7 +126,9 @@ public typealias DownloadCallback = @MainActor (Data?, URLResponse?, Error?) -> 
 private extension Downloader {
 
 	func callAndReleaseCallbacks(_ url: URL, _ data: Data? = nil, _ response: URLResponse? = nil, _ error: Error? = nil) {
+		#if canImport(Darwin)
 		assert(Thread.isMainThread)
+		#endif
 
 		defer {
 			callbacks[url] = nil
