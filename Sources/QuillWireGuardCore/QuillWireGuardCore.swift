@@ -251,12 +251,14 @@ public struct QuillWireGuardInterfaceSnapshot: Codable, Equatable, Sendable {
     public var addressesText: String
     public var dnsServersText: String
     public var listenPortText: String?
+    public var mtuText: String?
 
     public init(interface: QuillWireGuardInterface) {
         self.publicKey = interface.publicKey
         self.addressesText = interface.addresses.joined(separator: ", ")
         self.dnsServersText = interface.dnsServers.joined(separator: ", ")
         self.listenPortText = interface.listenPort.map { String($0) }
+        self.mtuText = interface.mtu.map { String($0) }
     }
 }
 
@@ -266,6 +268,7 @@ public struct QuillWireGuardPeerSnapshot: Codable, Equatable, Sendable {
     public var allowedIPsText: String
     public var endpointText: String?
     public var keepAliveText: String?
+    public var preSharedKeyText: String?
 
     public init(peer: QuillWireGuardPeer) {
         self.name = peer.name
@@ -273,6 +276,7 @@ public struct QuillWireGuardPeerSnapshot: Codable, Equatable, Sendable {
         self.allowedIPsText = peer.allowedIPs.joined(separator: ", ")
         self.endpointText = peer.endpoint
         self.keepAliveText = peer.persistentKeepAlive.map { "\($0)s" }
+        self.preSharedKeyText = peer.preSharedKey != nil ? QuillWireGuardPresentation.preSharedKeyEnabledText : nil
     }
 }
 

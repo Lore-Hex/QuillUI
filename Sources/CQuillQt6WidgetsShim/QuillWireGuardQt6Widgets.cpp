@@ -221,6 +221,17 @@ void addInterfaceSection(
         );
     }
 
+    const QString mtu = stringValue(interfaceObject, "mtuText");
+    if (!mtu.isEmpty()) {
+        addDetailRow(
+            form,
+            presentationValue(presentation, "mtuLabel", "MTU"),
+            mtu,
+            noneText,
+            style
+        );
+    }
+
     detailLayout->addWidget(section);
 }
 
@@ -267,6 +278,17 @@ void addPeerSection(
             form,
             presentationValue(presentation, "keepAliveLabel", "Keepalive"),
             keepAlive,
+            noneText,
+            style
+        );
+    }
+
+    const QString preSharedKey = stringValue(peer, "preSharedKeyText");
+    if (!preSharedKey.isEmpty()) {
+        addDetailRow(
+            form,
+            presentationValue(presentation, "preSharedKeyLabel", "Preshared key"),
+            preSharedKey,
             noneText,
             style
         );
