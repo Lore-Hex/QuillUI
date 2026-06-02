@@ -854,6 +854,21 @@ public struct QuillChatEmptyState: View {
             let candidateWidth = (availableGridWidth - spacingWidth) / visible
             resolvedCardWidth = min(305, max(cardWidth, candidateWidth))
             resolvedCardHeight = max(cardHeight, 280)
+        } else {
+            // Multi-column at the standard (non-reference) window width. Clamp
+            // each card to its flexible LazyVGrid column width — same rationale as
+            // the single-column branch above. Without this, the fixed card frame
+            // (e.g. the generated Enchanted profile's 302pt cards) is far WIDER
+            // than its column in a ~1180pt window, so the row (gridWidth) overflows
+            // the detail pane and is pushed flush-right, AND the over-wide fixed
+            // card spins SwiftOpenUI's GTK4 LazyVGrid relayout and collapses it to
+            // a single column. Clamping the card to its column width makes the
+            // N-card row fit the pane — so .frame(width: gridWidth, alignment:
+            // .center) can center it — and lets all `columns` columns render.
+            let visible = CGFloat(min(columns, max(1, prompts.count)))
+            let spacingWidth = CGFloat(max(0, Int(visible) - 1) * resolvedSpacing)
+            let columnWidth = max(80, (availableWidth - spacingWidth) / visible)
+            resolvedCardWidth = min(cardWidth, columnWidth)
         }
         #endif
 
