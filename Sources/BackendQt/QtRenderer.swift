@@ -219,6 +219,62 @@ func qtRenderHorizontalContainer(
     return container
 }
 
+#if QUILLUI_QT_GENERIC
+private enum QtOverlayHorizontalAlignment: Int32 {
+    case leading = 0
+    case center = 1
+    case trailing = 2
+}
+
+private enum QtOverlayVerticalAlignment: Int32 {
+    case top = 0
+    case center = 1
+    case bottom = 2
+}
+
+private func qtOverlayAlignmentAxes(
+    _ alignment: Alignment
+) -> (QtOverlayHorizontalAlignment, QtOverlayVerticalAlignment) {
+    switch alignment {
+    case .topLeading:
+        return (.leading, .top)
+    case .top:
+        return (.center, .top)
+    case .topTrailing:
+        return (.trailing, .top)
+    case .leading:
+        return (.leading, .center)
+    case .center:
+        return (.center, .center)
+    case .trailing:
+        return (.trailing, .center)
+    case .bottomLeading:
+        return (.leading, .bottom)
+    case .bottom:
+        return (.center, .bottom)
+    case .bottomTrailing:
+        return (.trailing, .bottom)
+    }
+}
+
+func qtRenderOverlayContainer(
+    _ children: [OpaquePointer],
+    alignment: Alignment
+) -> OpaquePointer {
+    let container = qtOpaque(quill_qt_make_overlay_container())
+    let (horizontal, vertical) = qtOverlayAlignmentAxes(alignment)
+    for child in children {
+        quill_qt_overlay_container_add_child(
+            qtHandle(container),
+            qtHandle(child),
+            horizontal.rawValue,
+            vertical.rawValue
+        )
+    }
+    return container
+}
+#endif
+
 // MARK: - Deferred callback environment binding
 //
 // Capture the environment at registration time and restore it around a
@@ -596,6 +652,15 @@ extension HStack: QtRenderable {
         return qtRenderHorizontalContainer(children, spacing: effectiveSpacing, alignment: alignment)
     }
 }
+
+#if QUILLUI_QT_GENERIC
+extension ZStack: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let children = qtRenderExpandedChildren(self.children)
+        return qtRenderOverlayContainer(children, alignment: alignment)
+    }
+}
+#endif
 
 extension ForEach: QtRenderable, QtMultiChildRenderable {
     public func qtCreateWidget() -> OpaquePointer {

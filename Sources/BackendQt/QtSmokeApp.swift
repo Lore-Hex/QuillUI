@@ -80,6 +80,12 @@ struct QtSmokeView: View {
                 )
                 .frame(width: QtSmokeMetrics.panelWidth, height: QtSmokeMetrics.panelHeight)
 
+                ZStack {
+                    Color(red: 0.89, green: 0.95, blue: 1.0)
+                        .frame(width: 220, height: 48)
+                    Text("ZStack overlay")
+                }
+
                 // Bound to @State through the generic QtViewHost so a click rebuilds
                 // the subtree; the dark panel above does NOT depend on this toggle.
                 Button(isOpen ? "Toggle (on)" : "Toggle (off)") {

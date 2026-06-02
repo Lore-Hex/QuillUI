@@ -100,10 +100,25 @@ void quill_qt_bridge_window_set_content(
 // Create a plain QWidget used as an absolute-placement container.
 QuillQtWidgetHandle quill_qt_bridge_container_create(void);
 
+// Create a QWidget backed by a QGridLayout for ZStack-style overlays. Children
+// added at the same row/column overlap, with later children raised above
+// earlier ones.
+QuillQtWidgetHandle quill_qt_make_overlay_container(void);
+
 // Add `child` into `parent` (re-parents; does NOT set geometry).
 void quill_qt_bridge_widget_add_child(
     QuillQtWidgetHandle parent,
     QuillQtWidgetHandle child
+);
+
+// Add `child` into an overlay container's single grid cell. Alignment values
+// are: horizontal 0=leading, 1=center, 2=trailing; vertical 0=top, 1=center,
+// 2=bottom.
+void quill_qt_overlay_container_add_child(
+    QuillQtWidgetHandle container,
+    QuillQtWidgetHandle child,
+    int horizontal_alignment,
+    int vertical_alignment
 );
 
 // Delete (deleteLater) every direct child widget of `parent`. Used by
