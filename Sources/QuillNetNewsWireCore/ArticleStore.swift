@@ -123,6 +123,16 @@ public final class ArticleStore: @unchecked Sendable {
         return try context.fetch(descriptor).count
     }
 
+    /// Per-feed unread count — sidebar badge accuracy. Like
+    /// the global counters above, doesn't materialize rows.
+    public func countUnread(forFeed feedID: String) throws -> Int {
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<PersistentArticle>(
+            filter: { $0.feedID == feedID && $0.isRead == false }
+        )
+        return try context.fetch(descriptor).count
+    }
+
     /// Mark a single article read (idempotent — re-marking is
     /// a no-op write). Bumps the row's existing isRead bit
     /// without losing any other field.

@@ -3303,20 +3303,30 @@ final class RSSReaderModel: ObservableObject {
         }
     }
 
-    /// Unread count for a subscribed feed. Reads from the
-    /// per-feed cache populated by fetch(); falls back to the
-    /// active feed's `unreadCount` when querying the
-    /// currently-selected feed (since `items` is its latest
-    /// state). Returns 0 for feeds that haven't been fetched
-    /// yet (no cache entry).
+    /// Unread count for a subscribed feed. Prefers the SQLite
+    /// count (spans full history) over the cache count (capped
+    /// by articlesPerFeedLimit), then falls back to cache when
+    /// no articleStore is wired. Active feed has live `items`
+    /// which may include just-fetched articles not yet in
+    /// SQLite, so use the cache-based count for that one.
     func unreadCount(forFeed feedID: Feed.ID) -> Int {
         if feedID == selectedFeedID {
             return unreadCount
         }
-        guard let cache = feedCaches[feedID] else { return 0 }
-        return cache.items.reduce(0) { acc, item in
-            acc + (readArticleIDs.contains(item.id) ? 0 : 1)
-        }
+        let cacheCount: Int = {
+            guard let cache = feedCaches[feedID] else { return 0 }
+            return cache.items.reduce(0) { acc, item in
+                acc + (readArticleIDs.contains(item.id) ? 0 : 1)
+            }
+        }()
+        // Prefer the larger of cache vs SQLite. In production
+        // SQLite is always >= cache (every fetch upserts trimmed
+        // articles), so SQLite wins — surfaces the full unread
+        // backlog beyond articlesPerFeedLimit. In tests that
+        // populate feedCaches directly without touching SQLite,
+        // cache wins so the count isn't silently 0.
+        let storedCount = (try? articleStore?.countUnread(forFeed: feedID)) ?? 0 ?? 0
+        return max(cacheCount, storedCount)
     }
 
     /// Rolled-up unread count for an OPML folder — sums

@@ -2778,6 +2778,59 @@ struct QuillNetNewsWireCoreTests {
         #expect(RSSReaderModel.smartFeedStoredLimit >= RSSReaderModel.articlesPerFeedLimit)
     }
 
+    @Test("ArticleStore.countUnread(forFeed:) returns per-feed count")
+    func articleStoreCountUnreadForFeed() throws {
+        let store = try ArticleStore()
+        try store.upsert([
+            PersistentArticle(id: "a1", accountID: "Local",
+                              feedID: "https://a.test/feed",
+                              uniqueID: "ua1", title: "A1", isRead: false),
+            PersistentArticle(id: "a2", accountID: "Local",
+                              feedID: "https://a.test/feed",
+                              uniqueID: "ua2", title: "A2", isRead: false),
+            PersistentArticle(id: "b1", accountID: "Local",
+                              feedID: "https://b.test/feed",
+                              uniqueID: "ub1", title: "B1", isRead: false),
+        ])
+        #expect(try store.countUnread(forFeed: "https://a.test/feed") == 2)
+        #expect(try store.countUnread(forFeed: "https://b.test/feed") == 1)
+        #expect(try store.countUnread(forFeed: "https://nope.test/feed") == 0)
+    }
+
+    @MainActor
+    @Test("unreadCount(forFeed:) reflects SQLite-only unread beyond cache cap")
+    func unreadCountForFeedSpansSQLite() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-sidebarcount-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try ArticleStore(directoryURL: dir)
+        let persistenceStore = PersistenceStore(directoryURL: dir)
+        // Pin 200 unread rows in SQLite for feed B.
+        var rows: [PersistentArticle] = []
+        for i in 0..<200 {
+            rows.append(PersistentArticle(
+                id: "b\(i)", accountID: "Local",
+                feedID: "https://b.test/feed",
+                uniqueID: "ub\(i)", title: "B\(i)", isRead: false
+            ))
+        }
+        try store.upsert(rows)
+        let model = RSSReaderModel(
+            subscribedFeeds: [
+                Feed(title: "A", url: "https://a.test/feed"),
+                Feed(title: "B", url: "https://b.test/feed"),
+            ],
+            persistence: persistenceStore,
+            articleStore: store
+        )
+        // Drop cache so the SQLite path engages exclusively.
+        model.feedCaches.removeAll()
+        // A is selected (default first feed), so badge for B
+        // goes through the SQLite path.
+        #expect(model.unreadCount(forFeed: "https://b.test/feed") == 200)
+    }
+
     @Test("ArticleStore.countStarred / countUnread don't materialize rows")
     func articleStoreCheapCounts() throws {
         let store = try ArticleStore()
