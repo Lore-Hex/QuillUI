@@ -257,4 +257,43 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.selectedItem?.id == "2")
         #expect(model.selectedDetail?.id == "2")
     }
+
+    @Test("Feed.init(title:url:) uses url as id")
+    func feedInitFromTitleAndURLUsesURLAsID() {
+        let feed = Feed(title: "Daring Fireball", url: "https://daringfireball.net/feeds/main")
+
+        #expect(feed.id == "https://daringfireball.net/feeds/main")
+        #expect(feed.title == "Daring Fireball")
+        #expect(feed.url == "https://daringfireball.net/feeds/main")
+    }
+
+    @Test("DefaultFeedList.seed contains the canonical bootstrap subscriptions")
+    func defaultFeedListSeedShape() {
+        let seed = DefaultFeedList.seed
+        #expect(seed.count >= 2)
+        #expect(seed.allSatisfy { !$0.title.isEmpty })
+        #expect(seed.allSatisfy { URL(string: $0.url) != nil })
+        // IDs must be unique so sidebar selection round-trips deterministically.
+        #expect(Set(seed.map(\.id)).count == seed.count)
+    }
+
+    @MainActor
+    @Test("RSSReaderModel seeds subscribedFeeds + selectedFeedID from defaults")
+    func readerModelSeedsSubscribedFeeds() {
+        let model = RSSReaderModel()
+        #expect(model.subscribedFeeds == DefaultFeedList.seed)
+        #expect(model.selectedFeedID == DefaultFeedList.seed.first?.id)
+    }
+
+    @MainActor
+    @Test("RSSReaderModel accepts a custom subscribedFeeds list")
+    func readerModelAcceptsCustomFeedList() {
+        let custom = [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ]
+        let model = RSSReaderModel(subscribedFeeds: custom)
+        #expect(model.subscribedFeeds == custom)
+        #expect(model.selectedFeedID == "https://a.test/feed")
+    }
 }
