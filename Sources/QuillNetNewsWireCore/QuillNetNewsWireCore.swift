@@ -2448,6 +2448,7 @@ final class RSSReaderModel: ObservableObject {
         feedErrors.removeValue(forKey: id)
         feedFailureCount.removeValue(forKey: id)
         feedIconURLs.removeValue(forKey: id)
+        conditionalGetInfo.removeValue(forKey: id)
         // Drop the feed's SQLite rows so they don't re-hydrate
         // into feedCaches on next launch and resurface in
         // smart-feed / search views. Failures swallow so a flaky

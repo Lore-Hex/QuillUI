@@ -2798,6 +2798,7 @@ struct QuillNetNewsWireCoreTests {
         model.feedCaches["https://a.test/feed"] = RSSReaderModel.FeedCache(
             items: [RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil)]
         )
+        model.conditionalGetInfo["https://a.test/feed"] = ["etag": "abc"]
         #expect(model.removeSubscription(id: "https://a.test/feed"))
         // Every per-feed dict should have no entry for the
         // removed feed.
@@ -2805,6 +2806,7 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.feedFailureCount["https://a.test/feed"] == nil)
         #expect(model.feedIconURLs["https://a.test/feed"] == nil)
         #expect(model.feedCaches["https://a.test/feed"] == nil)
+        #expect(model.conditionalGetInfo["https://a.test/feed"] == nil)
         // Other feed's state untouched.
         model.feedErrors["https://b.test/feed"] = "B error"
         #expect(model.feedErrors["https://b.test/feed"] == "B error")
