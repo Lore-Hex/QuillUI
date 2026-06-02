@@ -35,7 +35,10 @@ public func quill_wireguard_qt_free_string(_ pointer: UnsafeMutablePointer<CChar
 public enum QuillWireGuardQtNativeApp {
     public static func run() -> Never {
         QuillQtNativeRuntimeSupport.runEncodedPayload(
-            QuillWireGuardAppSnapshot.configurationManager,
+            QuillWireGuardAppSnapshot.liveConfigurationManager(
+                controller: QuillWireGuardRuntimeController(runner: QuillWireGuardProcessRunner()),
+                now: Date()
+            ),
             executableName: QuillQtNativeRuntimeSupport.executableName(fallback: "quill-wireguard-qt")
         ) { payloadPointer in
             quill_wireguard_qt_run_wireguard_json(

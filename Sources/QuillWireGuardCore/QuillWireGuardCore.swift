@@ -1007,7 +1007,12 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
         self.tunnels = try container.decode([QuillWireGuardTunnelSnapshot].self, forKey: .tunnels)
     }
 
-    public static var configurationManager: QuillWireGuardAppSnapshot {
+    /// Build the configuration-manager snapshot, attaching each fixture tunnel's
+    /// live status via `liveStatusFor`. The pure `configurationManager` passes nil
+    /// (static config view); `liveConfigurationManager` passes the runtime service.
+    private static func configurationManager(
+        liveStatusFor: (QuillWireGuardTunnel) -> QuillWireGuardLiveStatus?
+    ) -> QuillWireGuardAppSnapshot {
         QuillWireGuardAppSnapshot(
             title: QuillWireGuardAppMetadata.title,
             defaultWidth: Int(QuillWireGuardAppMetadata.defaultWidth),
@@ -1016,8 +1021,30 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
             minimumHeight: Int(QuillWireGuardAppMetadata.linuxMinimumHeight),
             backendStatusText: QuillWireGuardBackend.statusText,
             selectedTunnelID: QuillWireGuardFixtures.defaultTunnelID,
-            tunnels: QuillWireGuardFixtures.tunnels.map(QuillWireGuardTunnelSnapshot.init(tunnel:))
+            tunnels: QuillWireGuardFixtures.tunnels.map { tunnel in
+                QuillWireGuardTunnelSnapshot(tunnel: tunnel, liveStatus: liveStatusFor(tunnel))
+            }
         )
+    }
+
+    /// The static configuration-manager snapshot (no live runtime stats).
+    public static var configurationManager: QuillWireGuardAppSnapshot {
+        configurationManager(liveStatusFor: { _ in nil })
+    }
+
+    /// The configuration-manager snapshot with each tunnel's live runtime status
+    /// fetched via the controller (one-shot at build). A tunnel that is down / whose
+    /// `wg` interface isn't up degrades to `.inactive`, so no live rows render. This
+    /// is the Qt native (C++ shim) analog of the SwiftUI fallback view's live fetch.
+    public static func liveConfigurationManager<Runner: QuillWireGuardCommandRunner>(
+        controller: QuillWireGuardRuntimeController<Runner>,
+        now: Date
+    ) -> QuillWireGuardAppSnapshot {
+        configurationManager(liveStatusFor: { tunnel in
+            QuillWireGuardLiveStatusService.liveStatus(
+                forTunnelNamed: tunnel.name, controller: controller, now: now
+            )
+        })
     }
 }
 
