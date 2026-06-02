@@ -752,8 +752,19 @@ public struct QuillNetNewsWireContentView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack(alignment: .top, spacing: 12) {
-                            Text(item.title).font(.title).bold()
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(item.title).font(.title).bold()
+                                if let position = model.selectionPositionLabel() {
+                                    // Position breadcrumb so users in
+                                    // a long timeline know how far they
+                                    // are. Matches upstream NetNewsWire's
+                                    // "N of M" detail-header indicator.
+                                    Text(position)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             // Read/Unread toggle in the detail
                             // header. ● = read, ○ = unread. Matches
                             // upstream NetNewsWire's detail-toolbar
@@ -2405,6 +2416,18 @@ final class RSSReaderModel: ObservableObject {
         let names = authors.compactMap(\.name).filter { !$0.isEmpty }
         guard !names.isEmpty else { return nil }
         return names.sorted().joined(separator: ", ")
+    }
+
+    /// "N of M" breadcrumb for the selected article within the
+    /// current filtered timeline. Nil when nothing is selected
+    /// or when the selection has fallen out of filteredItems
+    /// (e.g. an active search hides it). 1-indexed; mirrors
+    /// upstream NetNewsWire's detail-header position indicator.
+    func selectionPositionLabel() -> String? {
+        guard let id = selectedID else { return nil }
+        let filtered = filteredItems
+        guard let index = filtered.firstIndex(where: { $0.id == id }) else { return nil }
+        return "\(index + 1) of \(filtered.count)"
     }
 
     #if canImport(Darwin)

@@ -1931,6 +1931,53 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("selectionPositionLabel is nil with no selection")
+    func selectionPositionNoneWhenNoSelection() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "One", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.selectedID = nil
+        #expect(model.selectionPositionLabel() == nil)
+    }
+
+    @MainActor
+    @Test("selectionPositionLabel reports 1-indexed position within filtered items")
+    func selectionPositionReports1Indexed() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = (1...5).map {
+            RSSItem(id: "a\($0)", title: "Item \($0)", link: nil, pubDate: nil, descriptionHTML: nil)
+        }
+        model.selectedID = "a1"
+        #expect(model.selectionPositionLabel() == "1 of 5")
+        model.selectedID = "a3"
+        #expect(model.selectionPositionLabel() == "3 of 5")
+        model.selectedID = "a5"
+        #expect(model.selectionPositionLabel() == "5 of 5")
+    }
+
+    @MainActor
+    @Test("selectionPositionLabel is nil when selection is filtered out of view")
+    func selectionPositionNilWhenSelectionHidden() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "Swift news", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "Kernel news", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.selectedID = "a2"
+        model.searchQuery = "Swift"
+        // a2 doesn't match → filteredItems = [a1] only → selected
+        // is out of view → nil label (rather than nonsense "N of 1").
+        #expect(model.selectionPositionLabel() == nil)
+    }
+
+    @MainActor
     @Test("emptyTimelineMessage routes to loading state during fetch")
     func emptyMessageLoading() {
         let model = RSSReaderModel(subscribedFeeds: [
