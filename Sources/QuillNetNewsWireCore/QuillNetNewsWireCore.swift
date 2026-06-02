@@ -276,15 +276,24 @@ public struct QuillNetNewsWireContentView: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if unread > 0 {
-                // Compact NetNewsWire-style unread badge. Only
-                // the active feed shows a count today because the
-                // model hasn't yet cached items for inactive
-                // feeds — persistence iteration enables badges
-                // for every subscription.
+                // Compact NetNewsWire-style unread badge,
+                // accurate across all cached feeds via feedCaches.
                 Text("\(unread)")
                     .font(.caption2)
                     .fontWeight(.bold)
                     .foregroundColor(.blue)
+            }
+            // Delete-subscription affordance. Tiny ✕ that only
+            // surfaces in the selected row to keep visual noise
+            // down — matches upstream NetNewsWire's edit-mode
+            // delete button (a hover-only X in macOS, edit-mode
+            // swipe on iOS).
+            if isSelected {
+                Button("✕") {
+                    model.removeSubscription(id: feed.id)
+                }
+                .font(.caption2)
+                .foregroundColor(.secondary)
             }
         }
         .padding(.horizontal, 10)
@@ -1082,6 +1091,40 @@ final class RSSReaderModel: ObservableObject {
     /// same feed list (modulo the optional list title).
     func exportOPML(title: String? = nil) -> String {
         OPMLExporter.export(feeds: subscribedFeeds, title: title)
+    }
+
+    /// Remove a subscribed feed by ID. Drops its per-feed
+    /// cache, the subscription row, and any reference in
+    /// subscriptionRoot (top-level + nested folders). If the
+    /// removed feed was active, the selection rotates to the
+    /// first remaining feed (or nil when none remain). Mirrors
+    /// upstream NetNewsWire's 'Delete Subscription' command.
+    /// Returns true when a feed was actually removed.
+    @discardableResult
+    func removeSubscription(id: Feed.ID) -> Bool {
+        let beforeCount = subscribedFeeds.count
+        subscribedFeeds.removeAll { $0.id == id }
+        guard subscribedFeeds.count != beforeCount else { return false }
+        feedCaches.removeValue(forKey: id)
+        // Walk the folder tree, removing the feed from every
+        // level. Folder structure stays intact; only the leaf
+        // disappears.
+        subscriptionRoot = Self.removeFeed(id: id, from: subscriptionRoot)
+        // Rotate selection if the active feed got pulled.
+        if selectedFeedID == id {
+            selectedFeedID = subscribedFeeds.first?.id
+            selectItem(id: nil)
+            items = []
+            articles = []
+        }
+        return true
+    }
+
+    private static func removeFeed(id: Feed.ID, from folder: OPMLImporter.Folder) -> OPMLImporter.Folder {
+        var copy = folder
+        copy.feeds.removeAll { $0.id == id }
+        copy.subfolders = copy.subfolders.map { removeFeed(id: id, from: $0) }
+        return copy
     }
 
     /// Take a user-entered URL (a website URL or a direct feed

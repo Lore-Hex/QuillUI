@@ -837,6 +837,71 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.authorLine(forItemID: "x") == "Alex, Brent")
     }
 
+    // MARK: - removeSubscription
+
+    @MainActor
+    @Test("removeSubscription drops feed + cache + folder ref + rotates active")
+    func removeSubscriptionFull() {
+        let a = Feed(title: "A", url: "https://a.test/feed")
+        let b = Feed(title: "B", url: "https://b.test/feed")
+        let model = RSSReaderModel(subscribedFeeds: [a, b])
+        // Synthesize per-feed state for both.
+        model.items = [
+            RSSItem(id: "i1", title: "I1", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.feedCaches[a.id] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "i1", title: "I1", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        model.feedCaches[b.id] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "i2", title: "I2", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        // Remove the active feed (selectedFeedID is a.id from init).
+        let removed = model.removeSubscription(id: a.id)
+        #expect(removed)
+        #expect(model.subscribedFeeds.map(\.id) == [b.id])
+        #expect(model.feedCaches[a.id] == nil)
+        #expect(model.feedCaches[b.id] != nil)
+        // Active rotates to remaining feed; items get cleared.
+        #expect(model.selectedFeedID == b.id)
+        #expect(model.items.isEmpty)
+    }
+
+    @MainActor
+    @Test("removeSubscription returns false for unknown ID")
+    func removeSubscriptionMissing() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        let removed = model.removeSubscription(id: "https://nonexistent.test/feed")
+        #expect(!removed)
+        #expect(model.subscribedFeeds.count == 1)
+    }
+
+    @MainActor
+    @Test("removeSubscription pulls feed out of nested OPML folder")
+    func removeSubscriptionFromFolder() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline text="Dev">
+              <outline type="rss" text="Swift" xmlUrl="https://s.test/feed"/>
+              <outline type="rss" text="ATP" xmlUrl="https://a.test/feed"/>
+            </outline>
+          </body>
+        </opml>
+        """
+        model.importOPMLTree(xml: xml)
+        #expect(model.subscriptionRoot.subfolders[0].feeds.count == 2)
+        let removed = model.removeSubscription(id: "https://s.test/feed")
+        #expect(removed)
+        // Folder still exists; just one fewer feed inside.
+        #expect(model.subscriptionRoot.subfolders[0].feeds.count == 1)
+        #expect(model.subscriptionRoot.subfolders[0].feeds[0].title == "ATP")
+        // Flat list also dropped it.
+        #expect(model.subscribedFeeds.count == 1)
+    }
+
     @MainActor
     @Test("addSubscription returns nil for an unparseable URL string")
     func addSubscriptionRejectsBadInput() async {
