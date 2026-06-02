@@ -128,6 +128,12 @@ public struct QuillNetNewsWireContentView: View {
             Text(model.statusText)
                 .font(.caption2)
                 .foregroundColor(.secondary)
+            Spacer()
+            Button(model.isLoading ? "Refreshing…" : "Refresh") {
+                Task { @MainActor in await model.refresh(urlString: feedURL) }
+            }
+            .font(.caption2)
+            .disabled(model.isLoading)
         }
         .padding(10)
     }
@@ -309,6 +315,16 @@ final class RSSReaderModel: ObservableObject {
 
     func loadIfNeeded(urlString: String) async {
         guard !didStartInitialLoad else { return }
+        didStartInitialLoad = true
+        await fetch(urlString: urlString)
+    }
+
+    /// User-triggered refresh. Unlike `loadIfNeeded(urlString:)` this
+    /// always re-fetches, even if the initial load has already run.
+    /// No-op while a load is already in flight so rapid Refresh clicks
+    /// don't pile up overlapping URLSession tasks.
+    func refresh(urlString: String) async {
+        guard !isLoading else { return }
         didStartInitialLoad = true
         await fetch(urlString: urlString)
     }
