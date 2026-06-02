@@ -747,6 +747,13 @@ final class RSSReaderModel: ObservableObject {
     /// the three-pane sidebar iteration will drive selection
     /// through `selectedFeedID`.
     @Published var subscribedFeeds: [Feed]
+
+    /// Hierarchical mirror of `subscribedFeeds`. When the user
+    /// imports an OPML file with nested folders, the structure
+    /// gets preserved here (the flat list keeps every feed for
+    /// callers that don't care about folders). Defaults to a
+    /// single root folder holding all seeded feeds.
+    @Published var subscriptionRoot: OPMLImporter.Folder
     @Published var selectedFeedID: Feed.ID?
 
     private var didStartInitialLoad = false
@@ -759,6 +766,15 @@ final class RSSReaderModel: ObservableObject {
         self.initialSelectionEnvironment = environment
         self.subscribedFeeds = subscribedFeeds
         self.selectedFeedID = subscribedFeeds.first?.id
+        // Default tree is a single root folder holding every
+        // seeded feed. OPML import replaces this with the
+        // tree-preserving counterpart when callers reach for
+        // importOPMLTree(...).
+        self.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: subscribedFeeds,
+            subfolders: []
+        )
     }
 
     /// URL of the currently-selected subscribed feed. `nil` when
@@ -874,6 +890,25 @@ final class RSSReaderModel: ObservableObject {
             selectedFeedID = subscribedFeeds.first?.id
         }
         return added
+    }
+
+    /// Tree-preserving counterpart to `importOPML(data:)`. Sets
+    /// `subscriptionRoot` to the parsed folder hierarchy AND
+    /// merges every leaf feed into the flat `subscribedFeeds`
+    /// list (deduped by URL). Returns the count of newly-added
+    /// feeds. After-import callers that want folder rendering
+    /// read `subscriptionRoot`; the existing timeline / search /
+    /// smart-feed paths keep reading the flat list.
+    @discardableResult
+    func importOPMLTree(data: Data) -> Int {
+        let tree = OPMLImporter.parseTree(data: data)
+        subscriptionRoot = tree.root
+        return mergeImportedFeeds(tree.root.allFeeds)
+    }
+
+    @discardableResult
+    func importOPMLTree(xml: String) -> Int {
+        importOPMLTree(data: Data(xml.utf8))
     }
 
     /// Serialize the current subscribed feed list as OPML 2.0.

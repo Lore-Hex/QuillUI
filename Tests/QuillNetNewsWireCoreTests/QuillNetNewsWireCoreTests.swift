@@ -905,6 +905,42 @@ struct QuillNetNewsWireCoreTests {
         #expect(tech.feeds.map(\.title) == ["ATP", "Hacker News"])
     }
 
+    @MainActor
+    @Test("RSSReaderModel initial subscriptionRoot wraps seeded feeds")
+    func readerModelSubscriptionRootInitial() {
+        let model = RSSReaderModel()
+        // Default root has every seeded feed at top level + no subfolders.
+        #expect(model.subscriptionRoot.subfolders.isEmpty)
+        #expect(model.subscriptionRoot.feeds == DefaultFeedList.seed)
+    }
+
+    @MainActor
+    @Test("importOPMLTree preserves nested folder structure on the model")
+    func readerModelImportOPMLTreePreservesFolders() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline text="Dev">
+              <outline type="rss" text="Swift Blog" xmlUrl="https://swift.test/feed"/>
+              <outline type="rss" text="ATP" xmlUrl="https://atp.test/feed"/>
+            </outline>
+            <outline type="rss" text="Daring Fireball" xmlUrl="https://df.test/feed"/>
+          </body>
+        </opml>
+        """
+        let added = model.importOPMLTree(xml: xml)
+        #expect(added == 3)
+        // Tree shape preserved.
+        #expect(model.subscriptionRoot.subfolders.count == 1)
+        #expect(model.subscriptionRoot.subfolders[0].name == "Dev")
+        #expect(model.subscriptionRoot.subfolders[0].feeds.count == 2)
+        #expect(model.subscriptionRoot.feeds.count == 1)
+        #expect(model.subscriptionRoot.feeds[0].title == "Daring Fireball")
+        // Flat list has every feed.
+        #expect(Set(model.subscribedFeeds.map(\.title)) == ["Swift Blog", "ATP", "Daring Fireball"])
+    }
+
     @Test("OPMLImporter Folder.allFeeds flattens nested subscriptions")
     func opmlImporterTreeAllFeeds() {
         let xml = """
