@@ -2143,6 +2143,13 @@ final class RSSReaderModel: ObservableObject {
             setError("Invalid OPML URL")
             return 0
         }
+        // Show the loading indicator during the OPML download +
+        // parse. Same reasoning as addSubscription: user clicks
+        // Import, otherwise no feedback until the round-trip
+        // resolves. defer ensures it clears on every exit path
+        // (success, throw, empty response).
+        setLoading(true)
+        defer { setLoading(false) }
         do {
             let (maybeData, _) = try await Downloader.shared.download(url)
             guard let data = maybeData else {
@@ -2219,23 +2226,42 @@ final class RSSReaderModel: ObservableObject {
     func addSubscription(urlString: String) async -> Feed? {
         let normalized = urlString.trimmingWhitespace.normalizedURL
         guard let url = URL(string: normalized) else { return nil }
+        // Show the loading indicator during FeedFinder.find — it's
+        // a real network round-trip (HTTP GET of the candidate
+        // URL + HTML parse for <link rel="alternate"> + probes of
+        // well-known feed paths). Without setLoading(true), the
+        // UI looks frozen between Add-button-click and the
+        // selectFeed-induced fetch that fires only after
+        // autodiscovery resolves. Toggled back off either via
+        // setLoading(false) on the failure paths or implicitly
+        // via selectFeed → fetch's own setLoading toggle on
+        // the success path.
+        setLoading(true)
         let candidates: Set<FeedSpecifier>
         do {
             candidates = try await FeedFinder.find(url: url)
         } catch {
             setError("Subscribe failed: \(error)")
+            setLoading(false)
             return nil
         }
         guard let best = FeedSpecifier.bestFeed(in: candidates) else {
             setError("No feed found at \(normalized)")
+            setLoading(false)
             return nil
         }
         let feed = Feed(title: best.title ?? best.urlString, url: best.urlString)
         let added = mergeImportedFeeds([feed])
         if added == 0 {
             // Already subscribed — return the existing record.
+            setLoading(false)
             return subscribedFeeds.first(where: { $0.id == feed.id })
         }
+        // selectFeed → fetch does its own setLoading toggle; the
+        // global indicator handoff is seamless. Reset our own
+        // first so the assert in fetch's setLoading(true) sees
+        // a clean false → true transition (not true → true).
+        setLoading(false)
         // Auto-select the newly-subscribed feed so the sidebar
         // highlights it and the timeline starts populating with
         // its articles. Matches upstream NetNewsWire's post-
