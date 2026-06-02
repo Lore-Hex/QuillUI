@@ -35,6 +35,7 @@ import QuillFeedFinder
 public struct QuillNetNewsWireContentView: View {
     @StateObject private var model = RSSReaderModel()
     @State private var addSubscriptionInput: String = ""
+    @State private var opmlImportURLInput: String = ""
     @State private var showingSettings: Bool = false
 
     public init() {}
@@ -267,6 +268,22 @@ public struct QuillNetNewsWireContentView: View {
                     }
                     .font(.caption2)
                     .disabled(addSubscriptionInput.trimmingWhitespace.isEmpty)
+                }
+                HStack(spacing: 6) {
+                    TextField("OPML URL", text: Binding(
+                        get: { opmlImportURLInput },
+                        set: { opmlImportURLInput = $0 }
+                    ))
+                        .font(.caption2)
+                    Button("Import") {
+                        let input = opmlImportURLInput
+                        opmlImportURLInput = ""
+                        Task { @MainActor in
+                            await model.importOPMLFromURL(input)
+                        }
+                    }
+                    .font(.caption2)
+                    .disabled(opmlImportURLInput.trimmingWhitespace.isEmpty)
                 }
                 HStack(spacing: 6) {
                     Button("Export OPML") {
@@ -1390,6 +1407,34 @@ final class RSSReaderModel: ObservableObject {
     @discardableResult
     func importOPMLTree(xml: String) -> Int {
         importOPMLTree(data: Data(xml.utf8))
+    }
+
+    /// Fetch an OPML file from a URL and import its
+    /// subscriptions in one shot. Pulls bytes via the upstream
+    /// QuillRSWeb Downloader so we get the same conditional-GET
+    /// / User-Agent / ephemeral-session handling as feed
+    /// fetches. Returns the count of newly-added feeds.
+    /// On failure, surfaces a one-line error via setError so
+    /// the UI hint propagates through the same path as fetch
+    /// errors.
+    @discardableResult
+    func importOPMLFromURL(_ urlString: String) async -> Int {
+        let normalized = urlString.trimmingWhitespace.normalizedURL
+        guard let url = URL(string: normalized) else {
+            setError("Invalid OPML URL")
+            return 0
+        }
+        do {
+            let (maybeData, _) = try await Downloader.shared.download(url)
+            guard let data = maybeData else {
+                setError("OPML download was empty")
+                return 0
+            }
+            return importOPMLTree(data: data)
+        } catch {
+            setError("OPML import failed: \(error)")
+            return 0
+        }
     }
 
     /// Serialize the current subscribed feed list as OPML 2.0.

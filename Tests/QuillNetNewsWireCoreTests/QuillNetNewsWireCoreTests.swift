@@ -1627,6 +1627,15 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("importOPMLFromURL returns 0 + sets error on empty string")
+    func importOPMLFromURLEmpty() async {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let added = await model.importOPMLFromURL("")
+        #expect(added == 0)
+        #expect(model.error != nil)
+    }
+
+    @MainActor
     @Test("RSSReaderModel.importOPML seeds selectedFeedID when starting empty")
     func readerModelImportOPMLSeedsSelection() {
         let model = RSSReaderModel(subscribedFeeds: [])
