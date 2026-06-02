@@ -156,7 +156,8 @@ public struct QuillNetNewsWireContentView: View {
     }
 
     private func smartFeedRow(_ kind: SmartFeed) -> some View {
-        HStack(spacing: 6) {
+        let count = model.count(for: kind)
+        return HStack(spacing: 6) {
             Text(kind.symbol)
                 .font(.caption)
                 .foregroundColor(.blue)
@@ -164,6 +165,12 @@ public struct QuillNetNewsWireContentView: View {
             Text(kind.displayName)
                 .font(.subheadline)
                 .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if count > 0 {
+                Text("\(count)")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -175,15 +182,30 @@ public struct QuillNetNewsWireContentView: View {
 
     private func feedRow(_ feed: Feed) -> some View {
         let isSelected = (model.selectedSmartFeed == nil) && (model.selectedFeedID == feed.id)
-        return Text(feed.title)
-            .font(.subheadline)
-            .lineLimit(1)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
-            .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
-            .contentShape(Rectangle())
+        let unread = model.unreadCount(forFeed: feed.id)
+        return HStack(spacing: 6) {
+            Text(feed.title)
+                .font(.subheadline)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if unread > 0 {
+                // Compact NetNewsWire-style unread badge. Only
+                // the active feed shows a count today because the
+                // model hasn't yet cached items for inactive
+                // feeds — persistence iteration enables badges
+                // for every subscription.
+                Text("\(unread)")
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.blue)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isSelected ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+        .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
+        .contentShape(Rectangle())
     }
 
     private var sidebar: some View {
@@ -880,6 +902,27 @@ final class RSSReaderModel: ObservableObject {
         items.reduce(0) { acc, item in
             acc + (starredArticleIDs.contains(item.id) ? 1 : 0)
         }
+    }
+
+    /// Item count for a given smart feed against the
+    /// currently-loaded timeline. Used by the feedsPane badge
+    /// next to each Smart Feed row. Persistence iteration will
+    /// switch this to a cross-feed aggregation.
+    func count(for smart: SmartFeed) -> Int {
+        switch smart {
+        case .allUnread: return unreadCount
+        case .starred:   return starredCount
+        }
+    }
+
+    /// Unread count for a subscribed feed. Today only the
+    /// active feed has loaded items, so the count is exact for
+    /// the selected feed and 0 for everything else. When the
+    /// persistence iteration lands a per-feed article cache,
+    /// this will report accurate counts for every subscription.
+    func unreadCount(forFeed feedID: Feed.ID) -> Int {
+        guard feedID == selectedFeedID else { return 0 }
+        return unreadCount
     }
 
     /// Items in the current timeline that match the active smart
