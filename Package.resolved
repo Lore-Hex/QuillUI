@@ -1,32 +1,24 @@
 {
-  "originHash" : "f2cd7561ca00069edd861b67afe7d5cbd90f33d582445e4109723b3033e80b34",
-  "pins" : [
+  "originHash": "f2cd7561ca00069edd861b67afe7d5cbd90f33d582445e4109723b3033e80b34",
+  "pins": [
     {
-      "identity" : "grdb.swift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/groue/GRDB.swift",
-      "state" : {
-        "revision" : "36e30a6f1ef10e4194f6af0cff90888526f0c115",
-        "version" : "7.10.0"
+      "identity": "grdb.swift",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/groue/GRDB.swift",
+      "state": {
+        "revision": "36e30a6f1ef10e4194f6af0cff90888526f0c115",
+        "version": "7.10.0"
       }
     },
     {
-      "identity" : "swift-syntax",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftlang/swift-syntax.git",
-      "state" : {
-        "revision" : "0687f71944021d616d34d922343dcef086855920",
-        "version" : "600.0.1"
-      }
-    },
-    {
-      "identity" : "swiftopenui",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/codelynx/SwiftOpenUI",
-      "state" : {
-        "revision" : "6150b964a7cb1cf3a961770f6947ed55c1a31433"
+      "identity": "swift-syntax",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/swiftlang/swift-syntax.git",
+      "state": {
+        "revision": "0687f71944021d616d34d922343dcef086855920",
+        "version": "600.0.1"
       }
     }
   ],
-  "version" : 3
+  "version": 3
 }

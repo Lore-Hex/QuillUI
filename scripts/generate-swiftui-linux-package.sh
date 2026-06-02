@@ -252,7 +252,14 @@ source_count="$(find "$SOURCE_COUNT_DIR" -name '*.swift' | wc -l | tr -d ' ')"
 generated_count="$(find "$TARGET_DIR" -name '*.swift' | wc -l | tr -d ' ')"
 
 if [[ "$BACKEND_FACADE" != "qt" ]]; then
-  QUILLUI_SWIFT_PACKAGE_PATH="$PACKAGE_DIR" "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$BUILD_SCRATCH"
+  # SwiftOpenUI is now vendored in-tree (third_party/SwiftOpenUI). The synthetic
+  # package consumes it TRANSITIVELY via its QuillUI path dependency, so it lives
+  # at $ROOT_DIR/third_party/SwiftOpenUI — NOT under the synthetic $PACKAGE_DIR.
+  # Point the patcher there explicitly; otherwise it defaults SWIFTOPENUI_ROOT to
+  # $PACKAGE_DIR/third_party/SwiftOpenUI and fails with "manifest not found".
+  # The patcher is idempotent (marker-guarded), so re-patching the shared in-tree
+  # copy that the main build also patches is safe.
+  QUILLUI_SWIFT_PACKAGE_PATH="$PACKAGE_DIR" QUILLUI_SWIFTOPENUI_ROOT="$ROOT_DIR/third_party/SwiftOpenUI" "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$BUILD_SCRATCH"
 fi
 
 # The generated package compiles CGdkPixbuf (a system module wrapping
