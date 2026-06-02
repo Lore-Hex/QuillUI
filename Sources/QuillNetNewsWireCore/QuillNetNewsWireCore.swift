@@ -5,6 +5,7 @@ import FoundationNetworking
 #endif
 import QuillUI
 import QuillRSParser
+import QuillArticles
 
 /// Quill NetNewsWire content view — a self-contained RSS reader.
 ///
@@ -528,6 +529,12 @@ final class RSSReaderModel: ObservableObject {
             updateStatusText()
         }
     }
+
+    /// Upstream-shaped articles populated in parallel to `items`.
+    /// Same source ParsedFeed; same newest-first sort; same set
+    /// of records. View code still reads `items` / `rows` today;
+    /// the future migration retires `items` in favor of this.
+    @Published private(set) var articles: [Article] = []
     @Published var feedTitle: String?
     @Published var error: String? {
         didSet { updateStatusText() }
@@ -783,12 +790,19 @@ final class RSSReaderModel: ObservableObject {
             request.setValue("Quill-NetNewsWire/0.1", forHTTPHeaderField: "User-Agent")
             let (data, _) = try await URLSession.shared.data(for: request)
             // Upstream RSParser via QuillRSParser; covers RSS 2.0,
-            // Atom, JSON Feed, RSS-in-JSON. Legacy XMLParser path
-            // is kept around for its existing test pin until the
-            // homegrown-parser retirement iteration.
+            // Atom, JSON Feed, RSS-in-JSON. Produces both the
+            // legacy RSSItem view-shape (consumed by the
+            // timeline + filters today) and the upstream
+            // Article shape (consumed by the cache / smart-feed
+            // aggregation paths the persistence iteration will
+            // bring online).
             let parsed = RSSFeedParser.parseUpstream(data: data, url: urlString)
+            let upstreamArticles = RSSFeedParser.parseUpstreamArticles(
+                data: data, url: urlString
+            )
             self.setFeedTitle(parsed.title)
             self.setItems(Array(parsed.items.prefix(50)))
+            self.articles = Array(upstreamArticles.prefix(50))
             if self.selectedID == nil {
                 self.selectItem(id: self.preferredInitialItemID(in: self.items))
             }
@@ -1195,6 +1209,78 @@ struct RSSFeedParser {
         f.formatOptions = [.withInternetDateTime]
         return f
     }()
+
+    /// Materialize upstream `[Article]` values from the same
+    /// `ParsedFeed` that drives the existing RSSItem timeline.
+    /// Quill's reader has no real Account today — accountID
+    /// defaults to the singleton "Local" identity so per-article
+    /// IDs are stable across launches once persistence lands.
+    ///
+    /// Order mirrors parseUpstream: newest-first, uniqueID
+    /// tiebreaker. Returned via array (not Set) so the call site
+    /// can pin the same sort the timeline uses.
+    static func parseUpstreamArticles(
+        data: Data,
+        url: String,
+        accountID: String = "Local"
+    ) -> [Article] {
+        let parserData = ParserData(url: url, data: data)
+        let parsed: ParsedFeed?
+        do {
+            parsed = try FeedParser.parse(parserData)
+        } catch {
+            parsed = nil
+        }
+        guard let parsed else { return [] }
+        return toArticles(parsed: parsed, feedID: url, accountID: accountID)
+    }
+
+    /// Convert ParsedFeed.items → [Article] with the sort the
+    /// QuillNetNewsWireCore reader uses (newest first, tiebreak
+    /// by uniqueID for deterministic timeline ordering). The
+    /// articleID gets synthesized by upstream when nil — md5
+    /// over accountID+feedID+uniqueID via QuillRSCoreShim.
+    static func toArticles(
+        parsed: ParsedFeed,
+        feedID: String,
+        accountID: String
+    ) -> [Article] {
+        let sorted = parsed.items.sorted { lhs, rhs in
+            switch (lhs.datePublished, rhs.datePublished) {
+            case let (l?, r?) where l != r: return l > r
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: return lhs.uniqueID < rhs.uniqueID
+            }
+        }
+        let now = Date()
+        return sorted.map { parsed in
+            let status = ArticleStatus(
+                articleID: parsed.uniqueID,
+                read: false,
+                starred: false,
+                dateArrived: now
+            )
+            return Article(
+                accountID: accountID,
+                articleID: nil,  // upstream synthesizes via md5
+                feedID: feedID,
+                uniqueID: parsed.uniqueID,
+                title: parsed.title,
+                contentHTML: parsed.contentHTML,
+                contentText: parsed.contentText,
+                markdown: parsed.markdown,
+                url: parsed.url,
+                externalURL: parsed.externalURL,
+                summary: parsed.summary,
+                imageURL: parsed.imageURL,
+                datePublished: parsed.datePublished,
+                dateModified: parsed.dateModified,
+                authors: nil,
+                status: status
+            )
+        }
+    }
 }
 
 private extension String {
