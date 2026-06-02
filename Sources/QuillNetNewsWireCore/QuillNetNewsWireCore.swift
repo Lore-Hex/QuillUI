@@ -449,7 +449,7 @@ public struct QuillNetNewsWireContentView: View {
                         set: { addSubscriptionInput = $0 }
                     ))
                         .font(.caption)
-                    Button("Add") {
+                    Button(model.isLoading ? "Adding…" : "Add") {
                         let input = addSubscriptionInput
                         addSubscriptionInput = ""
                         Task { @MainActor in
@@ -457,7 +457,11 @@ public struct QuillNetNewsWireContentView: View {
                         }
                     }
                     .font(.caption2)
-                    .disabled(addSubscriptionInput.trimmingWhitespace.isEmpty)
+                    // Disable while any fetch is in flight — Feed
+                    // Finder + selectFeed-fetch chain on a click
+                    // shouldn't be re-entered until the prior
+                    // chain resolves. Also block on empty input.
+                    .disabled(addSubscriptionInput.trimmingWhitespace.isEmpty || model.isLoading)
                 }
                 HStack(spacing: 6) {
                     TextField("OPML URL", text: Binding(
@@ -465,7 +469,7 @@ public struct QuillNetNewsWireContentView: View {
                         set: { opmlImportURLInput = $0 }
                     ))
                         .font(.caption2)
-                    Button("Import") {
+                    Button(model.isLoading ? "Importing…" : "Import") {
                         let input = opmlImportURLInput
                         opmlImportURLInput = ""
                         Task { @MainActor in
@@ -473,7 +477,7 @@ public struct QuillNetNewsWireContentView: View {
                         }
                     }
                     .font(.caption2)
-                    .disabled(opmlImportURLInput.trimmingWhitespace.isEmpty)
+                    .disabled(opmlImportURLInput.trimmingWhitespace.isEmpty || model.isLoading)
                 }
                 HStack(spacing: 6) {
                     Button(model.isLoading ? "Refreshing All…" : "Refresh All") {
