@@ -1931,6 +1931,71 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("nextFeedIDWithUnread finds the next subscribed feed with unread")
+    func nextFeedWithUnreadFindsCachedUnread() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+            Feed(title: "C", url: "https://c.test/feed"),
+        ])
+        // Active feed A, empty items. B is empty too. C has 1 unread.
+        model.items = []
+        model.feedCaches["https://c.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "c1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        #expect(model.nextFeedIDWithUnread() == "https://c.test/feed")
+    }
+
+    @MainActor
+    @Test("nextFeedIDWithUnread wraps past the end of subscribedFeeds")
+    func nextFeedWithUnreadWraps() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+            Feed(title: "C", url: "https://c.test/feed"),
+        ])
+        // Select C (last feed). A has unread (cached). Wrap to A.
+        // Pin selection directly; selectFeed is async and would
+        // fetch — we just want to test the wrap logic.
+        model.selectedFeedID = "https://c.test/feed"
+        model.items = [] // C's items
+        model.feedCaches["https://a.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        #expect(model.nextFeedIDWithUnread() == "https://a.test/feed")
+    }
+
+    @MainActor
+    @Test("nextFeedIDWithUnread returns nil when smart feed is active")
+    func nextFeedWithUnreadNilUnderSmartFeed() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        model.selectSmartFeed(.allUnread)
+        // Smart feeds already span everything; cross-feed jump is meaningless.
+        #expect(model.nextFeedIDWithUnread() == nil)
+    }
+
+    @MainActor
+    @Test("nextFeedIDWithUnread returns nil when no other feeds have unread")
+    func nextFeedWithUnreadNilWhenAllRead() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        // B's cache exists but every item is in readArticleIDs.
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        model.markRead(id: "b1")
+        #expect(model.nextFeedIDWithUnread() == nil)
+    }
+
+    @MainActor
     @Test("canSelectNext/Previous reflect boundary state for nav arrows")
     func canSelectNextPreviousBoundaries() {
         let model = RSSReaderModel(subscribedFeeds: [

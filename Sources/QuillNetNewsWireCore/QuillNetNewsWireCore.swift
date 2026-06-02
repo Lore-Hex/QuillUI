@@ -275,7 +275,9 @@ public struct QuillNetNewsWireContentView: View {
             }
             .keyboardShortcut("r", modifiers: [.command, .option])
             Button("next unread") {
-                model.selectNextUnread()
+                Task { @MainActor in
+                    await model.selectNextUnreadAcrossFeeds()
+                }
             }
             .keyboardShortcut("n", modifiers: [])
             Button("mark unread") {
@@ -1698,6 +1700,56 @@ final class RSSReaderModel: ObservableObject {
             }
         }
         return false
+    }
+
+    /// Like `selectNextUnread()`, but when the current feed
+    /// timeline is exhausted, jumps to the next subscribed feed
+    /// (in sidebar order, wrapping past the end) that still has
+    /// unread items in its cache and selects that feed's first
+    /// unread article. Powers upstream NetNewsWire's "n" triage
+    /// flow — press repeatedly to walk every unread article in
+    /// every feed without manually switching feeds.
+    ///
+    /// Async because selectFeed itself awaits a fetch. The
+    /// in-feed call (selectNextUnread) is sync and stays that
+    /// way so existing button/shortcut callers continue to work
+    /// without forcing every site to spawn a Task; this method
+    /// is the upgrade path for callers that want cross-feed
+    /// triage.
+    @discardableResult
+    func selectNextUnreadAcrossFeeds() async -> Bool {
+        if selectNextUnread() { return true }
+        guard let target = nextFeedIDWithUnread() else { return false }
+        await selectFeed(id: target)
+        return selectNextUnread()
+    }
+
+    /// Pure helper: returns the next subscribed feed (in sidebar
+    /// order, wrapping past the end) after the current selection
+    /// that has at least one unread item in its cache. Returns
+    /// nil when:
+    ///   - a smart feed is active (filteredItems already spans
+    ///     every feed, so cross-feed jump is meaningless)
+    ///   - no subscriptions
+    ///   - no other feed has unread cached items
+    ///
+    /// Skips the current feed itself (the in-feed selectNextUnread
+    /// already had its chance and returned false). Exposed so
+    /// tests can pin the search logic without driving the real
+    /// fetch() the async variant does.
+    func nextFeedIDWithUnread() -> Feed.ID? {
+        guard selectedSmartFeed == nil else { return nil }
+        guard !subscribedFeeds.isEmpty else { return nil }
+        let currentIdx = subscribedFeeds.firstIndex(where: { $0.id == selectedFeedID }) ?? -1
+        for offset in 1...subscribedFeeds.count {
+            let idx = (currentIdx + offset) % subscribedFeeds.count
+            let feed = subscribedFeeds[idx]
+            if feed.id == selectedFeedID { continue }
+            if unreadCount(forFeed: feed.id) > 0 {
+                return feed.id
+            }
+        }
+        return nil
     }
 
     /// Step the selection to the previous *unread* article in
