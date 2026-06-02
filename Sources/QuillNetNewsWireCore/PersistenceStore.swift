@@ -198,8 +198,15 @@ public struct PersistenceStore: Sendable {
     /// without bumping the on-disk format every iteration.
     public struct ViewOptions: Codable, Equatable, Sendable {
         public var hideReadArticles: Bool
-        public init(hideReadArticles: Bool = false) {
+        /// Timeline sort order. "newestFirst" (default) puts
+        /// recent items at top; "oldestFirst" inverts. Stored as
+        /// a string so future additions (date-arrived,
+        /// date-modified) extend the enum without bumping the
+        /// on-disk format.
+        public var sortOrder: String?
+        public init(hideReadArticles: Bool = false, sortOrder: String? = nil) {
             self.hideReadArticles = hideReadArticles
+            self.sortOrder = sortOrder
         }
     }
 

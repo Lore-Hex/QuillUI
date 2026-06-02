@@ -1912,6 +1912,84 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("sortOrder.oldestFirst reverses the active-feed timeline by date")
+    func sortOrderOldestFirstReversesActiveFeed() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let older = now.addingTimeInterval(-3600)
+        let oldest = now.addingTimeInterval(-7200)
+        model.items = [
+            RSSItem(id: "a-new", title: "Newest", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a-old", title: "Older", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a-oldest", title: "Oldest", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.articles = [
+            Article(accountID: "", articleID: "1", feedID: "https://a.test/feed",
+                    uniqueID: "a-new", title: "Newest", contentHTML: nil, contentText: nil,
+                    markdown: nil, url: nil, externalURL: nil, summary: nil, imageURL: nil,
+                    datePublished: now, dateModified: nil, authors: nil,
+                    status: ArticleStatus(articleID: "1", read: false, starred: false, dateArrived: now)),
+            Article(accountID: "", articleID: "2", feedID: "https://a.test/feed",
+                    uniqueID: "a-old", title: "Older", contentHTML: nil, contentText: nil,
+                    markdown: nil, url: nil, externalURL: nil, summary: nil, imageURL: nil,
+                    datePublished: older, dateModified: nil, authors: nil,
+                    status: ArticleStatus(articleID: "2", read: false, starred: false, dateArrived: older)),
+            Article(accountID: "", articleID: "3", feedID: "https://a.test/feed",
+                    uniqueID: "a-oldest", title: "Oldest", contentHTML: nil, contentText: nil,
+                    markdown: nil, url: nil, externalURL: nil, summary: nil, imageURL: nil,
+                    datePublished: oldest, dateModified: nil, authors: nil,
+                    status: ArticleStatus(articleID: "3", read: false, starred: false, dateArrived: oldest)),
+        ]
+        model.sortOrder = .newestFirst
+        #expect(model.filteredItems.map(\.id) == ["a-new", "a-old", "a-oldest"])
+        model.sortOrder = .oldestFirst
+        #expect(model.filteredItems.map(\.id) == ["a-oldest", "a-old", "a-new"])
+    }
+
+    @MainActor
+    @Test("sortOrder.newestFirst date-sorts cross-feed smart feed (no first-seen grouping)")
+    func sortOrderDateSortsCrossFeedSmartFeed() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        // Active feed A: one OLDER item.
+        model.items = [
+            RSSItem(id: "a1", title: "Alpha old", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.articles = [
+            Article(accountID: "", articleID: "1", feedID: "https://a.test/feed",
+                    uniqueID: "a1", title: nil, contentHTML: nil, contentText: nil,
+                    markdown: nil, url: nil, externalURL: nil, summary: nil, imageURL: nil,
+                    datePublished: t0.addingTimeInterval(-7200),
+                    dateModified: nil, authors: nil,
+                    status: ArticleStatus(articleID: "1", read: false, starred: false, dateArrived: t0)),
+        ]
+        // Cached feed B: one NEWER item.
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(
+            items: [RSSItem(id: "b1", title: "Bravo new", link: nil, pubDate: nil, descriptionHTML: nil)],
+            articles: [
+                Article(accountID: "", articleID: "2", feedID: "https://b.test/feed",
+                        uniqueID: "b1", title: nil, contentHTML: nil, contentText: nil,
+                        markdown: nil, url: nil, externalURL: nil, summary: nil, imageURL: nil,
+                        datePublished: t0, dateModified: nil, authors: nil,
+                        status: ArticleStatus(articleID: "2", read: false, starred: false, dateArrived: t0)),
+            ],
+            lastFetchAt: t0
+        )
+        model.selectSmartFeed(.allUnread)
+        // Newest first: b1 (newer) before a1 (older). Without
+        // the cross-feed date sort, filteredItems would put a1
+        // first (active feed's items pre-pend the combine).
+        #expect(model.filteredItems.map(\.id) == ["b1", "a1"])
+        model.sortOrder = .oldestFirst
+        #expect(model.filteredItems.map(\.id) == ["a1", "b1"])
+    }
+
+    @MainActor
     @Test("hideReadArticles filters read items from the active feed timeline")
     func hideReadFiltersActiveFeed() {
         let model = RSSReaderModel(subscribedFeeds: [

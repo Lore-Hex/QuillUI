@@ -686,6 +686,13 @@ public struct QuillNetNewsWireContentView: View {
                 model.hideReadArticles.toggle()
             }
             .font(.caption2)
+            // Sort-order flip. Arrow direction mirrors the
+            // upstream NNW glyph (↓ newest at top, ↑ oldest at
+            // top).
+            Button(model.sortOrder == .newestFirst ? "Newest ↓" : "Oldest ↑") {
+                model.sortOrder = (model.sortOrder == .newestFirst) ? .oldestFirst : .newestFirst
+            }
+            .font(.caption2)
             Button("All Read") {
                 model.markAllVisibleAsRead()
             }
@@ -1054,6 +1061,21 @@ public struct Feed: Identifiable, Hashable, Sendable {
 /// active feed's items are filtered through whichever kind is
 /// selected; cross-feed aggregation arrives with the
 /// persistence iteration.
+/// Timeline sort order. String-raw so values round-trip
+/// through the ViewOptions JSON persistence; CaseIterable
+/// for a future sort-menu picker.
+public enum SortOrder: String, CaseIterable, Identifiable, Sendable {
+    case newestFirst
+    case oldestFirst
+    public var id: String { rawValue }
+    public var displayName: String {
+        switch self {
+        case .newestFirst: return "Newest First"
+        case .oldestFirst: return "Oldest First"
+        }
+    }
+}
+
 public enum SmartFeed: String, CaseIterable, Identifiable, Sendable {
     case today
     case allUnread
@@ -1283,6 +1305,14 @@ final class RSSReaderModel: ObservableObject {
         didSet { persistViewOptionsIfReady() }
     }
 
+    /// View-option: timeline sort order. Mirrors upstream
+    /// NetNewsWire's View › Sort menu. Applied at filteredItems
+    /// time so toggling re-renders without re-parsing. Persisted
+    /// via PersistenceStore.ViewOptions.
+    @Published var sortOrder: SortOrder {
+        didSet { persistViewOptionsIfReady() }
+    }
+
     private var didStartInitialLoad = false
     private let initialSelectionEnvironment: [String: String]
 
@@ -1301,7 +1331,10 @@ final class RSSReaderModel: ObservableObject {
     ) {
         self.initialSelectionEnvironment = environment
         self.persistence = persistence
-        self.hideReadArticles = persistence.loadViewOptions().hideReadArticles
+        let storedOptions = persistence.loadViewOptions()
+        self.hideReadArticles = storedOptions.hideReadArticles
+        self.sortOrder = storedOptions.sortOrder
+            .flatMap { SortOrder(rawValue: $0) } ?? .newestFirst
         // Create an on-disk ArticleStore alongside the JSON
         // persistence dir if the caller didn't supply one.
         // Try/catch is mandatory — ModelContainer init throws
@@ -1479,7 +1512,8 @@ final class RSSReaderModel: ObservableObject {
     private func persistViewOptionsIfReady() {
         guard persistenceReady else { return }
         persistence.saveViewOptions(PersistenceStore.ViewOptions(
-            hideReadArticles: hideReadArticles
+            hideReadArticles: hideReadArticles,
+            sortOrder: sortOrder.rawValue
         ))
     }
 
@@ -2504,13 +2538,13 @@ final class RSSReaderModel: ObservableObject {
         }
         if searchActive {
             let needle = trimmed.lowercased()
-            return applyHideRead(pool.filter { item in
+            return applySortOrder(applyHideRead(pool.filter { item in
                 if item.title.lowercased().contains(needle) { return true }
                 if item.plainTextBody.lowercased().contains(needle) { return true }
                 return false
-            })
+            }))
         }
-        return applyHideRead(pool)
+        return applySortOrder(applyHideRead(pool))
     }
 
     /// Filter out read items from `pool` when the user toggled
@@ -2524,6 +2558,43 @@ final class RSSReaderModel: ObservableObject {
         if selectedSmartFeed == .starred { return pool }
         if selectedSmartFeed == .allUnread { return pool }
         return pool.filter { !readArticleIDs.contains($0.id) }
+    }
+
+    /// Apply `sortOrder` to `pool`. Cross-feed views (smart feed
+    /// or active search) cross feed boundaries, so first-seen
+    /// dedupe order from filteredItems leaves rows grouped by
+    /// source feed rather than ordered by date. Use the parallel
+    /// `articles` lookup (active feed + every cached feed) to
+    /// sort by datePublished. nil dates sort last in both
+    /// directions; uniqueID tiebreaker keeps the sort stable.
+    /// Active-feed-only views were already sorted newest-first
+    /// at parse time, so re-running sort is cheap there.
+    private func applySortOrder(_ pool: [RSSItem]) -> [RSSItem] {
+        // Build a [itemID: Date?] lookup from articles.
+        var dateByID: [String: Date] = [:]
+        for article in articles {
+            if let d = article.datePublished {
+                dateByID[article.uniqueID] = d
+            }
+        }
+        for (_, cache) in feedCaches {
+            for article in cache.articles {
+                if dateByID[article.uniqueID] == nil, let d = article.datePublished {
+                    dateByID[article.uniqueID] = d
+                }
+            }
+        }
+        return pool.sorted { lhs, rhs in
+            let lDate = dateByID[lhs.id]
+            let rDate = dateByID[rhs.id]
+            switch (lDate, rDate) {
+            case let (l?, r?) where l != r:
+                return sortOrder == .newestFirst ? l > r : l < r
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: return lhs.id < rhs.id
+            }
+        }
     }
 
     /// Row projection of `filteredItems` for the timeline view to
