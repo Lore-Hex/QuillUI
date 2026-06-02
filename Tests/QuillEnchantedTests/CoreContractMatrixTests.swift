@@ -154,7 +154,10 @@ struct CoreContractMatrixTests {
         expectContains(gtkPatchScript, "case quillPaintMacBordered")
         expectContains(gtkPatchScript, "quill_gtk_button_paint_hook")
         expectContains(fullSourceEmptyStateTemplate, "SamplePrompts.samples.prefix(4)")
-        expectContains(fullSourceEmptyStateTemplate, "columns: 2")
+        // macOS parity: the generated Enchanted empty state now renders the four
+        // sample prompts as a single centered row of 4 (was a columns: 2 workaround
+        // for the GTK4 LazyVGrid relayout-spin, fixed via promptGridMetrics clamp).
+        expectContains(fullSourceEmptyStateTemplate, "columns: 4")
         expectDoesNotContain(fullSourceEmptyStateTemplate, "macReferenceOrder")
     }
 
