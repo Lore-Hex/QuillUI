@@ -693,15 +693,18 @@ struct QuillNetNewsWireCoreTests {
     // MARK: - Today smart feed (date-based)
 
     @MainActor
-    @Test("Today smart feed filters items by datePublished within 24h via articles")
+    @Test("Today smart feed filters items by datePublished within today's calendar day")
     func smartFeedTodayFiltersByDate() {
         let model = RSSReaderModel()
         // Build items + parallel articles where two have today's
         // date and two have last-week dates. Today should keep
-        // only the recent two.
+        // only the recent two. "Today" cutoff is local-midnight
+        // (matches upstream NNW + the todayCutoff() helper) so
+        // pick times safely AFTER midnight: 1 minute ago covers
+        // any test slot that isn't crossing midnight itself.
         let now = Date()
-        let recent1 = now.addingTimeInterval(-3600)        // 1h ago — today
-        let recent2 = now.addingTimeInterval(-43_200)      // 12h ago — today
+        let recent1 = now.addingTimeInterval(-60)          // 1m ago — today
+        let recent2 = now.addingTimeInterval(-120)         // 2m ago — today
         let old1 = now.addingTimeInterval(-86_400 * 3)     // 3 days ago — not today
         let old2 = now.addingTimeInterval(-86_400 * 7)     // 7 days ago — not today
 
@@ -2044,6 +2047,47 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.subscriptionRoot.subfolders[0].feeds[0].title == "ATP")
         // Flat list also dropped it.
         #expect(model.subscribedFeeds.count == 1)
+    }
+
+    @MainActor
+    @Test("todayCutoff returns local-midnight, not a 24h sliding window")
+    func todayCutoffIsCalendarDayStart() {
+        // Pick a deterministic moment: 2026-06-03 at 02:30 local
+        // time. The sliding-window form (now - 86_400) would put
+        // the cutoff at 2026-06-02 02:30 — meaning an article
+        // published at 2026-06-03 01:00 (90 minutes earlier, in
+        // the same calendar day) would still be IN "today", but
+        // an article from 2026-06-02 23:00 (3.5 hours earlier)
+        // would also be in "today" (wrong — yesterday).
+        //
+        // The calendar-day form puts the cutoff at 2026-06-03
+        // 00:00. Same-day-but-earlier (01:00) is in. Yesterday-
+        // late (23:00) is OUT. Matches upstream NNW.
+        let cal = Calendar(identifier: .gregorian)
+        var comps = DateComponents()
+        comps.year = 2026; comps.month = 6; comps.day = 3
+        comps.hour = 2; comps.minute = 30
+        comps.timeZone = TimeZone(identifier: "UTC")
+        let now = cal.date(from: comps)!
+        var utcCal = Calendar(identifier: .gregorian)
+        utcCal.timeZone = TimeZone(identifier: "UTC")!
+        let cutoff = RSSReaderModel.todayCutoff(now: now, calendar: utcCal)
+
+        var midnightComps = DateComponents()
+        midnightComps.year = 2026; midnightComps.month = 6; midnightComps.day = 3
+        midnightComps.timeZone = TimeZone(identifier: "UTC")
+        let expectedMidnight = utcCal.date(from: midnightComps)!
+        #expect(cutoff == expectedMidnight)
+
+        // Pin the wrong-behavior delta the fix corrects:
+        // an article from 23:00 the prior day must NOT pass
+        // calendar-cutoff (would have passed the 24h window).
+        var priorComps = DateComponents()
+        priorComps.year = 2026; priorComps.month = 6; priorComps.day = 2
+        priorComps.hour = 23
+        priorComps.timeZone = TimeZone(identifier: "UTC")
+        let priorEvening = utcCal.date(from: priorComps)!
+        #expect(priorEvening < cutoff)
     }
 
     @MainActor

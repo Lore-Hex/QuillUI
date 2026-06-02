@@ -3718,6 +3718,19 @@ final class RSSReaderModel: ObservableObject {
         return f
     }()
 
+    /// Cutoff for the Today smart feed: start of the current
+    /// local-time calendar day. Matches upstream NetNewsWire's
+    /// SmartFeedDelegate behavior — "Today" means items
+    /// published since local midnight, NOT a 24h sliding
+    /// window. The sliding-window form silently dropped early-
+    /// morning articles right after midnight (a 2 AM read
+    /// session would have an empty Today feed even though
+    /// items from 8 hours earlier were trivially "today").
+    /// Internal so tests can wire a fixed now for determinism.
+    static func todayCutoff(now: Date = Date(), calendar: Calendar = .current) -> Date {
+        calendar.startOfDay(for: now)
+    }
+
     /// Item count for a given smart feed across every cached
     /// feed (plus the active feed's live items, deduped). Used
     /// by the feedsPane badge next to each Smart Feed row.
@@ -3737,7 +3750,7 @@ final class RSSReaderModel: ObservableObject {
         }
         switch smart {
         case .today:
-            let cutoff = Date().addingTimeInterval(-86_400)
+            let cutoff = Self.todayCutoff()
             let allArticles = articles + feedCaches.values.flatMap(\.articles)
             let recentIDs = Set(allArticles.compactMap { article -> String? in
                 guard let d = article.datePublished, d >= cutoff else { return nil }
@@ -4329,7 +4342,7 @@ final class RSSReaderModel: ObservableObject {
             if let smart = selectedSmartFeed {
                 switch smart {
                 case .today:
-                    let cutoff = Date().addingTimeInterval(-86_400)
+                    let cutoff = Self.todayCutoff()
                     let allArticles = articles + feedCaches.values.flatMap(\.articles)
                     let todayIDs = Set(allArticles.compactMap { article -> String? in
                         guard let published = article.datePublished, published >= cutoff else {
