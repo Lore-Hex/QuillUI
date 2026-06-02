@@ -78,11 +78,29 @@ public struct QuillNetNewsWireContentView: View {
 
     private var feedsPane: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Feeds")
+            Text("Smart Feeds")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 14)
                 .padding(.top, 14)
+                .padding(.bottom, 6)
+
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(SmartFeed.allCases) { kind in
+                    smartFeedRow(kind)
+                        .onTapGesture {
+                            model.selectSmartFeed(kind)
+                        }
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+
+            Text("Feeds")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
                 .padding(.bottom, 6)
 
             ScrollView {
@@ -101,14 +119,33 @@ public struct QuillNetNewsWireContentView: View {
         .background(QuillDesktopChromeStyle.sidebarBackground)
     }
 
+    private func smartFeedRow(_ kind: SmartFeed) -> some View {
+        HStack(spacing: 6) {
+            Text(kind.symbol)
+                .font(.caption)
+                .foregroundColor(.blue)
+                .frame(width: 14, alignment: .leading)
+            Text(kind.displayName)
+                .font(.subheadline)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(model.selectedSmartFeed == kind ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+        .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
+        .contentShape(Rectangle())
+    }
+
     private func feedRow(_ feed: Feed) -> some View {
-        Text(feed.title)
+        let isSelected = (model.selectedSmartFeed == nil) && (model.selectedFeedID == feed.id)
+        return Text(feed.title)
             .font(.subheadline)
             .lineLimit(1)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(model.selectedFeedID == feed.id ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+            .background(isSelected ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
             .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
             .contentShape(Rectangle())
     }
@@ -377,6 +414,34 @@ public struct Feed: Identifiable, Hashable, Sendable {
     }
 }
 
+/// Virtual feed kinds that aggregate articles by status rather
+/// than source. Upstream NetNewsWire pins these to the top of
+/// the sidebar above the subscribed-feed list; this slice
+/// covers the two that work without a cross-feed article cache
+/// (All Unread + Starred filter the currently-loaded timeline).
+/// Today lands with the date-parsing iteration; cross-feed
+/// aggregation lands with the persistence iteration.
+public enum SmartFeed: String, CaseIterable, Identifiable, Sendable {
+    case allUnread
+    case starred
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .allUnread: return "All Unread"
+        case .starred:   return "Starred"
+        }
+    }
+
+    public var symbol: String {
+        switch self {
+        case .allUnread: return "●"
+        case .starred:   return "★"
+        }
+    }
+}
+
 public enum DefaultFeedList {
     /// Initial subscription list seeded when no persisted list
     /// exists. Mirrors what an upstream NetNewsWire fresh
@@ -441,6 +506,15 @@ final class RSSReaderModel: ObservableObject {
         didSet { updateStatusText() }
     }
 
+    /// Active smart feed (All Unread / Starred), or nil when the
+    /// timeline is showing a subscribed feed's items directly.
+    /// Setting this overrides the feed selection's contribution
+    /// to filteredItems — the smart filter runs first, then the
+    /// search query narrows further.
+    @Published var selectedSmartFeed: SmartFeed? {
+        didSet { updateStatusText() }
+    }
+
     /// Multi-feed subscription list. Single-feed callers can
     /// ignore this and keep using `fetch(urlString:)` directly;
     /// the three-pane sidebar iteration will drive selection
@@ -473,12 +547,28 @@ final class RSSReaderModel: ObservableObject {
     /// highlighted across feed switches. No-op when the user taps
     /// the already-selected feed.
     func selectFeed(id: Feed.ID) async {
-        guard id != selectedFeedID else { return }
         guard let feed = subscribedFeeds.first(where: { $0.id == id }) else { return }
+        // Always clear an active smart feed when the user taps a
+        // real feed row, even if it's the currently-selected feed
+        // ID — tapping the feed name is how you exit a smart-feed
+        // view back to the per-feed timeline.
+        let wasShowingSmartFeed = selectedSmartFeed != nil
+        selectedSmartFeed = nil
+        guard id != selectedFeedID || wasShowingSmartFeed else { return }
         selectedFeedID = id
         selectItem(id: nil)
         didStartInitialLoad = true
         await fetch(urlString: feed.url)
+    }
+
+    /// Pin the timeline to a smart-feed view (All Unread / Starred
+    /// for now). Doesn't fetch — operates on whatever items the
+    /// current feed already has loaded. Cross-feed aggregation
+    /// arrives with the persistence iteration; until then, the
+    /// smart feed effectively narrows the active feed's timeline.
+    func selectSmartFeed(_ kind: SmartFeed?) {
+        selectedSmartFeed = kind
+        selectItem(id: nil)
     }
 
     /// Import an OPML subscription list and merge it into
@@ -644,18 +734,31 @@ final class RSSReaderModel: ObservableObject {
         }
     }
 
-    /// Items in the current timeline that match the active search
-    /// query (case-insensitive title or plain-text body match).
-    /// When searchQuery is empty, returns the full items list.
+    /// Items in the current timeline that match the active smart
+    /// feed (if any) AND the active search query (if any). When
+    /// both filters are empty, returns the full items list. Smart
+    /// feed runs first so the search field narrows whatever the
+    /// smart-feed view is showing.
     var filteredItems: [RSSItem] {
-        let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return items }
-        let needle = trimmed.lowercased()
-        return items.filter { item in
-            if item.title.lowercased().contains(needle) { return true }
-            if item.plainTextBody.lowercased().contains(needle) { return true }
-            return false
+        var pool = items
+        if let smart = selectedSmartFeed {
+            switch smart {
+            case .allUnread:
+                pool = pool.filter { !readArticleIDs.contains($0.id) }
+            case .starred:
+                pool = pool.filter { starredArticleIDs.contains($0.id) }
+            }
         }
+        let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            let needle = trimmed.lowercased()
+            pool = pool.filter { item in
+                if item.title.lowercased().contains(needle) { return true }
+                if item.plainTextBody.lowercased().contains(needle) { return true }
+                return false
+            }
+        }
+        return pool
     }
 
     /// Row projection of `filteredItems` for the timeline view to
@@ -695,11 +798,18 @@ final class RSSReaderModel: ObservableObject {
 
     private func updateStatusText() {
         let nextStatusText: String
+        let searchActive = !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if isLoading {
             nextStatusText = "Fetching feed…"
         } else if let error {
             nextStatusText = "Error: \(error)"
-        } else if !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        } else if let smart = selectedSmartFeed {
+            // Smart-feed view: count vs total items currently
+            // loaded. Search narrowing folds into the same count.
+            let matching = filteredItems.count
+            let suffix = searchActive ? " (search)" : ""
+            nextStatusText = "\(smart.displayName): \(matching) of \(items.count)\(suffix)"
+        } else if searchActive {
             let matching = filteredItems.count
             nextStatusText = "\(matching) matching · \(items.count) items"
         } else {
