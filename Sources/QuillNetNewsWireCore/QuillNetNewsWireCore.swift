@@ -2459,6 +2459,25 @@ final class RSSReaderModel: ObservableObject {
         }
         didStartInitialLoad = true
         await fetch(urlString: urlString)
+        // Refresh every other subscribed feed in the background
+        // so sidebar unread counts + smart feeds reflect current
+        // state shortly after launch. Upstream NetNewsWire does
+        // the same — without it, every feed but the active one
+        // stays at whatever cache age until the user selects it
+        // or the 30-min background tick fires. Unawaited Task so
+        // this doesn't block the active feed's UI handoff.
+        // Honors the per-feed back-off skip from #98 so
+        // permanently-dead feeds aren't re-hammered on every
+        // launch.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            for feed in self.subscribedFeeds where feed.url != urlString {
+                if (self.feedFailureCount[feed.id] ?? 0) >= Self.feedFailureSkipThreshold {
+                    continue
+                }
+                await self.fetchIntoCache(urlString: feed.url)
+            }
+        }
     }
 
     /// User-triggered refresh. Unlike `loadIfNeeded(urlString:)` this
