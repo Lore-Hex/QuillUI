@@ -9,6 +9,8 @@
 #include <QApplication>
 #include <QAbstractItemView>
 #include <QAbstractScrollArea>
+#include <QAbstractButton>
+#include <QCheckBox>
 #include <QFont>
 #include <QFontDatabase>
 #include <QFrame>
@@ -336,6 +338,65 @@ QuillQtWidgetHandle quill_qt_bridge_button_create(
     }
 
     return reinterpret_cast<QuillQtWidgetHandle>(button);
+}
+
+QuillQtWidgetHandle quill_qt_make_check_box(void) {
+    QCheckBox *checkBox = new QCheckBox();
+    return reinterpret_cast<QuillQtWidgetHandle>(checkBox);
+}
+
+void quill_qt_check_box_set_text(
+    QuillQtWidgetHandle check_box,
+    const char *text
+) {
+    QCheckBox *checkBox = qobject_cast<QCheckBox *>(asWidget(check_box));
+    if (checkBox == nullptr) {
+        return;
+    }
+    checkBox->setText(utf8(text));
+}
+
+void quill_qt_check_box_set_checked(
+    QuillQtWidgetHandle check_box,
+    int checked
+) {
+    QCheckBox *checkBox = qobject_cast<QCheckBox *>(asWidget(check_box));
+    if (checkBox == nullptr) {
+        return;
+    }
+    checkBox->setChecked(checked != 0);
+}
+
+void quill_qt_check_box_connect_toggled(
+    QuillQtWidgetHandle check_box,
+    quill_qt_bridge_toggle_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QCheckBox *checkBox = qobject_cast<QCheckBox *>(asWidget(check_box));
+    if (checkBox == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(
+            checkBox,
+            &QAbstractButton::toggled,
+            checkBox,
+            [callback, user_data](bool checked) {
+                callback(checked ? 1 : 0, user_data);
+            }
+        );
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(checkBox, &QObject::destroyed, checkBox, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
 }
 
 QuillQtWidgetHandle quill_qt_bridge_list_widget_create(void) {

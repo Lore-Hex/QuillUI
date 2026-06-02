@@ -243,6 +243,11 @@ final class QtClosureBox {
     init(_ closure: @escaping () -> Void) { self.closure = closure }
 }
 
+final class QtBoolClosureBox {
+    let closure: (Bool) -> Void
+    init(_ closure: @escaping (Bool) -> Void) { self.closure = closure }
+}
+
 // MARK: - Leaf view conformances
 
 extension Text: QtRenderable {
@@ -356,6 +361,38 @@ extension Button: QtRenderable {
         return qtOpaque(quill_qt_bridge_button_create(title, click, box, destroy))
     }
 }
+
+#if QUILLUI_QT_GENERIC
+extension Toggle: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let checkBox = qtOpaque(quill_qt_make_check_box())
+        quill_qt_check_box_set_text(qtHandle(checkBox), label)
+        quill_qt_check_box_set_checked(qtHandle(checkBox), isOn.wrappedValue ? 1 : 0)
+
+        let binding = isOn
+        let box = Unmanaged.passRetained(QtBoolClosureBox { newValue in
+            if newValue != binding.wrappedValue {
+                binding.wrappedValue = newValue
+            }
+        }).toOpaque()
+
+        let toggled: quill_qt_bridge_toggle_callback = { checked, userData in
+            guard let userData else { return }
+            Unmanaged<QtBoolClosureBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+                .closure(checked != 0)
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtBoolClosureBox>.fromOpaque(userData).release()
+        }
+
+        quill_qt_check_box_connect_toggled(qtHandle(checkBox), toggled, box, destroy)
+        return checkBox
+    }
+}
+#endif
 
 // MARK: - Control-flow view conformances
 //

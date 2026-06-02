@@ -32,6 +32,9 @@ typedef void *QuillQtWidgetHandle;
 // Click callback for buttons. `user_data` is the retained Swift box pointer.
 typedef void (*quill_qt_bridge_click_callback)(void *user_data);
 
+// Toggle callback for checkboxes. `checked` is 1 when on, 0 when off.
+typedef void (*quill_qt_bridge_toggle_callback)(int checked, void *user_data);
+
 // Deferred (queued) callback used by QtViewHost to coalesce reactive rebuilds,
 // mirroring GTK's `g_idle_add`. Posted via QTimer::singleShot(0, ...).
 typedef void (*quill_qt_bridge_idle_callback)(void *user_data);
@@ -154,6 +157,31 @@ QuillQtWidgetHandle quill_qt_bridge_image_create_from_file(
 QuillQtWidgetHandle quill_qt_bridge_button_create(
     const char *title,
     quill_qt_bridge_click_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
+// Create a QCheckBox. Swift configures text, checked state, and signal wiring
+// separately so initial setChecked() does not fire the Swift binding callback.
+QuillQtWidgetHandle quill_qt_make_check_box(void);
+
+// Set the QCheckBox text from a UTF-8 SwiftUI Toggle label.
+void quill_qt_check_box_set_text(
+    QuillQtWidgetHandle check_box,
+    const char *text
+);
+
+// Set the QCheckBox checked state. Non-zero means checked.
+void quill_qt_check_box_set_checked(
+    QuillQtWidgetHandle check_box,
+    int checked
+);
+
+// Connect QCheckBox::toggled(bool) to Swift. `destroy` releases `user_data`
+// when the checkbox is destroyed, mirroring the button closure lifetime.
+void quill_qt_check_box_connect_toggled(
+    QuillQtWidgetHandle check_box,
+    quill_qt_bridge_toggle_callback callback,
     void *user_data,
     quill_qt_bridge_click_callback destroy
 );
