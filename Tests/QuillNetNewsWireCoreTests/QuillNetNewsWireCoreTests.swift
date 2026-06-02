@@ -1554,6 +1554,32 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("unreadCount(forFeed:) reads from per-feed cache for inactive feeds")
+    func badgePerFeedUnreadFromCache() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "Active", url: "https://active.test/feed"),
+            Feed(title: "Other", url: "https://other.test/feed"),
+        ])
+        // Synthesize an inactive feed's cache; verifies the
+        // read-from-cache path. After persistence lands, this
+        // is how cross-feed unread badges will populate.
+        let otherItems = [
+            RSSItem(id: "o1", title: "O1", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "o2", title: "O2", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "o3", title: "O3", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.feedCaches["https://other.test/feed"] = RSSReaderModel.FeedCache(
+            items: otherItems
+        )
+        #expect(model.unreadCount(forFeed: "https://other.test/feed") == 3)
+        // Mark one of the other-feed items read.
+        model.markRead(id: "o2")
+        #expect(model.unreadCount(forFeed: "https://other.test/feed") == 2)
+        // Feed with no cache entry stays at 0.
+        #expect(model.unreadCount(forFeed: "https://unknown.test/feed") == 0)
+    }
+
+    @MainActor
     @Test("unreadCount(forFeed:) reports only for the active feed")
     func badgePerFeedUnreadActiveOnly() {
         let model = RSSReaderModel(subscribedFeeds: [

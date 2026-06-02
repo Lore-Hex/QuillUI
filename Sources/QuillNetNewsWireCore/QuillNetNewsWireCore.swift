@@ -774,6 +774,25 @@ final class RSSReaderModel: ObservableObject {
     /// production code only writes via the fetch() / refresh()
     /// network path.
     @Published var articles: [Article] = []
+
+    /// Per-feed item cache keyed by Feed.ID. Populated on every
+    /// successful fetch. Future iterations (cross-feed smart
+    /// feeds, persistence) will read from here so behavior
+    /// stays correct when feeds rotate in/out of the active
+    /// timeline. The legacy `items` array stays pinned to the
+    /// active feed for the existing render path.
+    public struct FeedCache: Sendable, Equatable {
+        public var items: [RSSItem]
+        public var articles: [Article]
+        public var lastFetchAt: Date
+
+        public init(items: [RSSItem] = [], articles: [Article] = [], lastFetchAt: Date = Date()) {
+            self.items = items
+            self.articles = articles
+            self.lastFetchAt = lastFetchAt
+        }
+    }
+    @Published var feedCaches: [Feed.ID: FeedCache] = [:]
     @Published var feedTitle: String?
     @Published var error: String? {
         didSet { updateStatusText() }
@@ -1116,12 +1135,25 @@ final class RSSReaderModel: ObservableObject {
                 data: data, url: urlString
             )
             self.setFeedTitle(parsed.title)
-            self.setItems(Array(parsed.items.prefix(50)))
-            self.articles = Array(upstreamArticles.prefix(50))
+            let trimmedItems = Array(parsed.items.prefix(50))
+            let trimmedArticles = Array(upstreamArticles.prefix(50))
+            let now = Date()
+            self.setItems(trimmedItems)
+            self.articles = trimmedArticles
+            // Store the same data in the per-feed cache so
+            // cross-feed roll-ups (unread badges, smart feeds)
+            // stay accurate after this fetch even if the user
+            // switches to a different feed. Cache key is the
+            // fetched URL itself — matches Feed.id default.
+            self.feedCaches[urlString] = FeedCache(
+                items: trimmedItems,
+                articles: trimmedArticles,
+                lastFetchAt: now
+            )
             if self.selectedID == nil {
                 self.selectItem(id: self.preferredInitialItemID(in: self.items))
             }
-            self.lastFetchAt = Date()
+            self.lastFetchAt = now
         } catch {
             self.setError("\(error)")
         }
@@ -1374,14 +1406,20 @@ final class RSSReaderModel: ObservableObject {
         }
     }
 
-    /// Unread count for a subscribed feed. Today only the
-    /// active feed has loaded items, so the count is exact for
-    /// the selected feed and 0 for everything else. When the
-    /// persistence iteration lands a per-feed article cache,
-    /// this will report accurate counts for every subscription.
+    /// Unread count for a subscribed feed. Reads from the
+    /// per-feed cache populated by fetch(); falls back to the
+    /// active feed's `unreadCount` when querying the
+    /// currently-selected feed (since `items` is its latest
+    /// state). Returns 0 for feeds that haven't been fetched
+    /// yet (no cache entry).
     func unreadCount(forFeed feedID: Feed.ID) -> Int {
-        guard feedID == selectedFeedID else { return 0 }
-        return unreadCount
+        if feedID == selectedFeedID {
+            return unreadCount
+        }
+        guard let cache = feedCaches[feedID] else { return 0 }
+        return cache.items.reduce(0) { acc, item in
+            acc + (readArticleIDs.contains(item.id) ? 0 : 1)
+        }
     }
 
     /// Rolled-up unread count for an OPML folder — sums
