@@ -81,6 +81,11 @@ public struct QuillNetNewsWireContentView: View {
                     model.seedProfileFixtures()
                 } else {
                     Task { @MainActor in await model.loadIfNeeded(urlString: activeFeedURL) }
+                    // Kick off the periodic auto-refresh Task.
+                    // Skipped in profile/disable-fetch mode so the
+                    // Linux profile script doesn't see URLSession
+                    // traffic from the background timer.
+                    model.startBackgroundRefresh()
                 }
             }
         }
@@ -553,6 +558,21 @@ final class RSSReaderModel: ObservableObject {
         didSet { updateStatusText() }
     }
 
+    /// Auto-refresh cadence in seconds for the active feed.
+    /// Matches upstream NetNewsWire's default 30-minute refresh
+    /// interval. Setting to nil disables background polling.
+    @Published var refreshIntervalSeconds: TimeInterval? = 30 * 60
+
+    /// Wall-clock time of the most recent successful fetch.
+    /// Drives `isAutoRefreshDue()`. Exposed as @Published so
+    /// future UI (a "last updated 3m ago" footer line) can
+    /// observe it directly. Setter is internal so tests can
+    /// pin a synthetic last-fetch time without going through
+    /// real URLSession; production code only writes via fetch().
+    @Published var lastFetchAt: Date?
+
+    private var backgroundRefreshTask: Task<Void, Never>?
+
     /// Multi-feed subscription list. Single-feed callers can
     /// ignore this and keep using `fetch(urlString:)` directly;
     /// the three-pane sidebar iteration will drive selection
@@ -748,10 +768,56 @@ final class RSSReaderModel: ObservableObject {
             if self.selectedID == nil {
                 self.selectItem(id: self.preferredInitialItemID(in: self.items))
             }
+            self.lastFetchAt = Date()
         } catch {
             self.setError("\(error)")
         }
         setLoading(false)
+    }
+
+    /// True when the auto-refresh interval has elapsed since the
+    /// last successful fetch (or no fetch has ever happened).
+    /// Honors `refreshIntervalSeconds == nil` as 'disabled'.
+    /// Compares against an injected `now` so unit tests can pin
+    /// time without driving a real clock.
+    func isAutoRefreshDue(now: Date = Date()) -> Bool {
+        guard let interval = refreshIntervalSeconds else { return false }
+        guard let last = lastFetchAt else { return true }
+        return now.timeIntervalSince(last) >= interval
+    }
+
+    /// Single background-refresh tick: if the interval has
+    /// elapsed and we have an active feed URL, re-fetch. Pure
+    /// async function — the looping Task in
+    /// `startBackgroundRefresh()` calls this between sleeps so
+    /// tests can exercise the eligibility logic without a timer.
+    func backgroundRefreshTick(now: Date = Date()) async {
+        guard isAutoRefreshDue(now: now) else { return }
+        guard let url = currentFeedURL else { return }
+        await refresh(urlString: url)
+    }
+
+    /// Start the auto-refresh Task that polls
+    /// `backgroundRefreshTick()` on `refreshIntervalSeconds`
+    /// cadence. Cancels any prior background task first so this
+    /// is safe to call from onAppear or after a settings change.
+    /// No-op when refreshIntervalSeconds is nil.
+    func startBackgroundRefresh() {
+        stopBackgroundRefresh()
+        guard let interval = refreshIntervalSeconds else { return }
+        let nanos = UInt64(max(1, interval) * 1_000_000_000)
+        backgroundRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: nanos)
+                if Task.isCancelled { return }
+                await self?.backgroundRefreshTick()
+            }
+        }
+    }
+
+    func stopBackgroundRefresh() {
+        backgroundRefreshTask?.cancel()
+        backgroundRefreshTask = nil
     }
 
     func selectItem(id: String?) {

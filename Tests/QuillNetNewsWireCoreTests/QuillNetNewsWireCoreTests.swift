@@ -889,4 +889,73 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.selectedID == "a")
         #expect(model.isRead(id: "a"))
     }
+
+    // MARK: - Background refresh
+
+    @MainActor
+    @Test("isAutoRefreshDue is true when no fetch has happened")
+    func backgroundRefreshDueWhenNeverFetched() {
+        let model = RSSReaderModel()
+        #expect(model.lastFetchAt == nil)
+        #expect(model.isAutoRefreshDue())
+    }
+
+    @MainActor
+    @Test("isAutoRefreshDue is false within the interval window")
+    func backgroundRefreshNotDueWithinInterval() {
+        let model = RSSReaderModel()
+        model.refreshIntervalSeconds = 30 * 60
+        let now = Date()
+        model.lastFetchAt = now.addingTimeInterval(-5 * 60)  // fetched 5 min ago
+        #expect(!model.isAutoRefreshDue(now: now))
+    }
+
+    @MainActor
+    @Test("isAutoRefreshDue becomes true once the interval has elapsed")
+    func backgroundRefreshDueAfterInterval() {
+        let model = RSSReaderModel()
+        model.refreshIntervalSeconds = 60  // 1 min cadence
+        let now = Date()
+        model.lastFetchAt = now.addingTimeInterval(-120)  // fetched 2 min ago
+        #expect(model.isAutoRefreshDue(now: now))
+    }
+
+    @MainActor
+    @Test("isAutoRefreshDue honors a disabled (nil) interval")
+    func backgroundRefreshDisabledWhenNil() {
+        let model = RSSReaderModel()
+        model.refreshIntervalSeconds = nil
+        #expect(!model.isAutoRefreshDue())
+    }
+
+    @MainActor
+    @Test("backgroundRefreshTick no-ops when no feed URL is available")
+    func backgroundRefreshTickNoOpsWithoutFeed() async {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        await model.backgroundRefreshTick()
+        // No crash, no items, no fetchedAt update.
+        #expect(model.items.isEmpty)
+        #expect(model.lastFetchAt == nil)
+    }
+
+    @MainActor
+    @Test("startBackgroundRefresh is a no-op when interval is nil")
+    func startBackgroundRefreshNoOpsWhenDisabled() {
+        let model = RSSReaderModel()
+        model.refreshIntervalSeconds = nil
+        model.startBackgroundRefresh()
+        // No task should be running.
+        model.stopBackgroundRefresh()  // idempotent
+    }
+
+    @MainActor
+    @Test("startBackgroundRefresh + stopBackgroundRefresh are idempotent")
+    func startStopBackgroundRefreshIdempotent() {
+        let model = RSSReaderModel()
+        model.refreshIntervalSeconds = 60
+        model.startBackgroundRefresh()
+        model.startBackgroundRefresh()  // replaces the prior task safely
+        model.stopBackgroundRefresh()
+        model.stopBackgroundRefresh()   // double-stop is fine
+    }
 }
