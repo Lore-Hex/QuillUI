@@ -667,11 +667,27 @@ public struct QuillNetNewsWireContentView: View {
         .contentShape(Rectangle())
     }
 
+    /// Subtitle for the timeline pane header — reflects the
+    /// active view: smart-feed name > active feed's title >
+    /// "Loading…" fallback. Composed so the header always
+    /// matches what the timeline actually shows.
+    private var timelineHeaderSubtitle: String {
+        if let smart = model.selectedSmartFeed {
+            return smart.displayName
+        }
+        return model.feedTitle ?? "Loading…"
+    }
+
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Quill NetNewsWire").font(.title2).bold()
-                Text(model.feedTitle ?? "Loading…")
+                // Reflect the actual current view: smart-feed
+                // name takes priority over the stale feedTitle
+                // from the last per-feed fetch. Without this,
+                // selecting "All Unread" left "Daring Fireball"
+                // showing in the header — misleading.
+                Text(timelineHeaderSubtitle)
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
