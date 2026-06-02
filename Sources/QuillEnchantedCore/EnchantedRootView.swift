@@ -411,15 +411,23 @@ public struct EnchantedRootView: View {
                     .foregroundColor(QuillColors.warning)
                     .accessibilityLabel(EnchantedCopy.noModelsTitle)
             } else {
-                Picker(EnchantedCopy.modelLabel, selection: modelSelection) {
+                // Genuine native Enchanted (ModelSelectorView, showChevron: false):
+                // a borderless Menu labelled with the selected model name, NOT a
+                // bordered Picker. Each item is a Button that selects its model.
+                Menu {
                     ForEach(model.models) { ollamaModel in
-                        Text(ollamaModel.name).tag(ollamaModel.name)
+                        Button {
+                            model.selectModel(named: ollamaModel.name)
+                        } label: {
+                            Text(ollamaModel.name)
+                        }
                     }
+                } label: {
+                    Text(model.selectedModel.isEmpty ? EnchantedCopy.modelLabel : model.selectedModel)
                 }
-                .labelsHidden()
-                .frame(maxWidth: 220)
                 .accessibilityLabel(EnchantedCopy.modelLabel)
-                .help(EnchantedCopy.modelLabel)
+                .accessibilityValue(model.selectedModel)
+                .help(model.selectedModel.isEmpty ? EnchantedCopy.modelLabel : model.selectedModel)
             }
 
             Button {
@@ -573,13 +581,6 @@ public struct EnchantedRootView: View {
 
     private var sendActionTitle: String {
         model.isLoading ? EnchantedCopy.stopTitle : EnchantedCopy.sendTitle
-    }
-
-    private var modelSelection: Binding<String> {
-        Binding(
-            get: { model.selectedModel },
-            set: { model.selectModel(named: $0) }
-        )
     }
 
     private var composerText: Binding<String> {

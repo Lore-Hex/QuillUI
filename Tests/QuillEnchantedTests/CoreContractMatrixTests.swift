@@ -2467,7 +2467,7 @@ struct CoreContractMatrixTests {
         expectContains(enchantedModelSource, "private func discardUnsupportedImageAttachmentsIfNeeded()")
         expectContains(enchantedModelSource, "public func deleteDailyConversations(on day: Date, calendar: Calendar = .current)")
         expectContains(enchantedModelSource, ".filter { calendar.isDate($0.updatedAt, inSameDayAs: day) }")
-        expectContains(macOSRootView, "set: { model.selectModel(named: $0) }")
+        expectContains(macOSRootView, "model.selectModel(named: ollamaModel.name)")
         expectContains(macOSRootView, "private var sendActionTitle: String")
         expectContains(macOSRootView, "Text(sendActionTitle)")
         expectContains(macOSRootView, ".accessibilityLabel(EnchantedCopy.endpointLabel)")
