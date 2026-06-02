@@ -563,4 +563,75 @@ struct QuillNetNewsWireCoreTests {
         #expect(added == 1)
         #expect(model.selectedFeedID == "https://a.test/feed")
     }
+
+    // MARK: - OPML export
+
+    @Test("OPMLExporter produces well-formed OPML 2.0 with head + outlines")
+    func opmlExporterBasicShape() {
+        let feeds = [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ]
+        let xml = OPMLExporter.export(feeds: feeds, title: "Mine")
+        #expect(xml.contains("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"))
+        #expect(xml.contains("<opml version=\"2.0\">"))
+        #expect(xml.contains("<title>Mine</title>"))
+        #expect(xml.contains("<outline type=\"rss\" text=\"A\" title=\"A\" xmlUrl=\"https://a.test/feed\"/>"))
+        #expect(xml.contains("<outline type=\"rss\" text=\"B\" title=\"B\" xmlUrl=\"https://b.test/feed\"/>"))
+        #expect(xml.contains("</opml>"))
+    }
+
+    @Test("OPMLExporter defaults the head title when none is supplied")
+    func opmlExporterDefaultTitle() {
+        let xml = OPMLExporter.export(feeds: [])
+        #expect(xml.contains("<title>\(OPMLExporter.defaultTitle)</title>"))
+    }
+
+    @Test("OPMLExporter escapes XML-special characters in titles and URLs")
+    func opmlExporterEscapesAttributes() {
+        let feeds = [
+            Feed(title: "Cheese & Co. <Daily> \"Newsletter\"", url: "https://x.test/feed?a=1&b=2"),
+        ]
+        let xml = OPMLExporter.export(feeds: feeds)
+        #expect(xml.contains("text=\"Cheese &amp; Co. &lt;Daily&gt; &quot;Newsletter&quot;\""))
+        #expect(xml.contains("xmlUrl=\"https://x.test/feed?a=1&amp;b=2\""))
+    }
+
+    @Test("OPML export → import round-trip preserves feed list")
+    func opmlRoundTripPreservesFeeds() {
+        let original = [
+            Feed(title: "Daring Fireball", url: "https://daringfireball.net/feeds/main"),
+            Feed(title: "Headline & Comments", url: "https://x.test/feed?id=1&format=rss"),
+            Feed(title: "<Sample>", url: "https://b.test/feed"),
+        ]
+        let xml = OPMLExporter.export(feeds: original)
+        let reimported = OPMLImporter.parse(xml: xml).feeds
+        #expect(reimported == original)
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.exportOPML serializes the live subscription list")
+    func readerModelExportOPML() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "One", url: "https://one.test/feed"),
+            Feed(title: "Two", url: "https://two.test/feed"),
+        ])
+        let xml = model.exportOPML(title: "Quill Subscriptions")
+        #expect(xml.contains("<title>Quill Subscriptions</title>"))
+        #expect(xml.contains("xmlUrl=\"https://one.test/feed\""))
+        #expect(xml.contains("xmlUrl=\"https://two.test/feed\""))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel export → import is idempotent (no dup growth)")
+    func readerModelOPMLRoundTripIsIdempotent() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "One", url: "https://one.test/feed"),
+            Feed(title: "Two", url: "https://two.test/feed"),
+        ])
+        let xml = model.exportOPML()
+        let added = model.importOPML(xml: xml)
+        #expect(added == 0)
+        #expect(model.subscribedFeeds.count == 2)
+    }
 }

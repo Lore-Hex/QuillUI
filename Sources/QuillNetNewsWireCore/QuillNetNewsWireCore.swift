@@ -498,6 +498,17 @@ final class RSSReaderModel: ObservableObject {
         return added
     }
 
+    /// Serialize the current subscribed feed list as OPML 2.0.
+    /// The result round-trips through `importOPML(xml:)` to the
+    /// same feed list (modulo the optional list title).
+    func exportOPML(title: String? = nil) -> String {
+        OPMLExporter.export(feeds: subscribedFeeds, title: title)
+    }
+
+    func exportOPMLData(title: String? = nil) -> Data {
+        OPMLExporter.exportData(feeds: subscribedFeeds, title: title)
+    }
+
     /// Profile-mode bypass: populate `items` + `feedTitle` with
     /// fixture content so the rendered timeline has shape, then
     /// skip the URLSession round-trip entirely. Used by the
