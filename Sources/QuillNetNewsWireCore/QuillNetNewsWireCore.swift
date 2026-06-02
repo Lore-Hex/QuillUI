@@ -1617,7 +1617,23 @@ final class RSSReaderModel: ObservableObject {
     /// Persisted via PersistenceStore.ViewOptions so user changes
     /// to the cadence survive relaunch.
     @Published var refreshIntervalSeconds: TimeInterval? = 30 * 60 {
-        didSet { persistViewOptionsIfReady() }
+        didSet {
+            persistViewOptionsIfReady()
+            // Rearm the background refresh Task so the new
+            // cadence takes effect immediately. Without this,
+            // changing 30m → 5m would still wait up to 30
+            // minutes for the next tick (the existing Task
+            // was sleeping on the old interval). Skipped
+            // during init-time load (background task hasn't
+            // started yet) via the persistenceReady gate
+            // pattern.
+            guard persistenceReady else { return }
+            if refreshIntervalSeconds != nil {
+                startBackgroundRefresh()
+            } else {
+                stopBackgroundRefresh()
+            }
+        }
     }
 
     /// Per-feed consecutive-failure counter. Incremented on every
