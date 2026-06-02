@@ -16,6 +16,7 @@ public struct QuillWireGuardCommand: Equatable, Sendable {
 
 public enum QuillWireGuardRuntimeError: Error, Equatable, Sendable {
     case invalidInterfaceName(String)
+    case commandFailed(command: String, status: Int32, stderr: String)
 }
 
 /// Builds the `wg-quick` / `wg` / `systemctl` commands that manage a WireGuard
@@ -91,6 +92,15 @@ public struct QuillWireGuardRuntimeController<Runner: QuillWireGuardCommandRunne
 
     public func deactivate(interface: String) throws {
         _ = try runner.run(try require(QuillWireGuardLinuxAdapter.deactivateCommand(interface: interface, useSystemd: useSystemd), interface))
+    }
+
+    /// Run `wg show <iface> dump` and parse it into live runtime stats (rx/tx,
+    /// latest handshake, per peer). Returns nil when the tunnel is down (no
+    /// interface line in the dump). Joins the slice-2 adapter/runner with the
+    /// slice-1 parser, both now on main.
+    public func currentStatus(interface: String) throws -> QuillWireGuardRuntimeStatus? {
+        let dump = try runner.run(try require(QuillWireGuardLinuxAdapter.statusDumpCommand(interface: interface), interface))
+        return QuillWireGuardStatusParser.parse(dump: dump)
     }
 
     private func require(_ command: QuillWireGuardCommand?, _ interface: String) throws -> QuillWireGuardCommand {
