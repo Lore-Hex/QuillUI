@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import QuillNetNewsWireCore
+import QuillArticles
 
 @Suite("QuillNetNewsWireCore RSS / Atom parser")
 struct QuillNetNewsWireCoreTests {
@@ -395,6 +396,77 @@ struct QuillNetNewsWireCoreTests {
     func readerModelArticlesEmptyInitially() {
         let model = RSSReaderModel()
         #expect(model.articles.isEmpty)
+    }
+
+    // MARK: - Today smart feed (date-based)
+
+    @MainActor
+    @Test("Today smart feed filters items by datePublished within 24h via articles")
+    func smartFeedTodayFiltersByDate() {
+        let model = RSSReaderModel()
+        // Build items + parallel articles where two have today's
+        // date and two have last-week dates. Today should keep
+        // only the recent two.
+        let now = Date()
+        let recent1 = now.addingTimeInterval(-3600)        // 1h ago — today
+        let recent2 = now.addingTimeInterval(-43_200)      // 12h ago — today
+        let old1 = now.addingTimeInterval(-86_400 * 3)     // 3 days ago — not today
+        let old2 = now.addingTimeInterval(-86_400 * 7)     // 7 days ago — not today
+
+        let items = [
+            RSSItem(id: "r1", title: "Recent 1", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "r2", title: "Recent 2", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "o1", title: "Old 1", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "o2", title: "Old 2", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        let articles = [
+            articleStub(id: "r1", date: recent1),
+            articleStub(id: "r2", date: recent2),
+            articleStub(id: "o1", date: old1),
+            articleStub(id: "o2", date: old2),
+        ]
+
+        model.items = items
+        model.articles = articles
+
+        model.selectSmartFeed(.today)
+        let ids = Set(model.filteredItems.map(\.id))
+        #expect(ids == ["r1", "r2"])
+        #expect(model.count(for: .today) == 2)
+        #expect(model.statusText.contains("Today"))
+    }
+
+    @MainActor
+    @Test("Today smart feed ignores items with nil datePublished")
+    func smartFeedTodaySkipsUndated() {
+        let model = RSSReaderModel()
+        model.items = [
+            RSSItem(id: "u", title: "Undated", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.articles = [articleStub(id: "u", date: nil)]
+        model.selectSmartFeed(.today)
+        #expect(model.filteredItems.isEmpty)
+        #expect(model.count(for: .today) == 0)
+    }
+
+    @MainActor
+    @Test("SmartFeed.allCases includes Today + All Unread + Starred")
+    func smartFeedAllCasesIncludesToday() {
+        let ids = Set(SmartFeed.allCases.map(\.id))
+        #expect(ids == ["today", "allUnread", "starred"])
+    }
+
+    private func articleStub(id: String, date: Date?) -> Article {
+        let status = ArticleStatus(
+            articleID: id, read: false, starred: false,
+            dateArrived: Date(timeIntervalSince1970: 0)
+        )
+        return Article(
+            accountID: "Local", articleID: nil, feedID: "https://stub.test/feed",
+            uniqueID: id, title: nil, contentHTML: nil, contentText: nil, markdown: nil,
+            url: nil, externalURL: nil, summary: nil, imageURL: nil,
+            datePublished: date, dateModified: nil, authors: nil, status: status
+        )
     }
 
     @MainActor
