@@ -797,21 +797,28 @@ public struct QuillChatEmptyState: View {
     private var emptyStateContent: some View {
         GeometryReader { geometry in
             let metrics = promptGridMetrics(totalWidth: Double(geometry.size.width))
-            VStack(spacing: emptyStateVerticalSpacing) {
-                Spacer()
-                wordmark
+            // Force horizontal centering with flanking Spacers — GTK did not honor
+            // the implicit centering of .frame(maxWidth: .infinity) here (the
+            // wordmark + grid anchored to the right edge of the detail pane).
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                VStack(spacing: emptyStateVerticalSpacing) {
+                    Spacer()
+                    wordmark
 
-                QuillPromptGrid(
-                    prompts: prompts,
-                    columns: columns,
-                    cardWidth: metrics.cardWidth,
-                    cardHeight: metrics.cardHeight,
-                    spacing: metrics.spacing,
-                    action: action
-                )
-                .frame(width: metrics.gridWidth, alignment: .center)
+                    QuillPromptGrid(
+                        prompts: prompts,
+                        columns: columns,
+                        cardWidth: metrics.cardWidth,
+                        cardHeight: metrics.cardHeight,
+                        spacing: metrics.spacing,
+                        action: action
+                    )
+                    .frame(width: metrics.gridWidth, alignment: .center)
 
-                Spacer()
+                    Spacer()
+                }
+                Spacer(minLength: 0)
             }
             .padding(28)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -872,11 +879,18 @@ public struct QuillChatEmptyState: View {
         }
         #endif
 
+        let resolvedGridWidth = gridWidth(cardWidth: resolvedCardWidth, spacing: resolvedSpacing)
+        #if os(Linux)
+        // TEMP diagnostic (remove before final merge): capture the GeometryReader
+        // width the empty state actually sees, vs the resolved card/grid widths,
+        // to pin whether totalWidth is the detail pane or the full window.
+        print("QUILLGRIDDBG totalWidth=\(Int(totalWidth)) columns=\(columns) cardWidth=\(Int(resolvedCardWidth)) gridWidth=\(Int(resolvedGridWidth))")
+        #endif
         return QuillPromptGridMetrics(
             cardWidth: resolvedCardWidth,
             cardHeight: resolvedCardHeight,
             spacing: resolvedSpacing,
-            gridWidth: gridWidth(cardWidth: resolvedCardWidth, spacing: resolvedSpacing)
+            gridWidth: resolvedGridWidth
         )
     }
 
