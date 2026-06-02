@@ -35,6 +35,7 @@ import QuillFeedFinder
 public struct QuillNetNewsWireContentView: View {
     @StateObject private var model = RSSReaderModel()
     @State private var addSubscriptionInput: String = ""
+    @State private var showingSettings: Bool = false
 
     public init() {}
 
@@ -90,7 +91,70 @@ public struct QuillNetNewsWireContentView: View {
                     model.startBackgroundRefresh()
                 }
             }
+            .sheet(isPresented: Binding(
+                get: { showingSettings },
+                set: { showingSettings = $0 }
+            )) {
+                settingsSheet
+            }
         }
+    }
+
+    /// Settings sheet — Stepper for the background-refresh
+    /// interval (in minutes), the persistence dir path label,
+    /// and a Done button. NetNewsWire's preferences pane is
+    /// much bigger; this is a minimum viable surface that
+    /// covers the user-controlled state the model already
+    /// exposes.
+    private var settingsSheet: some View {
+        let intervalMinutesBinding = Binding<Int>(
+            get: { Int((model.refreshIntervalSeconds ?? 1800) / 60) },
+            set: { newValue in
+                let clamped = max(1, newValue)
+                model.refreshIntervalSeconds = TimeInterval(clamped * 60)
+            }
+        )
+        return VStack(alignment: .leading, spacing: 18) {
+            Text("Settings").font(.title2).bold()
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Refresh interval")
+                    .font(.subheadline)
+                let minutes = Int((model.refreshIntervalSeconds ?? 1800) / 60)
+                let summary = minutes == 1
+                    ? "Every minute"
+                    : minutes < 60
+                        ? "Every \(minutes) minutes"
+                        : "Every \(minutes / 60) hour\(minutes / 60 == 1 ? "" : "s")"
+                Text(summary)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Stepper(
+                    "Refresh interval (minutes)",
+                    value: intervalMinutesBinding,
+                    in: 1...1440,
+                    step: 5
+                )
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Subscriptions / persisted state")
+                    .font(.subheadline)
+                Text(model.subscribedFeeds.count == 1
+                    ? "1 feed subscribed"
+                    : "\(model.subscribedFeeds.count) feeds subscribed")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text("\(model.readArticleIDs.count) read · \(model.starredArticleIDs.count) starred")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            HStack {
+                Spacer()
+                Button("Done") { showingSettings = false }
+            }
+        }
+        .padding(24)
+        .frame(width: 380, height: 360)
     }
 
     private var keyboardShortcutSurface: some View {
@@ -207,6 +271,10 @@ public struct QuillNetNewsWireContentView: View {
                 HStack(spacing: 6) {
                     Button("Export OPML") {
                         model.saveOPMLExportToDisk()
+                    }
+                    .font(.caption2)
+                    Button("Settings") {
+                        showingSettings = true
                     }
                     .font(.caption2)
                     if let url = model.lastOPMLExportURL {
