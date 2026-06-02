@@ -40,4 +40,34 @@ public final class OSAllocatedUnfairLock<State>: @unchecked Sendable {
         try withLock(body)
     }
 }
+
+/// Linux polyfill for `os.Logger`. Apple's Logger has a
+/// generic `.debug/.info/.warning/.error/.notice/.fault`
+/// surface backed by os_log. swift-corelibs-foundation has
+/// no equivalent — print to stderr with a level prefix
+/// matching upstream RSCore's other osShim. Same call sites
+/// in the vendored RSWeb / FeedFinder sources compile
+/// unchanged.
+public struct Logger: Sendable {
+    public let subsystem: String
+    public let category: String
+
+    public init(subsystem: String, category: String) {
+        self.subsystem = subsystem
+        self.category = category
+    }
+
+    public func debug(_ message: String) { emit("DEBUG", message) }
+    public func info(_ message: String) { emit("INFO", message) }
+    public func notice(_ message: String) { emit("NOTICE", message) }
+    public func warning(_ message: String) { emit("WARNING", message) }
+    public func error(_ message: String) { emit("ERROR", message) }
+    public func fault(_ message: String) { emit("FAULT", message) }
+
+    private func emit(_ level: String, _ message: String) {
+        FileHandle.standardError.write(
+            Data("[\(level)] \(subsystem):\(category) \(message)\n".utf8)
+        )
+    }
+}
 #endif

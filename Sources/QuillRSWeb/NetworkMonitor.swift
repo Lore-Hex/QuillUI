@@ -10,6 +10,8 @@ import Network
 #if canImport(Darwin)
 import os
 #endif
+import QuillRSCoreShim
+
 nonisolated public final class NetworkMonitor: Sendable {
 	public static let shared = NetworkMonitor()
 
