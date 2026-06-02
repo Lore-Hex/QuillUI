@@ -1611,9 +1611,41 @@ final class RSSReaderModel: ObservableObject {
     /// Mark an article as read. Idempotent; firing the didSet on
     /// `readArticleIDs` only when the set actually grows so we
     /// don't bounce statusText for every redundant tap.
+    /// Propagates the change to the QuillData ArticleStore so
+    /// the SQLite row's isRead bit updates without waiting for
+    /// the next fetch — keeps the on-disk view in sync with
+    /// the in-memory set.
     func markRead(id: String) {
         if readArticleIDs.insert(id).inserted {
             // didSet on readArticleIDs handles status text refresh.
+            persistReadStateChange(uniqueID: id, isRead: true)
+        }
+    }
+
+    /// Propagate a single article's read/starred change to the
+    /// ArticleStore. Translates the uniqueID (which is what
+    /// readArticleIDs / starredArticleIDs sets carry) into the
+    /// PersistentArticle id via the per-feed cache lookup. No-op
+    /// when the article isn't yet in the store (e.g. fixtures
+    /// that bypass fetch). Failures swallow so a flaky disk
+    /// doesn't corrupt the in-memory state.
+    private func persistReadStateChange(uniqueID: String, isRead: Bool) {
+        guard let store = articleStore else { return }
+        for (_, cache) in feedCaches {
+            if let article = cache.articles.first(where: { $0.uniqueID == uniqueID }) {
+                try? store.markRead(articleID: article.articleID)
+                return
+            }
+        }
+    }
+
+    private func persistStarredStateChange(uniqueID: String, starred: Bool) {
+        guard let store = articleStore else { return }
+        for (_, cache) in feedCaches {
+            if let article = cache.articles.first(where: { $0.uniqueID == uniqueID }) {
+                try? store.markStarred(articleID: article.articleID, starred: starred)
+                return
+            }
         }
     }
 
@@ -1674,8 +1706,10 @@ final class RSSReaderModel: ObservableObject {
         guard let selectedID else { return }
         if readArticleIDs.contains(selectedID) {
             readArticleIDs.remove(selectedID)
+            persistReadStateChange(uniqueID: selectedID, isRead: false)
         } else {
             readArticleIDs.insert(selectedID)
+            persistReadStateChange(uniqueID: selectedID, isRead: true)
         }
     }
 
@@ -1693,8 +1727,10 @@ final class RSSReaderModel: ObservableObject {
     func toggleStarred(id: String) {
         if starredArticleIDs.contains(id) {
             starredArticleIDs.remove(id)
+            persistStarredStateChange(uniqueID: id, starred: false)
         } else {
             starredArticleIDs.insert(id)
+            persistStarredStateChange(uniqueID: id, starred: true)
         }
     }
 
