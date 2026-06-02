@@ -7,7 +7,9 @@
 //
 
 import Foundation
+#if canImport(Darwin)
 import os
+#endif
 import QuillRSParser
 import QuillRSWeb
 import QuillRSCoreShim
