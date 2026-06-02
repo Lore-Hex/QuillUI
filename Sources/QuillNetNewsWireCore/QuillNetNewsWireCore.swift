@@ -1376,8 +1376,13 @@ final class RSSReaderModel: ObservableObject {
     @Published private(set) var readArticleIDs: Set<String> = [] {
         didSet {
             updateStatusText()
-            persistence.saveReadArticleIDs(readArticleIDs)
+            persistReadArticleIDsIfReady()
         }
+    }
+
+    private func persistReadArticleIDsIfReady() {
+        guard persistenceReady else { return }
+        persistence.saveReadArticleIDs(readArticleIDs)
     }
 
     /// Set of starred article IDs. Same flat-set shape as
@@ -1386,7 +1391,12 @@ final class RSSReaderModel: ObservableObject {
     /// smart feed and a per-article star toggle in the detail
     /// header.
     @Published private(set) var starredArticleIDs: Set<String> = [] {
-        didSet { persistence.saveStarredArticleIDs(starredArticleIDs) }
+        didSet { persistStarredArticleIDsIfReady() }
+    }
+
+    private func persistStarredArticleIDsIfReady() {
+        guard persistenceReady else { return }
+        persistence.saveStarredArticleIDs(starredArticleIDs)
     }
 
     private let persistence: PersistenceStore
