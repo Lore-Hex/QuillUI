@@ -458,6 +458,73 @@ struct QuillNetNewsWireCoreTests {
 
     // MARK: - addSubscription (FeedFinder integration)
 
+    // MARK: - Detail view helpers (friendly date + author)
+
+    @MainActor
+    @Test("friendlyDateString returns empty string when no parsed Date")
+    func friendlyDateStringNoDate() {
+        let model = RSSReaderModel()
+        model.articles = [articleStub(id: "x", date: nil)]
+        #expect(model.friendlyDateString(forItemID: "x").isEmpty)
+        #expect(model.friendlyDateString(forItemID: "missing").isEmpty)
+    }
+
+    @MainActor
+    @Test("friendlyDateString uses relative form for recent dates")
+    func friendlyDateStringRecent() {
+        let model = RSSReaderModel()
+        let now = Date()
+        model.articles = [articleStub(id: "x", date: now.addingTimeInterval(-3600))]
+        let formatted = model.friendlyDateString(forItemID: "x")
+        // Locale-dependent text, but "ago" is the English unit. Just
+        // confirm it's non-empty and shaped relative (no comma year).
+        #expect(!formatted.isEmpty)
+        #expect(!formatted.contains(","))  // absolute medium-style would have a comma
+    }
+
+    @MainActor
+    @Test("friendlyDateString uses absolute form for old dates")
+    func friendlyDateStringOld() {
+        let model = RSSReaderModel()
+        let yearAgo = Date().addingTimeInterval(-86_400 * 365)
+        model.articles = [articleStub(id: "x", date: yearAgo)]
+        let formatted = model.friendlyDateString(forItemID: "x")
+        #expect(!formatted.isEmpty)
+        // Medium-style date is locale-dependent but always contains digits.
+        let hasDigit = formatted.contains { $0.isNumber }
+        #expect(hasDigit)
+    }
+
+    @MainActor
+    @Test("authorLine returns nil when no authors are present")
+    func authorLineNil() {
+        let model = RSSReaderModel()
+        model.articles = [articleStub(id: "x", date: nil)]
+        #expect(model.authorLine(forItemID: "x") == nil)
+        #expect(model.authorLine(forItemID: "missing") == nil)
+    }
+
+    @MainActor
+    @Test("authorLine joins multiple authors with comma + sort")
+    func authorLineMulti() {
+        let model = RSSReaderModel()
+        let status = ArticleStatus(articleID: "x", read: false, starred: false,
+                                   dateArrived: Date(timeIntervalSince1970: 0))
+        let authors: Set<Author> = [
+            Author(authorID: "1", name: "Brent", url: nil, avatarURL: nil, emailAddress: nil)!,
+            Author(authorID: "2", name: "Alex", url: nil, avatarURL: nil, emailAddress: nil)!,
+        ]
+        let article = Article(
+            accountID: "Local", articleID: nil, feedID: "https://stub.test/feed",
+            uniqueID: "x", title: nil, contentHTML: nil, contentText: nil,
+            markdown: nil, url: nil, externalURL: nil, summary: nil, imageURL: nil,
+            datePublished: nil, dateModified: nil, authors: authors, status: status
+        )
+        model.articles = [article]
+        // Alphabetical sort means Alex first, then Brent.
+        #expect(model.authorLine(forItemID: "x") == "Alex, Brent")
+    }
+
     @MainActor
     @Test("addSubscription returns nil for an unparseable URL string")
     func addSubscriptionRejectsBadInput() async {
