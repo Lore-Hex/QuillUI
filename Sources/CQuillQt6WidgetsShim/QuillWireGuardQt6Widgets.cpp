@@ -294,6 +294,41 @@ void addPeerSection(
         );
     }
 
+    // Live runtime stats (present only when the tunnel is active and the snapshot
+    // was built with a QuillWireGuardLiveStatus).
+    const QString transferRx = stringValue(peer, "transferRxText");
+    if (!transferRx.isEmpty()) {
+        addDetailRow(
+            form,
+            presentationValue(presentation, "dataReceivedLabel", "Data received"),
+            transferRx,
+            noneText,
+            style
+        );
+    }
+
+    const QString transferTx = stringValue(peer, "transferTxText");
+    if (!transferTx.isEmpty()) {
+        addDetailRow(
+            form,
+            presentationValue(presentation, "dataSentLabel", "Data sent"),
+            transferTx,
+            noneText,
+            style
+        );
+    }
+
+    const QString latestHandshake = stringValue(peer, "latestHandshakeText");
+    if (!latestHandshake.isEmpty()) {
+        addDetailRow(
+            form,
+            presentationValue(presentation, "latestHandshakeLabel", "Latest handshake"),
+            latestHandshake,
+            noneText,
+            style
+        );
+    }
+
     detailLayout->addWidget(section);
 }
 
