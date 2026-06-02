@@ -28,6 +28,71 @@ import Foundation
 /// upstream is to maintain.
 
 public extension String {
+    /// Whitespace-trimmed copy. Mirrors upstream
+    /// RSCore.String.trimmingWhitespace.
+    var trimmingWhitespace: String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Case-insensitive substring search. Mirrors upstream
+    /// RSCore.String.caseInsensitiveContains used by
+    /// FeedSpecifier scoring.
+    func caseInsensitiveContains(_ other: String) -> Bool {
+        range(of: other, options: .caseInsensitive) != nil
+    }
+
+    /// Strip a leading prefix when present. Mirrors upstream
+    /// RSCore.String.stripping(prefix:caseSensitive:). Default
+    /// case-insensitive, matching upstream's normalizedURL use.
+    func stripping(prefix: String, caseSensitive: Bool = false) -> String {
+        let options: String.CompareOptions = caseSensitive
+            ? .anchored
+            : [.anchored, .caseInsensitive]
+        if let range = self.range(of: prefix, options: options) {
+            return self.replacingCharacters(in: range, with: "")
+        }
+        return self
+    }
+
+    /// Normalize a feed URL the way upstream RSCore does so the
+    /// reader can de-dupe feed:// vs https:// vs schemeless
+    /// subscriptions. Verbatim port of RSCore's algorithm:
+    ///   1) trim whitespace
+    ///   2) strip `feed:` / `feeds:` prefix (remember which)
+    ///   3) if no http(s) prefix, prepend `https://` when the
+    ///      original was `feeds:` else `http://`
+    ///   4) add a trailing slash to bare-host URLs (3 path
+    ///      components: scheme/empty/host)
+    var normalizedURL: String {
+        enum Prefix {
+            static let feed = "feed:"
+            static let feeds = "feeds:"
+            static let http = "http"
+            static let https = "https"
+        }
+        var s = self.trimmingWhitespace
+        var wasFeeds = false
+        var lowercaseS = s.lowercased()
+        if lowercaseS.hasPrefix(Prefix.feeds) {
+            wasFeeds = true
+            s = s.stripping(prefix: Prefix.feeds)
+        } else if lowercaseS.hasPrefix(Prefix.feed) {
+            s = s.stripping(prefix: Prefix.feed)
+        }
+        if s.hasPrefix("//") {
+            s = s.stripping(prefix: "//")
+        }
+        lowercaseS = s.lowercased()
+        if !lowercaseS.hasPrefix(Prefix.http) {
+            s = "\(wasFeeds ? Prefix.https : Prefix.http)://\(s)"
+        }
+        let componentsCount = s.components(separatedBy: "/").count
+        if componentsCount == 3 {
+            s = s.appending("/")
+        }
+        return s
+    }
+
     /// MD5 hash of the string's UTF-8 bytes, formatted as 32
     /// lowercase hex characters. Compatible byte-for-byte with
     /// upstream RSCore's `String.md5String` so parsed-feed

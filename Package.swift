@@ -882,6 +882,24 @@ var targets: [Target] = [
         path: "Sources/QuillRSWeb",
         swiftSettings: appSwiftSettings
     ),
+    // Vendored Ranchero-Software/NetNewsWire FeedFinder module
+    // (Sources/FeedFinder → Sources/QuillFeedFinder, 3 files,
+    // ~378 LOC). Walks a page URL via QuillRSWeb to discover
+    // RSS/Atom/JSON feed links — both `<link rel="alternate">`
+    // and well-known feed-path probes (/feed, /rss, /atom.xml,
+    // etc). Powers a future 'Add Subscription' UI that takes
+    // a website URL and finds the feed without the user
+    // hunting for it.
+    //
+    // Imports rewritten on copy: RSCore → QuillRSCoreShim,
+    // RSParser → QuillRSParser, RSWeb → QuillRSWeb (handles
+    // both bare and @preconcurrency import forms).
+    .target(
+        name: "QuillFeedFinder",
+        dependencies: ["QuillRSCoreShim", "QuillRSParser", "QuillRSWeb"],
+        path: "Sources/QuillFeedFinder",
+        swiftSettings: appSwiftSettings
+    ),
     .executableTarget(
         name: "QuillNetNewsWire",
         dependencies: ["QuillNetNewsWireCore", "QuillUI"],
