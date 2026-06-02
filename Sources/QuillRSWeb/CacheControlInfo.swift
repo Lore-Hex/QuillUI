@@ -6,6 +6,9 @@
 //
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Basic Cache-Control handling — just the part we need,
 /// which is to know when we got the response (dateCreated)
