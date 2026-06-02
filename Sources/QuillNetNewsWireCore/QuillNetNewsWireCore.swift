@@ -1735,7 +1735,7 @@ final class RSSReaderModel: ObservableObject {
     func storedStarredItems() -> [RSSItem] {
         guard let store = articleStore else { return [] }
         guard let rows = try? store.fetchStarred() else { return [] }
-        return rows.map(Self.rssItem(from:))
+        return Array(rows.prefix(Self.smartFeedStoredLimit)).map(Self.rssItem(from:))
     }
 
     /// Symmetric to storedStarredItems for All Unread.
@@ -1750,9 +1750,23 @@ final class RSSReaderModel: ObservableObject {
         guard let store = articleStore else { return [] }
         guard let rows = try? store.fetchUnread() else { return [] }
         return rows
-            .filter { !readArticleIDs.contains($0.uniqueID) }
+            .lazy
+            .filter { !self.readArticleIDs.contains($0.uniqueID) }
+            .prefix(Self.smartFeedStoredLimit)
             .map(Self.rssItem(from:))
     }
+
+    /// Soft cap on rows surfaced by storedStarredItems /
+    /// storedUnreadItems. Smart-feed pools are recomputed on
+    /// every render (status text, filteredItems, ForEach), so
+    /// an unbounded pull hurts heavy-history users — 5000
+    /// unread × every render × multiple computes per render
+    /// = noticeable lag. 500 covers virtually every active
+    /// scrollback need (rows are newest-first, so the cap
+    /// trims the OLDEST tail first) while keeping render
+    /// cost bounded. Tail-cap matches upstream NetNewsWire's
+    /// Account-level fetch-limit pattern.
+    static let smartFeedStoredLimit = 500
 
     /// Shared row → RSSItem reconstitution used by every
     /// stored-* helper. Same field fallback chain as the live

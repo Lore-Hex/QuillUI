@@ -2769,6 +2769,49 @@ struct QuillNetNewsWireCoreTests {
         #expect(RSSReaderModel.articlesPerFeedLimit >= 50)
     }
 
+    @Test("Smart-feed stored cap >= per-feed cap so cross-feed reads at least all-active")
+    func smartFeedStoredLimitIsAtLeastPerFeed() {
+        // Cap on storedStarredItems / storedUnreadItems must be
+        // >= articlesPerFeedLimit so a single feed's worth of
+        // unread can still fit fully in the smart-feed view.
+        // Anything less would silently truncate inside one feed.
+        #expect(RSSReaderModel.smartFeedStoredLimit >= RSSReaderModel.articlesPerFeedLimit)
+    }
+
+    @MainActor
+    @Test("storedUnreadItems honors the smart-feed cap")
+    func storedUnreadHonorsCap() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-storedcap-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try ArticleStore(directoryURL: dir)
+        let persistenceStore = PersistenceStore(directoryURL: dir)
+        // Pin (smartFeedStoredLimit + 10) unread rows.
+        let overshoot = RSSReaderModel.smartFeedStoredLimit + 10
+        var rows: [PersistentArticle] = []
+        for i in 0..<overshoot {
+            rows.append(PersistentArticle(
+                id: "row\(i)", accountID: "Local",
+                feedID: "https://x.test/feed",
+                uniqueID: "u\(i)", title: "T\(i)", isRead: false
+            ))
+        }
+        try store.upsert(rows)
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "X", url: "https://x.test/feed")],
+            persistence: persistenceStore,
+            articleStore: store
+        )
+        // Drop in-memory caches so storedUnreadItems is the only
+        // path that surfaces them.
+        model.feedCaches.removeAll()
+        let visible = model.storedUnreadItems()
+        // Cap kicks in at smartFeedStoredLimit — not the full
+        // overshoot.
+        #expect(visible.count == RSSReaderModel.smartFeedStoredLimit)
+    }
+
     @Test("friendlyError prefers localized description over NSError debug form")
     func friendlyErrorPrefersLocalized() {
         let urlError = URLError(.cannotFindHost)
