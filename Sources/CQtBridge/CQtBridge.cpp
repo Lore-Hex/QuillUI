@@ -7,10 +7,16 @@
 #include "CQtBridge.h"
 
 #include <QApplication>
+#include <QAbstractItemView>
+#include <QAbstractScrollArea>
 #include <QFont>
 #include <QFontDatabase>
+#include <QFrame>
 #include <QLabel>
 #include <QList>
+#include <QListView>
+#include <QListWidget>
+#include <QListWidgetItem>
 #include <QObject>
 #include <QPixmap>
 #include <QPushButton>
@@ -18,7 +24,9 @@
 #include <QSize>
 #include <QString>
 #include <QTimer>
+#include <QVBoxLayout>
 #include <QWidget>
+#include <algorithm>
 #include <cstdio>
 
 namespace {
@@ -29,6 +37,37 @@ inline QWidget *asWidget(QuillQtWidgetHandle handle) {
 
 inline QString utf8(const char *value) {
     return value == nullptr ? QString() : QString::fromUtf8(value);
+}
+
+QSize resolvedWidgetSize(QWidget *target) {
+    if (target == nullptr) {
+        return QSize(0, 0);
+    }
+
+    // setFixedSize() sets minimum == maximum on that axis. A widget we have
+    // NOT explicitly sized keeps Qt's default minimum (0) and maximum
+    // (QWIDGETSIZE_MAX), which never coincide — so equality on an axis means
+    // WE fixed it (a container / frame / zero-size placeholder) and the value
+    // is authoritative. An unfixed axis falls back to the intrinsic sizeHint().
+    const QSize minSize = target->minimumSize();
+    const QSize maxSize = target->maximumSize();
+    const QSize hint = target->sizeHint();
+    const bool fixedWidth = minSize.width() == maxSize.width();
+    const bool fixedHeight = minSize.height() == maxSize.height();
+    QSize resolved(
+        fixedWidth ? minSize.width() : hint.width(),
+        fixedHeight ? minSize.height() : hint.height()
+    );
+
+    // Clamp invalid sizeHints (QSize(-1, -1) for a bare QWidget) to 0 so the
+    // shared layout engine never sees a negative dimension.
+    if (resolved.width() < 0) {
+        resolved.setWidth(0);
+    }
+    if (resolved.height() < 0) {
+        resolved.setHeight(0);
+    }
+    return resolved;
 }
 
 // Stderr breadcrumb for the generic-backend smoke. The runtime crash this fix
@@ -298,6 +337,71 @@ QuillQtWidgetHandle quill_qt_bridge_button_create(
     return reinterpret_cast<QuillQtWidgetHandle>(button);
 }
 
+QuillQtWidgetHandle quill_qt_bridge_list_widget_create(void) {
+    QListWidget *list = new QListWidget();
+    list->setSelectionMode(QAbstractItemView::NoSelection);
+    list->setFrameShape(QFrame::NoFrame);
+    list->setUniformItemSizes(false);
+    list->setSpacing(0);
+    list->setResizeMode(QListView::Adjust);
+    list->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+    list->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    list->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    list->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    list->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    list->setStyleSheet(
+        "QListWidget {"
+        " background: #ffffff;"
+        " border: 1px solid rgba(17, 24, 39, 35);"
+        " border-radius: 10px;"
+        " padding: 0px;"
+        "}"
+        "QListWidget::item { border: none; }"
+        "QListWidget::item:selected { background: transparent; color: #111827; }"
+    );
+    return reinterpret_cast<QuillQtWidgetHandle>(list);
+}
+
+void quill_qt_bridge_list_widget_add_row_widget(
+    QuillQtWidgetHandle list,
+    QuillQtWidgetHandle child
+) {
+    QListWidget *listWidget = qobject_cast<QListWidget *>(asWidget(list));
+    QWidget *childWidget = asWidget(child);
+    if (listWidget == nullptr || childWidget == nullptr) {
+        return;
+    }
+
+    QWidget *row = new QWidget();
+    row->setObjectName(QStringLiteral("quill-qt-list-row"));
+    row->setAttribute(Qt::WA_StyledBackground, true);
+    row->setStyleSheet(
+        "QWidget#quill-qt-list-row {"
+        " background: transparent;"
+        " border-bottom: 1px solid rgba(17, 24, 39, 45);"
+        "}"
+    );
+
+    QVBoxLayout *layout = new QVBoxLayout(row);
+    layout->setContentsMargins(16, 8, 16, 8);
+    layout->setSpacing(0);
+    layout->addWidget(childWidget);
+
+    const QSize childSize = resolvedWidgetSize(childWidget);
+    const QSize rowSize(
+        std::max(1, childSize.width() + 32),
+        std::max(1, childSize.height() + 16)
+    );
+    row->setMinimumSize(rowSize);
+
+    QListWidgetItem *item = new QListWidgetItem();
+    item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
+    item->setSizeHint(rowSize);
+    listWidget->addItem(item);
+    listWidget->setItemWidget(item, row);
+    row->show();
+}
+
 // --- Styling ---------------------------------------------------------------
 
 void quill_qt_bridge_widget_set_object_name(
@@ -358,30 +462,12 @@ void quill_qt_bridge_widget_resolved_size(
     int *out_width,
     int *out_height
 ) {
-    QWidget *target = asWidget(widget);
-    QSize resolved(0, 0);
-    if (target != nullptr) {
-        // setFixedSize() sets minimum == maximum on that axis. A widget we have
-        // NOT explicitly sized keeps Qt's default minimum (0) and maximum
-        // (QWIDGETSIZE_MAX), which never coincide — so equality on an axis means
-        // WE fixed it (a container / frame / zero-size placeholder) and the
-        // value is authoritative. An unfixed axis falls back to the intrinsic
-        // sizeHint() (QLabel / QPushButton).
-        const QSize minSize = target->minimumSize();
-        const QSize maxSize = target->maximumSize();
-        const QSize hint = target->sizeHint();
-        const bool fixedWidth = minSize.width() == maxSize.width();
-        const bool fixedHeight = minSize.height() == maxSize.height();
-        resolved.setWidth(fixedWidth ? minSize.width() : hint.width());
-        resolved.setHeight(fixedHeight ? minSize.height() : hint.height());
-    }
-    // Clamp invalid sizeHints (QSize(-1, -1) for a bare QWidget) to 0 so the
-    // shared layout engine never sees a negative dimension.
+    const QSize resolved = resolvedWidgetSize(asWidget(widget));
     if (out_width != nullptr) {
-        *out_width = resolved.width() < 0 ? 0 : resolved.width();
+        *out_width = resolved.width();
     }
     if (out_height != nullptr) {
-        *out_height = resolved.height() < 0 ? 0 : resolved.height();
+        *out_height = resolved.height();
     }
 }
 

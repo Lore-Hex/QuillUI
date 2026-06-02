@@ -158,6 +158,17 @@ QuillQtWidgetHandle quill_qt_bridge_button_create(
     quill_qt_bridge_click_callback destroy
 );
 
+// Create a QListWidget-backed List container. Rows are added with
+// quill_qt_bridge_list_widget_add_row_widget so SwiftUI child widgets can keep
+// their native rendering while Qt provides list scrolling/chrome.
+QuillQtWidgetHandle quill_qt_bridge_list_widget_create(void);
+
+// Add a rendered SwiftUI child widget as one padded row in a QListWidget.
+void quill_qt_bridge_list_widget_add_row_widget(
+    QuillQtWidgetHandle list,
+    QuillQtWidgetHandle child
+);
+
 // --- Styling ---------------------------------------------------------------
 
 // Set a widget's objectName so process-wide QSS rules (set via

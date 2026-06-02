@@ -40,6 +40,8 @@ enum QtSmokeMetrics {
     static let panelRed: Double = 17.0 / 255.0
     static let panelGreen: Double = 24.0 / 255.0
     static let panelBlue: Double = 39.0 / 255.0
+    static let listWidth: Double = 300
+    static let listHeight: Double = 120
 }
 
 public struct QtSmokeApp: App {
@@ -77,6 +79,13 @@ struct QtSmokeView: View {
                 blue: QtSmokeMetrics.panelBlue
             )
             .frame(width: QtSmokeMetrics.panelWidth, height: QtSmokeMetrics.panelHeight)
+
+            List {
+                ForEach(["ForEach row one", "ForEach row two", "ForEach row three"], id: \.self) { row in
+                    Text(row)
+                }
+            }
+            .frame(width: QtSmokeMetrics.listWidth, height: QtSmokeMetrics.listHeight)
         }
     }
 }
