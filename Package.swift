@@ -833,6 +833,30 @@ var targets: [Target] = [
         path: "Sources/QuillArticles",
         swiftSettings: appSwiftSettings
     ),
+    // Vendored Ranchero-Software/NetNewsWire RSTree module
+    // (Sources/RSTree → Sources/QuillRSTree). Pure-Foundation
+    // tree data structures: Node, NodePath, RSTree,
+    // TopLevelRepresentedObject, TreeController. Used in
+    // upstream by the sidebar feed-tree controller; the
+    // Quill feedsPane will migrate to it after vendoring.
+    //
+    // The upstream Sources/RSTree directory has one extra file
+    // (NSOutlineView+RSTree.swift) that imports AppKit; it's
+    // intentionally NOT copied here so the target stays
+    // pure-Foundation. The audit at docs/netnewswire-audit.md
+    // already confirmed the rest builds standalone on Linux.
+    //
+    // Refresh procedure: re-run the per-file cp loop in
+    // .upstream/netnewswire/Modules/RSTree/Sources/RSTree
+    // (skipping NSOutlineView+RSTree.swift) — RSTree has no
+    // RSCore dependency today so the import-rewrite sed step
+    // QuillRSParser/QuillArticles need does not apply here.
+    .target(
+        name: "QuillRSTree",
+        dependencies: [],
+        path: "Sources/QuillRSTree",
+        swiftSettings: appSwiftSettings
+    ),
     .executableTarget(
         name: "QuillNetNewsWire",
         dependencies: ["QuillNetNewsWireCore", "QuillUI"],
@@ -1716,6 +1740,15 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillArticlesTests",
             dependencies: ["QuillArticles"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Smoke tests for the vendored upstream RSTree module.
+        // Pins Node parent/child wiring, indexPath, and the
+        // TreeController.rebuild() path the sidebar feedsPane
+        // migration will lean on.
+        .testTarget(
+            name: "QuillRSTreeTests",
+            dependencies: ["QuillRSTree"],
             swiftSettings: appSwiftSettings
         ),
         // Pins QuillCodeEditCore: the `ProjectFile.extension`
