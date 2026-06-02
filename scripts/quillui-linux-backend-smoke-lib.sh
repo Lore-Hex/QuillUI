@@ -885,6 +885,35 @@ quillui_wireguard_import_error_roi_error_fraction() {
     -format '%[fx:mean]' info: 2>/dev/null
 }
 
+# After an invalid WireGuard import is submitted via Ctrl+Return, the window-level
+# .keyboardShortcut(.return) is occasionally not delivered -- notably under a headless
+# X server with no window manager to hold focus -- so the import never runs and the
+# error overlay never paints (the verifier then sees error_pixels=0). Capture once
+# and, ONLY when no error hue is present yet, click the Import button to force the
+# submit. On a healthy submit the overlay is already up (fraction above the floor), so
+# the click is skipped, leaving the normal Ctrl+Return path -- and CI behavior --
+# unchanged. Re-submitting an invalid config is idempotent (it just re-raises the same
+# error), so the fallback is safe. If the error fraction can't be measured, do nothing
+# and let the existing settle handle it rather than risk clicking over a live overlay.
+quillui_wireguard_force_import_submit_if_unsettled() {
+  local display_id="$1"
+  local capture_window="$2"
+  local screenshot_path="$3"
+  local submit_x="$4"
+  local submit_y="$5"
+  local present_floor="${6:-0.00005}"
+  local fraction
+
+  DISPLAY="$display_id" import -window "$capture_window" "$screenshot_path" 2>/dev/null || true
+  fraction="$(quillui_wireguard_import_error_roi_error_fraction "$screenshot_path")"
+
+  if [[ -n "$fraction" ]] \
+    && awk -v f="$fraction" -v floor="$present_floor" 'BEGIN { exit !(f < floor) }'; then
+    DISPLAY="$display_id" xdotool mousemove --sync "$submit_x" "$submit_y" click 1
+    sleep "${QUILLUI_BACKEND_POST_CLICK_SLEEP:-1}"
+  fi
+}
+
 # Poll a window capture until the WireGuard import-error overlay has finished
 # painting, then leave the final settled frame at SCREENSHOT_PATH. The invalid
 # import flow submits via Ctrl+Return and SwiftOpenUI paints the error overlay

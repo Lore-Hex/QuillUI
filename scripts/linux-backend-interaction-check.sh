@@ -517,6 +517,14 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
         # render-stable before the verifier reads it. (Mirrors the Qt invalid
         # branch, which already re-resolves the active child window.)
         if quillui_is_wireguard_malformed_import_interaction "$INTERACTION_MODE"; then
+          # Belt-and-suspenders: if Ctrl+Return wasn't delivered (no error overlay
+          # yet), force the submit with an Import-button click before settling. This
+          # is a no-op when the overlay is already up, so the healthy Ctrl+Return
+          # path -- and CI behavior -- is unchanged.
+          quillui_wireguard_force_import_submit_if_unsettled \
+            "$DISPLAY_ID" "$capture_window" "$SCREENSHOT_PATH" \
+            "${QUILLUI_BACKEND_IMPORT_SUBMIT_X:-$((window_x + 358))}" \
+            "${QUILLUI_BACKEND_IMPORT_SUBMIT_Y:-$((window_y + 293))}"
           quillui_settle_wireguard_import_error_capture \
             "$DISPLAY_ID" "$capture_window" "$SCREENSHOT_PATH"
           settled_capture_taken=1
@@ -545,6 +553,11 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
         # Invalid file imports paint the same async error overlay as the invalid
         # paste path, so settle on a render-stable error frame before verifying.
         if quillui_is_wireguard_malformed_import_interaction "$INTERACTION_MODE"; then
+          # Same Ctrl+Return-not-delivered fallback as the invalid-paste branch.
+          quillui_wireguard_force_import_submit_if_unsettled \
+            "$DISPLAY_ID" "$capture_window" "$SCREENSHOT_PATH" \
+            "${QUILLUI_BACKEND_IMPORT_SUBMIT_X:-$((window_x + 358))}" \
+            "${QUILLUI_BACKEND_IMPORT_SUBMIT_Y:-$((window_y + 293))}"
           quillui_settle_wireguard_import_error_capture \
             "$DISPLAY_ID" "$capture_window" "$SCREENSHOT_PATH"
           settled_capture_taken=1
