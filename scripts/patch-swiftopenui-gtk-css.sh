@@ -32,7 +32,16 @@ XCTEST_DYNAMIC_OVERLAY_SOURCE_DIR="$SCRATCH_PATH/checkouts/xctest-dynamic-overla
 GRDB_SOURCE_DIR="$SCRATCH_PATH/checkouts/GRDB.swift/GRDB"
 SQLITE_DATA_SOURCE_DIR="$SCRATCH_PATH/checkouts/sqlite-data/Sources/SQLiteData"
 
-if [[ ! -f "$SWIFTOPENUI_MANIFEST" || ! -f "$RENDERER" || ! -f "$GTK_BACKEND" || ! -f "$GTK_VIEW_HOST" || ! -f "$SYMBOLS" || ! -f "$SCROLL_VIEW_READER" ]]; then
+# Resolve unconditionally so $SCRATCH_PATH/checkouts/ is populated BEFORE the
+# patches below run against it (OpenCombine/GRDB/swift-dependencies/etc.). The
+# subsequent `swift test --scratch-path "$SCRATCH_PATH"` REUSES these patched
+# checkouts; if we skip the resolve, the build re-resolves them UNPATCHED and
+# fails with `missing required module 'COpenCombineHelpers'`. Do NOT gate this
+# on SwiftOpenUI-file presence — SwiftOpenUI is now vendored in-tree
+# (third_party/SwiftOpenUI) so such a gate is always true and silently disables
+# the resolve in the real build. Only the hermetic patcher unit-test (which sets
+# up its own stub checkouts and has no real package to resolve) opts out.
+if [[ "${QUILLUI_SKIP_PACKAGE_RESOLVE:-0}" != "1" ]]; then
   swift package resolve --package-path "$PACKAGE_PATH" --scratch-path "$SCRATCH_PATH" >/dev/null
 fi
 

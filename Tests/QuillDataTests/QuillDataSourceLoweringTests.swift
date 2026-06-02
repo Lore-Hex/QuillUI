@@ -1614,6 +1614,10 @@ struct QuillDataSourceLoweringTests {
             environment: [
                 "QUILLUI_SWIFT_PACKAGE_PATH": root.path,
                 "QUILLUI_SWIFTOPENUI_ROOT": directory.appendingPathComponent("checkouts/SwiftOpenUI").path,
+                // Hermetic test: stub checkouts are pre-seeded above; there is no
+                // real package to `swift package resolve`, so opt out of the
+                // unconditional resolve the patcher does in the real build.
+                "QUILLUI_SKIP_PACKAGE_RESOLVE": "1",
             ]
         )
         #expect(result.status == 0, Comment(rawValue: result.output))
