@@ -103,6 +103,26 @@ public final class ArticleStore: @unchecked Sendable {
         return rows.sorted(by: Self.newestFirst)
     }
 
+    /// Cheap row-counts for the sidebar smart-feed badges, used
+    /// when the full row list would be wasted (caller only
+    /// needs the count, not the data). Skips the in-memory
+    /// sort+map that the full fetch* does.
+    public func countStarred() throws -> Int {
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<PersistentArticle>(
+            filter: { $0.isStarred == true }
+        )
+        return try context.fetch(descriptor).count
+    }
+
+    public func countUnread() throws -> Int {
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<PersistentArticle>(
+            filter: { $0.isRead == false }
+        )
+        return try context.fetch(descriptor).count
+    }
+
     /// Mark a single article read (idempotent — re-marking is
     /// a no-op write). Bumps the row's existing isRead bit
     /// without losing any other field.

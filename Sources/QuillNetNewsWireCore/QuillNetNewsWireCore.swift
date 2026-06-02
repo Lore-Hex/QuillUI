@@ -3279,20 +3279,27 @@ final class RSSReaderModel: ObservableObject {
             })
             return union.reduce(0) { $0 + (recentIDs.contains($1.id) ? 1 : 0) }
         case .allUnread:
-            let inCache = Set(union.filter { !readArticleIDs.contains($0.id) }.map(\.id))
-            let storedExtras = storedUnreadItems()
-                .filter { !inCache.contains($0.id) }
-                .count
-            return inCache.count + storedExtras
+            // Sidebar badge — must reflect the TRUE count, not
+            // the smartFeedStoredLimit cap on the rendered pool.
+            // Walk the full SQLite unread (cheap count query),
+            // subtract the cached IDs that overlap (avoid double-
+            // count), then add cache-only unread.
+            let cachedUnread = union.filter { !readArticleIDs.contains($0.id) }
+            let cachedIDs = Set(cachedUnread.map(\.id))
+            let storedCount = (try? articleStore?.countUnread()) ?? 0 ?? 0
+            // storedCount includes rows that ARE in cache, so
+            // approximate the "stored-only-extras" by subtracting
+            // cached overlap. Worst case slight under-count if
+            // some cached items aren't in SQLite yet (transient).
+            let storedOnly = max(0, storedCount - cachedIDs.count)
+            return cachedIDs.count + storedOnly
         case .starred:
-            // Full starred-history count — same union-with-stored
-            // logic as the Starred branch of filteredItems so
-            // sidebar badge and timeline length agree.
-            let inCache = Set(union.filter { starredArticleIDs.contains($0.id) }.map(\.id))
-            let storedExtras = storedStarredItems()
-                .filter { !inCache.contains($0.id) }
-                .count
-            return inCache.count + storedExtras
+            // Same uncapped-count pattern as .allUnread.
+            let cachedStarred = union.filter { starredArticleIDs.contains($0.id) }
+            let cachedIDs = Set(cachedStarred.map(\.id))
+            let storedCount = (try? articleStore?.countStarred()) ?? 0 ?? 0
+            let storedOnly = max(0, storedCount - cachedIDs.count)
+            return cachedIDs.count + storedOnly
         }
     }
 

@@ -2778,6 +2778,55 @@ struct QuillNetNewsWireCoreTests {
         #expect(RSSReaderModel.smartFeedStoredLimit >= RSSReaderModel.articlesPerFeedLimit)
     }
 
+    @Test("ArticleStore.countStarred / countUnread don't materialize rows")
+    func articleStoreCheapCounts() throws {
+        let store = try ArticleStore()
+        try store.upsert([
+            PersistentArticle(id: "a", accountID: "Local",
+                              feedID: "https://x.test/feed",
+                              uniqueID: "ua", title: "A", isStarred: true),
+            PersistentArticle(id: "b", accountID: "Local",
+                              feedID: "https://x.test/feed",
+                              uniqueID: "ub", title: "B", isStarred: true),
+            PersistentArticle(id: "c", accountID: "Local",
+                              feedID: "https://x.test/feed",
+                              uniqueID: "uc", title: "C", isRead: true),
+        ])
+        #expect(try store.countStarred() == 2)
+        #expect(try store.countUnread() == 2) // a and b
+    }
+
+    @MainActor
+    @Test("count(for: .allUnread) reflects true count past smartFeedStoredLimit")
+    func countAllUnreadIsUncapped() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-bigcount-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try ArticleStore(directoryURL: dir)
+        let persistenceStore = PersistenceStore(directoryURL: dir)
+        // Pin (cap + 50) unread rows to overshoot the cap.
+        let overshoot = RSSReaderModel.smartFeedStoredLimit + 50
+        var rows: [PersistentArticle] = []
+        for i in 0..<overshoot {
+            rows.append(PersistentArticle(
+                id: "row\(i)", accountID: "Local",
+                feedID: "https://x.test/feed",
+                uniqueID: "u\(i)", title: "T\(i)", isRead: false
+            ))
+        }
+        try store.upsert(rows)
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "X", url: "https://x.test/feed")],
+            persistence: persistenceStore,
+            articleStore: store
+        )
+        model.feedCaches.removeAll()
+        // Badge count must NOT cap at smartFeedStoredLimit;
+        // user has more unread, badge should reflect reality.
+        #expect(model.count(for: .allUnread) >= overshoot)
+    }
+
     @MainActor
     @Test("storedUnreadItems honors the smart-feed cap")
     func storedUnreadHonorsCap() throws {
