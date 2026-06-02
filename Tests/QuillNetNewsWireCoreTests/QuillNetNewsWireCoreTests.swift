@@ -1217,6 +1217,30 @@ struct QuillNetNewsWireCoreTests {
         #expect(Set(remaining.map(\.id)) == ["r0", "r1", "r2"])
     }
 
+    @Test("ArticleStore.pruneFeed preserves starred rows beyond the keep window")
+    func articleStorePruneFeedPreservesStarred() throws {
+        let store = try ArticleStore()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        var rows: [PersistentArticle] = []
+        for i in 0..<10 {
+            // r0 newest, r9 oldest. Star r7 and r9 (both
+            // outside a keeping=3 window).
+            rows.append(PersistentArticle(
+                id: "r\(i)", accountID: "Local",
+                feedID: "https://x.test/feed",
+                uniqueID: "u\(i)", title: "T\(i)",
+                datePublished: now.addingTimeInterval(-Double(i) * 3600),
+                isStarred: (i == 7 || i == 9)
+            ))
+        }
+        try store.upsert(rows)
+        try store.pruneFeed("https://x.test/feed", keeping: 3)
+        let remaining = Set(try store.fetchAll().map(\.id))
+        // 3 newest survive — r0, r1, r2 — plus the 2 starred
+        // older rows that the prune guard preserved.
+        #expect(remaining == ["r0", "r1", "r2", "r7", "r9"])
+    }
+
     @Test("ArticleStore.pruneFeed is a no-op when row count <= keeping")
     func articleStorePruneFeedNoOpUnderCap() throws {
         let store = try ArticleStore()

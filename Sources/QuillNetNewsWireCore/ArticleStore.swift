@@ -213,9 +213,20 @@ public final class ArticleStore: @unchecked Sendable {
         let rows = try context.fetch(descriptor)
         guard rows.count > keeping else { return }
         let sorted = rows.sorted(by: Self.newestFirst)
+        // Never prune a starred row — the user explicitly
+        // saved it. Without this guard, a starred article older
+        // than the keep window would silently vanish from the
+        // Starred smart feed (storedStarredItems queries
+        // SQLite); the JSON starredArticleIDs set would still
+        // say it's starred, so the cross-feed badge count
+        // would diverge too.
+        var deleted = 0
         for row in sorted.dropFirst(keeping) {
+            if row.isStarred { continue }
             context.delete(row)
+            deleted += 1
         }
+        guard deleted > 0 else { return }
         try context.save()
     }
 
