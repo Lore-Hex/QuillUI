@@ -1396,7 +1396,10 @@ final class RSSReaderModel: ObservableObject {
     /// the current list to subscriptions.opml so launches
     /// after a subscribe / unsubscribe survive.
     @Published var subscribedFeeds: [Feed] {
-        didSet { persistSubscriptionsIfReady() }
+        didSet {
+            syncSubscriptionRootIfFlat()
+            persistSubscriptionsIfReady()
+        }
     }
 
     /// Hierarchical mirror of `subscribedFeeds`. When the user
@@ -1404,7 +1407,9 @@ final class RSSReaderModel: ObservableObject {
     /// gets preserved here (the flat list keeps every feed for
     /// callers that don't care about folders). Defaults to a
     /// single root folder holding all seeded feeds.
-    @Published var subscriptionRoot: OPMLImporter.Folder
+    @Published var subscriptionRoot: OPMLImporter.Folder {
+        didSet { persistSubscriptionsIfReady() }
+    }
     @Published var selectedFeedID: Feed.ID? {
         didSet { persistSelectionIfReady() }
     }
@@ -1468,24 +1473,37 @@ final class RSSReaderModel: ObservableObject {
         // reader's seed catalog stay as the first-launch
         // default while still picking up post-add/remove state.
         let resolvedFeeds: [Feed]
+        let resolvedRoot: OPMLImporter.Folder
         if let data = persistence.loadOPMLExport() {
             let parsed = OPMLImporter.parseTree(data: data)
             let leaves = parsed.root.allFeeds
-            resolvedFeeds = leaves.isEmpty ? subscribedFeeds : leaves
+            if leaves.isEmpty {
+                resolvedFeeds = subscribedFeeds
+                resolvedRoot = OPMLImporter.Folder(
+                    name: "",
+                    feeds: subscribedFeeds,
+                    subfolders: []
+                )
+            } else {
+                resolvedFeeds = leaves
+                // Restore the persisted folder hierarchy too —
+                // tree-aware exportTree round-trips through parse
+                // Tree so subfolder structure (and any future
+                // rename / reorder) survives relaunch instead of
+                // collapsing back to flat on every restart.
+                resolvedRoot = parsed.root
+            }
         } else {
             resolvedFeeds = subscribedFeeds
+            resolvedRoot = OPMLImporter.Folder(
+                name: "",
+                feeds: subscribedFeeds,
+                subfolders: []
+            )
         }
         self.subscribedFeeds = resolvedFeeds
         self.selectedFeedID = resolvedFeeds.first?.id
-        // Default tree is a single root folder holding every
-        // seeded feed. OPML import replaces this with the
-        // tree-preserving counterpart when callers reach for
-        // importOPMLTree(...).
-        self.subscriptionRoot = OPMLImporter.Folder(
-            name: "",
-            feeds: resolvedFeeds,
-            subfolders: []
-        )
+        self.subscriptionRoot = resolvedRoot
         // Restore mark-as-read + starred history. Failed reads
         // (first launch, missing file) yield empty sets so the
         // model just starts fresh.
@@ -1602,9 +1620,44 @@ final class RSSReaderModel: ObservableObject {
     /// persistenceReady gate prevents the initial assignment
     /// from clobbering disk before init has resolved the
     /// final list).
+    /// Keep `subscriptionRoot` in lock-step with `subscribedFeeds`
+    /// when the user is in the simple flat-list mode (no nested
+    /// folders). Without this, appending to subscribedFeeds via
+    /// addSubscription / mergeImportedFeeds would leave the root
+    /// stale and the tree-export persistence path would write
+    /// only the pre-mutation feeds, losing new additions across
+    /// relaunch. When subscriptionRoot has real folder structure
+    /// (named root OR any subfolders), assume the change came
+    /// through an importer that already synced both views and
+    /// don't touch.
+    private func syncSubscriptionRootIfFlat() {
+        let isFlatDefault = subscriptionRoot.name.isEmpty &&
+            subscriptionRoot.subfolders.isEmpty
+        guard isFlatDefault else { return }
+        guard subscriptionRoot.feeds != subscribedFeeds else { return }
+        subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: subscribedFeeds,
+            subfolders: []
+        )
+    }
+
     private func persistSubscriptionsIfReady() {
         guard persistenceReady else { return }
-        persistence.saveOPMLExport(exportOPMLData())
+        // Tree-preserving export so folder structure (and any
+        // future folder rename / reorder) round-trips through
+        // the saved OPML. Flat exportOPMLData remains for tests
+        // and callers that need flat semantics. OPMLImporter
+        // .parseTree reads either shape back into the same
+        // hierarchy.
+        persistence.saveOPMLExport(exportOPMLTreeData())
+    }
+
+    /// Tree-preserving counterpart to exportOPMLData. Used by
+    /// persistSubscriptionsIfReady so folder structure survives
+    /// relaunch. Walks subscriptionRoot via OPMLExporter.exportTree.
+    public func exportOPMLTreeData(title: String? = nil) -> Data {
+        OPMLExporter.exportTreeData(root: subscriptionRoot, title: title)
     }
 
     /// Mirrors persistSubscriptionsIfReady for sidebar selection

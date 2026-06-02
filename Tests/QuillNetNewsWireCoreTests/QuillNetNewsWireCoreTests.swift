@@ -1930,6 +1930,105 @@ struct QuillNetNewsWireCoreTests {
         #expect(restored.selectedFeedID == "https://a.test/feed")
     }
 
+    @Test("OPMLExporter.exportTree wraps named subfolders as group outlines")
+    func opmlExportTreeWrapsSubfolders() {
+        let root = OPMLImporter.Folder(
+            name: "",
+            feeds: [Feed(title: "RootFeed", url: "https://r.test/feed")],
+            subfolders: [
+                OPMLImporter.Folder(
+                    name: "Tech",
+                    feeds: [Feed(title: "Hacker News", url: "https://hn.test/feed")],
+                    subfolders: []
+                ),
+            ]
+        )
+        let xml = OPMLExporter.exportTree(root: root)
+        #expect(xml.contains("<outline text=\"Tech\""))
+        #expect(xml.contains("xmlUrl=\"https://hn.test/feed\""))
+        #expect(xml.contains("xmlUrl=\"https://r.test/feed\""))
+    }
+
+    @Test("OPMLExporter.exportTree round-trips through OPMLImporter.parseTree")
+    func opmlExportTreeRoundTrips() {
+        let root = OPMLImporter.Folder(
+            name: "",
+            feeds: [Feed(title: "Top", url: "https://top.test/feed")],
+            subfolders: [
+                OPMLImporter.Folder(
+                    name: "Tech",
+                    feeds: [Feed(title: "HN", url: "https://hn.test/feed")],
+                    subfolders: [
+                        OPMLImporter.Folder(
+                            name: "Subgroup",
+                            feeds: [Feed(title: "Nested", url: "https://n.test/feed")],
+                            subfolders: []
+                        ),
+                    ]
+                ),
+            ]
+        )
+        let xml = OPMLExporter.exportTree(root: root)
+        let parsed = OPMLImporter.parseTree(data: Data(xml.utf8))
+        // Top-level feed survives.
+        #expect(parsed.root.feeds.map(\.url) == ["https://top.test/feed"])
+        // Subfolder name + feeds survive.
+        #expect(parsed.root.subfolders.count == 1)
+        let tech = parsed.root.subfolders[0]
+        #expect(tech.name == "Tech")
+        #expect(tech.feeds.map(\.url) == ["https://hn.test/feed"])
+        // Nested subfolder survives.
+        #expect(tech.subfolders.count == 1)
+        let nested = tech.subfolders[0]
+        #expect(nested.name == "Subgroup")
+        #expect(nested.feeds.map(\.url) == ["https://n.test/feed"])
+    }
+
+    @MainActor
+    @Test("subscribedFeeds append syncs the flat subscriptionRoot to match")
+    func subscribedFeedsAppendSyncsFlatRoot() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        // Default root is the empty-name flat folder mirror.
+        #expect(model.subscriptionRoot.feeds.map(\.url) == ["https://a.test/feed"])
+        model.subscribedFeeds.append(Feed(title: "B", url: "https://b.test/feed"))
+        // Root should have caught up.
+        #expect(model.subscriptionRoot.feeds.map(\.url) == ["https://a.test/feed", "https://b.test/feed"])
+    }
+
+    @MainActor
+    @Test("Folder structure round-trips through persistence")
+    func folderStructurePersists() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-folder-persist-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        let first = RSSReaderModel(subscribedFeeds: [], persistence: store)
+        // Mutate subscriptionRoot to a hierarchy.
+        first.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(
+                    name: "Tech",
+                    feeds: [Feed(title: "HN", url: "https://hn.test/feed")],
+                    subfolders: []
+                ),
+            ]
+        )
+        // subscribedFeeds didn't change → mergeImportedFeeds
+        // wasn't called, but we still need it populated for the
+        // restored model. Append explicitly to mirror the parseTree
+        // path.
+        first.subscribedFeeds.append(Feed(title: "HN", url: "https://hn.test/feed"))
+        // Reinit: the tree should be restored.
+        let second = RSSReaderModel(subscribedFeeds: [], persistence: store)
+        #expect(second.subscriptionRoot.subfolders.count == 1)
+        #expect(second.subscriptionRoot.subfolders.first?.name == "Tech")
+    }
+
     @MainActor
     @Test("feedTitle(forItemID:) returns the active feed's title for active items")
     func feedTitleForActiveItems() {

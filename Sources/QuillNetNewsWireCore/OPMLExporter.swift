@@ -46,6 +46,61 @@ public enum OPMLExporter {
         Data(export(feeds: feeds, title: title).utf8)
     }
 
+    /// Tree-preserving export: walks an OPMLImporter.Folder
+    /// hierarchy and emits nested `<outline>` group wrappers
+    /// for each named subfolder, with `<outline type="rss" />`
+    /// leaves inside. The unnamed root folder's name is NOT
+    /// emitted as a wrapper (its feeds + subfolders inline
+    /// directly under `<body>`); named subfolders become group
+    /// outlines per OPML 2.0 conventions. Round-trips back
+    /// through OPMLImporter.parseTree with the same structure.
+    public static func exportTree(
+        root: OPMLImporter.Folder,
+        title: String? = nil
+    ) -> String {
+        let headTitle = title ?? defaultTitle
+        var out = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <opml version="2.0">
+          <head>
+            <title>\(escapeAttribute(headTitle))</title>
+          </head>
+          <body>
+
+        """
+        // Root's own feeds inline first, then named subfolders
+        // as group outlines. Same depth-first walk OPMLImporter
+        // would round-trip back into a Folder tree.
+        appendFolderContents(root, indent: "    ", into: &out)
+        out.append("  </body>\n</opml>\n")
+        return out
+    }
+
+    public static func exportTreeData(
+        root: OPMLImporter.Folder,
+        title: String? = nil
+    ) -> Data {
+        Data(exportTree(root: root, title: title).utf8)
+    }
+
+    private static func appendFolderContents(
+        _ folder: OPMLImporter.Folder,
+        indent: String,
+        into out: inout String
+    ) {
+        for feed in folder.feeds {
+            let text = escapeAttribute(feed.title)
+            let url = escapeAttribute(feed.url)
+            out.append("\(indent)<outline type=\"rss\" text=\"\(text)\" title=\"\(text)\" xmlUrl=\"\(url)\"/>\n")
+        }
+        for sub in folder.subfolders {
+            let name = escapeAttribute(sub.name)
+            out.append("\(indent)<outline text=\"\(name)\" title=\"\(name)\">\n")
+            appendFolderContents(sub, indent: indent + "  ", into: &out)
+            out.append("\(indent)</outline>\n")
+        }
+    }
+
     /// Minimal XML-attribute escape: covers the five
     /// predefined entities so the resulting attribute is
     /// well-formed regardless of feed-title contents.
