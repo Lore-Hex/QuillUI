@@ -151,6 +151,7 @@ public struct QuillNetNewsWireContentView: View {
 
     private func articleRow(_ item: RSSArticleRow) -> some View {
         let isUnread = !model.isRead(id: item.id)
+        let isStarred = model.isStarred(id: item.id)
         return HStack(alignment: .top, spacing: 6) {
             // Unread indicator: an upstream-NetNewsWire-style filled
             // circle in the leading gutter. Reserves the same width
@@ -160,11 +161,19 @@ public struct QuillNetNewsWireContentView: View {
                 .foregroundColor(.blue)
                 .frame(width: 10, alignment: .leading)
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(.subheadline)
-                    .fontWeight(isUnread ? .bold : .regular)
-                    .lineLimit(2)
-                    .frame(width: 244, alignment: .leading)
+                HStack(spacing: 4) {
+                    Text(item.title)
+                        .font(.subheadline)
+                        .fontWeight(isUnread ? .bold : .regular)
+                        .lineLimit(2)
+                        .frame(width: isStarred ? 226 : 244, alignment: .leading)
+                    if isStarred {
+                        Text("★")
+                            .font(.caption)
+                            .foregroundColor(.yellow)
+                            .frame(width: 14, alignment: .trailing)
+                    }
+                }
                 if !item.publishedSummary.isEmpty {
                     Text(item.publishedSummary)
                         .font(.caption2)
@@ -202,7 +211,18 @@ public struct QuillNetNewsWireContentView: View {
             if let item = model.selectedDetail {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text(item.title).font(.title).bold()
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(item.title).font(.title).bold()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            // Star toggle in the detail header. A
+                            // filled glyph when starred, hollow when
+                            // not — same affordance as upstream
+                            // NetNewsWire's toolbar star button.
+                            Button(model.isStarred(id: item.id) ? "★" : "☆") {
+                                model.toggleStarred(id: item.id)
+                            }
+                            .font(.title2)
+                        }
                         if !item.publishedSummary.isEmpty {
                             Text(item.publishedSummary)
                                 .font(.caption)
@@ -397,6 +417,13 @@ final class RSSReaderModel: ObservableObject {
         didSet { updateStatusText() }
     }
 
+    /// Set of starred article IDs. Same flat-set shape as
+    /// readArticleIDs; will share its persistence backend in the
+    /// SQLite iteration. Upstream NetNewsWire surfaces starred
+    /// articles via the Starred smart feed and a per-article
+    /// star toggle in the detail header.
+    @Published private(set) var starredArticleIDs: Set<String> = []
+
     /// Multi-feed subscription list. Single-feed callers can
     /// ignore this and keep using `fetch(urlString:)` directly;
     /// the three-pane sidebar iteration will drive selection
@@ -522,6 +549,37 @@ final class RSSReaderModel: ObservableObject {
 
     func isRead(id: String) -> Bool {
         readArticleIDs.contains(id)
+    }
+
+    func isStarred(id: String) -> Bool {
+        starredArticleIDs.contains(id)
+    }
+
+    /// Toggle starred state for any article ID. Used by the
+    /// detail-pane star button and (later) the S keyboard
+    /// shortcut. Mirrors readArticleIDs' insert-or-remove shape.
+    func toggleStarred(id: String) {
+        if starredArticleIDs.contains(id) {
+            starredArticleIDs.remove(id)
+        } else {
+            starredArticleIDs.insert(id)
+        }
+    }
+
+    /// Toggle starred state on the currently-selected article.
+    /// No-op when nothing is selected.
+    func toggleStarredOnSelection() {
+        guard let selectedID else { return }
+        toggleStarred(id: selectedID)
+    }
+
+    /// Count of starred items in the currently-loaded timeline.
+    /// Doesn't yet aggregate across feeds (the smart-feed iteration
+    /// will introduce a separate fetch-all-starred view).
+    var starredCount: Int {
+        items.reduce(0) { acc, item in
+            acc + (starredArticleIDs.contains(item.id) ? 1 : 0)
+        }
     }
 
     /// Number of items currently loaded that the user has not yet
