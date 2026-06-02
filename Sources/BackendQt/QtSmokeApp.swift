@@ -2,7 +2,8 @@
 //
 // This is the payload the spike proves: a genuine SwiftOpenUI `App` (NOT
 // hand-built C++ Qt widgets) whose WindowGroup → VStack { Text; Button; Toggle;
-// Menu; panel } is walked by the generic QtBackend and rendered with native Qt widgets.
+// TextField; Picker; Menu; panel } is walked by the generic QtBackend and
+// rendered with native Qt widgets.
 //
 // It is shaped to exercise the SAME surface the screenshot verifier checks via
 // `validate_quill_backend_interaction_smoke`:
@@ -60,14 +61,27 @@ struct QtSmokeView: View {
     @State private var isCheckboxOn = false
     @State private var textFieldValue = "Qt TextField"
     @State private var menuSelection = "none"
+    @State private var pickerSelection = "alpha"
 
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Native backend render target")
 
+                // Always-on dark panel FIRST (content origin) so it fills the
+                // verifier's panel ROI (y 145-310) deterministically, independent
+                // of how many interactive demo controls are added below it. (Earlier
+                // the panel sat AFTER the controls and drifted out of the ROI as each
+                // new conformance smoke was appended.)
+                Color(
+                    red: QtSmokeMetrics.panelRed,
+                    green: QtSmokeMetrics.panelGreen,
+                    blue: QtSmokeMetrics.panelBlue
+                )
+                .frame(width: QtSmokeMetrics.panelWidth, height: QtSmokeMetrics.panelHeight)
+
                 // Bound to @State through the generic QtViewHost so a click rebuilds
-                // the subtree; the dark panel below does NOT depend on this toggle.
+                // the subtree; the dark panel above does NOT depend on this toggle.
                 Button(isOpen ? "Toggle (on)" : "Toggle (off)") {
                     isOpen.toggle()
                 }
@@ -79,6 +93,13 @@ struct QtSmokeView: View {
 
                 TextField("QLineEdit placeholder", text: $textFieldValue)
                 Text("TextField echo: \(textFieldValue)")
+
+                Picker("QComboBox Picker", selection: $pickerSelection) {
+                    Text("Picker Alpha").tag("alpha")
+                    Text("Picker Beta").tag("beta")
+                    Text("Picker Gamma").tag("gamma")
+                }
+                Text("Picker choice: \(pickerSelection)")
 
                 Menu("QToolButton Menu") {
                     Button("Choose Alpha") {
@@ -92,15 +113,6 @@ struct QtSmokeView: View {
 
                 Image(systemName: "checkmark.circle.fill")
                     .imageScale(.large)
-
-                // Always-on dark panel. Leading-aligned at the content origin and
-                // tall enough to fill the verifier's panel ROI deterministically.
-                Color(
-                    red: QtSmokeMetrics.panelRed,
-                    green: QtSmokeMetrics.panelGreen,
-                    blue: QtSmokeMetrics.panelBlue
-                )
-                .frame(width: QtSmokeMetrics.panelWidth, height: QtSmokeMetrics.panelHeight)
 
                 List {
                     ForEach(["ForEach row one", "ForEach row two", "ForEach row three"], id: \.self) { row in

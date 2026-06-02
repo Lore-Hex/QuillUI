@@ -253,6 +253,11 @@ final class QtStringClosureBox {
     init(_ closure: @escaping (String) -> Void) { self.closure = closure }
 }
 
+final class QtIntClosureBox {
+    let closure: (Int) -> Void
+    init(_ closure: @escaping (Int) -> Void) { self.closure = closure }
+}
+
 func qtTextLabel(from view: any View) -> String {
     if let text = view as? Text {
         return text.content
@@ -496,6 +501,51 @@ extension Toggle: QtRenderable {
 
         quill_qt_check_box_connect_toggled(qtHandle(checkBox), toggled, box, destroy)
         return checkBox
+    }
+}
+
+extension Picker: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let comboBox = qtOpaque(quill_qt_make_combo_box())
+        for option in options {
+            quill_qt_combo_box_add_item(qtHandle(comboBox), option)
+        }
+
+        let selectedIndex = options.indices.contains(selected)
+            ? selected
+            : (options.isEmpty ? -1 : 0)
+        quill_qt_combo_box_set_current_index(qtHandle(comboBox), Int32(selectedIndex))
+
+        guard let onChanged else {
+            return comboBox
+        }
+
+        let box = Unmanaged.passRetained(QtIntClosureBox { newIndex in
+            guard options.indices.contains(newIndex), newIndex != selected else {
+                return
+            }
+            onChanged(newIndex)
+        }).toOpaque()
+
+        let currentIndexChanged: quill_qt_bridge_index_callback = { index, userData in
+            guard let userData else { return }
+            Unmanaged<QtIntClosureBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+                .closure(Int(index))
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtIntClosureBox>.fromOpaque(userData).release()
+        }
+
+        quill_qt_combo_box_connect_current_index_changed(
+            qtHandle(comboBox),
+            currentIndexChanged,
+            box,
+            destroy
+        )
+        return comboBox
     }
 }
 #endif
