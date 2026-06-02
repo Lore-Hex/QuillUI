@@ -69,4 +69,23 @@ public enum QuillWireGuardActivationService {
             interface: QuillWireGuardLiveStatusService.interfaceName(forTunnelNamed: name)
         )
     }
+
+    /// Remove a tunnel: bring it down (best-effort — it may already be down, or
+    /// deactivation may need root we lack) then delete its on-disk wg-quick config.
+    /// Deleting a config that isn't there is a no-op, so this is idempotent. The
+    /// deactivate is best-effort so a "forget" still succeeds on a tunnel that was
+    /// never up; callers needing a guaranteed teardown should `deactivate` first.
+    public static func remove<Runner: QuillWireGuardCommandRunner>(
+        tunnelNamed name: String,
+        controller: QuillWireGuardRuntimeController<Runner>,
+        directory: String = QuillWireGuardConfigInstaller.defaultDirectory,
+        fileManager: FileManager = .default
+    ) throws {
+        try? deactivate(tunnelNamed: name, controller: controller)
+        let interface = QuillWireGuardLiveStatusService.interfaceName(forTunnelNamed: name)
+        let path = QuillWireGuardConfigInstaller.configPath(forInterface: interface, directory: directory)
+        if fileManager.fileExists(atPath: path) {
+            try fileManager.removeItem(atPath: path)
+        }
+    }
 }
