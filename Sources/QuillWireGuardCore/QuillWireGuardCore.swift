@@ -61,6 +61,9 @@ public enum QuillWireGuardPresentation {
     public static let dataReceivedLabel = "Data received"
     public static let dataSentLabel = "Data sent"
     public static let latestHandshakeLabel = "Latest handshake"
+    public static let connectLabel = "Connect"
+    public static let disconnectLabel = "Disconnect"
+    public static let connectFailedPrefix = "Couldn't change tunnel state: "
     public static let noneText = "None"
 }
 

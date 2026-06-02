@@ -90,6 +90,8 @@ public struct WireGuardFallbackConfigurationView: View {
     /// CPU (vs ~3% baseline). @State persists across rebuilds so the flag holds;
     /// per-selection refreshes still happen via the row tap handler.
     @State private var didFetchInitialLiveStatus = false
+    /// Last connect/disconnect error, shown inline (e.g. activation needs root).
+    @State private var connectErrorText: String?
 
     public init() {}
 
@@ -213,6 +215,8 @@ public struct WireGuardFallbackConfigurationView: View {
                                 .font(.caption)
                                 .foregroundColor(WireGuardFallbackStyle.secondaryTextColor)
                         }
+
+                        connectRow(for: tunnel)
 
                         section(title: QuillWireGuardPresentation.interfaceSectionTitle) {
                             detailRow(QuillWireGuardPresentation.publicKeyLabel, tunnel.interface.publicKey, monospaced: true)
@@ -349,6 +353,50 @@ public struct WireGuardFallbackConfigurationView: View {
             controller: controller,
             now: Date()
         )
+    }
+
+    /// Connect / disconnect control for the selected tunnel. A discrete button
+    /// action (never a render/lifecycle path), so it's safe to shell out here.
+    private func connectRow(for tunnel: QuillWireGuardTunnel) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                toggleConnection(for: tunnel)
+            } label: {
+                Text(isActive(tunnel)
+                    ? QuillWireGuardPresentation.disconnectLabel
+                    : QuillWireGuardPresentation.connectLabel)
+            }
+            if let connectErrorText {
+                Text(connectErrorText)
+                    .font(.caption2)
+                    .foregroundColor(Color(hex: QuillWireGuardStyle.errorTextColor))
+                    .lineLimit(2)
+            }
+            Spacer()
+        }
+    }
+
+    /// Whether the tunnel's interface is currently up (live status wins; falls back
+    /// to the configured status before the first fetch).
+    private func isActive(_ tunnel: QuillWireGuardTunnel) -> Bool {
+        liveStatusByTunnelID[tunnel.id]?.isActive ?? (tunnel.status == .active)
+    }
+
+    /// Bring the tunnel up or down via the activation service, surfacing failures
+    /// (e.g. wg-quick needs root) inline, then refresh its live status.
+    private func toggleConnection(for tunnel: QuillWireGuardTunnel) {
+        connectErrorText = nil
+        let controller = QuillWireGuardRuntimeController(runner: QuillWireGuardProcessRunner())
+        do {
+            if isActive(tunnel) {
+                try QuillWireGuardActivationService.deactivate(tunnelNamed: tunnel.name, controller: controller)
+            } else {
+                try QuillWireGuardActivationService.activate(tunnel: tunnel, controller: controller)
+            }
+        } catch {
+            connectErrorText = QuillWireGuardPresentation.connectFailedPrefix + "\(error)"
+        }
+        refreshLiveStatus(for: tunnel)
     }
 
     private func showImportPanel() {
