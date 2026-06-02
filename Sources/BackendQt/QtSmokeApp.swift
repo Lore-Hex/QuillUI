@@ -58,6 +58,7 @@ public struct QtSmokeApp: App {
 struct QtSmokeView: View {
     @State private var isOpen = false
     @State private var isCheckboxOn = false
+    @State private var textFieldValue = "Qt TextField"
 
     var body: some View {
         ScrollView(.vertical) {
@@ -74,6 +75,9 @@ struct QtSmokeView: View {
                     isCheckboxOn ? "QCheckBox Toggle (on)" : "QCheckBox Toggle (off)",
                     isOn: $isCheckboxOn
                 )
+
+                TextField("QLineEdit placeholder", text: $textFieldValue)
+                Text("TextField echo: \(textFieldValue)")
 
                 Image(systemName: "checkmark.circle.fill")
                     .imageScale(.large)

@@ -35,6 +35,9 @@ typedef void (*quill_qt_bridge_click_callback)(void *user_data);
 // Toggle callback for checkboxes. `checked` is 1 when on, 0 when off.
 typedef void (*quill_qt_bridge_toggle_callback)(int checked, void *user_data);
 
+// Text callback for line edits. `text` is a UTF-8 string valid for the call.
+typedef void (*quill_qt_bridge_text_callback)(const char *text, void *user_data);
+
 // Deferred (queued) callback used by QtViewHost to coalesce reactive rebuilds,
 // mirroring GTK's `g_idle_add`. Posted via QTimer::singleShot(0, ...).
 typedef void (*quill_qt_bridge_idle_callback)(void *user_data);
@@ -182,6 +185,31 @@ void quill_qt_check_box_set_checked(
 void quill_qt_check_box_connect_toggled(
     QuillQtWidgetHandle check_box,
     quill_qt_bridge_toggle_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
+// Create a QLineEdit. Swift configures placeholder, text, and signal wiring
+// separately so the initial setText() does not fire the Swift binding callback.
+QuillQtWidgetHandle quill_qt_make_line_edit(void);
+
+// Set the QLineEdit placeholder text from a UTF-8 SwiftUI TextField title.
+void quill_qt_line_edit_set_placeholder_text(
+    QuillQtWidgetHandle line_edit,
+    const char *text
+);
+
+// Set the QLineEdit current text from a UTF-8 SwiftUI TextField binding.
+void quill_qt_line_edit_set_text(
+    QuillQtWidgetHandle line_edit,
+    const char *text
+);
+
+// Connect QLineEdit::textChanged(QString) to Swift. `destroy` releases
+// `user_data` when the line edit is destroyed.
+void quill_qt_line_edit_connect_text_changed(
+    QuillQtWidgetHandle line_edit,
+    quill_qt_bridge_text_callback callback,
     void *user_data,
     quill_qt_bridge_click_callback destroy
 );
