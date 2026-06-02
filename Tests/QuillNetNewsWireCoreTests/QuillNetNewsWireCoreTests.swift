@@ -1931,6 +1931,35 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("importOPML preserves folder hierarchy from the source XML")
+    func importOPMLPreservesFolders() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <opml version="2.0">
+          <head><title>Test</title></head>
+          <body>
+            <outline text="TopFeed" type="rss" xmlUrl="https://top.test/feed"/>
+            <outline text="Tech" title="Tech">
+              <outline text="HN" type="rss" xmlUrl="https://hn.test/feed"/>
+              <outline text="LWN" type="rss" xmlUrl="https://lwn.test/feed"/>
+            </outline>
+          </body>
+        </opml>
+        """
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let added = model.importOPML(xml: xml)
+        #expect(added == 3)
+        // Flat subscription list got every leaf.
+        #expect(model.subscribedFeeds.count == 3)
+        // Folder hierarchy preserved.
+        #expect(model.subscriptionRoot.feeds.map(\.url) == ["https://top.test/feed"])
+        #expect(model.subscriptionRoot.subfolders.count == 1)
+        let tech = model.subscriptionRoot.subfolders[0]
+        #expect(tech.name == "Tech")
+        #expect(tech.feeds.map(\.url) == ["https://hn.test/feed", "https://lwn.test/feed"])
+    }
+
+    @MainActor
     @Test("reorderFolder moves a top-level folder up/down")
     func reorderFolderTopLevel() {
         let model = RSSReaderModel(subscribedFeeds: [])

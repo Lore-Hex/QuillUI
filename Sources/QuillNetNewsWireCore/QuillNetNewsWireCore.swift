@@ -1956,8 +1956,16 @@ final class RSSReaderModel: ObservableObject {
     /// can surface "Imported N feeds".
     @discardableResult
     func importOPML(data: Data) -> Int {
-        let result = OPMLImporter.parse(data: data)
-        return mergeImportedFeeds(result.feeds)
+        // Route through the tree-preserving import so dropped /
+        // file-picked OPMLs surface their folder structure in
+        // the sidebar (and round-trip through saved tree
+        // persistence). Upstream NetNewsWire exports OPML with
+        // <outline> group wrappers, so the previous flat parse
+        // silently discarded the user's organization on every
+        // import. The flat importOPML signature is preserved
+        // for callers that don't care about hierarchy — they
+        // still get the flat subscribedFeeds list as before.
+        importOPMLTree(data: data)
     }
 
     @discardableResult
