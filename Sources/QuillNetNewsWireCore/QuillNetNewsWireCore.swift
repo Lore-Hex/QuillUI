@@ -3799,6 +3799,12 @@ final class RSSReaderModel: ObservableObject {
         )
         guard didRename else { return false }
         subscriptionRoot = updated
+        // Carry the active folder selection across the rename
+        // so the user stays in the same view rather than
+        // dropping back to whatever the fall-through is.
+        if selectedFolderName == oldName {
+            selectedFolderName = trimmed
+        }
         return true
     }
 
@@ -3846,6 +3852,12 @@ final class RSSReaderModel: ObservableObject {
         )
         guard didRemove else { return false }
         subscriptionRoot = updated
+        // Drop folder-view selection if the active folder was
+        // the one removed — otherwise the view would silently
+        // empty out (selection points at nonexistent folder).
+        if selectedFolderName == name {
+            selectedFolderName = nil
+        }
         return true
     }
 

@@ -2564,6 +2564,53 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("renameFolder carries the active folder selection forward")
+    func renameFolderCarriesSelection() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [OPMLImporter.Folder(name: "Old", feeds: [], subfolders: [])]
+        )
+        model.selectFolder("Old")
+        #expect(model.selectedFolderName == "Old")
+        #expect(model.renameFolder(from: "Old", to: "New"))
+        #expect(model.selectedFolderName == "New")
+    }
+
+    @MainActor
+    @Test("removeFolder clears folder selection when active folder is removed")
+    func removeFolderClearsSelection() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [], subfolders: [])]
+        )
+        model.selectFolder("Tech")
+        #expect(model.selectedFolderName == "Tech")
+        #expect(model.removeFolder(named: "Tech"))
+        #expect(model.selectedFolderName == nil)
+    }
+
+    @MainActor
+    @Test("removeFolder leaves selection alone when removing a different folder")
+    func removeFolderLeavesOtherSelection() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(name: "Tech", feeds: [], subfolders: []),
+                OPMLImporter.Folder(name: "News", feeds: [], subfolders: []),
+            ]
+        )
+        model.selectFolder("Tech")
+        #expect(model.removeFolder(named: "News"))
+        #expect(model.selectedFolderName == "Tech")
+    }
+
+    @MainActor
     @Test("Folder selection persists across reinit")
     func folderSelectionPersists() {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
