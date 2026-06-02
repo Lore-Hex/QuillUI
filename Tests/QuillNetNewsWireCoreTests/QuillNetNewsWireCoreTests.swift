@@ -2299,6 +2299,38 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("markFolderAsRead walks every feed in folder, recursive into subfolders")
+    func markFolderAsReadRecursive() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        // Active feed = A, gets live items.
+        model.items = [
+            RSSItem(id: "a1", title: "A1", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "A2", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        // Inactive feed B in cache.
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "B1", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "b2", title: "B2", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        let folder = OPMLImporter.Folder(name: "All", feeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ], subfolders: [
+            OPMLImporter.Folder(name: "Nested", feeds: [
+                Feed(title: "B", url: "https://b.test/feed"),
+            ]),
+        ])
+        let added = model.markFolderAsRead(folder)
+        #expect(added == 4)
+        #expect(model.isRead(id: "a1"))
+        #expect(model.isRead(id: "a2"))
+        #expect(model.isRead(id: "b1"))
+        #expect(model.isRead(id: "b2"))
+    }
+
+    @MainActor
     @Test("unreadCount(in folder:) recurses into subfolders")
     func badgeFolderUnreadNested() {
         let model = RSSReaderModel(subscribedFeeds: [

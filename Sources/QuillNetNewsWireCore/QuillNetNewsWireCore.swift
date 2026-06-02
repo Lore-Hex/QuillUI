@@ -431,6 +431,18 @@ public struct QuillNetNewsWireContentView: View {
         let displayTitle = unread > 0 ? "\(title) (\(unread))" : title
         let inner = DisclosureGroup(displayTitle) {
             VStack(alignment: .leading, spacing: 2) {
+                // 'Mark Read' inside the folder block — only
+                // surfaces when something inside is unread.
+                // Matches NetNewsWire's per-folder action menu
+                // affordance.
+                if unread > 0 {
+                    Button("Mark folder read") {
+                        model.markFolderAsRead(folder)
+                    }
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 8)
+                }
                 ForEach(folder.feeds) { feed in
                     feedRow(feed)
                         .onTapGesture {
@@ -2181,6 +2193,32 @@ final class RSSReaderModel: ObservableObject {
         folder.allFeeds.reduce(0) { acc, feed in
             acc + unreadCount(forFeed: feed.id)
         }
+    }
+
+    /// Mark every article across every feed inside an OPML folder
+    /// (recursive via allFeeds) as read. Walks each feed's cached
+    /// items + the active feed's live items, routes through
+    /// markRead(id:) so the change propagates to readArticleIDs
+    /// + the ArticleStore + the JSON persistence. Returns the
+    /// count of newly-marked rows. Mirrors upstream NetNewsWire's
+    /// 'Mark All as Read in [Folder]' menu command.
+    @discardableResult
+    func markFolderAsRead(_ folder: OPMLImporter.Folder) -> Int {
+        let before = readArticleIDs.count
+        for feed in folder.allFeeds {
+            if feed.id == selectedFeedID {
+                // Active feed: hit the live items so the badge
+                // updates this tick.
+                for item in items {
+                    markRead(id: item.id)
+                }
+            } else if let cache = feedCaches[feed.id] {
+                for item in cache.items {
+                    markRead(id: item.id)
+                }
+            }
+        }
+        return readArticleIDs.count - before
     }
 
     /// Items in the current timeline that match the active smart
