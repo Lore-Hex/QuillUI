@@ -4022,7 +4022,7 @@ final class RSSReaderModel: ObservableObject {
     }
 
     private func updateSelectedItem() {
-        let item = selectedID.flatMap { selectedID in items.first(where: { $0.id == selectedID }) }
+        let item = resolveItem(forID: selectedID)
         if selectedItem != item {
             selectedItem = item
         }
@@ -4030,6 +4030,32 @@ final class RSSReaderModel: ObservableObject {
         if selectedDetail != detail {
             selectedDetail = detail
         }
+    }
+
+    /// Resolve an item by id across every place it might live —
+    /// active items + every cached feed's items + the SQLite-
+    /// only stored-starred / stored-unread pools surfaced in
+    /// smart-feed views since #113/#114. Without this fall-
+    /// through, clicking a stored-only row in the Starred /
+    /// All Unread smart feed showed a blank detail pane (items
+    /// search missed, selectedDetail stayed nil).
+    private func resolveItem(forID id: String?) -> RSSItem? {
+        guard let id else { return nil }
+        if let inItems = items.first(where: { $0.id == id }) {
+            return inItems
+        }
+        for (_, cache) in feedCaches {
+            if let cached = cache.items.first(where: { $0.id == id }) {
+                return cached
+            }
+        }
+        if let starred = storedStarredItems().first(where: { $0.id == id }) {
+            return starred
+        }
+        if let unread = storedUnreadItems().first(where: { $0.id == id }) {
+            return unread
+        }
+        return nil
     }
 
     private func updateRows() {

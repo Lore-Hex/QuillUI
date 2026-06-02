@@ -982,6 +982,41 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Selecting a SQLite-only stored item populates the detail pane")
+    func selectStoredOnlyItemResolvesDetail() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-storedselect-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try ArticleStore(directoryURL: dir)
+        let persistenceStore = PersistenceStore(directoryURL: dir)
+        try store.upsert([
+            PersistentArticle(
+                id: "x", accountID: "Local",
+                feedID: "https://x.test/feed",
+                uniqueID: "ux", title: "Stored only",
+                isStarred: true
+            ),
+        ])
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "X", url: "https://x.test/feed")],
+            persistence: persistenceStore,
+            articleStore: store
+        )
+        // Hydration loaded the SQLite row into the feed cache,
+        // but exercise the SQLite-only fall-through by dropping
+        // it from feedCaches first.
+        model.feedCaches.removeAll()
+        model.selectSmartFeed(.starred)
+        // Click the row.
+        model.selectItem(id: "ux")
+        // Detail pane should now have the article — pre-#128 it
+        // would have been nil since items search missed.
+        #expect(model.selectedDetail?.id == "ux")
+        #expect(model.selectedDetail?.title == "Stored only")
+    }
+
+    @MainActor
     @Test("All Unread surfaces SQLite-only unread (older than cache)")
     func allUnreadSpansSQLiteHistory() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
