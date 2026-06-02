@@ -58,6 +58,9 @@ public enum QuillWireGuardPresentation {
     public static let mtuLabel = "MTU"
     public static let preSharedKeyLabel = "Preshared key"
     public static let preSharedKeyEnabledText = "enabled"
+    public static let dataReceivedLabel = "Data received"
+    public static let dataSentLabel = "Data sent"
+    public static let latestHandshakeLabel = "Latest handshake"
     public static let noneText = "None"
 }
 
@@ -269,14 +272,24 @@ public struct QuillWireGuardPeerSnapshot: Codable, Equatable, Sendable {
     public var endpointText: String?
     public var keepAliveText: String?
     public var preSharedKeyText: String?
+    public var transferRxText: String?
+    public var transferTxText: String?
+    public var latestHandshakeText: String?
 
     public init(peer: QuillWireGuardPeer) {
+        self.init(peer: peer, live: nil)
+    }
+
+    public init(peer: QuillWireGuardPeer, live: QuillWireGuardLivePeerStats?) {
         self.name = peer.name
         self.publicKey = peer.publicKey
         self.allowedIPsText = peer.allowedIPs.joined(separator: ", ")
         self.endpointText = peer.endpoint
         self.keepAliveText = peer.persistentKeepAlive.map { "\($0)s" }
         self.preSharedKeyText = peer.preSharedKey != nil ? QuillWireGuardPresentation.preSharedKeyEnabledText : nil
+        self.transferRxText = live?.transferRxText
+        self.transferTxText = live?.transferTxText
+        self.latestHandshakeText = live?.latestHandshakeText
     }
 }
 
@@ -290,12 +303,21 @@ public struct QuillWireGuardTunnelSnapshot: Codable, Equatable, Identifiable, Se
     public var wgQuickConfig: String
 
     public init(tunnel: QuillWireGuardTunnel) {
+        self.init(tunnel: tunnel, liveStatus: nil)
+    }
+
+    public init(tunnel: QuillWireGuardTunnel, liveStatus: QuillWireGuardLiveStatus?) {
         self.id = tunnel.id
         self.name = tunnel.name
         self.statusText = tunnel.status.rawValue
         self.peerSummary = tunnel.peerSummary
         self.interface = QuillWireGuardInterfaceSnapshot(interface: tunnel.interface)
-        self.peers = tunnel.peers.map(QuillWireGuardPeerSnapshot.init(peer:))
+        self.peers = tunnel.peers.map { peer in
+            QuillWireGuardPeerSnapshot(
+                peer: peer,
+                live: liveStatus?.peers.first(where: { $0.publicKey == peer.publicKey })
+            )
+        }
         self.wgQuickConfig = tunnel.wgQuickConfig()
     }
 }
