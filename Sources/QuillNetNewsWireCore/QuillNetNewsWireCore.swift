@@ -4542,6 +4542,19 @@ final class RSSReaderModel: ObservableObject {
                     markRead(id: item.id)
                 }
             }
+            // Same SQLite-tail sweep as markFeedAsRead: rows
+            // beyond articlesPerFeedLimit (100) but still inside
+            // articleHistoryLimit (500) would survive the in-
+            // memory pass and resurface as unread via the All
+            // Unread smart feed, contradicting "Mark Folder
+            // Read". Upstream NetNewsWire's account-store walk
+            // covers every persisted row per feed in the folder.
+            if let articleStore,
+               let storedRows = try? articleStore.fetch(forFeed: feed.id) {
+                for row in storedRows where !readArticleIDs.contains(row.uniqueID) {
+                    markRead(id: row.uniqueID)
+                }
+            }
         }
         return readArticleIDs.count - before
     }

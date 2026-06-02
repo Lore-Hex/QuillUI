@@ -5316,6 +5316,57 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("markFolderAsRead also marks SQLite-only stored articles per feed")
+    func markFolderAsReadIncludesStoredOnly() throws {
+        // Two feeds, both in the same folder. Each has one
+        // stored-only row (cache tail). markFolderAsRead must
+        // sweep BOTH feeds' SQLite tails — otherwise All Unread
+        // would still surface the tail rows after the user said
+        // "clear this folder."
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-markfolder-store-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let articleStore = try ArticleStore(directoryURL: dir)
+        let feedA = "https://a.test/feed"
+        let feedB = "https://b.test/feed"
+        try articleStore.upsert([
+            PersistentArticle(
+                id: "tail-a", accountID: "Local", feedID: feedA, uniqueID: "tail-a",
+                title: "TailA", isRead: false, isStarred: false
+            ),
+            PersistentArticle(
+                id: "tail-b", accountID: "Local", feedID: feedB, uniqueID: "tail-b",
+                title: "TailB", isRead: false, isStarred: false
+            ),
+            // Also seed a 3rd-feed tail to confirm the folder
+            // scope is honored — outside-folder feeds must NOT
+            // get marked.
+            PersistentArticle(
+                id: "outsider", accountID: "Local", feedID: "https://c.test/feed",
+                uniqueID: "outsider", title: "Outside",
+                isRead: false, isStarred: false
+            ),
+        ])
+        let model = RSSReaderModel(
+            subscribedFeeds: [
+                Feed(title: "A", url: feedA),
+                Feed(title: "B", url: feedB),
+                Feed(title: "C", url: "https://c.test/feed"),
+            ],
+            articleStore: articleStore
+        )
+        let folder = OPMLImporter.Folder(name: "News", feeds: [
+            Feed(title: "A", url: feedA),
+            Feed(title: "B", url: feedB),
+        ])
+        let marked = model.markFolderAsRead(folder)
+        #expect(marked == 2)
+        #expect(model.readArticleIDs.contains("tail-a"))
+        #expect(model.readArticleIDs.contains("tail-b"))
+        #expect(!model.readArticleIDs.contains("outsider"))
+    }
+
+    @MainActor
     @Test("markFeedAsRead also marks SQLite-only stored articles (cache tail)")
     func markFeedAsReadIncludesStoredOnly() throws {
         // Cache-tail scenario: articleHistoryLimit lets SQLite
