@@ -492,6 +492,44 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("subscribedFeeds auto-persist + restore across reinit")
+    func persistenceSubscriptionsRoundTrip() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-subs-\(UUID().uuidString)")
+        let store = PersistenceStore(directoryURL: dir)
+        let first = RSSReaderModel(
+            subscribedFeeds: [
+                Feed(title: "Initial", url: "https://initial.test/feed"),
+            ],
+            persistence: store
+        )
+        // Add another subscription — didSet should write OPML.
+        first.subscribedFeeds.append(Feed(title: "Added", url: "https://added.test/feed"))
+        #expect(first.subscribedFeeds.count == 2)
+        // Reinit against same store — OPML file now overrides the seed.
+        let second = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "DefaultSeed", url: "https://wrong.test/feed")],
+            persistence: store
+        )
+        #expect(second.subscribedFeeds.map(\.title) == ["Initial", "Added"])
+        try? FileManager.default.removeItem(at: dir)
+    }
+
+    @MainActor
+    @Test("first launch (no OPML file) falls back to the supplied seed")
+    func persistenceSubscriptionsFreshSeed() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-fresh-\(UUID().uuidString)")
+        let store = PersistenceStore(directoryURL: dir)
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "Seed", url: "https://seed.test/feed")],
+            persistence: store
+        )
+        #expect(model.subscribedFeeds.map(\.title) == ["Seed"])
+        try? FileManager.default.removeItem(at: dir)
+    }
+
+    @MainActor
     @Test("saveOPMLExportToDisk writes subscriptions.opml + sets lastOPMLExportURL")
     func persistenceOPMLExportToDisk() {
         let dir = FileManager.default.temporaryDirectory

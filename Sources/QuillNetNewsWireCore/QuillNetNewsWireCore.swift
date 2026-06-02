@@ -901,8 +901,13 @@ final class RSSReaderModel: ObservableObject {
     /// Multi-feed subscription list. Single-feed callers can
     /// ignore this and keep using `fetch(urlString:)` directly;
     /// the three-pane sidebar iteration will drive selection
-    /// through `selectedFeedID`.
-    @Published var subscribedFeeds: [Feed]
+    /// through `selectedFeedID`. Auto-persists via the
+    /// PersistenceStore's OPML export — every mutation writes
+    /// the current list to subscriptions.opml so launches
+    /// after a subscribe / unsubscribe survive.
+    @Published var subscribedFeeds: [Feed] {
+        didSet { persistSubscriptionsIfReady() }
+    }
 
     /// Hierarchical mirror of `subscribedFeeds`. When the user
     /// imports an OPML file with nested folders, the structure
@@ -915,22 +920,41 @@ final class RSSReaderModel: ObservableObject {
     private var didStartInitialLoad = false
     private let initialSelectionEnvironment: [String: String]
 
+    /// Set during init AFTER all stored properties get their
+    /// values, so the subscribedFeeds didSet doesn't try to
+    /// persist the initial empty-state assignment. Without
+    /// this guard, every init would overwrite the OPML file
+    /// with whatever happened to be assigned first.
+    private var persistenceReady: Bool = false
+
     init(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         subscribedFeeds: [Feed] = DefaultFeedList.seed,
         persistence: PersistenceStore = .default
     ) {
         self.initialSelectionEnvironment = environment
-        self.subscribedFeeds = subscribedFeeds
-        self.selectedFeedID = subscribedFeeds.first?.id
         self.persistence = persistence
+        // Subscription list precedence: persisted OPML file if
+        // present, otherwise the caller-supplied seed. Lets the
+        // reader's seed catalog stay as the first-launch
+        // default while still picking up post-add/remove state.
+        let resolvedFeeds: [Feed]
+        if let data = persistence.loadOPMLExport() {
+            let parsed = OPMLImporter.parseTree(data: data)
+            let leaves = parsed.root.allFeeds
+            resolvedFeeds = leaves.isEmpty ? subscribedFeeds : leaves
+        } else {
+            resolvedFeeds = subscribedFeeds
+        }
+        self.subscribedFeeds = resolvedFeeds
+        self.selectedFeedID = resolvedFeeds.first?.id
         // Default tree is a single root folder holding every
         // seeded feed. OPML import replaces this with the
         // tree-preserving counterpart when callers reach for
         // importOPMLTree(...).
         self.subscriptionRoot = OPMLImporter.Folder(
             name: "",
-            feeds: subscribedFeeds,
+            feeds: resolvedFeeds,
             subfolders: []
         )
         // Restore mark-as-read + starred history. Failed reads
@@ -938,6 +962,18 @@ final class RSSReaderModel: ObservableObject {
         // model just starts fresh.
         self.readArticleIDs = persistence.loadReadArticleIDs()
         self.starredArticleIDs = persistence.loadStarredArticleIDs()
+        self.persistenceReady = true
+    }
+
+    /// Called from subscribedFeeds.didSet. Writes the current
+    /// list to subscriptions.opml so subscribe / unsubscribe /
+    /// reorder all survive relaunch. No-op during init (the
+    /// persistenceReady gate prevents the initial assignment
+    /// from clobbering disk before init has resolved the
+    /// final list).
+    private func persistSubscriptionsIfReady() {
+        guard persistenceReady else { return }
+        persistence.saveOPMLExport(exportOPMLData())
     }
 
     /// URL of the currently-selected subscribed feed. `nil` when

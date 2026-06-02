@@ -108,6 +108,15 @@ public struct PersistenceStore: Sendable {
         return url
     }
 
+    /// Load the subscriptions.opml file from the store
+    /// directory if it exists. Returns nil when missing or
+    /// unreadable — caller falls back to whatever default
+    /// subscription seed it wants.
+    public func loadOPMLExport() -> Data? {
+        let url = directoryURL.appendingPathComponent("subscriptions.opml")
+        return try? Data(contentsOf: url)
+    }
+
     private func loadStringSet(named filename: String) -> Set<String> {
         let url = directoryURL.appendingPathComponent(filename)
         guard let data = try? Data(contentsOf: url) else { return [] }
