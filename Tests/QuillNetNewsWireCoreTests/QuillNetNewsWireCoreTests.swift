@@ -2819,6 +2819,38 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Search inside a folder view scopes to the folder, not all feeds")
+    func searchWithinFolderScopesToFolder() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "InFolder", url: "https://in.test/feed"),
+            Feed(title: "Outside", url: "https://out.test/feed"),
+        ])
+        // Move one feed into a folder.
+        model.subscriptionRoot = OPMLImporter.Folder(
+            feeds: [Feed(title: "Outside", url: "https://out.test/feed")],
+            subfolders: [
+                OPMLImporter.Folder(name: "News", feeds: [
+                    Feed(title: "InFolder", url: "https://in.test/feed"),
+                ])
+            ]
+        )
+        // Seed caches for both feeds so cross-feed escape would
+        // have something to match if the bug recurs.
+        model.feedCaches["https://in.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "in-hit", title: "Swift in folder", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        model.feedCaches["https://out.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "out-hit", title: "Swift outside folder", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        model.selectFolder("News")
+        model.searchQuery = "Swift"
+        // Both items match "Swift", but only the folder item
+        // should appear — the bug returned both (cross-feed
+        // branch fired regardless of folder context).
+        #expect(Set(model.filteredItems.map(\.id)) == ["in-hit"])
+    }
+
+    @MainActor
     @Test("Hide Read keeps just-read article visible until view changes")
     func hideReadStickyVisibleMidSession() {
         let model = RSSReaderModel(subscribedFeeds: [

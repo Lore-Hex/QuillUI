@@ -4238,10 +4238,13 @@ final class RSSReaderModel: ObservableObject {
         // Folder view wins over default active-feed (but loses
         // to smart feed + search since those have explicit
         // cross-feed scope). The folder branch reads the
-        // already-computed itemsInFolder helper (#158).
+        // already-computed itemsInFolder helper (#158). Search
+        // INSIDE a folder narrows the folder pool — without
+        // this, search in folder view escaped to the full
+        // cross-feed pool because the smart-feed/search branch
+        // didn't know about the folder context.
         let pool: [RSSItem]
-        if let folderName = selectedFolderName,
-           selectedSmartFeed == nil, !searchActive {
+        if let folderName = selectedFolderName, selectedSmartFeed == nil {
             pool = itemsInFolder(named: folderName)
         } else if selectedSmartFeed != nil || searchActive {
             var seen = Set<String>()
