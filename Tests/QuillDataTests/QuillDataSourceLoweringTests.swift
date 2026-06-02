@@ -1611,7 +1611,10 @@ struct QuillDataSourceLoweringTests {
         let result = try runScript(
             script,
             arguments: [directory.path],
-            environment: ["QUILLUI_SWIFT_PACKAGE_PATH": root.path]
+            environment: [
+                "QUILLUI_SWIFT_PACKAGE_PATH": root.path,
+                "QUILLUI_SWIFTOPENUI_ROOT": directory.appendingPathComponent("checkouts/SwiftOpenUI").path,
+            ]
         )
         #expect(result.status == 0, Comment(rawValue: result.output))
 

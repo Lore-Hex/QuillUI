@@ -4,19 +4,20 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRATCH_PATH="${1:-$ROOT_DIR/.build-linux}"
 PACKAGE_PATH="${QUILLUI_SWIFT_PACKAGE_PATH:-$ROOT_DIR}"
-SWIFTOPENUI_MANIFEST="$PACKAGE_PATH/third_party/SwiftOpenUI/Package.swift"
-RENDERER="$PACKAGE_PATH/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift"
-DESCRIPTOR_TREE="$PACKAGE_PATH/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift"
-GTK_BACKEND="$PACKAGE_PATH/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4Backend.swift"
-GTK_VIEW_HOST="$PACKAGE_PATH/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift"
-NAVIGATION="$PACKAGE_PATH/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"
-GTK_SHIM="$PACKAGE_PATH/third_party/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h"
-TOOLBAR_MODIFIER="$PACKAGE_PATH/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ToolbarModifier.swift"
-LAYOUT="$PACKAGE_PATH/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Layout/Layout.swift"
-STATE="$PACKAGE_PATH/third_party/SwiftOpenUI/Sources/SwiftOpenUI/State/State.swift"
-CONTROL_STYLE_MODIFIERS="$PACKAGE_PATH/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"
-SYMBOLS="$PACKAGE_PATH/third_party/SwiftOpenUI/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"
-SCROLL_VIEW_READER="$PACKAGE_PATH/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/ScrollViewReader.swift"
+SWIFTOPENUI_ROOT="${QUILLUI_SWIFTOPENUI_ROOT:-$PACKAGE_PATH/third_party/SwiftOpenUI}"
+SWIFTOPENUI_MANIFEST="$SWIFTOPENUI_ROOT/Package.swift"
+RENDERER="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKRenderer.swift"
+DESCRIPTOR_TREE="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift"
+GTK_BACKEND="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4Backend.swift"
+GTK_VIEW_HOST="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKViewHost.swift"
+NAVIGATION="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"
+GTK_SHIM="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/CGTK/shim.h"
+TOOLBAR_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ToolbarModifier.swift"
+LAYOUT="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Layout/Layout.swift"
+STATE="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/State/State.swift"
+CONTROL_STYLE_MODIFIERS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"
+SYMBOLS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"
+SCROLL_VIEW_READER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Views/ScrollViewReader.swift"
 SWIFT_DEPENDENCIES_MAIN_QUEUE="$SCRATCH_PATH/checkouts/swift-dependencies/Sources/Dependencies/DependencyValues/MainQueue.swift"
 SWIFT_DEPENDENCIES_MAIN_RUN_LOOP="$SCRATCH_PATH/checkouts/swift-dependencies/Sources/Dependencies/DependencyValues/MainRunLoop.swift"
 SWIFT_DEPENDENCIES_SOURCE_DIR="$SCRATCH_PATH/checkouts/swift-dependencies/Sources/Dependencies"
@@ -31,11 +32,9 @@ XCTEST_DYNAMIC_OVERLAY_SOURCE_DIR="$SCRATCH_PATH/checkouts/xctest-dynamic-overla
 GRDB_SOURCE_DIR="$SCRATCH_PATH/checkouts/GRDB.swift/GRDB"
 SQLITE_DATA_SOURCE_DIR="$SCRATCH_PATH/checkouts/sqlite-data/Sources/SQLiteData"
 
-# SwiftOpenUI is now an in-tree path package (third_party/SwiftOpenUI), so its
-# files always exist; resolve unconditionally to populate the OTHER external
-# dependency checkouts (OpenCombine, swift-dependencies, GRDB, ...) this script
-# patches below.
-swift package resolve --package-path "$PACKAGE_PATH" --scratch-path "$SCRATCH_PATH" >/dev/null
+if [[ ! -f "$SWIFTOPENUI_MANIFEST" || ! -f "$RENDERER" || ! -f "$GTK_BACKEND" || ! -f "$GTK_VIEW_HOST" || ! -f "$SYMBOLS" || ! -f "$SCROLL_VIEW_READER" ]]; then
+  swift package resolve --package-path "$PACKAGE_PATH" --scratch-path "$SCRATCH_PATH" >/dev/null
+fi
 
 if [[ ! -f "$SWIFTOPENUI_MANIFEST" ]]; then
   echo "SwiftOpenUI manifest was not found at $SWIFTOPENUI_MANIFEST" >&2
