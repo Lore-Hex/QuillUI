@@ -212,7 +212,10 @@ public struct QuillNetNewsWireContentView: View {
                     // stays usable during Refresh All on other
                     // feeds — matches #141's per-URL gate for
                     // refresh).
-                    Button("Refresh") {
+                    // Label mirrors the timeline footer's
+                    // Refresh button (#149) so the in-flight
+                    // signal is consistent everywhere.
+                    Button(model.isLoading(forURL: feed.url) ? "Refreshing…" : "Refresh") {
                         Task { @MainActor in
                             await model.refreshFeed(urlString: feed.url)
                         }
