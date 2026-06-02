@@ -2813,6 +2813,24 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("incrementFailureCount stamps feedLastErrorAt; reset clears it")
+    func failureTimestampRoundTrip() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        #expect(model.feedLastErrorAt["https://a.test/feed"] == nil)
+        let beforeStamp = Date()
+        model.incrementFailureCount(forFeed: "https://a.test/feed")
+        guard let stamp = model.feedLastErrorAt["https://a.test/feed"] else {
+            Issue.record("Expected feedLastErrorAt entry after increment")
+            return
+        }
+        #expect(stamp >= beforeStamp)
+        model.resetFailureCount(forFeed: "https://a.test/feed")
+        #expect(model.feedLastErrorAt["https://a.test/feed"] == nil)
+    }
+
+    @MainActor
     @Test("Failure counter increments and resets via helper methods")
     func failureCounterIncrementReset() {
         let model = RSSReaderModel(subscribedFeeds: [

@@ -149,9 +149,15 @@ public struct QuillNetNewsWireContentView: View {
                 }
                 if let err = model.feedErrors[feed.id] {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Last error")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        if let when = model.feedLastErrorAt[feed.id] {
+                            Text("Last error · \(RSSReaderModel.relativeString(for: when, relativeTo: Date()))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("Last error")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                         Text(err)
                             .font(.caption)
                             .foregroundColor(.red)
@@ -1549,6 +1555,21 @@ final class RSSReaderModel: ObservableObject {
         persistence.saveConditionalGetInfo(conditionalGetInfo)
     }
 
+    /// Per-feed timestamp of the most recent error. Set by
+    /// incrementFailureCount; surfaces in the inspector
+    /// "Failed N ago" line so users can tell stale-but-failing
+    /// from broken-just-now. Persisted as Unix seconds for
+    /// JSON cleanliness.
+    @Published var feedLastErrorAt: [Feed.ID: Date] = [:] {
+        didSet { persistFeedLastErrorAtIfReady() }
+    }
+
+    private func persistFeedLastErrorAtIfReady() {
+        guard persistenceReady else { return }
+        let asDoubles = feedLastErrorAt.mapValues(\.timeIntervalSince1970)
+        persistence.saveFeedLastErrorAt(asDoubles)
+    }
+
     /// Consecutive-failure count at which refreshAllFeeds skips
     /// a feed. 5 chosen to give a feed plenty of chances to come
     /// back online during transient outages (~2.5 hours at the
@@ -1714,6 +1735,9 @@ final class RSSReaderModel: ObservableObject {
         self.feedErrors = persistence.loadFeedErrors()
         self.feedFailureCount = persistence.loadFeedFailureCount()
         self.conditionalGetInfo = persistence.loadConditionalGetInfo()
+        self.feedLastErrorAt = persistence.loadFeedLastErrorAt().mapValues {
+            Date(timeIntervalSince1970: $0)
+        }
         // Hydrate feedCaches from any persisted articles so the
         // timeline shows yesterday's items before today's fetch
         // even fires. Bucket by feedID, build the (items,
@@ -2449,6 +2473,7 @@ final class RSSReaderModel: ObservableObject {
         feedFailureCount.removeValue(forKey: id)
         feedIconURLs.removeValue(forKey: id)
         conditionalGetInfo.removeValue(forKey: id)
+        feedLastErrorAt.removeValue(forKey: id)
         // Drop the feed's SQLite rows so they don't re-hydrate
         // into feedCaches on next launch and resurface in
         // smart-feed / search views. Failures swallow so a flaky
@@ -4362,6 +4387,7 @@ final class RSSReaderModel: ObservableObject {
     /// state without driving real network traffic.
     func incrementFailureCount(forFeed urlString: String) {
         feedFailureCount[urlString, default: 0] += 1
+        feedLastErrorAt[urlString] = Date()
     }
 
     /// Reset a feed's consecutive-failure counter to zero. Used
@@ -4370,6 +4396,7 @@ final class RSSReaderModel: ObservableObject {
     /// the dict small for big subscription lists.
     func resetFailureCount(forFeed urlString: String) {
         feedFailureCount.removeValue(forKey: urlString)
+        feedLastErrorAt.removeValue(forKey: urlString)
     }
 
     /// Friendly error string for thrown Errors. Plain `"\(error)"`

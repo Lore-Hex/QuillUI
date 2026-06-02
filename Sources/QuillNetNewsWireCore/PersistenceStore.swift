@@ -203,6 +203,27 @@ public struct PersistenceStore: Sendable {
         try? data.write(to: url, options: .atomic)
     }
 
+    /// Per-feed timestamp of the most recent error. Surfaces in
+    /// the inspector "Failed N ago" line so users can tell if a
+    /// failing feed is a transient blip (minutes ago) vs. dead
+    /// for days. Stored as Unix seconds (Double) so the JSON
+    /// stays human-inspectable without TimeZone serialization
+    /// surprises.
+    public func loadFeedLastErrorAt() -> [String: Double] {
+        let url = directoryURL.appendingPathComponent("feedLastErrorAt.json")
+        guard let data = try? Data(contentsOf: url) else { return [:] }
+        return (try? JSONDecoder().decode([String: Double].self, from: data)) ?? [:]
+    }
+
+    public func saveFeedLastErrorAt(_ map: [String: Double]) {
+        try? FileManager.default.createDirectory(
+            at: directoryURL, withIntermediateDirectories: true, attributes: nil
+        )
+        let url = directoryURL.appendingPathComponent("feedLastErrorAt.json")
+        guard let data = try? JSONEncoder().encode(map) else { return }
+        try? data.write(to: url, options: .atomic)
+    }
+
     /// Persisted sidebar selection. Upstream NetNewsWire restores
     /// the last-selected feed (or smart feed) on launch so the
     /// reader resumes where the user left off. A pair of optional
