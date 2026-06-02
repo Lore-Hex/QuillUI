@@ -4301,6 +4301,12 @@ final class RSSReaderModel: ObservableObject {
             case .starred:   return ("No Starred Articles", "Star an article to add it here.")
             }
         }
+        if let folder = selectedFolderName {
+            return (
+                "No Articles in \(folder)",
+                "Feeds inside this folder have no articles to show — refresh or wait for new posts."
+            )
+        }
         if hideReadArticles && !items.isEmpty {
             return (
                 "No Unread Articles",

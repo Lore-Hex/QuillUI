@@ -4529,6 +4529,22 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("emptyTimelineMessage names the folder when in folder view")
+    func emptyMessageFolderView() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [], subfolders: [])]
+        )
+        model.selectFolder("Tech")
+        let (h, _) = model.emptyTimelineMessage()
+        #expect(h == "No Articles in Tech")
+    }
+
+    @MainActor
     @Test("emptyTimelineMessage falls back to 'No Articles' for genuinely empty feed")
     func emptyMessageFallback() {
         let model = RSSReaderModel(subscribedFeeds: [
