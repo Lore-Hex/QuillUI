@@ -7,6 +7,7 @@ import QuillUI
 import QuillRSParser
 import QuillArticles
 import QuillRSWeb
+import QuillFeedFinder
 
 /// Quill NetNewsWire content view — a self-contained RSS reader.
 ///
@@ -33,6 +34,7 @@ import QuillRSWeb
 @MainActor
 public struct QuillNetNewsWireContentView: View {
     @StateObject private var model = RSSReaderModel()
+    @State private var addSubscriptionInput: String = ""
 
     public init() {}
 
@@ -149,8 +151,38 @@ public struct QuillNetNewsWireContentView: View {
                     }
                 }
                 .padding(.horizontal, 8)
-                .padding(.bottom, 18)
+                .padding(.bottom, 8)
             }
+
+            // "Add feed URL" row. Routes through upstream
+            // FeedFinder.find(url:) — takes a website URL or a
+            // direct feed URL, walks the page for
+            // <link rel="alternate"> + well-known feed-path
+            // probes, picks the best candidate, appends to
+            // subscribedFeeds (dedupes via mergeImportedFeeds).
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Add Feed")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                HStack(spacing: 6) {
+                    TextField("Site or feed URL", text: Binding(
+                        get: { addSubscriptionInput },
+                        set: { addSubscriptionInput = $0 }
+                    ))
+                        .font(.caption)
+                    Button("Add") {
+                        let input = addSubscriptionInput
+                        addSubscriptionInput = ""
+                        Task { @MainActor in
+                            await model.addSubscription(urlString: input)
+                        }
+                    }
+                    .font(.caption2)
+                    .disabled(addSubscriptionInput.trimmingWhitespace.isEmpty)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 14)
         }
         .background(QuillDesktopChromeStyle.sidebarBackground)
     }
@@ -746,6 +778,36 @@ final class RSSReaderModel: ObservableObject {
     /// same feed list (modulo the optional list title).
     func exportOPML(title: String? = nil) -> String {
         OPMLExporter.export(feeds: subscribedFeeds, title: title)
+    }
+
+    /// Take a user-entered URL (a website URL or a direct feed
+    /// URL) and add a subscription. Walks the page via upstream
+    /// QuillFeedFinder to discover feed links when given a
+    /// website URL, then picks the best candidate and appends
+    /// it to subscribedFeeds (dedupes by URL via mergeImportedFeeds).
+    /// Returns the added feed, or nil if no feed was found.
+    @discardableResult
+    func addSubscription(urlString: String) async -> Feed? {
+        let normalized = urlString.trimmingWhitespace.normalizedURL
+        guard let url = URL(string: normalized) else { return nil }
+        let candidates: Set<FeedSpecifier>
+        do {
+            candidates = try await FeedFinder.find(url: url)
+        } catch {
+            setError("Subscribe failed: \(error)")
+            return nil
+        }
+        guard let best = FeedSpecifier.bestFeed(in: candidates) else {
+            setError("No feed found at \(normalized)")
+            return nil
+        }
+        let feed = Feed(title: best.title ?? best.urlString, url: best.urlString)
+        let added = mergeImportedFeeds([feed])
+        if added == 0 {
+            // Already subscribed — return the existing record.
+            return subscribedFeeds.first(where: { $0.id == feed.id })
+        }
+        return feed
     }
 
     func exportOPMLData(title: String? = nil) -> Data {
