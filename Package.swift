@@ -414,6 +414,7 @@ var quillWireGuardCoreDependencies: [Target.Dependency] = []
 // swaps in WireGuardKit's TunnelConfiguration.
 if wireguardUpstreamPresent {
     quillWireGuardCoreDependencies.append("WireGuardKit")
+    quillWireGuardCoreDependencies.append("QuillWireGuardUpstreamConfig")
 }
 var quillWireGuardUIDependencies: [Target.Dependency] = ["QuillWireGuardCore", "QuillUI"]
 #if !os(Linux)
@@ -1185,6 +1186,21 @@ if wireguardUpstreamPresent {
             // parsing, IPv4/v6 helpers, the public API surface) compiles
             // unmodified on Linux.
             exclude: wireGuardKitExcludes,
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // The real wg-quick string parser (TunnelConfiguration(fromWgQuickConfig:)
+        // / asWgQuickConfig()) lives in the App's Shared/Model, extending
+        // WireGuardKit's TunnelConfiguration. Compile it as its own target so the
+        // real parser is available unmodified (fetch-upstream adds its
+        // `import WireGuardKit`).
+        .target(
+            name: "QuillWireGuardUpstreamConfig",
+            dependencies: ["WireGuardKit"],
+            path: ".upstream/wireguard-apple",
+            sources: [
+                "Sources/Shared/Model/TunnelConfiguration+WgQuickConfig.swift",
+                "Sources/Shared/Model/String+ArrayConversion.swift"
+            ],
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]
