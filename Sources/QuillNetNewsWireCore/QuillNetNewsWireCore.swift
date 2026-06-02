@@ -4068,6 +4068,22 @@ final class RSSReaderModel: ObservableObject {
                 markRead(id: item.id)
             }
         }
+        // Also walk SQLite — per-feed retention keeps up to
+        // articleHistoryLimit rows (500 default), but the cache
+        // caps at articlesPerFeedLimit (100). Anything in the
+        // 100-500 stale tail won't get marked by the in-memory
+        // pass above; without this, those stored-only unreads
+        // would persist as unread in storedUnreadItems / the
+        // All Unread smart-feed badge after "Mark Feed Read"
+        // — directly contradicting the user's intent. Mirrors
+        // upstream NetNewsWire's account-store mark-all-read
+        // sweep that touches every persisted row for the feed.
+        if let articleStore,
+           let storedRows = try? articleStore.fetch(forFeed: feedID) {
+            for row in storedRows where !readArticleIDs.contains(row.uniqueID) {
+                markRead(id: row.uniqueID)
+            }
+        }
         return readArticleIDs.count - before
     }
 

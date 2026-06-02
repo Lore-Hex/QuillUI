@@ -5316,6 +5316,53 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("markFeedAsRead also marks SQLite-only stored articles (cache tail)")
+    func markFeedAsReadIncludesStoredOnly() throws {
+        // Cache-tail scenario: articleHistoryLimit lets SQLite
+        // keep more rows than articlesPerFeedLimit ever surfaces
+        // in feedCaches. A user "Mark Feed Read" must mark BOTH
+        // sets — anything left unread in SQLite resurfaces as
+        // unread via the All Unread smart feed even after the
+        // user thought they cleared the feed.
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-markfeed-store-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let articleStore = try ArticleStore(directoryURL: dir)
+        let feedID = "https://b.test/feed"
+        // One stored-only row (NOT in feedCaches — simulates the
+        // tail of the per-feed SQLite history that the in-memory
+        // cache has aged out).
+        let stored = PersistentArticle(
+            id: "stored-only",
+            accountID: "Local",
+            feedID: feedID,
+            uniqueID: "stored-only",
+            title: "Tail",
+            datePublished: Date(timeIntervalSince1970: 0),
+            isRead: false,
+            isStarred: false
+        )
+        try articleStore.upsert([stored])
+
+        let model = RSSReaderModel(
+            subscribedFeeds: [
+                Feed(title: "A", url: "https://a.test/feed"),
+                Feed(title: "B", url: feedID),
+            ],
+            articleStore: articleStore
+        )
+        // Plus one cached row — covered by the existing path.
+        model.feedCaches[feedID] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "cached", title: "Cached", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        let marked = model.markFeedAsRead(feedID)
+        // 1 cached + 1 stored-only = 2 newly marked.
+        #expect(marked == 2)
+        #expect(model.readArticleIDs.contains("cached"))
+        #expect(model.readArticleIDs.contains("stored-only"))
+    }
+
+    @MainActor
     @Test("markFeedAsRead marks an inactive feed's cached items")
     func markFeedAsReadFromCache() {
         let model = RSSReaderModel(subscribedFeeds: [
