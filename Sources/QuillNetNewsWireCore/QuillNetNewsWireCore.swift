@@ -1809,6 +1809,8 @@ final class RSSReaderModel: ObservableObject {
         guard id != selectedFeedID || wasShowingSmartFeed else { return }
         selectedFeedID = id
         selectItem(id: nil)
+        // Reset sticky-visible carry-over from the prior view.
+        sessionStickyVisibleIDs.removeAll()
         didStartInitialLoad = true
         await fetch(urlString: feed.url)
         autoSelectFirstUnreadIfNoSelection()
@@ -1838,7 +1840,25 @@ final class RSSReaderModel: ObservableObject {
     func selectSmartFeed(_ kind: SmartFeed?) {
         selectedSmartFeed = kind
         selectItem(id: nil)
+        // Reset sticky-visible set on view change so the next
+        // smart-feed visit starts with a clean filter; items
+        // that were marked-read during the prior session no
+        // longer linger.
+        sessionStickyVisibleIDs.removeAll()
     }
+
+    /// IDs of articles the user has opened during the current
+    /// smart-feed / search session that should stay visible in
+    /// the timeline even after auto-mark-as-read flips them
+    /// read. Without this, opening an article in All Unread
+    /// makes the row vanish mid-read (since the smart-feed
+    /// filter immediately excludes read items). Cleared on
+    /// selectFeed / selectSmartFeed / explicit refresh so the
+    /// next view starts clean. Matches upstream NetNewsWire's
+    /// behavior: the article you're reading stays where it is
+    /// in the list, the row turns grey rather than disappearing,
+    /// and the next refresh prunes it.
+    @Published var sessionStickyVisibleIDs: Set<String> = []
 
     /// Advance the selection to the next article in the
     /// currently-filtered timeline. Wraps to the first item when
@@ -2592,7 +2612,18 @@ final class RSSReaderModel: ObservableObject {
         if selectedID != id {
             selectedID = id
         }
-        if let id { markRead(id: id) }
+        if let id {
+            // Sticky-visible only matters in cross-feed views where
+            // the smart-feed filter would otherwise immediately hide
+            // the row when markRead flips its bit. In default
+            // active-feed view the article stays visible naturally.
+            let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+            let isCrossFeedView = selectedSmartFeed != nil || !trimmedQuery.isEmpty
+            if isCrossFeedView {
+                sessionStickyVisibleIDs.insert(id)
+            }
+            markRead(id: id)
+        }
     }
 
     /// Mark an article as read. Idempotent; firing the didSet on
@@ -3462,7 +3493,14 @@ final class RSSReaderModel: ObservableObject {
                     })
                     pool = combined.filter { todayIDs.contains($0.id) }
                 case .allUnread:
-                    pool = combined.filter { !readArticleIDs.contains($0.id) }
+                    // Sticky-visible-IDs keep just-read articles
+                    // in view for the current session so opening
+                    // an article in All Unread doesn't make the
+                    // row vanish mid-read. Cleared on view change.
+                    pool = combined.filter {
+                        !readArticleIDs.contains($0.id) ||
+                            sessionStickyVisibleIDs.contains($0.id)
+                    }
                 case .starred:
                     pool = combined.filter { starredArticleIDs.contains($0.id) }
                 }
@@ -3498,7 +3536,13 @@ final class RSSReaderModel: ObservableObject {
         guard hideReadArticles else { return pool }
         if selectedSmartFeed == .starred { return pool }
         if selectedSmartFeed == .allUnread { return pool }
-        return pool.filter { !readArticleIDs.contains($0.id) }
+        // Same sticky-visible carve-out as the All Unread branch
+        // in filteredItems so the active-feed Hide Read flow
+        // doesn't make rows vanish mid-read either.
+        return pool.filter {
+            !readArticleIDs.contains($0.id) ||
+                sessionStickyVisibleIDs.contains($0.id)
+        }
     }
 
     /// Apply `sortOrder` to `pool`. Cross-feed views (smart feed
