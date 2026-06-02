@@ -204,9 +204,19 @@ public struct PersistenceStore: Sendable {
         /// date-modified) extend the enum without bumping the
         /// on-disk format.
         public var sortOrder: String?
-        public init(hideReadArticles: Bool = false, sortOrder: String? = nil) {
+        /// Background-refresh cadence in seconds. nil disables
+        /// auto-refresh entirely (user can still hit Refresh).
+        /// Missing field (old persisted file) decodes to nil so
+        /// the model falls back to its built-in 30-minute default.
+        public var refreshIntervalSeconds: TimeInterval?
+        public init(
+            hideReadArticles: Bool = false,
+            sortOrder: String? = nil,
+            refreshIntervalSeconds: TimeInterval? = nil
+        ) {
             self.hideReadArticles = hideReadArticles
             self.sortOrder = sortOrder
+            self.refreshIntervalSeconds = refreshIntervalSeconds
         }
     }
 

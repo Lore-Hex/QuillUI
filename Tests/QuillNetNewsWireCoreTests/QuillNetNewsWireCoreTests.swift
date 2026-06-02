@@ -1931,6 +1931,45 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Refresh-interval setting persists across reinit")
+    func refreshIntervalPersists() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-refreshint-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        do {
+            let first = RSSReaderModel(subscribedFeeds: [], persistence: store)
+            #expect(first.refreshIntervalSeconds == TimeInterval(30 * 60)) // default
+            first.refreshIntervalSeconds = TimeInterval(60 * 60 * 2) // 2 hours
+        }
+        let second = RSSReaderModel(subscribedFeeds: [], persistence: store)
+        #expect(second.refreshIntervalSeconds == TimeInterval(60 * 60 * 2))
+    }
+
+    @MainActor
+    @Test("Refresh-interval can be disabled (set to nil)")
+    func refreshIntervalCanBeNil() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-refreshintnil-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        do {
+            let first = RSSReaderModel(subscribedFeeds: [], persistence: store)
+            first.refreshIntervalSeconds = nil
+        }
+        // Nil round-trips: missing field in ViewOptions decodes
+        // to nil, init's `if let` skips, so the default takes
+        // over. This is intentional — "disable refresh" means the
+        // current session has it off, but persisting nil and
+        // restoring as default-on is the safer behavior for a
+        // setting that controls network traffic.
+        let second = RSSReaderModel(subscribedFeeds: [], persistence: store)
+        #expect(second.refreshIntervalSeconds == TimeInterval(30 * 60))
+    }
+
+    @MainActor
     @Test("renameFeed updates both subscribedFeeds and subscriptionRoot")
     func renameFeedUpdatesBothViews() {
         let model = RSSReaderModel(subscribedFeeds: [

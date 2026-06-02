@@ -1391,7 +1391,11 @@ final class RSSReaderModel: ObservableObject {
     /// Auto-refresh cadence in seconds for the active feed.
     /// Matches upstream NetNewsWire's default 30-minute refresh
     /// interval. Setting to nil disables background polling.
-    @Published var refreshIntervalSeconds: TimeInterval? = 30 * 60
+    /// Persisted via PersistenceStore.ViewOptions so user changes
+    /// to the cadence survive relaunch.
+    @Published var refreshIntervalSeconds: TimeInterval? = 30 * 60 {
+        didSet { persistViewOptionsIfReady() }
+    }
 
     /// Wall-clock time of the most recent successful fetch.
     /// Drives `isAutoRefreshDue()`. Exposed as @Published so
@@ -1472,6 +1476,12 @@ final class RSSReaderModel: ObservableObject {
         self.hideReadArticles = storedOptions.hideReadArticles
         self.sortOrder = storedOptions.sortOrder
             .flatMap { SortOrder(rawValue: $0) } ?? .newestFirst
+        // Restore persisted refresh cadence if present. Missing
+        // field (fresh install or older persisted file) keeps the
+        // 30-minute default set at the property declaration.
+        if let storedInterval = storedOptions.refreshIntervalSeconds {
+            self.refreshIntervalSeconds = storedInterval
+        }
         // Create an on-disk ArticleStore alongside the JSON
         // persistence dir if the caller didn't supply one.
         // Try/catch is mandatory — ModelContainer init throws
@@ -1698,7 +1708,8 @@ final class RSSReaderModel: ObservableObject {
         guard persistenceReady else { return }
         persistence.saveViewOptions(PersistenceStore.ViewOptions(
             hideReadArticles: hideReadArticles,
-            sortOrder: sortOrder.rawValue
+            sortOrder: sortOrder.rawValue,
+            refreshIntervalSeconds: refreshIntervalSeconds
         ))
     }
 
