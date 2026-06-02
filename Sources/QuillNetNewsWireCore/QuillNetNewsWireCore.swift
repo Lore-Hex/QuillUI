@@ -465,6 +465,11 @@ public struct QuillNetNewsWireContentView: View {
                     }
                     .font(.caption2)
                     .disabled(model.isLoading)
+                    Button("Sort A-Z") {
+                        model.sortFeedsAlphabetically()
+                    }
+                    .font(.caption2)
+                    .disabled(model.subscribedFeeds.count <= 1)
                     Button("Export OPML") {
                         model.saveOPMLExportToDisk()
                     }
@@ -3746,6 +3751,35 @@ final class RSSReaderModel: ObservableObject {
     /// (toFolder:)'s job. Mutation triggers persistence via
     /// the subscriptionRoot didSet chain.
     @discardableResult
+    /// Sort every feed list alphabetically by title (case-
+    /// insensitive). Applies to BOTH subscribedFeeds (flat
+    /// list) AND subscriptionRoot (recursively into every
+    /// folder's feeds). Folders themselves keep their order
+    /// — only the leaf feeds get sorted within their parent.
+    /// Mutation triggers persistence via the existing didSets
+    /// so the new order survives relaunch.
+    ///
+    /// Same idempotent guarantee as the other tree mutators:
+    /// if the sort produces the same order, no persistence
+    /// write fires (didSet's setter is unconditional but the
+    /// re-assign of identical content gives the same OPML
+    /// output → atomic-write is a no-op for the file).
+    func sortFeedsAlphabetically() {
+        subscribedFeeds.sort { Self.lessByTitle($0, $1) }
+        subscriptionRoot = Self.sortFeedsInTree(subscriptionRoot)
+    }
+
+    private static func lessByTitle(_ lhs: Feed, _ rhs: Feed) -> Bool {
+        lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+    }
+
+    private static func sortFeedsInTree(_ folder: OPMLImporter.Folder) -> OPMLImporter.Folder {
+        var copy = folder
+        copy.feeds.sort(by: lessByTitle)
+        copy.subfolders = copy.subfolders.map { sortFeedsInTree($0) }
+        return copy
+    }
+
     func reorderFeed(_ feedID: Feed.ID, by delta: Int) -> Bool {
         guard delta != 0 else { return false }
         let (updated, didMove) = Self.reorderFeedInTree(

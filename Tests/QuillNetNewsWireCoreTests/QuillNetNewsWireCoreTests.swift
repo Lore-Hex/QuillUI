@@ -3487,6 +3487,50 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("sortFeedsAlphabetically sorts the flat list case-insensitively")
+    func sortFeedsAlphabeticallyFlat() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "charlie", url: "https://c.test/feed"),
+            Feed(title: "Alpha", url: "https://a.test/feed"),
+            Feed(title: "bravo", url: "https://b.test/feed"),
+        ])
+        model.sortFeedsAlphabetically()
+        #expect(model.subscribedFeeds.map(\.title) == ["Alpha", "bravo", "charlie"])
+    }
+
+    @MainActor
+    @Test("sortFeedsAlphabetically sorts within folders too, preserving folder order")
+    func sortFeedsAlphabeticallyNested() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let a = Feed(title: "Apple", url: "https://a.test/feed")
+        let b = Feed(title: "Banana", url: "https://b.test/feed")
+        let c = Feed(title: "Cherry", url: "https://c.test/feed")
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [c, a, b],
+            subfolders: [
+                OPMLImporter.Folder(
+                    name: "Tech",
+                    feeds: [c, a, b],
+                    subfolders: []
+                ),
+                OPMLImporter.Folder(
+                    name: "News",
+                    feeds: [],
+                    subfolders: []
+                ),
+            ]
+        )
+        model.sortFeedsAlphabetically()
+        // Root feeds sorted.
+        #expect(model.subscriptionRoot.feeds.map(\.title) == ["Apple", "Banana", "Cherry"])
+        // Folder feeds sorted.
+        #expect(model.subscriptionRoot.subfolders[0].feeds.map(\.title) == ["Apple", "Banana", "Cherry"])
+        // Folder ORDER preserved (we only sort feeds, not folders).
+        #expect(model.subscriptionRoot.subfolders.map(\.name) == ["Tech", "News"])
+    }
+
+    @MainActor
     @Test("reorderFeed moves a feed up/down within top-level root")
     func reorderFeedTopLevel() {
         let model = RSSReaderModel(subscribedFeeds: [])
