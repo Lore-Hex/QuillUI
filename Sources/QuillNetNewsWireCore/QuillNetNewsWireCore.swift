@@ -265,6 +265,10 @@ public struct QuillNetNewsWireContentView: View {
                 model.selectNextUnread()
             }
             .keyboardShortcut("n", modifiers: [])
+            Button("mark unread") {
+                model.markUnreadOnSelection()
+            }
+            .keyboardShortcut("u", modifiers: [])
             Button("previous unread") {
                 model.selectPreviousUnread()
             }
@@ -1906,6 +1910,24 @@ final class RSSReaderModel: ObservableObject {
             // didSet on readArticleIDs handles status text refresh.
             persistReadStateChange(uniqueID: id, isRead: true)
         }
+    }
+
+    /// Explicit mark-as-unread, symmetric to markRead. Idempotent
+    /// — only triggers persistence + status text refresh when the
+    /// removal actually changes the Set. Powers a future U
+    /// keyboard shortcut + Mark Unread menu item, and is the
+    /// shape upstream NetNewsWire's NSCommand expects.
+    func markUnread(id: String) {
+        if readArticleIDs.remove(id) != nil {
+            persistReadStateChange(uniqueID: id, isRead: false)
+        }
+    }
+
+    /// Mark the currently-selected article unread. No-op when
+    /// no selection. Powers the U keyboard shortcut.
+    func markUnreadOnSelection() {
+        guard let selectedID else { return }
+        markUnread(id: selectedID)
     }
 
     /// Propagate a single article's read/starred change to the

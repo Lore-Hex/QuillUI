@@ -253,6 +253,41 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("markUnread removes id from readArticleIDs idempotently")
+    func readerModelMarkUnread() {
+        let model = RSSReaderModel()
+        model.markRead(id: "x")
+        #expect(model.isRead(id: "x"))
+        model.markUnread(id: "x")
+        #expect(!model.isRead(id: "x"))
+        // Idempotent: second call does nothing extra.
+        model.markUnread(id: "x")
+        #expect(!model.isRead(id: "x"))
+    }
+
+    @MainActor
+    @Test("markUnreadOnSelection is a no-op without a selection")
+    func readerModelMarkUnreadOnSelectionNoOp() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        // No selection.
+        model.markUnreadOnSelection()
+        #expect(model.readArticleIDs.isEmpty)
+    }
+
+    @MainActor
+    @Test("markUnreadOnSelection flips the selected article")
+    func readerModelMarkUnreadOnSelectionFlips() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.items = [
+            RSSItem(id: "a", title: "A", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.selectItem(id: "a")  // auto-marks read
+        #expect(model.isRead(id: "a"))
+        model.markUnreadOnSelection()
+        #expect(!model.isRead(id: "a"))
+    }
+
+    @MainActor
     @Test("RSSReaderModel.markRead is idempotent")
     func readerModelMarkReadIdempotent() {
         let model = RSSReaderModel()
