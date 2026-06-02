@@ -35,6 +35,14 @@ public typealias DownloadCallback = @MainActor (Data?, URLResponse?, Error?) -> 
 		sessionConfiguration.httpCookieAcceptPolicy = .never
 		sessionConfiguration.httpMaximumConnectionsPerHost = 1
 		sessionConfiguration.httpCookieStorage = nil
+		// Tight timeouts so a stalled feed doesn't block the
+		// sequential refresh-all batch. Default request timeout
+		// is 60s — one bad feed × 100 subscriptions = 100 minutes
+		// of stall. 15s matches DownloadSession.swift's choice
+		// for the same upstream code path; resource timeout of
+		// 30s caps the full response-body wait.
+		sessionConfiguration.timeoutIntervalForRequest = 15.0
+		sessionConfiguration.timeoutIntervalForResource = 30.0
 
 		if let userAgentHeaders = UserAgent.headers() {
 			sessionConfiguration.httpAdditionalHeaders = userAgentHeaders
