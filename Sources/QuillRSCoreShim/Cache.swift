@@ -6,7 +6,12 @@
 // os and on Linux via the Quill osShim target.
 
 import Foundation
+#if canImport(Darwin)
 import os
+#endif
+// On non-Darwin, OSAllocatedUnfairLock<State> comes from the
+// sibling OSUnfairLockShim.swift in this same module — same
+// surface, NSLock-backed.
 
 public protocol CacheRecord: Sendable {
     var dateCreated: Date { get }

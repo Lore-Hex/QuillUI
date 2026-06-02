@@ -6,7 +6,9 @@
 //
 
 import Foundation
+#if canImport(Darwin)
 import os
+#endif
 import QuillRSCoreShim
 
 /// Caches `Author` values by `authorID` so articles by the same author share
