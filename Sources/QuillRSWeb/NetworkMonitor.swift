@@ -7,8 +7,9 @@
 
 import Foundation
 import Network
+#if canImport(Darwin)
 import os
-
+#endif
 nonisolated public final class NetworkMonitor: Sendable {
 	public static let shared = NetworkMonitor()
 

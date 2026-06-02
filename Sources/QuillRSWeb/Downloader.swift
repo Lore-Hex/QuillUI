@@ -10,7 +10,9 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+#if canImport(Darwin)
 import os
+#endif
 import QuillRSCoreShim
 
 public typealias DownloadCallback = @MainActor (Data?, URLResponse?, Error?) -> Swift.Void
