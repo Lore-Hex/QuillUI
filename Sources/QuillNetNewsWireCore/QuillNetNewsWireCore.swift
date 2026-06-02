@@ -2887,6 +2887,61 @@ final class RSSReaderModel: ObservableObject {
     /// already has the target name (would create a duplicate
     /// that Folder.id-by-name can't distinguish). Returns false
     /// in both cases without mutating.
+    /// Manually rename a subscribed feed. Mirrors upstream
+    /// NetNewsWire's "Rename Feed" sidebar action. Updates the
+    /// title in both subscribedFeeds AND subscriptionRoot so
+    /// the flat-list and tree-view stay in sync. Once a feed
+    /// is manually renamed, the auto-rename-from-parse path
+    /// (updateSubscribedFeedTitleFromParse) leaves it alone
+    /// since the title no longer equals the URL.
+    ///
+    /// Refuses empty/whitespace new title (would lose the
+    /// label entirely; URL fallback is the conservative
+    /// default for nameless feeds). Returns true when a
+    /// matching feed was found and renamed.
+    @discardableResult
+    func renameFeed(_ feedID: Feed.ID, to newTitle: String) -> Bool {
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard let idx = subscribedFeeds.firstIndex(where: { $0.id == feedID }) else {
+            return false
+        }
+        let current = subscribedFeeds[idx]
+        guard current.title != trimmed else { return true } // idempotent
+        subscribedFeeds[idx] = Feed(title: trimmed, url: current.url)
+        // Mirror into subscriptionRoot too — without this, the
+        // tree view would still render the old title. Recursive
+        // walk; first match wins (feeds are unique by URL).
+        let (updated, _) = Self.renameFeedInTree(
+            feedID: feedID, newTitle: trimmed, in: subscriptionRoot
+        )
+        subscriptionRoot = updated
+        return true
+    }
+
+    private static func renameFeedInTree(
+        feedID: Feed.ID,
+        newTitle: String,
+        in folder: OPMLImporter.Folder
+    ) -> (OPMLImporter.Folder, Bool) {
+        var copy = folder
+        if let idx = copy.feeds.firstIndex(where: { $0.id == feedID }) {
+            copy.feeds[idx] = Feed(title: newTitle, url: copy.feeds[idx].url)
+            return (copy, true)
+        }
+        var didRename = false
+        var newSubfolders: [OPMLImporter.Folder] = []
+        for sub in copy.subfolders {
+            let (updatedSub, subDid) = renameFeedInTree(
+                feedID: feedID, newTitle: newTitle, in: sub
+            )
+            if subDid { didRename = true }
+            newSubfolders.append(updatedSub)
+        }
+        copy.subfolders = newSubfolders
+        return (copy, didRename)
+    }
+
     @discardableResult
     func renameFolder(from oldName: String, to newName: String) -> Bool {
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)

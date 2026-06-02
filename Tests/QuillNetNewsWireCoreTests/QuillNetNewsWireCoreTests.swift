@@ -1931,6 +1931,68 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("renameFeed updates both subscribedFeeds and subscriptionRoot")
+    func renameFeedUpdatesBothViews() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "Daring Fireball", url: "https://df.test/feed"),
+        ])
+        // Move the feed into a folder so the tree-view is non-trivial.
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(
+                    name: "Tech",
+                    feeds: [Feed(title: "Daring Fireball", url: "https://df.test/feed")],
+                    subfolders: []
+                ),
+            ]
+        )
+        #expect(model.renameFeed("https://df.test/feed", to: "DF"))
+        #expect(model.subscribedFeeds.first?.title == "DF")
+        #expect(model.subscriptionRoot.subfolders[0].feeds.first?.title == "DF")
+    }
+
+    @MainActor
+    @Test("renameFeed refuses empty/whitespace title and unknown id")
+    func renameFeedRefusesInvalid() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "DF", url: "https://df.test/feed"),
+        ])
+        #expect(!model.renameFeed("https://df.test/feed", to: ""))
+        #expect(!model.renameFeed("https://df.test/feed", to: "   "))
+        #expect(!model.renameFeed("https://nope.test/feed", to: "Anything"))
+        #expect(model.subscribedFeeds.first?.title == "DF")
+    }
+
+    @MainActor
+    @Test("renameFeed is idempotent for same-title call")
+    func renameFeedIdempotent() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "DF", url: "https://df.test/feed"),
+        ])
+        #expect(model.renameFeed("https://df.test/feed", to: "DF"))
+        #expect(model.subscribedFeeds.first?.title == "DF")
+    }
+
+    @MainActor
+    @Test("renameFeed survives the auto-rename-from-parse step")
+    func renameFeedSurvivesAutoRename() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "https://df.test/feed", url: "https://df.test/feed"),
+        ])
+        // User renames manually.
+        #expect(model.renameFeed("https://df.test/feed", to: "My DF"))
+        // Later, fetch parses a title — should NOT overwrite the
+        // user's manual rename (title no longer equals URL).
+        model.updateSubscribedFeedTitleFromParse(
+            urlString: "https://df.test/feed",
+            parsedTitle: "Daring Fireball"
+        )
+        #expect(model.subscribedFeeds.first?.title == "My DF")
+    }
+
+    @MainActor
     @Test("Parsed title renames a URL-titled subscribed feed")
     func parsedTitleRenamesURLTitled() {
         let model = RSSReaderModel(subscribedFeeds: [
