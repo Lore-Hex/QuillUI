@@ -26,14 +26,6 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            #if os(Linux)
-            // TEMP diagnostic (remove before merge): pin whether the sheet @State
-            // bools default true on Linux (lowering bug) — the Shortcuts demo is
-            // rendering in the mac-reference capture though its sheet defaults false.
-            Text("DBG kb=\(showKeyboardShortcutas ? 1 : 0) comp=\(showCompletions ? 1 : 0) set=\(showSettings ? 1 : 0)")
-                .font(.system(size: 11))
-                .foregroundColor(Color(red: 0.9, green: 0.1, blue: 0.1))
-            #endif
             // Primary "New chat" action — matches the macOS Enchanted sidebar
             // (a full-width accent-blue button at the sidebar top, above the
             // conversation list). Color is the Enchanted accent #4285F4.
@@ -62,6 +54,15 @@ struct SidebarView: View {
                 onDeleteDailyConversations: onDeleteDailyConversations
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            #if os(Linux)
+            // TEMP diagnostic (remove before merge) — placed below the conversation
+            // list so it's NOT covered by the mis-rendered Shortcuts overlay; pins
+            // whether the sheet @State bools default true on Linux.
+            Text("DBG kb=\(showKeyboardShortcutas ? 1 : 0) comp=\(showCompletions ? 1 : 0) set=\(showSettings ? 1 : 0)")
+                .font(.system(size: 13))
+                .foregroundColor(Color(red: 0.9, green: 0.1, blue: 0.1))
+            #endif
 
             Divider()
                 .padding(.bottom, 24)
