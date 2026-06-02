@@ -2821,7 +2821,13 @@ final class RSSReaderModel: ObservableObject {
         // "Subscribe failed: <network error>" instead of the
         // truthful "Already subscribed to X". Upstream NNW
         // does the same local pre-check.
-        if let existing = subscribedFeeds.first(where: { $0.url.normalizedURL == normalized }) {
+        //
+        // Uses feedDedupKey so the same surface-form rules apply
+        // here as in mergeImportedFeeds — pasting feed://X or
+        // https://X/ when subscribed to https://X both hit the
+        // shortcut.
+        let dedupKey = Self.feedDedupKey(for: normalized)
+        if let existing = subscribedFeeds.first(where: { Self.feedDedupKey(for: $0.url) == dedupKey }) {
             lastSubscribeMessage = "Already subscribed to \(existing.title)"
             await selectFeed(id: existing.id)
             return existing

@@ -2197,6 +2197,32 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("addSubscription short-circuits across scheme variants (feed:// → https://)")
+    func addSubscriptionShortCircuitsOnSchemeVariant() async {
+        // Subscribed via https:// — re-subscribe with feed:// or
+        // a trailing-slash variant must still short-circuit.
+        // Without the feedDedupKey-based check, the user would
+        // pay a FeedFinder round-trip (or hit a network failure
+        // offline) instead of getting the truthful "Already
+        // subscribed to X" message.
+        let existing = Feed(title: "Example", url: "https://example.test/feed")
+        let model = RSSReaderModel(subscribedFeeds: [existing])
+        let beforeCount = model.subscribedFeeds.count
+
+        let trailing = await model.addSubscription(urlString: "https://example.test/feed/")
+        #expect(trailing?.id == existing.id)
+        #expect(model.subscribedFeeds.count == beforeCount)
+
+        let feedScheme = await model.addSubscription(urlString: "feed://example.test/feed")
+        #expect(feedScheme?.id == existing.id)
+        #expect(model.subscribedFeeds.count == beforeCount)
+
+        let caseHost = await model.addSubscription(urlString: "https://EXAMPLE.test/feed")
+        #expect(caseHost?.id == existing.id)
+        #expect(model.subscribedFeeds.count == beforeCount)
+    }
+
+    @MainActor
     @Test("addSubscription short-circuits without network for a duplicate URL")
     func addSubscriptionShortCircuitsOnDuplicate() async {
         // Seed an existing subscription. Then re-subscribe to the
