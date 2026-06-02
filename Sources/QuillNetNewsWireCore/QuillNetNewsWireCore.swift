@@ -2246,7 +2246,15 @@ final class RSSReaderModel: ObservableObject {
             return
         }
         do {
-            let (maybeData, _) = try await Downloader.shared.download(url)
+            let (maybeData, maybeResponse) = try await Downloader.shared.download(url)
+            // Same HTTP-status guard as the active-feed fetch()
+            // path — without it, a stale feed that's gone 410-Gone
+            // would silently empty the cache without surfacing
+            // the warning glyph in the sidebar.
+            if let http = maybeResponse as? HTTPURLResponse, http.statusCode >= 400 {
+                feedErrors[urlString] = Self.httpErrorMessage(forStatus: http.statusCode)
+                return
+            }
             guard let data = maybeData else {
                 feedErrors[urlString] = "Empty response"
                 return
@@ -2306,7 +2314,20 @@ final class RSSReaderModel: ObservableObject {
             // Conditional-GET (Etag/Last-Modified) lands when
             // the persistence iteration starts threading
             // HTTPConditionalGetInfo across fetches.
-            let (maybeData, _) = try await Downloader.shared.download(url)
+            let (maybeData, maybeResponse) = try await Downloader.shared.download(url)
+            // Surface HTTP error status (4xx/5xx) as a descriptive
+            // message instead of letting the parser run on the
+            // error page body (which would silently produce
+            // items=[] and look like a working-but-empty feed).
+            // Matches upstream NetNewsWire's sidebar amber-warning
+            // glyph + "Server returned 404" tooltip.
+            if let http = maybeResponse as? HTTPURLResponse, http.statusCode >= 400 {
+                let msg = Self.httpErrorMessage(forStatus: http.statusCode)
+                self.setError(msg)
+                feedErrors[urlString] = msg
+                setLoading(false)
+                return
+            }
             guard let data = maybeData else {
                 self.setError("Empty response")
                 feedErrors[urlString] = "Empty response"
@@ -3587,6 +3608,28 @@ final class RSSReaderModel: ObservableObject {
             updateRows()
             updateSelectedItem()
             updateStatusText()
+        }
+    }
+
+    /// Friendly HTTP error string for the common feed-fetch
+    /// failure codes. Falls through to a generic "HTTP <code>"
+    /// for codes we don't special-case. Returned strings are
+    /// short enough to fit the sidebar warning-glyph tooltip
+    /// without truncation.
+    nonisolated static func httpErrorMessage(forStatus code: Int) -> String {
+        switch code {
+        case 401: return "Unauthorized (401)"
+        case 403: return "Forbidden (403)"
+        case 404: return "Feed not found (404)"
+        case 410: return "Feed gone (410)"
+        case 429: return "Rate limited (429)"
+        case 500: return "Server error (500)"
+        case 502: return "Bad gateway (502)"
+        case 503: return "Service unavailable (503)"
+        case 504: return "Gateway timeout (504)"
+        case 400...499: return "Client error (\(code))"
+        case 500...599: return "Server error (\(code))"
+        default: return "HTTP \(code)"
         }
     }
 

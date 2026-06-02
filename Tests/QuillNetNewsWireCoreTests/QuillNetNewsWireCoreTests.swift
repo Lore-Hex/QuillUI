@@ -1930,6 +1930,24 @@ struct QuillNetNewsWireCoreTests {
         #expect(restored.selectedFeedID == "https://a.test/feed")
     }
 
+    @Test("httpErrorMessage names common failure codes")
+    func httpErrorMessageNamesCommonCodes() {
+        #expect(RSSReaderModel.httpErrorMessage(forStatus: 401) == "Unauthorized (401)")
+        #expect(RSSReaderModel.httpErrorMessage(forStatus: 403) == "Forbidden (403)")
+        #expect(RSSReaderModel.httpErrorMessage(forStatus: 404) == "Feed not found (404)")
+        #expect(RSSReaderModel.httpErrorMessage(forStatus: 410) == "Feed gone (410)")
+        #expect(RSSReaderModel.httpErrorMessage(forStatus: 429) == "Rate limited (429)")
+        #expect(RSSReaderModel.httpErrorMessage(forStatus: 500) == "Server error (500)")
+        #expect(RSSReaderModel.httpErrorMessage(forStatus: 503) == "Service unavailable (503)")
+    }
+
+    @Test("httpErrorMessage falls through to range labels for uncommon codes")
+    func httpErrorMessageRangeFallthrough() {
+        #expect(RSSReaderModel.httpErrorMessage(forStatus: 418) == "Client error (418)")
+        #expect(RSSReaderModel.httpErrorMessage(forStatus: 511) == "Server error (511)")
+        #expect(RSSReaderModel.httpErrorMessage(forStatus: 301) == "HTTP 301")
+    }
+
     @MainActor
     @Test("Refresh-interval setting persists across reinit")
     func refreshIntervalPersists() {
