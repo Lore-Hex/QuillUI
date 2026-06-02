@@ -266,7 +266,12 @@ public struct QuillPromptGrid: View {
                 Text(prompt.title.quillPromptGridDisplayTitle)
                     .font(.system(size: promptFontSize))
                     .foregroundColor(Color(hex: "#1D1D1F"))
-                    .frame(width: max(40, cardWidth - (promptCardPaddingWidth * 2)), alignment: .leading)
+                    // Fill the (flexible) card width instead of a FIXED width — a
+                    // fixed cardWidth-based title kept each card ~272pt wide so the
+                    // 4-card row could not shrink to fit a narrow detail pane and
+                    // overflowed off the right edge. maxWidth:.infinity lets the card
+                    // shrink with its LazyVGrid column.
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Spacer()
                 HStack {
                     Spacer()
@@ -800,6 +805,14 @@ public struct QuillChatEmptyState: View {
             .padding(.top, 188)
             .padding(.horizontal, 28)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .overlay(alignment: .topLeading) {
+                // TEMP in-render diagnostic (remove before merge): CI suppresses the
+                // rendered app's stdout AND stderr, so surface the widths in the
+                // image itself to pin the GeometryReader size vs resolved widths.
+                Text("DBG w=\(Int(geometry.size.width)) avail=\(Int(available)) cw=\(Int(metrics.cardWidth)) gw=\(Int(metrics.gridWidth)) cols=\(columns)")
+                    .font(.system(size: 12))
+                    .foregroundColor(Color(hex: "#E53935"))
+            }
         }
     }
     #endif
