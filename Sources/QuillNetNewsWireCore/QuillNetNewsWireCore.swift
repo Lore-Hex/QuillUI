@@ -464,6 +464,40 @@ final class RSSReaderModel: ObservableObject {
         await fetch(urlString: feed.url)
     }
 
+    /// Import an OPML subscription list and merge it into
+    /// `subscribedFeeds`. Existing subscriptions (matched by
+    /// xmlUrl, since `Feed.id` defaults to the URL) are kept;
+    /// only feeds whose URL is not already in the list get
+    /// appended. Returns the number of newly-added feeds so a UI
+    /// can surface "Imported N feeds".
+    @discardableResult
+    func importOPML(data: Data) -> Int {
+        let result = OPMLImporter.parse(data: data)
+        return mergeImportedFeeds(result.feeds)
+    }
+
+    @discardableResult
+    func importOPML(xml: String) -> Int {
+        importOPML(data: Data(xml.utf8))
+    }
+
+    /// Internal merge step kept separate so future iterations
+    /// (folder grouping, sync round-trip) can reuse the dedupe
+    /// path without re-parsing.
+    @discardableResult
+    func mergeImportedFeeds(_ imported: [Feed]) -> Int {
+        let existing = Set(subscribedFeeds.map(\.id))
+        var added = 0
+        for feed in imported where !existing.contains(feed.id) {
+            subscribedFeeds.append(feed)
+            added += 1
+        }
+        if selectedFeedID == nil {
+            selectedFeedID = subscribedFeeds.first?.id
+        }
+        return added
+    }
+
     /// Profile-mode bypass: populate `items` + `feedTitle` with
     /// fixture content so the rendered timeline has shape, then
     /// skip the URLSession round-trip entirely. Used by the
