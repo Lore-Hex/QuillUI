@@ -1438,8 +1438,12 @@ final class RSSReaderModel: ObservableObject {
     /// permanently-bad feeds. Explicit per-feed refresh
     /// (refreshFeed / refresh) does NOT honor the skip — that's
     /// how the user clears the skipped state after fixing the
-    /// underlying feed URL.
-    @Published var feedFailureCount: [Feed.ID: Int] = [:]
+    /// underlying feed URL. Persisted via PersistenceStore so
+    /// back-off survives relaunch (otherwise the user would pay
+    /// 5 retry hits per dead feed per launch).
+    @Published var feedFailureCount: [Feed.ID: Int] = [:] {
+        didSet { persistFeedFailureCountIfReady() }
+    }
 
     /// Consecutive-failure count at which refreshAllFeeds skips
     /// a feed. 5 chosen to give a feed plenty of chances to come
@@ -1588,6 +1592,7 @@ final class RSSReaderModel: ObservableObject {
         self.starredArticleIDs = persistence.loadStarredArticleIDs()
         self.feedIconURLs = persistence.loadFeedIconURLs()
         self.feedErrors = persistence.loadFeedErrors()
+        self.feedFailureCount = persistence.loadFeedFailureCount()
         // Hydrate feedCaches from any persisted articles so the
         // timeline shows yesterday's items before today's fetch
         // even fires. Bucket by feedID, build the (items,
@@ -1763,6 +1768,14 @@ final class RSSReaderModel: ObservableObject {
             sortOrder: sortOrder.rawValue,
             refreshIntervalSeconds: refreshIntervalSeconds
         ))
+    }
+
+    /// Persist the failure-count dict on every mutation. Same
+    /// persistenceReady gate as the other did-set persistors
+    /// so init-time loads don't ping-pong the disk.
+    private func persistFeedFailureCountIfReady() {
+        guard persistenceReady else { return }
+        persistence.saveFeedFailureCount(feedFailureCount)
     }
 
     /// URL of the currently-selected subscribed feed. `nil` when

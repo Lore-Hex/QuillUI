@@ -158,6 +158,27 @@ public struct PersistenceStore: Sendable {
         try? data.write(to: url, options: .atomic)
     }
 
+    /// Per-feed consecutive-failure counter — same shape as
+    /// feedErrors / feedIconURLs but typed Int. Persisting lets
+    /// back-off state survive relaunch so a definitively-dead
+    /// feed doesn't get re-tried 5 times on every launch
+    /// (which would defeat the back-off entirely for users who
+    /// quit and relaunch frequently).
+    public func loadFeedFailureCount() -> [String: Int] {
+        let url = directoryURL.appendingPathComponent("feedFailureCount.json")
+        guard let data = try? Data(contentsOf: url) else { return [:] }
+        return (try? JSONDecoder().decode([String: Int].self, from: data)) ?? [:]
+    }
+
+    public func saveFeedFailureCount(_ counts: [String: Int]) {
+        try? FileManager.default.createDirectory(
+            at: directoryURL, withIntermediateDirectories: true, attributes: nil
+        )
+        let url = directoryURL.appendingPathComponent("feedFailureCount.json")
+        guard let data = try? JSONEncoder().encode(counts) else { return }
+        try? data.write(to: url, options: .atomic)
+    }
+
     /// Persisted sidebar selection. Upstream NetNewsWire restores
     /// the last-selected feed (or smart feed) on launch so the
     /// reader resumes where the user left off. A pair of optional

@@ -1931,6 +1931,31 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("feedFailureCount persists across reinit (back-off survives relaunch)")
+    func failureCountPersistsAcrossLaunches() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-failcount-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        do {
+            let first = RSSReaderModel(subscribedFeeds: [
+                Feed(title: "A", url: "https://a.test/feed"),
+            ], persistence: store)
+            first.incrementFailureCount(forFeed: "https://a.test/feed")
+            first.incrementFailureCount(forFeed: "https://a.test/feed")
+            first.incrementFailureCount(forFeed: "https://a.test/feed")
+            #expect(first.feedFailureCount["https://a.test/feed"] == 3)
+        }
+        let second = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ], persistence: store)
+        // Back-off counter survives — dead feed isn't restarted
+        // from 0 on every launch.
+        #expect(second.feedFailureCount["https://a.test/feed"] == 3)
+    }
+
+    @MainActor
     @Test("removeSubscription cleans every per-feed state dict")
     func removeSubscriptionCleansAllDicts() {
         let model = RSSReaderModel(subscribedFeeds: [
