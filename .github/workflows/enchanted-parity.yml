@@ -81,8 +81,8 @@ jobs:
         with:
           name: enchanted-parity-verifier
           path: |
-            .qa
-            .qa/*.png
-            .qa/*reference-home/**
-            .qa/quillui-backend-app.log
-          if-no-files-found: ignore
+            .qa/**
+          # .qa is a DOT-directory; upload-artifact@v4 excludes hidden files by
+          # default, which is why the render never uploaded ("No files found").
+          include-hidden-files: true
+          if-no-files-found: warn
