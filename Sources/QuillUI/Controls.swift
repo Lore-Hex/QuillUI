@@ -772,20 +772,30 @@ public struct QuillChatEmptyState: View {
     private var linuxReferenceEmptyStateContent: some View {
         GeometryReader { geometry in
             let metrics = promptGridMetrics(totalWidth: Double(geometry.size.width))
-            VStack(spacing: 78) {
-                wordmark
+            // Never let the row exceed the pane width (otherwise it overflows and
+            // anchors to an edge); constrain the grid to the available width so the
+            // flexible cards shrink to fit. Flanking Spacers force horizontal
+            // centering — GTK did not honor the .frame(maxWidth:.infinity,
+            // alignment:) centering here (the content anchored to the right edge).
+            let available = max(160, CGFloat(geometry.size.width) - 56)
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                VStack(spacing: 78) {
+                    wordmark
 
-                QuillPromptGrid(
-                    prompts: prompts,
-                    columns: columns,
-                    cardWidth: metrics.cardWidth,
-                    cardHeight: metrics.cardHeight,
-                    spacing: metrics.spacing,
-                    action: action
-                )
-                .frame(width: metrics.gridWidth, alignment: .center)
+                    QuillPromptGrid(
+                        prompts: prompts,
+                        columns: columns,
+                        cardWidth: metrics.cardWidth,
+                        cardHeight: metrics.cardHeight,
+                        spacing: metrics.spacing,
+                        action: action
+                    )
+                    .frame(maxWidth: min(metrics.gridWidth, available), alignment: .center)
 
-                Spacer()
+                    Spacer()
+                }
+                Spacer(minLength: 0)
             }
             .padding(.top, 188)
             .padding(.horizontal, 28)
@@ -882,9 +892,10 @@ public struct QuillChatEmptyState: View {
         let resolvedGridWidth = gridWidth(cardWidth: resolvedCardWidth, spacing: resolvedSpacing)
         #if os(Linux)
         // TEMP diagnostic (remove before final merge): capture the GeometryReader
-        // width the empty state actually sees, vs the resolved card/grid widths,
-        // to pin whether totalWidth is the detail pane or the full window.
-        print("QUILLGRIDDBG totalWidth=\(Int(totalWidth)) columns=\(columns) cardWidth=\(Int(resolvedCardWidth)) gridWidth=\(Int(resolvedGridWidth))")
+        // width the empty state actually sees, vs the resolved card/grid widths.
+        // Use STDERR — the visual smoke discards the rendered app's stdout but
+        // surfaces stderr (GTK warnings appear in the CI log).
+        FileHandle.standardError.write(Data("QUILLGRIDDBG totalWidth=\(Int(totalWidth)) columns=\(columns) cardWidth=\(Int(resolvedCardWidth)) gridWidth=\(Int(resolvedGridWidth))\n".utf8))
         #endif
         return QuillPromptGridMetrics(
             cardWidth: resolvedCardWidth,
