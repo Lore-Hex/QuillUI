@@ -134,6 +134,14 @@ public struct QuillNetNewsWireContentView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                } else {
+                    // No cache → feed has never been fetched
+                    // successfully. Surface that explicitly so
+                    // user knows "Refresh" hasn't run for this
+                    // feed yet (vs. "cache exists but is stale").
+                    Text("Never fetched")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 let unread = model.unreadCount(forFeed: feed.id)
                 if unread > 0 {
