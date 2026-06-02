@@ -2672,13 +2672,30 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
-    @Test("backgroundRefreshTick no-ops when no feed URL is available")
+    @Test("backgroundRefreshTick no-ops when no feeds are subscribed")
     func backgroundRefreshTickNoOpsWithoutFeed() async {
         let model = RSSReaderModel(subscribedFeeds: [])
         await model.backgroundRefreshTick()
         // No crash, no items, no fetchedAt update.
         #expect(model.items.isEmpty)
         #expect(model.lastFetchAt == nil)
+    }
+
+    @MainActor
+    @Test("backgroundRefreshTick is gated by isAutoRefreshDue")
+    func backgroundRefreshTickGatedByInterval() async {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        // 1-hour interval; pin lastFetchAt 1 second ago → not due.
+        model.refreshIntervalSeconds = 3600
+        model.lastFetchAt = Date().addingTimeInterval(-1)
+        await model.backgroundRefreshTick()
+        // Cache stays empty — refresh did not fire (and so no
+        // refreshAllFeeds network traffic). Pinning isLoading
+        // would be equivalent but using the interval gate keeps
+        // the test specific to the eligibility logic.
+        #expect(model.feedCaches.isEmpty)
     }
 
     @MainActor

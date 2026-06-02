@@ -2125,14 +2125,24 @@ final class RSSReaderModel: ObservableObject {
     }
 
     /// Single background-refresh tick: if the interval has
-    /// elapsed and we have an active feed URL, re-fetch. Pure
+    /// elapsed, refresh every subscribed feed (active feed first
+    /// for snappy UI, then cached fetches for the rest). Pure
     /// async function — the looping Task in
     /// `startBackgroundRefresh()` calls this between sleeps so
     /// tests can exercise the eligibility logic without a timer.
+    ///
+    /// Upstream NetNewsWire's background refresh keeps every
+    /// feed warm so opening any feed in the sidebar shows the
+    /// latest items without an explicit refresh; the previous
+    /// implementation only kept the active feed fresh, which
+    /// left every other cache stale until manual Refresh All.
     func backgroundRefreshTick(now: Date = Date()) async {
         guard isAutoRefreshDue(now: now) else { return }
-        guard let url = currentFeedURL else { return }
-        await refresh(urlString: url)
+        // No subscriptions → nothing to do (and refreshAllFeeds
+        // returns immediately too, but skip the function-call
+        // overhead on every tick).
+        guard !subscribedFeeds.isEmpty else { return }
+        await refreshAllFeeds()
     }
 
     /// Start the auto-refresh Task that polls
