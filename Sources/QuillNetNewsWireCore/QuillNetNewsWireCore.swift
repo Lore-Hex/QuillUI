@@ -2345,6 +2345,12 @@ final class RSSReaderModel: ObservableObject {
     func nextFeedIDWithUnread() -> Feed.ID? {
         guard selectedSmartFeed == nil else { return nil }
         guard !subscribedFeeds.isEmpty else { return nil }
+        // In folder view, the cross-feed pool (filteredItems →
+        // itemsInFolder) already spans every feed inside the
+        // folder. There's nowhere else to jump to without
+        // escaping the folder view, which would surprise the
+        // user. Return nil → caller no-ops at folder boundary.
+        guard selectedFolderName == nil else { return nil }
         let currentIdx = subscribedFeeds.firstIndex(where: { $0.id == selectedFeedID }) ?? -1
         for offset in 1...subscribedFeeds.count {
             let idx = (currentIdx + offset) % subscribedFeeds.count
@@ -2362,6 +2368,7 @@ final class RSSReaderModel: ObservableObject {
     /// triage flow is consistent with the forward one.
     func previousFeedIDWithUnread() -> Feed.ID? {
         guard selectedSmartFeed == nil else { return nil }
+        guard selectedFolderName == nil else { return nil }
         guard !subscribedFeeds.isEmpty else { return nil }
         let currentIdx = subscribedFeeds.firstIndex(where: { $0.id == selectedFeedID })
             ?? subscribedFeeds.count

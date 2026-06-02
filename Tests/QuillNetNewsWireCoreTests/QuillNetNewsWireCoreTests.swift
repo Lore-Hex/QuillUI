@@ -4468,6 +4468,28 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("nextFeedIDWithUnread returns nil under folder view (don't escape folder)")
+    func nextFeedWithUnreadNilUnderFolderView() {
+        let feedA = Feed(title: "A", url: "https://a.test/feed")
+        let feedB = Feed(title: "B", url: "https://b.test/feed")
+        let model = RSSReaderModel(subscribedFeeds: [feedA, feedB])
+        // Pin unread cached items for feed B (outside the folder).
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [feedB],
+            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [feedA], subfolders: [])]
+        )
+        model.selectFolder("Tech")
+        // n exhausting Tech's pool shouldn't jump to feed B
+        // (which is outside the folder) — would escape view.
+        #expect(model.nextFeedIDWithUnread() == nil)
+        #expect(model.previousFeedIDWithUnread() == nil)
+    }
+
+    @MainActor
     @Test("nextFeedIDWithUnread returns nil when smart feed is active")
     func nextFeedWithUnreadNilUnderSmartFeed() {
         let model = RSSReaderModel(subscribedFeeds: [
