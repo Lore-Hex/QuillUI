@@ -2854,6 +2854,35 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("pushLoading / popLoading refcount keeps isLoading true through nested calls")
+    func loadingRefcountSurvivesNested() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        #expect(!model.isLoading)
+        model.pushLoading()
+        #expect(model.isLoading)
+        model.pushLoading()
+        #expect(model.isLoading)
+        // First pop should NOT flip isLoading false — there's
+        // still one in-flight.
+        model.popLoading()
+        #expect(model.isLoading)
+        // Last pop flips false.
+        model.popLoading()
+        #expect(!model.isLoading)
+    }
+
+    @MainActor
+    @Test("popLoading floors at 0 — extra pops don't go negative")
+    func loadingRefcountClampsAtZero() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.popLoading() // pop without push
+        #expect(!model.isLoading)
+        model.pushLoading()
+        #expect(model.isLoading)
+        model.popLoading()
+        #expect(!model.isLoading)
+    }
+
     @Test("runWithConcurrencyLimit caps in-flight count at the supplied limit")
     func concurrencyLimitCapsInFlight() async {
         // 10 items, limit 3. Each task records the in-flight

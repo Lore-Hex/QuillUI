@@ -2380,8 +2380,8 @@ final class RSSReaderModel: ObservableObject {
         // Import, otherwise no feedback until the round-trip
         // resolves. defer ensures it clears on every exit path
         // (success, throw, empty response).
-        setLoading(true)
-        defer { setLoading(false) }
+        pushLoading()
+        defer { popLoading() }
         do {
             let (maybeData, _) = try await Downloader.shared.download(url)
             guard let data = maybeData else {
@@ -2477,20 +2477,21 @@ final class RSSReaderModel: ObservableObject {
         // selectFeed-induced fetch that fires only after
         // autodiscovery resolves. Toggled back off either via
         // setLoading(false) on the failure paths or implicitly
-        // via selectFeed → fetch's own setLoading toggle on
-        // the success path.
-        setLoading(true)
+        // via selectFeed → fetch's own push/popLoading on the
+        // success path. Use push/pop here so the indicator
+        // refcount stays balanced if selectFeed grabs it next.
+        pushLoading()
         let candidates: Set<FeedSpecifier>
         do {
             candidates = try await FeedFinder.find(url: url)
         } catch {
             setError("Subscribe failed: \(Self.friendlyError(error))")
-            setLoading(false)
+            popLoading()
             return nil
         }
         guard let best = FeedSpecifier.bestFeed(in: candidates) else {
             setError("No feed found at \(normalized)")
-            setLoading(false)
+            popLoading()
             return nil
         }
         let feed = Feed(title: best.title ?? best.urlString, url: best.urlString)
@@ -2498,15 +2499,14 @@ final class RSSReaderModel: ObservableObject {
         if added == 0 {
             // Already subscribed — return the existing record.
             lastSubscribeMessage = "Already subscribed to \(feed.title)"
-            setLoading(false)
+            popLoading()
             return subscribedFeeds.first(where: { $0.id == feed.id })
         }
         lastSubscribeMessage = "Subscribed to \(feed.title)"
-        // selectFeed → fetch does its own setLoading toggle; the
-        // global indicator handoff is seamless. Reset our own
-        // first so the assert in fetch's setLoading(true) sees
-        // a clean false → true transition (not true → true).
-        setLoading(false)
+        // selectFeed → fetch's own push/pop carries the
+        // indicator forward; pop our refcount first so the
+        // count stays correct.
+        popLoading()
         // Auto-select the newly-subscribed feed so the sidebar
         // highlights it and the timeline starts populating with
         // its articles. Matches upstream NetNewsWire's post-
@@ -2696,15 +2696,13 @@ final class RSSReaderModel: ObservableObject {
             feedErrors[urlString] = "Invalid URL"
             return
         }
-        // Toggle isLoading for the duration so the UI's
-        // disable-while-loading affordances (Refresh button,
-        // Refresh All button, inspector Refresh) honor the
-        // in-flight state. Without this, refreshAllFeeds'
-        // inactive-feed loop would leave isLoading=false
-        // between iterations and the user could trigger
-        // overlapping fetches mid-batch.
-        setLoading(true)
-        defer { setLoading(false) }
+        // Refcount-based isLoading so #139's concurrent
+        // refreshAllFeeds doesn't race-flip the bool back to
+        // false before all in-flight tasks finish. push/pop
+        // hold isLoading=true until the LAST in-flight fetch
+        // completes.
+        pushLoading()
+        defer { popLoading() }
         do {
             let (maybeData, maybeResponse) = try await Downloader.shared.download(url)
             // Same HTTP-status guard as the active-feed fetch()
@@ -2771,10 +2769,10 @@ final class RSSReaderModel: ObservableObject {
         guard let url = URL(string: urlString) else {
             setError("Invalid URL")
             feedErrors[urlString] = "Invalid URL"
-            setLoading(false)
             return
         }
-        setLoading(true)
+        pushLoading()
+        defer { popLoading() }
         setError(nil)
         do {
             // Upstream RSWeb Downloader: ephemeral session, no
@@ -2797,14 +2795,12 @@ final class RSSReaderModel: ObservableObject {
                 self.setError(msg)
                 feedErrors[urlString] = msg
                 incrementFailureCount(forFeed: urlString)
-                setLoading(false)
                 return
             }
             guard let data = maybeData else {
                 self.setError("Empty response")
                 feedErrors[urlString] = "Empty response"
                 incrementFailureCount(forFeed: urlString)
-                setLoading(false)
                 return
             }
             // Upstream RSParser via QuillRSParser; covers RSS 2.0,
@@ -2899,7 +2895,7 @@ final class RSSReaderModel: ObservableObject {
             self.feedErrors[urlString] = friendly
             incrementFailureCount(forFeed: urlString)
         }
-        setLoading(false)
+        // popLoading via the defer at function top.
     }
 
     /// Human-readable "Updated N ago" string for the footer
@@ -4395,6 +4391,29 @@ final class RSSReaderModel: ObservableObject {
     private func setLoading(_ newIsLoading: Bool) {
         if isLoading != newIsLoading {
             isLoading = newIsLoading
+        }
+    }
+
+    /// In-flight fetch refcount. With #139's concurrent
+    /// refreshAllFeeds, multiple fetchIntoCache calls can be
+    /// alive at once — the bool-flip-on-each-entry setLoading
+    /// pattern raced (first finisher flipped to false while
+    /// others were still in flight). Track a refcount instead
+    /// and derive isLoading = refcount > 0. All fetch paths
+    /// should route through pushLoading / popLoading.
+    private var loadingRefcount: Int = 0
+
+    func pushLoading() {
+        loadingRefcount += 1
+        if loadingRefcount == 1 {
+            setLoading(true)
+        }
+    }
+
+    func popLoading() {
+        loadingRefcount = max(0, loadingRefcount - 1)
+        if loadingRefcount == 0 {
+            setLoading(false)
         }
     }
 
