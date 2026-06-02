@@ -1814,6 +1814,30 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Search aggregates across feedCaches without a smart feed")
+    func searchIsCrossFeed() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        // Active feed A's items.
+        model.items = [
+            RSSItem(id: "a1", title: "Swift release notes", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "WWDC summary", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        // Inactive feed B's cache.
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "Swift Concurrency dive", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "b2", title: "Kernel patches", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        // No smart feed; search "Swift" should find a1 + b1 even
+        // though b1 is in the inactive-feed cache.
+        model.searchQuery = "Swift"
+        let ids = Set(model.filteredItems.map(\.id))
+        #expect(ids == ["a1", "b1"])
+    }
+
+    @MainActor
     @Test("RSSReaderModel.statusText surfaces matching count when filter is active")
     func searchStatusTextShowsMatching() {
         let model = RSSReaderModel()
