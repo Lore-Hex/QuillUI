@@ -764,6 +764,20 @@ var targets: [Target] = [
         dependencies: ["QuillUI", "QuillFoundation"],
         swiftSettings: appSwiftSettings
     ),
+    // Minimal RSCore-shaped shim. Reproduces the slice of
+    // upstream Ranchero-Software/NetNewsWire's RSCore surface
+    // (String.md5String first, more arrive as upstream parser
+    // sources are vendored over) so we can bring RSParser /
+    // Articles / RSWeb / Account into the Linux build via
+    // SwiftPM `moduleAliases: ["RSCore": "QuillRSCoreShim"]`
+    // without dragging RSCore's AppKit/UIKit/os imports or its
+    // ObjC sibling. Pure-Foundation target — compiles on macOS
+    // and Linux unchanged.
+    .target(
+        name: "QuillRSCoreShim",
+        dependencies: [],
+        swiftSettings: appSwiftSettings
+    ),
     .executableTarget(
         name: "QuillNetNewsWire",
         dependencies: ["QuillNetNewsWireCore", "QuillUI"],
@@ -1618,6 +1632,16 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillNetNewsWireCoreTests",
             dependencies: ["QuillNetNewsWireCore"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Pins QuillRSCoreShim against RFC 1321 MD5 test vectors
+        // plus the upstream Insecure.MD5.hash equivalence (empty
+        // string, "a", "abc", and the message digest test set
+        // from the RFC). Guards against shim drift if the
+        // pure-Swift MD5 ever gets touched.
+        .testTarget(
+            name: "QuillRSCoreShimTests",
+            dependencies: ["QuillRSCoreShim"],
             swiftSettings: appSwiftSettings
         ),
         // Pins QuillCodeEditCore: the `ProjectFile.extension`
