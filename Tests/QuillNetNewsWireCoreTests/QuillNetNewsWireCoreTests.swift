@@ -1603,6 +1603,45 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("selectPreviousUnread skips already-read articles going backwards")
+    func keyboardSelectPreviousUnread() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Read: {1}; selectedID = "1". Mark 3 and 4 read too so
+        // 2 and 5 are the only unread items.
+        model.markRead(id: "3")
+        model.markRead(id: "4")
+        model.selectItem(id: "5")  // also auto-marks 5 read
+        // Now read: {1, 3, 4, 5}; unread: {2}. From "5", prev
+        // unread should be "2".
+        let moved = model.selectPreviousUnread()
+        #expect(moved)
+        #expect(model.selectedID == "2")
+        // 2 is now read (selectItem marks). Going prev again
+        // → no unread before us → no-op.
+        let moved2 = model.selectPreviousUnread()
+        #expect(!moved2)
+        #expect(model.selectedID == "2")
+    }
+
+    @MainActor
+    @Test("selectPreviousUnread with no selection picks the last unread")
+    func keyboardSelectPreviousUnreadFromEmpty() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.items = [
+            RSSItem(id: "a", title: "A", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "b", title: "B", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "c", title: "C", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.markRead(id: "b")
+        model.selectItem(id: nil)
+        let moved = model.selectPreviousUnread()
+        #expect(moved)
+        // Walks from end backwards — c first, which is unread.
+        #expect(model.selectedID == "c")
+    }
+
+    @MainActor
     @Test("selectNextUnread with no selection picks the first unread")
     func keyboardSelectNextUnreadFromEmpty() {
         let model = RSSReaderModel(subscribedFeeds: [])
