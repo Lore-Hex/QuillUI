@@ -1538,6 +1538,35 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("refreshAllFeeds is a no-op while isLoading")
+    func refreshAllFeedsNoOpWhileLoading() async {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.isLoading = true
+        await model.refreshAllFeeds()
+        // No state change observable; just verify it doesn't crash
+        // or hang. The guard prevents overlapping fetches.
+        #expect(model.isLoading)
+    }
+
+    @MainActor
+    @Test("refreshAllFeeds preserves the active feed's items array shape")
+    func refreshAllFeedsPreservesActiveTimeline() async {
+        // Synthesize an active-feed items array; refreshAllFeeds
+        // with subscribedFeeds = [] should fetch the (invalid)
+        // active URL once via refresh() then exit cleanly. The
+        // pre-existing items stay around until the (failing)
+        // fetch overwrites them. Just verify the no-network
+        // path doesn't crash.
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.items = [
+            RSSItem(id: "x", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        await model.refreshAllFeeds()
+        // currentFeedURL is nil → no fetch path runs.
+        #expect(model.items.count == 1)
+    }
+
+    @MainActor
     @Test("startBackgroundRefresh + stopBackgroundRefresh are idempotent")
     func startStopBackgroundRefreshIdempotent() {
         let model = RSSReaderModel()
