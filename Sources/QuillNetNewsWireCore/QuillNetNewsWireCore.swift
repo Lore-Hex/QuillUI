@@ -7,6 +7,7 @@ import FoundationNetworking
 import FoundationXML
 #endif
 import QuillUI
+import QuillRSParser
 
 /// Quill NetNewsWire content view — a self-contained RSS reader.
 ///
@@ -784,7 +785,11 @@ final class RSSReaderModel: ObservableObject {
             var request = URLRequest(url: url)
             request.setValue("Quill-NetNewsWire/0.1", forHTTPHeaderField: "User-Agent")
             let (data, _) = try await URLSession.shared.data(for: request)
-            let parsed = RSSFeedParser.parse(data: data)
+            // Upstream RSParser via QuillRSParser; covers RSS 2.0,
+            // Atom, JSON Feed, RSS-in-JSON. Legacy XMLParser path
+            // is kept around for its existing test pin until the
+            // homegrown-parser retirement iteration.
+            let parsed = RSSFeedParser.parseUpstream(data: data, url: urlString)
             self.setFeedTitle(parsed.title)
             self.setItems(Array(parsed.items.prefix(50)))
             if self.selectedID == nil {
@@ -1126,6 +1131,75 @@ struct RSSFeedParser {
         _ = parser.parse()
         return Result(title: delegate.feedTitle, items: delegate.items)
     }
+
+    /// Upstream Ranchero-Software/NetNewsWire `FeedParser` path.
+    /// Same Result shape as the legacy parse(data:), so the model
+    /// + view + smart-feed pipeline all keep working unchanged.
+    ///
+    /// Differences from the legacy XMLParser path:
+    ///   - Covers RSS 2.0, Atom, JSON Feed, RSS-in-JSON (legacy
+    ///     only handled the RSS 2.0/Atom subset)
+    ///   - DateParser converts pubDate strings to Date and we
+    ///     re-emit ISO 8601 (legacy preserved the raw header)
+    ///   - Items arrive as Set<ParsedItem>; we sort newest-first
+    ///     with a uniqueID tiebreaker so timeline ordering is
+    ///     deterministic
+    ///   - uniqueIDs are content-addressed MD5 hashes via
+    ///     QuillRSCoreShim when upstream falls back from guid
+    static func parseUpstream(data: Data, url: String) -> Result {
+        let parserData = ParserData(url: url, data: data)
+        // FeedParser.parse(_:) signature is `throws -> ParsedFeed?`,
+        // so `try?` would yield ParsedFeed?? — handle both axes
+        // (parse error and unidentified-feed) with do/catch so the
+        // empty Result fallback is reachable from either path.
+        let parsed: ParsedFeed?
+        do {
+            parsed = try FeedParser.parse(parserData)
+        } catch {
+            parsed = nil
+        }
+        guard let parsed else { return Result() }
+        let sortedItems = parsed.items.sorted { lhs, rhs in
+            // Newest first; nil dates sort last; deterministic
+            // uniqueID tiebreaker so repeated parses don't churn.
+            switch (lhs.datePublished, rhs.datePublished) {
+            case let (l?, r?) where l != r: return l > r
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: return lhs.uniqueID < rhs.uniqueID
+            }
+        }
+        let rssItems = sortedItems.map(adaptParsedItem(_:))
+        return Result(title: parsed.title, items: rssItems)
+    }
+
+    /// Translate one upstream ParsedItem into our local RSSItem
+    /// shape. Body falls back through contentHTML → contentText
+    /// → summary → nil. Title falls back to "Untitled" so the
+    /// timeline always renders something. pubDate gets ISO 8601
+    /// formatted when the upstream DateParser produced a Date.
+    static func adaptParsedItem(_ item: ParsedItem) -> RSSItem {
+        let title = (item.title?.isEmpty == false) ? item.title! : "Untitled"
+        let body = item.contentHTML ?? item.contentText ?? item.summary
+        return RSSItem(
+            id: item.uniqueID,
+            title: title,
+            link: item.url,
+            pubDate: formatPubDate(item.datePublished),
+            descriptionHTML: body
+        )
+    }
+
+    static func formatPubDate(_ date: Date?) -> String? {
+        guard let date else { return nil }
+        return Self.iso8601Formatter.string(from: date)
+    }
+
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
 
     final class Delegate: NSObject, XMLParserDelegate {
         var feedTitle: String?

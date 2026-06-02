@@ -420,6 +420,69 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.starredArticleIDs == ["1", "3"])
     }
 
+    // MARK: - Upstream FeedParser adapter (parseUpstream)
+
+    @Test("parseUpstream parses RSS 2.0 via upstream FeedParser, falls back Untitled and ISO-8601 pubDate")
+    func parseUpstreamRSS2() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Upstream Example</title>
+            <link>https://example.test/</link>
+            <description>An example feed for the upstream FeedParser adapter — padded over 128 bytes.</description>
+            <item>
+              <title>Has Title</title>
+              <link>https://example.test/1</link>
+              <pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate>
+              <description>Body one.</description>
+            </item>
+            <item>
+              <link>https://example.test/2</link>
+              <pubDate>Tue, 02 Jan 2024 12:00:00 GMT</pubDate>
+              <description>Body two.</description>
+            </item>
+          </channel>
+        </rss>
+        """
+        let result = RSSFeedParser.parseUpstream(data: Data(xml.utf8), url: "https://example.test/feed.xml")
+        #expect(result.title == "Upstream Example")
+        #expect(result.items.count == 2)
+        // Sort is newest-first, so item 2 (Jan 2) sorts before item 1 (Jan 1).
+        let titles = result.items.map(\.title)
+        #expect(titles.contains("Has Title"))
+        #expect(titles.contains("Untitled"))
+        // pubDate is ISO-8601 normalized (legacy parser preserved
+        // the raw header — the adapter intentionally normalizes).
+        let pubs = result.items.compactMap(\.pubDate)
+        #expect(pubs.allSatisfy { $0.contains("T") && $0.hasSuffix("Z") })
+    }
+
+    @Test("parseUpstream sorts items newest-first with uniqueID tiebreaker")
+    func parseUpstreamSortOrder() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Sort Test</title>
+            <description>Sort-order pin against upstream FeedParser adapter — fill to 128 bytes minimum.</description>
+            <item><title>Older</title><link>https://example.test/a</link><pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate><description>x</description></item>
+            <item><title>Newer</title><link>https://example.test/b</link><pubDate>Wed, 03 Jan 2024 12:00:00 GMT</pubDate><description>y</description></item>
+          </channel>
+        </rss>
+        """
+        let result = RSSFeedParser.parseUpstream(data: Data(xml.utf8), url: "https://example.test/feed.xml")
+        #expect(result.items.first?.title == "Newer")
+        #expect(result.items.last?.title == "Older")
+    }
+
+    @Test("parseUpstream returns empty Result for unrecognized input")
+    func parseUpstreamEmpty() {
+        let result = RSSFeedParser.parseUpstream(data: Data("not-a-feed".utf8), url: "https://example.test/")
+        #expect(result.title == nil)
+        #expect(result.items.isEmpty)
+    }
+
     @MainActor
     @Test("RSSReaderModel.starredCount reflects starred items in the loaded timeline")
     func readerModelStarredCount() {

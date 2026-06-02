@@ -761,7 +761,7 @@ var targets: [Target] = [
     // Linux unmodified.
     .target(
         name: "QuillNetNewsWireCore",
-        dependencies: ["QuillUI", "QuillFoundation"],
+        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser"],
         swiftSettings: appSwiftSettings
     ),
     // Minimal RSCore-shaped shim. Reproduces the slice of
