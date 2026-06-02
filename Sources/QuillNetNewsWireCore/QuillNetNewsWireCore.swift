@@ -285,7 +285,9 @@ public struct QuillNetNewsWireContentView: View {
             }
             .keyboardShortcut("u", modifiers: [])
             Button("previous unread") {
-                model.selectPreviousUnread()
+                Task { @MainActor in
+                    await model.selectPreviousUnreadAcrossFeeds()
+                }
             }
             .keyboardShortcut("p", modifiers: [])
             // Cmd+Shift+U toggles "Hide Read Articles" — same
@@ -1750,6 +1752,60 @@ final class RSSReaderModel: ObservableObject {
             }
         }
         return nil
+    }
+
+    /// Symmetric to nextFeedIDWithUnread but walks backwards.
+    /// Used by selectPreviousUnreadAcrossFeeds so the back-
+    /// triage flow is consistent with the forward one.
+    func previousFeedIDWithUnread() -> Feed.ID? {
+        guard selectedSmartFeed == nil else { return nil }
+        guard !subscribedFeeds.isEmpty else { return nil }
+        let currentIdx = subscribedFeeds.firstIndex(where: { $0.id == selectedFeedID })
+            ?? subscribedFeeds.count
+        for offset in 1...subscribedFeeds.count {
+            // Modular subtraction; Swift's % returns negatives for
+            // negative dividends, so normalize with .count.
+            let idx = ((currentIdx - offset) % subscribedFeeds.count + subscribedFeeds.count) % subscribedFeeds.count
+            let feed = subscribedFeeds[idx]
+            if feed.id == selectedFeedID { continue }
+            if unreadCount(forFeed: feed.id) > 0 {
+                return feed.id
+            }
+        }
+        return nil
+    }
+
+    /// Async counterpart to selectPreviousUnread that crosses
+    /// feed boundaries — at the start-of-pool, jumps to the
+    /// previous feed with unread and selects its LAST unread
+    /// item (matching upstream's ⌘⇧N behavior of "walking
+    /// backwards through everything I haven't read").
+    @discardableResult
+    func selectPreviousUnreadAcrossFeeds() async -> Bool {
+        if selectPreviousUnread() { return true }
+        guard let target = previousFeedIDWithUnread() else { return false }
+        await selectFeed(id: target)
+        // Land on the LAST unread, not the first — matches the
+        // intuition of walking backwards.
+        return selectLastUnreadInActiveFeed()
+    }
+
+    /// Select the LAST unread item in the current filteredItems
+    /// pool. Returns true when something was selected. Used by
+    /// the back-triage flow after crossing a feed boundary so
+    /// the user lands at the bottom of the new feed's pool,
+    /// not the top.
+    @discardableResult
+    func selectLastUnreadInActiveFeed() -> Bool {
+        let pool = filteredItems
+        for i in stride(from: pool.count - 1, through: 0, by: -1) {
+            let item = pool[i]
+            if !readArticleIDs.contains(item.id) {
+                selectItem(id: item.id)
+                return true
+            }
+        }
+        return false
     }
 
     /// Step the selection to the previous *unread* article in

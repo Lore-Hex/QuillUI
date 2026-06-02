@@ -1931,6 +1931,49 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("previousFeedIDWithUnread walks backwards with wraparound")
+    func previousFeedWithUnreadWraps() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+            Feed(title: "C", url: "https://c.test/feed"),
+        ])
+        // Current = A; B has unread → previous walks A → C → B,
+        // finds B. (C is skipped because it has no cache.)
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        #expect(model.previousFeedIDWithUnread() == "https://b.test/feed")
+    }
+
+    @MainActor
+    @Test("selectLastUnreadInActiveFeed lands on the last unread, not the first")
+    func selectLastUnreadInActiveFeedPicksTail() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = (1...3).map {
+            RSSItem(id: "a\($0)", title: "Item \($0)", link: nil, pubDate: nil, descriptionHTML: nil)
+        }
+        model.markRead(id: "a2") // a1 + a3 still unread
+        #expect(model.selectLastUnreadInActiveFeed())
+        #expect(model.selectedID == "a3")
+    }
+
+    @MainActor
+    @Test("selectLastUnreadInActiveFeed returns false when all visible items are read")
+    func selectLastUnreadInActiveFeedFalseWhenAllRead() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.markRead(id: "a1")
+        #expect(!model.selectLastUnreadInActiveFeed())
+    }
+
+    @MainActor
     @Test("nextFeedIDWithUnread finds the next subscribed feed with unread")
     func nextFeedWithUnreadFindsCachedUnread() {
         let model = RSSReaderModel(subscribedFeeds: [
