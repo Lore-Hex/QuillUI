@@ -686,6 +686,23 @@ struct QuillNetNewsWireCoreTests {
         #expect(fetched.first?.isRead == true)
     }
 
+    @Test("ArticleStore.deleteForFeed removes only that feed's rows")
+    func articleStoreDeleteForFeed() throws {
+        let store = try ArticleStore()
+        let a = PersistentArticle(
+            id: "a", accountID: "Local", feedID: "https://a.test/feed",
+            uniqueID: "ua", title: "A"
+        )
+        let b = PersistentArticle(
+            id: "b", accountID: "Local", feedID: "https://b.test/feed",
+            uniqueID: "ub", title: "B"
+        )
+        try store.upsert([a, b])
+        try store.deleteForFeed("https://a.test/feed")
+        let fetched = try store.fetchAll()
+        #expect(fetched.map(\.id) == ["b"])
+    }
+
     @Test("ArticleStore.markRead(read:false) flips the bit back")
     func articleStoreMarkReadFalse() throws {
         let store = try ArticleStore()
@@ -2108,6 +2125,39 @@ struct QuillNetNewsWireCoreTests {
         // Back-off counter survives — dead feed isn't restarted
         // from 0 on every launch.
         #expect(second.feedFailureCount["https://a.test/feed"] == 3)
+    }
+
+    @MainActor
+    @Test("removeSubscription deletes the feed's SQLite rows too")
+    func removeSubscriptionDeletesSQLiteRows() throws {
+        // Use a real on-disk store so rows actually round-trip
+        // through SQLite (matches the production wiring).
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-removeRows-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try ArticleStore(directoryURL: dir)
+        let persistenceStore = PersistenceStore(directoryURL: dir)
+        let model = RSSReaderModel(
+            subscribedFeeds: [
+                Feed(title: "A", url: "https://a.test/feed"),
+                Feed(title: "B", url: "https://b.test/feed"),
+            ],
+            persistence: persistenceStore,
+            articleStore: store
+        )
+        // Pin a row for each feed.
+        try store.upsert([
+            PersistentArticle(id: "a", accountID: "Local",
+                              feedID: "https://a.test/feed",
+                              uniqueID: "ua", title: "A"),
+            PersistentArticle(id: "b", accountID: "Local",
+                              feedID: "https://b.test/feed",
+                              uniqueID: "ub", title: "B"),
+        ])
+        _ = model.removeSubscription(id: "https://a.test/feed")
+        let fetched = try store.fetchAll()
+        #expect(fetched.map(\.id) == ["b"])
     }
 
     @MainActor

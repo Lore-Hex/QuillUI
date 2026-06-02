@@ -2262,6 +2262,13 @@ final class RSSReaderModel: ObservableObject {
         feedErrors.removeValue(forKey: id)
         feedFailureCount.removeValue(forKey: id)
         feedIconURLs.removeValue(forKey: id)
+        // Drop the feed's SQLite rows so they don't re-hydrate
+        // into feedCaches on next launch and resurface in
+        // smart-feed / search views. Failures swallow so a flaky
+        // disk doesn't block the in-memory removal — the rows
+        // would just leak quietly (much less bad than the unsub
+        // never completing).
+        try? articleStore?.deleteForFeed(id)
         // Walk the folder tree, removing the feed from every
         // level. Folder structure stays intact; only the leaf
         // disappears.

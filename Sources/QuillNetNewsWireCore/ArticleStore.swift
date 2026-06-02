@@ -98,6 +98,23 @@ public final class ArticleStore: @unchecked Sendable {
         }
     }
 
+    /// Delete every row belonging to a feed. Called from
+    /// RSSReaderModel.removeSubscription so the SQLite store
+    /// doesn't carry articles for feeds the user has unsub-
+    /// scribed (they'd otherwise re-hydrate into feedCaches on
+    /// next launch and resurface in smart-feed / search views).
+    public func deleteForFeed(_ feedID: String) throws {
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<PersistentArticle>(
+            filter: { $0.feedID == feedID }
+        )
+        let rows = try context.fetch(descriptor)
+        for row in rows {
+            context.delete(row)
+        }
+        try context.save()
+    }
+
     /// Generic single-row mutation helper. Fetches the existing
     /// row (if any), applies the closure, persists.
     private func mutate(articleID: String, _ apply: (inout PersistentArticle) -> Void) throws {
