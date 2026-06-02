@@ -6,6 +6,9 @@
 //
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import os
 
 nonisolated public let localeForLowercasing = Locale(identifier: "en_US")

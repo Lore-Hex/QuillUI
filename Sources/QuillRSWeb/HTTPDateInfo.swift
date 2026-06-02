@@ -7,6 +7,9 @@
 //
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 nonisolated public struct HTTPDateInfo: Codable, Equatable {
 
