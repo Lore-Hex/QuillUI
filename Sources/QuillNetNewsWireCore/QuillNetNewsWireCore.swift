@@ -37,6 +37,7 @@ public struct QuillNetNewsWireContentView: View {
     @State private var addSubscriptionInput: String = ""
     @State private var opmlImportURLInput: String = ""
     @State private var showingSettings: Bool = false
+    @State private var inspectedFeedID: Feed.ID? = nil
 
     public init() {}
 
@@ -98,7 +99,85 @@ public struct QuillNetNewsWireContentView: View {
             )) {
                 settingsSheet
             }
+            .sheet(isPresented: Binding(
+                get: { inspectedFeedID != nil },
+                set: { if !$0 { inspectedFeedID = nil } }
+            )) {
+                inspectorSheet
+            }
         }
+    }
+
+    /// Per-feed inspector sheet. Mirrors NetNewsWire's
+    /// 'Get Info' window: shows feed title, fetch URL,
+    /// homePageURL (clickable Link), last-fetch summary,
+    /// item + unread counts, and the most recent error
+    /// message when present. Bound to inspectedFeedID
+    /// so opening from a feedRow's ℹ button works.
+    private var inspectorSheet: some View {
+        let feed = model.subscribedFeeds.first(where: { $0.id == inspectedFeedID })
+        return VStack(alignment: .leading, spacing: 14) {
+            Text("Feed Info").font(.title2).bold()
+            if let feed {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(feed.title).font(.headline)
+                    Text(feed.url)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+                if let cache = model.feedCaches[feed.id] {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(cache.items.count) items cached")
+                            .font(.caption)
+                        Text(Self.fetchAgeText(cache.lastFetchAt))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                let unread = model.unreadCount(forFeed: feed.id)
+                if unread > 0 {
+                    Text("\(unread) unread")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                }
+                if let iconURL = model.feedIconURLs[feed.id] {
+                    Text("Icon: \(iconURL)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+                if let err = model.feedErrors[feed.id] {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Last error")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(err)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .lineLimit(4)
+                    }
+                }
+            } else {
+                Text("Feed not found")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            HStack {
+                Spacer()
+                Button("Done") { inspectedFeedID = nil }
+            }
+        }
+        .padding(24)
+        .frame(width: 380, height: 360)
+    }
+
+    /// Render a Date as "Last fetched 2 hours ago" / "never".
+    /// Reuses the same relative-formatter shim the detail-view
+    /// header uses.
+    private static func fetchAgeText(_ date: Date) -> String {
+        "Last fetched \(RSSReaderModel.relativeString(for: date, relativeTo: Date()))"
     }
 
     /// Settings sheet — Stepper for the background-refresh
@@ -395,12 +474,17 @@ public struct QuillNetNewsWireContentView: View {
                     .fontWeight(.bold)
                     .foregroundColor(.blue)
             }
-            // Delete-subscription affordance. Tiny ✕ that only
-            // surfaces in the selected row to keep visual noise
-            // down — matches upstream NetNewsWire's edit-mode
-            // delete button (a hover-only X in macOS, edit-mode
-            // swipe on iOS).
+            // Inspect + delete affordances. Tiny ℹ + ✕ that
+            // only surface in the selected row to keep visual
+            // noise down — matches upstream NetNewsWire's
+            // edit-mode delete button (a hover-only X in macOS,
+            // edit-mode swipe on iOS) plus an info-row gesture.
             if isSelected {
+                Button("ℹ") {
+                    inspectedFeedID = feed.id
+                }
+                .font(.caption2)
+                .foregroundColor(.secondary)
                 Button("✕") {
                     model.removeSubscription(id: feed.id)
                 }
@@ -1994,7 +2078,7 @@ final class RSSReaderModel: ObservableObject {
     }()
     /// Darwin path delegates to Foundation's locale-aware
     /// RelativeDateTimeFormatter.
-    private static func relativeString(for date: Date, relativeTo now: Date) -> String {
+    static func relativeString(for date: Date, relativeTo now: Date) -> String {
         relativeFormatter.localizedString(for: date, relativeTo: now)
     }
     #else
@@ -2004,7 +2088,7 @@ final class RSSReaderModel: ObservableObject {
     /// 'in N units'. Plural/singular handled. Matches the shape
     /// of Apple's full-units-style output closely enough for the
     /// footer + detail-header strings to read naturally.
-    private static func relativeString(for date: Date, relativeTo now: Date) -> String {
+    static func relativeString(for date: Date, relativeTo now: Date) -> String {
         let delta = now.timeIntervalSince(date)
         let absDelta = abs(delta)
         let inPast = delta >= 0
