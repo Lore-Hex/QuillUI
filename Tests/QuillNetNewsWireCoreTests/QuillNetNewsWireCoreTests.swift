@@ -350,6 +350,53 @@ struct QuillNetNewsWireCoreTests {
         #expect(result.items.isEmpty)
     }
 
+    // MARK: - Upstream Article materialization
+
+    @Test("parseUpstreamArticles produces Article values from RSS 2.0")
+    func parseUpstreamArticlesRSS2() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Articles Test Feed</title>
+            <description>Pinning Article materialization from upstream RSParser — padded to clear 128.</description>
+            <item><title>Alpha</title><link>https://example.test/a</link><pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate><description>One.</description></item>
+            <item><title>Beta</title><link>https://example.test/b</link><pubDate>Wed, 03 Jan 2024 12:00:00 GMT</pubDate><description>Two.</description></item>
+          </channel>
+        </rss>
+        """
+        let articles = RSSFeedParser.parseUpstreamArticles(
+            data: Data(xml.utf8),
+            url: "https://example.test/feed.xml"
+        )
+        #expect(articles.count == 2)
+        // Newest-first ordering matches parseUpstream / timeline sort.
+        #expect(articles.first?.title == "Beta")
+        #expect(articles.last?.title == "Alpha")
+        // articleID is the md5-via-shim synthesis — 32 hex chars.
+        #expect(articles.allSatisfy { $0.articleID.count == 32 })
+        // accountID defaults to "Local" until a real Account lands.
+        #expect(articles.allSatisfy { $0.accountID == "Local" })
+        // feedID round-trips the URL we passed in.
+        #expect(articles.allSatisfy { $0.feedID == "https://example.test/feed.xml" })
+    }
+
+    @Test("parseUpstreamArticles returns [] for unrecognized input")
+    func parseUpstreamArticlesEmpty() {
+        let articles = RSSFeedParser.parseUpstreamArticles(
+            data: Data("not-a-feed".utf8),
+            url: "https://example.test/"
+        )
+        #expect(articles.isEmpty)
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.articles is empty before any fetch")
+    func readerModelArticlesEmptyInitially() {
+        let model = RSSReaderModel()
+        #expect(model.articles.isEmpty)
+    }
+
     @MainActor
     @Test("RSSReaderModel.starredCount reflects starred items in the loaded timeline")
     func readerModelStarredCount() {
