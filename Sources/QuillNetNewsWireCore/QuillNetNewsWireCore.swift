@@ -916,12 +916,19 @@ final class RSSReaderModel: ObservableObject {
 
     /// Icon / favicon URL per subscribed feed, harvested from
     /// upstream ParsedFeed.iconURL (preferred) or faviconURL
-    /// (fallback) at fetch time. Populated for every successful
-    /// fetch and persisted to disk via the OPML export round-trip
-    /// (upstream OPML's `iconURL` attribute mirrors this). Used
-    /// by the feedsPane to show a per-feed icon once an
+    /// (fallback) at fetch time. Persisted to disk via
+    /// PersistenceStore.feedIconURLs.json so favicons survive
+    /// across launches without re-fetching every feed first.
+    /// Used by the feedsPane to show a per-feed icon once an
     /// async-image-loader iteration lands.
-    @Published var feedIconURLs: [Feed.ID: String] = [:]
+    @Published var feedIconURLs: [Feed.ID: String] = [:] {
+        didSet { persistFeedIconURLsIfReady() }
+    }
+
+    private func persistFeedIconURLsIfReady() {
+        guard persistenceReady else { return }
+        persistence.saveFeedIconURLs(feedIconURLs)
+    }
     @Published var feedTitle: String?
     @Published var error: String? {
         didSet { updateStatusText() }
@@ -1079,6 +1086,7 @@ final class RSSReaderModel: ObservableObject {
         // model just starts fresh.
         self.readArticleIDs = persistence.loadReadArticleIDs()
         self.starredArticleIDs = persistence.loadStarredArticleIDs()
+        self.feedIconURLs = persistence.loadFeedIconURLs()
         // Hydrate feedCaches from any persisted articles so the
         // timeline shows yesterday's items before today's fetch
         // even fires. Bucket by feedID, build the (items,

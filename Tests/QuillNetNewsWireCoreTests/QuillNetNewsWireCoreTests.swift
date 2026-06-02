@@ -964,6 +964,22 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("feedIconURLs persist across reinit via the OPML store")
+    func feedIconURLsPersistRoundTrip() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-icons-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        let first = RSSReaderModel(persistence: store)
+        first.feedIconURLs["https://a.test/feed"] = "https://a.test/favicon.png"
+        first.feedIconURLs["https://b.test/feed"] = "https://b.test/icon.svg"
+        let second = RSSReaderModel(persistence: store)
+        #expect(second.feedIconURLs.count == 2)
+        #expect(second.feedIconURLs["https://a.test/feed"] == "https://a.test/favicon.png")
+        #expect(second.feedIconURLs["https://b.test/feed"] == "https://b.test/icon.svg")
+    }
+
+    @MainActor
     @Test("feedErrors clears between fetches (manual reset)")
     func feedErrorsManualClear() {
         let model = RSSReaderModel(subscribedFeeds: [])

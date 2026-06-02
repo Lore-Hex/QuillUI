@@ -117,6 +117,26 @@ public struct PersistenceStore: Sendable {
         return try? Data(contentsOf: url)
     }
 
+    /// Per-feed icon URL persistence. Stored as a JSON object
+    /// {feedID: iconURL} so the feedsPane can keep showing
+    /// the right favicons across launches without re-fetching
+    /// every feed first. Missing/unreadable file loads to an
+    /// empty dict (first launch).
+    public func loadFeedIconURLs() -> [String: String] {
+        let url = directoryURL.appendingPathComponent("feedIconURLs.json")
+        guard let data = try? Data(contentsOf: url) else { return [:] }
+        return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
+    }
+
+    public func saveFeedIconURLs(_ urls: [String: String]) {
+        try? FileManager.default.createDirectory(
+            at: directoryURL, withIntermediateDirectories: true, attributes: nil
+        )
+        let url = directoryURL.appendingPathComponent("feedIconURLs.json")
+        guard let data = try? JSONEncoder().encode(urls) else { return }
+        try? data.write(to: url, options: .atomic)
+    }
+
     private func loadStringSet(named filename: String) -> Set<String> {
         let url = directoryURL.appendingPathComponent(filename)
         guard let data = try? Data(contentsOf: url) else { return [] }
