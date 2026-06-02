@@ -478,14 +478,14 @@ public struct Feed: Identifiable, Hashable, Sendable {
     }
 }
 
-/// Virtual feed kinds that aggregate articles by status rather
-/// than source. Upstream NetNewsWire pins these to the top of
-/// the sidebar above the subscribed-feed list; this slice
-/// covers the two that work without a cross-feed article cache
-/// (All Unread + Starred filter the currently-loaded timeline).
-/// Today lands with the date-parsing iteration; cross-feed
-/// aggregation lands with the persistence iteration.
+/// Virtual feed kinds that aggregate articles by status or age
+/// rather than by source. Upstream NetNewsWire pins these to
+/// the top of the sidebar above the subscribed-feed list. The
+/// active feed's items are filtered through whichever kind is
+/// selected; cross-feed aggregation arrives with the
+/// persistence iteration.
 public enum SmartFeed: String, CaseIterable, Identifiable, Sendable {
+    case today
     case allUnread
     case starred
 
@@ -493,6 +493,7 @@ public enum SmartFeed: String, CaseIterable, Identifiable, Sendable {
 
     public var displayName: String {
         switch self {
+        case .today:     return "Today"
         case .allUnread: return "All Unread"
         case .starred:   return "Starred"
         }
@@ -500,6 +501,7 @@ public enum SmartFeed: String, CaseIterable, Identifiable, Sendable {
 
     public var symbol: String {
         switch self {
+        case .today:     return "☀"
         case .allUnread: return "●"
         case .starred:   return "★"
         }
@@ -534,7 +536,11 @@ final class RSSReaderModel: ObservableObject {
     /// Same source ParsedFeed; same newest-first sort; same set
     /// of records. View code still reads `items` / `rows` today;
     /// the future migration retires `items` in favor of this.
-    @Published private(set) var articles: [Article] = []
+    /// Setter is internal (rather than private) so tests can pin
+    /// a synthetic article list without going through fetch();
+    /// production code only writes via the fetch() / refresh()
+    /// network path.
+    @Published var articles: [Article] = []
     @Published var feedTitle: String?
     @Published var error: String? {
         didSet { updateStatusText() }
@@ -926,6 +932,11 @@ final class RSSReaderModel: ObservableObject {
     /// switch this to a cross-feed aggregation.
     func count(for smart: SmartFeed) -> Int {
         switch smart {
+        case .today:
+            let cutoff = Date().addingTimeInterval(-86_400)
+            return articles.reduce(0) { acc, article in
+                acc + ((article.datePublished.map { $0 >= cutoff }) == true ? 1 : 0)
+            }
         case .allUnread: return unreadCount
         case .starred:   return starredCount
         }
@@ -950,6 +961,20 @@ final class RSSReaderModel: ObservableObject {
         var pool = items
         if let smart = selectedSmartFeed {
             switch smart {
+            case .today:
+                // Use the parallel articles array (real Date from
+                // upstream DateParser) to determine which uniqueIDs
+                // fall inside the last-24h window, then narrow
+                // items to that set so the existing RSSItem render
+                // path keeps working unchanged.
+                let cutoff = Date().addingTimeInterval(-86_400)
+                let todayIDs = Set(articles.compactMap { article -> String? in
+                    guard let published = article.datePublished, published >= cutoff else {
+                        return nil
+                    }
+                    return article.uniqueID
+                })
+                pool = pool.filter { todayIDs.contains($0.id) }
             case .allUnread:
                 pool = pool.filter { !readArticleIDs.contains($0.id) }
             case .starred:

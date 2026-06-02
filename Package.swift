@@ -1710,7 +1710,7 @@ let packageTestTargets: [Target] = {
         // shared entity set).
         .testTarget(
             name: "QuillNetNewsWireCoreTests",
-            dependencies: ["QuillNetNewsWireCore"],
+            dependencies: ["QuillNetNewsWireCore", "QuillArticles"],
             swiftSettings: appSwiftSettings
         ),
         // Pins QuillRSCoreShim against RFC 1321 MD5 test vectors
