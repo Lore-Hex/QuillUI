@@ -3,9 +3,6 @@ import QuillFoundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-#if canImport(FoundationXML)
-import FoundationXML
-#endif
 import QuillUI
 import QuillRSParser
 
@@ -1110,26 +1107,24 @@ public enum QuillNetNewsWireInitialSelection {
     }
 }
 
-/// Minimal RSS 2.0 + Atom parser backed by `Foundation.XMLParser`.
-/// Captures `title`, `link`, `pubDate`/`updated`, and
-/// `description`/`content` per item — enough to drive the
-/// reader's sidebar list and detail pane.
+/// Adapter from the upstream Ranchero-Software/NetNewsWire
+/// `FeedParser` to the local `RSSItem` shape that the reader
+/// model, sidebar, search filter, smart feeds, OPML import,
+/// and keyboard navigation already consume. Same Result
+/// container is returned regardless of feed format (RSS 2.0,
+/// Atom, JSON Feed, RSS-in-JSON) since the upstream parser
+/// dispatches by content sniff.
 ///
-/// Internal (not private) so QuillNetNewsWireCoreTests can pin
-/// the parse behavior via `@testable import` without going
-/// through `URLSession`.
+/// The historical homegrown Foundation.XMLParser implementation
+/// was retired once parseUpstream covered every fetch() call
+/// site — see git log for the legacy path. Internal (not
+/// private) so QuillNetNewsWireCoreTests can pin the upstream
+/// adapter via `@testable import` without going through
+/// URLSession.
 struct RSSFeedParser {
     struct Result: Equatable {
         var title: String?
         var items: [RSSItem] = []
-    }
-
-    static func parse(data: Data) -> Result {
-        let delegate = Delegate()
-        let parser = XMLParser(data: data)
-        parser.delegate = delegate
-        _ = parser.parse()
-        return Result(title: delegate.feedTitle, items: delegate.items)
     }
 
     /// Upstream Ranchero-Software/NetNewsWire `FeedParser` path.
@@ -1200,83 +1195,6 @@ struct RSSFeedParser {
         f.formatOptions = [.withInternetDateTime]
         return f
     }()
-
-    final class Delegate: NSObject, XMLParserDelegate {
-        var feedTitle: String?
-        var items: [RSSItem] = []
-
-        private var path: [String] = []
-        private var inItem = false
-        private var currentTitle = ""
-        private var currentLink = ""
-        private var currentDate = ""
-        private var currentDescription = ""
-        private var buffer = ""
-
-        /// The element that contains the one we just finished —
-        /// used to scope the feed-level `<title>` lookup (RSS
-        /// channels nest title under `<channel>`, Atom feeds
-        /// nest it under `<feed>`). On end-element the path
-        /// still includes the element we're closing, so the
-        /// parent is `path.dropLast().last`.
-        private var parentElement: String? {
-            path.dropLast().last
-        }
-
-        func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String] = [:]) {
-            path.append(elementName)
-            buffer = ""
-            if elementName == "item" || elementName == "entry" {
-                inItem = true
-                currentTitle = ""
-                currentLink = ""
-                currentDate = ""
-                currentDescription = ""
-            }
-            if inItem && elementName == "link" {
-                if let href = attributeDict["href"] {
-                    currentLink = href
-                }
-            }
-        }
-
-        func parser(_ parser: XMLParser, foundCharacters string: String) {
-            buffer += string
-        }
-
-        func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
-            if let text = String(data: CDATABlock, encoding: .utf8) {
-                buffer += text
-            }
-        }
-
-        func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
-            let trimmed = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
-            if inItem {
-                switch elementName {
-                case "title": currentTitle = trimmed
-                case "link" where currentLink.isEmpty: currentLink = trimmed
-                case "pubDate", "updated", "published": currentDate = trimmed
-                case "description", "summary", "content:encoded": currentDescription = trimmed
-                case "item", "entry":
-                    let id = !currentLink.isEmpty ? currentLink : (currentTitle + currentDate)
-                    items.append(RSSItem(
-                        id: id,
-                        title: currentTitle.isEmpty ? "Untitled" : currentTitle,
-                        link: currentLink.isEmpty ? nil : currentLink,
-                        pubDate: currentDate.isEmpty ? nil : currentDate,
-                        descriptionHTML: currentDescription.isEmpty ? nil : currentDescription
-                    ))
-                    inItem = false
-                default: break
-                }
-            } else if elementName == "title", parentElement == "channel" || parentElement == "feed" {
-                if feedTitle == nil { feedTitle = trimmed }
-            }
-            buffer = ""
-            if !path.isEmpty { path.removeLast() }
-        }
-    }
 }
 
 private extension String {
