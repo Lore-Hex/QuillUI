@@ -201,6 +201,9 @@ public struct WireGuardFallbackConfigurationView: View {
                             if let listenPort = tunnel.interface.listenPort {
                                 detailRow(QuillWireGuardPresentation.listenPortLabel, "\(listenPort)")
                             }
+                            if let mtu = tunnel.interface.mtu {
+                                detailRow(QuillWireGuardPresentation.mtuLabel, "\(mtu)")
+                            }
                         }
 
                         ForEach(tunnel.peers) { peer in
@@ -212,6 +215,9 @@ public struct WireGuardFallbackConfigurationView: View {
                                 }
                                 if let keepAlive = peer.persistentKeepAlive {
                                     detailRow(QuillWireGuardPresentation.keepAliveLabel, "\(keepAlive)s")
+                                }
+                                if peer.preSharedKey != nil {
+                                    detailRow(QuillWireGuardPresentation.preSharedKeyLabel, QuillWireGuardPresentation.preSharedKeyEnabledText)
                                 }
                             }
                         }

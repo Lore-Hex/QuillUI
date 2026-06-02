@@ -55,6 +55,9 @@ public enum QuillWireGuardPresentation {
     public static let allowedIPsLabel = "Allowed IPs"
     public static let endpointLabel = "Endpoint"
     public static let keepAliveLabel = "Keepalive"
+    public static let mtuLabel = "MTU"
+    public static let preSharedKeyLabel = "Preshared key"
+    public static let preSharedKeyEnabledText = "enabled"
     public static let noneText = "None"
 }
 
@@ -122,19 +125,22 @@ public struct QuillWireGuardInterface: Codable, Hashable, Sendable {
     public var addresses: [String]
     public var dnsServers: [String]
     public var listenPort: UInt16?
+    public var mtu: UInt16?
 
     public init(
         privateKey: String,
         publicKey: String,
         addresses: [String],
         dnsServers: [String],
-        listenPort: UInt16? = nil
+        listenPort: UInt16? = nil,
+        mtu: UInt16? = nil
     ) {
         self.privateKey = privateKey
         self.publicKey = publicKey
         self.addresses = addresses
         self.dnsServers = dnsServers
         self.listenPort = listenPort
+        self.mtu = mtu
     }
 }
 
@@ -145,6 +151,7 @@ public struct QuillWireGuardPeer: Codable, Identifiable, Hashable, Sendable {
     public var allowedIPs: [String]
     public var endpoint: String?
     public var persistentKeepAlive: UInt16?
+    public var preSharedKey: String?
 
     public init(
         id: String,
@@ -152,7 +159,8 @@ public struct QuillWireGuardPeer: Codable, Identifiable, Hashable, Sendable {
         publicKey: String,
         allowedIPs: [String],
         endpoint: String? = nil,
-        persistentKeepAlive: UInt16? = nil
+        persistentKeepAlive: UInt16? = nil,
+        preSharedKey: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -160,6 +168,7 @@ public struct QuillWireGuardPeer: Codable, Identifiable, Hashable, Sendable {
         self.allowedIPs = allowedIPs
         self.endpoint = endpoint
         self.persistentKeepAlive = persistentKeepAlive
+        self.preSharedKey = preSharedKey
     }
 }
 
@@ -206,11 +215,19 @@ public struct QuillWireGuardTunnel: Codable, Identifiable, Hashable, Sendable {
             lines.append("ListenPort = \(listenPort)")
         }
 
+        if let mtu = interface.mtu {
+            lines.append("MTU = \(mtu)")
+        }
+
         for peer in peers {
             lines.append("")
             lines.append("[Peer]")
             lines.append("# Name = \(peer.name)")
             lines.append("PublicKey = \(peer.publicKey)")
+
+            if let preSharedKey = peer.preSharedKey {
+                lines.append("PresharedKey = \(preSharedKey)")
+            }
 
             if !peer.allowedIPs.isEmpty {
                 lines.append("AllowedIPs = \(peer.allowedIPs.joined(separator: ", "))")
