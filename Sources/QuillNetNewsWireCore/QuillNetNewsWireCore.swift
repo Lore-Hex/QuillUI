@@ -2100,13 +2100,30 @@ final class RSSReaderModel: ObservableObject {
     private func syncSubscriptionRootIfFlat() {
         let isFlatDefault = subscriptionRoot.name.isEmpty &&
             subscriptionRoot.subfolders.isEmpty
-        guard isFlatDefault else { return }
-        guard subscriptionRoot.feeds != subscribedFeeds else { return }
-        subscriptionRoot = OPMLImporter.Folder(
-            name: "",
-            feeds: subscribedFeeds,
-            subfolders: []
-        )
+        if isFlatDefault {
+            // Pure flat case — wholesale replace as before.
+            guard subscriptionRoot.feeds != subscribedFeeds else { return }
+            subscriptionRoot = OPMLImporter.Folder(
+                name: "",
+                feeds: subscribedFeeds,
+                subfolders: []
+            )
+            return
+        }
+        // Tree-with-folders case: don't rebuild the tree (would
+        // destroy folder structure), but DO append newly-added
+        // feeds to root.feeds so a fresh addSubscription /
+        // mergeImportedFeeds is visible in the sidebar. Without
+        // this, addSubscription against a folder-organized
+        // sidebar leaves the new feed in subscribedFeeds but
+        // invisible in subscriptionRoot — sidebar doesn't
+        // render it anywhere.
+        let treeFeedIDs = Set(subscriptionRoot.allFeeds.map(\.id))
+        let missingFromTree = subscribedFeeds.filter { !treeFeedIDs.contains($0.id) }
+        guard !missingFromTree.isEmpty else { return }
+        var copy = subscriptionRoot
+        copy.feeds.append(contentsOf: missingFromTree)
+        subscriptionRoot = copy
     }
 
     private func persistSubscriptionsIfReady() {

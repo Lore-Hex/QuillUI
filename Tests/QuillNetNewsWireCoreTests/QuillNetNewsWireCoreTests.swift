@@ -4106,6 +4106,32 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("New feed appended to folder-organized root lands at top level (visible)")
+    func newFeedVisibleInFolderOrganizedRoot() {
+        let existing = Feed(title: "Existing", url: "https://e.test/feed")
+        let model = RSSReaderModel(subscribedFeeds: [existing])
+        // Set up a folder-organized root (NOT the flat default).
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(name: "Tech", feeds: [existing], subfolders: []),
+            ]
+        )
+        // Now add a feed via the flat-list path (mimics
+        // addSubscription's mergeImportedFeeds).
+        let new = Feed(title: "New", url: "https://n.test/feed")
+        model.subscribedFeeds.append(new)
+        // The new feed should be visible somewhere in
+        // subscriptionRoot.allFeeds — without #169, it would be
+        // in subscribedFeeds but NOT in subscriptionRoot.
+        let treeIDs = Set(model.subscriptionRoot.allFeeds.map(\.id))
+        #expect(treeIDs.contains(new.id))
+        // Folder structure preserved (Tech still has only Existing).
+        #expect(model.subscriptionRoot.subfolders[0].feeds.map(\.id) == [existing.id])
+    }
+
+    @MainActor
     @Test("subscribedFeeds append syncs the flat subscriptionRoot to match")
     func subscribedFeedsAppendSyncsFlatRoot() {
         let model = RSSReaderModel(subscribedFeeds: [
