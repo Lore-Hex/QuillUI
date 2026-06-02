@@ -84,6 +84,12 @@ public struct WireGuardFallbackConfigurationView: View {
     /// matching `wg` interface is up; `wg show` failing (e.g. in CI / on macOS)
     /// degrades to `.inactive`, so the static smoke is unaffected.
     @State private var liveStatusByTunnelID: [String: QuillWireGuardLiveStatus] = [:]
+    /// onAppear binds to GTK's "map" signal, which can fire repeatedly (not just
+    /// once), so a one-shot guard keeps the initial live-status fetch from
+    /// re-spawning `wg show` on every map — that pinned the GTK app at ~25% steady
+    /// CPU (vs ~3% baseline). @State persists across rebuilds so the flag holds;
+    /// per-selection refreshes still happen via the row tap handler.
+    @State private var didFetchInitialLiveStatus = false
 
     public init() {}
 
@@ -100,6 +106,8 @@ public struct WireGuardFallbackConfigurationView: View {
                 minHeight: WireGuardFallbackStyle.minimumHeight
             )
             .onAppear {
+                guard !didFetchInitialLiveStatus else { return }
+                didFetchInitialLiveStatus = true
                 if let tunnel = selectedTunnel {
                     refreshLiveStatus(for: tunnel)
                 }
