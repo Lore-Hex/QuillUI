@@ -1931,6 +1931,52 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("canSelectNext/Previous reflect boundary state for nav arrows")
+    func canSelectNextPreviousBoundaries() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = (1...3).map {
+            RSSItem(id: "a\($0)", title: "Item \($0)", link: nil, pubDate: nil, descriptionHTML: nil)
+        }
+        // No selection → both disabled (selectNext would jump to
+        // first, but a disabled arrow reads more honestly).
+        model.selectedID = nil
+        #expect(!model.canSelectNext)
+        #expect(!model.canSelectPrevious)
+        // First item → can go next, cannot go prev.
+        model.selectedID = "a1"
+        #expect(model.canSelectNext)
+        #expect(!model.canSelectPrevious)
+        // Middle → both true.
+        model.selectedID = "a2"
+        #expect(model.canSelectNext)
+        #expect(model.canSelectPrevious)
+        // Last → can go prev, cannot go next.
+        model.selectedID = "a3"
+        #expect(!model.canSelectNext)
+        #expect(model.canSelectPrevious)
+    }
+
+    @MainActor
+    @Test("canSelectNext is false when current selection is hidden by search")
+    func canSelectNextFalseWhenSelectionFilteredOut() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "Swift news", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "Kernel news", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.selectedID = "a2"
+        model.searchQuery = "Swift"
+        // a2 is hidden by search → can't determine "next" from a
+        // position that doesn't exist in filteredItems.
+        #expect(!model.canSelectNext)
+        #expect(!model.canSelectPrevious)
+    }
+
+    @MainActor
     @Test("selectionPositionLabel is nil with no selection")
     func selectionPositionNoneWhenNoSelection() {
         let model = RSSReaderModel(subscribedFeeds: [

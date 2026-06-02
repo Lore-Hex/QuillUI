@@ -752,6 +752,18 @@ public struct QuillNetNewsWireContentView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack(alignment: .top, spacing: 12) {
+                            // Prev/next nav arrows. Disabled when
+                            // at the boundary so the affordance
+                            // reads honestly. Same code path as
+                            // the j/k keyboard shortcuts.
+                            Button("◀") { model.selectPreviousItem() }
+                                .font(.title3)
+                                .foregroundColor(.secondary)
+                                .disabled(!model.canSelectPrevious)
+                            Button("▶") { model.selectNextItem() }
+                                .font(.title3)
+                                .foregroundColor(.secondary)
+                                .disabled(!model.canSelectNext)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(item.title).font(.title).bold()
                                 if let position = model.selectionPositionLabel() {
@@ -2428,6 +2440,34 @@ final class RSSReaderModel: ObservableObject {
         let filtered = filteredItems
         guard let index = filtered.firstIndex(where: { $0.id == id }) else { return nil }
         return "\(index + 1) of \(filtered.count)"
+    }
+
+    /// True when `selectNextItem()` would change the selection.
+    /// Powers the detail-header prev/next arrows so the
+    /// disabled-at-boundary state mirrors the actual behavior.
+    /// Returns false when there's no selection (selectNextItem
+    /// auto-selects the first item in that case, but a disabled
+    /// "Next" affordance reads more honestly than a button that
+    /// jumps the cursor in unexpectedly).
+    var canSelectNext: Bool {
+        let pool = filteredItems
+        guard let id = selectedID,
+              let index = pool.firstIndex(where: { $0.id == id }) else {
+            return false
+        }
+        return pool.index(after: index) < pool.endIndex
+    }
+
+    /// True when `selectPreviousItem()` would change the
+    /// selection. Same disabled-at-boundary semantic as
+    /// canSelectNext.
+    var canSelectPrevious: Bool {
+        let pool = filteredItems
+        guard let id = selectedID,
+              let index = pool.firstIndex(where: { $0.id == id }) else {
+            return false
+        }
+        return index > 0
     }
 
     #if canImport(Darwin)
