@@ -1931,6 +1931,32 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("removeSubscription cleans every per-feed state dict")
+    func removeSubscriptionCleansAllDicts() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        // Pin every per-feed state for A.
+        model.feedErrors["https://a.test/feed"] = "old error"
+        model.feedFailureCount["https://a.test/feed"] = 3
+        model.feedIconURLs["https://a.test/feed"] = "https://a.test/icon.png"
+        model.feedCaches["https://a.test/feed"] = RSSReaderModel.FeedCache(
+            items: [RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil)]
+        )
+        #expect(model.removeSubscription(id: "https://a.test/feed"))
+        // Every per-feed dict should have no entry for the
+        // removed feed.
+        #expect(model.feedErrors["https://a.test/feed"] == nil)
+        #expect(model.feedFailureCount["https://a.test/feed"] == nil)
+        #expect(model.feedIconURLs["https://a.test/feed"] == nil)
+        #expect(model.feedCaches["https://a.test/feed"] == nil)
+        // Other feed's state untouched.
+        model.feedErrors["https://b.test/feed"] = "B error"
+        #expect(model.feedErrors["https://b.test/feed"] == "B error")
+    }
+
+    @MainActor
     @Test("Failure counter increments and resets via helper methods")
     func failureCounterIncrementReset() {
         let model = RSSReaderModel(subscribedFeeds: [

@@ -2135,6 +2135,18 @@ final class RSSReaderModel: ObservableObject {
         subscribedFeeds.removeAll { $0.id == id }
         guard subscribedFeeds.count != beforeCount else { return false }
         feedCaches.removeValue(forKey: id)
+        // Clean per-feed state dicts so they don't accumulate
+        // stale entries across the lifetime of the install. Each
+        // of these gets persisted via its own JSON file; without
+        // the cleanup, removing 100 feeds over a year leaves 100
+        // dead entries in feedErrors.json + feedIconURLs.json +
+        // implicit memory growth in feedFailureCount. Upstream
+        // NetNewsWire's Account model handles this implicitly
+        // via per-account-folder deletion; ours is flat so we do
+        // it explicitly.
+        feedErrors.removeValue(forKey: id)
+        feedFailureCount.removeValue(forKey: id)
+        feedIconURLs.removeValue(forKey: id)
         // Walk the folder tree, removing the feed from every
         // level. Folder structure stays intact; only the leaf
         // disappears.
