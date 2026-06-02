@@ -1931,6 +1931,42 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("feedTitle(forItemID:) returns the active feed's title for active items")
+    func feedTitleForActiveItems() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "Alpha", url: "https://a.test/feed"),
+            Feed(title: "Bravo", url: "https://b.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        #expect(model.feedTitle(forItemID: "a1") == "Alpha")
+    }
+
+    @MainActor
+    @Test("feedTitle(forItemID:) returns the cached feed's title for cached items")
+    func feedTitleForCachedItems() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "Alpha", url: "https://a.test/feed"),
+            Feed(title: "Bravo", url: "https://b.test/feed"),
+        ])
+        // Active feed A, no items. B is in cache.
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        #expect(model.feedTitle(forItemID: "b1") == "Bravo")
+    }
+
+    @MainActor
+    @Test("feedTitle(forItemID:) returns nil for unknown item")
+    func feedTitleForUnknown() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "Alpha", url: "https://a.test/feed"),
+        ])
+        #expect(model.feedTitle(forItemID: "nope") == nil)
+    }
+
+    @MainActor
     @Test("autoSelectFirstUnreadIfNoSelection picks the first unread item")
     func autoSelectPicksFirstUnread() {
         let model = RSSReaderModel(subscribedFeeds: [

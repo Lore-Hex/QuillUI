@@ -806,6 +806,20 @@ public struct QuillNetNewsWireContentView: View {
                             }
                             .font(.title2)
                         }
+                        // In cross-feed contexts (smart feed /
+                        // search) surface the source feed name
+                        // under the title — matches upstream
+                        // NetNewsWire's detail-pane breadcrumb so
+                        // users know which feed they're reading
+                        // without flipping back to the timeline.
+                        if (model.selectedSmartFeed != nil ||
+                            !model.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty),
+                            let sourceFeed = model.feedTitle(forItemID: item.id) {
+                            Text(sourceFeed)
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                        }
                         // Friendly date line: relative ("3 hours ago")
                         // when the published date is within 24h,
                         // absolute medium-style date otherwise. Falls
@@ -2030,6 +2044,13 @@ final class RSSReaderModel: ObservableObject {
             // Already subscribed — return the existing record.
             return subscribedFeeds.first(where: { $0.id == feed.id })
         }
+        // Auto-select the newly-subscribed feed so the sidebar
+        // highlights it and the timeline starts populating with
+        // its articles. Matches upstream NetNewsWire's post-
+        // subscribe behavior. selectFeed already fetches, so the
+        // user sees real items right away (or the empty state if
+        // the feed has none).
+        await selectFeed(id: feed.id)
         return feed
     }
 
@@ -2553,6 +2574,30 @@ final class RSSReaderModel: ObservableObject {
         let names = authors.compactMap(\.name).filter { !$0.isEmpty }
         guard !names.isEmpty else { return nil }
         return names.sorted().joined(separator: ", ")
+    }
+
+    /// Source feed title for an article, derived by reverse-
+    /// looking up the item id in the active feed's items list
+    /// first, then every cached feed. Returns nil when nothing
+    /// matches (e.g. the article cache evicted it). Used by
+    /// the detail header in cross-feed views (smart feed,
+    /// search) so users know which feed the article came from
+    /// without going back to the timeline. Mirrors upstream
+    /// NetNewsWire's detail-pane feed-name breadcrumb.
+    func feedTitle(forItemID itemID: String) -> String? {
+        // Active feed: items + currentFeedURL → look up
+        // subscribedFeeds for the title.
+        if let activeURL = currentFeedURL,
+           items.contains(where: { $0.id == itemID }) {
+            return subscribedFeeds.first(where: { $0.url == activeURL })?.title
+        }
+        // Cached feeds.
+        for (feedURL, cache) in feedCaches {
+            if cache.items.contains(where: { $0.id == itemID }) {
+                return subscribedFeeds.first(where: { $0.url == feedURL })?.title
+            }
+        }
+        return nil
     }
 
     /// "N of M" breadcrumb for the selected article within the
