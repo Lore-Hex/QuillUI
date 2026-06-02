@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(WireGuardKit)
+import WireGuardKit
+#endif
+
 /// Generates WireGuard keypairs on Linux via the `wg` CLI — the equivalent of the
 /// macOS app's WireGuardKit `Curve25519` key generation, so the Linux app can
 /// create a brand-new tunnel from scratch (not only import an existing config).
@@ -28,5 +32,18 @@ public enum QuillWireGuardKeyService {
             .run(QuillWireGuardCommand(executable: "wg", arguments: ["pubkey"], standardInput: privateKey))
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return KeyPair(privateKey: privateKey, publicKey: publicKey)
+    }
+
+    /// Generate a keypair in-process via the real upstream WireGuardKit (Curve25519
+    /// in WireGuardKitC) — no `wg` CLI / process runner needed. Returns nil where
+    /// WireGuardKit isn't linked (e.g. the native-Qt Linux graph), so callers can
+    /// fall back to `generateKeyPair(runner:)`. Preferred when available.
+    public static func generateKeyPairInProcess() -> KeyPair? {
+        #if canImport(WireGuardKit)
+        let privateKey = PrivateKey()
+        return KeyPair(privateKey: privateKey.base64Key, publicKey: privateKey.publicKey.base64Key)
+        #else
+        return nil
+        #endif
     }
 }

@@ -33,4 +33,20 @@ struct QuillWireGuardKeyServiceTests {
         // The freshly generated private key is piped to `wg pubkey` via stdin.
         #expect(runner.commands[1].standardInput == "PRIVATE_KEY_BASE64=")
     }
+
+    @Test("in-process keygen via the real WireGuardKit produces a valid base64 keypair")
+    func inProcessKeygen() throws {
+        guard let pair = QuillWireGuardKeyService.generateKeyPairInProcess() else {
+            // WireGuardKit isn't linked in this graph (e.g. native-Qt) — nothing to assert.
+            return
+        }
+        // base64 of a 32-byte key is 44 chars ("=" padded).
+        #expect(pair.privateKey.count == 44)
+        #expect(pair.publicKey.count == 44)
+        #expect(pair.privateKey != pair.publicKey)
+        // Round-trips through WireGuardKit's own base64 parser.
+        #expect(Data(base64Encoded: pair.privateKey)?.count == 32)
+        // Each call is a fresh random key.
+        #expect(QuillWireGuardKeyService.generateKeyPairInProcess()?.privateKey != pair.privateKey)
+    }
 }
