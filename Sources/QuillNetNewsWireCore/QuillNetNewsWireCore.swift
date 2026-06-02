@@ -2604,7 +2604,10 @@ final class RSSReaderModel: ObservableObject {
     /// No-op while a load is already in flight so rapid Refresh clicks
     /// don't pile up overlapping URLSession tasks.
     func refresh(urlString: String) async {
-        guard !isLoading else { return }
+        // Per-URL gate instead of global isLoading so the user
+        // can still trigger an active-feed refresh while
+        // refreshAllFeeds' inactive batch is mid-flight.
+        guard !isLoading(forURL: urlString) else { return }
         didStartInitialLoad = true
         await fetch(urlString: urlString)
     }
@@ -2700,9 +2703,10 @@ final class RSSReaderModel: ObservableObject {
         // refreshAllFeeds doesn't race-flip the bool back to
         // false before all in-flight tasks finish. push/pop
         // hold isLoading=true until the LAST in-flight fetch
-        // completes.
-        pushLoading()
-        defer { popLoading() }
+        // completes. Per-URL variant tracks which feed is in
+        // flight so other paths can guard per-URL (#141).
+        pushLoading(forURL: urlString)
+        defer { popLoading(forURL: urlString) }
         do {
             let (maybeData, maybeResponse) = try await Downloader.shared.download(url)
             // Same HTTP-status guard as the active-feed fetch()
@@ -2771,8 +2775,8 @@ final class RSSReaderModel: ObservableObject {
             feedErrors[urlString] = "Invalid URL"
             return
         }
-        pushLoading()
-        defer { popLoading() }
+        pushLoading(forURL: urlString)
+        defer { popLoading(forURL: urlString) }
         setError(nil)
         do {
             // Upstream RSWeb Downloader: ephemeral session, no
@@ -4403,7 +4407,33 @@ final class RSSReaderModel: ObservableObject {
     /// should route through pushLoading / popLoading.
     private var loadingRefcount: Int = 0
 
+    /// Per-URL in-flight tracker. Lets refresh(urlString:) skip
+    /// only when THIS url is already loading, instead of when
+    /// ANY fetch is loading. Without this, refreshAllFeeds'
+    /// inactive-feed batch (which holds isLoading=true for the
+    /// duration) blocks the user from manually refreshing the
+    /// active feed.
+    private var inFlightURLs: Set<String> = []
+
+    /// True when this URL currently has a fetch / fetchIntoCache
+    /// in flight. Exposed so refresh() can guard per-URL
+    /// instead of via the global isLoading.
+    func isLoading(forURL urlString: String) -> Bool {
+        inFlightURLs.contains(urlString)
+    }
+
     func pushLoading() {
+        pushLoading(forURL: nil)
+    }
+
+    /// Per-URL push that also tracks the URL in inFlightURLs.
+    /// Calls without a URL (nil) only bump the refcount —
+    /// used by helpers like FeedFinder/OPML import that don't
+    /// map to a single feed URL.
+    func pushLoading(forURL urlString: String?) {
+        if let urlString {
+            inFlightURLs.insert(urlString)
+        }
         loadingRefcount += 1
         if loadingRefcount == 1 {
             setLoading(true)
@@ -4411,6 +4441,13 @@ final class RSSReaderModel: ObservableObject {
     }
 
     func popLoading() {
+        popLoading(forURL: nil)
+    }
+
+    func popLoading(forURL urlString: String?) {
+        if let urlString {
+            inFlightURLs.remove(urlString)
+        }
         loadingRefcount = max(0, loadingRefcount - 1)
         if loadingRefcount == 0 {
             setLoading(false)

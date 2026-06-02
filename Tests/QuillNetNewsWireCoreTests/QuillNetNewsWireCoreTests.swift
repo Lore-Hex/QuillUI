@@ -2872,6 +2872,27 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Per-URL push/pop tracks inFlightURLs independently")
+    func perURLInFlightTracking() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        #expect(!model.isLoading(forURL: "https://a.test/feed"))
+        #expect(!model.isLoading(forURL: "https://b.test/feed"))
+        model.pushLoading(forURL: "https://a.test/feed")
+        #expect(model.isLoading(forURL: "https://a.test/feed"))
+        #expect(!model.isLoading(forURL: "https://b.test/feed"))
+        // Concurrent push for B — both in flight.
+        model.pushLoading(forURL: "https://b.test/feed")
+        #expect(model.isLoading(forURL: "https://a.test/feed"))
+        #expect(model.isLoading(forURL: "https://b.test/feed"))
+        // Pop A — B still in flight.
+        model.popLoading(forURL: "https://a.test/feed")
+        #expect(!model.isLoading(forURL: "https://a.test/feed"))
+        #expect(model.isLoading(forURL: "https://b.test/feed"))
+        model.popLoading(forURL: "https://b.test/feed")
+        #expect(!model.isLoading(forURL: "https://b.test/feed"))
+    }
+
+    @MainActor
     @Test("popLoading floors at 0 — extra pops don't go negative")
     func loadingRefcountClampsAtZero() {
         let model = RSSReaderModel(subscribedFeeds: [])
