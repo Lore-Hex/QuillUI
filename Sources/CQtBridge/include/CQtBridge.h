@@ -214,6 +214,32 @@ void quill_qt_line_edit_connect_text_changed(
     quill_qt_bridge_click_callback destroy
 );
 
+// Create a QToolButton with an owned QMenu and popup mode configured so
+// clicking the button opens the menu.
+QuillQtWidgetHandle quill_qt_make_menu_button(void);
+
+// Set the QToolButton text from a SwiftUI Menu label/title.
+void quill_qt_menu_button_set_text(
+    QuillQtWidgetHandle menu_button,
+    const char *text
+);
+
+// Add a QAction to the button's owned QMenu. `destroy` releases `user_data`
+// when the action is destroyed, mirroring the button closure lifetime.
+void quill_qt_menu_button_add_action(
+    QuillQtWidgetHandle menu_button,
+    const char *text,
+    quill_qt_bridge_click_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
+// Add a visual separator to the owned QMenu.
+void quill_qt_menu_button_add_separator(QuillQtWidgetHandle menu_button);
+
+// Ensure clicks display the owned QMenu immediately.
+void quill_qt_menu_button_show_as_popup(QuillQtWidgetHandle menu_button);
+
 // Create a QListWidget-backed List container. Rows are added with
 // quill_qt_bridge_list_widget_add_row_widget so SwiftUI child widgets can keep
 // their native rendering while Qt provides list scrolling/chrome.
