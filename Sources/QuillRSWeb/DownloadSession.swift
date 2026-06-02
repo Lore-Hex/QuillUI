@@ -10,7 +10,9 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+#if canImport(Darwin)
 import os
+#endif
 import QuillRSCoreShim
 
 // Create a DownloadSessionDelegate, then create a DownloadSession.
@@ -494,10 +496,13 @@ private extension DownloadSession {
 	static private let lastOpenRSSOrgFeedRefreshKey = "lastOpenRSSOrgFeedRefresh"
 	static private var lastOpenRSSOrgFeedRefresh: Date {
 		get {
-			UserDefaults.standard.value(forKey: lastOpenRSSOrgFeedRefreshKey) as? Date ?? Date.distantPast
+			// .object(forKey:) instead of .value(forKey:) — KVC
+			// isn't available on swift-corelibs-foundation
+			// (UserDefaults on Linux lacks NSObject KVC support).
+			UserDefaults.standard.object(forKey: lastOpenRSSOrgFeedRefreshKey) as? Date ?? Date.distantPast
 		}
 		set {
-			UserDefaults.standard.setValue(newValue, forKey: lastOpenRSSOrgFeedRefreshKey)
+			UserDefaults.standard.set(newValue, forKey: lastOpenRSSOrgFeedRefreshKey)
 		}
 	}
 

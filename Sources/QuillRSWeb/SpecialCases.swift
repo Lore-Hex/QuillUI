@@ -9,8 +9,9 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+#if canImport(Darwin)
 import os
-
+#endif
 nonisolated public let localeForLowercasing = Locale(identifier: "en_US")
 
 nonisolated public struct SpecialCase {
