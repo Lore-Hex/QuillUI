@@ -383,9 +383,25 @@ public struct QuillNetNewsWireContentView: View {
                                 .foregroundColor(.secondary)
                         }
                         Divider()
-                        Text(item.plainTextBody)
-                            .font(.body)
-                            .lineSpacing(4)
+                        // One Text per HTML paragraph (split on
+                        // block-level tags upstream of HTML
+                        // stripping). Falls through to the
+                        // single-Text plainTextBody when the
+                        // body had no block markup so behavior
+                        // is unchanged for plain-text feeds.
+                        if item.bodyParagraphs.count > 1 {
+                            VStack(alignment: .leading, spacing: 14) {
+                                ForEach(Array(item.bodyParagraphs.enumerated()), id: \.offset) { _, paragraph in
+                                    Text(paragraph)
+                                        .font(.body)
+                                        .lineSpacing(4)
+                                }
+                            }
+                        } else {
+                            Text(item.plainTextBody)
+                                .font(.body)
+                                .lineSpacing(4)
+                        }
                         if let url = item.linkURL {
                             Divider()
                             // SwiftOpenUI's `Link` takes `destination: String`;
@@ -433,6 +449,13 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
     public let linkURL: URL?
     public let publishedSummary: String
     public let plainTextBody: String
+    /// HTML body split on block-level boundaries (<p>, <br>,
+    /// <h*>, <li>, <blockquote>, <div>, <hr>), each segment
+    /// HTML-stripped + entity-decoded. Empty segments are
+    /// removed. Lets the detail view render real paragraph
+    /// structure without an HTML renderer (the underlying
+    /// SwiftOpenUI backend has no rich-text widget today).
+    public let bodyParagraphs: [String]
 
     public init(
         id: String,
@@ -449,6 +472,7 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
         self.linkURL = link.flatMap { URL(string: $0) }
         self.publishedSummary = pubDate ?? ""
         self.plainTextBody = (descriptionHTML ?? "").stripBasicHTML()
+        self.bodyParagraphs = (descriptionHTML ?? "").htmlParagraphs()
     }
 }
 
@@ -473,6 +497,11 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
     public let title: String
     public let publishedSummary: String
     public let plainTextBody: String
+    /// Paragraph-segmented version of the article HTML body —
+    /// see `RSSItem.bodyParagraphs`. The detail view renders one
+    /// Text per segment so paragraph structure shows up even
+    /// without a rich-text widget on the SwiftOpenUI backend.
+    public let bodyParagraphs: [String]
     public let linkURL: URL?
 
     public init(
@@ -480,12 +509,14 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
         title: String,
         publishedSummary: String,
         plainTextBody: String,
+        bodyParagraphs: [String],
         linkURL: URL?
     ) {
         self.id = id
         self.title = title
         self.publishedSummary = publishedSummary
         self.plainTextBody = plainTextBody
+        self.bodyParagraphs = bodyParagraphs
         self.linkURL = linkURL
     }
 
@@ -495,6 +526,7 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
             title: item.title,
             publishedSummary: item.publishedSummary,
             plainTextBody: item.plainTextBody,
+            bodyParagraphs: item.bodyParagraphs,
             linkURL: item.linkURL
         )
     }
@@ -1456,5 +1488,37 @@ private extension String {
         )
         return HTMLEntities.decode(withoutTags)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Split HTML body on block-level boundaries, returning a
+    /// non-empty paragraph list. Each paragraph has its inline
+    /// HTML stripped and entities decoded. Same shape upstream
+    /// NetNewsWire uses to render multi-paragraph article
+    /// bodies in its iOS WebKit-free renderer fallback.
+    ///
+    /// Splits on opening + closing forms of: p, br, hr, h1..h6,
+    /// li, blockquote, div. The `\n` boundary token sneaks in
+    /// after each block element so a single regex .components
+    /// pass produces the segments.
+    func htmlParagraphs() -> [String] {
+        guard !isEmpty else { return [] }
+        // Insert a marker character at every block-level boundary,
+        // then split on it. The marker is `\u{2029}` (PARAGRAPH
+        // SEPARATOR) so it can't collide with any feed content.
+        let blockTags = "p|br|hr|h[1-6]|li|blockquote|div|tr"
+        let pattern = "</?(?:\(blockTags))(?:\\s[^>]*)?/?\\s*>"
+        var work = self.replacingOccurrences(
+            of: pattern,
+            with: "\u{2029}",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        // Strip the remaining (inline) tags.
+        work = work.replacingOccurrences(
+            of: "<[^>]+>", with: "", options: .regularExpression
+        )
+        return work
+            .components(separatedBy: "\u{2029}")
+            .map { HTMLEntities.decode($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 }

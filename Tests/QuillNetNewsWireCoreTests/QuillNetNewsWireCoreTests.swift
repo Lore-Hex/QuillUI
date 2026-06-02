@@ -458,6 +458,51 @@ struct QuillNetNewsWireCoreTests {
 
     // MARK: - addSubscription (FeedFinder integration)
 
+    // MARK: - HTML paragraph splitting
+
+    @Test("bodyParagraphs splits on <p> boundaries and decodes entities")
+    func bodyParagraphsBasic() {
+        let html = "<p>First paragraph &amp; intro.</p><p>Second paragraph.</p>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.bodyParagraphs == ["First paragraph & intro.", "Second paragraph."])
+    }
+
+    @Test("bodyParagraphs handles <br>, <h*>, <li>, <blockquote> as boundaries")
+    func bodyParagraphsManyBlocks() {
+        let html = "<h2>Heading</h2><p>Body.</p><ul><li>Item one</li><li>Item two</li></ul><blockquote>Quote.</blockquote>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.bodyParagraphs == ["Heading", "Body.", "Item one", "Item two", "Quote."])
+    }
+
+    @Test("bodyParagraphs strips inline tags inside each paragraph")
+    func bodyParagraphsInlineStrip() {
+        let html = "<p>Hello <b>world</b> with <a href=\"https://x.test\">a link</a>.</p>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.bodyParagraphs == ["Hello world with a link."])
+    }
+
+    @Test("bodyParagraphs returns single segment for tag-free body")
+    func bodyParagraphsPlainText() {
+        let html = "Just one line of body text with no tags."
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.bodyParagraphs == ["Just one line of body text with no tags."])
+    }
+
+    @Test("bodyParagraphs is empty when descriptionHTML is nil or empty")
+    func bodyParagraphsEmpty() {
+        let none = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: nil)
+        let empty = RSSItem(id: "2", title: "T", link: nil, pubDate: nil, descriptionHTML: "")
+        #expect(none.bodyParagraphs.isEmpty)
+        #expect(empty.bodyParagraphs.isEmpty)
+    }
+
+    @Test("bodyParagraphs drops empty segments from adjacent <br><br>")
+    func bodyParagraphsDropsEmpty() {
+        let html = "<p>One.</p><br/><br/><p>Two.</p>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.bodyParagraphs == ["One.", "Two."])
+    }
+
     // MARK: - Detail view helpers (friendly date + author)
 
     @MainActor
