@@ -19,7 +19,17 @@ public final class AuthorCache: Sendable {
 
 	init() {
 		if !Platform.isRunningUnitTests {
-			NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)
+			// Block-based observer instead of #selector — Linux's
+			// Swift toolchain has no Objective-C runtime, so the
+			// upstream #selector path fails to compile there. The
+			// block form has identical semantics on Darwin.
+			NotificationCenter.default.addObserver(
+				forName: .lowMemory,
+				object: nil,
+				queue: nil
+			) { [weak self] _ in
+				self?.clear()
+			}
 		}
 	}
 
@@ -37,10 +47,6 @@ public final class AuthorCache: Sendable {
 
 	public func clear() {
 		cache.withLock { $0.removeAll() }
-	}
-
-	@objc func handleLowMemory(_ notification: Notification) {
-		clear()
 	}
 }
 
