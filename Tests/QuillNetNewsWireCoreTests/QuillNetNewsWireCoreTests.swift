@@ -686,6 +686,81 @@ struct QuillNetNewsWireCoreTests {
         #expect(fetched.first?.isRead == true)
     }
 
+    @Test("ArticleStore.fetchUnread returns only isRead=false rows")
+    func articleStoreFetchUnread() throws {
+        let store = try ArticleStore()
+        let a = PersistentArticle(
+            id: "a", accountID: "Local", feedID: "https://x.test/feed",
+            uniqueID: "ua", title: "Read", isRead: true
+        )
+        let b = PersistentArticle(
+            id: "b", accountID: "Local", feedID: "https://x.test/feed",
+            uniqueID: "ub", title: "Unread", isRead: false
+        )
+        try store.upsert([a, b])
+        let unread = try store.fetchUnread()
+        #expect(unread.map(\.id) == ["b"])
+    }
+
+    @MainActor
+    @Test("All Unread surfaces SQLite-only unread (older than cache)")
+    func allUnreadSpansSQLiteHistory() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-unreadhistory-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try ArticleStore(directoryURL: dir)
+        let persistenceStore = PersistenceStore(directoryURL: dir)
+        // Pin an unread article in SQLite.
+        try store.upsert([
+            PersistentArticle(
+                id: "old-unread",
+                accountID: "Local",
+                feedID: "https://x.test/feed",
+                uniqueID: "ux-unread",
+                title: "Old unread",
+                isRead: false
+            ),
+        ])
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "X", url: "https://x.test/feed")],
+            persistence: persistenceStore,
+            articleStore: store
+        )
+        model.selectSmartFeed(.allUnread)
+        #expect(model.filteredItems.map(\.id).contains("ux-unread"))
+    }
+
+    @MainActor
+    @Test("storedUnreadItems honors in-memory readArticleIDs (just-marked-read)")
+    func storedUnreadHonorsInMemoryRead() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-justread-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try ArticleStore(directoryURL: dir)
+        let persistenceStore = PersistenceStore(directoryURL: dir)
+        try store.upsert([
+            PersistentArticle(
+                id: "x",
+                accountID: "Local",
+                feedID: "https://x.test/feed",
+                uniqueID: "ux",
+                title: "X",
+                isRead: false
+            ),
+        ])
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "X", url: "https://x.test/feed")],
+            persistence: persistenceStore,
+            articleStore: store
+        )
+        // Mark as read in-memory; SQLite bit lags (would catch up
+        // on next fetch). storedUnreadItems must NOT resurrect it.
+        model.markRead(id: "ux")
+        #expect(!model.storedUnreadItems().contains { $0.id == "ux" })
+    }
+
     @Test("ArticleStore.fetchStarred returns only isStarred rows across all feeds")
     func articleStoreFetchStarred() throws {
         let store = try ArticleStore()

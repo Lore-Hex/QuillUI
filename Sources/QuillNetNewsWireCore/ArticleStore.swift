@@ -90,6 +90,19 @@ public final class ArticleStore: @unchecked Sendable {
         return rows.sorted(by: Self.newestFirst)
     }
 
+    /// Fetch every unread article across all feeds. Symmetric
+    /// to fetchStarred — used by the All Unread smart feed so
+    /// it spans full SQLite history rather than just the
+    /// articlesPerFeedLimit-bounded cache slice.
+    public func fetchUnread() throws -> [PersistentArticle] {
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<PersistentArticle>(
+            filter: { $0.isRead == false }
+        )
+        let rows = try context.fetch(descriptor)
+        return rows.sorted(by: Self.newestFirst)
+    }
+
     /// Mark a single article read (idempotent — re-marking is
     /// a no-op write). Bumps the row's existing isRead bit
     /// without losing any other field.

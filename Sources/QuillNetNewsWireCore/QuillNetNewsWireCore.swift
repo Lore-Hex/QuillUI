@@ -1719,15 +1719,37 @@ final class RSSReaderModel: ObservableObject {
     func storedStarredItems() -> [RSSItem] {
         guard let store = articleStore else { return [] }
         guard let rows = try? store.fetchStarred() else { return [] }
-        return rows.map { row in
-            RSSItem(
-                id: row.uniqueID,
-                title: row.title ?? "Untitled",
-                link: row.url,
-                pubDate: row.datePublished?.description,
-                descriptionHTML: row.contentHTML ?? row.contentText ?? row.summary
-            )
-        }
+        return rows.map(Self.rssItem(from:))
+    }
+
+    /// Symmetric to storedStarredItems for All Unread.
+    /// SQLite-resident unread rows that may have aged out of
+    /// the per-feed cache. Same degradation semantics.
+    /// Honors the in-memory readArticleIDs set as the source
+    /// of truth — a row whose SQLite isRead=false but is in the
+    /// in-memory set was just marked-read this session; treat
+    /// it as read so the user doesn't see it reappear in the
+    /// All Unread list before the next fetch syncs the bits.
+    func storedUnreadItems() -> [RSSItem] {
+        guard let store = articleStore else { return [] }
+        guard let rows = try? store.fetchUnread() else { return [] }
+        return rows
+            .filter { !readArticleIDs.contains($0.uniqueID) }
+            .map(Self.rssItem(from:))
+    }
+
+    /// Shared row → RSSItem reconstitution used by every
+    /// stored-* helper. Same field fallback chain as the live
+    /// fetch path so SQLite-only items render identically to
+    /// just-fetched ones.
+    private static func rssItem(from row: PersistentArticle) -> RSSItem {
+        RSSItem(
+            id: row.uniqueID,
+            title: row.title ?? "Untitled",
+            link: row.url,
+            pubDate: row.datePublished?.description,
+            descriptionHTML: row.contentHTML ?? row.contentText ?? row.summary
+        )
     }
 
     private func hydrateFeedCachesFromStoreIfReady() {
@@ -3115,7 +3137,11 @@ final class RSSReaderModel: ObservableObject {
             })
             return union.reduce(0) { $0 + (recentIDs.contains($1.id) ? 1 : 0) }
         case .allUnread:
-            return union.reduce(0) { $0 + (readArticleIDs.contains($1.id) ? 0 : 1) }
+            let inCache = Set(union.filter { !readArticleIDs.contains($0.id) }.map(\.id))
+            let storedExtras = storedUnreadItems()
+                .filter { !inCache.contains($0.id) }
+                .count
+            return inCache.count + storedExtras
         case .starred:
             // Full starred-history count — same union-with-stored
             // logic as the Starred branch of filteredItems so
@@ -3645,10 +3671,21 @@ final class RSSReaderModel: ObservableObject {
                     // in view for the current session so opening
                     // an article in All Unread doesn't make the
                     // row vanish mid-read. Cleared on view change.
-                    pool = combined.filter {
+                    var unreadPool = combined.filter {
                         !readArticleIDs.contains($0.id) ||
                             sessionStickyVisibleIDs.contains($0.id)
                     }
+                    // Union with SQLite-only unread so older
+                    // articles that aged out of the per-feed
+                    // cache (articlesPerFeedLimit) still surface.
+                    // Cached pool wins on dedupe (freshest fields);
+                    // stored fills in the long tail.
+                    let visibleIDs = Set(unreadPool.map(\.id))
+                    for storedItem in storedUnreadItems()
+                        where !visibleIDs.contains(storedItem.id) {
+                        unreadPool.append(storedItem)
+                    }
+                    pool = unreadPool
                 case .starred:
                     // Cache-only would miss old-but-still-starred
                     // articles that have aged out of the per-feed
