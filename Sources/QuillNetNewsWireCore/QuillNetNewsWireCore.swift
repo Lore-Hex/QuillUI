@@ -1397,6 +1397,25 @@ final class RSSReaderModel: ObservableObject {
         didSet { persistViewOptionsIfReady() }
     }
 
+    /// Per-feed consecutive-failure counter. Incremented on every
+    /// fetch error / HTTP 4xx-5xx / empty response, reset to 0
+    /// on every successful parse. refreshAllFeeds skips feeds
+    /// whose count has crossed `feedFailureSkipThreshold` so
+    /// the background refresh batch doesn't keep hammering
+    /// permanently-bad feeds. Explicit per-feed refresh
+    /// (refreshFeed / refresh) does NOT honor the skip — that's
+    /// how the user clears the skipped state after fixing the
+    /// underlying feed URL.
+    @Published var feedFailureCount: [Feed.ID: Int] = [:]
+
+    /// Consecutive-failure count at which refreshAllFeeds skips
+    /// a feed. 5 chosen to give a feed plenty of chances to come
+    /// back online during transient outages (~2.5 hours at the
+    /// 30-minute default cadence) while still backing off
+    /// before a definitively-dead feed wastes another day of
+    /// background bandwidth.
+    static let feedFailureSkipThreshold = 5
+
     /// Wall-clock time of the most recent successful fetch.
     /// Drives `isAutoRefreshDue()`. Exposed as @Published so
     /// future UI (a "last updated 3m ago" footer line) can
@@ -2215,6 +2234,15 @@ final class RSSReaderModel: ObservableObject {
             await fetch(urlString: activeURL)
         }
         for feed in subscribedFeeds where feed.url != currentFeedURL {
+            // Back-off: skip feeds that have failed N times in a
+            // row. The user can still hit Refresh on the feed
+            // explicitly (refreshFeed routes through fetch which
+            // doesn't honor the skip) — that's how they tell the
+            // model "I fixed it, please try again". The counter
+            // resets on the next successful parse.
+            if (feedFailureCount[feed.id] ?? 0) >= Self.feedFailureSkipThreshold {
+                continue
+            }
             await fetchIntoCache(urlString: feed.url)
         }
     }
@@ -2253,10 +2281,12 @@ final class RSSReaderModel: ObservableObject {
             // the warning glyph in the sidebar.
             if let http = maybeResponse as? HTTPURLResponse, http.statusCode >= 400 {
                 feedErrors[urlString] = Self.httpErrorMessage(forStatus: http.statusCode)
+                incrementFailureCount(forFeed: urlString)
                 return
             }
             guard let data = maybeData else {
                 feedErrors[urlString] = "Empty response"
+                incrementFailureCount(forFeed: urlString)
                 return
             }
             let parsed = RSSFeedParser.parseUpstream(data: data, url: urlString)
@@ -2284,6 +2314,7 @@ final class RSSReaderModel: ObservableObject {
             }
             // Successful refresh-all path clears any prior error.
             feedErrors[urlString] = nil
+            resetFailureCount(forFeed: urlString)
             // Same icon-URL harvest as the active fetch path.
             if let icon = parsed.iconURL ?? parsed.faviconURL {
                 feedIconURLs[urlString] = icon
@@ -2293,6 +2324,7 @@ final class RSSReaderModel: ObservableObject {
             // feed shouldn't bust the whole pass — but stash
             // the error so feedsPane can show a warning glyph.
             feedErrors[urlString] = "\(error)"
+            incrementFailureCount(forFeed: urlString)
         }
     }
 
@@ -2325,12 +2357,14 @@ final class RSSReaderModel: ObservableObject {
                 let msg = Self.httpErrorMessage(forStatus: http.statusCode)
                 self.setError(msg)
                 feedErrors[urlString] = msg
+                incrementFailureCount(forFeed: urlString)
                 setLoading(false)
                 return
             }
             guard let data = maybeData else {
                 self.setError("Empty response")
                 feedErrors[urlString] = "Empty response"
+                incrementFailureCount(forFeed: urlString)
                 setLoading(false)
                 return
             }
@@ -2399,6 +2433,7 @@ final class RSSReaderModel: ObservableObject {
             // Successful fetch clears any prior error tracked
             // for this feed.
             self.feedErrors[urlString] = nil
+            resetFailureCount(forFeed: urlString)
             // Harvest the feed-declared icon URL if present.
             // Prefer iconURL (RSS image / Atom logo / JSON Feed
             // icon — the spec-canonical site icon) over
@@ -2410,6 +2445,7 @@ final class RSSReaderModel: ObservableObject {
         } catch {
             self.setError("\(error)")
             self.feedErrors[urlString] = "\(error)"
+            incrementFailureCount(forFeed: urlString)
         }
         setLoading(false)
     }
@@ -3616,6 +3652,23 @@ final class RSSReaderModel: ObservableObject {
     /// for codes we don't special-case. Returned strings are
     /// short enough to fit the sidebar warning-glyph tooltip
     /// without truncation.
+    /// Increment a feed's consecutive-failure counter. Used by
+    /// the fetch + fetchIntoCache failure paths so the back-off
+    /// in refreshAllFeeds kicks in after persistent failures.
+    /// Exposed (not private) so tests can pin the counter
+    /// state without driving real network traffic.
+    func incrementFailureCount(forFeed urlString: String) {
+        feedFailureCount[urlString, default: 0] += 1
+    }
+
+    /// Reset a feed's consecutive-failure counter to zero. Used
+    /// by the success paths so the next failure starts a fresh
+    /// count. Removing the entry rather than setting to 0 keeps
+    /// the dict small for big subscription lists.
+    func resetFailureCount(forFeed urlString: String) {
+        feedFailureCount.removeValue(forKey: urlString)
+    }
+
     nonisolated static func httpErrorMessage(forStatus code: Int) -> String {
         switch code {
         case 401: return "Unauthorized (401)"
