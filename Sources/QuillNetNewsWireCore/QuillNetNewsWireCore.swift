@@ -39,6 +39,7 @@ public struct QuillNetNewsWireContentView: View {
     @State private var showingSettings: Bool = false
     @State private var inspectedFeedID: Feed.ID? = nil
     @State private var pendingDeleteFeedID: Feed.ID? = nil
+    @State private var pendingDeleteFolderName: String? = nil
     @State private var renameFeedInput: String = ""
     @Environment(\.openURL) private var openURL
 
@@ -683,6 +684,25 @@ public struct QuillNetNewsWireContentView: View {
                     .foregroundColor(.secondary)
                     .padding(.leading, 8)
                 }
+                // 'Delete folder' — same two-tap confirm pattern
+                // as feed delete. removeFolder unwraps the
+                // folder's feeds back into the root flat list, so
+                // the feeds themselves stay subscribed — the
+                // confirm is mostly belt-and-suspenders against
+                // an accidental click destroying a useful
+                // grouping the user spent time setting up.
+                let isArmed = pendingDeleteFolderName == folder.name
+                Button(isArmed ? "Delete folder?" : "Delete folder") {
+                    if isArmed {
+                        _ = model.removeFolder(named: folder.name)
+                        pendingDeleteFolderName = nil
+                    } else {
+                        pendingDeleteFolderName = folder.name
+                    }
+                }
+                .font(.caption2)
+                .foregroundColor(isArmed ? .red : .secondary)
+                .padding(.leading, 8)
                 ForEach(folder.feeds) { feed in
                     feedRow(feed)
                         .onTapGesture {
