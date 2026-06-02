@@ -561,6 +561,88 @@ struct QuillNetNewsWireCoreTests {
         #expect(fetched.first?.isRead == false)
     }
 
+    @Test("ArticleStore upsert + fetchAll round-trips multiple rows")
+    func articleStoreRoundTrip() throws {
+        let store = try ArticleStore()  // in-memory
+        let a = PersistentArticle(
+            id: "a", accountID: "Local", feedID: "https://x.test/feed",
+            uniqueID: "ua", title: "A",
+            datePublished: Date(timeIntervalSince1970: 1_700_000_100)
+        )
+        let b = PersistentArticle(
+            id: "b", accountID: "Local", feedID: "https://x.test/feed",
+            uniqueID: "ub", title: "B",
+            datePublished: Date(timeIntervalSince1970: 1_700_000_200)
+        )
+        try store.upsert([a, b])
+        let fetched = try store.fetchAll()
+        #expect(fetched.count == 2)
+        // Newest first sort: b (later date) before a.
+        #expect(fetched.map(\.id) == ["b", "a"])
+    }
+
+    @Test("ArticleStore fetch(forFeed:) narrows by feedID")
+    func articleStoreFetchByFeed() throws {
+        let store = try ArticleStore()
+        let a = PersistentArticle(
+            id: "a", accountID: "Local", feedID: "https://feed1.test/",
+            uniqueID: "ua", title: "A"
+        )
+        let b = PersistentArticle(
+            id: "b", accountID: "Local", feedID: "https://feed2.test/",
+            uniqueID: "ub", title: "B"
+        )
+        try store.upsert([a, b])
+        let feed1 = try store.fetch(forFeed: "https://feed1.test/")
+        #expect(feed1.map(\.id) == ["a"])
+        let feed2 = try store.fetch(forFeed: "https://feed2.test/")
+        #expect(feed2.map(\.id) == ["b"])
+    }
+
+    @Test("ArticleStore.markRead persists isRead across fetches")
+    func articleStoreMarkRead() throws {
+        let store = try ArticleStore()
+        let a = PersistentArticle(
+            id: "a", accountID: "Local", feedID: "https://x.test/feed",
+            uniqueID: "ua", title: "A"
+        )
+        try store.upsert([a])
+        try store.markRead(articleID: "a")
+        let fetched = try store.fetchAll()
+        #expect(fetched.first?.isRead == true)
+    }
+
+    @Test("ArticleStore.markStarred toggles isStarred bit")
+    func articleStoreMarkStarred() throws {
+        let store = try ArticleStore()
+        let a = PersistentArticle(
+            id: "a", accountID: "Local", feedID: "https://x.test/feed",
+            uniqueID: "ua", title: "A"
+        )
+        try store.upsert([a])
+        try store.markStarred(articleID: "a", starred: true)
+        #expect(try store.fetchAll().first?.isStarred == true)
+        try store.markStarred(articleID: "a", starred: false)
+        #expect(try store.fetchAll().first?.isStarred == false)
+    }
+
+    @Test("ArticleStore directoryURL-backed init persists across reinit")
+    func articleStoreDiskPersists() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-store-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let first = try ArticleStore(directoryURL: dir)
+        try first.upsert([
+            PersistentArticle(
+                id: "x", accountID: "Local", feedID: "https://t.test/feed",
+                uniqueID: "ux", title: "Across"
+            ),
+        ])
+        let second = try ArticleStore(directoryURL: dir)
+        let fetched = try second.fetchAll()
+        #expect(fetched.map(\.title) == ["Across"])
+    }
+
     @Test("PersistentArticle.init(_ Article:) maps every persisted field")
     func quillDataPersistentArticleFromArticle() {
         let status = ArticleStatus(
