@@ -129,6 +129,11 @@ public struct QuillWireGuardInterface: Codable, Hashable, Sendable {
     public var dnsServers: [String]
     public var listenPort: UInt16?
     public var mtu: UInt16?
+    /// wg-quick [Interface] lines this app doesn't model (PostUp/PostDown/PreUp/
+    /// PreDown/Table/FwMark/SaveConfig/…), preserved verbatim ("Key = value") so a
+    /// load → edit → save round-trip doesn't silently drop them. Re-emitted by
+    /// wgQuickConfig() after the known fields.
+    public var extraConfigLines: [String]
 
     public init(
         privateKey: String,
@@ -136,7 +141,8 @@ public struct QuillWireGuardInterface: Codable, Hashable, Sendable {
         addresses: [String],
         dnsServers: [String],
         listenPort: UInt16? = nil,
-        mtu: UInt16? = nil
+        mtu: UInt16? = nil,
+        extraConfigLines: [String] = []
     ) {
         self.privateKey = privateKey
         self.publicKey = publicKey
@@ -144,6 +150,7 @@ public struct QuillWireGuardInterface: Codable, Hashable, Sendable {
         self.dnsServers = dnsServers
         self.listenPort = listenPort
         self.mtu = mtu
+        self.extraConfigLines = extraConfigLines
     }
 }
 
@@ -155,6 +162,9 @@ public struct QuillWireGuardPeer: Codable, Identifiable, Hashable, Sendable {
     public var endpoint: String?
     public var persistentKeepAlive: UInt16?
     public var preSharedKey: String?
+    /// wg-quick [Peer] lines this app doesn't model, preserved verbatim so they
+    /// survive a load → edit → save round-trip. Re-emitted by wgQuickConfig().
+    public var extraConfigLines: [String]
 
     public init(
         id: String,
@@ -163,7 +173,8 @@ public struct QuillWireGuardPeer: Codable, Identifiable, Hashable, Sendable {
         allowedIPs: [String],
         endpoint: String? = nil,
         persistentKeepAlive: UInt16? = nil,
-        preSharedKey: String? = nil
+        preSharedKey: String? = nil,
+        extraConfigLines: [String] = []
     ) {
         self.id = id
         self.name = name
@@ -172,6 +183,7 @@ public struct QuillWireGuardPeer: Codable, Identifiable, Hashable, Sendable {
         self.endpoint = endpoint
         self.persistentKeepAlive = persistentKeepAlive
         self.preSharedKey = preSharedKey
+        self.extraConfigLines = extraConfigLines
     }
 }
 
@@ -222,6 +234,8 @@ public struct QuillWireGuardTunnel: Codable, Identifiable, Hashable, Sendable {
             lines.append("MTU = \(mtu)")
         }
 
+        lines.append(contentsOf: interface.extraConfigLines)
+
         for peer in peers {
             lines.append("")
             lines.append("[Peer]")
@@ -243,6 +257,8 @@ public struct QuillWireGuardTunnel: Codable, Identifiable, Hashable, Sendable {
             if let persistentKeepAlive = peer.persistentKeepAlive {
                 lines.append("PersistentKeepalive = \(persistentKeepAlive)")
             }
+
+            lines.append(contentsOf: peer.extraConfigLines)
         }
 
         return lines.joined(separator: "\n")
