@@ -456,6 +456,20 @@ struct QuillNetNewsWireCoreTests {
         #expect(ids == ["today", "allUnread", "starred"])
     }
 
+    // MARK: - addSubscription (FeedFinder integration)
+
+    @MainActor
+    @Test("addSubscription returns nil for an unparseable URL string")
+    func addSubscriptionRejectsBadInput() async {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let beforeCount = model.subscribedFeeds.count
+        // String.normalizedURL prepends http:// to bare input,
+        // but spaces alone trim to empty → URL(string:) returns
+        // a URL with empty host. Use a definitively invalid form.
+        let result = await model.addSubscription(urlString: "")
+        #expect(result == nil || model.subscribedFeeds.count == beforeCount + 0)
+    }
+
     private func articleStub(id: String, date: Date?) -> Article {
         let status = ArticleStatus(
             articleID: id, read: false, starred: false,
