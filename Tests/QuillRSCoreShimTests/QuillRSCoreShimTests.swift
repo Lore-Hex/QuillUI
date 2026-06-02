@@ -64,4 +64,33 @@ struct QuillRSCoreShimTests {
         // Verified against `printf 'é' | md5sum`.
         #expect("é".md5String == "66ddcd97cfdeabb2f6fb8a999b4bc76f")
     }
+
+    @Test("Notification.Name.lowMemory matches upstream RSCore string literal")
+    func lowMemoryNotificationNameRoundTrip() {
+        // Upstream RSCore.AppNotifications declares the same
+        // name with the same raw string; matching the literal
+        // means observers registered on either side route the
+        // same notification.
+        #expect(Notification.Name.lowMemory.rawValue == "LowMemoryNotification")
+    }
+
+    @Test("Platform.isRunningUnitTests returns true under XCTest")
+    func platformIsRunningUnitTestsUnderXCTest() {
+        // The Quill test runner injects XCTestConfigurationFilePath
+        // (XCTest) or SWIFT_TESTING_ENABLED (swift-testing). At
+        // least one is set whenever this assertion executes.
+        let env = ProcessInfo.processInfo.environment
+        let testRunnerSignalSet =
+            env["XCTestConfigurationFilePath"] != nil ||
+            env["SWIFT_TESTING_ENABLED"] != nil
+        if testRunnerSignalSet {
+            #expect(Platform.isRunningUnitTests)
+        } else {
+            // If neither env var is set in this test runner, the
+            // shim returns false (Articles' AuthorCache would then
+            // proceed with the lowMemory registration — which is
+            // its production behavior).
+            #expect(!Platform.isRunningUnitTests)
+        }
+    }
 }
