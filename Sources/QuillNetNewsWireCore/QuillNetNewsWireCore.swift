@@ -113,6 +113,10 @@ public struct QuillNetNewsWireContentView: View {
                 model.markAllVisibleAsRead()
             }
             .keyboardShortcut("k", modifiers: [.command, .shift])
+            Button("refresh all") {
+                Task { @MainActor in await model.refreshAllFeeds() }
+            }
+            .keyboardShortcut("r", modifiers: [.command, .option])
         }
         .frame(height: 0)
         .hidden()
@@ -1098,6 +1102,52 @@ final class RSSReaderModel: ObservableObject {
         guard !isLoading else { return }
         didStartInitialLoad = true
         await fetch(urlString: urlString)
+    }
+
+    /// Walk every subscribed feed (except the currently-active
+    /// one, which gets refreshed via `refresh`) and fetch each
+    /// into `feedCaches` without disturbing the timeline. Powers
+    /// upstream NetNewsWire's 'Refresh All' command (⌘⌥R).
+    ///
+    /// Sequential rather than parallel so the in-tree
+    /// QuillRSWeb.DownloadSession's single-host connection
+    /// limit stays honored across the batch; future
+    /// performance work can add a small concurrency window.
+    /// Per-feed errors are swallowed (cache stays at prior
+    /// state for that feed) so one bad feed doesn't abort the
+    /// whole pass.
+    func refreshAllFeeds() async {
+        guard !isLoading else { return }
+        // Refresh active feed first so its UI updates promptly,
+        // then drain the others into the cache only.
+        if let activeURL = currentFeedURL {
+            await fetch(urlString: activeURL)
+        }
+        for feed in subscribedFeeds where feed.url != currentFeedURL {
+            await fetchIntoCache(urlString: feed.url)
+        }
+    }
+
+    /// Internal: parse-and-cache for a single feed URL,
+    /// touching only `feedCaches[feedID]`. Doesn't update
+    /// `items`, `articles`, `selectedID`, `feedTitle`, or
+    /// `lastFetchAt` since those track the currently-displayed
+    /// feed. Errors are swallowed.
+    private func fetchIntoCache(urlString: String) async {
+        guard let url = URL(string: urlString) else { return }
+        do {
+            let (maybeData, _) = try await Downloader.shared.download(url)
+            guard let data = maybeData else { return }
+            let parsed = RSSFeedParser.parseUpstream(data: data, url: urlString)
+            let upstreamArticles = RSSFeedParser.parseUpstreamArticles(data: data, url: urlString)
+            feedCaches[urlString] = FeedCache(
+                items: Array(parsed.items.prefix(50)),
+                articles: Array(upstreamArticles.prefix(50)),
+                lastFetchAt: Date()
+            )
+        } catch {
+            // Quiet: one bad feed shouldn't bust the whole pass.
+        }
     }
 
     func fetch(urlString: String) async {
