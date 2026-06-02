@@ -130,7 +130,8 @@ public enum QuillWireGuardConfigParser {
                 addresses: interface.addresses,
                 dnsServers: interface.dnsServers,
                 listenPort: interface.listenPort,
-                mtu: interface.mtu
+                mtu: interface.mtu,
+                extraConfigLines: interface.extraConfigLines
             ),
             peers: try peers.map { try $0.tunnelPeer(tunnelID: id) }
         )
@@ -148,6 +149,7 @@ public enum QuillWireGuardConfigParser {
         var dnsServers: [String] = []
         var listenPort: UInt16?
         var mtu: UInt16?
+        var extraConfigLines: [String] = []
     }
 
     private struct PeerBuilder {
@@ -158,6 +160,7 @@ public enum QuillWireGuardConfigParser {
         var endpoint: String?
         var persistentKeepAlive: UInt16?
         var preSharedKey: String?
+        var extraConfigLines: [String] = []
 
         func tunnelPeer(tunnelID: String) throws -> QuillWireGuardPeer {
             guard let publicKey, !publicKey.isEmpty else {
@@ -171,7 +174,8 @@ public enum QuillWireGuardConfigParser {
                 allowedIPs: allowedIPs,
                 endpoint: endpoint,
                 persistentKeepAlive: persistentKeepAlive,
-                preSharedKey: preSharedKey
+                preSharedKey: preSharedKey,
+                extraConfigLines: extraConfigLines
             )
         }
     }
@@ -196,7 +200,7 @@ public enum QuillWireGuardConfigParser {
         case "mtu":
             interface.mtu = try integerValue(field: key, value: value, line: line)
         default:
-            break
+            interface.extraConfigLines.append("\(key) = \(value)")
         }
     }
 
@@ -218,7 +222,7 @@ public enum QuillWireGuardConfigParser {
         case "presharedkey":
             peer.preSharedKey = value.isEmpty ? nil : value
         default:
-            break
+            peer.extraConfigLines.append("\(key) = \(value)")
         }
     }
 
