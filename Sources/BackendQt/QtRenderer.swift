@@ -248,6 +248,11 @@ final class QtBoolClosureBox {
     init(_ closure: @escaping (Bool) -> Void) { self.closure = closure }
 }
 
+final class QtStringClosureBox {
+    let closure: (String) -> Void
+    init(_ closure: @escaping (String) -> Void) { self.closure = closure }
+}
+
 // MARK: - Leaf view conformances
 
 extension Text: QtRenderable {
@@ -363,6 +368,36 @@ extension Button: QtRenderable {
 }
 
 #if QUILLUI_QT_GENERIC
+extension TextField: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let lineEdit = qtOpaque(quill_qt_make_line_edit())
+        quill_qt_line_edit_set_placeholder_text(qtHandle(lineEdit), title)
+        quill_qt_line_edit_set_text(qtHandle(lineEdit), text.wrappedValue)
+
+        let binding = text
+        let box = Unmanaged.passRetained(QtStringClosureBox { newText in
+            if newText != binding.wrappedValue {
+                binding.wrappedValue = newText
+            }
+        }).toOpaque()
+
+        let textChanged: quill_qt_bridge_text_callback = { newText, userData in
+            guard let newText, let userData else { return }
+            Unmanaged<QtStringClosureBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+                .closure(String(cString: newText))
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtStringClosureBox>.fromOpaque(userData).release()
+        }
+
+        quill_qt_line_edit_connect_text_changed(qtHandle(lineEdit), textChanged, box, destroy)
+        return lineEdit
+    }
+}
+
 extension Toggle: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         let checkBox = qtOpaque(quill_qt_make_check_box())

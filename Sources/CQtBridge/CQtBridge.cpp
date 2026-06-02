@@ -10,11 +10,13 @@
 #include <QAbstractItemView>
 #include <QAbstractScrollArea>
 #include <QAbstractButton>
+#include <QByteArray>
 #include <QCheckBox>
 #include <QFont>
 #include <QFontDatabase>
 #include <QFrame>
 #include <QLabel>
+#include <QLineEdit>
 #include <QList>
 #include <QListView>
 #include <QListWidget>
@@ -394,6 +396,70 @@ void quill_qt_check_box_connect_toggled(
 
     if (destroy != nullptr) {
         QObject::connect(checkBox, &QObject::destroyed, checkBox, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
+QuillQtWidgetHandle quill_qt_make_line_edit(void) {
+    QLineEdit *lineEdit = new QLineEdit();
+    return reinterpret_cast<QuillQtWidgetHandle>(lineEdit);
+}
+
+void quill_qt_line_edit_set_placeholder_text(
+    QuillQtWidgetHandle line_edit,
+    const char *text
+) {
+    QLineEdit *lineEdit = qobject_cast<QLineEdit *>(asWidget(line_edit));
+    if (lineEdit == nullptr) {
+        return;
+    }
+    lineEdit->setPlaceholderText(utf8(text));
+}
+
+void quill_qt_line_edit_set_text(
+    QuillQtWidgetHandle line_edit,
+    const char *text
+) {
+    QLineEdit *lineEdit = qobject_cast<QLineEdit *>(asWidget(line_edit));
+    if (lineEdit == nullptr) {
+        return;
+    }
+
+    const QString updatedText = utf8(text);
+    if (lineEdit->text() != updatedText) {
+        lineEdit->setText(updatedText);
+    }
+}
+
+void quill_qt_line_edit_connect_text_changed(
+    QuillQtWidgetHandle line_edit,
+    quill_qt_bridge_text_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QLineEdit *lineEdit = qobject_cast<QLineEdit *>(asWidget(line_edit));
+    if (lineEdit == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(
+            lineEdit,
+            &QLineEdit::textChanged,
+            lineEdit,
+            [callback, user_data](const QString &text) {
+                const QByteArray utf8Text = text.toUtf8();
+                callback(utf8Text.constData(), user_data);
+            }
+        );
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(lineEdit, &QObject::destroyed, lineEdit, [destroy, user_data]() {
             destroy(user_data);
         });
     }
