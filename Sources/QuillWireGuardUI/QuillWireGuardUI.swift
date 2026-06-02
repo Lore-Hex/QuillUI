@@ -78,6 +78,12 @@ public struct WireGuardFallbackConfigurationView: View {
     @State private var isImportPanelVisible = false
     @State private var importConfigurationText = ""
     @State private var importErrorText: String?
+    /// Live runtime status per tunnel id, refreshed on selection / appear via
+    /// `QuillWireGuardLiveStatusService`. Absent / `.inactive` => no live rows (the
+    /// static config view, unchanged). Populated on a Linux device where the
+    /// matching `wg` interface is up; `wg show` failing (e.g. in CI / on macOS)
+    /// degrades to `.inactive`, so the static smoke is unaffected.
+    @State private var liveStatusByTunnelID: [String: QuillWireGuardLiveStatus] = [:]
 
     public init() {}
 
@@ -93,6 +99,11 @@ public struct WireGuardFallbackConfigurationView: View {
                 minWidth: WireGuardFallbackStyle.minimumWidth,
                 minHeight: WireGuardFallbackStyle.minimumHeight
             )
+            .onAppear {
+                if let tunnel = selectedTunnel {
+                    refreshLiveStatus(for: tunnel)
+                }
+            }
         }
     }
 
@@ -126,6 +137,7 @@ public struct WireGuardFallbackConfigurationView: View {
                     ForEach(tunnels) { tunnel in
                         Button {
                             selectedTunnelID = tunnel.id
+                            refreshLiveStatus(for: tunnel)
                         } label: {
                             tunnelRow(tunnel, isSelected: tunnel.id == selectedTunnelID)
                         }
@@ -219,6 +231,11 @@ public struct WireGuardFallbackConfigurationView: View {
                                 if peer.preSharedKey != nil {
                                     detailRow(QuillWireGuardPresentation.preSharedKeyLabel, QuillWireGuardPresentation.preSharedKeyEnabledText)
                                 }
+                                if let live = liveStatusByTunnelID[tunnel.id]?.peers.first(where: { $0.publicKey == peer.publicKey }) {
+                                    detailRow(QuillWireGuardPresentation.dataReceivedLabel, live.transferRxText)
+                                    detailRow(QuillWireGuardPresentation.dataSentLabel, live.transferTxText)
+                                    detailRow(QuillWireGuardPresentation.latestHandshakeLabel, live.latestHandshakeText)
+                                }
                             }
                         }
 
@@ -311,6 +328,19 @@ public struct WireGuardFallbackConfigurationView: View {
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// Fetch + cache the live runtime status for one tunnel. Runs `wg show` (via the
+    /// real process runner) for the tunnel's derived interface; on failure (tunnel
+    /// down, `wg` absent) it stores `.inactive`, so no live rows render. Synchronous
+    /// — `wg show` is a fast local read — matching SwiftOpenUI's sync `onAppear`.
+    private func refreshLiveStatus(for tunnel: QuillWireGuardTunnel) {
+        let controller = QuillWireGuardRuntimeController(runner: QuillWireGuardProcessRunner())
+        liveStatusByTunnelID[tunnel.id] = QuillWireGuardLiveStatusService.liveStatus(
+            forTunnelNamed: tunnel.name,
+            controller: controller,
+            now: Date()
+        )
     }
 
     private func showImportPanel() {
