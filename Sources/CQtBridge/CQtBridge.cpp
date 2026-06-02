@@ -245,6 +245,21 @@ QuillQtWidgetHandle quill_qt_make_overlay_container(void) {
     return reinterpret_cast<QuillQtWidgetHandle>(container);
 }
 
+QuillQtWidgetHandle quill_qt_make_grid_container(int column_count) {
+    QWidget *container = new QWidget();
+    QGridLayout *layout = new QGridLayout();
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    const int columns = std::max(1, column_count);
+    for (int column = 0; column < columns; ++column) {
+        layout->setColumnStretch(column, 1);
+    }
+
+    container->setLayout(layout);
+    return reinterpret_cast<QuillQtWidgetHandle>(container);
+}
+
 void quill_qt_bridge_widget_add_child(
     QuillQtWidgetHandle parent,
     QuillQtWidgetHandle child
@@ -283,6 +298,46 @@ void quill_qt_overlay_container_add_child(
     );
     childWidget->show();
     childWidget->raise();
+}
+
+void quill_qt_grid_container_set_spacing(
+    QuillQtWidgetHandle container,
+    int horizontal_spacing,
+    int vertical_spacing
+) {
+    QWidget *containerWidget = qobject_cast<QWidget *>(asWidget(container));
+    if (containerWidget == nullptr) {
+        return;
+    }
+
+    QGridLayout *layout = qobject_cast<QGridLayout *>(containerWidget->layout());
+    if (layout == nullptr) {
+        return;
+    }
+
+    layout->setHorizontalSpacing(std::max(0, horizontal_spacing));
+    layout->setVerticalSpacing(std::max(0, vertical_spacing));
+}
+
+void quill_qt_grid_container_add_child(
+    QuillQtWidgetHandle container,
+    QuillQtWidgetHandle child,
+    int row,
+    int column
+) {
+    QWidget *containerWidget = qobject_cast<QWidget *>(asWidget(container));
+    QWidget *childWidget = qobject_cast<QWidget *>(asWidget(child));
+    if (containerWidget == nullptr || childWidget == nullptr) {
+        return;
+    }
+
+    QGridLayout *layout = qobject_cast<QGridLayout *>(containerWidget->layout());
+    if (layout == nullptr) {
+        return;
+    }
+
+    layout->addWidget(childWidget, std::max(0, row), std::max(0, column));
+    childWidget->show();
 }
 
 void quill_qt_bridge_widget_delete_children(QuillQtWidgetHandle parent) {
