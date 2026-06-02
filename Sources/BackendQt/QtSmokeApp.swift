@@ -1,8 +1,8 @@
 // QtSmokeApp.swift — the real SwiftUI App rendered through QtBackend.
 //
 // This is the payload the spike proves: a genuine SwiftOpenUI `App` (NOT
-// hand-built C++ Qt widgets) whose WindowGroup → VStack { Text; Button; panel }
-// is walked by the generic QtBackend and rendered with native Qt widgets.
+// hand-built C++ Qt widgets) whose WindowGroup → VStack { Text; Button; Toggle;
+// panel } is walked by the generic QtBackend and rendered with native Qt widgets.
 //
 // It is shaped to exercise the SAME surface the screenshot verifier checks via
 // `validate_quill_backend_interaction_smoke`:
@@ -15,9 +15,9 @@
 // click) so the CI capture is deterministic — the very first CI cycle answers
 // the load-bearing question "does the real SwiftUI tree render on Qt at all?"
 // without also depending on a pixel-precise synthetic click landing on the
-// button. The @State + Button below still exercise the reactive QtViewHost path
-// (a click toggles the accessory line); re-driving the panel from the click is a
-// follow-up once the static render is proven green.
+// button. The @State + Button and Toggle below still exercise the reactive
+// QtViewHost path; re-driving the panel from the click is a follow-up once the
+// static render is proven green.
 //
 // The point is that all of this is plain SwiftUI; the renderer is app-agnostic.
 
@@ -57,6 +57,7 @@ public struct QtSmokeApp: App {
 
 struct QtSmokeView: View {
     @State private var isOpen = false
+    @State private var isCheckboxOn = false
 
     var body: some View {
         ScrollView(.vertical) {
@@ -68,6 +69,11 @@ struct QtSmokeView: View {
                 Button(isOpen ? "Toggle (on)" : "Toggle (off)") {
                     isOpen.toggle()
                 }
+
+                Toggle(
+                    isCheckboxOn ? "QCheckBox Toggle (on)" : "QCheckBox Toggle (off)",
+                    isOn: $isCheckboxOn
+                )
 
                 Image(systemName: "checkmark.circle.fill")
                     .imageScale(.large)
