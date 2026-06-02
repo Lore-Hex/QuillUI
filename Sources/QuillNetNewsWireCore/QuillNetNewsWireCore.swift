@@ -365,8 +365,20 @@ public struct QuillNetNewsWireContentView: View {
                             }
                             .font(.title2)
                         }
-                        if !item.publishedSummary.isEmpty {
-                            Text(item.publishedSummary)
+                        // Friendly date line: relative ("3 hours ago")
+                        // when the published date is within 24h,
+                        // absolute medium-style date otherwise. Falls
+                        // through to raw publishedSummary string if
+                        // upstream DateParser couldn't resolve the
+                        // header.
+                        let friendly = model.friendlyDateString(forItemID: item.id)
+                        let dateLine = friendly.isEmpty ? item.publishedSummary : friendly
+                        if let author = model.authorLine(forItemID: item.id) {
+                            Text(dateLine.isEmpty ? "By \(author)" : "\(dateLine) · By \(author)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else if !dateLine.isEmpty {
+                            Text(dateLine)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -999,6 +1011,61 @@ final class RSSReaderModel: ObservableObject {
             acc + (starredArticleIDs.contains(item.id) ? 1 : 0)
         }
     }
+
+    /// Cross-reference helper: the upstream Article for a
+    /// given item ID, if it's in the parallel articles array.
+    /// Detail view uses it to surface the upstream-only fields
+    /// (datePublished as real Date, authors set).
+    func article(forItem itemID: String) -> Article? {
+        articles.first(where: { $0.uniqueID == itemID })
+    }
+
+    /// Format an article's publish date for display in the
+    /// detail header. Recent items (<24h) render as relative
+    /// ("3 hours ago"); older items use a medium-style date.
+    /// Falls back to the empty string when no parsed Date is
+    /// available (caller can fall back to raw publishedSummary).
+    func friendlyDateString(forItemID itemID: String) -> String {
+        guard let article = article(forItem: itemID),
+              let date = article.datePublished else {
+            return ""
+        }
+        let now = Date()
+        let elapsed = now.timeIntervalSince(date)
+        if elapsed >= 0 && elapsed < 86_400 {
+            // Within 24h — relative form via Foundation's
+            // RelativeDateTimeFormatter. Same conventions
+            // upstream NNW uses for its "x hours ago" footer.
+            return Self.relativeFormatter.localizedString(for: date, relativeTo: now)
+        }
+        return Self.absoluteFormatter.string(from: date)
+    }
+
+    /// Comma-joined author names for an article, or nil when
+    /// the upstream parser didn't surface any. Detail header
+    /// prepends 'by ' when rendering.
+    func authorLine(forItemID itemID: String) -> String? {
+        guard let article = article(forItem: itemID),
+              let authors = article.authors, !authors.isEmpty else {
+            return nil
+        }
+        let names = authors.compactMap(\.name).filter { !$0.isEmpty }
+        guard !names.isEmpty else { return nil }
+        return names.sorted().joined(separator: ", ")
+    }
+
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .full
+        return f
+    }()
+
+    private static let absoluteFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .short
+        return f
+    }()
 
     /// Item count for a given smart feed against the
     /// currently-loaded timeline. Used by the feedsPane badge
