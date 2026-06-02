@@ -2819,6 +2819,41 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("selectedItemBrowserURL returns the link of the selected article")
+    func selectedItemBrowserURLReturnsLink() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "X", link: "https://a.test/posts/x", pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "Y", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        // No selection → nil
+        #expect(model.selectedItemBrowserURL() == nil)
+        // Selected article with link → its URL
+        model.selectItem(id: "a1")
+        #expect(model.selectedItemBrowserURL()?.absoluteString == "https://a.test/posts/x")
+        // Selected article without link → nil (no crash)
+        model.selectItem(id: "a2")
+        #expect(model.selectedItemBrowserURL() == nil)
+    }
+
+    @MainActor
+    @Test("selectedItemBrowserURL finds items in cross-feed caches too")
+    func selectedItemBrowserURLFindsCachedCrossFeed() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        // Active feed has no items; cached cross-feed item is what's selected.
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "B", link: "https://b.test/posts/b1", pubDate: nil, descriptionHTML: nil),
+        ])
+        model.selectItem(id: "b1")
+        #expect(model.selectedItemBrowserURL()?.absoluteString == "https://b.test/posts/b1")
+    }
+
+    @MainActor
     @Test("Search inside a folder view scopes to the folder, not all feeds")
     func searchWithinFolderScopesToFolder() {
         let model = RSSReaderModel(subscribedFeeds: [

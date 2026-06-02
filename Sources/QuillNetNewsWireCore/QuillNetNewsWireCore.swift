@@ -38,6 +38,7 @@ public struct QuillNetNewsWireContentView: View {
     @State private var opmlImportURLInput: String = ""
     @State private var showingSettings: Bool = false
     @State private var inspectedFeedID: Feed.ID? = nil
+    @Environment(\.openURL) private var openURL
 
     public init() {}
 
@@ -360,6 +361,17 @@ public struct QuillNetNewsWireContentView: View {
             // NetNewsWire's File menu binding.
             Button("settings") { showingSettings = true }
                 .keyboardShortcut(",", modifiers: .command)
+            // `b` opens the currently selected article in the
+            // default browser. Single most-used keystroke in
+            // upstream NetNewsWire's reader after j/k. The model
+            // owns URL lookup; this button just hands it off to
+            // the environment's openURL action.
+            Button("open in browser") {
+                if let url = model.selectedItemBrowserURL() {
+                    openURL(url)
+                }
+            }
+            .keyboardShortcut("b", modifiers: [])
         }
         .frame(height: 0)
         .hidden()
@@ -3458,6 +3470,27 @@ final class RSSReaderModel: ObservableObject {
     func toggleStarredOnSelection() {
         guard let selectedID else { return }
         toggleStarred(id: selectedID)
+    }
+
+    /// Returns the URL of the currently selected article, if any,
+    /// for the "b" → open-in-browser shortcut. Pure read so it's
+    /// trivial to unit-test without spinning up the OpenURLAction
+    /// process plumbing. The UI layer takes the URL and hands it
+    /// to the environment's openURL action (xdg-open on Linux,
+    /// LSOpenCFURLRef on macOS).
+    ///
+    /// Upstream NetNewsWire binds `b` to "Open in Browser" — the
+    /// single most-used keystroke in the article reader after
+    /// j/k navigation. Without it, every browser jump needed a
+    /// trackpad to reach the inline link.
+    func selectedItemBrowserURL() -> URL? {
+        guard let selectedID,
+              let item = items.first(where: { $0.id == selectedID })
+                  ?? feedCaches.values
+                      .flatMap(\.items)
+                      .first(where: { $0.id == selectedID })
+        else { return nil }
+        return item.linkURL
     }
 
     /// Count of starred items in the currently-loaded timeline.
