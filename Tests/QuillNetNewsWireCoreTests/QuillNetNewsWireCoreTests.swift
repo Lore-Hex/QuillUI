@@ -613,6 +613,67 @@ struct QuillNetNewsWireCoreTests {
         #expect(item.bodyParagraphs == ["One.", "Two."])
     }
 
+    // MARK: - Inline link extraction
+
+    @Test("inlineLinks extracts <a href> anchors in source order")
+    func inlineLinksBasic() {
+        let html = """
+        <p>See <a href="https://example.test/one">first</a> and
+        <a href="https://example.test/two">second</a>.</p>
+        """
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.inlineLinks.count == 2)
+        #expect(item.inlineLinks[0].text == "first")
+        #expect(item.inlineLinks[0].urlString == "https://example.test/one")
+        #expect(item.inlineLinks[1].text == "second")
+        #expect(item.inlineLinks[1].urlString == "https://example.test/two")
+    }
+
+    @Test("inlineLinks handles single-quoted hrefs")
+    func inlineLinksSingleQuotes() {
+        let html = "<a href='https://example.test/x'>x</a>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.inlineLinks.first?.urlString == "https://example.test/x")
+    }
+
+    @Test("inlineLinks strips nested inline tags inside anchor text")
+    func inlineLinksStripNested() {
+        let html = "<a href=\"https://example.test/x\">click <b>here</b></a>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.inlineLinks.first?.text == "click here")
+    }
+
+    @Test("inlineLinks decodes HTML entities in anchor text")
+    func inlineLinksEntities() {
+        let html = "<a href=\"https://example.test/x\">A &amp; B</a>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.inlineLinks.first?.text == "A & B")
+    }
+
+    @Test("inlineLinks skips anchors with empty href")
+    func inlineLinksSkipsEmpty() {
+        let html = "<a href=\"\">skip</a> <a href=\"https://example.test\">keep</a>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.inlineLinks.count == 1)
+        #expect(item.inlineLinks.first?.urlString == "https://example.test")
+    }
+
+    @Test("inlineLinks is empty for body without anchors")
+    func inlineLinksEmpty() {
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: "<p>No links here.</p>")
+        #expect(item.inlineLinks.isEmpty)
+    }
+
+    @Test("InlineLink.url parses urlString into URL when valid")
+    func inlineLinkURL() {
+        let link = InlineLink(text: "x", urlString: "https://example.test/")
+        #expect(link.url?.absoluteString == "https://example.test/")
+        // Foundation's URL(string:) is lenient and percent-encodes
+        // spaces, so use an explicitly-empty form which always fails.
+        let bad = InlineLink(text: "y", urlString: "")
+        #expect(bad.url == nil)
+    }
+
     // MARK: - Detail view helpers (friendly date + author)
 
     @MainActor
