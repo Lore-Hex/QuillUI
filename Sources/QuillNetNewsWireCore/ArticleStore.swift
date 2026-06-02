@@ -120,6 +120,41 @@ public final class ArticleStore: @unchecked Sendable {
         }
     }
 
+    /// Set isRead by uniqueID (the upstream article identifier
+    /// the model's readArticleIDs set carries) rather than the
+    /// PersistentArticle.id. Used when the model's in-memory
+    /// cache doesn't have the article (e.g. row aged out of
+    /// articlesPerFeedLimit but is still in SQLite). Without
+    /// this, marking SQLite-only stored-unread articles as read
+    /// would leave the SQLite isRead bit stale.
+    public func markReadByUniqueID(_ uniqueID: String, read: Bool) throws {
+        try mutateByUniqueID(uniqueID) { row in
+            row.isRead = read
+        }
+    }
+
+    /// Symmetric to markReadByUniqueID for the starred bit.
+    public func markStarredByUniqueID(_ uniqueID: String, starred: Bool) throws {
+        try mutateByUniqueID(uniqueID) { row in
+            row.isStarred = starred
+        }
+    }
+
+    /// Same delete-+-reinsert dance as `mutate` but keyed by
+    /// uniqueID (the upstream article identifier) instead of
+    /// the SwiftData row id.
+    private func mutateByUniqueID(_ uniqueID: String, _ apply: (inout PersistentArticle) -> Void) throws {
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<PersistentArticle>(
+            filter: { $0.uniqueID == uniqueID }
+        )
+        guard var row = try context.fetch(descriptor).first else { return }
+        context.delete(row)
+        apply(&row)
+        context.insert(row)
+        try context.save()
+    }
+
     public func markStarred(articleID: String, starred: Bool) throws {
         try mutate(articleID: articleID) { row in
             row.isStarred = starred

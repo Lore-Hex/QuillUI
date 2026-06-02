@@ -686,6 +686,40 @@ struct QuillNetNewsWireCoreTests {
         #expect(fetched.first?.isRead == true)
     }
 
+    @Test("ArticleStore.markReadByUniqueID flips bit by upstream id")
+    func articleStoreMarkReadByUniqueID() throws {
+        let store = try ArticleStore()
+        try store.upsert([
+            PersistentArticle(
+                id: "x", accountID: "Local",
+                feedID: "https://x.test/feed",
+                uniqueID: "ux", title: "X", isRead: false
+            ),
+        ])
+        try store.markReadByUniqueID("ux", read: true)
+        #expect(try store.fetchAll().first?.isRead == true)
+        try store.markReadByUniqueID("ux", read: false)
+        #expect(try store.fetchAll().first?.isRead == false)
+        // Unknown uniqueID is a silent no-op (won't throw).
+        try store.markReadByUniqueID("does-not-exist", read: true)
+    }
+
+    @Test("ArticleStore.markStarredByUniqueID flips bit by upstream id")
+    func articleStoreMarkStarredByUniqueID() throws {
+        let store = try ArticleStore()
+        try store.upsert([
+            PersistentArticle(
+                id: "x", accountID: "Local",
+                feedID: "https://x.test/feed",
+                uniqueID: "ux", title: "X"
+            ),
+        ])
+        try store.markStarredByUniqueID("ux", starred: true)
+        #expect(try store.fetchAll().first?.isStarred == true)
+        try store.markStarredByUniqueID("ux", starred: false)
+        #expect(try store.fetchAll().first?.isStarred == false)
+    }
+
     @Test("ArticleStore.fetchUnread returns only isRead=false rows")
     func articleStoreFetchUnread() throws {
         let store = try ArticleStore()

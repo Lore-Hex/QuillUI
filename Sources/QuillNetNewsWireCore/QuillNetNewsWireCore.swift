@@ -2863,6 +2863,16 @@ final class RSSReaderModel: ObservableObject {
                 return
             }
         }
+        // Cache miss → fall through to uniqueID-based lookup.
+        // Necessary so mark-read on SQLite-only stored-unread /
+        // stored-starred items (rows that have aged out of the
+        // in-memory cache but are surfaced via #113/#114's
+        // store-spanning smart feeds) actually update the
+        // persistent bit. Without this, the JSON readArticleIDs
+        // set caught the change but SQLite stayed stale, and
+        // storedUnreadItems kept re-querying those rows on
+        // every render.
+        try? store.markReadByUniqueID(uniqueID, read: isRead)
     }
 
     private func persistStarredStateChange(uniqueID: String, starred: Bool) {
@@ -2873,6 +2883,8 @@ final class RSSReaderModel: ObservableObject {
                 return
             }
         }
+        // Same cache-miss fall-through as persistReadStateChange.
+        try? store.markStarredByUniqueID(uniqueID, starred: starred)
     }
 
     /// Mark every article in the currently-visible filtered
