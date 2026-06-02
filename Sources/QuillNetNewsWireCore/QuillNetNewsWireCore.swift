@@ -2946,6 +2946,57 @@ final class RSSReaderModel: ObservableObject {
         return true
     }
 
+    /// Reorder a feed within its current parent (top-level or
+    /// the folder it's in) by `delta` slots. Positive moves
+    /// down, negative moves up. Saturates at the parent's
+    /// bounds (no wraparound — moving the top feed up is a
+    /// no-op, not a jump to bottom). Returns true when the
+    /// feed actually moved.
+    ///
+    /// Doesn't cross folder boundaries — that's moveFeed
+    /// (toFolder:)'s job. Mutation triggers persistence via
+    /// the subscriptionRoot didSet chain.
+    @discardableResult
+    func reorderFeed(_ feedID: Feed.ID, by delta: Int) -> Bool {
+        guard delta != 0 else { return false }
+        let (updated, didMove) = Self.reorderFeedInTree(
+            feedID: feedID, by: delta, in: subscriptionRoot
+        )
+        guard didMove else { return false }
+        subscriptionRoot = updated
+        return true
+    }
+
+    /// Pure recursive helper. Finds the feed's parent (top
+    /// folder or a subfolder), swaps it `delta` positions
+    /// within that parent's `feeds` array. Returns (folder,
+    /// didMove). First match wins.
+    private static func reorderFeedInTree(
+        feedID: Feed.ID,
+        by delta: Int,
+        in folder: OPMLImporter.Folder
+    ) -> (OPMLImporter.Folder, Bool) {
+        var copy = folder
+        if let idx = copy.feeds.firstIndex(where: { $0.id == feedID }) {
+            let target = max(0, min(copy.feeds.count - 1, idx + delta))
+            guard target != idx else { return (copy, false) }
+            let feed = copy.feeds.remove(at: idx)
+            copy.feeds.insert(feed, at: target)
+            return (copy, true)
+        }
+        var didMove = false
+        var newSubfolders: [OPMLImporter.Folder] = []
+        for sub in copy.subfolders {
+            let (updatedSub, subDid) = reorderFeedInTree(
+                feedID: feedID, by: delta, in: sub
+            )
+            if subDid { didMove = true }
+            newSubfolders.append(updatedSub)
+        }
+        copy.subfolders = newSubfolders
+        return (copy, didMove)
+    }
+
     private static func folderExists(
         named name: String,
         in folder: OPMLImporter.Folder
