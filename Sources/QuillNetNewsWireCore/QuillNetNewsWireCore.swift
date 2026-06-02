@@ -33,15 +33,26 @@ import QuillUI
 @MainActor
 public struct QuillNetNewsWireContentView: View {
     @StateObject private var model = RSSReaderModel()
-    @State private var feedURL: String = "https://daringfireball.net/feeds/main"
 
     public init() {}
+
+    /// Feed URL fed into refresh / initial load — derived from the
+    /// model's currently-selected subscribed feed, with the historic
+    /// Daring Fireball fallback kept so an empty subscription list
+    /// still renders something.
+    private var activeFeedURL: String {
+        model.currentFeedURL ?? "https://daringfireball.net/feeds/main"
+    }
 
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated {
             HStack(spacing: 0) {
+                feedsPane
+                    .frame(width: 220)
+                    .frame(maxHeight: .infinity, alignment: .topLeading)
+                Divider()
                 sidebar
-                    .frame(width: 320)
+                    .frame(width: 300)
                     .frame(maxHeight: .infinity, alignment: .topLeading)
                 Divider()
                 detail
@@ -59,10 +70,47 @@ public struct QuillNetNewsWireContentView: View {
                 if env["QUILLUI_DISABLE_FETCH"] == "1" {
                     model.seedProfileFixtures()
                 } else {
-                    Task { @MainActor in await model.loadIfNeeded(urlString: feedURL) }
+                    Task { @MainActor in await model.loadIfNeeded(urlString: activeFeedURL) }
                 }
             }
         }
+    }
+
+    private var feedsPane: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Feeds")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 14)
+                .padding(.top, 14)
+                .padding(.bottom, 6)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(model.subscribedFeeds) { feed in
+                        feedRow(feed)
+                            .onTapGesture {
+                                Task { @MainActor in await model.selectFeed(id: feed.id) }
+                            }
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 18)
+            }
+        }
+        .background(QuillDesktopChromeStyle.sidebarBackground)
+    }
+
+    private func feedRow(_ feed: Feed) -> some View {
+        Text(feed.title)
+            .font(.subheadline)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(model.selectedFeedID == feed.id ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+            .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
+            .contentShape(Rectangle())
     }
 
     private var sidebar: some View {
@@ -130,7 +178,7 @@ public struct QuillNetNewsWireContentView: View {
                 .foregroundColor(.secondary)
             Spacer()
             Button(model.isLoading ? "Refreshing…" : "Refresh") {
-                Task { @MainActor in await model.refresh(urlString: feedURL) }
+                Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
             }
             .font(.caption2)
             .disabled(model.isLoading)
@@ -176,7 +224,7 @@ public struct QuillNetNewsWireContentView: View {
                     Text("Select an article")
                         .font(.title2)
                         .foregroundColor(.secondary)
-                    Text("Self-contained RSS reader is fetching live items from \(feedURL).")
+                    Text("Self-contained RSS reader is fetching live items from \(activeFeedURL).")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -345,6 +393,27 @@ final class RSSReaderModel: ObservableObject {
         self.initialSelectionEnvironment = environment
         self.subscribedFeeds = subscribedFeeds
         self.selectedFeedID = subscribedFeeds.first?.id
+    }
+
+    /// URL of the currently-selected subscribed feed. `nil` when
+    /// the list is empty or the selection has been cleared.
+    var currentFeedURL: String? {
+        guard let selectedFeedID else { return subscribedFeeds.first?.url }
+        return subscribedFeeds.first(where: { $0.id == selectedFeedID })?.url
+            ?? subscribedFeeds.first?.url
+    }
+
+    /// Switch the active feed and re-fetch. Clears the in-flight
+    /// item selection so the timeline doesn't keep a stale article
+    /// highlighted across feed switches. No-op when the user taps
+    /// the already-selected feed.
+    func selectFeed(id: Feed.ID) async {
+        guard id != selectedFeedID else { return }
+        guard let feed = subscribedFeeds.first(where: { $0.id == id }) else { return }
+        selectedFeedID = id
+        selectItem(id: nil)
+        didStartInitialLoad = true
+        await fetch(urlString: feed.url)
     }
 
     /// Profile-mode bypass: populate `items` + `feedTitle` with
