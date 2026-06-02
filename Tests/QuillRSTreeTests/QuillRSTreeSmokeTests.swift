@@ -43,6 +43,7 @@ struct QuillRSTreeSmokeTests {
         }
     }
 
+    @MainActor
     @Test("Node parent/child + isRoot wiring")
     func nodeBasics() {
         let root = Node.genericRootNode()
@@ -57,6 +58,7 @@ struct QuillRSTreeSmokeTests {
         #expect(root.numberOfChildNodes == 1)
     }
 
+    @MainActor
     @Test("TreeController.rebuild() walks the delegate's children")
     func treeControllerRebuild() {
         let root = Folder("root", [
@@ -85,6 +87,7 @@ struct QuillRSTreeSmokeTests {
         #expect(nested.parent === secondChild)
     }
 
+    @MainActor
     @Test("Node.indexPath walks back through parents")
     func nodeIndexPath() {
         let root = Node.genericRootNode()
