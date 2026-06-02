@@ -757,8 +757,18 @@ private struct EmptyConversationView: View {
                 Text(EnchantedCopy.emptyStateTitle)
                     .font(.system(size: CGFloat(EnchantedTypography.emptyStateWordmarkFontSize), weight: enchantedFontWeight(EnchantedTypography.emptyStateWordmarkFontWeight)))
                     .foregroundStyle(
+                        // Genuine native Enchanted gradient (EmptyConversaitonView.swift):
+                        // #4285f4 → #9b72cb → #d96570 (the Gemini brand gradient), leading→
+                        // trailing. The repeated final stop mirrors genuine's 4-color array,
+                        // holding the pink toward the trailing edge. Prior hex was a slightly
+                        // off approximation (#4F86F7/#9B6DD6/#E05A6B).
                         LinearGradient(
-                            colors: [Color(hex: "#4F86F7"), Color(hex: "#9B6DD6"), Color(hex: "#E05A6B")],
+                            colors: [
+                                Color(hex: "#4285f4"),
+                                Color(hex: "#9b72cb"),
+                                Color(hex: "#d96570"),
+                                Color(hex: "#d96570")
+                            ],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
