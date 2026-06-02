@@ -964,6 +964,22 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("feedErrors persist across reinit")
+    func feedErrorsPersistRoundTrip() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-errors-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        let first = RSSReaderModel(persistence: store)
+        first.feedErrors["https://failing.test/feed"] = "404 Not Found"
+        first.feedErrors["https://slow.test/feed"] = "Connection timed out"
+        let second = RSSReaderModel(persistence: store)
+        #expect(second.feedErrors.count == 2)
+        #expect(second.feedErrors["https://failing.test/feed"] == "404 Not Found")
+        #expect(second.feedErrors["https://slow.test/feed"] == "Connection timed out")
+    }
+
+    @MainActor
     @Test("feedIconURLs persist across reinit via the OPML store")
     func feedIconURLsPersistRoundTrip() {
         let dir = FileManager.default.temporaryDirectory

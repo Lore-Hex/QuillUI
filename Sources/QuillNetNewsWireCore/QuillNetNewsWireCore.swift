@@ -912,7 +912,18 @@ final class RSSReaderModel: ObservableObject {
     /// next to feeds whose last fetch failed (404, timeout,
     /// invalid XML, etc.). Mirrors NetNewsWire's stale-feed
     /// warning behavior in its sidebar.
-    @Published var feedErrors: [Feed.ID: String] = [:]
+    /// Persisted across launches so the warning glyph survives
+    /// the user closing + relaunching — they see "this feed
+    /// has been failing for a week" rather than losing the
+    /// breadcrumb every restart.
+    @Published var feedErrors: [Feed.ID: String] = [:] {
+        didSet { persistFeedErrorsIfReady() }
+    }
+
+    private func persistFeedErrorsIfReady() {
+        guard persistenceReady else { return }
+        persistence.saveFeedErrors(feedErrors)
+    }
 
     /// Icon / favicon URL per subscribed feed, harvested from
     /// upstream ParsedFeed.iconURL (preferred) or faviconURL
@@ -1087,6 +1098,7 @@ final class RSSReaderModel: ObservableObject {
         self.readArticleIDs = persistence.loadReadArticleIDs()
         self.starredArticleIDs = persistence.loadStarredArticleIDs()
         self.feedIconURLs = persistence.loadFeedIconURLs()
+        self.feedErrors = persistence.loadFeedErrors()
         // Hydrate feedCaches from any persisted articles so the
         // timeline shows yesterday's items before today's fetch
         // even fires. Bucket by feedID, build the (items,

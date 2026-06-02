@@ -137,6 +137,27 @@ public struct PersistenceStore: Sendable {
         try? data.write(to: url, options: .atomic)
     }
 
+    /// Per-feed error message persistence. Same shape as
+    /// feedIconURLs — JSON object {feedID: errorMessage}.
+    /// Persisting these lets the sidebar warning glyph survive
+    /// across launches so users come back to "Feed X has been
+    /// failing for a week" without losing the breadcrumb every
+    /// restart. Cleared on next successful fetch.
+    public func loadFeedErrors() -> [String: String] {
+        let url = directoryURL.appendingPathComponent("feedErrors.json")
+        guard let data = try? Data(contentsOf: url) else { return [:] }
+        return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
+    }
+
+    public func saveFeedErrors(_ errors: [String: String]) {
+        try? FileManager.default.createDirectory(
+            at: directoryURL, withIntermediateDirectories: true, attributes: nil
+        )
+        let url = directoryURL.appendingPathComponent("feedErrors.json")
+        guard let data = try? JSONEncoder().encode(errors) else { return }
+        try? data.write(to: url, options: .atomic)
+    }
+
     private func loadStringSet(named filename: String) -> Set<String> {
         let url = directoryURL.appendingPathComponent(filename)
         guard let data = try? Data(contentsOf: url) else { return [] }
