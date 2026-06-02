@@ -4368,6 +4368,34 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("folder-view statusText scopes counts to the folder, not the active feed")
+    func folderViewStatusTextScopes() {
+        let feedA = Feed(title: "A", url: "https://a.test/feed")
+        let feedB = Feed(title: "B", url: "https://b.test/feed")
+        let model = RSSReaderModel(subscribedFeeds: [feedA, feedB])
+        // Active feed A has 20 items.
+        model.items = (1...20).map {
+            RSSItem(id: "a\($0)", title: "X", link: nil, pubDate: nil, descriptionHTML: nil)
+        }
+        // Folder Tech contains only feed B with 3 cached items.
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [feedA],
+            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [feedB], subfolders: [])]
+        )
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "b2", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "b3", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        model.selectFolder("Tech")
+        // Status should reflect the folder's 3 items, not the
+        // active feed's 20.
+        #expect(model.statusText.contains("3 items"))
+        #expect(!model.statusText.contains("20"))
+    }
+
+    @MainActor
     @Test("smart-feed statusText denominator is cross-feed, not active-feed only")
     func smartFeedStatusTextUsesCrossFeedTotal() {
         let model = RSSReaderModel(subscribedFeeds: [

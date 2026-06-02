@@ -4611,6 +4611,23 @@ final class RSSReaderModel: ObservableObject {
             let matching = filteredItems.count
             let suffix = searchActive ? " (search)" : ""
             nextStatusText = "\(smart.displayName): \(matching) of \(crossFeedItemsCount)\(suffix)"
+        } else if let folder = selectedFolderName {
+            // Folder view — counts scope to the folder pool, not
+            // the active feed (which may be entirely outside).
+            let folderItems = itemsInFolder(named: folder)
+            let folderUnread = folderItems.reduce(0) { acc, item in
+                acc + (readArticleIDs.contains(item.id) ? 0 : 1)
+            }
+            let matching = filteredItems.count
+            let suffix = searchActive ? " (search)" : ""
+            if matching != folderItems.count {
+                // Search narrowed inside the folder.
+                nextStatusText = "Folder \(folder): \(matching) of \(folderItems.count)\(suffix)"
+            } else if folderUnread == 0 {
+                nextStatusText = "Folder \(folder): \(folderItems.count) items"
+            } else {
+                nextStatusText = "Folder \(folder): \(folderUnread) unread · \(folderItems.count) items"
+            }
         } else if searchActive {
             let matching = filteredItems.count
             nextStatusText = "\(matching) matching · \(items.count) items"
