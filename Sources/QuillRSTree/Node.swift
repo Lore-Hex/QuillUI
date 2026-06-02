@@ -48,7 +48,20 @@ import Foundation
 	}
 
 	public init(representedObject: AnyObject, parent: Node?) {
+		// Upstream NetNewsWire's RSTree asserts main-thread
+		// construction because @MainActor on the type isn't
+		// load-bearing on Apple's @MainActor pre-Swift-6 era —
+		// the precondition catches direct misuse. On Linux,
+		// Thread.isMainThread returns false even from inside a
+		// @MainActor function (the Concurrency main executor
+		// runs on a worker thread, not Foundation's
+		// NSThread.main), so the precondition trips legitimately
+		// MainActor-isolated callers. Gate on Apple only — the
+		// @MainActor isolation already enforces single-threaded
+		// access at the type system level.
+		#if canImport(Darwin)
 		precondition(Thread.isMainThread)
+		#endif
 
 		self.representedObject = representedObject
 		self.parent = parent
