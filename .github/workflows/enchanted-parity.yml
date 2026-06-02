@@ -69,12 +69,19 @@ jobs:
               quill-chat-linux \
               gtk
 
+      - name: List .qa (debug visibility)
+        if: always()
+        run: |
+          echo "pwd=$(pwd)"
+          ls -laR .qa 2>&1 || echo "(.qa missing)"
+
       - name: Upload verifier artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: enchanted-parity-verifier
           path: |
+            .qa
             .qa/*.png
             .qa/*reference-home/**
             .qa/quillui-backend-app.log
