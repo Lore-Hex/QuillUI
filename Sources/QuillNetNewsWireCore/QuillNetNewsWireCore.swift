@@ -1814,12 +1814,20 @@ final class RSSReaderModel: ObservableObject {
         // If the active feed has a cache now, surface its items
         // as the live timeline so the user sees content
         // immediately on launch.
+        //
+        // Critically NOT setting didStartInitialLoad here: that
+        // would block loadIfNeeded from firing the initial fetch
+        // for the active feed, so the user would see stale cache
+        // forever (until 30-min background tick or manual click).
+        // Upstream NetNewsWire shows cache + immediately
+        // refreshes; same pattern here — hydrate the visible
+        // shape but leave the load gate open so onAppear's
+        // loadIfNeeded triggers a fresh fetch.
         if let activeFeedID = selectedFeedID,
            let active = feedCaches[activeFeedID] {
             self.items = active.items
             self.articles = active.articles
             self.lastFetchAt = active.lastFetchAt
-            self.didStartInitialLoad = true
         }
     }
 
