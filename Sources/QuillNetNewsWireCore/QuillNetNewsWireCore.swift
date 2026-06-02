@@ -476,7 +476,7 @@ public struct QuillNetNewsWireContentView: View {
                     .disabled(opmlImportURLInput.trimmingWhitespace.isEmpty)
                 }
                 HStack(spacing: 6) {
-                    Button("Refresh All") {
+                    Button(model.isLoading ? "Refreshing All…" : "Refresh All") {
                         Task { @MainActor in await model.refreshAllFeeds() }
                     }
                     .font(.caption2)
