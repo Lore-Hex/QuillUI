@@ -38,6 +38,7 @@ public struct QuillNetNewsWireContentView: View {
     @State private var opmlImportURLInput: String = ""
     @State private var showingSettings: Bool = false
     @State private var inspectedFeedID: Feed.ID? = nil
+    @State private var pendingDeleteFeedID: Feed.ID? = nil
     @Environment(\.openURL) private var openURL
 
     public init() {}
@@ -93,6 +94,13 @@ public struct QuillNetNewsWireContentView: View {
                     // traffic from the background timer.
                     model.startBackgroundRefresh()
                 }
+            }
+            .onChange(of: model.selectedFeedID) { _ in
+                // Switching feeds disarms the pending-delete state.
+                // Otherwise returning to a previously-armed row
+                // would let a single click delete without a fresh
+                // confirmation, defeating the "are you sure?" UX.
+                pendingDeleteFeedID = nil
             }
             .sheet(isPresented: Binding(
                 get: { showingSettings },
@@ -721,11 +729,26 @@ public struct QuillNetNewsWireContentView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .disabled(unread == 0)
-                Button("✕") {
-                    model.removeSubscription(id: feed.id)
+                // Two-tap delete: first tap arms (button flips
+                // to "Delete?" in red), second tap on the same
+                // row confirms. Mirrors upstream NetNewsWire's
+                // "Are you sure?" dialog without spinning up an
+                // alert sheet — instant on Linux + SwiftOpenUI
+                // and reversible (tap any other row's ✕ or
+                // select a different feed to disarm). Without
+                // this, a single accidental tap on a populous
+                // sidebar nuked a subscription with no recovery.
+                let isArmed = pendingDeleteFeedID == feed.id
+                Button(isArmed ? "Delete?" : "✕") {
+                    if isArmed {
+                        model.removeSubscription(id: feed.id)
+                        pendingDeleteFeedID = nil
+                    } else {
+                        pendingDeleteFeedID = feed.id
+                    }
                 }
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundColor(isArmed ? .red : .secondary)
             }
         }
         .padding(.horizontal, 10)
