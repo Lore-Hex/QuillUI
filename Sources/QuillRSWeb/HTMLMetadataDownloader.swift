@@ -17,7 +17,7 @@ nonisolated public final class HTMLMetadataDownloader: Sendable {
 
 	public static let shared = HTMLMetadataDownloader()
 
-	private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "HTMLMetadataDownloader")
+	private static let logger = Logger(subsystem: (Bundle.main.bundleIdentifier ?? "co.lorehex.QuillRSWeb"), category: "HTMLMetadataDownloader")
 
 	private let cache = HTMLMetadataCache()
 	private let attemptDatesLock = OSAllocatedUnfairLock(initialState: [String: Date]())

@@ -21,7 +21,7 @@ public typealias DownloadCallback = @MainActor (Data?, URLResponse?, Error?) -> 
 	private var callbacks = [URL: [DownloadCallback]]()
 	private let cache = DownloadCache.shared
 
-	nonisolated private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "Downloader")
+	nonisolated private static let logger = Logger(subsystem: (Bundle.main.bundleIdentifier ?? "co.lorehex.QuillRSWeb"), category: "Downloader")
 
 	private init() {
 		let sessionConfiguration = URLSessionConfiguration.ephemeral

@@ -6,6 +6,7 @@ import FoundationNetworking
 import QuillUI
 import QuillRSParser
 import QuillArticles
+import QuillRSWeb
 
 /// Quill NetNewsWire content view — a self-contained RSS reader.
 ///
@@ -792,9 +793,20 @@ final class RSSReaderModel: ObservableObject {
         setLoading(true)
         setError(nil)
         do {
-            var request = URLRequest(url: url)
-            request.setValue("Quill-NetNewsWire/0.1", forHTTPHeaderField: "User-Agent")
-            let (data, _) = try await URLSession.shared.data(for: request)
+            // Upstream RSWeb Downloader: ephemeral session, no
+            // cookies, single-host connection limit, NNW
+            // User-Agent header set by UserAgent.headers(), and
+            // short-lived in-memory DownloadCache that collapses
+            // overlapping concurrent requests to the same URL.
+            // Conditional-GET (Etag/Last-Modified) lands when
+            // the persistence iteration starts threading
+            // HTTPConditionalGetInfo across fetches.
+            let (maybeData, _) = try await Downloader.shared.download(url)
+            guard let data = maybeData else {
+                self.setError("Empty response")
+                setLoading(false)
+                return
+            }
             // Upstream RSParser via QuillRSParser; covers RSS 2.0,
             // Atom, JSON Feed, RSS-in-JSON. Produces both the
             // legacy RSSItem view-shape (consumed by the
