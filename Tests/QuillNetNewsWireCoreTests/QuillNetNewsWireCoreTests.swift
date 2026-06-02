@@ -2050,6 +2050,40 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Manual-only refresh choice (nil interval) survives relaunch")
+    func manualRefreshChoiceSurvivesRelaunch() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-manual-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+
+        // Simulate user choosing "Manual only" in Settings.
+        // refreshIntervalSeconds=nil is the documented contract.
+        // Save current view-options with nil cadence.
+        let opts = PersistenceStore.ViewOptions(
+            hideReadArticles: false, sortOrder: nil, refreshIntervalSeconds: nil
+        )
+        store.saveViewOptions(opts)
+
+        // Cold-launch a model pointing at the same persistence
+        // dir. Without the loadViewOptionsIfPersisted distinction,
+        // init would treat nil as "no setting yet" and fall back
+        // to the 30-minute default — silently overriding the
+        // user's manual-only choice.
+        let model = RSSReaderModel(persistence: store)
+        #expect(model.refreshIntervalSeconds == nil)
+
+        // Fresh install (different dir, no saved file) should
+        // still get the default — this isn't broken by the fix.
+        let freshDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-fresh-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: freshDir) }
+        let freshStore = PersistenceStore(directoryURL: freshDir)
+        let freshModel = RSSReaderModel(persistence: freshStore)
+        #expect(freshModel.refreshIntervalSeconds == TimeInterval(30 * 60))
+    }
+
+    @MainActor
     @Test("todayCutoff returns local-midnight, not a 24h sliding window")
     func todayCutoffIsCalendarDayStart() {
         // Pick a deterministic moment: 2026-06-03 at 02:30 local
@@ -3530,7 +3564,7 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
-    @Test("Refresh-interval can be disabled (set to nil)")
+    @Test("Refresh-interval can be disabled (set to nil) and survives relaunch")
     func refreshIntervalCanBeNil() {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
             "quill-nnw-refreshintnil-\(UUID().uuidString)"
@@ -3541,14 +3575,15 @@ struct QuillNetNewsWireCoreTests {
             let first = RSSReaderModel(subscribedFeeds: [], persistence: store)
             first.refreshIntervalSeconds = nil
         }
-        // Nil round-trips: missing field in ViewOptions decodes
-        // to nil, init's `if let` skips, so the default takes
-        // over. This is intentional — "disable refresh" means the
-        // current session has it off, but persisting nil and
-        // restoring as default-on is the safer behavior for a
-        // setting that controls network traffic.
+        // After a user sets refreshIntervalSeconds=nil ("Manual
+        // only" in Settings), a relaunch must honor that choice
+        // instead of silently restoring the 30-minute default.
+        // The old behavior — persisting nil but restoring as
+        // default — meant the Manual-only setting was effectively
+        // unreachable from the UI without restarting + losing it
+        // again.
         let second = RSSReaderModel(subscribedFeeds: [], persistence: store)
-        #expect(second.refreshIntervalSeconds == TimeInterval(30 * 60))
+        #expect(second.refreshIntervalSeconds == nil)
     }
 
     @MainActor

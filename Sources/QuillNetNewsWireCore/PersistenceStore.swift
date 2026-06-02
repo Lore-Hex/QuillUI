@@ -297,6 +297,19 @@ public struct PersistenceStore: Sendable {
         return (try? JSONDecoder().decode(ViewOptions.self, from: data)) ?? ViewOptions()
     }
 
+    /// Returns nil when no viewOptions.json has been persisted
+    /// yet (fresh install). Lets callers distinguish "never
+    /// saved" from "saved with all-default values" — the latter
+    /// is meaningful when an optional field's nil is a real user
+    /// choice (e.g. refreshIntervalSeconds=nil → manual-only
+    /// refresh). Without this, the model couldn't honor a
+    /// user's "Manual only" setting across launches.
+    public func loadViewOptionsIfPersisted() -> ViewOptions? {
+        let url = directoryURL.appendingPathComponent("viewOptions.json")
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return (try? JSONDecoder().decode(ViewOptions.self, from: data))
+    }
+
     public func saveViewOptions(_ options: ViewOptions) {
         try? FileManager.default.createDirectory(
             at: directoryURL, withIntermediateDirectories: true, attributes: nil

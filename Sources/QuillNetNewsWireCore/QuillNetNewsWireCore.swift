@@ -245,11 +245,23 @@ public struct QuillNetNewsWireContentView: View {
     /// covers the user-controlled state the model already
     /// exposes.
     private var settingsSheet: some View {
+        // 0 minutes = "Manual only" (refreshIntervalSeconds = nil).
+        // Stepper's lower bound is 0 so the user can disable
+        // background refresh from the UI — upstream NetNewsWire
+        // has a "Refresh: Manually" preference; the only way to
+        // get there before was to never set it (or load a manual
+        // state from disk). Now the Settings sheet exposes it.
         let intervalMinutesBinding = Binding<Int>(
-            get: { Int((model.refreshIntervalSeconds ?? 1800) / 60) },
+            get: {
+                guard let s = model.refreshIntervalSeconds else { return 0 }
+                return Int(s / 60)
+            },
             set: { newValue in
-                let clamped = max(1, newValue)
-                model.refreshIntervalSeconds = TimeInterval(clamped * 60)
+                if newValue <= 0 {
+                    model.refreshIntervalSeconds = nil
+                } else {
+                    model.refreshIntervalSeconds = TimeInterval(newValue * 60)
+                }
             }
         )
         return VStack(alignment: .leading, spacing: 18) {
@@ -257,19 +269,23 @@ public struct QuillNetNewsWireContentView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Refresh interval")
                     .font(.subheadline)
-                let minutes = Int((model.refreshIntervalSeconds ?? 1800) / 60)
-                let summary = minutes == 1
-                    ? "Every minute"
-                    : minutes < 60
-                        ? "Every \(minutes) minutes"
-                        : "Every \(minutes / 60) hour\(minutes / 60 == 1 ? "" : "s")"
+                let summary: String = {
+                    guard let s = model.refreshIntervalSeconds else {
+                        return "Manual only (background refresh disabled)"
+                    }
+                    let minutes = Int(s / 60)
+                    if minutes == 1 { return "Every minute" }
+                    if minutes < 60 { return "Every \(minutes) minutes" }
+                    let hours = minutes / 60
+                    return "Every \(hours) hour\(hours == 1 ? "" : "s")"
+                }()
                 Text(summary)
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Stepper(
-                    "Refresh interval (minutes)",
+                    "Refresh interval (minutes; 0 = manual)",
                     value: intervalMinutesBinding,
-                    in: 1...1440,
+                    in: 0...1440,
                     step: 5
                 )
             }
@@ -1801,15 +1817,21 @@ final class RSSReaderModel: ObservableObject {
     ) {
         self.initialSelectionEnvironment = environment
         self.persistence = persistence
-        let storedOptions = persistence.loadViewOptions()
+        let persistedOptions = persistence.loadViewOptionsIfPersisted()
+        let storedOptions = persistedOptions ?? PersistenceStore.ViewOptions()
         self.hideReadArticles = storedOptions.hideReadArticles
         self.sortOrder = storedOptions.sortOrder
             .flatMap { SortOrder(rawValue: $0) } ?? .newestFirst
-        // Restore persisted refresh cadence if present. Missing
-        // field (fresh install or older persisted file) keeps the
-        // 30-minute default set at the property declaration.
-        if let storedInterval = storedOptions.refreshIntervalSeconds {
-            self.refreshIntervalSeconds = storedInterval
+        // Restore persisted refresh cadence honoring an
+        // explicitly-persisted nil ("Manual only"). Fresh
+        // install (no viewOptions.json yet) keeps the 30-min
+        // default; once the user has saved view-options at
+        // least once, a nil interval is treated as their
+        // explicit choice. Without this distinction, choosing
+        // "Manual only" in Settings re-armed the 30-min
+        // default on every relaunch.
+        if persistedOptions != nil {
+            self.refreshIntervalSeconds = storedOptions.refreshIntervalSeconds
         }
         // Create an on-disk ArticleStore alongside the JSON
         // persistence dir if the caller didn't supply one.
