@@ -4398,7 +4398,19 @@ struct RSSFeedParser {
 
 private extension String {
     func stripBasicHTML() -> String {
-        let withoutTags = self.replacingOccurrences(
+        // Drop entire <script>...</script> and <style>...</style>
+        // BLOCKS (tag + content) first; many feeds (ad-supported,
+        // analytics-instrumented) ship tracking JS / inline CSS
+        // in descriptionHTML. The default `<[^>]+>` tag-only
+        // strip would leak the script source code into the
+        // plain-text body — ugly in the timeline preview and
+        // search match.
+        let withoutBlocks = self.replacingOccurrences(
+            of: "<(script|style)\\b[^>]*>[\\s\\S]*?</\\1>",
+            with: "",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        let withoutTags = withoutBlocks.replacingOccurrences(
             of: "<[^>]+>", with: "", options: .regularExpression
         )
         return HTMLEntities.decode(withoutTags)

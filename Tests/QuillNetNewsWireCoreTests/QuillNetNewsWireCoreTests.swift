@@ -59,6 +59,31 @@ struct QuillNetNewsWireCoreTests {
         #expect(item.plainTextBody == "don't and don't")
     }
 
+    @Test("RSSItem.plainTextBody drops script blocks entirely (tag + content)")
+    func rssItemPlainTextBodyStripsScripts() {
+        let html = "<p>Story body.</p><script>track('hit');</script><p>More body.</p>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        // Script source code MUST NOT leak into the plain text.
+        #expect(!item.plainTextBody.contains("track"))
+        #expect(item.plainTextBody.contains("Story body."))
+        #expect(item.plainTextBody.contains("More body."))
+    }
+
+    @Test("RSSItem.plainTextBody drops style blocks entirely")
+    func rssItemPlainTextBodyStripsStyles() {
+        let html = "<p>Body.</p><style>.foo { color: red; }</style>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(!item.plainTextBody.contains("color: red"))
+        #expect(item.plainTextBody == "Body.")
+    }
+
+    @Test("RSSItem.plainTextBody handles SCRIPT with attributes (case-insensitive)")
+    func rssItemPlainTextBodyStripsScriptsCaseInsensitive() {
+        let html = "<P>Body.</P><SCRIPT type=\"text/javascript\">alert('x');</SCRIPT>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(!item.plainTextBody.contains("alert"))
+    }
+
     @Test("RSSItem.plainTextBody decodes &amp;lt; to the literal &lt;, not the < character")
     func rssItemPlainTextBodyAvoidsDoubleDecode() {
         // The old chain ran `&amp;` → `&` BEFORE `&lt;` → `<`, so
