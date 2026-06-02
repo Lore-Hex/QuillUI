@@ -99,6 +99,14 @@ struct QuillNetNewsWireCoreTests {
 
         model.isLoading = false
         model.error = "offline"
+        // Items already populated → status keeps the count and
+        // appends "refresh failed" instead of replacing it. The
+        // raw error message still surfaces in the sidebar error
+        // banner. Without items, status would read "Error: offline".
+        #expect(model.statusText == "4 unread · 5 items · refresh failed")
+
+        // Now drain items so the error-only path engages.
+        model.items = []
         #expect(model.statusText == "Error: offline")
     }
 

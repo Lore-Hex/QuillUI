@@ -3750,8 +3750,22 @@ final class RSSReaderModel: ObservableObject {
         let searchActive = !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if isLoading {
             nextStatusText = "Fetching feed…"
-        } else if let error {
+        } else if let error, items.isEmpty {
+            // Error wins ONLY when there's nothing else to show.
+            // If a prior fetch left items in the timeline, hide
+            // the error from status text (the sidebar's inline
+            // error banner still surfaces it) so the user
+            // doesn't think the visible articles are bogus.
             nextStatusText = "Error: \(error)"
+        } else if error != nil {
+            // Error AND items: render count first; appended note
+            // tells the user the LATEST fetch failed but the
+            // existing articles are still good.
+            let unread = unreadCount
+            let base = unread == 0
+                ? "\(items.count) items"
+                : "\(unread) unread · \(items.count) items"
+            nextStatusText = "\(base) · refresh failed"
         } else if let smart = selectedSmartFeed {
             // Smart-feed view spans every fetched feed, not just
             // the active selection — the denominator must match.
