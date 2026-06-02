@@ -865,6 +865,15 @@ final class RSSReaderModel: ObservableObject {
 
     private let persistence: PersistenceStore
 
+    /// QuillData-backed SQLite store for article rows. Optional
+    /// because the QuillData ModelContainer init can throw
+    /// (filesystem issues, migration mismatches); we degrade
+    /// gracefully — the in-memory `items` / `articles` /
+    /// `feedCaches` arrays keep running, just without
+    /// cross-launch SQLite persistence. Set to nil to opt out
+    /// of persistence entirely.
+    public let articleStore: ArticleStore?
+
     /// Live search query bound to the timeline filter field.
     /// Empty string → no filter (filteredRows == rows). Matching
     /// is case-insensitive and runs against the article title
@@ -930,10 +939,22 @@ final class RSSReaderModel: ObservableObject {
     init(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         subscribedFeeds: [Feed] = DefaultFeedList.seed,
-        persistence: PersistenceStore = .default
+        persistence: PersistenceStore = .default,
+        articleStore: ArticleStore? = nil
     ) {
         self.initialSelectionEnvironment = environment
         self.persistence = persistence
+        // Create an on-disk ArticleStore alongside the JSON
+        // persistence dir if the caller didn't supply one.
+        // Try/catch is mandatory — ModelContainer init throws
+        // on filesystem issues, schema mismatches, etc. and we
+        // don't want a corrupted DB to crash the reader; the
+        // in-memory feedCaches / items still work.
+        if let articleStore {
+            self.articleStore = articleStore
+        } else {
+            self.articleStore = try? ArticleStore(directoryURL: persistence.directoryURL)
+        }
         // Subscription list precedence: persisted OPML file if
         // present, otherwise the caller-supplied seed. Lets the
         // reader's seed catalog stay as the first-launch
@@ -1330,11 +1351,27 @@ final class RSSReaderModel: ObservableObject {
             guard let data = maybeData else { return }
             let parsed = RSSFeedParser.parseUpstream(data: data, url: urlString)
             let upstreamArticles = RSSFeedParser.parseUpstreamArticles(data: data, url: urlString)
+            let trimmedItems = Array(parsed.items.prefix(50))
+            let trimmedArticles = Array(upstreamArticles.prefix(50))
             feedCaches[urlString] = FeedCache(
-                items: Array(parsed.items.prefix(50)),
-                articles: Array(upstreamArticles.prefix(50)),
+                items: trimmedItems,
+                articles: trimmedArticles,
                 lastFetchAt: Date()
             )
+            // Mirror the active-feed fetch() path: persist
+            // every refresh-all batch into SQLite too so
+            // background refreshes accumulate cross-feed
+            // articles on disk.
+            if let articleStore {
+                let rows = trimmedArticles.map { article in
+                    PersistentArticle(
+                        article,
+                        isRead: readArticleIDs.contains(article.uniqueID),
+                        isStarred: starredArticleIDs.contains(article.uniqueID)
+                    )
+                }
+                try? articleStore.upsert(rows)
+            }
         } catch {
             // Quiet: one bad feed shouldn't bust the whole pass.
         }
@@ -1390,6 +1427,22 @@ final class RSSReaderModel: ObservableObject {
                 articles: trimmedArticles,
                 lastFetchAt: now
             )
+            // Persist parsed articles to SQLite via QuillData.
+            // Marks each row's isRead / isStarred from the
+            // in-memory sets so a relaunch reconstitutes the
+            // user's mark-as-read history without rerunning
+            // every per-feed fetch. Failures are silent so a
+            // flaky disk doesn't degrade the read experience.
+            if let articleStore {
+                let rows = trimmedArticles.map { article in
+                    PersistentArticle(
+                        article,
+                        isRead: readArticleIDs.contains(article.uniqueID),
+                        isStarred: starredArticleIDs.contains(article.uniqueID)
+                    )
+                }
+                try? articleStore.upsert(rows)
+            }
             if self.selectedID == nil {
                 self.selectItem(id: self.preferredInitialItemID(in: self.items))
             }

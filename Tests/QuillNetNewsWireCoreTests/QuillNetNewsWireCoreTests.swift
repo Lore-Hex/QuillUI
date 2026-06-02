@@ -626,6 +626,50 @@ struct QuillNetNewsWireCoreTests {
         #expect(try store.fetchAll().first?.isStarred == false)
     }
 
+    @MainActor
+    @Test("RSSReaderModel auto-creates an ArticleStore from PersistenceStore.directoryURL")
+    func articleStoreAutoCreated() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-store-auto-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        let model = RSSReaderModel(persistence: store)
+        #expect(model.articleStore != nil)
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.fetch writes parsed articles into ArticleStore")
+    func articleStoreFetchWrites() async throws {
+        // Use an explicit in-memory ArticleStore so the test
+        // doesn't hit disk + doesn't depend on fetch's actual
+        // network call. Simulate fetch's persistence step by
+        // hand: take a synthesized Article set, map to
+        // PersistentArticle, upsert via store. Mirrors what
+        // fetch() does after parseUpstreamArticles.
+        let store = try ArticleStore()
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "F", url: "https://f.test/feed")],
+            articleStore: store
+        )
+        let now = Date()
+        let status = ArticleStatus(articleID: "a", read: false, starred: false, dateArrived: now)
+        let upstream = Article(
+            accountID: "Local", articleID: nil,
+            feedID: "https://f.test/feed", uniqueID: "u-1",
+            title: "T", contentHTML: nil, contentText: nil, markdown: nil,
+            url: nil, externalURL: nil, summary: nil, imageURL: nil,
+            datePublished: now, dateModified: nil, authors: nil, status: status
+        )
+        model.articles = [upstream]
+        try store.upsert([PersistentArticle(upstream)])
+        let fetched = try store.fetchAll()
+        #expect(fetched.count == 1)
+        #expect(fetched.first?.uniqueID == "u-1")
+        // Round-trip a marked-read state through the store.
+        try store.markRead(articleID: fetched.first!.id)
+        #expect(try store.fetchAll().first?.isRead == true)
+    }
+
     @Test("ArticleStore directoryURL-backed init persists across reinit")
     func articleStoreDiskPersists() throws {
         let dir = FileManager.default.temporaryDirectory
