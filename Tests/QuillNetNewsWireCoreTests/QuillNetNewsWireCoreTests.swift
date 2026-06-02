@@ -1956,6 +1956,17 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("loadIfNeeded skips initial fetch when there are no subscriptions")
+    func loadIfNeededSkipsWithoutSubscriptions() async {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        await model.loadIfNeeded(urlString: "https://hardcoded.fallback/feed")
+        // No real subscriptions → no items load; sidebar empty
+        // state stays correct rather than silently populating
+        // the timeline with the fallback feed's articles.
+        #expect(model.items.isEmpty)
+    }
+
+    @MainActor
     @Test("feedHealthSummary is empty when every feed is happy")
     func feedHealthSummaryEmptyWhenHealthy() {
         let model = RSSReaderModel(subscribedFeeds: [

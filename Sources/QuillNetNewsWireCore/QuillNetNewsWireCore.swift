@@ -366,24 +366,44 @@ public struct QuillNetNewsWireContentView: View {
                 .padding(.bottom, 6)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
-                    // Root folder's direct feeds + any subfolders.
-                    // When no OPML tree has been imported, the model
-                    // initializes subscriptionRoot to wrap every seed
-                    // feed at top level so the existing flat render
-                    // shape stays intact.
-                    ForEach(model.subscriptionRoot.feeds) { feed in
-                        feedRow(feed)
-                            .onTapGesture {
-                                Task { @MainActor in await model.selectFeed(id: feed.id) }
-                            }
+                if model.subscribedFeeds.isEmpty {
+                    // First-launch empty state — points users at
+                    // the Add Feed input below + the OPML import
+                    // affordance. Without this hint, the sidebar
+                    // just looks broken until the user notices
+                    // the Add Feed field at the bottom.
+                    VStack(spacing: 8) {
+                        Text("No subscriptions yet")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("Add a feed URL below or import an OPML file.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
                     }
-                    ForEach(model.subscriptionRoot.subfolders) { folder in
-                        folderRow(folder)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 24)
+                    .frame(maxWidth: .infinity)
+                } else {
+                    VStack(alignment: .leading, spacing: 2) {
+                        // Root folder's direct feeds + any subfolders.
+                        // When no OPML tree has been imported, the model
+                        // initializes subscriptionRoot to wrap every seed
+                        // feed at top level so the existing flat render
+                        // shape stays intact.
+                        ForEach(model.subscriptionRoot.feeds) { feed in
+                            feedRow(feed)
+                                .onTapGesture {
+                                    Task { @MainActor in await model.selectFeed(id: feed.id) }
+                                }
+                        }
+                        ForEach(model.subscriptionRoot.subfolders) { folder in
+                            folderRow(folder)
+                        }
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
                 }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8)
             }
 
             // "Add feed URL" row. Routes through upstream
@@ -2336,6 +2356,17 @@ final class RSSReaderModel: ObservableObject {
 
     func loadIfNeeded(urlString: String) async {
         guard !didStartInitialLoad else { return }
+        // With no subscriptions, the view falls back to a hard-
+        // coded URL (Daring Fireball) so the timeline always has
+        // shape. But silently fetching that URL would surface
+        // strangers' articles in a sidebar that says "No
+        // subscriptions yet" — confusing. Skip the load when
+        // the user has no real subscriptions; the empty state
+        // makes the next step (Add Feed) explicit.
+        guard !subscribedFeeds.isEmpty else {
+            didStartInitialLoad = true
+            return
+        }
         didStartInitialLoad = true
         await fetch(urlString: urlString)
     }
