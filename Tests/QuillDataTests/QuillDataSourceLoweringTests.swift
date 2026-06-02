@@ -402,7 +402,9 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains(".library(name: \"QuillGenericQtNativeRuntime\", targets: [\"QuillGenericQtNativeRuntime\"])"))
         #expect(manifest.contains("name: \"QuillGenericQtNativeRuntime\""))
         #expect(manifest.contains("path: \"Sources/QuillGenericQtNativeRuntime\""))
-        #expect(manifest.contains("let quillWireGuardCoreDependencies: [Target.Dependency] = []"))
+        #expect(manifest.contains("var quillWireGuardCoreDependencies: [Target.Dependency] = []"))
+        // QuillWireGuardCore picks up the real upstream WireGuardKit wherever it's vendored.
+        #expect(manifest.contains("quillWireGuardCoreDependencies.append(\"WireGuardKit\")"))
         #expect(manifest.contains("var quillWireGuardUIDependencies: [Target.Dependency] = [\"QuillWireGuardCore\", \"QuillUI\"]"))
         #expect(manifest.contains("quillWireGuardUIDependencies.append(\"WireGuardKit\")"))
         #expect(manifest.contains("quillWireGuardUIDependencies.append(\"SwiftUI\")"))
