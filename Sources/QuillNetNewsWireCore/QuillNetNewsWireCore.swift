@@ -117,6 +117,10 @@ public struct QuillNetNewsWireContentView: View {
                 Task { @MainActor in await model.refreshAllFeeds() }
             }
             .keyboardShortcut("r", modifiers: [.command, .option])
+            Button("next unread") {
+                model.selectNextUnread()
+            }
+            .keyboardShortcut("n", modifiers: [])
         }
         .frame(height: 0)
         .hidden()
@@ -965,6 +969,34 @@ final class RSSReaderModel: ObservableObject {
         if nextIndex < pool.endIndex {
             selectItem(id: pool[nextIndex].id)
         }
+    }
+
+    /// Advance to the next *unread* article in the filtered
+    /// timeline (skips already-marked-read items). Wraps from
+    /// no-selection to the first unread. No-op when every
+    /// visible item is already read. Powers upstream NetNewsWire's
+    /// 'Next Unread' command (N keyboard shortcut + button).
+    @discardableResult
+    func selectNextUnread() -> Bool {
+        let pool = filteredItems
+        guard !pool.isEmpty else { return false }
+        // Find the starting index — one past the current
+        // selection, or 0 when nothing is selected.
+        let startIndex: Int
+        if let current = selectedID,
+           let idx = pool.firstIndex(where: { $0.id == current }) {
+            startIndex = idx + 1
+        } else {
+            startIndex = 0
+        }
+        for i in startIndex..<pool.count {
+            let item = pool[i]
+            if !readArticleIDs.contains(item.id) {
+                selectItem(id: item.id)
+                return true
+            }
+        }
+        return false
     }
 
     /// Step the selection one article earlier in the filtered

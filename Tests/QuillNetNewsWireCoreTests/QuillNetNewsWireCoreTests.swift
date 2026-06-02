@@ -1488,6 +1488,48 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("selectNextUnread skips already-read articles")
+    func keyboardSelectNextUnread() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Seeded: 1 is read; 2-5 are unread, selectedID = "1".
+        let advanced1 = model.selectNextUnread()
+        #expect(advanced1)
+        #expect(model.selectedID == "2")  // selectItem auto-marks "2" read too
+        // Now read: {1, 2}. Skip 2 → land on 3.
+        let advanced2 = model.selectNextUnread()
+        #expect(advanced2)
+        #expect(model.selectedID == "3")
+    }
+
+    @MainActor
+    @Test("selectNextUnread returns false when all visible items are read")
+    func keyboardSelectNextUnreadAllRead() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        for id in ["1", "2", "3", "4", "5"] {
+            model.markRead(id: id)
+        }
+        let advanced = model.selectNextUnread()
+        #expect(!advanced)
+    }
+
+    @MainActor
+    @Test("selectNextUnread with no selection picks the first unread")
+    func keyboardSelectNextUnreadFromEmpty() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.items = [
+            RSSItem(id: "a", title: "A", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "b", title: "B", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.markRead(id: "a")
+        model.selectItem(id: nil)
+        let advanced = model.selectNextUnread()
+        #expect(advanced)
+        #expect(model.selectedID == "b")
+    }
+
+    @MainActor
     @Test("markReadAndAdvance with no selection selects first (which auto-marks read)")
     func keyboardMarkReadAndAdvanceNoSelection() {
         let model = RSSReaderModel(subscribedFeeds: [])
