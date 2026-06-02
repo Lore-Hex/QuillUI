@@ -68,4 +68,31 @@ struct QuillWireGuardLinuxAdapterTests {
         }
         #expect(runner.commands.isEmpty)
     }
+
+    @Test("controller runs `wg show dump` and parses it via the slice-1 parser")
+    func controllerParsesStatus() throws {
+        let dump = "priv=\tpub=\t51820\toff\npeer=\t(none)\t1.2.3.4:51820\t0.0.0.0/0\t1717171717\t100\t200\t25"
+        let runner = StubRunner(output: dump)
+        let status = try QuillWireGuardRuntimeController(runner: runner).currentStatus(interface: "wg0")
+        #expect(status?.peers.first?.rxBytes == 100)
+        #expect(status?.peers.first?.txBytes == 200)
+        #expect(runner.commands == [QuillWireGuardCommand(executable: "wg", arguments: ["show", "wg0", "dump"])])
+    }
+
+    @Test("process runner captures stdout from a real command")
+    func processRunnerCapturesStdout() throws {
+        let out = try QuillWireGuardProcessRunner().run(
+            QuillWireGuardCommand(executable: "echo", arguments: ["hello", "world"])
+        )
+        #expect(out == "hello world\n")
+    }
+
+    @Test("process runner throws QuillWireGuardRuntimeError on a non-zero exit")
+    func processRunnerThrowsOnFailure() {
+        #expect(throws: QuillWireGuardRuntimeError.self) {
+            try QuillWireGuardProcessRunner().run(
+                QuillWireGuardCommand(executable: "false", arguments: [])
+            )
+        }
+    }
 }
