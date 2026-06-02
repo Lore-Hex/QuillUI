@@ -1015,6 +1015,36 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("storedStarredItems decodes raw HTML entities in titles")
+    func storedStarredItemsDecodesTitles() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-titledecode-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try ArticleStore(directoryURL: dir)
+        let persistenceStore = PersistenceStore(directoryURL: dir)
+        // Pin a starred row with a literal-entity title (mimics
+        // pre-#121 data that was upserted before parse-time
+        // decoding landed).
+        try store.upsert([
+            PersistentArticle(
+                id: "x", accountID: "Local",
+                feedID: "https://x.test/feed",
+                uniqueID: "ux", title: "AT&amp;T announces&hellip;",
+                isStarred: true
+            ),
+        ])
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "X", url: "https://x.test/feed")],
+            persistence: persistenceStore,
+            articleStore: store
+        )
+        model.feedCaches.removeAll()
+        let stored = model.storedStarredItems()
+        #expect(stored.first?.title == "AT&T announces\u{2026}")
+    }
+
+    @MainActor
     @Test("Selecting a SQLite-only stored item populates the detail pane")
     func selectStoredOnlyItemResolvesDetail() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(

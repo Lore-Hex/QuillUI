@@ -1771,11 +1771,16 @@ final class RSSReaderModel: ObservableObject {
     /// Shared row → RSSItem reconstitution used by every
     /// stored-* helper. Same field fallback chain as the live
     /// fetch path so SQLite-only items render identically to
-    /// just-fetched ones.
+    /// just-fetched ones. Title decoded through HTMLEntities so
+    /// rows persisted before the per-parse decoding landed
+    /// (#121) still render naturally — adaptParsedItem decoded
+    /// at parse time for in-memory items, but toArticles
+    /// upserted raw to SQLite. Both paths now decode on the
+    /// read side too.
     private static func rssItem(from row: PersistentArticle) -> RSSItem {
         RSSItem(
             id: row.uniqueID,
-            title: row.title ?? "Untitled",
+            title: HTMLEntities.decode(row.title ?? "Untitled"),
             link: row.url,
             pubDate: row.datePublished?.description,
             descriptionHTML: row.contentHTML ?? row.contentText ?? row.summary
@@ -1847,7 +1852,12 @@ final class RSSReaderModel: ObservableObject {
             let items = sorted.map { row in
                 RSSItem(
                     id: row.uniqueID,
-                    title: row.title ?? "Untitled",
+                    // Decode at read time: rows persisted before
+                    // #121's per-parse entity decoding still
+                    // store raw "AT&amp;T" form; decode on the
+                    // way back into the in-memory items so the
+                    // timeline reads naturally.
+                    title: HTMLEntities.decode(row.title ?? "Untitled"),
                     link: row.url,
                     pubDate: row.datePublished?.description,
                     descriptionHTML: row.contentHTML ?? row.contentText ?? row.summary
@@ -1859,7 +1869,7 @@ final class RSSReaderModel: ObservableObject {
                     articleID: row.id,
                     feedID: row.feedID,
                     uniqueID: row.uniqueID,
-                    title: row.title,
+                    title: row.title.map(HTMLEntities.decode),
                     contentHTML: row.contentHTML,
                     contentText: row.contentText,
                     markdown: nil,
@@ -4531,7 +4541,11 @@ struct RSSFeedParser {
                 articleID: nil,  // upstream synthesizes via md5
                 feedID: feedID,
                 uniqueID: parsed.uniqueID,
-                title: parsed.title,
+                // Decode at write time so SQLite stores the
+                // user-visible form. Read-side decode helpers
+                // (hydration, rssItem(from:)) are idempotent so
+                // the existing decoded-then-decoded chain is safe.
+                title: parsed.title.map(HTMLEntities.decode),
                 contentHTML: parsed.contentHTML,
                 contentText: parsed.contentText,
                 markdown: parsed.markdown,
