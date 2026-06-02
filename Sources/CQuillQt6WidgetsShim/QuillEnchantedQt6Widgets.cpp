@@ -788,22 +788,19 @@ QString appStyleSheet(const QJsonObject &style) {
         .arg(conversationListItemRadius, conversationListItemVerticalMargin, conversationListItemPadding);
 
     sheet += QStringLiteral(R"(
-        QListWidget#conversationList::item:selected { background: transparent; color: %2; }
+        QListWidget#conversationList::item:selected { background: transparent; color: %1; }
         QFrame#conversationRow { background: transparent; }
-        QLabel#conversationTitle { color: %2; font-size: %7; font-weight: %8; }
-        QFrame#conversationSelectionDot { background: %5; min-width: 8px; max-width: 8px; min-height: 8px; max-height: 8px; border-radius: 4px; }
+        QLabel#conversationTitle { color: %1; font-size: %2; font-weight: %3; }
+        QFrame#conversationSelectionDot { background: %4; min-width: 8px; max-width: 8px; min-height: 8px; max-height: 8px; border-radius: 4px; }
     )")
-        .arg(
-            selected,
-            ink,
-            card,
-            muted,
-            primary,
-            conversationRowRadius,
-            conversationTitleFontSize,
-            conversationTitleFontWeight,
-            conversationPreviewFontSize
-        );
+        .arg(ink, conversationTitleFontSize, conversationTitleFontWeight, primary);
+    // Genuine single-line row drops the card fill + preview, so the row-radius
+    // and preview-font tokens are unused here (kept declared for the contract +
+    // Qt-runtime checks). Using contiguous %1-%4 markers above is required: a
+    // sparse marker set with the old 9-arg .arg() left placeholders unsubstituted
+    // ("QString::arg: N argument(s) missing") → malformed QSS → dot never painted.
+    Q_UNUSED(conversationRowRadius);
+    Q_UNUSED(conversationPreviewFontSize);
 
     sheet += QStringLiteral(R"(
         QFrame#statusDot, QFrame#statusDotWarning { min-width: %1; max-width: %1; min-height: %1; max-height: %1; border-radius: %2; }

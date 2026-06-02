@@ -1622,8 +1622,8 @@ struct SourceHygieneTests {
         #expect(!enchantedMacRoot.contains(".font(.subheadline)"))
         #expect(!enchantedMacRoot.contains(".font(.caption)"))
         // Genuine row: no card fill / white-on-selected / preview — selection is a
-        // small leading accent dot (QFrame#conversationSelectionDot, accent = %5).
-        #expect(enchantedQtHost.contains("QFrame#conversationSelectionDot { background: %5;"))
+        // small leading accent dot (QFrame#conversationSelectionDot, accent = %4).
+        #expect(enchantedQtHost.contains("QFrame#conversationSelectionDot { background: %4;"))
         #expect(!enchantedQtHost.contains("QFrame#conversationRow[active=\"true\"] { background: %5; }"))
         #expect(!enchantedQtHost.contains("QLabel#conversationTitle[active=\"true\"] { color: white; }"))
         #expect(!enchantedQtHost.contains("QLabel#conversationPreview"))
