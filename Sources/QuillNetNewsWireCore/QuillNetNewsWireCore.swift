@@ -2614,10 +2614,14 @@ final class RSSReaderModel: ObservableObject {
     /// into `feedCaches` without disturbing the timeline. Powers
     /// upstream NetNewsWire's 'Refresh All' command (⌘⌥R).
     ///
-    /// Sequential rather than parallel so the in-tree
-    /// QuillRSWeb.DownloadSession's single-host connection
-    /// limit stays honored across the batch; future
-    /// performance work can add a small concurrency window.
+    /// Active feed first (UI updates promptly), then inactive
+    /// feeds drain into the cache. Inactive-feed batch runs
+    /// with a small concurrency window so 100 subscriptions
+    /// don't take 100×fetch-time. The window is small (4) so
+    /// we don't open too many TCP connections at once on
+    /// shared hardware; httpMaximumConnectionsPerHost=1 in
+    /// Downloader.swift still serializes per-host (different
+    /// feeds usually live on different hosts).
     /// Per-feed errors are swallowed (cache stays at prior
     /// state for that feed) so one bad feed doesn't abort the
     /// whole pass.
@@ -2628,17 +2632,41 @@ final class RSSReaderModel: ObservableObject {
         if let activeURL = currentFeedURL {
             await fetch(urlString: activeURL)
         }
-        for feed in subscribedFeeds where feed.url != currentFeedURL {
-            // Back-off: skip feeds that have failed N times in a
-            // row. The user can still hit Refresh on the feed
-            // explicitly (refreshFeed routes through fetch which
-            // doesn't honor the skip) — that's how they tell the
-            // model "I fixed it, please try again". The counter
-            // resets on the next successful parse.
-            if (feedFailureCount[feed.id] ?? 0) >= Self.feedFailureSkipThreshold {
-                continue
+        let pending = subscribedFeeds.filter { feed in
+            feed.url != currentFeedURL &&
+            (feedFailureCount[feed.id] ?? 0) < Self.feedFailureSkipThreshold
+        }
+        await Self.runWithConcurrencyLimit(pending, limit: 4) { feed in
+            await self.fetchIntoCache(urlString: feed.url)
+        }
+    }
+
+    /// Run an async closure for each element with at most
+    /// `limit` concurrent invocations. Used by refreshAllFeeds
+    /// to bound the in-flight fetch count without going fully
+    /// sequential. Order of completion is non-deterministic;
+    /// per-feed callbacks must be independent.
+    nonisolated static func runWithConcurrencyLimit<T: Sendable>(
+        _ items: [T],
+        limit: Int,
+        _ work: @Sendable @escaping (T) async -> Void
+    ) async {
+        guard limit > 0, !items.isEmpty else { return }
+        await withTaskGroup(of: Void.self) { group in
+            var iterator = items.makeIterator()
+            // Prime the pool with `limit` initial tasks.
+            for _ in 0..<min(limit, items.count) {
+                guard let item = iterator.next() else { break }
+                group.addTask { await work(item) }
             }
-            await fetchIntoCache(urlString: feed.url)
+            // As each finishes, queue the next item until the
+            // iterator drains. Self-throttling — never more
+            // than `limit` in flight at any moment.
+            while await group.next() != nil {
+                if let item = iterator.next() {
+                    group.addTask { await work(item) }
+                }
+            }
         }
     }
 

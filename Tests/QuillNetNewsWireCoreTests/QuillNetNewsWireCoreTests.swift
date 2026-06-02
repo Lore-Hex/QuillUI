@@ -2854,6 +2854,45 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("runWithConcurrencyLimit caps in-flight count at the supplied limit")
+    func concurrencyLimitCapsInFlight() async {
+        // 10 items, limit 3. Each task records the in-flight
+        // count when it starts and ends. Max should be ≤ 3.
+        actor Counter {
+            var inFlight = 0
+            var peak = 0
+            func enter() { inFlight += 1; peak = max(peak, inFlight) }
+            func exit() { inFlight -= 1 }
+            var peakValue: Int { peak }
+        }
+        let counter = Counter()
+        let items = Array(0..<10)
+        await RSSReaderModel.runWithConcurrencyLimit(items, limit: 3) { _ in
+            await counter.enter()
+            // Sleep briefly so concurrent tasks overlap.
+            try? await Task.sleep(nanoseconds: 5_000_000)
+            await counter.exit()
+        }
+        let peak = await counter.peakValue
+        #expect(peak <= 3)
+        #expect(peak >= 2) // some concurrency actually happened
+    }
+
+    @Test("runWithConcurrencyLimit processes every item")
+    func concurrencyLimitProcessesAll() async {
+        actor Sink {
+            var seen: [Int] = []
+            func add(_ x: Int) { seen.append(x) }
+            var values: [Int] { seen }
+        }
+        let sink = Sink()
+        await RSSReaderModel.runWithConcurrencyLimit([1, 2, 3, 4, 5], limit: 2) { x in
+            await sink.add(x)
+        }
+        let seen = Set(await sink.values)
+        #expect(seen == [1, 2, 3, 4, 5])
+    }
+
     @Test("Skip-threshold value is conservative enough for transient outages")
     func failureThresholdIsConservative() {
         // ~5 consecutive misses at 30-min default cadence = 2.5h
