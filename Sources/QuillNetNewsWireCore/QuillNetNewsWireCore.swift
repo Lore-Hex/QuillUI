@@ -192,11 +192,18 @@ public struct QuillNetNewsWireContentView: View {
             }
             .padding(14)
 
-            // Live timeline filter. Bound directly to model.searchQuery
-            // so onChange isn't needed — filteredRows is a computed
-            // view that re-evaluates whenever items or searchQuery
-            // emit a @Published change.
-            TextField("Search articles", text: $model.searchQuery)
+            // Live timeline filter. Bound to model.searchQuery via an
+            // explicit Binding(get:set:) rather than $model.searchQuery
+            // because SwiftOpenUI on Linux does not synthesize the `$`
+            // projected-value accessor for @StateObject members. The
+            // explicit form compiles on both backends without a
+            // platform branch. filteredRows is a computed view that
+            // re-evaluates whenever items or searchQuery emit a
+            // @Published change.
+            TextField("Search articles", text: Binding(
+                get: { model.searchQuery },
+                set: { model.searchQuery = $0 }
+            ))
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
 
