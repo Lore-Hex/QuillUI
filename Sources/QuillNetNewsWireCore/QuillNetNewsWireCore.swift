@@ -661,10 +661,12 @@ public struct QuillNetNewsWireContentView: View {
                         .lineLimit(1)
                         .frame(width: 244, alignment: .leading)
                 }
-                if !item.publishedSummary.isEmpty {
-                    Text(item.publishedSummary)
+                let dateAuthor = item.dateAuthorLine
+                if !dateAuthor.isEmpty {
+                    Text(dateAuthor)
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                        .lineLimit(1)
                         .frame(width: 244, alignment: .leading)
                 }
                 if !item.previewText.isEmpty {
@@ -965,29 +967,50 @@ public struct RSSArticleRow: Identifiable, Hashable, Sendable {
     /// to the currently-active feed (the sidebar already shows
     /// the feed, so repeating it in each row is noise).
     public let feedTitle: String?
+    /// Comma-joined author names (or nil when the upstream parser
+    /// didn't surface any). Squeezed onto the date line as
+    /// "date · by Author" — matches upstream NetNewsWire's
+    /// timeline row format and what Quill's detail header already
+    /// renders.
+    public let authorLine: String?
 
     public init(
         id: String,
         title: String,
         publishedSummary: String,
         previewText: String = "",
-        feedTitle: String? = nil
+        feedTitle: String? = nil,
+        authorLine: String? = nil
     ) {
         self.id = id
         self.title = title
         self.publishedSummary = publishedSummary
         self.previewText = previewText
         self.feedTitle = feedTitle
+        self.authorLine = authorLine
     }
 
-    public init(item: RSSItem, feedTitle: String? = nil) {
+    public init(item: RSSItem, feedTitle: String? = nil, authorLine: String? = nil) {
         self.init(
             id: item.id,
             title: item.title,
             publishedSummary: item.publishedSummary,
             previewText: Self.makePreview(from: item.plainTextBody),
-            feedTitle: feedTitle
+            feedTitle: feedTitle,
+            authorLine: authorLine
         )
+    }
+
+    /// Composed "date · by Author" line for the timeline row.
+    /// Bridges both fields so the view doesn't repeat the
+    /// detail-header logic.
+    public var dateAuthorLine: String {
+        switch (publishedSummary.isEmpty, authorLine?.isEmpty ?? true) {
+        case (false, false): return "\(publishedSummary) · by \(authorLine!)"
+        case (false, true):  return publishedSummary
+        case (true, false):  return "by \(authorLine!)"
+        case (true, true):   return ""
+        }
     }
 
     /// Collapses internal whitespace runs to single spaces, trims
@@ -2670,7 +2693,13 @@ final class RSSReaderModel: ObservableObject {
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let crossFeed = selectedSmartFeed != nil || !trimmed.isEmpty
         guard crossFeed else {
-            return filteredItems.map { RSSArticleRow(item: $0, feedTitle: nil) }
+            return filteredItems.map { item in
+                RSSArticleRow(
+                    item: item,
+                    feedTitle: nil,
+                    authorLine: authorLine(forItemID: item.id)
+                )
+            }
         }
         // Build itemID → feedURL once so each row lookup is O(1).
         // Active feed's items use currentFeedURL; cached items use
@@ -2692,7 +2721,11 @@ final class RSSReaderModel: ObservableObject {
         )
         return filteredItems.map { item in
             let title = itemFeedURL[item.id].flatMap { feedTitleByURL[$0] }
-            return RSSArticleRow(item: item, feedTitle: title)
+            return RSSArticleRow(
+                item: item,
+                feedTitle: title,
+                authorLine: authorLine(forItemID: item.id)
+            )
         }
     }
 

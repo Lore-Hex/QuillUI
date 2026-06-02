@@ -1813,6 +1813,25 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.statusText.contains("unread"))
     }
 
+    @Test("Article row date + author compose with the correct separators")
+    func dateAuthorLineCompositions() {
+        // Both present.
+        let both = RSSArticleRow(id: "1", title: "T", publishedSummary: "Today", previewText: "", feedTitle: nil, authorLine: "Alice")
+        #expect(both.dateAuthorLine == "Today · by Alice")
+        // Date only.
+        let dateOnly = RSSArticleRow(id: "2", title: "T", publishedSummary: "Today", authorLine: nil)
+        #expect(dateOnly.dateAuthorLine == "Today")
+        // Author only.
+        let authorOnly = RSSArticleRow(id: "3", title: "T", publishedSummary: "", authorLine: "Bob")
+        #expect(authorOnly.dateAuthorLine == "by Bob")
+        // Neither.
+        let neither = RSSArticleRow(id: "4", title: "T", publishedSummary: "", authorLine: nil)
+        #expect(neither.dateAuthorLine.isEmpty)
+        // Empty author string treated as absent.
+        let emptyAuthor = RSSArticleRow(id: "5", title: "T", publishedSummary: "Today", authorLine: "")
+        #expect(emptyAuthor.dateAuthorLine == "Today")
+    }
+
     @Test("Article row preview collapses whitespace + trims edges")
     func previewCollapsesWhitespace() {
         let body = "  Hello\n\n  world  \tagain  "
