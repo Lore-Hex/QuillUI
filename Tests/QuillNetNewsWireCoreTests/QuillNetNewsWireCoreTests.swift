@@ -2701,6 +2701,29 @@ struct QuillNetNewsWireCoreTests {
         #expect(RSSReaderModel.articlesPerFeedLimit >= 50)
     }
 
+    @Test("friendlyError prefers localized description over NSError debug form")
+    func friendlyErrorPrefersLocalized() {
+        let urlError = URLError(.cannotFindHost)
+        let friendly = RSSReaderModel.friendlyError(urlError)
+        // The default "\(urlError)" prints "Error Domain=..." —
+        // friendly form should NOT.
+        #expect(!friendly.hasPrefix("Error Domain="))
+        // localizedDescription for cannotFindHost is "A server
+        // with the specified hostname could not be found." on
+        // Apple platforms (and similarly readable on Linux).
+        #expect(friendly.count > 5)
+    }
+
+    @Test("friendlyError handles pure Swift errors without localizedDescription")
+    func friendlyErrorFallsThroughForPureSwiftErrors() {
+        struct PlainError: Error {}
+        let friendly = RSSReaderModel.friendlyError(PlainError())
+        // No localizedDescription that's meaningful → falls
+        // through to "\(error)" mirror form. Just check it's
+        // non-empty and doesn't crash.
+        #expect(!friendly.isEmpty)
+    }
+
     @Test("httpErrorMessage names common failure codes")
     func httpErrorMessageNamesCommonCodes() {
         #expect(RSSReaderModel.httpErrorMessage(forStatus: 401) == "Unauthorized (401)")

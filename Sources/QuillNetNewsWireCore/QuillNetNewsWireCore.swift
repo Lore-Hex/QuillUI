@@ -2345,7 +2345,7 @@ final class RSSReaderModel: ObservableObject {
             }
             return importOPMLTree(data: data)
         } catch {
-            setError("OPML import failed: \(error)")
+            setError("OPML import failed: \(Self.friendlyError(error))")
             return 0
         }
     }
@@ -2435,7 +2435,7 @@ final class RSSReaderModel: ObservableObject {
         do {
             candidates = try await FeedFinder.find(url: url)
         } catch {
-            setError("Subscribe failed: \(error)")
+            setError("Subscribe failed: \(Self.friendlyError(error))")
             setLoading(false)
             return nil
         }
@@ -2659,7 +2659,7 @@ final class RSSReaderModel: ObservableObject {
             // Quiet on the global Refresh-All path — one bad
             // feed shouldn't bust the whole pass — but stash
             // the error so feedsPane can show a warning glyph.
-            feedErrors[urlString] = "\(error)"
+            feedErrors[urlString] = Self.friendlyError(error)
             incrementFailureCount(forFeed: urlString)
         }
     }
@@ -2784,8 +2784,9 @@ final class RSSReaderModel: ObservableObject {
                 self.feedIconURLs[urlString] = icon
             }
         } catch {
-            self.setError("\(error)")
-            self.feedErrors[urlString] = "\(error)"
+            let friendly = Self.friendlyError(error)
+            self.setError(friendly)
+            self.feedErrors[urlString] = friendly
             incrementFailureCount(forFeed: urlString)
         }
         setLoading(false)
@@ -4123,6 +4124,50 @@ final class RSSReaderModel: ObservableObject {
     /// the dict small for big subscription lists.
     func resetFailureCount(forFeed urlString: String) {
         feedFailureCount.removeValue(forKey: urlString)
+    }
+
+    /// Friendly error string for thrown Errors. Plain `"\(error)"`
+    /// interpolation surfaces the NSError "Error Domain=...
+    /// UserInfo={...}" form which is unreadable in the inspector
+    /// + sidebar tooltip.
+    ///
+    /// URLError gets a code-based readable message (same set
+    /// upstream NetNewsWire uses for its sidebar warning
+    /// tooltip) since localizedDescription on swift-corelibs-
+    /// foundation is unreliable for that family. Other NSError
+    /// fall back to localizedDescription when it's meaningful
+    /// (not the "Error Domain=" debug form). Last-resort
+    /// fall-through is "\(error)" which at least beats nothing.
+    nonisolated static func friendlyError(_ error: Error) -> String {
+        if let urlError = error as? URLError {
+            return urlErrorDescription(urlError)
+        }
+        let nsError = error as NSError
+        let described = nsError.localizedDescription
+        if !described.isEmpty,
+           !described.hasPrefix("Error Domain=") {
+            return described
+        }
+        return "\(error)"
+    }
+
+    nonisolated private static func urlErrorDescription(_ urlError: URLError) -> String {
+        switch urlError.code {
+        case .cannotFindHost:           return "Cannot find host"
+        case .cannotConnectToHost:      return "Cannot connect to host"
+        case .timedOut:                 return "Connection timed out"
+        case .notConnectedToInternet:   return "Not connected to the internet"
+        case .networkConnectionLost:    return "Network connection lost"
+        case .dnsLookupFailed:          return "DNS lookup failed"
+        case .badServerResponse:        return "Bad server response"
+        case .badURL:                   return "Invalid URL"
+        case .unsupportedURL:           return "Unsupported URL scheme"
+        case .userCancelledAuthentication: return "Authentication cancelled"
+        case .userAuthenticationRequired:  return "Authentication required"
+        case .serverCertificateUntrusted:  return "Server certificate untrusted"
+        case .secureConnectionFailed:      return "Secure connection failed"
+        default:                        return "Network error (\(urlError.code.rawValue))"
+        }
     }
 
     nonisolated static func httpErrorMessage(forStatus code: Int) -> String {
