@@ -74,6 +74,35 @@ struct QuillRSCoreShimTests {
         #expect(Notification.Name.lowMemory.rawValue == "LowMemoryNotification")
     }
 
+    @Test("CredentialsType raw values match upstream byte-for-byte")
+    func credentialsTypeRawValues() {
+        // Pinning the raw strings so future shim refactors can't
+        // silently break on-disk compat with upstream NetNewsWire
+        // credentials (e.g. exported keychain JSON for migration).
+        #expect(CredentialsType.basic.rawValue == "password")
+        #expect(CredentialsType.newsBlurBasic.rawValue == "newsBlurBasic")
+        #expect(CredentialsType.newsBlurSessionID.rawValue == "newsBlurSessionId")
+        #expect(CredentialsType.readerBasic.rawValue == "readerBasic")
+        #expect(CredentialsType.readerAPIKey.rawValue == "readerAPIKey")
+        #expect(CredentialsType.oauthAccessToken.rawValue == "oauthAccessToken")
+        #expect(CredentialsType.oauthAccessTokenSecret.rawValue == "oauthAccessTokenSecret")
+        #expect(CredentialsType.oauthRefreshToken.rawValue == "oauthRefreshToken")
+    }
+
+    @Test("Credentials Equatable + init round-trip")
+    func credentialsEquatable() {
+        let a = Credentials(type: .basic, username: "alice", secret: "hunter2")
+        let b = Credentials(type: .basic, username: "alice", secret: "hunter2")
+        let differentUser = Credentials(type: .basic, username: "bob", secret: "hunter2")
+        let differentType = Credentials(type: .readerAPIKey, username: "alice", secret: "hunter2")
+        #expect(a == b)
+        #expect(a != differentUser)
+        #expect(a != differentType)
+        #expect(a.type == .basic)
+        #expect(a.username == "alice")
+        #expect(a.secret == "hunter2")
+    }
+
     @Test("Platform.isRunningUnitTests returns true under any test runner")
     func platformIsRunningUnitTestsUnderTestRunner() {
         // Multi-path detection: env vars (XCTest / swift-testing)
