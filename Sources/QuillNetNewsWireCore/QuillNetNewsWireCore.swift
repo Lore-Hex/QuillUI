@@ -238,7 +238,10 @@ public struct QuillNetNewsWireContentView: View {
         // Binding<Bool>, SwiftOpenUI's matching init takes a
         // Bool. Both default to collapsed; per-folder expansion
         // state will land alongside Settings persistence.
-        let inner = DisclosureGroup(folder.name.isEmpty ? "Folder" : folder.name) {
+        let unread = model.unreadCount(in: folder)
+        let title = folder.name.isEmpty ? "Folder" : folder.name
+        let displayTitle = unread > 0 ? "\(title) (\(unread))" : title
+        let inner = DisclosureGroup(displayTitle) {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(folder.feeds) { feed in
                     feedRow(feed)
@@ -1354,6 +1357,19 @@ final class RSSReaderModel: ObservableObject {
     func unreadCount(forFeed feedID: Feed.ID) -> Int {
         guard feedID == selectedFeedID else { return 0 }
         return unreadCount
+    }
+
+    /// Rolled-up unread count for an OPML folder — sums
+    /// `unreadCount(forFeed:)` over every leaf feed (recursive
+    /// through subfolders). Today this is non-zero only when
+    /// the folder contains the active feed (since unread state
+    /// is tracked only for the active feed). When the
+    /// persistence iteration lands a per-feed article cache,
+    /// every folder will report the accurate roll-up.
+    func unreadCount(in folder: OPMLImporter.Folder) -> Int {
+        folder.allFeeds.reduce(0) { acc, feed in
+            acc + unreadCount(forFeed: feed.id)
+        }
     }
 
     /// Items in the current timeline that match the active smart

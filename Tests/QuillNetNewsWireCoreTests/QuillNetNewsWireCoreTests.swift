@@ -1483,6 +1483,52 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("unreadCount(in folder:) rolls up unread across folder leaves recursively")
+    func badgeFolderUnreadRecursive() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "Active", url: "https://active.test/feed"),
+            Feed(title: "Inactive", url: "https://inactive.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "x", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "y", title: "Y", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        // selectedFeedID is the first subscription — Active.
+        let folder = OPMLImporter.Folder(name: "News", feeds: [
+            Feed(title: "Active", url: "https://active.test/feed"),
+            Feed(title: "Inactive", url: "https://inactive.test/feed"),
+        ])
+        // Folder contains active feed → rolled-up = active's 2 unread.
+        #expect(model.unreadCount(in: folder) == 2)
+        model.selectItem(id: "x")  // mark x read
+        #expect(model.unreadCount(in: folder) == 1)
+        // Folder without the active feed → 0.
+        let other = OPMLImporter.Folder(name: "Other", feeds: [
+            Feed(title: "Inactive", url: "https://inactive.test/feed"),
+        ])
+        #expect(model.unreadCount(in: other) == 0)
+    }
+
+    @MainActor
+    @Test("unreadCount(in folder:) recurses into subfolders")
+    func badgeFolderUnreadNested() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "1", title: "1", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "2", title: "2", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "3", title: "3", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        let nested = OPMLImporter.Folder(name: "News", feeds: [], subfolders: [
+            OPMLImporter.Folder(name: "Tech", feeds: [
+                Feed(title: "A", url: "https://a.test/feed"),
+            ]),
+        ])
+        #expect(model.unreadCount(in: nested) == 3)
+    }
+
+    @MainActor
     @Test("unreadCount(forFeed:) reports only for the active feed")
     func badgePerFeedUnreadActiveOnly() {
         let model = RSSReaderModel(subscribedFeeds: [
