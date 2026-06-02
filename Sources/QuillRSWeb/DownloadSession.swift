@@ -35,7 +35,12 @@ struct HTTP4xxResponse {
 	}
 }
 
-@MainActor @objc public final class DownloadSession: NSObject, ProgressInfoReporter {
+// `@objc` dropped — Linux's Swift toolchain has no Objective-C
+// runtime, so the attribute fails to compile. The class still
+// inherits NSObject (which exists via swift-corelibs-foundation)
+// so URLSession delegate methods work; ObjC export from Swift
+// just isn't a thing on Linux.
+@MainActor public final class DownloadSession: NSObject, ProgressInfoReporter {
 	private var urlSession: URLSession!
 	private var tasksInProgress = Set<URLSessionTask>()
 	private var tasksPending = Set<URLSessionTask>()
