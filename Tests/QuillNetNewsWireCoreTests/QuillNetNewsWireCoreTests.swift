@@ -212,7 +212,10 @@ struct QuillNetNewsWireCoreTests {
         let model = RSSReaderModel()
         model.seedProfileFixtures()
 
-        #expect(model.statusText == "5 items")
+        // Seeded selection auto-marks item "1" read, so unread is
+        // 4 of 5. statusText now surfaces unread count (added in
+        // the read/unread parity step).
+        #expect(model.statusText == "4 unread · 5 items")
         #expect(model.rows.map(\.id) == ["1", "2", "3", "4", "5"])
         #expect(model.selectedItem?.id == "1")
         #expect(model.selectedDetail?.id == "1")
@@ -326,5 +329,68 @@ struct QuillNetNewsWireCoreTests {
         let model = RSSReaderModel(subscribedFeeds: [])
         #expect(model.currentFeedURL == nil)
         #expect(model.selectedFeedID == nil)
+    }
+
+    @MainActor
+    @Test("RSSReaderModel selectItem auto-marks the article read")
+    func readerModelSelectItemAutoMarksRead() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        #expect(model.isRead(id: "1"))      // seeded selection marks 1 read
+        #expect(!model.isRead(id: "2"))
+
+        model.selectItem(id: "2")
+        #expect(model.isRead(id: "2"))
+        #expect(model.readArticleIDs.contains("1"))
+        #expect(model.readArticleIDs.contains("2"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel unreadCount reflects items minus read set")
+    func readerModelUnreadCount() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // 5 fixtures, 1 auto-read from initial selection → 4 unread.
+        #expect(model.items.count == 5)
+        #expect(model.unreadCount == 4)
+
+        model.selectItem(id: "2")
+        model.selectItem(id: "3")
+        #expect(model.unreadCount == 2)
+    }
+
+    @MainActor
+    @Test("RSSReaderModel statusText surfaces unread count when nonzero")
+    func readerModelStatusTextShowsUnread() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        #expect(model.statusText.contains("unread"))
+        #expect(model.statusText.contains("5 items"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel toggleReadOnSelection flips selected article's read state")
+    func readerModelToggleReadOnSelection() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.selectItem(id: "3")
+        #expect(model.isRead(id: "3"))
+
+        model.toggleReadOnSelection()
+        #expect(!model.isRead(id: "3"))
+
+        model.toggleReadOnSelection()
+        #expect(model.isRead(id: "3"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.markRead is idempotent")
+    func readerModelMarkReadIdempotent() {
+        let model = RSSReaderModel()
+        model.markRead(id: "abc")
+        let countAfter1 = model.readArticleIDs.count
+        model.markRead(id: "abc")
+        #expect(model.readArticleIDs.count == countAfter1)
+        #expect(model.isRead(id: "abc"))
     }
 }

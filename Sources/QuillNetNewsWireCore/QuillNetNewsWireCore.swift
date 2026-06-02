@@ -150,16 +150,27 @@ public struct QuillNetNewsWireContentView: View {
     }
 
     private func articleRow(_ item: RSSArticleRow) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(item.title)
+        let isUnread = !model.isRead(id: item.id)
+        return HStack(alignment: .top, spacing: 6) {
+            // Unread indicator: an upstream-NetNewsWire-style filled
+            // circle in the leading gutter. Reserves the same width
+            // even when read so titles don't shift on mark-as-read.
+            Text(isUnread ? "•" : " ")
                 .font(.subheadline)
-                .lineLimit(2)
-                .frame(width: 264, alignment: .leading)
-            if !item.publishedSummary.isEmpty {
-                Text(item.publishedSummary)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .frame(width: 264, alignment: .leading)
+                .foregroundColor(.blue)
+                .frame(width: 10, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.title)
+                    .font(.subheadline)
+                    .fontWeight(isUnread ? .bold : .regular)
+                    .lineLimit(2)
+                    .frame(width: 244, alignment: .leading)
+                if !item.publishedSummary.isEmpty {
+                    Text(item.publishedSummary)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .frame(width: 244, alignment: .leading)
+                }
             }
         }
         .padding(.horizontal, 8)
@@ -376,6 +387,16 @@ final class RSSReaderModel: ObservableObject {
     @Published private(set) var selectedDetail: RSSArticleDetail?
     @Published private(set) var statusText = "0 items"
 
+    /// Set of article IDs the user has read. Held in memory only
+    /// for now; the persistence iteration will back this with
+    /// QuillData/SQLite so reads survive relaunches. Stored as a
+    /// flat set rather than per-feed so a re-fetched article keeps
+    /// its read state across feed-list refreshes — same shape as
+    /// upstream NetNewsWire's `articleIDs` read-status table.
+    @Published private(set) var readArticleIDs: Set<String> = [] {
+        didSet { updateStatusText() }
+    }
+
     /// Multi-feed subscription list. Single-feed callers can
     /// ignore this and keep using `fetch(urlString:)` directly;
     /// the three-pane sidebar iteration will drive selection
@@ -476,6 +497,40 @@ final class RSSReaderModel: ObservableObject {
         if selectedID != id {
             selectedID = id
         }
+        if let id { markRead(id: id) }
+    }
+
+    /// Mark an article as read. Idempotent; firing the didSet on
+    /// `readArticleIDs` only when the set actually grows so we
+    /// don't bounce statusText for every redundant tap.
+    func markRead(id: String) {
+        if readArticleIDs.insert(id).inserted {
+            // didSet on readArticleIDs handles status text refresh.
+        }
+    }
+
+    /// Toggle read state on the currently-selected article. Wired
+    /// to a future keyboard shortcut + a Mark Unread menu item.
+    func toggleReadOnSelection() {
+        guard let selectedID else { return }
+        if readArticleIDs.contains(selectedID) {
+            readArticleIDs.remove(selectedID)
+        } else {
+            readArticleIDs.insert(selectedID)
+        }
+    }
+
+    func isRead(id: String) -> Bool {
+        readArticleIDs.contains(id)
+    }
+
+    /// Number of items currently loaded that the user has not yet
+    /// read. Excludes items from feeds not currently fetched (read
+    /// status is global, but the count is per loaded timeline).
+    var unreadCount: Int {
+        items.reduce(0) { acc, item in
+            acc + (readArticleIDs.contains(item.id) ? 0 : 1)
+        }
     }
 
     private func updateSelectedItem() {
@@ -503,7 +558,12 @@ final class RSSReaderModel: ObservableObject {
         } else if let error {
             nextStatusText = "Error: \(error)"
         } else {
-            nextStatusText = "\(items.count) items"
+            let unread = unreadCount
+            if unread == 0 {
+                nextStatusText = "\(items.count) items"
+            } else {
+                nextStatusText = "\(unread) unread · \(items.count) items"
+            }
         }
         if statusText != nextStatusText {
             statusText = nextStatusText
