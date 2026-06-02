@@ -4319,6 +4319,52 @@ final class RSSReaderModel: ObservableObject {
         }
     }
 
+    /// All RSSItems from feeds inside the named folder
+    /// (recursive into subfolders via allFeeds), deduped by id.
+    /// Walks each feed's cache + the active feed's items for
+    /// the matching URLs. Empty when the folder name isn't
+    /// in subscriptionRoot or has no feeds with cached items.
+    ///
+    /// Future iteration will pair this with a selectedFolderName
+    /// state for a "folder-as-smart-feed" view; for now it's a
+    /// building block + a way to compute folder-scoped counts
+    /// (markFolderAsRead already walks the folder a similar way).
+    func itemsInFolder(named folderName: String) -> [RSSItem] {
+        guard let folder = Self.findFolder(named: folderName, in: subscriptionRoot) else {
+            return []
+        }
+        let feedURLs = Set(folder.allFeeds.map(\.url))
+        var seen = Set<String>()
+        var combined: [RSSItem] = []
+        // Active feed first (its items are freshest).
+        if let activeURL = currentFeedURL, feedURLs.contains(activeURL) {
+            for item in items where seen.insert(item.id).inserted {
+                combined.append(item)
+            }
+        }
+        // Cached feeds that belong to this folder.
+        for url in feedURLs {
+            guard let cache = feedCaches[url] else { continue }
+            for item in cache.items where seen.insert(item.id).inserted {
+                combined.append(item)
+            }
+        }
+        return combined
+    }
+
+    /// Recursively search subscriptionRoot for a folder with
+    /// the given name. First match wins (folder-name uniqueness
+    /// is enforced at addFolder/renameFolder per #86/#87).
+    nonisolated private static func findFolder(named name: String, in folder: OPMLImporter.Folder) -> OPMLImporter.Folder? {
+        if folder.name == name { return folder }
+        for sub in folder.subfolders {
+            if let found = findFolder(named: name, in: sub) {
+                return found
+            }
+        }
+        return nil
+    }
+
     /// Total items across every loaded feed, deduped by id.
     /// Used as the denominator in smart-feed status text where
     /// the matching pool spans every feed, not just the active

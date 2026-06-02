@@ -4144,6 +4144,41 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("itemsInFolder returns the union of feed-cache items inside a folder")
+    func itemsInFolderUnionsFeedCaches() {
+        let feedA = Feed(title: "A", url: "https://a.test/feed")
+        let feedB = Feed(title: "B", url: "https://b.test/feed")
+        let feedC = Feed(title: "C", url: "https://c.test/feed")
+        let model = RSSReaderModel(subscribedFeeds: [feedA, feedB, feedC])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [feedC],
+            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [feedA, feedB], subfolders: [])]
+        )
+        model.items = [
+            RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        model.feedCaches["https://c.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "c1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        // Tech folder = feeds A + B. C is outside.
+        let inTech = Set(model.itemsInFolder(named: "Tech").map(\.id))
+        #expect(inTech == ["a1", "b1"])
+        // C is at root, not in Tech.
+        #expect(!inTech.contains("c1"))
+    }
+
+    @MainActor
+    @Test("itemsInFolder returns empty for unknown folder name")
+    func itemsInFolderUnknown() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        #expect(model.itemsInFolder(named: "NoSuch").isEmpty)
+    }
+
+    @MainActor
     @Test("crossFeedItemsCount dedupes overlapping cache items")
     func crossFeedItemsCountDedupes() {
         let model = RSSReaderModel(subscribedFeeds: [
