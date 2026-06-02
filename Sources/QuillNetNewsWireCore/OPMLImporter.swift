@@ -107,11 +107,26 @@ public enum OPMLImporter {
             path.append(elementName)
             buffer = ""
             if elementName == "outline", let xmlUrl = attributeDict["xmlUrl"], !xmlUrl.isEmpty {
-                let text = attributeDict["text"]
-                    ?? attributeDict["title"]
+                // ?? only catches nil — empty strings ("") need
+                // the explicit nonEmpty check below. Without it,
+                // an OPML <outline xmlUrl="..." text=""/> would
+                // create a Feed with a blank title that renders
+                // as an empty sidebar row AND blocks auto-rename
+                // -from-parse (which only fires when title==URL).
+                let text = nonEmpty(attributeDict["text"])
+                    ?? nonEmpty(attributeDict["title"])
                     ?? xmlUrl
                 feeds.append(Feed(title: text, url: xmlUrl))
             }
+        }
+
+        /// Returns the input only when non-nil AND non-empty
+        /// (post-trim). Otherwise nil so ?? chains fall through.
+        fileprivate func nonEmpty(_ s: String?) -> String? {
+            guard let s, !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return nil
+            }
+            return s
         }
 
         func parser(_ parser: XMLParser, foundCharacters string: String) {
@@ -152,8 +167,10 @@ public enum OPMLImporter {
             guard elementName == "outline" else { return }
             if let xmlUrl = attributeDict["xmlUrl"], !xmlUrl.isEmpty {
                 // Leaf: append Feed to the current folder.
-                let text = attributeDict["text"]
-                    ?? attributeDict["title"]
+                // Same empty-string fallback chain as the flat
+                // Delegate (?? only catches nil, not "").
+                let text = Self.nonEmpty(attributeDict["text"])
+                    ?? Self.nonEmpty(attributeDict["title"])
                     ?? xmlUrl
                 let leaf = Feed(title: text, url: xmlUrl)
                 let topIdx = stack.count - 1
@@ -161,10 +178,19 @@ public enum OPMLImporter {
                 outlineWasFolder.append(false)
             } else {
                 // Folder: push a new Folder onto the stack.
-                let folderName = attributeDict["text"] ?? attributeDict["title"] ?? ""
+                let folderName = Self.nonEmpty(attributeDict["text"])
+                    ?? Self.nonEmpty(attributeDict["title"])
+                    ?? ""
                 stack.append(Folder(name: folderName))
                 outlineWasFolder.append(true)
             }
+        }
+
+        fileprivate static func nonEmpty(_ s: String?) -> String? {
+            guard let s, !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return nil
+            }
+            return s
         }
 
         func parser(_ parser: XMLParser, foundCharacters string: String) {

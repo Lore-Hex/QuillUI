@@ -122,6 +122,47 @@ struct QuillNetNewsWireCoreTests {
         #expect(!item.plainTextBody.contains("&#169"))
     }
 
+    @Test("OPMLImporter falls back to title→xmlUrl when text attr is empty")
+    func opmlImportFallsBackFromEmptyText() {
+        let xml = """
+        <?xml version="1.0"?>
+        <opml version="2.0">
+          <body>
+            <outline xmlUrl="https://a.test/feed" text="" title="A"/>
+            <outline xmlUrl="https://b.test/feed" text="  " title=""/>
+            <outline xmlUrl="https://c.test/feed"/>
+          </body>
+        </opml>
+        """
+        let parsed = OPMLImporter.parse(xml: xml)
+        let byUrl = Dictionary(uniqueKeysWithValues: parsed.feeds.map { ($0.url, $0.title) })
+        // empty text → fall through to title
+        #expect(byUrl["https://a.test/feed"] == "A")
+        // empty text + empty title → fall through to xmlUrl
+        #expect(byUrl["https://b.test/feed"] == "https://b.test/feed")
+        // no text, no title → xmlUrl as before
+        #expect(byUrl["https://c.test/feed"] == "https://c.test/feed")
+    }
+
+    @Test("OPMLImporter.parseTree applies the same empty-string fallback")
+    func opmlImportTreeFallsBackFromEmptyText() {
+        let xml = """
+        <?xml version="1.0"?>
+        <opml version="2.0">
+          <body>
+            <outline text="" title="Tech">
+              <outline xmlUrl="https://hn.test/feed" text=""/>
+            </outline>
+          </body>
+        </opml>
+        """
+        let parsed = OPMLImporter.parseTree(xml: xml)
+        // Folder name falls through to title attr.
+        #expect(parsed.root.subfolders.first?.name == "Tech")
+        // Feed title falls through to xmlUrl.
+        #expect(parsed.root.subfolders.first?.feeds.first?.title == "https://hn.test/feed")
+    }
+
     @Test("RSSItem.inlineLinks resolves site-relative paths against article URL")
     func rssItemInlineLinksResolvesRelative() {
         let html = """
