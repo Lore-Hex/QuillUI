@@ -333,6 +333,11 @@ public struct QuillNetNewsWireContentView: View {
             // the timeline to the active subscribed-feed view.
             Button("clear smart feed") { model.selectSmartFeed(nil) }
                 .keyboardShortcut("0", modifiers: .command)
+            // Cmd+, opens the Settings sheet — the canonical Mac
+            // "Preferences" shortcut. Matches upstream
+            // NetNewsWire's File menu binding.
+            Button("settings") { showingSettings = true }
+                .keyboardShortcut(",", modifiers: .command)
         }
         .frame(height: 0)
         .hidden()
