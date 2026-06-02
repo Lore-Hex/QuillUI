@@ -2708,7 +2708,12 @@ final class RSSReaderModel: ObservableObject {
             let upstreamArticles = RSSFeedParser.parseUpstreamArticles(
                 data: data, url: urlString
             )
-            self.setFeedTitle(parsed.title)
+            // Decode HTML entities in the parsed feed title before
+            // surfacing it — many feeds publish their <title> with
+            // entities ("AT&amp;T News") and we don't want those
+            // literal in the sidebar / detail header.
+            let decodedFeedTitle = parsed.title.map { HTMLEntities.decode($0) }
+            self.setFeedTitle(decodedFeedTitle)
             // If the parsed feed title is meaningful AND differs
             // from the user's sidebar entry, rename the
             // subscribed feed so the sidebar reads the canonical
@@ -2722,7 +2727,7 @@ final class RSSReaderModel: ObservableObject {
             // looks unedited (still equal to the feed URL —
             // signals "never been renamed yet").
             self.updateSubscribedFeedTitleFromParse(
-                urlString: urlString, parsedTitle: parsed.title
+                urlString: urlString, parsedTitle: decodedFeedTitle
             )
             let trimmedItems = Array(parsed.items.prefix(Self.articlesPerFeedLimit))
             let trimmedArticles = Array(upstreamArticles.prefix(Self.articlesPerFeedLimit))
@@ -4301,7 +4306,13 @@ struct RSSFeedParser {
     /// timeline always renders something. pubDate gets ISO 8601
     /// formatted when the upstream DateParser produced a Date.
     static func adaptParsedItem(_ item: ParsedItem) -> RSSItem {
-        let title = (item.title?.isEmpty == false) ? item.title! : "Untitled"
+        // Many RSS feeds (Wordpress-based especially) ship titles
+        // with literal HTML entities ("AT&amp;T announces&hellip;").
+        // Decode through HTMLEntities so the timeline / detail
+        // header reads naturally rather than showing source-form
+        // entities.
+        let rawTitle = (item.title?.isEmpty == false) ? item.title! : "Untitled"
+        let title = HTMLEntities.decode(rawTitle)
         let body = item.contentHTML ?? item.contentText ?? item.summary
         return RSSItem(
             id: item.uniqueID,

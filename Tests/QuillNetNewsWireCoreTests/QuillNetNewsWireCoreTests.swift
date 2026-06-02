@@ -3,6 +3,7 @@ import Testing
 @testable import QuillNetNewsWireCore
 import QuillArticles
 import QuillData
+import QuillFoundation
 
 @Suite("QuillNetNewsWireCore RSS / Atom parser")
 struct QuillNetNewsWireCoreTests {
@@ -57,6 +58,14 @@ struct QuillNetNewsWireCoreTests {
             descriptionHTML: "don&#39;t and don&#x27;t"
         )
         #expect(item.plainTextBody == "don't and don't")
+    }
+
+    @Test("HTMLEntities round-trip handles common feed-title pattern")
+    func htmlEntitiesDecodesFeedTitlePattern() {
+        // Real-world Wordpress title pattern that flowed
+        // un-decoded into the sidebar / detail header pre-#121.
+        let raw = "AT&amp;T announces&hellip;"
+        #expect(HTMLEntities.decode(raw) == "AT&T announces\u{2026}")
     }
 
     @Test("RSSItem.plainTextBody decodes common typographical entities")
