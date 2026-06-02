@@ -4534,12 +4534,22 @@ private extension String {
     /// pass produces the segments.
     func htmlParagraphs() -> [String] {
         guard !isEmpty else { return [] }
+        // Strip <script> / <style> blocks (tag + content) so
+        // tracker JS / inline CSS doesn't leak into the detail
+        // paragraphs. Same fix stripBasicHTML got in #119; this
+        // path needs it too because htmlParagraphs goes straight
+        // to the detail-pane render and skips stripBasicHTML.
+        let withoutBlocks = self.replacingOccurrences(
+            of: "<(script|style)\\b[^>]*>[\\s\\S]*?</\\1>",
+            with: "",
+            options: [.regularExpression, .caseInsensitive]
+        )
         // Insert a marker character at every block-level boundary,
         // then split on it. The marker is `\u{2029}` (PARAGRAPH
         // SEPARATOR) so it can't collide with any feed content.
         let blockTags = "p|br|hr|h[1-6]|li|blockquote|div|tr"
         let pattern = "</?(?:\(blockTags))(?:\\s[^>]*)?/?\\s*>"
-        var work = self.replacingOccurrences(
+        var work = withoutBlocks.replacingOccurrences(
             of: pattern,
             with: "\u{2029}",
             options: [.regularExpression, .caseInsensitive]

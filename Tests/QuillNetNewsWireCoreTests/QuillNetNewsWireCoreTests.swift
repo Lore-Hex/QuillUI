@@ -122,6 +122,24 @@ struct QuillNetNewsWireCoreTests {
         #expect(!item.plainTextBody.contains("&#169"))
     }
 
+    @Test("RSSItem.bodyParagraphs drops script blocks (detail-pane safety)")
+    func rssItemBodyParagraphsStripsScripts() {
+        let html = "<p>Para one.</p><script>tracker('hit');</script><p>Para two.</p>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        // Script source must not leak into detail-pane paragraphs.
+        #expect(!item.bodyParagraphs.contains { $0.contains("tracker") })
+        #expect(item.bodyParagraphs.contains("Para one."))
+        #expect(item.bodyParagraphs.contains("Para two."))
+    }
+
+    @Test("RSSItem.bodyParagraphs drops style blocks too")
+    func rssItemBodyParagraphsStripsStyles() {
+        let html = "<p>Body.</p><style>.foo { color: red; }</style>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(!item.bodyParagraphs.contains { $0.contains("color: red") })
+        #expect(item.bodyParagraphs == ["Body."])
+    }
+
     @Test("RSSItem.plainTextBody drops script blocks entirely (tag + content)")
     func rssItemPlainTextBodyStripsScripts() {
         let html = "<p>Story body.</p><script>track('hit');</script><p>More body.</p>"
