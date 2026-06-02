@@ -571,7 +571,11 @@ public struct QuillNetNewsWireContentView: View {
         // state will land alongside Settings persistence.
         let unread = model.unreadCount(in: folder)
         let title = folder.name.isEmpty ? "Folder" : folder.name
-        let displayTitle = unread > 0 ? "\(title) (\(unread))" : title
+        // 📁 prefix so folders stand out from feed rows in a
+        // long sidebar — matches the visual weight of smart-
+        // feed symbol prefixes (☀/●/★). Unread count appears
+        // after the title to mirror feed-row badge ordering.
+        let displayTitle = unread > 0 ? "📁 \(title) (\(unread))" : "📁 \(title)"
         let inner = DisclosureGroup(displayTitle) {
             VStack(alignment: .leading, spacing: 2) {
                 // 'Show all' selects the folder as a smart-feed-
