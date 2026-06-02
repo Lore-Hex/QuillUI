@@ -147,11 +147,19 @@ public struct QuillNetNewsWireContentView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(model.subscribedFeeds) { feed in
+                    // Root folder's direct feeds + any subfolders.
+                    // When no OPML tree has been imported, the model
+                    // initializes subscriptionRoot to wrap every seed
+                    // feed at top level so the existing flat render
+                    // shape stays intact.
+                    ForEach(model.subscriptionRoot.feeds) { feed in
                         feedRow(feed)
                             .onTapGesture {
                                 Task { @MainActor in await model.selectFeed(id: feed.id) }
                             }
+                    }
+                    ForEach(model.subscriptionRoot.subfolders) { folder in
+                        folderRow(folder)
                     }
                 }
                 .padding(.horizontal, 8)
@@ -214,6 +222,38 @@ public struct QuillNetNewsWireContentView: View {
         .background(model.selectedSmartFeed == kind ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
         .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
         .contentShape(Rectangle())
+    }
+
+    /// Render a single OPML folder as a DisclosureGroup of its
+    /// child feeds + nested subfolders. Default-expanded so the
+    /// first render after OPML import shows every subscription
+    /// without requiring the user to click open each section.
+    /// Recurses through subfolders; folder names render as the
+    /// disclosure title.
+    /// AnyView return because folderRow recursively renders
+    /// subfolders — `some View` would define the opaque type in
+    /// terms of itself, which Swift can't infer.
+    private func folderRow(_ folder: OPMLImporter.Folder) -> AnyView {
+        // No `isExpanded:` arg — Apple's SwiftUI init takes a
+        // Binding<Bool>, SwiftOpenUI's matching init takes a
+        // Bool. Both default to collapsed; per-folder expansion
+        // state will land alongside Settings persistence.
+        let inner = DisclosureGroup(folder.name.isEmpty ? "Folder" : folder.name) {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(folder.feeds) { feed in
+                    feedRow(feed)
+                        .onTapGesture {
+                            Task { @MainActor in await model.selectFeed(id: feed.id) }
+                        }
+                }
+                ForEach(folder.subfolders) { sub in
+                    folderRow(sub)
+                }
+            }
+            .padding(.leading, 8)
+        }
+        .font(.caption)
+        return AnyView(inner)
     }
 
     private func feedRow(_ feed: Feed) -> some View {
