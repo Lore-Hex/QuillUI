@@ -907,15 +907,24 @@ public struct QuillNetNewsWireContentView: View {
             }
             .font(.caption2)
             .disabled(model.unreadCount == 0)
-            // Per-URL gate matches the inspector Refresh button
-            // (#148) — only disabled when the active feed
-            // itself is loading, not when Refresh All is busy
-            // on inactive feeds.
-            Button(model.isLoading(forURL: activeFeedURL) ? "Refreshing…" : "Refresh") {
-                Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
+            // In folder view, Refresh refreshes every feed in
+            // the folder via refreshFolder (#162). In default
+            // active-feed view, refresh the active feed only.
+            // Per-URL gate for the active-feed branch matches
+            // the inspector Refresh button (#148).
+            if let folder = model.selectedFolderName {
+                Button(model.isLoading ? "Refreshing All…" : "Refresh Folder") {
+                    Task { @MainActor in await model.refreshFolder(folder) }
+                }
+                .font(.caption2)
+                .disabled(model.isLoading)
+            } else {
+                Button(model.isLoading(forURL: activeFeedURL) ? "Refreshing…" : "Refresh") {
+                    Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
+                }
+                .font(.caption2)
+                .disabled(model.isLoading(forURL: activeFeedURL))
             }
-            .font(.caption2)
-            .disabled(model.isLoading(forURL: activeFeedURL))
         }
         .padding(10)
     }
@@ -2771,6 +2780,24 @@ final class RSSReaderModel: ObservableObject {
     /// Per-feed errors are swallowed (cache stays at prior
     /// state for that feed) so one bad feed doesn't abort the
     /// whole pass.
+    /// Refresh every feed inside the named folder concurrently.
+    /// Used by the timeline Refresh button when the user is in
+    /// folder view (#159) — without this, "Refresh" only hits
+    /// the unrelated selectedFeedID feed. Honors per-feed back-
+    /// off (same as refreshAllFeeds).
+    func refreshFolder(_ folderName: String) async {
+        guard !isLoading else { return }
+        guard let folder = Self.findFolder(named: folderName, in: subscriptionRoot) else {
+            return
+        }
+        let feedsInFolder = folder.allFeeds.filter { feed in
+            (feedFailureCount[feed.id] ?? 0) < Self.feedFailureSkipThreshold
+        }
+        await Self.runWithConcurrencyLimit(feedsInFolder, limit: 4) { feed in
+            await self.fetchIntoCache(urlString: feed.url)
+        }
+    }
+
     func refreshAllFeeds() async {
         guard !isLoading else { return }
         // Refresh active feed first so its UI updates promptly,
