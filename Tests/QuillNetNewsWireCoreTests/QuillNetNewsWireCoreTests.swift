@@ -501,6 +501,73 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.unreadCount == 0)
     }
 
+    @MainActor
+    @Test("markAboveSelectionAsRead marks items before selection")
+    func markAboveMarks() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.selectItem(id: "3")  // also auto-marks 3 read
+        let added = model.markAboveSelectionAsRead()
+        // 3 - 1 = 2 above. But 1 was already marked from seed selection.
+        // 2 → 1 + 2 = 2 items above; 1 was already read; so only 2 new
+        // marks (items 2 itself is the only newly-read one from above).
+        // Actually fixtures: 1, 2, 3, 4, 5; selection now is 3 (also
+        // already read). Above = items 1, 2. Item 1 was auto-read from
+        // seedProfileFixtures' selectItem(id: "1"). Item 2 still unread.
+        #expect(added == 1)
+        #expect(model.isRead(id: "1"))
+        #expect(model.isRead(id: "2"))
+        #expect(model.isRead(id: "3"))
+        #expect(!model.isRead(id: "4"))
+        #expect(!model.isRead(id: "5"))
+    }
+
+    @MainActor
+    @Test("markAboveSelectionAsRead no-ops at first item")
+    func markAboveNoOpAtFirst() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Selection is already at index 0 from seed; no items above.
+        let added = model.markAboveSelectionAsRead()
+        #expect(added == 0)
+    }
+
+    @MainActor
+    @Test("markBelowSelectionAsRead marks items after selection")
+    func markBelowMarks() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.selectItem(id: "2")
+        // Below = 3, 4, 5 — all unread.
+        let added = model.markBelowSelectionAsRead()
+        #expect(added == 3)
+        #expect(model.isRead(id: "3"))
+        #expect(model.isRead(id: "4"))
+        #expect(model.isRead(id: "5"))
+    }
+
+    @MainActor
+    @Test("markBelowSelectionAsRead no-ops at last item")
+    func markBelowNoOpAtLast() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.selectItem(id: "5")
+        let added = model.markBelowSelectionAsRead()
+        #expect(added == 0)
+    }
+
+    @MainActor
+    @Test("markAbove/Below no-op without a selection")
+    func markAboveBelowNoOpWithoutSelection() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.items = [
+            RSSItem(id: "a", title: "A", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.selectItem(id: nil)
+        #expect(model.markAboveSelectionAsRead() == 0)
+        #expect(model.markBelowSelectionAsRead() == 0)
+    }
+
     // MARK: - HTML paragraph splitting
 
     @Test("bodyParagraphs splits on <p> boundaries and decodes entities")

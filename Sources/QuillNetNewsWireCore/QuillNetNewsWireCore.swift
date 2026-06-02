@@ -1024,6 +1024,40 @@ final class RSSReaderModel: ObservableObject {
         return added
     }
 
+    /// Mark every article above the current selection (in the
+    /// filtered timeline) as read. Mirrors upstream NetNewsWire's
+    /// 'Mark Above as Read' command. No-op when there's no
+    /// selection or the selection is the first visible item.
+    @discardableResult
+    func markAboveSelectionAsRead() -> Int {
+        guard let selectedID,
+              let index = filteredItems.firstIndex(where: { $0.id == selectedID }),
+              index > 0
+        else { return 0 }
+        let before = readArticleIDs.count
+        for item in filteredItems.prefix(index) {
+            readArticleIDs.insert(item.id)
+        }
+        return readArticleIDs.count - before
+    }
+
+    /// Mark every article below the current selection (in the
+    /// filtered timeline) as read. Mirrors upstream NetNewsWire's
+    /// 'Mark Below as Read' command. No-op when there's no
+    /// selection or the selection is the last visible item.
+    @discardableResult
+    func markBelowSelectionAsRead() -> Int {
+        guard let selectedID,
+              let index = filteredItems.firstIndex(where: { $0.id == selectedID }),
+              index + 1 < filteredItems.count
+        else { return 0 }
+        let before = readArticleIDs.count
+        for item in filteredItems.suffix(from: index + 1) {
+            readArticleIDs.insert(item.id)
+        }
+        return readArticleIDs.count - before
+    }
+
     /// Toggle read state on the currently-selected article. Wired
     /// to a future keyboard shortcut + a Mark Unread menu item.
     func toggleReadOnSelection() {
