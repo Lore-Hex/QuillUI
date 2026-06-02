@@ -698,4 +698,86 @@ struct QuillNetNewsWireCoreTests {
         #expect(matching >= 1)
         #expect(model.statusText == "\(matching) matching · \(model.items.count) items")
     }
+
+    // MARK: - Smart feeds
+
+    @Test("SmartFeed exposes a displayName + symbol for every case")
+    func smartFeedDisplayNamesCoverAllCases() {
+        for kind in SmartFeed.allCases {
+            #expect(!kind.displayName.isEmpty)
+            #expect(!kind.symbol.isEmpty)
+            #expect(kind.id == kind.rawValue)
+        }
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.allUnread smart feed filters to unread items")
+    func smartFeedAllUnreadFiltersUnread() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Seeded selection marks "1" read → 4 unread.
+        model.selectSmartFeed(.allUnread)
+        let ids = model.filteredRows.map(\.id)
+        #expect(ids == ["2", "3", "4", "5"])
+        #expect(model.statusText.contains("All Unread"))
+        #expect(model.statusText.contains("4 of 5"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.starred smart feed filters to starred items")
+    func smartFeedStarredFiltersStarred() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.toggleStarred(id: "2")
+        model.toggleStarred(id: "4")
+
+        model.selectSmartFeed(.starred)
+        let ids = model.filteredRows.map(\.id)
+        #expect(ids == ["2", "4"])
+        #expect(model.statusText.contains("Starred"))
+        #expect(model.statusText.contains("2 of 5"))
+    }
+
+    @MainActor
+    @Test("Smart-feed + search compose: search narrows the smart-feed view")
+    func smartFeedSearchComposes() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Mark all read except 3 + 5.
+        model.markRead(id: "2")
+        model.markRead(id: "4")
+        model.selectSmartFeed(.allUnread)
+        model.searchQuery = "Swift"  // only fixture "3"
+
+        let ids = model.filteredRows.map(\.id)
+        #expect(ids == ["3"])
+        #expect(model.statusText.contains("(search)"))
+    }
+
+    @MainActor
+    @Test("selectFeed clears the active smart feed")
+    func selectFeedClearsSmartFeed() async {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://invalid.example/"),
+        ])
+        model.selectSmartFeed(.starred)
+        #expect(model.selectedSmartFeed == .starred)
+
+        // Fetch will fail (invalid URL) but we only care about
+        // the smart-feed clear side effect.
+        await model.selectFeed(id: "https://invalid.example/")
+        #expect(model.selectedSmartFeed == nil)
+    }
+
+    @MainActor
+    @Test("selectSmartFeed(nil) returns to the regular feed view")
+    func selectSmartFeedNilReturnsToFeedView() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.selectSmartFeed(.starred)
+        #expect(model.filteredItems.isEmpty)  // nothing starred yet
+
+        model.selectSmartFeed(nil)
+        #expect(model.filteredRows.count == model.rows.count)
+    }
 }
