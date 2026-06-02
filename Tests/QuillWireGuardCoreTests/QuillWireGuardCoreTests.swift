@@ -434,7 +434,10 @@ struct QuillWireGuardCoreTests {
         #expect(uiSource.contains("defaultSizePolicy: .linuxMinimum(width: minimumWidth, height: minimumHeight)"))
         #expect(uiSource.contains("ContentView()"))
         #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
-        #expect(nativeRuntimeSource.contains("QuillWireGuardAppSnapshot.configurationManager"))
+        // The Qt native host builds its payload from the *live* config-manager
+        // snapshot, fetching runtime status via the real process runner at launch.
+        #expect(nativeRuntimeSource.contains("QuillWireGuardAppSnapshot.liveConfigurationManager("))
+        #expect(nativeRuntimeSource.contains("QuillWireGuardProcessRunner"))
         #expect(nativeRuntimeSource.contains("quill_wireguard_qt_run_wireguard_json"))
         #expect(nativeRuntimeSource.contains("@_cdecl(\"quill_wireguard_qt_import_config_json\")"))
         #expect(nativeRuntimeSource.contains("QuillWireGuardNativeImportBridge.importResponse"))
