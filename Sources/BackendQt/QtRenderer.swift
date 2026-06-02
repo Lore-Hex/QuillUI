@@ -253,6 +253,36 @@ final class QtStringClosureBox {
     init(_ closure: @escaping (String) -> Void) { self.closure = closure }
 }
 
+func qtTextLabel(from view: any View) -> String {
+    if let text = view as? Text {
+        return text.content
+    }
+
+    if let label = view as? Label {
+        return label.title
+    }
+
+    if let image = view as? Image {
+        switch image.source {
+        case .systemName(let name), .materialSymbol(let name):
+            return name
+        case .filePath:
+            return "Image"
+        }
+    }
+
+    if let multi = view as? MultiChildView {
+        for child in multi.children {
+            let label = qtTextLabel(from: child)
+            if !label.isEmpty {
+                return label
+            }
+        }
+    }
+
+    return ""
+}
+
 // MARK: - Leaf view conformances
 
 extension Text: QtRenderable {
@@ -342,15 +372,7 @@ extension Color: QtRenderable {
 
 extension Button: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
-        // Slice #1 supports the common Button(_:action:) shape (Text label).
-        // Custom label views render through the generic path in a later slice.
-        let title: String
-        if let text = label as? Text {
-            title = text.content
-        } else {
-            title = ""
-        }
-
+        let title = qtTextLabel(from: label)
         let bound = qtBindActionToCurrentEnvironment(action)
         let box = Unmanaged.passRetained(QtClosureBox(bound)).toOpaque()
 
@@ -368,6 +390,55 @@ extension Button: QtRenderable {
 }
 
 #if QUILLUI_QT_GENERIC
+extension MenuBuilder {
+    static func buildExpression<Label: View>(_ button: Button<Label>) -> [MenuElement] {
+        [.item(label: qtTextLabel(from: button.label), action: button.action)]
+    }
+}
+
+extension Menu: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let button = qtOpaque(quill_qt_make_menu_button())
+        quill_qt_menu_button_set_text(qtHandle(button), title)
+        qtPopulateMenuButton(button, elements: elements)
+        quill_qt_menu_button_show_as_popup(qtHandle(button))
+        return button
+    }
+}
+
+private func qtPopulateMenuButton(_ button: OpaquePointer, elements: [MenuElement]) {
+    for element in elements {
+        switch element {
+        case .item(let label, let action):
+            qtAddMenuAction(to: button, label: label, action: action)
+        case .divider:
+            quill_qt_menu_button_add_separator(qtHandle(button))
+        case .submenu(_, let children):
+            qtPopulateMenuButton(button, elements: children)
+        }
+    }
+}
+
+private func qtAddMenuAction(
+    to button: OpaquePointer,
+    label: String,
+    action: @escaping () -> Void
+) {
+    let bound = qtBindActionToCurrentEnvironment(action)
+    let box = Unmanaged.passRetained(QtClosureBox(bound)).toOpaque()
+
+    let triggered: quill_qt_bridge_click_callback = { userData in
+        guard let userData else { return }
+        Unmanaged<QtClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+    }
+    let destroy: quill_qt_bridge_click_callback = { userData in
+        guard let userData else { return }
+        Unmanaged<QtClosureBox>.fromOpaque(userData).release()
+    }
+
+    quill_qt_menu_button_add_action(qtHandle(button), label, triggered, box, destroy)
+}
+
 extension TextField: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         let lineEdit = qtOpaque(quill_qt_make_line_edit())
