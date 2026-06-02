@@ -13,6 +13,7 @@
 #include <QAction>
 #include <QByteArray>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QFont>
 #include <QFontDatabase>
 #include <QFrame>
@@ -463,6 +464,65 @@ void quill_qt_line_edit_connect_text_changed(
 
     if (destroy != nullptr) {
         QObject::connect(lineEdit, &QObject::destroyed, lineEdit, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
+QuillQtWidgetHandle quill_qt_make_combo_box(void) {
+    QComboBox *comboBox = new QComboBox();
+    return reinterpret_cast<QuillQtWidgetHandle>(comboBox);
+}
+
+void quill_qt_combo_box_add_item(
+    QuillQtWidgetHandle combo_box,
+    const char *text
+) {
+    QComboBox *comboBox = qobject_cast<QComboBox *>(asWidget(combo_box));
+    if (comboBox == nullptr) {
+        return;
+    }
+    comboBox->addItem(utf8(text));
+}
+
+void quill_qt_combo_box_set_current_index(
+    QuillQtWidgetHandle combo_box,
+    int index
+) {
+    QComboBox *comboBox = qobject_cast<QComboBox *>(asWidget(combo_box));
+    if (comboBox == nullptr) {
+        return;
+    }
+    comboBox->setCurrentIndex(index);
+}
+
+void quill_qt_combo_box_connect_current_index_changed(
+    QuillQtWidgetHandle combo_box,
+    quill_qt_bridge_index_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QComboBox *comboBox = qobject_cast<QComboBox *>(asWidget(combo_box));
+    if (comboBox == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(
+            comboBox,
+            &QComboBox::currentIndexChanged,
+            comboBox,
+            [callback, user_data](int index) {
+                callback(index, user_data);
+            }
+        );
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(comboBox, &QObject::destroyed, comboBox, [destroy, user_data]() {
             destroy(user_data);
         });
     }
