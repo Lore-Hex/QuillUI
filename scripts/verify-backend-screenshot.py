@@ -1601,19 +1601,26 @@ def validate_quill_enchanted_qt_native(
     if minimum_selected_center_offset is not None:
         selected_row = best_pixel_row_segment(
             image,
-            left + 16,
-            top + 250,
+            left + 4,
+            # Restrict to the conversation-list band: BELOW the "Conversations"
+            # header (top+~306, whose label emits a few accent-blue pixels) and
+            # ABOVE the bottom action buttons (Delete chat / Clear All), whose
+            # trash-can icons ALSO match enchanted_primary_pixel at top+~594 and
+            # would otherwise be picked by best_pixel_row_segment (39px > the dot's
+            # ~14px) as a false-positive "selection".
+            top + 320,
             left + sidebar_width - 16,
-            min(bottom + 1, top + 590),
-            # The selected conversation row is the accent-blue fill (EnchantedRootView
-            # uses .background(isSelected ? QuillColors.primary : ...) = #4285F4), the
-            # same predicate the GTK list-selection validator uses. The old
-            # enchanted_selected_row_pixel matched only a light tint that this app
-            # never renders for the selected row.
+            min(bottom + 1, top + 520),
+            # Genuine native Enchanted (ConversationHistoryListView) marks the selected
+            # conversation with a small leading accent dot (QuillColors.primary = #4285F4),
+            # NOT a filled row. EnchantedRootView + QuillEnchantedQt6Widgets now render that
+            # dot, so detect accent blue near the row's leading edge (hence x0 = left + 4).
+            # Within this tightened band the selected-row dot is the only accent-blue
+            # element, so even a small pixel count is an unambiguous selection signal.
             enchanted_primary_pixel,
-            min_row_pixels=42,
+            min_row_pixels=3,
         )
-        require(selected_row is not None, "Enchanted Qt selected conversation row was not detected")
+        require(selected_row is not None, "Enchanted Qt selected conversation row dot was not detected")
         selected_row_segment, selected_row_pixels = selected_row
         selected_row_center_offset = selected_row_segment.center - top
         require(
@@ -1622,8 +1629,8 @@ def validate_quill_enchanted_qt_native(
             f"selected_center={selected_row_center_offset:.1f}px",
         )
         require(
-            selected_row_pixels >= 900,
-            f"Enchanted Qt selected conversation row is too small: pixels={selected_row_pixels}",
+            selected_row_pixels >= 12,
+            f"Enchanted Qt selected conversation row dot is too small: pixels={selected_row_pixels}",
         )
         selected_row_details = (
             f", selected_row_pixels={selected_row_pixels}, "
@@ -1894,26 +1901,38 @@ def validate_quill_enchanted_gtk_list_selection(image: Screenshot) -> str:
     require(620 <= app_height <= 860, f"Enchanted GTK window height is unexpected: {app_height}px")
 
     sidebar_width = min(340, max(260, int(app_width * 0.30)))
+    # Genuine native Enchanted marks the selected conversation with a small leading
+    # accent dot (QuillColors.primary), not a filled row, so detect accent blue near the
+    # row's leading edge (x0 = left + 4) with dot-sized thresholds. Restrict to the
+    # conversation-list band: BELOW the "Conversations" header and ABOVE the bottom
+    # action buttons (Delete chat / Clear All), whose trash-can icons also match the
+    # accent-blue predicate at top+~594 and would otherwise win best_pixel_row_segment
+    # (39px > the selected dot's ~14px) as a false-positive selection match.
     selected_row = best_pixel_row_segment(
         image,
-        left + 16,
-        top + 280,
+        left + 4,
+        top + 320,
         left + sidebar_width - 16,
-        min(bottom + 1, top + 620),
+        min(bottom + 1, top + 520),
         enchanted_primary_pixel,
-        min_row_pixels=32,
+        min_row_pixels=3,
     )
-    require(selected_row is not None, "Enchanted GTK selected conversation row was not detected")
+    require(selected_row is not None, "Enchanted GTK selected conversation row dot was not detected")
     selected_row_segment, selected_row_pixels = selected_row
     selected_row_center_offset = selected_row_segment.center - top
     require(
-        selected_row_center_offset >= 360,
+        # 340 (was an unvalidated 360 calibrated for the old title+2-line-preview
+        # card rows): the genuine single-line D-row layout is more compact, so the
+        # selected lower row's dot centers higher (~354px, verified from the .qa
+        # capture). 340 still rejects an index-0/top-row or header-only selection
+        # while accepting the lower selected row.
+        selected_row_center_offset >= 340,
         "Enchanted GTK conversation selection did not move to the lower conversation row: "
         f"selected_center={selected_row_center_offset:.1f}px",
     )
     require(
-        selected_row_pixels >= 900,
-        f"Enchanted GTK selected conversation row is too small: pixels={selected_row_pixels}",
+        selected_row_pixels >= 12,
+        f"Enchanted GTK selected conversation row dot is too small: pixels={selected_row_pixels}",
     )
 
     sidebar_text_pixels = dark_pixel_count(image, left + 20, top + 20, left + sidebar_width - 12, bottom - 20)
@@ -2054,7 +2073,7 @@ def validate_quill_enchanted_new_chat(image: Screenshot) -> str:
         image, region_left, region_top, region_right, region_bottom, enchanted_primary_pixel
     )
     require(
-        selected_row_pixels >= 300,
+        selected_row_pixels >= 12,
         "Enchanted New chat did not create a selected conversation row: "
         f"pixels={selected_row_pixels}",
     )
@@ -2763,10 +2782,11 @@ def main() -> int:
         else:
             print(validate_quill_enchanted_empty_state_gtk(image))
     elif product == "quill-enchanted-qt-list-selection":
-        # Index 0 is selected (same as the GTK list-selection), so the selected
-        # conversation sits at the same height as GTK's (which uses 360); 430 was an
-        # over-specified guess that never ran (the gate never reached this smoke).
-        print(validate_quill_enchanted_qt_native(image, minimum_selected_center_offset=360))
+        # The lower selected conversation's leading accent dot centers at ~354px in
+        # the compact single-line D-row layout (verified from the captured .qa PNG).
+        # 360 was an unvalidated guess (the gate never actually reached this smoke
+        # until the dot rendered); 340 matches the real render and the GTK sibling.
+        print(validate_quill_enchanted_qt_native(image, minimum_selected_center_offset=340))
     elif product in ENCHANTED_LINUX_SNAPSHOT_VALIDATORS:
         print(ENCHANTED_LINUX_SNAPSHOT_VALIDATORS[product](image))
     elif product == "quill-enchanted-list-selection":

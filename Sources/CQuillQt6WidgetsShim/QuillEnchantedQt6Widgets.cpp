@@ -788,25 +788,19 @@ QString appStyleSheet(const QJsonObject &style) {
         .arg(conversationListItemRadius, conversationListItemVerticalMargin, conversationListItemPadding);
 
     sheet += QStringLiteral(R"(
-        QListWidget#conversationList::item:selected { background: transparent; color: %2; }
-        QFrame#conversationRow { background: %3; border-radius: %6; }
-        QFrame#conversationRow[active="true"] { background: %5; }
-        QLabel#conversationTitle { color: %2; font-size: %7; font-weight: %8; }
-        QLabel#conversationTitle[active="true"] { color: white; }
-        QLabel#conversationPreview { color: %4; font-size: %9; }
-        QLabel#conversationPreview[active="true"] { color: %1; }
+        QListWidget#conversationList::item:selected { background: transparent; color: %1; }
+        QFrame#conversationRow { background: transparent; }
+        QLabel#conversationTitle { color: %1; font-size: %2; font-weight: %3; }
+        QFrame#conversationSelectionDot { background: %4; min-width: 8px; max-width: 8px; min-height: 8px; max-height: 8px; border-radius: 4px; }
     )")
-        .arg(
-            selected,
-            ink,
-            card,
-            muted,
-            primary,
-            conversationRowRadius,
-            conversationTitleFontSize,
-            conversationTitleFontWeight,
-            conversationPreviewFontSize
-        );
+        .arg(ink, conversationTitleFontSize, conversationTitleFontWeight, primary);
+    // Genuine single-line row drops the card fill + preview, so the row-radius
+    // and preview-font tokens are unused here (kept declared for the contract +
+    // Qt-runtime checks). Using contiguous %1-%4 markers above is required: a
+    // sparse marker set with the old 9-arg .arg() left placeholders unsubstituted
+    // ("QString::arg: N argument(s) missing") → malformed QSS → dot never painted.
+    Q_UNUSED(conversationRowRadius);
+    Q_UNUSED(conversationPreviewFontSize);
 
     sheet += QStringLiteral(R"(
         QFrame#statusDot, QFrame#statusDotWarning { min-width: %1; max-width: %1; min-height: %1; max-height: %1; border-radius: %2; }
@@ -1035,34 +1029,32 @@ QFrame *conversationRowWidget(
     row->setToolTip(rowSummary);
     row->setStatusTip(rowSummary);
 
-    QVBoxLayout *layout = new QVBoxLayout(row);
+    // Genuine native Enchanted (ConversationHistoryListView): a single-line row — a small
+    // leading selection dot (shown only when selected) followed by the title. No card
+    // fill and no "last message" preview line. previewText is retained for accessibility.
+    QHBoxLayout *layout = new QHBoxLayout(row);
     const int conversationRowPadding = styleInt(style, "conversationRowPadding");
     const int conversationRowSpacing = styleInt(style, "conversationRowSpacing");
     layout->setContentsMargins(
         conversationRowPadding,
+        conversationRowSpacing,
         conversationRowPadding,
-        conversationRowPadding,
-        conversationRowPadding
+        conversationRowSpacing
     );
     layout->setSpacing(conversationRowSpacing);
-    layout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    layout->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+
+    QFrame *selectionDot = QuillQtWidgets::frame(QStringLiteral("conversationSelectionDot"));
+    selectionDot->setVisible(false);
+    layout->addWidget(selectionDot, 0, Qt::AlignVCenter);
 
     QLabel *title = label(titleText, QStringLiteral("conversationTitle"));
     title->setWordWrap(false);
     title->setProperty("active", false);
     title->setToolTip(rowSummary);
     title->setStatusTip(rowSummary);
+    layout->addWidget(title, 1);
 
-    layout->addWidget(title);
-    if (!previewText.isEmpty()) {
-        QLabel *preview = label(previewText, QStringLiteral("conversationPreview"));
-        preview->setProperty("active", false);
-        preview->setWordWrap(true);
-        preview->setMaximumHeight(preview->fontMetrics().lineSpacing() * 2);
-        preview->setToolTip(rowSummary);
-        preview->setStatusTip(rowSummary);
-        layout->addWidget(preview);
-    }
     return row;
 }
 
@@ -1084,6 +1076,11 @@ void updateConversationSelectionStyles(QListWidget *list) {
         for (QLabel *child : widget->findChildren<QLabel *>()) {
             child->setProperty("active", isSelected);
             refreshStyle(child);
+        }
+        // The selection dot is a QFrame (not a QLabel): genuine shows it only on the
+        // selected row, so toggle visibility rather than recolor a card fill.
+        if (QFrame *selectionDot = widget->findChild<QFrame *>(QStringLiteral("conversationSelectionDot"))) {
+            selectionDot->setVisible(isSelected);
         }
     }
 }

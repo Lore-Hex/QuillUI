@@ -663,28 +663,32 @@ private struct ConversationRow: View {
     var delete: () -> Void
 
     var body: some View {
+        // Genuine native Enchanted (ConversationHistoryListView): a single-line plain
+        // button — a small leading selection dot + the title only. No card fill, no
+        // "last message" preview line, and the title keeps its label color when selected.
         Button(action: action) {
-            VStack(alignment: .leading, spacing: CGFloat(EnchantedVisualMetrics.conversationRowSpacing)) {
+            HStack(spacing: CGFloat(EnchantedVisualMetrics.conversationRowSpacing)) {
+                if isSelected {
+                    Circle()
+                        .fill(QuillColors.primary)
+                        .frame(
+                            width: CGFloat(EnchantedVisualMetrics.conversationSelectionDotSize),
+                            height: CGFloat(EnchantedVisualMetrics.conversationSelectionDotSize)
+                        )
+                }
                 Text(conversation.title)
                     .font(.system(size: CGFloat(EnchantedTypography.conversationTitleFontSize), weight: enchantedFontWeight(EnchantedTypography.conversationTitleFontWeight)))
-                    .foregroundColor(isSelected ? .white : QuillColors.ink)
+                    .foregroundColor(QuillColors.ink)
                     .lineLimit(1)
-                if !conversation.lastMessage.isEmpty {
-                    Text(conversation.lastMessage)
-                        .font(.system(size: CGFloat(EnchantedTypography.conversationPreviewFontSize)))
-                        .foregroundColor(isSelected ? QuillColors.selectedMuted : QuillColors.muted)
-                        .lineLimit(2)
-                }
+                Spacer(minLength: 0)
             }
-            .padding(CGFloat(EnchantedVisualMetrics.conversationRowPadding))
+            .padding(.vertical, CGFloat(EnchantedVisualMetrics.conversationRowSpacing))
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? QuillColors.primary : QuillColors.card)
-            .cornerRadius(CGFloat(EnchantedVisualMetrics.conversationRowRadius))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(conversation.title)
-        .accessibilityValue(conversation.lastMessage)
-        .help(accessibilitySummary)
+        .help(conversation.title)
         .contextMenu {
             Button(action: delete) {
                 HStack(spacing: CGFloat(EnchantedVisualMetrics.actionButtonIconSpacing)) {
@@ -693,10 +697,6 @@ private struct ConversationRow: View {
                 }
             }
         }
-    }
-
-    private var accessibilitySummary: String {
-        conversation.lastMessage.isEmpty ? conversation.title : "\(conversation.title)\n\(conversation.lastMessage)"
     }
 }
 
