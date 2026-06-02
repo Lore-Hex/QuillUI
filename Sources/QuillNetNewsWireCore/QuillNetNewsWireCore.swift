@@ -120,7 +120,9 @@ public struct QuillNetNewsWireContentView: View {
             Text("Feed Info").font(.title2).bold()
             if let feed {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(feed.title).font(.headline)
+                    // Same empty-title fallback as feedRow.
+                    Text(feed.title.isEmpty ? (feed.url.isEmpty ? "Untitled" : feed.url) : feed.title)
+                        .font(.headline)
                     Text(feed.url)
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -619,7 +621,11 @@ public struct QuillNetNewsWireContentView: View {
                     .font(.caption2)
                     .foregroundColor(.orange)
             }
-            Text(feed.title)
+            // Title fallback chain: explicit title → URL string
+            // → "Untitled". Without this, a feed that ended up
+            // with an empty title (corrupted OPML, parse edge
+            // case) would render a blank row.
+            Text(feed.title.isEmpty ? (feed.url.isEmpty ? "Untitled" : feed.url) : feed.title)
                 .font(.subheadline)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
