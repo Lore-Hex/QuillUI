@@ -296,6 +296,21 @@ public struct QuillNetNewsWireContentView: View {
                 model.hideReadArticles.toggle()
             }
             .keyboardShortcut("u", modifiers: [.command, .shift])
+            // Cmd+1 / Cmd+2 / Cmd+3 jump to the three smart
+            // feeds. Matches upstream NetNewsWire's File menu
+            // shortcuts (View > Today / All Unread / Starred).
+            // Useful for keyboard-only triage flows that don't
+            // touch the sidebar.
+            Button("today") { model.selectSmartFeed(.today) }
+                .keyboardShortcut("1", modifiers: .command)
+            Button("all unread") { model.selectSmartFeed(.allUnread) }
+                .keyboardShortcut("2", modifiers: .command)
+            Button("starred") { model.selectSmartFeed(.starred) }
+                .keyboardShortcut("3", modifiers: .command)
+            // Cmd+0 clears any active smart feed and returns
+            // the timeline to the active subscribed-feed view.
+            Button("clear smart feed") { model.selectSmartFeed(nil) }
+                .keyboardShortcut("0", modifiers: .command)
         }
         .frame(height: 0)
         .hidden()
