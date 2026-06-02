@@ -354,7 +354,18 @@ public struct QuillNetNewsWireContentView: View {
     private func feedRow(_ feed: Feed) -> some View {
         let isSelected = (model.selectedSmartFeed == nil) && (model.selectedFeedID == feed.id)
         let unread = model.unreadCount(forFeed: feed.id)
+        let hasError = model.feedErrors[feed.id] != nil
         return HStack(spacing: 6) {
+            if hasError {
+                // Compact stale-feed warning. Mirrors NetNewsWire's
+                // sidebar amber-warning glyph next to feeds whose
+                // most recent fetch failed (HTTP 4xx/5xx, parse
+                // failure, network timeout). Cleared automatically
+                // on the next successful fetch.
+                Text("⚠")
+                    .font(.caption2)
+                    .foregroundColor(.orange)
+            }
             Text(feed.title)
                 .font(.subheadline)
                 .lineLimit(1)
@@ -894,6 +905,14 @@ final class RSSReaderModel: ObservableObject {
         }
     }
     @Published var feedCaches: [Feed.ID: FeedCache] = [:]
+
+    /// Most-recent error message per subscribed feed, keyed by
+    /// `Feed.ID`. Cleared automatically on a successful fetch.
+    /// Used by the feedsPane to surface a small warning icon
+    /// next to feeds whose last fetch failed (404, timeout,
+    /// invalid XML, etc.). Mirrors NetNewsWire's stale-feed
+    /// warning behavior in its sidebar.
+    @Published var feedErrors: [Feed.ID: String] = [:]
     @Published var feedTitle: String?
     @Published var error: String? {
         didSet { updateStatusText() }
@@ -1499,10 +1518,16 @@ final class RSSReaderModel: ObservableObject {
     /// `lastFetchAt` since those track the currently-displayed
     /// feed. Errors are swallowed.
     private func fetchIntoCache(urlString: String) async {
-        guard let url = URL(string: urlString) else { return }
+        guard let url = URL(string: urlString) else {
+            feedErrors[urlString] = "Invalid URL"
+            return
+        }
         do {
             let (maybeData, _) = try await Downloader.shared.download(url)
-            guard let data = maybeData else { return }
+            guard let data = maybeData else {
+                feedErrors[urlString] = "Empty response"
+                return
+            }
             let parsed = RSSFeedParser.parseUpstream(data: data, url: urlString)
             let upstreamArticles = RSSFeedParser.parseUpstreamArticles(data: data, url: urlString)
             let trimmedItems = Array(parsed.items.prefix(50))
@@ -1526,14 +1551,20 @@ final class RSSReaderModel: ObservableObject {
                 }
                 try? articleStore.upsert(rows)
             }
+            // Successful refresh-all path clears any prior error.
+            feedErrors[urlString] = nil
         } catch {
-            // Quiet: one bad feed shouldn't bust the whole pass.
+            // Quiet on the global Refresh-All path — one bad
+            // feed shouldn't bust the whole pass — but stash
+            // the error so feedsPane can show a warning glyph.
+            feedErrors[urlString] = "\(error)"
         }
     }
 
     func fetch(urlString: String) async {
         guard let url = URL(string: urlString) else {
             setError("Invalid URL")
+            feedErrors[urlString] = "Invalid URL"
             setLoading(false)
             return
         }
@@ -1551,6 +1582,7 @@ final class RSSReaderModel: ObservableObject {
             let (maybeData, _) = try await Downloader.shared.download(url)
             guard let data = maybeData else {
                 self.setError("Empty response")
+                feedErrors[urlString] = "Empty response"
                 setLoading(false)
                 return
             }
@@ -1601,8 +1633,12 @@ final class RSSReaderModel: ObservableObject {
                 self.selectItem(id: self.preferredInitialItemID(in: self.items))
             }
             self.lastFetchAt = now
+            // Successful fetch clears any prior error tracked
+            // for this feed.
+            self.feedErrors[urlString] = nil
         } catch {
             self.setError("\(error)")
+            self.feedErrors[urlString] = "\(error)"
         }
         setLoading(false)
     }

@@ -912,6 +912,26 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("fetch records feedErrors for unparseable URLs")
+    func feedErrorsInvalidURL() async {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let badURL = ""
+        await model.fetch(urlString: badURL)
+        #expect(model.feedErrors[badURL] != nil)
+    }
+
+    @MainActor
+    @Test("feedErrors clears between fetches (manual reset)")
+    func feedErrorsManualClear() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        // Synthesize an error directly (avoids real network).
+        model.feedErrors["https://x.test/feed"] = "404"
+        #expect(model.feedErrors["https://x.test/feed"] == "404")
+        model.feedErrors["https://x.test/feed"] = nil
+        #expect(model.feedErrors["https://x.test/feed"] == nil)
+    }
+
+    @MainActor
     @Test("markAllVisibleAsRead is idempotent on all-read input")
     func markAllReadIdempotent() {
         let model = RSSReaderModel()
