@@ -74,23 +74,12 @@ struct QuillRSCoreShimTests {
         #expect(Notification.Name.lowMemory.rawValue == "LowMemoryNotification")
     }
 
-    @Test("Platform.isRunningUnitTests returns true under XCTest")
-    func platformIsRunningUnitTestsUnderXCTest() {
-        // The Quill test runner injects XCTestConfigurationFilePath
-        // (XCTest) or SWIFT_TESTING_ENABLED (swift-testing). At
-        // least one is set whenever this assertion executes.
-        let env = ProcessInfo.processInfo.environment
-        let testRunnerSignalSet =
-            env["XCTestConfigurationFilePath"] != nil ||
-            env["SWIFT_TESTING_ENABLED"] != nil
-        if testRunnerSignalSet {
-            #expect(Platform.isRunningUnitTests)
-        } else {
-            // If neither env var is set in this test runner, the
-            // shim returns false (Articles' AuthorCache would then
-            // proceed with the lowMemory registration — which is
-            // its production behavior).
-            #expect(!Platform.isRunningUnitTests)
-        }
+    @Test("Platform.isRunningUnitTests returns true under any test runner")
+    func platformIsRunningUnitTestsUnderTestRunner() {
+        // Multi-path detection: env vars (XCTest / swift-testing)
+        // OR arguments[0] basename containing 'xctest' /
+        // 'testing-helper'. The third path covers `swift test`
+        // on Apple where neither env var gets set.
+        #expect(Platform.isRunningUnitTests)
     }
 }

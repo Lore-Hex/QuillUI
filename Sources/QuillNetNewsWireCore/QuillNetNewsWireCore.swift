@@ -812,22 +812,29 @@ final class RSSReaderModel: ObservableObject {
     @Published private(set) var selectedDetail: RSSArticleDetail?
     @Published private(set) var statusText = "0 items"
 
-    /// Set of article IDs the user has read. Held in memory only
-    /// for now; the persistence iteration will back this with
-    /// QuillData/SQLite so reads survive relaunches. Stored as a
-    /// flat set rather than per-feed so a re-fetched article keeps
-    /// its read state across feed-list refreshes — same shape as
+    /// Set of article IDs the user has read. Loaded from JSON
+    /// on init via `PersistenceStore` and re-saved on every
+    /// change so mark-as-read history survives relaunches.
+    /// Flat-set shape (rather than per-feed) so re-fetched
+    /// articles keep their read state — same shape as
     /// upstream NetNewsWire's `articleIDs` read-status table.
     @Published private(set) var readArticleIDs: Set<String> = [] {
-        didSet { updateStatusText() }
+        didSet {
+            updateStatusText()
+            persistence.saveReadArticleIDs(readArticleIDs)
+        }
     }
 
     /// Set of starred article IDs. Same flat-set shape as
-    /// readArticleIDs; will share its persistence backend in the
-    /// SQLite iteration. Upstream NetNewsWire surfaces starred
-    /// articles via the Starred smart feed and a per-article
-    /// star toggle in the detail header.
-    @Published private(set) var starredArticleIDs: Set<String> = []
+    /// readArticleIDs; persisted alongside it. Upstream
+    /// NetNewsWire surfaces starred articles via the Starred
+    /// smart feed and a per-article star toggle in the detail
+    /// header.
+    @Published private(set) var starredArticleIDs: Set<String> = [] {
+        didSet { persistence.saveStarredArticleIDs(starredArticleIDs) }
+    }
+
+    private let persistence: PersistenceStore
 
     /// Live search query bound to the timeline filter field.
     /// Empty string → no filter (filteredRows == rows). Matching
@@ -881,11 +888,13 @@ final class RSSReaderModel: ObservableObject {
 
     init(
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        subscribedFeeds: [Feed] = DefaultFeedList.seed
+        subscribedFeeds: [Feed] = DefaultFeedList.seed,
+        persistence: PersistenceStore = .default
     ) {
         self.initialSelectionEnvironment = environment
         self.subscribedFeeds = subscribedFeeds
         self.selectedFeedID = subscribedFeeds.first?.id
+        self.persistence = persistence
         // Default tree is a single root folder holding every
         // seeded feed. OPML import replaces this with the
         // tree-preserving counterpart when callers reach for
@@ -895,6 +904,11 @@ final class RSSReaderModel: ObservableObject {
             feeds: subscribedFeeds,
             subfolders: []
         )
+        // Restore mark-as-read + starred history. Failed reads
+        // (first launch, missing file) yield empty sets so the
+        // model just starts fresh.
+        self.readArticleIDs = persistence.loadReadArticleIDs()
+        self.starredArticleIDs = persistence.loadStarredArticleIDs()
     }
 
     /// URL of the currently-selected subscribed feed. `nil` when

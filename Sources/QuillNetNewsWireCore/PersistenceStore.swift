@@ -1,0 +1,113 @@
+import Foundation
+
+/// JSON-backed persistence for `RSSReaderModel`'s read +
+/// starred article ID sets. Today's scope is intentionally
+/// small — just the two Set<String> values the model already
+/// observes — so launches retain a user's mark-as-read /
+/// star history without pulling in the full SQLite +
+/// FMDatabase upstream stack. The feedCaches + subscribedFeeds
+/// persistence lands once `Article` gets a Codable conformance
+/// in a follow-up iteration.
+///
+/// Files are written to the user's Application Support directory
+/// (or a caller-supplied URL for tests) one per state set:
+///
+///   <AppSupport>/Quill/NetNewsWire/readArticleIDs.json
+///   <AppSupport>/Quill/NetNewsWire/starredArticleIDs.json
+///
+/// Both files hold a JSON array of strings. Missing or
+/// unreadable files load to an empty set (first launch). Save
+/// failures are silently swallowed so a flaky disk doesn't
+/// crash the reader — a future Settings UI can surface them.
+public struct PersistenceStore: Sendable {
+
+    /// Override directory for tests.
+    public let directoryURL: URL
+
+    public init(directoryURL: URL) {
+        self.directoryURL = directoryURL
+    }
+
+    /// Default singleton rooted at `<AppSupport>/Quill/NetNewsWire`.
+    /// Under XCTest / swift-testing the directory routes to a
+    /// per-process tempdir instead so test runs don't share
+    /// (or corrupt) the real reader's persisted state.
+    public static var `default`: PersistenceStore {
+        let env = ProcessInfo.processInfo.environment
+        // Match QuillRSCoreShim.Platform.isRunningUnitTests's
+        // multi-path detection: env signal first, then the
+        // arguments[0] basename used by `swift test` (which
+        // doesn't set either env var on Apple).
+        var isTestRunner =
+            env["XCTestConfigurationFilePath"] != nil ||
+            env["SWIFT_TESTING_ENABLED"] != nil
+        if !isTestRunner, let arg0 = CommandLine.arguments.first {
+            let base = (arg0 as NSString).lastPathComponent
+            if base.contains("xctest") || base.contains("testing-helper") {
+                isTestRunner = true
+            }
+        }
+        if isTestRunner {
+            // Unique-per-instance tempdir so tests within the
+            // same process don't share persisted state. Tests
+            // that explicitly want to verify persistence pass
+            // their own PersistenceStore(directoryURL:) and
+            // use it across multiple inits.
+            return PersistenceStore(
+                directoryURL: FileManager.default.temporaryDirectory
+                    .appendingPathComponent(
+                        "quill-nnw-test-\(UUID().uuidString)",
+                        isDirectory: true
+                    )
+            )
+        }
+        let base: URL
+        do {
+            base = try FileManager.default.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+        } catch {
+            base = FileManager.default.temporaryDirectory
+        }
+        let dir = base.appendingPathComponent("Quill/NetNewsWire", isDirectory: true)
+        return PersistenceStore(directoryURL: dir)
+    }
+
+    public func loadReadArticleIDs() -> Set<String> {
+        loadStringSet(named: "readArticleIDs.json")
+    }
+
+    public func saveReadArticleIDs(_ ids: Set<String>) {
+        saveStringSet(ids, named: "readArticleIDs.json")
+    }
+
+    public func loadStarredArticleIDs() -> Set<String> {
+        loadStringSet(named: "starredArticleIDs.json")
+    }
+
+    public func saveStarredArticleIDs(_ ids: Set<String>) {
+        saveStringSet(ids, named: "starredArticleIDs.json")
+    }
+
+    private func loadStringSet(named filename: String) -> Set<String> {
+        let url = directoryURL.appendingPathComponent(filename)
+        guard let data = try? Data(contentsOf: url) else { return [] }
+        guard let array = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+        return Set(array)
+    }
+
+    private func saveStringSet(_ set: Set<String>, named filename: String) {
+        // Ensure the directory exists (first save on a fresh install).
+        try? FileManager.default.createDirectory(
+            at: directoryURL, withIntermediateDirectories: true, attributes: nil
+        )
+        let url = directoryURL.appendingPathComponent(filename)
+        // Deterministic ordering so file diffs stay readable.
+        let array = Array(set).sorted()
+        guard let data = try? JSONEncoder().encode(array) else { return }
+        try? data.write(to: url, options: .atomic)
+    }
+}

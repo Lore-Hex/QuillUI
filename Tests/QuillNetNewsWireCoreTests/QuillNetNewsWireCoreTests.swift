@@ -456,6 +456,57 @@ struct QuillNetNewsWireCoreTests {
         #expect(ids == ["today", "allUnread", "starred"])
     }
 
+    // MARK: - Persistence (read + starred sets across launches)
+
+    @MainActor
+    @Test("PersistenceStore round-trips an empty set to disk")
+    func persistenceRoundTripsEmpty() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-persist-\(UUID().uuidString)")
+        let store = PersistenceStore(directoryURL: dir)
+        store.saveReadArticleIDs([])
+        #expect(store.loadReadArticleIDs() == [])
+        try? FileManager.default.removeItem(at: dir)
+    }
+
+    @MainActor
+    @Test("PersistenceStore round-trips a populated set")
+    func persistenceRoundTripsPopulated() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-persist-\(UUID().uuidString)")
+        let store = PersistenceStore(directoryURL: dir)
+        let ids: Set<String> = ["a", "b", "c"]
+        store.saveReadArticleIDs(ids)
+        #expect(store.loadReadArticleIDs() == ids)
+        try? FileManager.default.removeItem(at: dir)
+    }
+
+    @MainActor
+    @Test("PersistenceStore returns empty set for nonexistent file")
+    func persistenceMissingFile() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-persist-\(UUID().uuidString)")
+        let store = PersistenceStore(directoryURL: dir)
+        #expect(store.loadReadArticleIDs() == [])
+        #expect(store.loadStarredArticleIDs() == [])
+    }
+
+    @MainActor
+    @Test("RSSReaderModel restores readArticleIDs across reinit via shared persistence")
+    func persistenceModelRoundTrip() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-persist-\(UUID().uuidString)")
+        let store = PersistenceStore(directoryURL: dir)
+        let first = RSSReaderModel(persistence: store)
+        first.markRead(id: "alpha")
+        first.toggleStarred(id: "beta")
+        // Re-init against the same store — read/starred state survives.
+        let second = RSSReaderModel(persistence: store)
+        #expect(second.isRead(id: "alpha"))
+        #expect(second.isStarred(id: "beta"))
+        try? FileManager.default.removeItem(at: dir)
+    }
+
     // MARK: - addSubscription (FeedFinder integration)
 
     // MARK: - Mark all read

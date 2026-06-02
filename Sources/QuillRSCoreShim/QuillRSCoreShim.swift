@@ -116,13 +116,23 @@ public extension String {
 /// the detection with the environment variable upstream uses.
 public struct Platform {
     public nonisolated static var isRunningUnitTests: Bool {
-        // Same env signal upstream RSCore checks first; matches
-        // XCTest's behavior of injecting XCTestConfigurationFilePath
-        // into the test-runner subprocess. swift-testing also
-        // sets SWIFT_TESTING_* env vars on the runner.
+        // Multiple detection paths because Apple's test runners
+        // and swift-corelibs `swift test` use different signals:
+        //   1. XCTestConfigurationFilePath env var — set by XCTest
+        //   2. SWIFT_TESTING_ENABLED — swift-testing variant
+        //   3. arguments[0] basename ending in 'xctest' or
+        //      'swiftpm-testing-helper' — `swift test` from a
+        //      Package.swift sets the latter, which doesn't set
+        //      either env var on Apple platforms (verified via
+        //      diagnostic test)
         let env = ProcessInfo.processInfo.environment
         if env["XCTestConfigurationFilePath"] != nil { return true }
         if env["SWIFT_TESTING_ENABLED"] != nil { return true }
+        if let arg0 = CommandLine.arguments.first {
+            let base = (arg0 as NSString).lastPathComponent
+            if base == "xctest" || base.contains("xctest") { return true }
+            if base.contains("testing-helper") { return true }
+        }
         return false
     }
 }
