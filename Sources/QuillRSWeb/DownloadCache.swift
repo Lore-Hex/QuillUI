@@ -1,0 +1,53 @@
+//
+//  DownloadCache.swift
+//  RSWeb
+//
+//  Created by Brent Simmons on 10/16/25.
+//
+
+import Foundation
+import QuillRSCoreShim
+
+struct DownloadCacheRecord: CacheRecord, Sendable {
+	let dateCreated = Date()
+	let data: Data?
+	let response: URLResponse?
+
+	init(data: Data?, response: URLResponse?) {
+		self.data = data
+		self.response = response
+	}
+}
+
+nonisolated final class DownloadCache: Sendable {
+	static let shared = DownloadCache()
+
+	private let cache = Cache<DownloadCacheRecord>(timeToLive: 60 * 13, timeBetweenCleanups: 60 * 2)
+
+	init() {
+		NotificationCenter.default.addObserver(self, selector: #selector(handleAppDidGoToBackground(_:)), name: .appDidGoToBackground, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)
+	}
+
+	@objc func handleAppDidGoToBackground(_ notification: Notification) {
+		cache.removeAll()
+	}
+
+	@objc func handleLowMemory(_ notification: Notification) {
+		cache.removeAll()
+	}
+
+	subscript(_ key: String) -> DownloadCacheRecord? {
+		get {
+			cache[key]
+		}
+		set {
+			cache[key] = newValue
+		}
+	}
+
+	func add(_ urlString: String, data: Data?, response: URLResponse?) {
+		let cacheRecord = DownloadCacheRecord(data: data, response: response)
+		cache[urlString] = cacheRecord
+	}
+}

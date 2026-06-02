@@ -857,6 +857,31 @@ var targets: [Target] = [
         path: "Sources/QuillRSTree",
         swiftSettings: appSwiftSettings
     ),
+    // Vendored Ranchero-Software/NetNewsWire RSWeb module
+    // (Sources/RSWeb → Sources/QuillRSWeb). Brings upstream's
+    // HTTP downloader, conditional-GET cache, paging-link
+    // parser, response-429 backoff, HTML metadata fetcher,
+    // network monitor, etc. Eventually replaces
+    // QuillNetNewsWireCore's homegrown URLSession.shared
+    // path so feeds stop being re-downloaded when unchanged.
+    //
+    // Imports rewritten on copy: import RSCore →
+    // QuillRSCoreShim, import RSParser → QuillRSParser. The
+    // MacWebBrowser.swift file (AppKit-only "open in default
+    // browser" helper) is intentionally skipped — Linux
+    // browser launching will route through xdg-open in a
+    // future iteration.
+    //
+    // `import os` resolves to Apple's framework on Darwin and
+    // the in-tree osShim on Linux; same for Network. No
+    // explicit Package.swift deps on either because those
+    // shim products are gated #if os(Linux).
+    .target(
+        name: "QuillRSWeb",
+        dependencies: ["QuillRSCoreShim", "QuillRSParser"],
+        path: "Sources/QuillRSWeb",
+        swiftSettings: appSwiftSettings
+    ),
     .executableTarget(
         name: "QuillNetNewsWire",
         dependencies: ["QuillNetNewsWireCore", "QuillUI"],
@@ -1749,6 +1774,15 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillRSTreeTests",
             dependencies: ["QuillRSTree"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Smoke tests for the vendored upstream RSWeb module.
+        // Pins HTTPConditionalGetInfo nil + round-trip,
+        // HTTPMethod RFC-7231 constants, MimeType atom/rss
+        // strings — same shape upstream consumers + tests pin.
+        .testTarget(
+            name: "QuillRSWebTests",
+            dependencies: ["QuillRSWeb"],
             swiftSettings: appSwiftSettings
         ),
         // Pins QuillCodeEditCore: the `ProjectFile.extension`
