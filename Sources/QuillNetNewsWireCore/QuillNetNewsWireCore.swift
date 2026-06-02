@@ -109,6 +109,10 @@ public struct QuillNetNewsWireContentView: View {
                 Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
             }
             .keyboardShortcut("r", modifiers: .command)
+            Button("mark all read") {
+                model.markAllVisibleAsRead()
+            }
+            .keyboardShortcut("k", modifiers: [.command, .shift])
         }
         .frame(height: 0)
         .hidden()
@@ -339,6 +343,11 @@ public struct QuillNetNewsWireContentView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
             Spacer()
+            Button("All Read") {
+                model.markAllVisibleAsRead()
+            }
+            .font(.caption2)
+            .disabled(model.unreadCount == 0)
             Button(model.isLoading ? "Refreshing…" : "Refresh") {
                 Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
             }
@@ -996,6 +1005,23 @@ final class RSSReaderModel: ObservableObject {
         if readArticleIDs.insert(id).inserted {
             // didSet on readArticleIDs handles status text refresh.
         }
+    }
+
+    /// Mark every article in the currently-visible filtered
+    /// timeline as read. Mirrors upstream NetNewsWire's
+    /// 'Mark All Read' command (⌘⇧K). Returns the number of
+    /// articles newly marked, so a UI surface can show
+    /// "Marked 7 as read" feedback. No-op when the visible
+    /// timeline is already fully-read or empty.
+    @discardableResult
+    func markAllVisibleAsRead() -> Int {
+        let visibleIDs = filteredItems.map(\.id)
+        let before = readArticleIDs.count
+        for id in visibleIDs {
+            readArticleIDs.insert(id)
+        }
+        let added = readArticleIDs.count - before
+        return added
     }
 
     /// Toggle read state on the currently-selected article. Wired
