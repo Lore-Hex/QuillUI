@@ -424,6 +424,26 @@ public struct QuillNetNewsWireContentView: View {
                                 .font(.callout)
                             #endif
                         }
+                        if !item.inlineLinks.isEmpty {
+                            Divider()
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Links in this article")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                ForEach(Array(item.inlineLinks.enumerated()), id: \.offset) { _, link in
+                                    let display = link.text.isEmpty ? link.urlString : link.text
+                                    #if os(Linux)
+                                    Link(display, destination: link.urlString)
+                                        .font(.caption)
+                                    #else
+                                    if let url = link.url {
+                                        Link(display, destination: url)
+                                            .font(.caption)
+                                    }
+                                    #endif
+                                }
+                            }
+                        }
                     }
                     .padding(28)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -449,6 +469,21 @@ public struct QuillNetNewsWireContentView: View {
 
 // MARK: - Reader model + minimal RSS 2.0 parser
 
+public struct InlineLink: Hashable, Sendable {
+    /// Anchor text rendered inline in the article body.
+    public let text: String
+    /// Resolved href. Empty `text` falls back to the URL itself
+    /// when rendered so a UI list always has something to click.
+    public let urlString: String
+
+    public init(text: String, urlString: String) {
+        self.text = text
+        self.urlString = urlString
+    }
+
+    public var url: URL? { URL(string: urlString) }
+}
+
 public struct RSSItem: Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
@@ -465,6 +500,12 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
     /// structure without an HTML renderer (the underlying
     /// SwiftOpenUI backend has no rich-text widget today).
     public let bodyParagraphs: [String]
+    /// Inline `<a href>` extractions from the HTML body, in
+    /// source order. Empty when the body had no anchors. The
+    /// detail view renders these in a "Links in this article"
+    /// footer so href targets aren't lost when bodyParagraphs
+    /// strips inline tags.
+    public let inlineLinks: [InlineLink]
 
     public init(
         id: String,
@@ -482,6 +523,7 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
         self.publishedSummary = pubDate ?? ""
         self.plainTextBody = (descriptionHTML ?? "").stripBasicHTML()
         self.bodyParagraphs = (descriptionHTML ?? "").htmlParagraphs()
+        self.inlineLinks = (descriptionHTML ?? "").htmlInlineLinks()
     }
 }
 
@@ -511,6 +553,11 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
     /// Text per segment so paragraph structure shows up even
     /// without a rich-text widget on the SwiftOpenUI backend.
     public let bodyParagraphs: [String]
+    /// Inline `<a href>` extractions from the article HTML —
+    /// see `RSSItem.inlineLinks`. Detail view surfaces these as
+    /// a "Links" footer so href targets survive the
+    /// bodyParagraphs inline-tag strip.
+    public let inlineLinks: [InlineLink]
     public let linkURL: URL?
 
     public init(
@@ -519,6 +566,7 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
         publishedSummary: String,
         plainTextBody: String,
         bodyParagraphs: [String],
+        inlineLinks: [InlineLink],
         linkURL: URL?
     ) {
         self.id = id
@@ -526,6 +574,7 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
         self.publishedSummary = publishedSummary
         self.plainTextBody = plainTextBody
         self.bodyParagraphs = bodyParagraphs
+        self.inlineLinks = inlineLinks
         self.linkURL = linkURL
     }
 
@@ -536,6 +585,7 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
             publishedSummary: item.publishedSummary,
             plainTextBody: item.plainTextBody,
             bodyParagraphs: item.bodyParagraphs,
+            inlineLinks: item.inlineLinks,
             linkURL: item.linkURL
         )
     }
@@ -1548,6 +1598,45 @@ private extension String {
         )
         return HTMLEntities.decode(withoutTags)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Extract `<a href="...">text</a>` anchors from an HTML
+    /// body. Returns InlineLinks in source order. Empty when
+    /// no anchors found. Used by the detail view to surface
+    /// href targets that bodyParagraphs strips away with its
+    /// inline-tag pass.
+    ///
+    /// Implementation: NSRegularExpression scan over
+    /// `<a[^>]*href=["']...["'][^>]*>(text)</a>` so both
+    /// single- and double-quoted hrefs are caught. The matched
+    /// anchor text is HTML-entity-decoded and stripped of any
+    /// nested inline tags (rare, but defensive). Empty-href
+    /// anchors are skipped.
+    func htmlInlineLinks() -> [InlineLink] {
+        guard !isEmpty else { return [] }
+        let pattern = #"<a\s[^>]*href\s*=\s*(?:\"([^\"]*)\"|'([^']*)')[^>]*>(.*?)</a>"#
+        guard let regex = try? NSRegularExpression(
+            pattern: pattern,
+            options: [.dotMatchesLineSeparators, .caseInsensitive]
+        ) else { return [] }
+        let nsself = self as NSString
+        let matches = regex.matches(in: self, range: NSRange(location: 0, length: nsself.length))
+        var out: [InlineLink] = []
+        for m in matches {
+            let hrefRange = m.range(at: 1).location != NSNotFound ? m.range(at: 1) : m.range(at: 2)
+            guard hrefRange.location != NSNotFound else { continue }
+            let href = nsself.substring(with: hrefRange).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !href.isEmpty else { continue }
+            let textRange = m.range(at: 3)
+            let rawText = textRange.location != NSNotFound ? nsself.substring(with: textRange) : ""
+            let cleanedText = HTMLEntities.decode(
+                rawText.replacingOccurrences(
+                    of: "<[^>]+>", with: "", options: .regularExpression
+                )
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            out.append(InlineLink(text: cleanedText, urlString: href))
+        }
+        return out
     }
 
     /// Split HTML body on block-level boundaries, returning a
