@@ -2703,6 +2703,19 @@ final class RSSReaderModel: ObservableObject {
     func addSubscription(urlString: String) async -> Feed? {
         let normalized = urlString.trimmingWhitespace.normalizedURL
         guard let url = URL(string: normalized) else { return nil }
+        // Short-circuit when the pasted URL already matches a
+        // subscribed feed. Without this, an offline retry or a
+        // duplicate paste pays the FeedFinder round-trip (HTTP
+        // probe + HTML autodiscovery) just to discover what
+        // we already know. Worse, offline runs return
+        // "Subscribe failed: <network error>" instead of the
+        // truthful "Already subscribed to X". Upstream NNW
+        // does the same local pre-check.
+        if let existing = subscribedFeeds.first(where: { $0.url.normalizedURL == normalized }) {
+            lastSubscribeMessage = "Already subscribed to \(existing.title)"
+            await selectFeed(id: existing.id)
+            return existing
+        }
         // Show the loading indicator during FeedFinder.find — it's
         // a real network round-trip (HTTP GET of the candidate
         // URL + HTML parse for <link rel="alternate"> + probes of

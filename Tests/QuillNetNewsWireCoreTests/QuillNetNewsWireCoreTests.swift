@@ -2047,6 +2047,28 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("addSubscription short-circuits without network for a duplicate URL")
+    func addSubscriptionShortCircuitsOnDuplicate() async {
+        // Seed an existing subscription. Then re-subscribe to the
+        // same URL — the bug was: code paid FeedFinder's network
+        // round-trip first, then surfaced "Already subscribed"
+        // (or worse, "Subscribe failed" when offline). New
+        // behavior: hit the local check first, return the existing
+        // feed with a friendly status, no network at all.
+        let existing = Feed(title: "Example", url: "https://example.test/feed")
+        let model = RSSReaderModel(subscribedFeeds: [existing])
+        let beforeCount = model.subscribedFeeds.count
+        let result = await model.addSubscription(urlString: "https://example.test/feed")
+        #expect(result?.id == existing.id)
+        #expect(model.subscribedFeeds.count == beforeCount)
+        #expect(model.lastSubscribeMessage == "Already subscribed to Example")
+        // Also: no error left behind. Without the short-circuit,
+        // offline duplicate re-subscribe would have set
+        // "Subscribe failed: ...".
+        #expect(model.error == nil)
+    }
+
+    @MainActor
     @Test("addSubscription returns nil for an unparseable URL string")
     func addSubscriptionRejectsBadInput() async {
         let model = RSSReaderModel(subscribedFeeds: [])
