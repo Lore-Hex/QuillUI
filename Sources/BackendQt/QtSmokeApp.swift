@@ -80,6 +80,8 @@ struct QtSmokeView: View {
                 )
                 .frame(width: QtSmokeMetrics.panelWidth, height: QtSmokeMetrics.panelHeight)
 
+                Divider()
+
                 LazyVGrid(
                     columns: Array(repeating: GridItem(.flexible), count: 2),
                     data: [0, 1, 2, 3]

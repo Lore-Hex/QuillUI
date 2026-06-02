@@ -32,6 +32,7 @@
 #include <QSize>
 #include <QScrollArea>
 #include <QString>
+#include <QSizePolicy>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -109,6 +110,45 @@ Qt::Alignment overlayAlignment(int horizontal, int vertical) {
 
     return alignment;
 }
+
+class QuillQtDividerFrame final : public QFrame {
+public:
+    explicit QuillQtDividerFrame(QWidget *parent = nullptr)
+        : QFrame(parent)
+    {
+        setObjectName(QStringLiteral("quill-qt-divider"));
+        setOrientation(Qt::Horizontal);
+    }
+
+    QSize sizeHint() const override {
+        return QSize(1, 1);
+    }
+
+    void setOrientation(Qt::Orientation orientation) {
+        orientation_ = orientation;
+        setFrameShape(orientation == Qt::Horizontal ? QFrame::HLine : QFrame::VLine);
+        setFrameShadow(QFrame::Plain);
+        setLineWidth(1);
+        setMidLineWidth(0);
+
+        if (orientation == Qt::Horizontal) {
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            setMinimumWidth(1);
+            setMaximumWidth(QWIDGETSIZE_MAX);
+            setMinimumHeight(1);
+            setMaximumHeight(1);
+        } else {
+            setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+            setMinimumWidth(1);
+            setMaximumWidth(1);
+            setMinimumHeight(1);
+            setMaximumHeight(QWIDGETSIZE_MAX);
+        }
+    }
+
+private:
+    Qt::Orientation orientation_ = Qt::Horizontal;
+};
 
 // Stderr breadcrumb for the generic-backend smoke. The runtime crash this fix
 // addresses (a dangling QApplication argc reference) produced a bare
@@ -440,6 +480,27 @@ QuillQtWidgetHandle quill_qt_bridge_image_create_from_file(
     label->setScaledContents(resizable != 0);
     label->setWordWrap(false);
     return reinterpret_cast<QuillQtWidgetHandle>(label);
+}
+
+QuillQtWidgetHandle quill_qt_make_divider(void) {
+    QuillQtDividerFrame *divider = new QuillQtDividerFrame();
+    return reinterpret_cast<QuillQtWidgetHandle>(divider);
+}
+
+int quill_qt_widget_is_divider(QuillQtWidgetHandle widget) {
+    return dynamic_cast<QuillQtDividerFrame *>(asWidget(widget)) != nullptr ? 1 : 0;
+}
+
+void quill_qt_divider_set_orientation(
+    QuillQtWidgetHandle divider,
+    int vertical
+) {
+    QuillQtDividerFrame *frame = dynamic_cast<QuillQtDividerFrame *>(asWidget(divider));
+    if (frame == nullptr) {
+        return;
+    }
+
+    frame->setOrientation(vertical != 0 ? Qt::Vertical : Qt::Horizontal);
 }
 
 QuillQtWidgetHandle quill_qt_bridge_button_create(
