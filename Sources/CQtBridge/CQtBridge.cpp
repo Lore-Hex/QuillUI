@@ -17,6 +17,7 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QFrame>
+#include <QGridLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QList>
@@ -77,6 +78,36 @@ QSize resolvedWidgetSize(QWidget *target) {
         resolved.setHeight(0);
     }
     return resolved;
+}
+
+Qt::Alignment overlayAlignment(int horizontal, int vertical) {
+    Qt::Alignment alignment = {};
+
+    switch (horizontal) {
+    case 0:
+        alignment |= Qt::AlignLeft;
+        break;
+    case 2:
+        alignment |= Qt::AlignRight;
+        break;
+    default:
+        alignment |= Qt::AlignHCenter;
+        break;
+    }
+
+    switch (vertical) {
+    case 0:
+        alignment |= Qt::AlignTop;
+        break;
+    case 2:
+        alignment |= Qt::AlignBottom;
+        break;
+    default:
+        alignment |= Qt::AlignVCenter;
+        break;
+    }
+
+    return alignment;
 }
 
 // Stderr breadcrumb for the generic-backend smoke. The runtime crash this fix
@@ -205,6 +236,15 @@ QuillQtWidgetHandle quill_qt_bridge_container_create(void) {
     return reinterpret_cast<QuillQtWidgetHandle>(container);
 }
 
+QuillQtWidgetHandle quill_qt_make_overlay_container(void) {
+    QWidget *container = new QWidget();
+    QGridLayout *layout = new QGridLayout();
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    container->setLayout(layout);
+    return reinterpret_cast<QuillQtWidgetHandle>(container);
+}
+
 void quill_qt_bridge_widget_add_child(
     QuillQtWidgetHandle parent,
     QuillQtWidgetHandle child
@@ -216,6 +256,33 @@ void quill_qt_bridge_widget_add_child(
     }
     childWidget->setParent(parentWidget);
     childWidget->show();
+}
+
+void quill_qt_overlay_container_add_child(
+    QuillQtWidgetHandle container,
+    QuillQtWidgetHandle child,
+    int horizontal_alignment,
+    int vertical_alignment
+) {
+    QWidget *containerWidget = qobject_cast<QWidget *>(asWidget(container));
+    QWidget *childWidget = qobject_cast<QWidget *>(asWidget(child));
+    if (containerWidget == nullptr || childWidget == nullptr) {
+        return;
+    }
+
+    QGridLayout *layout = qobject_cast<QGridLayout *>(containerWidget->layout());
+    if (layout == nullptr) {
+        return;
+    }
+
+    layout->addWidget(
+        childWidget,
+        0,
+        0,
+        overlayAlignment(horizontal_alignment, vertical_alignment)
+    );
+    childWidget->show();
+    childWidget->raise();
 }
 
 void quill_qt_bridge_widget_delete_children(QuillQtWidgetHandle parent) {
