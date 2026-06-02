@@ -574,6 +574,22 @@ public struct QuillNetNewsWireContentView: View {
         let displayTitle = unread > 0 ? "\(title) (\(unread))" : title
         let inner = DisclosureGroup(displayTitle) {
             VStack(alignment: .leading, spacing: 2) {
+                // 'Show all' selects the folder as a smart-feed-
+                // style view (filteredItems unions every feed in
+                // the folder). Can't put the action on the
+                // disclosure header itself — that gesture is
+                // owned by expand/collapse — so it lives at the
+                // top of the disclosure body.
+                Button(model.selectedFolderName == folder.name
+                       ? "✓ Showing all in folder"
+                       : "Show all in folder") {
+                    model.selectFolder(
+                        model.selectedFolderName == folder.name ? nil : folder.name
+                    )
+                }
+                .font(.caption2)
+                .foregroundColor(model.selectedFolderName == folder.name ? .blue : .secondary)
+                .padding(.leading, 8)
                 // 'Mark Read' inside the folder block — only
                 // surfaces when something inside is unread.
                 // Matches NetNewsWire's per-folder action menu
@@ -687,6 +703,9 @@ public struct QuillNetNewsWireContentView: View {
     private var timelineHeaderSubtitle: String {
         if let smart = model.selectedSmartFeed {
             return smart.displayName
+        }
+        if let folder = model.selectedFolderName {
+            return "Folder: \(folder)"
         }
         return model.feedTitle ?? "Loading…"
     }
