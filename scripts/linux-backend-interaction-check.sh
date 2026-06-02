@@ -697,12 +697,26 @@ elif quillui_is_backend_smoke_product "$PRODUCT"; then
 else
     click_backend_header_action
 fi
+VERIFY_PRODUCT=""
+quillui_backend_interaction_verify_product "$PRODUCT" "$INTERACTION_MODE" VERIFY_PRODUCT
+
+# Some interactions paint their authoritative end state asynchronously after the
+# fixed post-click sleep, so a lone capture can race the repaint. For those,
+# poll-capture until the verifier accepts the frame before the authoritative
+# verify below reads it. (The WireGuard invalid-import branches above already
+# self-settle on an ImageMagick error-hue signal and set settled_capture_taken.)
+if [[ "$settled_capture_taken" != "1" ]] \
+  && quillui_backend_interaction_requires_render_settle "$PRODUCT" "$INTERACTION_MODE" "$SELECTED_BACKEND"; then
+  quillui_settle_capture_until_verified \
+    "$DISPLAY_ID" "$capture_window" "$SCREENSHOT_PATH" \
+    "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$VERIFY_PRODUCT"
+  settled_capture_taken=1
+fi
+
 if [[ "$settled_capture_taken" != "1" ]]; then
   DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 fi
 
-VERIFY_PRODUCT=""
-quillui_backend_interaction_verify_product "$PRODUCT" "$INTERACTION_MODE" VERIFY_PRODUCT
 if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"; then
   :
 else

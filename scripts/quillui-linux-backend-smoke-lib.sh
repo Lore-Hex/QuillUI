@@ -938,3 +938,57 @@ quillui_settle_wireguard_import_error_capture() {
   # let the verifier judge it rather than hanging or failing here.
   return 0
 }
+
+# Poll a window capture until the screenshot verifier accepts the frame, then
+# leave that settled frame at SCREENSHOT_PATH. Some interactions paint their
+# authoritative end state asynchronously after the fixed post-click sleep -- e.g.
+# the Enchanted Qt list-selection accent dot moving to the lower conversation row
+# -- so a single post-click capture can race the repaint and read a
+# mid-transition frame the verifier then rejects. This re-captures until the
+# verifier passes or a bounded timeout elapses. Unlike
+# quillui_settle_wireguard_import_error_capture (which settles on a hand-tuned
+# ImageMagick error-hue signal), the settle predicate here IS the verifier
+# itself, so the "is it settled?" test can never drift from the actual gate.
+# On timeout it leaves the last capture for the caller's authoritative verify to
+# judge, so it can never hang or hard-fail the smoke (and never hides a genuine
+# never-settles bug -- that just falls through to a real verify failure).
+quillui_settle_capture_until_verified() {
+  local display_id="$1"
+  local capture_window="$2"
+  local screenshot_path="$3"
+  local verify_script="$4"
+  local verify_product="$5"
+  local max_attempts="${6:-25}"
+  local poll_interval="${7:-0.2}"
+  local attempt
+
+  for (( attempt = 1; attempt <= max_attempts; attempt++ )); do
+    DISPLAY="$display_id" import -window "$capture_window" "$screenshot_path" 2>/dev/null || true
+    if "$verify_script" "$screenshot_path" "$verify_product" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "$poll_interval"
+  done
+
+  # Bounded timeout reached: the last capture is already at SCREENSHOT_PATH, so
+  # let the caller's authoritative verify report the real result.
+  return 0
+}
+
+# Identify interactions whose authoritative end state paints asynchronously after
+# the fixed post-click sleep and therefore need a poll-until-verified settle
+# before the screenshot is read (see quillui_settle_capture_until_verified).
+# Currently only the Enchanted Qt list-selection smoke: its selected-row accent
+# dot (QuillColors.primary) can lag the click long enough to race a single
+# capture, so the verifier intermittently sees the dot still off the lower row
+# (center < the 340px selection-offset gate) or not yet repainted at all. Kept as
+# a narrow allowlist so every other smoke keeps its existing single-capture path.
+quillui_backend_interaction_requires_render_settle() {
+  local product="$1"
+  local interaction_mode="$2"
+  local selected_backend="$3"
+
+  [[ "$product" == "quill-enchanted" \
+    && "$selected_backend" == "qt" \
+    && "$interaction_mode" == "list-selection" ]]
+}
