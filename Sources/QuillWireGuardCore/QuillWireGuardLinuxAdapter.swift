@@ -7,10 +7,14 @@ import Foundation
 public struct QuillWireGuardCommand: Equatable, Sendable {
     public let executable: String
     public let arguments: [String]
+    /// Optional data piped to the command's stdin (e.g. `wg pubkey` reads a private
+    /// key from stdin). nil = no stdin attached.
+    public let standardInput: String?
 
-    public init(executable: String, arguments: [String]) {
+    public init(executable: String, arguments: [String], standardInput: String? = nil) {
         self.executable = executable
         self.arguments = arguments
+        self.standardInput = standardInput
     }
 }
 
