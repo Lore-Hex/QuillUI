@@ -1956,6 +1956,54 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("feedHealthSummary is empty when every feed is happy")
+    func feedHealthSummaryEmptyWhenHealthy() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        #expect(model.feedHealthSummary() == "")
+    }
+
+    @MainActor
+    @Test("feedHealthSummary counts failing feeds (has error, sub-threshold)")
+    func feedHealthSummaryFailing() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        model.feedErrors["https://a.test/feed"] = "404"
+        model.feedErrors["https://b.test/feed"] = "Timeout"
+        #expect(model.feedHealthSummary() == "2 failing")
+    }
+
+    @MainActor
+    @Test("feedHealthSummary counts skipped (back-off) feeds separately")
+    func feedHealthSummarySkipped() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        // Failing-but-not-skipped + skipped (with-error).
+        model.feedErrors["https://a.test/feed"] = "503"
+        model.feedErrors["https://b.test/feed"] = "503"
+        model.feedFailureCount["https://b.test/feed"] = RSSReaderModel.feedFailureSkipThreshold
+        let summary = model.feedHealthSummary()
+        #expect(summary == "2 failing · 1 skipped")
+    }
+
+    @MainActor
+    @Test("feedHealthSummary ignores entries for unsubscribed feeds")
+    func feedHealthSummaryIgnoresStale() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        // Stale entry from a previously-subscribed feed.
+        model.feedErrors["https://gone.test/feed"] = "404"
+        model.feedFailureCount["https://gone.test/feed"] = 99
+        #expect(model.feedHealthSummary() == "")
+    }
+
+    @MainActor
     @Test("All Unread keeps just-read article visible until view changes")
     func allUnreadStickyVisibleMidSession() {
         let model = RSSReaderModel(subscribedFeeds: [

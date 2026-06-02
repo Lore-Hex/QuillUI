@@ -429,6 +429,11 @@ public struct QuillNetNewsWireContentView: View {
                     .disabled(opmlImportURLInput.trimmingWhitespace.isEmpty)
                 }
                 HStack(spacing: 6) {
+                    Button("Refresh All") {
+                        Task { @MainActor in await model.refreshAllFeeds() }
+                    }
+                    .font(.caption2)
+                    .disabled(model.isLoading)
                     Button("Export OPML") {
                         model.saveOPMLExportToDisk()
                     }
@@ -443,6 +448,15 @@ public struct QuillNetNewsWireContentView: View {
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
+                }
+                // Aggregate health summary so users with 50+ feeds
+                // can tell at a glance how many are unhappy without
+                // opening every inspector.
+                let summary = model.feedHealthSummary()
+                if !summary.isEmpty {
+                    Text(summary)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                 }
             }
             .padding(.horizontal, 12)
@@ -3714,6 +3728,30 @@ final class RSSReaderModel: ObservableObject {
     /// the matching pool spans every feed, not just the active
     /// selection. Active feed's items contribute first; cached
     /// feeds add anything not already counted.
+    /// Aggregate per-feed-health summary for the sidebar footer.
+    /// Surfaces "N feeds failing" + "N skipped" so the user can
+    /// see at a glance whether something needs attention without
+    /// opening every inspector. Empty when every feed is happy.
+    /// "Failing" = has a current error (might still be retried).
+    /// "Skipped" = back-off threshold crossed, refreshAll is
+    /// ignoring it until the user explicitly retries.
+    func feedHealthSummary() -> String {
+        let subscriptionIDs = Set(subscribedFeeds.map(\.id))
+        let failing = feedErrors.keys.filter { subscriptionIDs.contains($0) }.count
+        let skipped = feedFailureCount.filter {
+            subscriptionIDs.contains($0.key) && $0.value >= Self.feedFailureSkipThreshold
+        }.count
+        if failing == 0 && skipped == 0 { return "" }
+        var parts: [String] = []
+        if failing > 0 {
+            parts.append("\(failing) failing")
+        }
+        if skipped > 0 {
+            parts.append("\(skipped) skipped")
+        }
+        return parts.joined(separator: " · ")
+    }
+
     var crossFeedItemsCount: Int {
         var seen = Set<String>(items.map(\.id))
         for (_, cache) in feedCaches {
