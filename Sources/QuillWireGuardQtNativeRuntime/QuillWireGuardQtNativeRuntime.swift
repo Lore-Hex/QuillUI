@@ -1,5 +1,6 @@
 #if os(Linux)
 import CQuillQt6WidgetsShim
+import Foundation
 import Glibc
 import QuillQtNativeRuntimeSupport
 import QuillWireGuardCore
