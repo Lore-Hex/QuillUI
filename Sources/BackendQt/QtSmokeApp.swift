@@ -68,8 +68,20 @@ struct QtSmokeView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Native backend render target")
 
+                // Always-on dark panel FIRST (content origin) so it fills the
+                // verifier's panel ROI (y 145-310) deterministically, independent
+                // of how many interactive demo controls are added below it. (Earlier
+                // the panel sat AFTER the controls and drifted out of the ROI as each
+                // new conformance smoke was appended.)
+                Color(
+                    red: QtSmokeMetrics.panelRed,
+                    green: QtSmokeMetrics.panelGreen,
+                    blue: QtSmokeMetrics.panelBlue
+                )
+                .frame(width: QtSmokeMetrics.panelWidth, height: QtSmokeMetrics.panelHeight)
+
                 // Bound to @State through the generic QtViewHost so a click rebuilds
-                // the subtree; the dark panel below does NOT depend on this toggle.
+                // the subtree; the dark panel above does NOT depend on this toggle.
                 Button(isOpen ? "Toggle (on)" : "Toggle (off)") {
                     isOpen.toggle()
                 }
@@ -101,15 +113,6 @@ struct QtSmokeView: View {
 
                 Image(systemName: "checkmark.circle.fill")
                     .imageScale(.large)
-
-                // Always-on dark panel. Leading-aligned at the content origin and
-                // tall enough to fill the verifier's panel ROI deterministically.
-                Color(
-                    red: QtSmokeMetrics.panelRed,
-                    green: QtSmokeMetrics.panelGreen,
-                    blue: QtSmokeMetrics.panelBlue
-                )
-                .frame(width: QtSmokeMetrics.panelWidth, height: QtSmokeMetrics.panelHeight)
 
                 List {
                     ForEach(["ForEach row one", "ForEach row two", "ForEach row three"], id: \.self) { row in
