@@ -59,6 +59,31 @@ struct QuillNetNewsWireCoreTests {
         #expect(item.plainTextBody == "don't and don't")
     }
 
+    @Test("RSSItem.plainTextBody decodes common typographical entities")
+    func rssItemPlainTextBodyDecodesTypography() {
+        let html = "Hello&hellip; and &mdash; &ldquo;quoted&rdquo; &copy; 2026"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        // Each entity should decode to its Unicode codepoint.
+        #expect(item.plainTextBody.contains("\u{2026}"))   // …
+        #expect(item.plainTextBody.contains("\u{2014}"))   // —
+        #expect(item.plainTextBody.contains("\u{201C}"))   // "
+        #expect(item.plainTextBody.contains("\u{201D}"))   // "
+        #expect(item.plainTextBody.contains("\u{00A9}"))   // ©
+        #expect(!item.plainTextBody.contains("&hellip"))
+        #expect(!item.plainTextBody.contains("&copy"))
+    }
+
+    @Test("RSSItem.plainTextBody decodes numeric entities (decimal + hex)")
+    func rssItemPlainTextBodyDecodesNumeric() {
+        let html = "Quote&#8217;s &#x2014; em-dash &#169;"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.plainTextBody.contains("\u{2019}"))   // ' (8217 decimal)
+        #expect(item.plainTextBody.contains("\u{2014}"))   // — (x2014 hex)
+        #expect(item.plainTextBody.contains("\u{00A9}"))   // © (169 decimal)
+        #expect(!item.plainTextBody.contains("&#8217"))
+        #expect(!item.plainTextBody.contains("&#169"))
+    }
+
     @Test("RSSItem.plainTextBody drops script blocks entirely (tag + content)")
     func rssItemPlainTextBodyStripsScripts() {
         let html = "<p>Story body.</p><script>track('hit');</script><p>More body.</p>"
