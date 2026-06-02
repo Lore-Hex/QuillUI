@@ -2630,9 +2630,20 @@ final class RSSReaderModel: ObservableObject {
     /// path without re-parsing.
     @discardableResult
     func mergeImportedFeeds(_ imported: [Feed]) -> Int {
-        let existing = Set(subscribedFeeds.map(\.id))
+        // Dedup on a stronger same-source key than raw URL: drop
+        // scheme (treat http/https/feed as equivalent for dedup
+        // purposes — server picks one), lowercase the host, and
+        // strip any trailing slash. A re-imported OPML where the
+        // same feed has a slightly-different surface form
+        // (trailing slash, feed:// vs https://, case in host)
+        // would otherwise double-subscribe AND double-render every
+        // article in the timeline + the sidebar count.
+        var existing = Set(subscribedFeeds.map { Self.feedDedupKey(for: $0.url) })
         var added = 0
-        for feed in imported where !existing.contains(feed.id) {
+        for feed in imported {
+            let key = Self.feedDedupKey(for: feed.url)
+            if existing.contains(key) { continue }
+            existing.insert(key)
             subscribedFeeds.append(feed)
             added += 1
         }
@@ -2640,6 +2651,36 @@ final class RSSReaderModel: ObservableObject {
             selectedFeedID = subscribedFeeds.first?.id
         }
         return added
+    }
+
+    /// Scheme-agnostic same-source key used by mergeImportedFeeds
+    /// and any other dedup site that needs to treat http/https/
+    /// feed variants of the same URL as the same feed. Internal
+    /// so tests can pin specific normalizations without touching
+    /// the broader normalizedURL helper (which is used at other
+    /// call sites that care about scheme).
+    static func feedDedupKey(for url: String) -> String {
+        var s = url.trimmingWhitespace
+        let lower = s.lowercased()
+        for prefix in ["https://", "http://", "feeds://", "feed://"] {
+            if lower.hasPrefix(prefix) {
+                s = String(s.dropFirst(prefix.count))
+                break
+            }
+        }
+        if s.hasSuffix("/") { s = String(s.dropLast()) }
+        // Lowercase the host but preserve the path case (paths
+        // are case-sensitive on most web servers — "/Feed" and
+        // "/feed" can route to different resources). Split on
+        // the first slash; everything before it is host.
+        if let slashIdx = s.firstIndex(of: "/") {
+            let host = s[..<slashIdx].lowercased()
+            let path = s[slashIdx...]
+            s = host + path
+        } else {
+            s = s.lowercased()
+        }
+        return s
     }
 
     /// Tree-preserving counterpart to `importOPML(data:)`. Sets

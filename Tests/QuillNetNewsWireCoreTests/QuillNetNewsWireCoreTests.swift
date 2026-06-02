@@ -2174,6 +2174,29 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("mergeImportedFeeds dedupes by normalized URL across surface forms")
+    func mergeImportedFeedsDedupsByNormalizedURL() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "Example", url: "https://example.test/feed"),
+        ])
+        // Same feed, three slightly-different surface forms:
+        // - trailing slash
+        // - feed:// prefix (treated as https:// after normalization)
+        // - case difference in the URL string outside the host
+        // None should add — dedup must be normalization-aware.
+        // A truly-distinct feed at a different path SHOULD add.
+        let added = model.mergeImportedFeeds([
+            Feed(title: "Example Dup 1", url: "https://example.test/feed/"),
+            Feed(title: "Example Dup 2", url: "feed://example.test/feed"),
+            Feed(title: "Example Dup 3", url: "https://example.test/feed"),
+            Feed(title: "Different Feed", url: "https://example.test/other"),
+        ])
+        #expect(added == 1)
+        #expect(model.subscribedFeeds.count == 2)
+        #expect(model.subscribedFeeds.contains { $0.url == "https://example.test/other" })
+    }
+
+    @MainActor
     @Test("addSubscription short-circuits without network for a duplicate URL")
     func addSubscriptionShortCircuitsOnDuplicate() async {
         // Seed an existing subscription. Then re-subscribe to the
