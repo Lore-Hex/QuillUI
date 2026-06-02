@@ -179,6 +179,30 @@ public struct PersistenceStore: Sendable {
         try? data.write(to: url, options: .atomic)
     }
 
+    /// Per-feed HTTP conditional-GET cache (ETag + Last-Modified
+    /// strings keyed by feed URL). Used by fetch / fetchIntoCache
+    /// to send If-None-Match / If-Modified-Since on the next
+    /// request — most feeds publish a few times/day so 99% of
+    /// background refreshes can return 304 Not Modified instead
+    /// of full bodies. Stored as a [String: [String: String]]
+    /// (one inner dict per feed, with "lastModified" / "etag"
+    /// keys) so the on-disk JSON shape is stable without
+    /// depending on QuillRSWeb's HTTPConditionalGetInfo Codable.
+    public func loadConditionalGetInfo() -> [String: [String: String]] {
+        let url = directoryURL.appendingPathComponent("conditionalGetInfo.json")
+        guard let data = try? Data(contentsOf: url) else { return [:] }
+        return (try? JSONDecoder().decode([String: [String: String]].self, from: data)) ?? [:]
+    }
+
+    public func saveConditionalGetInfo(_ infos: [String: [String: String]]) {
+        try? FileManager.default.createDirectory(
+            at: directoryURL, withIntermediateDirectories: true, attributes: nil
+        )
+        let url = directoryURL.appendingPathComponent("conditionalGetInfo.json")
+        guard let data = try? JSONEncoder().encode(infos) else { return }
+        try? data.write(to: url, options: .atomic)
+    }
+
     /// Persisted sidebar selection. Upstream NetNewsWire restores
     /// the last-selected feed (or smart feed) on launch so the
     /// reader resumes where the user left off. A pair of optional

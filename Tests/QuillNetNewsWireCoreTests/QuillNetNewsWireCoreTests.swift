@@ -4,6 +4,7 @@ import Testing
 import QuillArticles
 import QuillData
 import QuillFoundation
+import QuillRSWeb
 
 @Suite("QuillNetNewsWireCore RSS / Atom parser")
 struct QuillNetNewsWireCoreTests {
@@ -3127,6 +3128,47 @@ struct QuillNetNewsWireCoreTests {
         // through to "\(error)" mirror form. Just check it's
         // non-empty and doesn't crash.
         #expect(!friendly.isEmpty)
+    }
+
+    @Test("dictFromConditionalGetInfo round-trips through makeConditionalGetInfo")
+    func conditionalGetInfoRoundTrip() {
+        let info = HTTPConditionalGetInfo(lastModified: "Wed, 21 Oct 2026 07:28:00 GMT", etag: "abc123")
+        let dict = RSSReaderModel.dictFromConditionalGetInfo(info)
+        #expect(dict?["lastModified"] == "Wed, 21 Oct 2026 07:28:00 GMT")
+        #expect(dict?["etag"] == "abc123")
+        let restored = RSSReaderModel.makeConditionalGetInfo(dict)
+        #expect(restored?.lastModified == info?.lastModified)
+        #expect(restored?.etag == info?.etag)
+    }
+
+    @Test("conditional-get helpers return nil for missing both fields")
+    func conditionalGetInfoNilWhenEmpty() {
+        #expect(RSSReaderModel.makeConditionalGetInfo(nil) == nil)
+        #expect(RSSReaderModel.makeConditionalGetInfo([:]) == nil)
+        #expect(RSSReaderModel.dictFromConditionalGetInfo(nil) == nil)
+    }
+
+    @MainActor
+    @Test("conditionalGetInfo persists across reinit")
+    func conditionalGetInfoPersists() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-condget-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        do {
+            let first = RSSReaderModel(subscribedFeeds: [
+                Feed(title: "A", url: "https://a.test/feed"),
+            ], persistence: store)
+            first.conditionalGetInfo["https://a.test/feed"] = [
+                "lastModified": "Wed, 21 Oct 2026 07:28:00 GMT",
+                "etag": "xyz",
+            ]
+        }
+        let second = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ], persistence: store)
+        #expect(second.conditionalGetInfo["https://a.test/feed"]?["etag"] == "xyz")
     }
 
     @Test("httpErrorMessage names common failure codes")

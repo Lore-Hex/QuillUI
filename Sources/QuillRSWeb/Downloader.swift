@@ -67,6 +67,22 @@ public typealias DownloadCallback = @MainActor (Data?, URLResponse?, Error?) -> 
 		}
 	}
 
+	/// Async URLRequest variant — bridges the existing callback-
+	/// based URLRequest path. Used by callers that want to add
+	/// conditional-GET headers (If-Modified-Since / If-None-Match)
+	/// to the request via HTTPConditionalGetInfo.
+	public func download(_ urlRequest: URLRequest) async throws -> (Data?, URLResponse?) {
+		try await withCheckedThrowingContinuation { continuation in
+			download(urlRequest) { data, response, error in
+				if let error {
+					continuation.resume(throwing: error)
+				} else {
+					continuation.resume(returning: (data, response))
+				}
+			}
+		}
+	}
+
 	public func download(_ url: URL, _ callback: @escaping DownloadCallback) {
 		#if canImport(Darwin)
 		assert(Thread.isMainThread)

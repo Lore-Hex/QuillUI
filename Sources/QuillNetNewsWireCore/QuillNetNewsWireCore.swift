@@ -1533,6 +1533,22 @@ final class RSSReaderModel: ObservableObject {
         didSet { persistFeedFailureCountIfReady() }
     }
 
+    /// Per-feed HTTP conditional-GET cache. Last-Modified +
+    /// ETag harvested from the previous successful response,
+    /// sent on the next fetch as If-Modified-Since / If-None-
+    /// Match. 304 Not Modified means "your cache is current"
+    /// → skip the parse, keep the existing items. Most active
+    /// feeds publish a few times/day; conditional GET drops
+    /// 99% of background refresh bandwidth.
+    @Published var conditionalGetInfo: [Feed.ID: [String: String]] = [:] {
+        didSet { persistConditionalGetInfoIfReady() }
+    }
+
+    private func persistConditionalGetInfoIfReady() {
+        guard persistenceReady else { return }
+        persistence.saveConditionalGetInfo(conditionalGetInfo)
+    }
+
     /// Consecutive-failure count at which refreshAllFeeds skips
     /// a feed. 5 chosen to give a feed plenty of chances to come
     /// back online during transient outages (~2.5 hours at the
@@ -1697,6 +1713,7 @@ final class RSSReaderModel: ObservableObject {
         self.feedIconURLs = persistence.loadFeedIconURLs()
         self.feedErrors = persistence.loadFeedErrors()
         self.feedFailureCount = persistence.loadFeedFailureCount()
+        self.conditionalGetInfo = persistence.loadConditionalGetInfo()
         // Hydrate feedCaches from any persisted articles so the
         // timeline shows yesterday's items before today's fetch
         // even fires. Bucket by feedID, build the (items,
@@ -2708,7 +2725,22 @@ final class RSSReaderModel: ObservableObject {
         pushLoading(forURL: urlString)
         defer { popLoading(forURL: urlString) }
         do {
-            let (maybeData, maybeResponse) = try await Downloader.shared.download(url)
+            var request = URLRequest(url: url)
+            if let info = Self.makeConditionalGetInfo(conditionalGetInfo[urlString]) {
+                info.addRequestHeadersToURLRequest(&request)
+            }
+            let (maybeData, maybeResponse) = try await Downloader.shared.download(request)
+            // 304 Not Modified — keep the cache, just bump
+            // lastFetchAt + clear error.
+            if let http = maybeResponse as? HTTPURLResponse, http.statusCode == 304 {
+                feedErrors[urlString] = nil
+                resetFailureCount(forFeed: urlString)
+                if var cache = feedCaches[urlString] {
+                    cache.lastFetchAt = Date()
+                    feedCaches[urlString] = cache
+                }
+                return
+            }
             // Same HTTP-status guard as the active-feed fetch()
             // path — without it, a stale feed that's gone 410-Gone
             // would silently empty the cache without surfacing
@@ -2756,6 +2788,12 @@ final class RSSReaderModel: ObservableObject {
             // Successful refresh-all path clears any prior error.
             feedErrors[urlString] = nil
             resetFailureCount(forFeed: urlString)
+            // Save ETag / Last-Modified from the response so the
+            // next fetch can send conditional-GET headers.
+            if let http = maybeResponse as? HTTPURLResponse,
+               let dict = Self.dictFromConditionalGetInfo(HTTPConditionalGetInfo(urlResponse: http)) {
+                conditionalGetInfo[urlString] = dict
+            }
             // Same icon-URL harvest as the active fetch path.
             if let icon = parsed.iconURL ?? parsed.faviconURL {
                 feedIconURLs[urlString] = icon
@@ -2784,10 +2822,27 @@ final class RSSReaderModel: ObservableObject {
             // User-Agent header set by UserAgent.headers(), and
             // short-lived in-memory DownloadCache that collapses
             // overlapping concurrent requests to the same URL.
-            // Conditional-GET (Etag/Last-Modified) lands when
-            // the persistence iteration starts threading
-            // HTTPConditionalGetInfo across fetches.
-            let (maybeData, maybeResponse) = try await Downloader.shared.download(url)
+            // Conditional GET: send If-Modified-Since /
+            // If-None-Match from the prior response's headers.
+            // Most active feeds publish a few times/day so this
+            // turns ~99% of background refreshes into a 304
+            // (no body, no parse).
+            var request = URLRequest(url: url)
+            if let info = Self.makeConditionalGetInfo(conditionalGetInfo[urlString]) {
+                info.addRequestHeadersToURLRequest(&request)
+            }
+            let (maybeData, maybeResponse) = try await Downloader.shared.download(request)
+            // 304 Not Modified — cache is current. Treat as
+            // success (reset failure count, clear error) but
+            // skip the parse + items update.
+            if let http = maybeResponse as? HTTPURLResponse, http.statusCode == 304 {
+                self.feedErrors[urlString] = nil
+                resetFailureCount(forFeed: urlString)
+                if let activeURL = currentFeedURL, activeURL == urlString {
+                    self.lastFetchAt = Date()
+                }
+                return
+            }
             // Surface HTTP error status (4xx/5xx) as a descriptive
             // message instead of letting the parser run on the
             // error page body (which would silently produce
@@ -2885,6 +2940,11 @@ final class RSSReaderModel: ObservableObject {
             // for this feed.
             self.feedErrors[urlString] = nil
             resetFailureCount(forFeed: urlString)
+            // Save ETag / Last-Modified for the NEXT request.
+            if let http = maybeResponse as? HTTPURLResponse,
+               let dict = Self.dictFromConditionalGetInfo(HTTPConditionalGetInfo(urlResponse: http)) {
+                self.conditionalGetInfo[urlString] = dict
+            }
             // Harvest the feed-declared icon URL if present.
             // Prefer iconURL (RSS image / Atom logo / JSON Feed
             // icon — the spec-canonical site icon) over
@@ -4337,6 +4397,32 @@ final class RSSReaderModel: ObservableObject {
         case .secureConnectionFailed:      return "Secure connection failed"
         default:                        return "Network error (\(urlError.code.rawValue))"
         }
+    }
+
+    /// Convert a [String: String] (the on-disk shape used by
+    /// PersistenceStore.conditionalGetInfo.json) back into an
+    /// HTTPConditionalGetInfo struct ready to add request
+    /// headers. Returns nil when the dict has neither field
+    /// (HTTPConditionalGetInfo's init? returns nil when both
+    /// lastModified and etag are nil).
+    nonisolated static func makeConditionalGetInfo(_ dict: [String: String]?) -> HTTPConditionalGetInfo? {
+        guard let dict else { return nil }
+        return HTTPConditionalGetInfo(
+            lastModified: dict["lastModified"],
+            etag: dict["etag"]
+        )
+    }
+
+    /// Reverse of makeConditionalGetInfo — flatten to the
+    /// dict-of-strings shape for JSON persistence. Returns nil
+    /// when info itself is nil so the caller can skip assignment
+    /// (avoids storing empty {} entries per feed).
+    nonisolated static func dictFromConditionalGetInfo(_ info: HTTPConditionalGetInfo?) -> [String: String]? {
+        guard let info else { return nil }
+        var dict: [String: String] = [:]
+        if let lm = info.lastModified { dict["lastModified"] = lm }
+        if let et = info.etag { dict["etag"] = et }
+        return dict.isEmpty ? nil : dict
     }
 
     nonisolated static func httpErrorMessage(forStatus code: Int) -> String {
