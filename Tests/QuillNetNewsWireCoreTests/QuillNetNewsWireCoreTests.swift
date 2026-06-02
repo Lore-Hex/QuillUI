@@ -2034,6 +2034,16 @@ struct QuillNetNewsWireCoreTests {
         #expect(RSSReaderModel.feedFailureSkipThreshold >= 3)
     }
 
+    @Test("Per-feed article cap is bigger than upstream's typical week-worth")
+    func articlesPerFeedLimitIsGenerous() {
+        // 100 covers ~2 weeks for a daily-post feed; matches the
+        // ballpark of upstream NetNewsWire's Account models. Less
+        // than that would silently truncate active feeds; more
+        // would grow SQLite unbounded. This pins us at the
+        // upstream-comfortable mid-range.
+        #expect(RSSReaderModel.articlesPerFeedLimit >= 50)
+    }
+
     @Test("httpErrorMessage names common failure codes")
     func httpErrorMessageNamesCommonCodes() {
         #expect(RSSReaderModel.httpErrorMessage(forStatus: 401) == "Unauthorized (401)")

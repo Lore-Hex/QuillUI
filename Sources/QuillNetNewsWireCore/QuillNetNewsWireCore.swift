@@ -1453,6 +1453,14 @@ final class RSSReaderModel: ObservableObject {
     /// background bandwidth.
     static let feedFailureSkipThreshold = 5
 
+    /// Max items kept per feed (active items + cached articles).
+    /// 100 matches what upstream NetNewsWire's Account models
+    /// typically keep around — enough scrollback for an active
+    /// feed's last week or two of posts without growing the
+    /// SQLite store unbounded. Both fetch() and fetchIntoCache()
+    /// trim to this; in-memory render cost stays O(N) per feed.
+    static let articlesPerFeedLimit = 100
+
     /// Wall-clock time of the most recent successful fetch.
     /// Drives `isAutoRefreshDue()`. Exposed as @Published so
     /// future UI (a "last updated 3m ago" footer line) can
@@ -2349,8 +2357,8 @@ final class RSSReaderModel: ObservableObject {
             }
             let parsed = RSSFeedParser.parseUpstream(data: data, url: urlString)
             let upstreamArticles = RSSFeedParser.parseUpstreamArticles(data: data, url: urlString)
-            let trimmedItems = Array(parsed.items.prefix(50))
-            let trimmedArticles = Array(upstreamArticles.prefix(50))
+            let trimmedItems = Array(parsed.items.prefix(Self.articlesPerFeedLimit))
+            let trimmedArticles = Array(upstreamArticles.prefix(Self.articlesPerFeedLimit))
             feedCaches[urlString] = FeedCache(
                 items: trimmedItems,
                 articles: trimmedArticles,
@@ -2453,8 +2461,8 @@ final class RSSReaderModel: ObservableObject {
             self.updateSubscribedFeedTitleFromParse(
                 urlString: urlString, parsedTitle: parsed.title
             )
-            let trimmedItems = Array(parsed.items.prefix(50))
-            let trimmedArticles = Array(upstreamArticles.prefix(50))
+            let trimmedItems = Array(parsed.items.prefix(Self.articlesPerFeedLimit))
+            let trimmedArticles = Array(upstreamArticles.prefix(Self.articlesPerFeedLimit))
             let now = Date()
             self.setItems(trimmedItems)
             self.articles = trimmedArticles
