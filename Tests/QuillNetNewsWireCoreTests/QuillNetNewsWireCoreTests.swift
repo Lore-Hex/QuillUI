@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import QuillNetNewsWireCore
 import QuillArticles
+import QuillData
 
 @Suite("QuillNetNewsWireCore RSS / Atom parser")
 struct QuillNetNewsWireCoreTests {
@@ -527,6 +528,76 @@ struct QuillNetNewsWireCoreTests {
         )
         #expect(model.subscribedFeeds.map(\.title) == ["Seed"])
         try? FileManager.default.removeItem(at: dir)
+    }
+
+    // MARK: - QuillData PersistentArticle round-trip
+
+    @Test("PersistentArticle round-trips through an in-memory ModelContainer")
+    func quillDataPersistentArticleRoundTrip() throws {
+        let schema = Schema([PersistentArticle.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = ModelContext(container)
+
+        let row = PersistentArticle(
+            id: "row-1",
+            accountID: "Local",
+            feedID: "https://example.test/feed",
+            uniqueID: "post-42",
+            title: "Hello",
+            contentHTML: "<p>Hi</p>",
+            datePublished: Date(timeIntervalSince1970: 1_700_000_000),
+            isRead: false,
+            isStarred: true
+        )
+        context.insert(row)
+        try context.save()
+
+        let fetched: [PersistentArticle] = try context.fetch(FetchDescriptor<PersistentArticle>())
+        #expect(fetched.count == 1)
+        #expect(fetched.first?.id == "row-1")
+        #expect(fetched.first?.title == "Hello")
+        #expect(fetched.first?.isStarred == true)
+        #expect(fetched.first?.isRead == false)
+    }
+
+    @Test("PersistentArticle.init(_ Article:) maps every persisted field")
+    func quillDataPersistentArticleFromArticle() {
+        let status = ArticleStatus(
+            articleID: "synthetic",
+            read: false, starred: false,
+            dateArrived: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let upstream = Article(
+            accountID: "Local",
+            articleID: nil,  // synthesized via md5
+            feedID: "https://example.test/feed",
+            uniqueID: "u-1",
+            title: "Bridged",
+            contentHTML: "<p>body</p>",
+            contentText: nil,
+            markdown: nil,
+            url: "https://example.test/post-1",
+            externalURL: nil,
+            summary: "Short",
+            imageURL: nil,
+            datePublished: Date(timeIntervalSince1970: 1_700_000_100),
+            dateModified: nil,
+            authors: nil,
+            status: status
+        )
+        let row = PersistentArticle(upstream, isRead: true, isStarred: false)
+        #expect(row.accountID == "Local")
+        #expect(row.feedID == "https://example.test/feed")
+        #expect(row.uniqueID == "u-1")
+        #expect(row.title == "Bridged")
+        #expect(row.contentHTML == "<p>body</p>")
+        #expect(row.url == "https://example.test/post-1")
+        #expect(row.summary == "Short")
+        #expect(row.isRead == true)
+        #expect(row.isStarred == false)
+        // articleID auto-synthesized (32-char md5 hex).
+        #expect(row.id.count == 32)
     }
 
     @MainActor

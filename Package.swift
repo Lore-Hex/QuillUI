@@ -761,7 +761,16 @@ var targets: [Target] = [
     // Linux unmodified.
     .target(
         name: "QuillNetNewsWireCore",
-        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles", "QuillRSWeb", "QuillFeedFinder"],
+        dependencies: [
+            "QuillUI", "QuillFoundation",
+            "QuillRSParser", "QuillArticles", "QuillRSWeb", "QuillFeedFinder",
+            // QuillData provides the SwiftData-shaped Schema /
+            // ModelContainer / ModelContext / FetchDescriptor
+            // surface that QuillNetNewsWirePersistence uses to
+            // back the article + feed cache to SQLite on Linux
+            // (and macOS for parity testing).
+            "QuillData",
+        ],
         swiftSettings: appSwiftSettings
     ),
     // Minimal RSCore-shaped shim. Reproduces the slice of
