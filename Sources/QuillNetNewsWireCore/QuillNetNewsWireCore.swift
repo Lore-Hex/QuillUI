@@ -474,6 +474,15 @@ public struct QuillNetNewsWireContentView: View {
                             .lineLimit(1)
                     }
                 }
+                // Subscribe / import confirmation toast — fades
+                // on next selectFeed. Without this the Add /
+                // Import buttons gave zero visible feedback on
+                // success or "already subscribed".
+                if let msg = model.lastSubscribeMessage {
+                    Text(msg)
+                        .font(.caption2)
+                        .foregroundColor(.blue)
+                }
                 // Aggregate health summary so users with 50+ feeds
                 // can tell at a glance how many are unhappy without
                 // opening every inspector.
@@ -2030,6 +2039,10 @@ final class RSSReaderModel: ObservableObject {
         selectItem(id: nil)
         // Reset sticky-visible carry-over from the prior view.
         sessionStickyVisibleIDs.removeAll()
+        // Dismiss any subscribe-toast lingering from the
+        // previous view — feed switch is an explicit context
+        // change that supersedes the older confirmation.
+        lastSubscribeMessage = nil
         didStartInitialLoad = true
         await fetch(urlString: feed.url)
         autoSelectFirstUnreadIfNoSelection()
@@ -2375,7 +2388,11 @@ final class RSSReaderModel: ObservableObject {
                 setError("OPML download was empty")
                 return 0
             }
-            return importOPMLTree(data: data)
+            let added = importOPMLTree(data: data)
+            lastSubscribeMessage = added == 0
+                ? "Already subscribed to those feeds"
+                : "Imported \(added) feed\(added == 1 ? "" : "s")"
+            return added
         } catch {
             setError("OPML import failed: \(Self.friendlyError(error))")
             return 0
@@ -2480,9 +2497,11 @@ final class RSSReaderModel: ObservableObject {
         let added = mergeImportedFeeds([feed])
         if added == 0 {
             // Already subscribed — return the existing record.
+            lastSubscribeMessage = "Already subscribed to \(feed.title)"
             setLoading(false)
             return subscribedFeeds.first(where: { $0.id == feed.id })
         }
+        lastSubscribeMessage = "Subscribed to \(feed.title)"
         // selectFeed → fetch does its own setLoading toggle; the
         // global indicator handoff is seamless. Reset our own
         // first so the assert in fetch's setLoading(true) sees
@@ -2519,6 +2538,14 @@ final class RSSReaderModel: ObservableObject {
     /// has been exported yet. Surfaces in feedsPane footer so
     /// the user sees where the file landed.
     @Published var lastOPMLExportURL: URL?
+
+    /// Transient confirmation for the last subscribe / import
+    /// action — "Imported 5 feeds", "Already subscribed",
+    /// "Subscribed to Daring Fireball", etc. Renders under the
+    /// Import / Add row in the sidebar. Auto-clears on the next
+    /// successful subscribe / import OR on selectFeed (so
+    /// switching feeds dismisses the toast).
+    @Published var lastSubscribeMessage: String?
 
     /// Profile-mode bypass: populate `items` + `feedTitle` with
     /// fixture content so the rendered timeline has shape, then

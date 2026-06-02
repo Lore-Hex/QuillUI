@@ -2479,6 +2479,19 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("lastSubscribeMessage clears on selectFeed (toast doesn't linger)")
+    func subscribeMessageClearsOnSelectFeed() async {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        model.lastSubscribeMessage = "Imported 5 feeds"
+        // selectFeed to a different feed → toast clears.
+        await model.selectFeed(id: "https://b.test/feed")
+        #expect(model.lastSubscribeMessage == nil)
+    }
+
+    @MainActor
     @Test("Sidebar feed selection survives relaunch via persistence")
     func feedSelectionPersists() async {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
