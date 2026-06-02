@@ -14,8 +14,13 @@ import Foundation
 /// "QuillRSCoreShim"]` without dragging the platform-coupled
 /// pieces.
 ///
-/// Today's surface, sized to RSParser:
-///   - `String.md5String` (the only RSCore symbol RSParser uses)
+/// Today's surface:
+///   - `String.md5String` (RSParser, Articles — content-addressed
+///     uniqueIDs)
+///   - `Platform.isRunningUnitTests` (Articles' AuthorCache uses
+///     it to skip lowMemory observer wiring during XCTest runs)
+///   - `Notification.Name.lowMemory` (Articles' AuthorCache
+///     listens for it to drop its in-memory author table)
 ///
 /// Future iterations expand only when an upstream `import RSCore`
 /// reaches for something else. Don't grow this preemptively —
@@ -36,6 +41,35 @@ public extension String {
         let digest = MD5.hash(Array(self.utf8))
         return MD5.hexString(digest)
     }
+}
+
+/// Mirrors `RSCore.Platform`. Articles' AuthorCache uses
+/// `isRunningUnitTests` to skip a NotificationCenter
+/// registration during XCTest so tests can be re-run without
+/// observer leaks. The Quill app process is never a test
+/// runner — return false unconditionally; tests can override
+/// the detection with the environment variable upstream uses.
+public struct Platform {
+    public nonisolated static var isRunningUnitTests: Bool {
+        // Same env signal upstream RSCore checks first; matches
+        // XCTest's behavior of injecting XCTestConfigurationFilePath
+        // into the test-runner subprocess. swift-testing also
+        // sets SWIFT_TESTING_* env vars on the runner.
+        let env = ProcessInfo.processInfo.environment
+        if env["XCTestConfigurationFilePath"] != nil { return true }
+        if env["SWIFT_TESTING_ENABLED"] != nil { return true }
+        return false
+    }
+}
+
+public extension Notification.Name {
+    /// Posted when an app surface (Articles' AuthorCache today)
+    /// should evict in-memory caches due to memory pressure.
+    /// Upstream `RSCore.AppNotifications` declares the same name
+    /// on the same `Notification.Name` namespace; the literal
+    /// string ("LowMemoryNotification") is matched byte-for-byte
+    /// so notifications posted from either side route the same.
+    static let lowMemory = Notification.Name("LowMemoryNotification")
 }
 
 /// Pure-Swift MD5 implementation (RFC 1321). The intent is to

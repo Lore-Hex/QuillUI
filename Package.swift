@@ -809,6 +809,30 @@ var targets: [Target] = [
         path: "Sources/QuillRSParser",
         swiftSettings: appSwiftSettings
     ),
+    // Vendored Ranchero-Software/NetNewsWire Articles module
+    // (Sources/Articles → Sources/QuillArticles). Pure-model
+    // target — Article, Author, Attachment, ArticleStatus — used
+    // by upstream for in-memory + persistence article shape.
+    //
+    // Only RSCore symbol touched: String.md5String (for content-
+    // addressed article IDs and author IDs), routed through
+    // QuillRSCoreShim via the same `import RSCore` →
+    // `import QuillRSCoreShim` rewrite as QuillRSParser.
+    //
+    // `import os` resolves to Apple's system framework on Darwin
+    // and the Quill osShim on Linux — no explicit dep needed
+    // (the Quill os library product is gated #if os(Linux)).
+    //
+    // Refresh procedure mirrors QuillRSParser: `cp -R .upstream/
+    // netnewswire/Modules/Articles/Sources/Articles/.
+    // Sources/QuillArticles/` then `sed -i
+    // 's/^import RSCore$/import QuillRSCoreShim/'`.
+    .target(
+        name: "QuillArticles",
+        dependencies: ["QuillRSCoreShim"],
+        path: "Sources/QuillArticles",
+        swiftSettings: appSwiftSettings
+    ),
     .executableTarget(
         name: "QuillNetNewsWire",
         dependencies: ["QuillNetNewsWireCore", "QuillUI"],
@@ -1683,6 +1707,15 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillRSParserTests",
             dependencies: ["QuillRSParser"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Smoke tests for the vendored upstream Articles module.
+        // Pins articleID synthesis (md5 over accountID+feedID+
+        // uniqueID via QuillRSCoreShim), authorID content
+        // addressing, and ArticleStatus value-equality.
+        .testTarget(
+            name: "QuillArticlesTests",
+            dependencies: ["QuillArticles"],
             swiftSettings: appSwiftSettings
         ),
         // Pins QuillCodeEditCore: the `ProjectFile.extension`
