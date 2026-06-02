@@ -1413,7 +1413,7 @@ final class RSSReaderModel: ObservableObject {
         if elapsed < 5 {
             return "Updated just now"
         }
-        let formatted = Self.relativeFormatter.localizedString(for: date, relativeTo: now)
+        let formatted = Self.relativeString(for: date, relativeTo: now)
         return "Updated \(formatted)"
     }
 
@@ -1599,7 +1599,7 @@ final class RSSReaderModel: ObservableObject {
             // Within 24h — relative form via Foundation's
             // RelativeDateTimeFormatter. Same conventions
             // upstream NNW uses for its "x hours ago" footer.
-            return Self.relativeFormatter.localizedString(for: date, relativeTo: now)
+            return Self.relativeString(for: date, relativeTo: now)
         }
         return Self.absoluteFormatter.string(from: date)
     }
@@ -1617,11 +1617,49 @@ final class RSSReaderModel: ObservableObject {
         return names.sorted().joined(separator: ", ")
     }
 
+    #if canImport(Darwin)
     private static let relativeFormatter: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .full
         return f
     }()
+    /// Darwin path delegates to Foundation's locale-aware
+    /// RelativeDateTimeFormatter.
+    private static func relativeString(for date: Date, relativeTo now: Date) -> String {
+        relativeFormatter.localizedString(for: date, relativeTo: now)
+    }
+    #else
+    /// swift-corelibs-foundation has no RelativeDateTimeFormatter,
+    /// so on Linux we synthesize 'N minutes/hours/days ago' from
+    /// the time difference. Past tense only; future dates render
+    /// 'in N units'. Plural/singular handled. Matches the shape
+    /// of Apple's full-units-style output closely enough for the
+    /// footer + detail-header strings to read naturally.
+    private static func relativeString(for date: Date, relativeTo now: Date) -> String {
+        let delta = now.timeIntervalSince(date)
+        let absDelta = abs(delta)
+        let inPast = delta >= 0
+        let (value, unit): (Int, String)
+        if absDelta < 60 {
+            value = Int(absDelta)
+            unit = "second"
+        } else if absDelta < 3600 {
+            value = Int(absDelta / 60)
+            unit = "minute"
+        } else if absDelta < 86_400 {
+            value = Int(absDelta / 3600)
+            unit = "hour"
+        } else if absDelta < 86_400 * 7 {
+            value = Int(absDelta / 86_400)
+            unit = "day"
+        } else {
+            value = Int(absDelta / (86_400 * 7))
+            unit = "week"
+        }
+        let units = value == 1 ? unit : "\(unit)s"
+        return inPast ? "\(value) \(units) ago" : "in \(value) \(units)"
+    }
+    #endif
 
     private static let absoluteFormatter: DateFormatter = {
         let f = DateFormatter()
