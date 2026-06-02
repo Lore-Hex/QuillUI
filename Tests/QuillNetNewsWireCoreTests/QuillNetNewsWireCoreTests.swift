@@ -1931,6 +1931,103 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("addFolder creates a new top-level folder")
+    func addFolderCreatesTopLevel() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        #expect(model.addFolder(named: "Tech"))
+        #expect(model.subscriptionRoot.subfolders.map(\.name) == ["Tech"])
+        // New folder is empty.
+        #expect(model.subscriptionRoot.subfolders.first?.feeds.isEmpty == true)
+        #expect(model.subscriptionRoot.subfolders.first?.subfolders.isEmpty == true)
+    }
+
+    @MainActor
+    @Test("addFolder refuses empty/whitespace name and duplicate sibling")
+    func addFolderRefusesInvalid() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        #expect(!model.addFolder(named: ""))
+        #expect(!model.addFolder(named: "   "))
+        #expect(model.addFolder(named: "Tech"))
+        // Duplicate sibling rejected.
+        #expect(!model.addFolder(named: "Tech"))
+        #expect(model.subscriptionRoot.subfolders.count == 1)
+    }
+
+    @MainActor
+    @Test("removeFolder migrates contained feeds + subfolders up to parent")
+    func removeFolderMigratesContents() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let feedHN = Feed(title: "HN", url: "https://hn.test/feed")
+        let nested = OPMLImporter.Folder(name: "Nested", feeds: [], subfolders: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(
+                    name: "Tech",
+                    feeds: [feedHN],
+                    subfolders: [nested]
+                ),
+            ]
+        )
+        #expect(model.removeFolder(named: "Tech"))
+        // Tech is gone but its feed + nested subfolder bubbled up.
+        #expect(model.subscriptionRoot.subfolders.map(\.name) == ["Nested"])
+        #expect(model.subscriptionRoot.feeds.map(\.url) == ["https://hn.test/feed"])
+    }
+
+    @MainActor
+    @Test("removeFolder returns false for unknown folder name")
+    func removeFolderUnknown() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [], subfolders: [])]
+        )
+        #expect(!model.removeFolder(named: "Nope"))
+        #expect(model.subscriptionRoot.subfolders.map(\.name) == ["Tech"])
+    }
+
+    @MainActor
+    @Test("removeFolder finds folders nested in subfolders")
+    func removeFolderNested() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(
+                    name: "Tech",
+                    feeds: [],
+                    subfolders: [OPMLImporter.Folder(name: "Apple", feeds: [], subfolders: [])]
+                ),
+            ]
+        )
+        #expect(model.removeFolder(named: "Apple"))
+        #expect(model.subscriptionRoot.subfolders[0].subfolders.isEmpty)
+    }
+
+    @MainActor
+    @Test("addFolder + removeFolder persist across reinit")
+    func addRemoveFolderPersists() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-folder-crud-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        let first = RSSReaderModel(subscribedFeeds: [], persistence: store)
+        first.subscribedFeeds.append(Feed(title: "HN", url: "https://hn.test/feed"))
+        #expect(first.addFolder(named: "Tech"))
+        let second = RSSReaderModel(subscribedFeeds: [], persistence: store)
+        #expect(second.subscriptionRoot.subfolders.contains { $0.name == "Tech" })
+        // Now remove + verify removal also persists.
+        #expect(second.removeFolder(named: "Tech"))
+        let third = RSSReaderModel(subscribedFeeds: [], persistence: store)
+        #expect(!third.subscriptionRoot.subfolders.contains { $0.name == "Tech" })
+    }
+
+    @MainActor
     @Test("renameFolder renames a top-level folder")
     func renameFolderTopLevel() {
         let model = RSSReaderModel(subscribedFeeds: [])

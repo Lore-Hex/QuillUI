@@ -2862,6 +2862,82 @@ final class RSSReaderModel: ObservableObject {
         return true
     }
 
+    /// Add a new top-level folder to subscriptionRoot. Returns
+    /// true when the folder was added; false when the name is
+    /// empty/whitespace or already exists as a top-level
+    /// sibling. New folders start empty (no feeds, no
+    /// subfolders) — the user populates them via subsequent
+    /// move-feed actions. Mutation triggers persistence via
+    /// the subscriptionRoot didSet chain.
+    ///
+    /// Top-level only by design — upstream NetNewsWire's "New
+    /// Folder" command also creates at the root. Nested folder
+    /// creation would need a parent-selection UI that doesn't
+    /// exist yet.
+    @discardableResult
+    func addFolder(named name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard !subscriptionRoot.subfolders.contains(where: { $0.name == trimmed }) else {
+            return false
+        }
+        var copy = subscriptionRoot
+        copy.subfolders.append(OPMLImporter.Folder(
+            name: trimmed, feeds: [], subfolders: []
+        ))
+        subscriptionRoot = copy
+        return true
+    }
+
+    /// Remove a folder anywhere in the subscriptionRoot
+    /// hierarchy. Feeds inside the removed folder migrate to
+    /// its parent (so subscriptions don't disappear when their
+    /// folder does); subfolders likewise flatten up one level.
+    /// Returns true when a folder was found and removed.
+    ///
+    /// Matches upstream NetNewsWire's "Delete Folder" behavior:
+    /// the folder vanishes from the sidebar but the feeds it
+    /// contained stay subscribed. The mutation triggers
+    /// persistence via the subscriptionRoot didSet chain.
+    @discardableResult
+    func removeFolder(named name: String) -> Bool {
+        let (updated, didRemove) = Self.removeFolderRecursively(
+            in: subscriptionRoot, name: name
+        )
+        guard didRemove else { return false }
+        subscriptionRoot = updated
+        return true
+    }
+
+    /// Pure recursive helper for removeFolder. Returns
+    /// (updatedFolder, didRemove). At each level, if a direct
+    /// subfolder matches, its feeds + subfolders bubble up
+    /// into the current folder's lists; otherwise recurses
+    /// into each subfolder. First match wins (no duplicate
+    /// names within a level — see addFolder/renameFolder
+    /// invariants).
+    private static func removeFolderRecursively(
+        in folder: OPMLImporter.Folder,
+        name: String
+    ) -> (OPMLImporter.Folder, Bool) {
+        var copy = folder
+        if let matchIndex = copy.subfolders.firstIndex(where: { $0.name == name }) {
+            let match = copy.subfolders.remove(at: matchIndex)
+            copy.feeds.append(contentsOf: match.feeds)
+            copy.subfolders.append(contentsOf: match.subfolders)
+            return (copy, true)
+        }
+        var didRemove = false
+        var newSubfolders: [OPMLImporter.Folder] = []
+        for sub in copy.subfolders {
+            let (updatedSub, subDid) = removeFolderRecursively(in: sub, name: name)
+            if subDid { didRemove = true }
+            newSubfolders.append(updatedSub)
+        }
+        copy.subfolders = newSubfolders
+        return (copy, didRemove)
+    }
+
     /// Pure recursive helper. Returns (updatedFolder, didRename).
     /// Walks every subfolder; at each level, checks for a
     /// sibling name conflict before applying the rename so the
