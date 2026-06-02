@@ -273,6 +273,57 @@ func qtRenderOverlayContainer(
     }
     return container
 }
+
+private let qtLazyVGridDefaultSpacing = 4
+
+private func qtLazyVGridColumnCount(gridItems: [GridItem], childCount: Int) -> Int {
+    let configuration = computeLazyGridConfiguration(gridItems: gridItems)
+
+    if configuration.adaptiveMinimum > 0 {
+        return max(1, min(max(1, childCount), max(1, gridItems.count)))
+    }
+
+    return max(1, configuration.maxColumns)
+}
+
+func qtRenderLazyVGridContainer(
+    _ children: [OpaquePointer],
+    gridItems: [GridItem]
+) -> OpaquePointer {
+    let columnCount = qtLazyVGridColumnCount(
+        gridItems: gridItems,
+        childCount: children.count
+    )
+    let container = qtOpaque(quill_qt_make_grid_container(Int32(columnCount)))
+    quill_qt_grid_container_set_spacing(
+        qtHandle(container),
+        Int32(qtLazyVGridDefaultSpacing),
+        Int32(qtLazyVGridDefaultSpacing)
+    )
+
+    for (index, child) in children.enumerated() {
+        quill_qt_grid_container_add_child(
+            qtHandle(container),
+            qtHandle(child),
+            Int32(index / columnCount),
+            Int32(index % columnCount)
+        )
+    }
+
+    return container
+}
+
+func qtRenderLazyVGridCells<V: View>(_ view: V) -> [OpaquePointer] {
+    if let transparent = view as? TransparentMultiChildView {
+        return qtRenderExpandedChildren(transparent.children)
+    }
+
+    if let multi = view as? QtMultiChildRenderable {
+        return multi.qtRenderChildren()
+    }
+
+    return [qtRenderView(view)]
+}
 #endif
 
 // MARK: - Deferred callback environment binding
@@ -658,6 +709,15 @@ extension ZStack: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         let children = qtRenderExpandedChildren(self.children)
         return qtRenderOverlayContainer(children, alignment: alignment)
+    }
+}
+
+extension LazyVGrid: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let children = items.flatMap { item in
+            qtRenderLazyVGridCells(contentBuilder(item))
+        }
+        return qtRenderLazyVGridContainer(children, gridItems: gridItems)
     }
 }
 #endif
