@@ -1912,6 +1912,60 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("filteredRows leaves feedTitle nil in active-feed view")
+    func filteredRowsActiveFeedHasNoFeedTitle() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "One", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        // No smart feed, no search → active-feed-only mode.
+        for row in model.filteredRows {
+            #expect(row.feedTitle == nil)
+        }
+    }
+
+    @MainActor
+    @Test("filteredRows labels each row with its source feed under a smart feed")
+    func filteredRowsCarryFeedTitleUnderSmartFeed() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "Alpha", url: "https://a.test/feed"),
+            Feed(title: "Bravo", url: "https://b.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "One", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "Two", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        // All Unread spans both feeds; both rows should be labeled.
+        model.selectSmartFeed(.allUnread)
+        let byID = Dictionary(uniqueKeysWithValues: model.filteredRows.map { ($0.id, $0.feedTitle) })
+        #expect(byID["a1"] == "Alpha")
+        #expect(byID["b1"] == "Bravo")
+    }
+
+    @MainActor
+    @Test("filteredRows labels rows under an active search even without a smart feed")
+    func filteredRowsCarryFeedTitleUnderSearch() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "Alpha", url: "https://a.test/feed"),
+            Feed(title: "Bravo", url: "https://b.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "Swift news", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "Swift dive", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        model.searchQuery = "Swift"
+        let byID = Dictionary(uniqueKeysWithValues: model.filteredRows.map { ($0.id, $0.feedTitle) })
+        #expect(byID["a1"] == "Alpha")
+        #expect(byID["b1"] == "Bravo")
+    }
+
+    @MainActor
     @Test("refreshFeed is a no-op while another refresh is in flight")
     func refreshFeedRespectsIsLoading() async {
         let model = RSSReaderModel(subscribedFeeds: [

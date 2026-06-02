@@ -615,6 +615,19 @@ public struct QuillNetNewsWireContentView: View {
                             .frame(width: 14, alignment: .trailing)
                     }
                 }
+                if let feed = item.feedTitle, !feed.isEmpty {
+                    // Cross-feed context (smart feed / search):
+                    // surface which feed this article came from.
+                    // Upstream NetNewsWire's timeline shows the
+                    // feed name on cross-feed views so users
+                    // aren't guessing the source.
+                    Text(feed)
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .frame(width: 244, alignment: .leading)
+                }
                 if !item.publishedSummary.isEmpty {
                     Text(item.publishedSummary)
                         .font(.caption2)
@@ -635,7 +648,11 @@ public struct QuillNetNewsWireContentView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .frame(height: 92, alignment: .leading)
+        // 108pt covers: feed-title line (cross-feed views only)
+        // + date line + 2-line preview + spacing. Active-feed
+        // rows leave the feed-title slot unused; small waste
+        // beats reshuffling height between views.
+        .frame(height: 108, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(model.selectedID == item.id ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
         .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
@@ -893,20 +910,36 @@ public struct RSSArticleRow: Identifiable, Hashable, Sendable {
     /// 160 chars with an ellipsis. Empty when the source body
     /// was empty (title-only feeds).
     public let previewText: String
+    /// Source feed title — non-nil when the timeline is rendering
+    /// articles from a feed other than the active selection
+    /// (smart feeds, search results). Upstream NetNewsWire shows
+    /// the feed name in this cross-feed context so users can tell
+    /// which feed each article came from. Nil when the row belongs
+    /// to the currently-active feed (the sidebar already shows
+    /// the feed, so repeating it in each row is noise).
+    public let feedTitle: String?
 
-    public init(id: String, title: String, publishedSummary: String, previewText: String = "") {
+    public init(
+        id: String,
+        title: String,
+        publishedSummary: String,
+        previewText: String = "",
+        feedTitle: String? = nil
+    ) {
         self.id = id
         self.title = title
         self.publishedSummary = publishedSummary
         self.previewText = previewText
+        self.feedTitle = feedTitle
     }
 
-    public init(item: RSSItem) {
+    public init(item: RSSItem, feedTitle: String? = nil) {
         self.init(
             id: item.id,
             title: item.title,
             publishedSummary: item.publishedSummary,
-            previewText: Self.makePreview(from: item.plainTextBody)
+            previewText: Self.makePreview(from: item.plainTextBody),
+            feedTitle: feedTitle
         )
     }
 
@@ -2450,8 +2483,40 @@ final class RSSReaderModel: ObservableObject {
     /// render. Kept as a computed (rather than a stored @Published
     /// shadow) so the search filter doesn't require a parallel
     /// invalidation path for every items / searchQuery change.
+    ///
+    /// In cross-feed contexts (smart feed or active search) every
+    /// row carries its source feedTitle so the timeline can label
+    /// which feed each article came from. In the default active-
+    /// feed context the title is nil (the sidebar already shows
+    /// the feed, repeating it per-row is noise).
     var filteredRows: [RSSArticleRow] {
-        filteredItems.map(RSSArticleRow.init(item:))
+        let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let crossFeed = selectedSmartFeed != nil || !trimmed.isEmpty
+        guard crossFeed else {
+            return filteredItems.map { RSSArticleRow(item: $0, feedTitle: nil) }
+        }
+        // Build itemID → feedURL once so each row lookup is O(1).
+        // Active feed's items use currentFeedURL; cached items use
+        // their cache key.
+        var itemFeedURL: [String: String] = [:]
+        if let activeURL = currentFeedURL {
+            for item in items {
+                itemFeedURL[item.id] = activeURL
+            }
+        }
+        for (feedURL, cache) in feedCaches {
+            for item in cache.items where itemFeedURL[item.id] == nil {
+                itemFeedURL[item.id] = feedURL
+            }
+        }
+        // Lookup feed title via subscribedFeeds (URL is the join key).
+        let feedTitleByURL = Dictionary(
+            uniqueKeysWithValues: subscribedFeeds.map { ($0.url, $0.title) }
+        )
+        return filteredItems.map { item in
+            let title = itemFeedURL[item.id].flatMap { feedTitleByURL[$0] }
+            return RSSArticleRow(item: item, feedTitle: title)
+        }
     }
 
     /// Number of items currently loaded that the user has not yet
@@ -2475,7 +2540,10 @@ final class RSSReaderModel: ObservableObject {
     }
 
     private func updateRows() {
-        let nextRows = items.map(RSSArticleRow.init(item:))
+        // Closure rather than function-reference because the
+        // RSSArticleRow init signature uses default args (feed
+        // Title:), which doesn't bind to a bare init reference.
+        let nextRows = items.map { RSSArticleRow(item: $0) }
         if rows != nextRows {
             rows = nextRows
         }
