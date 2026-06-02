@@ -3062,8 +3062,24 @@ final class RSSReaderModel: ObservableObject {
     /// given item ID, if it's in the parallel articles array.
     /// Detail view uses it to surface the upstream-only fields
     /// (datePublished as real Date, authors set).
+    ///
+    /// Walks both the active feed's `articles` AND every
+    /// cached feed's articles so cross-feed picks (smart feed
+    /// row from another feed) still surface author byline +
+    /// friendly date. SQLite-only stored items are NOT searched
+    /// here — PersistentArticle drops authors at persist time
+    /// so reconstitution would be empty-authored anyway; the
+    /// detail-pane gracefully falls back to "no author line".
     func article(forItem itemID: String) -> Article? {
-        articles.first(where: { $0.uniqueID == itemID })
+        if let active = articles.first(where: { $0.uniqueID == itemID }) {
+            return active
+        }
+        for (_, cache) in feedCaches {
+            if let cached = cache.articles.first(where: { $0.uniqueID == itemID }) {
+                return cached
+            }
+        }
+        return nil
     }
 
     /// Format an article's publish date for display in the

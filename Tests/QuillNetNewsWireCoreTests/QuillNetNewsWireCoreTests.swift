@@ -982,6 +982,39 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("article(forItem:) finds cached articles from other feeds")
+    func articleForItemFindsCrossFeedCached() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        let bArticle = Article(
+            accountID: "", articleID: "b1",
+            feedID: "https://b.test/feed",
+            uniqueID: "ub", title: "From B",
+            contentHTML: nil, contentText: nil,
+            markdown: nil, url: nil, externalURL: nil,
+            summary: nil, imageURL: nil,
+            datePublished: nil, dateModified: nil,
+            authors: [Author(authorID: nil, name: "Bob", url: nil, avatarURL: nil, emailAddress: nil)!],
+            status: ArticleStatus(articleID: "b1", read: false, starred: false, dateArrived: Date(timeIntervalSince1970: 0))
+        )
+        // Pin B in the cache but A is the active feed.
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(
+            items: [RSSItem(id: "ub", title: "From B", link: nil, pubDate: nil, descriptionHTML: nil)],
+            articles: [bArticle]
+        )
+        // articles (active feed) is empty for B's id, but the
+        // cached articles should be reachable for cross-feed
+        // detail-pane decoration (author, friendly date).
+        let resolved = model.article(forItem: "ub")
+        #expect(resolved?.uniqueID == "ub")
+        // And authorLine should now surface "Bob" for the smart-
+        // feed click on a non-active-feed article.
+        #expect(model.authorLine(forItemID: "ub") == "Bob")
+    }
+
+    @MainActor
     @Test("Selecting a SQLite-only stored item populates the detail pane")
     func selectStoredOnlyItemResolvesDetail() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
