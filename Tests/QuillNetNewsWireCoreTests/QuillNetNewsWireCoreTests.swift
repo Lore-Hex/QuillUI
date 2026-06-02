@@ -958,4 +958,46 @@ struct QuillNetNewsWireCoreTests {
         model.stopBackgroundRefresh()
         model.stopBackgroundRefresh()   // double-stop is fine
     }
+
+    // MARK: - Per-feed unread badges
+
+    @MainActor
+    @Test("count(for: .allUnread) mirrors unreadCount")
+    func badgeAllUnreadCount() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Seeded: 5 fixtures, 1 auto-read → 4 unread.
+        #expect(model.count(for: .allUnread) == 4)
+        #expect(model.count(for: .allUnread) == model.unreadCount)
+    }
+
+    @MainActor
+    @Test("count(for: .starred) mirrors starredCount")
+    func badgeStarredCount() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.toggleStarred(id: "1")
+        model.toggleStarred(id: "3")
+        #expect(model.count(for: .starred) == 2)
+        #expect(model.count(for: .starred) == model.starredCount)
+    }
+
+    @MainActor
+    @Test("unreadCount(forFeed:) reports only for the active feed")
+    func badgePerFeedUnreadActiveOnly() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "Active", url: "https://active.test/feed"),
+            Feed(title: "Other", url: "https://other.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "x", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "y", title: "Y", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        // selectedFeedID is the first subscription.
+        #expect(model.unreadCount(forFeed: "https://active.test/feed") == 2)
+        #expect(model.unreadCount(forFeed: "https://other.test/feed") == 0)
+
+        model.selectItem(id: "x")  // auto-marks "x" read
+        #expect(model.unreadCount(forFeed: "https://active.test/feed") == 1)
+    }
 }
