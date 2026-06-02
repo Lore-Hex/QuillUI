@@ -79,8 +79,16 @@ public final class ArticleStore: @unchecked Sendable {
     /// a no-op write). Bumps the row's existing isRead bit
     /// without losing any other field.
     public func markRead(articleID: String) throws {
+        try markRead(articleID: articleID, read: true)
+    }
+
+    /// Set a single article's isRead bit explicitly (true /
+    /// false). Bool overload added so the model can persist
+    /// mark-as-unread mutations — the old API only flipped
+    /// to true.
+    public func markRead(articleID: String, read: Bool) throws {
         try mutate(articleID: articleID) { row in
-            row.isRead = true
+            row.isRead = read
         }
     }
 

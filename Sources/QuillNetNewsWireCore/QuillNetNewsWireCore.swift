@@ -2705,7 +2705,7 @@ final class RSSReaderModel: ObservableObject {
         guard let store = articleStore else { return }
         for (_, cache) in feedCaches {
             if let article = cache.articles.first(where: { $0.uniqueID == uniqueID }) {
-                try? store.markRead(articleID: article.articleID)
+                try? store.markRead(articleID: article.articleID, read: isRead)
                 return
             }
         }

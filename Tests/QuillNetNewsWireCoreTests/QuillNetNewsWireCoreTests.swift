@@ -678,6 +678,23 @@ struct QuillNetNewsWireCoreTests {
         #expect(fetched.first?.isRead == true)
     }
 
+    @Test("ArticleStore.markRead(read:false) flips the bit back")
+    func articleStoreMarkReadFalse() throws {
+        let store = try ArticleStore()
+        let a = PersistentArticle(
+            id: "a", accountID: "Local", feedID: "https://x.test/feed",
+            uniqueID: "ua", title: "A"
+        )
+        try store.upsert([a])
+        try store.markRead(articleID: "a") // true
+        #expect(try store.fetchAll().first?.isRead == true)
+        try store.markRead(articleID: "a", read: false)
+        // Was the persistReadStateChange bug: markRead was the
+        // only path and it always set true. Without the bool
+        // overload, this assertion would still report true.
+        #expect(try store.fetchAll().first?.isRead == false)
+    }
+
     @Test("ArticleStore.markStarred toggles isStarred bit")
     func articleStoreMarkStarred() throws {
         let store = try ArticleStore()
