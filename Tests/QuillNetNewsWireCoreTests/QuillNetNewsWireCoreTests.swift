@@ -2800,6 +2800,25 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Active feed + Hide Read: just-opened article doesn't vanish mid-read")
+    func hideReadStickyOnActiveFeedSelectItem() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "Y", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.hideReadArticles = true
+        // No smart feed, no folder, no search — active feed view.
+        // Open a1 via selectItem → markRead → filteredItems
+        // should keep a1 visible via sticky (otherwise it'd vanish
+        // since hideRead would filter it out).
+        model.selectItem(id: "a1")
+        #expect(Set(model.filteredItems.map(\.id)) == ["a1", "a2"])
+    }
+
+    @MainActor
     @Test("Hide Read keeps just-read article visible until view changes")
     func hideReadStickyVisibleMidSession() {
         let model = RSSReaderModel(subscribedFeeds: [

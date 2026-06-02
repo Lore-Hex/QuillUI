@@ -3274,15 +3274,19 @@ final class RSSReaderModel: ObservableObject {
             selectedID = id
         }
         if let id {
-            // Sticky-visible only matters in cross-feed views where
-            // the smart-feed filter would otherwise immediately hide
-            // the row when markRead flips its bit. In default
-            // active-feed view the article stays visible naturally.
+            // Sticky-visible needed wherever the next filteredItems
+            // recompute would HIDE this row after markRead flips
+            // its bit: cross-feed views (smart feed / folder /
+            // search) AND active-feed view with Hide Read on.
+            // Without the hideReadArticles case, opening an
+            // article in the default active feed with Hide Read
+            // toggled on made the row vanish mid-read just like
+            // the cross-feed views did pre-#103.
             let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
             let isCrossFeedView = selectedSmartFeed != nil
                 || selectedFolderName != nil
                 || !trimmedQuery.isEmpty
-            if isCrossFeedView {
+            if isCrossFeedView || hideReadArticles {
                 sessionStickyVisibleIDs.insert(id)
             }
             markRead(id: id)
