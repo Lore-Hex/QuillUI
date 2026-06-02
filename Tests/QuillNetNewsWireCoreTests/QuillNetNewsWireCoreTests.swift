@@ -1814,6 +1814,22 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("refreshFeed is a no-op while another refresh is in flight")
+    func refreshFeedRespectsIsLoading() async {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        // Pin isLoading manually to simulate an in-flight fetch
+        // (without making a real network round-trip in tests).
+        model.isLoading = true
+        await model.refreshFeed(urlString: "https://a.test/feed")
+        // Cache stays empty — the call short-circuited before
+        // hitting the network.
+        #expect(model.feedCaches.isEmpty)
+        #expect(model.items.isEmpty)
+    }
+
+    @MainActor
     @Test("markFeedAsRead marks an inactive feed's cached items")
     func markFeedAsReadFromCache() {
         let model = RSSReaderModel(subscribedFeeds: [

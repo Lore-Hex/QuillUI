@@ -165,6 +165,19 @@ public struct QuillNetNewsWireContentView: View {
             }
             Spacer()
             HStack {
+                if let feed {
+                    // Per-feed refresh — fetches just this feed's
+                    // contents into the cache (or active timeline
+                    // when it's the selection). Disabled while a
+                    // refresh is already in flight to avoid
+                    // overlapping requests for the same URL.
+                    Button("Refresh") {
+                        Task { @MainActor in
+                            await model.refreshFeed(urlString: feed.url)
+                        }
+                    }
+                    .disabled(model.isLoading)
+                }
                 Spacer()
                 Button("Done") { inspectedFeedID = nil }
             }
@@ -1701,6 +1714,22 @@ final class RSSReaderModel: ObservableObject {
     /// `items`, `articles`, `selectedID`, `feedTitle`, or
     /// `lastFetchAt` since those track the currently-displayed
     /// feed. Errors are swallowed.
+    /// Per-feed refresh. Active feed routes through fetch() so
+    /// the timeline + articles update; any other feed routes
+    /// through fetchIntoCache() so the cache + persistence
+    /// update without disturbing the active selection. Mirrors
+    /// upstream NetNewsWire's per-feed refresh action (the
+    /// circular-arrow button next to a feed row in inspector
+    /// and the keyboard-driven "Refresh Feed" command).
+    func refreshFeed(urlString: String) async {
+        guard !isLoading else { return }
+        if urlString == currentFeedURL {
+            await refresh(urlString: urlString)
+        } else {
+            await fetchIntoCache(urlString: urlString)
+        }
+    }
+
     private func fetchIntoCache(urlString: String) async {
         guard let url = URL(string: urlString) else {
             feedErrors[urlString] = "Invalid URL"
