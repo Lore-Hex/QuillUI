@@ -686,6 +686,64 @@ struct QuillNetNewsWireCoreTests {
         #expect(fetched.first?.isRead == true)
     }
 
+    @Test("ArticleStore.fetchStarred returns only isStarred rows across all feeds")
+    func articleStoreFetchStarred() throws {
+        let store = try ArticleStore()
+        let a = PersistentArticle(
+            id: "a", accountID: "Local", feedID: "https://a.test/feed",
+            uniqueID: "ua", title: "A", isStarred: true
+        )
+        let b = PersistentArticle(
+            id: "b", accountID: "Local", feedID: "https://b.test/feed",
+            uniqueID: "ub", title: "B"
+        )
+        let c = PersistentArticle(
+            id: "c", accountID: "Local", feedID: "https://c.test/feed",
+            uniqueID: "uc", title: "C", isStarred: true
+        )
+        try store.upsert([a, b, c])
+        let starred = try store.fetchStarred()
+        #expect(Set(starred.map(\.id)) == ["a", "c"])
+    }
+
+    @MainActor
+    @Test("Starred smart feed surfaces stored starred articles outside the cache")
+    func starredSmartFeedSpansFullStarHistory() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-starhistory-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try ArticleStore(directoryURL: dir)
+        let persistenceStore = PersistenceStore(directoryURL: dir)
+        // Pin a starred article in SQLite that's NOT in any
+        // in-memory cache.
+        try store.upsert([
+            PersistentArticle(
+                id: "old-starred",
+                accountID: "Local",
+                feedID: "https://x.test/feed",
+                uniqueID: "ux-starred",
+                title: "Old starred",
+                isStarred: true
+            ),
+        ])
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "X", url: "https://x.test/feed")],
+            persistence: persistenceStore,
+            articleStore: store
+        )
+        // After init, hydrateFeedCachesFromStoreIfReady pulled
+        // every row into feedCaches — including the starred one.
+        // So the cache contains the old-starred article. Verify
+        // Starred smart feed surfaces it regardless of whether
+        // it's in starredArticleIDs (the JSON-persisted set is
+        // independent of the SQLite isStarred bit; storedStarred
+        // Items covers the case where the set lost the entry).
+        model.selectSmartFeed(.starred)
+        // ux-starred should be in the timeline.
+        #expect(model.filteredItems.map(\.id).contains("ux-starred"))
+    }
+
     @Test("ArticleStore.deleteForFeed removes only that feed's rows")
     func articleStoreDeleteForFeed() throws {
         let store = try ArticleStore()

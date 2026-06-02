@@ -75,6 +75,21 @@ public final class ArticleStore: @unchecked Sendable {
         return rows.sorted(by: Self.newestFirst)
     }
 
+    /// Fetch every starred article across all feeds. Used by
+    /// the Starred smart feed so the count + timeline reflect
+    /// the user's full star history, not just what happens to
+    /// still be in the per-feed cache (articlesPerFeedLimit caps
+    /// at 100, so a year of starring would silently drop
+    /// older entries from the in-memory view).
+    public func fetchStarred() throws -> [PersistentArticle] {
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<PersistentArticle>(
+            filter: { $0.isStarred == true }
+        )
+        let rows = try context.fetch(descriptor)
+        return rows.sorted(by: Self.newestFirst)
+    }
+
     /// Mark a single article read (idempotent — re-marking is
     /// a no-op write). Bumps the row's existing isRead bit
     /// without losing any other field.

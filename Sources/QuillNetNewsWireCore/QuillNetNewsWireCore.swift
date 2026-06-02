@@ -1705,6 +1705,31 @@ final class RSSReaderModel: ObservableObject {
     /// feed; for now those still start empty pending fetch.
     /// The lastFetchAt per group uses the newest dateArrived
     /// across that group's rows so 'Updated N ago' is honest.
+    /// All starred articles ever persisted, regardless of
+    /// whether they're still in the in-memory cache. Reads from
+    /// articleStore so the Starred smart feed reflects the
+    /// user's full star history rather than just the
+    /// articlesPerFeedLimit-bounded recent slice. Returns RSS
+    /// Items reconstituted from PersistentArticle rows in the
+    /// same shape the live-fetch path produces.
+    ///
+    /// Empty when there's no articleStore (no-persistence test
+    /// path) or no starred rows. Failures swallow → empty so
+    /// the smart feed degrades gracefully.
+    func storedStarredItems() -> [RSSItem] {
+        guard let store = articleStore else { return [] }
+        guard let rows = try? store.fetchStarred() else { return [] }
+        return rows.map { row in
+            RSSItem(
+                id: row.uniqueID,
+                title: row.title ?? "Untitled",
+                link: row.url,
+                pubDate: row.datePublished?.description,
+                descriptionHTML: row.contentHTML ?? row.contentText ?? row.summary
+            )
+        }
+    }
+
     private func hydrateFeedCachesFromStoreIfReady() {
         guard let articleStore else { return }
         guard let rows = try? articleStore.fetchAll(), !rows.isEmpty else { return }
@@ -3092,7 +3117,14 @@ final class RSSReaderModel: ObservableObject {
         case .allUnread:
             return union.reduce(0) { $0 + (readArticleIDs.contains($1.id) ? 0 : 1) }
         case .starred:
-            return union.reduce(0) { $0 + (starredArticleIDs.contains($1.id) ? 1 : 0) }
+            // Full starred-history count — same union-with-stored
+            // logic as the Starred branch of filteredItems so
+            // sidebar badge and timeline length agree.
+            let inCache = Set(union.filter { starredArticleIDs.contains($0.id) }.map(\.id))
+            let storedExtras = storedStarredItems()
+                .filter { !inCache.contains($0.id) }
+                .count
+            return inCache.count + storedExtras
         }
     }
 
@@ -3618,7 +3650,19 @@ final class RSSReaderModel: ObservableObject {
                             sessionStickyVisibleIDs.contains($0.id)
                     }
                 case .starred:
-                    pool = combined.filter { starredArticleIDs.contains($0.id) }
+                    // Cache-only would miss old-but-still-starred
+                    // articles that have aged out of the per-feed
+                    // articlesPerFeedLimit window. Pull all starred
+                    // rows from the store too and union them in,
+                    // deduped by id. Mirrors upstream NetNewsWire's
+                    // Starred smart feed that spans full history.
+                    var starredPool = combined.filter { starredArticleIDs.contains($0.id) }
+                    let visibleIDs = Set(starredPool.map(\.id))
+                    for storedItem in storedStarredItems()
+                        where !visibleIDs.contains(storedItem.id) {
+                        starredPool.append(storedItem)
+                    }
+                    pool = starredPool
                 }
             } else {
                 pool = combined
