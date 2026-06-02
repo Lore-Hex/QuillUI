@@ -852,6 +852,79 @@ struct QuillNetNewsWireCoreTests {
         #expect(result.feeds[0].url == "https://real.test/feed")
     }
 
+    @Test("OPMLImporter.parseTree preserves single-level folder structure")
+    func opmlImporterTreeFlat() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <opml version="2.0">
+          <head><title>Mine</title></head>
+          <body>
+            <outline type="rss" text="Top" xmlUrl="https://t.test/feed"/>
+            <outline text="News">
+              <outline type="rss" text="NYT" xmlUrl="https://nyt.test/feed"/>
+              <outline type="rss" text="WaPo" xmlUrl="https://wapo.test/feed"/>
+            </outline>
+          </body>
+        </opml>
+        """
+        let tree = OPMLImporter.parseTree(xml: xml)
+        #expect(tree.title == "Mine")
+        // Top-level feed lives directly under root.
+        #expect(tree.root.feeds.count == 1)
+        #expect(tree.root.feeds.first?.title == "Top")
+        // One subfolder.
+        #expect(tree.root.subfolders.count == 1)
+        let news = tree.root.subfolders[0]
+        #expect(news.name == "News")
+        #expect(news.feeds.map(\.title) == ["NYT", "WaPo"])
+    }
+
+    @Test("OPMLImporter.parseTree preserves nested folder hierarchy")
+    func opmlImporterTreeNested() {
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline text="News">
+              <outline text="Tech">
+                <outline type="rss" text="ATP" xmlUrl="https://atp.test/feed"/>
+                <outline type="rss" text="Hacker News" xmlUrl="https://hn.test/feed"/>
+              </outline>
+              <outline type="rss" text="NYT" xmlUrl="https://nyt.test/feed"/>
+            </outline>
+          </body>
+        </opml>
+        """
+        let tree = OPMLImporter.parseTree(xml: xml)
+        #expect(tree.root.subfolders.count == 1)
+        let news = tree.root.subfolders[0]
+        #expect(news.name == "News")
+        #expect(news.feeds.map(\.title) == ["NYT"])
+        #expect(news.subfolders.count == 1)
+        let tech = news.subfolders[0]
+        #expect(tech.name == "Tech")
+        #expect(tech.feeds.map(\.title) == ["ATP", "Hacker News"])
+    }
+
+    @Test("OPMLImporter Folder.allFeeds flattens nested subscriptions")
+    func opmlImporterTreeAllFeeds() {
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline text="News">
+              <outline text="Tech">
+                <outline type="rss" text="A" xmlUrl="https://a.test/feed"/>
+              </outline>
+              <outline type="rss" text="B" xmlUrl="https://b.test/feed"/>
+            </outline>
+            <outline type="rss" text="C" xmlUrl="https://c.test/feed"/>
+          </body>
+        </opml>
+        """
+        let tree = OPMLImporter.parseTree(xml: xml)
+        let all = tree.root.allFeeds.map(\.title)
+        #expect(Set(all) == Set(["A", "B", "C"]))
+    }
+
     @Test("OPMLImporter falls back to title attribute when text is missing")
     func opmlImporterTitleAttributeFallback() {
         let xml = """
