@@ -1841,10 +1841,14 @@ final class RSSReaderModel: ObservableObject {
     /// upserted raw to SQLite. Both paths now decode on the
     /// read side too.
     private static func rssItem(from row: PersistentArticle) -> RSSItem {
-        RSSItem(
+        // Same external→url preference as adaptParsedItem
+        // (#147) so SQLite-only stored items also open at the
+        // linkblog target, not the linkblog post.
+        let link = (row.externalURL?.isEmpty == false) ? row.externalURL : row.url
+        return RSSItem(
             id: row.uniqueID,
             title: HTMLEntities.decode(row.title ?? "Untitled"),
-            link: row.url,
+            link: link,
             pubDate: row.datePublished?.description,
             descriptionHTML: row.contentHTML ?? row.contentText ?? row.summary
         )
@@ -1921,7 +1925,7 @@ final class RSSReaderModel: ObservableObject {
                     // way back into the in-memory items so the
                     // timeline reads naturally.
                     title: HTMLEntities.decode(row.title ?? "Untitled"),
-                    link: row.url,
+                    link: (row.externalURL?.isEmpty == false) ? row.externalURL : row.url,
                     pubDate: row.datePublished?.description,
                     descriptionHTML: row.contentHTML ?? row.contentText ?? row.summary
                 )
@@ -4762,10 +4766,19 @@ struct RSSFeedParser {
         let rawTitle = (item.title?.isEmpty == false) ? item.title! : "Untitled"
         let title = HTMLEntities.decode(rawTitle)
         let body = item.contentHTML ?? item.contentText ?? item.summary
+        // Prefer externalURL (JSON Feed's external_url — the
+        // linkblog target) over url (which points to the
+        // linkblog's own post page). For most feeds these are
+        // the same; for Daring Fireball / Hacker News / Reddit
+        // style "this is a link to X" posts, externalURL is the
+        // actual destination the user wants when they tap
+        // "Open in browser". Falls back to url when external
+        // URL is nil (the common case).
+        let link = (item.externalURL?.isEmpty == false) ? item.externalURL : item.url
         return RSSItem(
             id: item.uniqueID,
             title: title,
-            link: item.url,
+            link: link,
             pubDate: formatPubDate(item.datePublished),
             descriptionHTML: body
         )

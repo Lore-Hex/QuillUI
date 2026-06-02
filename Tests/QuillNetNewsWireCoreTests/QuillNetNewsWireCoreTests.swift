@@ -1016,6 +1016,37 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("storedStarredItems prefers externalURL over url for linkblog targets")
+    func storedStarredItemsPrefersExternalURL() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "quill-nnw-extlink-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try ArticleStore(directoryURL: dir)
+        let persistenceStore = PersistenceStore(directoryURL: dir)
+        try store.upsert([
+            PersistentArticle(
+                id: "x", accountID: "Local",
+                feedID: "https://df.test/feed",
+                uniqueID: "ux", title: "Title",
+                url: "https://df.test/post/123",
+                externalURL: "https://upstream.test/article",
+                isStarred: true
+            ),
+        ])
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "DF", url: "https://df.test/feed")],
+            persistence: persistenceStore,
+            articleStore: store
+        )
+        model.feedCaches.removeAll()
+        let item = model.storedStarredItems().first
+        // The reconstituted RSSItem.link should point at the
+        // linkblog target, not the DF post page.
+        #expect(item?.link == "https://upstream.test/article")
+    }
+
+    @MainActor
     @Test("storedStarredItems decodes raw HTML entities in titles")
     func storedStarredItemsDecodesTitles() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
