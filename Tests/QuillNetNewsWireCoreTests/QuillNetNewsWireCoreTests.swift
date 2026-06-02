@@ -1912,6 +1912,59 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("hideReadArticles filters read items from the active feed timeline")
+    func hideReadFiltersActiveFeed() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "One", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "Two", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.markRead(id: "a1")
+        #expect(Set(model.filteredItems.map(\.id)) == ["a1", "a2"])
+        model.hideReadArticles = true
+        #expect(Set(model.filteredItems.map(\.id)) == ["a2"])
+        model.hideReadArticles = false
+        #expect(Set(model.filteredItems.map(\.id)) == ["a1", "a2"])
+    }
+
+    @MainActor
+    @Test("hideReadArticles does not strip starred items from the Starred smart feed")
+    func hideReadKeepsStarredWhenStarredSmartFeed() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "One", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.toggleStarred(id: "a1")
+        model.markRead(id: "a1")
+        model.hideReadArticles = true
+        model.selectSmartFeed(.starred)
+        // Starred + read + Hide Read on → still visible because
+        // Starred view is intentionally exempt.
+        #expect(Set(model.filteredItems.map(\.id)) == ["a1"])
+    }
+
+    @MainActor
+    @Test("hideReadArticles is a no-op for the All Unread smart feed")
+    func hideReadIsNoopForAllUnreadSmartFeed() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "One", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "Two", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.markRead(id: "a1")
+        model.hideReadArticles = true
+        model.selectSmartFeed(.allUnread)
+        // All Unread already filters; toggle doesn't double-strip.
+        #expect(Set(model.filteredItems.map(\.id)) == ["a2"])
+    }
+
+    @MainActor
     @Test("filteredRows leaves feedTitle nil in active-feed view")
     func filteredRowsActiveFeedHasNoFeedTitle() {
         let model = RSSReaderModel(subscribedFeeds: [

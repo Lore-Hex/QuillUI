@@ -286,6 +286,12 @@ public struct QuillNetNewsWireContentView: View {
                 model.selectPreviousUnread()
             }
             .keyboardShortcut("p", modifiers: [])
+            // Cmd+Shift+U toggles "Hide Read Articles" — same
+            // shortcut as upstream NetNewsWire.
+            Button("toggle hide read") {
+                model.hideReadArticles.toggle()
+            }
+            .keyboardShortcut("u", modifiers: [.command, .shift])
         }
         .frame(height: 0)
         .hidden()
@@ -673,6 +679,13 @@ public struct QuillNetNewsWireContentView: View {
                 }
             }
             Spacer()
+            // Visible "Hide Read" toggle — same semantic as
+            // Cmd+Shift+U. Glyph flips so the affordance reads at
+            // a glance.
+            Button(model.hideReadArticles ? "Show Read" : "Hide Read") {
+                model.hideReadArticles.toggle()
+            }
+            .font(.caption2)
             Button("All Read") {
                 model.markAllVisibleAsRead()
             }
@@ -1257,6 +1270,19 @@ final class RSSReaderModel: ObservableObject {
         didSet { persistSelectionIfReady() }
     }
 
+    /// View-option: when true, the timeline hides articles the
+    /// user has already marked-as-read. Mirrors upstream
+    /// NetNewsWire's "Hide Read Articles" toggle (Cmd+Shift+U).
+    /// Doesn't apply to the Starred smart feed — that view
+    /// intentionally shows starred items regardless of read
+    /// status — but does apply to the default feed view and to
+    /// the Today smart feed. (All Unread is already unread-only
+    /// by definition.) Persisted via the per-instance
+    /// PersistenceStore so tests stay isolated.
+    @Published var hideReadArticles: Bool {
+        didSet { persistViewOptionsIfReady() }
+    }
+
     private var didStartInitialLoad = false
     private let initialSelectionEnvironment: [String: String]
 
@@ -1275,6 +1301,7 @@ final class RSSReaderModel: ObservableObject {
     ) {
         self.initialSelectionEnvironment = environment
         self.persistence = persistence
+        self.hideReadArticles = persistence.loadViewOptions().hideReadArticles
         // Create an on-disk ArticleStore alongside the JSON
         // persistence dir if the caller didn't supply one.
         // Try/catch is mandatory — ModelContainer init throws
@@ -1447,6 +1474,13 @@ final class RSSReaderModel: ObservableObject {
             state = PersistenceStore.SelectionState()
         }
         persistence.saveSelection(state)
+    }
+
+    private func persistViewOptionsIfReady() {
+        guard persistenceReady else { return }
+        persistence.saveViewOptions(PersistenceStore.ViewOptions(
+            hideReadArticles: hideReadArticles
+        ))
     }
 
     /// URL of the currently-selected subscribed feed. `nil` when
@@ -2470,13 +2504,26 @@ final class RSSReaderModel: ObservableObject {
         }
         if searchActive {
             let needle = trimmed.lowercased()
-            return pool.filter { item in
+            return applyHideRead(pool.filter { item in
                 if item.title.lowercased().contains(needle) { return true }
                 if item.plainTextBody.lowercased().contains(needle) { return true }
                 return false
-            }
+            })
         }
-        return pool
+        return applyHideRead(pool)
+    }
+
+    /// Filter out read items from `pool` when the user toggled
+    /// "Hide Read Articles" on. Skipped when the active view is
+    /// the Starred smart feed (starred items stay visible
+    /// regardless of read state, matching upstream NetNewsWire)
+    /// or the All Unread smart feed (already unread-only). No
+    /// allocation when the toggle is off.
+    private func applyHideRead(_ pool: [RSSItem]) -> [RSSItem] {
+        guard hideReadArticles else { return pool }
+        if selectedSmartFeed == .starred { return pool }
+        if selectedSmartFeed == .allUnread { return pool }
+        return pool.filter { !readArticleIDs.contains($0.id) }
     }
 
     /// Row projection of `filteredItems` for the timeline view to

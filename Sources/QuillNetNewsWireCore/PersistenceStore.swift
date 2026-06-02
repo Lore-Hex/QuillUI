@@ -192,6 +192,32 @@ public struct PersistenceStore: Sendable {
         try? data.write(to: url, options: .atomic)
     }
 
+    /// Per-user view options for the timeline. Starts small —
+    /// just the "Hide Read Articles" toggle — but is a JSON
+    /// blob so additional sort-order / density flags can land
+    /// without bumping the on-disk format every iteration.
+    public struct ViewOptions: Codable, Equatable, Sendable {
+        public var hideReadArticles: Bool
+        public init(hideReadArticles: Bool = false) {
+            self.hideReadArticles = hideReadArticles
+        }
+    }
+
+    public func loadViewOptions() -> ViewOptions {
+        let url = directoryURL.appendingPathComponent("viewOptions.json")
+        guard let data = try? Data(contentsOf: url) else { return ViewOptions() }
+        return (try? JSONDecoder().decode(ViewOptions.self, from: data)) ?? ViewOptions()
+    }
+
+    public func saveViewOptions(_ options: ViewOptions) {
+        try? FileManager.default.createDirectory(
+            at: directoryURL, withIntermediateDirectories: true, attributes: nil
+        )
+        let url = directoryURL.appendingPathComponent("viewOptions.json")
+        guard let data = try? JSONEncoder().encode(options) else { return }
+        try? data.write(to: url, options: .atomic)
+    }
+
     private func loadStringSet(named filename: String) -> Set<String> {
         let url = directoryURL.appendingPathComponent(filename)
         guard let data = try? Data(contentsOf: url) else { return [] }
