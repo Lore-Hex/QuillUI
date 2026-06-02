@@ -1814,6 +1814,49 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("markFeedAsRead marks an inactive feed's cached items")
+    func markFeedAsReadFromCache() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        model.items = []
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "One", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "b2", title: "Two", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        #expect(model.unreadCount(forFeed: "https://b.test/feed") == 2)
+        let marked = model.markFeedAsRead("https://b.test/feed")
+        #expect(marked == 2)
+        #expect(model.unreadCount(forFeed: "https://b.test/feed") == 0)
+        #expect(model.readArticleIDs == ["b1", "b2"])
+    }
+
+    @MainActor
+    @Test("markFeedAsRead on the active feed marks its live items")
+    func markFeedAsReadFromActive() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "One", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "Two", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        let marked = model.markFeedAsRead("https://a.test/feed")
+        #expect(marked == 2)
+        #expect(model.readArticleIDs == ["a1", "a2"])
+    }
+
+    @MainActor
+    @Test("markFeedAsRead returns 0 for an unknown feed")
+    func markFeedAsReadUnknown() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        let marked = model.markFeedAsRead("https://nope.test/feed")
+        #expect(marked == 0)
+        #expect(model.readArticleIDs.isEmpty)
+    }
+
+    @MainActor
     @Test("Search aggregates across feedCaches without a smart feed")
     func searchIsCrossFeed() {
         let model = RSSReaderModel(subscribedFeeds: [

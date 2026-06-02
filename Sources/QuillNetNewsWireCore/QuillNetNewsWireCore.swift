@@ -501,6 +501,16 @@ public struct QuillNetNewsWireContentView: View {
                 }
                 .font(.caption2)
                 .foregroundColor(.secondary)
+                // Per-feed mark-as-read. Disabled when there's
+                // nothing unread in this feed's cache so the
+                // affordance is honest. Upstream's equivalent
+                // is the feed-row "Mark All as Read" menu.
+                Button("✓") {
+                    model.markFeedAsRead(feed.id)
+                }
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .disabled(unread == 0)
                 Button("✕") {
                     model.removeSubscription(id: feed.id)
                 }
@@ -2215,6 +2225,29 @@ final class RSSReaderModel: ObservableObject {
         folder.allFeeds.reduce(0) { acc, feed in
             acc + unreadCount(forFeed: feed.id)
         }
+    }
+
+    /// Mark every article in a single feed as read without
+    /// requiring that feed to be the active selection. Walks the
+    /// feed's cached items (or the active feed's live items when
+    /// it matches selectedFeedID), routes through markRead(id:)
+    /// so the change propagates to readArticleIDs + ArticleStore
+    /// + JSON persistence. Returns the count of newly-marked
+    /// rows. Mirrors upstream NetNewsWire's feed-row "Mark All
+    /// as Read" context-menu command.
+    @discardableResult
+    func markFeedAsRead(_ feedID: Feed.ID) -> Int {
+        let before = readArticleIDs.count
+        if feedID == selectedFeedID {
+            for item in items {
+                markRead(id: item.id)
+            }
+        } else if let cache = feedCaches[feedID] {
+            for item in cache.items {
+                markRead(id: item.id)
+            }
+        }
+        return readArticleIDs.count - before
     }
 
     /// Mark every article across every feed inside an OPML folder
