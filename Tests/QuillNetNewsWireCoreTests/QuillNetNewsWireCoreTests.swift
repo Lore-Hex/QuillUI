@@ -444,4 +444,123 @@ struct QuillNetNewsWireCoreTests {
         model.toggleStarredOnSelection()
         #expect(model.starredArticleIDs.isEmpty)
     }
+
+    // MARK: - OPML import
+
+    @Test("OPMLImporter parses flat outline tree into Feed list")
+    func opmlImporterFlatTree() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <opml version="2.0">
+          <head><title>My Subscriptions</title></head>
+          <body>
+            <outline type="rss" text="Daring Fireball" xmlUrl="https://daringfireball.net/feeds/main"/>
+            <outline type="rss" text="Hacker News" xmlUrl="https://hnrss.org/frontpage"/>
+          </body>
+        </opml>
+        """
+
+        let result = OPMLImporter.parse(xml: xml)
+        #expect(result.title == "My Subscriptions")
+        #expect(result.feeds.count == 2)
+        #expect(result.feeds[0].title == "Daring Fireball")
+        #expect(result.feeds[0].url == "https://daringfireball.net/feeds/main")
+        #expect(result.feeds[0].id == "https://daringfireball.net/feeds/main")
+        #expect(result.feeds[1].title == "Hacker News")
+    }
+
+    @Test("OPMLImporter flattens nested folders into a single feed list")
+    func opmlImporterNestedFolders() {
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline text="News">
+              <outline type="rss" text="NYT" xmlUrl="https://nyt.test/feed"/>
+              <outline text="Tech">
+                <outline type="rss" text="ATP" xmlUrl="https://atp.test/feed"/>
+              </outline>
+            </outline>
+            <outline type="rss" text="Standalone" xmlUrl="https://standalone.test/feed"/>
+          </body>
+        </opml>
+        """
+
+        let result = OPMLImporter.parse(xml: xml)
+        #expect(result.feeds.count == 3)
+        #expect(result.feeds.map(\.title) == ["NYT", "ATP", "Standalone"])
+    }
+
+    @Test("OPMLImporter skips outline rows with no xmlUrl")
+    func opmlImporterSkipsXMLURLLessOutlines() {
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline text="Bare Folder"/>
+            <outline type="rss" text="Real" xmlUrl="https://real.test/feed"/>
+          </body>
+        </opml>
+        """
+
+        let result = OPMLImporter.parse(xml: xml)
+        #expect(result.feeds.count == 1)
+        #expect(result.feeds[0].url == "https://real.test/feed")
+    }
+
+    @Test("OPMLImporter falls back to title attribute when text is missing")
+    func opmlImporterTitleAttributeFallback() {
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline type="rss" title="Title-Only Feed" xmlUrl="https://t.test/feed"/>
+          </body>
+        </opml>
+        """
+
+        let result = OPMLImporter.parse(xml: xml)
+        #expect(result.feeds.count == 1)
+        #expect(result.feeds[0].title == "Title-Only Feed")
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.importOPML appends new feeds and dedupes by URL")
+    func readerModelImportOPMLDedupes() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "Existing", url: "https://existing.test/feed"),
+        ])
+
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline type="rss" text="Existing dup" xmlUrl="https://existing.test/feed"/>
+            <outline type="rss" text="New" xmlUrl="https://new.test/feed"/>
+          </body>
+        </opml>
+        """
+
+        let added = model.importOPML(xml: xml)
+        #expect(added == 1)
+        #expect(model.subscribedFeeds.count == 2)
+        #expect(model.subscribedFeeds.map(\.url).contains("https://new.test/feed"))
+        // Existing entry's title is kept (no overwrite on dup).
+        #expect(model.subscribedFeeds.first(where: { $0.url == "https://existing.test/feed" })?.title == "Existing")
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.importOPML seeds selectedFeedID when starting empty")
+    func readerModelImportOPMLSeedsSelection() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        #expect(model.selectedFeedID == nil)
+
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline type="rss" text="A" xmlUrl="https://a.test/feed"/>
+          </body>
+        </opml>
+        """
+
+        let added = model.importOPML(xml: xml)
+        #expect(added == 1)
+        #expect(model.selectedFeedID == "https://a.test/feed")
+    }
 }
