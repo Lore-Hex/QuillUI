@@ -122,6 +122,49 @@ struct QuillNetNewsWireCoreTests {
         #expect(!item.plainTextBody.contains("&#169"))
     }
 
+    @Test("RSSItem.inlineLinks resolves site-relative paths against article URL")
+    func rssItemInlineLinksResolvesRelative() {
+        let html = """
+        <p>See <a href="/article/123">this</a> and
+        <a href="https://other.test/x">that</a> and
+        <a href="../related/4">cousin</a>.</p>
+        """
+        let item = RSSItem(
+            id: "1", title: "T",
+            link: "https://site.test/posts/main",
+            pubDate: nil, descriptionHTML: html
+        )
+        let urls = item.inlineLinks.map(\.urlString)
+        #expect(urls.contains("https://site.test/article/123"))
+        #expect(urls.contains("https://other.test/x"))      // already absolute, untouched
+        #expect(urls.contains("https://site.test/related/4"))
+    }
+
+    @Test("RSSItem.inlineImages resolves site-relative paths against article URL")
+    func rssItemInlineImagesResolvesRelative() {
+        let html = """
+        <img src="/photos/hero.jpg" alt="Hero"/>
+        <img src="https://cdn.test/x.png" alt="CDN"/>
+        """
+        let item = RSSItem(
+            id: "1", title: "T",
+            link: "https://site.test/posts/main",
+            pubDate: nil, descriptionHTML: html
+        )
+        let urls = item.inlineImages.map(\.urlString)
+        #expect(urls.contains("https://site.test/photos/hero.jpg"))
+        #expect(urls.contains("https://cdn.test/x.png"))
+    }
+
+    @Test("RSSItem.inlineLinks leaves links as-is when no article URL")
+    func rssItemInlineLinksUntouchedWithoutBaseURL() {
+        let html = "<a href=\"/relative\">x</a>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        // No base → raw href stays as-is (no crash; caller deals
+        // with what it gets).
+        #expect(item.inlineLinks.map(\.urlString) == ["/relative"])
+    }
+
     @Test("RSSItem.inlineLinks skips anchors inside script bodies")
     func rssItemInlineLinksSkipsScriptInteriors() {
         let html = """

@@ -1117,10 +1117,17 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
         self.descriptionHTML = descriptionHTML
         self.linkURL = link.flatMap { URL(string: $0) }
         self.publishedSummary = pubDate ?? ""
+        // Pass linkURL as the base for relative-URL resolution
+        // so href="/article/123" / img src="/photo.jpg" become
+        // fully-qualified URLs the user can actually open. Real
+        // RSS feeds (especially WordPress-generated) routinely
+        // ship body HTML with site-relative paths; without
+        // resolution the detail-pane Links / Images footer
+        // showed clickable rows that opened to nothing.
         self.plainTextBody = (descriptionHTML ?? "").stripBasicHTML()
         self.bodyParagraphs = (descriptionHTML ?? "").htmlParagraphs()
-        self.inlineLinks = (descriptionHTML ?? "").htmlInlineLinks()
-        self.inlineImages = (descriptionHTML ?? "").htmlInlineImages()
+        self.inlineLinks = (descriptionHTML ?? "").htmlInlineLinks(baseURL: linkURL)
+        self.inlineImages = (descriptionHTML ?? "").htmlInlineImages(baseURL: linkURL)
     }
 }
 
@@ -4456,7 +4463,7 @@ private extension String {
     /// anchor text is HTML-entity-decoded and stripped of any
     /// nested inline tags (rare, but defensive). Empty-href
     /// anchors are skipped.
-    func htmlInlineLinks() -> [InlineLink] {
+    func htmlInlineLinks(baseURL: URL? = nil) -> [InlineLink] {
         guard !isEmpty else { return [] }
         let pattern = #"<a\s[^>]*href\s*=\s*(?:\"([^\"]*)\"|'([^']*)')[^>]*>(.*?)</a>"#
         guard let regex = try? NSRegularExpression(
@@ -4474,8 +4481,13 @@ private extension String {
         for m in matches {
             let hrefRange = m.range(at: 1).location != NSNotFound ? m.range(at: 1) : m.range(at: 2)
             guard hrefRange.location != NSNotFound else { continue }
-            let href = nsself.substring(with: hrefRange).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !href.isEmpty else { continue }
+            let rawHref = nsself.substring(with: hrefRange).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !rawHref.isEmpty else { continue }
+            // Resolve relative paths against the article URL so
+            // "/article/123" becomes "https://site.com/article/
+            // 123". Falls through to the raw href when no base
+            // (or resolution returns nil — e.g. already-absolute).
+            let href = resolveURL(rawHref, against: baseURL)
             let textRange = m.range(at: 3)
             let rawText = textRange.location != NSNotFound ? nsself.substring(with: textRange) : ""
             let cleanedText = HTMLEntities.decode(
@@ -4488,12 +4500,29 @@ private extension String {
         return out
     }
 
+    /// Resolve a possibly-relative URL string against a base URL.
+    /// Returns the absolute form when resolution succeeds; falls
+    /// through to the raw string otherwise (already-absolute,
+    /// no base provided, mailto:/tel:/etc).
+    private func resolveURL(_ raw: String, against base: URL?) -> String {
+        guard let base else { return raw }
+        // Already absolute? URL(string:) returns non-nil + non-
+        // empty scheme.
+        if let probe = URL(string: raw), probe.scheme != nil {
+            return raw
+        }
+        guard let resolved = URL(string: raw, relativeTo: base) else {
+            return raw
+        }
+        return resolved.absoluteURL.absoluteString
+    }
+
     /// Extract `<img src>` tags from an HTML body. Returns
     /// InlineImages in source order. Empty when no images
     /// found. Handles attribute orders flexibly — src can come
     /// before or after alt. Skips data: URIs (inline encoded
     /// images aren't useful for the detail-view URL list).
-    func htmlInlineImages() -> [InlineImage] {
+    func htmlInlineImages(baseURL: URL? = nil) -> [InlineImage] {
         guard !isEmpty else { return [] }
         // Pull every <img ...> tag, then pluck src + alt from
         // each attribute string separately so attribute order
@@ -4515,9 +4544,10 @@ private extension String {
         var out: [InlineImage] = []
         for tm in tagMatches {
             let tagText = nsself.substring(with: tm.range)
-            let src = Self.attribute("src", from: tagText)
+            let rawSrc = Self.attribute("src", from: tagText)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !src.isEmpty, !src.hasPrefix("data:") else { continue }
+            guard !rawSrc.isEmpty, !rawSrc.hasPrefix("data:") else { continue }
+            let src = resolveURL(rawSrc, against: baseURL)
             let alt = HTMLEntities.decode(Self.attribute("alt", from: tagText))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             out.append(InlineImage(urlString: src, alt: alt))
