@@ -1327,7 +1327,7 @@ if codeEditSourceUpstreamPresent {
 // etc. On Linux the upstream CodeEdit source itself can't compile (it's a
 // pure AppKit/SwiftUI Mac app) so we only resolve these on macOS.
 var allPackageDependencies: [Package.Dependency] = [
-    .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433")
+    .package(name: "SwiftOpenUI", path: "third_party/SwiftOpenUI")
 ] + quillDataPackageDependencies
 #if os(Linux)
 // OpenCombine backs the Linux `Combine` compatibility shim
@@ -1460,7 +1460,7 @@ if quillUILinuxBuildBackend == .qt {
     // per-app C++ shims and are not touched.
     if quillUIQtGenericEnabled {
         allPackageDependencies.append(
-            .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433")
+            .package(name: "SwiftOpenUI", path: "third_party/SwiftOpenUI")
         )
         targets += [
             .target(

@@ -1,0 +1,94 @@
+{
+  "capturedAt" : "2026-04-18T00:30:24Z",
+  "platform" : "macOS-SwiftUI",
+  "root" : {
+    "children" : [
+      {
+        "children" : [
+
+        ],
+        "height" : 16,
+        "tag" : "CGDrawingLayer",
+        "viewType" : "CGDrawingLayer",
+        "width" : 36.5,
+        "x" : 41,
+        "y" : 252
+      },
+      {
+        "children" : [
+
+        ],
+        "height" : 16,
+        "tag" : "CGDrawingLayer",
+        "viewType" : "CGDrawingLayer",
+        "width" : 38,
+        "x" : 41,
+        "y" : 272
+      },
+      {
+        "children" : [
+
+        ],
+        "height" : 16,
+        "tag" : "CGDrawingLayer",
+        "viewType" : "CGDrawingLayer",
+        "width" : 38.5,
+        "x" : 41,
+        "y" : 292
+      },
+      {
+        "children" : [
+
+        ],
+        "height" : 16,
+        "tag" : "CGDrawingLayer",
+        "viewType" : "CGDrawingLayer",
+        "width" : 38.5,
+        "x" : 41,
+        "y" : 312
+      },
+      {
+        "children" : [
+
+        ],
+        "height" : 16,
+        "tag" : "CGDrawingLayer",
+        "viewType" : "CGDrawingLayer",
+        "width" : 38.5,
+        "x" : 41,
+        "y" : 332
+      },
+      {
+        "children" : [
+
+        ],
+        "height" : 600,
+        "tag" : "CALayer",
+        "viewType" : "CALayer",
+        "width" : 1,
+        "x" : 120,
+        "y" : 0
+      },
+      {
+        "children" : [
+
+        ],
+        "height" : 16,
+        "tag" : "CGDrawingLayer",
+        "viewType" : "CGDrawingLayer",
+        "width" : 35,
+        "x" : 133,
+        "y" : 12
+      }
+    ],
+    "height" : 600,
+    "tag" : "_TtGC7SwiftUI13NSHostingViewVS_7AnyView_",
+    "viewType" : "NSViewBackingLayer",
+    "width" : 400,
+    "x" : 0,
+    "y" : 0
+  },
+  "rootHeight" : 600,
+  "rootWidth" : 400,
+  "scenario" : "sidebar-detail-split"
+}

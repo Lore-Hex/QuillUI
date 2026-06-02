@@ -1,0 +1,20 @@
+.build/
+.swiftpm/
+Package.resolved
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+.DS_Store
+*~
+
+.claude/
+.untracked/**
+.vscode/
+
+# Java/Android artifacts
+*.hprof
+
+# Python cache from local tooling
+tools/__pycache__/
+gallery-app/
