@@ -10,6 +10,7 @@
 #include <QAbstractItemView>
 #include <QAbstractScrollArea>
 #include <QAbstractButton>
+#include <QAction>
 #include <QByteArray>
 #include <QCheckBox>
 #include <QFont>
@@ -21,6 +22,7 @@
 #include <QListView>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QMenu>
 #include <QObject>
 #include <QPixmap>
 #include <QPushButton>
@@ -29,6 +31,7 @@
 #include <QScrollArea>
 #include <QString>
 #include <QTimer>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <algorithm>
@@ -463,6 +466,90 @@ void quill_qt_line_edit_connect_text_changed(
             destroy(user_data);
         });
     }
+}
+
+QuillQtWidgetHandle quill_qt_make_menu_button(void) {
+    QToolButton *button = new QToolButton();
+    QMenu *menu = new QMenu(button);
+    button->setMenu(menu);
+    button->setPopupMode(QToolButton::InstantPopup);
+    button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    return reinterpret_cast<QuillQtWidgetHandle>(button);
+}
+
+void quill_qt_menu_button_set_text(
+    QuillQtWidgetHandle menu_button,
+    const char *text
+) {
+    QToolButton *button = qobject_cast<QToolButton *>(asWidget(menu_button));
+    if (button == nullptr) {
+        return;
+    }
+    button->setText(utf8(text));
+}
+
+void quill_qt_menu_button_add_action(
+    QuillQtWidgetHandle menu_button,
+    const char *text,
+    quill_qt_bridge_click_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QToolButton *button = qobject_cast<QToolButton *>(asWidget(menu_button));
+    if (button == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    QMenu *menu = button->menu();
+    if (menu == nullptr) {
+        menu = new QMenu(button);
+        button->setMenu(menu);
+    }
+
+    QAction *action = menu->addAction(utf8(text));
+    if (action == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(action, &QAction::triggered, action, [callback, user_data]() {
+            callback(user_data);
+        });
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(action, &QObject::destroyed, action, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
+void quill_qt_menu_button_add_separator(QuillQtWidgetHandle menu_button) {
+    QToolButton *button = qobject_cast<QToolButton *>(asWidget(menu_button));
+    if (button == nullptr) {
+        return;
+    }
+
+    QMenu *menu = button->menu();
+    if (menu == nullptr) {
+        menu = new QMenu(button);
+        button->setMenu(menu);
+    }
+    menu->addSeparator();
+}
+
+void quill_qt_menu_button_show_as_popup(QuillQtWidgetHandle menu_button) {
+    QToolButton *button = qobject_cast<QToolButton *>(asWidget(menu_button));
+    if (button == nullptr) {
+        return;
+    }
+    button->setPopupMode(QToolButton::InstantPopup);
 }
 
 QuillQtWidgetHandle quill_qt_bridge_list_widget_create(void) {
