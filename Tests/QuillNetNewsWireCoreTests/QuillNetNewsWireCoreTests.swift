@@ -212,7 +212,10 @@ struct QuillNetNewsWireCoreTests {
         let model = RSSReaderModel()
         model.seedProfileFixtures()
 
-        #expect(model.statusText == "5 items")
+        // Seeded selection auto-marks item "1" read, so unread is
+        // 4 of 5. statusText now surfaces unread count (added in
+        // the read/unread parity step).
+        #expect(model.statusText == "4 unread · 5 items")
         #expect(model.rows.map(\.id) == ["1", "2", "3", "4", "5"])
         #expect(model.selectedItem?.id == "1")
         #expect(model.selectedDetail?.id == "1")
@@ -256,5 +259,525 @@ struct QuillNetNewsWireCoreTests {
         #expect(QuillNetNewsWireInitialSelection.selectedFeedIndexEnvironmentKey == "QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START")
         #expect(model.selectedItem?.id == "2")
         #expect(model.selectedDetail?.id == "2")
+    }
+
+    @Test("Feed.init(title:url:) uses url as id")
+    func feedInitFromTitleAndURLUsesURLAsID() {
+        let feed = Feed(title: "Daring Fireball", url: "https://daringfireball.net/feeds/main")
+
+        #expect(feed.id == "https://daringfireball.net/feeds/main")
+        #expect(feed.title == "Daring Fireball")
+        #expect(feed.url == "https://daringfireball.net/feeds/main")
+    }
+
+    @Test("DefaultFeedList.seed contains the canonical bootstrap subscriptions")
+    func defaultFeedListSeedShape() {
+        let seed = DefaultFeedList.seed
+        #expect(seed.count >= 2)
+        #expect(seed.allSatisfy { !$0.title.isEmpty })
+        #expect(seed.allSatisfy { URL(string: $0.url) != nil })
+        // IDs must be unique so sidebar selection round-trips deterministically.
+        #expect(Set(seed.map(\.id)).count == seed.count)
+    }
+
+    @MainActor
+    @Test("RSSReaderModel seeds subscribedFeeds + selectedFeedID from defaults")
+    func readerModelSeedsSubscribedFeeds() {
+        let model = RSSReaderModel()
+        #expect(model.subscribedFeeds == DefaultFeedList.seed)
+        #expect(model.selectedFeedID == DefaultFeedList.seed.first?.id)
+    }
+
+    @MainActor
+    @Test("RSSReaderModel accepts a custom subscribedFeeds list")
+    func readerModelAcceptsCustomFeedList() {
+        let custom = [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ]
+        let model = RSSReaderModel(subscribedFeeds: custom)
+        #expect(model.subscribedFeeds == custom)
+        #expect(model.selectedFeedID == "https://a.test/feed")
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.currentFeedURL resolves the selected feed's URL")
+    func readerModelCurrentFeedURLResolvesSelection() {
+        let custom = [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ]
+        let model = RSSReaderModel(subscribedFeeds: custom)
+        #expect(model.currentFeedURL == "https://a.test/feed")
+
+        model.selectedFeedID = "https://b.test/feed"
+        #expect(model.currentFeedURL == "https://b.test/feed")
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.currentFeedURL falls back to the first feed when selection is missing")
+    func readerModelCurrentFeedURLFallsBack() {
+        let custom = [Feed(title: "A", url: "https://a.test/feed")]
+        let model = RSSReaderModel(subscribedFeeds: custom)
+        model.selectedFeedID = "https://bogus.test/feed"
+        #expect(model.currentFeedURL == "https://a.test/feed")
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.currentFeedURL is nil when no feeds are subscribed")
+    func readerModelCurrentFeedURLNilWhenEmpty() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        #expect(model.currentFeedURL == nil)
+        #expect(model.selectedFeedID == nil)
+    }
+
+    @MainActor
+    @Test("RSSReaderModel selectItem auto-marks the article read")
+    func readerModelSelectItemAutoMarksRead() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        #expect(model.isRead(id: "1"))      // seeded selection marks 1 read
+        #expect(!model.isRead(id: "2"))
+
+        model.selectItem(id: "2")
+        #expect(model.isRead(id: "2"))
+        #expect(model.readArticleIDs.contains("1"))
+        #expect(model.readArticleIDs.contains("2"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel unreadCount reflects items minus read set")
+    func readerModelUnreadCount() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // 5 fixtures, 1 auto-read from initial selection → 4 unread.
+        #expect(model.items.count == 5)
+        #expect(model.unreadCount == 4)
+
+        model.selectItem(id: "2")
+        model.selectItem(id: "3")
+        #expect(model.unreadCount == 2)
+    }
+
+    @MainActor
+    @Test("RSSReaderModel statusText surfaces unread count when nonzero")
+    func readerModelStatusTextShowsUnread() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        #expect(model.statusText.contains("unread"))
+        #expect(model.statusText.contains("5 items"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel toggleReadOnSelection flips selected article's read state")
+    func readerModelToggleReadOnSelection() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.selectItem(id: "3")
+        #expect(model.isRead(id: "3"))
+
+        model.toggleReadOnSelection()
+        #expect(!model.isRead(id: "3"))
+
+        model.toggleReadOnSelection()
+        #expect(model.isRead(id: "3"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.markRead is idempotent")
+    func readerModelMarkReadIdempotent() {
+        let model = RSSReaderModel()
+        model.markRead(id: "abc")
+        let countAfter1 = model.readArticleIDs.count
+        model.markRead(id: "abc")
+        #expect(model.readArticleIDs.count == countAfter1)
+        #expect(model.isRead(id: "abc"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.toggleStarred flips per-id state")
+    func readerModelToggleStarred() {
+        let model = RSSReaderModel()
+        #expect(!model.isStarred(id: "abc"))
+        model.toggleStarred(id: "abc")
+        #expect(model.isStarred(id: "abc"))
+        model.toggleStarred(id: "abc")
+        #expect(!model.isStarred(id: "abc"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.toggleStarredOnSelection requires a selection")
+    func readerModelToggleStarredOnSelection() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Initial selection is "1" — toggling stars it.
+        model.toggleStarredOnSelection()
+        #expect(model.isStarred(id: "1"))
+
+        model.selectItem(id: "3")
+        model.toggleStarredOnSelection()
+        #expect(model.isStarred(id: "3"))
+        #expect(model.starredArticleIDs == ["1", "3"])
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.starredCount reflects starred items in the loaded timeline")
+    func readerModelStarredCount() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        #expect(model.starredCount == 0)
+        model.toggleStarred(id: "1")
+        model.toggleStarred(id: "2")
+        #expect(model.starredCount == 2)
+        // Star an article that isn't in the current timeline — count stays at 2.
+        model.toggleStarred(id: "not-in-timeline")
+        #expect(model.starredCount == 2)
+        #expect(model.starredArticleIDs.contains("not-in-timeline"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.toggleStarredOnSelection no-ops without a selection")
+    func readerModelToggleStarredOnSelectionNoOps() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        // No items, no selection.
+        #expect(model.selectedID == nil)
+        model.toggleStarredOnSelection()
+        #expect(model.starredArticleIDs.isEmpty)
+    }
+
+    // MARK: - OPML import
+
+    @Test("OPMLImporter parses flat outline tree into Feed list")
+    func opmlImporterFlatTree() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <opml version="2.0">
+          <head><title>My Subscriptions</title></head>
+          <body>
+            <outline type="rss" text="Daring Fireball" xmlUrl="https://daringfireball.net/feeds/main"/>
+            <outline type="rss" text="Hacker News" xmlUrl="https://hnrss.org/frontpage"/>
+          </body>
+        </opml>
+        """
+
+        let result = OPMLImporter.parse(xml: xml)
+        #expect(result.title == "My Subscriptions")
+        #expect(result.feeds.count == 2)
+        #expect(result.feeds[0].title == "Daring Fireball")
+        #expect(result.feeds[0].url == "https://daringfireball.net/feeds/main")
+        #expect(result.feeds[0].id == "https://daringfireball.net/feeds/main")
+        #expect(result.feeds[1].title == "Hacker News")
+    }
+
+    @Test("OPMLImporter flattens nested folders into a single feed list")
+    func opmlImporterNestedFolders() {
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline text="News">
+              <outline type="rss" text="NYT" xmlUrl="https://nyt.test/feed"/>
+              <outline text="Tech">
+                <outline type="rss" text="ATP" xmlUrl="https://atp.test/feed"/>
+              </outline>
+            </outline>
+            <outline type="rss" text="Standalone" xmlUrl="https://standalone.test/feed"/>
+          </body>
+        </opml>
+        """
+
+        let result = OPMLImporter.parse(xml: xml)
+        #expect(result.feeds.count == 3)
+        #expect(result.feeds.map(\.title) == ["NYT", "ATP", "Standalone"])
+    }
+
+    @Test("OPMLImporter skips outline rows with no xmlUrl")
+    func opmlImporterSkipsXMLURLLessOutlines() {
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline text="Bare Folder"/>
+            <outline type="rss" text="Real" xmlUrl="https://real.test/feed"/>
+          </body>
+        </opml>
+        """
+
+        let result = OPMLImporter.parse(xml: xml)
+        #expect(result.feeds.count == 1)
+        #expect(result.feeds[0].url == "https://real.test/feed")
+    }
+
+    @Test("OPMLImporter falls back to title attribute when text is missing")
+    func opmlImporterTitleAttributeFallback() {
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline type="rss" title="Title-Only Feed" xmlUrl="https://t.test/feed"/>
+          </body>
+        </opml>
+        """
+
+        let result = OPMLImporter.parse(xml: xml)
+        #expect(result.feeds.count == 1)
+        #expect(result.feeds[0].title == "Title-Only Feed")
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.importOPML appends new feeds and dedupes by URL")
+    func readerModelImportOPMLDedupes() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "Existing", url: "https://existing.test/feed"),
+        ])
+
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline type="rss" text="Existing dup" xmlUrl="https://existing.test/feed"/>
+            <outline type="rss" text="New" xmlUrl="https://new.test/feed"/>
+          </body>
+        </opml>
+        """
+
+        let added = model.importOPML(xml: xml)
+        #expect(added == 1)
+        #expect(model.subscribedFeeds.count == 2)
+        #expect(model.subscribedFeeds.map(\.url).contains("https://new.test/feed"))
+        // Existing entry's title is kept (no overwrite on dup).
+        #expect(model.subscribedFeeds.first(where: { $0.url == "https://existing.test/feed" })?.title == "Existing")
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.importOPML seeds selectedFeedID when starting empty")
+    func readerModelImportOPMLSeedsSelection() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        #expect(model.selectedFeedID == nil)
+
+        let xml = """
+        <opml version="2.0">
+          <body>
+            <outline type="rss" text="A" xmlUrl="https://a.test/feed"/>
+          </body>
+        </opml>
+        """
+
+        let added = model.importOPML(xml: xml)
+        #expect(added == 1)
+        #expect(model.selectedFeedID == "https://a.test/feed")
+    }
+
+    // MARK: - OPML export
+
+    @Test("OPMLExporter produces well-formed OPML 2.0 with head + outlines")
+    func opmlExporterBasicShape() {
+        let feeds = [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ]
+        let xml = OPMLExporter.export(feeds: feeds, title: "Mine")
+        #expect(xml.contains("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"))
+        #expect(xml.contains("<opml version=\"2.0\">"))
+        #expect(xml.contains("<title>Mine</title>"))
+        #expect(xml.contains("<outline type=\"rss\" text=\"A\" title=\"A\" xmlUrl=\"https://a.test/feed\"/>"))
+        #expect(xml.contains("<outline type=\"rss\" text=\"B\" title=\"B\" xmlUrl=\"https://b.test/feed\"/>"))
+        #expect(xml.contains("</opml>"))
+    }
+
+    @Test("OPMLExporter defaults the head title when none is supplied")
+    func opmlExporterDefaultTitle() {
+        let xml = OPMLExporter.export(feeds: [])
+        #expect(xml.contains("<title>\(OPMLExporter.defaultTitle)</title>"))
+    }
+
+    @Test("OPMLExporter escapes XML-special characters in titles and URLs")
+    func opmlExporterEscapesAttributes() {
+        let feeds = [
+            Feed(title: "Cheese & Co. <Daily> \"Newsletter\"", url: "https://x.test/feed?a=1&b=2"),
+        ]
+        let xml = OPMLExporter.export(feeds: feeds)
+        #expect(xml.contains("text=\"Cheese &amp; Co. &lt;Daily&gt; &quot;Newsletter&quot;\""))
+        #expect(xml.contains("xmlUrl=\"https://x.test/feed?a=1&amp;b=2\""))
+    }
+
+    @Test("OPML export → import round-trip preserves feed list")
+    func opmlRoundTripPreservesFeeds() {
+        let original = [
+            Feed(title: "Daring Fireball", url: "https://daringfireball.net/feeds/main"),
+            Feed(title: "Headline & Comments", url: "https://x.test/feed?id=1&format=rss"),
+            Feed(title: "<Sample>", url: "https://b.test/feed"),
+        ]
+        let xml = OPMLExporter.export(feeds: original)
+        let reimported = OPMLImporter.parse(xml: xml).feeds
+        #expect(reimported == original)
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.exportOPML serializes the live subscription list")
+    func readerModelExportOPML() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "One", url: "https://one.test/feed"),
+            Feed(title: "Two", url: "https://two.test/feed"),
+        ])
+        let xml = model.exportOPML(title: "Quill Subscriptions")
+        #expect(xml.contains("<title>Quill Subscriptions</title>"))
+        #expect(xml.contains("xmlUrl=\"https://one.test/feed\""))
+        #expect(xml.contains("xmlUrl=\"https://two.test/feed\""))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel export → import is idempotent (no dup growth)")
+    func readerModelOPMLRoundTripIsIdempotent() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "One", url: "https://one.test/feed"),
+            Feed(title: "Two", url: "https://two.test/feed"),
+        ])
+        let xml = model.exportOPML()
+        let added = model.importOPML(xml: xml)
+        #expect(added == 0)
+        #expect(model.subscribedFeeds.count == 2)
+    }
+
+    // MARK: - Search / filter
+
+    @MainActor
+    @Test("RSSReaderModel.filteredRows == rows when searchQuery is empty")
+    func searchEmptyQueryReturnsAllRows() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        #expect(model.searchQuery.isEmpty)
+        #expect(model.filteredRows.map(\.id) == model.rows.map(\.id))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.filteredRows matches case-insensitively on title")
+    func searchMatchesTitleCaseInsensitive() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.searchQuery = "SWIFT"
+        let ids = model.filteredRows.map(\.id)
+        // Fixture "3" is the Swift.org toolchain article.
+        #expect(ids == ["3"])
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.filteredRows matches against article body too")
+    func searchMatchesBody() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.searchQuery = "second"
+        // Fixture "2" body: 'Body of the second fixture article.'
+        #expect(model.filteredRows.map(\.id) == ["2"])
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.filteredRows returns empty when no match")
+    func searchEmptyOnNoMatch() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.searchQuery = "zzz-nothing-matches"
+        #expect(model.filteredRows.isEmpty)
+        #expect(model.statusText.contains("0 matching"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.searchQuery trims whitespace for both filter + status")
+    func searchTrimsWhitespace() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.searchQuery = "   "
+        // Whitespace-only is treated as empty: full timeline, unread-flavored status.
+        #expect(model.filteredRows.map(\.id) == model.rows.map(\.id))
+        #expect(model.statusText.contains("unread"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.statusText surfaces matching count when filter is active")
+    func searchStatusTextShowsMatching() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.searchQuery = "Profile"  // matches title prefix of fixtures 1 and 2
+        let matching = model.filteredRows.count
+        #expect(matching >= 1)
+        #expect(model.statusText == "\(matching) matching · \(model.items.count) items")
+    }
+
+    // MARK: - Smart feeds
+
+    @Test("SmartFeed exposes a displayName + symbol for every case")
+    func smartFeedDisplayNamesCoverAllCases() {
+        for kind in SmartFeed.allCases {
+            #expect(!kind.displayName.isEmpty)
+            #expect(!kind.symbol.isEmpty)
+            #expect(kind.id == kind.rawValue)
+        }
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.allUnread smart feed filters to unread items")
+    func smartFeedAllUnreadFiltersUnread() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Seeded selection marks "1" read → 4 unread.
+        model.selectSmartFeed(.allUnread)
+        let ids = model.filteredRows.map(\.id)
+        #expect(ids == ["2", "3", "4", "5"])
+        #expect(model.statusText.contains("All Unread"))
+        #expect(model.statusText.contains("4 of 5"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.starred smart feed filters to starred items")
+    func smartFeedStarredFiltersStarred() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.toggleStarred(id: "2")
+        model.toggleStarred(id: "4")
+
+        model.selectSmartFeed(.starred)
+        let ids = model.filteredRows.map(\.id)
+        #expect(ids == ["2", "4"])
+        #expect(model.statusText.contains("Starred"))
+        #expect(model.statusText.contains("2 of 5"))
+    }
+
+    @MainActor
+    @Test("Smart-feed + search compose: search narrows the smart-feed view")
+    func smartFeedSearchComposes() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Mark all read except 3 + 5.
+        model.markRead(id: "2")
+        model.markRead(id: "4")
+        model.selectSmartFeed(.allUnread)
+        model.searchQuery = "Swift"  // only fixture "3"
+
+        let ids = model.filteredRows.map(\.id)
+        #expect(ids == ["3"])
+        #expect(model.statusText.contains("(search)"))
+    }
+
+    @MainActor
+    @Test("selectFeed clears the active smart feed")
+    func selectFeedClearsSmartFeed() async {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://invalid.example/"),
+        ])
+        model.selectSmartFeed(.starred)
+        #expect(model.selectedSmartFeed == .starred)
+
+        // Fetch will fail (invalid URL) but we only care about
+        // the smart-feed clear side effect.
+        await model.selectFeed(id: "https://invalid.example/")
+        #expect(model.selectedSmartFeed == nil)
+    }
+
+    @MainActor
+    @Test("selectSmartFeed(nil) returns to the regular feed view")
+    func selectSmartFeedNilReturnsToFeedView() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.selectSmartFeed(.starred)
+        #expect(model.filteredItems.isEmpty)  // nothing starred yet
+
+        model.selectSmartFeed(nil)
+        #expect(model.filteredRows.count == model.rows.count)
     }
 }
