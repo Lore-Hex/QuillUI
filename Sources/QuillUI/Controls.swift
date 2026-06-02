@@ -805,14 +805,6 @@ public struct QuillChatEmptyState: View {
             .padding(.top, 188)
             .padding(.horizontal, 28)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .overlay(alignment: .topLeading) {
-                // TEMP in-render diagnostic (remove before merge): CI suppresses the
-                // rendered app's stdout AND stderr, so surface the widths in the
-                // image itself to pin the GeometryReader size vs resolved widths.
-                Text("DBG w=\(Int(geometry.size.width)) avail=\(Int(available)) cw=\(Int(metrics.cardWidth)) gw=\(Int(metrics.gridWidth)) cols=\(columns)")
-                    .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "#E53935"))
-            }
         }
     }
     #endif
@@ -837,7 +829,9 @@ public struct QuillChatEmptyState: View {
                         spacing: metrics.spacing,
                         action: action
                     )
-                    .frame(width: metrics.gridWidth, alignment: .center)
+                    // Constrain to the available width so the row can't overflow +
+                    // anchor off-edge; flexible cards shrink to fit, then center.
+                    .frame(maxWidth: min(metrics.gridWidth, max(160, CGFloat(geometry.size.width) - 56)), alignment: .center)
 
                     Spacer()
                 }
@@ -903,13 +897,6 @@ public struct QuillChatEmptyState: View {
         #endif
 
         let resolvedGridWidth = gridWidth(cardWidth: resolvedCardWidth, spacing: resolvedSpacing)
-        #if os(Linux)
-        // TEMP diagnostic (remove before final merge): capture the GeometryReader
-        // width the empty state actually sees, vs the resolved card/grid widths.
-        // Use STDERR — the visual smoke discards the rendered app's stdout but
-        // surfaces stderr (GTK warnings appear in the CI log).
-        FileHandle.standardError.write(Data("QUILLGRIDDBG totalWidth=\(Int(totalWidth)) columns=\(columns) cardWidth=\(Int(resolvedCardWidth)) gridWidth=\(Int(resolvedGridWidth))\n".utf8))
-        #endif
         return QuillPromptGridMetrics(
             cardWidth: resolvedCardWidth,
             cardHeight: resolvedCardHeight,
