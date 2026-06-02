@@ -3392,6 +3392,40 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Article search is diacritic-insensitive")
+    func searchIgnoresDiacritics() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "Café Royal review", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "Kernel patches", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        // "cafe" (no accent) should match "Café".
+        model.searchQuery = "cafe"
+        #expect(Set(model.filteredItems.map(\.id)) == ["a1"])
+        // And the reverse — search with accent matches without.
+        model.items = [
+            RSSItem(id: "b1", title: "Cafe time", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.searchQuery = "café"
+        #expect(Set(model.filteredItems.map(\.id)) == ["b1"])
+    }
+
+    @MainActor
+    @Test("Article search is case-insensitive without lowercased() round-trip")
+    func searchIsCaseInsensitive() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "SWIFT", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.searchQuery = "swift"
+        #expect(Set(model.filteredItems.map(\.id)) == ["a1"])
+    }
+
+    @MainActor
     @Test("Article search matches on author name (in addition to title/body)")
     func searchMatchesAuthorName() {
         let model = RSSReaderModel(subscribedFeeds: [
