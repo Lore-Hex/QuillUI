@@ -28,16 +28,20 @@ nonisolated final class DownloadCache: Sendable {
 	private let cache = Cache<DownloadCacheRecord>(timeToLive: 60 * 13, timeBetweenCleanups: 60 * 2)
 
 	init() {
-		NotificationCenter.default.addObserver(self, selector: #selector(handleAppDidGoToBackground(_:)), name: .appDidGoToBackground, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)
-	}
-
-	@objc func handleAppDidGoToBackground(_ notification: Notification) {
-		cache.removeAll()
-	}
-
-	@objc func handleLowMemory(_ notification: Notification) {
-		cache.removeAll()
+		// Block-form observers instead of #selector — Linux's
+		// Swift toolchain has no Objective-C runtime, so the
+		// upstream #selector pattern fails to compile there.
+		// Closure form has identical semantics on Darwin.
+		NotificationCenter.default.addObserver(
+			forName: .appDidGoToBackground, object: nil, queue: nil
+		) { [weak self] _ in
+			self?.cache.removeAll()
+		}
+		NotificationCenter.default.addObserver(
+			forName: .lowMemory, object: nil, queue: nil
+		) { [weak self] _ in
+			self?.cache.removeAll()
+		}
 	}
 
 	subscript(_ key: String) -> DownloadCacheRecord? {

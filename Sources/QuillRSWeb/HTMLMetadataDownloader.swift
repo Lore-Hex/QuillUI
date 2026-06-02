@@ -24,16 +24,18 @@ nonisolated public final class HTMLMetadataDownloader: Sendable {
 	private let urlsReturning4xxsLock = OSAllocatedUnfairLock(initialState: Set<String>())
 
 	init() {
-		NotificationCenter.default.addObserver(self, selector: #selector(handleAppDidGoToBackground(_:)), name: .appDidGoToBackground, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)
-	}
-
-	@objc func handleAppDidGoToBackground(_ notification: Notification) {
-		cache.removeAll()
-	}
-
-	@objc func handleLowMemory(_ notification: Notification) {
-		cache.removeAll()
+		// Block-form observers — see DownloadCache.init for the
+		// Linux ObjC-runtime rationale.
+		NotificationCenter.default.addObserver(
+			forName: .appDidGoToBackground, object: nil, queue: nil
+		) { [weak self] _ in
+			self?.cache.removeAll()
+		}
+		NotificationCenter.default.addObserver(
+			forName: .lowMemory, object: nil, queue: nil
+		) { [weak self] _ in
+			self?.cache.removeAll()
+		}
 	}
 
 	public func cachedMetadata(for url: String) -> HTMLMetadata? {
