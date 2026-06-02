@@ -998,20 +998,43 @@ public struct QuillNetNewsWireContentView: View {
                 }
                 .background(QuillDesktopChromeStyle.detailBackground)
             } else {
+                let (headline, detail) = detailEmptyState()
                 VStack(spacing: 12) {
-                    Text("Select an article")
+                    Text(headline)
                         .font(.title2)
                         .foregroundColor(.secondary)
-                    Text("Self-contained RSS reader is fetching live items from \(activeFeedURL).")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
+                    if !detail.isEmpty {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
                 }
                 .padding(40)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(QuillDesktopChromeStyle.detailBackground)
             }
         }
+    }
+
+    /// State-aware empty copy for the detail pane. Matches the
+    /// situations the timeline empty state already covers but
+    /// scoped to the detail's "nothing selected" context.
+    private func detailEmptyState() -> (headline: String, detail: String) {
+        if model.isLoading {
+            return ("Loading…", "Fetching articles.")
+        }
+        if model.subscribedFeeds.isEmpty {
+            return (
+                "No subscriptions yet",
+                "Add a feed in the sidebar to start reading."
+            )
+        }
+        if model.filteredRows.isEmpty {
+            // Timeline is empty too — let it speak for itself.
+            return ("No article selected", "")
+        }
+        return ("Select an article", "Use the timeline to pick one, or press n for the next unread.")
     }
 }
 
