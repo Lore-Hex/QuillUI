@@ -411,8 +411,10 @@ var quillWireGuardCoreDependencies: [Target.Dependency] = []
 // Build the real upstream WireGuardKit (config model + keypair gen) wherever it's
 // vendored — now Linux too (the Darwin/CommonCrypto blockers are shimmed). Core
 // depends on it so CI compiles it; Core keeps its own model until a follow-up
-// swaps in WireGuardKit's TunnelConfiguration.
-if wireguardUpstreamPresent {
+// swaps in WireGuardKit's TunnelConfiguration. NOT in the native-Qt Linux graph:
+// that path reassigns `targets` to a minimal list that omits the WireGuardKit
+// upstream targets (and the Network/NetworkExtension shims they need).
+if wireguardUpstreamPresent && quillUILinuxBuildBackend != .qt {
     quillWireGuardCoreDependencies.append("WireGuardKit")
 }
 var quillWireGuardUIDependencies: [Target.Dependency] = ["QuillWireGuardCore", "QuillUI"]
