@@ -1960,7 +1960,7 @@ struct SourceHygieneTests {
         #expect(enchantedModel.contains("public var selectedModelSupportsImages: Bool"))
         #expect(enchantedModel.contains("guard selectedModelSupportsImages else { return false }"))
         #expect(enchantedModel.contains("private func discardUnsupportedImageAttachmentsIfNeeded()"))
-        #expect(enchantedMacRoot.contains("set: { model.selectModel(named: $0) }"))
+        #expect(enchantedMacRoot.contains("model.selectModel(named: ollamaModel.name)"))
         #expect(enchantedMacRoot.contains("guard selectedModelSupportsImages else { return false }"))
         #expect(enchantedMacRoot.contains("model.addAttachments(urls: urls)"))
         #expect(enchantedMacRoot.contains("model.isAttachmentDropTargeted = selectedModelSupportsImages && isTargeted"))
