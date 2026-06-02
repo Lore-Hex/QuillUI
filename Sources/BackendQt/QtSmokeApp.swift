@@ -59,34 +59,37 @@ struct QtSmokeView: View {
     @State private var isOpen = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Native backend render target")
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Native backend render target")
 
-            // Bound to @State through the generic QtViewHost so a click rebuilds
-            // the subtree; the dark panel below does NOT depend on this toggle.
-            Button(isOpen ? "Toggle (on)" : "Toggle (off)") {
-                isOpen.toggle()
-            }
-
-            Image(systemName: "checkmark.circle.fill")
-                .imageScale(.large)
-
-            // Always-on dark panel. Leading-aligned at the content origin and
-            // tall enough to fill the verifier's panel ROI deterministically.
-            Color(
-                red: QtSmokeMetrics.panelRed,
-                green: QtSmokeMetrics.panelGreen,
-                blue: QtSmokeMetrics.panelBlue
-            )
-            .frame(width: QtSmokeMetrics.panelWidth, height: QtSmokeMetrics.panelHeight)
-
-            List {
-                ForEach(["ForEach row one", "ForEach row two", "ForEach row three"], id: \.self) { row in
-                    Text(row)
+                // Bound to @State through the generic QtViewHost so a click rebuilds
+                // the subtree; the dark panel below does NOT depend on this toggle.
+                Button(isOpen ? "Toggle (on)" : "Toggle (off)") {
+                    isOpen.toggle()
                 }
+
+                Image(systemName: "checkmark.circle.fill")
+                    .imageScale(.large)
+
+                // Always-on dark panel. Leading-aligned at the content origin and
+                // tall enough to fill the verifier's panel ROI deterministically.
+                Color(
+                    red: QtSmokeMetrics.panelRed,
+                    green: QtSmokeMetrics.panelGreen,
+                    blue: QtSmokeMetrics.panelBlue
+                )
+                .frame(width: QtSmokeMetrics.panelWidth, height: QtSmokeMetrics.panelHeight)
+
+                List {
+                    ForEach(["ForEach row one", "ForEach row two", "ForEach row three"], id: \.self) { row in
+                        Text(row)
+                    }
+                }
+                .frame(width: QtSmokeMetrics.listWidth, height: QtSmokeMetrics.listHeight)
             }
-            .frame(width: QtSmokeMetrics.listWidth, height: QtSmokeMetrics.listHeight)
         }
+        .frame(width: QtSmokeMetrics.windowWidth, height: QtSmokeMetrics.windowHeight)
     }
 }
 

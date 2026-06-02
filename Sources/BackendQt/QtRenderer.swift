@@ -426,6 +426,23 @@ extension List: QtRenderable {
     }
 }
 
+#if QUILLUI_QT_GENERIC
+extension ScrollView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let scroll = qtOpaque(quill_qt_make_scroll_area())
+        quill_qt_scroll_area_set_axis(
+            qtHandle(scroll),
+            axes.contains(.horizontal) ? 1 : 0,
+            axes.contains(.vertical) ? 1 : 0
+        )
+
+        let child = qtRenderView(content)
+        quill_qt_scroll_area_set_widget(qtHandle(scroll), qtHandle(child))
+        return scroll
+    }
+}
+#endif
+
 // MARK: - Frame modifier (slice subset)
 //
 // `.frame()` is technically a modifier, but FrameView is the load-bearing piece

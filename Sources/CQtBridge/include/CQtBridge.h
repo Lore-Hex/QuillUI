@@ -169,6 +169,22 @@ void quill_qt_bridge_list_widget_add_row_widget(
     QuillQtWidgetHandle child
 );
 
+// Create a QScrollArea-backed ScrollView container.
+QuillQtWidgetHandle quill_qt_make_scroll_area(void);
+
+// Install the rendered SwiftUI child as the QScrollArea's single widget.
+void quill_qt_scroll_area_set_widget(
+    QuillQtWidgetHandle scroll_area,
+    QuillQtWidgetHandle child
+);
+
+// Configure which axes can scroll. Non-enabled axes hide their scroll bars.
+void quill_qt_scroll_area_set_axis(
+    QuillQtWidgetHandle scroll_area,
+    int horizontal,
+    int vertical
+);
+
 // --- Styling ---------------------------------------------------------------
 
 // Set a widget's objectName so process-wide QSS rules (set via

@@ -22,6 +22,7 @@
 #include <QPushButton>
 #include <QRect>
 #include <QSize>
+#include <QScrollArea>
 #include <QString>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -400,6 +401,46 @@ void quill_qt_bridge_list_widget_add_row_widget(
     listWidget->addItem(item);
     listWidget->setItemWidget(item, row);
     row->show();
+}
+
+QuillQtWidgetHandle quill_qt_make_scroll_area(void) {
+    QScrollArea *scroll = new QScrollArea();
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    return reinterpret_cast<QuillQtWidgetHandle>(scroll);
+}
+
+void quill_qt_scroll_area_set_widget(
+    QuillQtWidgetHandle scroll_area,
+    QuillQtWidgetHandle child
+) {
+    QScrollArea *scroll = qobject_cast<QScrollArea *>(asWidget(scroll_area));
+    QWidget *childWidget = asWidget(child);
+    if (scroll == nullptr || childWidget == nullptr) {
+        return;
+    }
+    scroll->setWidget(childWidget);
+    childWidget->show();
+}
+
+void quill_qt_scroll_area_set_axis(
+    QuillQtWidgetHandle scroll_area,
+    int horizontal,
+    int vertical
+) {
+    QScrollArea *scroll = qobject_cast<QScrollArea *>(asWidget(scroll_area));
+    if (scroll == nullptr) {
+        return;
+    }
+
+    scroll->setHorizontalScrollBarPolicy(
+        horizontal != 0 ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff
+    );
+    scroll->setVerticalScrollBarPolicy(
+        vertical != 0 ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff
+    );
 }
 
 // --- Styling ---------------------------------------------------------------
