@@ -2945,6 +2945,21 @@ final class RSSReaderModel: ObservableObject {
         }
     }
 
+    /// Total items across every loaded feed, deduped by id.
+    /// Used as the denominator in smart-feed status text where
+    /// the matching pool spans every feed, not just the active
+    /// selection. Active feed's items contribute first; cached
+    /// feeds add anything not already counted.
+    var crossFeedItemsCount: Int {
+        var seen = Set<String>(items.map(\.id))
+        for (_, cache) in feedCaches {
+            for item in cache.items {
+                seen.insert(item.id)
+            }
+        }
+        return seen.count
+    }
+
     private func updateSelectedItem() {
         let item = selectedID.flatMap { selectedID in items.first(where: { $0.id == selectedID }) }
         if selectedItem != item {
@@ -2974,11 +2989,13 @@ final class RSSReaderModel: ObservableObject {
         } else if let error {
             nextStatusText = "Error: \(error)"
         } else if let smart = selectedSmartFeed {
-            // Smart-feed view: count vs total items currently
-            // loaded. Search narrowing folds into the same count.
+            // Smart-feed view spans every fetched feed, not just
+            // the active selection — the denominator must match.
+            // Using items.count here would lie ("All Unread: 5
+            // of 10" when the cross-feed pool actually has 100).
             let matching = filteredItems.count
             let suffix = searchActive ? " (search)" : ""
-            nextStatusText = "\(smart.displayName): \(matching) of \(items.count)\(suffix)"
+            nextStatusText = "\(smart.displayName): \(matching) of \(crossFeedItemsCount)\(suffix)"
         } else if searchActive {
             let matching = filteredItems.count
             nextStatusText = "\(matching) matching · \(items.count) items"

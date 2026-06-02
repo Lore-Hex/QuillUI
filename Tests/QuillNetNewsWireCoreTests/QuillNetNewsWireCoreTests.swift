@@ -1931,6 +1931,48 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("crossFeedItemsCount dedupes overlapping cache items")
+    func crossFeedItemsCountDedupes() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "shared", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a-only", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        // B's cache repeats the shared id + adds one B-only.
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "shared", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "b-only", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        // 3 distinct ids — not 4.
+        #expect(model.crossFeedItemsCount == 3)
+    }
+
+    @MainActor
+    @Test("smart-feed statusText denominator is cross-feed, not active-feed only")
+    func smartFeedStatusTextUsesCrossFeedTotal() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        // Active feed A: 1 item.
+        model.items = [
+            RSSItem(id: "a1", title: "One", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        // Cached feed B: 9 items, all unread.
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: (1...9).map {
+            RSSItem(id: "b\($0)", title: "X", link: nil, pubDate: nil, descriptionHTML: nil)
+        })
+        model.selectSmartFeed(.allUnread)
+        // 10 total items (1 + 9), all 10 are unread. Status text
+        // should read "All Unread: 10 of 10" — denominator must
+        // reflect cross-feed total, not just items.count=1.
+        #expect(model.statusText.contains("of 10"))
+    }
+
+    @MainActor
     @Test("previousFeedIDWithUnread walks backwards with wraparound")
     func previousFeedWithUnreadWraps() {
         let model = RSSReaderModel(subscribedFeeds: [
