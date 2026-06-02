@@ -484,6 +484,26 @@ public struct QuillNetNewsWireContentView: View {
                                 }
                             }
                         }
+                        if !item.inlineImages.isEmpty {
+                            Divider()
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Images in this article")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                ForEach(Array(item.inlineImages.enumerated()), id: \.offset) { _, image in
+                                    let display = image.alt.isEmpty ? image.urlString : image.alt
+                                    #if os(Linux)
+                                    Link(display, destination: image.urlString)
+                                        .font(.caption)
+                                    #else
+                                    if let url = image.url {
+                                        Link(display, destination: url)
+                                            .font(.caption)
+                                    }
+                                    #endif
+                                }
+                            }
+                        }
                     }
                     .padding(28)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -524,6 +544,20 @@ public struct InlineLink: Hashable, Sendable {
     public var url: URL? { URL(string: urlString) }
 }
 
+public struct InlineImage: Hashable, Sendable {
+    /// Image source URL (the `src` attribute).
+    public let urlString: String
+    /// Alt text — empty when the `<img>` had no alt attribute.
+    public let alt: String
+
+    public init(urlString: String, alt: String) {
+        self.urlString = urlString
+        self.alt = alt
+    }
+
+    public var url: URL? { URL(string: urlString) }
+}
+
 public struct RSSItem: Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
@@ -546,6 +580,12 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
     /// footer so href targets aren't lost when bodyParagraphs
     /// strips inline tags.
     public let inlineLinks: [InlineLink]
+    /// Inline `<img src>` extractions from the HTML body, in
+    /// source order. Same fate as inlineLinks — image refs are
+    /// stripped from bodyParagraphs, but the detail view
+    /// surfaces them as a "Images in this article" footer so
+    /// the user can click through.
+    public let inlineImages: [InlineImage]
 
     public init(
         id: String,
@@ -564,6 +604,7 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
         self.plainTextBody = (descriptionHTML ?? "").stripBasicHTML()
         self.bodyParagraphs = (descriptionHTML ?? "").htmlParagraphs()
         self.inlineLinks = (descriptionHTML ?? "").htmlInlineLinks()
+        self.inlineImages = (descriptionHTML ?? "").htmlInlineImages()
     }
 }
 
@@ -598,6 +639,8 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
     /// a "Links" footer so href targets survive the
     /// bodyParagraphs inline-tag strip.
     public let inlineLinks: [InlineLink]
+    /// Inline `<img src>` extractions — see `RSSItem.inlineImages`.
+    public let inlineImages: [InlineImage]
     public let linkURL: URL?
 
     public init(
@@ -607,6 +650,7 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
         plainTextBody: String,
         bodyParagraphs: [String],
         inlineLinks: [InlineLink],
+        inlineImages: [InlineImage],
         linkURL: URL?
     ) {
         self.id = id
@@ -615,6 +659,7 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
         self.plainTextBody = plainTextBody
         self.bodyParagraphs = bodyParagraphs
         self.inlineLinks = inlineLinks
+        self.inlineImages = inlineImages
         self.linkURL = linkURL
     }
 
@@ -626,6 +671,7 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
             plainTextBody: item.plainTextBody,
             bodyParagraphs: item.bodyParagraphs,
             inlineLinks: item.inlineLinks,
+            inlineImages: item.inlineImages,
             linkURL: item.linkURL
         )
     }
@@ -1712,6 +1758,54 @@ private extension String {
             out.append(InlineLink(text: cleanedText, urlString: href))
         }
         return out
+    }
+
+    /// Extract `<img src>` tags from an HTML body. Returns
+    /// InlineImages in source order. Empty when no images
+    /// found. Handles attribute orders flexibly — src can come
+    /// before or after alt. Skips data: URIs (inline encoded
+    /// images aren't useful for the detail-view URL list).
+    func htmlInlineImages() -> [InlineImage] {
+        guard !isEmpty else { return [] }
+        // Pull every <img ...> tag, then pluck src + alt from
+        // each attribute string separately so attribute order
+        // doesn't matter.
+        let tagPattern = #"<img\b[^>]*>"#
+        guard let tagRegex = try? NSRegularExpression(
+            pattern: tagPattern,
+            options: [.caseInsensitive]
+        ) else { return [] }
+        let nsself = self as NSString
+        let tagMatches = tagRegex.matches(
+            in: self, range: NSRange(location: 0, length: nsself.length)
+        )
+        var out: [InlineImage] = []
+        for tm in tagMatches {
+            let tagText = nsself.substring(with: tm.range)
+            let src = Self.attribute("src", from: tagText)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !src.isEmpty, !src.hasPrefix("data:") else { continue }
+            let alt = HTMLEntities.decode(Self.attribute("alt", from: tagText))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            out.append(InlineImage(urlString: src, alt: alt))
+        }
+        return out
+    }
+
+    /// Extract a single attribute value from one tag's text.
+    /// Matches both double- and single-quoted forms. Returns
+    /// an empty string when the attribute is missing.
+    static func attribute(_ name: String, from tagText: String) -> String {
+        let pattern = "\\b\(name)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)')"
+        guard let regex = try? NSRegularExpression(
+            pattern: pattern, options: [.caseInsensitive]
+        ) else { return "" }
+        let ns = tagText as NSString
+        guard let m = regex.firstMatch(in: tagText, range: NSRange(location: 0, length: ns.length))
+        else { return "" }
+        let r = m.range(at: 1).location != NSNotFound ? m.range(at: 1) : m.range(at: 2)
+        guard r.location != NSNotFound else { return "" }
+        return ns.substring(with: r)
     }
 
     /// Split HTML body on block-level boundaries, returning a

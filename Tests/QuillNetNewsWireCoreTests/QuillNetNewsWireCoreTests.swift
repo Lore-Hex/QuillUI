@@ -674,6 +674,51 @@ struct QuillNetNewsWireCoreTests {
         #expect(bad.url == nil)
     }
 
+    // MARK: - Inline image extraction
+
+    @Test("inlineImages extracts <img src> with alt in source order")
+    func inlineImagesBasic() {
+        let html = """
+        <p>Photo: <img src="https://example.test/a.jpg" alt="Alpha"/></p>
+        <p><img alt="Beta" src="https://example.test/b.png"/></p>
+        """
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.inlineImages.count == 2)
+        #expect(item.inlineImages[0].urlString == "https://example.test/a.jpg")
+        #expect(item.inlineImages[0].alt == "Alpha")
+        // Attribute order doesn't matter.
+        #expect(item.inlineImages[1].urlString == "https://example.test/b.png")
+        #expect(item.inlineImages[1].alt == "Beta")
+    }
+
+    @Test("inlineImages skips data: URIs")
+    func inlineImagesSkipsDataURI() {
+        let html = "<img src=\"data:image/png;base64,iVBORw0K\" alt=\"\"/> <img src=\"https://example.test/x.gif\"/>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.inlineImages.count == 1)
+        #expect(item.inlineImages.first?.urlString == "https://example.test/x.gif")
+    }
+
+    @Test("inlineImages handles missing alt as empty string")
+    func inlineImagesNoAlt() {
+        let html = "<img src=\"https://example.test/x.jpg\"/>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.inlineImages.first?.alt == "")
+    }
+
+    @Test("inlineImages decodes HTML entities in alt text")
+    func inlineImagesAltEntities() {
+        let html = "<img src=\"https://example.test/x.jpg\" alt=\"A &amp; B\"/>"
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        #expect(item.inlineImages.first?.alt == "A & B")
+    }
+
+    @Test("inlineImages is empty for body without <img>")
+    func inlineImagesEmpty() {
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: "<p>No images here.</p>")
+        #expect(item.inlineImages.isEmpty)
+    }
+
     // MARK: - Detail view helpers (friendly date + author)
 
     @MainActor
