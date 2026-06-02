@@ -909,6 +909,31 @@ var targets: [Target] = [
         path: "Sources/QuillFeedFinder",
         swiftSettings: appSwiftSettings
     ),
+    // Vendored Ranchero-Software/NetNewsWire NewsBlur module
+    // (Sources/NewsBlur → Sources/QuillNewsBlur, 12 files,
+    // ~789 LOC). The sync-API client for NewsBlur accounts:
+    // login flows, feed list, story hashes, story fetch + body
+    // refresh, folder + feed + story status change operations.
+    // Each NewsBlur* endpoint type (Story, Feed, StoryHash,
+    // FolderChange, FeedChange, StoryStatusChange,
+    // LoginResponse) decodes a JSON shape upstream defines.
+    //
+    // Imports rewritten on copy: RSCore → QuillRSCoreShim,
+    // RSParser → QuillRSParser, RSWeb → QuillRSWeb,
+    // Secrets → QuillRSCoreShim (Credentials shim lands there
+    // — keychain plumbing is a future iteration). os is gated
+    // behind #if canImport(Darwin) (same Linux Logger collision
+    // pattern as the other vendored sources).
+    //
+    // No UI surface yet — this is library code that a future
+    // Account-integration iteration will hook into a Settings
+    // sheet for sign-in + sync orchestration.
+    .target(
+        name: "QuillNewsBlur",
+        dependencies: ["QuillRSCoreShim", "QuillRSParser", "QuillRSWeb"],
+        path: "Sources/QuillNewsBlur",
+        swiftSettings: appSwiftSettings
+    ),
     .executableTarget(
         name: "QuillNetNewsWire",
         dependencies: ["QuillNetNewsWireCore", "QuillUI"],
@@ -1810,6 +1835,14 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillRSWebTests",
             dependencies: ["QuillRSWeb"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Smoke tests for the vendored upstream NewsBlur module.
+        // Pins JSON decode shape for NewsBlurFeed + reachability
+        // of the NewsBlur namespace.
+        .testTarget(
+            name: "QuillNewsBlurTests",
+            dependencies: ["QuillNewsBlur"],
             swiftSettings: appSwiftSettings
         ),
         // Pins QuillCodeEditCore: the `ProjectFile.extension`
