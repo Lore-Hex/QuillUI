@@ -3134,13 +3134,36 @@ final class RSSReaderModel: ObservableObject {
             }
             let parsed = RSSFeedParser.parseUpstream(data: data, url: urlString)
             let upstreamArticles = RSSFeedParser.parseUpstreamArticles(data: data, url: urlString)
-            let trimmedItems = Array(parsed.items.prefix(Self.articlesPerFeedLimit))
-            let trimmedArticles = Array(upstreamArticles.prefix(Self.articlesPerFeedLimit))
+            // Append-merge with existing cache (dedupe by id /
+            // uniqueID, new items win, cap by articlesPerFeedLimit).
+            // Upstream NetNewsWire treats per-feed cache as an
+            // accumulator — articles that fall off the live feed
+            // shell still show under that feed's timeline until
+            // retention prunes them. The old replace-behavior
+            // silently dropped those rows from the in-memory cache
+            // the moment they fell out of the publisher's feed
+            // window, even though SQLite still had them. The smart-
+            // feed views surfaced them via stored* helpers, but the
+            // per-feed timeline went thin.
+            let mergedItems = Self.mergeItemsForCache(
+                new: parsed.items,
+                existing: feedCaches[urlString]?.items ?? [],
+                limit: Self.articlesPerFeedLimit
+            )
+            let mergedArticles = Self.mergeArticlesForCache(
+                new: upstreamArticles,
+                existing: feedCaches[urlString]?.articles ?? [],
+                limit: Self.articlesPerFeedLimit
+            )
             feedCaches[urlString] = FeedCache(
-                items: trimmedItems,
-                articles: trimmedArticles,
+                items: mergedItems,
+                articles: mergedArticles,
                 lastFetchAt: Date()
             )
+            // Use the merged-new view for SQLite upsert too so the
+            // freshest payload wins on conflict (titles can change
+            // post-publish; bodies can change too).
+            let trimmedArticles = mergedArticles
             // Mirror the active-feed fetch() path: persist
             // every refresh-all batch into SQLite too so
             // background refreshes accumulate cross-feed
@@ -3278,8 +3301,23 @@ final class RSSReaderModel: ObservableObject {
             self.updateSubscribedFeedTitleFromParse(
                 urlString: urlString, parsedTitle: decodedFeedTitle
             )
-            let trimmedItems = Array(parsed.items.prefix(Self.articlesPerFeedLimit))
-            let trimmedArticles = Array(upstreamArticles.prefix(Self.articlesPerFeedLimit))
+            // Append-merge with prior cache so items that fell
+            // off the live feed shell stick around in the per-
+            // feed timeline (matches upstream NetNewsWire's
+            // accumulator semantics). Same helpers as the
+            // refresh-all batch path so behavior is identical.
+            let mergedItems = Self.mergeItemsForCache(
+                new: parsed.items,
+                existing: feedCaches[urlString]?.items ?? [],
+                limit: Self.articlesPerFeedLimit
+            )
+            let mergedArticles = Self.mergeArticlesForCache(
+                new: upstreamArticles,
+                existing: feedCaches[urlString]?.articles ?? [],
+                limit: Self.articlesPerFeedLimit
+            )
+            let trimmedItems = mergedItems
+            let trimmedArticles = mergedArticles
             let now = Date()
             self.setItems(trimmedItems)
             self.articles = trimmedArticles
@@ -3845,6 +3883,46 @@ final class RSSReaderModel: ObservableObject {
     /// Internal so tests can wire a fixed now for determinism.
     static func todayCutoff(now: Date = Date(), calendar: Calendar = .current) -> Date {
         calendar.startOfDay(for: now)
+    }
+
+    /// Append-merge new RSSItems on top of existing cache items,
+    /// dedupe by id (new wins), cap by limit. Newest items go
+    /// first — input is already in newest-first parse order, and
+    /// existing items are also stored newest-first, so a simple
+    /// concat-then-dedupe preserves chronology adequately for
+    /// the per-feed timeline.
+    static func mergeItemsForCache(
+        new: [RSSItem], existing: [RSSItem], limit: Int
+    ) -> [RSSItem] {
+        var seen = Set<String>()
+        var merged: [RSSItem] = []
+        for item in new {
+            if seen.insert(item.id).inserted { merged.append(item) }
+            if merged.count >= limit { return merged }
+        }
+        for item in existing {
+            if seen.insert(item.id).inserted { merged.append(item) }
+            if merged.count >= limit { return merged }
+        }
+        return merged
+    }
+
+    /// Same shape as mergeItemsForCache but for the parallel
+    /// upstream Article array (keyed by uniqueID).
+    static func mergeArticlesForCache(
+        new: [Article], existing: [Article], limit: Int
+    ) -> [Article] {
+        var seen = Set<String>()
+        var merged: [Article] = []
+        for article in new {
+            if seen.insert(article.uniqueID).inserted { merged.append(article) }
+            if merged.count >= limit { return merged }
+        }
+        for article in existing {
+            if seen.insert(article.uniqueID).inserted { merged.append(article) }
+            if merged.count >= limit { return merged }
+        }
+        return merged
     }
 
     /// Item count for a given smart feed across every cached

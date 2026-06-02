@@ -2133,6 +2133,55 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("mergeItemsForCache appends prior items, dedupes by id, caps")
+    func mergeItemsForCacheAppendsAndCaps() {
+        // Existing cache had a1, a2, a3 (a3 oldest). New fetch
+        // returns a1, a2 only — a3 fell off the live feed shell.
+        // Merged result must KEEP a3 so the per-feed timeline
+        // doesn't lose it the moment it ages out of the publisher's
+        // window. Order: new-first → existing-old.
+        let existing = [
+            RSSItem(id: "a1", title: "OldTitle1", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "OldTitle2", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a3", title: "Survives", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        let fresh = [
+            RSSItem(id: "a1", title: "NewTitle1", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "NewTitle2", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        let merged = RSSReaderModel.mergeItemsForCache(
+            new: fresh, existing: existing, limit: 100
+        )
+        // a3 must survive. a1/a2 must come from the NEW payload
+        // (title field reflects republished edits).
+        #expect(merged.map(\.id) == ["a1", "a2", "a3"])
+        #expect(merged[0].title == "NewTitle1")
+        #expect(merged[1].title == "NewTitle2")
+        #expect(merged[2].title == "Survives")
+    }
+
+    @MainActor
+    @Test("mergeItemsForCache respects the cap with new-first priority")
+    func mergeItemsForCacheCaps() {
+        let existing = (0..<5).map { i in
+            RSSItem(id: "old\(i)", title: "Old\(i)", link: nil, pubDate: nil, descriptionHTML: nil)
+        }
+        let fresh = (0..<3).map { i in
+            RSSItem(id: "new\(i)", title: "New\(i)", link: nil, pubDate: nil, descriptionHTML: nil)
+        }
+        // Cap=4 → all 3 new items + 1 oldest. Existing get
+        // truncated, not new.
+        let merged = RSSReaderModel.mergeItemsForCache(
+            new: fresh, existing: existing, limit: 4
+        )
+        #expect(merged.count == 4)
+        #expect(merged[0].id == "new0")
+        #expect(merged[1].id == "new1")
+        #expect(merged[2].id == "new2")
+        #expect(merged[3].id == "old0")
+    }
+
+    @MainActor
     @Test("todayCutoff returns local-midnight, not a 24h sliding window")
     func todayCutoffIsCalendarDayStart() {
         // Pick a deterministic moment: 2026-06-03 at 02:30 local
