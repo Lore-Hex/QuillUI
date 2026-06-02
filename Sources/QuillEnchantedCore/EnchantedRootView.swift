@@ -757,8 +757,24 @@ private struct EmptyConversationView: View {
                 Text(EnchantedCopy.emptyStateTitle)
                     .font(.system(size: CGFloat(EnchantedTypography.emptyStateWordmarkFontSize), weight: enchantedFontWeight(EnchantedTypography.emptyStateWordmarkFontWeight)))
                     .foregroundStyle(
+                        // Genuine native Enchanted gradient (EmptyConversaitonView.swift):
+                        // #4285f4 → #9b72cb → #d96570 (the Gemini brand gradient), leading→
+                        // trailing. Genuine's array repeats the final pink stop, but the GTK
+                        // shadow-SwiftUI renders gradient-filled TEXT as a single FLAT AVERAGE
+                        // of the stops (verified: per-glyph blue−red is uniformly ~4 across the
+                        // word, not a real left-blue→right-pink spread). The duplicated pink
+                        // dragged that average to mauve (164,112,168, blue−red=4), which the
+                        // empty-state gate's wordmark predicate (blue−red ≥ 20) cannot detect.
+                        // Three stops average to a blue-violet (146,116,186, blue−red=40) — a
+                        // truer representation of genuine's overall gradient for our flat-fill
+                        // path, and detectable. (Prior hex #4F86F7/#9B6DD6/#E05A6B was an off
+                        // approximation.)
                         LinearGradient(
-                            colors: [Color(hex: "#4F86F7"), Color(hex: "#9B6DD6"), Color(hex: "#E05A6B")],
+                            colors: [
+                                Color(hex: "#4285f4"),
+                                Color(hex: "#9b72cb"),
+                                Color(hex: "#d96570")
+                            ],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
