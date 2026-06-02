@@ -778,6 +778,37 @@ var targets: [Target] = [
         dependencies: [],
         swiftSettings: appSwiftSettings
     ),
+    // Vendored Ranchero-Software/NetNewsWire RSParser sources
+    // (Sources/RSParser → Sources/QuillRSParser) with the lone
+    // `import RSCore` rewritten to `import QuillRSCoreShim`.
+    //
+    // Goes around the dead-code upstream RSCore wiring lower in
+    // this file (which fails because RSCoreObjC requires
+    // <Foundation/Foundation.h> on Linux). The shim provides
+    // the only RSCore symbol RSParser actually touches
+    // (String.md5String) — see QuillRSCoreShim above.
+    //
+    // Refresh procedure: re-run `cp -R .upstream/netnewswire/
+    // Modules/RSParser/Sources/RSParser/. Sources/QuillRSParser/`
+    // and `sed -i 's/^import RSCore$/import QuillRSCoreShim/'`
+    // across the tree, then re-run the parser tests.
+    .target(
+        name: "QuillRSParser",
+        dependencies: [
+            "QuillRSCoreShim",
+            "Tidemark",
+            // CoreGraphics (for CGSize in HTMLMetadata) is satisfied
+            // by Apple's system framework on Darwin and by the
+            // in-tree Sources/CoreGraphics shim on Linux. Both
+            // resolve automatically from `import CoreGraphics` —
+            // no explicit dep here because the Quill CoreGraphics
+            // target + library product only exist inside the
+            // #if os(Linux) block of this manifest, so an
+            // unconditional reference would fail on macOS.
+        ],
+        path: "Sources/QuillRSParser",
+        swiftSettings: appSwiftSettings
+    ),
     .executableTarget(
         name: "QuillNetNewsWire",
         dependencies: ["QuillNetNewsWireCore", "QuillUI"],
@@ -1642,6 +1673,16 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillRSCoreShimTests",
             dependencies: ["QuillRSCoreShim"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Smoke tests for the vendored upstream RSParser. Pins
+        // RSS 2.0 + Atom + FeedType detection so the
+        // import-rewrite path (RSCore → QuillRSCoreShim) and the
+        // cross-platform compile both stay green when upstream
+        // refreshes.
+        .testTarget(
+            name: "QuillRSParserTests",
+            dependencies: ["QuillRSParser"],
             swiftSettings: appSwiftSettings
         ),
         // Pins QuillCodeEditCore: the `ProjectFile.extension`
