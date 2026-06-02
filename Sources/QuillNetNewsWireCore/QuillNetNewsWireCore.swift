@@ -564,12 +564,22 @@ public struct QuillNetNewsWireContentView: View {
             // platform branch. filteredRows is a computed view that
             // re-evaluates whenever items or searchQuery emit a
             // @Published change.
-            TextField("Search articles", text: Binding(
-                get: { model.searchQuery },
-                set: { model.searchQuery = $0 }
-            ))
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
+            HStack(spacing: 6) {
+                TextField("Search articles", text: Binding(
+                    get: { model.searchQuery },
+                    set: { model.searchQuery = $0 }
+                ))
+                if !model.searchQuery.isEmpty {
+                    // Clear-search button only surfaces when there's
+                    // something to clear; matches upstream NetNews
+                    // Wire's search-field ✕ affordance.
+                    Button("✕") { model.searchQuery = "" }
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
 
             if let error = model.error {
                 Text(error)
@@ -744,6 +754,22 @@ public struct QuillNetNewsWireContentView: View {
                         HStack(alignment: .top, spacing: 12) {
                             Text(item.title).font(.title).bold()
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                            // Read/Unread toggle in the detail
+                            // header. ● = read, ○ = unread. Matches
+                            // upstream NetNewsWire's detail-toolbar
+                            // read-state control. Especially useful
+                            // because opening an article auto-marks
+                            // it read; this is how the user undoes
+                            // that without leaving the detail pane.
+                            Button(model.isRead(id: item.id) ? "●" : "○") {
+                                if model.isRead(id: item.id) {
+                                    model.markUnread(id: item.id)
+                                } else {
+                                    model.markRead(id: item.id)
+                                }
+                            }
+                            .font(.title2)
+                            .foregroundColor(.blue)
                             // Star toggle in the detail header. A
                             // filled glyph when starred, hollow when
                             // not — same affordance as upstream
