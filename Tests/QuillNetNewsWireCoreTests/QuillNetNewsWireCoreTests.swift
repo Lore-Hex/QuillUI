@@ -1912,6 +1912,69 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("emptyTimelineMessage routes to loading state during fetch")
+    func emptyMessageLoading() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.isLoading = true
+        let (h, _) = model.emptyTimelineMessage()
+        #expect(h == "Loading…")
+    }
+
+    @MainActor
+    @Test("emptyTimelineMessage quotes the search needle when no matches")
+    func emptyMessageSearch() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.searchQuery = "rabbit"
+        let (h, d) = model.emptyTimelineMessage()
+        #expect(h == "No Articles Match")
+        #expect(d.contains("rabbit"))
+    }
+
+    @MainActor
+    @Test("emptyTimelineMessage distinguishes smart feeds")
+    func emptyMessageSmartFeeds() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.selectSmartFeed(.today)
+        #expect(model.emptyTimelineMessage().headline == "No Articles Today")
+        model.selectSmartFeed(.allUnread)
+        #expect(model.emptyTimelineMessage().headline == "All Read")
+        model.selectSmartFeed(.starred)
+        #expect(model.emptyTimelineMessage().headline == "No Starred Articles")
+    }
+
+    @MainActor
+    @Test("emptyTimelineMessage explains hide-read filtered everything out")
+    func emptyMessageHideReadFilteredEverything() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "One", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.markRead(id: "a1")
+        model.hideReadArticles = true
+        let (h, d) = model.emptyTimelineMessage()
+        #expect(h == "No Unread Articles")
+        #expect(d.contains("Show Read"))
+    }
+
+    @MainActor
+    @Test("emptyTimelineMessage falls back to 'No Articles' for genuinely empty feed")
+    func emptyMessageFallback() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        let (h, _) = model.emptyTimelineMessage()
+        #expect(h == "No Articles")
+    }
+
+    @MainActor
     @Test("sortOrder.oldestFirst reverses the active-feed timeline by date")
     func sortOrderOldestFirstReversesActiveFeed() {
         let model = RSSReaderModel(subscribedFeeds: [

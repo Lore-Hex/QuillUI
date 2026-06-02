@@ -579,21 +579,48 @@ public struct QuillNetNewsWireContentView: View {
             }
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(model.filteredRows) { item in
-                        articleRow(item)
-                            .onTapGesture {
-                                model.selectItem(id: item.id)
-                            }
+                if model.filteredRows.isEmpty {
+                    timelineEmptyState
+                        .padding(.horizontal, 12)
+                        .padding(.top, 32)
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(model.filteredRows) { item in
+                            articleRow(item)
+                                .onTapGesture {
+                                    model.selectItem(id: item.id)
+                                }
+                        }
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 18)
                 }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 18)
             }
 
             footerStatus
         }
         .background(QuillDesktopChromeStyle.sidebarBackground)
+    }
+
+    /// Placeholder for a 0-row timeline. Reads as a calm
+    /// secondary-text block rather than a broken state.
+    /// Mirrors upstream NetNewsWire's "No Articles" / "No
+    /// Unread Articles" placeholder when the active view
+    /// resolves to nothing.
+    private var timelineEmptyState: some View {
+        let (headline, detail) = model.emptyTimelineMessage()
+        return VStack(spacing: 8) {
+            Text(headline)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            if !detail.isEmpty {
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func articleRow(_ item: RSSArticleRow) -> some View {
@@ -2595,6 +2622,38 @@ final class RSSReaderModel: ObservableObject {
             default: return lhs.id < rhs.id
             }
         }
+    }
+
+    /// Headline + detail strings for the timeline empty state.
+    /// Tailored to why the timeline is empty: in-flight fetch,
+    /// active search with no matches, smart feed with no items,
+    /// Hide Read filtering everything out, or a genuinely empty
+    /// feed. Mirrors upstream NetNewsWire's empty placeholders.
+    func emptyTimelineMessage() -> (headline: String, detail: String) {
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isLoading {
+            return ("Loading…", "Fetching articles.")
+        }
+        if !trimmedQuery.isEmpty {
+            return (
+                "No Articles Match",
+                "No articles contain \u{201C}\(trimmedQuery)\u{201D}."
+            )
+        }
+        if let smart = selectedSmartFeed {
+            switch smart {
+            case .today:     return ("No Articles Today", "Nothing published in the last 24 hours.")
+            case .allUnread: return ("All Read", "Every article in every feed is marked read.")
+            case .starred:   return ("No Starred Articles", "Star an article to add it here.")
+            }
+        }
+        if hideReadArticles && !items.isEmpty {
+            return (
+                "No Unread Articles",
+                "Toggle \u{201C}Show Read\u{201D} to see articles you have already read."
+            )
+        }
+        return ("No Articles", "This feed has no articles to show.")
     }
 
     /// Row projection of `filteredItems` for the timeline view to
