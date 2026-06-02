@@ -458,6 +458,49 @@ struct QuillNetNewsWireCoreTests {
 
     // MARK: - addSubscription (FeedFinder integration)
 
+    // MARK: - Mark all read
+
+    @MainActor
+    @Test("markAllVisibleAsRead marks every item in filteredItems")
+    func markAllReadCoversFilteredItems() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Seeded selection marks item "1" → 4 unread.
+        #expect(model.unreadCount == 4)
+        let added = model.markAllVisibleAsRead()
+        #expect(added == 4)
+        #expect(model.unreadCount == 0)
+    }
+
+    @MainActor
+    @Test("markAllVisibleAsRead respects an active smart-feed filter")
+    func markAllReadRespectsSmartFeed() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        model.toggleStarred(id: "2")
+        model.toggleStarred(id: "4")
+        // Switch to Starred — filteredItems is just 2 + 4.
+        model.selectSmartFeed(.starred)
+        let added = model.markAllVisibleAsRead()
+        #expect(added == 2)
+        #expect(model.isRead(id: "2"))
+        #expect(model.isRead(id: "4"))
+        // Unstarred items 3 + 5 should still be unread.
+        #expect(!model.isRead(id: "3"))
+        #expect(!model.isRead(id: "5"))
+    }
+
+    @MainActor
+    @Test("markAllVisibleAsRead is idempotent on all-read input")
+    func markAllReadIdempotent() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        _ = model.markAllVisibleAsRead()
+        let secondCallAdded = model.markAllVisibleAsRead()
+        #expect(secondCallAdded == 0)
+        #expect(model.unreadCount == 0)
+    }
+
     // MARK: - HTML paragraph splitting
 
     @Test("bodyParagraphs splits on <p> boundaries and decodes entities")
