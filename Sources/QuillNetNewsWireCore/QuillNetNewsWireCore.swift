@@ -4783,7 +4783,14 @@ struct RSSFeedParser {
             default: return lhs.uniqueID < rhs.uniqueID
             }
         }
-        let rssItems = sortedItems.map(adaptParsedItem(_:))
+        // Dedup by uniqueID — broken feeds occasionally ship
+        // the same id on multiple items. First occurrence wins
+        // (sorted newest-first, so the freshest copy stays).
+        // Without this, ForEach hits duplicate-id warnings and
+        // SwiftUI's diffing gets confused.
+        var seen = Set<String>()
+        let dedupedItems = sortedItems.filter { seen.insert($0.uniqueID).inserted }
+        let rssItems = dedupedItems.map(adaptParsedItem(_:))
         return Result(
             title: parsed.title,
             items: rssItems,
@@ -4879,8 +4886,13 @@ struct RSSFeedParser {
             default: return lhs.uniqueID < rhs.uniqueID
             }
         }
+        // Same dedup-by-uniqueID pass as parseUpstream so the
+        // parallel articles array doesn't keep duplicates that
+        // the items array drops.
+        var seen = Set<String>()
+        let deduped = sorted.filter { seen.insert($0.uniqueID).inserted }
         let now = Date()
-        return sorted.map { parsed in
+        return deduped.map { parsed in
             let status = ArticleStatus(
                 articleID: parsed.uniqueID,
                 read: false,
