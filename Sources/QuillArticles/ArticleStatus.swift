@@ -7,7 +7,13 @@
 //
 
 import Foundation
+#if canImport(Darwin)
 import os
+#else
+// On Linux the OSAllocatedUnfairLock<T> generic comes from
+// QuillRSCoreShim's polyfill (NSLock-backed). Same surface.
+import QuillRSCoreShim
+#endif
 
 public final class ArticleStatus: Hashable, Sendable {
 
