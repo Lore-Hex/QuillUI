@@ -393,4 +393,55 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.readArticleIDs.count == countAfter1)
         #expect(model.isRead(id: "abc"))
     }
+
+    @MainActor
+    @Test("RSSReaderModel.toggleStarred flips per-id state")
+    func readerModelToggleStarred() {
+        let model = RSSReaderModel()
+        #expect(!model.isStarred(id: "abc"))
+        model.toggleStarred(id: "abc")
+        #expect(model.isStarred(id: "abc"))
+        model.toggleStarred(id: "abc")
+        #expect(!model.isStarred(id: "abc"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.toggleStarredOnSelection requires a selection")
+    func readerModelToggleStarredOnSelection() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Initial selection is "1" — toggling stars it.
+        model.toggleStarredOnSelection()
+        #expect(model.isStarred(id: "1"))
+
+        model.selectItem(id: "3")
+        model.toggleStarredOnSelection()
+        #expect(model.isStarred(id: "3"))
+        #expect(model.starredArticleIDs == ["1", "3"])
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.starredCount reflects starred items in the loaded timeline")
+    func readerModelStarredCount() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        #expect(model.starredCount == 0)
+        model.toggleStarred(id: "1")
+        model.toggleStarred(id: "2")
+        #expect(model.starredCount == 2)
+        // Star an article that isn't in the current timeline — count stays at 2.
+        model.toggleStarred(id: "not-in-timeline")
+        #expect(model.starredCount == 2)
+        #expect(model.starredArticleIDs.contains("not-in-timeline"))
+    }
+
+    @MainActor
+    @Test("RSSReaderModel.toggleStarredOnSelection no-ops without a selection")
+    func readerModelToggleStarredOnSelectionNoOps() {
+        let model = RSSReaderModel(subscribedFeeds: [])
+        // No items, no selection.
+        #expect(model.selectedID == nil)
+        model.toggleStarredOnSelection()
+        #expect(model.starredArticleIDs.isEmpty)
+    }
 }
