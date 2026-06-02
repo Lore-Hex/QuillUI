@@ -86,6 +86,7 @@ struct QuillWireGuardCoreTests {
         #expect(parsed.interface.addresses == ["10.44.0.2/32", "fd44::2/128"])
         #expect(parsed.interface.dnsServers == ["1.1.1.1", "2606:4700:4700::1111"])
         #expect(parsed.interface.listenPort == 51820)
+        #expect(parsed.interface.mtu == 1420)
         #expect(parsed.peers.count == 1)
         #expect(parsed.peers[0].id == "imported-home-peer-1")
         #expect(parsed.peers[0].name == "Imported Edge")
@@ -93,6 +94,7 @@ struct QuillWireGuardCoreTests {
         #expect(parsed.peers[0].allowedIPs == ["0.0.0.0/0", "::/0"])
         #expect(parsed.peers[0].endpoint == "vpn.example.com:51820")
         #expect(parsed.peers[0].persistentKeepAlive == 25)
+        #expect(parsed.peers[0].preSharedKey == "imported-preshared-key=")
     }
 
     @Test("wg-quick import parses and round-trips MTU and preshared key")
