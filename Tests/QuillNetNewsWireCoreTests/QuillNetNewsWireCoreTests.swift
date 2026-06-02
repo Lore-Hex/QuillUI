@@ -1931,6 +1931,45 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Article search matches on author name (in addition to title/body)")
+    func searchMatchesAuthorName() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        let articleByAlice = Article(
+            accountID: "", articleID: "1",
+            feedID: "https://a.test/feed",
+            uniqueID: "a1", title: "Some title", contentHTML: nil,
+            contentText: nil, markdown: nil, url: nil, externalURL: nil,
+            summary: nil, imageURL: nil,
+            datePublished: nil, dateModified: nil,
+            authors: [Author(authorID: nil, name: "Alice Brown", url: nil, avatarURL: nil, emailAddress: nil)!],
+            status: ArticleStatus(articleID: "1", read: false, starred: false, dateArrived: Date(timeIntervalSince1970: 0))
+        )
+        let articleByCharlie = Article(
+            accountID: "", articleID: "2",
+            feedID: "https://a.test/feed",
+            uniqueID: "a2", title: "Different title", contentHTML: nil,
+            contentText: nil, markdown: nil, url: nil, externalURL: nil,
+            summary: nil, imageURL: nil,
+            datePublished: nil, dateModified: nil,
+            authors: [Author(authorID: nil, name: "Charlie Davis", url: nil, avatarURL: nil, emailAddress: nil)!],
+            status: ArticleStatus(articleID: "2", read: false, starred: false, dateArrived: Date(timeIntervalSince1970: 0))
+        )
+        model.items = [
+            RSSItem(id: "a1", title: "Some title", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "Different title", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.articles = [articleByAlice, articleByCharlie]
+        // Search "Alice" — should match a1 via author, not a2.
+        model.searchQuery = "Alice"
+        #expect(Set(model.filteredItems.map(\.id)) == ["a1"])
+        // Search "Charlie" — should match a2 via author.
+        model.searchQuery = "Charlie"
+        #expect(Set(model.filteredItems.map(\.id)) == ["a2"])
+    }
+
+    @MainActor
     @Test("importOPML preserves folder hierarchy from the source XML")
     func importOPMLPreservesFolders() {
         let xml = """

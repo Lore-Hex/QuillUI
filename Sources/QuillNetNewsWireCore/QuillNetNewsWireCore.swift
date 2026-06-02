@@ -3273,6 +3273,11 @@ final class RSSReaderModel: ObservableObject {
             return applySortOrder(applyHideRead(pool.filter { item in
                 if item.title.lowercased().contains(needle) { return true }
                 if item.plainTextBody.lowercased().contains(needle) { return true }
+                // Authors live on the parallel Article record (not
+                // on RSSItem). Reverse-lookup via authorLine so
+                // multi-author "Alice, Bob" matches either name.
+                if let author = authorLine(forItemID: item.id),
+                   author.lowercased().contains(needle) { return true }
                 return false
             }))
         }
