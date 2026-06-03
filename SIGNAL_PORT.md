@@ -125,7 +125,8 @@ the build reaches further. "Top blocker" = dominant error after that fix.
 | 0 | sqlite3.h env (apt `libsqlite3-dev`) | 47: GRDB `CGFloat` |
 | 1 | CoreGraphics re-export `Foundation.CGFloat` (6fdd83a) | 2263: reached SSK, `no such module CryptoKit` |
 | 2 | `CryptoKit` shim → swift-crypto `Crypto` + `--disable-index-store` | 2263: `no such module CommonCrypto` |
-| 3 | `CommonCrypto` shim … | _(in progress)_ |
+| 3 | `CommonCrypto` shim → OpenSSL EVP (AES) (next commit) | 2263: `no such module SignalRingRTC` |
+| 4 | SignalRingRTC (calling) … | _(in progress)_ |
 
 ## Status
 

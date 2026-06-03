@@ -1248,6 +1248,22 @@ targets.append(
 )
 #endif
 
+// CommonCrypto Linux shim → OpenSSL libcrypto (the AES subset Signal uses in
+// CipherContext / Cryptography / PaddingBucket / ProvisioningCipher). A C target
+// whose public umbrella is the canonical <CommonCrypto/CommonCrypto.h>, so
+// upstream `import CommonCrypto` resolves here. Links system libcrypto (apt
+// libssl-dev).
+#if os(Linux)
+targets.append(
+    .target(
+        name: "CommonCrypto",
+        path: "Sources/CommonCryptoShim",
+        publicHeadersPath: "include",
+        linkerSettings: [.linkedLibrary("crypto")]
+    )
+)
+#endif
+
 // SignalServiceKit — the foundation target (1412 Swift files). Compiled on
 // Linux against QuillUI's Apple-framework shim targets + LibSignalClient +
 // GRDB + SwiftProtobuf. Excluded for the first build:
@@ -1340,7 +1356,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             dependencies: [
                 "LibSignalClient",
                 "UIKit", "AVFoundation", "Network", "os", "Security", "CoreGraphics",
-                "CryptoKit",
+                "CryptoKit", "CommonCrypto",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
             ],
