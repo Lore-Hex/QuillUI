@@ -181,7 +181,17 @@ if [[ -z "$window_id" ]]; then
 fi
 if [[ -n "$window_id" ]]; then
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    quillui_place_reference_window "$DISPLAY_ID" "$window_id" "$reference_window_width" "$reference_window_height"
+    if [[ "${QUILLUI_BACKEND_NO_REFERENCE_RESIZE:-0}" == "1" ]]; then
+      # mac-reference INTERACTION: xdotool-windowsize-ing the window to 2048x1380
+      # leaves it unable to receive pointer/keyboard events in headless Xvfb (clicks
+      # AND keys produce a byte-identical render). The app already launches ~2048 wide,
+      # so just move to origin (no resize) — matching the reimpl's working un-resized
+      # window — and capture the window directly so input reaches live widgets.
+      quillui_move_window_to_origin "$DISPLAY_ID" "$window_id"
+      capture_window="$window_id"
+    else
+      quillui_place_reference_window "$DISPLAY_ID" "$window_id" "$reference_window_width" "$reference_window_height"
+    fi
   elif [[ "${QUILLUI_BACKEND_CAPTURE_ROOT:-0}" != "1" ]]; then
     quillui_move_window_to_origin "$DISPLAY_ID" "$window_id"
     capture_window="$window_id"

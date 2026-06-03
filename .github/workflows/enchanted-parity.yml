@@ -18,11 +18,12 @@ name: Enchanted Parity
 #
 # This workflow also runs NON-GATING (continue-on-error) real-source measurements
 # toward INTERACTION coverage (epic #188 step 2), building toward retiring the
-# hand-written reimpl. mac-reference INTERACTION proved a dead end in headless CI
-# (clicks + keyboard don't reach the placed 2048x1380 window), so interaction
-# coverage runs in NORMAL window mode, where xdotool input works (the reimpl smokes
-# prove it). The foundation measurement confirms quill-chat-linux launches + renders
-# in a small normal window; click-based interaction validators build on it.
+# hand-written reimpl. The mac-reference RENDER is correct, but its xdotool-RESIZED
+# window can't receive input in headless CI (clicks + keyboard => byte-identical
+# render). The app renders ~2048 wide regardless of window-size env, so interaction
+# runs in the app's NATURAL un-resized window (QUILLUI_BACKEND_NO_REFERENCE_RESIZE),
+# where xdotool input works (the reimpl's un-resized smokes prove it), reusing the
+# mac-reference env + validators.
 
 on:
   push:
@@ -81,26 +82,25 @@ jobs:
               quill-chat-linux \
               gtk
 
-      - name: Measure real-source NORMAL-window render (non-gating)
+      - name: Measure real-source composer-typed, no resize (non-gating)
         if: always()
         continue-on-error: true
         env:
-          # mac-reference INTERACTION is a dead end in headless CI: clicks AND keyboard
-          # produce zero effect on the placed 2048x1380 reference window (empty /
-          # post-click / post-type frames byte-identical). Real-source interaction
-          # coverage will therefore run in NORMAL window mode, where xdotool input works
-          # (proven by the reimpl interaction smokes). This is the FOUNDATION step:
-          # confirm the real-source quill-chat-linux launches + renders its empty state
-          # in a small normal window in CI (validate_quill_chat_landmarks) before adding
-          # click-based interaction validators (new-chat, list-selection, ...) on top.
-          QUILLUI_BACKEND_MAC_REFERENCE: "0"
-          QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH: "1180"
-          QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT: "760"
-          QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE: "1"
+          # The app renders ~2048 wide regardless of window-size env (it can't be shrunk
+          # to a small window). The mac-reference RENDER is correct, but its
+          # xdotool-RESIZED window can't receive input in headless CI (clicks + keys =>
+          # byte-identical render). The reimpl's UN-RESIZED window takes input fine, so
+          # the hypothesis is that the RESIZE is the input-killer. NO_REFERENCE_RESIZE=1
+          # keeps the mac-reference env/validators/screen but skips the windowsize,
+          # leaving the app at its natural width and capturing the window directly. If
+          # composer-typed now detects typed text, un-resized mac-reference interaction
+          # works and the rich existing mac-reference interaction validators are reusable.
+          QUILLUI_BACKEND_INTERACTION_MODE: composer-typed
+          QUILLUI_BACKEND_NO_REFERENCE_RESIZE: "1"
         run: |
-          QUILLUI_BACKEND_VISUAL_APP_LOG=.qa/quill-chat-linux-normal.log \
-            scripts/linux-backend-visual-check.sh \
-              .qa/quill-chat-linux-normal-gtk.png \
+          QUILLUI_BACKEND_INTERACTION_APP_LOG=.qa/quill-chat-linux-noresize-composer.log \
+            scripts/linux-backend-interaction-check.sh \
+              .qa/quill-chat-linux-mac-reference-composer-typed-gtk.png \
               quill-chat-linux \
               gtk
 
