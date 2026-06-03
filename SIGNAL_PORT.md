@@ -173,9 +173,17 @@ every line the Rust bridge emits decodes into `BridgeMessage` — ping, status,
 and the no-png fallback), `linked`, `link-error`, the `send` response, the
 bad-request envelope, and forward-compat unknown-key tolerance. 25 checks, exits
 0 on pass / 1 on mismatch; run via `scripts/quill-signal-decode-check.sh`. Locks
-the bridge↔app wire contract against regressions. (Follow-up: hoist the
-app-private decode structs into `QuillSignalKit` so `from_self` / conversation
-envelopes are covered too.)
+the bridge↔app wire contract against regressions.
+
+**Wire types consolidated (2026-06-03):** the per-command response envelopes
+(`BridgeConversation`/`ConversationsResponse`, `BridgeStoredMessage`/
+`MessagesResponse` with the `from_self` key, `WhoamiData`/`WhoamiResponse`) moved
+from app-private structs in `QuillSignalCore` to **public** types in
+`QuillSignalKit/BridgeProtocol.swift` — a single source of truth shared by the
+app and the check. The decode-check now also asserts the conversations envelope
+(incl. a null name), the messages envelope with `from_self`
+true/false/missing→nil, and whoami registered/unregistered. The GTK app builds
+clean against the public types; the check stays green (now ~40 assertions).
 
 ---
 

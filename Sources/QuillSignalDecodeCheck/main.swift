@@ -22,6 +22,10 @@ final class Checker {
         guard let data = json.data(using: .utf8) else { return nil }
         return try? JSONDecoder().decode(BridgeMessage.self, from: data)
     }
+    func decode<T: Decodable>(_ type: T.Type, _ json: String) -> T? {
+        guard let data = json.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(T.self, from: data)
+    }
 }
 
 let c = Checker()
@@ -111,9 +115,58 @@ if let m = c.decode(#"{"ok":true,"cmd":"status","msg":"x","future_field":123,"ne
     c.check("unknown-keys decodes", false)
 }
 
+// 10. list-conversations envelope (contacts with type/uuid/name; null name)
+if let r = c.decode(ConversationsResponse.self, #"{"ok":true,"cmd":"list-conversations","msg":"ok","data":{"conversations":[{"type":"contact","uuid":"11111111-1111-1111-1111-111111111111","name":"Alice"},{"type":"contact","uuid":"22222222-2222-2222-2222-222222222222","name":null}]}}"#),
+   let convos = r.data?.conversations {
+    c.check("conversations count==2", convos.count == 2)
+    c.check("conversation type==contact", convos.first?.type == "contact")
+    c.check("conversation uuid", convos.first?.uuid == "11111111-1111-1111-1111-111111111111")
+    c.check("conversation name==Alice", convos.first?.name == "Alice")
+    c.check("conversation null name -> nil", convos.last?.name == nil)
+} else {
+    c.check("list-conversations decodes", false)
+}
+
+// 10b. list-conversations empty (unlinked)
+if let r = c.decode(ConversationsResponse.self, #"{"ok":true,"cmd":"list-conversations","msg":"not registered","data":{"conversations":[]}}"#) {
+    c.check("conversations empty list", r.data?.conversations.isEmpty == true)
+} else {
+    c.check("list-conversations empty decodes", false)
+}
+
+// 11. list-messages envelope — from_self true / false / missing(nil)
+if let r = c.decode(MessagesResponse.self, #"{"ok":true,"cmd":"list-messages","msg":"ok","data":{"messages":[{"body":"hi","timestamp":1700000000000,"sender":"aaa","from_self":true},{"body":"yo","timestamp":1700000001000,"sender":"bbb","from_self":false},{"body":"old","timestamp":1700000002000,"sender":"ccc"}]}}"#),
+   let msgs = r.data?.messages {
+    c.check("messages count==3", msgs.count == 3)
+    c.check("message body", msgs.first?.body == "hi")
+    c.check("message timestamp", msgs.first?.timestamp == 1_700_000_000_000)
+    c.check("message sender", msgs.first?.sender == "aaa")
+    c.check("from_self:true -> fromSelf==true", msgs[0].fromSelf == true)
+    c.check("from_self:false -> fromSelf==false", msgs[1].fromSelf == false)
+    c.check("missing from_self -> fromSelf==nil", msgs[2].fromSelf == nil)
+} else {
+    c.check("list-messages decodes", false)
+}
+
+// 12. whoami — registered with number
+if let r = c.decode(WhoamiResponse.self, #"{"ok":true,"cmd":"whoami","msg":"ok","data":{"registered":true,"number":"+15551234567"}}"#) {
+    c.check("whoami registered==true", r.data?.registered == true)
+    c.check("whoami number", r.data?.number == "+15551234567")
+} else {
+    c.check("whoami decodes", false)
+}
+
+// 12b. whoami — unregistered (no number)
+if let r = c.decode(WhoamiResponse.self, #"{"ok":true,"cmd":"whoami","msg":"not registered","data":{"registered":false}}"#) {
+    c.check("whoami registered==false", r.data?.registered == false)
+    c.check("whoami no number -> nil", r.data?.number == nil)
+} else {
+    c.check("whoami unregistered decodes", false)
+}
+
 print("")
 if c.failures == 0 {
-    print("PASS: all BridgeMessage decode-contract checks ok")
+    print("PASS: all bridge decode-contract checks ok")
     exit(0)
 } else {
     print("FAILED: \(c.failures) check(s) did not hold")

@@ -23,34 +23,10 @@ public enum QuillSignalLinkState: Equatable, Sendable {
     case linked         // registered
 }
 
-/// Decodes the bridge `list-conversations` response line:
-/// `{"cmd":"list-conversations","data":{"conversations":[{type,uuid,name}]},...}`.
-struct BridgeConversation: Codable {
-    let type: String?
-    let uuid: String?
-    let name: String?
-}
-private struct ConversationsData: Codable { let conversations: [BridgeConversation] }
-private struct ConversationsResponse: Codable { let data: ConversationsData? }
-
-/// Decodes the bridge `list-messages` response line.
-struct BridgeStoredMessage: Codable {
-    let body: String?
-    let timestamp: UInt64?
-    let sender: String?
-    let fromSelf: Bool?
-
-    enum CodingKeys: String, CodingKey {
-        case body, timestamp, sender
-        case fromSelf = "from_self"
-    }
-}
-private struct MessagesData: Codable { let messages: [BridgeStoredMessage] }
-private struct MessagesResponse: Codable { let data: MessagesData? }
-
-/// Decodes the bridge `whoami` response line.
-private struct WhoamiData: Codable { let registered: Bool?; let number: String? }
-private struct WhoamiResponse: Codable { let data: WhoamiData? }
+// The bridge wire-protocol response types (BridgeConversation,
+// ConversationsResponse, BridgeStoredMessage, MessagesResponse, WhoamiResponse,
+// …) now live in QuillSignalKit/BridgeProtocol.swift as the single public source
+// of truth shared with the decode-contract check.
 
 /// Thread-safe link-attempt tracker. The detached link thread compares its
 /// generation against the current one to detect cancellation or supersession by
