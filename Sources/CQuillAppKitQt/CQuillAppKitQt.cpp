@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QWidget>
 #include <QString>
+#include <QRect>
 
 #include <string>
 
@@ -87,6 +88,59 @@ void quill_appkit_qt_window_size(void *window, int *width, int *height) {
     if (height) {
         *height = widget->height();
     }
+}
+
+// --- NSView ---
+
+void *quill_appkit_qt_view_new(void) {
+    if (QApplication::instance() == nullptr) {
+        return nullptr;
+    }
+    return static_cast<void *>(new QWidget());
+}
+
+void quill_appkit_qt_view_add_subview(void *parent, void *child) {
+    if (!parent || !child) {
+        return;
+    }
+    QWidget *childWidget = asWidget(child);
+    childWidget->setParent(asWidget(parent));
+    childWidget->show();
+}
+
+int quill_appkit_qt_view_child_count(void *view) {
+    if (!view) {
+        return 0;
+    }
+    return asWidget(view)
+        ->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)
+        .size();
+}
+
+void quill_appkit_qt_view_set_geometry(void *view, int x, int y, int width, int height) {
+    if (view) {
+        asWidget(view)->setGeometry(x, y, width, height);
+    }
+}
+
+void quill_appkit_qt_view_geometry(void *view, int *x, int *y, int *width, int *height) {
+    if (!view) {
+        return;
+    }
+    QRect g = asWidget(view)->geometry();
+    if (x) *x = g.x();
+    if (y) *y = g.y();
+    if (width) *width = g.width();
+    if (height) *height = g.height();
+}
+
+void quill_appkit_qt_window_set_content_view(void *window, void *view) {
+    if (!window || !view) {
+        return;
+    }
+    QWidget *content = asWidget(view);
+    content->setParent(asWidget(window));
+    content->show();
 }
 
 } // extern "C"

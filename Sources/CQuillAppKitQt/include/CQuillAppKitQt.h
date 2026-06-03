@@ -38,6 +38,20 @@ void quill_appkit_qt_window_close(void *window);
 const char *quill_appkit_qt_window_title(void *window);
 void quill_appkit_qt_window_size(void *window, int *width, int *height);
 
+// --- NSView (M2): child QWidgets — hierarchy + absolute geometry ---
+// A child view (a bare QWidget with no parent yet). Returns a handle or NULL.
+void *quill_appkit_qt_view_new(void);
+// Reparent `child` under `parent` and show it (AppKit addSubview).
+void quill_appkit_qt_view_add_subview(void *parent, void *child);
+// Number of immediate child QWidgets (test verification).
+int quill_appkit_qt_view_child_count(void *view);
+// Absolute frame, in parent coordinates. Geometry is set by the Auto Layout
+// pass (M2 slice 2); the getter is for round-trip verification.
+void quill_appkit_qt_view_set_geometry(void *view, int x, int y, int width, int height);
+void quill_appkit_qt_view_geometry(void *view, int *x, int *y, int *width, int *height);
+// Make `view` the window's content view (reparent into the window, show).
+void quill_appkit_qt_window_set_content_view(void *window, void *view);
+
 #ifdef __cplusplus
 }
 #endif
