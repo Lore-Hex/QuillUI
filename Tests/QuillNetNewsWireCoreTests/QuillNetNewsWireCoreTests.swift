@@ -742,6 +742,27 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("filteredUnreadCount reflects current view's pool, not just active feed")
+    func filteredUnreadCountUsesPool() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        // Active feed (A) is empty. Cross-feed cache (B) has
+        // unread items.
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "One", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "b2", title: "Two", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        // unreadCount = 0 (active feed empty), but filtered =
+        // 2 when smart-feed pool surfaces b1+b2 (modulo auto-
+        // select, which marks no rows now under iter #206).
+        #expect(model.unreadCount == 0)
+        model.selectSmartFeed(.allUnread)
+        #expect(model.filteredUnreadCount == 2)
+    }
+
+    @MainActor
     @Test("lastFetchSummary uses max-of-pool freshness in smart-feed / folder views")
     func lastFetchSummaryUsesPoolFreshness() {
         let model = RSSReaderModel(subscribedFeeds: [

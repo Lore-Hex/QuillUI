@@ -1304,7 +1304,12 @@ public struct QuillNetNewsWireContentView: View {
                 model.markAllVisibleAsRead()
             }
             .font(.caption2)
-            .disabled(model.unreadCount == 0)
+            // disabled gate uses filteredUnreadCount so smart-
+            // feed / folder views with unread items in the pool
+            // can still mark them — the active feed (which
+            // unreadCount tracks) might be all-read even when
+            // the cross-feed pool isn't.
+            .disabled(model.filteredUnreadCount == 0)
             // In folder view, Refresh refreshes every feed in
             // the folder via refreshFolder (#162). In default
             // active-feed view, refresh the active feed only.
@@ -5650,6 +5655,19 @@ final class RSSReaderModel: ObservableObject {
     /// status is global, but the count is per loaded timeline).
     var unreadCount: Int {
         items.reduce(0) { acc, item in
+            acc + (readArticleIDs.contains(item.id) ? 0 : 1)
+        }
+    }
+
+    /// Unread count restricted to the CURRENT VIEW's pool —
+    /// active-feed items in default view, the smart-feed /
+    /// folder cross-feed pool otherwise. Used by the footer
+    /// "All Read" button's disabled state so a smart-feed user
+    /// with unread items in the visible pool can mark them even
+    /// if the active feed itself is all-read. unreadCount (above)
+    /// stays active-feed-scoped for the sidebar badge.
+    var filteredUnreadCount: Int {
+        filteredItems.reduce(0) { acc, item in
             acc + (readArticleIDs.contains(item.id) ? 0 : 1)
         }
     }
