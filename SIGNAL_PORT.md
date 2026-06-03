@@ -134,7 +134,8 @@ the build reaches further. "Top blocker" = dominant error after that fix.
 | 6 | prebuilt `quillui-signal-build` image (deps baked, no flaky apt) | 2263: `no such module Contacts` |
 | 7 | `Contacts` shim (value types real, store access deferred) | 2263: `no such module libPhoneNumber_iOS` |
 | 8 | `libPhoneNumber_iOS` shim (best-effort E164) | 2263: `no such module ContactsUI` |
-| 9 | batch remaining Apple-framework shims … | _(in progress)_ |
+| 9 | batch 27 placeholder Apple-framework shims (ContactsUI/Intents/PassKit/…) | 2263: `no such module UniformTypeIdentifiers` (QuillUI has it — missing SSK dep edge) |
+| 10 | add UniformTypeIdentifiers to SSK deps … | _(in progress)_ |
 
 ## Status
 

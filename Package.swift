@@ -1318,6 +1318,25 @@ targets.append(
 )
 #endif
 
+// Batch of thin Apple-framework / pod shims SignalServiceKit imports but that
+// don't exist on Linux. Each is a placeholder module so `import X` resolves;
+// concrete symbols are filled in as `cannot find type` errors surface. Behavior
+// is deferred (system UI / payments / Siri / telephony / etc. aren't available
+// on QuillOS). Sources live under Sources/AppleFrameworkShims/<Name>.
+let signalAppleFrameworkShims = [
+    "ContactsUI", "Intents", "PassKit", "LocalAuthentication", "Accelerate",
+    "QuartzCore", "ImageIO", "CoreServices", "CoreImage", "AuthenticationServices",
+    "UserNotifications", "SystemConfiguration", "StoreKit", "NaturalLanguage",
+    "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio",
+    "CocoaLumberjack", "SDWebImage", "SDWebImageWebPCoder", "blurhash",
+    "ObjectiveC", "System", "notify", "zlib",
+]
+#if os(Linux)
+for shimName in signalAppleFrameworkShims {
+    targets.append(.target(name: shimName, path: "Sources/AppleFrameworkShims/\(shimName)"))
+}
+#endif
+
 // SignalServiceKit — the foundation target (1412 Swift files). Compiled on
 // Linux against QuillUI's Apple-framework shim targets + LibSignalClient +
 // GRDB + SwiftProtobuf. Excluded for the first build:
@@ -1411,10 +1430,10 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "LibSignalClient",
                 "UIKit", "AVFoundation", "Network", "os", "Security", "CoreGraphics",
                 "CryptoKit", "CommonCrypto", "SignalRingRTC", "COSUnfairLock", "Contacts",
-                "libPhoneNumber_iOS",
+                "libPhoneNumber_iOS", "UniformTypeIdentifiers",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
-            ],
+            ] + signalAppleFrameworkShims.map { Target.Dependency.target(name: $0) },
             path: ".upstream/signal-ios/SignalServiceKit",
             exclude: signalServiceKitExcludes,
             swiftSettings: [.swiftLanguageMode(.v5)]
