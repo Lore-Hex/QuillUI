@@ -3284,9 +3284,36 @@ final class RSSReaderModel: ObservableObject {
     /// action — "Imported 5 feeds", "Already subscribed",
     /// "Subscribed to Daring Fireball", etc. Renders under the
     /// Import / Add row in the sidebar. Auto-clears on the next
-    /// successful subscribe / import OR on selectFeed (so
-    /// switching feeds dismisses the toast).
-    @Published var lastSubscribeMessage: String?
+    /// successful subscribe / import, on selectFeed (switching
+    /// feeds dismisses the toast), and after a short delay set
+    /// by the didSet auto-fade Task. Matches upstream NetNewsWire's
+    /// transient toast that doesn't linger past relevance.
+    @Published var lastSubscribeMessage: String? {
+        didSet {
+            // Rearm fade timer on every set, including the
+            // explicit `= nil` clears (which just cancel the
+            // prior fade Task without scheduling another).
+            lastSubscribeMessageFadeTask?.cancel()
+            guard let value = lastSubscribeMessage, !value.isEmpty else { return }
+            lastSubscribeMessageFadeTask = Task { [weak self] in
+                // 4s window — long enough to read a one-line
+                // status without being intrusive, short enough
+                // to disappear before the user has fully
+                // forgotten what they just did.
+                try? await Task.sleep(nanoseconds: 4 * 1_000_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    // Only clear if our message is still on
+                    // screen — guards against racing a newer
+                    // toast that already overwrote it.
+                    if self?.lastSubscribeMessage == value {
+                        self?.lastSubscribeMessage = nil
+                    }
+                }
+            }
+        }
+    }
+    private var lastSubscribeMessageFadeTask: Task<Void, Never>?
 
     /// Profile-mode bypass: populate `items` + `feedTitle` with
     /// fixture content so the rendered timeline has shape, then
