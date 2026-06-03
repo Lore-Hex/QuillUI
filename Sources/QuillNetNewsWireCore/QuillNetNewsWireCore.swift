@@ -163,6 +163,21 @@ public struct QuillNetNewsWireContentView: View {
                         Text(Self.fetchAgeText(cache.lastFetchAt))
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        // Last-published article time: useful
+                        // diagnostic for "is this feed still
+                        // alive?" — a feed whose lastFetchAt is
+                        // 5 minutes ago but whose newest article
+                        // is 6 months old is probably abandoned
+                        // by the publisher. Walks cache.articles
+                        // for the max datePublished; falls
+                        // through silently when no article has
+                        // a parsed Date.
+                        if let newest = cache.articles
+                            .compactMap(\.datePublished).max() {
+                            Text("Latest post · \(RSSReaderModel.relativeString(for: newest, relativeTo: Date()))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 } else {
                     // No cache → feed has never been fetched
