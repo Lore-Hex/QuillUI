@@ -154,6 +154,17 @@ pre-link state at once. Verified by screenshot: the autolink path (isLinking
 true) renders `Linking…  Cancel` under the QR. The orphaned thread, blocked
 awaiting the phone scan, exits on its socket timeout.
 
+**Connectivity-aware daemon reconnect / self-healing (2026-06-03):**
+`ensureDaemon` now connect-*probes* the socket (new `BridgeClient.probe()`)
+instead of just checking the file, so a stale socket — daemon crashed but the
+file remains — is no longer wrongly reused: the app spawns a fresh daemon (which
+`remove_file`s the stale socket on startup). `refreshStatus`/Retry re-ensures the
+daemon before querying so the app self-heals from a crashed engine; `beginLink`
+ensures it too, and `startOnce` just dispatches (each entry point ensures in its
+own background context). Verified headlessly across three cases: **no socket →
+spawn; stale socket (kill -9 the daemon, file remains) → detected and respawned;
+live daemon → reused, no double-spawn**.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

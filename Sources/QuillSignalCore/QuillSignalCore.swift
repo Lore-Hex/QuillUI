@@ -99,9 +99,15 @@ public final class QuillSignalModel: ObservableObject {
     /// Blocking (spawn + poll) — call from a background task, never the main thread.
     nonisolated static func ensureDaemon(socketPath: String) {
         let fm = FileManager.default
-        if fm.fileExists(atPath: socketPath) {
-            log("bridge socket present -> reusing existing daemon")
+        // Connect-probe rather than just checking the file: a stale socket (the
+        // daemon crashed but left the file behind) must NOT be reused — spawn a
+        // fresh daemon, which remove_file()s the stale socket on startup.
+        if BridgeClient(path: socketPath).probe() {
+            log("bridge daemon already listening -> reusing")
             return
+        }
+        if fm.fileExists(atPath: socketPath) {
+            log("stale bridge socket (no listener) -> spawning fresh daemon")
         }
         let env = ProcessInfo.processInfo.environment
         let binPath = env["QUILL_SIGNAL_BRIDGE_BIN"] ?? defaultBridgeBin()
@@ -126,7 +132,7 @@ public final class QuillSignalModel: ObservableObject {
             return
         }
         for _ in 0..<50 {
-            if fm.fileExists(atPath: socketPath) {
+            if BridgeClient(path: socketPath).probe() {
                 log("bridge socket up")
                 return
             }
@@ -162,24 +168,15 @@ public final class QuillSignalModel: ObservableObject {
     public func startOnce() {
         guard !hasAutoStarted else { return }
         hasAutoStarted = true
-        let path = socketPath
-        let autolink = ProcessInfo.processInfo.environment["QUILLUI_SIGNAL_AUTOLINK"] == "1"
-        // Make the app self-contained: if no bridge daemon is listening, spawn one
-        // (off the main thread — ensureDaemon polls for the socket) before the
-        // first query. A present socket is reused, so this is idempotent.
-        Task.detached {
-            Self.ensureDaemon(socketPath: path)
-            await MainActor.run {
-                // Test hook (off by default): go straight to linking so a headless
-                // smoke can verify the device-link flow (URL + QR) without a human
-                // clicking (avoids a concurrent status+link store open).
-                if autolink {
-                    self.linkState = .unlinked   // show the link panel so the QR is visible
-                    self.beginLink()
-                } else {
-                    self.refreshStatus()
-                }
-            }
+        // Each entry point (refreshStatus / beginLink) ensures the daemon in its
+        // own background context, so just dispatch here. Test hook (off by
+        // default): go straight to linking so a headless smoke can verify the
+        // device-link flow (URL + QR) without a human clicking.
+        if ProcessInfo.processInfo.environment["QUILLUI_SIGNAL_AUTOLINK"] == "1" {
+            linkState = .unlinked   // show the link panel so the QR is visible
+            beginLink()
+        } else {
+            refreshStatus()
         }
     }
 
@@ -192,6 +189,9 @@ public final class QuillSignalModel: ObservableObject {
         statusDetail = "Contacting the Signal engine…"
         let path = socketPath
         Task.detached {
+            // Re-ensure the daemon first, so Retry recovers from a crashed daemon
+            // (respawns) or a stale socket — not just a never-started one.
+            Self.ensureDaemon(socketPath: path)
             let client = BridgeClient(path: path)
             var newState: QuillSignalLinkState = .notConnected
             var detail = "Signal engine not running. Start quill-signal-bridge, then Retry."
@@ -339,6 +339,9 @@ public final class QuillSignalModel: ObservableObject {
         let myGen = linkSession.start()
         let cmd = "{\"cmd\":\"link-begin\",\"device_name\":\"\(deviceName)\"}"
         Thread.detachNewThread {
+            // Ensure the daemon is up before the link stream (covers a cold start
+            // or a crashed daemon when the user links before a status query).
+            Self.ensureDaemon(socketPath: path)
             let client = BridgeClient(path: path)
             try? client.stream(cmd, timeoutSeconds: 180) { line in
                 // Stop if this attempt was cancelled or superseded by a newer one.

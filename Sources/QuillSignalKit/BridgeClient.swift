@@ -74,6 +74,14 @@ public final class BridgeClient {
     /// Open the connection and return the fd; caller reads lines + closes.
     public func open() throws -> Int32 { try openConnection() }
 
+    /// Liveness probe: true if a daemon accepts a connection on this socket.
+    /// Distinguishes a live daemon from a stale socket file (no listener).
+    public func probe() -> Bool {
+        guard let fd = try? openConnection() else { return false }
+        close(fd)
+        return true
+    }
+
     /// Write one command line (newline appended) to an open fd.
     public func send(_ line: String, on fd: Int32) {
         var out = line
