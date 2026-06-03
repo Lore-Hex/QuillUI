@@ -39,6 +39,15 @@ bridge (status → link flow → conversations/messages). (3) build on Linux GTK
 phone). Engine build/run uses the `qs-work` cargo cache; bridge builds as the
 4th member of the presage workspace.
 
+**Engine re-verified (pivot step 2, 2026-06-03):** ran the prebuilt bridge daemon
+from `qs-work` on aarch64 and round-tripped all three commands — `ping`→pong,
+`status`→`{registered:false}` (presage sqlite store opens), and **`link-begin`
+emitted a fresh real `sgnl://linkdevice?uuid=…&pub_key=…` URL** from Signal's
+production servers. The Rust core (presage/libsignal) + bridge are alive on
+QuillOS arch and reach Signal — the pivot foundation is solid. Step 1
+(`QuillSignalKit` in QuillUI) also builds. **Next: step 3 — rewire the UI
+(`QuillSignalContentView`) to drive the bridge (status + link panel).**
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile
