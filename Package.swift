@@ -594,6 +594,26 @@ let quillEnchantedDataTarget: Target = .target(
 var targets: [Target] = [
     cSQLiteTarget,
     cCairoTarget,
+    // Cassowary constraint solver (vendored nucleic/kiwi, C++), exposed to Swift via a
+    // pure-C ABI. Backs Auto Layout (NSLayoutConstraint) for the AppKit→Qt compatibility
+    // layer — issue #231, milestone M0. Default graph only (no Qt dependency).
+    .target(
+        name: "CKiwi",
+        path: "Sources/CKiwi",
+        exclude: ["KIWI-LICENSE"],
+        sources: ["CKiwiBridge.cpp"],
+        publicHeadersPath: "include",
+        cxxSettings: [
+            .headerSearchPath("."),
+            .unsafeFlags(["-std=c++17"])
+        ]
+    ),
+    .target(
+        name: "QuillAutoLayout",
+        dependencies: ["CKiwi"],
+        path: "Sources/QuillAutoLayout",
+        swiftSettings: appSwiftSettings
+    ),
     .target(
         name: "QuillUI",
         dependencies: quillUIDependencies,
@@ -1646,6 +1666,11 @@ let packageTestTargets: [Target] = {
             #endif
             return .testTarget(name: "QuillShimsTests", dependencies: testDeps)
         }(),
+        .testTarget(
+            name: "QuillAutoLayoutTests",
+            dependencies: ["QuillAutoLayout"],
+            swiftSettings: appSwiftSettings
+        ),
         .testTarget(
             name: "KeychainSwiftTests",
             dependencies: ["KeychainSwift"],
