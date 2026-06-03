@@ -1109,6 +1109,23 @@ public struct QuillNetNewsWireContentView: View {
                     // below the current selection.
                     withAnimation { proxy.scrollTo(newID, anchor: .center) }
                 }
+                .onChange(of: model.searchQuery) { query in
+                    // Reset scroll to the top of the (filtered)
+                    // timeline when the search changes — otherwise
+                    // typing a query left the user stuck mid-scroll
+                    // and matching results were likely off-screen
+                    // above. NNW behavior. Use the first matching
+                    // row's id as the scroll target with anchor:
+                    // .top so the user sees the freshest matches.
+                    // No-op when search is empty (skipping the
+                    // jump avoids snapping the user back to the
+                    // top whenever they clear the field).
+                    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty,
+                          let firstID = model.filteredRows.first?.id
+                    else { return }
+                    withAnimation { proxy.scrollTo(firstID, anchor: .top) }
+                }
             }
 
             footerStatus
