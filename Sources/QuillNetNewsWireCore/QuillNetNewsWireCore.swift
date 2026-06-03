@@ -3660,6 +3660,27 @@ final class RSSReaderModel: ObservableObject {
             lastSubscribeMessage = added == 0
                 ? "Already subscribed to those feeds"
                 : "Imported \(added) feed\(added == 1 ? "" : "s")"
+            // Fire-and-forget catch-up: fetch newly-added feeds
+            // in the background so their cache + sidebar unread
+            // counts populate without waiting for the 30-min
+            // background tick. Honors per-feed back-off
+            // threshold and uses 4-wide concurrency (same shape
+            // as loadIfNeeded's launch catch-up). Skipped when
+            // nothing new was added (re-import of same OPML)
+            // or in manual-only refresh mode (user opted out
+            // of auto-fetch).
+            if added > 0, self.refreshIntervalSeconds != nil {
+                let imported = parsed.root.allFeeds
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    let pending = imported.filter { feed in
+                        (self.feedFailureCount[feed.id] ?? 0) < Self.feedFailureSkipThreshold
+                    }
+                    await Self.runWithConcurrencyLimit(pending, limit: 4) { feed in
+                        await self.fetchIntoCache(urlString: feed.url)
+                    }
+                }
+            }
             return added
         } catch {
             setError("OPML import failed: \(Self.friendlyError(error))")
