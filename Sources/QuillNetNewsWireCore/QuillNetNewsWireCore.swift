@@ -2607,7 +2607,16 @@ final class RSSReaderModel: ObservableObject {
         guard let articleStore else { return }
         guard let rows = try? articleStore.fetchAll(), !rows.isEmpty else { return }
         var grouped: [String: [PersistentArticle]] = [:]
-        for row in rows {
+        // Defensive: only hydrate caches for feeds that are
+        // STILL subscribed. removeSubscription deletes per-feed
+        // rows via try? articleStore.deleteForFeed, but that
+        // call is silenced on failure (flaky disk). Without
+        // this filter, a single failed delete leaves orphan
+        // rows in SQLite that re-hydrate on every launch — the
+        // unsubscribed feed's articles resurface in smart-feed
+        // views forever.
+        let subscribedIDs = Set(subscribedFeeds.map(\.id))
+        for row in rows where subscribedIDs.contains(row.feedID) {
             grouped[row.feedID, default: []].append(row)
         }
         for (feedID, group) in grouped {
