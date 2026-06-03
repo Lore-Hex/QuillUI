@@ -183,6 +183,23 @@ struct QuillAppKitQtTests {
         #expect(row.reused)
     }
 
+    @Test("NSLayoutConstraint.Priority arithmetic + content-resistance API (KeyValueRow needs them)")
+    func priorityAPI() {
+        #expect(NSLayoutConstraint.Priority.defaultHigh.rawValue == 750)
+        #expect((NSLayoutConstraint.Priority.defaultHigh + 1).rawValue == 751)
+        #expect(NSLayoutConstraint.Priority.required.rawValue == 1000)
+
+        let a = NSView(frame: .zero)
+        let b = NSView(frame: .zero)
+        let c = a.widthAnchor.constraint(equalToConstant: 150)
+        c.priority = .defaultHigh + 1
+        #expect(c.priority.rawValue == 751)
+
+        // The content-resistance API (used by EditableKeyValueRow) compiles + runs.
+        a.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        b.setContentCompressionResistancePriority(.defaultHigh + 2, for: .horizontal)
+    }
+
     @Test("NSWindow.contentView attaches its QWidget into the Qt window")
     func contentViewAttaches() {
         guard QuillQt.ensureInitialized() else { return }

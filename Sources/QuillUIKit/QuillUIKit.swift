@@ -98,6 +98,28 @@ public extension NSLayoutAnchor {
 public class NSLayoutConstraint: NSObject {
     public enum QuillRelation: Sendable { case equal, lessThanOrEqual, greaterThanOrEqual }
 
+    /// Constraint priority (NSLayoutConstraint.Priority): a Float wrapper with
+    /// the standard named levels and +/- arithmetic (so `.defaultHigh + 1`
+    /// works, as real AppKit code uses).
+    public struct Priority: RawRepresentable, Sendable, Equatable {
+        public var rawValue: Float
+        public init(rawValue: Float) { self.rawValue = rawValue }
+        public init(_ rawValue: Float) { self.rawValue = rawValue }
+        public static let required = Priority(1000)
+        public static let defaultHigh = Priority(750)
+        public static let dragThatCanResizeWindow = Priority(510)
+        public static let windowSizeStayPut = Priority(500)
+        public static let dragThatCannotResizeWindow = Priority(490)
+        public static let defaultLow = Priority(250)
+        public static let fittingSizeCompression = Priority(50)
+        public static func + (lhs: Priority, rhs: Float) -> Priority { Priority(lhs.rawValue + rhs) }
+        public static func - (lhs: Priority, rhs: Float) -> Priority { Priority(lhs.rawValue - rhs) }
+    }
+
+    /// Constraint priority. Captured for the native layout pass (which maps it
+    /// to a solver strength); defaults to required.
+    public var priority: Priority = .required
+
     /// Anchor bindings + parameters captured from the factory methods, read by
     /// the native layout pass. A nil second anchor ⇒ a constant dimension
     /// (first.attribute == multiplier·second.attribute + constant; with no
