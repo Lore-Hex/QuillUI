@@ -207,6 +207,27 @@ struct QuillNetNewsWireCoreTests {
         #expect(item.inlineLinks.map(\.urlString) == ["/relative"])
     }
 
+    @Test("RSSItem.inlineLinks dedupes repeated href, keeps first-seen anchor text")
+    func rssItemInlineLinksDedupesByURL() {
+        let html = """
+        <p>See the <a href="https://example.test/page">canonical page</a> for more.</p>
+        <p>Share: <a href="https://example.test/page">tweet</a> | <a href="https://example.test/other">other</a></p>
+        <p>Footer: <a href="https://example.test/page">also</a></p>
+        """
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        let links = item.inlineLinks
+        // Two unique URLs, even though the canonical page is
+        // anchored three times.
+        #expect(links.count == 2)
+        #expect(links.map(\.urlString) == [
+            "https://example.test/page",
+            "https://example.test/other",
+        ])
+        // First-seen anchor text wins (the prose phrasing,
+        // not the share-row label).
+        #expect(links[0].text == "canonical page")
+    }
+
     @Test("RSSItem.inlineLinks skips anchors inside script bodies")
     func rssItemInlineLinksSkipsScriptInteriors() {
         let html = """

@@ -6839,6 +6839,16 @@ private extension String {
         let source = htmlWithoutScriptStyleBlocks()
         let nsself = source as NSString
         let matches = regex.matches(in: source, range: NSRange(location: 0, length: nsself.length))
+        // Dedup by URL: if an article body repeats the same href
+        // (e.g., "Read more" linking to the canonical page,
+        // plus a Twitter/Reddit share row pointing at the same
+        // page, plus inline mentions), the detail-pane Links
+        // footer used to render duplicate rows. NNW's footer
+        // shows each unique target once, with the first-seen
+        // anchor text. First-seen-wins matches upstream
+        // expectation that the prose anchor text is more
+        // descriptive than the share-button label.
+        var seenURLs = Set<String>()
         var out: [InlineLink] = []
         for m in matches {
             let hrefRange = m.range(at: 1).location != NSNotFound ? m.range(at: 1) : m.range(at: 2)
@@ -6850,6 +6860,8 @@ private extension String {
             // 123". Falls through to the raw href when no base
             // (or resolution returns nil — e.g. already-absolute).
             let href = resolveURL(rawHref, against: baseURL)
+            guard !seenURLs.contains(href) else { continue }
+            seenURLs.insert(href)
             let textRange = m.range(at: 3)
             let rawText = textRange.location != NSNotFound ? nsself.substring(with: textRange) : ""
             let cleanedText = HTMLEntities.decode(
