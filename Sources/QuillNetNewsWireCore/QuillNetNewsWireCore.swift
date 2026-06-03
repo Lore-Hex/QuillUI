@@ -299,10 +299,12 @@ public struct QuillNetNewsWireContentView: View {
                             _ = model.reorderFeed(feed.id, by: -1)
                         }
                         .font(.caption2)
+                        .disabled(!model.canReorderFeed(feed.id, by: -1))
                         Button("↓ Move down") {
                             _ = model.reorderFeed(feed.id, by: 1)
                         }
                         .font(.caption2)
+                        .disabled(!model.canReorderFeed(feed.id, by: 1))
                     }
                 }
                 // Move to folder. Upstream NetNewsWire uses
@@ -5122,6 +5124,31 @@ final class RSSReaderModel: ObservableObject {
     /// folder or a subfolder), swaps it `delta` positions
     /// within that parent's `feeds` array. Returns (folder,
     /// didMove). First match wins.
+    /// Would a `reorderFeed(_:by:)` call actually move the feed?
+    /// Used by the inspector ↑/↓ buttons to greyout at-boundary
+    /// so the affordance reads honestly. Returns false when the
+    /// feed isn't in the tree, when delta is 0, or when target
+    /// index equals current index (top-of-parent + up = no-op,
+    /// bottom + down = no-op).
+    func canReorderFeed(_ feedID: Feed.ID, by delta: Int) -> Bool {
+        guard delta != 0 else { return false }
+        return Self.canReorderFeedInTree(
+            feedID: feedID, by: delta, in: subscriptionRoot
+        )
+    }
+
+    private static func canReorderFeedInTree(
+        feedID: Feed.ID, by delta: Int, in folder: OPMLImporter.Folder
+    ) -> Bool {
+        if let idx = folder.feeds.firstIndex(where: { $0.id == feedID }) {
+            let target = max(0, min(folder.feeds.count - 1, idx + delta))
+            return target != idx
+        }
+        return folder.subfolders.contains {
+            canReorderFeedInTree(feedID: feedID, by: delta, in: $0)
+        }
+    }
+
     private static func reorderFeedInTree(
         feedID: Feed.ID,
         by delta: Int,

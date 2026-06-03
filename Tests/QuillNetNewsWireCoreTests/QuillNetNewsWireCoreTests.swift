@@ -2553,6 +2553,28 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("canReorderFeed false at parent boundary, true in middle")
+    func canReorderFeedBoundaries() {
+        let a = Feed(title: "A", url: "https://a.test/feed")
+        let b = Feed(title: "B", url: "https://b.test/feed")
+        let c = Feed(title: "C", url: "https://c.test/feed")
+        let model = RSSReaderModel(subscribedFeeds: [a, b, c])
+        // a is at index 0 — can't move up; can move down.
+        #expect(!model.canReorderFeed(a.id, by: -1))
+        #expect(model.canReorderFeed(a.id, by: 1))
+        // c is at index 2 — can move up; can't move down.
+        #expect(model.canReorderFeed(c.id, by: -1))
+        #expect(!model.canReorderFeed(c.id, by: 1))
+        // b is middle — both directions.
+        #expect(model.canReorderFeed(b.id, by: -1))
+        #expect(model.canReorderFeed(b.id, by: 1))
+        // Unknown feed → false in both directions (no crash).
+        #expect(!model.canReorderFeed("https://nowhere.test/feed", by: 1))
+        // delta == 0 → false.
+        #expect(!model.canReorderFeed(b.id, by: 0))
+    }
+
+    @MainActor
     @Test("allFolderTargets enumerates nested folders depth-first with depth")
     func allFolderTargetsEnumeratesNested() {
         let model = RSSReaderModel()
