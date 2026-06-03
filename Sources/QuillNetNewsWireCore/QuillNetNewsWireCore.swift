@@ -4158,8 +4158,19 @@ final class RSSReaderModel: ObservableObject {
             let trimmedItems = mergedItems
             let trimmedArticles = mergedArticles
             let now = Date()
-            self.setItems(trimmedItems)
-            self.articles = trimmedArticles
+            // Only update live items / articles when this fetch
+            // is still for the ACTIVE feed. The async fetch can
+            // race with selectFeed: user clicks feed A → fetch(A)
+            // starts → user clicks feed B → fetch(B) starts → A
+            // finishes after B's hydrate, and the stale unguarded
+            // writes flash A's content over B's. Cache write
+            // always happens (those are per-URL so don't
+            // collide). Matches upstream NetNewsWire's
+            // "fetch-completion is no-op if context changed."
+            if urlString == self.currentFeedURL {
+                self.setItems(trimmedItems)
+                self.articles = trimmedArticles
+            }
             // Store the same data in the per-feed cache so
             // cross-feed roll-ups (unread badges, smart feeds)
             // stay accurate after this fetch even if the user
@@ -4193,7 +4204,11 @@ final class RSSReaderModel: ObservableObject {
                 // beyond articlesPerFeedLimit.
                 try? articleStore.pruneFeed(urlString, keeping: Self.articleHistoryLimit)
             }
-            if self.selectedID == nil {
+            // Same active-feed guard as setItems/setArticles
+            // above: don't auto-select an item for a feed
+            // that's no longer the active one. Race window with
+            // selectFeed switches.
+            if urlString == self.currentFeedURL, self.selectedID == nil {
                 // markAsRead: false — same reasoning as iter
                 // #206's auto-select-on-view-change. Fetch-time
                 // initial selection positions the cursor so the
@@ -4207,7 +4222,9 @@ final class RSSReaderModel: ObservableObject {
                     markAsRead: false
                 )
             }
-            self.lastFetchAt = now
+            if urlString == self.currentFeedURL {
+                self.lastFetchAt = now
+            }
             // Successful fetch clears any prior error tracked
             // for this feed.
             self.feedErrors[urlString] = nil
