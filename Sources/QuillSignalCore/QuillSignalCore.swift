@@ -42,6 +42,10 @@ struct BridgeStoredMessage: Codable {
 private struct MessagesData: Codable { let messages: [BridgeStoredMessage] }
 private struct MessagesResponse: Codable { let data: MessagesData? }
 
+/// Decodes the bridge `whoami` response line.
+private struct WhoamiData: Codable { let registered: Bool?; let number: String? }
+private struct WhoamiResponse: Codable { let data: WhoamiData? }
+
 @MainActor
 public final class QuillSignalModel: ObservableObject {
     @Published public var linkState: QuillSignalLinkState = .connecting
@@ -50,6 +54,7 @@ public final class QuillSignalModel: ObservableObject {
     @Published public var linkQR: String?
     @Published public var isLinking: Bool = false
     @Published public var conversations: [Conversation] = []
+    @Published public var accountNumber: String?
     private var isRefreshing = false
     private var hasAutoStarted = false
 
@@ -108,7 +113,10 @@ public final class QuillSignalModel: ObservableObject {
                 self.linkState = resolvedState
                 self.statusDetail = resolvedDetail
                 self.isRefreshing = false
-                if resolvedState == .linked { self.loadConversations() }
+                if resolvedState == .linked {
+                    self.loadConversations()
+                    self.loadWhoami()
+                }
             }
         }
     }
@@ -169,6 +177,23 @@ public final class QuillSignalModel: ObservableObject {
                     self.conversations[idx].messages = result
                 }
             }
+        }
+    }
+
+    /// Load the linked account identity (phone number) from the bridge.
+    public func loadWhoami() {
+        let path = socketPath
+        Task.detached {
+            let client = BridgeClient(path: path)
+            var number: String? = nil
+            if let line = try? client.request("{\"cmd\":\"whoami\"}"),
+               let bytes = line.data(using: .utf8),
+               let resp = try? JSONDecoder().decode(WhoamiResponse.self, from: bytes),
+               resp.data?.registered == true {
+                number = resp.data?.number
+            }
+            let result = number
+            await MainActor.run { self.accountNumber = result }
         }
     }
 
@@ -257,7 +282,7 @@ public struct QuillSignalContentView: View {
             linkPanel
         case .linked:
             ChatSplitShell(
-                title: "Quill Signal",
+                title: model.accountNumber.map { "Quill Signal — \($0)" } ?? "Quill Signal",
                 threads: model.conversations,
                 selectedID: Binding(
                     get: { selectedID },
