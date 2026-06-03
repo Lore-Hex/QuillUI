@@ -1264,6 +1264,19 @@ targets.append(
 )
 #endif
 
+// SignalRingRTC Linux shim — faithful type-surface of signalapp/ringrtc
+// v2.69.1 for the NON-calling SSK paths (CallLinkRootKey + RingRTC logging).
+// Real voice/video calling is WebRTC + a Rust FFI; deferred. See
+// Sources/SignalRingRTCShim/SignalRingRTC.swift.
+#if os(Linux)
+targets.append(
+    .target(
+        name: "SignalRingRTC",
+        path: "Sources/SignalRingRTCShim"
+    )
+)
+#endif
+
 // SignalServiceKit — the foundation target (1412 Swift files). Compiled on
 // Linux against QuillUI's Apple-framework shim targets + LibSignalClient +
 // GRDB + SwiftProtobuf. Excluded for the first build:
@@ -1356,7 +1369,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             dependencies: [
                 "LibSignalClient",
                 "UIKit", "AVFoundation", "Network", "os", "Security", "CoreGraphics",
-                "CryptoKit", "CommonCrypto",
+                "CryptoKit", "CommonCrypto", "SignalRingRTC",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
             ],
