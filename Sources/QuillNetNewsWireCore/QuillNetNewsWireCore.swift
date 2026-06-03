@@ -1625,7 +1625,20 @@ public struct QuillNetNewsWireContentView: View {
             // Timeline is empty too — let it speak for itself.
             return ("No article selected", "")
         }
-        return ("Select an article", "Use the timeline to pick one, or press n for the next unread.")
+        // Tailor the hint: "press n for next unread" is dead
+        // advice when no unread items are in view (post-read-all
+        // state). Differentiate so the affordance points at a
+        // path that actually works.
+        if model.filteredUnreadCount > 0 {
+            return (
+                "Select an article",
+                "Use the timeline to pick one, or press n for the next unread."
+            )
+        }
+        return (
+            "Select an article",
+            "Use the timeline to pick one — every article in this view is already read."
+        )
     }
 }
 
