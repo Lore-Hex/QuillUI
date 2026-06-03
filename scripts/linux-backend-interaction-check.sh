@@ -397,8 +397,14 @@ fi
 if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
     case "$INTERACTION_MODE" in
       composer-typed)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 34 / 100)))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 84))}"
+        # Target the composer field CENTER. Measured from the mac-reference render
+        # (PR #237): the composer spans x 647..1984 (center ~0.64*W) with its field
+        # row at y~1257 (~window_height-123). The old x=0.34*W (~695) landed at the
+        # field's far-left padding and y=window_height-84 (~1296) fell BELOW the field
+        # row, so the click never focused the TextField (typed text -> pixels=0).
+        # 0.56*W matches the reimpl's proven composer click; -120 sits on the field row.
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 120))}"
         click_at "$click_x" "$click_y"
         sleep 1
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
@@ -517,6 +523,14 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
         # render-stable before the verifier reads it. (Mirrors the Qt invalid
         # branch, which already re-resolves the active child window.)
         if quillui_is_wireguard_malformed_import_interaction "$INTERACTION_MODE"; then
+          # Belt-and-suspenders: if Ctrl+Return wasn't delivered (no error overlay
+          # yet), force the submit with an Import-button click before settling. This
+          # is a no-op when the overlay is already up, so the healthy Ctrl+Return
+          # path -- and CI behavior -- is unchanged.
+          quillui_wireguard_force_import_submit_if_unsettled \
+            "$DISPLAY_ID" "$capture_window" "$SCREENSHOT_PATH" \
+            "${QUILLUI_BACKEND_IMPORT_SUBMIT_X:-$((window_x + 358))}" \
+            "${QUILLUI_BACKEND_IMPORT_SUBMIT_Y:-$((window_y + 293))}"
           quillui_settle_wireguard_import_error_capture \
             "$DISPLAY_ID" "$capture_window" "$SCREENSHOT_PATH"
           settled_capture_taken=1
@@ -545,6 +559,11 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
         # Invalid file imports paint the same async error overlay as the invalid
         # paste path, so settle on a render-stable error frame before verifying.
         if quillui_is_wireguard_malformed_import_interaction "$INTERACTION_MODE"; then
+          # Same Ctrl+Return-not-delivered fallback as the invalid-paste branch.
+          quillui_wireguard_force_import_submit_if_unsettled \
+            "$DISPLAY_ID" "$capture_window" "$SCREENSHOT_PATH" \
+            "${QUILLUI_BACKEND_IMPORT_SUBMIT_X:-$((window_x + 358))}" \
+            "${QUILLUI_BACKEND_IMPORT_SUBMIT_Y:-$((window_y + 293))}"
           quillui_settle_wireguard_import_error_capture \
             "$DISPLAY_ID" "$capture_window" "$SCREENSHOT_PATH"
           settled_capture_taken=1

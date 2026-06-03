@@ -156,6 +156,12 @@ func qtRenderVerticalContainer(
     spacing: Int,
     alignment: HorizontalAlignment
 ) -> OpaquePointer {
+    #if QUILLUI_QT_GENERIC
+    for child in children {
+        quill_qt_divider_set_orientation(qtHandle(child), 0)
+    }
+    #endif
+
     let container = qtOpaque(quill_qt_bridge_container_create())
     let context = QtLayoutMeasureContext(widgets: children)
     let layout = computeVStackLayout(
@@ -172,13 +178,26 @@ func qtRenderVerticalContainer(
     )
 
     for (child, placement) in zip(children, layout.childPlacements) {
+        #if QUILLUI_QT_GENERIC
+        let divider = quill_qt_widget_is_divider(qtHandle(child)) != 0
+        let childX = divider ? 0 : placement.origin.x
+        let childY = placement.origin.y
+        let childWidth = divider ? max(1, layout.containerSize.width) : placement.size.width
+        let childHeight = divider ? max(1, placement.size.height) : placement.size.height
+        #else
+        let childX = placement.origin.x
+        let childY = placement.origin.y
+        let childWidth = placement.size.width
+        let childHeight = placement.size.height
+        #endif
+
         quill_qt_bridge_widget_add_child(qtHandle(container), qtHandle(child))
         quill_qt_bridge_widget_set_geometry(
             qtHandle(child),
-            Int32(placement.origin.x),
-            Int32(placement.origin.y),
-            Int32(placement.size.width),
-            Int32(placement.size.height)
+            Int32(childX),
+            Int32(childY),
+            Int32(childWidth),
+            Int32(childHeight)
         )
     }
     return container
@@ -191,6 +210,12 @@ func qtRenderHorizontalContainer(
     spacing: Int,
     alignment: VerticalAlignment
 ) -> OpaquePointer {
+    #if QUILLUI_QT_GENERIC
+    for child in children {
+        quill_qt_divider_set_orientation(qtHandle(child), 1)
+    }
+    #endif
+
     let container = qtOpaque(quill_qt_bridge_container_create())
     let context = QtLayoutMeasureContext(widgets: children)
     let layout = computeHStackLayout(
@@ -207,13 +232,26 @@ func qtRenderHorizontalContainer(
     )
 
     for (child, placement) in zip(children, layout.childPlacements) {
+        #if QUILLUI_QT_GENERIC
+        let divider = quill_qt_widget_is_divider(qtHandle(child)) != 0
+        let childX = placement.origin.x
+        let childY = divider ? 0 : placement.origin.y
+        let childWidth = divider ? max(1, placement.size.width) : placement.size.width
+        let childHeight = divider ? max(1, layout.containerSize.height) : placement.size.height
+        #else
+        let childX = placement.origin.x
+        let childY = placement.origin.y
+        let childWidth = placement.size.width
+        let childHeight = placement.size.height
+        #endif
+
         quill_qt_bridge_widget_add_child(qtHandle(container), qtHandle(child))
         quill_qt_bridge_widget_set_geometry(
             qtHandle(child),
-            Int32(placement.origin.x),
-            Int32(placement.origin.y),
-            Int32(placement.size.width),
-            Int32(placement.size.height)
+            Int32(childX),
+            Int32(childY),
+            Int32(childWidth),
+            Int32(childHeight)
         )
     }
     return container
@@ -469,6 +507,14 @@ extension Spacer: QtRenderable {
         return label
     }
 }
+
+#if QUILLUI_QT_GENERIC
+extension Divider: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtOpaque(quill_qt_make_divider())
+    }
+}
+#endif
 
 extension Color: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {

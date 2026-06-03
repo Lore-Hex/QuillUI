@@ -266,7 +266,12 @@ public struct QuillPromptGrid: View {
                 Text(prompt.title.quillPromptGridDisplayTitle)
                     .font(.system(size: promptFontSize))
                     .foregroundColor(Color(hex: "#1D1D1F"))
-                    .frame(width: max(40, cardWidth - (promptCardPaddingWidth * 2)), alignment: .leading)
+                    // Fill the (flexible) card width instead of a FIXED width — a
+                    // fixed cardWidth-based title kept each card ~272pt wide so the
+                    // 4-card row could not shrink to fit a narrow detail pane and
+                    // overflowed off the right edge. maxWidth:.infinity lets the card
+                    // shrink with its LazyVGrid column.
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Spacer()
                 HStack {
                     Spacer()
@@ -772,20 +777,30 @@ public struct QuillChatEmptyState: View {
     private var linuxReferenceEmptyStateContent: some View {
         GeometryReader { geometry in
             let metrics = promptGridMetrics(totalWidth: Double(geometry.size.width))
-            VStack(spacing: 78) {
-                wordmark
+            // Never let the row exceed the pane width (otherwise it overflows and
+            // anchors to an edge); constrain the grid to the available width so the
+            // flexible cards shrink to fit. Flanking Spacers force horizontal
+            // centering — GTK did not honor the .frame(maxWidth:.infinity,
+            // alignment:) centering here (the content anchored to the right edge).
+            let available = max(160, CGFloat(geometry.size.width) - 56)
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                VStack(spacing: 78) {
+                    wordmark
 
-                QuillPromptGrid(
-                    prompts: prompts,
-                    columns: columns,
-                    cardWidth: metrics.cardWidth,
-                    cardHeight: metrics.cardHeight,
-                    spacing: metrics.spacing,
-                    action: action
-                )
-                .frame(width: metrics.gridWidth, alignment: .center)
+                    QuillPromptGrid(
+                        prompts: prompts,
+                        columns: columns,
+                        cardWidth: metrics.cardWidth,
+                        cardHeight: metrics.cardHeight,
+                        spacing: metrics.spacing,
+                        action: action
+                    )
+                    .frame(maxWidth: min(metrics.gridWidth, available), alignment: .center)
 
-                Spacer()
+                    Spacer()
+                }
+                Spacer(minLength: 0)
             }
             .padding(.top, 188)
             .padding(.horizontal, 28)
@@ -797,21 +812,30 @@ public struct QuillChatEmptyState: View {
     private var emptyStateContent: some View {
         GeometryReader { geometry in
             let metrics = promptGridMetrics(totalWidth: Double(geometry.size.width))
-            VStack(spacing: emptyStateVerticalSpacing) {
-                Spacer()
-                wordmark
+            // Force horizontal centering with flanking Spacers — GTK did not honor
+            // the implicit centering of .frame(maxWidth: .infinity) here (the
+            // wordmark + grid anchored to the right edge of the detail pane).
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                VStack(spacing: emptyStateVerticalSpacing) {
+                    Spacer()
+                    wordmark
 
-                QuillPromptGrid(
-                    prompts: prompts,
-                    columns: columns,
-                    cardWidth: metrics.cardWidth,
-                    cardHeight: metrics.cardHeight,
-                    spacing: metrics.spacing,
-                    action: action
-                )
-                .frame(width: metrics.gridWidth, alignment: .center)
+                    QuillPromptGrid(
+                        prompts: prompts,
+                        columns: columns,
+                        cardWidth: metrics.cardWidth,
+                        cardHeight: metrics.cardHeight,
+                        spacing: metrics.spacing,
+                        action: action
+                    )
+                    // Constrain to the available width so the row can't overflow +
+                    // anchor off-edge; flexible cards shrink to fit, then center.
+                    .frame(maxWidth: min(metrics.gridWidth, max(160, CGFloat(geometry.size.width) - 56)), alignment: .center)
 
-                Spacer()
+                    Spacer()
+                }
+                Spacer(minLength: 0)
             }
             .padding(28)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -854,14 +878,30 @@ public struct QuillChatEmptyState: View {
             let candidateWidth = (availableGridWidth - spacingWidth) / visible
             resolvedCardWidth = min(305, max(cardWidth, candidateWidth))
             resolvedCardHeight = max(cardHeight, 280)
+        } else {
+            // Multi-column at the standard (non-reference) window width. Clamp
+            // each card to its flexible LazyVGrid column width — same rationale as
+            // the single-column branch above. Without this, the fixed card frame
+            // (e.g. the generated Enchanted profile's 302pt cards) is far WIDER
+            // than its column in a ~1180pt window, so the row (gridWidth) overflows
+            // the detail pane and is pushed flush-right, AND the over-wide fixed
+            // card spins SwiftOpenUI's GTK4 LazyVGrid relayout and collapses it to
+            // a single column. Clamping the card to its column width makes the
+            // N-card row fit the pane — so .frame(width: gridWidth, alignment:
+            // .center) can center it — and lets all `columns` columns render.
+            let visible = CGFloat(min(columns, max(1, prompts.count)))
+            let spacingWidth = CGFloat(max(0, Int(visible) - 1) * resolvedSpacing)
+            let columnWidth = max(80, (availableWidth - spacingWidth) / visible)
+            resolvedCardWidth = min(cardWidth, columnWidth)
         }
         #endif
 
+        let resolvedGridWidth = gridWidth(cardWidth: resolvedCardWidth, spacing: resolvedSpacing)
         return QuillPromptGridMetrics(
             cardWidth: resolvedCardWidth,
             cardHeight: resolvedCardHeight,
             spacing: resolvedSpacing,
-            gridWidth: gridWidth(cardWidth: resolvedCardWidth, spacing: resolvedSpacing)
+            gridWidth: resolvedGridWidth
         )
     }
 

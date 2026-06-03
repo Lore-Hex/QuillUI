@@ -55,6 +55,15 @@ public enum QuillWireGuardPresentation {
     public static let allowedIPsLabel = "Allowed IPs"
     public static let endpointLabel = "Endpoint"
     public static let keepAliveLabel = "Keepalive"
+    public static let mtuLabel = "MTU"
+    public static let preSharedKeyLabel = "Preshared key"
+    public static let preSharedKeyEnabledText = "enabled"
+    public static let dataReceivedLabel = "Data received"
+    public static let dataSentLabel = "Data sent"
+    public static let latestHandshakeLabel = "Latest handshake"
+    public static let connectLabel = "Connect"
+    public static let disconnectLabel = "Disconnect"
+    public static let connectFailedPrefix = "Couldn't change tunnel state: "
     public static let noneText = "None"
 }
 
@@ -122,19 +131,29 @@ public struct QuillWireGuardInterface: Codable, Hashable, Sendable {
     public var addresses: [String]
     public var dnsServers: [String]
     public var listenPort: UInt16?
+    public var mtu: UInt16?
+    /// wg-quick [Interface] lines this app doesn't model (PostUp/PostDown/PreUp/
+    /// PreDown/Table/FwMark/SaveConfig/…), preserved verbatim ("Key = value") so a
+    /// load → edit → save round-trip doesn't silently drop them. Re-emitted by
+    /// wgQuickConfig() after the known fields.
+    public var extraConfigLines: [String]
 
     public init(
         privateKey: String,
         publicKey: String,
         addresses: [String],
         dnsServers: [String],
-        listenPort: UInt16? = nil
+        listenPort: UInt16? = nil,
+        mtu: UInt16? = nil,
+        extraConfigLines: [String] = []
     ) {
         self.privateKey = privateKey
         self.publicKey = publicKey
         self.addresses = addresses
         self.dnsServers = dnsServers
         self.listenPort = listenPort
+        self.mtu = mtu
+        self.extraConfigLines = extraConfigLines
     }
 }
 
@@ -145,6 +164,10 @@ public struct QuillWireGuardPeer: Codable, Identifiable, Hashable, Sendable {
     public var allowedIPs: [String]
     public var endpoint: String?
     public var persistentKeepAlive: UInt16?
+    public var preSharedKey: String?
+    /// wg-quick [Peer] lines this app doesn't model, preserved verbatim so they
+    /// survive a load → edit → save round-trip. Re-emitted by wgQuickConfig().
+    public var extraConfigLines: [String]
 
     public init(
         id: String,
@@ -152,7 +175,9 @@ public struct QuillWireGuardPeer: Codable, Identifiable, Hashable, Sendable {
         publicKey: String,
         allowedIPs: [String],
         endpoint: String? = nil,
-        persistentKeepAlive: UInt16? = nil
+        persistentKeepAlive: UInt16? = nil,
+        preSharedKey: String? = nil,
+        extraConfigLines: [String] = []
     ) {
         self.id = id
         self.name = name
@@ -160,6 +185,8 @@ public struct QuillWireGuardPeer: Codable, Identifiable, Hashable, Sendable {
         self.allowedIPs = allowedIPs
         self.endpoint = endpoint
         self.persistentKeepAlive = persistentKeepAlive
+        self.preSharedKey = preSharedKey
+        self.extraConfigLines = extraConfigLines
     }
 }
 
@@ -206,11 +233,21 @@ public struct QuillWireGuardTunnel: Codable, Identifiable, Hashable, Sendable {
             lines.append("ListenPort = \(listenPort)")
         }
 
+        if let mtu = interface.mtu {
+            lines.append("MTU = \(mtu)")
+        }
+
+        lines.append(contentsOf: interface.extraConfigLines)
+
         for peer in peers {
             lines.append("")
             lines.append("[Peer]")
             lines.append("# Name = \(peer.name)")
             lines.append("PublicKey = \(peer.publicKey)")
+
+            if let preSharedKey = peer.preSharedKey {
+                lines.append("PresharedKey = \(preSharedKey)")
+            }
 
             if !peer.allowedIPs.isEmpty {
                 lines.append("AllowedIPs = \(peer.allowedIPs.joined(separator: ", "))")
@@ -223,6 +260,8 @@ public struct QuillWireGuardTunnel: Codable, Identifiable, Hashable, Sendable {
             if let persistentKeepAlive = peer.persistentKeepAlive {
                 lines.append("PersistentKeepalive = \(persistentKeepAlive)")
             }
+
+            lines.append(contentsOf: peer.extraConfigLines)
         }
 
         return lines.joined(separator: "\n")
@@ -234,12 +273,14 @@ public struct QuillWireGuardInterfaceSnapshot: Codable, Equatable, Sendable {
     public var addressesText: String
     public var dnsServersText: String
     public var listenPortText: String?
+    public var mtuText: String?
 
     public init(interface: QuillWireGuardInterface) {
         self.publicKey = interface.publicKey
         self.addressesText = interface.addresses.joined(separator: ", ")
         self.dnsServersText = interface.dnsServers.joined(separator: ", ")
         self.listenPortText = interface.listenPort.map { String($0) }
+        self.mtuText = interface.mtu.map { String($0) }
     }
 }
 
@@ -249,13 +290,25 @@ public struct QuillWireGuardPeerSnapshot: Codable, Equatable, Sendable {
     public var allowedIPsText: String
     public var endpointText: String?
     public var keepAliveText: String?
+    public var preSharedKeyText: String?
+    public var transferRxText: String?
+    public var transferTxText: String?
+    public var latestHandshakeText: String?
 
     public init(peer: QuillWireGuardPeer) {
+        self.init(peer: peer, live: nil)
+    }
+
+    public init(peer: QuillWireGuardPeer, live: QuillWireGuardLivePeerStats?) {
         self.name = peer.name
         self.publicKey = peer.publicKey
         self.allowedIPsText = peer.allowedIPs.joined(separator: ", ")
         self.endpointText = peer.endpoint
         self.keepAliveText = peer.persistentKeepAlive.map { "\($0)s" }
+        self.preSharedKeyText = peer.preSharedKey != nil ? QuillWireGuardPresentation.preSharedKeyEnabledText : nil
+        self.transferRxText = live?.transferRxText
+        self.transferTxText = live?.transferTxText
+        self.latestHandshakeText = live?.latestHandshakeText
     }
 }
 
@@ -269,12 +322,21 @@ public struct QuillWireGuardTunnelSnapshot: Codable, Equatable, Identifiable, Se
     public var wgQuickConfig: String
 
     public init(tunnel: QuillWireGuardTunnel) {
+        self.init(tunnel: tunnel, liveStatus: nil)
+    }
+
+    public init(tunnel: QuillWireGuardTunnel, liveStatus: QuillWireGuardLiveStatus?) {
         self.id = tunnel.id
         self.name = tunnel.name
         self.statusText = tunnel.status.rawValue
         self.peerSummary = tunnel.peerSummary
         self.interface = QuillWireGuardInterfaceSnapshot(interface: tunnel.interface)
-        self.peers = tunnel.peers.map(QuillWireGuardPeerSnapshot.init(peer:))
+        self.peers = tunnel.peers.map { peer in
+            QuillWireGuardPeerSnapshot(
+                peer: peer,
+                live: liveStatus?.peers.first(where: { $0.publicKey == peer.publicKey })
+            )
+        }
         self.wgQuickConfig = tunnel.wgQuickConfig()
     }
 }
@@ -964,7 +1026,12 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
         self.tunnels = try container.decode([QuillWireGuardTunnelSnapshot].self, forKey: .tunnels)
     }
 
-    public static var configurationManager: QuillWireGuardAppSnapshot {
+    /// Build the configuration-manager snapshot, attaching each fixture tunnel's
+    /// live status via `liveStatusFor`. The pure `configurationManager` passes nil
+    /// (static config view); `liveConfigurationManager` passes the runtime service.
+    private static func configurationManager(
+        liveStatusFor: (QuillWireGuardTunnel) -> QuillWireGuardLiveStatus?
+    ) -> QuillWireGuardAppSnapshot {
         QuillWireGuardAppSnapshot(
             title: QuillWireGuardAppMetadata.title,
             defaultWidth: Int(QuillWireGuardAppMetadata.defaultWidth),
@@ -973,8 +1040,30 @@ public struct QuillWireGuardAppSnapshot: Codable, Equatable, Sendable {
             minimumHeight: Int(QuillWireGuardAppMetadata.linuxMinimumHeight),
             backendStatusText: QuillWireGuardBackend.statusText,
             selectedTunnelID: QuillWireGuardFixtures.defaultTunnelID,
-            tunnels: QuillWireGuardFixtures.tunnels.map(QuillWireGuardTunnelSnapshot.init(tunnel:))
+            tunnels: QuillWireGuardFixtures.tunnels.map { tunnel in
+                QuillWireGuardTunnelSnapshot(tunnel: tunnel, liveStatus: liveStatusFor(tunnel))
+            }
         )
+    }
+
+    /// The static configuration-manager snapshot (no live runtime stats).
+    public static var configurationManager: QuillWireGuardAppSnapshot {
+        configurationManager(liveStatusFor: { _ in nil })
+    }
+
+    /// The configuration-manager snapshot with each tunnel's live runtime status
+    /// fetched via the controller (one-shot at build). A tunnel that is down / whose
+    /// `wg` interface isn't up degrades to `.inactive`, so no live rows render. This
+    /// is the Qt native (C++ shim) analog of the SwiftUI fallback view's live fetch.
+    public static func liveConfigurationManager<Runner: QuillWireGuardCommandRunner>(
+        controller: QuillWireGuardRuntimeController<Runner>,
+        now: Date
+    ) -> QuillWireGuardAppSnapshot {
+        configurationManager(liveStatusFor: { tunnel in
+            QuillWireGuardLiveStatusService.liveStatus(
+                forTunnelNamed: tunnel.name, controller: controller, now: now
+            )
+        })
     }
 }
 

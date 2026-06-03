@@ -220,4 +220,107 @@ struct QuillIceCubesCoreTests {
             ) == rows.last?.id
         )
     }
+
+    // MARK: - Engagement counts
+
+    @Test("Status decodes Mastodon snake_case engagement counts")
+    func statusDecodesEngagementCounts() throws {
+        let json = """
+        {
+          "id": "7",
+          "content": "<p>hi</p>",
+          "created_at": "2024-01-15T12:00:00Z",
+          "replies_count": 4,
+          "reblogs_count": 12,
+          "favourites_count": 99,
+          "account": { "id": "1", "acct": "a", "username": "a" }
+        }
+        """.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let status = try decoder.decode(Status.self, from: json)
+        #expect(status.repliesCount == 4)
+        #expect(status.reblogsCount == 12)
+        #expect(status.favouritesCount == 99)
+    }
+
+    @Test("Status defaults engagement counts to zero when absent")
+    func statusDefaultsCountsToZero() throws {
+        let json = """
+        {
+          "id": "8",
+          "content": "<p>hi</p>",
+          "account": { "id": "1", "acct": "a", "username": "a" }
+        }
+        """.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let status = try decoder.decode(Status.self, from: json)
+        #expect(status.repliesCount == 0)
+        #expect(status.reblogsCount == 0)
+        #expect(status.favouritesCount == 0)
+    }
+
+    // MARK: - Relative time
+
+    @Test("IceCubesRelativeTime buckets seconds into now/m/h/d")
+    func relativeTimeBuckets() {
+        let createdAt = "2024-01-15T12:00:00Z"
+        let base = IceCubesRelativeTime.parse(createdAt)!
+        #expect(IceCubesRelativeTime.string(fromISO8601: createdAt, now: base.addingTimeInterval(30)) == "now")
+        #expect(IceCubesRelativeTime.string(fromISO8601: createdAt, now: base.addingTimeInterval(300)) == "5m")
+        #expect(IceCubesRelativeTime.string(fromISO8601: createdAt, now: base.addingTimeInterval(7_200)) == "2h")
+        #expect(IceCubesRelativeTime.string(fromISO8601: createdAt, now: base.addingTimeInterval(259_200)) == "3d")
+    }
+
+    @Test("IceCubesRelativeTime falls back to an absolute date past a week")
+    func relativeTimeAbsoluteDate() {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let createdAt = "2024-01-15T12:00:00Z"
+        let base = IceCubesRelativeTime.parse(createdAt)!
+        // 30 days later, same calendar year → "Jan 15"
+        #expect(IceCubesRelativeTime.string(fromISO8601: createdAt, now: base.addingTimeInterval(2_592_000), calendar: utc) == "Jan 15")
+        // ~500 days later, across the year boundary → "Jan 15, 2024"
+        #expect(IceCubesRelativeTime.string(fromISO8601: createdAt, now: base.addingTimeInterval(43_200_000), calendar: utc) == "Jan 15, 2024")
+    }
+
+    @Test("IceCubesRelativeTime returns empty for an unparseable timestamp")
+    func relativeTimeUnparseable() {
+        #expect(IceCubesRelativeTime.string(fromISO8601: "", now: Date()) == "")
+        #expect(IceCubesRelativeTime.string(fromISO8601: "not-a-date", now: Date()) == "")
+    }
+
+    @Test("Timeline row precomputes timeText, subtitle, and counts")
+    func timelineRowProjectsTimeAndCounts() {
+        let status = Status(
+            id: "9",
+            account: Account(id: "9", acct: "alex", username: "alex", displayName: "Alex"),
+            content: HTMLString(stringLiteral: "<p>hi</p>"),
+            createdAt: "2024-01-15T12:00:00Z",
+            repliesCount: 2,
+            reblogsCount: 5,
+            favouritesCount: 1280
+        )
+        // +2h is timezone-independent, so the projection is deterministic.
+        let now = IceCubesRelativeTime.parse("2024-01-15T14:00:00Z")!
+        let row = IceCubesTimelineRow(status: status, now: now)
+        #expect(row.timeText == "2h")
+        #expect(row.subtitleText == "@alex · 2h")
+        #expect(row.repliesCount == 2)
+        #expect(row.reblogsCount == 5)
+        #expect(row.favouritesCount == 1280)
+    }
+
+    @Test("QuillIceCubesStats.summary pluralizes + omits zero metrics")
+    func statsSummary() {
+        #expect(QuillIceCubesStats.summary(reblogs: 12, favourites: 28) == "12 Boosts · 28 Favorites")
+        #expect(QuillIceCubesStats.summary(reblogs: 1, favourites: 1) == "1 Boost · 1 Favorite")
+        #expect(QuillIceCubesStats.summary(reblogs: 0, favourites: 5) == "5 Favorites")
+        #expect(QuillIceCubesStats.summary(reblogs: 3, favourites: 0) == "3 Boosts")
+        #expect(QuillIceCubesStats.summary(reblogs: 0, favourites: 0) == "")
+        // Large-count compaction ("1.3K") is Apple's IntegerFormatStyle and
+        // locale-dependent, so it isn't asserted here — only this type's own
+        // pluralization + zero-omission logic is.
+    }
 }

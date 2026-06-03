@@ -514,6 +514,13 @@ open class NSAppearance: NSObject, @unchecked Sendable {
 open class NSResponder: NSObject {
     fileprivate weak var quillExplicitNextResponder: NSResponder?
 
+    /// Opaque native-backend widget handle (e.g. a QWidget for QuillAppKitQt).
+    /// Stored here — tied to the object's lifetime — instead of in an
+    /// ObjectIdentifier-keyed side table, so a deallocated object's address
+    /// being reused can never hand a new object a stale handle. Backends that
+    /// prefer side tables (QuillAppKitGTK today) may ignore this.
+    public var quillBackendHandle: UnsafeMutableRawPointer?
+
     public override init() {}
     open var nextResponder: NSResponder? {
         get { quillExplicitNextResponder }
@@ -695,20 +702,41 @@ open class NSView: NSResponder {
         return self
     }
 
-    public var topAnchor = NSLayoutYAxisAnchor()
-    public var bottomAnchor = NSLayoutYAxisAnchor()
-    public var leadingAnchor = NSLayoutXAxisAnchor()
-    public var trailingAnchor = NSLayoutXAxisAnchor()
-    public var widthAnchor = NSLayoutDimension()
-    public var heightAnchor = NSLayoutDimension()
-    public var centerXAnchor = NSLayoutXAxisAnchor()
-    public var centerYAnchor = NSLayoutYAxisAnchor()
-    public var firstBaselineAnchor = NSLayoutYAxisAnchor()
-    public var lastBaselineAnchor = NSLayoutYAxisAnchor()
+    // Computed so each anchor is bound to this view + its attribute (the native
+    // layout pass reads that binding). Returning a fresh anchor per access
+    // matches AppKit, where anchors are lightweight value-like handles.
+    public var topAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .top) }
+    public var bottomAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .bottom) }
+    public var leadingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .leading) }
+    public var trailingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .trailing) }
+    public var widthAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .width) }
+    public var heightAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .height) }
+    public var centerXAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .centerX) }
+    public var centerYAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .centerY) }
+    public var firstBaselineAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .firstBaseline) }
+    public var lastBaselineAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .lastBaseline) }
 
     open func layout() {}
     open func draw(_ rect: NSRect) {}
+
+    /// AppKit intrinsic content size. Default: no intrinsic size on either axis;
+    /// content views (labels, buttons) and custom rows override this. A native
+    /// backend may later compute it from the widget's measured size.
+    open var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+    /// Sentinel meaning "no intrinsic size for this axis" (AppKit's value).
+    public static let noIntrinsicMetric: CGFloat = -1
+
+    /// Called when a recycled view (e.g. an NSTableView cell) is reused.
+    open func prepareForReuse() {}
     open func viewWillDraw() {}
+
+    /// Auto Layout content priorities. Captured for the native layout pass;
+    /// currently no-ops (the solver treats required constraints as
+    /// authoritative — feeding hugging/compression in is a fidelity refinement).
+    open func setContentHuggingPriority(_ priority: NSLayoutConstraint.Priority, for orientation: NSLayoutConstraint.Orientation) {}
+    open func setContentCompressionResistancePriority(_ priority: NSLayoutConstraint.Priority, for orientation: NSLayoutConstraint.Orientation) {}
     open func viewWillMove(toWindow: NSWindow?) {}
     open func viewDidMoveToWindow() {}
     open func viewWillMove(toSuperview: NSView?) {}
@@ -3307,6 +3335,9 @@ open class NSStackView: NSView {
 }
 
 extension NSLayoutConstraint {
+    /// Axis for content hugging / compression-resistance priorities.
+    public enum Orientation: Int, Sendable { case horizontal = 0, vertical = 1 }
+
     public enum Attribute: Int, Sendable {
         case left, right, top, bottom, leading, trailing
         case width, height, centerX, centerY, lastBaseline, firstBaseline

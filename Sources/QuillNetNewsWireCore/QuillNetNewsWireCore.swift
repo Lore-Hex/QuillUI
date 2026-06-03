@@ -154,13 +154,36 @@ public struct QuillNetNewsWireContentView: View {
         .background(QuillDesktopChromeStyle.sidebarBackground)
     }
 
+    /// NetNewsWire-style smart-feed icon: an orange calendar for
+    /// Today, a blue unread dot for All Unread, a yellow filled
+    /// star for Starred. Uses mapped SF Symbols (`calendar`,
+    /// `star.fill`) so the GTK backend renders them too; All
+    /// Unread is a `Circle` shape because the fork's Material map
+    /// has no `circle.fill` glyph — and a blue dot reads as
+    /// "unread" anyway.
+    @ViewBuilder
+    private func smartFeedIcon(_ kind: SmartFeed) -> some View {
+        switch kind {
+        case .today:
+            Image(systemName: "calendar")
+                .font(.caption)
+                .foregroundColor(.orange)
+        case .allUnread:
+            Circle()
+                .fill(Color.blue)
+                .frame(width: 9, height: 9)
+        case .starred:
+            Image(systemName: "star.fill")
+                .font(.caption)
+                .foregroundColor(.yellow)
+        }
+    }
+
     private func smartFeedRow(_ kind: SmartFeed) -> some View {
         let count = model.count(for: kind)
-        return HStack(spacing: 6) {
-            Text(kind.symbol)
-                .font(.caption)
-                .foregroundColor(.blue)
-                .frame(width: 14, alignment: .leading)
+        return HStack(spacing: 8) {
+            smartFeedIcon(kind)
+                .frame(width: 16, alignment: .center)
             Text(kind.displayName)
                 .font(.subheadline)
                 .lineLimit(1)
@@ -179,10 +202,37 @@ public struct QuillNetNewsWireContentView: View {
         .contentShape(Rectangle())
     }
 
+    /// Favicon stand-in: a colored rounded tile with the feed's
+    /// first initial. SwiftOpenUI has no remote-image view, so a
+    /// monogram gives each feed a stable visual identity (like
+    /// NetNewsWire's favicons) using only GTK-safe shapes + text.
+    private func monogramTile(for feed: Feed) -> some View {
+        let initial = feed.title.first.map { String($0).uppercased() } ?? "?"
+        return ZStack {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Self.monogramColor(for: feed.title))
+            Text(initial)
+                .font(.caption2).bold()
+                .foregroundColor(.white)
+        }
+        .frame(width: 18, height: 18)
+    }
+
+    /// Deterministic per-feed tint (NOT String.hashValue — that is
+    /// randomized per process, so the color would change every
+    /// launch). A stable scalar sum keeps a feed's monogram color
+    /// constant across runs.
+    private static func monogramColor(for title: String) -> Color {
+        let palette: [Color] = [.blue, .orange, .green, .red, .purple, .gray]
+        let h = title.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
+        return palette[h % palette.count]
+    }
+
     private func feedRow(_ feed: Feed) -> some View {
         let isSelected = (model.selectedSmartFeed == nil) && (model.selectedFeedID == feed.id)
         let unread = model.unreadCount(forFeed: feed.id)
-        return HStack(spacing: 6) {
+        return HStack(spacing: 8) {
+            monogramTile(for: feed)
             Text(feed.title)
                 .font(.subheadline)
                 .lineLimit(1)
@@ -261,21 +311,23 @@ public struct QuillNetNewsWireContentView: View {
     private func articleRow(_ item: RSSArticleRow) -> some View {
         let isUnread = !model.isRead(id: item.id)
         let isStarred = model.isStarred(id: item.id)
-        return HStack(alignment: .top, spacing: 6) {
-            // Unread indicator: an upstream-NetNewsWire-style filled
-            // circle in the leading gutter. Reserves the same width
-            // even when read so titles don't shift on mark-as-read.
-            Text(isUnread ? "•" : " ")
-                .font(.subheadline)
-                .foregroundColor(.blue)
-                .frame(width: 10, alignment: .leading)
-            VStack(alignment: .leading, spacing: 4) {
+        return HStack(alignment: .top, spacing: 8) {
+            // Unread indicator: a filled blue Circle (matches the
+            // sidebar's All Unread dot). Always reserves width so
+            // titles don't shift on mark-as-read; opacity hides it
+            // when the article is read.
+            Circle()
+                .fill(Color.blue)
+                .frame(width: 8, height: 8)
+                .opacity(isUnread ? 1 : 0)
+                .padding(.top, 5)
+            VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 4) {
                     Text(item.title)
                         .font(.subheadline)
                         .fontWeight(isUnread ? .bold : .regular)
                         .lineLimit(2)
-                        .frame(width: isStarred ? 226 : 244, alignment: .leading)
+                        .frame(width: isStarred ? 214 : 232, alignment: .leading)
                     if isStarred {
                         Text("★")
                             .font(.caption)
@@ -283,17 +335,25 @@ public struct QuillNetNewsWireContentView: View {
                             .frame(width: 14, alignment: .trailing)
                     }
                 }
+                // Two-line body preview, like NetNewsWire's timeline.
+                if !item.snippet.isEmpty {
+                    Text(item.snippet)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                        .frame(width: 232, alignment: .leading)
+                }
                 if !item.publishedSummary.isEmpty {
                     Text(item.publishedSummary)
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                        .frame(width: 244, alignment: .leading)
+                        .frame(width: 232, alignment: .leading)
                 }
             }
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .frame(height: 74, alignment: .leading)
+        .padding(.vertical, 7)
+        .frame(height: 96, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(model.selectedID == item.id ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
         .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
@@ -319,28 +379,56 @@ public struct QuillNetNewsWireContentView: View {
         Group {
             if let item = model.selectedDetail {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack(alignment: .top, spacing: 12) {
-                            Text(item.title).font(.title).bold()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            // Star toggle in the detail header. A
-                            // filled glyph when starred, hollow when
-                            // not — same affordance as upstream
-                            // NetNewsWire's toolbar star button.
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Source row: feed name (colored) · author,
+                        // with the star toggle pinned right. Mirrors
+                        // NetNewsWire's article header.
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(model.feedTitle ?? "")
+                                .font(.subheadline).bold()
+                                .foregroundColor(.blue)
+                                .lineLimit(1)
+                            if let author = item.author, !author.isEmpty {
+                                Text("·").foregroundColor(.secondary)
+                                Text(author)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            // Star toggle — same affordance as upstream
+                            // NetNewsWire's article-toolbar star button.
                             Button(model.isStarred(id: item.id) ? "★" : "☆") {
                                 model.toggleStarred(id: item.id)
                             }
-                            .font(.title2)
+                            .font(.title3)
                         }
+                        // Headline.
+                        Text(item.title)
+                            .font(.title).bold()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        // Date in NetNewsWire's small-caps style.
                         if !item.publishedSummary.isEmpty {
-                            Text(item.publishedSummary)
+                            Text(item.publishedSummary.uppercased())
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                         Divider()
-                        Text(item.plainTextBody)
-                            .font(.body)
-                            .lineSpacing(4)
+                        // Body — one Text per parsed paragraph so a
+                        // multi-paragraph article renders with real
+                        // spacing instead of a single run-on blob.
+                        if !item.bodyParagraphs.isEmpty {
+                            ForEach(Array(item.bodyParagraphs.enumerated()), id: \.offset) { _, paragraph in
+                                Text(paragraph)
+                                    .font(.body)
+                                    .lineSpacing(6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        } else {
+                            Text(item.plainTextBody)
+                                .font(.body)
+                                .lineSpacing(6)
+                        }
                         if let url = item.linkURL {
                             Divider()
                             // SwiftOpenUI's `Link` takes `destination: String`;
@@ -385,25 +473,37 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
     public let link: String?
     public let pubDate: String?
     public let descriptionHTML: String?
+    /// Byline shown under the title in the detail header. nil when
+    /// the feed didn't carry an `<author>` / `<dc:creator>`.
+    public let author: String?
     public let linkURL: URL?
     public let publishedSummary: String
     public let plainTextBody: String
+    /// Ordered display paragraphs parsed from `descriptionHTML`.
+    /// The detail pane renders these so multi-paragraph articles
+    /// read like NetNewsWire's article view; `plainTextBody`
+    /// remains the flattened form used for timeline snippets +
+    /// search.
+    public let bodyParagraphs: [String]
 
     public init(
         id: String,
         title: String,
         link: String?,
         pubDate: String?,
-        descriptionHTML: String?
+        descriptionHTML: String?,
+        author: String? = nil
     ) {
         self.id = id
         self.title = title
         self.link = link
         self.pubDate = pubDate
         self.descriptionHTML = descriptionHTML
+        self.author = author
         self.linkURL = link.flatMap { URL(string: $0) }
         self.publishedSummary = pubDate ?? ""
         self.plainTextBody = (descriptionHTML ?? "").stripBasicHTML()
+        self.bodyParagraphs = (descriptionHTML ?? "").htmlParagraphs()
     }
 }
 
@@ -411,37 +511,15 @@ public struct RSSArticleRow: Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let publishedSummary: String
+    /// Short plain-text preview shown under the title, like
+    /// NetNewsWire's two-line timeline snippet.
+    public let snippet: String
 
-    public init(id: String, title: String, publishedSummary: String) {
+    public init(id: String, title: String, publishedSummary: String, snippet: String = "") {
         self.id = id
         self.title = title
         self.publishedSummary = publishedSummary
-    }
-
-    public init(item: RSSItem) {
-        self.init(id: item.id, title: item.title, publishedSummary: item.publishedSummary)
-    }
-}
-
-public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
-    public let id: String
-    public let title: String
-    public let publishedSummary: String
-    public let plainTextBody: String
-    public let linkURL: URL?
-
-    public init(
-        id: String,
-        title: String,
-        publishedSummary: String,
-        plainTextBody: String,
-        linkURL: URL?
-    ) {
-        self.id = id
-        self.title = title
-        self.publishedSummary = publishedSummary
-        self.plainTextBody = plainTextBody
-        self.linkURL = linkURL
+        self.snippet = snippet
     }
 
     public init(item: RSSItem) {
@@ -449,7 +527,58 @@ public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
             id: item.id,
             title: item.title,
             publishedSummary: item.publishedSummary,
+            snippet: Self.snippet(from: item.plainTextBody)
+        )
+    }
+
+    /// Collapse whitespace runs and truncate the body to a short
+    /// timeline preview (NetNewsWire shows ~two lines).
+    static func snippet(from body: String, limit: Int = 160) -> String {
+        let collapsed = body
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        guard collapsed.count > limit else { return collapsed }
+        let end = collapsed.index(collapsed.startIndex, offsetBy: limit)
+        return String(collapsed[..<end]).trimmingCharacters(in: .whitespaces) + "…"
+    }
+}
+
+public struct RSSArticleDetail: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let author: String?
+    public let publishedSummary: String
+    public let plainTextBody: String
+    public let bodyParagraphs: [String]
+    public let linkURL: URL?
+
+    public init(
+        id: String,
+        title: String,
+        author: String? = nil,
+        publishedSummary: String,
+        plainTextBody: String,
+        bodyParagraphs: [String] = [],
+        linkURL: URL?
+    ) {
+        self.id = id
+        self.title = title
+        self.author = author
+        self.publishedSummary = publishedSummary
+        self.plainTextBody = plainTextBody
+        self.bodyParagraphs = bodyParagraphs
+        self.linkURL = linkURL
+    }
+
+    public init(item: RSSItem) {
+        self.init(
+            id: item.id,
+            title: item.title,
+            author: item.author,
+            publishedSummary: item.publishedSummary,
             plainTextBody: item.plainTextBody,
+            bodyParagraphs: item.bodyParagraphs,
             linkURL: item.linkURL
         )
     }
@@ -1095,37 +1224,56 @@ final class RSSReaderModel: ObservableObject {
     private static let profileFixtureItems: [RSSItem] = [
         RSSItem(
             id: "1",
-            title: "Profile fixture article 1",
+            title: "Painting the Natural World Before Photography",
             link: "https://example.test/1",
-            pubDate: "2026-01-01",
-            descriptionHTML: "<p>Body of the first fixture article.</p>"
+            pubDate: "Feb 2, 2026 at 6:58 AM",
+            descriptionHTML: """
+            <p>Decades before the advent of photography, when European scientists and \
+            explorers were undertaking grand expeditions, painters documented the natural \
+            world in extraordinary detail.</p>\
+            <p>Their illustrations — of birds, plants, and animals encountered for the first \
+            time — became the visual record that early naturalists relied on to share \
+            discoveries across a continent and, eventually, the world.</p>\
+            <p>This fixture article exercises the reader's multi-paragraph rendering and \
+            comfortable reading typography in the detail pane, standing in for a live feed \
+            when the network is disabled.</p>
+            """,
+            author: "Kate Mothes"
         ),
         RSSItem(
             id: "2",
-            title: "Profile fixture article 2",
+            title: "A Quiet Update to the Swift Concurrency Model",
             link: "https://example.test/2",
-            pubDate: "2026-01-02",
-            descriptionHTML: "<p>Body of the second fixture article.</p>"
+            pubDate: "Feb 1, 2026 at 9:12 AM",
+            descriptionHTML: """
+            <p>The latest toolchain refines how isolated conformances interact with \
+            main-actor views, smoothing a rough edge that Linux UI code hit often.</p>\
+            <p>Most existing code keeps compiling unchanged; the new diagnostics mainly \
+            surface places where a nonisolated witness was quietly doing actor-hopping.</p>
+            """,
+            author: "Becca Royal-Gordon"
         ),
         RSSItem(
             id: "3",
             title: "Swift.org toolchain update",
             link: "https://example.test/3",
-            pubDate: "2026-01-03",
-            descriptionHTML: "<p>Compiler and package manager notes for Linux app smoke runs.</p>"
+            pubDate: "Jan 30, 2026 at 4:05 PM",
+            descriptionHTML: "<p>Compiler and package manager notes for Linux app smoke runs.</p>",
+            author: "The Swift Team"
         ),
         RSSItem(
             id: "4",
             title: "Point-Free dependency release",
             link: "https://example.test/4",
-            pubDate: "2026-01-04",
-            descriptionHTML: "<p>Dependency injection notes and performance guardrails.</p>"
+            pubDate: "Jan 29, 2026 at 11:20 AM",
+            descriptionHTML: "<p>Dependency injection notes and performance guardrails.</p>",
+            author: "Brandon Williams"
         ),
         RSSItem(
             id: "5",
             title: "Linux backend smoke notes",
             link: "https://example.test/5",
-            pubDate: "2026-01-05",
+            pubDate: "Jan 28, 2026 at 8:00 AM",
             descriptionHTML: "<p>Fixture article used to keep GTK and Qt row selection checks deterministic.</p>"
         ),
     ]
@@ -1215,23 +1363,35 @@ struct RSSFeedParser {
     static func adaptParsedItem(_ item: ParsedItem) -> RSSItem {
         let title = (item.title?.isEmpty == false) ? item.title! : "Untitled"
         let body = item.contentHTML ?? item.contentText ?? item.summary
+        // Byline: first non-empty author name (sorted for a stable
+        // pick across repeated parses). Most feeds carry one author.
+        let author = item.authors?
+            .compactMap(\.name)
+            .filter { !$0.isEmpty }
+            .sorted()
+            .first
         return RSSItem(
             id: item.uniqueID,
             title: title,
             link: item.url,
             pubDate: formatPubDate(item.datePublished),
-            descriptionHTML: body
+            descriptionHTML: body,
+            author: author
         )
     }
 
+    /// Friendly display date for the header + timeline, e.g.
+    /// "Feb 2, 2026 at 6:58 AM". `publishedSummary` is display-only
+    /// (sorting uses the real `Date`), so a human format is safe.
     static func formatPubDate(_ date: Date?) -> String? {
         guard let date else { return nil }
-        return Self.iso8601Formatter.string(from: date)
+        return Self.displayDateFormatter.string(from: date)
     }
 
-    private static let iso8601Formatter: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime]
+    private static let displayDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "MMM d, yyyy 'at' h:mm a"
         return f
     }()
 
@@ -1315,5 +1475,33 @@ private extension String {
         )
         return HTMLEntities.decode(withoutTags)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Split an HTML body into display paragraphs. Block-level
+    /// boundaries (`</p>`, `<br>`, `<div>`, `<h1>`–`<h6>`, `<li>`,
+    /// `<blockquote>`, …) become paragraph breaks; remaining inline
+    /// tags are stripped and entities decoded. A body with no block
+    /// tags collapses to a single paragraph. Empty paragraphs drop
+    /// out. This is what the detail pane renders so multi-paragraph
+    /// articles read like NetNewsWire's article view instead of one
+    /// run-on blob.
+    func htmlParagraphs() -> [String] {
+        guard !isEmpty else { return [] }
+        // U+2029 PARAGRAPH SEPARATOR — a marker that can't collide
+        // with feed prose, inserted at every block boundary.
+        let marker = "\u{2029}"
+        let blockBoundary =
+            "</?(?:p|div|br|h[1-6]|li|ul|ol|blockquote|section|article|header|footer|figure|figcaption)(?:\\s[^>]*)?/?>"
+        let withBreaks = self.replacingOccurrences(
+            of: blockBoundary, with: marker,
+            options: [.regularExpression, .caseInsensitive]
+        )
+        let stripped = withBreaks.replacingOccurrences(
+            of: "<[^>]+>", with: "", options: .regularExpression
+        )
+        return stripped
+            .components(separatedBy: marker)
+            .map { HTMLEntities.decode($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 }

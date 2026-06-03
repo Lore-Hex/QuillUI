@@ -414,7 +414,17 @@ let nnwLogicDependencies: [Target.Dependency] = [
 // chooses one host graph with QUILLUI_LINUX_BACKEND=gtk|qt: the default GTK
 // graph keeps SwiftOpenUI scenes, while the Qt graph swaps app-specific Qt
 // products to native Qt Widgets hosts fed by small JSON snapshots.
-let quillWireGuardCoreDependencies: [Target.Dependency] = []
+var quillWireGuardCoreDependencies: [Target.Dependency] = []
+// Build the real upstream WireGuardKit (config model + keypair gen) wherever it's
+// vendored — now Linux too (the Darwin/CommonCrypto blockers are shimmed). Core
+// depends on it so CI compiles it; Core keeps its own model until a follow-up
+// swaps in WireGuardKit's TunnelConfiguration. NOT in the native-Qt Linux graph:
+// that path reassigns `targets` to a minimal list that omits the WireGuardKit
+// upstream targets (and the Network/NetworkExtension shims they need).
+if wireguardUpstreamPresent && quillUILinuxBuildBackend != .qt {
+    quillWireGuardCoreDependencies.append("WireGuardKit")
+    quillWireGuardCoreDependencies.append("QuillWireGuardUpstreamConfig")
+}
 var quillWireGuardUIDependencies: [Target.Dependency] = ["QuillWireGuardCore", "QuillUI"]
 #if !os(Linux)
 if wireguardUpstreamPresent {
@@ -598,6 +608,26 @@ let quillEnchantedDataTarget: Target = .target(
 var targets: [Target] = [
     cSQLiteTarget,
     cCairoTarget,
+    // Cassowary constraint solver (vendored nucleic/kiwi, C++), exposed to Swift via a
+    // pure-C ABI. Backs Auto Layout (NSLayoutConstraint) for the AppKit→Qt compatibility
+    // layer — issue #231, milestone M0. Default graph only (no Qt dependency).
+    .target(
+        name: "CKiwi",
+        path: "Sources/CKiwi",
+        exclude: ["KIWI-LICENSE"],
+        sources: ["CKiwiBridge.cpp"],
+        publicHeadersPath: "include",
+        cxxSettings: [
+            .headerSearchPath("."),
+            .unsafeFlags(["-std=c++17"])
+        ]
+    ),
+    .target(
+        name: "QuillAutoLayout",
+        dependencies: ["CKiwi"],
+        path: "Sources/QuillAutoLayout",
+        swiftSettings: appSwiftSettings
+    ),
     .target(
         name: "QuillUI",
         dependencies: quillUIDependencies,
@@ -1163,14 +1193,13 @@ if nnwUpstreamPresent {
 // both WireGuardKitC and WireGuardKit (and `QuillWireGuardCore`
 // drops its WireGuardKit dependency further down).
 //
-// Linux gate: WireGuardKitC.h uses Darwin-only types
-// (`u_int32_t`, `u_char`, `sockaddr_ctl`) and pulls in macOS
-// kernel-control APIs. CommonCryptoLinux covers x25519.c's
-// `<CommonCrypto/CommonRandom.h>` but not the header-side
-// Darwinisms. Linux WireGuard therefore runs as a configuration
-// manager shell backed by `QuillWireGuardCore` fixtures until a
-// real privileged backend adapter lands.
-#if !os(Linux)
+// WireGuardKitC.h's Darwin types (`u_int32_t`, `u_char`,
+// `sockaddr_ctl`) are resolved by fetch-upstream's `<sys/types.h>`
+// patch; CommonCryptoLinux maps x25519.c's
+// `<CommonCrypto/CommonRandom.h>` → getrandom(2). So the config
+// model (TunnelConfiguration parsing, keypair generation, IPv4/v6
+// helpers) compiles on Linux too — the runtime files are excluded
+// via wireGuardKitExcludes. Verified building on swift:6.2-noble.
 if wireguardUpstreamPresent {
     targets += [
         .target(
@@ -1201,10 +1230,24 @@ if wireguardUpstreamPresent {
             // unmodified on Linux.
             exclude: wireGuardKitExcludes,
             swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // The real wg-quick string parser (TunnelConfiguration(fromWgQuickConfig:)
+        // / asWgQuickConfig()) lives in the App's Shared/Model, extending
+        // WireGuardKit's TunnelConfiguration. Compile it as its own target so the
+        // real parser is available unmodified (fetch-upstream adds its
+        // `import WireGuardKit`).
+        .target(
+            name: "QuillWireGuardUpstreamConfig",
+            dependencies: ["WireGuardKit"],
+            path: ".upstream/wireguard-apple",
+            sources: [
+                "Sources/Shared/Model/TunnelConfiguration+WgQuickConfig.swift",
+                "Sources/Shared/Model/String+ArrayConversion.swift"
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]
 }
-#endif
 
 // ── Signal-iOS upstream-slice (Linux / QuillOS) ─────────────────────────
 // Compile the REAL signalapp/Signal-iOS against QuillUI's Linux
@@ -1684,7 +1727,7 @@ if codeEditSourceUpstreamPresent {
 // etc. On Linux the upstream CodeEdit source itself can't compile (it's a
 // pure AppKit/SwiftUI Mac app) so we only resolve these on macOS.
 var allPackageDependencies: [Package.Dependency] = [
-    .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433")
+    .package(name: "SwiftOpenUI", path: "third_party/SwiftOpenUI")
 ] + quillDataPackageDependencies
 #if os(Linux)
 // OpenCombine backs the Linux `Combine` compatibility shim
@@ -1777,6 +1820,59 @@ if quillUILinuxBuildBackend == .qt {
                 .unsafeFlags(qt6WidgetsLinkerFlags)
             ]
         ),
+        // --- AppKit→Qt reimplementation (issue #231, M1) ---
+        // The AppKit shadow + its Qt runtime backing + Auto Layout, pulled into
+        // the qt graph so unmodified `import AppKit` code can be recompiled and
+        // rendered through Qt6. All GTK-free.
+        .target(
+            name: "QuillUIKit",
+            dependencies: ["QuillFoundation"],
+            path: "Sources/QuillUIKit"
+        ),
+        .target(
+            name: "AppKit",
+            dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit"],
+            path: "Sources/QuillAppKit",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"])
+            ]
+        ),
+        .target(
+            name: "CKiwi",
+            path: "Sources/CKiwi",
+            exclude: ["KIWI-LICENSE"],
+            sources: ["CKiwiBridge.cpp"],
+            publicHeadersPath: "include",
+            cxxSettings: [
+                .headerSearchPath("."),
+                .unsafeFlags(["-std=c++17"])
+            ]
+        ),
+        .target(
+            name: "QuillAutoLayout",
+            dependencies: ["CKiwi"],
+            path: "Sources/QuillAutoLayout",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
+            name: "CQuillAppKitQt",
+            dependencies: ["CQt6Widgets"],
+            path: "Sources/CQuillAppKitQt",
+            publicHeadersPath: "include",
+            cxxSettings: [
+                .unsafeFlags(qt6WidgetsCxxFlags)
+            ],
+            linkerSettings: [
+                .unsafeFlags(qt6WidgetsLinkerFlags)
+            ]
+        ),
+        .target(
+            name: "QuillAppKitQt",
+            dependencies: ["AppKit", "CQuillAppKitQt", "QuillAutoLayout"],
+            path: "Sources/QuillAppKitQt",
+            swiftSettings: appSwiftSettings
+        ),
         .target(
             name: "QuillQtNativeRuntimeSupport",
             path: "Sources/QuillQtNativeRuntimeSupport",
@@ -1817,7 +1913,7 @@ if quillUILinuxBuildBackend == .qt {
     // per-app C++ shims and are not touched.
     if quillUIQtGenericEnabled {
         allPackageDependencies.append(
-            .package(url: "https://github.com/codelynx/SwiftOpenUI", revision: "6150b964a7cb1cf3a961770f6947ed55c1a31433")
+            .package(name: "SwiftOpenUI", path: "third_party/SwiftOpenUI")
         )
         targets += [
             .target(
@@ -1867,6 +1963,11 @@ let packageTestTargets: [Target] = {
             // `QUILLUI_LINUX_BACKEND=qt swift test` useful without
             // reintroducing the GTK/SwiftOpenUI dependency graph.
             .testTarget(
+                name: "QuillAppKitQtTests",
+                dependencies: ["QuillAppKitQt", "AppKit"],
+                swiftSettings: appSwiftSettings
+            ),
+            .testTarget(
                 name: "QuillQtBackendManifestTests",
                 dependencies: ["QuillGenericQtNativeRuntime", "QuillQtNativeRuntimeSupport", "QuillEnchantedShared"],
                 swiftSettings: appSwiftSettings
@@ -1887,6 +1988,11 @@ let packageTestTargets: [Target] = {
             #endif
             return .testTarget(name: "QuillShimsTests", dependencies: testDeps)
         }(),
+        .testTarget(
+            name: "QuillAutoLayoutTests",
+            dependencies: ["QuillAutoLayout"],
+            swiftSettings: appSwiftSettings
+        ),
         .testTarget(
             name: "KeychainSwiftTests",
             dependencies: ["KeychainSwift"],

@@ -86,6 +86,7 @@ struct QuillWireGuardCoreTests {
         #expect(parsed.interface.addresses == ["10.44.0.2/32", "fd44::2/128"])
         #expect(parsed.interface.dnsServers == ["1.1.1.1", "2606:4700:4700::1111"])
         #expect(parsed.interface.listenPort == 51820)
+        #expect(parsed.interface.mtu == 1420)
         #expect(parsed.peers.count == 1)
         #expect(parsed.peers[0].id == "imported-home-peer-1")
         #expect(parsed.peers[0].name == "Imported Edge")
@@ -93,6 +94,52 @@ struct QuillWireGuardCoreTests {
         #expect(parsed.peers[0].allowedIPs == ["0.0.0.0/0", "::/0"])
         #expect(parsed.peers[0].endpoint == "vpn.example.com:51820")
         #expect(parsed.peers[0].persistentKeepAlive == 25)
+        #expect(parsed.peers[0].preSharedKey == "imported-preshared-key=")
+    }
+
+    @Test("wg-quick import parses and round-trips MTU and preshared key")
+    func wgQuickImportParsesMTUAndPresharedKey() throws {
+        let config = """
+        [Interface]
+        PrivateKey = device-private-key=
+        Address = 10.7.0.2/32
+        ListenPort = 51820
+        MTU = 1380
+
+        [Peer]
+        PublicKey = peer-public-key=
+        PresharedKey = shared-secret-key=
+        AllowedIPs = 0.0.0.0/0
+        Endpoint = vpn.example.com:51820
+        """
+        let parsed = try QuillWireGuardConfigParser.parse(
+            config, id: "mtu-psk", name: "MTU PSK", status: .needsBackend
+        )
+        #expect(parsed.interface.mtu == 1380)
+        #expect(parsed.peers[0].preSharedKey == "shared-secret-key=")
+
+        // Exported config re-emits both fields, and re-parsing preserves them.
+        let exported = parsed.wgQuickConfig()
+        #expect(exported.contains("MTU = 1380"))
+        #expect(exported.contains("PresharedKey = shared-secret-key="))
+        let reparsed = try QuillWireGuardConfigParser.parse(
+            exported, id: "mtu-psk", name: "MTU PSK", status: .needsBackend
+        )
+        #expect(reparsed.interface.mtu == 1380)
+        #expect(reparsed.peers[0].preSharedKey == "shared-secret-key=")
+    }
+
+    @Test("wg-quick export omits MTU and preshared key when absent")
+    func wgQuickExportOmitsMTUAndPresharedKeyWhenAbsent() throws {
+        let parsed = try QuillWireGuardConfigParser.parse(
+            "[Interface]\nPrivateKey = k=\nAddress = 10.0.0.2/32\n\n[Peer]\nPublicKey = p=\nAllowedIPs = 0.0.0.0/0",
+            id: "min", name: "Min", status: .needsBackend
+        )
+        #expect(parsed.interface.mtu == nil)
+        #expect(parsed.peers[0].preSharedKey == nil)
+        let exported = parsed.wgQuickConfig()
+        #expect(!exported.contains("MTU ="))
+        #expect(!exported.contains("PresharedKey ="))
     }
 
     @Test("wg-quick import reports structural errors")
@@ -387,7 +434,10 @@ struct QuillWireGuardCoreTests {
         #expect(uiSource.contains("defaultSizePolicy: .linuxMinimum(width: minimumWidth, height: minimumHeight)"))
         #expect(uiSource.contains("ContentView()"))
         #expect(helperSource.contains("QuillMainActorView.assumeIsolated"))
-        #expect(nativeRuntimeSource.contains("QuillWireGuardAppSnapshot.configurationManager"))
+        // The Qt native host builds its payload from the *live* config-manager
+        // snapshot, fetching runtime status via the real process runner at launch.
+        #expect(nativeRuntimeSource.contains("QuillWireGuardAppSnapshot.liveConfigurationManager("))
+        #expect(nativeRuntimeSource.contains("QuillWireGuardProcessRunner"))
         #expect(nativeRuntimeSource.contains("quill_wireguard_qt_run_wireguard_json"))
         #expect(nativeRuntimeSource.contains("@_cdecl(\"quill_wireguard_qt_import_config_json\")"))
         #expect(nativeRuntimeSource.contains("QuillWireGuardNativeImportBridge.importResponse"))

@@ -402,7 +402,9 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains(".library(name: \"QuillGenericQtNativeRuntime\", targets: [\"QuillGenericQtNativeRuntime\"])"))
         #expect(manifest.contains("name: \"QuillGenericQtNativeRuntime\""))
         #expect(manifest.contains("path: \"Sources/QuillGenericQtNativeRuntime\""))
-        #expect(manifest.contains("let quillWireGuardCoreDependencies: [Target.Dependency] = []"))
+        #expect(manifest.contains("var quillWireGuardCoreDependencies: [Target.Dependency] = []"))
+        // QuillWireGuardCore picks up the real upstream WireGuardKit wherever it's vendored.
+        #expect(manifest.contains("quillWireGuardCoreDependencies.append(\"WireGuardKit\")"))
         #expect(manifest.contains("var quillWireGuardUIDependencies: [Target.Dependency] = [\"QuillWireGuardCore\", \"QuillUI\"]"))
         #expect(manifest.contains("quillWireGuardUIDependencies.append(\"WireGuardKit\")"))
         #expect(manifest.contains("quillWireGuardUIDependencies.append(\"SwiftUI\")"))
@@ -471,7 +473,7 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(verifier.contains("validate_quill_chat_mac_reference"))
         #expect(verifier.contains("Mac-reference prompt card row was not detected"))
-        #expect(verifier.contains("Mac-reference sidebar history text was not detected"))
+        #expect(verifier.contains("Mac-reference sidebar region rendered no content"))
         #expect(verifier.contains("Mac-reference window controls were not detected"))
         #expect(verifier.contains("Mac-reference alert is too short"))
         #expect(verifier.contains("Quill Chat Mac-reference landmarks"))
@@ -1611,7 +1613,14 @@ struct QuillDataSourceLoweringTests {
         let result = try runScript(
             script,
             arguments: [directory.path],
-            environment: ["QUILLUI_SWIFT_PACKAGE_PATH": root.path]
+            environment: [
+                "QUILLUI_SWIFT_PACKAGE_PATH": root.path,
+                "QUILLUI_SWIFTOPENUI_ROOT": directory.appendingPathComponent("checkouts/SwiftOpenUI").path,
+                // Hermetic test: stub checkouts are pre-seeded above; there is no
+                // real package to `swift package resolve`, so opt out of the
+                // unconditional resolve the patcher does in the real build.
+                "QUILLUI_SKIP_PACKAGE_RESOLVE": "1",
+            ]
         )
         #expect(result.status == 0, Comment(rawValue: result.output))
 

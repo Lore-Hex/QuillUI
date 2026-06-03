@@ -221,6 +221,17 @@ void addInterfaceSection(
         );
     }
 
+    const QString mtu = stringValue(interfaceObject, "mtuText");
+    if (!mtu.isEmpty()) {
+        addDetailRow(
+            form,
+            presentationValue(presentation, "mtuLabel", "MTU"),
+            mtu,
+            noneText,
+            style
+        );
+    }
+
     detailLayout->addWidget(section);
 }
 
@@ -267,6 +278,52 @@ void addPeerSection(
             form,
             presentationValue(presentation, "keepAliveLabel", "Keepalive"),
             keepAlive,
+            noneText,
+            style
+        );
+    }
+
+    const QString preSharedKey = stringValue(peer, "preSharedKeyText");
+    if (!preSharedKey.isEmpty()) {
+        addDetailRow(
+            form,
+            presentationValue(presentation, "preSharedKeyLabel", "Preshared key"),
+            preSharedKey,
+            noneText,
+            style
+        );
+    }
+
+    // Live runtime stats (present only when the tunnel is active and the snapshot
+    // was built with a QuillWireGuardLiveStatus).
+    const QString transferRx = stringValue(peer, "transferRxText");
+    if (!transferRx.isEmpty()) {
+        addDetailRow(
+            form,
+            presentationValue(presentation, "dataReceivedLabel", "Data received"),
+            transferRx,
+            noneText,
+            style
+        );
+    }
+
+    const QString transferTx = stringValue(peer, "transferTxText");
+    if (!transferTx.isEmpty()) {
+        addDetailRow(
+            form,
+            presentationValue(presentation, "dataSentLabel", "Data sent"),
+            transferTx,
+            noneText,
+            style
+        );
+    }
+
+    const QString latestHandshake = stringValue(peer, "latestHandshakeText");
+    if (!latestHandshake.isEmpty()) {
+        addDetailRow(
+            form,
+            presentationValue(presentation, "latestHandshakeLabel", "Latest handshake"),
+            latestHandshake,
             noneText,
             style
         );
