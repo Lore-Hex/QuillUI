@@ -3815,7 +3815,14 @@ final class RSSReaderModel: ObservableObject {
     @discardableResult
     func addSubscription(urlString: String) async -> Feed? {
         let normalized = urlString.trimmingWhitespace.normalizedURL
-        guard let url = URL(string: normalized) else { return nil }
+        guard let url = URL(string: normalized) else {
+            // Surface an error toast so the user knows why the
+            // Add Feed action did nothing. Previously the silent
+            // nil-return left the UI with no signal that the URL
+            // they pasted was unparseable.
+            setError("Invalid URL")
+            return nil
+        }
         // Short-circuit when the pasted URL already matches a
         // subscribed feed. Without this, an offline retry or a
         // duplicate paste pays the FeedFinder round-trip (HTTP
