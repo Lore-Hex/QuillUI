@@ -754,44 +754,65 @@ public struct QuillNetNewsWireContentView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 6)
 
-            ScrollView {
-                if model.subscribedFeeds.isEmpty {
-                    // First-launch empty state — points users at
-                    // the Add Feed input below + the OPML import
-                    // affordance. Without this hint, the sidebar
-                    // just looks broken until the user notices
-                    // the Add Feed field at the bottom.
-                    VStack(spacing: 8) {
-                        Text("No subscriptions yet")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Add a feed URL below or import an OPML file.")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 24)
-                    .frame(maxWidth: .infinity)
-                } else {
-                    VStack(alignment: .leading, spacing: 2) {
-                        // Root folder's direct feeds + any subfolders.
-                        // When no OPML tree has been imported, the model
-                        // initializes subscriptionRoot to wrap every seed
-                        // feed at top level so the existing flat render
-                        // shape stays intact.
-                        ForEach(model.subscriptionRoot.feeds) { feed in
-                            feedRow(feed)
-                                .onTapGesture {
-                                    Task { @MainActor in await model.selectFeed(id: feed.id) }
-                                }
+            // ScrollViewReader so ⌥⌘↓ / ⌥⌘↑ feed navigation
+            // (iter #204) scrolls the sidebar to keep the
+            // selected feed in view. Without it, the sidebar's
+            // visual selection state could move off-screen on
+            // big subscription lists, leaving the user wondering
+            // where the cursor went. Folder rows aren't .id'd
+            // because they're DisclosureGroup wrappers that
+            // contain feed rows — scrolling to the contained
+            // feed naturally exposes the folder header above it.
+            ScrollViewReader { proxy in
+                ScrollView {
+                    if model.subscribedFeeds.isEmpty {
+                        // First-launch empty state — points users at
+                        // the Add Feed input below + the OPML import
+                        // affordance. Without this hint, the sidebar
+                        // just looks broken until the user notices
+                        // the Add Feed field at the bottom.
+                        VStack(spacing: 8) {
+                            Text("No subscriptions yet")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("Add a feed URL below or import an OPML file.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
                         }
-                        ForEach(model.subscriptionRoot.subfolders) { folder in
-                            folderRow(folder)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 24)
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        VStack(alignment: .leading, spacing: 2) {
+                            // Root folder's direct feeds + any subfolders.
+                            // When no OPML tree has been imported, the model
+                            // initializes subscriptionRoot to wrap every seed
+                            // feed at top level so the existing flat render
+                            // shape stays intact.
+                            ForEach(model.subscriptionRoot.feeds) { feed in
+                                feedRow(feed)
+                                    .id(feed.id)
+                                    .onTapGesture {
+                                        Task { @MainActor in await model.selectFeed(id: feed.id) }
+                                    }
+                            }
+                            ForEach(model.subscriptionRoot.subfolders) { folder in
+                                folderRow(folder)
+                            }
                         }
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 8)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 8)
+                }
+                .onChange(of: model.selectedFeedID) { newID in
+                    guard let newID else { return }
+                    // Match the timeline scroll-to-selection
+                    // anchor (iter #195's center). For folder-
+                    // contained feeds, scrollTo will find them
+                    // when the folder is expanded; collapsed
+                    // folders silently no-op (id not visible).
+                    withAnimation { proxy.scrollTo(newID, anchor: .center) }
                 }
             }
 
@@ -1155,6 +1176,7 @@ public struct QuillNetNewsWireContentView: View {
                 .padding(.leading, 8)
                 ForEach(folder.feeds) { feed in
                     feedRow(feed)
+                        .id(feed.id)
                         .onTapGesture {
                             Task { @MainActor in await model.selectFeed(id: feed.id) }
                         }
