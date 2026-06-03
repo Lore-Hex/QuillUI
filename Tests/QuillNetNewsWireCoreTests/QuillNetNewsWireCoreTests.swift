@@ -742,6 +742,61 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("lastFetchSummary uses max-of-pool freshness in smart-feed / folder views")
+    func lastFetchSummaryUsesPoolFreshness() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+            Feed(title: "C", url: "https://c.test/feed"),
+        ])
+        let old = Date(timeIntervalSinceNow: -3600 * 5)  // 5h ago
+        let mid = Date(timeIntervalSinceNow: -3600)      // 1h ago
+        let fresh = Date(timeIntervalSinceNow: -120)     // 2m ago
+        model.feedCaches["https://a.test/feed"] = RSSReaderModel.FeedCache(
+            items: [], articles: [], lastFetchAt: old
+        )
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(
+            items: [], articles: [], lastFetchAt: mid
+        )
+        model.feedCaches["https://c.test/feed"] = RSSReaderModel.FeedCache(
+            items: [], articles: [], lastFetchAt: fresh
+        )
+        // Active feed (a) is the stale one; lastFetchAt mirrors.
+        model.lastFetchAt = old
+        // Active-feed view → uses active's lastFetchAt (old, ~5h).
+        let active = model.lastFetchSummary
+        #expect(!active.isEmpty)
+        // Smart-feed view → uses MAX across all caches = fresh
+        // (2m). The summary text should reflect a much more
+        // recent time than the active-feed value.
+        model.selectSmartFeed(.allUnread)
+        let smart = model.lastFetchSummary
+        #expect(!smart.isEmpty)
+        // Folder view scoped to B + C → MAX = fresh (2m).
+        model.selectSmartFeed(nil)
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [Feed(title: "A", url: "https://a.test/feed")],
+            subfolders: [
+                OPMLImporter.Folder(name: "News", feeds: [
+                    Feed(title: "B", url: "https://b.test/feed"),
+                    Feed(title: "C", url: "https://c.test/feed"),
+                ]),
+            ]
+        )
+        model.selectFolder("News")
+        let folder = model.lastFetchSummary
+        #expect(!folder.isEmpty)
+        // Sanity: the smart-feed and folder summaries differ
+        // from the active-feed one because they used a more
+        // recent date. Relative formatter outputs differ for
+        // 5h vs 2m (e.g. "hours ago" vs "minutes ago"), so
+        // string inequality is a reasonable proxy here.
+        #expect(active != smart)
+        #expect(active != folder)
+    }
+
+    @MainActor
     @Test("resetAllFailureCounts clears every feed's counter, leaves errors alone")
     func resetAllFailureCountsClears() {
         let model = RSSReaderModel(subscribedFeeds: [

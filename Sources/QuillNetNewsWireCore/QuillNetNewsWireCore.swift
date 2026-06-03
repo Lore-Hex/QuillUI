@@ -3957,7 +3957,26 @@ final class RSSReaderModel: ObservableObject {
     /// (callers should re-read whenever they re-render the
     /// footer; relativeFormatter is locale-aware).
     var lastFetchSummary: String {
-        guard let date = lastFetchAt else { return "" }
+        // In cross-feed views (smart feed or folder), the active
+        // feed's lastFetchAt is misleading — the timeline is
+        // showing a pool from every cached feed. Use the MAX
+        // lastFetchAt across all caches (or the folder's
+        // in-folder feeds) so the footer reflects the freshness
+        // of what's actually rendered.
+        let relevantDate: Date?
+        if selectedSmartFeed != nil {
+            // Smart feeds span everything.
+            let allTimes = feedCaches.values.map(\.lastFetchAt) + [lastFetchAt].compactMap { $0 }
+            relevantDate = allTimes.max()
+        } else if let folderName = selectedFolderName,
+                  let folder = Self.findFolder(named: folderName, in: subscriptionRoot) {
+            // Folder view spans only the in-folder feeds.
+            let inFolderTimes = folder.allFeeds.compactMap { feedCaches[$0.id]?.lastFetchAt }
+            relevantDate = inFolderTimes.max()
+        } else {
+            relevantDate = lastFetchAt
+        }
+        guard let date = relevantDate else { return "" }
         let now = Date()
         let elapsed = now.timeIntervalSince(date)
         if elapsed < 5 {
