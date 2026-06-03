@@ -95,6 +95,43 @@ struct QuillAppKitQtTests {
         #expect(!NSLayoutConstraint.quillActive.contains { $0 === w })
     }
 
+    @Test("End-to-end: real NSLayoutConstraints solve via QuillAutoLayout and apply to Qt frames")
+    func constraintSolveAndApply() {
+        guard QuillQt.ensureInitialized() else { return }
+
+        // A KeyValueRow built purely from NSView + NSLayoutConstraint: a
+        // fixed-width name label and a value field stretching to the trailing
+        // edge, both vertically centered.
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 44))
+        let name = NSView(frame: .zero)
+        let value = NSView(frame: .zero)
+        root.addSubviewQt(name)
+        root.addSubviewQt(value)
+
+        let constraints = [
+            name.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
+            name.centerYAnchor.constraint(equalTo: root.centerYAnchor),
+            name.widthAnchor.constraint(equalToConstant: 80),
+            name.heightAnchor.constraint(equalToConstant: 17),
+            value.leadingAnchor.constraint(equalTo: name.trailingAnchor, constant: 8),
+            value.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
+            value.centerYAnchor.constraint(equalTo: root.centerYAnchor),
+            value.heightAnchor.constraint(equalToConstant: 22),
+        ]
+        NSLayoutConstraint.activate(constraints)
+        defer { NSLayoutConstraint.deactivate(constraints) }
+
+        root.layoutQtSubtree(width: 300, height: 44)
+
+        // name: x=16, w=80, h=17; centerY=22 → y=13.5 → 14
+        let n = name.qtGeometry
+        #expect(n.x == 16 && n.width == 80 && n.height == 17 && n.y == 14)
+        // value: x = name.trailing(96)+8 = 104; trailing = 300-16 = 284 → w=180;
+        // h=22, centerY=22 → y=11
+        let v = value.qtGeometry
+        #expect(v.x == 104 && v.width == 180 && v.height == 22 && v.y == 11)
+    }
+
     @Test("NSWindow.contentView attaches its QWidget into the Qt window")
     func contentViewAttaches() {
         guard QuillQt.ensureInitialized() else { return }

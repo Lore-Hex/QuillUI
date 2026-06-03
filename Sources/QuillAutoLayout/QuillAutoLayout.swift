@@ -44,8 +44,12 @@ public enum LayoutRelation: Sendable {
     }
 }
 
-enum LayoutAttribute {
+public enum LayoutAttribute: Sendable {
     case left, top, width, height, right, bottom, centerX, centerY
+    // AppKit-shaped aliases for bridges (e.g. QuillAppKitQt mapping
+    // NSLayoutConstraint). LTR: leading == left, trailing == right. Baselines
+    // approximate to top/bottom until real text metrics land.
+    case leading, trailing, firstBaseline, lastBaseline
 }
 
 /// Thin Swift wrapper over the CKiwi C ABI.
@@ -128,6 +132,10 @@ public final class LayoutItem {
         case .bottom: return bottom
         case .centerX: return centerX
         case .centerY: return centerY
+        case .leading: return left
+        case .trailing: return right
+        case .firstBaseline: return top
+        case .lastBaseline: return bottom
         }
     }
 
@@ -274,5 +282,26 @@ public final class LayoutEngine {
         solver.suggest(root.width, width)
         solver.suggest(root.height, height)
         solver.update()
+    }
+
+    /// Generic constraint add for bridges that translate an external constraint
+    /// model (e.g. NSLayoutConstraint → QuillAppKitQt):
+    ///   item1.attribute1  (relation)  multiplier · item2.attribute2 + constant
+    /// Pass `item2`/`attribute2` == nil for a constant dimension
+    /// (item1.attribute1 (relation) constant).
+    public func addConstraint(
+        _ item1: LayoutItem, _ attribute1: LayoutAttribute,
+        _ relation: LayoutRelation,
+        _ item2: LayoutItem?, _ attribute2: LayoutAttribute?,
+        multiplier: Double = 1, constant: Double = 0,
+        priority: LayoutPriority = .required
+    ) {
+        var ids: [Int32] = [item1.variable(attribute1)]
+        var coeffs: [Double] = [1]
+        if let item2, let attribute2 {
+            ids.append(item2.variable(attribute2))
+            coeffs.append(-multiplier)
+        }
+        solver.addConstraint(ids, coeffs, constant: -constant, op: relation.op, strength: priority.raw)
     }
 }
