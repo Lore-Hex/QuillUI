@@ -45,8 +45,22 @@ from `qs-work` on aarch64 and round-tripped all three commands — `ping`→pong
 emitted a fresh real `sgnl://linkdevice?uuid=…&pub_key=…` URL** from Signal's
 production servers. The Rust core (presage/libsignal) + bridge are alive on
 QuillOS arch and reach Signal — the pivot foundation is solid. Step 1
-(`QuillSignalKit` in QuillUI) also builds. **Next: step 3 — rewire the UI
-(`QuillSignalContentView`) to drive the bridge (status + link panel).**
+(`QuillSignalKit` in QuillUI) also builds.
+
+**App builds + links (pivot step 3, 2026-06-03):** `QuillSignalContentView`
+rewired to the bridge (`QuillSignalModel` ObservableObject — status query + a
+device-link panel driving `link-begin`). Caught the branch up to `main`
+(vendored `third_party/SwiftOpenUI`) and used the **canonical Linux-GTK recipe**:
+`scripts/prepare-linux-build-backend.sh --scratch-path .build-linux` (runs the
+SwiftOpenUI mega-patcher `patch-swiftopenui-gtk-css.sh`, which adds
+`ButtonStyleType.quillPaint*` + `gtk_swift_accessible_*` + dozens of Linux fixes)
+then `swift build --scratch-path .build-linux --product quill-signal`. Build
+image needs `python3`/`perl` for the patcher. Result: **`quill-signal` links into
+a 13 MB aarch64 Linux ELF** at `.build-linux/aarch64-unknown-linux-gnu/debug/
+quill-signal` — a native QuillUI/GTK Signal app with the real bridge client, on
+QuillOS arch. **Next: run it (app + daemon) end-to-end; then extend the bridge
+with conversation commands.** (`swift build --target` only emits the module;
+the **`--product`** build links the executable.)
 
 ---
 

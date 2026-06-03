@@ -24,6 +24,9 @@ RUN set -eux; \
         protobuf-compiler \
         cmake \
         git \
+        python3 \
+        perl \
+        ripgrep \
         ca-certificates; \
     test -f /usr/include/sqlite3.h; \
     test -f /usr/include/openssl/evp.h; \
