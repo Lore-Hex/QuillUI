@@ -239,15 +239,25 @@ public struct QuillNetNewsWireContentView: View {
                     // Tell the user the background batch is now
                     // skipping this feed and how to recover. The
                     // Refresh button (above) is the recovery
-                    // path — explicit fetches always try.
+                    // path — explicit fetches always try. The
+                    // per-feed Reset button below clears just
+                    // THIS feed's counter without running a
+                    // network round-trip (useful when the user
+                    // knows the upstream is fixed and wants
+                    // Refresh All to pick the feed up on its
+                    // next pass).
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Skipped by Refresh All")
                             .font(.caption)
                             .foregroundColor(.orange)
-                        Text("Failed \(failCount) times. Press Refresh to retry.")
+                        Text("Failed \(failCount) times. Press Refresh to retry, or Reset to un-skip.")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .lineLimit(2)
+                        Button("Reset failure count") {
+                            model.resetFailureCount(forFeed: feed.url)
+                        }
+                        .font(.caption2)
                     }
                 } else if failCount > 0 {
                     // Soft hint: the feed has failed recently but
