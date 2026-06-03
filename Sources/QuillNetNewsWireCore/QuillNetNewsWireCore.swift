@@ -1324,6 +1324,20 @@ public struct QuillNetNewsWireContentView: View {
                     }
                     .padding(28)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    // Reset scroll position when the selection
+                    // changes. Without an .id tied to item.id,
+                    // ScrollView keeps the old vertical offset on
+                    // selection change — so jumping from a long
+                    // article to a short one (or just advancing
+                    // via j/k) drops the reader mid-body of the
+                    // new article instead of starting at the
+                    // title. SwiftUI rebuilds the subtree when
+                    // the id changes, which resets the
+                    // ScrollView's contentOffset to (0, 0).
+                    // Matches upstream NetNewsWire's detail-pane
+                    // behavior of always starting at the top of
+                    // the just-selected article.
+                    .id(item.id)
                 }
                 .background(QuillDesktopChromeStyle.detailBackground)
             } else {
