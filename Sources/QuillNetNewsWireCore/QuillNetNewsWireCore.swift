@@ -710,6 +710,18 @@ public struct QuillNetNewsWireContentView: View {
                 }
             }
             .keyboardShortcut(.escape, modifiers: [])
+            // ⌘W closes whichever sheet is open (Settings,
+            // Inspector). Standard mac/Linux app shortcut for
+            // "close current window/sheet"; users hit it
+            // reflexively after working with a panel.
+            Button("close sheet") {
+                if showingSettings {
+                    showingSettings = false
+                } else if inspectedFeedID != nil {
+                    inspectedFeedID = nil
+                }
+            }
+            .keyboardShortcut("w", modifiers: .command)
             // ⌥⌘↓ / ⌥⌘↑ = Go to Next / Previous Feed. Matches
             // upstream NetNewsWire's sidebar nav shortcuts. j/k
             // walks within the active feed's timeline; these
