@@ -405,6 +405,18 @@ public struct QuillNetNewsWireContentView: View {
                 .keyboardShortcut("j", modifiers: [])
             Button("prev") { model.selectPreviousItem() }
                 .keyboardShortcut("k", modifiers: [])
+            // Arrow-key aliases for j/k. Upstream NetNewsWire
+            // supports both — mouse-trained users reach for
+            // arrows; vim-trained users reach for hjkl. Quill
+            // had only the hjkl half, which was a needless
+            // friction step for newcomers. The downArrow /
+            // upArrow KeyEquivalents land on the same model
+            // actions so behavior stays identical regardless of
+            // which key the user reaches for.
+            Button("next (arrow)") { model.selectNextItem() }
+                .keyboardShortcut(.downArrow, modifiers: [])
+            Button("prev (arrow)") { model.selectPreviousItem() }
+                .keyboardShortcut(.upArrow, modifiers: [])
             Button("read+next") { model.markReadAndAdvance() }
                 .keyboardShortcut(.space, modifiers: [])
             Button("toggle starred") { model.toggleStarredOnSelection() }
