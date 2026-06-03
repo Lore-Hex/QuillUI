@@ -271,6 +271,13 @@ public struct QuillNetNewsWireContentView: View {
                             get: { renameFeedInput },
                             set: { renameFeedInput = $0 }
                         ))
+                            .onSubmit {
+                                let trimmed = renameFeedInput
+                                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard !trimmed.isEmpty, trimmed != feed.title else { return }
+                                _ = model.renameFeed(feed.id, to: trimmed)
+                                renameFeedInput = ""
+                            }
                         Button("Save") {
                             let trimmed = renameFeedInput
                                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -784,6 +791,19 @@ public struct QuillNetNewsWireContentView: View {
                         set: { addFolderInput = $0 }
                     ))
                         .font(.caption2)
+                        .onSubmit {
+                            // Same Enter-submits-form pattern as
+                            // Add Feed / Import (iter #234).
+                            let trimmed = addFolderInput
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !trimmed.isEmpty else { return }
+                            let ok = model.addFolder(named: trimmed)
+                            if ok {
+                                addFolderInput = ""
+                            } else {
+                                model.lastSubscribeMessage = "A folder named \u{201C}\(trimmed)\u{201D} already exists."
+                            }
+                        }
                     Button("New Folder") {
                         let trimmed = addFolderInput
                             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -967,6 +987,18 @@ public struct QuillNetNewsWireContentView: View {
                             get: { renameFolderInput },
                             set: { renameFolderInput = $0 }
                         ))
+                            .onSubmit {
+                                let trimmed = renameFolderInput
+                                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard !trimmed.isEmpty, trimmed != folder.name else { return }
+                                let ok = model.renameFolder(from: folder.name, to: trimmed)
+                                if ok {
+                                    renameFolderName = nil
+                                    renameFolderInput = ""
+                                } else {
+                                    model.lastSubscribeMessage = "A folder named \u{201C}\(trimmed)\u{201D} already exists here."
+                                }
+                            }
                         Button("Save") {
                             let trimmed = renameFolderInput
                                 .trimmingCharacters(in: .whitespacesAndNewlines)
