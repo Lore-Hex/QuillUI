@@ -185,6 +185,19 @@ app and the check. The decode-check now also asserts the conversations envelope
 true/false/missing→nil, and whoami registered/unregistered. The GTK app builds
 clean against the public types; the check stays green (now ~40 assertions).
 
+**Real-time receive scaffolding (2026-06-03):** the bridge has a `receive`
+command — opens presage `receive_messages()` (a `Stream<Received>`) and writes a
+`{"event":"message",thread,sender,body,timestamp,from_self}` line per incoming
+text `DataMessage` until the client disconnects (`from_self` compares the sender
+to the account's own ACI). The app decodes these via a new `IncomingMessage`
+(QuillSignalKit) in `QuillSignalModel.startReceiving()` — a detached stream
+thread that appends each message to its conversation (creating one if the sender
+is unknown), auto-started when linked alongside conversations/whoami and guarded
+so only one stream runs. Both sides build clean; the decode-check gained
+`IncomingMessage` asserts; a launch smoke shows the unlinked path unchanged with
+**zero receive invoked**. Like send, receiving is a real-account action — it only
+runs after a real link, never automatically during development.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

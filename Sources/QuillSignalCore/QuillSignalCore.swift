@@ -52,6 +52,7 @@ public final class QuillSignalModel: ObservableObject {
     @Published public var accountNumber: String?
     private var isRefreshing = false
     private var hasAutoStarted = false
+    private var isReceiving = false
     /// Tracks the active link attempt so Cancel (and re-link) can invalidate a
     /// still-running link thread. nonisolated: read from the detached thread.
     nonisolated private let linkSession = LinkSession()
@@ -190,6 +191,7 @@ public final class QuillSignalModel: ObservableObject {
                 if resolvedState == .linked {
                     self.loadConversations()
                     self.loadWhoami()
+                    self.startReceiving()
                 }
             }
         }
@@ -268,6 +270,45 @@ public final class QuillSignalModel: ObservableObject {
             }
             let result = number
             await MainActor.run { self.accountNumber = result }
+        }
+    }
+
+    /// Start the long-lived receive stream: the bridge pushes a {event:"message"}
+    /// line per incoming message; append each to its conversation. Auto-started
+    /// once linked (correct product behavior); guarded so only one stream runs.
+    public func startReceiving() {
+        guard !isReceiving else { return }
+        isReceiving = true
+        let path = socketPath
+        Thread.detachNewThread {
+            let client = BridgeClient(path: path)
+            try? client.stream("{\"cmd\":\"receive\"}", timeoutSeconds: 0) { line in
+                guard let data = line.data(using: .utf8),
+                      let msg = try? JSONDecoder().decode(IncomingMessage.self, from: data),
+                      msg.event == "message",
+                      let thread = msg.thread, let body = msg.body else { return true }
+                let m = Message(
+                    sender: msg.sender ?? "",
+                    body: body,
+                    fromSelf: msg.fromSelf ?? false,
+                    timestamp: msg.timestamp.map { Date(timeIntervalSince1970: Double($0) / 1000.0) }
+                )
+                Task { @MainActor in self.appendIncoming(thread: thread, message: m) }
+                return true
+            }
+            Task { @MainActor in self.isReceiving = false }
+        }
+    }
+
+    /// Append a pushed message to its thread (create the conversation if the
+    /// sender isn't a known contact yet).
+    private func appendIncoming(thread: String, message: Message) {
+        if let idx = conversations.firstIndex(where: {
+            $0.id.uuidString.caseInsensitiveCompare(thread) == .orderedSame
+        }) {
+            conversations[idx].messages.append(message)
+        } else if let id = UUID(uuidString: thread) {
+            conversations.append(Conversation(id: id, name: thread, messages: [message]))
         }
     }
 

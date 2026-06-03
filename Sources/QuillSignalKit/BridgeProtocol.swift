@@ -54,6 +54,24 @@ public struct MessagesResponse: Codable, Sendable {
     public let data: MessagesData?
 }
 
+// MARK: - receive stream
+
+/// One pushed message line from the `receive` stream:
+/// `{"event":"message","thread":…,"sender":…,"body":…,"timestamp":…,"from_self":…}`.
+public struct IncomingMessage: Codable, Sendable {
+    public let event: String?
+    public let thread: String?
+    public let sender: String?
+    public let body: String?
+    public let timestamp: UInt64?
+    public let fromSelf: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case event, thread, sender, body, timestamp
+        case fromSelf = "from_self"
+    }
+}
+
 // MARK: - whoami
 
 /// The linked-account identity payload from `whoami`.
