@@ -145,6 +145,15 @@ clean; a launch smoke shows the unlinked path unchanged (auto-spawn + status,
 app stays up) with **zero** sends invoked. Actual delivery is the user-gated
 (phone) step, like link-completion.
 
+**Cancel during linking (2026-06-03):** the link panel now shows a Cancel button
+while a link is in flight (previously `beginLink` blocked ~180s with no escape).
+`cancelLink()` bumps a thread-safe `LinkSession` generation — so the detached
+link thread's late events and its `isLinking` cleanup are ignored (this also
+guards the cancel-then-immediately-relink race) — and resets the panel to its
+pre-link state at once. Verified by screenshot: the autolink path (isLinking
+true) renders `Linking…  Cancel` under the QR. The orphaned thread, blocked
+awaiting the phone scan, exits on its socket timeout.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

@@ -52,6 +52,18 @@ private struct MessagesResponse: Codable { let data: MessagesData? }
 private struct WhoamiData: Codable { let registered: Bool?; let number: String? }
 private struct WhoamiResponse: Codable { let data: WhoamiData? }
 
+/// Thread-safe link-attempt tracker. The detached link thread compares its
+/// generation against the current one to detect cancellation or supersession by
+/// a newer attempt; `cancel()` and `start()` bump the generation so a stale
+/// thread's late events (and its `isLinking` cleanup) are ignored.
+final class LinkSession: @unchecked Sendable {
+    private let lock = NSLock()
+    private var generation = 0
+    func start() -> Int { lock.lock(); defer { lock.unlock() }; generation += 1; return generation }
+    func cancel() { lock.lock(); generation += 1; lock.unlock() }
+    func isCurrent(_ gen: Int) -> Bool { lock.lock(); defer { lock.unlock() }; return generation == gen }
+}
+
 @MainActor
 public final class QuillSignalModel: ObservableObject {
     @Published public var linkState: QuillSignalLinkState = .connecting
@@ -64,6 +76,9 @@ public final class QuillSignalModel: ObservableObject {
     @Published public var accountNumber: String?
     private var isRefreshing = false
     private var hasAutoStarted = false
+    /// Tracks the active link attempt so Cancel (and re-link) can invalidate a
+    /// still-running link thread. nonisolated: read from the detached thread.
+    nonisolated private let linkSession = LinkSession()
 
     private let socketPath: String
 
@@ -321,10 +336,13 @@ public final class QuillSignalModel: ObservableObject {
         linkQRPath = nil
         statusDetail = "Requesting a link code from Signal…"
         let path = socketPath
+        let myGen = linkSession.start()
         let cmd = "{\"cmd\":\"link-begin\",\"device_name\":\"\(deviceName)\"}"
         Thread.detachNewThread {
             let client = BridgeClient(path: path)
             try? client.stream(cmd, timeoutSeconds: 180) { line in
+                // Stop if this attempt was cancelled or superseded by a newer one.
+                if !self.linkSession.isCurrent(myGen) { return false }
                 guard let msg = client.decode(line) else { return true }
                 switch msg.event {
                 case "link-url":
@@ -363,8 +381,23 @@ public final class QuillSignalModel: ObservableObject {
                     return true
                 }
             }
-            Task { @MainActor in self.isLinking = false }
+            Task { @MainActor in if self.linkSession.isCurrent(myGen) { self.isLinking = false } }
         }
+    }
+
+    /// Cancel an in-flight link attempt. Bumps the link generation so the still-
+    /// running link thread's late events (and cleanup) are ignored, and resets
+    /// the panel back to its pre-link state immediately. (The orphaned thread,
+    /// blocked awaiting the phone scan, exits on its socket timeout.)
+    public func cancelLink() {
+        guard isLinking else { return }
+        linkSession.cancel()
+        isLinking = false
+        linkURL = nil
+        linkQR = nil
+        linkQRPath = nil
+        statusDetail = "Linking cancelled. Tap Link this device to try again."
+        Self.log("link cancelled by user")
     }
 }
 
@@ -448,8 +481,15 @@ public struct QuillSignalContentView: View {
             } else if model.isLinking {
                 Text(model.statusDetail).font(.caption)
             }
-            Button(action: { model.beginLink() }) {
-                Text(model.isLinking ? "Linking…" : "Link this device").font(.headline)
+            HStack(spacing: 12) {
+                Button(action: { model.beginLink() }) {
+                    Text(model.isLinking ? "Linking…" : "Link this device").font(.headline)
+                }
+                if model.isLinking {
+                    Button(action: { model.cancelLink() }) {
+                        Text("Cancel").font(.headline)
+                    }
+                }
             }
             Spacer()
         }
