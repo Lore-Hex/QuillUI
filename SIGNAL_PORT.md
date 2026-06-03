@@ -89,8 +89,11 @@ Branch `signal/real-backend` (off `main`). Upstream source lives under
 
 ## Build environment (Docker, swift:6.2-noble, arm64)
 
-apt deps: `libgtk-4-dev libgdk-pixbuf-2.0-dev libcairo2-dev libsqlite3-dev
-pkg-config clang protobuf-compiler cmake git`. Env: `QUILLUI_LINUX_BACKEND=gtk`.
+Use the prebuilt **`quillui-signal-build`** image (`docker/quillui-signal-build.Dockerfile`
+= swift:6.2-noble + libgtk-4-dev/libgdk-pixbuf-2.0-dev/libcairo2-dev/libsqlite3-dev/
+libssl-dev/pkg-config/clang/protobuf-compiler/cmake/git) rather than per-run `apt`
+— apt intermittently dropped libsqlite3-dev/libssl-dev, breaking GRDBSQLite /
+CommonCrypto. Env: `QUILLUI_LINUX_BACKEND=gtk`.
 Build with **`swift build --disable-index-store`** — swift-crypto's BoringSSL C++
 (and the apt clang) reject SwiftPM's Apple-only `-index-store-path` flag.
 Mounts: worktree → `/qui`, `qui-build` volume → `/qui/.build`. libsignal `.a`
@@ -128,7 +131,8 @@ the build reaches further. "Top blocker" = dominant error after that fix.
 | 3 | `CommonCrypto` shim → OpenSSL EVP (AES) | 2263: `no such module SignalRingRTC` |
 | 4 | `SignalRingRTC` faithful type-shim (calling deferred) | 2263: `no such module os.lock` |
 | 5 | `os_unfair_lock` C spinlock (COSUnfairLock) + 1-line TSMutex import patch | 1: CommonCrypto `openssl/evp.h` (flaky libssl-dev) |
-| 6 | ensure libssl-dev present each build … | _(in progress — then SSK Swift finally compiles)_ |
+| 6 | prebuilt `quillui-signal-build` image (deps baked, no flaky apt) | 2263: `no such module Contacts` |
+| 7 | `Contacts` shim … | _(in progress)_ |
 
 ## Status
 
