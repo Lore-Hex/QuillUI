@@ -43,6 +43,7 @@ public struct QuillNetNewsWireContentView: View {
     @State private var renameFeedInput: String = ""
     @State private var renameFolderName: String? = nil
     @State private var renameFolderInput: String = ""
+    @State private var addFolderInput: String = ""
     @Environment(\.openURL) private var openURL
 
     public init() {}
@@ -571,6 +572,31 @@ public struct QuillNetNewsWireContentView: View {
                     }
                     .font(.caption2)
                     .disabled(opmlImportURLInput.trimmingWhitespace.isEmpty || model.isLoading)
+                }
+                // Add Folder — top-level only by design (mirrors
+                // upstream NetNewsWire's New Folder command).
+                // Surfaces the existing addFolder(named:) model
+                // API; trim + non-empty + sibling-uniqueness
+                // guards live in the model.
+                HStack(spacing: 6) {
+                    TextField("New folder name", text: Binding(
+                        get: { addFolderInput },
+                        set: { addFolderInput = $0 }
+                    ))
+                        .font(.caption2)
+                    Button("New Folder") {
+                        let trimmed = addFolderInput
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        _ = model.addFolder(named: trimmed)
+                        addFolderInput = ""
+                    }
+                    .font(.caption2)
+                    .disabled(
+                        addFolderInput
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .isEmpty
+                    )
                 }
                 HStack(spacing: 6) {
                     Button(model.isLoading ? "Refreshing All…" : "Refresh All") {
