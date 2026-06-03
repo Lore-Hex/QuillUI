@@ -535,6 +535,18 @@ public struct QuillNetNewsWireContentView: View {
                 searchFieldFocused = true
             }
             .keyboardShortcut("f", modifiers: .command)
+            // ⌥⌘↓ / ⌥⌘↑ = Go to Next / Previous Feed. Matches
+            // upstream NetNewsWire's sidebar nav shortcuts. j/k
+            // walks within the active feed's timeline; these
+            // walk across feeds.
+            Button("next feed") {
+                Task { @MainActor in await model.selectNextFeed() }
+            }
+            .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+            Button("prev feed") {
+                Task { @MainActor in await model.selectPreviousFeed() }
+            }
+            .keyboardShortcut(.upArrow, modifiers: [.command, .option])
         }
         .frame(height: 0)
         .hidden()
@@ -2664,6 +2676,41 @@ final class RSSReaderModel: ObservableObject {
     /// in the list, the row turns grey rather than disappearing,
     /// and the next refresh prunes it.
     @Published var sessionStickyVisibleIDs: Set<String> = []
+
+    /// Move the active-feed selection to the next subscribed
+    /// feed in subscribedFeeds order. Wraps at the end (last
+    /// feed + next = no-op). Drops out of any active smart
+    /// feed / folder view so the next feed's timeline becomes
+    /// visible. Mirrors upstream NetNewsWire's ⌥⌘↓ "Go to Next
+    /// Feed" command. No-op when there are zero or one
+    /// subscribed feeds.
+    func selectNextFeed() async {
+        guard let nextID = adjacentFeedID(delta: 1) else { return }
+        await selectFeed(id: nextID)
+    }
+
+    /// Symmetric to selectNextFeed for ⌥⌘↑ "Go to Previous
+    /// Feed". Wraps at the start (first feed + prev = no-op).
+    func selectPreviousFeed() async {
+        guard let prevID = adjacentFeedID(delta: -1) else { return }
+        await selectFeed(id: prevID)
+    }
+
+    /// Index lookup helper for the feed-nav shortcuts. When in
+    /// a smart-feed / folder view (no selectedFeedID), start
+    /// from the first feed regardless of direction so the user
+    /// has a predictable entry point.
+    private func adjacentFeedID(delta: Int) -> Feed.ID? {
+        guard !subscribedFeeds.isEmpty else { return nil }
+        guard let currentID = selectedFeedID,
+              let idx = subscribedFeeds.firstIndex(where: { $0.id == currentID })
+        else {
+            return subscribedFeeds.first?.id
+        }
+        let nextIdx = idx + delta
+        guard nextIdx >= 0, nextIdx < subscribedFeeds.count else { return nil }
+        return subscribedFeeds[nextIdx].id
+    }
 
     /// Advance the selection to the next article in the
     /// currently-filtered timeline. Wraps to the first item when

@@ -2265,6 +2265,33 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("selectNextFeed / selectPreviousFeed walks subscribedFeeds, saturates at ends")
+    func selectNextPrevFeedWalks() async {
+        let a = Feed(title: "A", url: "https://a.test/feed")
+        let b = Feed(title: "B", url: "https://b.test/feed")
+        let c = Feed(title: "C", url: "https://c.test/feed")
+        let model = RSSReaderModel(subscribedFeeds: [a, b, c])
+        // Init auto-selects the first feed.
+        #expect(model.selectedFeedID == a.id)
+        // Walk forward.
+        await model.selectNextFeed()
+        #expect(model.selectedFeedID == b.id)
+        await model.selectNextFeed()
+        #expect(model.selectedFeedID == c.id)
+        // At the end: no-op (no wrap).
+        await model.selectNextFeed()
+        #expect(model.selectedFeedID == c.id)
+        // Walk back.
+        await model.selectPreviousFeed()
+        #expect(model.selectedFeedID == b.id)
+        await model.selectPreviousFeed()
+        #expect(model.selectedFeedID == a.id)
+        // At the start: no-op (no wrap).
+        await model.selectPreviousFeed()
+        #expect(model.selectedFeedID == a.id)
+    }
+
+    @MainActor
     @Test("Search clears on navigation (feed / smart feed / folder)")
     func searchClearsOnNavigation() async {
         let model = RSSReaderModel(subscribedFeeds: [
