@@ -252,6 +252,34 @@ public struct QuillNetNewsWireContentView: View {
                         )
                     }
                 }
+                // Move to folder. Upstream NetNewsWire uses
+                // drag-and-drop for this on macOS, which doesn't
+                // translate cleanly to SwiftOpenUI on Linux.
+                // Buttons-per-target instead: Root + every
+                // current subfolder. The current home is
+                // highlighted and disabled so it's obvious what
+                // would change (and a click on it is a no-op).
+                let currentParent = model.folderName(containing: feed.id)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Move to")
+                        .font(.subheadline)
+                    let rootIsCurrent = (currentParent == nil)
+                    Button(rootIsCurrent ? "✓ Root (no folder)" : "Root (no folder)") {
+                        _ = model.moveFeed(feed.id, toFolder: nil)
+                    }
+                    .font(.caption2)
+                    .foregroundColor(rootIsCurrent ? .blue : .secondary)
+                    .disabled(rootIsCurrent)
+                    ForEach(model.subscriptionRoot.subfolders) { folder in
+                        let isCurrent = (currentParent == folder.name)
+                        Button(isCurrent ? "✓ \(folder.name)" : folder.name) {
+                            _ = model.moveFeed(feed.id, toFolder: folder.name)
+                        }
+                        .font(.caption2)
+                        .foregroundColor(isCurrent ? .blue : .secondary)
+                        .disabled(isCurrent)
+                    }
+                }
             } else {
                 Text("Feed not found")
                     .font(.caption)
@@ -4607,6 +4635,31 @@ final class RSSReaderModel: ObservableObject {
         for sub in folder.subfolders {
             if let feed = findFeed(feedID: feedID, in: sub) {
                 return feed
+            }
+        }
+        return nil
+    }
+
+    /// Name of the immediate-parent subfolder containing a feed,
+    /// or nil when the feed is at the root level (or not in the
+    /// tree at all). Used by the inspector's "Move to" picker so
+    /// the current home is marked + disabled. Walks recursively;
+    /// returns the deepest containing folder's name (a feed
+    /// shouldn't appear in multiple folders simultaneously,
+    /// but if it did, we'd report the first one encountered).
+    func folderName(containing feedID: Feed.ID) -> String? {
+        Self.folderName(containing: feedID, in: subscriptionRoot)
+    }
+
+    private static func folderName(
+        containing feedID: Feed.ID, in folder: OPMLImporter.Folder
+    ) -> String? {
+        for sub in folder.subfolders {
+            if sub.feeds.contains(where: { $0.id == feedID }) {
+                return sub.name
+            }
+            if let nested = folderName(containing: feedID, in: sub) {
+                return nested
             }
         }
         return nil

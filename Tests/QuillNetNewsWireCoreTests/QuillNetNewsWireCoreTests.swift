@@ -2223,6 +2223,30 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("folderName(containing:) returns nil at root, name when in folder, nil for missing")
+    func folderNameContainingLookup() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [Feed(title: "A", url: "https://a.test/feed")],
+            subfolders: [
+                OPMLImporter.Folder(name: "Tech", feeds: [
+                    Feed(title: "B", url: "https://b.test/feed"),
+                ]),
+            ]
+        )
+        // Root-level feed → nil.
+        #expect(model.folderName(containing: "https://a.test/feed") == nil)
+        // Feed inside a folder → that folder's name.
+        #expect(model.folderName(containing: "https://b.test/feed") == "Tech")
+        // Unknown feed → nil (no crash, no false positive).
+        #expect(model.folderName(containing: "https://nowhere.test/feed") == nil)
+    }
+
+    @MainActor
     @Test("importOPMLTree preserves existing folder structure instead of clobbering")
     func importOPMLTreePreservesExistingFolders() {
         // Set up a model with an existing folder structure the
