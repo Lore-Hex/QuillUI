@@ -537,17 +537,24 @@ public struct QuillNetNewsWireContentView: View {
                 .keyboardShortcut("r", modifiers: [])
             Button("refresh") {
                 Task { @MainActor in
-                    // ⌘R is context-aware so it matches the
-                    // footer's visible Refresh button label:
-                    // folder view → refreshFolder (every feed in
-                    // the folder), default → refresh active
-                    // feed only. Without this, ⌘R in folder
-                    // view only refreshed the active selection
-                    // (which might be a feed OUTSIDE the
-                    // folder), confusingly leaving the visible
-                    // pool stale.
+                    // ⌘R is context-aware:
+                    // - folder view → refreshFolder (every feed
+                    //   in the folder)
+                    // - smart-feed view (Today / All Unread /
+                    //   Starred) → refreshAllFeeds (the pool
+                    //   spans every feed, so a single-feed
+                    //   refresh wouldn't reflect the visible
+                    //   scope)
+                    // - default → refresh active feed only
+                    //
+                    // Matches NNW's "Refresh refreshes what you
+                    // can see" expectation. Cmd+Opt+R remains
+                    // the explicit Refresh All shortcut for
+                    // active-feed contexts too.
                     if let folder = model.selectedFolderName {
                         await model.refreshFolder(folder)
+                    } else if model.selectedSmartFeed != nil {
+                        await model.refreshAllFeeds()
                     } else {
                         await model.refresh(urlString: activeFeedURL)
                     }
