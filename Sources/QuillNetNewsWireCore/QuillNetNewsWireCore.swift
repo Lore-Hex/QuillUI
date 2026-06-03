@@ -609,16 +609,24 @@ public struct QuillNetNewsWireContentView: View {
             // a user in a folder view had no keyboard escape
             // back to the per-feed timeline.
             Button("clear smart feed / folder") {
-                // If there's an active subscribed feed, route
-                // through selectFeed so the timeline re-hydrates
-                // from the active feed's cache (items, articles,
+                // If there's an active subscribed feed AND it's
+                // still in the subscription list, route through
+                // selectFeed so the timeline re-hydrates from
+                // the active feed's cache (items, articles,
                 // title, lastFetchAt, error). Without this, ⌘0
                 // out of a folder/smart-feed view left items as
                 // whatever was last set — sometimes the previous
                 // active feed's content, sometimes empty —
                 // mismatching the sidebar's "active feed"
                 // selection state.
-                if let id = model.selectedFeedID {
+                //
+                // Fall through to the bare clears when the
+                // selectedFeedID is missing or stale (e.g.,
+                // the feed was just removed). selectFeed's
+                // own early-return wouldn't clear smart/folder
+                // in that case.
+                if let id = model.selectedFeedID,
+                   model.subscribedFeeds.contains(where: { $0.id == id }) {
                     Task { @MainActor in await model.selectFeed(id: id) }
                 } else {
                     model.selectSmartFeed(nil)
