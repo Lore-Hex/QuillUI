@@ -16,12 +16,13 @@ name: Enchanted Parity
 # parity proof; the uploaded render is the human-eyeball reference each run. Kept
 # as its OWN workflow (does not gate the main "Linux CI").
 #
-# This workflow also runs NON-GATING (continue-on-error) real-source INTERACTION
-# measurements (epic #188 step 2): it drives quill-chat-linux through its
-# mac-reference interaction smokes (composer, ...) to size the gap before they are
-# promoted to gating and the hand-written reimpl is retired. The interaction harness
-# (scripts/linux-backend-interaction-check.sh) and its verify products already exist;
-# these steps activate them in CI.
+# This workflow also runs NON-GATING (continue-on-error) real-source measurements
+# toward INTERACTION coverage (epic #188 step 2), building toward retiring the
+# hand-written reimpl. mac-reference INTERACTION proved a dead end in headless CI
+# (clicks + keyboard don't reach the placed 2048x1380 window), so interaction
+# coverage runs in NORMAL window mode, where xdotool input works (the reimpl smokes
+# prove it). The foundation measurement confirms quill-chat-linux launches + renders
+# in a small normal window; click-based interaction validators build on it.
 
 on:
   push:
@@ -80,20 +81,26 @@ jobs:
               quill-chat-linux \
               gtk
 
-      - name: Measure real-source composer-typed interaction (non-gating)
+      - name: Measure real-source NORMAL-window render (non-gating)
         if: always()
         continue-on-error: true
         env:
-          QUILLUI_BACKEND_INTERACTION_MODE: composer-typed
+          # mac-reference INTERACTION is a dead end in headless CI: clicks AND keyboard
+          # produce zero effect on the placed 2048x1380 reference window (empty /
+          # post-click / post-type frames byte-identical). Real-source interaction
+          # coverage will therefore run in NORMAL window mode, where xdotool input works
+          # (proven by the reimpl interaction smokes). This is the FOUNDATION step:
+          # confirm the real-source quill-chat-linux launches + renders its empty state
+          # in a small normal window in CI (validate_quill_chat_landmarks) before adding
+          # click-based interaction validators (new-chat, list-selection, ...) on top.
+          QUILLUI_BACKEND_MAC_REFERENCE: "0"
+          QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH: "1180"
+          QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT: "760"
+          QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE: "1"
         run: |
-          # Step 2 of the cutover: prove the REAL source's composer accepts typed
-          # input via the generic GTK backend (no Ollama / no seeded history needed).
-          # Non-gating MEASUREMENT — sizes the interaction gap before promotion. The
-          # harness routes quill-chat-linux + composer-typed (with MAC_REFERENCE=1) to
-          # the quill-chat-linux-mac-reference-composer-typed validator.
-          QUILLUI_BACKEND_INTERACTION_APP_LOG=.qa/quill-chat-linux-interaction-composer.log \
-            scripts/linux-backend-interaction-check.sh \
-              .qa/quill-chat-linux-mac-reference-composer-typed-gtk.png \
+          QUILLUI_BACKEND_VISUAL_APP_LOG=.qa/quill-chat-linux-normal.log \
+            scripts/linux-backend-visual-check.sh \
+              .qa/quill-chat-linux-normal-gtk.png \
               quill-chat-linux \
               gtk
 
