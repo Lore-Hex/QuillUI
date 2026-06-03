@@ -373,17 +373,11 @@ public struct QuillIceCubesContentView: View {
 
     @ViewBuilder
     private func avatarView(for avatar: URL?, size: CGFloat = 40) -> some View {
-        // SwiftUI's `AsyncImage` isn't part of SwiftOpenUI's GTK4
-        // backend yet — replace with a rounded placeholder matching
-        // IceCubes' default rounded-rectangle avatar shape. Real
-        // avatar decoding lands when the GTK image-loader shim grows
-        // URLSession-backed bitmap support.
+        // Real SwiftUI `AsyncImage`, mirrored in SwiftOpenUI for the GTK/Qt
+        // backends — so this is the same Apple source on every platform, no
+        // `#if os(Linux)` fork. IceCubes' rounded-rectangle avatar; the gray
+        // placeholder covers both the loading phase and a nil/unreachable URL.
         let cornerRadius = size * 0.22
-        #if os(Linux)
-        RoundedRectangle(cornerRadius: cornerRadius)
-            .fill(Color.gray)
-            .frame(width: size, height: size)
-        #else
         AsyncImage(url: avatar) { image in
             image.resizable()
         } placeholder: {
@@ -391,7 +385,6 @@ public struct QuillIceCubesContentView: View {
         }
         .frame(width: size, height: size)
         .cornerRadius(cornerRadius)
-        #endif
     }
 
     private func startTimelineLoadIfNeeded() {
