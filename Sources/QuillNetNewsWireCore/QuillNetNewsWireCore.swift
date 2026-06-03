@@ -1502,14 +1502,23 @@ public struct QuillNetNewsWireContentView: View {
             // unreadCount tracks) might be all-read even when
             // the cross-feed pool isn't.
             .disabled(model.filteredUnreadCount == 0)
-            // In folder view, Refresh refreshes every feed in
-            // the folder via refreshFolder (#162). In default
-            // active-feed view, refresh the active feed only.
-            // Per-URL gate for the active-feed branch matches
-            // the inspector Refresh button (#148).
+            // Context-aware Refresh button matches the ⌘R
+            // shortcut (iter #241 / #251):
+            // - folder view → "Refresh Folder" (every in-folder
+            //   feed)
+            // - smart-feed view → "Refresh All" (pool spans
+            //   every cached feed; refreshing one wouldn't
+            //   update the visible scope)
+            // - default → "Refresh" (active feed only)
             if let folder = model.selectedFolderName {
                 Button(model.isLoading ? "Refreshing All…" : "Refresh Folder") {
                     Task { @MainActor in await model.refreshFolder(folder) }
+                }
+                .font(.caption2)
+                .disabled(model.isLoading)
+            } else if model.selectedSmartFeed != nil {
+                Button(model.isLoading ? "Refreshing All…" : "Refresh All") {
+                    Task { @MainActor in await model.refreshAllFeeds() }
                 }
                 .font(.caption2)
                 .disabled(model.isLoading)
