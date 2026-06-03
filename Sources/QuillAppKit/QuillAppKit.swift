@@ -2880,6 +2880,7 @@ open class NSScroller: NSView {
 }
 
 open class NSTextField: NSControl {
+    public var font: NSFont?
     public var placeholderString: String?
     public var placeholderAttributedString: NSAttributedString?
     public var isEditable: Bool = false

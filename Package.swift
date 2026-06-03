@@ -282,6 +282,7 @@ products.append(.library(name: "SwiftData", targets: ["SwiftData"]))
 #if os(Linux)
 products += [
     .library(name: "UIKit", targets: ["UIKit"]),
+    .library(name: "Cocoa", targets: ["Cocoa"]),
     .library(name: "MessageUI", targets: ["MessageUI"]),
     .library(name: "SafariServices", targets: ["SafariServices"]),
     .library(name: "MobileCoreServices", targets: ["MobileCoreServices"])
@@ -1383,6 +1384,9 @@ targets.append(contentsOf: [
     // QuillFoundation/QuillUIKit/QuillKit directly instead of depending on
     // QuillShims, because QuillShims depends on them.
     .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit"], path: "Sources/UIKitShim"),
+    // Cocoa umbrella shadow: `import Cocoa` re-exports the AppKit shadow + Foundation,
+    // so unmodified macOS app source that `import Cocoa` recompiles unchanged.
+    .target(name: "Cocoa", dependencies: ["AppKit"], path: "Sources/CocoaShim"),
     .target(name: "MessageUI", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/MessageUIShim"),
     .target(name: "SafariServices", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/SafariServicesShim"),
     .target(name: "MobileCoreServices", dependencies: ["QuillFoundation"], path: "Sources/MobileCoreServicesShim"),
