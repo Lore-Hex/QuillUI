@@ -3878,9 +3878,26 @@ final class RSSReaderModel: ObservableObject {
         // launch.
         Task { @MainActor [weak self] in
             guard let self else { return }
+            // Skip feeds whose cached lastFetchAt is fresher
+            // than the refresh interval — quitting and relaunching
+            // shouldn't re-hammer feeds that were just fetched.
+            // Conditional GET keeps the network cost low anyway,
+            // but skipping outright saves the round-trip entirely.
+            // No interval set (manual-only) → never auto-refresh
+            // on launch.
+            let interval = self.refreshIntervalSeconds
+            let now = Date()
             let pending = self.subscribedFeeds.filter { feed in
-                feed.url != urlString &&
-                (self.feedFailureCount[feed.id] ?? 0) < Self.feedFailureSkipThreshold
+                guard feed.url != urlString else { return false }
+                guard (self.feedFailureCount[feed.id] ?? 0) < Self.feedFailureSkipThreshold else {
+                    return false
+                }
+                guard let interval else { return false }
+                if let lastFetchAt = self.feedCaches[feed.id]?.lastFetchAt,
+                   now.timeIntervalSince(lastFetchAt) < interval {
+                    return false
+                }
+                return true
             }
             // 4-wide concurrency to match refreshAllFeeds (same
             // upstream throttle pattern; serial loop previously
