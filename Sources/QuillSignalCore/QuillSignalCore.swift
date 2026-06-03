@@ -23,6 +23,16 @@ public enum QuillSignalLinkState: Equatable, Sendable {
     case linked         // registered
 }
 
+/// Decodes the bridge `list-conversations` response line:
+/// `{"cmd":"list-conversations","data":{"conversations":[{type,uuid,name}]},...}`.
+struct BridgeConversation: Codable {
+    let type: String?
+    let uuid: String?
+    let name: String?
+}
+private struct ConversationsData: Codable { let conversations: [BridgeConversation] }
+private struct ConversationsResponse: Codable { let data: ConversationsData? }
+
 @MainActor
 public final class QuillSignalModel: ObservableObject {
     @Published public var linkState: QuillSignalLinkState = .connecting
@@ -30,6 +40,7 @@ public final class QuillSignalModel: ObservableObject {
     @Published public var linkURL: String?
     @Published public var linkQR: String?
     @Published public var isLinking: Bool = false
+    @Published public var conversations: [Conversation] = []
     private var isRefreshing = false
     private var hasAutoStarted = false
 
@@ -88,7 +99,30 @@ public final class QuillSignalModel: ObservableObject {
                 self.linkState = resolvedState
                 self.statusDetail = resolvedDetail
                 self.isRefreshing = false
+                if resolvedState == .linked { self.loadConversations() }
             }
+        }
+    }
+
+    /// Load the conversation list from the bridge. Empty until linked; the real
+    /// Signal contacts once linked. (Messages/send are later bridge commands.)
+    public func loadConversations() {
+        let path = socketPath
+        Task.detached {
+            let client = BridgeClient(path: path)
+            var loaded: [Conversation] = []
+            if let line = try? client.request("{\"cmd\":\"list-conversations\"}"),
+               let bytes = line.data(using: .utf8),
+               let resp = try? JSONDecoder().decode(ConversationsResponse.self, from: bytes),
+               let items = resp.data?.conversations {
+                loaded = items.map { item in
+                    let title = (item.name.flatMap { $0.isEmpty ? nil : $0 }) ?? item.uuid ?? "Unknown"
+                    return Conversation(name: title, messages: [])
+                }
+                Self.log("loaded \(loaded.count) conversations")
+            }
+            let result = loaded
+            await MainActor.run { self.conversations = result }
         }
     }
 
@@ -178,7 +212,7 @@ public struct QuillSignalContentView: View {
         case .linked:
             ChatSplitShell(
                 title: "Quill Signal",
-                threads: conversations,
+                threads: model.conversations,
                 selectedID: $selectedID,
                 draft: $draft,
                 placeholder: "Select a conversation",
