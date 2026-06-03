@@ -410,6 +410,30 @@ public struct QuillNetNewsWireContentView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+            // Reset back-off — surfaces a one-click affordance for
+            // un-skipping every feed that crossed the failure
+            // threshold. Without this, a user with a dozen
+            // feeds-back-from-the-dead had to open each
+            // inspector and hit Refresh individually. Disabled
+            // when there's nothing to reset so it reads honestly.
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Refresh back-off")
+                    .font(.subheadline)
+                let skipped = model.feedFailureCount.filter {
+                    $0.value >= RSSReaderModel.feedFailureSkipThreshold
+                }.count
+                let any = !model.feedFailureCount.isEmpty
+                Text(skipped == 0
+                    ? "No feeds are being skipped by Refresh All."
+                    : "\(skipped) feed\(skipped == 1 ? "" : "s") skipped by Refresh All.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Button("Reset all failure counts") {
+                    _ = model.resetAllFailureCounts()
+                }
+                .font(.caption2)
+                .disabled(!any)
+            }
             Spacer()
             HStack {
                 Spacer()
@@ -5844,6 +5868,22 @@ final class RSSReaderModel: ObservableObject {
     func resetFailureCount(forFeed urlString: String) {
         feedFailureCount.removeValue(forKey: urlString)
         feedLastErrorAt.removeValue(forKey: urlString)
+    }
+
+    /// Reset every feed's failure counter so Refresh All stops
+    /// skipping them. Use case: a publisher migrated their feed
+    /// URL or fixed a server outage, and the user wants Refresh
+    /// All to re-try every feed in one click instead of opening
+    /// the inspector for each one. Returns the number of feeds
+    /// whose counter actually got dropped. Errors stay set so
+    /// the sidebar warning glyphs persist until next fetch
+    /// success — only the back-off is cleared.
+    @discardableResult
+    func resetAllFailureCounts() -> Int {
+        let count = feedFailureCount.count
+        feedFailureCount.removeAll()
+        feedLastErrorAt.removeAll()
+        return count
     }
 
     /// Friendly error string for thrown Errors. Plain `"\(error)"`

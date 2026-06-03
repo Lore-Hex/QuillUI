@@ -742,6 +742,30 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("resetAllFailureCounts clears every feed's counter, leaves errors alone")
+    func resetAllFailureCountsClears() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        // Simulate two feeds in back-off.
+        model.feedFailureCount = [
+            "https://a.test/feed": 6,
+            "https://b.test/feed": 3,
+        ]
+        model.feedErrors = [
+            "https://a.test/feed": "404",
+            "https://b.test/feed": "Timeout",
+        ]
+        let cleared = model.resetAllFailureCounts()
+        #expect(cleared == 2)
+        #expect(model.feedFailureCount.isEmpty)
+        // Errors persist — they're a separate display channel
+        // and only clear on next fetch success.
+        #expect(model.feedErrors.count == 2)
+    }
+
+    @MainActor
     @Test("Folder empty state distinguishes 'Hide Read filtered everything' from 'no articles'")
     func folderEmptyStateDistinguishesHideRead() {
         let model = RSSReaderModel(subscribedFeeds: [
