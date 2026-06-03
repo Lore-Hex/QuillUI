@@ -28,6 +28,9 @@ final class Checker {
     }
 }
 
+/// Tiny element type for exercising MessageDedup.unseen.
+struct TS { let id: Int; let ts: UInt64? }
+
 let c = Checker()
 
 // 1. ping -> pong response
@@ -181,6 +184,26 @@ if let m = c.decode(IncomingMessage.self, #"{"event":"message","thread":"t","sen
     c.check("incoming from_self:true -> fromSelf==true", m.fromSelf == true)
 } else {
     c.check("incoming (from_self true) decodes", false)
+}
+
+// 14. MessageDedup.unseen — drop already-seen + intra-batch dups, keep nils,
+// preserve order, mutate the seen set.
+do {
+    var seen: Set<UInt64> = [100]
+    let input = [TS(id: 1, ts: 100), TS(id: 2, ts: 200), TS(id: 3, ts: 200),
+                 TS(id: 4, ts: nil), TS(id: 5, ts: 300)]
+    let kept = MessageDedup.unseen(input, seen: &seen) { $0.ts }
+    c.check("dedup keeps [2,4,5] in order", kept.map { $0.id } == [2, 4, 5])
+    c.check("dedup drops already-seen ts(100)", !kept.contains { $0.id == 1 })
+    c.check("dedup drops intra-batch dup ts(200)", kept.filter { $0.ts == 200 }.count == 1)
+    c.check("dedup keeps nil-timestamp item", kept.contains { $0.id == 4 })
+    c.check("dedup seen == {100,200,300}", seen == [100, 200, 300])
+}
+do {
+    var seen: Set<UInt64> = []
+    let kept = MessageDedup.unseen([TS(id: 1, ts: 5), TS(id: 2, ts: 5)], seen: &seen) { $0.ts }
+    c.check("dedup keeps first of a dup pair", kept.map { $0.id } == [1])
+    c.check("dedup nil-only items all kept", MessageDedup.unseen([TS(id: 9, ts: nil)], seen: &seen) { $0.ts }.count == 1)
 }
 
 print("")

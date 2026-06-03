@@ -198,6 +198,17 @@ so only one stream runs. Both sides build clean; the decode-check gained
 **zero receive invoked**. Like send, receiving is a real-account action — it only
 runs after a real link, never automatically during development.
 
+**Message dedup by timestamp (2026-06-03):** send (optimistic), receive (stream),
+and `list-messages` (reload) can all surface the same stored message; a new pure
+`MessageDedup.unseen` helper (QuillSignalKit) + a per-thread set of seen Signal
+timestamps in `QuillSignalModel` drops the duplicates. `loadMessages` dedups the
+loaded batch and seeds the seen set; `appendIncoming` skips an already-seen
+timestamp; the optimistic send records its stamp. The helper is **fully
+unit-tested** in the decode-check (drops already-seen + intra-batch dups, keeps
+nil-timestamp items, preserves order, mutates the seen set). GTK app + check
+green; launch smoke unregressed. (Followup: client-generated send timestamps so
+the optimistic echo and the bridge-stored copy share a stamp and dedup exactly.)
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

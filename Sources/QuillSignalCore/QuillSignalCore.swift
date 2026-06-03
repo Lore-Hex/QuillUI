@@ -53,6 +53,9 @@ public final class QuillSignalModel: ObservableObject {
     private var isRefreshing = false
     private var hasAutoStarted = false
     private var isReceiving = false
+    /// Per-thread set of seen Signal timestamps (millis), keyed by lowercased
+    /// thread uuid, to drop duplicate messages from send/receive/reload.
+    private var seenTimestamps: [String: Set<UInt64>] = [:]
     /// Tracks the active link attempt so Cancel (and re-link) can invalidate a
     /// still-running link thread. nonisolated: read from the detached thread.
     nonisolated private let linkSession = LinkSession()
@@ -230,12 +233,15 @@ public final class QuillSignalModel: ObservableObject {
         Task.detached {
             let client = BridgeClient(path: path)
             var loaded: [Message] = []
+            var stamps: Set<UInt64> = []
             let cmd = "{\"cmd\":\"list-messages\",\"thread\":\"\(threadUuid)\"}"
             if let line = try? client.request(cmd),
                let bytes = line.data(using: .utf8),
                let resp = try? JSONDecoder().decode(MessagesResponse.self, from: bytes),
                let items = resp.data?.messages {
-                loaded = items.map { m in
+                // Dedup the loaded batch by timestamp and seed the per-thread seen set.
+                let deduped = MessageDedup.unseen(items, seen: &stamps) { $0.timestamp }
+                loaded = deduped.map { m in
                     Message(
                         sender: m.sender ?? "",
                         body: m.body ?? "",
@@ -246,7 +252,9 @@ public final class QuillSignalModel: ObservableObject {
                 Self.log("loaded \(loaded.count) messages for \(threadUuid)")
             }
             let result = loaded
+            let resultStamps = stamps
             await MainActor.run {
+                self.seenTimestamps[threadUuid.lowercased()] = resultStamps
                 if let idx = self.conversations.firstIndex(where: {
                     $0.id.uuidString.caseInsensitiveCompare(threadUuid) == .orderedSame
                 }) {
@@ -287,13 +295,14 @@ public final class QuillSignalModel: ObservableObject {
                       let msg = try? JSONDecoder().decode(IncomingMessage.self, from: data),
                       msg.event == "message",
                       let thread = msg.thread, let body = msg.body else { return true }
+                let ts = msg.timestamp
                 let m = Message(
                     sender: msg.sender ?? "",
                     body: body,
                     fromSelf: msg.fromSelf ?? false,
-                    timestamp: msg.timestamp.map { Date(timeIntervalSince1970: Double($0) / 1000.0) }
+                    timestamp: ts.map { Date(timeIntervalSince1970: Double($0) / 1000.0) }
                 )
-                Task { @MainActor in self.appendIncoming(thread: thread, message: m) }
+                Task { @MainActor in self.appendIncoming(thread: thread, message: m, timestampMillis: ts) }
                 return true
             }
             Task { @MainActor in self.isReceiving = false }
@@ -302,7 +311,12 @@ public final class QuillSignalModel: ObservableObject {
 
     /// Append a pushed message to its thread (create the conversation if the
     /// sender isn't a known contact yet).
-    private func appendIncoming(thread: String, message: Message) {
+    private func appendIncoming(thread: String, message: Message, timestampMillis: UInt64?) {
+        let key = thread.lowercased()
+        if let ts = timestampMillis {
+            if seenTimestamps[key]?.contains(ts) == true { return } // already shown
+            seenTimestamps[key, default: []].insert(ts)
+        }
         if let idx = conversations.firstIndex(where: {
             $0.id.uuidString.caseInsensitiveCompare(thread) == .orderedSame
         }) {
@@ -321,12 +335,17 @@ public final class QuillSignalModel: ObservableObject {
         let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         // Optimistic echo into the open thread.
+        let now = Date()
         if let idx = conversations.firstIndex(where: {
             $0.id.uuidString.caseInsensitiveCompare(threadUuid) == .orderedSame
         }) {
             conversations[idx].messages.append(
-                Message(sender: "Me", body: trimmed, fromSelf: true, timestamp: Date())
+                Message(sender: "Me", body: trimmed, fromSelf: true, timestamp: now)
             )
+            // Record the optimistic timestamp so the echoed/reloaded copy dedups
+            // (exact once the bridge accepts a client timestamp — see followup).
+            seenTimestamps[threadUuid.lowercased(), default: []]
+                .insert(UInt64(now.timeIntervalSince1970 * 1000))
         }
         // Build the command with proper JSON escaping (body is arbitrary text).
         guard let data = try? JSONSerialization.data(withJSONObject: [
