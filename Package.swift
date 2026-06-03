@@ -537,7 +537,11 @@ let quillDataPackageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
     // Signal's wire format (pod 'SwiftProtobuf' 1.36.1). Used by
     // SignalServiceKit's generated `*.pb.swift` + 23 hand-written imports.
-    .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.1")
+    .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.1"),
+    // CryptoKit-compatible crypto. Signal imports CryptoKit 26×; the Linux
+    // `CryptoKit` shim re-exports swift-crypto's `Crypto` (Apple's own
+    // API-compatible reimplementation) under that name.
+    .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0")
 ]
 
 let cSQLiteTarget: Target = .systemLibrary(
@@ -1232,6 +1236,18 @@ if libsignalUpstreamPresent {
 }
 #endif
 
+// CryptoKit Linux shim → swift-crypto's `Crypto` (API-compatible). Canonical
+// Apple framework name so upstream `import CryptoKit` resolves here on Linux.
+#if os(Linux)
+targets.append(
+    .target(
+        name: "CryptoKit",
+        dependencies: [.product(name: "Crypto", package: "swift-crypto")],
+        path: "Sources/CryptoKitShim"
+    )
+)
+#endif
+
 // SignalServiceKit — the foundation target (1412 Swift files). Compiled on
 // Linux against QuillUI's Apple-framework shim targets + LibSignalClient +
 // GRDB + SwiftProtobuf. Excluded for the first build:
@@ -1324,6 +1340,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             dependencies: [
                 "LibSignalClient",
                 "UIKit", "AVFoundation", "Network", "os", "Security", "CoreGraphics",
+                "CryptoKit",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
             ],

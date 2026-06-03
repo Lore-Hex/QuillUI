@@ -91,6 +91,8 @@ Branch `signal/real-backend` (off `main`). Upstream source lives under
 
 apt deps: `libgtk-4-dev libgdk-pixbuf-2.0-dev libcairo2-dev libsqlite3-dev
 pkg-config clang protobuf-compiler cmake git`. Env: `QUILLUI_LINUX_BACKEND=gtk`.
+Build with **`swift build --disable-index-store`** — swift-crypto's BoringSSL C++
+(and the apt clang) reject SwiftPM's Apple-only `-index-store-path` flag.
 Mounts: worktree → `/qui`, `qui-build` volume → `/qui/.build`. libsignal `.a`
 build reuses `qs-work` cargo cache with `CARGO_HOME=/work/cargo`.
 5. ⬜ Grind errors (cascade-cause playbook); extend QuillUI shims where Signal
@@ -113,9 +115,24 @@ reimplementations on Linux), not just filling shim gaps. This is the crux of
 (ObjC excluded) quantifies how much Swift depends on them.
 6. ⬜ `SignalUI`, then the `Signal` app target.
 
+## Grind log (SignalServiceKit, vs QuillUI shims)
+
+Each fix unblocks a deeper layer, so the count rises when a dependency clears and
+the build reaches further. "Top blocker" = dominant error after that fix.
+
+| # | Fix | Top blocker after |
+|---|-----|-------------------|
+| 0 | sqlite3.h env (apt `libsqlite3-dev`) | 47: GRDB `CGFloat` |
+| 1 | CoreGraphics re-export `Foundation.CGFloat` (6fdd83a) | 2263: reached SSK, `no such module CryptoKit` |
+| 2 | `CryptoKit` shim → swift-crypto `Crypto` + `--disable-index-store` | 2263: `no such module CommonCrypto` |
+| 3 | `CommonCrypto` shim … | _(in progress)_ |
+
 ## Status
 
-Milestones 1–2 done. The fixtures `QuillSignalCore`/`QuillSignal` app and the
-parked `QuillSignal` presage bridge are placeholders the real compiled
-Signal-iOS supersedes. Real account link/send needs the user's phone — far off;
-first it has to compile.
+Real libsignal (Rust FFI + Swift) builds on aarch64/Linux; SignalServiceKit
+target compiles its dependency graph (LibSignalClient/GRDB/SwiftProtobuf/
+swift-crypto) and is now grinding through its own 1412 Swift files — adding one
+QuillUI shim per missing Apple module, heading toward the ObjC-core-layer port.
+The fixtures `QuillSignalCore`/`QuillSignal` app and the parked presage bridge
+are placeholders the real compiled Signal-iOS supersedes. Real account link/send
+needs the user's phone — far off; first it has to compile.
