@@ -2601,6 +2601,23 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("importOPMLTree returns 0 for unparseable data without clobbering tree")
+    func importOPMLTreeRejectsGarbage() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "MyA", url: "https://a.test/feed"),
+        ])
+        let originalRootFeeds = model.subscriptionRoot.feeds.map(\.url)
+        // HTML, not OPML — parser should produce 0 feeds.
+        let html = "<html><body>Not an OPML.</body></html>"
+        let added = model.importOPMLTree(xml: html)
+        #expect(added == 0)
+        // Existing subscriptionRoot must NOT be wiped.
+        #expect(model.subscriptionRoot.feeds.map(\.url) == originalRootFeeds)
+        // And existing subscribedFeeds count stays.
+        #expect(model.subscribedFeeds.count == 1)
+    }
+
+    @MainActor
     @Test("importOPMLTree preserves existing folder structure instead of clobbering")
     func importOPMLTreePreservesExistingFolders() {
         // Set up a model with an existing folder structure the

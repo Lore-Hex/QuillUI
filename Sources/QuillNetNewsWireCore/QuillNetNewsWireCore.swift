@@ -3290,6 +3290,18 @@ final class RSSReaderModel: ObservableObject {
                 setError("OPML download was empty")
                 return 0
             }
+            // Pre-check the parse to distinguish "URL returned
+            // HTML / not-OPML / empty OPML" from "OPML parsed
+            // fine, all feeds were already subscribed." The
+            // previous logic conflated both into "Already
+            // subscribed" — misleading when the user pasted
+            // the wrong URL (e.g. the site's home page instead
+            // of an OPML export).
+            let parsed = OPMLImporter.parseTree(data: data)
+            if parsed.root.allFeeds.isEmpty {
+                setError("No feeds found in OPML. Check the URL points to an OPML file.")
+                return 0
+            }
             let added = importOPMLTree(data: data)
             lastSubscribeMessage = added == 0
                 ? "Already subscribed to those feeds"
