@@ -4967,7 +4967,17 @@ final class RSSReaderModel: ObservableObject {
     private static func sortFeedsInTree(_ folder: OPMLImporter.Folder) -> OPMLImporter.Folder {
         var copy = folder
         copy.feeds.sort(by: lessByTitle)
-        copy.subfolders = copy.subfolders.map { sortFeedsInTree($0) }
+        // Also alphabetize folder ORDER, not just feeds within
+        // a folder. Upstream NetNewsWire's "Sort by Name" does
+        // both — without this, the sidebar's folders stayed in
+        // insertion order even after Sort A-Z, which made the
+        // affordance feel incomplete for users with many
+        // folders.
+        copy.subfolders = copy.subfolders
+            .map { sortFeedsInTree($0) }
+            .sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
         return copy
     }
 

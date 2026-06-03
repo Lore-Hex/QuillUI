@@ -4392,10 +4392,12 @@ struct QuillNetNewsWireCoreTests {
         model.sortFeedsAlphabetically()
         // Root feeds sorted.
         #expect(model.subscriptionRoot.feeds.map(\.title) == ["Apple", "Banana", "Cherry"])
-        // Folder feeds sorted.
-        #expect(model.subscriptionRoot.subfolders[0].feeds.map(\.title) == ["Apple", "Banana", "Cherry"])
-        // Folder ORDER preserved (we only sort feeds, not folders).
-        #expect(model.subscriptionRoot.subfolders.map(\.name) == ["Tech", "News"])
+        // Folder ORDER also sorted alphabetically (iter #217):
+        // matches upstream NetNewsWire's "Sort by Name" which
+        // alphabetizes both folders and the feeds inside them.
+        #expect(model.subscriptionRoot.subfolders.map(\.name) == ["News", "Tech"])
+        // Folder feeds sorted (Tech is now at index 1).
+        #expect(model.subscriptionRoot.subfolders[1].feeds.map(\.title) == ["Apple", "Banana", "Cherry"])
     }
 
     @MainActor
