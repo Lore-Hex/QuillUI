@@ -693,6 +693,37 @@ struct QuillNetNewsWireCoreTests {
     // MARK: - Today smart feed (date-based)
 
     @MainActor
+    @Test("Folder empty state distinguishes 'Hide Read filtered everything' from 'no articles'")
+    func folderEmptyStateDistinguishesHideRead() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(name: "News", feeds: [
+                    Feed(title: "A", url: "https://a.test/feed"),
+                ]),
+            ]
+        )
+        // Seed one article in the folder's feed, mark it read,
+        // turn on Hide Read.
+        model.feedCaches["https://a.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        model.markRead(id: "a1")
+        model.hideReadArticles = true
+        model.selectFolder("News")
+        // With items present but Hide Read filtering them out,
+        // the empty state should explain the toggle, not say
+        // "feeds have no articles".
+        let msg = model.emptyTimelineMessage()
+        #expect(msg.headline == "All Read in News")
+        #expect(msg.detail.contains("Show Read"))
+    }
+
+    @MainActor
     @Test("All Unread empty state distinguishes 'no articles yet' from 'fully drained'")
     func allUnreadEmptyStateDistinguishesFreshFromDrained() {
         let model = RSSReaderModel()

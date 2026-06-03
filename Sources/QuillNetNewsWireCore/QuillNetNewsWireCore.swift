@@ -5453,6 +5453,18 @@ final class RSSReaderModel: ObservableObject {
             }
         }
         if let folder = selectedFolderName {
+            // Differentiate "folder has items but all read AND
+            // Hide Read is on" from "folder has no items at all".
+            // The first is a fixable user-toggle state; the
+            // second is a publisher-state issue. Showing the
+            // same generic message for both made the toggle
+            // affordance unreachable from the empty view.
+            if hideReadArticles && !itemsInFolder(named: folder).isEmpty {
+                return (
+                    "All Read in \(folder)",
+                    "Toggle \u{201C}Show Read\u{201D} to see articles you have already read."
+                )
+            }
             return (
                 "No Articles in \(folder)",
                 "Feeds inside this folder have no articles to show — refresh or wait for new posts."
