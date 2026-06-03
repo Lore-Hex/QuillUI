@@ -77,7 +77,17 @@ Branch `signal/real-backend` (off `main`). Upstream source lives under
 4. 🔄 `SignalServiceKit` target **wired** (1412 Swift, ObjC + tests/Calls/Payments
    + resources excluded — 94 exclude entries) vs QuillUI shims (UIKit/AVFoundation/
    Network/os/Security/CoreGraphics) + LibSignalClient + GRDB + SwiftProtobuf.
-   Baseline build running. NOTE: generated `.pb.swift` ARE checked in (kept).
+   NOTE: generated `.pb.swift` ARE checked in (kept). First baseline = 677 errors
+   but **all of it was a build-env artifact**: GRDB's `GRDBSQLite` C module needs
+   `sqlite3.h` → fixed by apt `libsqlite3-dev`; 230 GRDB-importing files cascaded.
+   True baseline re-running with sqlite headers.
+
+## Build environment (Docker, swift:6.2-noble, arm64)
+
+apt deps: `libgtk-4-dev libgdk-pixbuf-2.0-dev libcairo2-dev libsqlite3-dev
+pkg-config clang protobuf-compiler cmake git`. Env: `QUILLUI_LINUX_BACKEND=gtk`.
+Mounts: worktree → `/qui`, `qui-build` volume → `/qui/.build`. libsignal `.a`
+build reuses `qs-work` cargo cache with `CARGO_HOME=/work/cargo`.
 5. ⬜ Grind errors (cascade-cause playbook); extend QuillUI shims where Signal
    needs APIs they lack — commit each shim addition + each error-count drop.
 
