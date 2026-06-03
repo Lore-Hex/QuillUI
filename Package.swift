@@ -1292,6 +1292,19 @@ targets.append(
 )
 #endif
 
+// Contacts Linux shim — Apple's Contacts framework value types (CNContact,
+// CNLabeledValue, CNPhoneNumber, CNPostalAddress, …) for Signal's vCard /
+// contact-import paths. System address-book access (CNContactStore) is deferred
+// (returns empty / .denied). See Sources/ContactsShim/Contacts.swift.
+#if os(Linux)
+targets.append(
+    .target(
+        name: "Contacts",
+        path: "Sources/ContactsShim"
+    )
+)
+#endif
+
 // SignalServiceKit — the foundation target (1412 Swift files). Compiled on
 // Linux against QuillUI's Apple-framework shim targets + LibSignalClient +
 // GRDB + SwiftProtobuf. Excluded for the first build:
@@ -1384,7 +1397,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             dependencies: [
                 "LibSignalClient",
                 "UIKit", "AVFoundation", "Network", "os", "Security", "CoreGraphics",
-                "CryptoKit", "CommonCrypto", "SignalRingRTC", "COSUnfairLock",
+                "CryptoKit", "CommonCrypto", "SignalRingRTC", "COSUnfairLock", "Contacts",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
             ],
