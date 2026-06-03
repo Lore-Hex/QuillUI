@@ -124,6 +124,14 @@ and for the terminal CLI. Verified by screenshot + a nearest-neighbour zoom:
 **solid square modules, all three finder patterns clean, zero grey row-seams** —
 a high-quality scannable QR, a clear upgrade over the leading-prone text render.
 
+**Own-message attribution (2026-06-03):** `list-messages` now emits a `from_self`
+bool per message — the bridge compares each message's sender `raw_uuid()` to the
+account's own ACI (`registration_data().service_ids.aci`). The app decodes it
+(`BridgeStoredMessage.fromSelf`) and feeds it to `Message(fromSelf:)` instead of
+the previous hardcoded `false`, so the chat bubbles right-align/style sent vs
+received correctly. Both sides build clean; additive to the message path, which
+stays empty until a real link (runtime-verified once linked).
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

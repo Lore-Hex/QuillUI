@@ -38,6 +38,12 @@ struct BridgeStoredMessage: Codable {
     let body: String?
     let timestamp: UInt64?
     let sender: String?
+    let fromSelf: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case body, timestamp, sender
+        case fromSelf = "from_self"
+    }
 }
 private struct MessagesData: Codable { let messages: [BridgeStoredMessage] }
 private struct MessagesResponse: Codable { let data: MessagesData? }
@@ -240,7 +246,7 @@ public final class QuillSignalModel: ObservableObject {
                     Message(
                         sender: m.sender ?? "",
                         body: m.body ?? "",
-                        fromSelf: false,
+                        fromSelf: m.fromSelf ?? false,
                         timestamp: m.timestamp.map { Date(timeIntervalSince1970: Double($0) / 1000.0) }
                     )
                 }
