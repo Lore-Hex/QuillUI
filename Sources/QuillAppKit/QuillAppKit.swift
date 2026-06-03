@@ -718,6 +718,18 @@ open class NSView: NSResponder {
 
     open func layout() {}
     open func draw(_ rect: NSRect) {}
+
+    /// AppKit intrinsic content size. Default: no intrinsic size on either axis;
+    /// content views (labels, buttons) and custom rows override this. A native
+    /// backend may later compute it from the widget's measured size.
+    open var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+    /// Sentinel meaning "no intrinsic size for this axis" (AppKit's value).
+    public static let noIntrinsicMetric: CGFloat = -1
+
+    /// Called when a recycled view (e.g. an NSTableView cell) is reused.
+    open func prepareForReuse() {}
     open func viewWillDraw() {}
     open func viewWillMove(toWindow: NSWindow?) {}
     open func viewDidMoveToWindow() {}

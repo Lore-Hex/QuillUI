@@ -164,6 +164,25 @@ struct QuillAppKitQtTests {
         #expect(g.x == 10 && g.y == 5 && g.width == 80 && g.height == 24)
     }
 
+    @Test("NSView intrinsicContentSize / noIntrinsicMetric / prepareForReuse are overridable (KeyValueRow needs them)")
+    func intrinsicContentSizeAPI() {
+        // Mirrors EditableKeyValueRow, which overrides intrinsicContentSize to
+        // NSSize(width: NSView.noIntrinsicMetric, height: ...) and prepareForReuse.
+        final class Row: NSView {
+            var reused = false
+            override var intrinsicContentSize: NSSize {
+                NSSize(width: NSView.noIntrinsicMetric, height: 34)
+            }
+            override func prepareForReuse() { reused = true }
+        }
+        #expect(NSView.noIntrinsicMetric == -1)
+        let row = Row(frame: .zero)
+        #expect(row.intrinsicContentSize.height == 34)
+        #expect(row.intrinsicContentSize.width == NSView.noIntrinsicMetric)
+        row.prepareForReuse()
+        #expect(row.reused)
+    }
+
     @Test("NSWindow.contentView attaches its QWidget into the Qt window")
     func contentViewAttaches() {
         guard QuillQt.ensureInitialized() else { return }
