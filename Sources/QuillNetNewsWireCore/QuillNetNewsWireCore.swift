@@ -660,6 +660,12 @@ public struct QuillNetNewsWireContentView: View {
             Button("open in browser") {
                 if let url = model.selectedItemBrowserURL() {
                     openURL(url)
+                } else {
+                    // Silent-no-op was bad UX: user pressed b,
+                    // expected browser to open, nothing
+                    // happened, no signal why. Toast clarifies
+                    // (matches iter #256's Copy URL feedback).
+                    model.lastSubscribeMessage = "No article URL to open."
                 }
             }
             .keyboardShortcut("b", modifiers: [])
