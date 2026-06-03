@@ -3397,6 +3397,13 @@ final class RSSReaderModel: ObservableObject {
             selectItem(id: nil)
             items = []
             articles = []
+            // Clear feedTitle too — the timeline header subtitle
+            // reads from it and would otherwise keep displaying
+            // the deleted feed's name until the next selectFeed
+            // fetch updated it. Misleading: user just unsub'd
+            // "Daring Fireball" and the timeline header still
+            // says "Daring Fireball" for several seconds.
+            setFeedTitle(nil)
         }
         return true
     }
