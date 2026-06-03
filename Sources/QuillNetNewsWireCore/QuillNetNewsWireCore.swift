@@ -3886,7 +3886,18 @@ final class RSSReaderModel: ObservableObject {
                 try? articleStore.pruneFeed(urlString, keeping: Self.articleHistoryLimit)
             }
             if self.selectedID == nil {
-                self.selectItem(id: self.preferredInitialItemID(in: self.items))
+                // markAsRead: false — same reasoning as iter
+                // #206's auto-select-on-view-change. Fetch-time
+                // initial selection positions the cursor so the
+                // detail pane has something to show; the user
+                // hasn't actually opened the article. Marking
+                // read would silently consume an unread on
+                // every first fetch (and Mark-All-Read / SQLite-
+                // sweep accounting would be off-by-one).
+                self.selectItem(
+                    id: self.preferredInitialItemID(in: self.items),
+                    markAsRead: false
+                )
             }
             self.lastFetchAt = now
             // Successful fetch clears any prior error tracked
