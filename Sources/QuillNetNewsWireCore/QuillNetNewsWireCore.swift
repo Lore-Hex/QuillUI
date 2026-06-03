@@ -2622,10 +2622,21 @@ final class RSSReaderModel: ObservableObject {
     /// in the timeline".
     func autoSelectFirstUnreadIfNoSelection() {
         guard selectedID == nil else { return }
-        guard let firstUnread = items.first(where: { !readArticleIDs.contains($0.id) }) else {
+        // Walk filteredItems (the actual visible pool) not the
+        // raw items array. Smart-feed + folder views cross feed
+        // boundaries; items only reflects the active feed.
+        // Without filteredItems, entering All Unread or a folder
+        // view would leave the detail pane blank because the
+        // active feed might have nothing unread even though the
+        // cross-feed view does.
+        guard let firstUnread = filteredItems.first(where: { !readArticleIDs.contains($0.id) }) else {
             return
         }
-        selectItem(id: firstUnread.id)
+        // markAsRead: false so the auto-select doesn't silently
+        // consume an unread the user hasn't actually opened
+        // yet. They explicitly opening via j/k or a click still
+        // flips the bit through the default selectItem path.
+        selectItem(id: firstUnread.id, markAsRead: false)
     }
 
     /// Pin the timeline to a smart-feed view (All Unread / Starred
@@ -2647,6 +2658,11 @@ final class RSSReaderModel: ObservableObject {
         // Search is per-view (matches upstream NetNewsWire); a
         // new smart-feed visit starts with the full pool.
         searchQuery = ""
+        // Position the detail pane on the first unread without
+        // consuming it (markAsRead: false). Matches upstream
+        // NetNewsWire's "land on something useful on view
+        // entry" behavior without lying about the unread count.
+        autoSelectFirstUnreadIfNoSelection()
     }
 
     /// Select a folder-as-smart-feed view. Clears active smart
@@ -2662,6 +2678,10 @@ final class RSSReaderModel: ObservableObject {
         sessionStickyVisibleIDs.removeAll()
         // Search is per-view (matches upstream NetNewsWire).
         searchQuery = ""
+        // Position the detail pane on the first unread without
+        // consuming it (markAsRead: false). Same logic as
+        // selectSmartFeed.
+        autoSelectFirstUnreadIfNoSelection()
     }
 
     /// IDs of articles the user has opened during the current
@@ -3909,25 +3929,41 @@ final class RSSReaderModel: ObservableObject {
     }
 
     func selectItem(id: String?) {
+        selectItem(id: id, markAsRead: true)
+    }
+
+    /// Internal variant: `markAsRead: false` positions the cursor
+    /// on an article without flipping it to read. Used by auto-
+    /// select on view-entry — the user hasn't actually opened
+    /// the article yet, just navigated into a view where the
+    /// detail pane needs SOMETHING to show. Without this split,
+    /// auto-selecting first-unread on smart-feed entry consumed
+    /// the unread, dropping the badge by 1 the moment the user
+    /// looked at the view (which broke tests AND silently lied
+    /// to the user about the backlog size). Public so the auto-
+    /// select wrapper can call through, but kept off the main
+    /// API surface so casual callers default to mark-read.
+    func selectItem(id: String?, markAsRead: Bool) {
         if selectedID != id {
             selectedID = id
         }
-        if let id {
-            // Sticky-visible needed wherever the next filteredItems
-            // recompute would HIDE this row after markRead flips
-            // its bit: cross-feed views (smart feed / folder /
-            // search) AND active-feed view with Hide Read on.
-            // Without the hideReadArticles case, opening an
-            // article in the default active feed with Hide Read
-            // toggled on made the row vanish mid-read just like
-            // the cross-feed views did pre-#103.
-            let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-            let isCrossFeedView = selectedSmartFeed != nil
-                || selectedFolderName != nil
-                || !trimmedQuery.isEmpty
-            if isCrossFeedView || hideReadArticles {
-                sessionStickyVisibleIDs.insert(id)
-            }
+        guard let id else { return }
+        // Sticky-visible needed wherever the next filteredItems
+        // recompute would HIDE this row after markRead flips
+        // its bit: cross-feed views (smart feed / folder /
+        // search) AND active-feed view with Hide Read on.
+        // Without the hideReadArticles case, opening an
+        // article in the default active feed with Hide Read
+        // toggled on made the row vanish mid-read just like
+        // the cross-feed views did pre-#103.
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isCrossFeedView = selectedSmartFeed != nil
+            || selectedFolderName != nil
+            || !trimmedQuery.isEmpty
+        if isCrossFeedView || hideReadArticles {
+            sessionStickyVisibleIDs.insert(id)
+        }
+        if markAsRead {
             markRead(id: id)
         }
     }

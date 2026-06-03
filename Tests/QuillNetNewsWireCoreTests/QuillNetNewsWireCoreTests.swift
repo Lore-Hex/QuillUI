@@ -2284,6 +2284,27 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("selectSmartFeed auto-positions cursor on first unread WITHOUT consuming it")
+    func selectSmartFeedAutoPositionsWithoutConsuming() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "a1", title: "One", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "Two", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.selectSmartFeed(.allUnread)
+        // First unread should be selected so detail pane shows
+        // something on view entry.
+        #expect(model.selectedID == "a1")
+        // CRITICAL: auto-select must NOT mark-read or the
+        // unread badge would silently drop by 1 just from
+        // navigating into the view (and Mark-All-Read /
+        // SQLite-sweep accounting would be off).
+        #expect(!model.readArticleIDs.contains("a1"))
+    }
+
+    @MainActor
     @Test("selectNextFeed / selectPreviousFeed walks subscribedFeeds, saturates at ends")
     func selectNextPrevFeedWalks() async {
         let a = Feed(title: "A", url: "https://a.test/feed")
@@ -6067,8 +6088,10 @@ struct QuillNetNewsWireCoreTests {
         // filteredItems should be 1, 3, 5
         #expect(model.filteredItems.map(\.id) == ["1", "3", "5"])
 
-        // selectNextItem from no selection picks first of filtered.
-        model.selectNextItem()
+        // selectSmartFeed auto-selects first unread without
+        // consuming it (iter #206), so selectedID lands on "1"
+        // and "1" stays unread. selectNextItem from there
+        // advances through the filtered pool.
         #expect(model.selectedID == "1")
         model.selectNextItem()
         #expect(model.selectedID == "3")
