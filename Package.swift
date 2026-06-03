@@ -180,14 +180,11 @@ let codeEditSourceUpstreamPresent: Bool = upstreamPresent(".upstream/codeedit/Co
 let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsymbols")
 
 enum QuillCanonicalLinuxAppQtRuntime {
-    case enchantedQtNative
     case genericQtNative
     case wireGuardQtNative
 
     var targetDependency: Target.Dependency {
         switch self {
-        case .enchantedQtNative:
-            return "QuillEnchantedQtNativeRuntime"
         case .genericQtNative:
             return "QuillGenericQtNativeRuntime"
         case .wireGuardQtNative:
@@ -208,7 +205,6 @@ struct QuillCanonicalLinuxAppSpec {
 }
 
 let quillCanonicalLinuxApps: [QuillCanonicalLinuxAppSpec] = [
-    .init(product: "quill-enchanted", target: "QuillEnchanted", qtPath: "Sources/QuillEnchantedQt", qtRuntime: .enchantedQtNative),
     .init(product: "quill-enchanted-upstream-slice", target: "QuillEnchantedUpstreamSlice", qtPath: "Sources/QuillEnchantedUpstreamSliceQt", qtRuntime: .genericQtNative),
     .init(product: "quill-icecubes", target: "QuillIceCubes", qtPath: "Sources/QuillIceCubesQt", qtRuntime: .genericQtNative),
     .init(product: "quill-netnewswire", target: "QuillNetNewsWire", qtPath: "Sources/QuillNetNewsWireQt", qtRuntime: .genericQtNative),
@@ -262,7 +258,6 @@ var products: [Product] = [
 ] + quillCanonicalLinuxAppProducts
 
 #if !os(Linux)
-products.append(.executable(name: "quill-enchanted-qt", targets: ["QuillEnchantedQt"]))
 products.append(.executable(name: "quill-wireguard-qt", targets: ["QuillWireGuardQt"]))
 #endif
 
@@ -470,17 +465,6 @@ func quillLinuxBackendDependencies(
 }
 #endif
 
-let quillEnchantedQtDependencies: [Target.Dependency] = quillLinuxBackendDependencies(
-    nativeQt: ["QuillEnchantedQtNativeRuntime"],
-    fallback: ["QuillEnchantedCore", "QuillUIQt"]
-)
-#if os(Linux)
-let quillEnchantedQtSwiftSettings: [SwiftSetting] =
-    appSwiftSettings + (quillUILinuxBuildBackend == .qt ? [.define("QUILLUI_ENCHANTED_QT_NATIVE_BACKEND")] : [])
-#else
-let quillEnchantedQtSwiftSettings: [SwiftSetting] = appSwiftSettings
-#endif
-
 let quillWireGuardQtDependencies: [Target.Dependency] = quillLinuxBackendDependencies(
     nativeQt: ["QuillWireGuardQtNativeRuntime"],
     fallback: ["QuillWireGuardUI", "QuillUIQt"]
@@ -503,8 +487,6 @@ func quillCanonicalLinuxAppQtTarget(_ app: QuillCanonicalLinuxAppSpec) -> Target
     let swiftSettings: [SwiftSetting]
 
     switch app.qtRuntime {
-    case .enchantedQtNative:
-        swiftSettings = quillEnchantedQtSwiftSettings
     case .genericQtNative:
         swiftSettings = quillGenericQtSwiftSettings
     case .wireGuardQtNative:
@@ -775,11 +757,6 @@ var targets: [Target] = [
         dependencies: [.target(name: "QuillEnchantedShared"), "QuillEnchantedData", "QuillUI", "QuillFoundation", "QuillKit"],
         swiftSettings: appSwiftSettings
     ),
-    .executableTarget(
-        name: "QuillEnchanted",
-        dependencies: ["QuillEnchantedCore", "QuillUI"],
-        swiftSettings: appSwiftSettings
-    ),
     // NetNewsWire app — third port per docs/app-targets.md.
     // Self-contained RSS reader: `URLSession`-fetched feed
     // bytes parsed by Foundation's built-in `XMLParser` into a
@@ -1025,12 +1002,6 @@ var targets: [Target] = [
 
 #if !os(Linux)
 targets += [
-    .executableTarget(
-        name: "QuillEnchantedQt",
-        dependencies: quillEnchantedQtDependencies,
-        path: "Sources/QuillEnchantedQt",
-        swiftSettings: quillEnchantedQtSwiftSettings
-    ),
     .executableTarget(
         name: "QuillWireGuardQt",
         dependencies: quillWireGuardQtDependencies,
@@ -1622,12 +1593,6 @@ if quillUILinuxBuildBackend == .qt {
             name: "QuillGenericQtNativeRuntime",
             dependencies: [.target(name: "QuillEnchantedShared"), "CQuillQt6WidgetsShim", "QuillQtNativeRuntimeSupport"],
             path: "Sources/QuillGenericQtNativeRuntime",
-            swiftSettings: appSwiftSettings
-        ),
-        .target(
-            name: "QuillEnchantedQtNativeRuntime",
-            dependencies: [.target(name: "QuillEnchantedShared"), "QuillEnchantedData", "CQuillQt6WidgetsShim", "QuillQtNativeRuntimeSupport"],
-            path: "Sources/QuillEnchantedQtNativeRuntime",
             swiftSettings: appSwiftSettings
         ),
         .target(
