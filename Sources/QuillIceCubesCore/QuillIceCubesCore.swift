@@ -222,25 +222,38 @@ public struct QuillIceCubesContentView: View {
             } else if let row = selectedRow {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Timeline item")
-                            .font(.title)
-                            .bold()
-                        Text("\(row.displayNameText) \(row.handleText)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        HStack(alignment: .top, spacing: 12) {
+                            avatarView(for: row.avatar, size: 56)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(row.displayNameText)
+                                    .font(.title3)
+                                    .bold()
+                                Text(row.handleText)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                if !row.timeText.isEmpty {
+                                    Text(row.timeText)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            Spacer()
+                        }
 
-                        detailCard(
-                            title: "Post",
-                            body: row.contentText
-                        )
-                        detailCard(
-                            title: "Conversation",
-                            body: "Replies, boosts, favorites, and sharing actions stay grouped with the selected post."
-                        )
-                        detailCard(
-                            title: "Timeline status",
-                            body: errorMessage ?? "Public timeline loaded with fixture-backed content for deterministic Linux rendering."
-                        )
+                        Text(row.contentText)
+                            .font(.body)
+                            .lineSpacing(4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Divider()
+
+                        statusStatsBar(row)
+
+                        if let errorMessage {
+                            Text(errorMessage)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                     .padding(28)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -270,18 +283,33 @@ public struct QuillIceCubesContentView: View {
         .background(QuillDesktopChromeStyle.detailBackground)
     }
 
-    private func detailCard(title: String, body: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.headline)
-            Text(body)
-                .font(.body)
-                .lineSpacing(3)
+    /// IceCubes' status-detail engagement line: bold counts with
+    /// labels ("8 Boosts · 21 Favorites"), matching the text stats
+    /// row IceCubes shows above its action buttons. Rendered as plain
+    /// text so every glyph resolves on the GTK Material-Symbols font
+    /// — the iconified reply/boost/favorite/bookmark/share buttons
+    /// land in a follow-up once `reply`/`repeat` glyphs are added to
+    /// third_party/SwiftOpenUI's SF→Material map.
+    @ViewBuilder
+    private func statusStatsBar(_ row: IceCubesTimelineRow) -> some View {
+        HStack(spacing: 22) {
+            statGroup(count: row.repliesCount, label: "Replies")
+            statGroup(count: row.reblogsCount, label: "Boosts")
+            statGroup(count: row.favouritesCount, label: "Favorites")
+            Spacer()
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(QuillDesktopChromeStyle.cardBackground)
-        .cornerRadius(8)
+    }
+
+    @ViewBuilder
+    private func statGroup(count: Int, label: String) -> some View {
+        HStack(spacing: 5) {
+            Text(QuillIceCubesCountFormat.label(count))
+                .font(.subheadline)
+                .bold()
+            Text(label)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
     }
 
     @ViewBuilder
@@ -306,7 +334,10 @@ public struct QuillIceCubesContentView: View {
                 VStack(alignment: .leading) {
                     Text(row.displayNameText)
                         .font(.headline)
-                    Text(row.handleText)
+                    // Handle + IceCubes-style relative timestamp
+                    // ("@alex · 2h"). Precomputed on the row so the
+                    // GTK render loop never re-derives it.
+                    Text(row.subtitleText)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -324,23 +355,25 @@ public struct QuillIceCubesContentView: View {
     }
 
     @ViewBuilder
-    private func avatarView(for avatar: URL?) -> some View {
+    private func avatarView(for avatar: URL?, size: CGFloat = 40) -> some View {
         // SwiftUI's `AsyncImage` isn't part of SwiftOpenUI's GTK4
-        // backend yet — replace with a fixed circular placeholder.
-        // Real avatar decoding lands when the GTK image-loader
-        // shim grows URLSession-backed bitmap support.
+        // backend yet — replace with a rounded placeholder matching
+        // IceCubes' default rounded-rectangle avatar shape. Real
+        // avatar decoding lands when the GTK image-loader shim grows
+        // URLSession-backed bitmap support.
+        let cornerRadius = size * 0.22
         #if os(Linux)
-        Circle()
+        RoundedRectangle(cornerRadius: cornerRadius)
             .fill(Color.gray)
-            .frame(width: 40, height: 40)
+            .frame(width: size, height: size)
         #else
         AsyncImage(url: avatar) { image in
             image.resizable()
         } placeholder: {
             Color.gray
         }
-        .frame(width: 40, height: 40)
-        .clipShape(Circle())
+        .frame(width: size, height: size)
+        .cornerRadius(cornerRadius)
         #endif
     }
 
@@ -414,7 +447,14 @@ public struct IceCubesTimelineRow: Identifiable, Hashable, Sendable {
     public let id: String
     public let displayNameText: String
     public let handleText: String
+    /// "@handle · 2h" — precomputed so the GTK render loop reads a
+    /// stored string instead of re-deriving it every frame.
+    public let subtitleText: String
     public let contentText: String
+    public let timeText: String
+    public let repliesCount: Int
+    public let reblogsCount: Int
+    public let favouritesCount: Int
     public let avatar: URL?
 
     public init(
@@ -422,23 +462,96 @@ public struct IceCubesTimelineRow: Identifiable, Hashable, Sendable {
         displayNameText: String,
         handleText: String,
         contentText: String,
+        timeText: String = "",
+        repliesCount: Int = 0,
+        reblogsCount: Int = 0,
+        favouritesCount: Int = 0,
         avatar: URL? = nil
     ) {
         self.id = id
         self.displayNameText = displayNameText
         self.handleText = handleText
         self.contentText = contentText
+        self.timeText = timeText
+        self.subtitleText = timeText.isEmpty ? handleText : "\(handleText) · \(timeText)"
+        self.repliesCount = repliesCount
+        self.reblogsCount = reblogsCount
+        self.favouritesCount = favouritesCount
         self.avatar = avatar
     }
 
     public init(status: Status) {
+        self.init(status: status, now: Date())
+    }
+
+    /// Testable projection: `now` is injectable so relative-time
+    /// formatting ("2h", "Jan 1") is deterministic in unit tests.
+    public init(status: Status, now: Date) {
         self.init(
             id: status.id,
             displayNameText: status.account.displayNameText,
             handleText: status.account.handleText,
             contentText: status.contentText,
+            timeText: IceCubesRelativeTime.string(fromISO8601: status.createdAt, now: now),
+            repliesCount: status.repliesCount,
+            reblogsCount: status.reblogsCount,
+            favouritesCount: status.favouritesCount,
             avatar: status.account.avatar
         )
+    }
+}
+
+/// IceCubes-style relative timestamp formatting for a Mastodon
+/// `created_at` ISO8601 string: "now" / "5m" / "2h" / "3d" within
+/// the last week, then an absolute short date ("Jan 1", or
+/// "Jan 1, 2024" across a year boundary).
+public enum IceCubesRelativeTime {
+    public static func string(fromISO8601 createdAt: String, now: Date) -> String {
+        string(fromISO8601: createdAt, now: now, calendar: .current)
+    }
+
+    /// `calendar` (carrying its time zone) is injectable so the
+    /// absolute-date branch is deterministic in unit tests; the
+    /// app uses `.current` to show dates in the viewer's zone.
+    static func string(fromISO8601 createdAt: String, now: Date, calendar: Calendar) -> String {
+        guard let date = parse(createdAt) else { return "" }
+        let seconds = now.timeIntervalSince(date)
+        if seconds < 60 { return "now" }
+        if seconds < 3600 { return "\(Int(seconds / 60))m" }
+        if seconds < 86_400 { return "\(Int(seconds / 3600))h" }
+        if seconds < 604_800 { return "\(Int(seconds / 86_400))d" }
+        return absoluteShortDate(date, now: now, calendar: calendar)
+    }
+
+    static func parse(_ iso: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: iso) { return date }
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: iso)
+    }
+
+    static func absoluteShortDate(_ date: Date, now: Date, calendar: Calendar) -> String {
+        let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = sameYear ? "MMM d" : "MMM d, yyyy"
+        return formatter.string(from: date)
+    }
+}
+
+/// Compact engagement counts ("1.2k") for the status action bar.
+public enum QuillIceCubesCountFormat {
+    public static func label(_ count: Int) -> String {
+        if count >= 1_000_000 {
+            return String(format: "%.1fM", Double(count) / 1_000_000)
+        }
+        if count >= 1_000 {
+            return String(format: "%.1fk", Double(count) / 1_000)
+        }
+        return String(count)
     }
 }
 
@@ -472,7 +585,10 @@ public enum QuillIceCubesProfileFixtures {
                 displayName: "Fixture User"
             ),
             content: HTMLString(stringLiteral: "<p>Hello from a QuillIceCubes profile fixture.</p>"),
-            createdAt: "2026-01-01T00:00:00Z"
+            createdAt: "2026-01-01T00:00:00Z",
+            repliesCount: 3,
+            reblogsCount: 8,
+            favouritesCount: 21
         ),
         Status(
             id: "2",
@@ -483,7 +599,10 @@ public enum QuillIceCubesProfileFixtures {
                 displayName: "Deploy Bot"
             ),
             content: HTMLString(stringLiteral: "<p>Canary rollout healthy after 30m.</p>"),
-            createdAt: "2026-01-01T00:01:00Z"
+            createdAt: "2026-01-01T00:01:00Z",
+            repliesCount: 1,
+            reblogsCount: 4,
+            favouritesCount: 12
         ),
         Status(
             id: "3",
@@ -494,7 +613,10 @@ public enum QuillIceCubesProfileFixtures {
                 displayName: "Swift on Linux"
             ),
             content: HTMLString(stringLiteral: "<p>Desktop packaging notes are ready for the next toolchain smoke run.</p>"),
-            createdAt: "2026-01-01T00:02:00Z"
+            createdAt: "2026-01-01T00:02:00Z",
+            repliesCount: 6,
+            reblogsCount: 19,
+            favouritesCount: 47
         ),
         Status(
             id: "4",
@@ -505,7 +627,10 @@ public enum QuillIceCubesProfileFixtures {
                 displayName: "Mastodon"
             ),
             content: HTMLString(stringLiteral: "<p>Timeline cards, replies, and boosts remain grouped in the focused detail view.</p>"),
-            createdAt: "2026-01-01T00:03:00Z"
+            createdAt: "2026-01-01T00:03:00Z",
+            repliesCount: 0,
+            reblogsCount: 2,
+            favouritesCount: 9
         ),
         Status(
             id: "5",
@@ -516,7 +641,10 @@ public enum QuillIceCubesProfileFixtures {
                 displayName: "Mastodon Design"
             ),
             content: HTMLString(stringLiteral: "<p>Selection polish keeps the lower row visually distinct across GTK and Qt.</p>"),
-            createdAt: "2026-01-01T00:04:00Z"
+            createdAt: "2026-01-01T00:04:00Z",
+            repliesCount: 12,
+            reblogsCount: 140,
+            favouritesCount: 1280
         ),
     ]
 
