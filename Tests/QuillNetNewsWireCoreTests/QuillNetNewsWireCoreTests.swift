@@ -2223,6 +2223,48 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("saveOPMLExportToDisk writes tree shape, preserving folders")
+    func saveOPMLExportPreservesFolders() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-opml-export-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = PersistenceStore(directoryURL: dir)
+        let model = RSSReaderModel(
+            subscribedFeeds: [
+                Feed(title: "A", url: "https://a.test/feed"),
+                Feed(title: "B", url: "https://b.test/feed"),
+            ],
+            persistence: store
+        )
+        // Set up a real folder structure to export.
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [Feed(title: "A", url: "https://a.test/feed")],
+            subfolders: [
+                OPMLImporter.Folder(name: "Tech", feeds: [
+                    Feed(title: "B", url: "https://b.test/feed"),
+                ]),
+            ]
+        )
+        let exportURL = model.saveOPMLExportToDisk()
+        #expect(exportURL != nil)
+        guard let exportURL,
+              let data = try? Data(contentsOf: exportURL),
+              let xml = String(data: data, encoding: .utf8)
+        else {
+            #expect(Bool(false), "Couldn't read exported OPML")
+            return
+        }
+        // The flat-export shape would NOT contain a folder
+        // outline node for "Tech". Tree shape must include it
+        // with B nested inside.
+        #expect(xml.contains("Tech"))
+        // Sanity: both feeds present.
+        #expect(xml.contains("https://a.test/feed"))
+        #expect(xml.contains("https://b.test/feed"))
+    }
+
+    @MainActor
     @Test("folderName(containing:) returns nil at root, name when in folder, nil for missing")
     func folderNameContainingLookup() {
         let model = RSSReaderModel(subscribedFeeds: [

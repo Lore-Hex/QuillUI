@@ -3148,7 +3148,14 @@ final class RSSReaderModel: ObservableObject {
     /// `lastOPMLExportURL` so the UI can show "Exported to ..."
     @discardableResult
     func saveOPMLExportToDisk() -> URL? {
-        let data = exportOPMLData()
+        // User-facing export uses the tree shape so folder
+        // organization makes it into the .opml file on disk.
+        // Earlier this called exportOPMLData() — the FLAT shape —
+        // so importing the file back (anywhere — Quill itself,
+        // NetNewsWire, Feedbin, etc.) lost every folder. Tree
+        // shape round-trips through OPMLImporter.parseTree on
+        // re-import.
+        let data = exportOPMLTreeData()
         guard let url = persistence.saveOPMLExport(data) else { return nil }
         lastOPMLExportURL = url
         return url
