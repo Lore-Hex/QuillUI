@@ -3274,6 +3274,30 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("copySelectedItemURLToClipboard returns the selected URL string (nil at boundaries)")
+    func copySelectedItemURLReturnsURL() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model.items = [
+            RSSItem(id: "x", title: "X", link: "https://a.test/posts/x", pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "y", title: "Y", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        // Nothing selected → nil.
+        #expect(model.copySelectedItemURLToClipboard() == nil)
+        // Selected with link → returns URL string. Skip the
+        // actual clipboard write side-effect — test environment
+        // doesn't have a Wayland/X11 display socket; the helper
+        // silent-fails on a missing pasteboard binary, but the
+        // URL lookup is the testable part.
+        model.selectItem(id: "x")
+        #expect(model.copySelectedItemURLToClipboard() == "https://a.test/posts/x")
+        // Selected with no link → nil.
+        model.selectItem(id: "y")
+        #expect(model.copySelectedItemURLToClipboard() == nil)
+    }
+
+    @MainActor
     @Test("selectedItemBrowserURL returns the link of the selected article")
     func selectedItemBrowserURLReturnsLink() {
         let model = RSSReaderModel(subscribedFeeds: [

@@ -516,6 +516,15 @@ public struct QuillNetNewsWireContentView: View {
                 }
             }
             .keyboardShortcut("b", modifiers: [])
+            // ⌘⇧C = Copy Article URL — upstream NetNewsWire's
+            // canonical "I want to share this" shortcut. Avoids
+            // having to right-click the inline link in the
+            // detail pane. Linux: shells out to wl-copy / xclip;
+            // macOS: pbcopy.
+            Button("copy url") {
+                _ = model.copySelectedItemURLToClipboard()
+            }
+            .keyboardShortcut("c", modifiers: [.command, .shift])
         }
         .frame(height: 0)
         .hidden()
@@ -4060,6 +4069,77 @@ final class RSSReaderModel: ObservableObject {
     /// single most-used keystroke in the article reader after
     /// j/k navigation. Without it, every browser jump needed a
     /// trackpad to reach the inline link.
+    /// Write the selected article's URL to the system clipboard.
+    /// Returns the URL string on success, nil if nothing selected
+    /// or no link URL on the item. Linux: shells out to wl-copy
+    /// (Wayland) or xclip (X11); macOS: NSPasteboard. Matches
+    /// upstream NetNewsWire's "Copy Article URL" command — most
+    /// common reader workflow after "Open in Browser" (which is
+    /// already wired to `b`).
+    ///
+    /// Lighter than wiring through QuillAppKit's NSPasteboard
+    /// shim (which adds a dependency chain). Discoverable
+    /// command absence falls through silently — the user
+    /// notices the URL didn't land in their clipboard and can
+    /// fall back to Open in Browser.
+    @discardableResult
+    func copySelectedItemURLToClipboard() -> String? {
+        guard let url = selectedItemBrowserURL() else { return nil }
+        let urlString = url.absoluteString
+        Self.writeToSystemClipboard(urlString)
+        return urlString
+    }
+
+    private static func writeToSystemClipboard(_ string: String) {
+        #if os(Linux)
+        let env = ProcessInfo.processInfo.environment
+        if env["WAYLAND_DISPLAY"] != nil {
+            runClipboardCommand(["/usr/bin/wl-copy"], stdin: string)
+            return
+        }
+        if env["DISPLAY"] != nil {
+            runClipboardCommand(
+                ["/usr/bin/xclip", "-selection", "clipboard"],
+                stdin: string
+            )
+        }
+        #else
+        // macOS path. NSPasteboard requires AppKit — for the
+        // QuillNetNewsWireCore module we shell out to pbcopy
+        // to stay AppKit-free. Same lightweight approach as
+        // the Linux branch.
+        runClipboardCommand(["/usr/bin/pbcopy"], stdin: string)
+        #endif
+    }
+
+    private static func runClipboardCommand(_ args: [String], stdin: String) {
+        guard let first = args.first else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: first)
+        if args.count > 1 {
+            process.arguments = Array(args.dropFirst())
+        }
+        let pipe = Pipe()
+        process.standardInput = pipe
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            if let data = stdin.data(using: .utf8) {
+                pipe.fileHandleForWriting.write(data)
+            }
+            try pipe.fileHandleForWriting.close()
+            process.waitUntilExit()
+        } catch {
+            // Silent fail — command not installed or
+            // permission denied. User notices the clipboard
+            // didn't update and can fall back to Open in
+            // Browser. Surfacing an error toast for an
+            // optional convenience would be more noise than
+            // signal.
+        }
+    }
+
     func selectedItemBrowserURL() -> URL? {
         guard let selectedID,
               let item = items.first(where: { $0.id == selectedID })
