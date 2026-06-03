@@ -323,4 +323,39 @@ struct QuillIceCubesCoreTests {
         // locale-dependent, so it isn't asserted here — only this type's own
         // pluralization + zero-omission logic is.
     }
+
+    // MARK: - Content segments (styled mentions / hashtags)
+
+    @Test("IceCubesContentRuns splits @mentions and #hashtags into accent segments")
+    func contentRunsSegments() {
+        let segs = IceCubesContentRuns.segments(fromRawText: "Hello @alex check #swift today")
+        #expect(segs == [
+            IceCubesContentSegment(text: "Hello ", isAccent: false),
+            IceCubesContentSegment(text: "@alex", isAccent: true),
+            IceCubesContentSegment(text: " check ", isAccent: false),
+            IceCubesContentSegment(text: "#swift", isAccent: true),
+            IceCubesContentSegment(text: " today", isAccent: false),
+        ])
+    }
+
+    @Test("IceCubesContentRuns keeps plain text whole + ignores mid-word @/#")
+    func contentRunsPlainAndBoundaries() {
+        #expect(IceCubesContentRuns.segments(fromRawText: "just plain text")
+            == [IceCubesContentSegment(text: "just plain text", isAccent: false)])
+        // A mid-word `@` (e.g. an email) is not a mention — no accent segment.
+        #expect(IceCubesContentRuns.segments(fromRawText: "mail a@b.com").allSatisfy { !$0.isAccent })
+        // A lone `#`/`@` with no following word char stays plain.
+        #expect(IceCubesContentRuns.segments(fromRawText: "a # b").allSatisfy { !$0.isAccent })
+    }
+
+    @Test("Timeline row precomputes content segments with the mention flagged")
+    func rowPrecomputesContentSegments() {
+        let status = Status(
+            id: "1",
+            account: Account(id: "1", acct: "a", username: "a"),
+            content: HTMLString(stringLiteral: "<p>hi @alex</p>")
+        )
+        let row = IceCubesTimelineRow(status: status)
+        #expect(row.contentSegments.contains(IceCubesContentSegment(text: "@alex", isAccent: true)))
+    }
 }
