@@ -165,6 +165,18 @@ own background context). Verified headlessly across three cases: **no socket →
 spawn; stale socket (kill -9 the daemon, file remains) → detected and respawned;
 live daemon → reused, no double-spawn**.
 
+**Protocol decode-contract check (2026-06-03):** `quill-signal-decode-check` (a
+standalone `executableTarget` depending only on the Foundation-only
+`QuillSignalKit`, so it builds in seconds with **no GTK patcher**) asserts that
+every line the Rust bridge emits decodes into `BridgeMessage` — ping, status,
+`link-url`, `link-qr` (incl. the `qr_png_path` → `qrPngPath` CodingKey mapping
+and the no-png fallback), `linked`, `link-error`, the `send` response, the
+bad-request envelope, and forward-compat unknown-key tolerance. 25 checks, exits
+0 on pass / 1 on mismatch; run via `scripts/quill-signal-decode-check.sh`. Locks
+the bridge↔app wire contract against regressions. (Follow-up: hoist the
+app-private decode structs into `QuillSignalKit` so `from_self` / conversation
+envelopes are covered too.)
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

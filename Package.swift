@@ -265,7 +265,11 @@ var products: [Product] = [
     .library(name: "QuillPaintCairo", targets: ["QuillPaintCairo"]),
     // CLI that regenerates the Mac-reference PNG fixture set under
     // Tests/Fixtures/MacReference/ using QuillPaintCoreGraphics. Apple-only.
-    .executable(name: "quill-render-mac-references", targets: ["quill-render-mac-references"])
+    .executable(name: "quill-render-mac-references", targets: ["quill-render-mac-references"]),
+    // Standalone decode-contract check for the quill-signal-bridge protocol.
+    // Foundation-only (depends on QuillSignalKit), so it builds without the GTK
+    // backend; run as its own product to assert BridgeMessage JSON decoding.
+    .executable(name: "quill-signal-decode-check", targets: ["QuillSignalDecodeCheck"])
 ] + quillCanonicalLinuxAppProducts
 
 #if !os(Linux)
@@ -958,6 +962,13 @@ var targets: [Target] = [
     .executableTarget(
         name: "QuillSignal",
         dependencies: ["QuillSignalCore", "QuillUI"],
+        swiftSettings: appSwiftSettings
+    ),
+    // Decode-contract check: asserts the bridge wire protocol decodes into
+    // BridgeMessage. Foundation-only (QuillSignalKit), no GTK — fast to build/run.
+    .executableTarget(
+        name: "QuillSignalDecodeCheck",
+        dependencies: ["QuillSignalKit"],
         swiftSettings: appSwiftSettings
     ),
     .target(
