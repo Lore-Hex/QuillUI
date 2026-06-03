@@ -669,7 +669,16 @@ public struct QuillNetNewsWireContentView: View {
             // detail pane. Linux: shells out to wl-copy / xclip;
             // macOS: pbcopy.
             Button("copy url") {
-                _ = model.copySelectedItemURLToClipboard()
+                // Toast on success so the user knows the URL
+                // landed on the clipboard (the system clipboard
+                // surface is invisible). On nil (no selection
+                // or no link URL), say so explicitly rather
+                // than silent.
+                if let urlString = model.copySelectedItemURLToClipboard() {
+                    model.lastSubscribeMessage = "Copied URL: \(urlString)"
+                } else {
+                    model.lastSubscribeMessage = "No article URL to copy."
+                }
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
             // ⌘F focuses the timeline search field. Standard
