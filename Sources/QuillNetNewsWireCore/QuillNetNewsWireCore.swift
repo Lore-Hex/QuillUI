@@ -121,6 +121,22 @@ public struct QuillNetNewsWireContentView: View {
                 pendingDeleteFeedID = nil
                 pendingDeleteFolderName = nil
             }
+            .onChange(of: model.subscribedFeeds) { feeds in
+                // Auto-close the inspector when the feed it was
+                // showing got unsubscribed (the inspector body's
+                // "Feed not found" fallback was correct but the
+                // user has to manually click Done to dismiss
+                // what's now a stale dialog). Same for the
+                // pendingDeleteFeedID arm — invalid now.
+                if let id = inspectedFeedID,
+                   !feeds.contains(where: { $0.id == id }) {
+                    inspectedFeedID = nil
+                }
+                if let id = pendingDeleteFeedID,
+                   !feeds.contains(where: { $0.id == id }) {
+                    pendingDeleteFeedID = nil
+                }
+            }
             .sheet(isPresented: Binding(
                 get: { showingSettings },
                 set: { showingSettings = $0 }
@@ -3851,6 +3867,18 @@ final class RSSReaderModel: ObservableObject {
         setLoading(false)
     }
 
+    /// One-shot startup load: fetch the active feed + a 4-wide
+    /// background catch-up across all other subscribed feeds.
+    /// Idempotent via didStartInitialLoad — fires once per model
+    /// lifetime. Skips:
+    /// - When subscribedFeeds is empty (no real subs → don't
+    ///   silently fetch the daringfireball fallback URL).
+    /// - When a feed's cache.lastFetchAt is fresher than
+    ///   refreshIntervalSeconds (iter #262/#263 — quick relaunch
+    ///   cycles don't pay network round-trips for fresh caches).
+    /// - When refreshIntervalSeconds is nil (manual-only mode).
+    /// - When a feed's failure count crossed the back-off
+    ///   threshold.
     func loadIfNeeded(urlString: String) async {
         guard !didStartInitialLoad else { return }
         // With no subscriptions, the view falls back to a hard-
