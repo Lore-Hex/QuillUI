@@ -274,15 +274,21 @@ public struct QuillNetNewsWireContentView: View {
                         Button("Save") {
                             let trimmed = renameFeedInput
                                 .trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !trimmed.isEmpty else { return }
+                            guard !trimmed.isEmpty, trimmed != feed.title else { return }
                             _ = model.renameFeed(feed.id, to: trimmed)
                             renameFeedInput = ""
                         }
-                        .disabled(
-                            renameFeedInput
+                        .disabled({
+                            let trimmed = renameFeedInput
                                 .trimmingCharacters(in: .whitespacesAndNewlines)
-                                .isEmpty
-                        )
+                            // No-op cases: empty, OR identical to
+                            // the current title. Gate Save on both
+                            // so the affordance reads honestly —
+                            // before, clicking Save with the
+                            // current title silently did nothing
+                            // and the user wondered why.
+                            return trimmed.isEmpty || trimmed == feed.title
+                        }())
                     }
                 }
                 // Move feed up/down within its parent (folder or
@@ -927,16 +933,19 @@ public struct QuillNetNewsWireContentView: View {
                         Button("Save") {
                             let trimmed = renameFolderInput
                                 .trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !trimmed.isEmpty else { return }
+                            guard !trimmed.isEmpty, trimmed != folder.name else { return }
                             _ = model.renameFolder(from: folder.name, to: trimmed)
                             renameFolderName = nil
                             renameFolderInput = ""
                         }
-                        .disabled(
-                            renameFolderInput
+                        .disabled({
+                            let trimmed = renameFolderInput
                                 .trimmingCharacters(in: .whitespacesAndNewlines)
-                                .isEmpty
-                        )
+                            // Same no-op-gate as feed rename:
+                            // disable when empty OR identical to
+                            // the current name.
+                            return trimmed.isEmpty || trimmed == folder.name
+                        }())
                         Button("Cancel") {
                             renameFolderName = nil
                             renameFolderInput = ""
