@@ -30,21 +30,125 @@ public typealias ASPresentationAnchor = NSObject
 
 @MainActor open class UIResponder: NSObject {}
 
-public class NSLayoutAnchor<AnchorType>: NSObject {}
+/// The layout attribute an anchor represents. QuillUIKit-local (the public
+/// `NSLayoutConstraint.Attribute` enum lives in QuillAppKit, which depends on
+/// this module). The native layout pass (e.g. QuillAppKitQt → QuillAutoLayout)
+/// reads this to translate a constraint into the solver.
+public enum QuillLayoutAttribute: Sendable {
+    case left, right, top, bottom, leading, trailing
+    case width, height, centerX, centerY, firstBaseline, lastBaseline
+    case notAnAttribute
+}
+
+/// Non-generic read access to an anchor's binding, so a layout pass can inspect
+/// heterogeneous anchors (X-axis / Y-axis / dimension) uniformly.
+public protocol QuillLayoutAnchorReading: AnyObject {
+    var quillItem: AnyObject? { get }
+    var quillAttribute: QuillLayoutAttribute { get }
+}
+
+public class NSLayoutAnchor<AnchorType>: NSObject, QuillLayoutAnchorReading {
+    /// The item (e.g. an NSView) this anchor belongs to. Weak: the constraint
+    /// retains the anchor; the anchor must not retain the view.
+    public internal(set) weak var quillItem: AnyObject?
+    public internal(set) var quillAttribute: QuillLayoutAttribute
+
+    public init(item: AnyObject?, attribute: QuillLayoutAttribute) {
+        quillItem = item
+        quillAttribute = attribute
+        super.init()
+    }
+    public override init() {
+        quillItem = nil
+        quillAttribute = .notAnAttribute
+        super.init()
+    }
+}
+
 public class NSLayoutXAxisAnchor: NSLayoutAnchor<NSLayoutXAxisAnchor> {}
 public class NSLayoutYAxisAnchor: NSLayoutAnchor<NSLayoutYAxisAnchor> {}
 
 public class NSLayoutDimension: NSLayoutAnchor<NSLayoutDimension> {
-    public func constraint(equalToConstant: CGFloat) -> NSLayoutConstraint { NSLayoutConstraint() }
+    public func constraint(equalToConstant c: CGFloat) -> NSLayoutConstraint {
+        NSLayoutConstraint(first: self, relation: .equal, second: nil, multiplier: 0, constant: c)
+    }
+    public func constraint(lessThanOrEqualToConstant c: CGFloat) -> NSLayoutConstraint {
+        NSLayoutConstraint(first: self, relation: .lessThanOrEqual, second: nil, multiplier: 0, constant: c)
+    }
+    public func constraint(greaterThanOrEqualToConstant c: CGFloat) -> NSLayoutConstraint {
+        NSLayoutConstraint(first: self, relation: .greaterThanOrEqual, second: nil, multiplier: 0, constant: c)
+    }
+    public func constraint(equalTo other: NSLayoutDimension, multiplier m: CGFloat = 1, constant c: CGFloat = 0) -> NSLayoutConstraint {
+        NSLayoutConstraint(first: self, relation: .equal, second: other, multiplier: m, constant: c)
+    }
 }
 
 public extension NSLayoutAnchor {
-    func constraint(equalTo: NSLayoutAnchor<AnchorType>, constant: CGFloat = 0) -> NSLayoutConstraint { NSLayoutConstraint() }
+    func constraint(equalTo other: NSLayoutAnchor<AnchorType>, constant c: CGFloat = 0) -> NSLayoutConstraint {
+        NSLayoutConstraint(first: self, relation: .equal, second: other, multiplier: 1, constant: c)
+    }
+    func constraint(greaterThanOrEqualTo other: NSLayoutAnchor<AnchorType>, constant c: CGFloat = 0) -> NSLayoutConstraint {
+        NSLayoutConstraint(first: self, relation: .greaterThanOrEqual, second: other, multiplier: 1, constant: c)
+    }
+    func constraint(lessThanOrEqualTo other: NSLayoutAnchor<AnchorType>, constant c: CGFloat = 0) -> NSLayoutConstraint {
+        NSLayoutConstraint(first: self, relation: .lessThanOrEqual, second: other, multiplier: 1, constant: c)
+    }
 }
 
 public class NSLayoutConstraint: NSObject {
-    public var isActive: Bool = true
-    public static func activate(_: [NSLayoutConstraint]) {}
+    public enum QuillRelation: Sendable { case equal, lessThanOrEqual, greaterThanOrEqual }
+
+    /// Anchor bindings + parameters captured from the factory methods, read by
+    /// the native layout pass. A nil second anchor ⇒ a constant dimension
+    /// (first.attribute == multiplier·second.attribute + constant; with no
+    /// second, first.attribute == constant).
+    public let quillFirstAnchor: (any QuillLayoutAnchorReading)?
+    public let quillSecondAnchor: (any QuillLayoutAnchorReading)?
+    public let quillRelation: QuillRelation
+    public let quillMultiplier: CGFloat
+    public let quillConstant: CGFloat
+
+    /// Globally-active constraints. The native layout pass filters these to the
+    /// view subtree it lays out. (AppKit stores them per-view; a global list
+    /// keeps the QuillUIKit↔QuillAppKit module split simple. Items are weak via
+    /// the anchors, so the pass drops constraints whose views have gone away.)
+    nonisolated(unsafe) public static var quillActive: [NSLayoutConstraint] = []
+
+    public var isActive: Bool = false {
+        didSet {
+            guard isActive != oldValue else { return }
+            if isActive {
+                NSLayoutConstraint.quillActive.append(self)
+            } else {
+                NSLayoutConstraint.quillActive.removeAll { $0 === self }
+            }
+        }
+    }
+
+    init(first: (any QuillLayoutAnchorReading)?, relation: QuillRelation,
+         second: (any QuillLayoutAnchorReading)?, multiplier: CGFloat, constant: CGFloat) {
+        quillFirstAnchor = first
+        quillSecondAnchor = second
+        quillRelation = relation
+        quillMultiplier = multiplier
+        quillConstant = constant
+        super.init()
+    }
+    public override init() {
+        quillFirstAnchor = nil
+        quillSecondAnchor = nil
+        quillRelation = .equal
+        quillMultiplier = 1
+        quillConstant = 0
+        super.init()
+    }
+
+    public static func activate(_ constraints: [NSLayoutConstraint]) {
+        for c in constraints { c.isActive = true }
+    }
+    public static func deactivate(_ constraints: [NSLayoutConstraint]) {
+        for c in constraints { c.isActive = false }
+    }
 }
 
 public enum UIUserInterfaceStyle: Int {
