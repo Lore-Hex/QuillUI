@@ -761,8 +761,18 @@ public struct QuillNetNewsWireContentView: View {
                         let trimmed = addFolderInput
                             .trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !trimmed.isEmpty else { return }
-                        _ = model.addFolder(named: trimmed)
-                        addFolderInput = ""
+                        let ok = model.addFolder(named: trimmed)
+                        if ok {
+                            addFolderInput = ""
+                        } else {
+                            // Duplicate at root (the only place
+                            // addFolder creates folders). Surface
+                            // a toast so the user knows why the
+                            // input didn't clear / a folder
+                            // didn't appear. Keep the input so
+                            // they can edit + retry.
+                            model.lastSubscribeMessage = "A folder named \u{201C}\(trimmed)\u{201D} already exists."
+                        }
                     }
                     .font(.caption2)
                     .disabled(
@@ -934,9 +944,19 @@ public struct QuillNetNewsWireContentView: View {
                             let trimmed = renameFolderInput
                                 .trimmingCharacters(in: .whitespacesAndNewlines)
                             guard !trimmed.isEmpty, trimmed != folder.name else { return }
-                            _ = model.renameFolder(from: folder.name, to: trimmed)
-                            renameFolderName = nil
-                            renameFolderInput = ""
+                            let ok = model.renameFolder(from: folder.name, to: trimmed)
+                            if ok {
+                                renameFolderName = nil
+                                renameFolderInput = ""
+                            } else {
+                                // Sibling-name collision (or
+                                // unfindable folder). Surface a
+                                // toast so the user knows why
+                                // the Save did nothing. Stay in
+                                // rename mode so they can edit
+                                // the input without losing it.
+                                model.lastSubscribeMessage = "A folder named \u{201C}\(trimmed)\u{201D} already exists here."
+                            }
                         }
                         .disabled({
                             let trimmed = renameFolderInput
