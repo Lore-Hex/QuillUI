@@ -3986,7 +3986,22 @@ final class RSSReaderModel: ObservableObject {
             // entities ("AT&amp;T News") and we don't want those
             // literal in the sidebar / detail header.
             let decodedFeedTitle = parsed.title.map { HTMLEntities.decode($0) }
-            self.setFeedTitle(decodedFeedTitle)
+            // Header (feedTitle) prefers the user-renamed
+            // subscribed-feed title when it diverges from the
+            // URL fallback — without this, the parsed publisher
+            // title would clobber the user's rename in the
+            // detail-pane header (the sidebar already kept the
+            // rename via updateSubscribedFeedTitleFromParse's
+            // unedited guard; only the header was lying).
+            let displayTitle: String? = {
+                if let sub = self.subscribedFeeds.first(where: { $0.url == urlString }),
+                   !sub.title.isEmpty,
+                   sub.title != sub.url {
+                    return sub.title
+                }
+                return decodedFeedTitle
+            }()
+            self.setFeedTitle(displayTitle)
             // If the parsed feed title is meaningful AND differs
             // from the user's sidebar entry, rename the
             // subscribed feed so the sidebar reads the canonical
