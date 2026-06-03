@@ -716,6 +716,22 @@ public struct QuillNetNewsWireContentView: View {
                         set: { addSubscriptionInput = $0 }
                     ))
                         .font(.caption)
+                        .onSubmit {
+                            // Enter in the field fires Add too —
+                            // typing a URL and hitting Return is
+                            // the natural flow (matches upstream
+                            // NetNewsWire's add-feed dialog and
+                            // browser-style URL bars). Without
+                            // this, the user had to mouse over to
+                            // the Add button after typing.
+                            let trimmed = addSubscriptionInput.trimmingWhitespace
+                            guard !trimmed.isEmpty, !model.isLoading else { return }
+                            let input = addSubscriptionInput
+                            addSubscriptionInput = ""
+                            Task { @MainActor in
+                                await model.addSubscription(urlString: input)
+                            }
+                        }
                     Button(model.isLoading ? "Adding…" : "Add") {
                         let input = addSubscriptionInput
                         addSubscriptionInput = ""
@@ -736,6 +752,17 @@ public struct QuillNetNewsWireContentView: View {
                         set: { opmlImportURLInput = $0 }
                     ))
                         .font(.caption2)
+                        .onSubmit {
+                            // Same onSubmit pattern as Add Feed
+                            // — Enter fires Import.
+                            let trimmed = opmlImportURLInput.trimmingWhitespace
+                            guard !trimmed.isEmpty, !model.isLoading else { return }
+                            let input = opmlImportURLInput
+                            opmlImportURLInput = ""
+                            Task { @MainActor in
+                                await model.importOPMLFromURL(input)
+                            }
+                        }
                     Button(model.isLoading ? "Importing…" : "Import") {
                         let input = opmlImportURLInput
                         opmlImportURLInput = ""
