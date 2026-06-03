@@ -132,6 +132,19 @@ the previous hardcoded `false`, so the chat bubbles right-align/style sent vs
 received correctly. Both sides build clean; additive to the message path, which
 stays empty until a real link (runtime-verified once linked).
 
+**Send scaffolding (2026-06-03):** the bridge has a `send` command — a
+`Send { thread, body }` request that parses the recipient service id, loads a
+mutable registered manager, and calls presage `send_message(recipient,
+DataMessage { body, timestamp, .. }, timestamp_millis)`. The app's
+`QuillSignalModel.send(to:body:)` optimistically echoes a from-self message, then
+fires the bridge `send` (JSON-escaped body) off the main thread; the composer's
+send button calls it (replacing the fixture `ChatDraft` path) and clears the
+draft. **Safety:** send only fires on an explicit button press — never
+automatically — and reaches a real account only once linked. Both sides build
+clean; a launch smoke shows the unlinked path unchanged (auto-spawn + status,
+app stays up) with **zero** sends invoked. Actual delivery is the user-gated
+(phone) step, like link-completion.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

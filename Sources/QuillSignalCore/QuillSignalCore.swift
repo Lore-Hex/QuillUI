@@ -280,6 +280,37 @@ public final class QuillSignalModel: ObservableObject {
         }
     }
 
+    /// Send a text message to a thread via the bridge. Optimistically appends a
+    /// from-self message for instant feedback, then fires the bridge `send`
+    /// command off the main thread. ONLY invoked from an explicit user action
+    /// (the composer's send button) — never automatically; reaches the real
+    /// account only once linked.
+    public func send(to threadUuid: String, body: String) {
+        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        // Optimistic echo into the open thread.
+        if let idx = conversations.firstIndex(where: {
+            $0.id.uuidString.caseInsensitiveCompare(threadUuid) == .orderedSame
+        }) {
+            conversations[idx].messages.append(
+                Message(sender: "Me", body: trimmed, fromSelf: true, timestamp: Date())
+            )
+        }
+        // Build the command with proper JSON escaping (body is arbitrary text).
+        guard let data = try? JSONSerialization.data(withJSONObject: [
+            "cmd": "send", "thread": threadUuid, "body": trimmed,
+        ]), let cmd = String(data: data, encoding: .utf8) else { return }
+        let path = socketPath
+        Task.detached {
+            let client = BridgeClient(path: path)
+            if let line = try? client.request(cmd) {
+                Self.log("send -> \(line)")
+            } else {
+                Self.log("send failed: no response from bridge")
+            }
+        }
+    }
+
     /// Begin device linking. The bridge streams a real `sgnl://linkdevice` URL,
     /// then blocks awaiting the phone scan — so this runs on a dedicated thread.
     public func beginLink(deviceName: String = "QuillOS") {
@@ -426,13 +457,12 @@ public struct QuillSignalContentView: View {
     }
 
     private func send() {
-        ChatDraft.sendMessage(
-            from: &draft,
-            toID: selectedID,
-            in: &conversations
-        ) { body in
-            Message(sender: "Me", body: body, fromSelf: true)
-        }
+        let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty, let id = selectedID else { return }
+        // Real send goes through the model -> bridge -> presage. Only fires on an
+        // explicit press of the composer's send button (never automatically).
+        model.send(to: id.uuidString, body: body)
+        draft = ""
     }
 }
 
