@@ -43,4 +43,42 @@ struct QuillAppKitQtTests {
         #expect(QuillAppKitQtAutoInstall.didInstall)
         #expect(NSApplication._runHook != nil)
     }
+
+    @Test("NSView hierarchy backs onto Qt: subviews become child QWidgets")
+    func viewHierarchy() {
+        guard QuillQt.ensureInitialized() else { return }
+
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+        let a = NSView(frame: .zero)
+        let b = NSView(frame: .zero)
+        content.addSubviewQt(a)
+        content.addSubviewQt(b)
+
+        #expect(content.qtChildCount == 2)       // real QWidget children
+        #expect(content.subviews.count == 2)     // AppKit subview list maintained too
+
+        // Geometry round-trips through the bridge (the Auto Layout pass will
+        // drive this in M2 slice 2).
+        a.applyQtGeometry(x: 10, y: 20, width: 80, height: 30)
+        let g = a.qtGeometry
+        #expect(g.x == 10 && g.y == 20 && g.width == 80 && g.height == 30)
+    }
+
+    @Test("NSWindow.contentView attaches its QWidget into the Qt window")
+    func contentViewAttaches() {
+        guard QuillQt.ensureInitialized() else { return }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 320),
+            styleMask: .titled, backing: .buffered, defer: false
+        )
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 320))
+        let child = NSView(frame: .zero)
+        content.addSubviewQt(child)
+        window.contentView = content
+        window.showAsQtWindowWithContent()
+
+        #expect(window.qtWindowHandle != nil)
+        #expect(content.qtChildCount == 1)
+    }
 }
