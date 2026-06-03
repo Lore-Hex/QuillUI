@@ -833,7 +833,7 @@ public struct QuillNetNewsWireContentView: View {
                         Task { @MainActor in await model.refreshAllFeeds() }
                     }
                     .font(.caption2)
-                    .disabled(model.isLoading)
+                    .disabled(model.isLoading || model.subscribedFeeds.isEmpty)
                     Button("Sort A-Z") {
                         model.sortFeedsAlphabetically()
                     }
@@ -843,6 +843,11 @@ public struct QuillNetNewsWireContentView: View {
                         model.saveOPMLExportToDisk()
                     }
                     .font(.caption2)
+                    // No subscriptions → nothing to export. Empty
+                    // OPML on disk is misleading (looks like a
+                    // failed save). Disable so the affordance
+                    // reads honestly.
+                    .disabled(model.subscribedFeeds.isEmpty)
                     Button("Settings") {
                         showingSettings = true
                     }
