@@ -702,16 +702,19 @@ open class NSView: NSResponder {
         return self
     }
 
-    public var topAnchor = NSLayoutYAxisAnchor()
-    public var bottomAnchor = NSLayoutYAxisAnchor()
-    public var leadingAnchor = NSLayoutXAxisAnchor()
-    public var trailingAnchor = NSLayoutXAxisAnchor()
-    public var widthAnchor = NSLayoutDimension()
-    public var heightAnchor = NSLayoutDimension()
-    public var centerXAnchor = NSLayoutXAxisAnchor()
-    public var centerYAnchor = NSLayoutYAxisAnchor()
-    public var firstBaselineAnchor = NSLayoutYAxisAnchor()
-    public var lastBaselineAnchor = NSLayoutYAxisAnchor()
+    // Computed so each anchor is bound to this view + its attribute (the native
+    // layout pass reads that binding). Returning a fresh anchor per access
+    // matches AppKit, where anchors are lightweight value-like handles.
+    public var topAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .top) }
+    public var bottomAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .bottom) }
+    public var leadingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .leading) }
+    public var trailingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .trailing) }
+    public var widthAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .width) }
+    public var heightAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .height) }
+    public var centerXAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .centerX) }
+    public var centerYAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .centerY) }
+    public var firstBaselineAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .firstBaseline) }
+    public var lastBaselineAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .lastBaseline) }
 
     open func layout() {}
     open func draw(_ rect: NSRect) {}

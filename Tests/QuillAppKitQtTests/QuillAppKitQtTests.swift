@@ -1,5 +1,6 @@
 import Testing
 import AppKit
+import QuillUIKit
 @testable import QuillAppKitQt
 
 /// M1 slice 1 (issue #231): prove the AppKit shadow's NSApplication/NSWindow are
@@ -62,6 +63,36 @@ struct QuillAppKitQtTests {
         a.applyQtGeometry(x: 10, y: 20, width: 80, height: 30)
         let g = a.qtGeometry
         #expect(g.x == 10 && g.y == 20 && g.width == 80 && g.height == 30)
+    }
+
+    @Test("Auto Layout data model: constraints capture anchor bindings + activate into the global list")
+    func constraintDataModel() {
+        let a = NSView(frame: .zero)
+        let b = NSView(frame: .zero)
+
+        let c = a.leadingAnchor.constraint(equalTo: b.trailingAnchor, constant: 8)
+        // Created inactive (matches AppKit); carries its bindings + parameters.
+        #expect(c.isActive == false)
+        #expect(c.quillConstant == 8)
+        #expect(c.quillMultiplier == 1)
+        #expect(c.quillFirstAnchor?.quillItem === a)
+        #expect(c.quillFirstAnchor?.quillAttribute == .leading)
+        #expect(c.quillSecondAnchor?.quillItem === b)
+        #expect(c.quillSecondAnchor?.quillAttribute == .trailing)
+
+        NSLayoutConstraint.activate([c])
+        #expect(c.isActive == true)
+        #expect(NSLayoutConstraint.quillActive.contains { $0 === c })
+
+        // A constant dimension has no second anchor.
+        let w = a.widthAnchor.constraint(equalToConstant: 120)
+        w.isActive = true
+        #expect(w.quillSecondAnchor == nil)
+        #expect(w.quillConstant == 120)
+
+        NSLayoutConstraint.deactivate([c, w])
+        #expect(!NSLayoutConstraint.quillActive.contains { $0 === c })
+        #expect(!NSLayoutConstraint.quillActive.contains { $0 === w })
     }
 
     @Test("NSWindow.contentView attaches its QWidget into the Qt window")
