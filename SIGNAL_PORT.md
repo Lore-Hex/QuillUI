@@ -62,6 +62,17 @@ QuillOS arch. **Next: run it (app + daemon) end-to-end; then extend the bridge
 with conversation commands.** (`swift build --target` only emits the module;
 the **`--product`** build links the executable.)
 
+**Runtime smoke PASSED (no account):** `scripts/verify-quill-signal-smoke.sh`
+builds the app, starts the presage bridge daemon, and launches `quill-signal`
+offscreen under Xvfb. The running app queries the engine once and logs the real
+status: `[QuillSignal] bridge status -> unlinked: not registered …` — proving the
+live path **app → QuillSignalKit → unix socket → Rust bridge → presage →
+libsignal store**. (Fixed: `.onAppear` re-fired `refreshStatus` on every render;
+now `startOnce()` + an `isRefreshing` guard query once and never open the presage
+store concurrently — which had raced on the sqlite migrations.) **The build/run
+foundation is done; the remaining step is user-gated: scan the link URL with
+your phone to link a real account, then send/receive.**
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

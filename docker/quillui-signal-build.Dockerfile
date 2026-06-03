@@ -27,6 +27,9 @@ RUN set -eux; \
         python3 \
         perl \
         ripgrep \
+        xvfb \
+        dbus-x11 \
+        fonts-dejavu-core \
         ca-certificates; \
     test -f /usr/include/sqlite3.h; \
     test -f /usr/include/openssl/evp.h; \

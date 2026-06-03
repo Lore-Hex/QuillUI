@@ -29,6 +29,8 @@ public final class QuillSignalModel: ObservableObject {
     @Published public var statusDetail: String = ""
     @Published public var linkURL: String?
     @Published public var isLinking: Bool = false
+    private var isRefreshing = false
+    private var hasAutoStarted = false
 
     private let socketPath: String
 
@@ -36,8 +38,25 @@ public final class QuillSignalModel: ObservableObject {
         self.socketPath = socketPath
     }
 
+    /// Diagnostic line to stderr (visible in headless/smoke runs).
+    nonisolated static func log(_ message: String) {
+        FileHandle.standardError.write(Data(("[QuillSignal] " + message + "\n").utf8))
+    }
+
+    /// Kick off the first status query. Idempotent — `.onAppear` can fire on
+    /// every render, and we must not re-query (concurrent presage store opens
+    /// race on the sqlite migrations).
+    public func startOnce() {
+        guard !hasAutoStarted else { return }
+        hasAutoStarted = true
+        refreshStatus()
+    }
+
     /// Query the bridge `status` command off the main thread, then publish.
+    /// Guarded so overlapping calls can't open the presage store concurrently.
     public func refreshStatus() {
+        guard !isRefreshing else { return }
+        isRefreshing = true
         linkState = .connecting
         statusDetail = "Contacting the Signal engine…"
         let path = socketPath
@@ -56,9 +75,11 @@ public final class QuillSignalModel: ObservableObject {
             }
             let resolvedState = newState
             let resolvedDetail = detail
+            Self.log("bridge status -> \(resolvedState): \(resolvedDetail)")
             await MainActor.run {
                 self.linkState = resolvedState
                 self.statusDetail = resolvedDetail
+                self.isRefreshing = false
             }
         }
     }
@@ -79,6 +100,7 @@ public final class QuillSignalModel: ObservableObject {
                 switch msg.event {
                 case "link-url":
                     if let url = msg.url {
+                        Self.log("link URL -> \(url)")
                         Task { @MainActor in
                             self.linkURL = url
                             self.statusDetail = "Scan this in Signal → Settings → Linked Devices."
@@ -126,7 +148,7 @@ public struct QuillSignalContentView: View {
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated {
             content
-                .onAppear { model.refreshStatus() }
+                .onAppear { model.startOnce() }
         }
     }
 
