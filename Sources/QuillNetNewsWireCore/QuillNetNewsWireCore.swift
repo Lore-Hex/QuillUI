@@ -4082,13 +4082,25 @@ final class RSSReaderModel: ObservableObject {
             // glyph + "Server returned 404" tooltip.
             if let http = maybeResponse as? HTTPURLResponse, http.statusCode >= 400 {
                 let msg = Self.httpErrorMessage(forStatus: http.statusCode)
-                self.setError(msg)
+                // Global error banner is the active-feed surface.
+                // Only update it when this fetch is still for the
+                // active feed — otherwise a slow stale fetch for
+                // feed A could overwrite feed B's success banner
+                // after the user switched. Per-feed error
+                // (feedErrors[urlString]) always updates; that's
+                // the per-URL surface that drives the sidebar
+                // warning glyph.
+                if urlString == self.currentFeedURL {
+                    self.setError(msg)
+                }
                 feedErrors[urlString] = msg
                 incrementFailureCount(forFeed: urlString)
                 return
             }
             guard let data = maybeData else {
-                self.setError("Empty response")
+                if urlString == self.currentFeedURL {
+                    self.setError("Empty response")
+                }
                 feedErrors[urlString] = "Empty response"
                 incrementFailureCount(forFeed: urlString)
                 return
@@ -4244,7 +4256,12 @@ final class RSSReaderModel: ObservableObject {
             }
         } catch {
             let friendly = Self.friendlyError(error)
-            self.setError(friendly)
+            // Global error banner only when still active —
+            // same guard as the HTTP-error branch above. Per-
+            // feed error always updates.
+            if urlString == self.currentFeedURL {
+                self.setError(friendly)
+            }
             self.feedErrors[urlString] = friendly
             incrementFailureCount(forFeed: urlString)
         }
