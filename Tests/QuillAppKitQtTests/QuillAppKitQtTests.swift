@@ -200,6 +200,14 @@ struct QuillAppKitQtTests {
         b.setContentCompressionResistancePriority(.defaultHigh + 2, for: .horizontal)
     }
 
+    @Test("NSTextField.font is settable (real KeyValueRow sets keyLabel.font = NSFont.boldSystemFont)")
+    func textFieldFont() {
+        let label = NSTextField(labelWithString: "Key:")
+        #expect(label.font == nil)
+        label.font = NSFont.boldSystemFont(ofSize: 0)
+        #expect(label.font != nil)
+    }
+
     @Test("NSWindow.contentView attaches its QWidget into the Qt window")
     func contentViewAttaches() {
         guard QuillQt.ensureInitialized() else { return }
