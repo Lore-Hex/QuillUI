@@ -171,10 +171,12 @@ struct CoreContractMatrixTests {
     @Test("Enchanted icon contract mirrors macOS symbols through Qt")
     func enchantedIconContractsMirrorMacOSSymbolsThroughQt() throws {
         let root = try packageRoot()
-        let runtime = try String(
+        // Obsolete: QuillEnchantedQtNativeRuntime was deleted (reimpl retirement, epic
+        // #188 #26). Removed with QuillEnchantedTests in PR-C; skip here so PR-A is green.
+        guard let runtime = try? String(
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift"),
             encoding: .utf8
-        )
+        ) else { return }
         let macOSRootView = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedRootView.swift"),
             encoding: .utf8
@@ -638,7 +640,9 @@ struct CoreContractMatrixTests {
 
     @Test("Enchanted GTK shell stays on the macOS visual contract")
     func enchantedGTKShellStaysOnMacOSVisualContract() throws {
-        let appMain = try packageSource("Sources/QuillEnchanted/main.swift")
+        // Obsolete: Sources/QuillEnchanted (the app) was deleted (reimpl retirement, epic
+        // #188 #26). Removed with QuillEnchantedTests in PR-C; skip here so PR-A is green.
+        guard let appMain = try? packageSource("Sources/QuillEnchanted/main.swift") else { return }
         let coreApp = try packageSource("Sources/QuillEnchantedCore/EnchantedApp.swift")
         let rootView = try packageSource("Sources/QuillEnchantedCore/EnchantedRootView.swift")
         let clipboard = try packageSource("Sources/QuillEnchantedCore/EnchantedClipboard.swift")
@@ -974,10 +978,12 @@ struct CoreContractMatrixTests {
     func enchantedQtNativeTargetContracts() throws {
         let root = try packageRoot()
         let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
-        let qtMain = try String(
+        // Obsolete: Sources/QuillEnchantedQt was deleted (reimpl retirement, epic #188 #26).
+        // Removed with QuillEnchantedTests in PR-C; skip here so PR-A is green.
+        guard let qtMain = try? String(
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedQt/main.swift"),
             encoding: .utf8
-        )
+        ) else { return }
         let coreApp = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillEnchantedCore/EnchantedApp.swift"),
             encoding: .utf8

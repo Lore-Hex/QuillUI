@@ -13,13 +13,6 @@ struct LinuxBackendAppMatrixTests {
 
     private static let expectedAppContracts = [
         AppTargetContract(
-            product: "quill-enchanted",
-            target: "QuillEnchanted",
-            qtPath: "Sources/QuillEnchantedQt",
-            qtRuntimeDependency: "QuillEnchantedQtNativeRuntime",
-            qtLauncherCall: "QuillEnchantedQtNativeApp.run()"
-        ),
-        AppTargetContract(
             product: "quill-enchanted-upstream-slice",
             target: "QuillEnchantedUpstreamSlice",
             qtPath: "Sources/QuillEnchantedUpstreamSliceQt",
@@ -220,78 +213,6 @@ struct LinuxBackendAppMatrixTests {
                 backend: "qt",
                 mode: "import-invalid-file",
                 verifyProduct: "quill-wireguard-qt-import-invalid-file"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "gtk",
-                mode: "composer-typed",
-                verifyProduct: "quill-enchanted-composer-typed"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "qt",
-                mode: "composer-typed",
-                verifyProduct: "quill-enchanted-composer-typed"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "gtk",
-                mode: "new-chat",
-                verifyProduct: "quill-enchanted-new-chat"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "qt",
-                mode: "new-chat",
-                verifyProduct: "quill-enchanted-new-chat"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "gtk",
-                mode: "message-sent",
-                verifyProduct: "quill-enchanted-message-sent"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "qt",
-                mode: "message-sent",
-                verifyProduct: "quill-enchanted-message-sent"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "gtk",
-                mode: "message-sent-keyboard",
-                verifyProduct: "quill-enchanted-message-sent"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "qt",
-                mode: "message-sent-keyboard",
-                verifyProduct: "quill-enchanted-message-sent"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "gtk",
-                mode: "clear-all",
-                verifyProduct: "quill-enchanted-clear-all"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "qt",
-                mode: "clear-all",
-                verifyProduct: "quill-enchanted-clear-all"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "gtk",
-                mode: "list-selection",
-                verifyProduct: "quill-enchanted-list-selection"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "qt",
-                mode: "list-selection",
-                verifyProduct: "quill-enchanted-qt-list-selection"
             ),
         ] + expectedChatGtkListSelectionAppProducts.map { product in
             Self.expectedInteractionExtraModeRow(
@@ -521,7 +442,7 @@ struct LinuxBackendAppMatrixTests {
             #expect(qtLauncher.contains("import \(contract.qtRuntimeDependency)"))
             #expect(qtLauncher.contains(contract.qtLauncherCall))
         }
-        #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-enchanted-qt\", targets: [\"QuillEnchantedQt\"]))\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
+        #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
         #expect(manifest.contains("let quillCanonicalLinuxAppProducts: [Product] = quillCanonicalLinuxApps.map(\\.productDeclaration)"))
         #expect(manifest.contains("let quillGenericQtSwiftSettings: [SwiftSetting] ="))
