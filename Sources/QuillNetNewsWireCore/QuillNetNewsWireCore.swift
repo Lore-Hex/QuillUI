@@ -2974,6 +2974,11 @@ final class RSSReaderModel: ObservableObject {
         // Search is per-view (matches upstream NetNewsWire); a
         // new smart-feed visit starts with the full pool.
         searchQuery = ""
+        // Clear global error — smart-feed views aren't tied to
+        // a single feed, so the active-feed error from the
+        // previous view shouldn't linger and mislead. Per-feed
+        // errors stay in feedErrors for the sidebar glyph.
+        setError(nil)
         // Position the detail pane on the first unread without
         // consuming it (markAsRead: false). Matches upstream
         // NetNewsWire's "land on something useful on view
@@ -2994,6 +2999,9 @@ final class RSSReaderModel: ObservableObject {
         sessionStickyVisibleIDs.removeAll()
         // Search is per-view (matches upstream NetNewsWire).
         searchQuery = ""
+        // Same clear-global-error as selectSmartFeed — folder
+        // views aren't tied to a single feed.
+        setError(nil)
         // Position the detail pane on the first unread without
         // consuming it (markAsRead: false). Same logic as
         // selectSmartFeed.
