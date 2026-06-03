@@ -1,23 +1,115 @@
 import Foundation
 import QuillUI
 import QuillChatKit
+import QuillSignalKit
 
-/// Quill Signal fixtures-only conversation shell.
+/// Quill Signal — native QuillUI front-end over the real presage/libsignal
+/// engine (the `quill-signal-bridge` daemon, reached via QuillSignalKit).
 ///
-/// Upstream `signalapp/Signal-iOS` is a UIKit + libsignal /
-/// RingRTC / GRDB stack that isn't SwiftPM-friendly. The
-/// chat-app shape (sidebar of conversations + message timeline
-/// + composer) is reproducible against a tiny local fixture
-/// model and proves the QuillUI compat layer carries Signal's
-/// view idioms even before the encrypted-storage and protocol
-/// work lands.
-///
-/// Each `Conversation` owns a stable array of `Message`s. Selecting
-/// a sidebar row updates the right-pane timeline. Bubble +
-/// sidebar-row + timeline chrome lives in `QuillChatKit`; this
-/// file only owns the fixture model and send path.
+/// The view observes `QuillSignalModel`, which talks to the bridge over a unix
+/// socket. On launch it queries `status`; if the device isn't linked it shows a
+/// device-link panel (driving the bridge's `link-begin`, which returns a real
+/// `sgnl://linkdevice` URL the user scans in the Signal app). Once linked it
+/// renders the conversation shell (`ChatSplitShell`). Conversation data is still
+/// fixture-backed until the bridge grows list-conversations/messages commands;
+/// the link + status path is real.
+
+// MARK: - Link state + model
+
+public enum QuillSignalLinkState: Equatable, Sendable {
+    case connecting
+    case notConnected   // bridge daemon not reachable on the socket
+    case unlinked       // bridge reachable, account not registered/linked
+    case linked         // registered
+}
+
+@MainActor
+public final class QuillSignalModel: ObservableObject {
+    @Published public var linkState: QuillSignalLinkState = .connecting
+    @Published public var statusDetail: String = ""
+    @Published public var linkURL: String?
+    @Published public var isLinking: Bool = false
+
+    private let socketPath: String
+
+    public init(socketPath: String = BridgeClient.defaultSocketPath) {
+        self.socketPath = socketPath
+    }
+
+    /// Query the bridge `status` command off the main thread, then publish.
+    public func refreshStatus() {
+        linkState = .connecting
+        statusDetail = "Contacting the Signal engine…"
+        let path = socketPath
+        Task.detached {
+            let client = BridgeClient(path: path)
+            var newState: QuillSignalLinkState = .notConnected
+            var detail = "Signal engine not running. Start quill-signal-bridge, then Retry."
+            if let line = try? client.request("{\"cmd\":\"status\"}") {
+                if line.contains("\"registered\":true") {
+                    newState = .linked
+                    detail = "Linked."
+                } else {
+                    newState = .unlinked
+                    detail = client.decode(line)?.msg ?? "This device isn't linked yet."
+                }
+            }
+            await MainActor.run {
+                self.linkState = newState
+                self.statusDetail = detail
+            }
+        }
+    }
+
+    /// Begin device linking. The bridge streams a real `sgnl://linkdevice` URL,
+    /// then blocks awaiting the phone scan — so this runs on a dedicated thread.
+    public func beginLink(deviceName: String = "QuillOS") {
+        guard !isLinking else { return }
+        isLinking = true
+        linkURL = nil
+        statusDetail = "Requesting a link code from Signal…"
+        let path = socketPath
+        let cmd = "{\"cmd\":\"link-begin\",\"device_name\":\"\(deviceName)\"}"
+        Thread.detachNewThread {
+            let client = BridgeClient(path: path)
+            try? client.stream(cmd, timeoutSeconds: 180) { line in
+                guard let msg = client.decode(line) else { return true }
+                switch msg.event {
+                case "link-url":
+                    if let url = msg.url {
+                        Task { @MainActor in
+                            self.linkURL = url
+                            self.statusDetail = "Scan this in Signal → Settings → Linked Devices."
+                        }
+                    }
+                    return true
+                case "linked":
+                    Task { @MainActor in
+                        self.linkState = .linked
+                        self.isLinking = false
+                        self.statusDetail = "Linked."
+                    }
+                    return false
+                case "link-error":
+                    Task { @MainActor in
+                        self.statusDetail = msg.msg ?? "Linking failed."
+                        self.isLinking = false
+                    }
+                    return false
+                default:
+                    return true
+                }
+            }
+            Task { @MainActor in self.isLinking = false }
+        }
+    }
+}
+
+// MARK: - View
+
 @MainActor
 public struct QuillSignalContentView: View {
+    @StateObject private var model = QuillSignalModel()
     @State private var conversations: [Conversation]
     @State private var selectedID: Conversation.ID?
     @State private var draft: String
@@ -31,6 +123,20 @@ public struct QuillSignalContentView: View {
 
     nonisolated public var body: some View {
         QuillMainActorView.assumeIsolated {
+            content
+                .onAppear { model.refreshStatus() }
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        switch model.linkState {
+        case .connecting:
+            infoPanel(title: "Connecting to the Signal engine…", detail: model.statusDetail, retry: false)
+        case .notConnected:
+            infoPanel(title: "Signal engine not running", detail: model.statusDetail, retry: true)
+        case .unlinked:
+            linkPanel
+        case .linked:
             ChatSplitShell(
                 title: "Quill Signal",
                 threads: conversations,
@@ -40,6 +146,38 @@ public struct QuillSignalContentView: View {
                 onSend: send
             )
         }
+    }
+
+    @ViewBuilder private func infoPanel(title: String, detail: String, retry: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(.title3).bold()
+            Text(detail).font(.caption)
+            if retry {
+                Button(action: { model.refreshStatus() }) {
+                    Text("Retry").font(.headline)
+                }
+            }
+            Spacer()
+        }
+        .padding(24)
+    }
+
+    private var linkPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Link this device to Signal").font(.title3).bold()
+            Text("On your phone: Signal → Settings → Linked Devices → Link New Device, then scan or open this URL.")
+                .font(.caption)
+            if let url = model.linkURL {
+                Text(url).font(.caption)
+            } else if model.isLinking {
+                Text(model.statusDetail).font(.caption)
+            }
+            Button(action: { model.beginLink() }) {
+                Text(model.isLinking ? "Linking…" : "Link this device").font(.headline)
+            }
+            Spacer()
+        }
+        .padding(24)
     }
 
     private func send() {
@@ -71,7 +209,7 @@ public enum QuillSignalInitialSelection {
     }
 }
 
-// MARK: - Fixture model
+// MARK: - Fixture model (chat shell, until the bridge serves conversations)
 
 public struct Message: ChatMessage {
     public let id: UUID
