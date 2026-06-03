@@ -4130,6 +4130,17 @@ final class RSSReaderModel: ObservableObject {
                 if let activeURL = currentFeedURL, activeURL == urlString {
                     self.lastFetchAt = Date()
                 }
+                // Also bump the per-feed cache's lastFetchAt
+                // (symmetric with fetchIntoCache's 304 branch).
+                // Without this, switching away from the active
+                // feed after a 304 left the cache's stamp stale
+                // and the sidebar's per-feed Updated-time
+                // tooltip + inspector "Last fetched" line
+                // showed an out-of-date moment.
+                if var cache = self.feedCaches[urlString] {
+                    cache.lastFetchAt = Date()
+                    self.feedCaches[urlString] = cache
+                }
                 // RFC 7232 §4.1 — servers can update validators
                 // on a 304 (weak ETag bump without body change).
                 // Refresh our stored conditional info so we
