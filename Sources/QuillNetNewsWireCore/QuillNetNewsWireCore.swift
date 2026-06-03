@@ -2758,6 +2758,28 @@ final class RSSReaderModel: ObservableObject {
         // change that supersedes the older confirmation.
         lastSubscribeMessage = nil
         didStartInitialLoad = true
+        // Hydrate from feedCaches IF the new selection has a
+        // cached payload. Without this the previous feed's items
+        // / articles / title linger on screen until fetch
+        // resolves (often hundreds of ms on a slow network) —
+        // misleading flash where the user sees feed A's content
+        // under feed B's sidebar highlight. Cache wins
+        // immediately; fetch updates further when it finishes
+        // (merge semantics from iter #182 preserve cache items).
+        // If no cache, clear items / articles / feedTitle so
+        // the user sees an empty-but-correct view rather than
+        // a stale-but-misleading one.
+        if let cached = feedCaches[feed.id] {
+            setItems(cached.items)
+            articles = cached.articles
+            // Restore subscribed-feed title so the header shows
+            // the new feed's name even before parse completes.
+            setFeedTitle(feed.title.isEmpty ? nil : feed.title)
+        } else {
+            setItems([])
+            articles = []
+            setFeedTitle(feed.title.isEmpty ? nil : feed.title)
+        }
         await fetch(urlString: feed.url)
         autoSelectFirstUnreadIfNoSelection()
     }
