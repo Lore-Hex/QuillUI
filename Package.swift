@@ -1556,6 +1556,59 @@ if quillUILinuxBuildBackend == .qt {
                 .unsafeFlags(qt6WidgetsLinkerFlags)
             ]
         ),
+        // --- AppKit→Qt reimplementation (issue #231, M1) ---
+        // The AppKit shadow + its Qt runtime backing + Auto Layout, pulled into
+        // the qt graph so unmodified `import AppKit` code can be recompiled and
+        // rendered through Qt6. All GTK-free.
+        .target(
+            name: "QuillUIKit",
+            dependencies: ["QuillFoundation"],
+            path: "Sources/QuillUIKit"
+        ),
+        .target(
+            name: "AppKit",
+            dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit"],
+            path: "Sources/QuillAppKit",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"])
+            ]
+        ),
+        .target(
+            name: "CKiwi",
+            path: "Sources/CKiwi",
+            exclude: ["KIWI-LICENSE"],
+            sources: ["CKiwiBridge.cpp"],
+            publicHeadersPath: "include",
+            cxxSettings: [
+                .headerSearchPath("."),
+                .unsafeFlags(["-std=c++17"])
+            ]
+        ),
+        .target(
+            name: "QuillAutoLayout",
+            dependencies: ["CKiwi"],
+            path: "Sources/QuillAutoLayout",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
+            name: "CQuillAppKitQt",
+            dependencies: ["CQt6Widgets"],
+            path: "Sources/CQuillAppKitQt",
+            publicHeadersPath: "include",
+            cxxSettings: [
+                .unsafeFlags(qt6WidgetsCxxFlags)
+            ],
+            linkerSettings: [
+                .unsafeFlags(qt6WidgetsLinkerFlags)
+            ]
+        ),
+        .target(
+            name: "QuillAppKitQt",
+            dependencies: ["AppKit", "CQuillAppKitQt", "QuillAutoLayout"],
+            path: "Sources/QuillAppKitQt",
+            swiftSettings: appSwiftSettings
+        ),
         .target(
             name: "QuillQtNativeRuntimeSupport",
             path: "Sources/QuillQtNativeRuntimeSupport",
@@ -1581,7 +1634,10 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .executableTarget(
             name: "QuillQtInteractionSmoke",
-            dependencies: ["CQuillQt6WidgetsShim"],
+            // QuillAppKitQt added so CI's per-product qt build compiles the
+            // AppKit→Qt chain (issue #231, M1). Temporary coverage hook until a
+            // real AppKit-Qt app product consumes it (M3); unused here otherwise.
+            dependencies: ["CQuillQt6WidgetsShim", "QuillAppKitQt"],
             path: "Sources/QuillQtInteractionSmoke"
         )
     ] + quillCanonicalLinuxApps.map(quillCanonicalLinuxAppQtTarget)
@@ -1645,6 +1701,11 @@ let packageTestTargets: [Target] = {
             // Runs inside the stripped Qt graph itself. This keeps
             // `QUILLUI_LINUX_BACKEND=qt swift test` useful without
             // reintroducing the GTK/SwiftOpenUI dependency graph.
+            .testTarget(
+                name: "QuillAppKitQtTests",
+                dependencies: ["QuillAppKitQt", "AppKit"],
+                swiftSettings: appSwiftSettings
+            ),
             .testTarget(
                 name: "QuillQtBackendManifestTests",
                 dependencies: ["QuillGenericQtNativeRuntime", "QuillQtNativeRuntimeSupport", "QuillEnchantedShared"],
