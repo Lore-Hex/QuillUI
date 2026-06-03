@@ -1232,6 +1232,109 @@ if libsignalUpstreamPresent {
 }
 #endif
 
+// SignalServiceKit — the foundation target (1412 Swift files). Compiled on
+// Linux against QuillUI's Apple-framework shim targets + LibSignalClient +
+// GRDB + SwiftProtobuf. Excluded for the first build:
+//  • Signal's ObjC core-model layer (TSMessage/TSInteraction/TSOutgoingMessage/
+//    TSGroupModel/TSYapDatabaseObject/BaseModel + OWSAsserts/OWSLogs, ~35 .m/.h).
+//    These #import <Foundation/Foundation.h> (ObjC Foundation) which does not
+//    exist on swift-corelibs-foundation; they get PORTED to Swift incrementally
+//    (the central milestone-4 challenge — hundreds of Swift files subclass them).
+//  • tests/ (260 unit-test files), Calls/ (RingRTC), Payments/ (MobileCoin).
+//  • Non-source resources SPM would reject (.proto/.crt/.cer/.pch/.py/.md/Makefile).
+#if os(Linux)
+if signalUpstreamPresent && libsignalUpstreamPresent {
+    let signalServiceKitExcludes: [String] = [
+        "tests", "Calls", "Payments",
+        "Concurrency/Threading.h", "Concurrency/Threading.m",
+        "Debugging/DebuggerUtils.h", "Debugging/DebuggerUtils.m",
+        "Debugging/OWSAsserts.h", "Debugging/OWSAsserts.m",
+        "Debugging/OWSLogs.h", "Debugging/OWSLogs.m",
+        "Groups/TSGroupModel.h", "Groups/TSGroupModel.m",
+        "Messages/Interactions/OWSDisappearingConfigurationUpdateInfoMessage.h",
+        "Messages/Interactions/OWSDisappearingConfigurationUpdateInfoMessage.m",
+        "Messages/Interactions/OWSVerificationStateChangeMessage.h",
+        "Messages/Interactions/OWSVerificationStateChangeMessage.m",
+        "Messages/Interactions/Quotes/TSQuotedMessage.h",
+        "Messages/Interactions/Quotes/TSQuotedMessage.m",
+        "Messages/Interactions/TSErrorMessage.h", "Messages/Interactions/TSErrorMessage.m",
+        "Messages/Interactions/TSIncomingMessage.h", "Messages/Interactions/TSIncomingMessage.m",
+        "Messages/Interactions/TSInfoMessage.h", "Messages/Interactions/TSInfoMessage.m",
+        "Messages/Interactions/TSInteraction.h", "Messages/Interactions/TSInteraction.m",
+        "Messages/Interactions/TSMessage.h", "Messages/Interactions/TSMessage.m",
+        "Messages/Interactions/TSOutgoingMessage.h", "Messages/Interactions/TSOutgoingMessage.m",
+        "Messages/Interactions/TSUnreadIndicatorInteraction.h",
+        "Messages/Interactions/TSUnreadIndicatorInteraction.m",
+        "Messages/InvalidKeyMessages/TSInvalidIdentityKeyErrorMessage.h",
+        "Messages/InvalidKeyMessages/TSInvalidIdentityKeyErrorMessage.m",
+        "Messages/InvalidKeyMessages/TSInvalidIdentityKeyReceivingErrorMessage.h",
+        "Messages/InvalidKeyMessages/TSInvalidIdentityKeyReceivingErrorMessage.m",
+        "Messages/InvalidKeyMessages/TSInvalidIdentityKeySendingErrorMessage.h",
+        "Messages/InvalidKeyMessages/TSInvalidIdentityKeySendingErrorMessage.m",
+        "Messages/OWSAddToContactsOfferMessage.h", "Messages/OWSAddToContactsOfferMessage.m",
+        "Messages/OWSAddToProfileWhitelistOfferMessage.h",
+        "Messages/OWSAddToProfileWhitelistOfferMessage.m",
+        "Messages/OWSReadTracking.h",
+        "Messages/OWSRecoverableDecryptionPlaceholder.h",
+        "Messages/OWSRecoverableDecryptionPlaceholder.m",
+        "Messages/OWSUnknownContactBlockOfferMessage.h",
+        "Messages/OWSUnknownContactBlockOfferMessage.m",
+        "Messages/OWSUnknownProtocolVersionMessage.h",
+        "Messages/OWSUnknownProtocolVersionMessage.m",
+        "Messages/Payments/OWSArchivedPaymentMessage.h",
+        "Messages/Payments/OWSIncomingArchivedPaymentMessage.h",
+        "Messages/Payments/OWSIncomingArchivedPaymentMessage.m",
+        "Messages/Payments/OWSIncomingPaymentMessage.h",
+        "Messages/Payments/OWSIncomingPaymentMessage.m",
+        "Messages/Payments/OWSOutgoingArchivedPaymentMessage.h",
+        "Messages/Payments/OWSOutgoingArchivedPaymentMessage.m",
+        "Messages/Payments/OWSOutgoingPaymentMessage.h",
+        "Messages/Payments/OWSOutgoingPaymentMessage.m",
+        "Messages/Payments/OWSPaymentMessage.h",
+        "Protos/Backups/Backup.proto", "Protos/Backups/README.md",
+        "Protos/Backups/parse-libsignal-comparator-failure.py",
+        "Protos/Makefile",
+        "Protos/Specifications/CallQualitySurvey.proto",
+        "Protos/Specifications/DeviceTransfer.proto",
+        "Protos/Specifications/FingerprintProtocol.proto",
+        "Protos/Specifications/Groups.proto",
+        "Protos/Specifications/MobileCoinExternal.proto",
+        "Protos/Specifications/Provisioning.proto",
+        "Protos/Specifications/README.md",
+        "Protos/Specifications/Registration.proto",
+        "Protos/Specifications/SessionRecord.proto",
+        "Protos/Specifications/SignalIOS.proto",
+        "Protos/Specifications/SignalService.proto",
+        "Protos/Specifications/StorageService.proto",
+        "Protos/Specifications/svr2.proto",
+        "Resources/Certificates/GIAG2.crt", "Resources/Certificates/GSR2.crt",
+        "Resources/Certificates/GSR4.crt", "Resources/Certificates/GTSR1.crt",
+        "Resources/Certificates/GTSR2.crt", "Resources/Certificates/GTSR3.crt",
+        "Resources/Certificates/GTSR4.crt", "Resources/Certificates/isrgrootx1.crt",
+        "Resources/Certificates/signal-messenger.cer",
+        "Security/OWSVerificationState.h",
+        "SignalServiceKit-Prefix.pch", "SignalServiceKit.h",
+        "Storage/BaseModel.h", "Storage/BaseModel.m",
+        "Storage/Database/SSKAccessors+SDS.h",
+        "Storage/TSYapDatabaseObject.h", "Storage/TSYapDatabaseObject.m",
+    ]
+    targets += [
+        .target(
+            name: "SignalServiceKit",
+            dependencies: [
+                "LibSignalClient",
+                "UIKit", "AVFoundation", "Network", "os", "Security", "CoreGraphics",
+                .product(name: "GRDB", package: "GRDB.swift"),
+                .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+            ],
+            path: ".upstream/signal-ios/SignalServiceKit",
+            exclude: signalServiceKitExcludes,
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        )
+    ]
+}
+#endif
+
 // CodeEdit upstream — macOS-only (it's a pure AppKit/SwiftUI Mac app
 // using NSTextView, NSDocument, NSApplicationDelegateAdaptor, Sparkle,
 // and a stack of CodeEditApp's own packages). The Linux path can't

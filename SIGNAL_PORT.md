@@ -74,12 +74,28 @@ Branch `signal/real-backend` (off `main`). Upstream source lives under
    target: 'LibSignalClient' complete!` exit 0, **132 files, zero source edits**
    (`swiftLanguageMode(.v5)`). Real libsignal Rust FFI + Swift API both build on
    aarch64/Linux against QuillUI.
-4. ⬜ Add `SignalServiceKit` target (path + excludes above) vs QuillUI shims;
-   first build → baseline error count. NOTE: tests live in `SignalServiceKit/tests/`
-   (260 files) — exclude that dir; generated `.pb.swift` ARE checked in (keep
-   them, exclude `Protos/*.proto`/Makefile/Specifications/Backups).
+4. 🔄 `SignalServiceKit` target **wired** (1412 Swift, ObjC + tests/Calls/Payments
+   + resources excluded — 94 exclude entries) vs QuillUI shims (UIKit/AVFoundation/
+   Network/os/Security/CoreGraphics) + LibSignalClient + GRDB + SwiftProtobuf.
+   Baseline build running. NOTE: generated `.pb.swift` ARE checked in (kept).
 5. ⬜ Grind errors (cascade-cause playbook); extend QuillUI shims where Signal
    needs APIs they lack — commit each shim addition + each error-count drop.
+
+## ⚠ Central challenge — Signal's ObjC core-model layer
+
+~35 `.m/.h` files implement Signal's base model + util layer in **Objective-C**:
+`TSInteraction`/`TSMessage`/`TSIncomingMessage`/`TSOutgoingMessage`/`TSErrorMessage`/
+`TSInfoMessage`/`TSGroupModel`/`TSQuotedMessage`, the storage base
+(`BaseModel`/`TSYapDatabaseObject`), and macros (`OWSAsserts`/`OWSLogs`/
+`DebuggerUtils`). They `#import <Foundation/Foundation.h>` (the ObjC Foundation
+umbrella), which **does not exist on swift-corelibs-foundation** — and Linux
+Swift can't mix GNUstep ObjC-Foundation with the Swift Foundation the rest of the
+code uses. **Hundreds of Swift files subclass/use these types.**
+
+→ The real milestone-4/5 work is **porting this ObjC layer to Swift** (faithful
+reimplementations on Linux), not just filling shim gaps. This is the crux of
+"Signal on QuillOS" and the bulk of the remaining effort. The baseline build
+(ObjC excluded) quantifies how much Swift depends on them.
 6. ⬜ `SignalUI`, then the `Signal` app target.
 
 ## Status
