@@ -473,7 +473,7 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(verifier.contains("validate_quill_chat_mac_reference"))
         #expect(verifier.contains("Mac-reference prompt card row was not detected"))
-        #expect(verifier.contains("Mac-reference sidebar history text was not detected"))
+        #expect(verifier.contains("Mac-reference sidebar region rendered no content"))
         #expect(verifier.contains("Mac-reference window controls were not detected"))
         #expect(verifier.contains("Mac-reference alert is too short"))
         #expect(verifier.contains("Quill Chat Mac-reference landmarks"))
