@@ -2612,14 +2612,19 @@ final class RSSReaderModel: ObservableObject {
         autoSelectFirstUnreadIfNoSelection()
     }
 
-    /// Auto-select the first unread item in `items` if nothing is
-    /// currently selected. Called at the tail of selectFeed so
-    /// the detail pane isn't blank when the user switches feeds
-    /// (matches upstream NetNewsWire's behavior). selectItem
-    /// marks-read as a side effect; calling auto-select on a
-    /// feed where every item is already read is a no-op, so the
-    /// behavior matches "user clicked the first unread article
-    /// in the timeline".
+    /// Auto-select the first unread item in the current view's
+    /// filteredItems if nothing is currently selected. Called at
+    /// the tail of selectFeed / selectSmartFeed / selectFolder so
+    /// the detail pane isn't blank on view entry (matches
+    /// upstream NetNewsWire's "land on something useful" behavior).
+    ///
+    /// Uses markAsRead: false (iter #206) — auto-select positions
+    /// the cursor but does NOT mark the article read. The user
+    /// hasn't actually opened it yet; they just navigated into a
+    /// view. Marking read happens on j/k or click via the default
+    /// selectItem path. Without this split, navigating into a
+    /// view silently consumed one unread (badge dropped by 1 with
+    /// zero user action; SQLite-sweep accounting diverged).
     func autoSelectFirstUnreadIfNoSelection() {
         guard selectedID == nil else { return }
         // Walk filteredItems (the actual visible pool) not the
@@ -3484,8 +3489,16 @@ final class RSSReaderModel: ObservableObject {
     func refreshAllFeeds() async {
         guard !isLoading else { return }
         // Refresh active feed first so its UI updates promptly,
-        // then drain the others into the cache only.
-        if let activeURL = currentFeedURL {
+        // then drain the others into the cache only. Active
+        // feed honors the same back-off threshold as the
+        // inactive batch — otherwise a permanently-broken
+        // active feed would re-hammer the network on every
+        // Refresh All press. Explicit per-feed Refresh in the
+        // inspector still bypasses back-off (that's the user
+        // saying "no really, try again").
+        if let activeURL = currentFeedURL,
+           let activeFeed = subscribedFeeds.first(where: { $0.url == activeURL }),
+           (feedFailureCount[activeFeed.id] ?? 0) < Self.feedFailureSkipThreshold {
             await fetch(urlString: activeURL)
         }
         let pending = subscribedFeeds.filter { feed in
