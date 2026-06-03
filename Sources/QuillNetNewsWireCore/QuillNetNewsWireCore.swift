@@ -3801,6 +3801,21 @@ final class RSSReaderModel: ObservableObject {
         pushLoading(forURL: urlString)
         defer { popLoading(forURL: urlString) }
         setError(nil)
+        // Same removed-mid-flight guard as fetchIntoCache (iter
+        // #222): if the user unsubscribed this URL between when
+        // refreshAllFeeds queued the fetch and when it started
+        // executing, bail before the network round-trip. Without
+        // this, fetch would resurrect feedCaches[urlString] AND
+        // overwrite items / articles for whatever feed is
+        // currently active — clobbering the new feed's timeline
+        // with the deleted feed's content. Daring Fireball
+        // fallback (subscribedFeeds-empty path) is exempt: that
+        // URL is intentionally synthetic and not in the
+        // subscription list.
+        if !subscribedFeeds.isEmpty,
+           !subscribedFeeds.contains(where: { $0.url == urlString }) {
+            return
+        }
         do {
             // Upstream RSWeb Downloader: ephemeral session, no
             // cookies, single-host connection limit, NNW
