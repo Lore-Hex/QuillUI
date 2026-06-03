@@ -103,6 +103,19 @@ public struct QuillNetNewsWireContentView: View {
                 // would let a single click delete without a fresh
                 // confirmation, defeating the "are you sure?" UX.
                 pendingDeleteFeedID = nil
+                pendingDeleteFolderName = nil
+            }
+            .onChange(of: model.selectedFolderName) { _ in
+                // Same disarm logic for folder selection: armed
+                // delete state should not survive navigation to a
+                // different folder or back out to a feed.
+                pendingDeleteFeedID = nil
+                pendingDeleteFolderName = nil
+            }
+            .onChange(of: model.selectedSmartFeed) { _ in
+                // And for smart-feed navigation (Today/All/Starred).
+                pendingDeleteFeedID = nil
+                pendingDeleteFolderName = nil
             }
             .sheet(isPresented: Binding(
                 get: { showingSettings },
@@ -2746,8 +2759,100 @@ final class RSSReaderModel: ObservableObject {
     @discardableResult
     func importOPMLTree(data: Data) -> Int {
         let tree = OPMLImporter.parseTree(data: data)
-        subscriptionRoot = tree.root
+        // Merge the imported tree into the existing
+        // subscriptionRoot instead of clobbering it. The old
+        // behavior — `subscriptionRoot = tree.root` — wiped
+        // the user's existing folder organization the moment
+        // they re-imported any OPML (or imported a second OPML
+        // from a different source). Upstream NetNewsWire keeps
+        // existing structure and adds only what's new.
+        subscriptionRoot = Self.mergeFolderTrees(
+            existing: subscriptionRoot,
+            imported: tree.root
+        )
         return mergeImportedFeeds(tree.root.allFeeds)
+    }
+
+    /// Merge `imported` into `existing`, returning a new tree
+    /// that preserves every existing folder + feed and adds only
+    /// what's new. Strategy:
+    /// - Feeds: if `existing` (or any of its subfolders) already
+    ///   contains a feed with matching feedDedupKey, skip it.
+    ///   Otherwise add to whichever node of the IMPORTED tree
+    ///   contained it — root-level imported feeds end up in
+    ///   the existing root; folder-N imported feeds end up in
+    ///   existing folder-N if it exists, else a new folder-N
+    ///   is created under existing root.
+    /// - Folders: matched by name (case-insensitive trim).
+    ///   Same-name folders recurse. New folders get appended.
+    static func mergeFolderTrees(
+        existing: OPMLImporter.Folder, imported: OPMLImporter.Folder
+    ) -> OPMLImporter.Folder {
+        // Build a quick lookup of every feed dedup key in the
+        // existing tree so we don't re-add anywhere.
+        var existingKeys = Set<String>()
+        collectFeedKeys(existing, into: &existingKeys)
+
+        var merged = existing
+        // Add root-level imported feeds that aren't anywhere
+        // in existing.
+        for feed in imported.feeds {
+            let key = feedDedupKey(for: feed.url)
+            if !existingKeys.contains(key) {
+                merged.feeds.append(feed)
+                existingKeys.insert(key)
+            }
+        }
+        // Walk imported subfolders.
+        for importedSub in imported.subfolders {
+            let importedName = importedSub.name
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            if let idx = merged.subfolders.firstIndex(where: {
+                $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == importedName
+            }) {
+                merged.subfolders[idx] = mergeFolderTrees(
+                    existing: merged.subfolders[idx],
+                    imported: importedSub
+                )
+                collectFeedKeys(merged.subfolders[idx], into: &existingKeys)
+            } else {
+                // Whole new folder — adopt it as-is but filter out
+                // feeds the user already has elsewhere in their
+                // existing tree (those would create cross-folder
+                // duplicates in the dedup key namespace).
+                var copy = importedSub
+                copy.feeds = importedSub.feeds.filter {
+                    !existingKeys.contains(feedDedupKey(for: $0.url))
+                }
+                copy.subfolders = importedSub.subfolders.map {
+                    filteringDuplicateFeeds(in: $0, against: existingKeys)
+                }
+                merged.subfolders.append(copy)
+                collectFeedKeys(copy, into: &existingKeys)
+            }
+        }
+        return merged
+    }
+
+    private static func collectFeedKeys(
+        _ folder: OPMLImporter.Folder, into set: inout Set<String>
+    ) {
+        for feed in folder.feeds { set.insert(feedDedupKey(for: feed.url)) }
+        for sub in folder.subfolders { collectFeedKeys(sub, into: &set) }
+    }
+
+    private static func filteringDuplicateFeeds(
+        in folder: OPMLImporter.Folder, against keys: Set<String>
+    ) -> OPMLImporter.Folder {
+        var copy = folder
+        copy.feeds = folder.feeds.filter {
+            !keys.contains(feedDedupKey(for: $0.url))
+        }
+        copy.subfolders = folder.subfolders.map {
+            filteringDuplicateFeeds(in: $0, against: keys)
+        }
+        return copy
     }
 
     @discardableResult

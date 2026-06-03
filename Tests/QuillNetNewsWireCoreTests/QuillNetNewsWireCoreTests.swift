@@ -2223,6 +2223,53 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("importOPMLTree preserves existing folder structure instead of clobbering")
+    func importOPMLTreePreservesExistingFolders() {
+        // Set up a model with an existing folder structure the
+        // user spent time organizing.
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "MyA", url: "https://a.test/feed"),
+        ])
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(name: "My News", feeds: [
+                    Feed(title: "MyA", url: "https://a.test/feed"),
+                ]),
+                OPMLImporter.Folder(name: "Tech", feeds: []),
+            ]
+        )
+
+        // Import a second OPML that has a different folder layout
+        // and one new feed at root + one new feed in a new folder.
+        let importedXML = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <opml version="2.0">
+          <head><title>Other</title></head>
+          <body>
+            <outline text="NewFeed" type="rss" xmlUrl="https://b.test/feed"/>
+            <outline text="Imported Folder">
+              <outline text="InImported" type="rss" xmlUrl="https://c.test/feed"/>
+            </outline>
+          </body>
+        </opml>
+        """
+        let added = model.importOPMLTree(xml: importedXML)
+        #expect(added == 2)
+        // Existing "My News" with MyA must still exist.
+        let myNews = model.subscriptionRoot.subfolders.first { $0.name == "My News" }
+        #expect(myNews?.feeds.contains(where: { $0.url == "https://a.test/feed" }) == true)
+        // Existing "Tech" folder must still exist.
+        #expect(model.subscriptionRoot.subfolders.contains { $0.name == "Tech" })
+        // New folder from imported should be appended.
+        let imported = model.subscriptionRoot.subfolders.first { $0.name == "Imported Folder" }
+        #expect(imported?.feeds.contains(where: { $0.url == "https://c.test/feed" }) == true)
+        // New root-level feed from imported should be on root.
+        #expect(model.subscriptionRoot.feeds.contains { $0.url == "https://b.test/feed" })
+    }
+
+    @MainActor
     @Test("mergeImportedFeeds dedupes by normalized URL across surface forms")
     func mergeImportedFeedsDedupsByNormalizedURL() {
         let model = RSSReaderModel(subscribedFeeds: [
