@@ -44,6 +44,7 @@ public struct QuillNetNewsWireContentView: View {
     @State private var renameFolderName: String? = nil
     @State private var renameFolderInput: String = ""
     @State private var addFolderInput: String = ""
+    @FocusState private var searchFieldFocused: Bool
     @Environment(\.openURL) private var openURL
 
     public init() {}
@@ -525,6 +526,15 @@ public struct QuillNetNewsWireContentView: View {
                 _ = model.copySelectedItemURLToClipboard()
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
+            // ⌘F focuses the timeline search field. Standard
+            // upstream NetNewsWire shortcut for jumping into
+            // search without a mouse trip. Sets the @FocusState
+            // bound to the search TextField via .focused(),
+            // which the platform brings to the foreground.
+            Button("focus search") {
+                searchFieldFocused = true
+            }
+            .keyboardShortcut("f", modifiers: .command)
         }
         .frame(height: 0)
         .hidden()
@@ -1026,6 +1036,7 @@ public struct QuillNetNewsWireContentView: View {
                     get: { model.searchQuery },
                     set: { model.searchQuery = $0 }
                 ))
+                    .focused($searchFieldFocused)
                 if !model.searchQuery.isEmpty {
                     // Clear-search button only surfaces when there's
                     // something to clear; matches upstream NetNews
