@@ -72,6 +72,30 @@ struct QuillNetNewsWireCoreTests {
         #expect(item.plainTextBody == "&lt;script&gt;")
     }
 
+    @Test("RSSArticleRow.snippet collapses whitespace and truncates with an ellipsis")
+    func rssArticleRowSnippet() {
+        // Whitespace/newline runs collapse to single spaces.
+        #expect(RSSArticleRow.snippet(from: "Hello   world\n\nthere") == "Hello world there")
+        // Under the limit → returned unchanged.
+        #expect(RSSArticleRow.snippet(from: "short body", limit: 160) == "short body")
+        // Over the limit → truncated + ellipsis, bounded length.
+        let long = RSSArticleRow.snippet(from: String(repeating: "a ", count: 200), limit: 10)
+        #expect(long.hasSuffix("…"))
+        #expect(long.count <= 12)
+    }
+
+    @Test("RSSArticleRow(item:) derives a snippet from the body")
+    func rssArticleRowDerivesSnippet() {
+        let item = RSSItem(
+            id: "1", title: "T", link: nil, pubDate: nil,
+            descriptionHTML: "<p>First paragraph.</p><p>Second paragraph.</p>"
+        )
+        let row = RSSArticleRow(item: item)
+        // plainTextBody strips tags (no inter-paragraph space), so
+        // the snippet is the concatenated visible text.
+        #expect(row.snippet.contains("First paragraph."))
+    }
+
     // MARK: - Reader model derived state
 
     @MainActor
