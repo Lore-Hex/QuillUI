@@ -311,21 +311,23 @@ public struct QuillNetNewsWireContentView: View {
     private func articleRow(_ item: RSSArticleRow) -> some View {
         let isUnread = !model.isRead(id: item.id)
         let isStarred = model.isStarred(id: item.id)
-        return HStack(alignment: .top, spacing: 6) {
-            // Unread indicator: an upstream-NetNewsWire-style filled
-            // circle in the leading gutter. Reserves the same width
-            // even when read so titles don't shift on mark-as-read.
-            Text(isUnread ? "•" : " ")
-                .font(.subheadline)
-                .foregroundColor(.blue)
-                .frame(width: 10, alignment: .leading)
-            VStack(alignment: .leading, spacing: 4) {
+        return HStack(alignment: .top, spacing: 8) {
+            // Unread indicator: a filled blue Circle (matches the
+            // sidebar's All Unread dot). Always reserves width so
+            // titles don't shift on mark-as-read; opacity hides it
+            // when the article is read.
+            Circle()
+                .fill(Color.blue)
+                .frame(width: 8, height: 8)
+                .opacity(isUnread ? 1 : 0)
+                .padding(.top, 5)
+            VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 4) {
                     Text(item.title)
                         .font(.subheadline)
                         .fontWeight(isUnread ? .bold : .regular)
                         .lineLimit(2)
-                        .frame(width: isStarred ? 226 : 244, alignment: .leading)
+                        .frame(width: isStarred ? 214 : 232, alignment: .leading)
                     if isStarred {
                         Text("★")
                             .font(.caption)
@@ -333,17 +335,25 @@ public struct QuillNetNewsWireContentView: View {
                             .frame(width: 14, alignment: .trailing)
                     }
                 }
+                // Two-line body preview, like NetNewsWire's timeline.
+                if !item.snippet.isEmpty {
+                    Text(item.snippet)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                        .frame(width: 232, alignment: .leading)
+                }
                 if !item.publishedSummary.isEmpty {
                     Text(item.publishedSummary)
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                        .frame(width: 244, alignment: .leading)
+                        .frame(width: 232, alignment: .leading)
                 }
             }
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .frame(height: 74, alignment: .leading)
+        .padding(.vertical, 7)
+        .frame(height: 96, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(model.selectedID == item.id ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
         .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
@@ -501,15 +511,36 @@ public struct RSSArticleRow: Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let publishedSummary: String
+    /// Short plain-text preview shown under the title, like
+    /// NetNewsWire's two-line timeline snippet.
+    public let snippet: String
 
-    public init(id: String, title: String, publishedSummary: String) {
+    public init(id: String, title: String, publishedSummary: String, snippet: String = "") {
         self.id = id
         self.title = title
         self.publishedSummary = publishedSummary
+        self.snippet = snippet
     }
 
     public init(item: RSSItem) {
-        self.init(id: item.id, title: item.title, publishedSummary: item.publishedSummary)
+        self.init(
+            id: item.id,
+            title: item.title,
+            publishedSummary: item.publishedSummary,
+            snippet: Self.snippet(from: item.plainTextBody)
+        )
+    }
+
+    /// Collapse whitespace runs and truncate the body to a short
+    /// timeline preview (NetNewsWire shows ~two lines).
+    static func snippet(from body: String, limit: Int = 160) -> String {
+        let collapsed = body
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        guard collapsed.count > limit else { return collapsed }
+        let end = collapsed.index(collapsed.startIndex, offsetBy: limit)
+        return String(collapsed[..<end]).trimmingCharacters(in: .whitespaces) + "…"
     }
 }
 
