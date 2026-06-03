@@ -2593,6 +2593,31 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("starredCount(forFeed:) covers active feed + cached non-active + unknown")
+    func starredCountPerFeedBranches() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        // Active feed (A) items.
+        model.items = [
+            RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+            RSSItem(id: "a2", title: "Y", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        // Non-active feed (B) cached.
+        model.feedCaches["https://b.test/feed"] = RSSReaderModel.FeedCache(items: [
+            RSSItem(id: "b1", title: "B1", link: nil, pubDate: nil, descriptionHTML: nil),
+        ])
+        // Star a1 and b1.
+        model.toggleStarred(id: "a1")
+        model.toggleStarred(id: "b1")
+        #expect(model.starredCount(forFeed: "https://a.test/feed") == 1)
+        #expect(model.starredCount(forFeed: "https://b.test/feed") == 1)
+        // Unknown feed → 0 (no crash).
+        #expect(model.starredCount(forFeed: "https://nowhere.test/feed") == 0)
+    }
+
+    @MainActor
     @Test("folderFeedCount returns nested feed count or 0 for missing folder")
     func folderFeedCountWalksNested() {
         let model = RSSReaderModel()

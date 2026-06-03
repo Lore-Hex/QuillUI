@@ -211,6 +211,12 @@ public struct QuillNetNewsWireContentView: View {
                         .font(.caption)
                         .foregroundColor(.blue)
                 }
+                let starred = model.starredCount(forFeed: feed.id)
+                if starred > 0 {
+                    Text("\(starred) starred")
+                        .font(.caption)
+                        .foregroundColor(.yellow)
+                }
                 if let iconURL = model.feedIconURLs[feed.id] {
                     Text("Icon: \(iconURL)")
                         .font(.caption)
@@ -4800,6 +4806,25 @@ final class RSSReaderModel: ObservableObject {
     /// will introduce a separate fetch-all-starred view).
     var starredCount: Int {
         items.reduce(0) { acc, item in
+            acc + (starredArticleIDs.contains(item.id) ? 1 : 0)
+        }
+    }
+
+    /// Per-feed starred count for the inspector's stats block.
+    /// Walks the feed's cache (or the active feed's live items)
+    /// against starredArticleIDs. Doesn't go to SQLite — starred
+    /// is a small set in practice and the cache is the
+    /// authoritative shape for the inspector view.
+    func starredCount(forFeed feedID: Feed.ID) -> Int {
+        let pool: [RSSItem]
+        if feedID == selectedFeedID {
+            pool = items
+        } else if let cache = feedCaches[feedID] {
+            pool = cache.items
+        } else {
+            return 0
+        }
+        return pool.reduce(0) { acc, item in
             acc + (starredArticleIDs.contains(item.id) ? 1 : 0)
         }
     }
