@@ -514,6 +514,13 @@ open class NSAppearance: NSObject, @unchecked Sendable {
 open class NSResponder: NSObject {
     fileprivate weak var quillExplicitNextResponder: NSResponder?
 
+    /// Opaque native-backend widget handle (e.g. a QWidget for QuillAppKitQt).
+    /// Stored here — tied to the object's lifetime — instead of in an
+    /// ObjectIdentifier-keyed side table, so a deallocated object's address
+    /// being reused can never hand a new object a stale handle. Backends that
+    /// prefer side tables (QuillAppKitGTK today) may ignore this.
+    public var quillBackendHandle: UnsafeMutableRawPointer?
+
     public override init() {}
     open var nextResponder: NSResponder? {
         get { quillExplicitNextResponder }

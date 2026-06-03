@@ -55,17 +55,13 @@ public enum QuillAppKitQtAutoInstall {
 
 // MARK: - NSWindow: QWidget-backed
 
-// Storage for one Qt window handle per NSWindow, kept here (not as a stored
-// property on NSWindow) to avoid piercing the NSObject/NSResponder chain —
-// exactly how QuillAppKitGTK keeps its GtkWindow handles.
-private var _qtWindowHandles: [ObjectIdentifier: UnsafeMutableRawPointer] = [:]
-
 extension NSWindow {
     /// Lazily-created QWidget handle. Nil until `showAsQtWindow()` runs in a
-    /// Qt-capable process.
+    /// Qt-capable process. Backed by the lifetime-tied `quillBackendHandle`
+    /// slot (NSResponder) so a reused object address can't surface a stale handle.
     public var qtWindowHandle: UnsafeMutableRawPointer? {
-        get { _qtWindowHandles[ObjectIdentifier(self)] }
-        set { _qtWindowHandles[ObjectIdentifier(self)] = newValue }
+        get { quillBackendHandle }
+        set { quillBackendHandle = newValue }
     }
 
     /// Phase B: create + show a real QWidget window if Qt is initialized.

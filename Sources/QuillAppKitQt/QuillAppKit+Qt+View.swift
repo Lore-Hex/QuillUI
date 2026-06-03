@@ -11,15 +11,13 @@
 import AppKit
 import CQuillAppKitQt
 
-// One QWidget handle per NSView, kept off the NSObject/NSResponder chain
-// (mirrors QuillAppKitGTK's _viewHandles).
-private var _qtViewHandles: [ObjectIdentifier: UnsafeMutableRawPointer] = [:]
-
 extension NSView {
-    /// Lazily-created QWidget backing this view.
+    /// Lazily-created QWidget backing this view. Backed by the lifetime-tied
+    /// `quillBackendHandle` slot (NSResponder) — see the note there — so view
+    /// churn (e.g. NSTableView cell reuse) can't surface a stale handle.
     public var qtWidgetHandle: UnsafeMutableRawPointer? {
-        get { _qtViewHandles[ObjectIdentifier(self)] }
-        set { _qtViewHandles[ObjectIdentifier(self)] = newValue }
+        get { quillBackendHandle }
+        set { quillBackendHandle = newValue }
     }
 
     /// Create a QWidget to back this view if one doesn't exist yet.
