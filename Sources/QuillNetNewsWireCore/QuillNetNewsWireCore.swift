@@ -502,8 +502,8 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
         self.author = author
         self.linkURL = link.flatMap { URL(string: $0) }
         self.publishedSummary = pubDate ?? ""
-        self.plainTextBody = (descriptionHTML ?? "").stripBasicHTML()
-        self.bodyParagraphs = (descriptionHTML ?? "").htmlParagraphs()
+        self.plainTextBody = HTMLText.plainText(fromHTML: descriptionHTML ?? "")
+        self.bodyParagraphs = HTMLText.paragraphs(fromHTML: descriptionHTML ?? "")
     }
 }
 
@@ -527,20 +527,8 @@ public struct RSSArticleRow: Identifiable, Hashable, Sendable {
             id: item.id,
             title: item.title,
             publishedSummary: item.publishedSummary,
-            snippet: Self.snippet(from: item.plainTextBody)
+            snippet: HTMLText.snippet(fromPlainText: item.plainTextBody)
         )
-    }
-
-    /// Collapse whitespace runs and truncate the body to a short
-    /// timeline preview (NetNewsWire shows ~two lines).
-    static func snippet(from body: String, limit: Int = 160) -> String {
-        let collapsed = body
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-        guard collapsed.count > limit else { return collapsed }
-        let end = collapsed.index(collapsed.startIndex, offsetBy: limit)
-        return String(collapsed[..<end]).trimmingCharacters(in: .whitespaces) + "…"
     }
 }
 
@@ -1465,43 +1453,5 @@ struct RSSFeedParser {
                 status: status
             )
         }
-    }
-}
-
-private extension String {
-    func stripBasicHTML() -> String {
-        let withoutTags = self.replacingOccurrences(
-            of: "<[^>]+>", with: "", options: .regularExpression
-        )
-        return HTMLEntities.decode(withoutTags)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// Split an HTML body into display paragraphs. Block-level
-    /// boundaries (`</p>`, `<br>`, `<div>`, `<h1>`–`<h6>`, `<li>`,
-    /// `<blockquote>`, …) become paragraph breaks; remaining inline
-    /// tags are stripped and entities decoded. A body with no block
-    /// tags collapses to a single paragraph. Empty paragraphs drop
-    /// out. This is what the detail pane renders so multi-paragraph
-    /// articles read like NetNewsWire's article view instead of one
-    /// run-on blob.
-    func htmlParagraphs() -> [String] {
-        guard !isEmpty else { return [] }
-        // U+2029 PARAGRAPH SEPARATOR — a marker that can't collide
-        // with feed prose, inserted at every block boundary.
-        let marker = "\u{2029}"
-        let blockBoundary =
-            "</?(?:p|div|br|h[1-6]|li|ul|ol|blockquote|section|article|header|footer|figure|figcaption)(?:\\s[^>]*)?/?>"
-        let withBreaks = self.replacingOccurrences(
-            of: blockBoundary, with: marker,
-            options: [.regularExpression, .caseInsensitive]
-        )
-        let stripped = withBreaks.replacingOccurrences(
-            of: "<[^>]+>", with: "", options: .regularExpression
-        )
-        return stripped
-            .components(separatedBy: marker)
-            .map { HTMLEntities.decode($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
     }
 }
