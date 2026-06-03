@@ -1634,10 +1634,7 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .executableTarget(
             name: "QuillQtInteractionSmoke",
-            // QuillAppKitQt added so CI's per-product qt build compiles the
-            // AppKit→Qt chain (issue #231, M1). Temporary coverage hook until a
-            // real AppKit-Qt app product consumes it (M3); unused here otherwise.
-            dependencies: ["CQuillQt6WidgetsShim", "QuillAppKitQt"],
+            dependencies: ["CQuillQt6WidgetsShim"],
             path: "Sources/QuillQtInteractionSmoke"
         )
     ] + quillCanonicalLinuxApps.map(quillCanonicalLinuxAppQtTarget)
