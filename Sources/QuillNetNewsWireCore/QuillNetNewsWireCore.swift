@@ -4549,6 +4549,24 @@ final class RSSReaderModel: ObservableObject {
         calendar.startOfDay(for: now)
     }
 
+    /// Today-cohort item count IGNORING readArticleIDs — i.e.,
+    /// "how many today-published articles exist across all
+    /// caches?" Used by the Today empty-state branch to
+    /// distinguish "nothing published today" from "today's
+    /// articles all read AND Hide Read is on". The regular
+    /// count(for: .today) couples with readArticleIDs through
+    /// applyHideRead during render, which is the wrong shape
+    /// for an empty-state explanation.
+    func todayItemCountIgnoringReadState() -> Int {
+        let cutoff = Self.todayCutoff()
+        let allArticles = articles + feedCaches.values.flatMap(\.articles)
+        let todayIDs = Set(allArticles.compactMap { article -> String? in
+            guard let d = article.datePublished, d >= cutoff else { return nil }
+            return article.uniqueID
+        })
+        return todayIDs.count
+    }
+
     /// Append-merge new RSSItems on top of existing cache items,
     /// dedupe by id (new wins), cap by limit. Newest items go
     /// first — input is already in newest-first parse order, and
@@ -5428,6 +5446,20 @@ final class RSSReaderModel: ObservableObject {
         if let smart = selectedSmartFeed {
             switch smart {
             case .today:
+                // Same Hide-Read split as the folder branch:
+                // if Today's pool genuinely has items but they
+                // all got filtered out by Hide Read, surface the
+                // toggle hint rather than misleadingly say
+                // "nothing published since midnight" (which is
+                // false — there WERE today's articles, just
+                // already read). Count via the cross-feed today
+                // helper rather than walking the pool again.
+                if hideReadArticles && todayItemCountIgnoringReadState() > 0 {
+                    return (
+                        "All Today's Read",
+                        "Toggle \u{201C}Show Read\u{201D} to see today's articles you have already read."
+                    )
+                }
                 return ("No Articles Today", "Nothing published since midnight.")
             case .allUnread:
                 // Distinguish "user fully drained their inbox"

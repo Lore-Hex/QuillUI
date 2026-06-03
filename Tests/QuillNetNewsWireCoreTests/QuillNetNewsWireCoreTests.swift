@@ -693,6 +693,32 @@ struct QuillNetNewsWireCoreTests {
     // MARK: - Today smart feed (date-based)
 
     @MainActor
+    @Test("Today empty state distinguishes 'all today's read + Hide Read' from 'nothing today'")
+    func todayEmptyStateDistinguishesHideRead() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        // Seed an article published today with the parallel
+        // Article record so todayItemCountIgnoringReadState
+        // counts it. RSSItem alone isn't enough — Today's
+        // filter walks the articles array for datePublished.
+        let now = Date()
+        model.items = [
+            RSSItem(id: "a1", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.articles = [articleStub(id: "a1", date: now.addingTimeInterval(-60))]
+        model.markRead(id: "a1")
+        model.hideReadArticles = true
+        model.selectSmartFeed(.today)
+        let msg = model.emptyTimelineMessage()
+        // With items present but Hide Read filtering them out,
+        // the empty state should explain the toggle, not say
+        // "nothing published since midnight."
+        #expect(msg.headline == "All Today's Read")
+        #expect(msg.detail.contains("Show Read"))
+    }
+
+    @MainActor
     @Test("Folder empty state distinguishes 'Hide Read filtered everything' from 'no articles'")
     func folderEmptyStateDistinguishesHideRead() {
         let model = RSSReaderModel(subscribedFeeds: [
