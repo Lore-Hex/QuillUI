@@ -3759,6 +3759,27 @@ final class RSSReaderModel: ObservableObject {
             // "Daring Fireball" and the timeline header still
             // says "Daring Fireball" for several seconds.
             setFeedTitle(nil)
+            // Hydrate the rotated feed from cache + fire a
+            // fresh fetch so its items / title / lastFetchAt
+            // populate without waiting for user interaction or
+            // the background tick. Mirrors selectFeed's body
+            // but skips the early-return guard (we just set
+            // selectedFeedID synchronously above).
+            if let rotated = subscribedFeeds.first {
+                if let cached = feedCaches[rotated.id] {
+                    setItems(cached.items)
+                    articles = cached.articles
+                    setFeedTitle(rotated.title.isEmpty ? nil : rotated.title)
+                    lastFetchAt = cached.lastFetchAt
+                } else {
+                    setFeedTitle(rotated.title.isEmpty ? nil : rotated.title)
+                }
+                setError(feedErrors[rotated.id])
+                Task { @MainActor [weak self] in
+                    await self?.fetch(urlString: rotated.url)
+                    self?.autoSelectFirstUnreadIfNoSelection()
+                }
+            }
         }
         return true
     }

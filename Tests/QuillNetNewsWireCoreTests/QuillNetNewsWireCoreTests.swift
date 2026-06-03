@@ -2296,9 +2296,12 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.subscribedFeeds.map(\.id) == [b.id])
         #expect(model.feedCaches[a.id] == nil)
         #expect(model.feedCaches[b.id] != nil)
-        // Active rotates to remaining feed; items get cleared.
+        // Active rotates to remaining feed; items hydrate from
+        // the rotated feed's cache (iter #271 — previously
+        // items were cleared, leaving the user with a blank
+        // timeline until manual interaction).
         #expect(model.selectedFeedID == b.id)
-        #expect(model.items.isEmpty)
+        #expect(model.items.map(\.id) == ["i2"])
     }
 
     @MainActor
