@@ -124,8 +124,26 @@ screen_height="${screen_height_and_depth%%x*}"
 xvfb_pid=""
 quillui_start_xvfb "$DISPLAY_ID" "$SCREEN_SIZE" /tmp/quillui-xvfb-interaction.log xvfb_pid
 
+wm_pid=""
+if [[ "${QUILLUI_BACKEND_USE_WM:-0}" == "1" ]]; then
+  # A screen-filling GTK window under BARE Xvfb (no window manager) does not receive
+  # xdotool pointer/keyboard events — real-source quill-chat-linux interaction produced
+  # a render byte-identical to the empty state (clicks + keys had zero effect), while
+  # the reimpl works only because its window is small. Start a minimal WM so the window
+  # gets input focus + event routing. openbox manages focus without forcing maximize;
+  # we capture the CLIENT window (content), so its title bar stays out of the screenshot.
+  if command -v openbox >/dev/null 2>&1; then
+    DISPLAY="$DISPLAY_ID" openbox >/tmp/quillui-openbox-interaction.log 2>&1 &
+    wm_pid=$!
+    sleep 1
+  else
+    echo "QUILLUI_BACKEND_USE_WM=1 but openbox is not installed" >&2
+  fi
+fi
+
 cleanup() {
   quillui_stop_process_if_running "${app_pid:-}"
+  quillui_stop_process_if_running "${wm_pid:-}"
   quillui_stop_process_if_running "$xvfb_pid"
 }
 trap cleanup EXIT
@@ -415,8 +433,10 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         # 0.56*W matches the reimpl's proven composer click; -120 sits on the field row.
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
         click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 120))}"
+        echo "[interaction-dbg] composer-typed geom x=$window_x y=$window_y w=$window_width h=$window_height capture_window=$capture_window click=($click_x,$click_y) wm=${QUILLUI_BACKEND_USE_WM:-0}" >&2
         click_at "$click_x" "$click_y"
         sleep 1
+        DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$OUTPUT_DIR/quill-chat-linux-composer-afterclick.png" 2>/dev/null || true
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
         sleep 1
         ;;

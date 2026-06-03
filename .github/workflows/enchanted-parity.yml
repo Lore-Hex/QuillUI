@@ -63,6 +63,7 @@ jobs:
             libgdk-pixbuf-2.0-dev \
             libgtk-4-dev \
             libsqlite3-dev \
+            openbox \
             pkg-config \
             qt6-base-dev \
             ripgrep \
@@ -104,6 +105,12 @@ jobs:
           # appears not to receive xdotool pointer/keyboard events. Give the interaction
           # a LARGER screen so the ~2048 window no longer fills it, and re-test input.
           QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE: "2400x1600x24"
+          # Run a minimal window manager (openbox) under the interaction Xvfb so the
+          # large real-source window receives xdotool input focus/events (bare Xvfb does
+          # not route input to it). Only this step opts in; the visual gate runs on a
+          # separate WM-less Xvfb. We capture the client window, so openbox decorations
+          # stay out of the screenshot.
+          QUILLUI_BACKEND_USE_WM: "1"
         run: |
           QUILLUI_BACKEND_INTERACTION_APP_LOG=.qa/quill-chat-linux-noresize-composer.log \
             scripts/linux-backend-interaction-check.sh \
