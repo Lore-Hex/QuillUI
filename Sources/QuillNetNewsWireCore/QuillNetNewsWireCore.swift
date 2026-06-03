@@ -4969,19 +4969,27 @@ final class RSSReaderModel: ObservableObject {
     /// Unread count for a subscribed feed. Prefers the SQLite
     /// count (spans full history) over the cache count (capped
     /// by articlesPerFeedLimit), then falls back to cache when
-    /// no articleStore is wired. Active feed has live `items`
-    /// which may include just-fetched articles not yet in
-    /// SQLite, so use the cache-based count for that one.
+    /// no articleStore is wired. Active feed previously used
+    /// items-based `unreadCount` alone (undercount by SQLite-tail
+    /// for feeds with >100 unread); now also takes max(items,
+    /// SQLite) so the active-feed badge matches the inactive
+    /// path.
     func unreadCount(forFeed feedID: Feed.ID) -> Int {
+        let cacheCount: Int
         if feedID == selectedFeedID {
-            return unreadCount
-        }
-        let cacheCount: Int = {
-            guard let cache = feedCaches[feedID] else { return 0 }
-            return cache.items.reduce(0) { acc, item in
+            // Active feed: items has the live merge (fresh fetch
+            // + cache tail per iter #182). Use items count
+            // rather than feedCaches[feedID] because brand-new
+            // items haven't necessarily been mirrored into the
+            // cache map yet.
+            cacheCount = unreadCount
+        } else if let cache = feedCaches[feedID] {
+            cacheCount = cache.items.reduce(0) { acc, item in
                 acc + (readArticleIDs.contains(item.id) ? 0 : 1)
             }
-        }()
+        } else {
+            cacheCount = 0
+        }
         // Prefer the larger of cache vs SQLite. In production
         // SQLite is always >= cache (every fetch upserts trimmed
         // articles), so SQLite wins — surfaces the full unread
