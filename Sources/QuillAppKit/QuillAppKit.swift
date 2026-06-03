@@ -731,6 +731,12 @@ open class NSView: NSResponder {
     /// Called when a recycled view (e.g. an NSTableView cell) is reused.
     open func prepareForReuse() {}
     open func viewWillDraw() {}
+
+    /// Auto Layout content priorities. Captured for the native layout pass;
+    /// currently no-ops (the solver treats required constraints as
+    /// authoritative — feeding hugging/compression in is a fidelity refinement).
+    open func setContentHuggingPriority(_ priority: NSLayoutConstraint.Priority, for orientation: NSLayoutConstraint.Orientation) {}
+    open func setContentCompressionResistancePriority(_ priority: NSLayoutConstraint.Priority, for orientation: NSLayoutConstraint.Orientation) {}
     open func viewWillMove(toWindow: NSWindow?) {}
     open func viewDidMoveToWindow() {}
     open func viewWillMove(toSuperview: NSView?) {}
@@ -3329,6 +3335,9 @@ open class NSStackView: NSView {
 }
 
 extension NSLayoutConstraint {
+    /// Axis for content hugging / compression-resistance priorities.
+    public enum Orientation: Int, Sendable { case horizontal = 0, vertical = 1 }
+
     public enum Attribute: Int, Sendable {
         case left, right, top, bottom, leading, trailing
         case width, height, centerX, centerY, lastBaseline, firstBaseline
