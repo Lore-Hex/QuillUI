@@ -1139,6 +1139,16 @@ public struct QuillNetNewsWireContentView: View {
                     guard let id = model.selectedID else { return }
                     withAnimation { proxy.scrollTo(id, anchor: .center) }
                 }
+                .onChange(of: model.sortOrder) { _ in
+                    // Flipping sortOrder reverses filteredItems.
+                    // The selected row jumps from near-top to
+                    // near-bottom (or vice versa) — without a
+                    // re-scroll, the viewport stays put and the
+                    // selection is suddenly far off-screen.
+                    // Same fix shape as the hide-read handler.
+                    guard let id = model.selectedID else { return }
+                    withAnimation { proxy.scrollTo(id, anchor: .center) }
+                }
             }
 
             footerStatus
