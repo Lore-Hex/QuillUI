@@ -137,6 +137,22 @@ public struct QuillNetNewsWireContentView: View {
                     pendingDeleteFeedID = nil
                 }
             }
+            .onChange(of: model.subscriptionRoot) { _ in
+                // Clear stale folder-name state when the
+                // subscriptionRoot tree changes: a folder
+                // removed/renamed via UI elsewhere shouldn't
+                // leave pendingDeleteFolderName or renameFolderName
+                // pointing at a name that no longer exists.
+                if let name = pendingDeleteFolderName,
+                   model.allFolderTargets().first(where: { $0.name == name }) == nil {
+                    pendingDeleteFolderName = nil
+                }
+                if let name = renameFolderName,
+                   model.allFolderTargets().first(where: { $0.name == name }) == nil {
+                    renameFolderName = nil
+                    renameFolderInput = ""
+                }
+            }
             .sheet(isPresented: Binding(
                 get: { showingSettings },
                 set: { showingSettings = $0 }
