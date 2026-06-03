@@ -208,6 +208,30 @@ struct QuillAppKitQtTests {
         #expect(label.font != nil)
     }
 
+    @Test("Solve honors constraint priority: a strong constraint beats a weaker one regardless of order")
+    func prioritySolve() {
+        guard QuillQt.ensureInitialized() else { return }
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 50))
+        let box = NSView(frame: .zero)
+        root.addSubviewQt(box)
+
+        // Low priority listed FIRST, high SECOND: without priority mapping both
+        // would be `required`, conflict, and the first (200) would win → 200.
+        // With mapping, the strong 100 wins regardless of order → 100.
+        let low = box.widthAnchor.constraint(equalToConstant: 200); low.priority = .defaultLow
+        let high = box.widthAnchor.constraint(equalToConstant: 100); high.priority = .defaultHigh
+        let cs = [
+            box.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            box.topAnchor.constraint(equalTo: root.topAnchor),
+            box.heightAnchor.constraint(equalToConstant: 10),
+            low, high,
+        ]
+        NSLayoutConstraint.activate(cs)
+        defer { NSLayoutConstraint.deactivate(cs) }
+        root.layoutQtSubtree(width: 300, height: 50)
+        #expect(box.qtGeometry.width == 100)
+    }
+
     @Test("NSWindow.contentView attaches its QWidget into the Qt window")
     func contentViewAttaches() {
         guard QuillQt.ensureInitialized() else { return }
