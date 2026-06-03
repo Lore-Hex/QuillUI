@@ -536,7 +536,22 @@ public struct QuillNetNewsWireContentView: View {
             Button("toggle read") { model.toggleReadOnSelection() }
                 .keyboardShortcut("r", modifiers: [])
             Button("refresh") {
-                Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
+                Task { @MainActor in
+                    // ⌘R is context-aware so it matches the
+                    // footer's visible Refresh button label:
+                    // folder view → refreshFolder (every feed in
+                    // the folder), default → refresh active
+                    // feed only. Without this, ⌘R in folder
+                    // view only refreshed the active selection
+                    // (which might be a feed OUTSIDE the
+                    // folder), confusingly leaving the visible
+                    // pool stale.
+                    if let folder = model.selectedFolderName {
+                        await model.refreshFolder(folder)
+                    } else {
+                        await model.refresh(urlString: activeFeedURL)
+                    }
+                }
             }
             .keyboardShortcut("r", modifiers: .command)
             Button("mark all read") {
