@@ -126,18 +126,27 @@ public struct Status: Codable, Identifiable, Hashable, Sendable {
     public let account: Account
     public let content: HTMLString
     public let createdAt: String
+    public let repliesCount: Int
+    public let reblogsCount: Int
+    public let favouritesCount: Int
     public let contentText: String
 
     public init(
         id: String,
         account: Account,
         content: HTMLString,
-        createdAt: String = ""
+        createdAt: String = "",
+        repliesCount: Int = 0,
+        reblogsCount: Int = 0,
+        favouritesCount: Int = 0
     ) {
         self.id = id
         self.account = account
         self.content = content
         self.createdAt = createdAt
+        self.repliesCount = repliesCount
+        self.reblogsCount = reblogsCount
+        self.favouritesCount = favouritesCount
         self.contentText = content.asRawText
     }
 
@@ -146,6 +155,9 @@ public struct Status: Codable, Identifiable, Hashable, Sendable {
         case account
         case content
         case createdAt
+        case repliesCount
+        case reblogsCount
+        case favouritesCount
     }
 
     public init(from decoder: Decoder) throws {
@@ -154,7 +166,21 @@ public struct Status: Codable, Identifiable, Hashable, Sendable {
         let account = try container.decode(Account.self, forKey: .account)
         let content = try container.decode(HTMLString.self, forKey: .content)
         let createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt) ?? ""
-        self.init(id: id, account: account, content: content, createdAt: createdAt)
+        // Mastodon ships `replies_count` / `reblogs_count` /
+        // `favourites_count`; convertFromSnakeCase maps them onto
+        // these keys. Older fixtures omit them, so default to 0.
+        let repliesCount = try container.decodeIfPresent(Int.self, forKey: .repliesCount) ?? 0
+        let reblogsCount = try container.decodeIfPresent(Int.self, forKey: .reblogsCount) ?? 0
+        let favouritesCount = try container.decodeIfPresent(Int.self, forKey: .favouritesCount) ?? 0
+        self.init(
+            id: id,
+            account: account,
+            content: content,
+            createdAt: createdAt,
+            repliesCount: repliesCount,
+            reblogsCount: reblogsCount,
+            favouritesCount: favouritesCount
+        )
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -163,6 +189,9 @@ public struct Status: Codable, Identifiable, Hashable, Sendable {
         try container.encode(account, forKey: .account)
         try container.encode(content, forKey: .content)
         try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(repliesCount, forKey: .repliesCount)
+        try container.encode(reblogsCount, forKey: .reblogsCount)
+        try container.encode(favouritesCount, forKey: .favouritesCount)
     }
 }
 
