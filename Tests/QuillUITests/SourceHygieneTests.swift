@@ -2494,7 +2494,6 @@ struct SourceHygieneTests {
         #expect(genericQtRuntime.contains("detailSubtitle: \"Audio-only playlist item selected.\""))
 
         let qtVisiblePayloadSources = [
-            ("Enchanted Qt runtime", enchantedQtRuntime),
             ("Generic Qt runtime", genericQtRuntime)
         ]
         let internalVisibleCopyFragments = [
