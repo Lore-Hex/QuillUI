@@ -6915,6 +6915,12 @@ private extension String {
         let tagMatches = tagRegex.matches(
             in: source, range: NSRange(location: 0, length: nsself.length)
         )
+        // Same first-seen-wins dedup as htmlInlineLinks (iter
+        // #249). Articles that repeat the same image (hero
+        // image referenced at top + repeated in footer for
+        // visual rhythm) would otherwise show the same URL
+        // twice in the detail-pane footer.
+        var seenURLs = Set<String>()
         var out: [InlineImage] = []
         for tm in tagMatches {
             let tagText = nsself.substring(with: tm.range)
@@ -6922,6 +6928,8 @@ private extension String {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !rawSrc.isEmpty, !rawSrc.hasPrefix("data:") else { continue }
             let src = resolveURL(rawSrc, against: baseURL)
+            guard !seenURLs.contains(src) else { continue }
+            seenURLs.insert(src)
             let alt = HTMLEntities.decode(Self.attribute("alt", from: tagText))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             out.append(InlineImage(urlString: src, alt: alt))

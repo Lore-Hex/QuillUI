@@ -207,6 +207,25 @@ struct QuillNetNewsWireCoreTests {
         #expect(item.inlineLinks.map(\.urlString) == ["/relative"])
     }
 
+    @Test("RSSItem.inlineImages dedupes repeated src, keeps first-seen alt")
+    func rssItemInlineImagesDedupesBySrc() {
+        let html = """
+        <p><img src="https://cdn.test/hero.jpg" alt="Hero shot"></p>
+        <p>Body...</p>
+        <p><img src="https://cdn.test/hero.jpg" alt="Repeat"></p>
+        <p><img src="https://cdn.test/other.png" alt="Other"></p>
+        """
+        let item = RSSItem(id: "1", title: "T", link: nil, pubDate: nil, descriptionHTML: html)
+        let images = item.inlineImages
+        #expect(images.count == 2)
+        #expect(images.map(\.urlString) == [
+            "https://cdn.test/hero.jpg",
+            "https://cdn.test/other.png",
+        ])
+        // First-seen alt wins for the repeated image.
+        #expect(images[0].alt == "Hero shot")
+    }
+
     @Test("RSSItem.inlineLinks dedupes repeated href, keeps first-seen anchor text")
     func rssItemInlineLinksDedupesByURL() {
         let html = """
