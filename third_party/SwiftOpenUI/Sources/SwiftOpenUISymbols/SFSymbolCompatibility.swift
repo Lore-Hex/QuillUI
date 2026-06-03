@@ -136,8 +136,9 @@ public enum SFSymbolCompatibility {
         "tag":                    "label",
         "tag.fill":               "label",
 
-        // MARK: Social actions (Mastodon / IceCubes)
+        // MARK: Social / navigation (Mastodon / IceCubes)
         "arrowshape.turn.up.left": "reply",
         "arrow.2.squarepath":      "repeat",
+        "globe":                   "public",
     ]
 }
