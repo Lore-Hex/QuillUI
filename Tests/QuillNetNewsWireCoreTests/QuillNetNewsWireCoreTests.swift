@@ -5936,6 +5936,37 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("markAllVisibleAsRead in active-feed view sweeps SQLite tail too")
+    func markAllVisibleInActiveFeedSweepsSQLite() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-active-sweep-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let articleStore = try ArticleStore(directoryURL: dir)
+        let feedID = "https://a.test/feed"
+        // Seed a stored-only tail row (not in feedCaches).
+        try articleStore.upsert([
+            PersistentArticle(
+                id: "tail", accountID: "Local", feedID: feedID, uniqueID: "tail",
+                title: "Tail", isRead: false, isStarred: false
+            ),
+        ])
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "A", url: feedID)],
+            articleStore: articleStore
+        )
+        // Active-feed view (no smart feed, no folder). Visible
+        // items has one row; SQLite has another row that's NOT
+        // in items (the tail). markAllVisible should sweep both.
+        model.items = [
+            RSSItem(id: "visible", title: "Visible", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        let added = model.markAllVisibleAsRead()
+        #expect(added == 2)
+        #expect(model.readArticleIDs.contains("visible"))
+        #expect(model.readArticleIDs.contains("tail"))
+    }
+
+    @MainActor
     @Test("markAllVisibleAsRead in folder view sweeps each feed's SQLite tail")
     func markAllVisibleInFolderViewSweepsSQLite() throws {
         let dir = FileManager.default.temporaryDirectory

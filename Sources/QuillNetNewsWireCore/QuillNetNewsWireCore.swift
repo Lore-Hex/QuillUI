@@ -4771,6 +4771,24 @@ final class RSSReaderModel: ObservableObject {
                 }
             }
         }
+        // Active-feed view: sweep SQLite for the active feed too
+        // — matches markFeedAsRead's behavior. Without this, the
+        // "All Read" footer button left SQLite-tail unreads
+        // (rows beyond articlesPerFeedLimit=100 cache cap) that
+        // resurface in the sidebar badge + All Unread smart
+        // feed. The user clicked All Read; the badge said "0
+        // unread visible"; the badge then said "1 unread" again
+        // a moment later because of the tail. Inconsistent.
+        if selectedSmartFeed == nil,
+           selectedFolderName == nil,
+           let articleStore,
+           let activeURL = currentFeedURL,
+           subscribedFeeds.contains(where: { $0.url == activeURL }),
+           let storedRows = try? articleStore.fetch(forFeed: activeURL) {
+            for row in storedRows where !readArticleIDs.contains(row.uniqueID) {
+                markRead(id: row.uniqueID)
+            }
+        }
         return readArticleIDs.count - before
     }
 
