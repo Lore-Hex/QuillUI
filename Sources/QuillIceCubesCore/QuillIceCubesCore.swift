@@ -134,36 +134,59 @@ public struct QuillIceCubesContentView: View {
 
     @ViewBuilder
     private var timelineContent: some View {
-        HStack(spacing: 0) {
-            timelineSidebar
-                .frame(width: 320)
-            Divider()
+        // IceCubes' real shape: SwiftUI's `NavigationSplitView` (Apple's
+        // adaptive sidebar API, mirrored in SwiftOpenUI) — a navigation
+        // sidebar, the timeline as the main column, and the focused post in
+        // the detail column. This is the same Apple source the Mac/iPad app
+        // renders, not a hand-rolled HStack split.
+        NavigationSplitView {
+            navigationSidebar
+        } content: {
+            timelineColumn
+        } detail: {
             timelineDetail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(QuillDesktopChromeStyle.detailBackground)
-        // SwiftOpenUI's `.task { … }` modifier takes a
-        // `@Sendable` closure; `QuillIceCubesContentView`
-        // isn't Sendable (SwiftUI views aren't), so capturing
-        // `self` for `fetchTimeline()` trips
-        // `#SendableClosureCaptures`. Use `.onAppear` instead —
-        // it's not `@Sendable` and still kicks off the fetch
-        // after the view shows.
-        //
-        // `QUILLUI_DISABLE_FETCH=1` is a profile-mode escape
-        // hatch: it seeds fixture content + skips URLSession,
-        // so the Linux profile script can sample CPU on a
-        // fetched-content-but-no-network path and isolate
-        // whether the IceCubes CPU peg lives in the
-        // URLSession / decode / @Published path or in the
-        // SwiftOpenUI render-loop after the list populates.
+        // `.onAppear` (not `.task`) avoids `#SendableClosureCaptures` on the
+        // non-Sendable view; the load is guarded so GTK's repeated onAppear
+        // fires it once. `QUILLUI_DISABLE_FETCH=1` seeds fixtures + skips
+        // URLSession for the deterministic Linux profile/smoke runs.
         .onAppear { startTimelineLoadIfNeeded() }
     }
 
-    private var timelineSidebar: some View {
+    /// IceCubes' navigation sidebar: the timeline/section tabs, rendered with
+    /// SwiftUI `Label(_, systemImage:)` (Apple's API) the same way the Mac/iPad
+    /// app's sidebar does.
+    private var navigationSidebar: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("IceCubes")
+                .font(.title2)
+                .bold()
+                .padding(16)
+            navItem("Home", systemImage: "house")
+            navItem("Local", systemImage: "person.2")
+            navItem("Federated", systemImage: "globe")
+            navItem("Notifications", systemImage: "bell")
+            navItem("Explore", systemImage: "magnifyingglass")
+            navItem("Settings", systemImage: "gearshape")
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(QuillDesktopChromeStyle.sidebarBackground)
+    }
+
+    private func navItem(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.body)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 7)
+    }
+
+    /// The Home timeline column: the public-timeline rows, selectable into the
+    /// detail column.
+    private var timelineColumn: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("IceCubes")
+                Text("Home")
                     .font(.title2)
                     .bold()
                 Text("Public timeline")
@@ -195,7 +218,7 @@ public struct QuillIceCubesContentView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(QuillDesktopChromeStyle.sidebarBackground)
+        .background(QuillDesktopChromeStyle.detailBackground)
     }
 
     private func sidebarError(_ errorMessage: String) -> some View {
