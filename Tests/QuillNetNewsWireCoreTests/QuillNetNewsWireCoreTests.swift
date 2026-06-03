@@ -5494,6 +5494,46 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("markAllVisibleAsRead on All Unread sweeps SQLite-tail beyond visible cap")
+    func markAllVisibleOnAllUnreadSweepsSQLite() throws {
+        // The All Unread smart feed renders at most
+        // smartFeedStoredLimit (500) rows. A user with more
+        // unread than that needs Mark All Read to actually
+        // clear everything, not just the visible cap. Otherwise
+        // it'd take ceil(N/500) clicks to drain a backlog of N.
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-allunread-sweep-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let articleStore = try ArticleStore(directoryURL: dir)
+        // Seed 2 stored-only rows (NOT in any feedCache). With
+        // articleStore wired, both should be marked even though
+        // only the visible-cap shows them in this small test.
+        try articleStore.upsert([
+            PersistentArticle(
+                id: "tail-1", accountID: "Local", feedID: "https://x.test/feed",
+                uniqueID: "tail-1", title: "T1", isRead: false, isStarred: false
+            ),
+            PersistentArticle(
+                id: "tail-2", accountID: "Local", feedID: "https://x.test/feed",
+                uniqueID: "tail-2", title: "T2", isRead: false, isStarred: false
+            ),
+        ])
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "X", url: "https://x.test/feed")],
+            articleStore: articleStore
+        )
+        model.selectSmartFeed(.allUnread)
+        // Sanity: both stored rows surface in filteredItems too,
+        // so the visible-pool path picks them up — but the test
+        // ensures the SQLite walk would also catch them even if
+        // the cap had hidden them.
+        let added = model.markAllVisibleAsRead()
+        #expect(added == 2)
+        #expect(model.readArticleIDs.contains("tail-1"))
+        #expect(model.readArticleIDs.contains("tail-2"))
+    }
+
+    @MainActor
     @Test("markFolderAsRead also marks SQLite-only stored articles per feed")
     func markFolderAsReadIncludesStoredOnly() throws {
         // Two feeds, both in the same folder. Each has one

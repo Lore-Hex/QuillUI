@@ -3869,8 +3869,9 @@ final class RSSReaderModel: ObservableObject {
     /// timeline is already fully-read or empty.
     @discardableResult
     func markAllVisibleAsRead() -> Int {
-        let visibleIDs = filteredItems.map(\.id)
         let before = readArticleIDs.count
+        // Snapshot visible IDs first — needed by every branch.
+        let visibleIDs = filteredItems.map(\.id)
         for id in visibleIDs {
             // Route through markRead (not direct Set insert) so
             // each newly-marked article also propagates to the
@@ -3878,6 +3879,20 @@ final class RSSReaderModel: ObservableObject {
             // ID; persistence is per-row but batched closely so
             // SQLite handles it as one transaction.
             markRead(id: id)
+        }
+        // When the active view is the All Unread smart feed,
+        // the rendered pool is capped at smartFeedStoredLimit
+        // (500). A user with 5000 unread would have to click
+        // Mark All Read ten times to actually reach zero.
+        // Upstream NetNewsWire's ⌘⇧K on All Unread marks every
+        // unread row, not just the visible cap. Walk the full
+        // SQLite unread set to match.
+        if selectedSmartFeed == .allUnread, let articleStore {
+            if let storedRows = try? articleStore.fetchUnread() {
+                for row in storedRows where !readArticleIDs.contains(row.uniqueID) {
+                    markRead(id: row.uniqueID)
+                }
+            }
         }
         return readArticleIDs.count - before
     }
