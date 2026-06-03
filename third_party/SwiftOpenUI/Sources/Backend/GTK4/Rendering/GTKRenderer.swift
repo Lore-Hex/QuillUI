@@ -147,7 +147,13 @@ func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -
 
 extension Text: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
+        // Plain Text keeps the original gtk_label_new(content) fast path
+        // verbatim; colored / multi-run Text additionally overrides it with
+        // Pango markup, so plain text rendering is byte-for-byte unchanged.
         let label = gtk_label_new(content)!
+        if hasStyledRuns {
+            gtk_swift_label_set_markup(label, pangoMarkup())
+        }
         gtk_swift_label_set_xalign(label, 0)
         gtk_swift_label_set_yalign(label, 0.5)
         // SwiftUI Text wraps to intrinsic size — prevent GTK expansion.
@@ -155,6 +161,21 @@ extension Text: GTKRenderable, GTKDescribable {
         gtk_widget_set_vexpand(label, 0)
         gtkMarkHostedNodeKind(label, kind: .text)
         return opaqueFromWidget(label)
+    }
+
+    /// Pango markup for styled runs: each colored run becomes a
+    /// `<span foreground='#RRGGBB'>…</span>`; plain runs pass through escaped.
+    private func pangoMarkup() -> String {
+        runs.map { run in
+            let escaped = run.text
+                .replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+            guard let color = run.color else { return escaped }
+            let hex = String(format: "#%02X%02X%02X",
+                             Int(color.red * 255), Int(color.green * 255), Int(color.blue * 255))
+            return "<span foreground='\(hex)'>\(escaped)</span>"
+        }.joined()
     }
 
     public func gtkDescribeNode() -> GTK4DescriptorNode {

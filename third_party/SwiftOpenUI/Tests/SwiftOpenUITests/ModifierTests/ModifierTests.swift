@@ -73,8 +73,11 @@ final class ModifierTests: XCTestCase {
     // MARK: - Style modifiers
 
     func testForegroundColor() {
+        // Text.foregroundColor is SwiftUI-faithful: it returns a styled Text
+        // (not a ForegroundColorView wrapper), carrying the color on its run.
         let styled = Text("hello").foregroundColor(.red)
-        XCTAssertEqual(styled.color, .red)
+        XCTAssertEqual(styled.runs.first?.color, .red)
+        XCTAssertEqual(styled.content, "hello")
     }
 
     func testForegroundStyleAlias() {

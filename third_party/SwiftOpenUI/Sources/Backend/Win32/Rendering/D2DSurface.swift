@@ -158,6 +158,23 @@ func d2dDraw<V: View>(_ view: V, target: D2DRenderTarget, brush: D2DBrush,
                                      brush: brush, x: x, y: y, width: width, height: height)
         return
     }
+    if let text = view as? Text, text.hasStyledRuns {
+        // Text.foregroundColor now returns a styled Text (not a
+        // ForegroundColorView), so apply its color here. Uses the first
+        // colored run so single-color Text keeps rendering colored on Win32;
+        // full per-run positioning is a Win32-only follow-up (not a QuillUI
+        // backend).
+        if let color = text.runs.first(where: { $0.color != nil })?.color {
+            d2d1_SolidColorBrush_SetColor(brush, Float(color.red), Float(color.green),
+                                           Float(color.blue), Float(color.alpha))
+        } else {
+            d2d1_SolidColorBrush_SetColor(brush, 0, 0, 0, 1)
+        }
+        guard let fmt = D2DRenderer.shared.textFormat() else { return }
+        D2DRenderer.shared.drawText(text.content, target: target, format: fmt,
+                                     brush: brush, x: x, y: y, width: width, height: height)
+        return
+    }
     if let font = view as? FontModifiedView<Text> {
         let (fontSize, bold, italic) = fontParametersForD2D(font.font)
         guard let fmt = D2DRenderer.shared.textFormat(fontSize: fontSize, bold: bold, italic: italic) else { return }

@@ -537,10 +537,13 @@ final class AndroidRenderTests: XCTestCase {
     }
 
     func testForegroundColorModifier() {
+        // Text.foregroundColor is now SwiftUI-faithful: it returns a styled
+        // Text carrying the color on its run rather than a ForegroundColorView
+        // wrapper node. (Per-run color rendering in the Android backend is a
+        // follow-up; QuillUI ships GTK/Qt.)
         let view = Text("Red").foregroundColor(.red)
-        let node = androidRenderView(view)
-        XCTAssertEqual(node.type, "foregroundColor")
-        XCTAssertEqual(node.children.count, 1)
+        XCTAssertEqual(view.runs.first?.color, .red)
+        XCTAssertEqual(view.content, "Red")
     }
 
     func testFrameModifier() {
