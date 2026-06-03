@@ -37,12 +37,11 @@ struct SourceHygieneTests {
         #expect(manifest.contains("name: \"CQt6Widgets\""))
         #expect(manifest.occurrences(of: "name: \"CQt6Widgets\"") == 1)
         #expect(manifest.occurrences(of: "name: \"CQuillQt6WidgetsShim\"") == 1)
-        #expect(manifest.occurrences(of: "name: \"QuillEnchantedQtNativeRuntime\"") == 1)
         #expect(manifest.occurrences(of: "name: \"QuillWireGuardQtNativeRuntime\"") == 1)
         #expect(!manifest.contains("pkgConfig: \"Qt6Widgets\""))
         #expect(manifest.contains(".unsafeFlags(qt6WidgetsCxxFlags)"))
         #expect(manifest.contains(".unsafeFlags(qt6WidgetsLinkerFlags)"))
-        #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-enchanted-qt\", targets: [\"QuillEnchantedQt\"]))\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
+        #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk {\n    products.append(.executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"]))\n}"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
         #expect(manifest.contains("enum QuillCanonicalLinuxAppQtRuntime"))
@@ -58,7 +57,6 @@ struct SourceHygieneTests {
         #expect(manifest.contains(".define(\"QUILLUI_GENERIC_QT_NATIVE_BACKEND\")"))
         #expect(manifest.contains("swiftSettings = quillGenericQtSwiftSettings"))
         #expect(manifest.contains("] + quillCanonicalLinuxApps.map(quillCanonicalLinuxAppQtTarget)"))
-        #expect(manifest.contains("qtRuntime: .enchantedQtNative"))
         #expect(manifest.contains("qtRuntime: .genericQtNative"))
         #expect(manifest.contains("qtRuntime: .wireGuardQtNative"))
         #expect(manifest.contains("let quillDataPackageDependencies: [Package.Dependency] = ["))
@@ -71,7 +69,6 @@ struct SourceHygieneTests {
         #expect(manifest.contains("path: \"Sources/QuillQtNativeRuntimeSupport\""))
         #expect(manifest.contains(".library(name: \"QuillGenericQtNativeRuntime\", targets: [\"QuillGenericQtNativeRuntime\"])"))
         #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
-        #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
         #expect(manifest.contains("dependencies: [\"QuillWireGuardCore\", \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
         #expect(manifest.contains("name: \"QuillGenericQtNativeRuntime\""))
         #expect(manifest.contains("path: \"Sources/QuillGenericQtNativeRuntime\""))
@@ -708,7 +705,6 @@ struct SourceHygieneTests {
             "Sources/QuillNetNewsWire/main.swift": "QuillApp.run(QuillNetNewsWireApp.self)",
             "Sources/QuillIceCubes/main.swift": "QuillApp.run(QuillIceCubesApp.self)",
             "Sources/QuillWireGuard/main.swift": "QuillApp.run(QuillWireGuardApp.self)",
-            "Sources/QuillEnchanted/main.swift": "QuillApp.run(QuillEnchantedApp.self)",
             "Sources/QuillEnchantedUpstreamSlice/main.swift": "QuillApp.run(UpstreamSliceApp.self)"
         ]
         let qtAppLauncherPaths = [
@@ -840,8 +836,6 @@ struct SourceHygieneTests {
         #expect(manifest.contains("dependencies: [\"QuillEnchantedData\", \"QuillFoundation\"]"))
         #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"QuillUI\", \"QuillFoundation\", \"QuillKit\"]"))
         #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
-        #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
-        #expect(manifest.contains("nativeQt: [\"QuillEnchantedQtNativeRuntime\"]"))
         #expect(manifest.contains("nativeQt: [\"QuillWireGuardQtNativeRuntime\"]"))
         #expect(manifest.contains("dependencies: [\"CQuillQt6WidgetsShim\"]"))
         #expect(!manifest.contains("fallback: [\"QuillUIQt\", \"QuillInteractionSmokeSupport\"]"))
