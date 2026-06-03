@@ -15,6 +15,13 @@ name: Enchanted Parity
 # and is not a meaningful port metric. The structural landmarks above ARE the
 # parity proof; the uploaded render is the human-eyeball reference each run. Kept
 # as its OWN workflow (does not gate the main "Linux CI").
+#
+# This workflow also runs NON-GATING (continue-on-error) real-source INTERACTION
+# measurements (epic #188 step 2): it drives quill-chat-linux through its
+# mac-reference interaction smokes (composer, ...) to size the gap before they are
+# promoted to gating and the hand-written reimpl is retired. The interaction harness
+# (scripts/linux-backend-interaction-check.sh) and its verify products already exist;
+# these steps activate them in CI.
 
 on:
   push:
@@ -70,6 +77,23 @@ jobs:
           QUILLUI_BACKEND_VISUAL_APP_LOG=.qa/quillui-backend-app.log \
             scripts/linux-backend-visual-check.sh \
               .qa/quill-chat-linux-mac-reference-gtk.png \
+              quill-chat-linux \
+              gtk
+
+      - name: Measure real-source composer-typed interaction (non-gating)
+        if: always()
+        continue-on-error: true
+        env:
+          QUILLUI_BACKEND_INTERACTION_MODE: composer-typed
+        run: |
+          # Step 2 of the cutover: prove the REAL source's composer accepts typed
+          # input via the generic GTK backend (no Ollama / no seeded history needed).
+          # Non-gating MEASUREMENT — sizes the interaction gap before promotion. The
+          # harness routes quill-chat-linux + composer-typed (with MAC_REFERENCE=1) to
+          # the quill-chat-linux-mac-reference-composer-typed validator.
+          QUILLUI_BACKEND_INTERACTION_APP_LOG=.qa/quill-chat-linux-interaction-composer.log \
+            scripts/linux-backend-interaction-check.sh \
+              .qa/quill-chat-linux-mac-reference-composer-typed-gtk.png \
               quill-chat-linux \
               gtk
 
