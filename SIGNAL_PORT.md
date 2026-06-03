@@ -1,12 +1,54 @@
-# Signal-iOS → QuillUI/QuillOS port
+# QuillSignal — real Signal on QuillOS
+
+## ⮕ PIVOT (2026-06-03): Rust core, not the iOS app
+
+**Decision (user):** stop compiling `signalapp/Signal-iOS` on Linux; **pivot to
+the Rust core** — the real `presage`/`libsignal` Signal protocol engine behind a
+**native QuillUI UI**.
+
+**Why:** Signal-iOS is a deeply Objective-C-coupled iOS app. Compiling its Swift
+on Linux needs porting ~35 ObjC base classes *and* a mechanical pass to
+strip/conditionalize `@objc`/`#selector`/NSCoding across **~200 of Signal's own
+Swift files** (Linux Swift has **no ObjC interop** — 124k "ObjC interop disabled"
+errors). 823/1119 SSK Swift files are clean, but they all depend on the
+ObjC-coupled 26%. Multi-week source transform → not worth it vs. the Rust core,
+which already builds + runs on aarch64 and reached a real device-linking
+handshake (emitted `sgnl://linkdevice`).
+
+**New deliverable:** a QuillUI app (native GTK UI) whose backend is the real
+`presage`/`libsignal` Rust engine, via a unix-socket bridge daemon.
+
+**Assets (validated, ready to integrate):**
+- `quill-signal-bridge` (Rust, presage workspace member) — unix-socket daemon;
+  ping/status/link-begin; emitted a real device-link URL. [parked: `/Users/jperla/claude/QuillSignal`, built in `qs-work` volume]
+- `BridgeClient.swift` — Swift unix-socket client (decodes `BridgeMessage`). [parked repo]
+- QuillUI `QuillSignal` fixture app (`Sources/QuillSignalCore`, `Sources/QuillSignal`) — the UI shell to rewire from fixtures to the real bridge.
+
+**KEPT from the iOS attempt (reusable QuillUI hardening, independent of Signal):**
+the Apple-framework shims — `CoreGraphics` CGFloat, `CryptoKit`→swift-crypto,
+`CommonCrypto`→OpenSSL, `COSUnfairLock` os_unfair_lock, `Contacts`, +others.
+The `SignalServiceKit` target is gated on `signalUpstreamPresent` and stays inert
+when `.upstream/signal-ios` isn't fetched.
+
+**Pivot plan:** (1) bring `BridgeClient.swift` into QuillUI as a `QuillSignalKit`
+module. (2) rewire `QuillSignalContentView` from `QuillSignalFixtures` to the
+bridge (status → link flow → conversations/messages). (3) build on Linux GTK.
+(4) run daemon + app; verify the app connects and can request a link URL
+(reaches Signal's servers — **no account needed** for the provisioning URL).
+(5) real account link/send/receive = **PAUSE & coordinate** (needs the user's
+phone). Engine build/run uses the `qs-work` cargo cache; bridge builds as the
+4th member of the presage workspace.
+
+---
+
+## Historical: the abandoned Signal-iOS compile
 
 Compile the **real `signalapp/Signal-iOS` app** on Linux/QuillOS as
 **QuillUI targets**, linked against QuillUI's real Apple-framework shim
 products (`UIKit`/`SwiftUI`/`AVFoundation`/`Network`/`os`/`CoreGraphics`/
 `Security`/`Combine`/…), **real GRDB**, **real SwiftProtobuf**, and **real
-libsignal**. Where QuillUI's shims fall short of Signal's usage, **extend
-the shims in QuillUI** — Signal is the flagship that hardens the framework
-layer. No hand-written stubs; no separate fixture app.
+libsignal**. (Superseded by the pivot above — kept as the record of why, and of
+the reusable framework-shim work.)
 
 Branch `signal/real-backend` (off `main`). Upstream source lives under
 `.upstream/` (per-worktree, gitignored — fetch, don't commit).
