@@ -405,8 +405,14 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         # 0.56*W matches the reimpl's proven composer click; -120 sits on the field row.
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
         click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 120))}"
+        # DBG (tracking the mac-reference input-delivery gap: composer-typed produced a
+        # render byte-identical to the empty state, so click+type had zero effect). Log
+        # the resolved geometry/coords and capture the POST-CLICK / pre-type frame so we
+        # can tell a focus miss (no change) from a typing-delivery gap (focus ring, no text).
+        echo "[interaction-dbg] composer-typed geom: x=$window_x y=$window_y w=$window_width h=$window_height capture_window=$capture_window click=($click_x,$click_y)" >&2
         click_at "$click_x" "$click_y"
         sleep 1
+        DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$OUTPUT_DIR/quill-chat-linux-composer-afterclick.png" 2>/dev/null || true
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
         sleep 1
         ;;
