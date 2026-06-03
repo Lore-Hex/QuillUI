@@ -263,7 +263,7 @@ public struct QuillIceCubesContentView: View {
                             Spacer()
                         }
 
-                        Text(row.contentText)
+                        styledContent(row)
                             .font(.body)
                             .lineSpacing(4)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -382,7 +382,7 @@ public struct QuillIceCubesContentView: View {
                         .foregroundColor(.secondary)
                 }
             }
-            Text(row.contentText)
+            styledContent(row)
                 .font(.body)
         }
         .padding(.vertical, 4)
@@ -392,6 +392,17 @@ public struct QuillIceCubesContentView: View {
         .background(selectedRowID == row.id ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
         .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
         .contentShape(Rectangle())
+    }
+
+    /// Mention/hashtag accent for post content (IceCubes' link color).
+    private static let mentionAccent = Color.blue
+
+    /// Renders post content with @mentions / #hashtags tinted, from the styled
+    /// segments precomputed on the row — no per-frame parsing.
+    private func styledContent(_ row: IceCubesTimelineRow) -> Text {
+        Text(styledRuns: row.contentSegments.map { segment in
+            Text.Run(text: segment.text, color: segment.isAccent ? Self.mentionAccent : nil)
+        })
     }
 
     @ViewBuilder
@@ -484,6 +495,10 @@ public struct IceCubesTimelineRow: Identifiable, Hashable, Sendable {
     /// stored string instead of re-deriving it every frame.
     public let subtitleText: String
     public let contentText: String
+    /// `contentText` split into plain + accent (mention/hashtag) segments,
+    /// precomputed so the GTK render loop never re-parses. The accent color is
+    /// applied in the view, keeping the model Hashable/Sendable.
+    public let contentSegments: [IceCubesContentSegment]
     public let timeText: String
     public let repliesCount: Int
     public let reblogsCount: Int
@@ -505,6 +520,7 @@ public struct IceCubesTimelineRow: Identifiable, Hashable, Sendable {
         self.displayNameText = displayNameText
         self.handleText = handleText
         self.contentText = contentText
+        self.contentSegments = IceCubesContentRuns.segments(fromRawText: contentText)
         self.timeText = timeText
         self.subtitleText = timeText.isEmpty ? handleText : "\(handleText) · \(timeText)"
         self.repliesCount = repliesCount
@@ -531,6 +547,57 @@ public struct IceCubesTimelineRow: Identifiable, Hashable, Sendable {
             favouritesCount: status.favouritesCount,
             avatar: status.account.avatar
         )
+    }
+}
+
+/// A run of post content — plain text, or an accent-tinted @mention / #hashtag.
+public struct IceCubesContentSegment: Hashable, Sendable {
+    public let text: String
+    public let isAccent: Bool
+    public init(text: String, isAccent: Bool) {
+        self.text = text
+        self.isAccent = isAccent
+    }
+}
+
+/// Splits tag-stripped Mastodon post text into plain + accent segments:
+/// `@mentions` and `#hashtags` are flagged for accent tinting (IceCubes' link
+/// color); everything else stays plain. Full `<a>`-href styling is a follow-up
+/// — this colors the visible @handle / #tag tokens in the stripped text.
+public enum IceCubesContentRuns {
+    public static func segments(fromRawText text: String) -> [IceCubesContentSegment] {
+        var segments: [IceCubesContentSegment] = []
+        var plain = ""
+        let chars = Array(text)
+        var i = 0
+
+        func flushPlain() {
+            if !plain.isEmpty {
+                segments.append(IceCubesContentSegment(text: plain, isAccent: false))
+                plain = ""
+            }
+        }
+
+        while i < chars.count {
+            let c = chars[i]
+            let atBoundary = i == 0 || chars[i - 1] == " " || chars[i - 1] == "\n"
+            if (c == "@" || c == "#") && atBoundary {
+                var j = i + 1
+                while j < chars.count, chars[j].isLetter || chars[j].isNumber || chars[j] == "_" {
+                    j += 1
+                }
+                if j > i + 1 { // at least one word character after @ / #
+                    flushPlain()
+                    segments.append(IceCubesContentSegment(text: String(chars[i..<j]), isAccent: true))
+                    i = j
+                    continue
+                }
+            }
+            plain.append(c)
+            i += 1
+        }
+        flushPlain()
+        return segments
     }
 }
 
@@ -623,7 +690,7 @@ public enum QuillIceCubesProfileFixtures {
                 username: "deploybot",
                 displayName: "Deploy Bot"
             ),
-            content: HTMLString(stringLiteral: "<p>Canary rollout healthy after 30m.</p>"),
+            content: HTMLString(stringLiteral: "<p>Canary rollout healthy after 30m. cc @deploybot</p>"),
             createdAt: "2026-01-01T00:01:00Z",
             repliesCount: 1,
             reblogsCount: 4,
@@ -665,7 +732,7 @@ public enum QuillIceCubesProfileFixtures {
                 username: "design",
                 displayName: "Mastodon Design"
             ),
-            content: HTMLString(stringLiteral: "<p>Selection polish keeps the lower row visually distinct across GTK and Qt.</p>"),
+            content: HTMLString(stringLiteral: "<p>Selection polish across GTK and Qt — see #SwiftOnLinux</p>"),
             createdAt: "2026-01-01T00:04:00Z",
             repliesCount: 12,
             reblogsCount: 140,
