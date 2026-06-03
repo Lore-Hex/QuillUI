@@ -3866,10 +3866,16 @@ final class RSSReaderModel: ObservableObject {
         // launch.
         Task { @MainActor [weak self] in
             guard let self else { return }
-            for feed in self.subscribedFeeds where feed.url != urlString {
-                if (self.feedFailureCount[feed.id] ?? 0) >= Self.feedFailureSkipThreshold {
-                    continue
-                }
+            let pending = self.subscribedFeeds.filter { feed in
+                feed.url != urlString &&
+                (self.feedFailureCount[feed.id] ?? 0) < Self.feedFailureSkipThreshold
+            }
+            // 4-wide concurrency to match refreshAllFeeds (same
+            // upstream throttle pattern; serial loop previously
+            // took N × per-feed-fetch seconds at launch — for a
+            // 100-feed subscription that's ≈ 2-3 minutes of
+            // background work after first paint).
+            await Self.runWithConcurrencyLimit(pending, limit: 4) { feed in
                 await self.fetchIntoCache(urlString: feed.url)
             }
         }
