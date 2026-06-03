@@ -146,6 +146,40 @@ print("patched WireGuardKitC.h to explicitly include <sys/types.h>")
 PY
 }
 
+patch_signal_ios() {
+    # Signal's SignalServiceKit/Concurrency/TSMutex.swift does
+    # `internal import os.lock` for os_unfair_lock. The `os` framework's clang
+    # `lock` submodule does not exist on Linux, and QuillUI's `os` is a Swift
+    # module (which cannot expose a clang submodule). Swap the import to
+    # QuillUI's COSUnfairLock C shim on non-Apple platforms. TSMutex's logic is
+    # untouched — only the import line is conditionalized.
+    local f="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Concurrency/TSMutex.swift"
+    if [[ ! -f "$f" ]]; then
+        return
+    fi
+    if grep -q 'COSUnfairLock' "$f"; then
+        echo "==> signal-ios TSMutex.swift already patched"
+        return
+    fi
+    echo "==> patching signal-ios TSMutex.swift os.lock import for Linux"
+    python3 - "$f" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+patched = src.replace(
+    "internal import os.lock",
+    "#if canImport(Darwin)\n"
+    "internal import os.lock\n"
+    "#else\n"
+    "internal import COSUnfairLock\n"
+    "#endif",
+    1,
+)
+open(path, "w").write(patched)
+print("patched TSMutex.swift os.lock import for Linux")
+PY
+}
+
 want=("$@")
 if [[ ${#want[@]} -eq 0 ]]; then
     # Default set excludes codeedit/codeeditsymbols. CodeEditSymbols

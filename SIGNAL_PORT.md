@@ -127,7 +127,8 @@ the build reaches further. "Top blocker" = dominant error after that fix.
 | 2 | `CryptoKit` shim → swift-crypto `Crypto` + `--disable-index-store` | 2263: `no such module CommonCrypto` |
 | 3 | `CommonCrypto` shim → OpenSSL EVP (AES) | 2263: `no such module SignalRingRTC` |
 | 4 | `SignalRingRTC` faithful type-shim (calling deferred) | 2263: `no such module os.lock` |
-| 5 | `os.lock` submodule (TSMutex.swift) … | _(in progress)_ |
+| 5 | `os_unfair_lock` C spinlock (COSUnfairLock) + 1-line TSMutex import patch | 1: CommonCrypto `openssl/evp.h` (flaky libssl-dev) |
+| 6 | ensure libssl-dev present each build … | _(in progress — then SSK Swift finally compiles)_ |
 
 ## Status
 

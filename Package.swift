@@ -1277,6 +1277,21 @@ targets.append(
 )
 #endif
 
+// os_unfair_lock C shim. Signal's TSMutex.swift `import os.lock` (the `os`
+// framework's clang `lock` submodule), which doesn't exist on Linux and can't
+// be added to QuillUI's Swift `os` module. This C target provides the exact
+// os_unfair_lock surface as a spinlock; TSMutex's import is patched to use it on
+// Linux (scripts/fetch-upstream.sh).
+#if os(Linux)
+targets.append(
+    .target(
+        name: "COSUnfairLock",
+        path: "Sources/COSUnfairLock",
+        publicHeadersPath: "include"
+    )
+)
+#endif
+
 // SignalServiceKit — the foundation target (1412 Swift files). Compiled on
 // Linux against QuillUI's Apple-framework shim targets + LibSignalClient +
 // GRDB + SwiftProtobuf. Excluded for the first build:
@@ -1369,7 +1384,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             dependencies: [
                 "LibSignalClient",
                 "UIKit", "AVFoundation", "Network", "os", "Security", "CoreGraphics",
-                "CryptoKit", "CommonCrypto", "SignalRingRTC",
+                "CryptoKit", "CommonCrypto", "SignalRingRTC", "COSUnfairLock",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
             ],
