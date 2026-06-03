@@ -154,13 +154,36 @@ public struct QuillNetNewsWireContentView: View {
         .background(QuillDesktopChromeStyle.sidebarBackground)
     }
 
+    /// NetNewsWire-style smart-feed icon: an orange calendar for
+    /// Today, a blue unread dot for All Unread, a yellow filled
+    /// star for Starred. Uses mapped SF Symbols (`calendar`,
+    /// `star.fill`) so the GTK backend renders them too; All
+    /// Unread is a `Circle` shape because the fork's Material map
+    /// has no `circle.fill` glyph — and a blue dot reads as
+    /// "unread" anyway.
+    @ViewBuilder
+    private func smartFeedIcon(_ kind: SmartFeed) -> some View {
+        switch kind {
+        case .today:
+            Image(systemName: "calendar")
+                .font(.caption)
+                .foregroundColor(.orange)
+        case .allUnread:
+            Circle()
+                .fill(Color.blue)
+                .frame(width: 9, height: 9)
+        case .starred:
+            Image(systemName: "star.fill")
+                .font(.caption)
+                .foregroundColor(.yellow)
+        }
+    }
+
     private func smartFeedRow(_ kind: SmartFeed) -> some View {
         let count = model.count(for: kind)
-        return HStack(spacing: 6) {
-            Text(kind.symbol)
-                .font(.caption)
-                .foregroundColor(.blue)
-                .frame(width: 14, alignment: .leading)
+        return HStack(spacing: 8) {
+            smartFeedIcon(kind)
+                .frame(width: 16, alignment: .center)
             Text(kind.displayName)
                 .font(.subheadline)
                 .lineLimit(1)
@@ -179,10 +202,37 @@ public struct QuillNetNewsWireContentView: View {
         .contentShape(Rectangle())
     }
 
+    /// Favicon stand-in: a colored rounded tile with the feed's
+    /// first initial. SwiftOpenUI has no remote-image view, so a
+    /// monogram gives each feed a stable visual identity (like
+    /// NetNewsWire's favicons) using only GTK-safe shapes + text.
+    private func monogramTile(for feed: Feed) -> some View {
+        let initial = feed.title.first.map { String($0).uppercased() } ?? "?"
+        return ZStack {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Self.monogramColor(for: feed.title))
+            Text(initial)
+                .font(.caption2).bold()
+                .foregroundColor(.white)
+        }
+        .frame(width: 18, height: 18)
+    }
+
+    /// Deterministic per-feed tint (NOT String.hashValue — that is
+    /// randomized per process, so the color would change every
+    /// launch). A stable scalar sum keeps a feed's monogram color
+    /// constant across runs.
+    private static func monogramColor(for title: String) -> Color {
+        let palette: [Color] = [.blue, .orange, .green, .red, .purple, .gray]
+        let h = title.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
+        return palette[h % palette.count]
+    }
+
     private func feedRow(_ feed: Feed) -> some View {
         let isSelected = (model.selectedSmartFeed == nil) && (model.selectedFeedID == feed.id)
         let unread = model.unreadCount(forFeed: feed.id)
-        return HStack(spacing: 6) {
+        return HStack(spacing: 8) {
+            monogramTile(for: feed)
             Text(feed.title)
                 .font(.subheadline)
                 .lineLimit(1)
