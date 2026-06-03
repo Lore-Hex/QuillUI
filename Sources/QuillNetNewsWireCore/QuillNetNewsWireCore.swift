@@ -497,10 +497,16 @@ public struct QuillNetNewsWireContentView: View {
                 .keyboardShortcut("2", modifiers: .command)
             Button("starred") { model.selectSmartFeed(.starred) }
                 .keyboardShortcut("3", modifiers: .command)
-            // Cmd+0 clears any active smart feed and returns
-            // the timeline to the active subscribed-feed view.
-            Button("clear smart feed") { model.selectSmartFeed(nil) }
-                .keyboardShortcut("0", modifiers: .command)
+            // Cmd+0 clears any active smart feed OR folder view
+            // and returns the timeline to the active subscribed-
+            // feed view. Previously only handled smart feeds, so
+            // a user in a folder view had no keyboard escape
+            // back to the per-feed timeline.
+            Button("clear smart feed / folder") {
+                model.selectSmartFeed(nil)
+                model.selectFolder(nil)
+            }
+            .keyboardShortcut("0", modifiers: .command)
             // Cmd+, opens the Settings sheet — the canonical Mac
             // "Preferences" shortcut. Matches upstream
             // NetNewsWire's File menu binding.
