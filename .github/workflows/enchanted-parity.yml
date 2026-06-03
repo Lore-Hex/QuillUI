@@ -1,0 +1,92 @@
+name: Enchanted Parity
+
+# macOS-reference VISUAL parity gate for the REAL upstream Enchanted source
+# running on Linux via the generic backend (epic #188 step 1). Renders the
+# real-source `quill-chat-linux` app at the reference window and asserts the
+# STRUCTURAL LANDMARKS of the genuine Enchanted.app empty state
+# (Tests/Fixtures/Enchanted/macos-reference.png) via verify-backend-screenshot.py's
+# validate_quill_chat_mac_reference(): sidebar divider ratio + footer nav, window
+# controls, header divider, toolbar, the centered gradient wordmark, the 4-card
+# prompt row, the unreachable-API alert, and the composer.
+#
+# Revives the verifier from codex/issue-24. That original gated a 0.95 cross-stack
+# PIXEL ratio against the reference screenshot; we deliberately DROPPED that bar —
+# pixel-identity between macOS Cocoa and Linux GTK/Pango overfits one screenshot
+# and is not a meaningful port metric. The structural landmarks above ARE the
+# parity proof; the uploaded render is the human-eyeball reference each run. Kept
+# as its OWN workflow (does not gate the main "Linux CI").
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  strict-mac-reference:
+    name: Strict Mac-reference verifier (real-source quill-chat-linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    container:
+      image: swift:6.2-noble
+    env:
+      QUILLUI_SKIP_APT: "1"
+      QUILLUI_BACKEND_MAC_REFERENCE: "1"
+      QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Linux dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates \
+            dbus-x11 \
+            git \
+            imagemagick \
+            libgdk-pixbuf-2.0-dev \
+            libgtk-4-dev \
+            libsqlite3-dev \
+            pkg-config \
+            qt6-base-dev \
+            ripgrep \
+            x11-apps \
+            xdotool \
+            xvfb
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Fetch Enchanted upstream source
+        run: scripts/fetch-upstream.sh enchanted
+
+      - name: Run strict Enchanted GTK mac-reference verifier
+        run: |
+          QUILLUI_BACKEND_VISUAL_APP_LOG=.qa/quillui-backend-app.log \
+            scripts/linux-backend-visual-check.sh \
+              .qa/quill-chat-linux-mac-reference-gtk.png \
+              quill-chat-linux \
+              gtk
+
+      - name: List .qa (debug visibility)
+        if: always()
+        run: |
+          echo "pwd=$(pwd)"
+          ls -laR .qa 2>&1 || echo "(.qa missing)"
+
+      - name: Upload verifier artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: enchanted-parity-verifier
+          path: |
+            .qa/**
+          # .qa is a DOT-directory; upload-artifact@v4 excludes hidden files by
+          # default, which is why the render never uploaded ("No files found").
+          include-hidden-files: true
+          if-no-files-found: warn
