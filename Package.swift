@@ -1305,6 +1305,19 @@ targets.append(
 )
 #endif
 
+// libPhoneNumber-iOS Linux shim. The upstream is ObjC (no Linux build); Signal
+// wraps it for E.164 phone-number parsing/formatting. Best-effort E.164
+// implementation; full libphonenumber metadata behavior deferred. See
+// Sources/libPhoneNumberShim/libPhoneNumber_iOS.swift.
+#if os(Linux)
+targets.append(
+    .target(
+        name: "libPhoneNumber_iOS",
+        path: "Sources/libPhoneNumberShim"
+    )
+)
+#endif
+
 // SignalServiceKit — the foundation target (1412 Swift files). Compiled on
 // Linux against QuillUI's Apple-framework shim targets + LibSignalClient +
 // GRDB + SwiftProtobuf. Excluded for the first build:
@@ -1398,6 +1411,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "LibSignalClient",
                 "UIKit", "AVFoundation", "Network", "os", "Security", "CoreGraphics",
                 "CryptoKit", "CommonCrypto", "SignalRingRTC", "COSUnfairLock", "Contacts",
+                "libPhoneNumber_iOS",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
             ],

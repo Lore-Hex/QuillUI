@@ -133,7 +133,8 @@ the build reaches further. "Top blocker" = dominant error after that fix.
 | 5 | `os_unfair_lock` C spinlock (COSUnfairLock) + 1-line TSMutex import patch | 1: CommonCrypto `openssl/evp.h` (flaky libssl-dev) |
 | 6 | prebuilt `quillui-signal-build` image (deps baked, no flaky apt) | 2263: `no such module Contacts` |
 | 7 | `Contacts` shim (value types real, store access deferred) | 2263: `no such module libPhoneNumber_iOS` |
-| 8 | `libPhoneNumber_iOS` shim … | _(in progress)_ |
+| 8 | `libPhoneNumber_iOS` shim (best-effort E164) | 2263: `no such module ContactsUI` |
+| 9 | batch remaining Apple-framework shims … | _(in progress)_ |
 
 ## Status
 
