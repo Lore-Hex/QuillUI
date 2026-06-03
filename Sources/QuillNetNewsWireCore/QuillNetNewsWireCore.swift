@@ -143,8 +143,25 @@ public struct QuillNetNewsWireContentView: View {
     /// message when present. Bound to inspectedFeedID
     /// so opening from a feedRow's ℹ button works.
     private var inspectorSheet: some View {
+        // Wrap body in ScrollView so content fits at the
+        // current frame size — iter #190's Move-to picker can
+        // surface a long list of folders, iter #199's reorder
+        // buttons add more vertical density, and stats blocks
+        // (per-feed cache + errors + back-off counter) can pile
+        // up. Without scrolling, tall content gets clipped by
+        // the fixed 360-pt height. ScrollView preserves the
+        // sheet's compact footprint without losing access to
+        // anything below the fold.
         let feed = model.subscribedFeeds.first(where: { $0.id == inspectedFeedID })
-        return VStack(alignment: .leading, spacing: 14) {
+        return ScrollView {
+            inspectorBody(feed)
+                .padding(.bottom, 8)
+        }
+        .frame(width: 380, height: 480)
+    }
+
+    private func inspectorBody(_ feed: Feed?) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
             Text("Feed Info").font(.title2).bold()
             if let feed {
                 VStack(alignment: .leading, spacing: 4) {
@@ -352,7 +369,6 @@ public struct QuillNetNewsWireContentView: View {
             }
         }
         .padding(24)
-        .frame(width: 380, height: 360)
     }
 
     /// Render a Date as "Last fetched 2 hours ago" / "never".
@@ -369,6 +385,18 @@ public struct QuillNetNewsWireContentView: View {
     /// covers the user-controlled state the model already
     /// exposes.
     private var settingsSheet: some View {
+        // Same scroll-wrap as inspectorSheet: Settings has grown
+        // a "Refresh back-off" section (iter #218) alongside the
+        // existing refresh interval + stats blocks, and content
+        // can grow further. ScrollView keeps the sheet's
+        // compact footprint without losing access to anything.
+        ScrollView {
+            settingsBody.padding(.bottom, 8)
+        }
+        .frame(width: 380, height: 460)
+    }
+
+    private var settingsBody: some View {
         // 0 minutes = "Manual only" (refreshIntervalSeconds = nil).
         // Stepper's lower bound is 0 so the user can disable
         // background refresh from the UI — upstream NetNewsWire
@@ -456,7 +484,6 @@ public struct QuillNetNewsWireContentView: View {
             }
         }
         .padding(24)
-        .frame(width: 380, height: 360)
     }
 
     private var keyboardShortcutSurface: some View {
