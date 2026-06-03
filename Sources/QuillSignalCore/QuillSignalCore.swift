@@ -54,9 +54,11 @@ public final class QuillSignalModel: ObservableObject {
                     detail = client.decode(line)?.msg ?? "This device isn't linked yet."
                 }
             }
+            let resolvedState = newState
+            let resolvedDetail = detail
             await MainActor.run {
-                self.linkState = newState
-                self.statusDetail = detail
+                self.linkState = resolvedState
+                self.statusDetail = resolvedDetail
             }
         }
     }
