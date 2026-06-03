@@ -98,6 +98,19 @@ Almost certainly still scannable (seams thin + dark, patterns intact), but the
 already has the `qrcode` crate — emit a PNG/pixel grid; show it as an image in the
 GTK front-end) rather than leading-prone text. That's the next QR backlog item.
 
+**App self-contained — auto-spawns its engine (2026-06-03):** `QuillSignalModel`
+now ensures the bridge daemon before its first query: if the unix socket is
+absent it spawns the bridge binary (env `QUILL_SIGNAL_BRIDGE_BIN`, else next to
+the app, else `/usr/local/bin/quill-signal-bridge`) with a persistent
+`QSIGNAL_DB` (`$XDG_DATA_HOME` / `~/.local/share/quill-signal/qs.db`, else
+`/tmp`), off the main thread, polling ~5s for the socket. Verified without an
+account: launched **only** the app (no manual daemon) under Xvfb — socket absent
+→ `spawned bridge daemon pid … / bridge socket up / bridge status -> unlinked`,
+socket now present. Idempotent: when a daemon is already listening the app logs
+`reusing existing daemon` and never double-spawns (the screenshot smoke, which
+starts its own daemon, still renders). One run of the native app now brings up
+its own Rust engine — no separate daemon step.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

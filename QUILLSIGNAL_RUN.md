@@ -52,9 +52,13 @@ docker run --rm -v /Users/jperla/claude/quillui-signal:/qui \
 
 Smoke it offscreen (no account): `scripts/verify-quill-signal-smoke.sh` inside the
 `quillui-signal-build` image (mount `qs-work`). On real QuillOS hardware (with a
-display) the app shows the link panel + QR directly. The app connects to the
-bridge on `/tmp/quill-signal-bridge.sock`, so start the daemon there:
-`quill-signal-bridge /tmp/quill-signal-bridge.sock`.
+display) the app shows the link panel + QR directly.
+
+**The app is self-contained:** on launch it auto-spawns the bridge daemon if one
+isn't already listening on `/tmp/quill-signal-bridge.sock` — override the binary
+with `QUILL_SIGNAL_BRIDGE_BIN` and the account DB with `QSIGNAL_DB` (defaults to
+`~/.local/share/quill-signal/qs.db`). Start a daemon yourself only to pin a
+custom socket/DB; the app reuses an already-listening one (it never double-spawns).
 
 ## After linking (next work)
 

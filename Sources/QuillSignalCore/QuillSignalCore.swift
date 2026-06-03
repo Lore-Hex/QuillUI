@@ -69,20 +69,95 @@ public final class QuillSignalModel: ObservableObject {
         FileHandle.standardError.write(Data(("[QuillSignal] " + message + "\n").utf8))
     }
 
+    /// Ensure the presage bridge daemon is running so the app is self-contained.
+    /// If the unix socket is absent, spawn the bridge binary (env
+    /// QUILL_SIGNAL_BRIDGE_BIN, else next to the app, else /usr/local/bin) with the
+    /// socket as argv[1] and a persistent QSIGNAL_DB, then poll up to ~5s for the
+    /// socket. Idempotent: a present socket means a daemon is already up -> reuse it.
+    /// Blocking (spawn + poll) — call from a background task, never the main thread.
+    nonisolated static func ensureDaemon(socketPath: String) {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: socketPath) {
+            log("bridge socket present -> reusing existing daemon")
+            return
+        }
+        let env = ProcessInfo.processInfo.environment
+        let binPath = env["QUILL_SIGNAL_BRIDGE_BIN"] ?? defaultBridgeBin()
+        guard fm.fileExists(atPath: binPath) else {
+            log("bridge binary not found at \(binPath) — set QUILL_SIGNAL_BRIDGE_BIN")
+            return
+        }
+        let dbPath = env["QSIGNAL_DB"] ?? defaultDBPath()
+        try? fm.createDirectory(atPath: (dbPath as NSString).deletingLastPathComponent,
+                                withIntermediateDirectories: true)
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: binPath)
+        proc.arguments = [socketPath]
+        var penv = env
+        penv["QSIGNAL_DB"] = dbPath
+        proc.environment = penv
+        do {
+            try proc.run()
+            log("spawned bridge daemon pid \(proc.processIdentifier) bin=\(binPath) db=\(dbPath)")
+        } catch {
+            log("failed to spawn bridge daemon: \(error)")
+            return
+        }
+        for _ in 0..<50 {
+            if fm.fileExists(atPath: socketPath) {
+                log("bridge socket up")
+                return
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        log("bridge socket did not appear within timeout")
+    }
+
+    /// Default bridge binary: next to the app binary, else a conventional install path.
+    nonisolated static func defaultBridgeBin() -> String {
+        let appPath = CommandLine.arguments.first ?? ""
+        let dir = (appPath as NSString).deletingLastPathComponent
+        let sibling = dir.isEmpty ? "quill-signal-bridge" : dir + "/quill-signal-bridge"
+        if FileManager.default.fileExists(atPath: sibling) { return sibling }
+        return "/usr/local/bin/quill-signal-bridge"
+    }
+
+    /// Default account DB: XDG data dir, else ~/.local/share, else /tmp.
+    nonisolated static func defaultDBPath() -> String {
+        let env = ProcessInfo.processInfo.environment
+        if let xdg = env["XDG_DATA_HOME"], !xdg.isEmpty {
+            return xdg + "/quill-signal/qs.db"
+        }
+        if let home = env["HOME"], !home.isEmpty {
+            return home + "/.local/share/quill-signal/qs.db"
+        }
+        return "/tmp/quill-signal.db"
+    }
+
     /// Kick off the first status query. Idempotent — `.onAppear` can fire on
     /// every render, and we must not re-query (concurrent presage store opens
     /// race on the sqlite migrations).
     public func startOnce() {
         guard !hasAutoStarted else { return }
         hasAutoStarted = true
-        // Test hook (off by default): go straight to linking so a headless smoke
-        // can verify the device-link flow (URL + QR) without a human clicking
-        // (avoids a concurrent status+link store open).
-        if ProcessInfo.processInfo.environment["QUILLUI_SIGNAL_AUTOLINK"] == "1" {
-            linkState = .unlinked   // show the link panel so the QR is visible
-            beginLink()
-        } else {
-            refreshStatus()
+        let path = socketPath
+        let autolink = ProcessInfo.processInfo.environment["QUILLUI_SIGNAL_AUTOLINK"] == "1"
+        // Make the app self-contained: if no bridge daemon is listening, spawn one
+        // (off the main thread — ensureDaemon polls for the socket) before the
+        // first query. A present socket is reused, so this is idempotent.
+        Task.detached {
+            Self.ensureDaemon(socketPath: path)
+            await MainActor.run {
+                // Test hook (off by default): go straight to linking so a headless
+                // smoke can verify the device-link flow (URL + QR) without a human
+                // clicking (avoids a concurrent status+link store open).
+                if autolink {
+                    self.linkState = .unlinked   // show the link panel so the QR is visible
+                    self.beginLink()
+                } else {
+                    self.refreshStatus()
+                }
+            }
         }
     }
 
