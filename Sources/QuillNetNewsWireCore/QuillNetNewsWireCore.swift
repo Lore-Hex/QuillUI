@@ -41,6 +41,8 @@ public struct QuillNetNewsWireContentView: View {
     @State private var pendingDeleteFeedID: Feed.ID? = nil
     @State private var pendingDeleteFolderName: String? = nil
     @State private var renameFeedInput: String = ""
+    @State private var renameFolderName: String? = nil
+    @State private var renameFolderInput: String = ""
     @Environment(\.openURL) private var openURL
 
     public init() {}
@@ -692,6 +694,49 @@ public struct QuillNetNewsWireContentView: View {
                 if unread > 0 {
                     Button("Mark folder read") {
                         model.markFolderAsRead(folder)
+                    }
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 8)
+                }
+                // Folder rename — two-step toggle so the
+                // TextField only takes up sidebar space when the
+                // user explicitly wants to rename. Mirrors the
+                // feed-rename surface in the inspector but stays
+                // inline since folders don't have a dedicated
+                // inspector. Upstream NetNewsWire's sidebar
+                // "Rename Folder…" surfaces the same affordance.
+                let isRenaming = renameFolderName == folder.name
+                if isRenaming {
+                    HStack(spacing: 6) {
+                        TextField(folder.name, text: Binding(
+                            get: { renameFolderInput },
+                            set: { renameFolderInput = $0 }
+                        ))
+                        Button("Save") {
+                            let trimmed = renameFolderInput
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !trimmed.isEmpty else { return }
+                            _ = model.renameFolder(from: folder.name, to: trimmed)
+                            renameFolderName = nil
+                            renameFolderInput = ""
+                        }
+                        .disabled(
+                            renameFolderInput
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                                .isEmpty
+                        )
+                        Button("Cancel") {
+                            renameFolderName = nil
+                            renameFolderInput = ""
+                        }
+                    }
+                    .font(.caption2)
+                    .padding(.leading, 8)
+                } else {
+                    Button("Rename folder") {
+                        renameFolderName = folder.name
+                        renameFolderInput = folder.name
                     }
                     .font(.caption2)
                     .foregroundColor(.secondary)
