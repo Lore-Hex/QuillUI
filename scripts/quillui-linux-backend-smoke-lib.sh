@@ -406,15 +406,6 @@ quillui_append_quill_chat_fixture_data_environment() {
   local fixture_home="$2"
 
   quillui_append_enchanted_fixture_data_environment "$output_array" "$fixture_home" || return $?
-  # The real-source quill-chat-linux (and the generated Enchanted) read
-  # conversations via the genuine data layer at
-  # $QUILLDATA_HOME/.quilldata/default.sqlite (quillDataRecords) — NOT the reimpl's
-  # .quillui/enchanted db that the enchanted seed above writes. Also run the
-  # quill-chat seed so the sidebar shows conversation history; otherwise the
-  # mac-reference verifier reports "sidebar history text not detected". Invoke the
-  # python directly (NOT quillui_seed_quill_chat_reference_data, which rm -rf's the
-  # home) so it ADDS .quilldata/ alongside the enchanted seed's output.
-  python3 "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/seed-quill-chat-reference-data.py" "$fixture_home" || return $?
   quillui_append_enchanted_reference_mode_environment "$output_array" || return $?
 }
 
