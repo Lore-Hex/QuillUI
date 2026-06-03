@@ -2503,7 +2503,17 @@ final class RSSReaderModel: ObservableObject {
     func storedStarredItems() -> [RSSItem] {
         guard let store = articleStore else { return [] }
         guard let rows = try? store.fetchStarred() else { return [] }
-        return Array(rows.prefix(Self.smartFeedStoredLimit)).map(Self.rssItem(from:))
+        // Same subscribed-feeds filter as hydrateFeedCachesFromStore
+        // (iter #236): orphan SQLite rows from unsubscribed feeds
+        // shouldn't leak into smart-feed surfaces. Otherwise a
+        // starred-but-since-unsubscribed article would keep
+        // appearing in the Starred view forever.
+        let subscribedIDs = Set(subscribedFeeds.map(\.id))
+        return rows
+            .lazy
+            .filter { subscribedIDs.contains($0.feedID) }
+            .prefix(Self.smartFeedStoredLimit)
+            .map(Self.rssItem(from:))
     }
 
     /// Symmetric to storedStarredItems for All Unread.
@@ -2517,8 +2527,10 @@ final class RSSReaderModel: ObservableObject {
     func storedUnreadItems() -> [RSSItem] {
         guard let store = articleStore else { return [] }
         guard let rows = try? store.fetchUnread() else { return [] }
+        let subscribedIDs = Set(subscribedFeeds.map(\.id))
         return rows
             .lazy
+            .filter { subscribedIDs.contains($0.feedID) }
             .filter { !self.readArticleIDs.contains($0.uniqueID) }
             .prefix(Self.smartFeedStoredLimit)
             .map(Self.rssItem(from:))
