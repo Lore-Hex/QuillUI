@@ -261,15 +261,6 @@ struct QuillIceCubesCoreTests {
         #expect(status.favouritesCount == 0)
     }
 
-    @Test("QuillIceCubesCountFormat compacts thousands and millions")
-    func countFormatCompacts() {
-        #expect(QuillIceCubesCountFormat.label(0) == "0")
-        #expect(QuillIceCubesCountFormat.label(42) == "42")
-        #expect(QuillIceCubesCountFormat.label(999) == "999")
-        #expect(QuillIceCubesCountFormat.label(1_280) == "1.3k")
-        #expect(QuillIceCubesCountFormat.label(1_000_000) == "1.0M")
-    }
-
     // MARK: - Relative time
 
     @Test("IceCubesRelativeTime buckets seconds into now/m/h/d")
@@ -328,6 +319,8 @@ struct QuillIceCubesCoreTests {
         #expect(QuillIceCubesStats.summary(reblogs: 0, favourites: 5) == "5 Favorites")
         #expect(QuillIceCubesStats.summary(reblogs: 3, favourites: 0) == "3 Boosts")
         #expect(QuillIceCubesStats.summary(reblogs: 0, favourites: 0) == "")
-        #expect(QuillIceCubesStats.summary(reblogs: 1280, favourites: 0) == "1.3k Boosts")
+        // Large-count compaction ("1.3K") is Apple's IntegerFormatStyle and
+        // locale-dependent, so it isn't asserted here — only this type's own
+        // pluralization + zero-omission logic is.
     }
 }

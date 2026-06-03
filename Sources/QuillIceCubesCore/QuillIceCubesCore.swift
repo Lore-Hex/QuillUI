@@ -323,7 +323,7 @@ public struct QuillIceCubesContentView: View {
         HStack(spacing: 6) {
             Image(systemName: systemName)
             if let count, count > 0 {
-                Text(QuillIceCubesCountFormat.label(count))
+                Text(count.formatted(.number.notation(.compactName)))
                     .font(.caption)
             }
         }
@@ -552,23 +552,10 @@ public enum IceCubesRelativeTime {
     }
 }
 
-/// Compact engagement counts ("1.2k") for the status action bar.
-public enum QuillIceCubesCountFormat {
-    public static func label(_ count: Int) -> String {
-        if count >= 1_000_000 {
-            return String(format: "%.1fM", Double(count) / 1_000_000)
-        }
-        if count >= 1_000 {
-            return String(format: "%.1fk", Double(count) / 1_000)
-        }
-        return String(count)
-    }
-}
-
 /// IceCubes' status-detail engagement summary line: "12 Boosts · 28
-/// Favorites", with singular/plural agreement and compact large counts.
-/// A zero-count metric is omitted; an all-zero status yields an empty
-/// string so the line can be hidden entirely.
+/// Favorites", with singular/plural agreement and Apple's compact
+/// large-number formatting. A zero-count metric is omitted; an all-zero
+/// status yields an empty string so the line can be hidden entirely.
 public enum QuillIceCubesStats {
     public static func summary(reblogs: Int, favourites: Int) -> String {
         var parts: [String] = []
@@ -578,7 +565,10 @@ public enum QuillIceCubesStats {
     }
 
     static func unit(_ count: Int, singular: String) -> String {
-        count == 1 ? "1 \(singular)" : "\(QuillIceCubesCountFormat.label(count)) \(singular)s"
+        // Apple's compact-name notation ("1.3K", "1.5M") via Foundation's
+        // IntegerFormatStyle — the real API, not a hand-rolled formatter.
+        let formatted = count.formatted(.number.notation(.compactName))
+        return count == 1 ? "1 \(singular)" : "\(formatted) \(singular)s"
     }
 }
 
