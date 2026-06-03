@@ -2265,6 +2265,47 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Search clears on navigation (feed / smart feed / folder)")
+    func searchClearsOnNavigation() async {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+            Feed(title: "B", url: "https://b.test/feed"),
+        ])
+        // Make sure no fetch actually fires (selectFeed calls
+        // fetch but the URL won't resolve in tests; the await
+        // returns once the URL fails — search clearing happens
+        // BEFORE the fetch attempt).
+        model.searchQuery = "Swift"
+        model.selectSmartFeed(.allUnread)
+        #expect(model.searchQuery == "")
+
+        // selectSmartFeed(nil) — back out of smart feed view.
+        model.searchQuery = "Rust"
+        model.selectSmartFeed(nil)
+        #expect(model.searchQuery == "")
+
+        // selectFolder
+        model.searchQuery = "Linux"
+        model.selectFolder("anything")
+        #expect(model.searchQuery == "")
+
+        // selectFeed clears too (skipping actual fetch by
+        // selecting the already-active feed via fresh model).
+        let model2 = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        model2.searchQuery = "Go"
+        // Smart feed first so the selectFeed guard's
+        // wasShowingSmartFeed branch fires (otherwise the early
+        // return skips the body).
+        model2.selectSmartFeed(.allUnread)
+        // selectSmartFeed already cleared search; reset for test.
+        model2.searchQuery = "Go"
+        await model2.selectFeed(id: "https://a.test/feed")
+        #expect(model2.searchQuery == "")
+    }
+
+    @MainActor
     @Test("allFolderTargets enumerates nested folders depth-first with depth")
     func allFolderTargetsEnumeratesNested() {
         let model = RSSReaderModel()

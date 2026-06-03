@@ -2484,6 +2484,13 @@ final class RSSReaderModel: ObservableObject {
         selectItem(id: nil)
         // Reset sticky-visible carry-over from the prior view.
         sessionStickyVisibleIDs.removeAll()
+        // Clear the search field. Upstream NetNewsWire treats
+        // search as per-view: switching feeds (or to a smart
+        // feed / folder) returns the timeline to its full
+        // contents. Without this, searching "swift" in Feed A
+        // then clicking Feed B silently filtered Feed B too,
+        // and the user couldn't tell why most rows were missing.
+        searchQuery = ""
         // Dismiss any subscribe-toast lingering from the
         // previous view — feed switch is an explicit context
         // change that supersedes the older confirmation.
@@ -2525,6 +2532,9 @@ final class RSSReaderModel: ObservableObject {
         // that were marked-read during the prior session no
         // longer linger.
         sessionStickyVisibleIDs.removeAll()
+        // Search is per-view (matches upstream NetNewsWire); a
+        // new smart-feed visit starts with the full pool.
+        searchQuery = ""
     }
 
     /// Select a folder-as-smart-feed view. Clears active smart
@@ -2538,6 +2548,8 @@ final class RSSReaderModel: ObservableObject {
         }
         selectItem(id: nil)
         sessionStickyVisibleIDs.removeAll()
+        // Search is per-view (matches upstream NetNewsWire).
+        searchQuery = ""
     }
 
     /// IDs of articles the user has opened during the current
