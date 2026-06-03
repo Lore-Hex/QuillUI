@@ -52,6 +52,7 @@ public final class QuillSignalModel: ObservableObject {
     @Published public var statusDetail: String = ""
     @Published public var linkURL: String?
     @Published public var linkQR: String?
+    @Published public var linkQRPath: String?
     @Published public var isLinking: Bool = false
     @Published public var conversations: [Conversation] = []
     @Published public var accountNumber: String?
@@ -280,6 +281,7 @@ public final class QuillSignalModel: ObservableObject {
         isLinking = true
         linkURL = nil
         linkQR = nil
+        linkQRPath = nil
         statusDetail = "Requesting a link code from Signal…"
         let path = socketPath
         let cmd = "{\"cmd\":\"link-begin\",\"device_name\":\"\(deviceName)\"}"
@@ -301,6 +303,10 @@ public final class QuillSignalModel: ObservableObject {
                     if let qr = msg.qr {
                         Self.log("link QR -> \(qr.count) chars")
                         Task { @MainActor in self.linkQR = qr }
+                    }
+                    if let qrPath = msg.qrPngPath {
+                        Self.log("link QR png -> \(qrPath)")
+                        Task { @MainActor in self.linkQRPath = qrPath }
                     }
                     return true
                 case "linked":
@@ -393,7 +399,11 @@ public struct QuillSignalContentView: View {
             Text("Link this device to Signal").font(.title3).bold()
             Text("On your phone: Signal → Settings → Linked Devices → Link New Device, then scan this QR.")
                 .font(.caption)
-            if let qr = model.linkQR {
+            if let qrPath = model.linkQRPath, FileManager.default.fileExists(atPath: qrPath) {
+                // Crisp bitmap QR (square modules, no font-leading seams).
+                Image(filePath: qrPath).resizable().frame(width: 260, height: 260)
+            } else if let qr = model.linkQR {
+                // Fallback: the Unicode-block QR as monospace text.
                 Text(qr).font(.system(size: 9, design: .monospaced))
             }
             if let url = model.linkURL {

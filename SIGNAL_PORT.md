@@ -111,6 +111,19 @@ socket now present. Idempotent: when a daemon is already listening the app logs
 starts its own daemon, still renders). One run of the native app now brings up
 its own Rust engine — no separate daemon step.
 
+**Crisp bitmap QR (2026-06-03, replaces the monospace-text QR):** the seams
+flagged in a11e540 are gone. The bridge now also renders the provisioning URL as
+a real PNG — each module an 8×8 solid black block with a 4-module quiet zone,
+built from the `qrcode` module grid (`to_colors`) via the `image` crate (only the
+`png` feature; decoupled from qrcode's image feature so no cross-crate version
+coupling) — written to a temp file and surfaced as `qr_png_path` on the `link-qr`
+event. SwiftOpenUI's `Image(filePath:)` (a real GTK `GtkPicture` via
+`gtk_swift_picture_new_for_filename`) shows it in the link panel
+(`.resizable().frame(260×260)`); the Unicode-block `qr` text stays as a fallback
+and for the terminal CLI. Verified by screenshot + a nearest-neighbour zoom:
+**solid square modules, all three finder patterns clean, zero grey row-seams** —
+a high-quality scannable QR, a clear upgrade over the leading-prone text render.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

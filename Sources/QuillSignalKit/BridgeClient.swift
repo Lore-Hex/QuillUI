@@ -24,6 +24,13 @@ public struct BridgeMessage: Codable, Sendable {
     public let event: String?
     public let url: String?
     public let qr: String?
+    /// Path to a crisp PNG render of the link QR (link-qr event), for GUI display.
+    public let qrPngPath: String?
+
+    enum CodingKeys: String, CodingKey {
+        case ok, cmd, msg, event, url, qr
+        case qrPngPath = "qr_png_path"
+    }
 }
 
 /// Minimal unix-socket client for quill-signal-bridge's line-delimited-JSON protocol.
