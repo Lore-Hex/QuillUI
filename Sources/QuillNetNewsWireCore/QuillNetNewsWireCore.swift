@@ -270,10 +270,12 @@ public struct QuillNetNewsWireContentView: View {
                     .font(.caption2)
                     .foregroundColor(rootIsCurrent ? .blue : .secondary)
                     .disabled(rootIsCurrent)
-                    ForEach(model.subscriptionRoot.subfolders) { folder in
-                        let isCurrent = (currentParent == folder.name)
-                        Button(isCurrent ? "✓ \(folder.name)" : folder.name) {
-                            _ = model.moveFeed(feed.id, toFolder: folder.name)
+                    ForEach(model.allFolderTargets(), id: \.name) { target in
+                        let isCurrent = (currentParent == target.name)
+                        let indent = String(repeating: "  ", count: target.depth)
+                        let label = isCurrent ? "✓ \(indent)\(target.name)" : "\(indent)\(target.name)"
+                        Button(label) {
+                            _ = model.moveFeed(feed.id, toFolder: target.name)
                         }
                         .font(.caption2)
                         .foregroundColor(isCurrent ? .blue : .secondary)
@@ -4656,6 +4658,33 @@ final class RSSReaderModel: ObservableObject {
     /// but if it did, we'd report the first one encountered).
     func folderName(containing feedID: Feed.ID) -> String? {
         Self.folderName(containing: feedID, in: subscriptionRoot)
+    }
+
+    /// Flat list of every folder in subscriptionRoot, depth-
+    /// first, for the inspector's "Move to" picker. Each entry
+    /// carries depth so the UI can indent nested folders. Used
+    /// to expose nested-folder destinations the prior surface
+    /// missed (it only enumerated top-level subfolders, so
+    /// imported OPMLs with nested structure couldn't target
+    /// the inner folders).
+    struct FolderTarget: Sendable, Hashable {
+        public let name: String
+        public let depth: Int
+    }
+
+    func allFolderTargets() -> [FolderTarget] {
+        var out: [FolderTarget] = []
+        Self.collectFolderTargets(subscriptionRoot, depth: 0, into: &out)
+        return out
+    }
+
+    private static func collectFolderTargets(
+        _ folder: OPMLImporter.Folder, depth: Int, into out: inout [FolderTarget]
+    ) {
+        for sub in folder.subfolders {
+            out.append(FolderTarget(name: sub.name, depth: depth))
+            collectFolderTargets(sub, depth: depth + 1, into: &out)
+        }
     }
 
     private static func folderName(

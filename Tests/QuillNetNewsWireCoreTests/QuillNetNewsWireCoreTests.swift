@@ -2265,6 +2265,30 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("allFolderTargets enumerates nested folders depth-first with depth")
+    func allFolderTargetsEnumeratesNested() {
+        let model = RSSReaderModel()
+        // Build a 3-level tree: root → Tech (Programming → Swift),
+        // News. allFolderTargets should walk depth-first with
+        // accurate depth labels so the UI can indent.
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(name: "Tech", feeds: [], subfolders: [
+                    OPMLImporter.Folder(name: "Programming", feeds: [], subfolders: [
+                        OPMLImporter.Folder(name: "Swift", feeds: [], subfolders: []),
+                    ]),
+                ]),
+                OPMLImporter.Folder(name: "News", feeds: [], subfolders: []),
+            ]
+        )
+        let targets = model.allFolderTargets()
+        #expect(targets.map(\.name) == ["Tech", "Programming", "Swift", "News"])
+        #expect(targets.map(\.depth) == [0, 1, 2, 0])
+    }
+
+    @MainActor
     @Test("folderName(containing:) returns nil at root, name when in folder, nil for missing")
     func folderNameContainingLookup() {
         let model = RSSReaderModel(subscribedFeeds: [
