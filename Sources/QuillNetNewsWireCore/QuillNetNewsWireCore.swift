@@ -3392,10 +3392,23 @@ final class RSSReaderModel: ObservableObject {
     func selectPreviousItem() {
         let pool = filteredItems
         guard !pool.isEmpty else { return }
-        guard let current = selectedID,
-              let index = pool.firstIndex(where: { $0.id == current }),
-              index > 0
-        else { return }
+        guard let current = selectedID else {
+            // No selection — match selectNextItem's "land on
+            // first" behavior so j/k both have a sane no-current
+            // landing.
+            selectItem(id: pool.first?.id)
+            return
+        }
+        guard let index = pool.firstIndex(where: { $0.id == current }) else {
+            // Stale selection (article aged out of pool, user
+            // unstarred in Starred view, etc.) — match
+            // selectNextItem's recovery: land on first item.
+            // Without this, k after a stale selection no-op'd
+            // and the user was stuck.
+            selectItem(id: pool.first?.id)
+            return
+        }
+        guard index > 0 else { return }
         selectItem(id: pool[index - 1].id)
     }
 
