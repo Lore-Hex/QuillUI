@@ -693,6 +693,25 @@ struct QuillNetNewsWireCoreTests {
     // MARK: - Today smart feed (date-based)
 
     @MainActor
+    @Test("All Unread empty state distinguishes 'no articles yet' from 'fully drained'")
+    func allUnreadEmptyStateDistinguishesFreshFromDrained() {
+        let model = RSSReaderModel()
+        model.selectSmartFeed(.allUnread)
+        // Fresh state: no items in cache anywhere.
+        let fresh = model.emptyTimelineMessage()
+        #expect(fresh.headline == "No Articles Yet")
+        #expect(fresh.detail.contains("Refresh All"))
+        // Drained state: items exist but all read.
+        model.items = [
+            RSSItem(id: "x", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.markRead(id: "x")
+        let drained = model.emptyTimelineMessage()
+        #expect(drained.headline == "All Read")
+        #expect(drained.detail.contains("marked read"))
+    }
+
+    @MainActor
     @Test("Today smart feed filters items by datePublished within today's calendar day")
     func smartFeedTodayFiltersByDate() {
         let model = RSSReaderModel()
@@ -5290,6 +5309,14 @@ struct QuillNetNewsWireCoreTests {
         ])
         model.selectSmartFeed(.today)
         #expect(model.emptyTimelineMessage().headline == "No Articles Today")
+        // All Unread headline depends on whether there are
+        // cached articles at all (drained vs fresh-install).
+        // Seed an item so the "All Read" branch fires; without
+        // items, the iter-204 split returns "No Articles Yet".
+        model.items = [
+            RSSItem(id: "x", title: "X", link: nil, pubDate: nil, descriptionHTML: nil),
+        ]
+        model.markRead(id: "x")
         model.selectSmartFeed(.allUnread)
         #expect(model.emptyTimelineMessage().headline == "All Read")
         model.selectSmartFeed(.starred)

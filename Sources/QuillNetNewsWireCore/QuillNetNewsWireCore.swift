@@ -5315,9 +5315,29 @@ final class RSSReaderModel: ObservableObject {
         }
         if let smart = selectedSmartFeed {
             switch smart {
-            case .today:     return ("No Articles Today", "Nothing published in the last 24 hours.")
-            case .allUnread: return ("All Read", "Every article in every feed is marked read.")
-            case .starred:   return ("No Starred Articles", "Star an article to add it here.")
+            case .today:
+                return ("No Articles Today", "Nothing published since midnight.")
+            case .allUnread:
+                // Distinguish "user fully drained their inbox"
+                // from "user just hasn't fetched anything yet"
+                // — the same empty pool came from very
+                // different states. Upstream NetNewsWire shows
+                // matching distinct messages; without this,
+                // a fresh install said "All Read" which read
+                // as "nothing to do" instead of "click
+                // Refresh All".
+                let hasCachedArticles = !items.isEmpty
+                    || feedCaches.values.contains(where: { !$0.items.isEmpty })
+                if hasCachedArticles {
+                    return ("All Read", "Every article in every feed is marked read.")
+                } else {
+                    return (
+                        "No Articles Yet",
+                        "Subscribe to a feed and Refresh All to load articles."
+                    )
+                }
+            case .starred:
+                return ("No Starred Articles", "Star an article to add it here.")
             }
         }
         if let folder = selectedFolderName {
