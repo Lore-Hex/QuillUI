@@ -87,7 +87,11 @@ struct QuillNetNewsWireCoreTests {
         #expect(model.rows.map(\.id) == ["1", "2", "3", "4", "5"])
         #expect(model.selectedItem?.id == "1")
         #expect(model.selectedDetail?.id == "1")
-        #expect(model.selectedDetail?.plainTextBody == "Body of the first fixture article.")
+        // Fixture 1 is now a multi-paragraph article so the detail
+        // pane exercises NetNewsWire-style paragraph rendering.
+        #expect(model.selectedDetail?.bodyParagraphs.count == 3)
+        #expect(model.selectedDetail?.bodyParagraphs.first?.hasPrefix("Decades before the advent of photography") == true)
+        #expect(model.selectedDetail?.author == "Kate Mothes")
 
         model.selectedID = "2"
         #expect(model.selectedItem?.id == "2")
@@ -290,7 +294,7 @@ struct QuillNetNewsWireCoreTests {
 
     // MARK: - Upstream FeedParser adapter (parseUpstream)
 
-    @Test("parseUpstream parses RSS 2.0 via upstream FeedParser, falls back Untitled and ISO-8601 pubDate")
+    @Test("parseUpstream parses RSS 2.0 via upstream FeedParser, falls back Untitled and friendly pubDate")
     func parseUpstreamRSS2() {
         let xml = """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -320,10 +324,12 @@ struct QuillNetNewsWireCoreTests {
         let titles = result.items.map(\.title)
         #expect(titles.contains("Has Title"))
         #expect(titles.contains("Untitled"))
-        // pubDate is ISO-8601 normalized (legacy parser preserved
-        // the raw header — the adapter intentionally normalizes).
+        // pubDate is normalized to a friendly display string
+        // ("MMM d, yyyy 'at' h:mm a") so the detail header + timeline
+        // read like NetNewsWire. Asserted timezone-robustly: the
+        // year + the "at" literal are present regardless of locale TZ.
         let pubs = result.items.compactMap(\.pubDate)
-        #expect(pubs.allSatisfy { $0.contains("T") && $0.hasSuffix("Z") })
+        #expect(pubs.allSatisfy { $0.contains("2024") && $0.contains(" at ") })
     }
 
     @Test("parseUpstream sorts items newest-first with uniqueID tiebreaker")
@@ -700,10 +706,11 @@ struct QuillNetNewsWireCoreTests {
     func searchMatchesTitleCaseInsensitive() {
         let model = RSSReaderModel()
         model.seedProfileFixtures()
-        model.searchQuery = "SWIFT"
+        model.searchQuery = "POINT-FREE"
         let ids = model.filteredRows.map(\.id)
-        // Fixture "3" is the Swift.org toolchain article.
-        #expect(ids == ["3"])
+        // Fixture "4" is the only "Point-Free…" title; uppercase
+        // query exercises case-insensitive title matching.
+        #expect(ids == ["4"])
     }
 
     @MainActor
@@ -711,9 +718,10 @@ struct QuillNetNewsWireCoreTests {
     func searchMatchesBody() {
         let model = RSSReaderModel()
         model.seedProfileFixtures()
-        model.searchQuery = "second"
-        // Fixture "2" body: 'Body of the second fixture article.'
-        #expect(model.filteredRows.map(\.id) == ["2"])
+        model.searchQuery = "expeditions"
+        // "expeditions" appears only in fixture "1"'s body, not in
+        // any title — proves the filter searches body text too.
+        #expect(model.filteredRows.map(\.id) == ["1"])
     }
 
     @MainActor
@@ -742,7 +750,7 @@ struct QuillNetNewsWireCoreTests {
     func searchStatusTextShowsMatching() {
         let model = RSSReaderModel()
         model.seedProfileFixtures()
-        model.searchQuery = "Profile"  // matches title prefix of fixtures 1 and 2
+        model.searchQuery = "Swift"  // matches titles of fixtures 2 and 3
         let matching = model.filteredRows.count
         #expect(matching >= 1)
         #expect(model.statusText == "\(matching) matching · \(model.items.count) items")
