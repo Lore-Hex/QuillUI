@@ -3909,23 +3909,30 @@ final class RSSReaderModel: ObservableObject {
             return
         }
         didStartInitialLoad = true
-        // Skip the active-feed fetch when its cache is fresher
-        // than the refresh interval — same gate the background
-        // catch-up uses (iter #262). Cuts the launch-time round-
-        // trip when the user just quit + relaunched. The user
-        // explicitly clicking the feed (via sidebar) still goes
-        // through selectFeed → fetch which doesn't gate on
-        // freshness (that's the explicit "I want fresh" path).
+        // Skip the active-feed fetch when:
+        // - manual-only mode (refreshIntervalSeconds == nil) —
+        //   user explicitly turned off auto-refresh; launch is
+        //   "auto" by their definition
+        // - cache.lastFetchAt is fresher than the interval —
+        //   quick relaunch shouldn't pay a network round-trip
+        //
+        // The user explicitly clicking the feed (via sidebar /
+        // ⌥⌘↓) still goes through selectFeed → fetch which
+        // doesn't gate on freshness (that's the explicit "I
+        // want fresh" path).
         let interval = self.refreshIntervalSeconds
         let now = Date()
-        let activeFresh: Bool = {
+        let activeShouldFetch: Bool = {
+            // Manual-only → never auto-fetch on launch.
             guard let interval else { return false }
+            // No cache yet (first fetch ever) → always fetch.
             guard let activeID = subscribedFeeds.first(where: { $0.url == urlString })?.id,
                   let lastFetchAt = self.feedCaches[activeID]?.lastFetchAt
-            else { return false }
-            return now.timeIntervalSince(lastFetchAt) < interval
+            else { return true }
+            // Stale enough to refresh.
+            return now.timeIntervalSince(lastFetchAt) >= interval
         }()
-        if !activeFresh {
+        if activeShouldFetch {
             await fetch(urlString: urlString)
         }
         // Refresh every other subscribed feed in the background
