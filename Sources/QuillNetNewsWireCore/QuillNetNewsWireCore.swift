@@ -787,6 +787,22 @@ public struct QuillNetNewsWireContentView: View {
                     .foregroundColor(.secondary)
                     .padding(.leading, 8)
                 }
+                // Reorder folder within its parent. reorderFolder
+                // walks the tree by name and shifts within its
+                // sibling list. addFolder is root-only so most
+                // user-visible folders live at root, but the
+                // model handles nested-folder reorder too.
+                HStack(spacing: 6) {
+                    Button("↑") {
+                        _ = model.reorderFolder(named: folder.name, by: -1)
+                    }
+                    .font(.caption2)
+                    Button("↓") {
+                        _ = model.reorderFolder(named: folder.name, by: 1)
+                    }
+                    .font(.caption2)
+                }
+                .padding(.leading, 8)
                 // Folder rename — two-step toggle so the
                 // TextField only takes up sidebar space when the
                 // user explicitly wants to rename. Mirrors the
