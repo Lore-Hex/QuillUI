@@ -144,6 +144,25 @@ if patched == src:
 open(path, "w").write(patched)
 print("patched WireGuardKitC.h to explicitly include <sys/types.h>")
 PY
+
+    # The Shared/Model wg-quick parser extends WireGuardKit's
+    # TunnelConfiguration but imports only Foundation — upstream's
+    # Xcode build puts it in the WireGuardKit module via target
+    # membership, but SwiftPM compiles it as its own target, so it
+    # needs an explicit `import WireGuardKit`. Same shape as the
+    # header patch above: a Linux/SwiftPM compat add, no logic change.
+    local parser="$UPSTREAM_DIR/wireguard-apple/Sources/Shared/Model/TunnelConfiguration+WgQuickConfig.swift"
+    if [[ -f "$parser" ]] && ! grep -q '^import WireGuardKit' "$parser"; then
+        echo "==> patching TunnelConfiguration+WgQuickConfig.swift to import WireGuardKit"
+        python3 - "$parser" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+patched = src.replace('import Foundation\n', 'import Foundation\nimport WireGuardKit\n', 1)
+open(path, "w").write(patched)
+print("patched TunnelConfiguration+WgQuickConfig.swift to import WireGuardKit")
+PY
+    fi
 }
 
 want=("$@")

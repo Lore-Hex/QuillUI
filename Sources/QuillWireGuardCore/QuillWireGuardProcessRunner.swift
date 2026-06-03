@@ -22,7 +22,21 @@ public struct QuillWireGuardProcessRunner: QuillWireGuardCommandRunner {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
+        let stdinPipe = command.standardInput != nil ? Pipe() : nil
+        if let stdinPipe {
+            process.standardInput = stdinPipe
+        }
+
         try process.run()
+
+        // Feed stdin (e.g. `wg pubkey`) then close it to signal EOF so the command
+        // finishes reading. Small payloads only (a key), so writing before draining
+        // stdout can't deadlock.
+        if let stdinPipe, let input = command.standardInput {
+            stdinPipe.fileHandleForWriting.write(Data(input.utf8))
+            try? stdinPipe.fileHandleForWriting.close()
+        }
+
         // Drain stdout to EOF before waiting so a large `wg show dump` can't deadlock
         // on a full pipe buffer.
         let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()

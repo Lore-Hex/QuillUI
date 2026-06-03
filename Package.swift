@@ -407,7 +407,17 @@ let nnwLogicDependencies: [Target.Dependency] = [
 // chooses one host graph with QUILLUI_LINUX_BACKEND=gtk|qt: the default GTK
 // graph keeps SwiftOpenUI scenes, while the Qt graph swaps app-specific Qt
 // products to native Qt Widgets hosts fed by small JSON snapshots.
-let quillWireGuardCoreDependencies: [Target.Dependency] = []
+var quillWireGuardCoreDependencies: [Target.Dependency] = []
+// Build the real upstream WireGuardKit (config model + keypair gen) wherever it's
+// vendored — now Linux too (the Darwin/CommonCrypto blockers are shimmed). Core
+// depends on it so CI compiles it; Core keeps its own model until a follow-up
+// swaps in WireGuardKit's TunnelConfiguration. NOT in the native-Qt Linux graph:
+// that path reassigns `targets` to a minimal list that omits the WireGuardKit
+// upstream targets (and the Network/NetworkExtension shims they need).
+if wireguardUpstreamPresent && quillUILinuxBuildBackend != .qt {
+    quillWireGuardCoreDependencies.append("WireGuardKit")
+    quillWireGuardCoreDependencies.append("QuillWireGuardUpstreamConfig")
+}
 var quillWireGuardUIDependencies: [Target.Dependency] = ["QuillWireGuardCore", "QuillUI"]
 #if !os(Linux)
 if wireguardUpstreamPresent {
@@ -1142,14 +1152,13 @@ if nnwUpstreamPresent {
 // both WireGuardKitC and WireGuardKit (and `QuillWireGuardCore`
 // drops its WireGuardKit dependency further down).
 //
-// Linux gate: WireGuardKitC.h uses Darwin-only types
-// (`u_int32_t`, `u_char`, `sockaddr_ctl`) and pulls in macOS
-// kernel-control APIs. CommonCryptoLinux covers x25519.c's
-// `<CommonCrypto/CommonRandom.h>` but not the header-side
-// Darwinisms. Linux WireGuard therefore runs as a configuration
-// manager shell backed by `QuillWireGuardCore` fixtures until a
-// real privileged backend adapter lands.
-#if !os(Linux)
+// WireGuardKitC.h's Darwin types (`u_int32_t`, `u_char`,
+// `sockaddr_ctl`) are resolved by fetch-upstream's `<sys/types.h>`
+// patch; CommonCryptoLinux maps x25519.c's
+// `<CommonCrypto/CommonRandom.h>` → getrandom(2). So the config
+// model (TunnelConfiguration parsing, keypair generation, IPv4/v6
+// helpers) compiles on Linux too — the runtime files are excluded
+// via wireGuardKitExcludes. Verified building on swift:6.2-noble.
 if wireguardUpstreamPresent {
     targets += [
         .target(
@@ -1180,10 +1189,24 @@ if wireguardUpstreamPresent {
             // unmodified on Linux.
             exclude: wireGuardKitExcludes,
             swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // The real wg-quick string parser (TunnelConfiguration(fromWgQuickConfig:)
+        // / asWgQuickConfig()) lives in the App's Shared/Model, extending
+        // WireGuardKit's TunnelConfiguration. Compile it as its own target so the
+        // real parser is available unmodified (fetch-upstream adds its
+        // `import WireGuardKit`).
+        .target(
+            name: "QuillWireGuardUpstreamConfig",
+            dependencies: ["WireGuardKit"],
+            path: ".upstream/wireguard-apple",
+            sources: [
+                "Sources/Shared/Model/TunnelConfiguration+WgQuickConfig.swift",
+                "Sources/Shared/Model/String+ArrayConversion.swift"
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]
 }
-#endif
 
 // CodeEdit upstream — macOS-only (it's a pure AppKit/SwiftUI Mac app
 // using NSTextView, NSDocument, NSApplicationDelegateAdaptor, Sparkle,

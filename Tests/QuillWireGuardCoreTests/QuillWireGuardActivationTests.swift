@@ -73,4 +73,33 @@ struct QuillWireGuardActivationTests {
         #expect(runner.commands.last?.arguments.contains("stop") == true)
         #expect(runner.commands.last?.arguments.contains("wg-quick@\(iface)") == true)
     }
+
+    @Test("remove deletes the installed config and attempts deactivate")
+    func removeDeletesConfig() throws {
+        let dir = tempDir()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let runner = RecordingRunner()
+        let controller = QuillWireGuardRuntimeController(runner: runner)
+        let tunnel = fixture
+
+        let path = try QuillWireGuardConfigInstaller.install(tunnel: tunnel, directory: dir)
+        #expect(FileManager.default.fileExists(atPath: path))
+
+        try QuillWireGuardActivationService.remove(tunnelNamed: tunnel.name, controller: controller, directory: dir)
+
+        #expect(!FileManager.default.fileExists(atPath: path))  // config removed
+        let iface = QuillWireGuardLiveStatusService.interfaceName(forTunnelNamed: tunnel.name)
+        #expect(runner.commands.contains { $0.arguments.contains("stop") && $0.arguments.contains("wg-quick@\(iface)") })
+    }
+
+    @Test("remove is idempotent when no config exists")
+    func removeIdempotentWhenAbsent() throws {
+        let dir = tempDir()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let controller = QuillWireGuardRuntimeController(runner: RecordingRunner())
+        // No install — removing a tunnel with no on-disk config must not throw.
+        try QuillWireGuardActivationService.remove(tunnelNamed: "ghost", controller: controller, directory: dir)
+        let iface = QuillWireGuardLiveStatusService.interfaceName(forTunnelNamed: "ghost")
+        #expect(!FileManager.default.fileExists(atPath: "\(dir)/\(iface).conf"))
+    }
 }

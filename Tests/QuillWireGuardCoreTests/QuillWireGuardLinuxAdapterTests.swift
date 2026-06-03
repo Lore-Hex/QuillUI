@@ -95,4 +95,13 @@ struct QuillWireGuardLinuxAdapterTests {
             )
         }
     }
+
+    @Test("process runner feeds standardInput to the command's stdin")
+    func processRunnerFeedsStdin() throws {
+        // `cat` with no args echoes stdin to stdout, proving the pipe is wired.
+        let out = try QuillWireGuardProcessRunner().run(
+            QuillWireGuardCommand(executable: "cat", arguments: [], standardInput: "piped-key-data")
+        )
+        #expect(out == "piped-key-data")
+    }
 }
