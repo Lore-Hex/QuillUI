@@ -5497,6 +5497,19 @@ final class RSSReaderModel: ObservableObject {
                     "Toggle \u{201C}Show Read\u{201D} to see articles you have already read."
                 )
             }
+            // Empty folder (no feeds at all in it) is a user-
+            // organization state, not a publisher state — the
+            // "refresh or wait" hint is wrong (no feeds to
+            // refresh). Surface a useful next step instead:
+            // drop the feeds back to root via Delete folder, or
+            // move feeds in via the inspector's Move to picker.
+            if let resolved = Self.findFolder(named: folder, in: subscriptionRoot),
+               resolved.allFeeds.isEmpty {
+                return (
+                    "Empty Folder",
+                    "Move feeds into \u{201C}\(folder)\u{201D} from a feed's inspector, or delete the folder."
+                )
+            }
             return (
                 "No Articles in \(folder)",
                 "Feeds inside this folder have no articles to show — refresh or wait for new posts."

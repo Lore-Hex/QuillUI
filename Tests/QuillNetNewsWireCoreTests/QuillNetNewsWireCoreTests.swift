@@ -719,6 +719,29 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("Empty folder (no feeds inside) shows distinct 'Empty Folder' message")
+    func emptyFolderShowsDistinctMessage() {
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(title: "A", url: "https://a.test/feed"),
+        ])
+        // Folder with zero feeds in it.
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [Feed(title: "A", url: "https://a.test/feed")],
+            subfolders: [
+                OPMLImporter.Folder(name: "Drafts", feeds: [], subfolders: []),
+            ]
+        )
+        model.selectFolder("Drafts")
+        let msg = model.emptyTimelineMessage()
+        // The original "refresh or wait" hint is wrong here —
+        // there are no feeds to refresh. New message tells the
+        // user how to populate the folder.
+        #expect(msg.headline == "Empty Folder")
+        #expect(msg.detail.contains("Move feeds"))
+    }
+
+    @MainActor
     @Test("Folder empty state distinguishes 'Hide Read filtered everything' from 'no articles'")
     func folderEmptyStateDistinguishesHideRead() {
         let model = RSSReaderModel(subscribedFeeds: [
@@ -5420,13 +5443,15 @@ struct QuillNetNewsWireCoreTests {
     @MainActor
     @Test("emptyTimelineMessage names the folder when in folder view")
     func emptyMessageFolderView() {
-        let model = RSSReaderModel(subscribedFeeds: [
-            Feed(title: "A", url: "https://a.test/feed"),
-        ])
+        // Folder with a feed inside but no items → "No Articles
+        // in Tech" branch (vs iter-215's empty-folder split,
+        // which fires only when the folder has zero feeds).
+        let feedA = Feed(title: "A", url: "https://a.test/feed")
+        let model = RSSReaderModel(subscribedFeeds: [feedA])
         model.subscriptionRoot = OPMLImporter.Folder(
             name: "",
             feeds: [],
-            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [], subfolders: [])]
+            subfolders: [OPMLImporter.Folder(name: "Tech", feeds: [feedA], subfolders: [])]
         )
         model.selectFolder("Tech")
         let (h, _) = model.emptyTimelineMessage()
