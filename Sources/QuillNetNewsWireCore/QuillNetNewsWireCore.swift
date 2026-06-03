@@ -252,6 +252,26 @@ public struct QuillNetNewsWireContentView: View {
                         )
                     }
                 }
+                // Move feed up/down within its parent (folder or
+                // root). Upstream NetNewsWire uses drag-and-drop;
+                // SwiftOpenUI on Linux has no DnD plumbing, so
+                // expose the same reorderFeed model API via
+                // button pair. Stays inside the current parent;
+                // crossing folders is the "Move to" block below.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Reorder")
+                        .font(.subheadline)
+                    HStack(spacing: 6) {
+                        Button("↑ Move up") {
+                            _ = model.reorderFeed(feed.id, by: -1)
+                        }
+                        .font(.caption2)
+                        Button("↓ Move down") {
+                            _ = model.reorderFeed(feed.id, by: 1)
+                        }
+                        .font(.caption2)
+                    }
+                }
                 // Move to folder. Upstream NetNewsWire uses
                 // drag-and-drop for this on macOS, which doesn't
                 // translate cleanly to SwiftOpenUI on Linux.
