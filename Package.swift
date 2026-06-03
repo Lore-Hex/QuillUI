@@ -178,6 +178,13 @@ let nnwUpstreamPresent: Bool = false
 let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/Sources/WireGuardKit")
 let codeEditSourceUpstreamPresent: Bool = upstreamPresent(".upstream/codeedit/CodeEdit")
 let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsymbols")
+// Signal-iOS upstream-slice gates (per-worktree `.upstream/...`, not committed).
+// `signalUpstreamPresent` → the real signalapp/Signal-iOS source tree.
+// `libsignalUpstreamPresent` → real signalapp/libsignal (LibSignalClient Swift
+// wrapper + its Rust libsignal_ffi). Signal is compiled ON Linux against
+// QuillUI's Apple-framework shim products, so the targets are `#if os(Linux)`.
+let signalUpstreamPresent: Bool = upstreamPresent(".upstream/signal-ios/SignalServiceKit")
+let libsignalUpstreamPresent: Bool = upstreamPresent(".upstream/libsignal/swift/Sources/LibSignalClient")
 
 enum QuillCanonicalLinuxAppQtRuntime {
     case enchantedQtNative
@@ -527,7 +534,10 @@ let wireGuardKitExcludes: [String] = ["WireGuardAdapter.swift"]
 
 let quillDataPackageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
-    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
+    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
+    // Signal's wire format (pod 'SwiftProtobuf' 1.36.1). Used by
+    // SignalServiceKit's generated `*.pb.swift` + 23 hand-written imports.
+    .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.1")
 ]
 
 let cSQLiteTarget: Target = .systemLibrary(
@@ -1180,6 +1190,43 @@ if wireguardUpstreamPresent {
             // unmodified on Linux.
             exclude: wireGuardKitExcludes,
             swiftSettings: [.swiftLanguageMode(.v5)]
+        )
+    ]
+}
+#endif
+
+// ── Signal-iOS upstream-slice (Linux / QuillOS) ─────────────────────────
+// Compile the REAL signalapp/Signal-iOS against QuillUI's Linux
+// Apple-framework shim products (UIKit / AVFoundation / Network / os / …),
+// real GRDB + SwiftProtobuf, and real libsignal. Unlike WireGuard (a
+// fixture shell on Linux) Signal is meant to BUILD on Linux, so these
+// targets are gated `#if os(Linux)`. Source comes from `.upstream/signal-ios`
+// and `.upstream/libsignal` (fetched per-worktree, never committed).
+//
+// libsignal wiring mirrors libsignal's own swift/Package.swift: `SignalFfi`
+// is a systemLibrary whose module.modulemap does `link "signal_ffi"`, and
+// `libsignal_ffi.a` is produced by `cargo build -p libsignal-ffi --release`
+// into `.upstream/libsignal/target/release/` (the -L path below). The Swift
+// wrapper compiles independently of the .a; the .a is only needed when a
+// downstream executable/test links.
+#if os(Linux)
+if libsignalUpstreamPresent {
+    targets += [
+        .systemLibrary(
+            name: "SignalFfi",
+            path: ".upstream/libsignal/swift/Sources/SignalFfi"
+        ),
+        .target(
+            name: "LibSignalClient",
+            dependencies: ["SignalFfi"],
+            path: ".upstream/libsignal/swift/Sources/LibSignalClient",
+            // libsignal v0.94.1's Swift predates Swift 6 strict-concurrency;
+            // build it in v5 language mode (revisit if it compiles clean).
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: [
+                .linkedLibrary("stdc++"),
+                .unsafeFlags(["-L.upstream/libsignal/target/release"])
+            ]
         )
     ]
 }
