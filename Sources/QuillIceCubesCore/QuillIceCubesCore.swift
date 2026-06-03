@@ -534,10 +534,10 @@ public struct IceCubesTimelineRow: Identifiable, Hashable, Sendable {
     }
 }
 
-/// IceCubes-style relative timestamp formatting for a Mastodon
-/// `created_at` ISO8601 string: "now" / "5m" / "2h" / "3d" within
-/// the last week, then an absolute short date ("Jan 1", or
-/// "Jan 1, 2024" across a year boundary).
+/// Mastodon-facing wrapper that parses a `created_at` ISO8601 string and
+/// formats it with the shared `QuillFoundation.RelativeTime` ("now" / "5m"
+/// / "2h" / "3d" within the last week, then a short absolute date). The
+/// wire-format parsing stays here; the display logic is the reusable piece.
 public enum IceCubesRelativeTime {
     public static func string(fromISO8601 createdAt: String, now: Date) -> String {
         string(fromISO8601: createdAt, now: now, calendar: .current)
@@ -548,12 +548,7 @@ public enum IceCubesRelativeTime {
     /// app uses `.current` to show dates in the viewer's zone.
     static func string(fromISO8601 createdAt: String, now: Date, calendar: Calendar) -> String {
         guard let date = parse(createdAt) else { return "" }
-        let seconds = now.timeIntervalSince(date)
-        if seconds < 60 { return "now" }
-        if seconds < 3600 { return "\(Int(seconds / 60))m" }
-        if seconds < 86_400 { return "\(Int(seconds / 3600))h" }
-        if seconds < 604_800 { return "\(Int(seconds / 86_400))d" }
-        return absoluteShortDate(date, now: now, calendar: calendar)
+        return RelativeTime.string(for: date, now: now, calendar: calendar)
     }
 
     static func parse(_ iso: String) -> Date? {
@@ -562,16 +557,6 @@ public enum IceCubesRelativeTime {
         if let date = formatter.date(from: iso) { return date }
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.date(from: iso)
-    }
-
-    static func absoluteShortDate(_ date: Date, now: Date, calendar: Calendar) -> String {
-        let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = sameYear ? "MMM d" : "MMM d, yyyy"
-        return formatter.string(from: date)
     }
 }
 
