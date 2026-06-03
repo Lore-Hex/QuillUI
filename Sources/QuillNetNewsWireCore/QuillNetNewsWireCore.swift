@@ -2898,10 +2898,19 @@ final class RSSReaderModel: ObservableObject {
             // Restore subscribed-feed title so the header shows
             // the new feed's name even before parse completes.
             setFeedTitle(feed.title.isEmpty ? nil : feed.title)
+            // Also bring lastFetchAt forward to the new feed's
+            // cache stamp so the footer's "Updated X ago"
+            // reflects the new feed, not the prior one. Iter
+            // #242's guard on the live fetch wouldn't run if a
+            // race made urlString != currentFeedURL, so we need
+            // to set it eagerly here.
+            lastFetchAt = cached.lastFetchAt
         } else {
             setItems([])
             articles = []
             setFeedTitle(feed.title.isEmpty ? nil : feed.title)
+            // No cache → no fetch timestamp yet.
+            lastFetchAt = nil
         }
         await fetch(urlString: feed.url)
         autoSelectFirstUnreadIfNoSelection()
