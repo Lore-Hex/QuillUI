@@ -5494,6 +5494,58 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("markAllVisibleAsRead on Starred sweeps SQLite-tail starred-unread too")
+    func markAllVisibleOnStarredSweepsSQLite() throws {
+        // Same shape as the All Unread sweep test, but for the
+        // Starred smart feed. Starred-and-unread rows beyond
+        // smartFeedStoredLimit need to be cleared in a single
+        // Mark All Read pass. fetchStarred returns all starred
+        // rows (read + unread); the model filters to unread.
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-starred-sweep-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let articleStore = try ArticleStore(directoryURL: dir)
+        try articleStore.upsert([
+            // Unread + starred → should get marked.
+            PersistentArticle(
+                id: "star-u", accountID: "Local", feedID: "https://x.test/feed",
+                uniqueID: "star-u", title: "Starred Unread",
+                isRead: false, isStarred: true
+            ),
+            // Already-read + starred → no double-mark.
+            PersistentArticle(
+                id: "star-r", accountID: "Local", feedID: "https://x.test/feed",
+                uniqueID: "star-r", title: "Starred Read",
+                isRead: true, isStarred: true
+            ),
+            // Unread + NOT starred → must NOT get swept by
+            // starred-specific path (would belong to All Unread).
+            PersistentArticle(
+                id: "unstar-u", accountID: "Local", feedID: "https://x.test/feed",
+                uniqueID: "unstar-u", title: "Unstarred Unread",
+                isRead: false, isStarred: false
+            ),
+        ])
+        let model = RSSReaderModel(
+            subscribedFeeds: [Feed(title: "X", url: "https://x.test/feed")],
+            articleStore: articleStore
+        )
+        // RSSReaderModel.init calls reconcileReadStarredFromStore
+        // which merges SQLite isStarred → starredArticleIDs, so
+        // star-u and star-r are already in starredArticleIDs.
+        // Pre-mark star-r as read so the added count isolates
+        // just the newly-marked star-u.
+        model.markRead(id: "star-r")
+        model.selectSmartFeed(.starred)
+        let added = model.markAllVisibleAsRead()
+        // Only star-u should be newly read (was unread+starred).
+        // unstar-u must NOT be marked by the Starred sweep.
+        #expect(added == 1)
+        #expect(model.readArticleIDs.contains("star-u"))
+        #expect(!model.readArticleIDs.contains("unstar-u"))
+    }
+
+    @MainActor
     @Test("markAllVisibleAsRead on All Unread sweeps SQLite-tail beyond visible cap")
     func markAllVisibleOnAllUnreadSweepsSQLite() throws {
         // The All Unread smart feed renders at most

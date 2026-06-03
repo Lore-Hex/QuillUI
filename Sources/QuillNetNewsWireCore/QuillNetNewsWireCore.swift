@@ -3894,6 +3894,20 @@ final class RSSReaderModel: ObservableObject {
                 }
             }
         }
+        // Same logic for the Starred smart feed: a user with
+        // 800 starred-and-unread items would otherwise need
+        // ceil(800/500) clicks to clear them. Starred rows stay
+        // visible even after read so the visual stays
+        // consistent — Mark All Read just bumps the unread
+        // badge. fetchStarred returns ALL starred rows (no read
+        // filter), so we filter to unread-only here.
+        if selectedSmartFeed == .starred, let articleStore {
+            if let storedRows = try? articleStore.fetchStarred() {
+                for row in storedRows where !readArticleIDs.contains(row.uniqueID) {
+                    markRead(id: row.uniqueID)
+                }
+            }
+        }
         return readArticleIDs.count - before
     }
 
