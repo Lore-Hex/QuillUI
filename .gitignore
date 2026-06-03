@@ -58,3 +58,7 @@ swiftly-*.tar.gz
 # .swarm/spawn-non-claude-worker.sh; should never enter a PR).
 .swarm-prompt.txt
 .swarm-run.log
+
+# QuillSignal UI screenshots (scripts/quill-signal-screenshot.sh) — local-only.
+.qs-shot.png
+.qs-qr-zoom.png

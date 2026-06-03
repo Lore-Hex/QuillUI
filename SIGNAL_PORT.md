@@ -82,6 +82,22 @@ presage → Signal → real provisioning URL + scannable QR, displayed natively.
 that completion + send/receive is the only user-gated (phone) step. After
 linking, extend the bridge with list-conversations/messages/send + wire the UI.**
 
+**UI visually verified (2026-06-03, first actual screenshot):**
+`scripts/quill-signal-screenshot.sh` runs the app under a real Xvfb on a known
+DISPLAY (not the offscreen-render smoke), drives `QUILLUI_SIGNAL_AUTOLINK=1`, and
+captures the X root to a PNG via ImageMagick `import` (added `imagemagick` +
+`x11-apps` to the build image). Read back, the link panel renders correctly: bold
+**"Link this device to Signal"** title, the instruction line with `→` arrows, the
+QR, the `sgnl://linkdevice?…` URL fallback, and a "Linking…" status. A
+nearest-neighbour zoom of the QR confirms **all three finder patterns are clean
+and square and the module grid is intact** — a valid QR by eye. One artifact: the
+Dense1x2 Unicode-block QR is rendered as monospace `Text`, so font leading +
+non-pure-black anti-aliasing leave faint grey seams between module-row-pairs.
+Almost certainly still scannable (seams thin + dark, patterns intact), but the
+**robust fix is to render the QR as a true crisp-square bitmap image** (the bridge
+already has the `qrcode` crate — emit a PNG/pixel grid; show it as an image in the
+GTK front-end) rather than leading-prone text. That's the next QR backlog item.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

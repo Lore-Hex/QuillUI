@@ -30,6 +30,8 @@ RUN set -eux; \
         xvfb \
         dbus-x11 \
         fonts-dejavu-core \
+        imagemagick \
+        x11-apps \
         ca-certificates; \
     test -f /usr/include/sqlite3.h; \
     test -f /usr/include/openssl/evp.h; \

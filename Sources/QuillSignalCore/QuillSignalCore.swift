@@ -79,6 +79,7 @@ public final class QuillSignalModel: ObservableObject {
         // can verify the device-link flow (URL + QR) without a human clicking
         // (avoids a concurrent status+link store open).
         if ProcessInfo.processInfo.environment["QUILLUI_SIGNAL_AUTOLINK"] == "1" {
+            linkState = .unlinked   // show the link panel so the QR is visible
             beginLink()
         } else {
             refreshStatus()
