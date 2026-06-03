@@ -696,6 +696,20 @@ public struct QuillNetNewsWireContentView: View {
                 searchFieldFocused = true
             }
             .keyboardShortcut("f", modifiers: .command)
+            // Esc clears the search query AND blurs the field
+            // (sets @FocusState to false). Matches the search-
+            // field ✕ button + the universal "Esc clears
+            // search" expectation from browsers, Finder, etc.
+            // Only fires the clear when there's a query to
+            // clear — leaves Esc free for sheet dismissal in
+            // the more-common no-search-active case.
+            Button("clear search") {
+                if !model.searchQuery.isEmpty {
+                    model.searchQuery = ""
+                    searchFieldFocused = false
+                }
+            }
+            .keyboardShortcut(.escape, modifiers: [])
             // ⌥⌘↓ / ⌥⌘↑ = Go to Next / Previous Feed. Matches
             // upstream NetNewsWire's sidebar nav shortcuts. j/k
             // walks within the active feed's timeline; these
