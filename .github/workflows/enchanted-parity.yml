@@ -97,6 +97,13 @@ jobs:
           # works and the rich existing mac-reference interaction validators are reusable.
           QUILLUI_BACKEND_INTERACTION_MODE: composer-typed
           QUILLUI_BACKEND_NO_REFERENCE_RESIZE: "1"
+          # The real source renders ~2048 wide intrinsically (ignores the window-size
+          # env). The reimpl's interaction input works only because its default window
+          # is SMALL and does not fill the screen; the 2048 window fills the 2048
+          # mac-reference screen, and a screen-filling window under bare Xvfb (no WM)
+          # appears not to receive xdotool pointer/keyboard events. Give the interaction
+          # a LARGER screen so the ~2048 window no longer fills it, and re-test input.
+          QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE: "2400x1600x24"
         run: |
           QUILLUI_BACKEND_INTERACTION_APP_LOG=.qa/quill-chat-linux-noresize-composer.log \
             scripts/linux-backend-interaction-check.sh \
