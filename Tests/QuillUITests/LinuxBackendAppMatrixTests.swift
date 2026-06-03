@@ -442,7 +442,7 @@ struct LinuxBackendAppMatrixTests {
             #expect(qtLauncher.contains("import \(contract.qtRuntimeDependency)"))
             #expect(qtLauncher.contains(contract.qtLauncherCall))
         }
-        #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-enchanted-qt\", targets: [\"QuillEnchantedQt\"]))\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
+        #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
         #expect(manifest.contains("let quillCanonicalLinuxAppProducts: [Product] = quillCanonicalLinuxApps.map(\\.productDeclaration)"))
         #expect(manifest.contains("let quillGenericQtSwiftSettings: [SwiftSetting] ="))

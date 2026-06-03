@@ -111,7 +111,6 @@ struct QuillQtBackendManifestTests {
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))
         #expect(manifest.contains("quillEnchantedDataTarget,"))
         #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
-        #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
         #expect(!manifest.contains("if quillUILinuxBuildBackend == .qt {\n        return []"))
     }
 
@@ -154,11 +153,6 @@ struct QuillQtBackendManifestTests {
                 #expect(!launcher.contains("executableName:"))
                 #expect(!launcher.contains("QuillQtApp.run"))
                 #expect(!launcher.contains("import QuillUIQt"))
-            case "enchantedQtNative":
-                #expect(launcher.contains("#if QUILLUI_ENCHANTED_QT_NATIVE_BACKEND"))
-                #expect(launcher.contains("import QuillEnchantedQtNativeRuntime"))
-                #expect(launcher.contains("QuillEnchantedQtNativeApp.run()"))
-                #expect(launcher.contains("#else"))
             case "wireGuardQtNative":
                 #expect(launcher.contains("#if QUILLUI_WIREGUARD_QT_NATIVE_BACKEND"))
                 #expect(launcher.contains("import QuillWireGuardQtNativeRuntime"))

@@ -896,7 +896,9 @@ struct SourceHygieneTests {
     func enchantedQtRuntimeMirrorsMacOSPayloadContract() throws {
         let enchantedDataModels = try packageSource("Sources/QuillEnchantedData/Models.swift")
         let enchantedShared = try packageSource("Sources/QuillEnchantedShared/QuillEnchantedShared.swift")
-        let enchantedQtRuntime = try packageSource("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift")
+        // Obsolete: QuillEnchantedQtNativeRuntime was deleted (reimpl retirement, epic
+        // #188 #26). Removed in PR-C; skip here so PR-A is green.
+        guard let enchantedQtRuntime = try? packageSource("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift") else { return }
 
         #expect(enchantedQtRuntime.contains("import QuillEnchantedData"))
         #expect(enchantedQtRuntime.contains("import QuillEnchantedShared"))
@@ -1125,7 +1127,9 @@ struct SourceHygieneTests {
 
     @Test("Enchanted Qt host follows the macOS visual and interaction contract")
     func enchantedQtHostFollowsMacOSVisualAndInteractionContract() throws {
-        let enchantedQtRuntime = try packageSource("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift")
+        // Obsolete: QuillEnchantedQtNativeRuntime was deleted (reimpl retirement, epic
+        // #188 #26). Removed in PR-C; skip here so PR-A is green.
+        guard let enchantedQtRuntime = try? packageSource("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift") else { return }
         let enchantedQtHost = try packageSource("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp")
         let enchantedMacRoot = try packageSource("Sources/QuillEnchantedCore/EnchantedRootView.swift")
         let enchantedClipboard = try packageSource("Sources/QuillEnchantedCore/EnchantedClipboard.swift")
@@ -2309,7 +2313,6 @@ struct SourceHygieneTests {
 
     @Test("Generic and WireGuard Qt hosts use shared native runtime contracts")
     func genericAndWireGuardQtHostsUseSharedNativeRuntimeContracts() throws {
-        let enchantedQtRuntime = try packageSource("Sources/QuillEnchantedQtNativeRuntime/QuillEnchantedQtNativeRuntime.swift")
         let enchantedQtHost = try packageSource("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp")
         let genericQtRuntime = try packageSource("Sources/QuillGenericQtNativeRuntime/QuillGenericQtNativeRuntime.swift")
         let genericQtHost = try packageSource("Sources/CQuillQt6WidgetsShim/QuillGenericQt6Widgets.cpp")
@@ -2460,7 +2463,6 @@ struct SourceHygieneTests {
         #expect(wireGuardQtHost.contains("QuillQtWidgets::defaultWindowSize(payload, minimumWindowSize)"))
         #expect(!wireGuardQtHost.contains("QSize resolvedMinimumWindowSize"))
         #expect(!wireGuardQtHost.contains("QSize resolvedDefaultWindowSize"))
-        #expect(!enchantedQtRuntime.contains("JSONEncoder()"))
         #expect(!genericQtRuntime.contains("JSONEncoder()"))
         #expect(!wireGuardQtRuntime.contains("JSONEncoder()"))
         #expect(!enchantedQtHost.contains("missing payload JSON"))
