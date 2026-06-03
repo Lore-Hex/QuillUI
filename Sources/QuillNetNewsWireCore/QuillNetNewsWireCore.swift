@@ -617,7 +617,14 @@ public struct QuillNetNewsWireContentView: View {
             .keyboardShortcut("r", modifiers: [.command, .option])
             Button("next unread") {
                 Task { @MainActor in
-                    await model.selectNextUnreadAcrossFeeds()
+                    let advanced = await model.selectNextUnreadAcrossFeeds()
+                    if !advanced {
+                        // Triage-done feedback: tell the user
+                        // there's nothing more to read instead
+                        // of silent no-op. Without this, ⌘N at
+                        // the end of triage felt broken.
+                        model.lastSubscribeMessage = "All caught up — no more unread."
+                    }
                 }
             }
             .keyboardShortcut("n", modifiers: [])
