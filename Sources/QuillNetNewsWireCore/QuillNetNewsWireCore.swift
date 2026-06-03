@@ -902,10 +902,12 @@ public struct QuillNetNewsWireContentView: View {
                         _ = model.reorderFolder(named: folder.name, by: -1)
                     }
                     .font(.caption2)
+                    .disabled(!model.canReorderFolder(named: folder.name, by: -1))
                     Button("↓") {
                         _ = model.reorderFolder(named: folder.name, by: 1)
                     }
                     .font(.caption2)
+                    .disabled(!model.canReorderFolder(named: folder.name, by: 1))
                 }
                 .padding(.leading, 8)
                 // Folder rename — two-step toggle so the
@@ -5189,6 +5191,28 @@ final class RSSReaderModel: ObservableObject {
         guard didMove else { return false }
         subscriptionRoot = updated
         return true
+    }
+
+    /// Symmetric to canReorderFeed for the folder ↑/↓ buttons.
+    /// False when delta=0, name not in tree, or target index ==
+    /// current.
+    func canReorderFolder(named name: String, by delta: Int) -> Bool {
+        guard delta != 0 else { return false }
+        return Self.canReorderFolderInTree(
+            named: name, by: delta, in: subscriptionRoot
+        )
+    }
+
+    private static func canReorderFolderInTree(
+        named name: String, by delta: Int, in folder: OPMLImporter.Folder
+    ) -> Bool {
+        if let idx = folder.subfolders.firstIndex(where: { $0.name == name }) {
+            let target = max(0, min(folder.subfolders.count - 1, idx + delta))
+            return target != idx
+        }
+        return folder.subfolders.contains {
+            canReorderFolderInTree(named: name, by: delta, in: $0)
+        }
     }
 
     private static func reorderFolderInTree(

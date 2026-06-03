@@ -2553,6 +2553,34 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("canReorderFolder mirrors canReorderFeed semantics for folder ↑/↓")
+    func canReorderFolderBoundaries() {
+        let model = RSSReaderModel()
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(name: "Alpha", feeds: [], subfolders: []),
+                OPMLImporter.Folder(name: "Beta", feeds: [], subfolders: []),
+                OPMLImporter.Folder(name: "Gamma", feeds: [], subfolders: []),
+            ]
+        )
+        // Alpha at index 0 — can't move up.
+        #expect(!model.canReorderFolder(named: "Alpha", by: -1))
+        #expect(model.canReorderFolder(named: "Alpha", by: 1))
+        // Gamma at index 2 — can't move down.
+        #expect(model.canReorderFolder(named: "Gamma", by: -1))
+        #expect(!model.canReorderFolder(named: "Gamma", by: 1))
+        // Beta middle — both.
+        #expect(model.canReorderFolder(named: "Beta", by: -1))
+        #expect(model.canReorderFolder(named: "Beta", by: 1))
+        // Unknown name → false.
+        #expect(!model.canReorderFolder(named: "Nope", by: 1))
+        // delta=0 → false.
+        #expect(!model.canReorderFolder(named: "Beta", by: 0))
+    }
+
+    @MainActor
     @Test("canReorderFeed false at parent boundary, true in middle")
     func canReorderFeedBoundaries() {
         let a = Feed(title: "A", url: "https://a.test/feed")
