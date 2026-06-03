@@ -33,6 +33,15 @@ struct BridgeConversation: Codable {
 private struct ConversationsData: Codable { let conversations: [BridgeConversation] }
 private struct ConversationsResponse: Codable { let data: ConversationsData? }
 
+/// Decodes the bridge `list-messages` response line.
+struct BridgeStoredMessage: Codable {
+    let body: String?
+    let timestamp: UInt64?
+    let sender: String?
+}
+private struct MessagesData: Codable { let messages: [BridgeStoredMessage] }
+private struct MessagesResponse: Codable { let data: MessagesData? }
+
 @MainActor
 public final class QuillSignalModel: ObservableObject {
     @Published public var linkState: QuillSignalLinkState = .connecting
@@ -117,12 +126,49 @@ public final class QuillSignalModel: ObservableObject {
                let items = resp.data?.conversations {
                 loaded = items.map { item in
                     let title = (item.name.flatMap { $0.isEmpty ? nil : $0 }) ?? item.uuid ?? "Unknown"
-                    return Conversation(name: title, messages: [])
+                    // Use the bridge thread uuid as the Conversation id so a
+                    // selection maps straight back to list-messages.
+                    let id = item.uuid.flatMap { UUID(uuidString: $0) } ?? UUID()
+                    return Conversation(id: id, name: title, messages: [])
                 }
                 Self.log("loaded \(loaded.count) conversations")
             }
             let result = loaded
             await MainActor.run { self.conversations = result }
+        }
+    }
+
+    /// Load the messages for a selected conversation thread (its uuid) from the
+    /// bridge and set them on the matching conversation. Empty until linked.
+    /// (fromSelf is a placeholder until whoami/the bridge marks own messages.)
+    public func loadMessages(for threadUuid: String) {
+        let path = socketPath
+        Task.detached {
+            let client = BridgeClient(path: path)
+            var loaded: [Message] = []
+            let cmd = "{\"cmd\":\"list-messages\",\"thread\":\"\(threadUuid)\"}"
+            if let line = try? client.request(cmd),
+               let bytes = line.data(using: .utf8),
+               let resp = try? JSONDecoder().decode(MessagesResponse.self, from: bytes),
+               let items = resp.data?.messages {
+                loaded = items.map { m in
+                    Message(
+                        sender: m.sender ?? "",
+                        body: m.body ?? "",
+                        fromSelf: false,
+                        timestamp: m.timestamp.map { Date(timeIntervalSince1970: Double($0) / 1000.0) }
+                    )
+                }
+                Self.log("loaded \(loaded.count) messages for \(threadUuid)")
+            }
+            let result = loaded
+            await MainActor.run {
+                if let idx = self.conversations.firstIndex(where: {
+                    $0.id.uuidString.caseInsensitiveCompare(threadUuid) == .orderedSame
+                }) {
+                    self.conversations[idx].messages = result
+                }
+            }
         }
     }
 
@@ -213,7 +259,13 @@ public struct QuillSignalContentView: View {
             ChatSplitShell(
                 title: "Quill Signal",
                 threads: model.conversations,
-                selectedID: $selectedID,
+                selectedID: Binding(
+                    get: { selectedID },
+                    set: { newID in
+                        selectedID = newID
+                        if let id = newID { model.loadMessages(for: id.uuidString) }
+                    }
+                ),
                 draft: $draft,
                 placeholder: "Select a conversation",
                 onSend: send
