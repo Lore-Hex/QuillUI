@@ -135,5 +135,9 @@ public enum SFSymbolCompatibility {
         "star.fill":              "star",
         "tag":                    "label",
         "tag.fill":               "label",
+
+        // MARK: Social actions (Mastodon / IceCubes)
+        "arrowshape.turn.up.left": "reply",
+        "arrow.2.squarepath":      "repeat",
     ]
 }

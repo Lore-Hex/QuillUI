@@ -247,7 +247,8 @@ public struct QuillIceCubesContentView: View {
 
                         Divider()
 
-                        statusStatsBar(row)
+                        statusStatsLine(row)
+                        statusActionBar(row)
 
                         if let errorMessage {
                             Text(errorMessage)
@@ -283,32 +284,48 @@ public struct QuillIceCubesContentView: View {
         .background(QuillDesktopChromeStyle.detailBackground)
     }
 
-    /// IceCubes' status-detail engagement line: bold counts with
-    /// labels ("8 Boosts · 21 Favorites"), matching the text stats
-    /// row IceCubes shows above its action buttons. Rendered as plain
-    /// text so every glyph resolves on the GTK Material-Symbols font
-    /// — the iconified reply/boost/favorite/bookmark/share buttons
-    /// land in a follow-up once `reply`/`repeat` glyphs are added to
-    /// third_party/SwiftOpenUI's SF→Material map.
+    /// IceCubes' status-detail engagement summary ("12 Boosts · 28
+    /// Favorites") — boosts + favorites only, matching the text stats
+    /// row IceCubes shows above its action buttons. Hidden when both
+    /// are zero.
     @ViewBuilder
-    private func statusStatsBar(_ row: IceCubesTimelineRow) -> some View {
-        HStack(spacing: 22) {
-            statGroup(count: row.repliesCount, label: "Replies")
-            statGroup(count: row.reblogsCount, label: "Boosts")
-            statGroup(count: row.favouritesCount, label: "Favorites")
-            Spacer()
+    private func statusStatsLine(_ row: IceCubesTimelineRow) -> some View {
+        let summary = QuillIceCubesStats.summary(reblogs: row.reblogsCount, favourites: row.favouritesCount)
+        if !summary.isEmpty {
+            Text(summary)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
         }
     }
 
+    /// IceCubes' status action row: reply, boost, favorite, bookmark,
+    /// share. The reply (`arrowshape.turn.up.left` → Material `reply`)
+    /// and boost (`arrow.2.squarepath` → Material `repeat`) glyphs are
+    /// mapped in third_party/SwiftOpenUI so GTK's Pango ligature path
+    /// renders real icons instead of a missing-glyph placeholder.
+    /// Rendered once for the focused post, not per timeline row, to
+    /// stay within the Linux profile budget.
     @ViewBuilder
-    private func statGroup(count: Int, label: String) -> some View {
-        HStack(spacing: 5) {
-            Text(QuillIceCubesCountFormat.label(count))
-                .font(.subheadline)
-                .bold()
-            Text(label)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+    private func statusActionBar(_ row: IceCubesTimelineRow) -> some View {
+        HStack(spacing: 28) {
+            actionItem(systemName: "arrowshape.turn.up.left", count: row.repliesCount)
+            actionItem(systemName: "arrow.2.squarepath", count: row.reblogsCount)
+            actionItem(systemName: "star", count: row.favouritesCount)
+            actionItem(systemName: "bookmark", count: nil)
+            actionItem(systemName: "square.and.arrow.up", count: nil)
+            Spacer()
+        }
+        .foregroundColor(.secondary)
+    }
+
+    @ViewBuilder
+    private func actionItem(systemName: String, count: Int?) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemName)
+            if let count, count > 0 {
+                Text(QuillIceCubesCountFormat.label(count))
+                    .font(.caption)
+            }
         }
     }
 
@@ -552,6 +569,23 @@ public enum QuillIceCubesCountFormat {
             return String(format: "%.1fk", Double(count) / 1_000)
         }
         return String(count)
+    }
+}
+
+/// IceCubes' status-detail engagement summary line: "12 Boosts · 28
+/// Favorites", with singular/plural agreement and compact large counts.
+/// A zero-count metric is omitted; an all-zero status yields an empty
+/// string so the line can be hidden entirely.
+public enum QuillIceCubesStats {
+    public static func summary(reblogs: Int, favourites: Int) -> String {
+        var parts: [String] = []
+        if reblogs > 0 { parts.append(unit(reblogs, singular: "Boost")) }
+        if favourites > 0 { parts.append(unit(favourites, singular: "Favorite")) }
+        return parts.joined(separator: " · ")
+    }
+
+    static func unit(_ count: Int, singular: String) -> String {
+        count == 1 ? "1 \(singular)" : "\(QuillIceCubesCountFormat.label(count)) \(singular)s"
     }
 }
 
