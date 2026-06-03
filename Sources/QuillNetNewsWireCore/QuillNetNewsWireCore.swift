@@ -3451,13 +3451,23 @@ final class RSSReaderModel: ObservableObject {
         // would otherwise double-subscribe AND double-render every
         // article in the timeline + the sidebar count.
         var existing = Set(subscribedFeeds.map { Self.feedDedupKey(for: $0.url) })
+        // Batch append: build the full new array once and assign,
+        // so subscribedFeeds.didSet (syncSubscriptionRootIfFlat +
+        // persistSubscriptionsIfReady) fires ONCE instead of
+        // once per appended feed. Importing a 1000-feed OPML
+        // previously triggered 1000 persistence writes + 1000
+        // root-sync passes.
+        var newFeeds = subscribedFeeds
         var added = 0
         for feed in imported {
             let key = Self.feedDedupKey(for: feed.url)
             if existing.contains(key) { continue }
             existing.insert(key)
-            subscribedFeeds.append(feed)
+            newFeeds.append(feed)
             added += 1
+        }
+        if added > 0 {
+            subscribedFeeds = newFeeds
         }
         if selectedFeedID == nil {
             selectedFeedID = subscribedFeeds.first?.id
