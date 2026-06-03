@@ -1515,13 +1515,17 @@ public struct QuillNetNewsWireContentView: View {
                     Task { @MainActor in await model.refreshFolder(folder) }
                 }
                 .font(.caption2)
-                .disabled(model.isLoading)
+                // Empty folder → nothing to refresh; gate so
+                // the button reads honestly.
+                .disabled(model.isLoading || model.folderFeedCount(named: folder) == 0)
             } else if model.selectedSmartFeed != nil {
                 Button(model.isLoading ? "Refreshing All…" : "Refresh All") {
                     Task { @MainActor in await model.refreshAllFeeds() }
                 }
                 .font(.caption2)
-                .disabled(model.isLoading)
+                // Smart-feed view with no subscriptions →
+                // refreshAllFeeds is a no-op.
+                .disabled(model.isLoading || model.subscribedFeeds.isEmpty)
             } else {
                 Button(model.isLoading(forURL: activeFeedURL) ? "Refreshing…" : "Refresh") {
                     Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
@@ -6111,6 +6115,18 @@ final class RSSReaderModel: ObservableObject {
     /// state for a "folder-as-smart-feed" view; for now it's a
     /// building block + a way to compute folder-scoped counts
     /// (markFolderAsRead already walks the folder a similar way).
+    /// Count of feeds inside a named folder (recursive into
+    /// subfolders via allFeeds). Returns 0 when the folder name
+    /// doesn't exist OR has no feeds. Used by the footer
+    /// Refresh-Folder button's disabled gate so it reads
+    /// honestly when there's nothing to refresh.
+    func folderFeedCount(named folderName: String) -> Int {
+        guard let folder = Self.findFolder(named: folderName, in: subscriptionRoot) else {
+            return 0
+        }
+        return folder.allFeeds.count
+    }
+
     func itemsInFolder(named folderName: String) -> [RSSItem] {
         guard let folder = Self.findFolder(named: folderName, in: subscriptionRoot) else {
             return []

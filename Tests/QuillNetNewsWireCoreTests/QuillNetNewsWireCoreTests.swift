@@ -2593,6 +2593,33 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("folderFeedCount returns nested feed count or 0 for missing folder")
+    func folderFeedCountWalksNested() {
+        let model = RSSReaderModel()
+        let a = Feed(title: "A", url: "https://a.test/feed")
+        let b = Feed(title: "B", url: "https://b.test/feed")
+        let c = Feed(title: "C", url: "https://c.test/feed")
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [],
+            subfolders: [
+                OPMLImporter.Folder(name: "Tech", feeds: [a], subfolders: [
+                    OPMLImporter.Folder(name: "Programming", feeds: [b, c], subfolders: []),
+                ]),
+                OPMLImporter.Folder(name: "Drafts", feeds: [], subfolders: []),
+            ]
+        )
+        // Recursive: Tech has A + (B+C in Programming) = 3.
+        #expect(model.folderFeedCount(named: "Tech") == 3)
+        // Inner-only: Programming has B + C = 2.
+        #expect(model.folderFeedCount(named: "Programming") == 2)
+        // Empty folder: 0.
+        #expect(model.folderFeedCount(named: "Drafts") == 0)
+        // Missing folder: 0.
+        #expect(model.folderFeedCount(named: "Nope") == 0)
+    }
+
+    @MainActor
     @Test("canReorderFolder mirrors canReorderFeed semantics for folder ↑/↓")
     func canReorderFolderBoundaries() {
         let model = RSSReaderModel()
