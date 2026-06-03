@@ -80,7 +80,12 @@ Branch `signal/real-backend` (off `main`). Upstream source lives under
    NOTE: generated `.pb.swift` ARE checked in (kept). First baseline = 677 errors
    but **all of it was a build-env artifact**: GRDB's `GRDBSQLite` C module needs
    `sqlite3.h` → fixed by apt `libsqlite3-dev`; 230 GRDB-importing files cascaded.
-   True baseline re-running with sqlite headers.
+   **True baseline (sqlite fixed) = 47 errors**, and the build doesn't even reach
+   SSK yet — 46 are one root in GRDB: `Core/Support/CoreGraphics/CGFloat.swift`
+   `cannot find type 'CGFloat'`. QuillUI's `CoreGraphics` shim makes
+   `canImport(CoreGraphics)` true so GRDB compiles its CG support, but the shim
+   never re-exported `CGFloat`. **Fix (QuillUI shim):** `@_exported import struct
+   Foundation.CGFloat` in `Sources/CoreGraphics/CoreGraphics.swift` (verifying).
 
 ## Build environment (Docker, swift:6.2-noble, arm64)
 
