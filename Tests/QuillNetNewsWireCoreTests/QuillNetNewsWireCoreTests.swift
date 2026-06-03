@@ -5593,6 +5593,58 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("markAllVisibleAsRead in folder view sweeps each feed's SQLite tail")
+    func markAllVisibleInFolderViewSweepsSQLite() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-nnw-folderall-sweep-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let articleStore = try ArticleStore(directoryURL: dir)
+        let feedA = "https://a.test/feed"
+        let feedB = "https://b.test/feed"
+        let outsider = "https://c.test/feed"
+        // Seed three stored-only rows. The two in-folder ones
+        // should be marked; the outsider must NOT.
+        try articleStore.upsert([
+            PersistentArticle(
+                id: "in-a", accountID: "Local", feedID: feedA, uniqueID: "in-a",
+                title: "InA", isRead: false, isStarred: false
+            ),
+            PersistentArticle(
+                id: "in-b", accountID: "Local", feedID: feedB, uniqueID: "in-b",
+                title: "InB", isRead: false, isStarred: false
+            ),
+            PersistentArticle(
+                id: "outsider", accountID: "Local", feedID: outsider,
+                uniqueID: "outsider", title: "Out",
+                isRead: false, isStarred: false
+            ),
+        ])
+        let model = RSSReaderModel(
+            subscribedFeeds: [
+                Feed(title: "A", url: feedA),
+                Feed(title: "B", url: feedB),
+                Feed(title: "C", url: outsider),
+            ],
+            articleStore: articleStore
+        )
+        model.subscriptionRoot = OPMLImporter.Folder(
+            name: "",
+            feeds: [Feed(title: "C", url: outsider)],
+            subfolders: [
+                OPMLImporter.Folder(name: "News", feeds: [
+                    Feed(title: "A", url: feedA),
+                    Feed(title: "B", url: feedB),
+                ]),
+            ]
+        )
+        model.selectFolder("News")
+        _ = model.markAllVisibleAsRead()
+        #expect(model.readArticleIDs.contains("in-a"))
+        #expect(model.readArticleIDs.contains("in-b"))
+        #expect(!model.readArticleIDs.contains("outsider"))
+    }
+
+    @MainActor
     @Test("markAllVisibleAsRead on Starred sweeps SQLite-tail starred-unread too")
     func markAllVisibleOnStarredSweepsSQLite() throws {
         // Same shape as the All Unread sweep test, but for the

@@ -4099,6 +4099,23 @@ final class RSSReaderModel: ObservableObject {
                 }
             }
         }
+        // Folder-view symmetry: when the user clicks "All Read"
+        // in a folder view, sweep each in-folder feed's SQLite
+        // tail too — matches the markFolderAsRead / markFeedAsRead
+        // SQLite sweeps from iter #184 / #185. Without this, the
+        // SQLite-tail unreads for any in-folder feed survive the
+        // sweep and resurface in All Unread.
+        if let folderName = selectedFolderName,
+           let articleStore,
+           let folder = Self.findFolder(named: folderName, in: subscriptionRoot) {
+            for feed in folder.allFeeds {
+                if let storedRows = try? articleStore.fetch(forFeed: feed.id) {
+                    for row in storedRows where !readArticleIDs.contains(row.uniqueID) {
+                        markRead(id: row.uniqueID)
+                    }
+                }
+            }
+        }
         return readArticleIDs.count - before
     }
 
