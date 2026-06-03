@@ -2912,6 +2912,13 @@ final class RSSReaderModel: ObservableObject {
             // No cache → no fetch timestamp yet.
             lastFetchAt = nil
         }
+        // Sync the global error banner to the NEW feed's
+        // per-feed error (or nil if it's healthy). Previously
+        // the global banner showed the PRIOR feed's error
+        // until the new feed's fetch completed — misleading
+        // users into thinking the new feed was broken when it
+        // was the old one that errored.
+        setError(feedErrors[feed.id])
         await fetch(urlString: feed.url)
         autoSelectFirstUnreadIfNoSelection()
     }
