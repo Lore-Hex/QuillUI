@@ -69,9 +69,15 @@ Branch `signal/real-backend` (off `main`). Upstream source lives under
 2. ✅ Scaffold `SignalFfi` + `LibSignalClient` targets + `SwiftProtobuf` dep +
    `signalUpstreamPresent`/`libsignalUpstreamPresent` gates; manifest parses
    (`swift package dump-package` exit 0, 186 targets).
-3. ⬜ Build `libsignal_ffi.a` (aarch64) + compile `LibSignalClient` on Linux GTK.
+3. ✅ Build `libsignal_ffi.a` (aarch64, **194MB**, exit 0, rustc 1.96.0-nightly
+   pin) + compile real `LibSignalClient` Swift wrapper on Linux: `Build of
+   target: 'LibSignalClient' complete!` exit 0, **132 files, zero source edits**
+   (`swiftLanguageMode(.v5)`). Real libsignal Rust FFI + Swift API both build on
+   aarch64/Linux against QuillUI.
 4. ⬜ Add `SignalServiceKit` target (path + excludes above) vs QuillUI shims;
-   first build → baseline error count.
+   first build → baseline error count. NOTE: tests live in `SignalServiceKit/tests/`
+   (260 files) — exclude that dir; generated `.pb.swift` ARE checked in (keep
+   them, exclude `Protos/*.proto`/Makefile/Specifications/Backups).
 5. ⬜ Grind errors (cascade-cause playbook); extend QuillUI shims where Signal
    needs APIs they lack — commit each shim addition + each error-count drop.
 6. ⬜ `SignalUI`, then the `Signal` app target.
