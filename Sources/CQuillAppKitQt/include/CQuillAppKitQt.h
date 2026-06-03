@@ -52,6 +52,16 @@ void quill_appkit_qt_view_geometry(void *view, int *x, int *y, int *width, int *
 // Make `view` the window's content view (reparent into the window, show).
 void quill_appkit_qt_window_set_content_view(void *window, void *view);
 
+// --- NSControl family (M3): controls are QWidgets, so they compose with the
+// NSView hierarchy + layout above (QPushButton/QLabel derive QWidget). ---
+void *quill_appkit_qt_button_new(const char *title);
+void quill_appkit_qt_button_set_title(void *button, const char *title);
+const char *quill_appkit_qt_button_title(void *button);
+
+void *quill_appkit_qt_label_new(const char *text);
+void quill_appkit_qt_label_set_text(void *label, const char *text);
+const char *quill_appkit_qt_label_text(void *label);
+
 #ifdef __cplusplus
 }
 #endif

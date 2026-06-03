@@ -6,6 +6,8 @@
 #include <QWidget>
 #include <QString>
 #include <QRect>
+#include <QPushButton>
+#include <QLabel>
 
 #include <string>
 
@@ -141,6 +143,56 @@ void quill_appkit_qt_window_set_content_view(void *window, void *view) {
     QWidget *content = asWidget(view);
     content->setParent(asWidget(window));
     content->show();
+}
+
+// --- NSControl family ---
+// QPushButton / QLabel derive QWidget; the void* round-trips as a QWidget* for
+// the hierarchy/geometry calls above (single inheritance ⇒ same address).
+
+void *quill_appkit_qt_button_new(const char *title) {
+    if (QApplication::instance() == nullptr) {
+        return nullptr;
+    }
+    return static_cast<void *>(new QPushButton(title ? QString::fromUtf8(title) : QString()));
+}
+
+void quill_appkit_qt_button_set_title(void *button, const char *title) {
+    if (button && title) {
+        static_cast<QPushButton *>(button)->setText(QString::fromUtf8(title));
+    }
+}
+
+const char *quill_appkit_qt_button_title(void *button) {
+    static thread_local std::string buffer;
+    if (!button) {
+        buffer.clear();
+        return buffer.c_str();
+    }
+    buffer = static_cast<QPushButton *>(button)->text().toUtf8().constData();
+    return buffer.c_str();
+}
+
+void *quill_appkit_qt_label_new(const char *text) {
+    if (QApplication::instance() == nullptr) {
+        return nullptr;
+    }
+    return static_cast<void *>(new QLabel(text ? QString::fromUtf8(text) : QString()));
+}
+
+void quill_appkit_qt_label_set_text(void *label, const char *text) {
+    if (label && text) {
+        static_cast<QLabel *>(label)->setText(QString::fromUtf8(text));
+    }
+}
+
+const char *quill_appkit_qt_label_text(void *label) {
+    static thread_local std::string buffer;
+    if (!label) {
+        buffer.clear();
+        return buffer.c_str();
+    }
+    buffer = static_cast<QLabel *>(label)->text().toUtf8().constData();
+    return buffer.c_str();
 }
 
 } // extern "C"

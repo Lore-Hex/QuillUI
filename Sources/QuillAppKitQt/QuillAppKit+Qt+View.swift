@@ -25,7 +25,9 @@ extension NSView {
     public func ensureQtWidget() -> UnsafeMutableRawPointer? {
         guard QuillQt.ensureInitialized() else { return nil }
         if let existing = qtWidgetHandle { return existing }
-        guard let widget = quill_appkit_qt_view_new() else { return nil }
+        // Dispatch on the concrete AppKit type (NSButton → QPushButton, etc.);
+        // see makeQtBackingWidget in QuillAppKit+Qt+Controls.swift.
+        guard let widget = makeQtBackingWidget() else { return nil }
         qtWidgetHandle = widget
         return widget
     }
