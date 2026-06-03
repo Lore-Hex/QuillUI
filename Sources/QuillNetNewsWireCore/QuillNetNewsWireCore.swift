@@ -634,7 +634,15 @@ public struct QuillNetNewsWireContentView: View {
             .keyboardShortcut("u", modifiers: [])
             Button("previous unread") {
                 Task { @MainActor in
-                    await model.selectPreviousUnreadAcrossFeeds()
+                    let advanced = await model.selectPreviousUnreadAcrossFeeds()
+                    if !advanced {
+                        // Same toast shape as `n` (iter #272) for
+                        // backward triage. "At the start" rather
+                        // than "All caught up" is more accurate
+                        // when walking backward — there's just
+                        // nothing earlier to read.
+                        model.lastSubscribeMessage = "Nothing more above — at the start of unread."
+                    }
                 }
             }
             .keyboardShortcut("p", modifiers: [])
