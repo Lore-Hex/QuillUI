@@ -988,22 +988,40 @@ public struct QuillNetNewsWireContentView: View {
                     .padding(14)
             }
 
-            ScrollView {
-                if model.filteredRows.isEmpty {
-                    timelineEmptyState
-                        .padding(.horizontal, 12)
-                        .padding(.top, 32)
-                } else {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(model.filteredRows) { item in
-                            articleRow(item)
-                                .onTapGesture {
-                                    model.selectItem(id: item.id)
-                                }
+            // ScrollViewReader so j/k navigation keeps the
+            // selected row in view. Without this, hitting j
+            // repeatedly drops the cursor off the bottom edge
+            // and the user has no idea where the highlight went
+            // until they manually scroll. Mirrors upstream
+            // NetNewsWire's timeline auto-scroll behavior.
+            ScrollViewReader { proxy in
+                ScrollView {
+                    if model.filteredRows.isEmpty {
+                        timelineEmptyState
+                            .padding(.horizontal, 12)
+                            .padding(.top, 32)
+                    } else {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(model.filteredRows) { item in
+                                articleRow(item)
+                                    .id(item.id)
+                                    .onTapGesture {
+                                        model.selectItem(id: item.id)
+                                    }
+                            }
                         }
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 18)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 18)
+                }
+                .onChange(of: model.selectedID) { newID in
+                    guard let newID else { return }
+                    // anchor: .center so the row lands in the
+                    // middle of the visible area rather than
+                    // hugging the bottom edge — gives the user
+                    // a couple of rows of context above and
+                    // below the current selection.
+                    withAnimation { proxy.scrollTo(newID, anchor: .center) }
                 }
             }
 
