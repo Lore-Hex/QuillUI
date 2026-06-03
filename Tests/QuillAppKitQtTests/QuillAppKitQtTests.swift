@@ -132,6 +132,38 @@ struct QuillAppKitQtTests {
         #expect(v.x == 104 && v.width == 180 && v.height == 22 && v.y == 11)
     }
 
+    @Test("NSControl family: NSButton/NSTextField back onto Qt widgets with their text + lay out")
+    func controlBacking() {
+        guard QuillQt.ensureInitialized() else { return }
+
+        let button = NSButton(title: "Import", target: nil, action: nil)
+        button.ensureQtWidget()
+        #expect(button.qtButtonTitle == "Import")   // created with the title
+        button.title = "Save"
+        button.syncQtTitle()
+        #expect(button.qtButtonTitle == "Save")
+
+        let label = NSTextField(labelWithString: "Public key:")
+        label.ensureQtWidget()
+        #expect(label.qtLabelText == "Public key:")
+
+        // A control lays out via constraints like any NSView.
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 50))
+        root.addSubviewQt(button)
+        let cs = [
+            button.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 10),
+            button.topAnchor.constraint(equalTo: root.topAnchor, constant: 5),
+            button.widthAnchor.constraint(equalToConstant: 80),
+            button.heightAnchor.constraint(equalToConstant: 24),
+        ]
+        NSLayoutConstraint.activate(cs)
+        defer { NSLayoutConstraint.deactivate(cs) }
+        root.layoutQtSubtree(width: 200, height: 50)
+
+        let g = button.qtGeometry
+        #expect(g.x == 10 && g.y == 5 && g.width == 80 && g.height == 24)
+    }
+
     @Test("NSWindow.contentView attaches its QWidget into the Qt window")
     func contentViewAttaches() {
         guard QuillQt.ensureInitialized() else { return }
