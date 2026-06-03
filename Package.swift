@@ -913,9 +913,16 @@ var targets: [Target] = [
         dependencies: quillChatKitDependencies,
         swiftSettings: appSwiftSettings
     ),
+    // QuillSignalKit — unix-socket client for the quill-signal-bridge daemon
+    // (presage/libsignal Rust engine). The real backend behind QuillSignal,
+    // replacing the fixture model.
+    .target(
+        name: "QuillSignalKit",
+        swiftSettings: appSwiftSettings
+    ),
     .target(
         name: "QuillSignalCore",
-        dependencies: ["QuillUI", "QuillChatKit"],
+        dependencies: ["QuillUI", "QuillChatKit", "QuillSignalKit"],
         swiftSettings: appSwiftSettings
     ),
     .executableTarget(
