@@ -397,6 +397,17 @@ fi
 if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
     case "$INTERACTION_MODE" in
       composer-typed)
+        # CLICK-VIABILITY PROBE (from empty state): click "New chat" (sidebar top).
+        # If clicks reach the placed reference window this creates+selects a
+        # conversation and the empty-state prompt cards vanish. Capture a probe frame
+        # to eyeball whether ANY click registers in mac-reference mode (composer
+        # click+type produced a byte-identical render, but the composer gives no
+        # visible click feedback, so this isolates click-delivery from typing).
+        nc_x=$((window_x + 290)); nc_y=$((window_y + 127))
+        echo "[interaction-dbg] new-chat probe click=($nc_x,$nc_y)" >&2
+        click_at "$nc_x" "$nc_y"
+        sleep 1.5
+        DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$OUTPUT_DIR/quill-chat-linux-newchat-probe.png" 2>/dev/null || true
         # Target the composer field CENTER. Measured from the mac-reference render
         # (PR #237): the composer spans x 647..1984 (center ~0.64*W) with its field
         # row at y~1257 (~window_height-123). The old x=0.34*W (~695) landed at the
