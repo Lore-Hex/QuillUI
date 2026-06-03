@@ -320,4 +320,14 @@ struct QuillIceCubesCoreTests {
         #expect(row.reblogsCount == 5)
         #expect(row.favouritesCount == 1280)
     }
+
+    @Test("QuillIceCubesStats.summary pluralizes + omits zero metrics")
+    func statsSummary() {
+        #expect(QuillIceCubesStats.summary(reblogs: 12, favourites: 28) == "12 Boosts · 28 Favorites")
+        #expect(QuillIceCubesStats.summary(reblogs: 1, favourites: 1) == "1 Boost · 1 Favorite")
+        #expect(QuillIceCubesStats.summary(reblogs: 0, favourites: 5) == "5 Favorites")
+        #expect(QuillIceCubesStats.summary(reblogs: 3, favourites: 0) == "3 Boosts")
+        #expect(QuillIceCubesStats.summary(reblogs: 0, favourites: 0) == "")
+        #expect(QuillIceCubesStats.summary(reblogs: 1280, favourites: 0) == "1.3k Boosts")
+    }
 }
