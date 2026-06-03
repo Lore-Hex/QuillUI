@@ -28,6 +28,7 @@ public final class QuillSignalModel: ObservableObject {
     @Published public var linkState: QuillSignalLinkState = .connecting
     @Published public var statusDetail: String = ""
     @Published public var linkURL: String?
+    @Published public var linkQR: String?
     @Published public var isLinking: Bool = false
     private var isRefreshing = false
     private var hasAutoStarted = false
@@ -49,7 +50,14 @@ public final class QuillSignalModel: ObservableObject {
     public func startOnce() {
         guard !hasAutoStarted else { return }
         hasAutoStarted = true
-        refreshStatus()
+        // Test hook (off by default): go straight to linking so a headless smoke
+        // can verify the device-link flow (URL + QR) without a human clicking
+        // (avoids a concurrent status+link store open).
+        if ProcessInfo.processInfo.environment["QUILLUI_SIGNAL_AUTOLINK"] == "1" {
+            beginLink()
+        } else {
+            refreshStatus()
+        }
     }
 
     /// Query the bridge `status` command off the main thread, then publish.
@@ -90,6 +98,7 @@ public final class QuillSignalModel: ObservableObject {
         guard !isLinking else { return }
         isLinking = true
         linkURL = nil
+        linkQR = nil
         statusDetail = "Requesting a link code from Signal…"
         let path = socketPath
         let cmd = "{\"cmd\":\"link-begin\",\"device_name\":\"\(deviceName)\"}"
@@ -105,6 +114,12 @@ public final class QuillSignalModel: ObservableObject {
                             self.linkURL = url
                             self.statusDetail = "Scan this in Signal → Settings → Linked Devices."
                         }
+                    }
+                    return true
+                case "link-qr":
+                    if let qr = msg.qr {
+                        Self.log("link QR -> \(qr.count) chars")
+                        Task { @MainActor in self.linkQR = qr }
                     }
                     return true
                 case "linked":
@@ -189,8 +204,11 @@ public struct QuillSignalContentView: View {
     private var linkPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Link this device to Signal").font(.title3).bold()
-            Text("On your phone: Signal → Settings → Linked Devices → Link New Device, then scan or open this URL.")
+            Text("On your phone: Signal → Settings → Linked Devices → Link New Device, then scan this QR.")
                 .font(.caption)
+            if let qr = model.linkQR {
+                Text(qr).font(.system(size: 9, design: .monospaced))
+            }
             if let url = model.linkURL {
                 Text(url).font(.caption)
             } else if model.isLinking {

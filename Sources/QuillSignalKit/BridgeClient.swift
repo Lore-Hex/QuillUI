@@ -23,6 +23,7 @@ public struct BridgeMessage: Codable, Sendable {
     public let msg: String?
     public let event: String?
     public let url: String?
+    public let qr: String?
 }
 
 /// Minimal unix-socket client for quill-signal-bridge's line-delimited-JSON protocol.

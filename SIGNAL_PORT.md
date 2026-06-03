@@ -70,8 +70,17 @@ live path **app → QuillSignalKit → unix socket → Rust bridge → presage �
 libsignal store**. (Fixed: `.onAppear` re-fired `refreshStatus` on every render;
 now `startOnce()` + an `isRefreshing` guard query once and never open the presage
 store concurrently — which had raced on the sqlite migrations.) **The build/run
-foundation is done; the remaining step is user-gated: scan the link URL with
-your phone to link a real account, then send/receive.**
+foundation is done.**
+
+**Scannable QR + full link flow proven (no account):** the Rust bridge renders
+the `sgnl://linkdevice` URL as a Unicode-block QR (`qrcode` crate, `link-qr`
+event); the app shows it in a monospace `Text` link panel. An auto-link smoke
+(`QUILLUI_SIGNAL_AUTOLINK=1`) drove the whole flow through the running app:
+`[QuillSignal] link URL -> sgnl://… / link QR -> 1457 chars` — app → bridge →
+presage → Signal → real provisioning URL + scannable QR, displayed natively.
+**Genuinely ready: scan the QR in Signal → Settings → Linked Devices to link;
+that completion + send/receive is the only user-gated (phone) step. After
+linking, extend the bridge with list-conversations/messages/send + wire the UI.**
 
 ---
 
