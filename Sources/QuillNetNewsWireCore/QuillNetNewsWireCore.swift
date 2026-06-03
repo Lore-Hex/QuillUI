@@ -3667,6 +3667,16 @@ final class RSSReaderModel: ObservableObject {
         // flight so other paths can guard per-URL (#141).
         pushLoading(forURL: urlString)
         defer { popLoading(forURL: urlString) }
+        // If the user removed this subscription between the time
+        // refreshAllFeeds scheduled this fetch and the time it
+        // actually ran, bail. Otherwise the fetch would resurrect
+        // the cache entry (and the SQLite upsert below would
+        // re-populate the per-feed rows we just deleted in
+        // removeSubscription) — the feed would silently come
+        // back from the dead until the next launch.
+        guard subscribedFeeds.contains(where: { $0.url == urlString }) else {
+            return
+        }
         do {
             var request = URLRequest(url: url)
             if let info = Self.makeConditionalGetInfo(conditionalGetInfo[urlString]) {
