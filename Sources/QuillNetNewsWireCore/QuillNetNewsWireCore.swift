@@ -1126,6 +1126,19 @@ public struct QuillNetNewsWireContentView: View {
                     else { return }
                     withAnimation { proxy.scrollTo(firstID, anchor: .top) }
                 }
+                .onChange(of: model.hideReadArticles) { _ in
+                    // Toggling Hide Read reshapes filteredItems
+                    // (read rows vanish or reappear). selectedID
+                    // didn't change, so the existing scrollTo
+                    // hop doesn't fire — without this, the
+                    // viewport stayed where it was even though
+                    // the row layout shifted, often hiding the
+                    // selected row. Re-scroll to the selection
+                    // so the row stays visible across the
+                    // toggle.
+                    guard let id = model.selectedID else { return }
+                    withAnimation { proxy.scrollTo(id, anchor: .center) }
+                }
             }
 
             footerStatus
