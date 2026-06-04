@@ -14,6 +14,17 @@ import UIKit
 
 public func LocalizationNotNeeded(_ s: String) -> String { s }
 
+// MARK: - autoreleasepool
+//
+// swift-corelibs-foundation has no `autoreleasepool` on Linux (it is an ObjC
+// memory construct). On Linux ARC handles this, so the pool is a no-op that just
+// runs the body. The `invoking:` label covers both `autoreleasepool { … }`
+// (trailing closure) and `autoreleasepool(invoking: { … })`.
+
+public func autoreleasepool<Result>(invoking body: () throws -> Result) rethrows -> Result {
+    try body()
+}
+
 // MARK: - UIColor RGB API
 //
 // On Linux UIColor == NSColor == RSColor (the QuillFoundation color shim), which
