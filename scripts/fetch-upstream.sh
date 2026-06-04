@@ -228,6 +228,24 @@ print("patched LogViewHelper.swift to import WireGuardRingLoggerC")
 PY
     fi
 
+    # ParseError+WireGuardAppError.swift (UI/macOS) extends WireGuardKit's
+    # TunnelConfiguration (import WireGuardKit) and its nested ParseError enum
+    # (declared in QuillWireGuardUpstreamConfig) — both need explicit imports
+    # under SwiftPM (Xcode saw them via one app module). It imports Cocoa, not
+    # Foundation, so anchor on that.
+    local parseerr="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/ParseError+WireGuardAppError.swift"
+    if [[ -f "$parseerr" ]] && ! grep -q '^import QuillWireGuardUpstreamConfig' "$parseerr"; then
+        echo "==> patching ParseError+WireGuardAppError.swift imports"
+        python3 - "$parseerr" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+patched = src.replace('import Cocoa\n', 'import Cocoa\nimport WireGuardKit\nimport QuillWireGuardUpstreamConfig\n', 1)
+open(path, "w").write(patched)
+print("patched ParseError+WireGuardAppError.swift to import WireGuardKit + QuillWireGuardUpstreamConfig")
+PY
+    fi
+
     # Break the SwiftPM modularity wall for the model layer: the wg-quick parser
     # methods (asWgQuickConfig / init(fromWgQuickConfig:)) live in the
     # QuillWireGuardUpstreamConfig target but are `internal`, so the conformance

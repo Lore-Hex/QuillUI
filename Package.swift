@@ -1298,6 +1298,11 @@ if wireguardUpstreamPresent {
                 // Foundation-import lowering pass; tracked for a follow-up.
                 "Sources/WireGuardApp/UI/LogViewHelper.swift",
                 "Sources/WireGuardApp/UI/macOS/View/LogViewCell.swift",
+                // ParseError+WireGuardAppError: retroactively conforms WireGuardKit's
+                // TunnelConfiguration.ParseError (public enum in QuillWireGuardUpstreamConfig)
+                // to the app's WireGuardAppError → localized alertText. Foundation-only
+                // logic (tr + AlertText, both already here); no AppKit/concurrency surface.
+                "Sources/WireGuardApp/UI/macOS/ParseError+WireGuardAppError.swift",
                 // DeleteTunnelsConfirmationAlert: NSAlert subclass (delete confirmation).
                 "Sources/WireGuardApp/UI/macOS/View/DeleteTunnelsConfirmationAlert.swift",
                 // Shared NotificationToken: a Foundation-only NotificationCenter
