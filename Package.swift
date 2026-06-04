@@ -1251,12 +1251,16 @@ if wireguardUpstreamPresent {
     targets.append(
         .target(
             name: "QuillWireGuardConformanceUI",
-            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC"],
+            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "Security"],
             path: ".upstream/wireguard-apple",
             sources: [
                 // Shared logging: Logger.swift (wg_log) over the ringlogger C
                 // ring buffer (import WireGuardRingLoggerC) + the `os` shadow.
                 "Sources/Shared/Logging/Logger.swift",
+                // Shared Keychain: SecItem* + the legacy macOS keychain-ACL APIs
+                // (SecTrustedApplication/SecAccess) via the Security shim. wg_log
+                // for failures. No real keychain on Linux (compile-only).
+                "Sources/Shared/Keychain.swift",
                 // First real MODEL file: TunnelStatus maps NEVPNStatus -> app
                 // status, compiling against the NetworkExtension shadow (uses
                 // NEVPNStatus incl. .reasserting, #338). Its @objc enum is
