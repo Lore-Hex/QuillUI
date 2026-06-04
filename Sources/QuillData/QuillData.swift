@@ -423,7 +423,13 @@ final class QuillDataSQLiteStore: @unchecked Sendable {
 
     private static func encode(_ model: any PersistentModel) throws -> Data {
         do {
-            return try JSONEncoder().encode(model)
+            // Temporarily empties reachable to-many relationships so a
+            // bidirectionally-populated in-memory graph cannot make the
+            // synthesized Codable encoder recurse forever. Zero-overhead
+            // pass-through when no @Relationship inverse is registered.
+            return try QuillRelationships.encodingWithoutToManyCycles(model) {
+                try JSONEncoder().encode(model)
+            }
         } catch {
             throw QuillDataError.encodeFailed("\(type(of: model)): \(error)")
         }
