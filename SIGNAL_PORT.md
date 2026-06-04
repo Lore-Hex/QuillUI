@@ -323,6 +323,20 @@ engine doesn't tight-loop; it resets to 5s as soon as a message arrives
 (`appendIncoming`). App + decode-check green; unlinked smoke shows the path is
 never entered when not linked.
 
+**Attachments — awareness slice + plan (2026-06-03):** *Research:* presage
+exposes incoming attachments as `DataMessage.attachments: Vec<AttachmentPointer>`
+(each with `content_type` / `file_name` / `size`) plus `Manager::get_attachment`
+to download bytes; but **QuillChatKit's `ChatMessage` is text-only** (`body:
+String`, no image slot), so inline images would require editing the *shared*
+bubble protocol + renderer. *Done (clean, bridge-only):* a `display_body` helper
+folds an `[attachment: <name>]` marker into the message body when attachments are
+present (and surfaces attachment-only messages, previously dropped) — used by
+`list-messages` + `receive`, so the user sees that an attachment arrived. *The
+remaining major effort (likely user-directed):* full inline images = bridge
+`get_attachment` → temp file + a `qr_png_path`-style path field, plus either a
+careful QuillChatKit `ChatMessage` image-slot + bubble change (shared) or
+rendering attachments outside the bubble.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile
