@@ -266,4 +266,40 @@ struct QuillAppKitQtTests {
         #expect(window.qtWindowHandle != nil)
         #expect(content.qtChildCount == 1)
     }
+
+    @Test("Target-action dispatch: a control's fired action calls quillPerform on its target")
+    func targetActionDispatch() {
+        // Mirrors exactly what AppKitLowering generates: the app class conforms
+        // to QuillActionDispatching with a switch over selector.name. No Qt
+        // widget needed — this exercises the pure Swift dispatch contract.
+        final class Recorder: QuillActionDispatching {
+            var fired: [String] = []
+            func quillPerform(_ selector: Selector) {
+                switch selector.name {
+                case "save": fired.append("save")
+                case "cancel": fired.append("cancel")
+                default: break
+                }
+            }
+        }
+        let target = Recorder()
+        let button = NSButton(title: "Save", target: target, action: Selector("save"))
+
+        button.performClick(nil)
+        #expect(target.fired == ["save"])
+
+        // sendAction with an explicit selector + receiver also dispatches.
+        button.sendAction(Selector("cancel"), to: target)
+        #expect(target.fired == ["save", "cancel"])
+
+        // A disabled control fires nothing.
+        button.isEnabled = false
+        button.performClick(nil)
+        #expect(target.fired == ["save", "cancel"])
+
+        // An unknown selector is a safe no-op (default protocol impl path / no case).
+        button.isEnabled = true
+        button.sendAction(Selector("unknownAction"), to: target)
+        #expect(target.fired == ["save", "cancel"])
+    }
 }

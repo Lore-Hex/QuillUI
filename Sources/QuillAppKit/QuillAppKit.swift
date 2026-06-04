@@ -3172,11 +3172,18 @@ open class NSControl: NSView {
         set { applyObjectValue(newValue) }
     }
     public var formatter: Foundation.Formatter?
+    @discardableResult
     public func sendAction(_ a: Selector?, to receiver: Any?) -> Bool {
         guard isEnabled else { return false }
-        guard (a ?? action) != nil else { return false }
+        guard let selector = a ?? action else { return false }
         let resolvedTarget = (receiver as AnyObject?) ?? target
-        guard resolvedTarget != nil else { return false }
+        guard let resolvedTarget else { return false }
+        // Dispatch to the target's lowered action handler. App classes that wire
+        // up target-action conform to QuillActionDispatching — the AppKit source
+        // lowering injects a `quillPerform(_:)` that switches on the selector
+        // name. A target that doesn't conform is still a valid "had a target"
+        // match (returns true, per AppKit), it just performs nothing.
+        (resolvedTarget as? QuillActionDispatching)?.quillPerform(selector)
         return true
     }
     public func sizeToFit() {}
@@ -3280,6 +3287,11 @@ open class NSButton: NSControl {
     public convenience init() { self.init(title: "", target: nil, action: nil) }
     public init(title: String, target: Any?, action: Selector?) { super.init(frame: .zero); self.title = title; self.target = target as AnyObject?; self.action = action }
     public init(image: NSImage, target: Any?, action: Selector?) { super.init(frame: .zero); self.image = image; self.target = target as AnyObject?; self.action = action }
+    /// Programmatically click the button: fire its action at its target. The Qt
+    /// backing routes a real `clicked` signal here once signal wiring lands.
+    open func performClick(_ sender: Any?) {
+        sendAction(action, to: target)
+    }
     public func setButtonType(_ type: ButtonType) { buttonType = type }
     public static func radioButton(withTitle: String, target: Any?, action: Selector?) -> NSButton {
         let button = NSButton(title: withTitle, target: target, action: action)
