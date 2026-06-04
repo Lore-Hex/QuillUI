@@ -1234,12 +1234,29 @@ if wireguardUpstreamPresent {
     // test. Linux-only — the Cocoa/AppKit shadows it depends on are #if os(Linux);
     // on macOS the real frameworks are used (issue #231, M3 conformance capstone).
     #if os(Linux)
+    // ringlogger C (Sources/Shared/Logging/ringlogger.c) — the ring-buffer
+    // backing for WireGuard's Logger.swift (open_log / write_msg_to_log /
+    // write_log_to_file / close_log). Pure POSIX C (mmap), compiles on Linux.
+    // Excludes the sibling Logger.swift (compiled by the conformance Swift
+    // target) + test_ringlogger.c; ringlogger.h is the public header.
+    targets.append(
+        .target(
+            name: "WireGuardRingLoggerC",
+            path: ".upstream/wireguard-apple/Sources/Shared/Logging",
+            exclude: ["Logger.swift", "test_ringlogger.c"],
+            sources: ["ringlogger.c"],
+            publicHeadersPath: "."
+        )
+    )
     targets.append(
         .target(
             name: "QuillWireGuardConformanceUI",
-            dependencies: ["Cocoa", "NetworkExtension"],
+            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC"],
             path: ".upstream/wireguard-apple",
             sources: [
+                // Shared logging: Logger.swift (wg_log) over the ringlogger C
+                // ring buffer (import WireGuardRingLoggerC) + the `os` shadow.
+                "Sources/Shared/Logging/Logger.swift",
                 // First real MODEL file: TunnelStatus maps NEVPNStatus -> app
                 // status, compiling against the NetworkExtension shadow (uses
                 // NEVPNStatus incl. .reasserting, #338). Its @objc enum is

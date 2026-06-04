@@ -117,14 +117,23 @@ patch_wireguard_apple() {
     # Linux-only: on macOS the real AppKit handles #selector/@objc, and the
     # generated QuillActionDispatching extension references a Linux-only shadow
     # type — so leave the source pristine for any macOS consumer.
-    # Lower the WHOLE app (UI/macOS + Tunnel/ + …), not just UI/macOS, so model
-    # files (e.g. Tunnel/TunnelStatus.swift, which has an @objc enum + an
-    # os(macOS) gate) also compile in the Linux conformance targets — toward the
-    # single-app-module convergence. The CLI is recursive + idempotent.
-    local wgapp="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp"
-    if [[ "$(uname -s)" == "Linux" && -d "$wgapp" ]] && grep -rqE '#selector|@objc' "$wgapp" 2>/dev/null; then
-        echo "==> lowering wireguard-apple app (UI + model) AppKit target-action for Linux"
-        ( cd "$ROOT_DIR" && swift run quill-lower-appkit "$wgapp" )
+    # Lower the WHOLE app (WireGuardApp: UI/macOS + Tunnel/ + …) AND its Shared/
+    # helpers (Logging/Logger.swift = wg_log, etc.), not just UI/macOS, so model
+    # files also compile in the Linux conformance targets — toward the
+    # single-app-module convergence. The guard includes `import os.log` so Shared/
+    # (no @objc but `import os.log` in Logger.swift) is covered; it goes false
+    # after lowering, keeping this idempotent on cached trees. The Shared/Model
+    # parser files (in the core QuillWireGuardUpstreamConfig target) have NO
+    # lowering triggers, so that target is unaffected. The CLI is recursive +
+    # idempotent.
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        for sub in WireGuardApp Shared; do
+            local subdir="$UPSTREAM_DIR/wireguard-apple/Sources/$sub"
+            if [[ -d "$subdir" ]] && grep -rqE '#selector|@objc|import os\.log' "$subdir" 2>/dev/null; then
+                echo "==> lowering wireguard-apple Sources/$sub for Linux"
+                ( cd "$ROOT_DIR" && swift run quill-lower-appkit "$subdir" )
+            fi
+        done
     fi
 
     # `WireGuardKitC.h` uses `u_int32_t` / `u_char` / `u_int16_t`
@@ -181,6 +190,25 @@ src = open(path).read()
 patched = src.replace('import Foundation\n', 'import Foundation\nimport WireGuardKit\n', 1)
 open(path, "w").write(patched)
 print("patched TunnelConfiguration+WgQuickConfig.swift to import WireGuardKit")
+PY
+    fi
+
+    # Logger.swift (Shared/Logging) calls the ringlogger C ring buffer
+    # (open_log / write_msg_to_log / write_log_to_file / close_log) from
+    # Sources/Shared/Logging/ringlogger.c, built as the WireGuardRingLoggerC C
+    # target. Upstream's Xcode build sees the C funcs via same-target membership;
+    # SwiftPM needs an explicit `import WireGuardRingLoggerC`. Same shape as the
+    # parser patch above.
+    local logger="$UPSTREAM_DIR/wireguard-apple/Sources/Shared/Logging/Logger.swift"
+    if [[ -f "$logger" ]] && ! grep -q '^import WireGuardRingLoggerC' "$logger"; then
+        echo "==> patching Logger.swift to import WireGuardRingLoggerC"
+        python3 - "$logger" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+patched = src.replace('import Foundation\n', 'import Foundation\nimport WireGuardRingLoggerC\n', 1)
+open(path, "w").write(patched)
+print("patched Logger.swift to import WireGuardRingLoggerC")
 PY
     fi
 }
