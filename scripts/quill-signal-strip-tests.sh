@@ -27,7 +27,17 @@ fi
 
 removed=0
 while IFS= read -r f; do
-    if grep -qE '^[[:space:]]*(@testable )?import XCTest\b' "$f"; then
+    remove=0
+    # Any file under a tests/ directory, or named *Test.swift / *Tests.swift, is a test.
+    case "$f" in
+        */tests/*) remove=1 ;;
+        *Test.swift | *Tests.swift) remove=1 ;;
+    esac
+    # Or a file importing a test framework (XCTest or swift-testing's Testing).
+    if [ "$remove" -eq 0 ] && grep -qE '^[[:space:]]*(@testable )?import (XCTest|Testing)\b' "$f"; then
+        remove=1
+    fi
+    if [ "$remove" -eq 1 ]; then
         rm -f "$f"
         removed=$((removed + 1))
     fi
