@@ -142,6 +142,26 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("read/starred state persists through the model across instances")
+    func modelPersistsReadState() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nnw-model-\(UUID().uuidString).sqlite")
+        // First model writes via its store, then goes away.
+        do {
+            let m1 = RSSReaderModel()
+            m1.enablePersistence(store: try RSSReadStateStore(url: url))
+            m1.markRead(id: "x")
+            m1.toggleStarred(id: "y")
+        }
+        // A fresh model on the same store loads the persisted state.
+        let m2 = RSSReaderModel()
+        m2.enablePersistence(store: try RSSReadStateStore(url: url))
+        #expect(m2.isRead(id: "x"))
+        #expect(m2.isStarred(id: "y"))
+        #expect(!m2.isRead(id: "y"))
+    }
+
+    @MainActor
     @Test("RSSReaderModel keeps selected item + status text cached")
     func readerModelDerivedState() {
         let model = RSSReaderModel()
