@@ -1237,9 +1237,15 @@ if wireguardUpstreamPresent {
     targets.append(
         .target(
             name: "QuillWireGuardConformanceUI",
-            dependencies: ["Cocoa"],
+            dependencies: ["Cocoa", "NetworkExtension"],
             path: ".upstream/wireguard-apple",
             sources: [
+                // First real MODEL file: TunnelStatus maps NEVPNStatus -> app
+                // status, compiling against the NetworkExtension shadow (uses
+                // NEVPNStatus incl. .reasserting, #338). Its @objc enum is
+                // stripped by fetch-upstream's (now whole-app) lowering. Grows
+                // this target toward the single-app-module.
+                "Sources/WireGuardApp/Tunnel/TunnelStatus.swift",
                 "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift",
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
