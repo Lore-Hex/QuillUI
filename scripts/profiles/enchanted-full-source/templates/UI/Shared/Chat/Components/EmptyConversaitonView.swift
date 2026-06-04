@@ -23,16 +23,12 @@ struct EmptyConversaitonView: View, KeyboardReadable {
         QuillChatEmptyState(
             brandTitle: "Enchanted",
             prompts: prompts,
-            // Genuine macOS Enchanted shows the four sample prompts as a single
-            // CENTERED row of 4 cards (Tests/Fixtures/Enchanted/macos-reference.png).
-            // The earlier GTK4 LazyVGrid relayout-spin / single-column collapse was
-            // caused by a fixed card frame WIDER than its flexible column in the
-            // ~1180pt pane; QuillChatEmptyState.promptGridMetrics now clamps the
-            // card to its column width for the multi-column non-reference window,
-            // so 4 columns fit + center without spinning. Match the macOS target.
-            columns: 4,
-            cardWidth: 302,
-            cardHeight: 128,
+            // Match Enchanted's upstream empty-state prompt list. SwiftOpenUI's
+            // GTK renderer now routes this finite one-column LazyVGrid through a
+            // static GtkGrid path instead of GtkGridView's relayout-prone path.
+            columns: 1,
+            cardWidth: 619,
+            cardHeight: 64,
             spacing: 15
         ) { prompt in
             sendPrompt(prompt.title)

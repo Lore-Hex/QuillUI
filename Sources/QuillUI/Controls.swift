@@ -858,11 +858,10 @@ public struct QuillChatEmptyState: View {
         let availableWidth = max(240, CGFloat(totalWidth) - horizontalInset * 2)
         if columns <= 1 {
             // Single-column rows (macOS Enchanted parity): size the card to the
-            // available pane width so the fixed card frame matches the flexible
-            // LazyVGrid column. A fixed card WIDER than its column makes
-            // SwiftOpenUI's GTK4 LazyVGrid relayout in a loop -- on the generated
-            // upstream Enchanted profile that spun CPU to ~170% and blew the
-            // CPU/RSS budget. Clamping the card to the column width avoids it.
+            // available pane width so the fixed card frame stays within the
+            // prompt area. The generated upstream Enchanted profile also needs
+            // SwiftOpenUI's GTK finite-grid fallback so one-column LazyVGrid
+            // avoids GtkGridView's relayout-prone path inside ScrollView.
             resolvedSpacing = max(12, spacing)
             resolvedCardWidth = min(cardWidth, availableWidth)
             if totalWidth >= 1200 {

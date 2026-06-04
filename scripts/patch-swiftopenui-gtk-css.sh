@@ -2715,24 +2715,27 @@ new_context = '''    let context: LazyGridContext
 '''
 if "context = LazyGridContext(views: expandedChildren" not in grid_text:
     grid_text = grid_text.replace(old_context, new_context, 1)
-grid_text = grid_text.replace(
-    "let cellMinWidth = configuration.adaptiveMinimum",
-    """let cellMinWidth = configuration.adaptiveMinimum > 0
+if "configuration.adaptiveMinimum > 0" not in grid_text:
+    grid_text = grid_text.replace(
+        "let cellMinWidth = configuration.adaptiveMinimum",
+        """let cellMinWidth = configuration.adaptiveMinimum > 0
         ? configuration.adaptiveMinimum
         : (configuration.maxColumns > 1 ? 160 : 0)""",
-)
+    )
 
 static_grid_helper = '''private func gtkCreateStaticLazyGridWidget(
-    views: [any View],
+    itemCount: Int,
+    renderItem: (Int) -> UnsafeMutablePointer<GtkWidget>,
     configuration: LazyGridConfiguration,
     cellMinWidth: Int,
     orientation: GtkOrientation
 ) -> OpaquePointer? {
-    guard !views.isEmpty else { return nil }
+    guard itemCount > 0 else { return nil }
     guard orientation == GTK_ORIENTATION_VERTICAL else { return nil }
-    guard views.count <= 64 else { return nil }
+    guard configuration.adaptiveMinimum == 0 else { return nil }
+    guard itemCount <= 64 else { return nil }
 
-    let columns = max(1, min(max(configuration.maxColumns, configuration.minColumns), views.count))
+    let columns = max(1, min(max(configuration.maxColumns, configuration.minColumns), itemCount))
     let grid = gtk_grid_new()!
     gtk_swift_grid_set_row_spacing(grid, 15)
     gtk_swift_grid_set_column_spacing(grid, 15)
@@ -2740,8 +2743,8 @@ static_grid_helper = '''private func gtkCreateStaticLazyGridWidget(
     gtk_widget_set_hexpand(grid, 1)
     gtk_widget_set_halign(grid, GTK_ALIGN_FILL)
 
-    for (index, view) in views.enumerated() {
-        let child = widgetFromOpaque(gtkRenderAnyView(view))
+    for index in 0..<itemCount {
+        let child = renderItem(index)
         let slot = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         gtk_widget_set_hexpand(slot, 1)
         gtk_widget_set_halign(slot, GTK_ALIGN_FILL)
@@ -2778,13 +2781,19 @@ while grid_text.count("private func gtkCreateStaticLazyGridWidget(") > 1:
     if second == -1 or lazy == -1:
         break
     grid_text = grid_text[:second] + grid_text[lazy:]
-static_grid_return = '''    if let expandedChildren,
-       let staticGrid = gtkCreateStaticLazyGridWidget(
-            views: expandedChildren,
-            configuration: configuration,
-            cellMinWidth: cellMinWidth,
-            orientation: orientation
-       ) {
+static_grid_return = '''    let staticRenderItem: (Int) -> UnsafeMutablePointer<GtkWidget> = { index in
+        if let expandedChildren {
+            return widgetFromOpaque(gtkRenderAnyView(expandedChildren[index]))
+        }
+        return widgetFromOpaque(gtkRenderView(contentBuilder(items[index])))
+    }
+    if let staticGrid = gtkCreateStaticLazyGridWidget(
+        itemCount: itemCount,
+        renderItem: staticRenderItem,
+        configuration: configuration,
+        cellMinWidth: cellMinWidth,
+        orientation: orientation
+    ) {
         return staticGrid
     }
 

@@ -4918,6 +4918,58 @@ private class LazyGridContext {
             widgetFromOpaque(gtkRenderView(contentBuilder(items[index])))
         }
     }
+
+    init(views: [any View], cellMinWidth: Int) {
+        self.itemCount = views.count
+        self.cellMinWidth = cellMinWidth
+        self.renderItem = { index in
+            widgetFromOpaque(gtkRenderAnyView(views[index]))
+        }
+    }
+}
+
+private func gtkCreateStaticLazyGridWidget(
+    itemCount: Int,
+    renderItem: (Int) -> UnsafeMutablePointer<GtkWidget>,
+    configuration: LazyGridConfiguration,
+    cellMinWidth: Int,
+    orientation: GtkOrientation
+) -> OpaquePointer? {
+    guard itemCount > 0 else { return nil }
+    guard orientation == GTK_ORIENTATION_VERTICAL else { return nil }
+    guard configuration.adaptiveMinimum == 0 else { return nil }
+    guard itemCount <= 64 else { return nil }
+
+    let columns = max(1, min(max(configuration.maxColumns, configuration.minColumns), itemCount))
+    let grid = gtk_grid_new()!
+    gtk_swift_grid_set_row_spacing(grid, 15)
+    gtk_swift_grid_set_column_spacing(grid, 15)
+    gtk_swift_grid_set_column_homogeneous(grid, 1)
+    gtk_widget_set_hexpand(grid, 1)
+    gtk_widget_set_halign(grid, GTK_ALIGN_FILL)
+
+    for index in 0..<itemCount {
+        let child = renderItem(index)
+        let slot = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        gtk_widget_set_hexpand(slot, 1)
+        gtk_widget_set_halign(slot, GTK_ALIGN_FILL)
+        gtk_widget_set_hexpand(child, 1)
+        gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        if cellMinWidth > 0 {
+            gtk_widget_set_size_request(slot, gint(cellMinWidth), -1)
+        }
+        gtk_box_append(boxPointer(slot), child)
+        gtk_swift_grid_attach(
+            grid,
+            slot,
+            gint(index % columns),
+            gint(index / columns),
+            1,
+            1
+        )
+    }
+
+    return opaqueFromWidget(grid)
 }
 
 /// Create a GtkGridView-based lazy grid widget.
@@ -4927,18 +4979,49 @@ private func gtkCreateLazyGridWidget<Data, Content: View>(
     gridItems: [GridItem],
     orientation: GtkOrientation
 ) -> OpaquePointer {
+    let expandedChildren: [any View]? = {
+        guard items.count == 1 else { return nil }
+        let built = contentBuilder(items[0])
+        guard let multi = built as? MultiChildView else { return nil }
+        return multi.children
+    }()
+    let itemCount = expandedChildren?.count ?? items.count
+
+    let configuration = computeLazyGridConfiguration(gridItems: gridItems)
+    let cellMinWidth = configuration.adaptiveMinimum > 0
+        ? configuration.adaptiveMinimum
+        : (configuration.maxColumns > 1 ? 160 : 0)
+    let staticRenderItem: (Int) -> UnsafeMutablePointer<GtkWidget> = { index in
+        if let expandedChildren {
+            return widgetFromOpaque(gtkRenderAnyView(expandedChildren[index]))
+        }
+        return widgetFromOpaque(gtkRenderView(contentBuilder(items[index])))
+    }
+    if let staticGrid = gtkCreateStaticLazyGridWidget(
+        itemCount: itemCount,
+        renderItem: staticRenderItem,
+        configuration: configuration,
+        cellMinWidth: cellMinWidth,
+        orientation: orientation
+    ) {
+        return staticGrid
+    }
+
     let stringList = gtk_swift_string_list_new()!
-    for i in 0..<items.count {
+    for i in 0..<itemCount {
         gtk_swift_string_list_append(stringList, "\(i)")
     }
 
     let noSelection = gtk_swift_no_selection_new(stringList)
     let factory = gtk_swift_signal_list_item_factory_new()!
 
-    let configuration = computeLazyGridConfiguration(gridItems: gridItems)
-    let cellMinWidth = configuration.adaptiveMinimum
-    let context = LazyGridContext(items: items, contentBuilder: contentBuilder,
+    let context: LazyGridContext
+    if let expandedChildren {
+        context = LazyGridContext(views: expandedChildren, cellMinWidth: cellMinWidth)
+    } else {
+        context = LazyGridContext(items: items, contentBuilder: contentBuilder,
                                   cellMinWidth: cellMinWidth)
+    }
     let contextPtr = Unmanaged.passRetained(context).toOpaque()
     g_object_set_data_full(
         factory.assumingMemoryBound(to: GObject.self),

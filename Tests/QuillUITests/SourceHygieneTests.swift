@@ -3251,6 +3251,19 @@ struct SourceHygieneTests {
         #expect(!promptGrid.contains("Color(hex: \"#E8E8EE\")"))
     }
 
+    @Test("generated Enchanted full-source empty state uses one-column prompt grid")
+    func generatedEnchantedFullSourceEmptyStateUsesOneColumnPromptGrid() throws {
+        let template = try packageSource("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/EmptyConversaitonView.swift")
+
+        #expect(template.contains("QuillChatEmptyState("))
+        #expect(template.contains("columns: 1"))
+        #expect(template.contains("cardWidth: 619"))
+        #expect(template.contains("cardHeight: 64"))
+        #expect(!template.contains("columns: 4"))
+        #expect(!template.contains("cardWidth: 302"))
+        #expect(!template.contains("cardHeight: 128"))
+    }
+
     @Test("QuillConversationHistoryList mirrors Enchanted row preview and accessibility")
     func quillConversationHistoryListMirrorsEnchantedRowPreviewAndAccessibility() throws {
         let controls = try packageSource("Sources/QuillUI/Controls.swift")
