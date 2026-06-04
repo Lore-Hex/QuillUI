@@ -79,6 +79,11 @@ public struct QuillNetNewsWireContentView: View {
                 if env["QUILLUI_DISABLE_FETCH"] == "1" {
                     model.seedProfileFixtures()
                 } else {
+                    // Real-fetch path: persist read/starred + the subscribed
+                    // feed list across launches. (Fixture mode above stays
+                    // in-memory + deterministic.)
+                    model.enablePersistence()
+                    model.enableFeedPersistence()
                     Task { @MainActor in await model.loadIfNeeded(urlString: activeFeedURL) }
                     // Kick off the periodic auto-refresh Task.
                     // Skipped in profile/disable-fetch mode so the
@@ -343,8 +348,8 @@ public struct QuillNetNewsWireContentView: View {
                         .lineLimit(2)
                         .frame(width: 232, alignment: .leading)
                 }
-                if !item.publishedSummary.isEmpty {
-                    Text(item.publishedSummary)
+                if !item.timelineDateText.isEmpty {
+                    Text(item.timelineDateText)
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .frame(width: 232, alignment: .leading)
@@ -366,11 +371,25 @@ public struct QuillNetNewsWireContentView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
             Spacer()
-            Button(model.isLoading ? "Refreshing…" : "Refresh") {
-                Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
-            }
-            .font(.caption2)
-            .disabled(model.isLoading)
+            // Mark All as Read (checkmark.circle), like NetNewsWire's toolbar
+            // action; tinted blue when the timeline has unread items, gray
+            // (a no-op) once everything is read.
+            Image(systemName: "checkmark.circle")
+                .font(.caption2)
+                .foregroundColor(model.hasUnreadInTimeline ? .blue : .secondary)
+                .contentShape(Rectangle())
+                .onTapGesture { model.markAllRead() }
+            // SF-Symbol refresh control (arrow.clockwise), like NetNewsWire's
+            // toolbar refresh; grays out + ignores taps while a load is in
+            // flight instead of a disabled text button.
+            Image(systemName: "arrow.clockwise")
+                .font(.caption2)
+                .foregroundColor(model.isLoading ? .secondary : .blue)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard !model.isLoading else { return }
+                    Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
+                }
         }
         .padding(10)
     }
@@ -396,12 +415,25 @@ public struct QuillNetNewsWireContentView: View {
                                     .lineLimit(1)
                             }
                             Spacer()
+                            // Previous / next article — like NetNewsWire's
+                            // article navigation; grayed at the timeline ends.
+                            Image(systemName: "chevron.up")
+                                .font(.subheadline)
+                                .foregroundColor(model.canSelectPrevious ? .blue : .secondary)
+                                .contentShape(Rectangle())
+                                .onTapGesture { model.selectPreviousItem() }
+                            Image(systemName: "chevron.down")
+                                .font(.subheadline)
+                                .foregroundColor(model.canSelectNext ? .blue : .secondary)
+                                .contentShape(Rectangle())
+                                .onTapGesture { model.selectNextItem() }
                             // Star toggle — same affordance as upstream
                             // NetNewsWire's article-toolbar star button.
-                            Button(model.isStarred(id: item.id) ? "★" : "☆") {
-                                model.toggleStarred(id: item.id)
-                            }
-                            .font(.title3)
+                            Image(systemName: model.isStarred(id: item.id) ? "star.fill" : "star")
+                                .font(.title3)
+                                .foregroundColor(model.isStarred(id: item.id) ? .yellow : .secondary)
+                                .contentShape(Rectangle())
+                                .onTapGesture { model.toggleStarred(id: item.id) }
                         }
                         // Headline.
                         Text(item.title)
@@ -472,6 +504,10 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
     public let title: String
     public let link: String?
     public let pubDate: String?
+    /// Raw publication `Date` when the feed parser produced one. Drives the
+    /// timeline's relative "time ago" display; nil for string-only fixtures
+    /// or feeds without a parseable date (the row falls back to `pubDate`).
+    public let publishedDate: Date?
     public let descriptionHTML: String?
     /// Byline shown under the title in the detail header. nil when
     /// the feed didn't carry an `<author>` / `<dc:creator>`.
@@ -491,6 +527,7 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
         title: String,
         link: String?,
         pubDate: String?,
+        publishedDate: Date? = nil,
         descriptionHTML: String?,
         author: String? = nil
     ) {
@@ -498,6 +535,7 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
         self.title = title
         self.link = link
         self.pubDate = pubDate
+        self.publishedDate = publishedDate
         self.descriptionHTML = descriptionHTML
         self.author = author
         self.linkURL = link.flatMap { URL(string: $0) }
@@ -511,14 +549,18 @@ public struct RSSArticleRow: Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let publishedSummary: String
+    /// Raw publication `Date` (threaded from `RSSItem`) for the timeline's
+    /// relative "time ago" rendering; nil falls back to `publishedSummary`.
+    public let publishedDate: Date?
     /// Short plain-text preview shown under the title, like
     /// NetNewsWire's two-line timeline snippet.
     public let snippet: String
 
-    public init(id: String, title: String, publishedSummary: String, snippet: String = "") {
+    public init(id: String, title: String, publishedSummary: String, publishedDate: Date? = nil, snippet: String = "") {
         self.id = id
         self.title = title
         self.publishedSummary = publishedSummary
+        self.publishedDate = publishedDate
         self.snippet = snippet
     }
 
@@ -527,8 +569,17 @@ public struct RSSArticleRow: Identifiable, Hashable, Sendable {
             id: item.id,
             title: item.title,
             publishedSummary: item.publishedSummary,
+            publishedDate: item.publishedDate,
             snippet: HTMLText.snippet(fromPlainText: item.plainTextBody)
         )
+    }
+
+    /// Timeline date label: a relative "time ago" / short date derived from
+    /// `publishedDate` via the shared `QuillFoundation.RelativeTime` (matching
+    /// NetNewsWire's compact timeline) when present, else the absolute
+    /// `publishedSummary` fallback used by string-only fixtures.
+    public var timelineDateText: String {
+        publishedDate.map { RelativeTime.string(for: $0, now: Date()) } ?? publishedSummary
     }
 }
 
@@ -690,6 +741,15 @@ final class RSSReaderModel: ObservableObject {
     /// star toggle in the detail header.
     @Published private(set) var starredArticleIDs: Set<String> = []
 
+    /// Optional SQLite persistence (RSSReadStateStore) for read/starred state.
+    /// Off in fixture/test mode so those stay deterministic; the app turns it
+    /// on for the real-fetch path via `enablePersistence()`.
+    private var stateStore: RSSReadStateStore?
+
+    /// Optional SQLite persistence (RSSFeedListStore) for the subscribed feed
+    /// list, so OPML imports / additions survive relaunch. Same opt-in shape.
+    private var feedStore: RSSFeedListStore?
+
     /// Live search query bound to the timeline filter field.
     /// Empty string → no filter (filteredRows == rows). Matching
     /// is case-insensitive and runs against the article title
@@ -810,6 +870,25 @@ final class RSSReaderModel: ObservableObject {
         selectItem(id: pool[index - 1].id)
     }
 
+    /// Whether a later article exists to step to — drives the detail view's
+    /// next-article button (grayed at the end of the timeline).
+    var canSelectNext: Bool {
+        let pool = filteredItems
+        guard let id = selectedID, let i = pool.firstIndex(where: { $0.id == id }) else {
+            return !pool.isEmpty
+        }
+        return pool.index(after: i) < pool.endIndex
+    }
+
+    /// Whether an earlier article exists — drives the previous-article button.
+    var canSelectPrevious: Bool {
+        let pool = filteredItems
+        guard let id = selectedID, let i = pool.firstIndex(where: { $0.id == id }) else {
+            return false
+        }
+        return i > pool.startIndex
+    }
+
     /// Mark the current article read and advance to the next.
     /// Mirrors NetNewsWire's spacebar default: when there's no
     /// selection yet, just select the first item without
@@ -854,6 +933,7 @@ final class RSSReaderModel: ObservableObject {
         if selectedFeedID == nil {
             selectedFeedID = subscribedFeeds.first?.id
         }
+        if added > 0 { persistFeedList() }
         return added
     }
 
@@ -994,6 +1074,7 @@ final class RSSReaderModel: ObservableObject {
     func markRead(id: String) {
         if readArticleIDs.insert(id).inserted {
             // didSet on readArticleIDs handles status text refresh.
+            persistState(for: id)
         }
     }
 
@@ -1006,6 +1087,25 @@ final class RSSReaderModel: ObservableObject {
         } else {
             readArticleIDs.insert(selectedID)
         }
+        persistState(for: selectedID)
+    }
+
+    /// Mark every article currently shown in the timeline as read —
+    /// upstream NetNewsWire's "Mark All as Read" toolbar action. Unions the
+    /// visible IDs into `readArticleIDs` in a single assignment so the status
+    /// text refreshes once rather than per-article.
+    func markAllRead() {
+        let union = readArticleIDs.union(filteredRows.map(\.id))
+        if union != readArticleIDs {
+            readArticleIDs = union
+            persistAllState()
+        }
+    }
+
+    /// True when any article in the current timeline is unread — drives the
+    /// Mark All as Read control's tinted/no-op state.
+    var hasUnreadInTimeline: Bool {
+        filteredRows.contains { !readArticleIDs.contains($0.id) }
     }
 
     func isRead(id: String) -> Bool {
@@ -1025,6 +1125,7 @@ final class RSSReaderModel: ObservableObject {
         } else {
             starredArticleIDs.insert(id)
         }
+        persistState(for: id)
     }
 
     /// Toggle starred state on the currently-selected article.
@@ -1032,6 +1133,59 @@ final class RSSReaderModel: ObservableObject {
     func toggleStarredOnSelection() {
         guard let selectedID else { return }
         toggleStarred(id: selectedID)
+    }
+
+    // MARK: - Read/starred persistence
+
+    /// Turn on SQLite persistence and merge any previously-saved read/starred
+    /// state into the in-memory sets. Best-effort: a store that can't open
+    /// (e.g. a read-only home dir) silently leaves state in memory. The app
+    /// calls this on the real-fetch path; fixtures/tests leave it off so they
+    /// stay deterministic. `store` is injectable for tests.
+    func enablePersistence(store: RSSReadStateStore? = nil) {
+        guard let store = store ?? (try? RSSReadStateStore(url: RSSReadStateStore.defaultURL())) else { return }
+        stateStore = store
+        if let loaded = try? store.load() {
+            if !loaded.read.isEmpty { readArticleIDs.formUnion(loaded.read) }
+            if !loaded.starred.isEmpty { starredArticleIDs.formUnion(loaded.starred) }
+        }
+    }
+
+    /// Persist one article's current read/starred flags. No-op without a store.
+    private func persistState(for id: String) {
+        try? stateStore?.setState(
+            articleID: id,
+            isRead: readArticleIDs.contains(id),
+            isStarred: starredArticleIDs.contains(id)
+        )
+    }
+
+    /// Persist the whole read/starred set in one batch (for bulk actions).
+    private func persistAllState() {
+        try? stateStore?.replaceAll(read: readArticleIDs, starred: starredArticleIDs)
+    }
+
+    /// Turn on feed-list persistence. Loads a previously-saved subscription
+    /// list (the source of truth once it exists); on first run, persists the
+    /// current seed list so it's there next launch. Best-effort; injectable
+    /// for tests. Kept separate from `enablePersistence` so each store can be
+    /// exercised in isolation.
+    func enableFeedPersistence(store: RSSFeedListStore? = nil) {
+        guard let store = store ?? (try? RSSFeedListStore(url: RSSFeedListStore.defaultURL())) else { return }
+        feedStore = store
+        if let loaded = try? store.load(), !loaded.isEmpty {
+            subscribedFeeds = loaded
+            if selectedFeedID == nil || !loaded.contains(where: { $0.id == selectedFeedID }) {
+                selectedFeedID = loaded.first?.id
+            }
+        } else {
+            try? store.replaceAll(subscribedFeeds)
+        }
+    }
+
+    /// Persist the current subscription list (no-op without a store).
+    private func persistFeedList() {
+        try? feedStore?.replaceAll(subscribedFeeds)
     }
 
     /// Count of starred items in the currently-loaded timeline.
@@ -1209,12 +1363,25 @@ final class RSSReaderModel: ObservableObject {
         }
     }
 
+    /// Builds a fixture publication `Date` (all fixtures are 2026) so the
+    /// offline demo timeline exercises the same relative-date rendering path
+    /// (`RSSArticleRow.timelineDateText` → `RelativeTime`) as live feeds.
+    private static func fixtureDate(_ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
+        // Fully qualify Foundation's types: on Linux, QuillUI re-exports
+        // SwiftOpenUI, which defines its own `DateComponents`/`Calendar` that
+        // would otherwise shadow Foundation's here.
+        var c = Foundation.DateComponents()
+        c.year = 2026; c.month = month; c.day = day; c.hour = hour; c.minute = minute
+        return Foundation.Calendar(identifier: .gregorian).date(from: c) ?? Date(timeIntervalSince1970: 0)
+    }
+
     private static let profileFixtureItems: [RSSItem] = [
         RSSItem(
             id: "1",
             title: "Painting the Natural World Before Photography",
             link: "https://example.test/1",
             pubDate: "Feb 2, 2026 at 6:58 AM",
+            publishedDate: RSSReaderModel.fixtureDate(2, 2, 6, 58),
             descriptionHTML: """
             <p>Decades before the advent of photography, when European scientists and \
             explorers were undertaking grand expeditions, painters documented the natural \
@@ -1233,6 +1400,7 @@ final class RSSReaderModel: ObservableObject {
             title: "A Quiet Update to the Swift Concurrency Model",
             link: "https://example.test/2",
             pubDate: "Feb 1, 2026 at 9:12 AM",
+            publishedDate: RSSReaderModel.fixtureDate(2, 1, 9, 12),
             descriptionHTML: """
             <p>The latest toolchain refines how isolated conformances interact with \
             main-actor views, smoothing a rough edge that Linux UI code hit often.</p>\
@@ -1246,6 +1414,7 @@ final class RSSReaderModel: ObservableObject {
             title: "Swift.org toolchain update",
             link: "https://example.test/3",
             pubDate: "Jan 30, 2026 at 4:05 PM",
+            publishedDate: RSSReaderModel.fixtureDate(1, 30, 16, 5),
             descriptionHTML: "<p>Compiler and package manager notes for Linux app smoke runs.</p>",
             author: "The Swift Team"
         ),
@@ -1254,6 +1423,7 @@ final class RSSReaderModel: ObservableObject {
             title: "Point-Free dependency release",
             link: "https://example.test/4",
             pubDate: "Jan 29, 2026 at 11:20 AM",
+            publishedDate: RSSReaderModel.fixtureDate(1, 29, 11, 20),
             descriptionHTML: "<p>Dependency injection notes and performance guardrails.</p>",
             author: "Brandon Williams"
         ),
@@ -1262,6 +1432,7 @@ final class RSSReaderModel: ObservableObject {
             title: "Linux backend smoke notes",
             link: "https://example.test/5",
             pubDate: "Jan 28, 2026 at 8:00 AM",
+            publishedDate: RSSReaderModel.fixtureDate(1, 28, 8, 0),
             descriptionHTML: "<p>Fixture article used to keep GTK and Qt row selection checks deterministic.</p>"
         ),
     ]
@@ -1363,6 +1534,7 @@ struct RSSFeedParser {
             title: title,
             link: item.url,
             pubDate: formatPubDate(item.datePublished),
+            publishedDate: item.datePublished,
             descriptionHTML: body,
             author: author
         )

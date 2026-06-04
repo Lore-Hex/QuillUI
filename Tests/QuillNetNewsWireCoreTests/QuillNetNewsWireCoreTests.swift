@@ -84,7 +84,103 @@ struct QuillNetNewsWireCoreTests {
         #expect(row.snippet.contains("First paragraph."))
     }
 
+    @Test("RSSArticleRow.timelineDateText is relative when dated, absolute fallback otherwise")
+    func rssArticleRowTimelineDate() {
+        // A real publication date → compact relative/short date via
+        // RelativeTime, NOT the absolute publishedSummary string.
+        let dated = RSSArticleRow(
+            id: "1", title: "T", publishedSummary: "Feb 2, 2026 at 6:58 AM",
+            publishedDate: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        #expect(dated.publishedDate != nil)
+        #expect(dated.timelineDateText != "Feb 2, 2026 at 6:58 AM")
+        // No date (string-only fixture) → falls back to the absolute summary.
+        let undated = RSSArticleRow(id: "2", title: "T", publishedSummary: "Feb 2, 2026 at 6:58 AM")
+        #expect(undated.publishedDate == nil)
+        #expect(undated.timelineDateText == "Feb 2, 2026 at 6:58 AM")
+    }
+
+    @Test("RSSArticleRow(item:) threads publishedDate from the item")
+    func rssArticleRowThreadsPublishedDate() {
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let item = RSSItem(
+            id: "1", title: "T", link: nil, pubDate: "x",
+            publishedDate: date, descriptionHTML: "<p>body</p>"
+        )
+        #expect(RSSArticleRow(item: item).publishedDate == date)
+    }
+
     // MARK: - Reader model derived state
+
+    @MainActor
+    @Test("markAllRead marks every timeline article read")
+    func markAllReadMarksTimeline() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Seeded selection auto-reads item 1; items 2–5 remain unread.
+        #expect(model.hasUnreadInTimeline)
+        model.markAllRead()
+        #expect(!model.hasUnreadInTimeline)
+        #expect(model.filteredRows.allSatisfy { model.isRead(id: $0.id) })
+    }
+
+    @MainActor
+    @Test("canSelectNext/Previous reflect the selection's timeline position")
+    func articleNavGuards() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Seeded selection is the first item → no previous, has next.
+        #expect(model.selectedID == "1")
+        #expect(!model.canSelectPrevious)
+        #expect(model.canSelectNext)
+        // Step to the last item → has previous, no next.
+        model.selectNextItem(); model.selectNextItem()
+        model.selectNextItem(); model.selectNextItem()
+        #expect(model.selectedID == "5")
+        #expect(model.canSelectPrevious)
+        #expect(!model.canSelectNext)
+    }
+
+    @MainActor
+    @Test("read/starred state persists through the model across instances")
+    func modelPersistsReadState() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nnw-model-\(UUID().uuidString).sqlite")
+        // First model writes via its store, then goes away.
+        do {
+            let m1 = RSSReaderModel()
+            m1.enablePersistence(store: try RSSReadStateStore(url: url))
+            m1.markRead(id: "x")
+            m1.toggleStarred(id: "y")
+        }
+        // A fresh model on the same store loads the persisted state.
+        let m2 = RSSReaderModel()
+        m2.enablePersistence(store: try RSSReadStateStore(url: url))
+        #expect(m2.isRead(id: "x"))
+        #expect(m2.isStarred(id: "y"))
+        #expect(!m2.isRead(id: "y"))
+    }
+
+    @MainActor
+    @Test("subscribed feed list persists (incl. OPML imports) across instances")
+    func modelPersistsFeedList() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nnw-feeds-\(UUID().uuidString).sqlite")
+        let seedCount = RSSReaderModel().subscribedFeeds.count
+        do {
+            let m1 = RSSReaderModel()
+            // First run persists the seed list, then an OPML import adds one.
+            m1.enableFeedPersistence(store: try RSSFeedListStore(url: url))
+            _ = m1.importOPML(xml: """
+            <opml><body><outline text="Added Feed" xmlUrl="https://added.test/feed"/></body></opml>
+            """)
+        }
+        // A fresh model on the same store loads the seed + the imported feed.
+        let m2 = RSSReaderModel()
+        m2.enableFeedPersistence(store: try RSSFeedListStore(url: url))
+        #expect(m2.subscribedFeeds.contains { $0.url == "https://added.test/feed" })
+        #expect(m2.subscribedFeeds.count == seedCount + 1)
+    }
 
     @MainActor
     @Test("RSSReaderModel keeps selected item + status text cached")
