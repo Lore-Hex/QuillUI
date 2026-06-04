@@ -518,13 +518,19 @@ struct SourceHygieneTests {
     @Test("ImageRenderer comments describe the current GTK offscreen path")
     func imageRendererCommentsDescribeCurrentOffscreenPath() throws {
         let root = try packageRoot()
-        let source = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillUI/GdkPixbufTranscode.swift"),
+        let rendererSource = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Rendering/ImageRenderer.swift"),
+            encoding: .utf8
+        )
+        let gtkSource = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4ImageRenderer.swift"),
             encoding: .utf8
         )
 
-        #expect(source.contains("QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1"))
-        #expect(!source.contains("not yet wired up; see the TODO on `ImageRenderer`"))
+        #expect(rendererSource.contains("ImageRendererBackend.installViewRenderer"))
+        #expect(gtkSource.contains("gtk_widget_snapshot_child"))
+        #expect(gtkSource.contains("cairo_surface_write_to_png_stream"))
+        #expect(!rendererSource.contains("not yet wired up; see the TODO on `ImageRenderer`"))
     }
 
     @Test("Linux controls read backend-scoped reference environment")

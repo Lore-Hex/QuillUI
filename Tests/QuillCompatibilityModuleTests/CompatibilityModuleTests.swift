@@ -1220,10 +1220,13 @@ struct CompatibilityModuleTests {
         _ = Animation.easeOut(duration: 0.2).repeatForever(autoreverses: true)
         _ = Animation.easeOut(duration: 0.2).delay(0.4)
 
-        // ImageRenderer: previously returned nil with no diagnostic.
+        // ImageRenderer: Color content now produces real bytes without
+        // requiring the GTK display path. Non-Color content returns nil until
+        // a backend installs the SwiftOpenUI ImageRenderer hook.
         let renderer = ImageRenderer(content: Text("rendered"))
         #expect(renderer.uiImage == nil)
         #expect(renderer.nsImage == nil)
+        #expect(ImageRenderer(content: Color.red).cgImage?.data?.isEmpty == false)
         #expect(Image(systemName: "photo").render() == nil)
         let platformImage = PlatformImage(data: Data([1, 2, 3]))
         #expect(platformImage.convertImageToBase64String() == "AQID")
@@ -1238,19 +1241,12 @@ struct CompatibilityModuleTests {
         let events = QuillCompatibilityDiagnostics.shared.events
         let operations = Set(events.map(\.operation))
 
-        // ImageRenderer.init still records the partial-renderer fallback
-        // contract, while the access path logs when content can't be
-        // rasterized. The Text("rendered") used above is a non-Color view,
-        // so uiImage/nsImage still warn.
         #expect(operations.isSuperset(of: Set([
             "Binding.animation",
             "listStyle(PlainListStyle)",
             "Animation.snappy",
             "Animation.repeatForever",
             "Animation.delay",
-            "ImageRenderer.init",
-            "ImageRenderer.uiImage",
-            "ImageRenderer.nsImage",
             "Image.render",
             "PlatformImage.aspectFittedToHeight",
             "PlatformImage.compressImageData",
@@ -1258,8 +1254,9 @@ struct CompatibilityModuleTests {
         ])))
 
         // Severity: stubs that just no-op are .info; stubs that return wrong/missing
-        // data (NSImage tiff lie, ImageRenderer always-nil) are .warning so they
-        // surface louder in any diagnostic UI that filters by severity.
+        // data (NSImage tiff lie, image transforms on invalid bytes) are
+        // .warning so they surface louder in any diagnostic UI that filters by
+        // severity.
         let severitiesByOperation = Dictionary(
             grouping: events,
             by: \.operation
@@ -1271,8 +1268,6 @@ struct CompatibilityModuleTests {
         #expect(severitiesByOperation["Animation.delay"]?.contains(.info) == true)
         #expect(severitiesByOperation["Animation.snappy"]?.contains(.warning) == true)
         #expect(severitiesByOperation["NSImage.tiffRepresentation"]?.contains(.warning) == true)
-        #expect(severitiesByOperation["ImageRenderer.uiImage"]?.contains(.warning) == true)
-        #expect(severitiesByOperation["ImageRenderer.nsImage"]?.contains(.warning) == true)
         #expect(severitiesByOperation["Image.render"]?.contains(.warning) == true)
         #expect(severitiesByOperation["PlatformImage.aspectFittedToHeight"]?.contains(.warning) == true)
         #expect(severitiesByOperation["PlatformImage.compressImageData"]?.contains(.warning) == true)
@@ -2343,23 +2338,13 @@ struct CompatibilityModuleTests {
         #expect(warnings.isEmpty, "Color rendering should not record warnings; got \(warnings.map(\.message))")
     }
 
-    @Test(
-        "ImageRenderer offscreen pipeline produces real PNG bytes when explicitly enabled",
-        .disabled(if: ProcessInfo.processInfo.environment["QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER"] != "1",
-                  "Set QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 (with xvfb / Wayland and GSK_RENDERER=cairo) to exercise the offscreen pipeline.")
-    )
-    func imageRendererOffscreenPipelineProducesRealPNG() throws {
+    @Test("ImageRenderer exposes cgImage bytes for display-independent Color content")
+    func imageRendererExposesCGImageBytesForColorContent() throws {
         QuillCompatibilityDiagnostics.shared.clear()
 
-        // Drive the full pipeline: gtkRenderView -> offscreen GtkWindow +
-        // layout -> gtk_widget_snapshot -> gsk_render_node_draw -> cairo
-        // image surface -> copied GdkPixbuf pixels -> gdk_pixbuf_save_to_bufferv.
-        let renderer = ImageRenderer(content: Text("hello world"))
-        guard let image = renderer.nsImage, let pngData = image.data else {
-            let warnings = QuillCompatibilityDiagnostics.shared.events.filter {
-                $0.operation.hasPrefix("ImageRenderer") && $0.severity == .warning
-            }
-            Issue.record("Offscreen pipeline returned nil with QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1; warnings: \(warnings.map(\.message))")
+        let renderer = ImageRenderer(content: Color(red: 0.1, green: 0.6, blue: 0.2))
+        guard let pngData = renderer.cgImage?.data else {
+            Issue.record("Expected ImageRenderer.cgImage to carry PNG bytes for Color content")
             return
         }
 
@@ -2370,48 +2355,31 @@ struct CompatibilityModuleTests {
         let warnings = QuillCompatibilityDiagnostics.shared.events.filter {
             $0.operation.hasPrefix("ImageRenderer") && $0.severity == .warning
         }
-        #expect(warnings.isEmpty, "Successful offscreen rendering should not record warnings; got \(warnings.map(\.message))")
+        #expect(warnings.isEmpty, "Successful Color rendering should not record warnings; got \(warnings.map(\.message))")
     }
 
-    @Test("ImageRenderer guards non-Color content behind the GTK offscreen pipeline")
-    func imageRendererGuardsNonColorContentBehindGTKOptIn() {
+    @Test("ImageRenderer returns nil for arbitrary content until a backend hook is installed")
+    func imageRendererReturnsNilForArbitraryContentWithoutBackendHook() {
         QuillCompatibilityDiagnostics.shared.clear()
 
-        // Text content can take the experimental general path when
-        // QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1:
-        //   gtkRenderView → offscreen GtkWindow + size_allocate
-        //   → gtk_widget_snapshot → gsk_render_node_draw
-        //   → cairo_image_surface → copied GdkPixbuf pixels
-        //   → gdk_pixbuf_save_to_bufferv
-        // The default remains the safe nil+warning path because GTK can crash
-        // if snapshotting starts outside a controlled display harness.
         let renderer = ImageRenderer(content: Text("hello world"))
 
         if let image = renderer.nsImage {
-            // GTK initialized and the snapshot pipeline succeeded — verify
-            // we got real PNG bytes back.
             let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
             #expect(
                 image.data?.prefix(8) == Data(pngMagic),
                 "Expected PNG magic in offscreen-rendered image bytes; got \(image.data?.prefix(8) as Any)"
             )
 
-            // Successful rendering should not record warnings.
             let warnings = QuillCompatibilityDiagnostics.shared.events.filter {
                 $0.operation.hasPrefix("ImageRenderer") && $0.severity == .warning
             }
             #expect(warnings.isEmpty, "Successful rendering should not record warnings; got \(warnings.map(\.message))")
         } else {
-            // The default path is gated off. Verify the warning surfaces the
-            // content type so the developer knows what did not render.
             let warnings = QuillCompatibilityDiagnostics.shared.events.filter {
                 $0.operation.hasPrefix("ImageRenderer") && $0.severity == .warning
             }
-            #expect(!warnings.isEmpty, "Expected a warning when ImageRenderer returns nil")
-            #expect(
-                warnings.contains { $0.message.contains("Text") },
-                "Expected the warning to name the content type 'Text'; got \(warnings.map(\.message))"
-            )
+            #expect(warnings.isEmpty, "Renderer hook absence should not be reported as a QuillUI fallback warning")
         }
     }
 

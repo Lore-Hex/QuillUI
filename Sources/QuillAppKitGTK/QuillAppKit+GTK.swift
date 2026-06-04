@@ -356,6 +356,16 @@ extension NSImageView {
         guard QuillGTK.ensureInitialized() else { return nil }
         if let existing = gtkWidgetHandle { return existing }
         let img = gtk_image_new()
+        if let img, let data = image?.data {
+            data.withUnsafeBytes { rawBuffer in
+                guard let base = rawBuffer.bindMemory(to: UInt8.self).baseAddress else { return }
+                _ = quill_gtk_image_set_from_bytes(
+                    gpointer(img),
+                    base,
+                    rawBuffer.count
+                )
+            }
+        }
         gtkWidgetHandle = img.map { OpaquePointer($0) }
         return gtkWidgetHandle
     }

@@ -13,4 +13,13 @@
 public protocol RenderBackend {
     /// Run the application with the given App type.
     func run<A: App>(_ appType: A.Type)
+
+    /// Install any backend-specific support needed by `ImageRenderer`.
+    ///
+    /// Backends that cannot rasterize views may keep the default no-op.
+    func installImageRendererBackend()
+}
+
+public extension RenderBackend {
+    func installImageRendererBackend() {}
 }
