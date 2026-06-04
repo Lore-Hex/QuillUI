@@ -352,7 +352,12 @@ unsaved sender). The app (`IncomingMessage.senderName`) names a new conversation
 raw uuid, falling back to the uuid / "Signal". Bridge + 9 tests + app +
 decode-check (incl `sender_name` value/null) green; launch smoke clean.
 
----
+**Receive-error surfacing (2026-06-03):** the receive stream's `receive-error`
+events (store / registration / receive failures) are no longer silently dropped
+— the app sets the dismissible banner (`transientError`) with the bridge's detail
+(else "Couldn't receive messages. Reconnecting…"), while the escalating-backoff
+auto-restart retries underneath. `IncomingMessage` gained a `msg` field; the
+decode-check covers a `receive-error` line. App + decode-check green; smoke clean.
 
 ## Historical: the abandoned Signal-iOS compile
 

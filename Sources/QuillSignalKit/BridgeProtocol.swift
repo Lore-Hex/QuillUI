@@ -64,11 +64,13 @@ public struct IncomingMessage: Codable, Sendable {
     public let sender: String?
     public let senderName: String?
     public let body: String?
+    /// Detail for a non-message event (e.g. a `receive-error`).
+    public let msg: String?
     public let timestamp: UInt64?
     public let fromSelf: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case event, thread, sender, body, timestamp
+        case event, thread, sender, body, msg, timestamp
         case senderName = "sender_name"
         case fromSelf = "from_self"
     }

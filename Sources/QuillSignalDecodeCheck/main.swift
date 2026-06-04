@@ -195,6 +195,13 @@ if let m = c.decode(IncomingMessage.self, #"{"event":"message","thread":"t","sen
 } else {
     c.check("incoming (null sender_name) decodes", false)
 }
+// 13d. receive-error event decodes (event + msg detail)
+if let m = c.decode(IncomingMessage.self, #"{"event":"receive-error","ok":false,"msg":"not registered"}"#) {
+    c.check("receive-error event", m.event == "receive-error")
+    c.check("receive-error msg", m.msg == "not registered")
+} else {
+    c.check("receive-error decodes", false)
+}
 
 // 13b. incoming from_self:true (own message synced from another device)
 if let m = c.decode(IncomingMessage.self, #"{"event":"message","thread":"t","sender":"t","body":"echo","timestamp":1,"from_self":true}"#) {

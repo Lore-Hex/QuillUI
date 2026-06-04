@@ -322,8 +322,16 @@ public final class QuillSignalModel: ObservableObject {
             let client = BridgeClient(path: path)
             try? client.stream("{\"cmd\":\"receive\"}", timeoutSeconds: 0) { line in
                 guard let data = line.data(using: .utf8),
-                      let msg = try? JSONDecoder().decode(IncomingMessage.self, from: data),
-                      msg.event == "message",
+                      let msg = try? JSONDecoder().decode(IncomingMessage.self, from: data) else { return true }
+                if msg.event == "receive-error" {
+                    let detail = msg.msg
+                    Self.log("receive-error -> \(detail ?? "")")
+                    Task { @MainActor in
+                        self.transientError = detail ?? "Couldn't receive messages. Reconnecting…"
+                    }
+                    return true
+                }
+                guard msg.event == "message",
                       let thread = msg.thread, let body = msg.body else { return true }
                 let ts = msg.timestamp
                 let name = msg.senderName
