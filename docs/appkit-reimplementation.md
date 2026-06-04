@@ -140,8 +140,22 @@ that glue automatically; leave everything else byte-for-byte.
 
 The runtime token is **`QuillFoundation.Selector` = `struct { let name: String }`**
 (defined `#if !canImport(ObjectiveC)`). It constructs, supports `==`, and exposes
-`.name` for the runtime dispatch layer (a generated per-class
-`quillPerform(_:)` switch the Qt control backing invokes on click).
+`.name` for the runtime dispatch layer.
+
+**Closing the loop — generate dispatch + a runtime to invoke it.** Lowering
+`#selector` to an opaque token only compiles; to *run*, the same pass also
+**generates the dispatch conformance**: for each type with `@objc` actions it
+appends `extension Type: QuillActionDispatching { func quillPerform(_ selector:
+Selector, with sender: Any?) { switch selector.name { case "save": save(); case
+"foo(sender:)": foo(sender: sender as! AnyObject); … } } }` (collected from the
+`@objc` methods *before* the strip; 0- or 1-(sender)-arg, cast by declared type).
+The runtime side is a tiny protocol (`QuillActionDispatching`) plus
+`NSControl.sendAction` calling `(target as? QuillActionDispatching)?.quillPerform(
+sel, with: self)` and `NSButton.performClick` firing it. Net: `#selector`/`@objc`
+→ plain Swift that both compiles *and* dispatches, generated automatically from
+the app's own code. Protocol-based (not an `NSObject` method) so it works for any
+target — `NSResponder`, `NSViewController`, `AppDelegate` — with no `override` and
+no edits to Foundation's `NSObject`.
 
 ### Lessons from building lowering passes
 
@@ -190,6 +204,26 @@ against them. There is no separate assertion — *if it compiles, it conforms*.
   designated init is `init(frame:)`/`init?(coder:)` and NSViewController's is
   `init(nibName:bundle:)`. Making the shadow's `init()` a `convenience` lets a
   subclass's `init()` compile without `override`.
+- **Build the conformance target with the DEFAULT graph, not `QUILLUI_LINUX_BACKEND=qt`.**
+  The qt selector swaps `targets` for a stripped minimal list, which *drops* the
+  conformance target — you'll get *"no target named …"*. The shadow needs neither
+  GTK nor Qt (the Qt backing is a separate module), so a plain
+  `swift build --target <Conformance>` (default/gtk graph) compiles it.
+
+**Proven (first real ViewController):** WireGuard's unmodified
+`ButtonedDetailViewController` — a full `NSViewController` (NSButton, `#selector`
+target-action, Auto Layout, `init(nibName:)`/`init?(coder:)`, `loadView`) —
+compiles against the shadow after lowering, with **zero new shadow APIs needed**.
+The core thesis works on real ViewControllers, not just layout views.
+
+**Triaging "what's missing" — two categories.** When a real VC won't compile, the
+errors split into: **(A) app-level deps** — the app's *own* types the conformance
+target doesn't include (`tr` the i18n helper, model/view-model layer, sibling
+views). Fix by including those files in the target, or pick a VC that has none
+(ButtonedDetail). **(B) real AppKit-surface gaps** — `NSTableView.dequeueReusableCell`,
+`NSStackView.addView`, `NSView.left/rightAnchor`, `NSBox`, etc. Fix by growing the
+shadow. Don't conflate them: (A) is "include more app source," (B) is "build more
+framework." A single `tr` inclusion can clear a hundred (A) errors at once.
 
 ---
 
@@ -238,6 +272,23 @@ Notes: `import error:` in a smoke log means **success** (the module loaded), not
 failure. GTK `Ctrl+Return` submit is dead under headless Xvfb (the button
 works) — don't chase it.
 
+**Make it fast: bake a warm image + cache the build dir.** A cold qt-graph build
+is ~15–20 min; warm it's seconds. Build `FROM swift:6.2-noble` (or any Swift base)
++ `apt install qt6-base-dev libsqlite3-dev pkg-config` once, then mount the repo
+and a *named volume* at the scratch path so SwiftPM caches across runs:
+
+```bash
+docker run --rm -v "$PWD":/work -w /work -v quillui-build:/work/.build-linux \
+  -e QUILLUI_LINUX_BACKEND=qt -e QT_QPA_PLATFORM=offscreen <warm-image> \
+  bash -lc 'git config --global --add safe.directory /work; \
+            swift test --scratch-path .build-linux --filter <Test>'
+```
+
+**Manifest gotcha:** `Package.swift` hard-`fatalError`s if `QUILLUI_LINUX_BACKEND=qt`
+and the `Qt6Widgets` pkg-config package is absent — so **Qt6 must be installed even
+to *evaluate* the manifest** under the qt selector, not just to compile qt targets.
+(Conformance builds dodge this by using the default graph — see §5.)
+
 ---
 
 ## 8. Git / PR workflow lessons
@@ -256,6 +307,15 @@ works) — don't chase it.
 - **Keep increments tight.** A pure library/tests change (like a lowering pass)
   ships separately from CLI wiring, which ships separately from manifest/Docker
   conformance. Smaller PRs = faster green = less treadmill.
+- **Beware shared test files as conflict hotspots.** A single test file that many
+  PRs append `@Test`s to (e.g. `QuillAppKitQtTests.swift`) conflicts every time a
+  sibling PR lands first (both insert before the final `}`). Either give a new
+  slice its *own* test file, or sequence test-touching PRs to land one at a time.
+- **`reset --soft origin/main` only works to "rebase" a held branch if that branch
+  shares main's current base.** If main advanced (e.g. the swarm merged things)
+  after your branch's base, reset-soft stages a *revert* of all that intervening
+  work. Instead, branch fresh off `origin/main` and `git checkout <held-sha> --
+  <only-your-files>` to replay just your diff cleanly.
 
 ---
 
