@@ -76,6 +76,22 @@ public func os_log(
     recordOSLoggerMessage(level: type.label, operation: "os_log", message: "\(message)")
 }
 
+// Apple's PRIMARY os_log: message-first with a `type:` label. This is the form
+// real macOS source uses (e.g. WireGuard's Logger.swift: `os_log(msg, log:,
+// type:)` and `os_log("%{public}s", log:, type:, arg)`). Added ALONGSIDE the
+// type-first overload above; the two are unambiguous because the first
+// positional parameter is a StaticString here vs an OSLogType there, so any
+// call resolves to exactly one.
+public func os_log(
+    _ message: StaticString,
+    dso: UnsafeRawPointer? = nil,
+    log: OSLog = .default,
+    type: OSLogType = .default,
+    _ args: CVarArg...
+) {
+    recordOSLoggerMessage(level: type.label, operation: "os_log", message: "\(message)")
+}
+
 // Apple's Mach-O dynamic-loader API. Stubbed on Linux so packages that
 // reach for it (xctest-dynamic-overlay's _DefaultReporter, which scans
 // loaded images looking for SwiftUI) compile. The loop bodies become
