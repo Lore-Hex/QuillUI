@@ -248,6 +248,22 @@ open(path, "w").write(src)
 print("patched NETunnelProviderProtocol+Extension.swift imports")
 PY
     fi
+
+    # FileManager+Extension uses FileManager.containerURL(forSecurityApplicationGroupIdentifier:),
+    # which swift-corelibs-foundation lacks (no app groups on Linux). QuillFoundation
+    # supplies a (nil-returning) clone, so the file needs `import QuillFoundation`.
+    local fmext="$UPSTREAM_DIR/wireguard-apple/Sources/Shared/FileManager+Extension.swift"
+    if [[ -f "$fmext" ]] && ! grep -q '^import QuillFoundation' "$fmext"; then
+        echo "==> patching FileManager+Extension.swift to import QuillFoundation"
+        python3 - "$fmext" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+patched = src.replace('import os\n', 'import os\nimport QuillFoundation\n', 1)
+open(path, "w").write(patched)
+print("patched FileManager+Extension.swift to import QuillFoundation")
+PY
+    fi
 }
 
 patch_icecubes() {
