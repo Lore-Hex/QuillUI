@@ -406,13 +406,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             }
         }
 
-        // Restore focus/cursor to the matching input after rebuild.
-        // When suppressed, skip grab_focus but still restore cursor/selection.
-        if let info = focusInfo {
-            restoreFocusInfo(info, in: newChild, suppressFocus: !shouldRestoreFocus)
-        }
-
-        // Capture descriptor state for next rebuild's narrow mutation path
+        let rebuiltDescriptorState: RebuiltDescriptorState?
         if let describeBody = describeBody {
             let previousEnvForDesc = getCurrentEnvironment()
             installRebuildEnvironment()
@@ -424,14 +418,31 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
                 descriptorRoot: identified,
                 payloads: described.canvasPayloads
             )
-            lastRetainedDescriptor = gtkRetainDescriptorTree(identified)
-            var executor = gtkMakeExecutorTree(
-                from: identified,
+            gtkTagFocusableInputIdentities(in: newChild, descriptorRoot: identified)
+            rebuiltDescriptorState = RebuiltDescriptorState(
+                identified: identified,
                 canvasPayloadsByIdentity: canvasPayloads
+            )
+        } else {
+            rebuiltDescriptorState = nil
+        }
+
+        // Restore focus/cursor to the matching input after rebuild.
+        // When suppressed, skip grab_focus but still restore cursor/selection.
+        if let info = focusInfo {
+            restoreFocusInfo(info, in: newChild, suppressFocus: !shouldRestoreFocus)
+        }
+
+        // Capture descriptor state for next rebuild's narrow mutation path
+        if let rebuiltDescriptorState {
+            lastRetainedDescriptor = gtkRetainDescriptorTree(rebuiltDescriptorState.identified)
+            var executor = gtkMakeExecutorTree(
+                from: rebuiltDescriptorState.identified,
+                canvasPayloadsByIdentity: rebuiltDescriptorState.canvasPayloadsByIdentity
             )
             executor = gtkCaptureSupportedNativeSlots(
                 from: newChild,
-                descriptorRoot: identified,
+                descriptorRoot: rebuiltDescriptorState.identified,
                 executorRoot: executor
             )
             retainedExecutor = executor
@@ -501,12 +512,21 @@ private class AnimationTransitionContext {
     }
 }
 
+private struct RebuiltDescriptorState {
+    let identified: GTK4IdentifiedDescriptorNode
+    let canvasPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4CanvasPayload]
+}
+
 // MARK: - Focus preservation across rebuilds
 
 /// Info about a focused editable widget, used to restore focus after rebuild.
 private struct FocusInfo {
     /// DFS index of the focused input within the container tree.
     let editableIndex: Int
+    /// Descriptor identity attached to the focused input, when available.
+    let descriptorIdentity: GTK4DescriptorIdentity?
+    /// Stable binding/view-derived key attached to the focused input, when available.
+    let stableFocusKey: String?
     /// Cursor position within the editable text.
     let cursorPosition: Int
     /// Whether the focused widget was a GtkTextView (vs GtkEditable).
@@ -541,6 +561,183 @@ private func isTextView(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
     return typeName == "GtkTextView"
 }
 
+private enum FocusableInputKind {
+    case editable
+    case textView
+    case scale
+}
+
+private struct FocusableDescriptorEntry {
+    let descriptorIdentity: GTK4DescriptorIdentity
+    let stableFocusKey: String?
+    let inputKind: FocusableInputKind
+}
+
+private final class FocusIdentityBox {
+    let descriptorIdentity: GTK4DescriptorIdentity
+    let stableFocusKey: String?
+
+    init(descriptorIdentity: GTK4DescriptorIdentity, stableFocusKey: String?) {
+        self.descriptorIdentity = descriptorIdentity
+        self.stableFocusKey = stableFocusKey
+    }
+}
+
+private let focusIdentityKey = "gtk-swift-focus-identity"
+
+func gtkTagFocusableInputIdentities(
+    in widgetRoot: UnsafeMutablePointer<GtkWidget>,
+    descriptorRoot: GTK4IdentifiedDescriptorNode
+) {
+    let descriptors = collectFocusableDescriptorEntries(from: descriptorRoot)
+    var widgets: [UnsafeMutablePointer<GtkWidget>] = []
+    collectFocusableInputWidgets(in: widgetRoot, into: &widgets)
+
+    guard descriptors.count == widgets.count else { return }
+    for (descriptor, widget) in zip(descriptors, widgets) {
+        guard focusableDescriptor(descriptor, matches: widget) else { return }
+    }
+    for (descriptor, widget) in zip(descriptors, widgets) {
+        setFocusIdentityRecursively(
+            descriptorIdentity: descriptor.descriptorIdentity,
+            stableFocusKey: descriptor.stableFocusKey,
+            on: widget
+        )
+    }
+}
+
+private func collectFocusableDescriptorEntries(
+    from node: GTK4IdentifiedDescriptorNode
+) -> [FocusableDescriptorEntry] {
+    var result: [FocusableDescriptorEntry] = []
+    if let entry = focusableDescriptorEntry(for: node) {
+        result.append(entry)
+    }
+    for child in node.children {
+        result.append(contentsOf: collectFocusableDescriptorEntries(from: child))
+    }
+    return result
+}
+
+private func focusableDescriptorEntry(
+    for node: GTK4IdentifiedDescriptorNode
+) -> FocusableDescriptorEntry? {
+    switch node.descriptor.typeName {
+    case "TextField", "SecureField":
+        return FocusableDescriptorEntry(
+            descriptorIdentity: node.identity,
+            stableFocusKey: stableFocusKey(from: node.descriptor),
+            inputKind: .editable
+        )
+    case "TextEditor":
+        return FocusableDescriptorEntry(
+            descriptorIdentity: node.identity,
+            stableFocusKey: stableFocusKey(from: node.descriptor),
+            inputKind: .textView
+        )
+    default:
+        break
+    }
+
+    if node.descriptor.kind == .slider {
+        return FocusableDescriptorEntry(
+            descriptorIdentity: node.identity,
+            stableFocusKey: nil,
+            inputKind: .scale
+        )
+    }
+    return nil
+}
+
+private func stableFocusKey(from descriptor: GTK4DescriptorNode) -> String? {
+    guard case let .text(textDescriptor) = descriptor.props else { return nil }
+    return textDescriptor.content
+}
+
+private func collectFocusableInputWidgets(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    into result: inout [UnsafeMutablePointer<GtkWidget>]
+) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    if isFocusableInput(widget) {
+        result.append(widget)
+        return
+    }
+    var child = gtk_widget_get_first_child(widget)
+    while let c = child {
+        collectFocusableInputWidgets(in: c, into: &result)
+        child = gtk_widget_get_next_sibling(c)
+    }
+}
+
+private func focusableDescriptor(
+    _ descriptor: FocusableDescriptorEntry,
+    matches widget: UnsafeMutablePointer<GtkWidget>
+) -> Bool {
+    switch descriptor.inputKind {
+    case .editable:
+        return gtk_swift_widget_is_editable(widget) != 0
+    case .textView:
+        return isTextView(widget)
+    case .scale:
+        return isScale(widget)
+    }
+}
+
+private func setFocusIdentityRecursively(
+    descriptorIdentity: GTK4DescriptorIdentity,
+    stableFocusKey: String?,
+    on widget: UnsafeMutablePointer<GtkWidget>
+) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    if isFocusableInput(widget) {
+        setFocusIdentity(
+            descriptorIdentity: descriptorIdentity,
+            stableFocusKey: stableFocusKey,
+            on: widget
+        )
+    }
+    var child = gtk_widget_get_first_child(widget)
+    while let c = child {
+        setFocusIdentityRecursively(
+            descriptorIdentity: descriptorIdentity,
+            stableFocusKey: stableFocusKey,
+            on: c
+        )
+        child = gtk_widget_get_next_sibling(c)
+    }
+}
+
+private func setFocusIdentity(
+    descriptorIdentity: GTK4DescriptorIdentity,
+    stableFocusKey: String?,
+    on widget: UnsafeMutablePointer<GtkWidget>
+) {
+    let box = FocusIdentityBox(
+        descriptorIdentity: descriptorIdentity,
+        stableFocusKey: stableFocusKey
+    )
+    let retained = Unmanaged.passRetained(box).toOpaque()
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data_full(
+        gobject,
+        focusIdentityKey,
+        retained,
+        { data in
+            guard let data else { return }
+            Unmanaged<FocusIdentityBox>.fromOpaque(data).release()
+        }
+    )
+}
+
+private func focusIdentity(
+    of widget: UnsafeMutablePointer<GtkWidget>
+) -> FocusIdentityBox? {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    guard let raw = g_object_get_data(gobject, focusIdentityKey) else { return nil }
+    return Unmanaged<FocusIdentityBox>.fromOpaque(raw).takeUnretainedValue()
+}
+
 /// Walk the widget subtree and find the focused editable, recording its DFS index and cursor.
 private func saveFocusInfo(in container: UnsafeMutablePointer<GtkWidget>) -> FocusInfo? {
     var index = 0
@@ -550,10 +747,19 @@ private func saveFocusInfo(in container: UnsafeMutablePointer<GtkWidget>) -> Foc
 private func findFocusedEditable(in widget: UnsafeMutablePointer<GtkWidget>, index: inout Int) -> FocusInfo? {
     guard gtk_swift_is_widget(widget) != 0 else { return nil }
     if gtk_widget_is_focus(widget) != 0 && isFocusableInput(widget) {
+        let identity = focusIdentity(of: widget)
         if isScale(widget) {
             // Scale/Range widgets need focus restored but have no cursor or selection.
-            return FocusInfo(editableIndex: index, cursorPosition: 0, isTextView: false,
-                             isScale: true, selectionStart: -1, selectionEnd: -1)
+            return FocusInfo(
+                editableIndex: index,
+                descriptorIdentity: identity?.descriptorIdentity,
+                stableFocusKey: identity?.stableFocusKey,
+                cursorPosition: 0,
+                isTextView: false,
+                isScale: true,
+                selectionStart: -1,
+                selectionEnd: -1
+            )
         } else if isTextView(widget) {
             let tvPtr = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GtkTextView.self)
             let buffer = gtk_text_view_get_buffer(tvPtr)!
@@ -566,8 +772,16 @@ private func findFocusedEditable(in widget: UnsafeMutablePointer<GtkWidget>, ind
             let hasSel = gtk_text_buffer_get_selection_bounds(buffer, &selStart, &selEnd)
             let ss = hasSel != 0 ? Int(gtk_text_iter_get_offset(&selStart)) : -1
             let se = hasSel != 0 ? Int(gtk_text_iter_get_offset(&selEnd)) : -1
-            return FocusInfo(editableIndex: index, cursorPosition: pos, isTextView: true,
-                             isScale: false, selectionStart: ss, selectionEnd: se)
+            return FocusInfo(
+                editableIndex: index,
+                descriptorIdentity: identity?.descriptorIdentity,
+                stableFocusKey: identity?.stableFocusKey,
+                cursorPosition: pos,
+                isTextView: true,
+                isScale: false,
+                selectionStart: ss,
+                selectionEnd: se
+            )
         } else {
             let editable = OpaquePointer(widget)
             let pos = Int(gtk_editable_get_position(editable))
@@ -577,8 +791,16 @@ private func findFocusedEditable(in widget: UnsafeMutablePointer<GtkWidget>, ind
             let hasSel = gtk_editable_get_selection_bounds(editable, &ss, &se)
             let selStart = hasSel != 0 ? Int(ss) : -1
             let selEnd = hasSel != 0 ? Int(se) : -1
-            return FocusInfo(editableIndex: index, cursorPosition: pos, isTextView: false,
-                             isScale: false, selectionStart: selStart, selectionEnd: selEnd)
+            return FocusInfo(
+                editableIndex: index,
+                descriptorIdentity: identity?.descriptorIdentity,
+                stableFocusKey: identity?.stableFocusKey,
+                cursorPosition: pos,
+                isTextView: false,
+                isScale: false,
+                selectionStart: selStart,
+                selectionEnd: selEnd
+            )
         }
     }
     if isFocusableInput(widget) {
@@ -597,42 +819,112 @@ private func findFocusedEditable(in widget: UnsafeMutablePointer<GtkWidget>, ind
 
 /// Find the nth focusable input in the new subtree and grab focus + set cursor/selection.
 private func restoreFocusInfo(_ info: FocusInfo, in widget: UnsafeMutablePointer<GtkWidget>, suppressFocus: Bool = false) {
-    var index = 0
-    if let target = findNthEditable(in: widget, targetIndex: info.editableIndex, index: &index) {
-        if !suppressFocus {
-            gtk_widget_grab_focus(target)
-        }
-        if info.isScale {
-            // Scale only needs focus, no cursor or selection to restore.
-            return
-        }
-        if info.isTextView {
-            let tvPtr = UnsafeMutableRawPointer(target).assumingMemoryBound(to: GtkTextView.self)
-            let buffer = gtk_text_view_get_buffer(tvPtr)!
-            if info.selectionStart >= 0 && info.selectionEnd >= 0 {
-                // Restore selection range
-                var selStart = GtkTextIter()
-                var selEnd = GtkTextIter()
-                gtk_text_buffer_get_iter_at_offset(buffer, &selStart, gint(info.selectionStart))
-                gtk_text_buffer_get_iter_at_offset(buffer, &selEnd, gint(info.selectionEnd))
-                gtk_text_buffer_select_range(buffer, &selStart, &selEnd)
-            } else {
-                // Restore cursor position only
-                var iter = GtkTextIter()
-                gtk_text_buffer_get_iter_at_offset(buffer, &iter, gint(info.cursorPosition))
-                gtk_text_buffer_place_cursor(buffer, &iter)
-            }
+    var target: UnsafeMutablePointer<GtkWidget>?
+    if let stableFocusKey = info.stableFocusKey {
+        target = findUniqueEditable(in: widget, stableFocusKey: stableFocusKey)
+    }
+    if target == nil, let descriptorIdentity = info.descriptorIdentity {
+        target = findEditable(in: widget, descriptorIdentity: descriptorIdentity)
+    }
+    if target == nil {
+        var index = 0
+        target = findNthEditable(in: widget, targetIndex: info.editableIndex, index: &index)
+    }
+
+    guard let target else { return }
+    restoreFocusAndSelection(info, to: target, suppressFocus: suppressFocus)
+}
+
+private func restoreFocusAndSelection(
+    _ info: FocusInfo,
+    to target: UnsafeMutablePointer<GtkWidget>,
+    suppressFocus: Bool
+) {
+    if !suppressFocus {
+        gtk_widget_grab_focus(target)
+    }
+    if info.isScale {
+        // Scale only needs focus, no cursor or selection to restore.
+        return
+    }
+    if info.isTextView {
+        let tvPtr = UnsafeMutableRawPointer(target).assumingMemoryBound(to: GtkTextView.self)
+        let buffer = gtk_text_view_get_buffer(tvPtr)!
+        if info.selectionStart >= 0 && info.selectionEnd >= 0 {
+            // Restore selection range
+            var selStart = GtkTextIter()
+            var selEnd = GtkTextIter()
+            gtk_text_buffer_get_iter_at_offset(buffer, &selStart, gint(info.selectionStart))
+            gtk_text_buffer_get_iter_at_offset(buffer, &selEnd, gint(info.selectionEnd))
+            gtk_text_buffer_select_range(buffer, &selStart, &selEnd)
         } else {
-            let editable = OpaquePointer(target)
-            if info.selectionStart >= 0 && info.selectionEnd >= 0 {
-                // Restore selection range (also moves cursor to selectionEnd)
-                gtk_editable_select_region(editable, gint(info.selectionStart), gint(info.selectionEnd))
-            } else {
-                // Restore cursor position only
-                gtk_editable_set_position(editable, gint(info.cursorPosition))
-            }
+            // Restore cursor position only
+            var iter = GtkTextIter()
+            gtk_text_buffer_get_iter_at_offset(buffer, &iter, gint(info.cursorPosition))
+            gtk_text_buffer_place_cursor(buffer, &iter)
+        }
+    } else {
+        let editable = OpaquePointer(target)
+        if info.selectionStart >= 0 && info.selectionEnd >= 0 {
+            // Restore selection range (also moves cursor to selectionEnd)
+            gtk_editable_select_region(editable, gint(info.selectionStart), gint(info.selectionEnd))
+        } else {
+            // Restore cursor position only
+            gtk_editable_set_position(editable, gint(info.cursorPosition))
         }
     }
+}
+
+private func findUniqueEditable(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    stableFocusKey: String
+) -> UnsafeMutablePointer<GtkWidget>? {
+    var matches: [UnsafeMutablePointer<GtkWidget>] = []
+    collectEditableMatches(in: widget, stableFocusKey: stableFocusKey, into: &matches)
+    return matches.count == 1 ? matches[0] : nil
+}
+
+private func collectEditableMatches(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    stableFocusKey: String,
+    into matches: inout [UnsafeMutablePointer<GtkWidget>]
+) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    if isFocusableInput(widget), focusIdentity(of: widget)?.stableFocusKey == stableFocusKey {
+        matches.append(widget)
+        return
+    }
+    if isFocusableInput(widget) {
+        return
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let c = child {
+        collectEditableMatches(in: c, stableFocusKey: stableFocusKey, into: &matches)
+        child = gtk_widget_get_next_sibling(c)
+    }
+}
+
+private func findEditable(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    descriptorIdentity: GTK4DescriptorIdentity
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard gtk_swift_is_widget(widget) != 0 else { return nil }
+    if isFocusableInput(widget), focusIdentity(of: widget)?.descriptorIdentity == descriptorIdentity {
+        return widget
+    }
+    if isFocusableInput(widget) {
+        return nil
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let c = child {
+        if let found = findEditable(in: c, descriptorIdentity: descriptorIdentity) {
+            return found
+        }
+        child = gtk_widget_get_next_sibling(c)
+    }
+    return nil
 }
 
 private func findNthEditable(in widget: UnsafeMutablePointer<GtkWidget>, targetIndex: Int, index: inout Int) -> UnsafeMutablePointer<GtkWidget>? {

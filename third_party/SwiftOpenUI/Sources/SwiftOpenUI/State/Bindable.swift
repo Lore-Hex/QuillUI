@@ -48,7 +48,11 @@ public struct Bindable<Value: AnyObject> {
         let object = wrappedValue
         return Binding(
             get: { object[keyPath: keyPath] },
-            set: { object[keyPath: keyPath] = $0 }
+            set: { object[keyPath: keyPath] = $0 },
+            quillUIIdentity: BindingIdentity(
+                objectIdentifier: ObjectIdentifier(object),
+                discriminator: keyPath.hashValue
+            )
         )
     }
 }
