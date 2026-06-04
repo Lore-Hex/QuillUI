@@ -30,6 +30,18 @@ import SwiftSyntaxBuilder
 ///     `toggleFullScreen(_:)`) so a qualified `#selector` compares equal to the
 ///     unqualified `#selector` that set the action — menu validation
 ///     (`menuItem.action == #selector(Type.foo)`) relies on this.
+///   * `Timer(timeInterval:repeats:){…}` → `QuillTimer.make(timeInterval:repeats:){…}`.
+///     swift-corelibs-Foundation's `Timer.init` block is hard `@Sendable`, so
+///     verbatim pre-Concurrency closures that call `@MainActor` UI methods (the
+///     norm in AppKit apps — `NSViewController` is `@MainActor`) fail to compile
+///     on Linux ("call to main actor-isolated method in a synchronous nonisolated
+///     context"). `QuillTimer.make` (QuillFoundation) takes a NON-`@Sendable`
+///     block, so the closure inherits `@MainActor`. A distinct symbol avoids the
+///     overload ambiguity a same-name `Timer` overload would cause (trailing
+///     closures match the last parameter by position). Only the block /
+///     trailing-closure init is rewritten — the target-action
+///     `Timer(timeInterval:target:selector:…)` and `Timer.scheduledTimer` are
+///     left alone.
 ///
 /// Runtime dispatch (a generated per-class `quillPerform(_:)` the Qt control
 /// backing invokes on click) layers on separately; this pass produces source
@@ -316,6 +328,43 @@ private final class AppKitRewriter: SyntaxRewriter {
         var copy = recursed
         copy.condition = widened
         return copy
+    }
+
+    // Timer(timeInterval:repeats:block:) -> QuillTimer.make(timeInterval:repeats:block:).
+    // corelibs-Foundation's Timer.init block is hard @Sendable, so verbatim
+    // pre-Concurrency closures that call @MainActor UI methods fail to compile on
+    // Linux. QuillTimer.make (QuillFoundation, #if os(Linux)) takes a NON-@Sendable
+    // block so the closure inherits @MainActor; it's a distinct symbol (no overload
+    // ambiguity) returning a real Timer. Idempotent: the rewritten callee is a
+    // member access (QuillTimer.make), not the `Timer` identifier, so it won't
+    // re-match.
+    override func visit(_ node: FunctionCallExprSyntax) -> ExprSyntax {
+        let recursed = super.visit(node)
+        guard let call = recursed.as(FunctionCallExprSyntax.self),
+              let callee = call.calledExpression.as(DeclReferenceExprSyntax.self),
+              callee.baseName.text == "Timer",
+              Self.isTimerBlockInit(call) else {
+            return recursed
+        }
+        var make = ExprSyntax("QuillTimer.make")
+        make.leadingTrivia = call.calledExpression.leadingTrivia
+        make.trailingTrivia = call.calledExpression.trailingTrivia
+        var copy = call
+        copy.calledExpression = make
+        return ExprSyntax(copy)
+    }
+
+    /// True iff `call` is `Timer(timeInterval:repeats:block:)` — labels
+    /// `timeInterval` + `repeats` with the block as a trailing closure, or those
+    /// two labels plus an explicit `block:` argument. Other `Timer` inits (the
+    /// target-action `timeInterval:target:selector:userInfo:repeats:`,
+    /// `fire:interval:…`) and `Timer.scheduledTimer` don't match and are untouched.
+    static func isTimerBlockInit(_ call: FunctionCallExprSyntax) -> Bool {
+        let labels: [String?] = call.arguments.map { $0.label?.text }
+        if call.trailingClosure != nil {
+            return labels == ["timeInterval", "repeats"]
+        }
+        return labels == ["timeInterval", "repeats", "block"]
     }
 
     /// Normalize a `#selector` reference into a stable key: drop the leading type

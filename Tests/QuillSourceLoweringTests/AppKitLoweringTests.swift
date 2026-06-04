@@ -270,4 +270,48 @@ struct AppKitLoweringTests {
         // Idempotent: the widened form does not re-match.
         #expect(AppKitLowering().lower(lowered) == lowered)
     }
+
+    // MARK: - Timer(timeInterval:repeats:block:) -> QuillTimer.make
+
+    @Test("Timer(timeInterval:repeats:) trailing-closure init becomes QuillTimer.make")
+    func timerTrailingClosureRewritten() {
+        let source = """
+        let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            self?.updateLogEntries()
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("QuillTimer.make(timeInterval: 1, repeats: true)"))
+        #expect(!lowered.contains("Timer(timeInterval:"))   // the `Timer(` init is gone
+        // The closure (incl. its @MainActor call + [weak self]) is preserved verbatim.
+        #expect(lowered.contains("self?.updateLogEntries()"))
+        #expect(lowered.contains("[weak self]"))
+        // Idempotent: QuillTimer.make is a member access, not the `Timer` identifier.
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
+    @Test("Timer(timeInterval:repeats:block:) explicit-block init becomes QuillTimer.make")
+    func timerExplicitBlockRewritten() {
+        let source = #"let t = Timer(timeInterval: 5, repeats: true, block: { _ in tick() })"#
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("QuillTimer.make(timeInterval: 5, repeats: true, block:"))
+        #expect(!lowered.contains("Timer(timeInterval:"))
+    }
+
+    @Test("Timer target-action init (timeInterval:target:selector:…) is NOT rewritten")
+    func timerTargetActionLeftAlone() {
+        let source = #"let t = Timer(timeInterval: 1, target: self, selector: #selector(fire), userInfo: nil, repeats: true)"#
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("Timer(timeInterval: 1, target: self"))   // init untouched
+        #expect(!lowered.contains("QuillTimer.make"))
+        #expect(lowered.contains(#"Selector("fire")"#))                    // the #selector still lowers
+    }
+
+    @Test("Timer.scheduledTimer is NOT rewritten (only the Timer(...) init is)")
+    func scheduledTimerLeftAlone() {
+        let source = "let t = Timer.scheduledTimer(timeInterval: 1, repeats: true) { _ in tick() }"
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("Timer.scheduledTimer(timeInterval: 1, repeats: true)"))
+        #expect(!lowered.contains("QuillTimer.make"))
+    }
 }
