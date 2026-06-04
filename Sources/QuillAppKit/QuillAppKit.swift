@@ -3183,12 +3183,13 @@ open class NSControl: NSView {
         guard let selector = a ?? action else { return false }
         let resolvedTarget = (receiver as AnyObject?) ?? target
         guard let resolvedTarget else { return false }
-        // Dispatch to the target's lowered action handler. App classes that wire
-        // up target-action conform to QuillActionDispatching — the AppKit source
-        // lowering injects a `quillPerform(_:)` that switches on the selector
-        // name. A target that doesn't conform is still a valid "had a target"
-        // match (returns true, per AppKit), it just performs nothing.
-        (resolvedTarget as? QuillActionDispatching)?.quillPerform(selector)
+        // Dispatch to the target's lowered action handler, passing this control
+        // as the sender (AppKit hands the control to `foo(sender:)` actions).
+        // App classes that wire up target-action conform to QuillActionDispatching
+        // — the AppKit source lowering injects `quillPerform(_:with:)` switching
+        // on the selector name. A target that doesn't conform is still a valid
+        // "had a target" match (returns true, per AppKit); it just performs nothing.
+        (resolvedTarget as? QuillActionDispatching)?.quillPerform(selector, with: self)
         return true
     }
     public func sizeToFit() {}

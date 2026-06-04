@@ -310,7 +310,9 @@ struct QuillAppKitQtTests {
         // widget needed — this exercises the pure Swift dispatch contract.
         final class Recorder: QuillActionDispatching {
             var fired: [String] = []
-            func quillPerform(_ selector: Selector) {
+            weak var lastSender: AnyObject?
+            func quillPerform(_ selector: Selector, with sender: Any?) {
+                lastSender = sender as AnyObject?
                 switch selector.name {
                 case "save": fired.append("save")
                 case "cancel": fired.append("cancel")
@@ -323,6 +325,8 @@ struct QuillAppKitQtTests {
 
         button.performClick(nil)
         #expect(target.fired == ["save"])
+        // The firing control is handed to the action as sender (AppKit contract).
+        #expect(target.lastSender === button)
 
         // sendAction with an explicit selector + receiver also dispatches.
         button.sendAction(Selector("cancel"), to: target)
