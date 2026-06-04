@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
 #
-# QuillSignal upstream-prepare pipeline step: inject `import Foundation` into
-# SignalServiceKit Swift sources that use Foundation types but do not import it.
+# QuillSignal upstream-prepare pipeline step: inject the implicit umbrella
+# imports (`Foundation`, `UIKit`) into SignalServiceKit Swift sources that use
+# those frameworks' types but do not import them.
 #
 # On Apple, the SignalServiceKit umbrella (SignalServiceKit-Swift.h / the ObjC
-# bridging header) makes Foundation implicitly available to every Swift file in
-# the module. On Linux + SwiftPM there is no umbrella, so each file must `import
-# Foundation` itself. Many upstream files rely on the implicit import (they only
-# `import GRDB` / `import LibSignalClient` / `import CryptoKit`, none of which
-# re-export Foundation on Linux), producing thousands of "cannot find type
-# 'Date'/'Data'/'DispatchQueue'/'TimeInterval'/'URLRequest'" errors.
+# bridging header) makes Foundation (and, for the iOS build, UIKit) implicitly
+# available to every Swift file in the module. On Linux + SwiftPM there is no
+# umbrella, so each file must import them itself. Many upstream files rely on the
+# implicit import (they only `import GRDB` / `import LibSignalClient` / etc., none
+# of which re-export Foundation or UIKit on Linux), producing thousands of
+# "cannot find type 'Date'/'Data'/'DispatchQueue'/'UIColor'/'UIImage'/…" errors.
 #
 # This step is idempotent and disposable-tree-only: it mutates the gitignored
 # .upstream checkout in place (like the lowering pass), so the SCRIPT is the
 # durable, committed artifact. Run after fetch + quill-lower-appkit.
+#
+# On Linux, `UIKit` resolves to the QuillUIKit shim target (an SSK dependency).
 #
 # Usage: scripts/quill-signal-inject-foundation.sh [SSK_ROOT]
 #   SSK_ROOT defaults to .upstream/signal-ios/SignalServiceKit
@@ -31,24 +34,30 @@ fi
 # Word-boundaried so e.g. Data does not match Database / DataMessage.
 FOUNDATION_TYPES='DispatchQueue|DispatchTime|DispatchGroup|TimeInterval|URLRequest|URLSession|URLComponents|\bURL\b|FileManager|FileHandle|NotificationCenter|\bNotification\b|\bData\b|\bDate\b|DateComponents|DateFormatter|\bUUID\b|IndexSet|\bCalendar\b|\bLocale\b|TimeZone|\bData\(|\bNSObject\b|NSNumber|NSString|NSData|NSDate|NSError|NSRange|NSRegularExpression|JSONDecoder|JSONEncoder|JSONSerialization|PropertyListDecoder|OperationQueue|\bOperation\b|ProcessInfo|\bBundle\b|\bScanner\b|CharacterSet|\bPipe\b'
 
+# UIKit types (resolved via the QuillUIKit shim on Linux).
+UIKIT_TYPES='\bUIColor\b|\bUIImage\b|\bUIFont\b|\bUIView\b|\bUIApplication\b|\bUIDevice\b|\bUIScreen\b|\bUIViewController\b|\bUIPasteboard\b|\bUIImpactFeedbackGenerator\b|\bUISelectionFeedbackGenerator\b|\bUINotificationFeedbackGenerator\b|\bUIBezierPath\b|\bUIEdgeInsets\b|\bUIInterfaceOrientation\b|\bUIBackgroundTaskIdentifier\b|\bUIActivityViewController\b'
+
 injected=0
 scanned=0
 
+inject_if_needed() {
+    # $1 file, $2 module name, $3 type-regex
+    local f="$1" module="$2" types="$3"
+    grep -qE "^[[:space:]]*(public |@_exported )?import ${module}\b" "$f" && return 1
+    grep -qE "$types" "$f" || return 1
+    # Prepend `import <module>`. Swift permits an import before the leading
+    # copyright comment, so a simple prepend is always valid.
+    printf 'import %s\n' "$module" | cat - "$f" > "$f.qfimport.tmp"
+    mv "$f.qfimport.tmp" "$f"
+    return 0
+}
+
 while IFS= read -r f; do
     scanned=$((scanned + 1))
-    # Already imports Foundation (directly)? skip.
-    if grep -qE '^[[:space:]]*(public |@_exported )?import Foundation\b' "$f"; then
-        continue
-    fi
-    # Does not actually use a Foundation type? skip.
-    if ! grep -qE "$FOUNDATION_TYPES" "$f"; then
-        continue
-    fi
-    # Prepend `import Foundation`. Swift permits an import before the leading
-    # copyright comment, so a simple prepend is always valid.
-    printf 'import Foundation\n' | cat - "$f" > "$f.qfimport.tmp"
-    mv "$f.qfimport.tmp" "$f"
-    injected=$((injected + 1))
+    touched=0
+    if inject_if_needed "$f" "Foundation" "$FOUNDATION_TYPES"; then touched=1; fi
+    if inject_if_needed "$f" "UIKit" "$UIKIT_TYPES"; then touched=1; fi
+    injected=$((injected + touched))
 done < <(find "$ROOT" -name '*.swift' -not -path '*/QuillPort/*')
 
-echo "quill-signal-inject-foundation: scanned $scanned .swift, injected import Foundation into $injected"
+echo "quill-signal-inject-foundation: scanned $scanned .swift, injected import(s) into $injected files"
