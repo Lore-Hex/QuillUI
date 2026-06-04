@@ -1272,6 +1272,13 @@ if wireguardUpstreamPresent {
                 // TunnelErrors: WireGuardAppError conformances + localizedUIString;
                 // needs PacketTunnelProviderError (above) + tr + NEVPNError + wg_log.
                 "Sources/WireGuardApp/Tunnel/TunnelErrors.swift",
+                // TunnelsManager + TunnelContainer (the model layer core). Uses KVO
+                // (observe(\.status)) + objc_*AssociatedObject — compile shims in
+                // QuillFoundation; splitToArray made public in UpstreamConfig.
+                // TunnelConfiguration+UapiConfig: the UAPI parser (fromUapiConfig:basedOn:),
+                // used by TunnelsManager. Uses ParserState/ParseError (made public).
+                "Sources/WireGuardApp/Tunnel/TunnelConfiguration+UapiConfig.swift",
+                "Sources/WireGuardApp/Tunnel/TunnelsManager.swift",
                 // Shared NotificationToken: a Foundation-only NotificationCenter
                 // observer wrapper (+ NotificationCenter.observe); used by the model
                 // layer (TunnelsManager/LogViewController). No ObjC.
