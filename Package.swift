@@ -841,6 +841,14 @@ var targets: [Target] = [
         path: "Sources/QuillArticles",
         swiftSettings: appSwiftSettings
     ),
+    // Vendored Ranchero-Software/NetNewsWire Account module — incremental
+    // bring-up. Leaf types only so far (AccountBehavior, UnreadCountProvider);
+    // Foundation-only, no deps yet. More follows as RSWeb/RSDatabase shims land.
+    .target(
+        name: "QuillAccount",
+        path: "Sources/QuillAccount",
+        swiftSettings: appSwiftSettings
+    ),
     // Vendored Ranchero-Software/NetNewsWire RSTree module
     // (Sources/RSTree → Sources/QuillRSTree). Pure-Foundation
     // tree data structures: Node, NodePath, RSTree,
@@ -1815,6 +1823,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillArticlesTests",
             dependencies: ["QuillArticles"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "QuillAccountTests",
+            dependencies: ["QuillAccount"],
             swiftSettings: appSwiftSettings
         ),
         // Smoke tests for the vendored upstream RSTree module.
