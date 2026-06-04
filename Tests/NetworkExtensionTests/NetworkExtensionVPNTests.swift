@@ -48,4 +48,16 @@ struct NetworkExtensionVPNTests {
         let session = mgr.connection as? NETunnelProviderSession
         try session?.sendProviderMessage(Data([1, 2, 3])) { _ in }
     }
+
+    @Test("NEVPNError direct code members + destroyConfigurationReference (TunnelsManager usage)")
+    func vpnErrorCodesAndDestroy() {
+        // Mirrors TunnelsManager: NEVPNError(NEVPNError.configurationUnknown) and
+        // error.code == NEVPNError.configurationInvalid.
+        #expect(NEVPNError.configurationInvalid == .configurationInvalid)
+        #expect(NEVPNError(NEVPNError.configurationUnknown).code == .configurationUnknown)
+        let err = NEVPNError(NEVPNError.configurationStale)
+        #expect(err.code == NEVPNError.configurationStale)
+        // macOS-branch no-op method compiles + runs.
+        NETunnelProviderProtocol().destroyConfigurationReference()
+    }
 }
