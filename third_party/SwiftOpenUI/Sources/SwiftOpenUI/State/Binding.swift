@@ -4,14 +4,34 @@
 /// Binding lifetime is tied to the parent view's render cycle.
 /// The get/set closures capture the parent's StateStorage, so mutations
 /// flow through the same lock + scheduling path as direct @State writes.
+public struct BindingIdentity: Hashable, CustomStringConvertible {
+    private let objectIdentifier: ObjectIdentifier
+    private let discriminator: Int
+
+    public init(objectIdentifier: ObjectIdentifier, discriminator: Int = 0) {
+        self.objectIdentifier = objectIdentifier
+        self.discriminator = discriminator
+    }
+
+    public var description: String {
+        "\(objectIdentifier):\(discriminator)"
+    }
+}
+
 @propertyWrapper
 public struct Binding<Value> {
     public let get: () -> Value
     public let set: (Value) -> Void
+    public let quillUIIdentity: BindingIdentity?
 
-    public init(get: @escaping () -> Value, set: @escaping (Value) -> Void) {
+    public init(
+        get: @escaping () -> Value,
+        set: @escaping (Value) -> Void,
+        quillUIIdentity: BindingIdentity? = nil
+    ) {
         self.get = get
         self.set = set
+        self.quillUIIdentity = quillUIIdentity
     }
 
     public var wrappedValue: Value {

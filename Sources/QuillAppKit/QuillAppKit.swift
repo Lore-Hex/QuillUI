@@ -186,7 +186,11 @@ open class UndoManager: NSObject, @unchecked Sendable {
 public typealias NSPoint = CGPoint
 public typealias NSSize = CGSize
 public typealias NSRect = CGRect
-public typealias NSEdgeInsets = (top: CGFloat, left: CGFloat, bottom: CGFloat, right: CGFloat)
+// NSEdgeInsets comes from Foundation on Linux (a struct with
+// init(top:left:bottom:right:)) — don't redeclare it, or it becomes ambiguous
+// with Foundation's at any use site that imports both (e.g. conformance source
+// via `import Cocoa`). The old tuple typealias only avoided this because nothing
+// referenced it ambiguously.
 public typealias NSRectPointer = UnsafeMutablePointer<NSRect>
 
 // NSStringFromRect and NSRectFromString come from Foundation through QuillFoundation.
@@ -2863,7 +2867,7 @@ open class NSScrollView: NSView {
     public var magnification: CGFloat = 1
     public var minMagnification: CGFloat = 0.25
     public var maxMagnification: CGFloat = 4.0
-    public var contentInsets: NSEdgeInsets = (0, 0, 0, 0)
+    public var contentInsets: NSEdgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
     public var automaticallyAdjustsContentInsets: Bool = true
     public convenience init() { self.init(frame: .zero) }
     public override init(frame: NSRect) {
@@ -2923,6 +2927,12 @@ open class NSTextField: NSControl {
     public convenience init(wrappingLabelWithString string: String) {
         self.init()
         applyLabelDefaults(string: string, selectable: true, lineBreakMode: .byWordWrapping)
+    }
+
+    public convenience init(labelWithAttributedString attributedString: NSAttributedString) {
+        self.init()
+        applyLabelDefaults(string: attributedString.string, selectable: false, lineBreakMode: .byClipping)
+        attributedStringValue = attributedString
     }
 
     public convenience init(string: String) {
@@ -3183,12 +3193,13 @@ open class NSControl: NSView {
         guard let selector = a ?? action else { return false }
         let resolvedTarget = (receiver as AnyObject?) ?? target
         guard let resolvedTarget else { return false }
-        // Dispatch to the target's lowered action handler. App classes that wire
-        // up target-action conform to QuillActionDispatching — the AppKit source
-        // lowering injects a `quillPerform(_:)` that switches on the selector
-        // name. A target that doesn't conform is still a valid "had a target"
-        // match (returns true, per AppKit), it just performs nothing.
-        (resolvedTarget as? QuillActionDispatching)?.quillPerform(selector)
+        // Dispatch to the target's lowered action handler, passing this control
+        // as the sender (AppKit hands the control to `foo(sender:)` actions).
+        // App classes that wire up target-action conform to QuillActionDispatching
+        // — the AppKit source lowering injects `quillPerform(_:with:)` switching
+        // on the selector name. A target that doesn't conform is still a valid
+        // "had a target" match (returns true, per AppKit); it just performs nothing.
+        (resolvedTarget as? QuillActionDispatching)?.quillPerform(selector, with: self)
         return true
     }
     public func sizeToFit() {}
@@ -3351,10 +3362,13 @@ open class NSStackView: NSView {
     public var alignment: NSLayoutConstraint.Attribute = .centerY
     public var distribution: Distribution = .fill
     public var spacing: CGFloat = 0
-    public var edgeInsets: NSEdgeInsets = (0, 0, 0, 0)
+    public var edgeInsets: NSEdgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
     public var arrangedSubviews: [NSView] = []
     public func addArrangedSubview(_ v: NSView) { arrangedSubviews.append(v); addSubview(v) }
     public func insertArrangedSubview(_ v: NSView, at idx: Int) { arrangedSubviews.insert(v, at: idx); addSubview(v) }
+    // Per-view trailing spacing. Recorded but not yet honored by the constraint
+    // layout pass (like gravity), enough for source-compat.
+    public func setCustomSpacing(_ spacing: CGFloat, after view: NSView) {}
     public func removeArrangedSubview(_ v: NSView) {
         arrangedSubviews.removeAll { $0 === v }
     }
@@ -3369,6 +3383,10 @@ open class NSStackView: NSView {
         for view in views { addArrangedSubview(view) }
     }
     public convenience init() { self.init(frame: .zero) }
+    public convenience init(views: [NSView]) {
+        self.init(frame: .zero)
+        for view in views { addArrangedSubview(view) }
+    }
 }
 
 extension NSLayoutConstraint {

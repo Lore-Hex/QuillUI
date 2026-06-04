@@ -288,6 +288,36 @@ private final class AppKitRewriter: SyntaxRewriter {
         return replacement
     }
 
+    // `import os.log` -> `import os`. Linux has no `os.log` submodule; the `os`
+    // shadow (Sources/osShim) provides Logger / os_log. Preserves leading trivia.
+    override func visit(_ node: ImportDeclSyntax) -> DeclSyntax {
+        guard node.path.trimmedDescription == "os.log" else { return DeclSyntax(node) }
+        var copy = node
+        copy.path = ImportPathComponentListSyntax([
+            ImportPathComponentSyntax(name: .identifier("os"))
+        ])
+        return DeclSyntax(copy)
+    }
+
+    // Widen `#if os(macOS)` / `#elseif os(macOS)` to `(os(macOS) || os(Linux))`
+    // so desktop app source that branches macOS-vs-iOS compiles on Linux (Linux
+    // takes the macOS branch instead of falling to an `#else #error`). Exact
+    // match only — idempotent (the widened form won't re-match) and conservative
+    // (compound / negated conditions are left untouched).
+    override func visit(_ node: IfConfigClauseSyntax) -> IfConfigClauseSyntax {
+        let recursed = super.visit(node)
+        guard let condition = recursed.condition,
+              condition.trimmedDescription == "os(macOS)" else {
+            return recursed
+        }
+        var widened = ExprSyntax("os(macOS) || os(Linux)")
+        widened.leadingTrivia = condition.leadingTrivia
+        widened.trailingTrivia = condition.trailingTrivia
+        var copy = recursed
+        copy.condition = widened
+        return copy
+    }
+
     /// Normalize a `#selector` reference into a stable key: drop the leading type
     /// qualifier (everything up to and including the final `.` that precedes the
     /// method name, considering only dots *before* any `(` so argument labels are

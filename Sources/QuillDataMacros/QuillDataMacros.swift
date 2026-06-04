@@ -172,6 +172,14 @@ public struct QuillAttributeMacro: PeerMacro {
     public static func expansion(of node: AttributeSyntax, providingPeersOf declaration: some DeclSyntaxProtocol, in context: some MacroExpansionContext) throws -> [DeclSyntax] { [] }
 }
 
+/// `@Relationship` is a marker annotation. In-memory inverse maintenance
+/// (SwiftData parity) is performed at runtime by `QuillRelationships`, driven
+/// by a `didSet` on each relationship property. That `didSet` cannot be added
+/// by an accessor macro — Swift requires accessor macros to emit a
+/// non-observing accessor (get/set), which would turn the property computed
+/// and break both its stored initializer and `Codable` persistence — so it is
+/// injected as source by `QuillSourceLowering` for generated apps (and written
+/// by hand in tests). This macro therefore stays a no-op peer.
 public struct QuillRelationshipMacro: PeerMacro {
     public static func expansion(of node: AttributeSyntax, providingPeersOf declaration: some DeclSyntaxProtocol, in context: some MacroExpansionContext) throws -> [DeclSyntax] { [] }
 }

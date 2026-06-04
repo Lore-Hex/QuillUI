@@ -210,6 +210,74 @@ final class GTK4FocusTests: XCTestCase {
 
         let _: (GTKViewHost) -> () -> Void = GTKViewHost.suppressNextFocusRestore
     }
+
+    // MARK: - Identity-based rebuild focus restore
+
+    func testTextFieldKeepsFocusAndTextWhenFocusableSiblingAppearsDuringRebuild() throws {
+        try requireGTK()
+
+        var probe = GTKFocusStructuralRebuildProbe()
+        let root = widgetFromOpaque(gtkRenderView(probe))
+        let window = gtk_window_new()!
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainMainLoop()
+        }
+        gtk_window_set_child(windowPointer(window), root)
+        gtk_window_present(windowPointer(window))
+        drainMainLoop()
+
+        let initialFields = collectEditableWidgets(in: root)
+        XCTAssertEqual(initialFields.count, 1, "Probe should start with only the composer field")
+        let initialComposer = try XCTUnwrap(initialFields.first)
+
+        guard gtk_widget_grab_focus(initialComposer) != 0 else {
+            throw XCTSkip("GTK could not focus the initial TextField in this environment.")
+        }
+        drainMainLoop()
+        guard gtk_widget_is_focus(initialComposer) != 0 else {
+            throw XCTSkip("GTK focus chain is unavailable in this environment.")
+        }
+
+        gtk_editable_set_text(OpaquePointer(initialComposer), "H")
+        drainMainLoop()
+
+        let composerAfterFirstRebuild = try XCTUnwrap(
+            findEditableWidget(in: root, text: "H"),
+            "Composer should retain the typed text after the structural rebuild"
+        )
+        XCTAssertEqual(collectEditableWidgets(in: root).count, 2,
+                       "Typing should insert a focusable sibling before the composer")
+        XCTAssertNotEqual(gtk_widget_is_focus(composerAfterFirstRebuild), 0,
+                          "Composer should regain focus by identity, not by shifted DFS index")
+
+        gtk_editable_set_text(OpaquePointer(composerAfterFirstRebuild), "Hi")
+        drainMainLoop()
+
+        let composerAfterSecondRebuild = try XCTUnwrap(
+            findEditableWidget(in: root, text: "Hi"),
+            "Composer should keep accepting text after focus restoration"
+        )
+        XCTAssertNotEqual(gtk_widget_is_focus(composerAfterSecondRebuild), 0)
+        XCTAssertEqual(probe.text, "Hi")
+    }
+}
+
+private struct GTKFocusStructuralRebuildProbe: View {
+    @State var text = ""
+    @FocusState var composerFocused: Bool
+
+    var body: some View {
+        VStack {
+            if !text.isEmpty {
+                TextField("Sibling", text: .constant(""))
+            }
+            TextField("Composer", text: $text)
+                .focused($composerFocused)
+                .textFieldStyle(.plain)
+                .onSubmit {}
+        }
+    }
 }
 
 // MARK: - Helpers
@@ -260,6 +328,37 @@ private func countFocusableInputs(in widget: UnsafeMutablePointer<GtkWidget>, co
     }
 }
 
+private func collectEditableWidgets(in widget: UnsafeMutablePointer<GtkWidget>) -> [UnsafeMutablePointer<GtkWidget>] {
+    var result: [UnsafeMutablePointer<GtkWidget>] = []
+    collectEditableWidgetsWalk(in: widget, result: &result)
+    return result
+}
+
+private func collectEditableWidgetsWalk(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    result: inout [UnsafeMutablePointer<GtkWidget>]
+) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    if gtk_swift_widget_is_editable(widget) != 0 {
+        result.append(widget)
+    }
+    var child = gtk_widget_get_first_child(widget)
+    while let c = child {
+        collectEditableWidgetsWalk(in: c, result: &result)
+        child = gtk_widget_get_next_sibling(c)
+    }
+}
+
+private func findEditableWidget(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    text: String
+) -> UnsafeMutablePointer<GtkWidget>? {
+    collectEditableWidgets(in: widget).first { editable in
+        guard let cText = gtk_editable_get_text(OpaquePointer(editable)) else { return false }
+        return String(cString: cText) == text
+    }
+}
+
 /// Find a widget by GTK type name via DFS walk.
 private func findWidgetByTypeName(in widget: UnsafeMutablePointer<GtkWidget>, typeName: String) -> UnsafeMutablePointer<GtkWidget>? {
     guard gtk_swift_is_widget(widget) != 0 else { return nil }
@@ -278,4 +377,12 @@ private func findWidgetByTypeName(in widget: UnsafeMutablePointer<GtkWidget>, ty
 
 private func widgetTypeName(_ widget: UnsafeMutablePointer<GtkWidget>) -> String {
     String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+}
+
+private func drainMainLoop(limit: Int = 100) {
+    for _ in 0..<limit {
+        if g_main_context_iteration(nil, 0) == 0 {
+            break
+        }
+    }
 }

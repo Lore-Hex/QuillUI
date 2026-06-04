@@ -1230,7 +1230,16 @@ if wireguardUpstreamPresent {
             dependencies: ["Cocoa"],
             path: ".upstream/wireguard-apple",
             sources: [
-                "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift"
+                "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift",
+                // First real ViewController: a full NSViewController (NSButton,
+                // target-action, Auto Layout) compiling against the shadow after
+                // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).
+                "Sources/WireGuardApp/UI/macOS/ViewController/ButtonedDetailViewController.swift",
+                // Second real ViewController + its `tr` localization helper.
+                // Exercises NSStackView(views:)/setCustomSpacing, NSEdgeInsets,
+                // NSTextField(labelWithAttributedString:) (added in #314).
+                "Sources/WireGuardApp/LocalizationHelper.swift",
+                "Sources/WireGuardApp/UI/macOS/ViewController/UnusableTunnelDetailViewController.swift"
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
@@ -1308,6 +1317,7 @@ targets.append(contentsOf: [
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
     .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),
+    .testTarget(name: "NetworkExtensionTests", dependencies: ["NetworkExtension"], path: "Tests/NetworkExtensionTests"),
     // QuillAppKit — compile-only AppKit shadow. Target named `AppKit`
     // so upstream `import AppKit` resolves to this swiftmodule on
     // Linux. Phase A: type stubs only. Phase B will back the heavy
@@ -1989,6 +1999,24 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
             ],
             path: ".upstream/icecubes/Packages/Models/Sources/Models",
             exclude: ["SwiftData"],
+            swiftSettings: [
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        // Real Dimillian/IceCubesApp NetworkClient. Compiles unmodified once
+        // fetch-upstream.sh's patch_icecubes adds `import FoundationNetworking`
+        // (the Linux Foundation networking split) and rewrites `import OSLog`
+        // to the repo `os` shim. Named so upstream `import NetworkClient` resolves.
+        .target(
+            name: "NetworkClient",
+            dependencies: [
+                "Models",
+                "SwiftUI",
+                "IceCubesShims",
+                "Combine",
+                "os",
+            ],
+            path: ".upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient",
             swiftSettings: [
                 .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
             ]

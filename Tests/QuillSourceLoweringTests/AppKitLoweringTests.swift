@@ -85,6 +85,10 @@ struct AppKitLoweringTests {
         let macUI = repoRoot
             .appendingPathComponent(".upstream/wireguard-apple/Sources/WireGuardApp/UI/macOS")
         guard FileManager.default.fileExists(atPath: macUI.path) else { return } // skip: no upstream
+        // fetch-upstream lowers .upstream in place on Linux CI; these whole-tree
+        // checks only hold on RAW source, so skip if the tree is already lowered.
+        let probe = macUI.appendingPathComponent("ViewController/ButtonedDetailViewController.swift")
+        if let probed = try? String(contentsOf: probe, encoding: .utf8), !probed.contains("#selector(") { return }
 
         let pass = AppKitLowering()
         var visited = 0, hadSelectorOrObjc = 0
@@ -215,6 +219,10 @@ struct AppKitLoweringTests {
         let macUI = repoRoot
             .appendingPathComponent(".upstream/wireguard-apple/Sources/WireGuardApp/UI/macOS")
         guard FileManager.default.fileExists(atPath: macUI.path) else { return } // skip: no upstream
+        // fetch-upstream lowers .upstream in place on Linux CI; these whole-tree
+        // checks only hold on RAW source, so skip if the tree is already lowered.
+        let probe = macUI.appendingPathComponent("ViewController/ButtonedDetailViewController.swift")
+        if let probed = try? String(contentsOf: probe, encoding: .utf8), !probed.contains("#selector(") { return }
 
         let pass = AppKitLowering()
         var generatedAny = false
@@ -232,5 +240,34 @@ struct AppKitLoweringTests {
             #expect(pass.lower(lowered) == lowered)
         }
         #expect(generatedAny)
+    }
+
+    // MARK: - Linux-compat lowering (os.log / os(macOS)) — for WireGuard Tunnel/
+
+    @Test("import os.log is rewritten to import os")
+    func osLogImportRewrite() {
+        let lowered = AppKitLowering().lower("import os.log\nlet x = 1\n")
+        #expect(!lowered.contains("os.log"))
+        #expect(lowered.contains("import os"))
+        #expect(lowered.contains("let x = 1"))
+    }
+
+    @Test("#if os(macOS) is widened to include Linux; iOS untouched; idempotent")
+    func osMacOSWidening() {
+        let source = """
+        #if os(iOS)
+        let p = "ios"
+        #elseif os(macOS)
+        let p = "mac"
+        #else
+        #error("Unimplemented")
+        #endif
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("os(macOS) || os(Linux)"))
+        #expect(lowered.contains("#if os(iOS)"))               // iOS branch untouched
+        #expect(lowered.contains(#"#error("Unimplemented")"#)) // #else preserved (now dead on Linux)
+        // Idempotent: the widened form does not re-match.
+        #expect(AppKitLowering().lower(lowered) == lowered)
     }
 }
