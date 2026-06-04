@@ -404,6 +404,10 @@ open class NSResponder: NSObject {
     open var acceptsFirstResponder: Bool { false }
     open func becomeFirstResponder() -> Bool { true }
     open func resignFirstResponder() -> Bool { true }
+    /// `cancelOperation(_:)` — the Esc / Cmd-. action method. WireGuard's
+    /// LogViewController overrides it (in an extension) to close the window.
+    /// Compile-stub; real responder-chain dispatch is a runtime concern.
+    open func cancelOperation(_ sender: Any?) {}
 }
 
 /// Mirrors `NSLayoutGuide`: a rectangular region that participates in Auto
@@ -436,6 +440,10 @@ open class NSView: NSResponder {
     public static let boundsDidChangeNotification = Notification.Name("NSViewBoundsDidChangeNotification")
     public var postsFrameChangedNotifications: Bool = false
     public var postsBoundsChangedNotifications: Bool = false
+    /// `scroll(_:)` — scroll the view's content so `point` is at the origin.
+    /// WireGuard's LogViewController calls it on the table to keep the tail
+    /// visible. Compile-stub until the Qt scroll-view backend honors it.
+    public func scroll(_ point: NSPoint) {}
     public var frame: NSRect = .zero {
         didSet {
             guard frame != oldValue else { return }
@@ -972,6 +980,10 @@ public extension NSWindowDelegate {
 }
 
 open class NSWindow: NSResponder {
+    /// `NSWindow.FrameAutosaveName` (= String) — the type passed to
+    /// `setFrameAutosaveName(_:)`. WireGuard's LogViewController builds one
+    /// (`NSWindow.FrameAutosaveName("LogWindow")`) to persist window geometry.
+    public typealias FrameAutosaveName = String
     public struct StyleMask: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -3898,6 +3910,11 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
         return cachedCellViews.first(where: { $0.value === view })?.key.row ?? -1
     }
 
+    /// `row(at:)` — the row index under a point in the table's coordinates.
+    /// WireGuard's LogViewController uses it to detect scrolled-to-end.
+    /// Compile-stub (-1 = no row) until Qt-backed hit-testing lands.
+    public func row(at point: NSPoint) -> Int { -1 }
+
     public func column(for view: NSView) -> Int {
         cachedCellViews.first(where: { $0.value === view })?.key.column ?? -1
     }
@@ -4764,6 +4781,9 @@ public protocol NSAccessibilityProtocol {}
 public struct NSUserInterfaceItemIdentifier: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
     public var rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
+    /// Apple's unlabeled convenience init (`NSUserInterfaceItemIdentifier("x")`),
+    /// used by WireGuard's table-column setup.
+    public init(_ rawValue: String) { self.rawValue = rawValue }
     public init(stringLiteral value: String) { self.rawValue = value }
 }
 

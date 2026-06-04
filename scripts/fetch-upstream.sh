@@ -212,6 +212,22 @@ print("patched Logger.swift to import WireGuardRingLoggerC")
 PY
     fi
 
+    # LogViewHelper.swift (UI/) also reads the ringlogger C ring buffer directly
+    # (view_lines_from_cursor / open_log) to render the in-app log viewer, so it
+    # needs the same explicit `import WireGuardRingLoggerC` under SwiftPM.
+    local logviewhelper="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/LogViewHelper.swift"
+    if [[ -f "$logviewhelper" ]] && ! grep -q '^import WireGuardRingLoggerC' "$logviewhelper"; then
+        echo "==> patching LogViewHelper.swift to import WireGuardRingLoggerC"
+        python3 - "$logviewhelper" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+patched = src.replace('import Foundation\n', 'import Foundation\nimport WireGuardRingLoggerC\n', 1)
+open(path, "w").write(patched)
+print("patched LogViewHelper.swift to import WireGuardRingLoggerC")
+PY
+    fi
+
     # Break the SwiftPM modularity wall for the model layer: the wg-quick parser
     # methods (asWgQuickConfig / init(fromWgQuickConfig:)) live in the
     # QuillWireGuardUpstreamConfig target but are `internal`, so the conformance

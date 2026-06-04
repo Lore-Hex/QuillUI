@@ -1289,6 +1289,15 @@ if wireguardUpstreamPresent {
                 // TunnelListRow: NSView cell binding to a TunnelContainer via KVO
                 // (observe(\.name)/(\.status)) — exercises the KVO shims (#355).
                 "Sources/WireGuardApp/UI/macOS/View/TunnelListRow.swift",
+                // Log viewer support files: LogViewHelper (reads the ringlogger C
+                // ring buffer → timestamped entries; import WireGuardRingLoggerC) +
+                // LogViewCell (NSTableCellView). LogViewController itself is deferred:
+                // it hits a pre-Concurrency wall — a @Sendable Timer block calls the
+                // @MainActor updateLogEntries() (-strict-concurrency=minimal does NOT
+                // relax @Sendable closure bodies). Needs a general @preconcurrency
+                // Foundation-import lowering pass; tracked for a follow-up.
+                "Sources/WireGuardApp/UI/LogViewHelper.swift",
+                "Sources/WireGuardApp/UI/macOS/View/LogViewCell.swift",
                 // DeleteTunnelsConfirmationAlert: NSAlert subclass (delete confirmation).
                 "Sources/WireGuardApp/UI/macOS/View/DeleteTunnelsConfirmationAlert.swift",
                 // Shared NotificationToken: a Foundation-only NotificationCenter
