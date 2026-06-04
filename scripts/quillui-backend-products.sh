@@ -7,7 +7,6 @@ quillui_backend_app_products() {
   # backend parity loops. Support tools, generated external packages, smoke
   # fixtures, and demos stay out of this roster.
   printf '%s\n' \
-    quill-enchanted-upstream-slice \
     quill-icecubes \
     quill-netnewswire \
     quill-codeedit \
@@ -22,7 +21,6 @@ quillui_backend_generic_qt_app_products() {
   # compiled with QUILLUI_LINUX_BACKEND=qt. Keep this in one roster so generic
   # Qt interaction coverage cannot drift app-by-app.
   printf '%s\n' \
-    quill-enchanted-upstream-slice \
     quill-icecubes \
     quill-netnewswire \
     quill-codeedit \
@@ -36,7 +34,6 @@ quillui_backend_generic_gtk_list_selection_app_products() {
   # environment keys. Signal and Telegram keep ChatKit-specific verifier rows;
   # canonical Enchanted and WireGuard keep richer app-specific semantic rows.
   printf '%s\n' \
-    quill-enchanted-upstream-slice \
     quill-icecubes \
     quill-netnewswire \
     quill-codeedit \

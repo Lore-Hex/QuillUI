@@ -205,7 +205,6 @@ struct QuillCanonicalLinuxAppSpec {
 }
 
 let quillCanonicalLinuxApps: [QuillCanonicalLinuxAppSpec] = [
-    .init(product: "quill-enchanted-upstream-slice", target: "QuillEnchantedUpstreamSlice", qtPath: "Sources/QuillEnchantedUpstreamSliceQt", qtRuntime: .genericQtNative),
     .init(product: "quill-icecubes", target: "QuillIceCubes", qtPath: "Sources/QuillIceCubesQt", qtRuntime: .genericQtNative),
     .init(product: "quill-netnewswire", target: "QuillNetNewsWire", qtPath: "Sources/QuillNetNewsWireQt", qtRuntime: .genericQtNative),
     .init(product: "quill-codeedit", target: "QuillCodeEdit", qtPath: "Sources/QuillCodeEditQt", qtRuntime: .genericQtNative),
@@ -752,11 +751,6 @@ var targets: [Target] = [
         path: "Sources/QuillEnchantedShared"
     ),
     quillEnchantedDataTarget,
-    .target(
-        name: "QuillEnchantedCore",
-        dependencies: [.target(name: "QuillEnchantedShared"), "QuillEnchantedData", "QuillUI", "QuillFoundation", "QuillKit"],
-        swiftSettings: appSwiftSettings
-    ),
     // NetNewsWire app — third port per docs/app-targets.md.
     // Self-contained RSS reader: `URLSession`-fetched feed
     // bytes parsed by Foundation's built-in `XMLParser` into a
@@ -953,17 +947,6 @@ var targets: [Target] = [
         name: "QuillCodeEdit",
         dependencies: ["QuillCodeEditCore", "QuillUI"],
         swiftSettings: appSwiftSettings
-    ),
-    .executableTarget(
-        name: "QuillEnchantedUpstreamSlice",
-        dependencies: ["QuillEnchantedCore", "QuillUI"],
-        // The slice's main.swift has a deeply-nested SwiftUI body that
-        // trips Swift 6's per-expression type-check timeout (default
-        // ~30s on macOS). Bump the threshold rather than restructure
-        // the expression.
-        swiftSettings: appSwiftSettings + [
-            .unsafeFlags(["-Xfrontend", "-solver-expression-time-threshold=600"])
-        ]
     ),
     .target(
         name: "QuillWireGuardCore",
@@ -1740,14 +1723,6 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillPaintCairoTests",
             dependencies: ["QuillPaintCairo", "QuillPaint"],
-            swiftSettings: appSwiftSettings
-        ),
-        // Pins Enchanted's core compatibility surface: markdown /
-        // stream parsing, QuillData persistence, image attachment
-        // handling, and the Linux Qt-native target contract.
-        .testTarget(
-            name: "QuillEnchantedTests",
-            dependencies: ["QuillEnchantedCore", "QuillUI"],
             swiftSettings: appSwiftSettings
         ),
         // QuillKitTests covers QuillClipboard / diagnostics /
