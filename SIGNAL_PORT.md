@@ -228,6 +228,14 @@ left-aligned + gray** (the `fromSelf` wiring renders right), each with a sender 
 time caption, over a "Message" composer + Send button. No visual bugs. This
 unlocks screenshot-verification for the remaining chat-UI work.
 
+**Send-failure banner (2026-06-03):** `QuillSignalModel.transientError` is set
+when a `send` gets `ok:false` or no response from the bridge (cleared on
+success); the linked view shows a dismissible light-red bar above the chat —
+"Message not sent. Check your connection." + a Dismiss button (tap to clear).
+Verified by screenshot via a `QUILLUI_SIGNAL_FAKEERROR=1` sub-hook (with
+FAKELINKED): the banner renders full-width above the conversation with the chat
+intact below; without FAKEERROR there is no banner.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

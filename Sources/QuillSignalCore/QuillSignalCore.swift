@@ -50,6 +50,8 @@ public final class QuillSignalModel: ObservableObject {
     @Published public var isLinking: Bool = false
     @Published public var conversations: [Conversation] = []
     @Published public var accountNumber: String?
+    /// A transient, dismissible error shown above the chat (e.g. a failed send).
+    @Published public var transientError: String?
     private var isRefreshing = false
     private var hasAutoStarted = false
     private var isReceiving = false
@@ -154,6 +156,9 @@ public final class QuillSignalModel: ObservableObject {
         if env["QUILLUI_SIGNAL_FAKELINKED"] == "1" {
             accountNumber = "+1 555 0100"
             conversations = QuillSignalFixtures.conversations
+            if env["QUILLUI_SIGNAL_FAKEERROR"] == "1" {
+                transientError = "Message not sent. Check your connection."
+            }
             linkState = .linked
             return
         }
@@ -365,8 +370,15 @@ public final class QuillSignalModel: ObservableObject {
             let client = BridgeClient(path: path)
             if let line = try? client.request(cmd) {
                 Self.log("send -> \(line)")
+                let ok = client.decode(line)?.ok ?? false
+                await MainActor.run {
+                    self.transientError = ok ? nil : "Message not sent. Check your connection."
+                }
             } else {
                 Self.log("send failed: no response from bridge")
+                await MainActor.run {
+                    self.transientError = "Message not sent. Check your connection."
+                }
             }
         }
     }
@@ -481,21 +493,40 @@ public struct QuillSignalContentView: View {
         case .unlinked:
             linkPanel
         case .linked:
-            ChatSplitShell(
-                title: model.accountNumber.map { "Quill Signal — \($0)" } ?? "Quill Signal",
-                threads: model.conversations,
-                selectedID: Binding(
-                    get: { selectedID },
-                    set: { newID in
-                        selectedID = newID
-                        if let id = newID { model.loadMessages(for: id.uuidString) }
-                    }
-                ),
-                draft: $draft,
-                placeholder: "Select a conversation",
-                onSend: send
-            )
+            VStack(spacing: 0) {
+                if let err = model.transientError {
+                    errorBanner(err)
+                }
+                ChatSplitShell(
+                    title: model.accountNumber.map { "Quill Signal — \($0)" } ?? "Quill Signal",
+                    threads: model.conversations,
+                    selectedID: Binding(
+                        get: { selectedID },
+                        set: { newID in
+                            selectedID = newID
+                            if let id = newID { model.loadMessages(for: id.uuidString) }
+                        }
+                    ),
+                    draft: $draft,
+                    placeholder: "Select a conversation",
+                    onSend: send
+                )
+            }
         }
+    }
+
+    /// A dismissible error bar shown above the chat (e.g. a failed send).
+    @ViewBuilder private func errorBanner(_ message: String) -> some View {
+        HStack(spacing: 8) {
+            Text(message).font(.caption)
+            Spacer()
+            Button(action: { model.transientError = nil }) {
+                Text("Dismiss").font(.caption)
+            }
+        }
+        .padding(8)
+        .background(Color.red.opacity(0.18))
+        .onTapGesture { model.transientError = nil }
     }
 
     @ViewBuilder private func infoPanel(title: String, detail: String, retry: Bool) -> some View {
