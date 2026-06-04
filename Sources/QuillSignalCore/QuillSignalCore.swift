@@ -757,6 +757,10 @@ public enum QuillSignalFixtures {
                         timestamp: Date(timeIntervalSinceNow: -86400)),
                 // An image attachment renders in the bubble when the file exists
                 // (a FAKELINKED screenshot writes one to this path; nil/absent => text only).
+                // A non-image attachment renders as a typed FILE-tag chip.
+                Message(sender: "Mom", body: "[attachment: recipe.pdf]", fromSelf: false,
+                        timestamp: Date(timeIntervalSinceNow: -540),
+                        attachmentKind: "file"),
                 Message(sender: "Mom", body: "Look at the cake!", fromSelf: false,
                         timestamp: Date(timeIntervalSinceNow: -480),
                         attachmentImagePath: "/tmp/qs-fixture-image.png"),

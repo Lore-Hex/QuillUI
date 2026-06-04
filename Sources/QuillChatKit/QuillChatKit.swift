@@ -39,6 +39,10 @@ public protocol ChatMessage: Identifiable, Hashable, Sendable {
     /// nil for a text-only message. Optional — defaulted to nil so
     /// existing conformances stay valid without supplying it.
     var attachmentImagePath: String? { get }
+
+    /// Coarse kind ("video"/"audio"/"file") of a non-image attachment, so the
+    /// bubble can show a typed glyph chip. Optional — defaulted to nil.
+    var attachmentKind: String? { get }
 }
 
 public extension ChatMessage {
@@ -48,6 +52,9 @@ public extension ChatMessage {
 
     /// Default: no image attachment.
     var attachmentImagePath: String? { nil }
+
+    /// Default: no attachment kind.
+    var attachmentKind: String? { nil }
 }
 
 /// Summary shape for rows in a chat/conversation sidebar.
@@ -355,6 +362,19 @@ public enum ChatTimelineRow<M: ChatMessage>: Identifiable {
     }
 }
 
+/// Short uppercase tag for a non-image attachment kind ("VIDEO"/"AUDIO"/"FILE"),
+/// or nil for an image or absent kind (no chip). ASCII so it renders on any font
+/// (the headless GTK test env has no emoji font); `ChatBubble` shows it as a small
+/// badge before the attachment text instead of the bare "[attachment: …]" string.
+func chatAttachmentTag(_ kind: String?) -> String? {
+    switch kind {
+    case "video": return "VIDEO"
+    case "audio": return "AUDIO"
+    case "file": return "FILE"
+    default: return nil
+    }
+}
+
 /// One message bubble. Self-messages right-align with a blue tint,
 /// peer messages left-align with a neutral tint.
 @MainActor
@@ -377,7 +397,33 @@ public struct ChatBubble<M: ChatMessage>: View {
                     Image(filePath: imagePath)
                         .cornerRadius(appearance.bubbleCornerRadius)
                 }
-                if !message.body.isEmpty {
+                // A non-image attachment (file/video/audio) renders as a glyph
+                // chip; everything else (plain text, or an image caption) stays a
+                // normal text bubble. Two mutually-exclusive `if`s avoid an
+                // if/else in the SwiftOpenUI ViewBuilder.
+                if !message.body.isEmpty,
+                   message.attachmentImagePath == nil,
+                   let tag = chatAttachmentTag(message.attachmentKind) {
+                    HStack(spacing: 6) {
+                        Text(tag)
+                            .font(.caption2).bold()
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(appearance.unreadBadgeBackground)
+                            .foregroundColor(appearance.unreadBadgeForeground)
+                            .cornerRadius(appearance.unreadBadgeCornerRadius)
+                        Text(message.body)
+                    }
+                    .padding(appearance.chatBubblePadding)
+                    .background(
+                        message.fromSelf
+                            ? appearance.outgoingBubbleBackground
+                            : appearance.incomingBubbleBackground
+                    )
+                    .cornerRadius(appearance.bubbleCornerRadius)
+                }
+                if !message.body.isEmpty,
+                   message.attachmentImagePath != nil || chatAttachmentTag(message.attachmentKind) == nil {
                     Text(message.body)
                         .padding(appearance.chatBubblePadding)
                         .background(

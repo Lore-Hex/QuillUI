@@ -460,9 +460,24 @@ and `Message` gained an optional `attachmentKind` (key `attachment_kind`, defaul
 nil → init stays backward-compatible); `loadMessages` and `startReceiving` thread
 it through. Verified: 4 new bridge unit tests (24 total green), 3 new decode-check
 asserts (list-messages set/absent + incoming → audio), clean `quill-signal` build;
-QuillSignalKit/Core only, so Telegram is unaffected. Part 2 (next): `ChatBubble`
-renders a glyph chip (🎬/🎵/📄) for non-image attachments. Remaining polish after:
-download spinner/placeholder, downscale tuning.
+QuillSignalKit/Core only, so Telegram is unaffected.
+
+**Typed attachment chips — part 2, ChatBubble UI (2026-06-04):** non-image
+attachments now render as a tag chip instead of bare `[attachment: name]` text.
+The shared `ChatMessage` protocol gained an optional `attachmentKind` (defaulted
+nil → Telegram unaffected; `QuillSignalCore.Message` already had the property so it
+conforms automatically). A `chatAttachmentTag(_:)` helper maps the kind to a short
+**uppercase ASCII tag** (`VIDEO`/`AUDIO`/`FILE`) — deliberately *not* an emoji,
+because the headless GTK/Pango test env has no emoji font and 🎬/📄 render as tofu
+boxes (U+1F4C4 codepoint squares); ASCII renders on any font. `ChatBubble` shows
+the tag as a small accent badge (reusing the unread-badge styling) before the
+attachment text, via two mutually-exclusive `if`s (chip when no inline image and a
+tag exists; plain text otherwise) so the SwiftOpenUI ViewBuilder needs no
+if/else. Verified: `quill-telegram` rebuilt green, `QuillChatKitTests` compiles
+clean (the protocol addition is backward-compatible), and the FAKELINKED
+screenshot shows a crisp blue `FILE` badge + `[attachment: recipe.pdf]` between the
+Today separator and the image bubble, everything else intact. Typed attachment
+chips complete. Remaining polish: download spinner/placeholder, downscale tuning.
 
 **Bridge unit tests (2026-06-03):** the bridge gained its first `cargo test`
 coverage — 9 tests for the pure helpers `group_uuid` (too-short→None;
