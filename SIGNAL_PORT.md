@@ -286,6 +286,14 @@ builds clean; the decode-check covers a group entry; the GTK app is unchanged.
 GROUPS3 = send to a group + receive derives the group uuid from
 `DataMessage.group_v2`.)
 
+**Groups — slice 2: read (2026-06-03):** `list-messages` now resolves a group —
+it matches the thread uuid against each group's derived uuid (re-enumeration) and
+uses `Thread::Group(master_key)`, else falls back to a contact `ServiceId` (a
+bare group uuid would otherwise mis-parse as a contact ACI, so groups are checked
+first). `store().messages` + the `from_self` logic then serve both contacts and
+groups. Bridge builds clean; compile-verified (empty until linked). Remaining:
+GROUPS3 = send-to-group + receive group messages.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile
