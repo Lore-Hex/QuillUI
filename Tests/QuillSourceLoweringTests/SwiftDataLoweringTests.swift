@@ -75,6 +75,42 @@ struct SwiftDataLoweringTests {
         #expect(!lowered.contains("#Predicate"))
     }
 
+    @Test("@Relationship properties gain inverse-maintenance didSet and registration")
+    func relationshipMaintenanceInjected() {
+        let source = """
+        @Model
+        final class ConversationSD: Identifiable {
+            var id: UUID = UUID()
+            @Relationship(deleteRule: .cascade, inverse: \\MessageSD.conversation) var messages: [MessageSD] = []
+        }
+
+        @Model
+        final class MessageSD: Identifiable {
+            var id: UUID = UUID()
+            @Relationship var conversation: ConversationSD?
+        }
+        """
+
+        let lowered = SwiftDataLowering().lower(source)
+
+        #expect(lowered.contains("@Relationship(deleteRule: .cascade, inverse: \\MessageSD.conversation) var messages: [MessageSD] = [] {"))
+        #expect(lowered.contains("_ = ConversationSD.__quillRelationshipsRegistered"))
+        #expect(lowered.contains("_ = MessageSD.__quillRelationshipsRegistered"))
+        #expect(lowered.contains("QuillRelationships.relationshipDidSet(self, ObjectIdentifier(ConversationSD.self), \"messages\", oldValue: oldValue as Any?, newValue: messages as Any?)"))
+
+        #expect(lowered.contains("@Relationship var conversation: ConversationSD? = nil {"))
+        #expect(lowered.contains("QuillRelationships.relationshipDidSet(self, ObjectIdentifier(MessageSD.self), \"conversation\", oldValue: oldValue as Any?, newValue: conversation as Any?)"))
+        #expect(lowered.components(separatedBy: "_ = ConversationSD.__quillRelationshipsRegistered").count - 1 == 2)
+        #expect(lowered.components(separatedBy: "_ = MessageSD.__quillRelationshipsRegistered").count - 1 == 2)
+
+        #expect(lowered.contains("static let __quillRelationshipsRegistered: Void = {"))
+        #expect(lowered.contains("QuillRelationships.registerInverse("))
+        #expect(lowered.contains("parentType: ConversationSD.self, toManyProperty: \"messages\", toMany: \\ConversationSD.messages,"))
+        #expect(lowered.contains("childType: MessageSD.self, toOneProperty: \"conversation\", toOne: \\MessageSD.conversation"))
+        #expect(lowered.components(separatedBy: "static let __quillRelationshipsRegistered").count - 1 == 2)
+        #expect(lowered.components(separatedBy: "QuillRelationships.registerInverse(").count - 1 == 1)
+    }
+
     @Test("Non-@Model classes are left alone")
     func unrelatedClassUntouched() {
         let source = """

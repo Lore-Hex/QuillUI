@@ -1,6 +1,7 @@
 import Foundation
 import SwiftParser
 import SwiftSyntax
+import SwiftSyntaxBuilder
 
 /// Lowers SwiftData-only Swift syntax into QuillData-compatible Swift.
 ///
@@ -128,6 +129,7 @@ final class SwiftDataRewriter: SyntaxRewriter {
         }
 
         Self.addPersistentModel(to: &updated)
+        Self.injectRelationshipMaintenance(into: &updated)
         return DeclSyntax(updated)
     }
 
@@ -267,6 +269,311 @@ final class SwiftDataRewriter: SyntaxRewriter {
         )
     }
 
+    private static func injectRelationshipMaintenance(into classDecl: inout ClassDeclSyntax) {
+        var members = classDecl.memberBlock.members
+        var relationships: [RelationshipProperty] = []
+
+        for index in members.indices {
+            var member = members[index]
+            guard var variable = member.decl.as(VariableDeclSyntax.self),
+                  let relationship = relationshipProperty(
+                    in: variable,
+                    enclosingClass: classDecl.name.text,
+                    memberIndentation: indentation(from: member.decl.leadingTrivia)
+                  ) else {
+                continue
+            }
+
+            relationships.append(relationship)
+            variable = addRelationshipObserver(to: variable, for: relationship)
+            member.decl = DeclSyntax(variable)
+            members[index] = member
+        }
+
+        guard !relationships.isEmpty,
+              !hasQuillRelationshipRegistration(in: members) else {
+            var memberBlock = classDecl.memberBlock
+            memberBlock.members = members
+            classDecl.memberBlock = memberBlock
+            return
+        }
+
+        let classIndentation = relationships.first?.memberIndentation
+            ?? indentation(from: members.first?.decl.leadingTrivia ?? classDecl.memberBlock.leftBrace.trailingTrivia)
+        let registration = registrationMember(
+            for: classDecl.name.text,
+            relationships: relationships,
+            memberIndentation: classIndentation
+        )
+        members.append(registration)
+
+        var memberBlock = classDecl.memberBlock
+        memberBlock.members = members
+        classDecl.memberBlock = memberBlock
+    }
+
+    private static func relationshipProperty(
+        in variable: VariableDeclSyntax,
+        enclosingClass: String,
+        memberIndentation: String
+    ) -> RelationshipProperty? {
+        guard variable.bindingSpecifier.text == "var",
+              !variable.modifiers.contains(where: { modifier in
+                  let name = modifier.name.text
+                  return name == "static" || name == "class"
+              }),
+              let relationshipAttribute = variable.attributes.first(where: { isAttribute($0, named: "Relationship") }),
+              variable.bindings.count == 1,
+              let binding = variable.bindings.first,
+              binding.accessorBlock == nil,
+              let identifierPattern = binding.pattern.as(IdentifierPatternSyntax.self),
+              let type = binding.typeAnnotation?.type,
+              let element = relationshipElementType(from: type) else {
+            return nil
+        }
+
+        return RelationshipProperty(
+            enclosingClass: enclosingClass,
+            propertyName: identifierPattern.identifier.text,
+            relatedType: element.typeName,
+            isOptionalToOne: element.isOptionalToOne,
+            isToMany: element.isToMany,
+            hasInitializer: binding.initializer != nil,
+            inverse: inverseKeyPath(from: relationshipAttribute),
+            memberIndentation: memberIndentation
+        )
+    }
+
+    private static func addRelationshipObserver(
+        to variable: VariableDeclSyntax,
+        for relationship: RelationshipProperty
+    ) -> VariableDeclSyntax {
+        var updated = variable
+        guard let bindingIndex = updated.bindings.indices.first else { return updated }
+
+        var binding = updated.bindings[bindingIndex]
+        if relationship.isOptionalToOne && !relationship.hasInitializer {
+            binding.initializer = nilInitializerClause()
+        }
+        binding.accessorBlock = relationshipObserverBlock(for: relationship)
+        updated.bindings[bindingIndex] = binding
+        return updated
+    }
+
+    private static func relationshipElementType(from type: TypeSyntax) -> RelationshipElementType? {
+        let description = type.trimmedDescription
+
+        if description.hasPrefix("["),
+           description.hasSuffix("]") {
+            let element = String(description.dropFirst().dropLast())
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !element.isEmpty else { return nil }
+            return RelationshipElementType(typeName: element, isOptionalToOne: false, isToMany: true)
+        }
+
+        if description.hasPrefix("Array<"),
+           description.hasSuffix(">") {
+            let element = String(description.dropFirst("Array<".count).dropLast())
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !element.isEmpty else { return nil }
+            return RelationshipElementType(typeName: element, isOptionalToOne: false, isToMany: true)
+        }
+
+        if description.hasPrefix("Optional<"),
+           description.hasSuffix(">") {
+            let element = String(description.dropFirst("Optional<".count).dropLast())
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !element.isEmpty else { return nil }
+            return RelationshipElementType(typeName: element, isOptionalToOne: true, isToMany: false)
+        }
+
+        if description.hasSuffix("?") || description.hasSuffix("!") {
+            let element = String(description.dropLast())
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !element.isEmpty else { return nil }
+            return RelationshipElementType(typeName: element, isOptionalToOne: true, isToMany: false)
+        }
+
+        return RelationshipElementType(typeName: description, isOptionalToOne: false, isToMany: false)
+    }
+
+    private static func inverseKeyPath(from element: AttributeListSyntax.Element) -> InverseKeyPath? {
+        guard case let .attribute(attribute) = element else { return nil }
+        return inverseKeyPath(from: attribute)
+    }
+
+    private static func inverseKeyPath(from attribute: AttributeSyntax) -> InverseKeyPath? {
+        let source = attribute.description
+        guard let inverseRange = source.range(of: "inverse:") else { return nil }
+
+        let tail = source[inverseRange.upperBound...]
+        var keyPath = ""
+        var nestingDepth = 0
+        for character in tail {
+            switch character {
+            case "(", "[", "<":
+                nestingDepth += 1
+                keyPath.append(character)
+            case ")", "]", ">":
+                if nestingDepth == 0 {
+                    return parseInverseKeyPath(keyPath)
+                }
+                nestingDepth -= 1
+                keyPath.append(character)
+            case "," where nestingDepth == 0:
+                return parseInverseKeyPath(keyPath)
+            default:
+                keyPath.append(character)
+            }
+        }
+
+        return parseInverseKeyPath(keyPath)
+    }
+
+    private static func parseInverseKeyPath(_ rawKeyPath: String) -> InverseKeyPath? {
+        let keyPath = rawKeyPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard keyPath.hasPrefix("\\") else { return nil }
+
+        let body = keyPath.dropFirst()
+        guard let dotIndex = body.lastIndex(of: ".") else { return nil }
+
+        let typeName = body[..<dotIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        let propertyName = body[body.index(after: dotIndex)...]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !typeName.isEmpty, !propertyName.isEmpty else { return nil }
+        return InverseKeyPath(typeName: String(typeName), propertyName: String(propertyName), keyPath: keyPath)
+    }
+
+    private static func relationshipObserverBlock(for relationship: RelationshipProperty) -> AccessorBlockSyntax {
+        let indentation = relationship.memberIndentation
+        let source = """
+        var __quillRelationshipObserver: Any {
+        \(indentation)    didSet {
+        \(indentation)        _ = \(relationship.enclosingClass).__quillRelationshipsRegistered
+        \(indentation)        _ = \(relationship.relatedType).__quillRelationshipsRegistered
+        \(indentation)        QuillRelationships.relationshipDidSet(self, ObjectIdentifier(\(relationship.enclosingClass).self), "\(relationship.propertyName)", oldValue: oldValue as Any?, newValue: \(relationship.propertyName) as Any?)
+        \(indentation)    }
+        \(indentation)}
+        """
+        guard var accessorBlock = parseVariableDecl(source).bindings.first?.accessorBlock else {
+            preconditionFailure("Failed to parse relationship observer accessor")
+        }
+        accessorBlock.leftBrace = accessorBlock.leftBrace.with(\.leadingTrivia, .space)
+        return accessorBlock
+    }
+
+    private static func nilInitializerClause() -> InitializerClauseSyntax {
+        let source = "var __quillRelationshipNilDefault: Any? = nil"
+        guard var initializer = parseVariableDecl(source).bindings.first?.initializer else {
+            preconditionFailure("Failed to parse relationship nil initializer")
+        }
+        initializer.equal = initializer.equal
+            .with(\.leadingTrivia, .space)
+            .with(\.trailingTrivia, .space)
+        return initializer
+    }
+
+    private static func registrationMember(
+        for className: String,
+        relationships: [RelationshipProperty],
+        memberIndentation: String
+    ) -> MemberBlockItemSyntax {
+        let registerCalls = relationships
+            .filter { $0.isToMany }
+            .compactMap { relationship -> String? in
+                guard let inverse = relationship.inverse else { return nil }
+                return """
+                \(memberIndentation)    QuillRelationships.registerInverse(
+                \(memberIndentation)        parentType: \(className).self, toManyProperty: "\(relationship.propertyName)", toMany: \\\(className).\(relationship.propertyName),
+                \(memberIndentation)        childType: \(inverse.typeName).self, toOneProperty: "\(inverse.propertyName)", toOne: \(inverse.keyPath)
+                \(memberIndentation)    )
+                """
+            }
+            .joined(separator: "\n")
+
+        let body = registerCalls.isEmpty ? "" : "\(registerCalls)\n"
+        let source = """
+        static let __quillRelationshipsRegistered: Void = {
+        \(body)\(memberIndentation)}()
+        """
+        var declaration = parseVariableDecl(source)
+        declaration = declaration.with(\.leadingTrivia, trivia(newlines: 2, indentation: memberIndentation))
+        declaration = declaration.with(\.trailingTrivia, .newline)
+        return MemberBlockItemSyntax(decl: DeclSyntax(declaration))
+    }
+
+    private static func hasQuillRelationshipRegistration(in members: MemberBlockItemListSyntax) -> Bool {
+        members.contains { member in
+            guard let variable = member.decl.as(VariableDeclSyntax.self) else { return false }
+            return variable.bindings.contains { binding in
+                binding.pattern.as(IdentifierPatternSyntax.self)?.identifier.text == "__quillRelationshipsRegistered"
+            }
+        }
+    }
+
+    private static func parseVariableDecl(_ source: String) -> VariableDeclSyntax {
+        guard let variable = DeclSyntax(stringLiteral: source).as(VariableDeclSyntax.self) else {
+            preconditionFailure("Failed to parse variable declaration: \(source)")
+        }
+        return variable
+    }
+
+    private static func indentation(from trivia: Trivia) -> String {
+        var indentation = ""
+        var sawNewline = false
+
+        for piece in trivia {
+            switch piece {
+            case .newlines, .carriageReturns, .carriageReturnLineFeeds:
+                sawNewline = true
+                indentation = ""
+            case .spaces(let count) where sawNewline:
+                indentation += String(repeating: " ", count: count)
+            case .tabs(let count) where sawNewline:
+                indentation += String(repeating: "\t", count: count)
+            default:
+                break
+            }
+        }
+
+        return indentation.isEmpty ? "    " : indentation
+    }
+
+    private static func trivia(newlines: Int, indentation: String) -> Trivia {
+        var pieces: [TriviaPiece] = [.newlines(newlines)]
+        var spaceCount = 0
+        var tabCount = 0
+
+        func flushSpaces() {
+            if spaceCount > 0 {
+                pieces.append(.spaces(spaceCount))
+                spaceCount = 0
+            }
+        }
+
+        func flushTabs() {
+            if tabCount > 0 {
+                pieces.append(.tabs(tabCount))
+                tabCount = 0
+            }
+        }
+
+        for character in indentation {
+            if character == "\t" {
+                flushSpaces()
+                tabCount += 1
+            } else {
+                flushTabs()
+                spaceCount += 1
+            }
+        }
+        flushSpaces()
+        flushTabs()
+
+        return Trivia(pieces: pieces)
+    }
+
     private static func setLeadingTrivia(_ trivia: Trivia, on classDecl: ClassDeclSyntax) -> ClassDeclSyntax {
         var copy = classDecl
         if let firstModifier = copy.modifiers.first {
@@ -290,6 +597,29 @@ final class SwiftDataRewriter: SyntaxRewriter {
         }
         return copy
     }
+}
+
+private struct RelationshipElementType {
+    let typeName: String
+    let isOptionalToOne: Bool
+    let isToMany: Bool
+}
+
+private struct InverseKeyPath {
+    let typeName: String
+    let propertyName: String
+    let keyPath: String
+}
+
+private struct RelationshipProperty {
+    let enclosingClass: String
+    let propertyName: String
+    let relatedType: String
+    let isOptionalToOne: Bool
+    let isToMany: Bool
+    let hasInitializer: Bool
+    let inverse: InverseKeyPath?
+    let memberIndentation: String
 }
 
 extension Trivia {
