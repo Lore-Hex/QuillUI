@@ -313,6 +313,20 @@ src = src.replace('import Foundation\n', 'import Foundation\nimport WireGuardKit
 open(path, "w").write(src); print("patched TunnelConfiguration+UapiConfig.swift imports")
 PY
     fi
+
+    # TunnelViewModel (config edit/validation VM) uses WireGuardKit types
+    # (TunnelConfiguration/IPAddressRange/…) + splitToArray (now public in
+    # QuillWireGuardUpstreamConfig). Add both imports.
+    local tvm="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/TunnelViewModel.swift"
+    if [[ -f "$tvm" ]] && ! grep -q '^import WireGuardKit' "$tvm"; then
+        echo "==> patching TunnelViewModel.swift imports"
+        python3 - "$tvm" <<'PY'
+import sys
+path = sys.argv[1]; src = open(path).read()
+src = src.replace('import Foundation\n', 'import Foundation\nimport WireGuardKit\nimport QuillWireGuardUpstreamConfig\n', 1)
+open(path, "w").write(src); print("patched TunnelViewModel.swift imports")
+PY
+    fi
 }
 
 patch_icecubes() {
