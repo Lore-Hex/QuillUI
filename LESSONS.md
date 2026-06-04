@@ -387,6 +387,39 @@ or, better, remove the need for module `X`.
   from source for the target arch. Build the bridge as a **4th member of the
   presage cargo workspace** (standalone git-dep = ~220 transitive-skew errors).
 
+### Track B framework-shim gaps + module identity (2026-06)
+
+- **The `UIKit` module is `Sources/UIKitShim/`, NOT `Sources/QuillUIKit/`.**
+  SSK `import UIKit` resolves `UIKitShim` (Package.swift target `UIKit`, path
+  `Sources/UIKitShim`); `QuillUIKit` is a separate module. When an error says
+  `'X' is not a member type of class 'UIKit.Foo'`, edit `UIKitShim/UIKit.swift`.
+  Editing QuillUIKit changed nothing (byte-identical error count) -- always
+  confirm which target owns a shadow type before editing it.
+- **Framework-shim-gap pattern (clean, high-yield).** Many bands are one missing
+  member on an existing Apple-framework shadow type; add it to the owning shim
+  module and the whole band clears:
+  - `UIApplication.State` -> `typealias State = UIApplicationState` (enum already
+    existed) + lifecycle `Notification.Name` statics. (-1,004)
+  - `LAError`/`LAContext`/`LAPolicy` -> `AppleFrameworkShims/LocalAuthentication/`.
+    `LAError.Code`: iOS aliases touchID*/biometry* to the same raw, but a Swift
+    enum cannot dup raws -> give each a distinct dummy raw (never constructed on
+    Linux). SSK's own `LAError.*Localized` statics resolve once `LAError` exists.
+  - `CNLabeledValue.localizedString(forLabel:)` -> static on the generic in
+    `ContactsShim`; return the label (no Contacts localization on Linux).
+  Shared QuillUI infra -- real commits on the branch, additive only, keep main
+  green, swarm-sync to QuillUI main.
+- **`Calls/` is excluded for mixed-language, not absence.** `CallRecord`/
+  `CallRecordStore`/`GroupCallManager` are Swift but live under the excluded
+  `Calls/` dir (`signalServiceKitExcludes`), so `Backups/` consumers get
+  `cannot find type CallRecord`. Un-excluding the whole dir FAILS: `target ...
+  contains mixed language source files; feature not supported` (Calls/ has
+  `.m`/`.h`). To include the Calls *Swift*: exclude only the per-file ObjC
+  sources + port the ObjC types they need (OWSGroupCallMessage etc.). Big lever
+  (~1,100 errors) but multi-step.
+- **Cascade vs excluded:** a `.swift` type with no own errors that consumers
+  still `cannot find` may be EXCLUDED, not cascade-broken. Check
+  `signalServiceKitExcludes` before hunting a root error.
+
 ---
 
 ## Pointers
