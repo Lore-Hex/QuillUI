@@ -413,8 +413,23 @@ app + decode-check are untouched). 5 new `pick_downloads` unit tests
 (fewer-than-cap → all, over-cap → the cap newest, cap 0 → empty, empty → empty,
 ties → deterministic by index); **20 bridge tests total, all green**. Remaining
 polish (future turns): non-image attachment chips (needs the bridge to emit
-attachment *type* metadata), a download spinner/placeholder, a last-activity time
-on each conversation-list row, and date separators between message groups.
+attachment *type* metadata), a download spinner/placeholder, and date separators
+between message groups.
+
+**Attachment polish — conversation-row last-activity time (2026-06-04,
+user-directed feature 4 cont.):** each sidebar row now shows a relative
+last-activity stamp at its trailing edge, matching real Signal (rows previously
+showed none). The shared `ChatListItem` gained an **optional** `lastActivity:
+Date?` (defaulted nil in a protocol extension, like `unreadCount` → Telegram's
+item type is unaffected and shows no time); `ChatRow` gained an optional
+`lastActivity` and renders `ChatTimestampFormatter.relative(_:)` (feature 2) in
+its title HStack before the unread badge; `ChatSidebarList` passes
+`item.lastActivity`; `Conversation.lastActivity` returns `messages.last?.timestamp`.
+Formatting happens inside `ChatRow`'s `assumeIsolated` body (the proven
+`ChatBubble` pattern) so there's no actor-isolation friction. `quill-telegram`
+rebuilt green (backward-compatible); the FAKELINKED screenshot confirms Family →
+`8m`, Coworker → `45m`, Notes To Self → `Yesterday` at the row trailing edges,
+bubbles + image intact.
 
 **Bridge unit tests (2026-06-03):** the bridge gained its first `cargo test`
 coverage — 9 tests for the pure helpers `group_uuid` (too-short→None;

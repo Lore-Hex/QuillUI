@@ -60,10 +60,15 @@ public protocol ChatListItem: Identifiable, Hashable, Sendable {
     var title: String { get }
     var preview: String { get }
     var unreadCount: Int { get }
+    /// Timestamp of the conversation's last activity, shown as a relative stamp
+    /// at the row's trailing edge. Optional — defaulted nil so existing
+    /// conformances (e.g. Telegram's) stay valid and simply show no time.
+    var lastActivity: Date? { get }
 }
 
 public extension ChatListItem {
     var unreadCount: Int { 0 }
+    var lastActivity: Date? { nil }
 }
 
 /// Conversation/thread shape for chat models that own their messages.
@@ -337,6 +342,7 @@ public struct ChatRow: View {
     public let preview: String
     public let unread: Int
     public let selected: Bool
+    public let lastActivity: Date?
     public let appearance: ChatAppearance
 
     public init(
@@ -344,21 +350,28 @@ public struct ChatRow: View {
         preview: String,
         unread: Int = 0,
         selected: Bool = false,
+        lastActivity: Date? = nil,
         appearance: ChatAppearance = .standard
     ) {
         self.title = title
         self.preview = preview
         self.unread = unread
         self.selected = selected
+        self.lastActivity = lastActivity
         self.appearance = appearance
     }
 
     nonisolated public var body: some View {
         ChatMainActorView.assumeIsolated {
             VStack(alignment: .leading, spacing: 2) {
-                HStack {
+                HStack(spacing: 6) {
                     Text(title).font(.headline).lineLimit(1)
                     Spacer()
+                    if let lastActivity {
+                        Text(ChatTimestampFormatter.relative(lastActivity))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                     if unread > 0 {
                         Text("\(unread)")
                             .font(.caption2).bold()
@@ -419,6 +432,7 @@ public struct ChatSidebarList<Item: ChatListItem>: View {
                             preview: item.preview,
                             unread: item.unreadCount,
                             selected: item.id == selectedID,
+                            lastActivity: item.lastActivity,
                             appearance: appearance
                         )
                     }

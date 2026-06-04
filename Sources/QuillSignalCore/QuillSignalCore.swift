@@ -734,6 +734,7 @@ public struct Conversation: Identifiable, Hashable, Sendable {
 extension Conversation: ChatThread {
     public var title: String { name }
     public var preview: String { messages.last?.body ?? "" }
+    public var lastActivity: Date? { messages.last?.timestamp }
 }
 
 public enum QuillSignalFixtures {
