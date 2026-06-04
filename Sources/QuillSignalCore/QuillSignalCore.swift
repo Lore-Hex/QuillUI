@@ -55,6 +55,8 @@ public final class QuillSignalModel: ObservableObject {
     private var isRefreshing = false
     private var hasAutoStarted = false
     private var isReceiving = false
+    /// Consecutive receive-stream restarts with no message, for escalating backoff.
+    private var receiveBackoff = 0
     /// Per-thread set of seen Signal timestamps (millis), keyed by lowercased
     /// thread uuid, to drop duplicate messages from send/receive/reload.
     private var seenTimestamps: [String: Set<UInt64>] = [:]
@@ -335,10 +337,13 @@ public final class QuillSignalModel: ObservableObject {
             }
             Task { @MainActor in
                 self.isReceiving = false
-                // Auto-restart the receive stream while still linked, so a daemon
-                // crash/restart is recovered (a 5s backoff keeps it gentle).
+                // Auto-restart while still linked (recovers from an engine
+                // crash/restart) with an escalating backoff (5,10,20,40,60s…) so a
+                // persistently-down engine doesn't tight-loop; reset on a message.
                 if self.linkState == .linked {
-                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                    let secs = min(60, 5 * (1 << min(self.receiveBackoff, 4)))
+                    self.receiveBackoff += 1
+                    try? await Task.sleep(nanoseconds: UInt64(secs) * 1_000_000_000)
                     if self.linkState == .linked { self.startReceiving() }
                 }
             }
@@ -348,6 +353,7 @@ public final class QuillSignalModel: ObservableObject {
     /// Append a pushed message to its thread (create the conversation if the
     /// sender isn't a known contact yet).
     private func appendIncoming(thread: String, message: Message, timestampMillis: UInt64?) {
+        receiveBackoff = 0   // a live message -> the stream is healthy
         let key = thread.lowercased()
         if let ts = timestampMillis {
             if seenTimestamps[key]?.contains(ts) == true { return } // already shown

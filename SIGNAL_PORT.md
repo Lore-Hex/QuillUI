@@ -317,6 +317,12 @@ bridge-side (group master key ↔ deterministic UUID) so the QuillUI app stayed
 sidebar, timeline, composer, dedup, and notifications as contacts. Compile-
 verified across all slices (groups are empty until a real link).
 
+**Receive-restart escalating backoff (2026-06-03):** the auto-restart's fixed 5s
+became an escalating backoff — `5,10,20,40,60s` (capped) — so a persistently-down
+engine doesn't tight-loop; it resets to 5s as soon as a message arrives
+(`appendIncoming`). App + decode-check green; unlinked smoke shows the path is
+never entered when not linked.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile
