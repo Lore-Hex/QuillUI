@@ -1315,6 +1315,14 @@ if wireguardUpstreamPresent {
                 // stripped by fetch-upstream's (now whole-app) lowering. Grows
                 // this target toward the single-app-module.
                 "Sources/WireGuardApp/Tunnel/TunnelStatus.swift",
+                // StatusItemController: the macOS menu-bar status item (NSStatusBar/
+                // NSStatusItem + an animated NSImage on a Timer). Binds a
+                // TunnelContainer's status to the status-bar icon. Plain class (not
+                // @MainActor); its Timer closure touches only non-@MainActor members,
+                // so it compiles whether or not the lowering rewrites the Timer to
+                // QuillTimer.make. No table (no dequeueReusableCell/B), no extension
+                // override (C). Needs NSStatusItem.squareLength (added to the shadow).
+                "Sources/WireGuardApp/UI/macOS/StatusItemController.swift",
                 // ActivateOnDemandOption: maps on-demand config <-> NEOnDemandRule[]
                 // (NE on-demand surface from #338/#340 + wg_log from #345).
                 "Sources/WireGuardApp/Tunnel/ActivateOnDemandOption.swift",

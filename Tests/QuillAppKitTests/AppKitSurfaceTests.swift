@@ -103,4 +103,15 @@ struct AppKitSurfaceTests {
         let c = NSColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 1)
         #expect(c.withAlphaComponent(1) === c) // stub returns self; proves a usable NSColor
     }
+
+    @Test("NSStatusItem.squareLength / variableLength sentinels (WireGuard's StatusItemController)")
+    func nsStatusItemLengthSentinels() {
+        // WireGuard: NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength).
+        #expect(NSStatusItem.squareLength == -2)
+        #expect(NSStatusItem.variableLength == -1)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.button?.image = nil          // the status-bar button is reachable (compile-stub)
+        item.length = NSStatusItem.squareLength
+        #expect(item.length == -2)
+    }
 }

@@ -4585,6 +4585,11 @@ open class NSStatusItem: NSObject {
     public var button: NSStatusBarButton? = NSStatusBarButton()
     public var menu: NSMenu?
     public var length: CGFloat = -1
+    /// Apple's status-item length sentinels live on NSStatusItem:
+    /// `squareLength` = square item matching the bar height; `variableLength`
+    /// = sized to content. WireGuard uses `NSStatusItem.squareLength`.
+    public static var squareLength: CGFloat { -2 }
+    public static var variableLength: CGFloat { -1 }
     public var visible: Bool = true
     public var behavior: Behavior = []
     public var autosaveName: String = ""
