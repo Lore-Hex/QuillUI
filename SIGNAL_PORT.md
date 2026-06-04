@@ -236,6 +236,16 @@ Verified by screenshot via a `QUILLUI_SIGNAL_FAKEERROR=1` sub-hook (with
 FAKELINKED): the banner renders full-width above the conversation with the chat
 intact below; without FAKEERROR there is no banner.
 
+**Desktop notifications on receive (2026-06-03):** a fresh incoming (non-self)
+message fires a `notify-send` toast (env `QUILL_SIGNAL_NOTIFY_BIN` override, PATH
+lookup, skipped silently if absent) with the contact's display name (else
+"Signal") as the title and the message text as the body. The title/body logic is
+a pure, **fully unit-tested** `NotificationFormat.make` helper (QuillSignalKit) —
+own/empty messages produce no toast; the spawn happens inside `appendIncoming`
+after dedup, so duplicates don't double-notify. Format helper green in the
+decode-check; the spawn is compile-verified (fires only on real receive); a
+launch smoke shows zero notifications when unlinked.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

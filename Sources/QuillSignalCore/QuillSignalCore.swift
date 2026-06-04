@@ -331,13 +331,48 @@ public final class QuillSignalModel: ObservableObject {
             if seenTimestamps[key]?.contains(ts) == true { return } // already shown
             seenTimestamps[key, default: []].insert(ts)
         }
-        if let idx = conversations.firstIndex(where: {
+        // Display name from a known conversation (else nil -> "Signal" in the toast).
+        let idx = conversations.firstIndex(where: {
             $0.id.uuidString.caseInsensitiveCompare(thread) == .orderedSame
-        }) {
+        })
+        let displayName = idx.map { conversations[$0].name }
+        if let idx {
             conversations[idx].messages.append(message)
         } else if let id = UUID(uuidString: thread) {
             conversations.append(Conversation(id: id, name: thread, messages: [message]))
         }
+        // Desktop notification for a fresh, incoming (non-self) message.
+        if let n = NotificationFormat.make(sender: displayName, body: message.body, fromSelf: message.fromSelf) {
+            let title = n.title, toast = n.body
+            Task.detached { Self.notify(title: title, body: toast) }
+        }
+    }
+
+    /// Fire a desktop notification via notify-send (env QUILL_SIGNAL_NOTIFY_BIN,
+    /// else PATH lookup). Best-effort: if the binary isn't found, skip silently.
+    nonisolated static func notify(title: String, body: String) {
+        Self.log("notify -> \(title): \(body)")
+        let bin = ProcessInfo.processInfo.environment["QUILL_SIGNAL_NOTIFY_BIN"] ?? "notify-send"
+        guard let path = resolveExecutable(bin) else { return }
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: path)
+        proc.arguments = [title, body]
+        try? proc.run()
+    }
+
+    /// Resolve an executable name to a path: an existing path with a slash, else
+    /// search PATH. Returns nil if not found/executable.
+    nonisolated static func resolveExecutable(_ bin: String) -> String? {
+        let fm = FileManager.default
+        if bin.contains("/") {
+            return fm.isExecutableFile(atPath: bin) ? bin : nil
+        }
+        let pathEnv = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin:/usr/local/bin"
+        for dir in pathEnv.split(separator: ":") {
+            let candidate = "\(dir)/\(bin)"
+            if fm.isExecutableFile(atPath: candidate) { return candidate }
+        }
+        return nil
     }
 
     /// Send a text message to a thread via the bridge. Optimistically appends a

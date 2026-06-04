@@ -206,6 +206,22 @@ do {
     c.check("dedup nil-only items all kept", MessageDedup.unseen([TS(id: 9, ts: nil)], seen: &seen) { $0.ts }.count == 1)
 }
 
+// 15. NotificationFormat.make — own/empty -> nil; title falls back to "Signal".
+do {
+    c.check("notify fromSelf -> nil", NotificationFormat.make(sender: "Mom", body: "hi", fromSelf: true) == nil)
+    c.check("notify nil body -> nil", NotificationFormat.make(sender: "Mom", body: nil, fromSelf: false) == nil)
+    c.check("notify empty body -> nil", NotificationFormat.make(sender: "Mom", body: "", fromSelf: false) == nil)
+    if let n = NotificationFormat.make(sender: "Mom", body: "dinner?", fromSelf: false) {
+        c.check("notify title == name", n.title == "Mom")
+        c.check("notify body passthrough", n.body == "dinner?")
+    } else {
+        c.check("notify present case", false)
+    }
+    c.check("notify nil name -> Signal", NotificationFormat.make(sender: nil, body: "x", fromSelf: false)?.title == "Signal")
+    c.check("notify blank name -> Signal", NotificationFormat.make(sender: "  ", body: "x", fromSelf: false)?.title == "Signal")
+    c.check("notify nil fromSelf is not-self", NotificationFormat.make(sender: "A", body: "y", fromSelf: nil)?.body == "y")
+}
+
 print("")
 if c.failures == 0 {
     print("PASS: all bridge decode-contract checks ok")
