@@ -1196,6 +1196,19 @@ if wireguardUpstreamPresent {
                 "Sources/Shared/Model/String+ArrayConversion.swift"
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // Conformance: compile WireGuard's REAL macOS KeyValueRow (unmodified
+        // upstream AppKit) against the QuillAppKit reimplementation via the Cocoa
+        // shadow. The build IS the test — proves third-party AppKit source
+        // recompiles on the reimplementation (issue #231, M3 conformance capstone).
+        .target(
+            name: "QuillWireGuardConformanceKeyValueRow",
+            dependencies: ["Cocoa"],
+            path: ".upstream/wireguard-apple",
+            sources: [
+                "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift"
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]
 }

@@ -592,7 +592,12 @@ open class NSView: NSResponder {
         public static let maxYMargin = AutoresizingMask(rawValue: 1 << 5)
     }
 
-    public override init() { super.init() }
+    // Convenience (not designated) so NSView matches real AppKit, where the
+    // designated initializers are init(frame:)/init?(coder:) — a subclass's
+    // `convenience init()` then needs no `override` (lets unmodified upstream
+    // ViewControllers compile). See issue #231. `override` because this overrides
+    // NSResponder's designated init(); being *convenience* is what frees subclasses.
+    public override convenience init() { self.init(frame: .zero) }
     public init(frame: NSRect) {
         super.init()
         self.frame = frame
@@ -2848,10 +2853,7 @@ open class NSScrollView: NSView {
     public var maxMagnification: CGFloat = 4.0
     public var contentInsets: NSEdgeInsets = (0, 0, 0, 0)
     public var automaticallyAdjustsContentInsets: Bool = true
-    public override init() {
-        super.init()
-        quillInstallContentView()
-    }
+    public convenience init() { self.init(frame: .zero) }
     public override init(frame: NSRect) {
         super.init(frame: frame)
         quillInstallContentView()
@@ -3268,9 +3270,9 @@ open class NSButton: NSControl {
     public enum ImagePosition: UInt, Sendable { case noImage, imageOnly, imageLeft, imageRight, imageBelow, imageAbove, imageOverlaps, imageLeading, imageTrailing }
     public enum ButtonType: UInt, Sendable { case momentaryLight, pushOnPushOff, toggle, `switch`, radio, momentaryChange, onOff, momentaryPushIn, accelerator, multiLevelAccelerator }
 
-    public override init() { super.init() }
-    public init(title: String, target: Any?, action: Selector?) { super.init(); self.title = title; self.target = target as AnyObject?; self.action = action }
-    public init(image: NSImage, target: Any?, action: Selector?) { super.init(); self.image = image; self.target = target as AnyObject?; self.action = action }
+    public convenience init() { self.init(title: "", target: nil, action: nil) }
+    public init(title: String, target: Any?, action: Selector?) { super.init(frame: .zero); self.title = title; self.target = target as AnyObject?; self.action = action }
+    public init(image: NSImage, target: Any?, action: Selector?) { super.init(frame: .zero); self.image = image; self.target = target as AnyObject?; self.action = action }
     public func setButtonType(_ type: ButtonType) { buttonType = type }
     public static func radioButton(withTitle: String, target: Any?, action: Selector?) -> NSButton {
         let button = NSButton(title: withTitle, target: target, action: action)
@@ -3306,7 +3308,7 @@ open class NSSlider: NSControl {
     public var trackFillColor: NSColor?
     public enum TickMarkPosition: UInt, Sendable { case below, above, leading, trailing }
     public enum SliderType: UInt, Sendable { case linear, circular }
-    public override init() { super.init() }
+    public convenience init() { self.init(frame: .zero) }
     public convenience init(value: Double, minValue: Double, maxValue: Double, target: Any?, action: Selector?) {
         self.init()
         doubleValue = value
@@ -3332,7 +3334,7 @@ open class NSStackView: NSView {
     public func removeArrangedSubview(_ v: NSView) {
         arrangedSubviews.removeAll { $0 === v }
     }
-    public override init() { super.init() }
+    public convenience init() { self.init(frame: .zero) }
 }
 
 extension NSLayoutConstraint {
@@ -3359,7 +3361,7 @@ open class NSProgressIndicator: NSView {
     public func startAnimation(_ sender: Any?) {}
     public func stopAnimation(_ sender: Any?) {}
     public func incrementBy(_ delta: Double) { doubleValue += delta }
-    public override init() { super.init() }
+    public convenience init() { self.init(frame: .zero) }
 }
 
 open class NSPopUpButton: NSButton {
@@ -3417,8 +3419,8 @@ open class NSPopUpButton: NSButton {
     public func itemWithTitle(_ t: String) -> NSMenuItem? {
         menu?.items.first { $0.title == t }
     }
-    public init(frame: NSRect, pullsDown: Bool) { super.init(); self.pullsDown = pullsDown }
-    public override init() { super.init() }
+    public init(frame: NSRect, pullsDown: Bool) { super.init(title: "", target: nil, action: nil); self.pullsDown = pullsDown }
+    public convenience init() { self.init(frame: .zero, pullsDown: false) }
 
     private func ensureMenu() -> NSMenu {
         if let menu { return menu }
@@ -4518,7 +4520,7 @@ open class NSDocumentController: NSObject {
 
 public class NSHostingView<Content>: NSView {
     public var rootView: Content
-    public init(rootView: Content) { self.rootView = rootView; super.init() }
+    public init(rootView: Content) { self.rootView = rootView; super.init(frame: .zero) }
 }
 
 public class NSHostingController<Content>: NSViewController {
