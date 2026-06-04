@@ -78,12 +78,25 @@ The ObjC surface of a real AppKit app is small + stereotyped (WireGuard's macOS
 UI: 55 `#selector` + 32 `@objc` ≈ **2.3%** of lines, **zero** hard-dynamic ObjC).
 Lower that ~2% glue automatically; keep ~98% byte-for-byte.
 
-**Open question that decides Track B's feasibility for Signal specifically:** how
-much *hard-dynamic* ObjC does Signal use — `perform`/KVO/`NSInvocation`/`objc_*`/
-`@NSManaged`? Those **cannot** be lowered to plain Swift. WireGuard had none;
-Signal's `TS*` model layer historically leaned on dynamic ObjC + YapDatabase.
-**Measure that before committing to Track B.** (Grep `.upstream/signal-ios` for
-`objc_`, `NSInvocation`, `.perform(`, `addObserver(.*forKeyPath`, `@NSManaged`.)
+**MEASURED — Track B is more viable than the 492k cascade implied**
+(`SignalServiceKit`, 1392 Swift files / 388k LOC, excl tests/mocks):
+
+- **Lowerable glue** (`AppKitLowering` handles): **2836 `@objc` + 88 `#selector`**
+  ≈ 0.75% of LOC — *less* dense than WireGuard's 2.3%; mechanical, just volume.
+- **Hard-dynamic ObjC is small + bounded:** `@NSManaged` **0**, `NSInvocation`
+  **0**, `perform` **3**, `objc_*` **8**, KVC `forKey` **7**, swizzle/runtime-string
+  **1**, YapDatabase **4** (migrated to GRDB). KVO shows ~97 but that's an **upper
+  bound** — `NotificationCenter.addObserver` is folded in and is NOT hard-dynamic.
+  **No pervasive dynamic-ObjC blocker** — a few dozen handleable sites.
+- **The real bounded wall:** **32 `.m` + 38 `.h` ObjC base-model files**
+  (`TSMessage`/`TSInteraction`/`TSGroupModel`…). Not Swift, so source-lowering
+  doesn't touch them; they must be **ported to Swift.** Hundreds of Swift files
+  subclass them — *that* is what the 492k cascade was.
+
+**Verdict:** Swift side lowers cleanly (`AppKitLowering`); the gating task is a
+**finite port of ~32 ObjC base-model files to Swift**, not an open-ended toolchain
+project. Sequence Track B as: AppKitLowering pass → port the ~32 `.m`/`.h` base
+classes → drive the residual error count down.
 
 ---
 
