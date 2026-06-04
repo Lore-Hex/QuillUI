@@ -479,6 +479,20 @@ screenshot shows a crisp blue `FILE` badge + `[attachment: recipe.pdf]` between 
 Today separator and the image bubble, everything else intact. Typed attachment
 chips complete. Remaining polish: download spinner/placeholder, downscale tuning.
 
+**Cross-platform image rendering — macOS build restored (2026-06-04):** building
+`quill-signal` natively on macOS (real SwiftUI/AppKit, to capture the pixel-perfect
+reference) surfaced a regression the Linux/GTK build had hidden: the inline-image
+and QR code used `Image(filePath:)`, which is a **SwiftOpenUI-only** initializer —
+real macOS SwiftUI has no such call, so the app didn't compile on macOS. Added a
+cross-platform `chatFileImage(_:)` helper in QuillChatKit (`#if os(Linux)` →
+`Image(filePath:)`; else load via `NSImage(contentsOfFile:)`), used by both
+`ChatBubble` and the QuillSignalCore link-QR view. The Linux path is byte-identical
+(GTK build + screenshot unchanged, telegram green); on macOS the app now **builds
+and renders** — verified by capturing the live window by CGWindowID
+(`screencapture -l`): SF fonts, native chrome, color ❤️ emoji, date separators, the
+`FILE` chip, and the gradient image bubble all render. Lesson: "compiles" was
+Linux-GTK-only; the native-macOS target is a second, stricter check worth running.
+
 **Bridge unit tests (2026-06-03):** the bridge gained its first `cargo test`
 coverage — 9 tests for the pure helpers `group_uuid` (too-short→None;
 deterministic 8-4-4-4-12 lowercase hex from the first 16 master-key bytes) and

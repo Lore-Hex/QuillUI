@@ -641,7 +641,7 @@ public struct QuillSignalContentView: View {
                 .font(.caption)
             if let qrPath = model.linkQRPath, FileManager.default.fileExists(atPath: qrPath) {
                 // Crisp bitmap QR (square modules, no font-leading seams).
-                Image(filePath: qrPath).resizable().frame(width: 260, height: 260)
+                chatFileImage(qrPath).resizable().frame(width: 260, height: 260)
             } else if let qr = model.linkQR {
                 // Fallback: the Unicode-block QR as monospace text.
                 Text(qr).font(.system(size: 9, design: .monospaced))

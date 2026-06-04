@@ -1,6 +1,24 @@
 import Foundation
 import QuillFoundation
 import SwiftUI
+#if !os(Linux)
+import AppKit
+#endif
+
+/// An `Image` from a local file path, cross-platform. SwiftOpenUI (Linux/GTK)
+/// exposes `Image(filePath:)`; real SwiftUI on macOS has no such initializer, so
+/// load the file through `NSImage` there. Used by `ChatBubble` for inline
+/// attachment thumbnails (the bridge downscales them first).
+public func chatFileImage(_ path: String) -> Image {
+    #if os(Linux)
+    return Image(filePath: path)
+    #else
+    if let nsImage = NSImage(contentsOfFile: path) {
+        return Image(nsImage: nsImage)
+    }
+    return Image(systemName: "photo")
+    #endif
+}
 
 private struct ChatUncheckedSendableView<Content: View>: @unchecked Sendable {
     let content: Content
@@ -394,7 +412,7 @@ public struct ChatBubble<M: ChatMessage>: View {
                    FileManager.default.fileExists(atPath: imagePath) {
                     // Natural size (aspect-correct, GTK honors it reliably); the
                     // bridge downscales attachments to a sane thumbnail dimension.
-                    Image(filePath: imagePath)
+                    chatFileImage(imagePath)
                         .cornerRadius(appearance.bubbleCornerRadius)
                 }
                 // A non-image attachment (file/video/audio) renders as a glyph
