@@ -8,10 +8,14 @@
 //  Quill bring-up: vendored verbatim from NetNewsWire's RSWeb module into the
 //  live RSWeb clone (Sources/QuillRSWebShim, the `RSWeb` module). URLResponse /
 //  HTTPURLResponse helpers (status-OK check, forced status code, case-insensitive
-//  header lookup) — Foundation-only, compiles unchanged on macOS and Linux.
+//  header lookup). On Linux these types live in FoundationNetworking (the
+//  Foundation networking split), conditionally imported below; else verbatim.
 //
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking // URLResponse / HTTPURLResponse live here on Linux
+#endif
 
 nonisolated public extension URLResponse {
 
