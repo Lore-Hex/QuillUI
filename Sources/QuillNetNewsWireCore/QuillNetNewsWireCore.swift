@@ -79,6 +79,9 @@ public struct QuillNetNewsWireContentView: View {
                 if env["QUILLUI_DISABLE_FETCH"] == "1" {
                     model.seedProfileFixtures()
                 } else {
+                    // Real-fetch path: persist read/starred across launches.
+                    // (Fixture mode above stays in-memory + deterministic.)
+                    model.enablePersistence()
                     Task { @MainActor in await model.loadIfNeeded(urlString: activeFeedURL) }
                     // Kick off the periodic auto-refresh Task.
                     // Skipped in profile/disable-fetch mode so the
@@ -736,6 +739,11 @@ final class RSSReaderModel: ObservableObject {
     /// star toggle in the detail header.
     @Published private(set) var starredArticleIDs: Set<String> = []
 
+    /// Optional SQLite persistence (RSSReadStateStore) for read/starred state.
+    /// Off in fixture/test mode so those stay deterministic; the app turns it
+    /// on for the real-fetch path via `enablePersistence()`.
+    private var stateStore: RSSReadStateStore?
+
     /// Live search query bound to the timeline filter field.
     /// Empty string → no filter (filteredRows == rows). Matching
     /// is case-insensitive and runs against the article title
@@ -1059,6 +1067,7 @@ final class RSSReaderModel: ObservableObject {
     func markRead(id: String) {
         if readArticleIDs.insert(id).inserted {
             // didSet on readArticleIDs handles status text refresh.
+            persistState(for: id)
         }
     }
 
@@ -1071,6 +1080,7 @@ final class RSSReaderModel: ObservableObject {
         } else {
             readArticleIDs.insert(selectedID)
         }
+        persistState(for: selectedID)
     }
 
     /// Mark every article currently shown in the timeline as read —
@@ -1079,7 +1089,10 @@ final class RSSReaderModel: ObservableObject {
     /// text refreshes once rather than per-article.
     func markAllRead() {
         let union = readArticleIDs.union(filteredRows.map(\.id))
-        if union != readArticleIDs { readArticleIDs = union }
+        if union != readArticleIDs {
+            readArticleIDs = union
+            persistAllState()
+        }
     }
 
     /// True when any article in the current timeline is unread — drives the
@@ -1105,6 +1118,7 @@ final class RSSReaderModel: ObservableObject {
         } else {
             starredArticleIDs.insert(id)
         }
+        persistState(for: id)
     }
 
     /// Toggle starred state on the currently-selected article.
@@ -1112,6 +1126,36 @@ final class RSSReaderModel: ObservableObject {
     func toggleStarredOnSelection() {
         guard let selectedID else { return }
         toggleStarred(id: selectedID)
+    }
+
+    // MARK: - Read/starred persistence
+
+    /// Turn on SQLite persistence and merge any previously-saved read/starred
+    /// state into the in-memory sets. Best-effort: a store that can't open
+    /// (e.g. a read-only home dir) silently leaves state in memory. The app
+    /// calls this on the real-fetch path; fixtures/tests leave it off so they
+    /// stay deterministic. `store` is injectable for tests.
+    func enablePersistence(store: RSSReadStateStore? = nil) {
+        guard let store = store ?? (try? RSSReadStateStore(url: RSSReadStateStore.defaultURL())) else { return }
+        stateStore = store
+        if let loaded = try? store.load() {
+            if !loaded.read.isEmpty { readArticleIDs.formUnion(loaded.read) }
+            if !loaded.starred.isEmpty { starredArticleIDs.formUnion(loaded.starred) }
+        }
+    }
+
+    /// Persist one article's current read/starred flags. No-op without a store.
+    private func persistState(for id: String) {
+        try? stateStore?.setState(
+            articleID: id,
+            isRead: readArticleIDs.contains(id),
+            isStarred: starredArticleIDs.contains(id)
+        )
+    }
+
+    /// Persist the whole read/starred set in one batch (for bulk actions).
+    private func persistAllState() {
+        try? stateStore?.replaceAll(read: readArticleIDs, starred: starredArticleIDs)
     }
 
     /// Count of starred items in the currently-loaded timeline.
