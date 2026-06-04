@@ -267,6 +267,42 @@ struct QuillAppKitQtTests {
         #expect(content.qtChildCount == 1)
     }
 
+    @Test("NSView.leftAnchor/rightAnchor solve as leading/trailing (LTR) — WireGuard VCs pin to them")
+    func leftRightAnchors() {
+        guard QuillQt.ensureInitialized() else { return }
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 40))
+        let box = NSView(frame: .zero)
+        root.addSubviewQt(box)
+        let cs = [
+            box.leftAnchor.constraint(equalTo: root.leftAnchor, constant: 12),
+            box.rightAnchor.constraint(equalTo: root.rightAnchor, constant: -8),
+            box.topAnchor.constraint(equalTo: root.topAnchor),
+            box.heightAnchor.constraint(equalToConstant: 10),
+        ]
+        NSLayoutConstraint.activate(cs)
+        defer { NSLayoutConstraint.deactivate(cs) }
+        root.layoutQtSubtree(width: 200, height: 40)
+        let g = box.qtGeometry
+        // left=12, right=200-8=192 → width=180
+        #expect(g.x == 12 && g.width == 180)
+    }
+
+    @Test("NSStackView.addView(_:in:)/setViews(_:in:) manage arranged subviews (gravity-area API)")
+    func stackViewGravityAPI() {
+        let stack = NSStackView()
+        let a = NSView(frame: .zero)
+        let b = NSView(frame: .zero)
+        stack.addView(a, in: .leading)
+        stack.addView(b, in: .trailing)
+        #expect(stack.arrangedSubviews.count == 2)
+        #expect(stack.subviews.count == 2)
+
+        let c = NSView(frame: .zero)
+        stack.setViews([c], in: .leading)
+        #expect(stack.arrangedSubviews.count == 1)
+        #expect(stack.arrangedSubviews.first === c)
+    }
+
     @Test("Target-action dispatch: a control's fired action calls quillPerform on its target")
     func targetActionDispatch() {
         // Mirrors exactly what AppKitLowering generates: the app class conforms
