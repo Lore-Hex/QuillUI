@@ -205,7 +205,6 @@ struct QuillCanonicalLinuxAppSpec {
 }
 
 let quillCanonicalLinuxApps: [QuillCanonicalLinuxAppSpec] = [
-    .init(product: "quill-enchanted-upstream-slice", target: "QuillEnchantedUpstreamSlice", qtPath: "Sources/QuillEnchantedUpstreamSliceQt", qtRuntime: .genericQtNative),
     .init(product: "quill-icecubes", target: "QuillIceCubes", qtPath: "Sources/QuillIceCubesQt", qtRuntime: .genericQtNative),
     .init(product: "quill-netnewswire", target: "QuillNetNewsWire", qtPath: "Sources/QuillNetNewsWireQt", qtRuntime: .genericQtNative),
     .init(product: "quill-codeedit", target: "QuillCodeEdit", qtPath: "Sources/QuillCodeEditQt", qtRuntime: .genericQtNative),
@@ -752,11 +751,6 @@ var targets: [Target] = [
         path: "Sources/QuillEnchantedShared"
     ),
     quillEnchantedDataTarget,
-    .target(
-        name: "QuillEnchantedCore",
-        dependencies: [.target(name: "QuillEnchantedShared"), "QuillEnchantedData", "QuillUI", "QuillFoundation", "QuillKit"],
-        swiftSettings: appSwiftSettings
-    ),
     // NetNewsWire app — third port per docs/app-targets.md.
     // Self-contained RSS reader: `URLSession`-fetched feed
     // bytes parsed by Foundation's built-in `XMLParser` into a
@@ -839,6 +833,14 @@ var targets: [Target] = [
         name: "QuillArticles",
         dependencies: ["QuillRSCoreShim"],
         path: "Sources/QuillArticles",
+        swiftSettings: appSwiftSettings
+    ),
+    // Vendored Ranchero-Software/NetNewsWire Account module — incremental
+    // bring-up. Leaf types only so far (AccountBehavior, UnreadCountProvider);
+    // Foundation-only, no deps yet. More follows as RSWeb/RSDatabase shims land.
+    .target(
+        name: "QuillAccount",
+        path: "Sources/QuillAccount",
         swiftSettings: appSwiftSettings
     ),
     // Vendored Ranchero-Software/NetNewsWire RSTree module
@@ -953,17 +955,6 @@ var targets: [Target] = [
         name: "QuillCodeEdit",
         dependencies: ["QuillCodeEditCore", "QuillUI"],
         swiftSettings: appSwiftSettings
-    ),
-    .executableTarget(
-        name: "QuillEnchantedUpstreamSlice",
-        dependencies: ["QuillEnchantedCore", "QuillUI"],
-        // The slice's main.swift has a deeply-nested SwiftUI body that
-        // trips Swift 6's per-expression type-check timeout (default
-        // ~30s on macOS). Bump the threshold rather than restructure
-        // the expression.
-        swiftSettings: appSwiftSettings + [
-            .unsafeFlags(["-Xfrontend", "-solver-expression-time-threshold=600"])
-        ]
     ),
     .target(
         name: "QuillWireGuardCore",
@@ -1672,6 +1663,14 @@ let packageTestTargets: [Target] = {
                 dependencies: ["QuillAppKitQt", "AppKit"],
                 swiftSettings: appSwiftSettings
             ),
+            // Pure model-layer tests for the reimplemented AppKit
+            // (NSTableView / NSOutlineView data-source + tree logic). No Qt
+            // rendering — just exercises the AppKit module on Linux.
+            .testTarget(
+                name: "QuillAppKitTests",
+                dependencies: ["AppKit"],
+                swiftSettings: appSwiftSettings
+            ),
             .testTarget(
                 name: "QuillQtBackendManifestTests",
                 dependencies: ["QuillGenericQtNativeRuntime", "QuillQtNativeRuntimeSupport", "QuillEnchantedShared"],
@@ -1742,14 +1741,6 @@ let packageTestTargets: [Target] = {
             dependencies: ["QuillPaintCairo", "QuillPaint"],
             swiftSettings: appSwiftSettings
         ),
-        // Pins Enchanted's core compatibility surface: markdown /
-        // stream parsing, QuillData persistence, image attachment
-        // handling, and the Linux Qt-native target contract.
-        .testTarget(
-            name: "QuillEnchantedTests",
-            dependencies: ["QuillEnchantedCore", "QuillUI"],
-            swiftSettings: appSwiftSettings
-        ),
         // QuillKitTests covers QuillClipboard / diagnostics /
         // capability matrix / launch service / speech backend —
         // pure-Foundation surface. Tests that need upstream
@@ -1815,6 +1806,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillArticlesTests",
             dependencies: ["QuillArticles"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "QuillAccountTests",
+            dependencies: ["QuillAccount"],
             swiftSettings: appSwiftSettings
         ),
         // Smoke tests for the vendored upstream RSTree module.
