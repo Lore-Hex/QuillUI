@@ -246,6 +246,16 @@ after dedup, so duplicates don't double-notify. Format helper green in the
 decode-check; the spawn is compile-verified (fires only on real receive); a
 launch smoke shows zero notifications when unlinked.
 
+**In-app link now lands on a live chat (2026-06-03 bug fix):** previously
+`beginLink`'s `linked` event only flipped `linkState` to `.linked` — so linking
+via the in-app QR showed an empty, non-updating chat (no conversations, no
+account number, no receive stream) until an app restart. The post-link actions
+are now a shared `onBecameLinked()` (load conversations + whoami + start
+receiving) called from both `refreshStatus` (startup/Retry) and `beginLink`'s
+completion, so the in-app link path populates the chat and goes live
+immediately. App + decode-check green; launch smoke unchanged (the path is only
+reached on a real link).
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

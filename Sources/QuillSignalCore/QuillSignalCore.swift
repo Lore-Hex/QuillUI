@@ -206,12 +206,20 @@ public final class QuillSignalModel: ObservableObject {
                 self.statusDetail = resolvedDetail
                 self.isRefreshing = false
                 if resolvedState == .linked {
-                    self.loadConversations()
-                    self.loadWhoami()
-                    self.startReceiving()
+                    self.onBecameLinked()
                 }
             }
         }
+    }
+
+    /// Everything to start once the device is linked — load the conversation
+    /// list + account identity and begin the receive stream. Idempotent
+    /// (loadConversations/whoami refetch; startReceiving is guarded), so it's
+    /// safe to call from both the status path and an in-app link completion.
+    private func onBecameLinked() {
+        loadConversations()
+        loadWhoami()
+        startReceiving()
     }
 
     /// Load the conversation list from the bridge. Empty until linked; the real
@@ -464,6 +472,9 @@ public final class QuillSignalModel: ObservableObject {
                         self.linkState = .linked
                         self.isLinking = false
                         self.statusDetail = "Linked."
+                        // Load conversations/account + start receiving now, so the
+                        // in-app link lands on a populated, live chat (not empty).
+                        self.onBecameLinked()
                     }
                     return false
                 case "link-error":
