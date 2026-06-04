@@ -1279,6 +1279,9 @@ if wireguardUpstreamPresent {
                 // used by TunnelsManager. Uses ParserState/ParseError (made public).
                 "Sources/WireGuardApp/Tunnel/TunnelConfiguration+UapiConfig.swift",
                 "Sources/WireGuardApp/Tunnel/TunnelsManager.swift",
+                // TunnelViewModel: config edit/validation VM (pure Foundation +
+                // WireGuardKit + splitToArray; no AppKit/KVO). Used by TunnelEdit/Detail VCs.
+                "Sources/WireGuardApp/UI/TunnelViewModel.swift",
                 // Shared NotificationToken: a Foundation-only NotificationCenter
                 // observer wrapper (+ NotificationCenter.observe); used by the model
                 // layer (TunnelsManager/LogViewController). No ObjC.
