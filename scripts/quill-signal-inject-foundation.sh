@@ -37,6 +37,11 @@ FOUNDATION_TYPES='DispatchQueue|DispatchTime|DispatchGroup|TimeInterval|URLReque
 # UIKit types (resolved via the QuillUIKit shim on Linux).
 UIKIT_TYPES='\bUIColor\b|\bUIImage\b|\bUIFont\b|\bUIView\b|\bUIApplication\b|\bUIDevice\b|\bUIScreen\b|\bUIViewController\b|\bUIPasteboard\b|\bUIImpactFeedbackGenerator\b|\bUISelectionFeedbackGenerator\b|\bUINotificationFeedbackGenerator\b|\bUIBezierPath\b|\bUIEdgeInsets\b|\bUIInterfaceOrientation\b|\bUIBackgroundTaskIdentifier\b|\bUIActivityViewController\b'
 
+# Networking types that, on Linux/swift-corelibs-foundation, live in the separate
+# FoundationNetworking module (on Apple they are part of Foundation). The injected
+# import is canImport-gated so it is a no-op on Apple.
+FOUNDATIONNETWORKING_TYPES='\bURLRequest\b|\bURLResponse\b|\bHTTPURLResponse\b|\bURLSession\b|\bURLSessionTask\b|\bURLSessionDataTask\b|\bURLSessionUploadTask\b|\bURLSessionDownloadTask\b|\bURLSessionWebSocketTask\b|\bURLSessionConfiguration\b|\bURLSessionDelegate\b|\bURLSessionTaskDelegate\b|\bURLSessionDataDelegate\b|\bURLSessionWebSocketDelegate\b|\bURLAuthenticationChallenge\b|\bURLCredential\b|\bURLProtocol\b|\bURLProtectionSpace\b|\bHTTPCookie\b|\bURLCache\b|\bCachedURLResponse\b'
+
 injected=0
 scanned=0
 
@@ -52,11 +57,25 @@ inject_if_needed() {
     return 0
 }
 
+inject_gated_if_needed() {
+    # $1 file, $2 module name, $3 type-regex — prepends a canImport-gated import.
+    local f="$1" module="$2" types="$3"
+    grep -qE "import ${module}\b" "$f" && return 1
+    grep -qE "$types" "$f" || return 1
+    {
+        printf '#if canImport(%s)\nimport %s\n#endif\n' "$module" "$module"
+        cat "$f"
+    } > "$f.qfimport.tmp"
+    mv "$f.qfimport.tmp" "$f"
+    return 0
+}
+
 while IFS= read -r f; do
     scanned=$((scanned + 1))
     touched=0
     if inject_if_needed "$f" "Foundation" "$FOUNDATION_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "UIKit" "$UIKIT_TYPES"; then touched=1; fi
+    if inject_gated_if_needed "$f" "FoundationNetworking" "$FOUNDATIONNETWORKING_TYPES"; then touched=1; fi
     injected=$((injected + touched))
 done < <(find "$ROOT" -name '*.swift' -not -path '*/QuillPort/*')
 
