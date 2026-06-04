@@ -972,7 +972,14 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     public var preferredContentSize: NSSize = .zero
     public var preferredMinimumSize: NSSize = .zero
     public var preferredMaximumSize: NSSize = .zero
-    public override init() { super.init() }
+    // Designated init matches AppKit (init(nibName:bundle:) / init?(coder:)).
+    // `nonisolated` so the (nonisolated, overriding NSResponder.init()) convenience
+    // init below can delegate to it, and so subclasses' inits can call it from any
+    // isolation. Only touches default-initialized stored properties + super.init().
+    nonisolated public init(nibName: String?, bundle: Bundle?) { super.init() }
+    // Convenience so a subclass's `init()` needs no `override` (issue #231; same
+    // model as NSView). `override` because it overrides NSResponder's init().
+    nonisolated public override convenience init() { self.init(nibName: nil, bundle: nil) }
     open func viewDidLoad() {}
     open func viewWillAppear() {}
     open func viewDidAppear() {}
@@ -4525,7 +4532,7 @@ public class NSHostingView<Content>: NSView {
 
 public class NSHostingController<Content>: NSViewController {
     public var rootView: Content
-    public init(rootView: Content) { self.rootView = rootView; super.init() }
+    public init(rootView: Content) { self.rootView = rootView; super.init(nibName: nil, bundle: nil) }
 }
 
 // SwiftUI bridging protocols (these get re-exported by the SwiftUI shim
