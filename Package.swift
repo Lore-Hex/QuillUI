@@ -1286,6 +1286,8 @@ if wireguardUpstreamPresent {
                 // (NSAlert-based; WireGuardAppError -> alert). Used by the VCs.
                 "Sources/WireGuardApp/UI/ErrorPresenterProtocol.swift",
                 "Sources/WireGuardApp/UI/macOS/ErrorPresenter.swift",
+                // DeleteTunnelsConfirmationAlert: NSAlert subclass (delete confirmation).
+                "Sources/WireGuardApp/UI/macOS/View/DeleteTunnelsConfirmationAlert.swift",
                 // Shared NotificationToken: a Foundation-only NotificationCenter
                 // observer wrapper (+ NotificationCenter.observe); used by the model
                 // layer (TunnelsManager/LogViewController). No ObjC.

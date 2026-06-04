@@ -2615,7 +2615,10 @@ open class NSAlert: NSObject {
     public var alertStyle: Style = .informational
     public var showsHelp: Bool = false
     public var helpAnchor: String?
-    public weak var window: NSWindow?
+    /// The alert's panel window. Non-optional to match Apple's `NSAlert.window`
+    /// (e.g. `alert.window.sheetParent` in WireGuard's DeleteTunnelsConfirmationAlert);
+    /// a lazily-created compile-only stub on Linux (no real panel is shown).
+    public lazy var window: NSWindow = NSWindow()
     public var buttons: [NSButton] = []
     public var accessoryView: NSView?
     public var showsSuppressionButton: Bool = false
