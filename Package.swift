@@ -1286,6 +1286,9 @@ if wireguardUpstreamPresent {
                 // (NSAlert-based; WireGuardAppError -> alert). Used by the VCs.
                 "Sources/WireGuardApp/UI/ErrorPresenterProtocol.swift",
                 "Sources/WireGuardApp/UI/macOS/ErrorPresenter.swift",
+                // TunnelListRow: NSView cell binding to a TunnelContainer via KVO
+                // (observe(\.name)/(\.status)) — exercises the KVO shims (#355).
+                "Sources/WireGuardApp/UI/macOS/View/TunnelListRow.swift",
                 // DeleteTunnelsConfirmationAlert: NSAlert subclass (delete confirmation).
                 "Sources/WireGuardApp/UI/macOS/View/DeleteTunnelsConfirmationAlert.swift",
                 // Shared NotificationToken: a Foundation-only NotificationCenter
