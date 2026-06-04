@@ -1463,8 +1463,10 @@ allPackageDependencies.append(
 #endif
 #if os(Linux)
 // SwiftSoup (pure-Swift HTML parser) backs the vendored IceCubes Models
-// HTMLString; only pulled when the real upstream is present (Linux vendor).
-if iceCubesUpstreamPresent {
+// HTMLString. Scoped to the gtk Linux build: the qt-native product build
+// evaluates the manifest with a trimmed dependency set that can't resolve
+// SwiftSoup, and the Models target isn't a dependency of any qt app anyway.
+if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
 allPackageDependencies.append(
     .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.4.3")
 )
@@ -1947,7 +1949,7 @@ let packageTestTargets: [Target] = {
 // resolve against the repo `SwiftUI` shim + the auto-imported IceCubesShims
 // (LocalizedStringKey, RelativeDateTimeFormatter, AttributedString markdown).
 #if os(Linux)
-if iceCubesUpstreamPresent {
+if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
     targets += [
         .target(
             name: "IceCubesShims",
