@@ -188,7 +188,27 @@ A second-opinion review (codex, read-only) sharpened the plan — adopt this ord
    Foundation type without importing it. **THE lesson for recompiling any
    ObjC-umbrella framework on Linux: inject the implicit Foundation (and UIKit)
    import per-file.** Run after fetch+lower; the committed SCRIPT is the durable
-   artifact (`.upstream` edits are disposable).
+   artifact (`.upstream` edits are disposable). (UIKit has the same gap — the
+   script also injects `import UIKit` (the QuillUIKit shim) into the 17 files that
+   need it: `32230d4`, → 205975.)
+
+   **✅ TS* message subclasses (`open class X: TSMessage`):** `TSGroupModel` base
+   (`5fee818`, → **195599, under 200k**), `OWSReadTracking` protocol +
+   `OWSReceiptCircumstance` + `TSErrorMessage` (`3d7e1f8`, → 192366),
+   `TSIncomingMessage` (`e6965e8`, → 185944). **Subclass recipe:** the generated
+   SDS designated init = `TSMessage`'s 29 params **+** the subclass's own columns,
+   in the exact order of the `<Name>+SDS` `case .<recordType>` deserializer call,
+   and it calls `super.init(grdbId:…all 29…)`; the builder init
+   `init(<x>MessageWithBuilder:)` calls `super.init(messageWithBuilder:)`;
+   `override var interactionType`; conform `OWSReadTracking` via `var wasRead {
+   read }`; **SDS-tabled subclasses are NOT blob-archived** → mark `init()` AND
+   `init?(coder:)` `@available(*, unavailable)` (no `encode`/`initWithCoder`
+   needed); read-tracking `markAsRead`/`markAsViewed` set the flag directly in pass
+   1 (DB-write/receipt/notification side effects deferred). From the 377k peak this
+   is **−191,539 (~51%)** across 13 zero-error commits; remaining are
+   `TSInfoMessage`/`TSOutgoingMessage`, the 2 override-relocate sites, and a small
+   residual shim band (`URLRequest`/`URLSessionWebSocketTask`, `Selector`,
+   `UIColor.rgbHex`).
 
    The validated NSObject port pattern: designated
    inits set all stored props **before** `super.init()`; `required override
