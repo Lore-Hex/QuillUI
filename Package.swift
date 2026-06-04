@@ -1246,6 +1246,11 @@ if wireguardUpstreamPresent {
                 // stripped by fetch-upstream's (now whole-app) lowering. Grows
                 // this target toward the single-app-module.
                 "Sources/WireGuardApp/Tunnel/TunnelStatus.swift",
+                // App error model: WireGuardAppError protocol + AlertText typealias
+                // + WireGuardResult<T> — self-contained (Foundation only); used pervasively
+                // by the rest of the model layer.
+                "Sources/WireGuardApp/WireGuardAppError.swift",
+                "Sources/WireGuardApp/WireGuardResult.swift",
                 "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift",
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
