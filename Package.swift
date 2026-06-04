@@ -1317,6 +1317,7 @@ targets.append(contentsOf: [
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
     .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),
+    .testTarget(name: "NetworkExtensionTests", dependencies: ["NetworkExtension"], path: "Tests/NetworkExtensionTests"),
     // QuillAppKit — compile-only AppKit shadow. Target named `AppKit`
     // so upstream `import AppKit` resolves to this swiftmodule on
     // Linux. Phase A: type stubs only. Phase B will back the heavy
