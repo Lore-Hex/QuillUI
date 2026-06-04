@@ -19,174 +19,24 @@
 import QuillKit
 import Glibc
 
-// MARK: - UndoManager (missing from Linux Foundation)
-
-open class UndoManager: NSObject, @unchecked Sendable {
-    private struct UndoAction {
-        var targetIDs: Set<ObjectIdentifier>
-        var name: String
-        var grouped: Bool
-        var invoke: () -> Void
-    }
-
-    private var undoStack: [UndoAction] = []
-    private var redoStack: [UndoAction] = []
-    private var actionGroups: [[UndoAction]] = []
-    private var undoing = false
-    private var redoing = false
-    private var registrationEnabled = true
-
-    public override init() {
-        super.init()
-    }
-
-    public func registerUndo<T: AnyObject>(withTarget target: T, handler: @escaping (T) -> Void) {
-        guard registrationEnabled else { return }
-
-        let action = UndoAction(
-            targetIDs: [ObjectIdentifier(target)],
-            name: undoActionName,
-            grouped: false,
-            invoke: { [weak target] in
-                guard let target else { return }
-                handler(target)
-            }
-        )
-
-        if !actionGroups.isEmpty {
-            actionGroups[actionGroups.count - 1].append(action)
-        } else if undoing {
-            appendRedoAction(action)
-        } else if redoing {
-            appendUndoAction(action, clearsRedo: false)
-        } else {
-            appendUndoAction(action, clearsRedo: true)
-        }
-    }
-
-    public func beginUndoGrouping() {
-        actionGroups.append([])
-    }
-
-    public func endUndoGrouping() {
-        guard let group = actionGroups.popLast(), !group.isEmpty else { return }
-
-        let groupedAction = makeGroupedAction(from: group, name: group.last?.name ?? "")
-
-        if actionGroups.isEmpty {
-            appendUndoAction(groupedAction, clearsRedo: true)
-        } else {
-            actionGroups[actionGroups.count - 1].append(groupedAction)
-        }
-    }
-
-    public func undo() {
-        guard let action = undoStack.popLast() else { return }
-        undoing = true
-        if action.grouped {
-            actionGroups.append([])
-        }
-        action.invoke()
-        let inverseGroup = action.grouped ? actionGroups.popLast() : nil
-        undoing = false
-        if let inverseGroup, !inverseGroup.isEmpty {
-            appendRedoAction(makeGroupedAction(from: inverseGroup, name: action.name))
-        }
-        redoActionName = action.name
-    }
-
-    public func redo() {
-        guard let action = redoStack.popLast() else { return }
-        redoing = true
-        if action.grouped {
-            actionGroups.append([])
-        }
-        action.invoke()
-        let inverseGroup = action.grouped ? actionGroups.popLast() : nil
-        redoing = false
-        if let inverseGroup, !inverseGroup.isEmpty {
-            appendUndoAction(makeGroupedAction(from: inverseGroup, name: action.name), clearsRedo: false)
-        }
-        undoActionName = action.name
-    }
-
-    public func removeAllActions() {
-        undoStack.removeAll()
-        redoStack.removeAll()
-        actionGroups.removeAll()
-    }
-
-    public func removeAllActions(withTarget target: Any) {
-        guard let object = target as? AnyObject else { return }
-        let targetID = ObjectIdentifier(object)
-        undoStack.removeAll { $0.targetIDs.contains(targetID) }
-        redoStack.removeAll { $0.targetIDs.contains(targetID) }
-        actionGroups = actionGroups.map { group in
-            group.filter { !$0.targetIDs.contains(targetID) }
-        }
-    }
-
-    public var canUndo: Bool { !undoStack.isEmpty }
-    public var canRedo: Bool { !redoStack.isEmpty }
-    public var groupsByEvent: Bool = true
-    public var levelsOfUndo: Int = 0 {
-        didSet {
-            trimUndoStack()
-            trimRedoStack()
-        }
-    }
-    public var undoActionName: String = ""
-    public var redoActionName: String = ""
-    public func setActionName(_ name: String) { undoActionName = name }
-    public var isUndoing: Bool { undoing }
-    public var isRedoing: Bool { redoing }
-    public func disableUndoRegistration() { registrationEnabled = false }
-    public func enableUndoRegistration() { registrationEnabled = true }
-    public var isUndoRegistrationEnabled: Bool { registrationEnabled }
-
-    private func appendUndoAction(_ action: UndoAction, clearsRedo: Bool) {
-        undoStack.append(action)
-        trimUndoStack()
-        if clearsRedo {
-            redoStack.removeAll()
-        }
-    }
-
-    private func appendRedoAction(_ action: UndoAction) {
-        redoStack.append(action)
-        trimRedoStack()
-    }
-
-    private func makeGroupedAction(from group: [UndoAction], name: String) -> UndoAction {
-        UndoAction(
-            targetIDs: Set(group.flatMap(\.targetIDs)),
-            name: name,
-            grouped: true,
-            invoke: {
-                for action in group.reversed() {
-                    action.invoke()
-                }
-            }
-        )
-    }
-
-    private func trimUndoStack() {
-        guard levelsOfUndo > 0, undoStack.count > levelsOfUndo else { return }
-        undoStack.removeFirst(undoStack.count - levelsOfUndo)
-    }
-
-    private func trimRedoStack() {
-        guard levelsOfUndo > 0, redoStack.count > levelsOfUndo else { return }
-        redoStack.removeFirst(redoStack.count - levelsOfUndo)
-    }
-}
+// MARK: - UndoManager
+//
+// Moved DOWN to QuillFoundation
+// (Sources/QuillFoundation/UndoManagerLinuxClone.swift) so lower layers
+// (RSCore/QuillRSCoreShim, Account) can share one definition without
+// depending on AppKit. Re-exported here via the `@_exported import
+// QuillFoundation` above, so `undoManager` uses below still resolve.
 
 // MARK: - Geometry typealiases (NS variants of CG types)
 
 public typealias NSPoint = CGPoint
 public typealias NSSize = CGSize
 public typealias NSRect = CGRect
-public typealias NSEdgeInsets = (top: CGFloat, left: CGFloat, bottom: CGFloat, right: CGFloat)
+// NSEdgeInsets comes from Foundation on Linux (a struct with
+// init(top:left:bottom:right:)) — don't redeclare it, or it becomes ambiguous
+// with Foundation's at any use site that imports both (e.g. conformance source
+// via `import Cocoa`). The old tuple typealias only avoided this because nothing
+// referenced it ambiguously.
 public typealias NSRectPointer = UnsafeMutablePointer<NSRect>
 
 // NSStringFromRect and NSRectFromString come from Foundation through QuillFoundation.
@@ -263,6 +113,7 @@ public extension NSColor {
     static let controlAccentColor = NSColor()
     static let selectedTextBackgroundColor = NSColor()
     static let selectedContentBackgroundColor = NSColor()
+    static let unemphasizedSelectedContentBackgroundColor = NSColor()
     static let separatorColor = NSColor()
     static let windowBackgroundColor = NSColor()
     static let underPageBackgroundColor = NSColor()
@@ -539,6 +390,29 @@ open class NSResponder: NSObject {
     open func resignFirstResponder() -> Bool { true }
 }
 
+/// Mirrors `NSLayoutGuide`: a rectangular region that participates in Auto
+/// Layout without being a view (lighter than a spacer view). Exposes the same
+/// anchors as NSView so unmodified source can constrain to it. COMPILE-stub: the
+/// anchors build real NSLayoutConstraints, but the Qt solve pass currently only
+/// positions NSView items — honoring guide frames in the solve is a follow-up.
+public final class NSLayoutGuide: NSObject {
+    public weak var owningView: NSView?
+    public var identifier: String = ""
+
+    public override init() { super.init() }
+
+    public var topAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .top) }
+    public var bottomAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .bottom) }
+    public var leadingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .leading) }
+    public var trailingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .trailing) }
+    public var leftAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .leading) }
+    public var rightAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .trailing) }
+    public var widthAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .width) }
+    public var heightAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .height) }
+    public var centerXAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .centerX) }
+    public var centerYAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .centerY) }
+}
+
 open class NSView: NSResponder {
     public var frame: NSRect = .zero {
         didSet {
@@ -592,7 +466,12 @@ open class NSView: NSResponder {
         public static let maxYMargin = AutoresizingMask(rawValue: 1 << 5)
     }
 
-    public override init() { super.init() }
+    // Convenience (not designated) so NSView matches real AppKit, where the
+    // designated initializers are init(frame:)/init?(coder:) — a subclass's
+    // `convenience init()` then needs no `override` (lets unmodified upstream
+    // ViewControllers compile). See issue #231. `override` because this overrides
+    // NSResponder's designated init(); being *convenience* is what frees subclasses.
+    public override convenience init() { self.init(frame: .zero) }
     public init(frame: NSRect) {
         super.init()
         self.frame = frame
@@ -709,12 +588,27 @@ open class NSView: NSResponder {
     public var bottomAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .bottom) }
     public var leadingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .leading) }
     public var trailingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .trailing) }
+    // Absolute left/right. Under the shadow's left-to-right assumption these are
+    // leading/trailing — enough for source-compat with VCs that pin to
+    // leftAnchor/rightAnchor (e.g. WireGuard's ManageTunnels/TunnelDetail).
+    public var leftAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .leading) }
+    public var rightAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .trailing) }
     public var widthAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .width) }
     public var heightAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .height) }
     public var centerXAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .centerX) }
     public var centerYAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .centerY) }
     public var firstBaselineAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .firstBaseline) }
     public var lastBaselineAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .lastBaseline) }
+
+    public private(set) var layoutGuides: [NSLayoutGuide] = []
+    public func addLayoutGuide(_ guide: NSLayoutGuide) {
+        layoutGuides.append(guide)
+        guide.owningView = self
+    }
+    public func removeLayoutGuide(_ guide: NSLayoutGuide) {
+        layoutGuides.removeAll { $0 === guide }
+        if guide.owningView === self { guide.owningView = nil }
+    }
 
     open func layout() {}
     open func draw(_ rect: NSRect) {}
@@ -967,7 +861,14 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     public var preferredContentSize: NSSize = .zero
     public var preferredMinimumSize: NSSize = .zero
     public var preferredMaximumSize: NSSize = .zero
-    public override init() { super.init() }
+    // Designated init matches AppKit (init(nibName:bundle:) / init?(coder:)).
+    // `nonisolated` so the (nonisolated, overriding NSResponder.init()) convenience
+    // init below can delegate to it, and so subclasses' inits can call it from any
+    // isolation. Only touches default-initialized stored properties + super.init().
+    nonisolated public init(nibName: String?, bundle: Bundle?) { super.init() }
+    // Convenience so a subclass's `init()` needs no `override` (issue #231; same
+    // model as NSView). `override` because it overrides NSResponder's init().
+    nonisolated public override convenience init() { self.init(nibName: nil, bundle: nil) }
     open func viewDidLoad() {}
     open func viewWillAppear() {}
     open func viewDidAppear() {}
@@ -2846,12 +2747,9 @@ open class NSScrollView: NSView {
     public var magnification: CGFloat = 1
     public var minMagnification: CGFloat = 0.25
     public var maxMagnification: CGFloat = 4.0
-    public var contentInsets: NSEdgeInsets = (0, 0, 0, 0)
+    public var contentInsets: NSEdgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
     public var automaticallyAdjustsContentInsets: Bool = true
-    public override init() {
-        super.init()
-        quillInstallContentView()
-    }
+    public convenience init() { self.init(frame: .zero) }
     public override init(frame: NSRect) {
         super.init(frame: frame)
         quillInstallContentView()
@@ -2869,6 +2767,33 @@ open class NSScrollView: NSView {
     }
 }
 
+/// Mirrors `NSBox`: a titled/bordered container. COMPILE-stub — properties are
+/// stored (defaults let it inherit NSView's initializers, so `NSBox()` works);
+/// a Qt backing (QGroupBox/QFrame) is a follow-up.
+open class NSBox: NSView {
+    public enum BoxType: UInt, Sendable { case primary, secondary, separator, oldStyle, custom }
+    public enum TitlePosition: UInt, Sendable {
+        case noTitle, aboveTop, atTop, belowTop, aboveBottom, atBottom, belowBottom
+    }
+    public enum BorderType: UInt, Sendable { case noBorder, lineBorder, bezelBorder, grooveBorder }
+
+    public var boxType: BoxType = .primary
+    public var titlePosition: TitlePosition = .atTop
+    public var borderType: BorderType = .lineBorder
+    public var title: String = ""
+    public var titleFont: NSFont?
+    public var fillColor: NSColor = NSColor()
+    public var borderColor: NSColor = NSColor()
+    public var borderWidth: CGFloat = 0
+    public var cornerRadius: CGFloat = 0
+    public var isTransparent: Bool = false
+    public var contentViewMargins: NSSize = NSSize(width: 0, height: 0)
+    public var contentView: NSView? {
+        didSet { if let v = contentView { addSubview(v) } }
+    }
+    public func sizeToFit() {}
+}
+
 open class NSClipView: NSView {
     public var documentView: NSView?
     public var documentRect: NSRect = .zero
@@ -2880,6 +2805,7 @@ open class NSScroller: NSView {
 }
 
 open class NSTextField: NSControl {
+    public var font: NSFont?
     public var placeholderString: String?
     public var placeholderAttributedString: NSAttributedString?
     public var isEditable: Bool = false
@@ -2908,6 +2834,12 @@ open class NSTextField: NSControl {
     public convenience init(wrappingLabelWithString string: String) {
         self.init()
         applyLabelDefaults(string: string, selectable: true, lineBreakMode: .byWordWrapping)
+    }
+
+    public convenience init(labelWithAttributedString attributedString: NSAttributedString) {
+        self.init()
+        applyLabelDefaults(string: attributedString.string, selectable: false, lineBreakMode: .byClipping)
+        attributedStringValue = attributedString
     }
 
     public convenience init(string: String) {
@@ -3162,11 +3094,19 @@ open class NSControl: NSView {
         set { applyObjectValue(newValue) }
     }
     public var formatter: Foundation.Formatter?
+    @discardableResult
     public func sendAction(_ a: Selector?, to receiver: Any?) -> Bool {
         guard isEnabled else { return false }
-        guard (a ?? action) != nil else { return false }
+        guard let selector = a ?? action else { return false }
         let resolvedTarget = (receiver as AnyObject?) ?? target
-        guard resolvedTarget != nil else { return false }
+        guard let resolvedTarget else { return false }
+        // Dispatch to the target's lowered action handler, passing this control
+        // as the sender (AppKit hands the control to `foo(sender:)` actions).
+        // App classes that wire up target-action conform to QuillActionDispatching
+        // — the AppKit source lowering injects `quillPerform(_:with:)` switching
+        // on the selector name. A target that doesn't conform is still a valid
+        // "had a target" match (returns true, per AppKit); it just performs nothing.
+        (resolvedTarget as? QuillActionDispatching)?.quillPerform(selector, with: self)
         return true
     }
     public func sizeToFit() {}
@@ -3267,9 +3207,14 @@ open class NSButton: NSControl {
     public enum ImagePosition: UInt, Sendable { case noImage, imageOnly, imageLeft, imageRight, imageBelow, imageAbove, imageOverlaps, imageLeading, imageTrailing }
     public enum ButtonType: UInt, Sendable { case momentaryLight, pushOnPushOff, toggle, `switch`, radio, momentaryChange, onOff, momentaryPushIn, accelerator, multiLevelAccelerator }
 
-    public override init() { super.init() }
-    public init(title: String, target: Any?, action: Selector?) { super.init(); self.title = title; self.target = target as AnyObject?; self.action = action }
-    public init(image: NSImage, target: Any?, action: Selector?) { super.init(); self.image = image; self.target = target as AnyObject?; self.action = action }
+    public convenience init() { self.init(title: "", target: nil, action: nil) }
+    public init(title: String, target: Any?, action: Selector?) { super.init(frame: .zero); self.title = title; self.target = target as AnyObject?; self.action = action }
+    public init(image: NSImage, target: Any?, action: Selector?) { super.init(frame: .zero); self.image = image; self.target = target as AnyObject?; self.action = action }
+    /// Programmatically click the button: fire its action at its target. The Qt
+    /// backing routes a real `clicked` signal here once signal wiring lands.
+    open func performClick(_ sender: Any?) {
+        sendAction(action, to: target)
+    }
     public func setButtonType(_ type: ButtonType) { buttonType = type }
     public static func radioButton(withTitle: String, target: Any?, action: Selector?) -> NSButton {
         let button = NSButton(title: withTitle, target: target, action: action)
@@ -3305,7 +3250,7 @@ open class NSSlider: NSControl {
     public var trackFillColor: NSColor?
     public enum TickMarkPosition: UInt, Sendable { case below, above, leading, trailing }
     public enum SliderType: UInt, Sendable { case linear, circular }
-    public override init() { super.init() }
+    public convenience init() { self.init(frame: .zero) }
     public convenience init(value: Double, minValue: Double, maxValue: Double, target: Any?, action: Selector?) {
         self.init()
         doubleValue = value
@@ -3324,14 +3269,31 @@ open class NSStackView: NSView {
     public var alignment: NSLayoutConstraint.Attribute = .centerY
     public var distribution: Distribution = .fill
     public var spacing: CGFloat = 0
-    public var edgeInsets: NSEdgeInsets = (0, 0, 0, 0)
+    public var edgeInsets: NSEdgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
     public var arrangedSubviews: [NSView] = []
     public func addArrangedSubview(_ v: NSView) { arrangedSubviews.append(v); addSubview(v) }
     public func insertArrangedSubview(_ v: NSView, at idx: Int) { arrangedSubviews.insert(v, at: idx); addSubview(v) }
+    // Per-view trailing spacing. Recorded but not yet honored by the constraint
+    // layout pass (like gravity), enough for source-compat.
+    public func setCustomSpacing(_ spacing: CGFloat, after view: NSView) {}
     public func removeArrangedSubview(_ v: NSView) {
         arrangedSubviews.removeAll { $0 === v }
     }
-    public override init() { super.init() }
+    // Gravity-area APIs. The shadow keeps one ordered arranged-subview list
+    // (gravity isn't modeled yet — the constraint layout pass positions views),
+    // so addView appends like addArrangedSubview and setViews replaces the list.
+    public func addView(_ view: NSView, in gravity: Gravity) {
+        addArrangedSubview(view)
+    }
+    public func setViews(_ views: [NSView], in gravity: Gravity) {
+        arrangedSubviews.removeAll()
+        for view in views { addArrangedSubview(view) }
+    }
+    public convenience init() { self.init(frame: .zero) }
+    public convenience init(views: [NSView]) {
+        self.init(frame: .zero)
+        for view in views { addArrangedSubview(view) }
+    }
 }
 
 extension NSLayoutConstraint {
@@ -3358,7 +3320,7 @@ open class NSProgressIndicator: NSView {
     public func startAnimation(_ sender: Any?) {}
     public func stopAnimation(_ sender: Any?) {}
     public func incrementBy(_ delta: Double) { doubleValue += delta }
-    public override init() { super.init() }
+    public convenience init() { self.init(frame: .zero) }
 }
 
 open class NSPopUpButton: NSButton {
@@ -3416,8 +3378,8 @@ open class NSPopUpButton: NSButton {
     public func itemWithTitle(_ t: String) -> NSMenuItem? {
         menu?.items.first { $0.title == t }
     }
-    public init(frame: NSRect, pullsDown: Bool) { super.init(); self.pullsDown = pullsDown }
-    public override init() { super.init() }
+    public init(frame: NSRect, pullsDown: Bool) { super.init(title: "", target: nil, action: nil); self.pullsDown = pullsDown }
+    public convenience init() { self.init(frame: .zero, pullsDown: false) }
 
     private func ensureMenu() -> NSMenu {
         if let menu { return menu }
@@ -4517,12 +4479,12 @@ open class NSDocumentController: NSObject {
 
 public class NSHostingView<Content>: NSView {
     public var rootView: Content
-    public init(rootView: Content) { self.rootView = rootView; super.init() }
+    public init(rootView: Content) { self.rootView = rootView; super.init(frame: .zero) }
 }
 
 public class NSHostingController<Content>: NSViewController {
     public var rootView: Content
-    public init(rootView: Content) { self.rootView = rootView; super.init() }
+    public init(rootView: Content) { self.rootView = rootView; super.init(nibName: nil, bundle: nil) }
 }
 
 // SwiftUI bridging protocols (these get re-exported by the SwiftUI shim

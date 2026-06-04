@@ -7,8 +7,6 @@ quillui_backend_app_products() {
   # backend parity loops. Support tools, generated external packages, smoke
   # fixtures, and demos stay out of this roster.
   printf '%s\n' \
-    quill-enchanted \
-    quill-enchanted-upstream-slice \
     quill-icecubes \
     quill-netnewswire \
     quill-codeedit \
@@ -23,7 +21,6 @@ quillui_backend_generic_qt_app_products() {
   # compiled with QUILLUI_LINUX_BACKEND=qt. Keep this in one roster so generic
   # Qt interaction coverage cannot drift app-by-app.
   printf '%s\n' \
-    quill-enchanted-upstream-slice \
     quill-icecubes \
     quill-netnewswire \
     quill-codeedit \
@@ -37,7 +34,6 @@ quillui_backend_generic_gtk_list_selection_app_products() {
   # environment keys. Signal and Telegram keep ChatKit-specific verifier rows;
   # canonical Enchanted and WireGuard keep richer app-specific semantic rows.
   printf '%s\n' \
-    quill-enchanted-upstream-slice \
     quill-icecubes \
     quill-netnewswire \
     quill-codeedit \
@@ -407,19 +403,7 @@ quillui_backend_interaction_extra_mode_matrix() {
     quill-wireguard qt import-paste \
     quill-wireguard qt import-file \
     quill-wireguard qt import-invalid-paste \
-    quill-wireguard qt import-invalid-file \
-    quill-enchanted gtk composer-typed \
-    quill-enchanted qt composer-typed \
-    quill-enchanted gtk new-chat \
-    quill-enchanted qt new-chat \
-    quill-enchanted gtk message-sent \
-    quill-enchanted qt message-sent \
-    quill-enchanted gtk message-sent-keyboard \
-    quill-enchanted qt message-sent-keyboard \
-    quill-enchanted gtk clear-all \
-    quill-enchanted qt clear-all \
-    quill-enchanted gtk list-selection \
-    quill-enchanted qt list-selection
+    quill-wireguard qt import-invalid-file
 
   local product
   while IFS= read -r product; do

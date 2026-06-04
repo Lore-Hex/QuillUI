@@ -185,16 +185,18 @@ let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsy
 // QuillUI's Apple-framework shim products, so the targets are `#if os(Linux)`.
 let signalUpstreamPresent: Bool = upstreamPresent(".upstream/signal-ios/SignalServiceKit")
 let libsignalUpstreamPresent: Bool = upstreamPresent(".upstream/libsignal/swift/Sources/LibSignalClient")
+// Real Dimillian/IceCubesApp Models + NetworkClient, vendored Linux-only.
+// The upstream iOS platform pin is a manifest constraint, not a source one —
+// the data/network layer is portable Swift+SwiftSoup; UI-coupled bits resolve
+// against the repo's SwiftUI shim + IceCubesShims. See fetch-upstream.sh.
+let iceCubesUpstreamPresent: Bool = upstreamPresent(".upstream/icecubes/Packages/Models/Sources/Models")
 
 enum QuillCanonicalLinuxAppQtRuntime {
-    case enchantedQtNative
     case genericQtNative
     case wireGuardQtNative
 
     var targetDependency: Target.Dependency {
         switch self {
-        case .enchantedQtNative:
-            return "QuillEnchantedQtNativeRuntime"
         case .genericQtNative:
             return "QuillGenericQtNativeRuntime"
         case .wireGuardQtNative:
@@ -215,8 +217,6 @@ struct QuillCanonicalLinuxAppSpec {
 }
 
 let quillCanonicalLinuxApps: [QuillCanonicalLinuxAppSpec] = [
-    .init(product: "quill-enchanted", target: "QuillEnchanted", qtPath: "Sources/QuillEnchantedQt", qtRuntime: .enchantedQtNative),
-    .init(product: "quill-enchanted-upstream-slice", target: "QuillEnchantedUpstreamSlice", qtPath: "Sources/QuillEnchantedUpstreamSliceQt", qtRuntime: .genericQtNative),
     .init(product: "quill-icecubes", target: "QuillIceCubes", qtPath: "Sources/QuillIceCubesQt", qtRuntime: .genericQtNative),
     .init(product: "quill-netnewswire", target: "QuillNetNewsWire", qtPath: "Sources/QuillNetNewsWireQt", qtRuntime: .genericQtNative),
     .init(product: "quill-codeedit", target: "QuillCodeEdit", qtPath: "Sources/QuillCodeEditQt", qtRuntime: .genericQtNative),
@@ -250,6 +250,7 @@ var products: [Product] = [
     .library(name: "QuillSourceLowering", targets: ["QuillSourceLowering"]),
     .executable(name: "quill-source-lower", targets: ["quill-source-lower"]),
     .executable(name: "quill-lower-swiftui", targets: ["quill-lower-swiftui"]),
+    .executable(name: "quill-lower-appkit", targets: ["quill-lower-appkit"]),
     .library(name: "QuillDoctor", targets: ["QuillDoctor"]),
     .executable(name: "quill-doctor", targets: ["quill-doctor"]),
     // QuillPaint is the renderer-agnostic control paint layer. Apps using
@@ -273,7 +274,6 @@ var products: [Product] = [
 ] + quillCanonicalLinuxAppProducts
 
 #if !os(Linux)
-products.append(.executable(name: "quill-enchanted-qt", targets: ["QuillEnchantedQt"]))
 products.append(.executable(name: "quill-wireguard-qt", targets: ["QuillWireGuardQt"]))
 #endif
 
@@ -293,6 +293,7 @@ products.append(.library(name: "SwiftData", targets: ["SwiftData"]))
 #if os(Linux)
 products += [
     .library(name: "UIKit", targets: ["UIKit"]),
+    .library(name: "Cocoa", targets: ["Cocoa"]),
     .library(name: "MessageUI", targets: ["MessageUI"]),
     .library(name: "SafariServices", targets: ["SafariServices"]),
     .library(name: "MobileCoreServices", targets: ["MobileCoreServices"])
@@ -316,6 +317,7 @@ products += [
     .library(name: "UniformTypeIdentifiers", targets: ["UniformTypeIdentifiers"]),
     .library(name: "Network", targets: ["Network"]),
     .library(name: "NetworkExtension", targets: ["NetworkExtension"]),
+    .library(name: "CoreWLAN", targets: ["CoreWLAN"]),
     .library(name: "AppKit", targets: ["AppKit"]),
     .library(name: "QuillAppKitGTK", targets: ["QuillAppKitGTK"]),
     .library(name: "os", targets: ["os"]),
@@ -386,6 +388,17 @@ let appSwiftSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v5),
     .unsafeFlags(["-strict-concurrency=minimal"])
 ] + quillUIGTKSwiftImporterSettings
+
+// QuillIceCubesCore consumes the real vendored Models when present (gtk-Linux);
+// gated so macOS / qt (where the Models target isn't built) keep the reimpl.
+var quillIceCubesCoreDependencies: [Target.Dependency] = ["QuillUI", "QuillFoundation"]
+var quillIceCubesCoreSwiftSettings: [SwiftSetting] = appSwiftSettings
+#if os(Linux)
+if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
+    quillIceCubesCoreDependencies.append("Models")
+    quillIceCubesCoreSwiftSettings.append(.define("ICECUBES_REAL_MODELS"))
+}
+#endif
 
 #if os(Linux)
 let quillShimsDependencies: [Target.Dependency] = [
@@ -480,17 +493,6 @@ func quillLinuxBackendDependencies(
 }
 #endif
 
-let quillEnchantedQtDependencies: [Target.Dependency] = quillLinuxBackendDependencies(
-    nativeQt: ["QuillEnchantedQtNativeRuntime"],
-    fallback: ["QuillEnchantedCore", "QuillUIQt"]
-)
-#if os(Linux)
-let quillEnchantedQtSwiftSettings: [SwiftSetting] =
-    appSwiftSettings + (quillUILinuxBuildBackend == .qt ? [.define("QUILLUI_ENCHANTED_QT_NATIVE_BACKEND")] : [])
-#else
-let quillEnchantedQtSwiftSettings: [SwiftSetting] = appSwiftSettings
-#endif
-
 let quillWireGuardQtDependencies: [Target.Dependency] = quillLinuxBackendDependencies(
     nativeQt: ["QuillWireGuardQtNativeRuntime"],
     fallback: ["QuillWireGuardUI", "QuillUIQt"]
@@ -513,8 +515,6 @@ func quillCanonicalLinuxAppQtTarget(_ app: QuillCanonicalLinuxAppSpec) -> Target
     let swiftSettings: [SwiftSetting]
 
     switch app.qtRuntime {
-    case .enchantedQtNative:
-        swiftSettings = quillEnchantedQtSwiftSettings
     case .genericQtNative:
         swiftSettings = quillGenericQtSwiftSettings
     case .wireGuardQtNative:
@@ -609,6 +609,20 @@ let quillEnchantedDataTarget: Target = .target(
     swiftSettings: appSwiftSettings
 )
 
+// QuillRSParser's HTMLMetadata does `import CoreGraphics` (CGSize/CGFloat).
+// On Darwin the system framework satisfies it; on Linux the in-tree shim must
+// be an explicit dep (SwiftPM does not auto-resolve an `import` to a same-
+// package target). Declared as a statement-level `#if os(Linux)` helper (the
+// idiom used by quillLinuxShimTestDependencies) rather than an inline array
+// `#if` (illegal here) or a `.target(_:condition:)` (which leaves the dep in
+// the macOS manifest and trips a spurious "source files should be located
+// under Sources/CoreGraphics"). Empty on macOS.
+#if os(Linux)
+let quillRSParserPlatformDeps: [Target.Dependency] = ["CoreGraphics"]
+#else
+let quillRSParserPlatformDeps: [Target.Dependency] = []
+#endif
+
 var targets: [Target] = [
     cSQLiteTarget,
     cCairoTarget,
@@ -700,6 +714,11 @@ var targets: [Target] = [
         dependencies: ["QuillSourceLowering"],
         path: "Sources/quill-lower-swiftui"
     ),
+    .executableTarget(
+        name: "quill-lower-appkit",
+        dependencies: ["QuillSourceLowering"],
+        path: "Sources/quill-lower-appkit"
+    ),
     .target(
         name: "QuillDoctor",
         dependencies: [
@@ -787,16 +806,6 @@ var targets: [Target] = [
         path: "Sources/QuillEnchantedShared"
     ),
     quillEnchantedDataTarget,
-    .target(
-        name: "QuillEnchantedCore",
-        dependencies: [.target(name: "QuillEnchantedShared"), "QuillEnchantedData", "QuillUI", "QuillFoundation", "QuillKit"],
-        swiftSettings: appSwiftSettings
-    ),
-    .executableTarget(
-        name: "QuillEnchanted",
-        dependencies: ["QuillEnchantedCore", "QuillUI"],
-        swiftSettings: appSwiftSettings
-    ),
     // NetNewsWire app — third port per docs/app-targets.md.
     // Self-contained RSS reader: `URLSession`-fetched feed
     // bytes parsed by Foundation's built-in `XMLParser` into a
@@ -809,7 +818,7 @@ var targets: [Target] = [
     // Linux unmodified.
     .target(
         name: "QuillNetNewsWireCore",
-        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles"],
+        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles", "QuillData"],
         swiftSettings: appSwiftSettings
     ),
     // Minimal RSCore-shaped shim. Reproduces the slice of
@@ -842,18 +851,13 @@ var targets: [Target] = [
     // across the tree, then re-run the parser tests.
     .target(
         name: "QuillRSParser",
+        // CoreGraphics (Linux-only) added via quillRSParserPlatformDeps — see
+        // the helper's definition above for why the Linux graph needed it and
+        // why a `.target(_:condition:)` breaks macOS.
         dependencies: [
             "QuillRSCoreShim",
             "Tidemark",
-            // CoreGraphics (for CGSize in HTMLMetadata) is satisfied
-            // by Apple's system framework on Darwin and by the
-            // in-tree Sources/CoreGraphics shim on Linux. Both
-            // resolve automatically from `import CoreGraphics` —
-            // no explicit dep here because the Quill CoreGraphics
-            // target + library product only exist inside the
-            // #if os(Linux) block of this manifest, so an
-            // unconditional reference would fail on macOS.
-        ],
+        ] + quillRSParserPlatformDeps,
         path: "Sources/QuillRSParser",
         swiftSettings: appSwiftSettings
     ),
@@ -879,6 +883,22 @@ var targets: [Target] = [
         name: "QuillArticles",
         dependencies: ["QuillRSCoreShim"],
         path: "Sources/QuillArticles",
+        swiftSettings: appSwiftSettings
+    ),
+    // Minimal RSWeb shim — target named `RSWeb` so vendored `import RSWeb`
+    // resolves to it verbatim. Grows toward real RSWeb as Account needs more.
+    .target(
+        name: "RSWeb",
+        path: "Sources/QuillRSWebShim",
+        swiftSettings: appSwiftSettings
+    ),
+    // Vendored Ranchero-Software/NetNewsWire Account module — incremental
+    // bring-up: AccountBehavior / UnreadCountProvider / ContainerIdentifier /
+    // SidebarItemIdentifier / AccountError. Grows as RSWeb/RSDatabase land.
+    .target(
+        name: "QuillAccount",
+        dependencies: ["RSWeb", "QuillFoundation"],
+        path: "Sources/QuillAccount",
         swiftSettings: appSwiftSettings
     ),
     // Vendored Ranchero-Software/NetNewsWire RSTree module
@@ -925,8 +945,8 @@ var targets: [Target] = [
     // `QuillIceCubesContentView` struct.
     .target(
         name: "QuillIceCubesCore",
-        dependencies: ["QuillUI", "QuillFoundation"],
-        swiftSettings: appSwiftSettings
+        dependencies: quillIceCubesCoreDependencies,
+        swiftSettings: quillIceCubesCoreSwiftSettings
     ),
     .executableTarget(
         name: "QuillIceCubes",
@@ -1008,17 +1028,6 @@ var targets: [Target] = [
         dependencies: ["QuillCodeEditCore", "QuillUI"],
         swiftSettings: appSwiftSettings
     ),
-    .executableTarget(
-        name: "QuillEnchantedUpstreamSlice",
-        dependencies: ["QuillEnchantedCore", "QuillUI"],
-        // The slice's main.swift has a deeply-nested SwiftUI body that
-        // trips Swift 6's per-expression type-check timeout (default
-        // ~30s on macOS). Bump the threshold rather than restructure
-        // the expression.
-        swiftSettings: appSwiftSettings + [
-            .unsafeFlags(["-Xfrontend", "-solver-expression-time-threshold=600"])
-        ]
-    ),
     .target(
         name: "QuillWireGuardCore",
         dependencies: quillWireGuardCoreDependencies,
@@ -1056,12 +1065,6 @@ var targets: [Target] = [
 
 #if !os(Linux)
 targets += [
-    .executableTarget(
-        name: "QuillEnchantedQt",
-        dependencies: quillEnchantedQtDependencies,
-        path: "Sources/QuillEnchantedQt",
-        swiftSettings: quillEnchantedQtSwiftSettings
-    ),
     .executableTarget(
         name: "QuillWireGuardQt",
         dependencies: quillWireGuardQtDependencies,
@@ -1258,6 +1261,63 @@ if wireguardUpstreamPresent {
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]
+    // Conformance: compile WireGuard's REAL macOS KeyValueRow (unmodified upstream
+    // AppKit) against the reimplementation via the Cocoa shadow. The build IS the
+    // test. Linux-only — the Cocoa/AppKit shadows it depends on are #if os(Linux);
+    // on macOS the real frameworks are used (issue #231, M3 conformance capstone).
+    #if os(Linux)
+    // ringlogger C (Sources/Shared/Logging/ringlogger.c) — the ring-buffer
+    // backing for WireGuard's Logger.swift (open_log / write_msg_to_log /
+    // write_log_to_file / close_log). Pure POSIX C (mmap), compiles on Linux.
+    // Excludes the sibling Logger.swift (compiled by the conformance Swift
+    // target) + test_ringlogger.c; ringlogger.h is the public header.
+    targets.append(
+        .target(
+            name: "WireGuardRingLoggerC",
+            path: ".upstream/wireguard-apple/Sources/Shared/Logging",
+            exclude: ["Logger.swift", "test_ringlogger.c"],
+            sources: ["ringlogger.c"],
+            publicHeadersPath: "."
+        )
+    )
+    targets.append(
+        .target(
+            name: "QuillWireGuardConformanceUI",
+            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC"],
+            path: ".upstream/wireguard-apple",
+            sources: [
+                // Shared logging: Logger.swift (wg_log) over the ringlogger C
+                // ring buffer (import WireGuardRingLoggerC) + the `os` shadow.
+                "Sources/Shared/Logging/Logger.swift",
+                // First real MODEL file: TunnelStatus maps NEVPNStatus -> app
+                // status, compiling against the NetworkExtension shadow (uses
+                // NEVPNStatus incl. .reasserting, #338). Its @objc enum is
+                // stripped by fetch-upstream's (now whole-app) lowering. Grows
+                // this target toward the single-app-module.
+                "Sources/WireGuardApp/Tunnel/TunnelStatus.swift",
+                // ActivateOnDemandOption: maps on-demand config <-> NEOnDemandRule[]
+                // (NE on-demand surface from #338/#340 + wg_log from #345).
+                "Sources/WireGuardApp/Tunnel/ActivateOnDemandOption.swift",
+                // App error model: WireGuardAppError protocol + AlertText typealias
+                // + WireGuardResult<T> — self-contained (Foundation only); used pervasively
+                // by the rest of the model layer.
+                "Sources/WireGuardApp/WireGuardAppError.swift",
+                "Sources/WireGuardApp/WireGuardResult.swift",
+                "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift",
+                // First real ViewController: a full NSViewController (NSButton,
+                // target-action, Auto Layout) compiling against the shadow after
+                // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).
+                "Sources/WireGuardApp/UI/macOS/ViewController/ButtonedDetailViewController.swift",
+                // Second real ViewController + its `tr` localization helper.
+                // Exercises NSStackView(views:)/setCustomSpacing, NSEdgeInsets,
+                // NSTextField(labelWithAttributedString:) (added in #314).
+                "Sources/WireGuardApp/LocalizationHelper.swift",
+                "Sources/WireGuardApp/UI/macOS/ViewController/UnusableTunnelDetailViewController.swift"
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        )
+    )
+    #endif
 }
 
 // ── Signal-iOS upstream-slice (Linux / QuillOS) ─────────────────────────
@@ -1573,6 +1633,14 @@ targets.append(contentsOf: [
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
     .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),
+    .testTarget(name: "NetworkExtensionTests", dependencies: ["NetworkExtension"], path: "Tests/NetworkExtensionTests"),
+    // os shim — covers the two os_log overloads (Apple message-first + the
+    // xctest type-first) coexisting unambiguously; see Sources/osShim.
+    .testTarget(name: "osTests", dependencies: ["os"], path: "Tests/osTests"),
+    // CoreWLAN — Wi-Fi SSID shadow (the last missing framework module for the
+    // macOS WireGuard app; see Sources/CoreWLAN). Internal Linux shadow.
+    .target(name: "CoreWLAN", dependencies: [], path: "Sources/CoreWLAN"),
+    .testTarget(name: "CoreWLANTests", dependencies: ["CoreWLAN"], path: "Tests/CoreWLANTests"),
     // QuillAppKit — compile-only AppKit shadow. Target named `AppKit`
     // so upstream `import AppKit` resolves to this swiftmodule on
     // Linux. Phase A: type stubs only. Phase B will back the heavy
@@ -1658,6 +1726,9 @@ targets.append(contentsOf: [
     // QuillFoundation/QuillUIKit/QuillKit directly instead of depending on
     // QuillShims, because QuillShims depends on them.
     .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit"], path: "Sources/UIKitShim"),
+    // Cocoa umbrella shadow: `import Cocoa` re-exports the AppKit shadow + Foundation,
+    // so unmodified macOS app source that `import Cocoa` recompiles unchanged.
+    .target(name: "Cocoa", dependencies: ["AppKit"], path: "Sources/CocoaShim"),
     .target(name: "MessageUI", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/MessageUIShim"),
     .target(name: "SafariServices", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/SafariServicesShim"),
     .target(name: "MobileCoreServices", dependencies: ["QuillFoundation"], path: "Sources/MobileCoreServicesShim"),
@@ -1747,6 +1818,17 @@ var allPackageDependencies: [Package.Dependency] = [
 allPackageDependencies.append(
     .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0")
 )
+#endif
+#if os(Linux)
+// SwiftSoup (pure-Swift HTML parser) backs the vendored IceCubes Models
+// HTMLString. Scoped to the gtk Linux build: the qt-native product build
+// evaluates the manifest with a trimmed dependency set that can't resolve
+// SwiftSoup, and the Models target isn't a dependency of any qt app anyway.
+if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
+allPackageDependencies.append(
+    .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.4.3")
+)
+}
 #endif
 #if !os(Linux)
 if codeEditSymbolsUpstreamPresent {
@@ -1896,12 +1978,6 @@ if quillUILinuxBuildBackend == .qt {
             swiftSettings: appSwiftSettings
         ),
         .target(
-            name: "QuillEnchantedQtNativeRuntime",
-            dependencies: [.target(name: "QuillEnchantedShared"), "QuillEnchantedData", "CQuillQt6WidgetsShim", "QuillQtNativeRuntimeSupport"],
-            path: "Sources/QuillEnchantedQtNativeRuntime",
-            swiftSettings: appSwiftSettings
-        ),
-        .target(
             name: "QuillWireGuardQtNativeRuntime",
             dependencies: ["QuillWireGuardCore", "CQuillQt6WidgetsShim", "QuillQtNativeRuntimeSupport"],
             path: "Sources/QuillWireGuardQtNativeRuntime",
@@ -1978,6 +2054,14 @@ let packageTestTargets: [Target] = {
                 dependencies: ["QuillAppKitQt", "AppKit"],
                 swiftSettings: appSwiftSettings
             ),
+            // Pure model-layer tests for the reimplemented AppKit
+            // (NSTableView / NSOutlineView data-source + tree logic). No Qt
+            // rendering — just exercises the AppKit module on Linux.
+            .testTarget(
+                name: "QuillAppKitTests",
+                dependencies: ["AppKit"],
+                swiftSettings: appSwiftSettings
+            ),
             .testTarget(
                 name: "QuillQtBackendManifestTests",
                 dependencies: ["QuillGenericQtNativeRuntime", "QuillQtNativeRuntimeSupport", "QuillEnchantedShared"],
@@ -2023,6 +2107,14 @@ let packageTestTargets: [Target] = {
             dependencies: ["QuillData"],
             swiftSettings: appSwiftSettings
         ),
+        // Salvaged QuillEnchantedData persistence coverage (ConversationStore /
+        // legacy SQLite store) from the deleted QuillEnchantedTests target —
+        // reimpl retirement, epic #188.
+        .testTarget(
+            name: "QuillEnchantedDataTests",
+            dependencies: ["QuillEnchantedData"],
+            swiftSettings: appSwiftSettings
+        ),
         .testTarget(
             name: "QuillSourceLoweringTests",
             dependencies: ["QuillSourceLowering"],
@@ -2046,14 +2138,6 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillPaintCairoTests",
             dependencies: ["QuillPaintCairo", "QuillPaint"],
-            swiftSettings: appSwiftSettings
-        ),
-        // Pins Enchanted's core compatibility surface: markdown /
-        // stream parsing, QuillData persistence, image attachment
-        // handling, and the Linux Qt-native target contract.
-        .testTarget(
-            name: "QuillEnchantedTests",
-            dependencies: ["QuillEnchantedCore", "QuillUI"],
             swiftSettings: appSwiftSettings
         ),
         // QuillKitTests covers QuillClipboard / diagnostics /
@@ -2104,6 +2188,14 @@ let packageTestTargets: [Target] = {
             dependencies: ["QuillRSCoreShim"],
             swiftSettings: appSwiftSettings
         ),
+        // Pins the live RSWeb clone (Sources/QuillRSWebShim, the `RSWeb`
+        // module) — HTTP value types vendored verbatim from NetNewsWire's
+        // RSWeb. Foundation-only surface.
+        .testTarget(
+            name: "QuillRSWebShimTests",
+            dependencies: ["RSWeb"],
+            swiftSettings: appSwiftSettings
+        ),
         // Smoke tests for the vendored upstream RSParser. Pins
         // RSS 2.0 + Atom + FeedType detection so the
         // import-rewrite path (RSCore → QuillRSCoreShim) and the
@@ -2121,6 +2213,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillArticlesTests",
             dependencies: ["QuillArticles"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "QuillAccountTests",
+            dependencies: ["QuillAccount"],
             swiftSettings: appSwiftSettings
         ),
         // Smoke tests for the vendored upstream RSTree module.
@@ -2210,6 +2307,54 @@ let packageTestTargets: [Target] = {
 
     return tests
 }()
+
+// Real Dimillian/IceCubesApp data + network layer, compiled from upstream
+// source on Linux (the iOS manifest pin is irrelevant on Linux). Targets are
+// NAMED `Models` / `NetworkClient` so upstream's own `import Models` resolves.
+// SwiftData/ is excluded (Apple-only local cache); the ~3 UI-coupled files
+// resolve against the repo `SwiftUI` shim + the auto-imported IceCubesShims
+// (LocalizedStringKey, RelativeDateTimeFormatter, AttributedString markdown).
+#if os(Linux)
+if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
+    targets += [
+        .target(
+            name: "IceCubesShims",
+            path: "Sources/IceCubesShims"
+        ),
+        .target(
+            name: "Models",
+            dependencies: [
+                "SwiftUI",
+                "IceCubesShims",
+                .product(name: "SwiftSoup", package: "SwiftSoup"),
+            ],
+            path: ".upstream/icecubes/Packages/Models/Sources/Models",
+            exclude: ["SwiftData"],
+            swiftSettings: [
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        // Real Dimillian/IceCubesApp NetworkClient. Compiles unmodified once
+        // fetch-upstream.sh's patch_icecubes adds `import FoundationNetworking`
+        // (the Linux Foundation networking split) and rewrites `import OSLog`
+        // to the repo `os` shim. Named so upstream `import NetworkClient` resolves.
+        .target(
+            name: "NetworkClient",
+            dependencies: [
+                "Models",
+                "SwiftUI",
+                "IceCubesShims",
+                "Combine",
+                "os",
+            ],
+            path: ".upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient",
+            swiftSettings: [
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+    ]
+}
+#endif
 
 let package = Package(
     name: "QuillUI",

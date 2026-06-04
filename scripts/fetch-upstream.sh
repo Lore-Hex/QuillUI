@@ -107,6 +107,35 @@ PY
 }
 
 patch_wireguard_apple() {
+    # Lower the macOS UI's AppKit target-action for Linux (strip @objc,
+    # #selector(x) -> Selector("x"), generate the QuillActionDispatching
+    # dispatch) so the QuillWireGuardConformanceUI target compiles against the
+    # QuillAppKit shadow, which has no Objective-C runtime. Self-guarded +
+    # idempotent: only runs while un-lowered source is present, so it's safe
+    # regardless of the WireGuardKitC.h early-return below and of cached
+    # .upstream trees.
+    # Linux-only: on macOS the real AppKit handles #selector/@objc, and the
+    # generated QuillActionDispatching extension references a Linux-only shadow
+    # type — so leave the source pristine for any macOS consumer.
+    # Lower the WHOLE app (WireGuardApp: UI/macOS + Tunnel/ + …) AND its Shared/
+    # helpers (Logging/Logger.swift = wg_log, etc.), not just UI/macOS, so model
+    # files also compile in the Linux conformance targets — toward the
+    # single-app-module convergence. The guard includes `import os.log` so Shared/
+    # (no @objc but `import os.log` in Logger.swift) is covered; it goes false
+    # after lowering, keeping this idempotent on cached trees. The Shared/Model
+    # parser files (in the core QuillWireGuardUpstreamConfig target) have NO
+    # lowering triggers, so that target is unaffected. The CLI is recursive +
+    # idempotent.
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        for sub in WireGuardApp Shared; do
+            local subdir="$UPSTREAM_DIR/wireguard-apple/Sources/$sub"
+            if [[ -d "$subdir" ]] && grep -rqE '#selector|@objc|import os\.log' "$subdir" 2>/dev/null; then
+                echo "==> lowering wireguard-apple Sources/$sub for Linux"
+                ( cd "$ROOT_DIR" && swift run quill-lower-appkit "$subdir" )
+            fi
+        done
+    fi
+
     # `WireGuardKitC.h` uses `u_int32_t` / `u_char` / `u_int16_t`
     # / `sockaddr_ctl` from <sys/types.h> + <sys/kern_control.h>
     # but doesn't include them. macOS 15+ enforces strict
@@ -163,6 +192,70 @@ open(path, "w").write(patched)
 print("patched TunnelConfiguration+WgQuickConfig.swift to import WireGuardKit")
 PY
     fi
+
+    # Logger.swift (Shared/Logging) calls the ringlogger C ring buffer
+    # (open_log / write_msg_to_log / write_log_to_file / close_log) from
+    # Sources/Shared/Logging/ringlogger.c, built as the WireGuardRingLoggerC C
+    # target. Upstream's Xcode build sees the C funcs via same-target membership;
+    # SwiftPM needs an explicit `import WireGuardRingLoggerC`. Same shape as the
+    # parser patch above.
+    local logger="$UPSTREAM_DIR/wireguard-apple/Sources/Shared/Logging/Logger.swift"
+    if [[ -f "$logger" ]] && ! grep -q '^import WireGuardRingLoggerC' "$logger"; then
+        echo "==> patching Logger.swift to import WireGuardRingLoggerC"
+        python3 - "$logger" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+patched = src.replace('import Foundation\n', 'import Foundation\nimport WireGuardRingLoggerC\n', 1)
+open(path, "w").write(patched)
+print("patched Logger.swift to import WireGuardRingLoggerC")
+PY
+    fi
+}
+
+patch_icecubes() {
+    # NetworkClient files `import Foundation` and use URLRequest / URLSession /
+    # HTTPURLResponse, which live in the FoundationNetworking module on Linux
+    # (swift-corelibs-foundation). Add a conditional `import FoundationNetworking`
+    # after the first `import Foundation`; canImport is false on macOS so the
+    # Apple build is unaffected. Idempotent.
+    local dir="$UPSTREAM_DIR/icecubes/Packages/NetworkClient/Sources/NetworkClient"
+    if [[ ! -d "$dir" ]]; then
+        return
+    fi
+    echo "==> patching IceCubes NetworkClient for the Linux FoundationNetworking split"
+    python3 - "$dir" <<'PY'
+import sys, os, glob
+
+directory = sys.argv[1]
+addition = (
+    "import Foundation\n"
+    "#if canImport(FoundationNetworking)\n"
+    "import FoundationNetworking\n"
+    "#endif"
+)
+for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
+    src = open(path).read()
+    lines = src.split("\n")
+    out = []
+    fn_done = "FoundationNetworking" in src
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "import OSLog":
+            # Linux: the repo `os` shim provides Logger; there is no OSLog
+            # module, and an `@_exported import os` shim retains os_log symbols
+            # that break swift-syntax's link. Rewrite to the plain os import.
+            out.append("import os")
+        elif stripped == "import Foundation" and not fn_done:
+            out.append(addition)
+            fn_done = True
+        else:
+            out.append(line)
+    new = "\n".join(out)
+    if new != src:
+        open(path, "w").write(new)
+        print("patched", os.path.basename(path))
+PY
 }
 
 patch_signal_ios() {
@@ -207,7 +300,7 @@ if [[ ${#want[@]} -eq 0 ]]; then
     # from source"). Until the upstream is patched or replaced,
     # the CodeEdit work has to be opt-in via:
     #   scripts/fetch-upstream.sh codeedit codeeditsymbols
-    want=(enchanted netnewswire wireguard)
+    want=(enchanted netnewswire wireguard icecubes)
 fi
 
 for name in "${want[@]}"; do
@@ -221,6 +314,10 @@ for name in "${want[@]}"; do
         wireguard)
             fetch_repo wireguard-apple https://github.com/WireGuard/wireguard-apple.git
             patch_wireguard_apple
+            ;;
+        icecubes)
+            fetch_repo icecubes https://github.com/Dimillian/IceCubesApp.git
+            patch_icecubes
             ;;
         codeedit)
             fetch_repo codeedit https://github.com/CodeEditApp/CodeEdit.git

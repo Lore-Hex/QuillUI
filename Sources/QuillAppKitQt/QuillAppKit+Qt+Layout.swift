@@ -38,6 +38,18 @@ private func mapRelation(_ r: NSLayoutConstraint.QuillRelation) -> LayoutRelatio
     }
 }
 
+/// Map an NSLayoutConstraint.Priority (1000 = required) onto a solver strength,
+/// so soft constraints (content hugging/compression, .defaultHigh, …) yield to
+/// required ones instead of over-constraining the system.
+private func mapPriority(_ p: NSLayoutConstraint.Priority) -> LayoutPriority {
+    switch p.rawValue {
+    case 1000...: return .required
+    case 500...: return .strong
+    case 100...: return .medium
+    default: return .weak
+    }
+}
+
 extension NSView {
     /// Solve this view's subtree against its active `NSLayoutConstraint`s using
     /// `QuillAutoLayout` (kiwi) and apply the solved frames to the backing
@@ -85,7 +97,8 @@ extension NSView {
                 firstItem, attr1, mapRelation(c.quillRelation),
                 secondItem, attr2,
                 multiplier: Double(c.quillMultiplier),
-                constant: Double(c.quillConstant)
+                constant: Double(c.quillConstant),
+                priority: mapPriority(c.priority)
             )
         }
 

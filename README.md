@@ -6,10 +6,13 @@ usable on Apple platforms.
 
 ## Start Here
 
+- **Porting a new upstream app to Linux? Read this first:** [docs/porting-upstream-apps.md](docs/porting-upstream-apps.md) — the field guide for *converting* real Apple/iOS app source (Enchanted, WireGuard, NetNewsWire, Ice Cubes, …): the iOS platform-pin myth, vendor-vs-reimpl strategy, the shim recipe, the Linux `FoundationNetworking` split, the qt-native build trap, and wiring real vendored types into the live app.
+- **Reimplementing AppKit on Qt — architecture & hard-won lessons:** [docs/appkit-reimplementation.md](docs/appkit-reimplementation.md) is the orientation doc for running real macOS/AppKit apps on Linux: the strategy (reimplement the framework, apps are conformance tests; source-recompile not binary loading), the Qt mapping, the Objective-C-runtime wall and the source-lowering that gets past it, plus the CI/Docker/Git lessons we already paid for. Read it before working on `QuillAppKit`/`Cocoa`/conformance.
 - **Function-by-function Apple package coverage:** [docs/apple-package-function-coverage.md](docs/apple-package-function-coverage.md) is the linked source of truth for complete vs incomplete APIs in each cloned Apple package and each app target. Start there for SwiftUI, SwiftData, AppKit/UIKit, Network, media/service kits, system kits, third-party package clones, and app progress.
 - **Network parity pocket:** [Network function rows](docs/apple-package-function-coverage.md#network) list the narrow API rows currently at `Parity`; path monitor initial state, pre-start cancellation, path support/interface helper queries, scoped service endpoint descriptions, associated interface values, `NWError.posix`/`.dns`/`.tls` value text, `NWProtocolTCP.Options`/`NWProtocolUDP.Options` default and setter behavior, `NWProtocolOptions`, `NWParameters.defaultProtocolStack`, `NWParameters.ProtocolStack`, `NWProtocolIP.Options`, IP option enum value surfaces, and `NWParameters` policy enum/default/setter/debug text are now pinned there, while broader transport, DNS, TLS, connection, listener, VPN, live monitoring, and IP packet/socket effects are still incomplete.
 - **Security and Signal key-material coverage:** [Security rows](docs/apple-package-function-coverage.md#security), [KeychainSwift rows](docs/apple-package-function-coverage.md#keychainswift), and [Signal app progress](docs/apple-package-function-coverage.md#app-progress-summary) track `SecKey`, `SecItem`, `KeychainSwift`, and Signal/libsignal-facing compatibility, including which rows are deterministic source-compatibility shims versus production-grade crypto.
 - **App progress:** [App progress summary](docs/apple-package-function-coverage.md#app-progress-summary) and [docs/app-targets.md](docs/app-targets.md) track target-by-target status.
+- **Enchanted on Linux (real upstream source):** [docs/enchanted-linux-port.md](docs/enchanted-linux-port.md) — architecture, the lowering/rewrite-rule compat layer, QuillData + SwiftOpenUI runtime gotchas, the Docker functional-test harness, debugging meta-lessons, the reimpl-retirement playbook, and known open issues. **Read this before working on the Enchanted port.**
 
 The Linux runtime and build graph are selected separately. `QUILLUI_BACKEND`
 requests `gtk` or `qt` at launch for backend smoke/profile parity. App products
@@ -30,15 +33,18 @@ same split-view chat routing used by the Linux Signal and Telegram targets.
 
 Current backend parity app targets:
 
-1. `quill-enchanted`
-2. `quill-enchanted-upstream-slice`
-3. `quill-icecubes`
-4. `quill-netnewswire`
-5. `quill-codeedit`
-6. `quill-signal`
-7. `quill-telegram`
-8. `quill-iina`
-9. `quill-wireguard`
+1. `quill-icecubes`
+2. `quill-netnewswire`
+3. `quill-codeedit`
+4. `quill-signal`
+5. `quill-telegram`
+6. `quill-iina`
+7. `quill-wireguard`
+
+The hand-written Enchanted reimpl targets (`quill-enchanted`,
+`quill-enchanted-upstream-slice`) were retired (epic #188); the real upstream
+Enchanted now runs as the generated `quill-chat-linux` app (see below and
+[docs/enchanted-linux-port.md](docs/enchanted-linux-port.md)).
 
 Generated external app coverage also includes `quill-chat-linux` when the
 local Quill Chat checkout is available.
@@ -243,8 +249,7 @@ macOS app rather than against each other.
 
 | App target | Status | Compatible today | Not compatible yet |
 | --- | --- | --- | --- |
-| `quill-enchanted` | Highest-priority usable target | GTK and Qt launch paths share the macOS-shaped app scene. Tests cover Ollama model discovery, streaming chat chunks, local QuillData and legacy SQLite conversation history, markdown fallback rendering, image attachments, AppStorage, prompt catalog behavior, selection/list interaction, shell copy, icon contracts, and Qt graph isolation from GTK. | Full pixel and performance parity with the native macOS app is still in progress. Unsupported SwiftUI modifiers may still degrade through diagnostics. |
-| `quill-enchanted-upstream-slice` | Partial | Carries a focused upstream-source slice through the backend product matrix for regression coverage. | It is not the complete upstream Enchanted app. |
+| `quill-chat-linux` (real upstream Enchanted) | Usable via prompt cards | The genuine upstream Enchanted source, lowered to Linux: connects to Ollama, fetches/selects a model, and completes a full chat turn (send → streamed reply → rendered → persisted to QuillData) via prompt-card click. See [docs/enchanted-linux-port.md](docs/enchanted-linux-port.md). | Composer-*typed* input loses focus after the first keystroke (SwiftOpenUI focus-restore bug); full pixel/performance parity in progress. |
 | `quill-wireguard` | Usable presentation/import target | GTK/default and native Qt launch targets share `QuillWireGuardCore` presentation snapshots. Tests cover wg-quick import/export, parse errors, import-paste/import-file/invalid import modes, backend availability, native Qt style keys, and manifest graph selection. | Real tunnel activation, NetworkExtension lifecycle, system VPN permissions, and live platform service integration are not cloned. |
 | `quill-signal` | Partial chat shell | Uses `QuillChatKit` for sidebar/message presentation, fixture data, and GTK/Qt list-selection smoke rows. The lower-level `Security` shim now has Apple-observed `SecRandomCopyBytes` valid-count behavior, process-local `SecKeyCreateWithData`, `SecKeyCreateRandomKey`, `SecKeyGeneratePair`, `SecKeyCopyPublicKey`, `SecKeyGetBlockSize`, attribute/external-representation round-trips, metadata-gated common ECDSA/ECDH/RSA algorithm-support queries, deterministic ECDSA message/digest `SecKeyCreateSignature` and `SecKeyVerifySignature` compatibility, deterministic symmetric ECDH `SecKeyCopyKeyExchangeResult` compatibility with requested-size/shared-info parameters, synthesized `SecKey` references for stored and generated key rows, and a process-local `SecItem` generic-password, internet-password, and key-class contract with access-control metadata, authentication/use query controls, access-group namespace filters, synchronizable filters, `kSecAttrSynchronizableAny`, server/protocol/authentication/port/path endpoint filters, key-item application-tag/application-label/key-class/key-type/key-size/capability metadata, and persistent-reference handles suitable for source-targeting future key-material and account-storage flows on Linux. `KeychainSwift` now also has upstream-shaped byte storage, reference reads, `allKeys`, and prefix/access-group/synchronizable semantics for Signal-style account/key storage code. | Signal protocol, account setup, encryption, native secure keychain persistence/access-control enforcement, OS-enforced keychain sharing, real synchronization, native key validation/handles, native cryptographic key generation, cryptographically valid sign/verify, native/cryptographically valid key agreement, Secure Enclave behavior, network sync, calls, media, and notification parity are out of scope so far. |
 | `quill-telegram` | Partial chat shell | Folder filters, fixture chats/messages, `QuillChatKit` summaries, routing, initial selection, and backend matrix coverage are tested. | Telegram protocol, account auth, network sync, media, calls, and full upstream UI parity are not implemented. |
@@ -293,7 +298,7 @@ rather than more CSS patches.
 
 ### Next milestones
 
-1. **SwiftSyntax SwiftPM build plugin** — _substantial progress_. Structured SwiftSyntax rewriters in `QuillSourceLowering` replace the regex pipelines for SwiftData (`@Model` / `@Transient` / `#Predicate` → `PersistentModel` / `QuillPredicate`) and SwiftUI (`@main` / `@MainActor` / `@Observable` attribute removal, inline `@MainActor` in function types, `: View, Sendable` → `: View`, `os(macOS)` widening in `#if` conditions with carve-outs for negated and already-widened forms, top-level `#Preview` deletion). CLIs ship as `quill-source-lower` (SwiftData) and `quill-lower-swiftui` (SwiftUI). Remaining: full `@Observable` class rewrite with `@QuillPublished` stored-property wrapping.
+1. **SwiftSyntax SwiftPM build plugin** — _substantial progress_. Structured SwiftSyntax rewriters in `QuillSourceLowering` replace the regex pipelines for SwiftData (`@Model` / `@Transient` / `#Predicate` / supported `@Relationship` inverse hooks → `PersistentModel` / `QuillPredicate` / `QuillRelationships`) and SwiftUI (`@main` / `@MainActor` / `@Observable` attribute removal, inline `@MainActor` in function types, `: View, Sendable` → `: View`, `os(macOS)` widening in `#if` conditions with carve-outs for negated and already-widened forms, top-level `#Preview` deletion). CLIs ship as `quill-source-lower` (SwiftData) and `quill-lower-swiftui` (SwiftUI). Remaining: full `@Observable` class rewrite with `@QuillPublished` stored-property wrapping.
 2. **`QuillPaint` custom paint layer** — _scaffold + first controls live_. Renderer-agnostic `PaintControl` / `PaintContext` protocols, macOS-exact `MacMetrics` and `MacColors` tokens, `MacButtonPaint` and `MacTextFieldPaint` controls, and a `QuillPaintCoreGraphics` adapter that paints to a `CGContext`. `quill-render-mac-references` walks a manifest and emits 13 canonical PNG fixtures under `Tests/Fixtures/MacReference/` using the CoreGraphics backend; those fixtures are the literal Mac reference for the strict verifier. Remaining: Cairo binding for real Linux rendering, more controls (Scroller, focus ring typography, SF-Pro-Inter fallback font), and wiring into SwiftOpenUI's GTK button surface.
 3. **Qt paint pipeline through `QuillPaint`.** Qt visual/profile smoke rows currently sample the GTK fallback binary because no native Qt renderer is linked. Linking Qt against `QuillPaint` (through a future QPainter backend) makes the Qt matrix load-bearing and validates the abstraction.
 4. **Re-run the strict Mac-reference verifier across the app matrix** — _foundation laid_. `PixelComparator` is the format-agnostic core: feed it two RGBA byte buffers + a per-channel tolerance, get back match ratio, differing-pixel count, and max channel delta. `MacReferenceGoldenTests` re-renders every committed fixture via the current code and asserts byte-equal match. When the Cairo backend lands, the same comparator powers the strict GTK verifier. Target ratio 0.95+ once Linux output is being compared.
@@ -326,7 +331,7 @@ ls Tests/Fixtures/MacReference/
 On macOS:
 
 ```sh
-swift run quill-enchanted
+swift run quill-icecubes
 ```
 
 On Linux with backend smoke dependencies installed:
@@ -337,7 +342,7 @@ tar -zxf "swiftly-1.1.1-$(uname -m).tar.gz"
 ./swiftly init
 sudo apt-get update
 sudo apt-get install -y git imagemagick libgdk-pixbuf-2.0-dev libgtk-4-dev libsqlite3-dev pkg-config x11-apps xdotool xvfb
-swift run quill-enchanted
+swift run quill-icecubes
 QUILLUI_LINUX_BACKEND=gtk swift run quill-signal
 sudo apt-get install -y qt6-base-dev
 QUILLUI_LINUX_BACKEND=qt swift run quill-signal

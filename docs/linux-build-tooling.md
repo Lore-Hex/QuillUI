@@ -55,8 +55,10 @@ patching the pinned SwiftOpenUI checkout, and running `swift build`.
 Profiles can also reuse the generic source-lowering helpers before package
 assembly:
 
-- `scripts/lower-swiftdata-for-quilldata.sh` copies an app tree and lowers
-  SwiftData model syntax to QuillData-compatible source.
+- `quill-source-lower` copies an app tree and lowers SwiftData model syntax,
+  predicates, and supported relationship inverse hooks to QuillData-compatible
+  source. `scripts/lower-swiftdata-for-quilldata.sh` remains as a compatibility
+  wrapper around the CLI.
 - `scripts/lower-swiftui-source-for-linux.sh` applies conservative in-place
   cleanup for generated SwiftUI source, including `@main`, previews,
   `@Observable`, `@MainActor`, and `os(macOS)` platform gates.

@@ -13,20 +13,6 @@ struct LinuxBackendAppMatrixTests {
 
     private static let expectedAppContracts = [
         AppTargetContract(
-            product: "quill-enchanted",
-            target: "QuillEnchanted",
-            qtPath: "Sources/QuillEnchantedQt",
-            qtRuntimeDependency: "QuillEnchantedQtNativeRuntime",
-            qtLauncherCall: "QuillEnchantedQtNativeApp.run()"
-        ),
-        AppTargetContract(
-            product: "quill-enchanted-upstream-slice",
-            target: "QuillEnchantedUpstreamSlice",
-            qtPath: "Sources/QuillEnchantedUpstreamSliceQt",
-            qtRuntimeDependency: "QuillGenericQtNativeRuntime",
-            qtLauncherCall: "QuillGenericQtNativeApp.run(QuillGenericQtAppCatalog.enchantedUpstreamSlice)"
-        ),
-        AppTargetContract(
             product: "quill-icecubes",
             target: "QuillIceCubes",
             qtPath: "Sources/QuillIceCubesQt",
@@ -220,78 +206,6 @@ struct LinuxBackendAppMatrixTests {
                 backend: "qt",
                 mode: "import-invalid-file",
                 verifyProduct: "quill-wireguard-qt-import-invalid-file"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "gtk",
-                mode: "composer-typed",
-                verifyProduct: "quill-enchanted-composer-typed"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "qt",
-                mode: "composer-typed",
-                verifyProduct: "quill-enchanted-composer-typed"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "gtk",
-                mode: "new-chat",
-                verifyProduct: "quill-enchanted-new-chat"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "qt",
-                mode: "new-chat",
-                verifyProduct: "quill-enchanted-new-chat"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "gtk",
-                mode: "message-sent",
-                verifyProduct: "quill-enchanted-message-sent"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "qt",
-                mode: "message-sent",
-                verifyProduct: "quill-enchanted-message-sent"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "gtk",
-                mode: "message-sent-keyboard",
-                verifyProduct: "quill-enchanted-message-sent"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "qt",
-                mode: "message-sent-keyboard",
-                verifyProduct: "quill-enchanted-message-sent"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "gtk",
-                mode: "clear-all",
-                verifyProduct: "quill-enchanted-clear-all"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "qt",
-                mode: "clear-all",
-                verifyProduct: "quill-enchanted-clear-all"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "gtk",
-                mode: "list-selection",
-                verifyProduct: "quill-enchanted-list-selection"
-            ),
-            Self.expectedInteractionExtraModeRow(
-                product: "quill-enchanted",
-                backend: "qt",
-                mode: "list-selection",
-                verifyProduct: "quill-enchanted-qt-list-selection"
             ),
         ] + expectedChatGtkListSelectionAppProducts.map { product in
             Self.expectedInteractionExtraModeRow(
@@ -521,7 +435,7 @@ struct LinuxBackendAppMatrixTests {
             #expect(qtLauncher.contains("import \(contract.qtRuntimeDependency)"))
             #expect(qtLauncher.contains(contract.qtLauncherCall))
         }
-        #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-enchanted-qt\", targets: [\"QuillEnchantedQt\"]))\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
+        #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
         #expect(manifest.contains("let quillCanonicalLinuxAppProducts: [Product] = quillCanonicalLinuxApps.map(\\.productDeclaration)"))
         #expect(manifest.contains("let quillGenericQtSwiftSettings: [SwiftSetting] ="))
@@ -738,7 +652,6 @@ struct LinuxBackendAppMatrixTests {
         unset QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START
         printf 'signal-selection-keys=%s\\n' "$(quillui_print_selection_keys quill-signal)"
         printf 'telegram-selection-keys=%s\\n' "$(quillui_print_selection_keys quill-telegram)"
-        printf 'enchanted-selection-keys=%s\\n' "$(quillui_print_selection_keys quill-enchanted-upstream-slice)"
         printf 'codeedit-gtk-selection-key=%s\\n' "$(quillui_backend_generic_gtk_selection_environment_key quill-codeedit)"
         printf 'signal-chat-gtk-selection-key=%s\\n' "$(quillui_backend_chat_gtk_selection_environment_key quill-signal)"
         printf 'telegram-chat-gtk-selection-key=%s\\n' "$(quillui_backend_chat_gtk_selection_environment_key quill-telegram)"
@@ -805,11 +718,6 @@ struct LinuxBackendAppMatrixTests {
         quillui_append_backend_selection_start_environment selection_env quill-iina gtk list-selection
         printf 'iina-gtk-selection-env=%s\\n' "$(quillui_print_selection_env)"
         unset QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START
-        export QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START=3
-        selection_env=()
-        quillui_append_backend_selection_start_environment selection_env quill-enchanted-upstream-slice gtk list-selection
-        printf 'upstream-slice-gtk-selection-env=%s\\n' "$(quillui_print_selection_env)"
-        unset QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START
         selection_env=()
         quillui_append_backend_selection_start_environment selection_env quill-enchanted qt list-selection "\(temporaryDirectory.path)/selection"
         printf 'enchanted-selection-env=%s\\n' "$(quillui_print_selection_env)"
@@ -942,7 +850,6 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("iina-selected-gtk=17"))
         #expect(result.output.contains("signal-selection-keys=QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START|QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START|"))
         #expect(result.output.contains("telegram-selection-keys=QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START|QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START|"))
-        #expect(result.output.contains("enchanted-selection-keys=QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START|QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START|"))
         #expect(result.output.contains("codeedit-gtk-selection-key=QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START"))
         #expect(result.output.contains("signal-chat-gtk-selection-key=QUILLUI_SIGNAL_SELECTED_THREAD_INDEX_ON_START"))
         #expect(result.output.contains("telegram-chat-gtk-selection-key=QUILLUI_TELEGRAM_SELECTED_THREAD_INDEX_ON_START"))
@@ -959,7 +866,6 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("netnewswire-gtk-generic-selection-env=QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START=4|"))
         #expect(result.output.contains("codeedit-gtk-selection-env=QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START=1|"))
         #expect(result.output.contains("iina-gtk-selection-env=QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START=2|"))
-        #expect(result.output.contains("upstream-slice-gtk-selection-env=QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=3|"))
         // Enchanted seeds conversation fixtures for BOTH backends now (the Qt native
         // runtime loads from the same QuillDataConversationStore as GTK), so the Qt
         // selection env carries HOME/QUILLDATA_HOME just like GTK.

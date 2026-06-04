@@ -20,7 +20,6 @@ struct QuillQtBackendManifestTests {
     }
 
     private static let expectedGenericQtCatalogProducts = [
-        "quill-enchanted-upstream-slice",
         "quill-icecubes",
         "quill-netnewswire",
         "quill-codeedit",
@@ -30,13 +29,6 @@ struct QuillQtBackendManifestTests {
     ]
 
     private static let expectedGenericQtCatalog: [String: GenericQtCatalogExpectation] = [
-        "quill-enchanted-upstream-slice": .init(
-            catalogCase: "enchantedUpstreamSlice",
-            selectedIndexEnvironmentKeys: EnchantedInitialSelection.selectedConversationIndexEnvironmentKeys + [
-                QuillGenericQtAppSnapshot.genericSelectedIndexEnvironmentKey
-            ],
-            snapshot: QuillGenericQtAppCatalog.enchantedUpstreamSlice
-        ),
         "quill-icecubes": .init(
             catalogCase: "iceCubes",
             selectedIndexEnvironmentKeys: [
@@ -111,7 +103,6 @@ struct QuillQtBackendManifestTests {
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))
         #expect(manifest.contains("quillEnchantedDataTarget,"))
         #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
-        #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
         #expect(!manifest.contains("if quillUILinuxBuildBackend == .qt {\n        return []"))
     }
 
@@ -154,11 +145,6 @@ struct QuillQtBackendManifestTests {
                 #expect(!launcher.contains("executableName:"))
                 #expect(!launcher.contains("QuillQtApp.run"))
                 #expect(!launcher.contains("import QuillUIQt"))
-            case "enchantedQtNative":
-                #expect(launcher.contains("#if QUILLUI_ENCHANTED_QT_NATIVE_BACKEND"))
-                #expect(launcher.contains("import QuillEnchantedQtNativeRuntime"))
-                #expect(launcher.contains("QuillEnchantedQtNativeApp.run()"))
-                #expect(launcher.contains("#else"))
             case "wireGuardQtNative":
                 #expect(launcher.contains("#if QUILLUI_WIREGUARD_QT_NATIVE_BACKEND"))
                 #expect(launcher.contains("import QuillWireGuardQtNativeRuntime"))
@@ -189,9 +175,6 @@ struct QuillQtBackendManifestTests {
             }
 
             assertGenericQtSnapshot(expectation.snapshot, product: product, expectation: expectation)
-            if product == "quill-enchanted-upstream-slice" {
-                assertEnchantedSliceUsesSharedMetrics(expectation.snapshot)
-            }
 
             let sharedSelectionKeys = try genericSelectionEnvironmentKeys(product: product, smokeLib: smokeLib)
             #expect(
@@ -203,9 +186,6 @@ struct QuillQtBackendManifestTests {
             let decodedSnapshot = try JSONDecoder().decode(QuillGenericQtAppSnapshot.self, from: encodedSnapshot)
 
             assertGenericQtSnapshot(decodedSnapshot, product: product, expectation: expectation)
-            if product == "quill-enchanted-upstream-slice" {
-                assertEnchantedSliceUsesSharedMetrics(decodedSnapshot)
-            }
 
             #expect(decodedSnapshot.windowTitle == expectation.snapshot.windowTitle)
             #expect(decodedSnapshot.selectedIndex == expectation.snapshot.selectedIndex)

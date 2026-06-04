@@ -515,10 +515,155 @@ struct QuillDataTests {
         #expect(items.count == count)
     }
 
+    // MARK: - @Relationship in-memory inverse (SwiftData parity)
+
+    /// Registers the RelParent.children <-> RelChild.parent inverse pair.
+    /// Idempotent, so it is safe to call from every relationship test.
+    private func registerParentChildInverse() {
+        QuillRelationships.registerInverse(
+            parentType: RelParent.self,
+            toManyProperty: "children",
+            toMany: \RelParent.children,
+            childType: RelChild.self,
+            toOneProperty: "parent",
+            toOne: \RelChild.parent
+        )
+    }
+
+    @Test("assigning the to-one side immediately populates the to-many inverse")
+    func relationshipInverseFromToOneSide() {
+        registerParentChildInverse()
+        let parent = RelParent(name: "Parent")
+        let child = RelChild(text: "Child")
+
+        // Before assignment the inverse is empty.
+        #expect(parent.children.isEmpty)
+
+        child.parent = parent
+
+        // SwiftData parity: no save required for the inverse to be visible.
+        #expect(child.parent === parent)
+        #expect(parent.children.count == 1)
+        #expect(parent.children.first === child)
+    }
+
+    @Test("assigning the to-many side immediately back-links each element")
+    func relationshipInverseFromToManySide() {
+        registerParentChildInverse()
+        let parent = RelParent(name: "Parent")
+        let first = RelChild(text: "First")
+        let second = RelChild(text: "Second")
+
+        parent.children = [first, second]
+        #expect(first.parent === parent)
+        #expect(second.parent === parent)
+
+        // Removing an element clears that element's inverse, only.
+        parent.children = [first]
+        #expect(first.parent === parent)
+        #expect(second.parent == nil)
+    }
+
+    @Test("reassigning the to-one side moves the child between to-many inverses")
+    func relationshipInverseReassign() {
+        registerParentChildInverse()
+        let oldParent = RelParent(name: "Old")
+        let newParent = RelParent(name: "New")
+        let child = RelChild(text: "Child")
+
+        child.parent = oldParent
+        #expect(oldParent.children.count == 1)
+
+        child.parent = newParent
+        #expect(oldParent.children.isEmpty)
+        #expect(newParent.children.count == 1)
+        #expect(newParent.children.first === child)
+        #expect(child.parent === newParent)
+
+        // Clearing the to-one side removes the child from the inverse.
+        child.parent = nil
+        #expect(newParent.children.isEmpty)
+    }
+
+    @Test("saves a bidirectionally-populated relationship graph without infinite recursion")
+    func relationshipInverseCycleSafeSave() throws {
+        registerParentChildInverse()
+        let url = temporarySQLiteURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let schema = Schema([RelParent.self, RelChild.self])
+        let container = try ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, url: url)]
+        )
+        let context = ModelContext(container)
+
+        let parent = RelParent(name: "Parent")
+        let child = RelChild(text: "Child")
+        context.insert(parent)
+        context.insert(child)
+
+        child.parent = parent
+        #expect(parent.children.first === child)
+
+        // The cycle parent.children -> child.parent -> parent would make the
+        // synthesized Codable encoder recurse forever without cycle-safe
+        // encoding. This must complete, and the in-memory inverse must be
+        // intact afterwards (the to-many is only cleared during encoding).
+        try context.save()
+
+        #expect(parent.children.count == 1)
+        #expect(parent.children.first === child)
+        #expect(child.parent === parent)
+
+        let parents = try context.fetch(FetchDescriptor<RelParent>())
+        #expect(parents.count == 1)
+        let children = try context.fetch(FetchDescriptor<RelChild>())
+        #expect(children.count == 1)
+    }
+
     private func temporarySQLiteURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("sqlite")
+    }
+}
+
+// These mirror what `QuillSourceLowering` injects for a lowered `@Model`:
+// the `@Relationship` annotation is preserved and a `didSet` forwarding to
+// `QuillRelationships` is added to each relationship property. (Written by
+// hand here because the macro plugin cannot add observing accessors.)
+private final class RelParent: PersistentModel {
+    var id = UUID()
+    var name: String
+    @Relationship(deleteRule: .cascade, inverse: \RelChild.parent) var children: [RelChild] = [] {
+        didSet {
+            QuillRelationships.relationshipDidSet(
+                self, ObjectIdentifier(RelParent.self), "children",
+                oldValue: oldValue as Any?, newValue: children as Any?
+            )
+        }
+    }
+
+    init(name: String) {
+        self.name = name
+    }
+}
+
+private final class RelChild: PersistentModel {
+    var id = UUID()
+    var text: String
+    @Relationship var parent: RelParent? {
+        didSet {
+            QuillRelationships.relationshipDidSet(
+                self, ObjectIdentifier(RelChild.self), "parent",
+                oldValue: oldValue as Any?, newValue: parent as Any?
+            )
+        }
+    }
+
+    init(text: String) {
+        self.text = text
     }
 }
 

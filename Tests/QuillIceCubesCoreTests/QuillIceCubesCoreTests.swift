@@ -170,7 +170,10 @@ struct QuillIceCubesCoreTests {
         #expect(statuses.count >= 4)
         let ids = Set(statuses.map(\.id))
         #expect(ids.count == statuses.count)
-        #expect(QuillIceCubesProfileFixtures.rows.count == statuses.count)
+        // `rows` renders from the REAL vendored Models under ICECUBES_REAL_MODELS
+        // (gtk Linux) and from the reimpl statuses elsewhere, so assert it is
+        // populated rather than coupling its count to the reimpl statuses.
+        #expect(!QuillIceCubesProfileFixtures.rows.isEmpty)
     }
 
     @Test("Profile bare mode title is user-facing app content")
@@ -193,7 +196,10 @@ struct QuillIceCubesCoreTests {
 
     @Test("Timeline rows project render-facing status fields once")
     func timelineRowsProjectStoredStatusFields() {
-        for (status, row) in zip(QuillIceCubesProfileFixtures.statuses, QuillIceCubesProfileFixtures.rows) {
+        // Project freshly from the reimpl statuses — independent of the live
+        // `rows`, which renders from real vendored Models under gtk Linux.
+        for status in QuillIceCubesProfileFixtures.statuses {
+            let row = IceCubesTimelineRow(status: status)
             #expect(row.id == status.id)
             #expect(row.displayNameText == status.account.displayNameText)
             #expect(row.handleText == status.account.handleText)
@@ -322,5 +328,114 @@ struct QuillIceCubesCoreTests {
         // Large-count compaction ("1.3K") is Apple's IntegerFormatStyle and
         // locale-dependent, so it isn't asserted here — only this type's own
         // pluralization + zero-omission logic is.
+    }
+
+    // MARK: - Content segments (styled mentions / hashtags)
+
+    @Test("IceCubesContentRuns splits @mentions and #hashtags into accent segments")
+    func contentRunsSegments() {
+        let segs = IceCubesContentRuns.segments(fromRawText: "Hello @alex check #swift today")
+        #expect(segs == [
+            IceCubesContentSegment(text: "Hello ", isAccent: false),
+            IceCubesContentSegment(text: "@alex", isAccent: true),
+            IceCubesContentSegment(text: " check ", isAccent: false),
+            IceCubesContentSegment(text: "#swift", isAccent: true),
+            IceCubesContentSegment(text: " today", isAccent: false),
+        ])
+    }
+
+    @Test("IceCubesContentRuns keeps plain text whole + ignores mid-word @/#")
+    func contentRunsPlainAndBoundaries() {
+        #expect(IceCubesContentRuns.segments(fromRawText: "just plain text")
+            == [IceCubesContentSegment(text: "just plain text", isAccent: false)])
+        // A mid-word `@` (e.g. an email) is not a mention — no accent segment.
+        #expect(IceCubesContentRuns.segments(fromRawText: "mail a@b.com").allSatisfy { !$0.isAccent })
+        // A lone `#`/`@` with no following word char stays plain.
+        #expect(IceCubesContentRuns.segments(fromRawText: "a # b").allSatisfy { !$0.isAccent })
+    }
+
+    @Test("Timeline row precomputes content segments from the status HTML")
+    func rowPrecomputesContentSegments() {
+        // Real Mastodon wraps mentions in <a>…</a>; the row parses the raw
+        // HTML (not the stripped text), so the linked @handle is accent-tinted.
+        let status = Status(
+            id: "1",
+            account: Account(id: "1", acct: "a", username: "a"),
+            content: HTMLString(stringLiteral: "<p>hi <a href=\"https://m.s/@alex\" class=\"mention\">@<span>alex</span></a></p>")
+        )
+        let row = IceCubesTimelineRow(status: status)
+        #expect(row.contentSegments.contains(IceCubesContentSegment(text: "@alex", isAccent: true)))
+        #expect(row.contentSegments.contains(IceCubesContentSegment(text: "hi ", isAccent: false)))
+    }
+
+    // MARK: - Content segments from HTML (links / invisible spans / line breaks)
+
+    @Test("segments(fromHTML:) colors <a> link text and strips other tags")
+    func contentRunsFromHTMLColorsLinks() {
+        let html = "<p>Hello <a href=\"https://m.s/@alex\" class=\"u-url mention\">@<span>alex</span></a>!</p>"
+        #expect(IceCubesContentRuns.segments(fromHTML: html) == [
+            IceCubesContentSegment(text: "Hello ", isAccent: false),
+            IceCubesContentSegment(text: "@alex", isAccent: true),
+            IceCubesContentSegment(text: "!", isAccent: false),
+        ])
+    }
+
+    @Test("segments(fromHTML:) drops <span class=invisible> URL prefixes")
+    func contentRunsFromHTMLDropsInvisibleSpans() {
+        // Mastodon hides the scheme + trailing path in invisible spans,
+        // showing only the middle ellipsis span as the link's visible text.
+        let html = "<a href=\"https://example.com/very/long\">"
+            + "<span class=\"invisible\">https://</span>"
+            + "<span class=\"ellipsis\">example.com/very</span>"
+            + "<span class=\"invisible\">/long</span></a>"
+        #expect(IceCubesContentRuns.segments(fromHTML: html)
+            == [IceCubesContentSegment(text: "example.com/very", isAccent: true)])
+    }
+
+    @Test("segments(fromHTML:) turns <br> and </p> into line breaks")
+    func contentRunsFromHTMLLineBreaks() {
+        let html = "<p>line one<br>line two</p><p>para two</p>"
+        #expect(IceCubesContentRuns.segments(fromHTML: html)
+            == [IceCubesContentSegment(text: "line one\nline two\npara two", isAccent: false)])
+    }
+
+    @Test("segments(fromHTML:) decodes HTML entities")
+    func contentRunsFromHTMLDecodesEntities() {
+        #expect(IceCubesContentRuns.segments(fromHTML: "<p>a &amp; b &lt;tag&gt;</p>")
+            == [IceCubesContentSegment(text: "a & b <tag>", isAccent: false)])
+    }
+
+    // MARK: - Sidebar tabs
+
+    @Test("IceCubesTab maps timeline vs standalone sections")
+    func tabShowsTimeline() {
+        #expect(IceCubesTab.home.showsTimeline)
+        #expect(IceCubesTab.local.showsTimeline)
+        #expect(IceCubesTab.federated.showsTimeline)
+        #expect(!IceCubesTab.notifications.showsTimeline)
+        #expect(!IceCubesTab.explore.showsTimeline)
+        #expect(!IceCubesTab.settings.showsTimeline)
+    }
+
+    @Test("IceCubesTab carries title + SF symbol + locality; all six present")
+    func tabMetadata() {
+        #expect(IceCubesTab.home.title == "Home")
+        #expect(IceCubesTab.federated.systemImage == "globe")
+        // Only Local pins to the current server's public timeline.
+        #expect(IceCubesTab.local.prefersLocalTimeline)
+        #expect(!IceCubesTab.home.prefersLocalTimeline)
+        #expect(!IceCubesTab.federated.prefersLocalTimeline)
+        #expect(IceCubesTab.allCases.count == 6)
+    }
+
+    @Test("QuillIceCubesInitialTab resolves the env tab, defaulting to Home")
+    func initialTabFromEnvironment() {
+        let key = QuillIceCubesInitialTab.selectedTabEnvironmentKey
+        #expect(QuillIceCubesInitialTab.selectedTab(environment: [:]) == .home)
+        #expect(QuillIceCubesInitialTab.selectedTab(environment: [key: "notifications"]) == .notifications)
+        // Case-insensitive + whitespace-tolerant.
+        #expect(QuillIceCubesInitialTab.selectedTab(environment: [key: " Federated "]) == .federated)
+        // Unknown value falls back to Home.
+        #expect(QuillIceCubesInitialTab.selectedTab(environment: [key: "bogus"]) == .home)
     }
 }

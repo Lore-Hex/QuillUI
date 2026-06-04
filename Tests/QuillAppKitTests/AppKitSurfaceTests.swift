@@ -1,0 +1,46 @@
+import Foundation
+import Testing
+import AppKit
+
+/// AppKit shadow surface added so WireGuard's UnusableTunnelDetailViewController
+/// compiles against QuillAppKit: NSTextField(labelWithAttributedString:) and
+/// NSStackView's views-initializer + setCustomSpacing (with Foundation's
+/// NSEdgeInsets). Model-only (no Qt); runs on the Swift Linux Backends job.
+/// Driven from real upstream compile errors (the gap-analysis spike).
+@Suite("QuillAppKit surface — UnusableTunnelDetail dependencies")
+struct AppKitSurfaceTests {
+    @Test("NSTextField(labelWithAttributedString:) carries the attributed string's text")
+    func textFieldLabelWithAttributedString() {
+        let label = NSTextField(labelWithAttributedString: NSAttributedString(string: "Public key:"))
+        #expect(label.stringValue == "Public key:")
+    }
+
+    @Test("NSStackView(views:) seeds arranged subviews; edgeInsets struct + setCustomSpacing work")
+    func stackViewViewsInit() {
+        let a = NSView(frame: .zero)
+        let b = NSView(frame: .zero)
+        let stack = NSStackView(views: [a, b])
+        #expect(stack.arrangedSubviews.count == 2)
+        stack.edgeInsets = NSEdgeInsets(top: 5, left: 5, bottom: 5, right: 5)
+        #expect(stack.edgeInsets.top == 5 && stack.edgeInsets.right == 5)
+        stack.setCustomSpacing(8, after: a) // compiles (no-op until layout models spacing)
+    }
+
+    @Test("NSLayoutGuide: addLayoutGuide stores + owns; anchors build constraints with the guide as item")
+    func layoutGuide() {
+        let view = NSView(frame: .zero)
+        let guide = NSLayoutGuide()
+        view.addLayoutGuide(guide)
+        #expect(view.layoutGuides.count == 1)
+        #expect(guide.owningView === view)
+
+        // The guide's anchors build real constraints, with the guide as the item.
+        let c = guide.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8)
+        #expect(c.quillConstant == 8)
+        #expect(c.quillFirstAnchor?.quillItem === guide)
+
+        view.removeLayoutGuide(guide)
+        #expect(view.layoutGuides.isEmpty)
+        #expect(guide.owningView == nil)
+    }
+}

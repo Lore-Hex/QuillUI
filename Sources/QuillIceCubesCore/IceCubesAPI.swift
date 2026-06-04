@@ -21,43 +21,27 @@ import FoundationNetworking
 
 /// Mastodon status fields like `content`, `account.displayName`,
 /// and emoji-shortcode strings arrive HTML-formatted. Upstream
-/// `Models.HTMLString` decodes them lazily; this stub strips
-/// tags + decodes a small set of HTML entities so the
-/// placeholder timeline shows readable text.
+/// `Models.HTMLString` decodes them lazily; here `asRawText` is
+/// derived with the shared `QuillFoundation.HTMLText` stripper so
+/// the placeholder timeline shows readable text.
 public struct HTMLString: Codable, Hashable, Sendable {
     public let htmlValue: String
     public let asRawText: String
 
     public init(stringLiteral: String) {
         self.htmlValue = stringLiteral
-        self.asRawText = Self.makeRawText(from: stringLiteral)
+        self.asRawText = HTMLText.plainText(fromHTML: stringLiteral)
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         self.htmlValue = try container.decode(String.self)
-        self.asRawText = Self.makeRawText(from: htmlValue)
+        self.asRawText = HTMLText.plainText(fromHTML: htmlValue)
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(htmlValue)
-    }
-
-    private static func makeRawText(from htmlValue: String) -> String {
-        var output = ""
-        output.reserveCapacity(htmlValue.count)
-        var insideTag = false
-        for character in htmlValue {
-            if character == "<" {
-                insideTag = true
-            } else if character == ">" {
-                insideTag = false
-            } else if !insideTag {
-                output.append(character)
-            }
-        }
-        return HTMLEntities.decode(output)
     }
 }
 

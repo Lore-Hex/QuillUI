@@ -1,9 +1,80 @@
 import Foundation
 import QuillFoundation
 import QuillUI
+#if ICECUBES_REAL_MODELS
+import Models
+#endif
 
 enum QuillIceCubesProfileLabels {
     static let bareTimelineTitle = "IceCubes Public Timeline"
+}
+
+/// The IceCubes sidebar sections. Home / Local / Federated drive the status
+/// timeline at different Mastodon localities; Notifications / Explore /
+/// Settings are standalone surfaces. Mirrors the tab set upstream IceCubes
+/// renders in its sidebar so the section model ports without app rewrites.
+public enum IceCubesTab: String, CaseIterable, Identifiable, Hashable, Sendable {
+    case home, local, federated, notifications, explore, settings
+
+    public var id: String { rawValue }
+
+    /// Sidebar label + column title.
+    public var title: String {
+        switch self {
+        case .home: return "Home"
+        case .local: return "Local"
+        case .federated: return "Federated"
+        case .notifications: return "Notifications"
+        case .explore: return "Explore"
+        case .settings: return "Settings"
+        }
+    }
+
+    /// SF Symbol name for the sidebar icon (mirrored to Material on GTK).
+    public var systemImage: String {
+        switch self {
+        case .home: return "house"
+        case .local: return "person.2"
+        case .federated: return "globe"
+        case .notifications: return "bell"
+        case .explore: return "magnifyingglass"
+        case .settings: return "gearshape"
+        }
+    }
+
+    /// Sub-header under the column title.
+    public var subtitle: String {
+        switch self {
+        case .home: return "Public timeline"
+        case .local: return "This server"
+        case .federated: return "Known fediverse"
+        case .notifications: return "Mentions & boosts"
+        case .explore: return "Trending now"
+        case .settings: return "Preferences"
+        }
+    }
+
+    /// Message shown on the standalone (non-timeline) surfaces.
+    public var placeholderMessage: String {
+        switch self {
+        case .notifications: return "Your mentions, boosts, and favorites will appear here."
+        case .explore: return "Trending posts, tags, and people will appear here."
+        case .settings: return "Account and appearance settings will appear here."
+        case .home, .local, .federated: return ""
+        }
+    }
+
+    /// Whether the tab renders the status timeline (vs a standalone surface).
+    public var showsTimeline: Bool {
+        switch self {
+        case .home, .local, .federated: return true
+        case .notifications, .explore, .settings: return false
+        }
+    }
+
+    /// The Mastodon public-timeline `local` flag. Local pins to the current
+    /// server; Home / Federated span the wider fediverse.
+    public var prefersLocalTimeline: Bool { self == .local }
 }
 
 /// Mastodon public-timeline shell. Mirrors the upstream
@@ -30,6 +101,7 @@ public struct QuillIceCubesContentView: View {
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
     @State private var didStartTimelineLoad = false
+    @State private var selectedTab: IceCubesTab = .home
     private let initialSelectionEnvironment: [String: String]
 
     public init(environment: [String: String] = ProcessInfo.processInfo.environment) {
@@ -162,40 +234,70 @@ public struct QuillIceCubesContentView: View {
                 .font(.title2)
                 .bold()
                 .padding(16)
-            navItem("Home", systemImage: "house")
-            navItem("Local", systemImage: "person.2")
-            navItem("Federated", systemImage: "globe")
-            navItem("Notifications", systemImage: "bell")
-            navItem("Explore", systemImage: "magnifyingglass")
-            navItem("Settings", systemImage: "gearshape")
+            navItem(.home)
+            navItem(.local)
+            navItem(.federated)
+            navItem(.notifications)
+            navItem(.explore)
+            navItem(.settings)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(QuillDesktopChromeStyle.sidebarBackground)
     }
 
-    private func navItem(_ title: String, systemImage: String) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.body)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 7)
+    /// A sidebar tab. Tapping switches `selectedTab`; the active tab gets the
+    /// same tinted highlight (accent text + selected-row background) IceCubes
+    /// draws on its current section.
+    private func navItem(_ tab: IceCubesTab) -> some View {
+        let isActive = selectedTab == tab
+        return Button {
+            selectTab(tab)
+        } label: {
+            Label(tab.title, systemImage: tab.systemImage)
+                .font(.body)
+                .foregroundColor(isActive ? Self.activeTabAccent : Color.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(isActive ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+                .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 8)
     }
+
+    /// Switch sections. Timeline tabs (Home/Local/Federated) re-fetch at the
+    /// new Mastodon locality; the `QUILLUI_DISABLE_FETCH` smoke keeps the
+    /// seeded fixtures so selection/layout stay deterministic.
+    private func selectTab(_ tab: IceCubesTab) {
+        guard tab != selectedTab else { return }
+        selectedTab = tab
+        let isFetchDisabled = ProcessInfo.processInfo.environment["QUILLUI_DISABLE_FETCH"] == "1"
+        if tab.showsTimeline, !isFetchDisabled {
+            Task { @MainActor in await fetchTimeline() }
+        }
+    }
+
+    private static let activeTabAccent = Color.blue
 
     /// The Home timeline column: the public-timeline rows, selectable into the
     /// detail column.
     private var timelineColumn: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Home")
+                Text(selectedTab.title)
                     .font(.title2)
                     .bold()
-                Text("Public timeline")
+                Text(selectedTab.subtitle)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
             .padding(16)
 
-            if isLoading && timelineRows.isEmpty {
+            if !selectedTab.showsTimeline {
+                tabPlaceholder(selectedTab)
+            } else if isLoading && timelineRows.isEmpty {
                 loadingPlaceholder
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let errorMessage, timelineRows.isEmpty {
@@ -219,6 +321,21 @@ public struct QuillIceCubesContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(QuillDesktopChromeStyle.detailBackground)
+    }
+
+    /// Standalone (non-timeline) sections — Notifications / Explore / Settings.
+    /// A focused placeholder surface; richer surfaces land in follow-ups.
+    private func tabPlaceholder(_ tab: IceCubesTab) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(tab.title, systemImage: tab.systemImage)
+                .font(.title3)
+                .bold()
+            Text(tab.placeholderMessage)
+                .font(.body)
+                .foregroundColor(.secondary)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func sidebarError(_ errorMessage: String) -> some View {
@@ -263,7 +380,7 @@ public struct QuillIceCubesContentView: View {
                             Spacer()
                         }
 
-                        Text(row.contentText)
+                        styledContent(row)
                             .font(.body)
                             .lineSpacing(4)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -382,7 +499,7 @@ public struct QuillIceCubesContentView: View {
                         .foregroundColor(.secondary)
                 }
             }
-            Text(row.contentText)
+            styledContent(row)
                 .font(.body)
         }
         .padding(.vertical, 4)
@@ -392,6 +509,17 @@ public struct QuillIceCubesContentView: View {
         .background(selectedRowID == row.id ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
         .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
         .contentShape(Rectangle())
+    }
+
+    /// Mention/hashtag accent for post content (IceCubes' link color).
+    private static let mentionAccent = Color.blue
+
+    /// Renders post content with @mentions / #hashtags tinted, from the styled
+    /// segments precomputed on the row — no per-frame parsing.
+    private func styledContent(_ row: IceCubesTimelineRow) -> Text {
+        Text(styledRuns: row.contentSegments.map { segment in
+            Text.Run(text: segment.text, color: segment.isAccent ? Self.mentionAccent : nil)
+        })
     }
 
     @ViewBuilder
@@ -414,6 +542,7 @@ public struct QuillIceCubesContentView: View {
         guard !didStartTimelineLoad else { return }
         didStartTimelineLoad = true
         let env = ProcessInfo.processInfo.environment
+        selectedTab = QuillIceCubesInitialTab.selectedTab(environment: env)
         if env["QUILLUI_DISABLE_FETCH"] == "1" {
             seedProfileFixturesIfNeeded()
         } else {
@@ -444,7 +573,10 @@ public struct QuillIceCubesContentView: View {
         }
         do {
             let fetchedStatuses: [Status] = try await client.get(
-                endpoint: Timelines.pub(sinceId: nil, maxId: nil, minId: nil, local: true, limit: 20)
+                endpoint: Timelines.pub(
+                    sinceId: nil, maxId: nil, minId: nil,
+                    local: selectedTab.prefersLocalTimeline, limit: 20
+                )
             )
             let rows = fetchedStatuses.map(IceCubesTimelineRow.init(status:))
             if self.timelineRows != rows {
@@ -468,7 +600,10 @@ public struct QuillIceCubesContentView: View {
     }
 
     private var selectedRow: IceCubesTimelineRow? {
-        selectedRowID.flatMap { id in timelineRows.first { $0.id == id } } ?? timelineRows.first
+        // Standalone tabs (Notifications / Explore / Settings) have no status
+        // detail — keep the detail column on its empty state there.
+        guard selectedTab.showsTimeline else { return nil }
+        return selectedRowID.flatMap { id in timelineRows.first { $0.id == id } } ?? timelineRows.first
     }
 }
 
@@ -484,6 +619,10 @@ public struct IceCubesTimelineRow: Identifiable, Hashable, Sendable {
     /// stored string instead of re-deriving it every frame.
     public let subtitleText: String
     public let contentText: String
+    /// `contentText` split into plain + accent (mention/hashtag) segments,
+    /// precomputed so the GTK render loop never re-parses. The accent color is
+    /// applied in the view, keeping the model Hashable/Sendable.
+    public let contentSegments: [IceCubesContentSegment]
     public let timeText: String
     public let repliesCount: Int
     public let reblogsCount: Int
@@ -499,12 +638,14 @@ public struct IceCubesTimelineRow: Identifiable, Hashable, Sendable {
         repliesCount: Int = 0,
         reblogsCount: Int = 0,
         favouritesCount: Int = 0,
-        avatar: URL? = nil
+        avatar: URL? = nil,
+        contentSegments: [IceCubesContentSegment]? = nil
     ) {
         self.id = id
         self.displayNameText = displayNameText
         self.handleText = handleText
         self.contentText = contentText
+        self.contentSegments = contentSegments ?? IceCubesContentRuns.segments(fromRawText: contentText)
         self.timeText = timeText
         self.subtitleText = timeText.isEmpty ? handleText : "\(handleText) · \(timeText)"
         self.repliesCount = repliesCount
@@ -529,18 +670,153 @@ public struct IceCubesTimelineRow: Identifiable, Hashable, Sendable {
             repliesCount: status.repliesCount,
             reblogsCount: status.reblogsCount,
             favouritesCount: status.favouritesCount,
-            avatar: status.account.avatar
+            avatar: status.account.avatar,
+            contentSegments: IceCubesContentRuns.segments(fromHTML: status.content.htmlValue)
         )
     }
 }
 
-/// IceCubes-style relative timestamp formatting for a Mastodon
-/// `created_at` ISO8601 string: "now" / "5m" / "2h" / "3d" within
-/// the last week, then an absolute short date ("Jan 1", or
-/// "Jan 1, 2024" across a year boundary).
+/// A run of post content — plain text, or an accent-tinted @mention / #hashtag.
+public struct IceCubesContentSegment: Hashable, Sendable {
+    public let text: String
+    public let isAccent: Bool
+    public init(text: String, isAccent: Bool) {
+        self.text = text
+        self.isAccent = isAccent
+    }
+}
+
+/// Splits Mastodon post content into plain + accent segments for the timeline.
+/// `segments(fromHTML:)` is the real path (links/invisible-spans/line-breaks);
+/// `segments(fromRawText:)` is the tag-stripped fallback that flags bare
+/// `@mentions` / `#hashtags` (used when only plain text is available, e.g. tests).
+public enum IceCubesContentRuns {
+    public static func segments(fromRawText text: String) -> [IceCubesContentSegment] {
+        var segments: [IceCubesContentSegment] = []
+        var plain = ""
+        let chars = Array(text)
+        var i = 0
+
+        func flushPlain() {
+            if !plain.isEmpty {
+                segments.append(IceCubesContentSegment(text: plain, isAccent: false))
+                plain = ""
+            }
+        }
+
+        while i < chars.count {
+            let c = chars[i]
+            let atBoundary = i == 0 || chars[i - 1] == " " || chars[i - 1] == "\n"
+            if (c == "@" || c == "#") && atBoundary {
+                var j = i + 1
+                while j < chars.count, chars[j].isLetter || chars[j].isNumber || chars[j] == "_" {
+                    j += 1
+                }
+                if j > i + 1 { // at least one word character after @ / #
+                    flushPlain()
+                    segments.append(IceCubesContentSegment(text: String(chars[i..<j]), isAccent: true))
+                    i = j
+                    continue
+                }
+            }
+            plain.append(c)
+            i += 1
+        }
+        flushPlain()
+        return segments
+    }
+
+    /// Parses Mastodon post HTML into styled segments: `<a>` link text
+    /// (mentions / hashtags / URLs) → accent; `<span class="invisible">`
+    /// content (Mastodon's hidden URL prefixes) is dropped; `<br>` and `</p>`
+    /// become newlines; other tags are stripped and HTML entities decoded.
+    public static func segments(fromHTML html: String) -> [IceCubesContentSegment] {
+        var segments: [IceCubesContentSegment] = []
+        var buffer = ""
+        var bufferAccent = false
+        var linkDepth = 0
+        var spanStack: [Bool] = [] // isInvisible per currently-open <span>
+        let chars = Array(html)
+        var i = 0
+
+        func emit(_ text: String, accent: Bool) {
+            if text.isEmpty { return }
+            if accent != bufferAccent, !buffer.isEmpty {
+                segments.append(IceCubesContentSegment(text: HTMLEntities.decode(buffer), isAccent: bufferAccent))
+                buffer = ""
+            }
+            bufferAccent = accent
+            buffer += text
+        }
+
+        while i < chars.count {
+            let c = chars[i]
+            if c == "<" {
+                var tag = ""
+                var j = i + 1
+                while j < chars.count, chars[j] != ">" { tag.append(chars[j]); j += 1 }
+                i = (j < chars.count) ? j + 1 : j
+                let lower = tag.lowercased()
+                let isClose = lower.hasPrefix("/")
+                let name = String(lower.drop(while: { $0 == "/" }).prefix(while: { $0.isLetter || $0.isNumber }))
+                let hidden = spanStack.contains(true)
+                switch name {
+                case "a":
+                    linkDepth = isClose ? max(0, linkDepth - 1) : linkDepth + 1
+                case "span":
+                    if isClose {
+                        if !spanStack.isEmpty { spanStack.removeLast() }
+                    } else {
+                        spanStack.append(lower.contains("invisible"))
+                    }
+                case "br":
+                    if !hidden { emit("\n", accent: linkDepth > 0) }
+                case "p":
+                    if isClose, !hidden { emit("\n", accent: linkDepth > 0) }
+                default:
+                    break
+                }
+                continue
+            }
+            if !spanStack.contains(true) {
+                emit(String(c), accent: linkDepth > 0)
+            }
+            i += 1
+        }
+        if !buffer.isEmpty {
+            segments.append(IceCubesContentSegment(text: HTMLEntities.decode(buffer), isAccent: bufferAccent))
+        }
+        return normalize(segments)
+    }
+
+    /// Drops empty segments and trims leading/trailing whitespace + newlines.
+    static func normalize(_ segments: [IceCubesContentSegment]) -> [IceCubesContentSegment] {
+        var result = segments.filter { !$0.text.isEmpty }
+        if let first = result.first {
+            let trimmed = String(first.text.drop(while: { $0 == "\n" || $0 == " " }))
+            result[0] = IceCubesContentSegment(text: trimmed, isAccent: first.isAccent)
+        }
+        if let last = result.last {
+            var t = last.text
+            while let lc = t.last, lc == "\n" || lc == " " { t.removeLast() }
+            result[result.count - 1] = IceCubesContentSegment(text: t, isAccent: last.isAccent)
+        }
+        return result.filter { !$0.text.isEmpty }
+    }
+}
+
+/// Mastodon-facing wrapper that parses a `created_at` ISO8601 string and
+/// formats it with the shared `QuillFoundation.RelativeTime` ("now" / "5m"
+/// / "2h" / "3d" within the last week, then a short absolute date). The
+/// wire-format parsing stays here; the display logic is the reusable piece.
 public enum IceCubesRelativeTime {
     public static func string(fromISO8601 createdAt: String, now: Date) -> String {
         string(fromISO8601: createdAt, now: now, calendar: .current)
+    }
+
+    /// Date-based overload for the real vendored `Models.ServerDate` (`.asDate`).
+    public static func string(fromDate date: Date, now: Date) -> String {
+        RelativeTime.string(for: date, now: now, calendar: .current)
     }
 
     /// `calendar` (carrying its time zone) is injectable so the
@@ -548,12 +824,7 @@ public enum IceCubesRelativeTime {
     /// app uses `.current` to show dates in the viewer's zone.
     static func string(fromISO8601 createdAt: String, now: Date, calendar: Calendar) -> String {
         guard let date = parse(createdAt) else { return "" }
-        let seconds = now.timeIntervalSince(date)
-        if seconds < 60 { return "now" }
-        if seconds < 3600 { return "\(Int(seconds / 60))m" }
-        if seconds < 86_400 { return "\(Int(seconds / 3600))h" }
-        if seconds < 604_800 { return "\(Int(seconds / 86_400))d" }
-        return absoluteShortDate(date, now: now, calendar: calendar)
+        return RelativeTime.string(for: date, now: now, calendar: calendar)
     }
 
     static func parse(_ iso: String) -> Date? {
@@ -562,16 +833,6 @@ public enum IceCubesRelativeTime {
         if let date = formatter.date(from: iso) { return date }
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.date(from: iso)
-    }
-
-    static func absoluteShortDate(_ date: Date, now: Date, calendar: Calendar) -> String {
-        let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = sameYear ? "MMM d" : "MMM d, yyyy"
-        return formatter.string(from: date)
     }
 }
 
@@ -610,6 +871,26 @@ public enum QuillIceCubesInitialSelection {
     }
 }
 
+/// Resolves the initial sidebar tab from the environment, mirroring
+/// `QuillIceCubesInitialSelection`. Lets the deterministic Linux smoke /
+/// screenshots open a specific section (e.g. Notifications) without UI
+/// interaction. Unknown or unset → Home.
+public enum QuillIceCubesInitialTab {
+    public static let selectedTabEnvironmentKey = "QUILLUI_ICECUBES_SELECTED_TAB_ON_START"
+
+    public static func selectedTab(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> IceCubesTab {
+        guard
+            let raw = environment[selectedTabEnvironmentKey]?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased(),
+            let tab = IceCubesTab(rawValue: raw)
+        else { return .home }
+        return tab
+    }
+}
+
 /// Static content used by the `QUILLUI_DISABLE_FETCH=1` profile
 /// path so the rendered timeline has a representative shape
 /// without a URLSession round-trip. Not used in production —
@@ -638,7 +919,7 @@ public enum QuillIceCubesProfileFixtures {
                 username: "deploybot",
                 displayName: "Deploy Bot"
             ),
-            content: HTMLString(stringLiteral: "<p>Canary rollout healthy after 30m.</p>"),
+            content: HTMLString(stringLiteral: "<p>Canary rollout healthy after 30m. cc <a href=\"https://mastodon.social/@deploybot\" class=\"u-url mention\">@<span>deploybot</span></a></p>"),
             createdAt: "2026-01-01T00:01:00Z",
             repliesCount: 1,
             reblogsCount: 4,
@@ -652,7 +933,7 @@ public enum QuillIceCubesProfileFixtures {
                 username: "swiftlinux",
                 displayName: "Swift on Linux"
             ),
-            content: HTMLString(stringLiteral: "<p>Desktop packaging notes are ready for the next toolchain smoke run.</p>"),
+            content: HTMLString(stringLiteral: "<p>Desktop packaging notes are ready.<br>Next up: the toolchain smoke run.</p>"),
             createdAt: "2026-01-01T00:02:00Z",
             repliesCount: 6,
             reblogsCount: 19,
@@ -680,7 +961,7 @@ public enum QuillIceCubesProfileFixtures {
                 username: "design",
                 displayName: "Mastodon Design"
             ),
-            content: HTMLString(stringLiteral: "<p>Selection polish keeps the lower row visually distinct across GTK and Qt.</p>"),
+            content: HTMLString(stringLiteral: "<p>Selection polish across GTK and Qt — see <a href=\"https://mastodon.social/tags/SwiftOnLinux\" class=\"mention hashtag\">#<span>SwiftOnLinux</span></a> <a href=\"https://swift.org/blog/swift-on-linux\"><span class=\"invisible\">https://</span><span class=\"ellipsis\">swift.org/blog</span><span class=\"invisible\">/swift-on-linux</span></a></p>"),
             createdAt: "2026-01-01T00:04:00Z",
             repliesCount: 12,
             reblogsCount: 140,
@@ -688,5 +969,69 @@ public enum QuillIceCubesProfileFixtures {
         ),
     ]
 
+#if ICECUBES_REAL_MODELS
+    /// On gtk Linux the fixture timeline renders from the REAL vendored
+    /// Models.Status (decoded from a Mastodon-shaped payload), proving the
+    /// upstream Models + HTMLString + the segments(fromHTML:) bridge
+    /// end-to-end — not the reimpl. macOS / qt keep the reimpl path below.
+    public static let rows: [IceCubesTimelineRow] = decodeRealModelRows()
+
+    static func decodeRealModelRows() -> [IceCubesTimelineRow] {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        guard let data = realModelStatusesJSON.data(using: .utf8),
+              let real = try? decoder.decode([Models.Status].self, from: data)
+        else {
+            return statuses.map(IceCubesTimelineRow.init(status:))
+        }
+        return real.map { IceCubesTimelineRow(realStatus: $0) }
+    }
+
+    static let realModelStatusesJSON = #"""
+    [
+      { "id": "1", "content": "<p>Canary rollout healthy after 30m. cc <a href='https://mastodon.social/@deploybot' class='u-url mention'>@<span>deploybot</span></a></p>",
+        "created_at": "2026-06-03T22:00:00.000Z", "replies_count": 1, "reblogs_count": 4, "favourites_count": 12,
+        "media_attachments": [], "mentions": [], "emojis": [], "tags": [], "visibility": "public", "spoiler_text": "", "sensitive": false,
+        "account": { "id": "2", "username": "deploybot", "acct": "deploybot", "display_name": "Deploy Bot", "avatar": "https://files.mastodon.social/a/1.png", "header": "https://files.mastodon.social/h/1.png", "note": "", "created_at": "2025-01-01T00:00:00.000Z", "fields": [], "locked": false, "emojis": [], "bot": true } },
+      { "id": "2", "content": "<p>Desktop packaging notes are ready.<br>Next up: the toolchain smoke run.</p>",
+        "created_at": "2026-06-03T20:00:00.000Z", "replies_count": 6, "reblogs_count": 19, "favourites_count": 47,
+        "media_attachments": [], "mentions": [], "emojis": [], "tags": [], "visibility": "public", "spoiler_text": "", "sensitive": false,
+        "account": { "id": "3", "username": "swiftlinux", "acct": "swiftlinux", "display_name": "Swift on Linux", "avatar": "https://files.mastodon.social/a/2.png", "header": "https://files.mastodon.social/h/2.png", "note": "", "created_at": "2025-01-01T00:00:00.000Z", "fields": [], "locked": false, "emojis": [], "bot": false } },
+      { "id": "3", "content": "<p>Selection polish across GTK and Qt — see <a href='https://mastodon.social/tags/SwiftOnLinux' class='mention hashtag'>#<span>SwiftOnLinux</span></a> <a href='https://swift.org/blog/swift-on-linux'><span class='invisible'>https://</span><span class='ellipsis'>swift.org/blog</span><span class='invisible'>/swift-on-linux</span></a></p>",
+        "created_at": "2026-06-01T12:00:00.000Z", "replies_count": 12, "reblogs_count": 140, "favourites_count": 1280,
+        "media_attachments": [], "mentions": [], "emojis": [], "tags": [], "visibility": "public", "spoiler_text": "", "sensitive": false,
+        "account": { "id": "5", "username": "design", "acct": "design", "display_name": "Mastodon Design", "avatar": "https://files.mastodon.social/a/3.png", "header": "https://files.mastodon.social/h/3.png", "note": "", "created_at": "2025-01-01T00:00:00.000Z", "fields": [], "locked": false, "emojis": [], "bot": false } }
+    ]
+    """#
+#else
     public static let rows: [IceCubesTimelineRow] = statuses.map(IceCubesTimelineRow.init(status:))
+#endif
 }
+
+#if ICECUBES_REAL_MODELS
+extension IceCubesTimelineRow {
+    /// Maps the REAL vendored `Models.Status` (Dimillian/IceCubesApp upstream
+    /// source) into the render projection. Available only where the real Models
+    /// target is built (gtk Linux); macOS / qt keep the reimpl `Status`. Derives
+    /// the reimpl convenience fields from the upstream shape (cachedDisplayName,
+    /// acct, content HTMLString, ServerDate.asDate) and reuses the merged
+    /// segments(fromHTML:) parser on the real status HTML.
+    public init(realStatus: Models.Status, now: Date = Date()) {
+        let account = realStatus.account
+        let rawDisplayName = account.cachedDisplayName.asRawText
+        let displayName = rawDisplayName.isEmpty ? account.username : rawDisplayName
+        self.init(
+            id: realStatus.id,
+            displayNameText: displayName,
+            handleText: "@\(account.acct)",
+            contentText: realStatus.content.asRawText,
+            timeText: IceCubesRelativeTime.string(fromDate: realStatus.createdAt.asDate, now: now),
+            repliesCount: realStatus.repliesCount,
+            reblogsCount: realStatus.reblogsCount,
+            favouritesCount: realStatus.favouritesCount,
+            avatar: account.avatar,
+            contentSegments: IceCubesContentRuns.segments(fromHTML: realStatus.content.htmlValue)
+        )
+    }
+}
+#endif

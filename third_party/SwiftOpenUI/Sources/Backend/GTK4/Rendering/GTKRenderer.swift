@@ -33,6 +33,22 @@ private func gtkPixelSize(_ value: Double) -> gint {
     return gint(value)
 }
 
+private func gtkTextInputFocusDescriptorContent(
+    typeName: String,
+    binding: Binding<String>,
+    label: String = "",
+    includeValueWhenUnidentified: Bool = true
+) -> String {
+    if let identity = binding.quillUIIdentity {
+        return "\(typeName)|binding:\(identity)"
+    }
+
+    if includeValueWhenUnidentified {
+        return "\(typeName)|label:\(label)|value:\(binding.wrappedValue)"
+    }
+    return "\(typeName)|label:\(label)"
+}
+
 // MARK: - GTK rendering protocol
 
 /// Protocol that views implement (via extensions) to provide GTK widget creation.
@@ -143,11 +159,37 @@ func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -
     }
 }
 
+private final class GTKEnvironmentCapture: @unchecked Sendable {
+    let environment: EnvironmentValues
+
+    init(_ environment: EnvironmentValues) {
+        self.environment = environment
+    }
+}
+
+func bindTaskActionToCurrentEnvironment(
+    _ action: @escaping @Sendable () async -> Void
+) -> @Sendable () async -> Void {
+    let capturedEnvironment = GTKEnvironmentCapture(getCurrentEnvironment())
+    return {
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(capturedEnvironment.environment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        await action()
+    }
+}
+
 // MARK: - View GTK extensions
 
 extension Text: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
+        // Plain Text keeps the original gtk_label_new(content) fast path
+        // verbatim; colored / multi-run Text additionally overrides it with
+        // Pango markup, so plain text rendering is byte-for-byte unchanged.
         let label = gtk_label_new(content)!
+        if hasStyledRuns {
+            gtk_swift_label_set_markup(label, pangoMarkup())
+        }
         gtk_swift_label_set_xalign(label, 0)
         gtk_swift_label_set_yalign(label, 0.5)
         // SwiftUI Text wraps to intrinsic size — prevent GTK expansion.
@@ -155,6 +197,21 @@ extension Text: GTKRenderable, GTKDescribable {
         gtk_widget_set_vexpand(label, 0)
         gtkMarkHostedNodeKind(label, kind: .text)
         return opaqueFromWidget(label)
+    }
+
+    /// Pango markup for styled runs: each colored run becomes a
+    /// `<span foreground='#RRGGBB'>…</span>`; plain runs pass through escaped.
+    private func pangoMarkup() -> String {
+        runs.map { run in
+            let escaped = run.text
+                .replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+            guard let color = run.color else { return escaped }
+            let hex = String(format: "#%02X%02X%02X",
+                             Int(color.red * 255), Int(color.green * 255), Int(color.blue * 255))
+            return "<span foreground='\(hex)'>\(escaped)</span>"
+        }.joined()
     }
 
     public func gtkDescribeNode() -> GTK4DescriptorNode {
@@ -196,7 +253,19 @@ extension Divider: GTKRenderable, GTKDescribable {
     }
 }
 
-extension TextField: GTKRenderable {
+extension TextField: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "TextField",
+            props: .text(GTK4TextDescriptor(content: gtkTextInputFocusDescriptorContent(
+                typeName: "TextField",
+                binding: text,
+                label: title
+            )))
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         let entry = gtk_entry_new()!
         gtk_widget_set_hexpand(entry, 1)
@@ -269,7 +338,15 @@ extension TextField: GTKRenderable {
     }
 }
 
-extension FocusedView: GTKRenderable {
+extension FocusedView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "FocusedView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
         gtk_widget_set_focusable(widget, 1)
@@ -323,7 +400,15 @@ extension FocusedView: GTKRenderable {
     }
 }
 
-extension FocusedEqualsView: GTKRenderable {
+extension FocusedEqualsView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "FocusedEqualsView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
         gtk_widget_set_focusable(widget, 1)
@@ -1907,7 +1992,15 @@ extension FullScreenCoverView: GTKRenderable {
 
 // MARK: - onSubmit GTK extension
 
-extension OnSubmitView: GTKRenderable {
+extension OnSubmitView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "OnSubmitView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         var env = getCurrentEnvironment()
         env.submitAction = SubmitAction(handler: action)
@@ -2389,7 +2482,15 @@ extension ToggleStyleModifier: GTKRenderable {
     }
 }
 
-extension TextFieldStyleModifier: GTKRenderable {
+extension TextFieldStyleModifier: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "TextFieldStyleModifier",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         var env = getCurrentEnvironment()
         env.textFieldStyle = style
@@ -2759,6 +2860,101 @@ extension AnimatedView: GTKRenderable, GTKDescribable {
 }
 
 // MARK: - OnAppear / OnDisappear GTK extensions
+
+private let gtkStandaloneTaskBoxKey = "gtk-swift-standalone-task-box"
+
+private final class GTKStandaloneTaskBox {
+    let priority: TaskPriority
+    let action: @Sendable () async -> Void
+    var task: Task<Void, Never>?
+
+    init(priority: TaskPriority, action: @escaping @Sendable () async -> Void) {
+        self.priority = priority
+        self.action = action
+    }
+
+    func start() {
+        guard task == nil else { return }
+        let action = action
+        task = Task(priority: priority) {
+            await action()
+        }
+    }
+
+    func cancel() {
+        task?.cancel()
+        task = nil
+    }
+}
+
+private func gtkAttachStandaloneTaskLifecycle(
+    to widget: UnsafeMutablePointer<GtkWidget>,
+    priority: TaskPriority,
+    action: @escaping @Sendable () async -> Void
+) {
+    let box = Unmanaged.passRetained(
+        GTKStandaloneTaskBox(priority: priority, action: action)
+    ).toOpaque()
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data_full(
+        gobject,
+        gtkStandaloneTaskBoxKey,
+        box,
+        { userData in
+            let box = Unmanaged<GTKStandaloneTaskBox>.fromOpaque(userData!).takeRetainedValue()
+            box.cancel()
+        }
+    )
+
+    g_signal_connect_data(
+        gpointer(widget),
+        "map",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            let box = Unmanaged<GTKStandaloneTaskBox>.fromOpaque(userData!).takeUnretainedValue()
+            box.start()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        box,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    g_signal_connect_data(
+        gpointer(widget),
+        "unmap",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            let box = Unmanaged<GTKStandaloneTaskBox>.fromOpaque(userData!).takeUnretainedValue()
+            box.cancel()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        box,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+}
+
+extension TaskView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        gtkCollectTaskPayload(GTK4TaskPayload(
+            priority: priority,
+            action: bindTaskActionToCurrentEnvironment(action)
+        ))
+        return GTK4DescriptorNode(
+            kind: .task,
+            typeName: "TaskView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        let widget = widgetFromOpaque(gtkRenderView(content))
+        if GTKViewHost.getCurrentRebuilding() == nil {
+            gtkAttachStandaloneTaskLifecycle(
+                to: widget,
+                priority: priority,
+                action: bindTaskActionToCurrentEnvironment(action)
+            )
+        }
+        return opaqueFromWidget(widget)
+    }
+}
 
 extension OnAppearView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
@@ -3415,7 +3611,20 @@ extension Link: GTKRenderable {
 
 // MARK: - SecureField GTK extension
 
-extension SecureField: GTKRenderable {
+extension SecureField: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "SecureField",
+            props: .text(GTK4TextDescriptor(content: gtkTextInputFocusDescriptorContent(
+                typeName: "SecureField",
+                binding: text,
+                label: placeholder,
+                includeValueWhenUnidentified: false
+            )))
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         let entry = gtk_password_entry_new()!
         gtk_swift_password_entry_set_show_peek_icon(entry, 1)
@@ -3480,7 +3689,18 @@ extension SecureField: GTKRenderable {
 
 // MARK: - TextEditor GTK extension
 
-extension TextEditor: GTKRenderable {
+extension TextEditor: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "TextEditor",
+            props: .text(GTK4TextDescriptor(content: gtkTextInputFocusDescriptorContent(
+                typeName: "TextEditor",
+                binding: text
+            )))
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         let textView = gtk_text_view_new()!
         let textViewPtr = UnsafeMutableRawPointer(textView).assumingMemoryBound(to: GtkTextView.self)
@@ -6269,6 +6489,11 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
             descriptorRoot: identified,
             payloads: described.canvasPayloads
         )
+        host.updateTaskLifecycle(
+            descriptorRoot: identified,
+            taskPayloads: described.taskPayloads
+        )
+        gtkTagFocusableInputIdentities(in: child, descriptorRoot: identified)
         host.lastRetainedDescriptor = gtkRetainDescriptorTree(identified)
         var executor = gtkMakeExecutorTree(
             from: identified,

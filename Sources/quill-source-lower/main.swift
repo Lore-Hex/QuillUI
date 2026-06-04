@@ -17,9 +17,11 @@ func emitUsage(to stream: FileHandle) {
       @Model class Foo: X { ... }   -> class Foo: X, PersistentModel { ... }
       @Transient var value: T       -> var value: T
       #Predicate<Foo> { ... }       -> #QuillPredicate<Foo> { ... }
+      @Relationship var child: T?   -> didSet inverse-maintenance hook
 
-    The relationship init-body pruning the shell script performs is not yet
-    implemented here; use the shell script when that rewrite is required.
+    Also registers non-optional to-many relationship inverses and prunes stale
+    `self.relationship = relationship` init assignments when `relationship`
+    is not an initializer parameter.
     """
     stream.write(Data((usage + "\n").utf8))
 }

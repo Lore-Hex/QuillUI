@@ -121,9 +121,6 @@ jobs:
       - name: Build QuillUITests
         run: swift build --target QuillUITests
 
-      - name: Build QuillEnchanted
-        run: swift build --target QuillEnchanted
-
       - name: Build QuillIceCubes
         run: swift build --target QuillIceCubes
 

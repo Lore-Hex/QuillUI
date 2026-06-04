@@ -200,6 +200,55 @@ struct QuillAppKitQtTests {
         b.setContentCompressionResistancePriority(.defaultHigh + 2, for: .horizontal)
     }
 
+    @Test("NSTextField.font is settable (real KeyValueRow sets keyLabel.font = NSFont.boldSystemFont)")
+    func textFieldFont() {
+        let label = NSTextField(labelWithString: "Key:")
+        #expect(label.font == nil)
+        label.font = NSFont.boldSystemFont(ofSize: 0)
+        #expect(label.font != nil)
+    }
+
+    @Test("Solve honors constraint priority: a strong constraint beats a weaker one regardless of order")
+    func prioritySolve() {
+        guard QuillQt.ensureInitialized() else { return }
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 50))
+        let box = NSView(frame: .zero)
+        root.addSubviewQt(box)
+
+        // Low priority listed FIRST, high SECOND: without priority mapping both
+        // would be `required`, conflict, and the first (200) would win → 200.
+        // With mapping, the strong 100 wins regardless of order → 100.
+        let low = box.widthAnchor.constraint(equalToConstant: 200); low.priority = .defaultLow
+        let high = box.widthAnchor.constraint(equalToConstant: 100); high.priority = .defaultHigh
+        let cs = [
+            box.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            box.topAnchor.constraint(equalTo: root.topAnchor),
+            box.heightAnchor.constraint(equalToConstant: 10),
+            low, high,
+        ]
+        NSLayoutConstraint.activate(cs)
+        defer { NSLayoutConstraint.deactivate(cs) }
+        root.layoutQtSubtree(width: 300, height: 50)
+        #expect(box.qtGeometry.width == 100)
+    }
+
+    @Test("NSViewController subclass: init() needs no override + loadView/view work (AppKit init model)")
+    func viewControllerInitModel() {
+        // Mirrors how real ViewControllers (e.g. ButtonedDetailViewController) are
+        // written: a designated init() that calls super.init(nibName:bundle:), with
+        // NO `override` (because NSViewController.init() is now convenience).
+        final class TestVC: NSViewController {
+            var loaded = false
+            init() { super.init(nibName: nil, bundle: nil) }
+            required init?(coder: NSCoder) { fatalError("not implemented") }
+            override func loadView() { view = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 10)); loaded = true }
+        }
+        let vc = TestVC()
+        vc.loadView()
+        #expect(vc.loaded)
+        #expect(vc.view.frame.width == 10)
+    }
+
     @Test("NSWindow.contentView attaches its QWidget into the Qt window")
     func contentViewAttaches() {
         guard QuillQt.ensureInitialized() else { return }
@@ -216,5 +265,81 @@ struct QuillAppKitQtTests {
 
         #expect(window.qtWindowHandle != nil)
         #expect(content.qtChildCount == 1)
+    }
+
+    @Test("NSView.leftAnchor/rightAnchor solve as leading/trailing (LTR) — WireGuard VCs pin to them")
+    func leftRightAnchors() {
+        guard QuillQt.ensureInitialized() else { return }
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 40))
+        let box = NSView(frame: .zero)
+        root.addSubviewQt(box)
+        let cs = [
+            box.leftAnchor.constraint(equalTo: root.leftAnchor, constant: 12),
+            box.rightAnchor.constraint(equalTo: root.rightAnchor, constant: -8),
+            box.topAnchor.constraint(equalTo: root.topAnchor),
+            box.heightAnchor.constraint(equalToConstant: 10),
+        ]
+        NSLayoutConstraint.activate(cs)
+        defer { NSLayoutConstraint.deactivate(cs) }
+        root.layoutQtSubtree(width: 200, height: 40)
+        let g = box.qtGeometry
+        // left=12, right=200-8=192 → width=180
+        #expect(g.x == 12 && g.width == 180)
+    }
+
+    @Test("NSStackView.addView(_:in:)/setViews(_:in:) manage arranged subviews (gravity-area API)")
+    func stackViewGravityAPI() {
+        let stack = NSStackView()
+        let a = NSView(frame: .zero)
+        let b = NSView(frame: .zero)
+        stack.addView(a, in: .leading)
+        stack.addView(b, in: .trailing)
+        #expect(stack.arrangedSubviews.count == 2)
+        #expect(stack.subviews.count == 2)
+
+        let c = NSView(frame: .zero)
+        stack.setViews([c], in: .leading)
+        #expect(stack.arrangedSubviews.count == 1)
+        #expect(stack.arrangedSubviews.first === c)
+    }
+
+    @Test("Target-action dispatch: a control's fired action calls quillPerform on its target")
+    func targetActionDispatch() {
+        // Mirrors exactly what AppKitLowering generates: the app class conforms
+        // to QuillActionDispatching with a switch over selector.name. No Qt
+        // widget needed — this exercises the pure Swift dispatch contract.
+        final class Recorder: QuillActionDispatching {
+            var fired: [String] = []
+            weak var lastSender: AnyObject?
+            func quillPerform(_ selector: Selector, with sender: Any?) {
+                lastSender = sender as AnyObject?
+                switch selector.name {
+                case "save": fired.append("save")
+                case "cancel": fired.append("cancel")
+                default: break
+                }
+            }
+        }
+        let target = Recorder()
+        let button = NSButton(title: "Save", target: target, action: Selector("save"))
+
+        button.performClick(nil)
+        #expect(target.fired == ["save"])
+        // The firing control is handed to the action as sender (AppKit contract).
+        #expect(target.lastSender === button)
+
+        // sendAction with an explicit selector + receiver also dispatches.
+        button.sendAction(Selector("cancel"), to: target)
+        #expect(target.fired == ["save", "cancel"])
+
+        // A disabled control fires nothing.
+        button.isEnabled = false
+        button.performClick(nil)
+        #expect(target.fired == ["save", "cancel"])
+
+        // An unknown selector is a safe no-op (default protocol impl path / no case).
+        button.isEnabled = true
+        button.sendAction(Selector("unknownAction"), to: target)
+        #expect(target.fired == ["save", "cancel"])
     }
 }
