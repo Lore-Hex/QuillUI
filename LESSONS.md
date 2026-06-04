@@ -114,6 +114,20 @@ A second-opinion review (codex, read-only) sharpened the plan — adopt this ord
    `main` (merge/rebase to pull #286 + #302), then wire the CLI into the build —
    lower a *generated copy* of `.upstream/signal-ios` before compiling (mirroring
    the SwiftUI lowering pipeline; never lower the upstream tree in place).
+
+   **✅ RE-MEASURED (2026-06-04) — the wall fell.** Synced `main` into
+   `signal/real-backend` (merge `338775a`, manifest parses, 0 behind). Lowered the
+   SSK source and rebuilt `SignalServiceKit`: **492,965 errors → 17**, and
+   **"Objective-C interoperability is disabled" 61k → 0.** The build now sails
+   through SwiftProtobuf/deps. The **17 residual errors aren't in Signal source** —
+   they're `cannot find type 'Selector'` in the **`QuillUIKit`** shim, caused by the
+   still-present **`ObjectiveC` shim anti-pattern** (it flips `canImport(ObjectiveC)`
+   true and breaks Foundation's `Selector` plumbing, exactly as warned). **Next:
+   retire the `ObjectiveC` shim** — remove it from `signalAppleFrameworkShims`,
+   strip the vestigial `import ObjectiveC` from `Error+ErrorLocalizedDescription`/
+   `Error+IsRetryable`, and give `ObjectRetainer`/`ProxiedContentDownloader` a tiny
+   Swift associated-objects shim (they use `objc_set/getAssociatedObject`). That
+   should clear the 17 and finally reach the `TS*` base-model cascade (step 1).
 1. **Port the central SPINE, NOT leaf-first.** The cascade is dominated by
    high-fan-out types: `TSYapDatabaseObject`, `BaseModel`, `TSInteraction`,
    `TSMessage`, `TSIncomingMessage`, `TSOutgoingMessage`, `TSInfoMessage`,
