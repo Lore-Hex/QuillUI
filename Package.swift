@@ -1708,6 +1708,14 @@ let packageTestTargets: [Target] = {
             dependencies: ["QuillData"],
             swiftSettings: appSwiftSettings
         ),
+        // Salvaged QuillEnchantedData persistence coverage (ConversationStore /
+        // legacy SQLite store) from the deleted QuillEnchantedTests target —
+        // reimpl retirement, epic #188.
+        .testTarget(
+            name: "QuillEnchantedDataTests",
+            dependencies: ["QuillEnchantedData"],
+            swiftSettings: appSwiftSettings
+        ),
         .testTarget(
             name: "QuillSourceLoweringTests",
             dependencies: ["QuillSourceLowering"],
