@@ -264,6 +264,43 @@ open(path, "w").write(patched)
 print("patched FileManager+Extension.swift to import QuillFoundation")
 PY
     fi
+
+    # Model-layer core (TunnelsManager/TunnelContainer + the UAPI parser). Cross-
+    # module visibility for SwiftPM: make splitToArray + the wg-quick parser's
+    # ParserState/ParseError public (internal in QuillWireGuardUpstreamConfig),
+    # and add imports to the two consumers. NOTE: these run AFTER the lowering
+    # loop above, so the added imports survive (lowering re-serializes files and
+    # would otherwise drop late-added imports).
+    local strconv="$UPSTREAM_DIR/wireguard-apple/Sources/Shared/Model/String+ArrayConversion.swift"
+    if [[ -f "$strconv" ]] && ! grep -q 'public func splitToArray' "$strconv"; then
+        echo "==> patching String+ArrayConversion.swift: splitToArray -> public"
+        sed -i 's/^    func splitToArray(/    public func splitToArray(/' "$strconv"
+    fi
+    local wgq="$UPSTREAM_DIR/wireguard-apple/Sources/Shared/Model/TunnelConfiguration+WgQuickConfig.swift"
+    if [[ -f "$wgq" ]] && ! grep -q 'public enum ParseError' "$wgq"; then
+        echo "==> patching WgQuickConfig.swift: ParserState/ParseError -> public"
+        sed -i -e 's/^    enum ParserState {/    public enum ParserState {/' -e 's/^    enum ParseError: Error {/    public enum ParseError: Error {/' "$wgq"
+    fi
+    local tmgr="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/Tunnel/TunnelsManager.swift"
+    if [[ -f "$tmgr" ]] && ! grep -q '^import QuillFoundation' "$tmgr"; then
+        echo "==> patching TunnelsManager.swift imports"
+        python3 - "$tmgr" <<'PY'
+import sys
+path = sys.argv[1]; src = open(path).read()
+src = src.replace('import os\n', 'import os\nimport WireGuardKit\nimport QuillWireGuardUpstreamConfig\nimport QuillFoundation\n#if canImport(Glibc)\nimport Glibc\n#endif\n', 1)
+open(path, "w").write(src); print("patched TunnelsManager.swift imports")
+PY
+    fi
+    local uapi="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/Tunnel/TunnelConfiguration+UapiConfig.swift"
+    if [[ -f "$uapi" ]] && ! grep -q '^import WireGuardKit' "$uapi"; then
+        echo "==> patching TunnelConfiguration+UapiConfig.swift imports"
+        python3 - "$uapi" <<'PY'
+import sys
+path = sys.argv[1]; src = open(path).read()
+src = src.replace('import Foundation\n', 'import Foundation\nimport WireGuardKit\nimport QuillWireGuardUpstreamConfig\n', 1)
+open(path, "w").write(src); print("patched TunnelConfiguration+UapiConfig.swift imports")
+PY
+    fi
 }
 
 patch_icecubes() {
