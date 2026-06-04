@@ -282,6 +282,77 @@ public enum ChatTimestampFormatter {
         }
         return shortDate.string(from: timestamp)
     }
+
+    /// Full weekday name ("Monday") for a day-divider within the past week.
+    public static let fullWeekday: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE"
+        return f
+    }()
+
+    /// Month + day + year ("Jun 4, 2026") for an older day-divider.
+    public static let separatorDate: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d, yyyy"
+        return f
+    }()
+
+    /// A day-divider label for a message group: "Today" / "Yesterday" / a full
+    /// weekday within the past week ("Monday") / else "MMM d, yyyy". `now` is
+    /// injectable so the choice is testable.
+    public static func daySeparator(_ timestamp: Date, now: Date = Date()) -> String {
+        let cal = Calendar.current
+        if cal.isDate(timestamp, inSameDayAs: now) { return "Today" }
+        if let yesterday = cal.date(byAdding: .day, value: -1, to: now),
+           cal.isDate(timestamp, inSameDayAs: yesterday) {
+            return "Yesterday"
+        }
+        if now.timeIntervalSince(timestamp) < 7 * 24 * 3600 {
+            return fullWeekday.string(from: timestamp)
+        }
+        return separatorDate.string(from: timestamp)
+    }
+
+    /// Whether a day-divider should precede a message, given the previous
+    /// message's timestamp: true for the first message (`prev` nil) or when
+    /// `prev` and `current` fall on different calendar days; false when the
+    /// current message has no timestamp. `calendar` is injectable for testing.
+    public static func needsDaySeparator(prev: Date?, current: Date?, calendar: Calendar = .current) -> Bool {
+        guard let current else { return false }
+        guard let prev else { return true }
+        return !calendar.isDate(prev, inSameDayAs: current)
+    }
+
+    /// Split a message list into render rows, inserting a day-divider before the
+    /// first message and whenever the calendar day changes. Pure aside from the
+    /// label formatting; `now` is injectable for testing.
+    public static func timelineRows<M: ChatMessage>(_ messages: [M], now: Date = Date()) -> [ChatTimelineRow<M>] {
+        var rows: [ChatTimelineRow<M>] = []
+        var prev: Date? = nil
+        for message in messages {
+            if needsDaySeparator(prev: prev, current: message.timestamp), let ts = message.timestamp {
+                rows.append(.separator(id: "\(message.id)", label: daySeparator(ts, now: now)))
+            }
+            rows.append(.message(message))
+            if let ts = message.timestamp { prev = ts }
+        }
+        return rows
+    }
+}
+
+/// A transcript render row: a centered day-divider label, or a message bubble.
+/// Built by `ChatTimestampFormatter.timelineRows` so the timeline can show
+/// Today/Yesterday/weekday/date dividers between calendar days.
+public enum ChatTimelineRow<M: ChatMessage>: Identifiable {
+    case separator(id: String, label: String)
+    case message(M)
+
+    public var id: String {
+        switch self {
+        case .separator(let id, _): return "sep-\(id)"
+        case .message(let message): return "msg-\(message.id)"
+        }
+    }
 }
 
 /// One message bubble. Self-messages right-align with a blue tint,
@@ -693,8 +764,20 @@ public struct ChatTimeline<M: ChatMessage>: View {
                 Divider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: appearance.chatMessageSpacing) {
-                        ForEach(messages) { message in
-                            ChatBubble(message, appearance: appearance)
+                        ForEach(ChatTimestampFormatter.timelineRows(messages)) { row in
+                            if case let .separator(_, label) = row {
+                                Text(label)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 3)
+                                    .background(appearance.incomingBubbleBackground)
+                                    .cornerRadius(appearance.bubbleCornerRadius)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            }
+                            if case let .message(message) = row {
+                                ChatBubble(message, appearance: appearance)
+                            }
                         }
                     }
                     .padding(appearance.chatTimelinePadding)

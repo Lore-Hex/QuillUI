@@ -25,6 +25,14 @@ struct QuillChatKitTests {
         let preview: String
     }
 
+    struct Timed: ChatMessage {
+        let id: UUID
+        let sender: String
+        let body: String
+        let fromSelf: Bool
+        let timestamp: Date?
+    }
+
     @Test("ChatMessage refinement carries identity + sender/body/fromSelf")
     func chatMessageShape() {
         let id = UUID()
@@ -486,6 +494,51 @@ struct QuillChatKitTests {
         // Short time output never contains a year. Regardless of
         // locale this catches a regression to .medium / .full styles.
         #expect(!formatted.contains("2023") && !formatted.contains("2024"))
+    }
+
+    @Test("needsDaySeparator: first message and day changes need a divider")
+    func needsDaySeparatorLogic() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let t0 = Date(timeIntervalSince1970: 1_000_000_000)
+        let sameDay = t0.addingTimeInterval(3600)         // +1h, same UTC day
+        let nextDay = t0.addingTimeInterval(48 * 3600)    // +2 days, different day
+        #expect(ChatTimestampFormatter.needsDaySeparator(prev: nil, current: t0, calendar: cal))
+        #expect(!ChatTimestampFormatter.needsDaySeparator(prev: t0, current: nil, calendar: cal))
+        #expect(!ChatTimestampFormatter.needsDaySeparator(prev: t0, current: sameDay, calendar: cal))
+        #expect(ChatTimestampFormatter.needsDaySeparator(prev: t0, current: nextDay, calendar: cal))
+    }
+
+    @Test("timelineRows inserts dividers before the first message and on day changes")
+    func timelineRowsStructure() {
+        // Same-instant rows are always the same calendar day; +2 days is always a
+        // different one — so this structure check is timezone-robust.
+        let t0 = Date(timeIntervalSince1970: 1_000_000_000)
+        let sameDay = t0.addingTimeInterval(60)
+        let nextDay = t0.addingTimeInterval(48 * 3600)
+        let msgs = [
+            Timed(id: UUID(), sender: "A", body: "1", fromSelf: false, timestamp: t0),
+            Timed(id: UUID(), sender: "A", body: "2", fromSelf: false, timestamp: sameDay),
+            Timed(id: UUID(), sender: "B", body: "3", fromSelf: true, timestamp: nextDay),
+        ]
+        let kinds = ChatTimestampFormatter.timelineRows(msgs).map { row -> String in
+            if case .separator = row { return "sep" }
+            return "msg"
+        }
+        #expect(kinds == ["sep", "msg", "msg", "sep", "msg"])
+    }
+
+    @Test("timelineRows emits no divider for timestamp-less messages")
+    func timelineRowsNoTimestamps() {
+        let msgs = [
+            Timed(id: UUID(), sender: "A", body: "1", fromSelf: false, timestamp: nil),
+            Timed(id: UUID(), sender: "B", body: "2", fromSelf: true, timestamp: nil),
+        ]
+        let kinds = ChatTimestampFormatter.timelineRows(msgs).map { row -> String in
+            if case .separator = row { return "sep" }
+            return "msg"
+        }
+        #expect(kinds == ["msg", "msg"])
     }
 
     // MARK: - ChatDraft.sendMessage

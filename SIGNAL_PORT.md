@@ -431,6 +431,25 @@ rebuilt green (backward-compatible); the FAKELINKED screenshot confirms Family �
 `8m`, Coworker → `45m`, Notes To Self → `Yesterday` at the row trailing edges,
 bubbles + image intact.
 
+**Date separators in the transcript (2026-06-04, polish cont.):** the shared
+`ChatTimeline` now shows centered Today/Yesterday/weekday/date dividers between
+message groups, like real Signal. `ChatTimestampFormatter` gained
+`daySeparator(_:now:)` (Today / Yesterday / full weekday `EEEE` within the past
+week / `MMM d, yyyy`), a pure `needsDaySeparator(prev:current:calendar:)`
+(true for the first message or a calendar-day change; false for a timestamp-less
+message; calendar injectable), and `timelineRows(_:now:)` which splits `[M]` into
+a new `ChatTimelineRow` enum (`.separator`/`.message`, Identifiable). The timeline
+`ForEach` renders over those rows (`if case` — render-safe on SwiftOpenUI, no
+`switch`/standalone `let` in the ViewBuilder). All shared, so `quill-telegram`
+rebuilt green. Verified: the `QuillChatKitTests` target compiles clean with **3
+new Swift Testing cases** (needsDaySeparator first/same-day/diff-day/nil;
+timelineRows structure `sep,msg,msg,sep,msg`; no-timestamp → no dividers, all
+timezone-robust), and the FAKELINKED screenshot shows `Monday` (two −3d msgs, one
+divider), `Yesterday` (−1d), `Today` (−8m) — exercising every branch including the
+same-day skip — with bubbles, image, and row times intact. Remaining polish:
+non-image attachment chips (bridge attachment-kind metadata), a download
+spinner/placeholder, downscale tuning.
+
 **Bridge unit tests (2026-06-03):** the bridge gained its first `cargo test`
 coverage — 9 tests for the pure helpers `group_uuid` (too-short→None;
 deterministic 8-4-4-4-12 lowercase hex from the first 16 master-key bytes) and
