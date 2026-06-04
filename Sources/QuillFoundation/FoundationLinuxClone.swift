@@ -16,4 +16,14 @@ public extension NSString {
         NSString(string: String(format: format as String, arguments: args))
     }
 }
+
+public extension FileManager {
+    /// Clone of Apple's app-group container API, absent from
+    /// swift-corelibs-foundation. There are no app groups on Linux, so this
+    /// returns nil — callers degrade gracefully (e.g. WireGuard's
+    /// FileManager+Extension shared-folder / last-error URLs become nil).
+    func containerURL(forSecurityApplicationGroupIdentifier groupIdentifier: String) -> URL? {
+        nil
+    }
+}
 #endif

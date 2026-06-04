@@ -1251,7 +1251,7 @@ if wireguardUpstreamPresent {
     targets.append(
         .target(
             name: "QuillWireGuardConformanceUI",
-            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig"],
+            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
             path: ".upstream/wireguard-apple",
             sources: [
                 // Shared logging: Logger.swift (wg_log) over the ringlogger C
@@ -1261,6 +1261,9 @@ if wireguardUpstreamPresent {
                 // (SecTrustedApplication/SecAccess) via the Security shim. wg_log
                 // for failures. No real keychain on Linux (compile-only).
                 "Sources/Shared/Keychain.swift",
+                // Shared FileManager+Extension: app-group / log-file URLs + deleteFile;
+                // Foundation + os/wg_log. (networkExtensionLastErrorFileURL used by TunnelsManager.)
+                "Sources/Shared/FileManager+Extension.swift",
                 // NETunnelProviderProtocol+Extension: defines PacketTunnelProviderError
                 // + the protocol<->TunnelConfiguration bridge. Breaks the modularity
                 // wall via fetch-upstream patches (asWgQuickConfig/fromWgQuickConfig
