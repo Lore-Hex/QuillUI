@@ -1450,7 +1450,7 @@ let signalAppleFrameworkShims = [
     "UserNotifications", "SystemConfiguration", "StoreKit", "NaturalLanguage",
     "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio",
     "CocoaLumberjack", "SDWebImage", "SDWebImageWebPCoder", "blurhash",
-    "ObjectiveC", "System", "notify", "zlib",
+    "ObjCAssoc", "System", "notify", "zlib",
 ]
 #if os(Linux)
 for shimName in signalAppleFrameworkShims {
