@@ -243,6 +243,7 @@ var products: [Product] = [
     .library(name: "QuillSourceLowering", targets: ["QuillSourceLowering"]),
     .executable(name: "quill-source-lower", targets: ["quill-source-lower"]),
     .executable(name: "quill-lower-swiftui", targets: ["quill-lower-swiftui"]),
+    .executable(name: "quill-lower-appkit", targets: ["quill-lower-appkit"]),
     .library(name: "QuillDoctor", targets: ["QuillDoctor"]),
     .executable(name: "quill-doctor", targets: ["quill-doctor"]),
     // QuillPaint is the renderer-agnostic control paint layer. Apps using
@@ -668,6 +669,11 @@ var targets: [Target] = [
         name: "quill-lower-swiftui",
         dependencies: ["QuillSourceLowering"],
         path: "Sources/quill-lower-swiftui"
+    ),
+    .executableTarget(
+        name: "quill-lower-appkit",
+        dependencies: ["QuillSourceLowering"],
+        path: "Sources/quill-lower-appkit"
     ),
     .target(
         name: "QuillDoctor",
