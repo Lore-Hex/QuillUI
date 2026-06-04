@@ -173,7 +173,7 @@ if [[ ${#want[@]} -eq 0 ]]; then
     # from source"). Until the upstream is patched or replaced,
     # the CodeEdit work has to be opt-in via:
     #   scripts/fetch-upstream.sh codeedit codeeditsymbols
-    want=(enchanted netnewswire wireguard)
+    want=(enchanted netnewswire wireguard icecubes)
 fi
 
 for name in "${want[@]}"; do
@@ -187,6 +187,9 @@ for name in "${want[@]}"; do
         wireguard)
             fetch_repo wireguard-apple https://github.com/WireGuard/wireguard-apple.git
             patch_wireguard_apple
+            ;;
+        icecubes)
+            fetch_repo icecubes https://github.com/Dimillian/IceCubesApp.git
             ;;
         codeedit)
             fetch_repo codeedit https://github.com/CodeEditApp/CodeEdit.git
