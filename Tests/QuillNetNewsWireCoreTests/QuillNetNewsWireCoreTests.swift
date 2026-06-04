@@ -84,6 +84,32 @@ struct QuillNetNewsWireCoreTests {
         #expect(row.snippet.contains("First paragraph."))
     }
 
+    @Test("RSSArticleRow.timelineDateText is relative when dated, absolute fallback otherwise")
+    func rssArticleRowTimelineDate() {
+        // A real publication date → compact relative/short date via
+        // RelativeTime, NOT the absolute publishedSummary string.
+        let dated = RSSArticleRow(
+            id: "1", title: "T", publishedSummary: "Feb 2, 2026 at 6:58 AM",
+            publishedDate: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        #expect(dated.publishedDate != nil)
+        #expect(dated.timelineDateText != "Feb 2, 2026 at 6:58 AM")
+        // No date (string-only fixture) → falls back to the absolute summary.
+        let undated = RSSArticleRow(id: "2", title: "T", publishedSummary: "Feb 2, 2026 at 6:58 AM")
+        #expect(undated.publishedDate == nil)
+        #expect(undated.timelineDateText == "Feb 2, 2026 at 6:58 AM")
+    }
+
+    @Test("RSSArticleRow(item:) threads publishedDate from the item")
+    func rssArticleRowThreadsPublishedDate() {
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let item = RSSItem(
+            id: "1", title: "T", link: nil, pubDate: "x",
+            publishedDate: date, descriptionHTML: "<p>body</p>"
+        )
+        #expect(RSSArticleRow(item: item).publishedDate == date)
+    }
+
     // MARK: - Reader model derived state
 
     @MainActor

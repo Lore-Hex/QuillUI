@@ -343,8 +343,8 @@ public struct QuillNetNewsWireContentView: View {
                         .lineLimit(2)
                         .frame(width: 232, alignment: .leading)
                 }
-                if !item.publishedSummary.isEmpty {
-                    Text(item.publishedSummary)
+                if !item.timelineDateText.isEmpty {
+                    Text(item.timelineDateText)
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .frame(width: 232, alignment: .leading)
@@ -472,6 +472,10 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
     public let title: String
     public let link: String?
     public let pubDate: String?
+    /// Raw publication `Date` when the feed parser produced one. Drives the
+    /// timeline's relative "time ago" display; nil for string-only fixtures
+    /// or feeds without a parseable date (the row falls back to `pubDate`).
+    public let publishedDate: Date?
     public let descriptionHTML: String?
     /// Byline shown under the title in the detail header. nil when
     /// the feed didn't carry an `<author>` / `<dc:creator>`.
@@ -491,6 +495,7 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
         title: String,
         link: String?,
         pubDate: String?,
+        publishedDate: Date? = nil,
         descriptionHTML: String?,
         author: String? = nil
     ) {
@@ -498,6 +503,7 @@ public struct RSSItem: Identifiable, Hashable, Sendable {
         self.title = title
         self.link = link
         self.pubDate = pubDate
+        self.publishedDate = publishedDate
         self.descriptionHTML = descriptionHTML
         self.author = author
         self.linkURL = link.flatMap { URL(string: $0) }
@@ -511,14 +517,18 @@ public struct RSSArticleRow: Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let publishedSummary: String
+    /// Raw publication `Date` (threaded from `RSSItem`) for the timeline's
+    /// relative "time ago" rendering; nil falls back to `publishedSummary`.
+    public let publishedDate: Date?
     /// Short plain-text preview shown under the title, like
     /// NetNewsWire's two-line timeline snippet.
     public let snippet: String
 
-    public init(id: String, title: String, publishedSummary: String, snippet: String = "") {
+    public init(id: String, title: String, publishedSummary: String, publishedDate: Date? = nil, snippet: String = "") {
         self.id = id
         self.title = title
         self.publishedSummary = publishedSummary
+        self.publishedDate = publishedDate
         self.snippet = snippet
     }
 
@@ -527,8 +537,17 @@ public struct RSSArticleRow: Identifiable, Hashable, Sendable {
             id: item.id,
             title: item.title,
             publishedSummary: item.publishedSummary,
+            publishedDate: item.publishedDate,
             snippet: HTMLText.snippet(fromPlainText: item.plainTextBody)
         )
+    }
+
+    /// Timeline date label: a relative "time ago" / short date derived from
+    /// `publishedDate` via the shared `QuillFoundation.RelativeTime` (matching
+    /// NetNewsWire's compact timeline) when present, else the absolute
+    /// `publishedSummary` fallback used by string-only fixtures.
+    public var timelineDateText: String {
+        publishedDate.map { RelativeTime.string(for: $0, now: Date()) } ?? publishedSummary
     }
 }
 
@@ -1209,12 +1228,25 @@ final class RSSReaderModel: ObservableObject {
         }
     }
 
+    /// Builds a fixture publication `Date` (all fixtures are 2026) so the
+    /// offline demo timeline exercises the same relative-date rendering path
+    /// (`RSSArticleRow.timelineDateText` → `RelativeTime`) as live feeds.
+    private static func fixtureDate(_ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
+        // Fully qualify Foundation's types: on Linux, QuillUI re-exports
+        // SwiftOpenUI, which defines its own `DateComponents`/`Calendar` that
+        // would otherwise shadow Foundation's here.
+        var c = Foundation.DateComponents()
+        c.year = 2026; c.month = month; c.day = day; c.hour = hour; c.minute = minute
+        return Foundation.Calendar(identifier: .gregorian).date(from: c) ?? Date(timeIntervalSince1970: 0)
+    }
+
     private static let profileFixtureItems: [RSSItem] = [
         RSSItem(
             id: "1",
             title: "Painting the Natural World Before Photography",
             link: "https://example.test/1",
             pubDate: "Feb 2, 2026 at 6:58 AM",
+            publishedDate: RSSReaderModel.fixtureDate(2, 2, 6, 58),
             descriptionHTML: """
             <p>Decades before the advent of photography, when European scientists and \
             explorers were undertaking grand expeditions, painters documented the natural \
@@ -1233,6 +1265,7 @@ final class RSSReaderModel: ObservableObject {
             title: "A Quiet Update to the Swift Concurrency Model",
             link: "https://example.test/2",
             pubDate: "Feb 1, 2026 at 9:12 AM",
+            publishedDate: RSSReaderModel.fixtureDate(2, 1, 9, 12),
             descriptionHTML: """
             <p>The latest toolchain refines how isolated conformances interact with \
             main-actor views, smoothing a rough edge that Linux UI code hit often.</p>\
@@ -1246,6 +1279,7 @@ final class RSSReaderModel: ObservableObject {
             title: "Swift.org toolchain update",
             link: "https://example.test/3",
             pubDate: "Jan 30, 2026 at 4:05 PM",
+            publishedDate: RSSReaderModel.fixtureDate(1, 30, 16, 5),
             descriptionHTML: "<p>Compiler and package manager notes for Linux app smoke runs.</p>",
             author: "The Swift Team"
         ),
@@ -1254,6 +1288,7 @@ final class RSSReaderModel: ObservableObject {
             title: "Point-Free dependency release",
             link: "https://example.test/4",
             pubDate: "Jan 29, 2026 at 11:20 AM",
+            publishedDate: RSSReaderModel.fixtureDate(1, 29, 11, 20),
             descriptionHTML: "<p>Dependency injection notes and performance guardrails.</p>",
             author: "Brandon Williams"
         ),
@@ -1262,6 +1297,7 @@ final class RSSReaderModel: ObservableObject {
             title: "Linux backend smoke notes",
             link: "https://example.test/5",
             pubDate: "Jan 28, 2026 at 8:00 AM",
+            publishedDate: RSSReaderModel.fixtureDate(1, 28, 8, 0),
             descriptionHTML: "<p>Fixture article used to keep GTK and Qt row selection checks deterministic.</p>"
         ),
     ]
@@ -1363,6 +1399,7 @@ struct RSSFeedParser {
             title: title,
             link: item.url,
             pubDate: formatPubDate(item.datePublished),
+            publishedDate: item.datePublished,
             descriptionHTML: body,
             author: author
         )
