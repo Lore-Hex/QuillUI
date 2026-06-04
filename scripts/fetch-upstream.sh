@@ -327,6 +327,33 @@ src = src.replace('import Foundation\n', 'import Foundation\nimport WireGuardKit
 open(path, "w").write(src); print("patched TunnelViewModel.swift imports")
 PY
     fi
+
+    # ErrorPresenter does NSAlert UI from nonisolated static funcs that touch
+    # NSViewController.view, which the QuillAppKit shadow marks @MainActor. The
+    # real presenter is effectively main-actor — annotate the protocol + the
+    # macOS class @MainActor so it compiles under the shadow's concurrency.
+    # (VCs are NSViewController subclasses => already implicitly @MainActor, so
+    # only nonisolated helpers like this need the annotation.)
+    local epp="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/ErrorPresenterProtocol.swift"
+    if [[ -f "$epp" ]] && ! grep -q '@MainActor' "$epp"; then
+        echo "==> patching ErrorPresenterProtocol.swift @MainActor"
+        python3 - "$epp" <<'PY'
+import sys
+path = sys.argv[1]; src = open(path).read()
+open(path, "w").write(src.replace('protocol ErrorPresenterProtocol {', '@MainActor\nprotocol ErrorPresenterProtocol {', 1))
+print("patched ErrorPresenterProtocol @MainActor")
+PY
+    fi
+    local epm="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/ErrorPresenter.swift"
+    if [[ -f "$epm" ]] && ! grep -q '@MainActor' "$epm"; then
+        echo "==> patching ErrorPresenter.swift @MainActor"
+        python3 - "$epm" <<'PY'
+import sys
+path = sys.argv[1]; src = open(path).read()
+open(path, "w").write(src.replace('class ErrorPresenter: ErrorPresenterProtocol {', '@MainActor\nclass ErrorPresenter: ErrorPresenterProtocol {', 1))
+print("patched ErrorPresenter @MainActor")
+PY
+    fi
 }
 
 patch_icecubes() {
