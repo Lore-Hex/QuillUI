@@ -33,6 +33,9 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     private var interactiveUpdateDepth = 0
     private var rebuildDeferredDuringInteraction = false
     private var pendingAnimation: Animation?
+    private var taskPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4TaskPayload] = [:]
+    private var activeTasksByIdentity: [GTK4DescriptorIdentity: Task<Void, Never>] = [:]
+    private var taskLifecycleSuspended = false
     /// True when the pending/next rebuild was requested by withObservationTracking's
     /// onChange callback. withObservationTracking is one-shot: once it fires, the
     /// observation is no longer registered, and the only way to re-subscribe is to
@@ -90,12 +93,109 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
                 hostRef.release()
             }
         )
+        let hostPointer = Unmanaged.passUnretained(self).toOpaque()
+        g_signal_connect_data(
+            gpointer(box),
+            "map",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                let host = Unmanaged<GTKViewHost>.fromOpaque(userData!).takeUnretainedValue()
+                host.resumeTasksAfterAppear()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            hostPointer,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        g_signal_connect_data(
+            gpointer(box),
+            "unmap",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                let host = Unmanaged<GTKViewHost>.fromOpaque(userData!).takeUnretainedValue()
+                host.suspendTasksForDisappear()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            hostPointer,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
     }
 
     private func markContainerDestroyed() {
+        let tasksToCancel: [Task<Void, Never>]
         lock.lock()
         isContainerAlive = false
         scheduled = false
+        taskLifecycleSuspended = true
+        taskPayloadsByIdentity.removeAll()
+        tasksToCancel = Array(activeTasksByIdentity.values)
+        activeTasksByIdentity.removeAll()
+        lock.unlock()
+        tasksToCancel.forEach { $0.cancel() }
+    }
+
+    func updateTaskLifecycle(
+        descriptorRoot: GTK4IdentifiedDescriptorNode,
+        taskPayloads: [GTK4TaskPayload]
+    ) {
+        reconcileTaskPayloads(
+            gtkTaskPayloadsByIdentity(
+                descriptorRoot: descriptorRoot,
+                payloads: taskPayloads
+            )
+        )
+    }
+
+    private func reconcileTaskPayloads(
+        _ newPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4TaskPayload]
+    ) {
+        var tasksToCancel: [Task<Void, Never>] = []
+
+        lock.lock()
+        taskPayloadsByIdentity = newPayloadsByIdentity
+
+        let staleIdentities = activeTasksByIdentity.keys.filter { newPayloadsByIdentity[$0] == nil }
+        for identity in staleIdentities {
+            if let task = activeTasksByIdentity.removeValue(forKey: identity) {
+                tasksToCancel.append(task)
+            }
+        }
+
+        if !taskLifecycleSuspended {
+            for (identity, payload) in newPayloadsByIdentity where activeTasksByIdentity[identity] == nil {
+                startTaskLocked(identity: identity, payload: payload)
+            }
+        }
+        lock.unlock()
+
+        tasksToCancel.forEach { $0.cancel() }
+    }
+
+    private func startTaskLocked(identity: GTK4DescriptorIdentity, payload: GTK4TaskPayload) {
+        let action = payload.action
+        activeTasksByIdentity[identity] = Task(priority: payload.priority) {
+            await action()
+        }
+    }
+
+    private func suspendTasksForDisappear() {
+        let tasksToCancel: [Task<Void, Never>]
+        lock.lock()
+        taskLifecycleSuspended = true
+        tasksToCancel = Array(activeTasksByIdentity.values)
+        activeTasksByIdentity.removeAll()
+        lock.unlock()
+
+        tasksToCancel.forEach { $0.cancel() }
+    }
+
+    private func resumeTasksAfterAppear() {
+        lock.lock()
+        guard isContainerAlive else {
+            lock.unlock()
+            return
+        }
+        taskLifecycleSuspended = false
+        for (identity, payload) in taskPayloadsByIdentity where activeTasksByIdentity[identity] == nil {
+            startTaskLocked(identity: identity, payload: payload)
+        }
         lock.unlock()
     }
 
@@ -417,6 +517,10 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             let canvasPayloads = gtkCanvasPayloadsByIdentity(
                 descriptorRoot: identified,
                 payloads: described.canvasPayloads
+            )
+            updateTaskLifecycle(
+                descriptorRoot: identified,
+                taskPayloads: described.taskPayloads
             )
             gtkTagFocusableInputIdentities(in: newChild, descriptorRoot: identified)
             rebuiltDescriptorState = RebuiltDescriptorState(
