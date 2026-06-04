@@ -113,6 +113,18 @@ struct QuillNetNewsWireCoreTests {
     // MARK: - Reader model derived state
 
     @MainActor
+    @Test("markAllRead marks every timeline article read")
+    func markAllReadMarksTimeline() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Seeded selection auto-reads item 1; items 2–5 remain unread.
+        #expect(model.hasUnreadInTimeline)
+        model.markAllRead()
+        #expect(!model.hasUnreadInTimeline)
+        #expect(model.filteredRows.allSatisfy { model.isRead(id: $0.id) })
+    }
+
+    @MainActor
     @Test("RSSReaderModel keeps selected item + status text cached")
     func readerModelDerivedState() {
         let model = RSSReaderModel()
