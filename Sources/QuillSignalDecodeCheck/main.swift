@@ -157,8 +157,18 @@ if let r = c.decode(MessagesResponse.self, #"{"ok":true,"cmd":"list-messages","m
     c.check("from_self:true -> fromSelf==true", msgs[0].fromSelf == true)
     c.check("from_self:false -> fromSelf==false", msgs[1].fromSelf == false)
     c.check("missing from_self -> fromSelf==nil", msgs[2].fromSelf == nil)
+    c.check("no attachment_path -> attachmentPath==nil", msgs[0].attachmentPath == nil)
 } else {
     c.check("list-messages decodes", false)
+}
+
+// 11b. list-messages with attachment_path — present maps to attachmentPath, absent is nil
+if let r = c.decode(MessagesResponse.self, #"{"ok":true,"cmd":"list-messages","msg":"ok","data":{"messages":[{"body":"pic","timestamp":1700000004000,"sender":"ddd","from_self":false,"attachment_path":"/tmp/qs-att-deadbeef.png"},{"body":"text only","timestamp":1700000005000,"sender":"eee","from_self":false}]}}"#),
+   let msgs = r.data?.messages {
+    c.check("attachment_path -> attachmentPath set", msgs[0].attachmentPath == "/tmp/qs-att-deadbeef.png")
+    c.check("missing attachment_path -> attachmentPath nil", msgs[1].attachmentPath == nil)
+} else {
+    c.check("list-messages attachment_path decodes", false)
 }
 
 // 12. whoami — registered with number

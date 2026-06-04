@@ -346,8 +346,29 @@ the path; a fixture demonstrates it. Screenshot-verified via FAKELINKED: a
 gradient image renders cleanly in a received bubble, aspect-correct, existing
 text bubbles intact. (GTK note: `.frame(maxWidth:)`/`.scaledToFit()` on an image
 aren't honored by the GTK backend → natural size is reliable, so the bridge will
-downscale attachments to a sane thumbnail dimension.) Next: bridge
-`get_attachment` → temp file (+ downscale) → `attachment_path` wired through.
+downscale attachments to a sane thumbnail dimension.)
+
+**Inline image attachments — bridge slice (2026-06-04, user-directed):** `list-messages`
+now downloads received images and reports a local path. To dodge the borrow
+conflict (the store's message iterator is alive while `get_attachment` needs the
+manager), it runs **two passes**: pass 1 drains the iterator into rows, cloning
+the first eligible image pointer per message (`first_image_attachment` — an
+`image/*` content type that also carries a digest, since the digest is required
+to fetch + verify); pass 2 — iterator dropped — calls `manager.get_attachment`,
+decodes via the `image` crate (png/**jpeg**/gif features), downscales with
+`.thumbnail(280, 280)`, and saves a PNG to a digest-keyed temp path
+(`thumbnail_cache_path` → `qs-att-<first-8-digest-bytes-hex>.png`) so re-opening a
+thread reuses the cached thumbnail with no re-download. Each row emits
+`attachment_path` (null when absent / on any download/decode failure — the text
+`[attachment: …]` marker still shows). App side: `BridgeStoredMessage` gained an
+optional `attachmentPath` (key `attachment_path`) and `loadMessages` maps it into
+`Message.attachmentImagePath`. 6 new bridge unit tests (15 total) cover the two
+pure helpers; a decode-check asserts `attachment_path` present→set / absent→nil.
+Compile-verified end-to-end (bridge build+tests, GTK app, decode-check, FAKELINKED
+screenshot); the real CDN download is gated on a linked account. Live receive
+still shows the text marker — opening the thread renders the image. Deferred:
+receive-stream inline images (the stream holds `&mut manager`), non-image
+attachment chips, webp decode.
 
 **Bridge unit tests (2026-06-03):** the bridge gained its first `cargo test`
 coverage — 9 tests for the pure helpers `group_uuid` (too-short→None;

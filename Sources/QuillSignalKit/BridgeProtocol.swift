@@ -37,10 +37,15 @@ public struct BridgeStoredMessage: Codable, Sendable {
     public let timestamp: UInt64?
     public let sender: String?
     public let fromSelf: Bool?
+    /// Local file path of a downloaded inline image attachment, or nil for a
+    /// text-only message. The bridge downloads + downscales received images and
+    /// reports the cached PNG path here. Optional, so older payloads still decode.
+    public let attachmentPath: String?
 
     enum CodingKeys: String, CodingKey {
         case body, timestamp, sender
         case fromSelf = "from_self"
+        case attachmentPath = "attachment_path"
     }
 }
 

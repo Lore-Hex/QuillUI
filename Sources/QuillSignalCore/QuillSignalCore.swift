@@ -273,7 +273,8 @@ public final class QuillSignalModel: ObservableObject {
                         sender: m.sender ?? "",
                         body: m.body ?? "",
                         fromSelf: m.fromSelf ?? false,
-                        timestamp: m.timestamp.map { Date(timeIntervalSince1970: Double($0) / 1000.0) }
+                        timestamp: m.timestamp.map { Date(timeIntervalSince1970: Double($0) / 1000.0) },
+                        attachmentImagePath: m.attachmentPath
                     )
                 }
                 Self.log("loaded \(loaded.count) messages for \(threadUuid)")
