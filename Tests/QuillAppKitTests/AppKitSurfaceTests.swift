@@ -43,4 +43,16 @@ struct AppKitSurfaceTests {
         #expect(view.layoutGuides.isEmpty)
         #expect(guide.owningView == nil)
     }
+
+    @Test("NSImage template-name constants + NSEvent.specialKey (WireGuard's tunnels list)")
+    func nsImageTemplateNamesAndSpecialKey() {
+        // NSImage(named: NSImage.addTemplateName) etc. in the toolbar.
+        #expect(NSImage.addTemplateName == "NSAddTemplate")
+        #expect(NSImage.removeTemplateName == "NSRemoveTemplate")
+        #expect(NSImage.actionTemplateName == "NSActionTemplate")
+        // event.specialKey == .delete in keyDown; nil compile-stub on Linux.
+        #expect(NSEvent().specialKey == nil)
+        #expect(NSEvent.SpecialKey.delete == NSEvent.SpecialKey.delete)
+        #expect(NSEvent.SpecialKey.delete != NSEvent.SpecialKey.tab)
+    }
 }

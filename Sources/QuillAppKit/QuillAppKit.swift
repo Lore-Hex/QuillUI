@@ -52,6 +52,14 @@ public let NSNotFound: Int = Int.max
 public typealias NSImage = RSImage
 public typealias NSColor = RSColor
 public typealias NSFont = RSFont
+
+public extension NSImage {
+    // Apple's standard template-image names (NSImage.Name = String). Used as
+    // `NSImage(named: NSImage.addTemplateName)` (WireGuard's tunnels toolbar).
+    static let addTemplateName = "NSAddTemplate"
+    static let removeTemplateName = "NSRemoveTemplate"
+    static let actionTemplateName = "NSActionTemplate"
+}
 public typealias NSScreen = RSScreen
 
 // `NSBitmapImageRep` is the AppKit type that converts between
@@ -1409,6 +1417,20 @@ open class NSEvent: NSObject, @unchecked Sendable {
         public static let function = ModifierFlags(rawValue: 1 << 23)
         public static let deviceIndependentFlagsMask = ModifierFlags(rawValue: 0xffff_0000)
     }
+    /// Mirrors `NSEvent.SpecialKey` (the subset apps check, e.g. WireGuard's
+    /// `event.specialKey == .delete`). Apple models it as a struct.
+    public struct SpecialKey: Equatable, Sendable {
+        public let rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+        public static let delete = SpecialKey(rawValue: 0x7f)
+        public static let backspace = SpecialKey(rawValue: 8)
+        public static let carriageReturn = SpecialKey(rawValue: 13)
+        public static let enter = SpecialKey(rawValue: 3)
+        public static let tab = SpecialKey(rawValue: 9)
+    }
+    /// The special key for this event, or nil. Compile-only stub on Linux (no
+    /// real key events); a runtime layer would compute it from the key code.
+    public var specialKey: SpecialKey? { nil }
     public enum EventType: UInt, Sendable {
         case leftMouseDown = 1, leftMouseUp = 2, rightMouseDown = 3, rightMouseUp = 4
         case mouseMoved = 5, leftMouseDragged = 6, rightMouseDragged = 7
