@@ -298,8 +298,17 @@ groups. Bridge builds clean; compile-verified (empty until linked).
 `ServiceId`) used by both `list-messages` and `send`. `send_text` now branches:
 `Thread::Group` → `send_message_to_group(&master_key, …)`, `Thread::Contact` →
 `send_message(service_id, …)`. Bridge builds clean; compile-verified, never
-auto-invoked vs a real account. Remaining: GROUPS3b = receive group messages
-(derive the group uuid from `DataMessage.group_v2`).
+auto-invoked vs a real account.
+
+**Groups — slice 3b + COMPLETE (2026-06-03):** `receive_stream` now reads
+`DataMessage.group_v2` — a group message's emitted `thread` is the group's
+derived uuid (`group_uuid` of `group_v2.master_key`), a 1:1 stays keyed by the
+sender — so incoming group messages land in the right conversation.
+**Groups is complete: enumerate + read + send + receive**, all mapped
+bridge-side (group master key ↔ deterministic UUID) so the QuillUI app stayed
+**100% UUID-based with zero model change** — groups flow through the same
+sidebar, timeline, composer, dedup, and notifications as contacts. Compile-
+verified across all slices (groups are empty until a real link).
 
 ---
 
