@@ -83,6 +83,11 @@ public class CNLabeledValue<ValueType> {
         self.label = label
         self.value = value
     }
+
+    /// The localized, user-visible name for a label (e.g. CNLabelHome -> "home").
+    /// On iOS Contacts localizes the canonical `_$!<Home>!$_` tokens; on Linux we
+    /// return the label string unchanged (best-effort, no Contacts localization).
+    public static func localizedString(forLabel label: String) -> String { label }
 }
 
 public class CNContact: NSObject {
