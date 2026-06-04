@@ -398,4 +398,38 @@ struct QuillIceCubesCoreTests {
         #expect(IceCubesContentRuns.segments(fromHTML: "<p>a &amp; b &lt;tag&gt;</p>")
             == [IceCubesContentSegment(text: "a & b <tag>", isAccent: false)])
     }
+
+    // MARK: - Sidebar tabs
+
+    @Test("IceCubesTab maps timeline vs standalone sections")
+    func tabShowsTimeline() {
+        #expect(IceCubesTab.home.showsTimeline)
+        #expect(IceCubesTab.local.showsTimeline)
+        #expect(IceCubesTab.federated.showsTimeline)
+        #expect(!IceCubesTab.notifications.showsTimeline)
+        #expect(!IceCubesTab.explore.showsTimeline)
+        #expect(!IceCubesTab.settings.showsTimeline)
+    }
+
+    @Test("IceCubesTab carries title + SF symbol + locality; all six present")
+    func tabMetadata() {
+        #expect(IceCubesTab.home.title == "Home")
+        #expect(IceCubesTab.federated.systemImage == "globe")
+        // Only Local pins to the current server's public timeline.
+        #expect(IceCubesTab.local.prefersLocalTimeline)
+        #expect(!IceCubesTab.home.prefersLocalTimeline)
+        #expect(!IceCubesTab.federated.prefersLocalTimeline)
+        #expect(IceCubesTab.allCases.count == 6)
+    }
+
+    @Test("QuillIceCubesInitialTab resolves the env tab, defaulting to Home")
+    func initialTabFromEnvironment() {
+        let key = QuillIceCubesInitialTab.selectedTabEnvironmentKey
+        #expect(QuillIceCubesInitialTab.selectedTab(environment: [:]) == .home)
+        #expect(QuillIceCubesInitialTab.selectedTab(environment: [key: "notifications"]) == .notifications)
+        // Case-insensitive + whitespace-tolerant.
+        #expect(QuillIceCubesInitialTab.selectedTab(environment: [key: " Federated "]) == .federated)
+        // Unknown value falls back to Home.
+        #expect(QuillIceCubesInitialTab.selectedTab(environment: [key: "bogus"]) == .home)
+    }
 }
