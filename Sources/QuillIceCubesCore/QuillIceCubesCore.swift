@@ -969,7 +969,43 @@ public enum QuillIceCubesProfileFixtures {
         ),
     ]
 
+#if ICECUBES_REAL_MODELS
+    /// On gtk Linux the fixture timeline renders from the REAL vendored
+    /// Models.Status (decoded from a Mastodon-shaped payload), proving the
+    /// upstream Models + HTMLString + the segments(fromHTML:) bridge
+    /// end-to-end — not the reimpl. macOS / qt keep the reimpl path below.
+    public static let rows: [IceCubesTimelineRow] = decodeRealModelRows()
+
+    static func decodeRealModelRows() -> [IceCubesTimelineRow] {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        guard let data = realModelStatusesJSON.data(using: .utf8),
+              let real = try? decoder.decode([Models.Status].self, from: data)
+        else {
+            return statuses.map(IceCubesTimelineRow.init(status:))
+        }
+        return real.map { IceCubesTimelineRow(realStatus: $0) }
+    }
+
+    static let realModelStatusesJSON = #"""
+    [
+      { "id": "1", "content": "<p>Canary rollout healthy after 30m. cc <a href='https://mastodon.social/@deploybot' class='u-url mention'>@<span>deploybot</span></a></p>",
+        "created_at": "2026-06-03T22:00:00.000Z", "replies_count": 1, "reblogs_count": 4, "favourites_count": 12,
+        "media_attachments": [], "mentions": [], "emojis": [], "tags": [], "visibility": "public", "spoiler_text": "", "sensitive": false,
+        "account": { "id": "2", "username": "deploybot", "acct": "deploybot", "display_name": "Deploy Bot", "avatar": "https://files.mastodon.social/a/1.png", "header": "https://files.mastodon.social/h/1.png", "note": "", "created_at": "2025-01-01T00:00:00.000Z", "fields": [], "locked": false, "emojis": [], "bot": true } },
+      { "id": "2", "content": "<p>Desktop packaging notes are ready.<br>Next up: the toolchain smoke run.</p>",
+        "created_at": "2026-06-03T20:00:00.000Z", "replies_count": 6, "reblogs_count": 19, "favourites_count": 47,
+        "media_attachments": [], "mentions": [], "emojis": [], "tags": [], "visibility": "public", "spoiler_text": "", "sensitive": false,
+        "account": { "id": "3", "username": "swiftlinux", "acct": "swiftlinux", "display_name": "Swift on Linux", "avatar": "https://files.mastodon.social/a/2.png", "header": "https://files.mastodon.social/h/2.png", "note": "", "created_at": "2025-01-01T00:00:00.000Z", "fields": [], "locked": false, "emojis": [], "bot": false } },
+      { "id": "3", "content": "<p>Selection polish across GTK and Qt — see <a href='https://mastodon.social/tags/SwiftOnLinux' class='mention hashtag'>#<span>SwiftOnLinux</span></a> <a href='https://swift.org/blog/swift-on-linux'><span class='invisible'>https://</span><span class='ellipsis'>swift.org/blog</span><span class='invisible'>/swift-on-linux</span></a></p>",
+        "created_at": "2026-06-01T12:00:00.000Z", "replies_count": 12, "reblogs_count": 140, "favourites_count": 1280,
+        "media_attachments": [], "mentions": [], "emojis": [], "tags": [], "visibility": "public", "spoiler_text": "", "sensitive": false,
+        "account": { "id": "5", "username": "design", "acct": "design", "display_name": "Mastodon Design", "avatar": "https://files.mastodon.social/a/3.png", "header": "https://files.mastodon.social/h/3.png", "note": "", "created_at": "2025-01-01T00:00:00.000Z", "fields": [], "locked": false, "emojis": [], "bot": false } }
+    ]
+    """#
+#else
     public static let rows: [IceCubesTimelineRow] = statuses.map(IceCubesTimelineRow.init(status:))
+#endif
 }
 
 #if ICECUBES_REAL_MODELS
