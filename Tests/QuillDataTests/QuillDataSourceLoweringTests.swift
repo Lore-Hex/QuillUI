@@ -21,6 +21,7 @@ struct QuillDataSourceLoweringTests {
         final class ConversationSD: Identifiable {
             @Attribute(.unique) var id: UUID = UUID()
             @Relationship(deleteRule: .nullify) var model: LanguageModelSD?
+            @Relationship(deleteRule: .cascade, inverse: \\MessageSD.conversation) var messages: [MessageSD] = []
             @Transient var title: String { model?.name ?? "" }
 
             init(model: LanguageModelSD? = nil) {
@@ -51,12 +52,18 @@ struct QuillDataSourceLoweringTests {
 
         let script = root.appendingPathComponent("scripts/lower-swiftdata-for-quilldata.sh")
         let scriptSource = try String(contentsOf: script, encoding: .utf8)
-        #expect(scriptSource.contains("command -v rg"))
-        #expect(scriptSource.contains("grep -nE"))
+        #expect(scriptSource.contains("quill-source-lower"))
+        #expect(scriptSource.contains("QUILLUI_SOURCE_LOWER"))
+        #expect(scriptSource.contains("--disable-sandbox"))
+        #expect(!scriptSource.contains("perl -0pi"))
+        let lowerer = try builtQuillSourceLowerExecutable(root: root)
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path, source.path, output.path]
+        process.environment = ProcessInfo.processInfo.environment.merging(
+            ["QUILLUI_SOURCE_LOWER": lowerer.path]
+        ) { _, new in new }
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
@@ -73,7 +80,12 @@ struct QuillDataSourceLoweringTests {
         #expect(lowered.contains("final class ConversationSD: Identifiable, PersistentModel {"))
         #expect(lowered.contains("final class MessageSD: Identifiable, PersistentModel {"))
         #expect(lowered.contains("var title: String"))
-        #expect(lowered.contains("#QuillPredicate<ConversationSD> { $0.id == conversationId }"))
+        #expect(lowered.contains("#QuillPredicate<ConversationSD>"))
+        #expect(lowered.contains("QuillRelationships.relationshipDidSet("))
+        #expect(lowered.contains("_ = Self.__quillRelationshipsRegistered"))
+        #expect(lowered.contains("QuillRelationships.registerInverse("))
+        #expect(lowered.contains("toMany: \\ConversationSD.messages"))
+        #expect(lowered.contains("toOne: \\MessageSD.conversation"))
         #expect(lowered.contains("self.model = model"))
         #expect(!lowered.contains("self.conversation = conversation"))
         #expect(!lowered.contains("@Model"))
@@ -1879,8 +1891,37 @@ struct QuillDataSourceLoweringTests {
         }
         throw SourceLoweringTestError.packageRootNotFound
     }
+
+    private func builtQuillSourceLowerExecutable(root: URL) throws -> URL {
+        let fileManager = FileManager.default
+        let direct = root.appendingPathComponent(".build/debug/quill-source-lower")
+        if fileManager.isExecutableFile(atPath: direct.path) {
+            return direct
+        }
+
+        let buildDirectory = root.appendingPathComponent(".build", isDirectory: true)
+        guard let enumerator = fileManager.enumerator(
+            at: buildDirectory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            throw SourceLoweringTestError.quillSourceLowerNotBuilt
+        }
+
+        for case let candidate as URL in enumerator {
+            guard candidate.lastPathComponent == "quill-source-lower",
+                  fileManager.isExecutableFile(atPath: candidate.path)
+            else {
+                continue
+            }
+            return candidate
+        }
+
+        throw SourceLoweringTestError.quillSourceLowerNotBuilt
+    }
 }
 
 private enum SourceLoweringTestError: Error {
     case packageRootNotFound
+    case quillSourceLowerNotBuilt
 }
