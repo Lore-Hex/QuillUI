@@ -366,11 +366,17 @@ public struct QuillNetNewsWireContentView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
             Spacer()
-            Button(model.isLoading ? "Refreshing…" : "Refresh") {
-                Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
-            }
-            .font(.caption2)
-            .disabled(model.isLoading)
+            // SF-Symbol refresh control (arrow.clockwise), like NetNewsWire's
+            // toolbar refresh; grays out + ignores taps while a load is in
+            // flight instead of a disabled text button.
+            Image(systemName: "arrow.clockwise")
+                .font(.caption2)
+                .foregroundColor(model.isLoading ? .secondary : .blue)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard !model.isLoading else { return }
+                    Task { @MainActor in await model.refresh(urlString: activeFeedURL) }
+                }
         }
         .padding(10)
     }
@@ -398,10 +404,11 @@ public struct QuillNetNewsWireContentView: View {
                             Spacer()
                             // Star toggle — same affordance as upstream
                             // NetNewsWire's article-toolbar star button.
-                            Button(model.isStarred(id: item.id) ? "★" : "☆") {
-                                model.toggleStarred(id: item.id)
-                            }
-                            .font(.title3)
+                            Image(systemName: model.isStarred(id: item.id) ? "star.fill" : "star")
+                                .font(.title3)
+                                .foregroundColor(model.isStarred(id: item.id) ? .yellow : .secondary)
+                                .contentShape(Rectangle())
+                                .onTapGesture { model.toggleStarred(id: item.id) }
                         }
                         // Headline.
                         Text(item.title)
