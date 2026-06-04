@@ -344,6 +344,14 @@ deterministic 8-4-4-4-12 lowercase hex from the first 16 master-key bytes) and
 `file` fallback; text+attachment newline-joined; multiple attachments
 comma-joined). All passing; run with `cargo test -p quill-signal-bridge`.
 
+**Sender contact names (2026-06-03):** `receive` now resolves the sender's
+contact name — the bridge snapshots contacts (uuid→name) before the receive
+stream borrows the manager, then emits `sender_name` per message (null for an
+unsaved sender). The app (`IncomingMessage.senderName`) names a new conversation
+(from an unknown thread) and the notification by the contact name instead of the
+raw uuid, falling back to the uuid / "Signal". Bridge + 9 tests + app +
+decode-check (incl `sender_name` value/null) green; launch smoke clean.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

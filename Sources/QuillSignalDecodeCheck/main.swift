@@ -177,16 +177,23 @@ if let r = c.decode(WhoamiResponse.self, #"{"ok":true,"cmd":"whoami","msg":"not 
     c.check("whoami unregistered decodes", false)
 }
 
-// 13. incoming receive-stream message event (fields + from_self mapping)
-if let m = c.decode(IncomingMessage.self, #"{"event":"message","thread":"33333333-3333-3333-3333-333333333333","sender":"33333333-3333-3333-3333-333333333333","body":"incoming hi","timestamp":1700000003000,"from_self":false}"#) {
+// 13. incoming receive-stream message event (fields + from_self + sender_name)
+if let m = c.decode(IncomingMessage.self, #"{"event":"message","thread":"33333333-3333-3333-3333-333333333333","sender":"33333333-3333-3333-3333-333333333333","sender_name":"Alice","body":"incoming hi","timestamp":1700000003000,"from_self":false}"#) {
     c.check("incoming event==message", m.event == "message")
     c.check("incoming thread", m.thread == "33333333-3333-3333-3333-333333333333")
     c.check("incoming sender", m.sender == "33333333-3333-3333-3333-333333333333")
+    c.check("incoming sender_name -> senderName==Alice", m.senderName == "Alice")
     c.check("incoming body", m.body == "incoming hi")
     c.check("incoming timestamp", m.timestamp == 1_700_000_003_000)
     c.check("incoming from_self:false -> fromSelf==false", m.fromSelf == false)
 } else {
     c.check("incoming message decodes", false)
+}
+// 13c. incoming with sender_name null -> senderName nil
+if let m = c.decode(IncomingMessage.self, #"{"event":"message","thread":"t","sender":"t","sender_name":null,"body":"x","timestamp":1}"#) {
+    c.check("incoming sender_name:null -> senderName==nil", m.senderName == nil)
+} else {
+    c.check("incoming (null sender_name) decodes", false)
 }
 
 // 13b. incoming from_self:true (own message synced from another device)

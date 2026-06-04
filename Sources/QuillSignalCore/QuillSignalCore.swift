@@ -326,13 +326,14 @@ public final class QuillSignalModel: ObservableObject {
                       msg.event == "message",
                       let thread = msg.thread, let body = msg.body else { return true }
                 let ts = msg.timestamp
+                let name = msg.senderName
                 let m = Message(
                     sender: msg.sender ?? "",
                     body: body,
                     fromSelf: msg.fromSelf ?? false,
                     timestamp: ts.map { Date(timeIntervalSince1970: Double($0) / 1000.0) }
                 )
-                Task { @MainActor in self.appendIncoming(thread: thread, message: m, timestampMillis: ts) }
+                Task { @MainActor in self.appendIncoming(thread: thread, message: m, timestampMillis: ts, senderName: name) }
                 return true
             }
             Task { @MainActor in
@@ -352,22 +353,24 @@ public final class QuillSignalModel: ObservableObject {
 
     /// Append a pushed message to its thread (create the conversation if the
     /// sender isn't a known contact yet).
-    private func appendIncoming(thread: String, message: Message, timestampMillis: UInt64?) {
+    private func appendIncoming(thread: String, message: Message, timestampMillis: UInt64?, senderName: String?) {
         receiveBackoff = 0   // a live message -> the stream is healthy
         let key = thread.lowercased()
         if let ts = timestampMillis {
             if seenTimestamps[key]?.contains(ts) == true { return } // already shown
             seenTimestamps[key, default: []].insert(ts)
         }
-        // Display name from a known conversation (else nil -> "Signal" in the toast).
+        let resolvedName = senderName.flatMap { $0.isEmpty ? nil : $0 }
         let idx = conversations.firstIndex(where: {
             $0.id.uuidString.caseInsensitiveCompare(thread) == .orderedSame
         })
-        let displayName = idx.map { conversations[$0].name }
+        // Display name: a known conversation's name, else the resolved contact name.
+        let displayName = idx.map { conversations[$0].name } ?? resolvedName
         if let idx {
             conversations[idx].messages.append(message)
         } else if let id = UUID(uuidString: thread) {
-            conversations.append(Conversation(id: id, name: thread, messages: [message]))
+            // New conversation from an unknown thread — use the contact name if known.
+            conversations.append(Conversation(id: id, name: resolvedName ?? thread, messages: [message]))
         }
         // Desktop notification for a fresh, incoming (non-self) message.
         if let n = NotificationFormat.make(sender: displayName, body: message.body, fromSelf: message.fromSelf) {

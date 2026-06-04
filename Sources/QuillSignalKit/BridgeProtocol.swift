@@ -62,12 +62,14 @@ public struct IncomingMessage: Codable, Sendable {
     public let event: String?
     public let thread: String?
     public let sender: String?
+    public let senderName: String?
     public let body: String?
     public let timestamp: UInt64?
     public let fromSelf: Bool?
 
     enum CodingKeys: String, CodingKey {
         case event, thread, sender, body, timestamp
+        case senderName = "sender_name"
         case fromSelf = "from_self"
     }
 }
