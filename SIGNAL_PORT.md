@@ -337,6 +337,18 @@ remaining major effort (likely user-directed):* full inline images = bridge
 careful QuillChatKit `ChatMessage` image-slot + bubble change (shared) or
 rendering attachments outside the bubble.
 
+**Inline image attachments — UI slice (2026-06-04, user-directed):** the shared
+`ChatMessage` gained an **optional** `attachmentImagePath` (defaulted nil in a
+protocol extension → backward-compatible, `quill-telegram` still builds), and
+`ChatBubble` renders the image (natural size, rounded corners) above the caption,
+text bubble shown only for non-empty bodies. `QuillSignalCore.Message` carries
+the path; a fixture demonstrates it. Screenshot-verified via FAKELINKED: a
+gradient image renders cleanly in a received bubble, aspect-correct, existing
+text bubbles intact. (GTK note: `.frame(maxWidth:)`/`.scaledToFit()` on an image
+aren't honored by the GTK backend → natural size is reliable, so the bridge will
+downscale attachments to a sane thumbnail dimension.) Next: bridge
+`get_attachment` → temp file (+ downscale) → `attachment_path` wired through.
+
 **Bridge unit tests (2026-06-03):** the bridge gained its first `cargo test`
 coverage — 9 tests for the pure helpers `group_uuid` (too-short→None;
 deterministic 8-4-4-4-12 lowercase hex from the first 16 master-key bytes) and

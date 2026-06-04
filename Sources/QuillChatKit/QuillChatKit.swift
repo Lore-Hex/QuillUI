@@ -34,12 +34,20 @@ public protocol ChatMessage: Identifiable, Hashable, Sendable {
     /// the timestamp caption entirely when nil so existing
     /// conformances stay valid without supplying a date.
     var timestamp: Date? { get }
+
+    /// Local file path of an image attachment to show in the bubble, or
+    /// nil for a text-only message. Optional — defaulted to nil so
+    /// existing conformances stay valid without supplying it.
+    var attachmentImagePath: String? { get }
 }
 
 public extension ChatMessage {
     /// Default: messages have no timestamp. Apps that want them
     /// (Signal / Telegram) override this on their concrete type.
     var timestamp: Date? { nil }
+
+    /// Default: no image attachment.
+    var attachmentImagePath: String? { nil }
 }
 
 /// Summary shape for rows in a chat/conversation sidebar.
@@ -248,14 +256,23 @@ public struct ChatBubble<M: ChatMessage>: View {
     nonisolated public var body: some View {
         ChatMainActorView.assumeIsolated {
             VStack(alignment: message.fromSelf ? .trailing : .leading, spacing: 2) {
-                Text(message.body)
-                    .padding(appearance.chatBubblePadding)
-                    .background(
-                        message.fromSelf
-                            ? appearance.outgoingBubbleBackground
-                            : appearance.incomingBubbleBackground
-                    )
-                    .cornerRadius(appearance.bubbleCornerRadius)
+                if let imagePath = message.attachmentImagePath,
+                   FileManager.default.fileExists(atPath: imagePath) {
+                    // Natural size (aspect-correct, GTK honors it reliably); the
+                    // bridge downscales attachments to a sane thumbnail dimension.
+                    Image(filePath: imagePath)
+                        .cornerRadius(appearance.bubbleCornerRadius)
+                }
+                if !message.body.isEmpty {
+                    Text(message.body)
+                        .padding(appearance.chatBubblePadding)
+                        .background(
+                            message.fromSelf
+                                ? appearance.outgoingBubbleBackground
+                                : appearance.incomingBubbleBackground
+                        )
+                        .cornerRadius(appearance.bubbleCornerRadius)
+                }
                 HStack(spacing: 6) {
                     Text(message.sender)
                     if let timestamp = message.timestamp {

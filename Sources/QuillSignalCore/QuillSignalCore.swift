@@ -690,19 +690,22 @@ public struct Message: ChatMessage {
     public let body: String
     public let fromSelf: Bool
     public let timestamp: Date?
+    public let attachmentImagePath: String?
 
     public init(
         id: UUID = UUID(),
         sender: String,
         body: String,
         fromSelf: Bool,
-        timestamp: Date? = Date()
+        timestamp: Date? = Date(),
+        attachmentImagePath: String? = nil
     ) {
         self.id = id
         self.sender = sender
         self.body = body
         self.fromSelf = fromSelf
         self.timestamp = timestamp
+        self.attachmentImagePath = attachmentImagePath
     }
 }
 
@@ -731,6 +734,10 @@ public enum QuillSignalFixtures {
                 Message(sender: "Mom", body: "Don't forget Sunday dinner.", fromSelf: false),
                 Message(sender: "Me", body: "I'll bring dessert.", fromSelf: true),
                 Message(sender: "Mom", body: "❤️", fromSelf: false),
+                // An image attachment renders in the bubble when the file exists
+                // (a FAKELINKED screenshot writes one to this path; nil/absent => text only).
+                Message(sender: "Mom", body: "Look at the cake!", fromSelf: false,
+                        attachmentImagePath: "/tmp/qs-fixture-image.png"),
             ]
         ),
         Conversation(
