@@ -1269,6 +1269,10 @@ if wireguardUpstreamPresent {
                 // TunnelErrors: WireGuardAppError conformances + localizedUIString;
                 // needs PacketTunnelProviderError (above) + tr + NEVPNError + wg_log.
                 "Sources/WireGuardApp/Tunnel/TunnelErrors.swift",
+                // Shared NotificationToken: a Foundation-only NotificationCenter
+                // observer wrapper (+ NotificationCenter.observe); used by the model
+                // layer (TunnelsManager/LogViewController). No ObjC.
+                "Sources/Shared/NotificationToken.swift",
                 // First real MODEL file: TunnelStatus maps NEVPNStatus -> app
                 // status, compiling against the NetworkExtension shadow (uses
                 // NEVPNStatus incl. .reasserting, #338). Its @objc enum is
