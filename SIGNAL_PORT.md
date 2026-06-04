@@ -398,6 +398,24 @@ plain→false, nil→false, all green) alongside a clean `quill-signal` build; t
 live CDN download is gated on a linked account. Deferred: a small settle delay if
 the store write lags the event, and only refreshing the currently-open thread.
 
+**Attachment polish — webp + download cap (2026-06-04, user-directed feature 4 of
+4):** bridge-only robustness for the attachment pipeline. `webp` joined the
+`image` crate's decode features (png/jpeg/gif/webp) so Signal webp images
+thumbnail instead of degrading to the text marker. And `list-messages` no longer
+fetches an unbounded number of images on open: pass 2 resolves already-cached
+thumbnails for free, collects only *uncached* image rows as `(row_index,
+timestamp)` candidates, and a pure `pick_downloads(candidates, cap)` helper picks
+the newest up-to-`MAX_NEW_DOWNLOADS` (24) by timestamp — so a thread with a large
+image backlog stays responsive and older images fill in progressively over
+subsequent opens (each open caches more). Cached images always emit
+`attachment_path` regardless of the cap, and the wire format is unchanged (so the
+app + decode-check are untouched). 5 new `pick_downloads` unit tests
+(fewer-than-cap → all, over-cap → the cap newest, cap 0 → empty, empty → empty,
+ties → deterministic by index); **20 bridge tests total, all green**. Remaining
+polish (future turns): non-image attachment chips (needs the bridge to emit
+attachment *type* metadata), a download spinner/placeholder, a last-activity time
+on each conversation-list row, and date separators between message groups.
+
 **Bridge unit tests (2026-06-03):** the bridge gained its first `cargo test`
 coverage — 9 tests for the pure helpers `group_uuid` (too-short→None;
 deterministic 8-4-4-4-12 lowercase hex from the first 16 master-key bytes) and
