@@ -47,6 +47,21 @@ public class UIApplication: NSObject {
     public enum LaunchOptionsKey: Hashable { case remoteNotification }
     @MainActor public var connectedScenes: Set<UIScene> = []
     @MainActor public var applicationState: UIApplicationState { .active }
+
+    /// UIKit (and SignalServiceKit's AppContext) name the application-state enum
+    /// `UIApplication.State`; `UIApplicationState` is its top-level alias on iOS.
+    public typealias State = UIApplicationState
+
+    // App-lifecycle notification names. Real UIKit members; SignalServiceKit's
+    // lifecycle observers subscribe to these. No source posts them on Linux yet.
+    public static let didBecomeActiveNotification = Notification.Name("UIApplicationDidBecomeActiveNotification")
+    public static let willResignActiveNotification = Notification.Name("UIApplicationWillResignActiveNotification")
+    public static let didEnterBackgroundNotification = Notification.Name("UIApplicationDidEnterBackgroundNotification")
+    public static let willEnterForegroundNotification = Notification.Name("UIApplicationWillEnterForegroundNotification")
+    public static let willTerminateNotification = Notification.Name("UIApplicationWillTerminateNotification")
+    public static let didReceiveMemoryWarningNotification = Notification.Name("UIApplicationDidReceiveMemoryWarningNotification")
+    public static let significantTimeChangeNotification = Notification.Name("UIApplicationSignificantTimeChangeNotification")
+
     @MainActor public func setAlternateIconName(_ name: String?, completionHandler: ((Error?) -> Void)? = nil) {
         completionHandler?(nil)
     }
