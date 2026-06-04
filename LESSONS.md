@@ -173,18 +173,27 @@ A second-opinion review (codex, read-only) sharpened the plan — adopt this ord
    tree `.swift`** (there is already a `TSInteraction.swift` extension file → SwiftPM
    "multiple producers" object-file collision).
 
-   **⚠️ KEY GATING FINDING — override-in-extension.** Signal organizes subclass
-   overrides of base methods in **`extension` blocks** (e.g. `extension
-   TSInteraction { override func anyDidInsert(with:) { super… } }`). On Apple these
-   dispatch via `@objc`; **Swift forbids overriding a non-`@objc` member from an
-   extension** (Apple or Linux). Lowering stripped `@objc`, and the ported bases are
-   pure-Swift, so every such extension-override is at risk. `TSInteraction` had only
-   ~2 (negligible), but `TSMessage`/`TSOutgoingMessage` have many — **resolve this
-   before the big subclass ports.** Options to test: (a) does the Linux compiler
-   accept `@objc`/`@objc dynamic` on NSObject-subclass base members (swift-corelibs
-   NSObject may support it) → if so, mark base overridable members `@objc` and
-   extension-overrides work; (b) else a lowerer pass that **relocates `override`
-   members from extensions into the class body**. (a) is far cheaper if it compiles.
+   **✅ RESOLVED — override-in-extension (experiment, 2026-06-04).** Signal
+   organizes subclass overrides of base methods in **`extension` blocks** (e.g.
+   `extension TSInteraction { override func anyDidInsert(with:) { super… } }`).
+   Exact error: `instance method 'anyDidInsert(with:)' declared in
+   'TSYapDatabaseObject' cannot be overridden from extension`. Tested both fixes on
+   the Linux SSK build:
+   - **`@objc` is DEAD on this build:** annotating the base hooks `@objc` yields
+     `error: Objective-C interoperability is disabled` (this is exactly why lowering
+     strips `@objc`; it applies to our ported NSObject bases too — even though the
+     param `DBWriteTransaction` *is* ObjC-representable as an NSObject subclass).
+   - **`dynamic` alone does NOT help** (it enables dynamic *replacement*, not
+     vtable override-from-extension) — error count unchanged.
+   - **Therefore the only fix is to RELOCATE the override into the class body** — a
+     `quill-lower-appkit` pass that hoists `extension Sub { override … }` members
+     into the ported class (durable). **Do not annotate.**
+   - **Blast radius is tiny and the spine is NOT gated:** only **5 files** use
+     `extension TS* { override }` — `TSInteraction`×3, `TSOutgoingMessage`×1,
+     `TSGroupModel`×1. **`TSMessage`/`TSIncomingMessage`/`TSInfoMessage`/
+     `TSErrorMessage`/`TSCall` have ZERO** → port them now; handle the 5 relocate
+     sites as a separate small lowerer step. (The 2 live `TSInteraction` sites cost
+     ~2 errors + a little cascade until then.)
 1. **Port the central SPINE, NOT leaf-first.** The cascade is dominated by
    high-fan-out types: `TSYapDatabaseObject`, `BaseModel`, `TSInteraction`,
    `TSMessage`, `TSIncomingMessage`, `TSOutgoingMessage`, `TSInfoMessage`,
