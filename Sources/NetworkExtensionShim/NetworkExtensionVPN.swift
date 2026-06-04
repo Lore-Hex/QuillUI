@@ -36,6 +36,15 @@ public struct NEVPNError: Error, Equatable, Sendable {
     public let code: Code
     public init(_ code: Code) { self.code = code }
     public var localizedDescription: String { "NEVPNError(\(code))" }
+
+    // Apple exposes the codes directly on NEVPNError (e.g.
+    // `NEVPNError(NEVPNError.configurationUnknown)`, `error.code == NEVPNError.configurationInvalid`).
+    public static let configurationInvalid = Code.configurationInvalid
+    public static let configurationDisabled = Code.configurationDisabled
+    public static let connectionFailed = Code.connectionFailed
+    public static let configurationStale = Code.configurationStale
+    public static let configurationReadWriteFailed = Code.configurationReadWriteFailed
+    public static let configurationUnknown = Code.configurationUnknown
 }
 
 /// Base protocol-configuration type (`NEVPNProtocol`). Subclassed by
@@ -53,6 +62,9 @@ open class NETunnelProviderProtocol: NEVPNProtocol {
     public var providerConfiguration: [String: Any]?
     public var providerBundleIdentifier: String?
     public override init() { super.init() }
+    /// macOS-only on Apple; drops a saved password keychain reference. No-op on
+    /// Linux (no system keychain reference to destroy).
+    open func destroyConfigurationReference() {}
 }
 
 /// Mirrors `NEVPNConnection`: the live status of a configuration. The shadow
