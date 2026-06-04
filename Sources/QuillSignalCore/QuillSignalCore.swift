@@ -381,6 +381,15 @@ public final class QuillSignalModel: ObservableObject {
             // New conversation from an unknown thread — use the contact name if known.
             conversations.append(Conversation(id: id, name: resolvedName ?? thread, messages: [message]))
         }
+        // A received attachment can't be downloaded inside the receive stream (it
+        // holds the manager mutably), so re-pull the thread: list-messages
+        // downloads the image and it backfills into the bubble. The bridge's
+        // digest cache makes already-shown images a no-op, so only the new
+        // attachment actually fetches. loadMessages never re-enters appendIncoming,
+        // so there is no trigger loop.
+        if AttachmentMarker.isPresent(in: message.body) {
+            loadMessages(for: thread)
+        }
         // Desktop notification for a fresh, incoming (non-self) message.
         if let n = NotificationFormat.make(sender: displayName, body: message.body, fromSelf: message.fromSelf) {
             let title = n.title, toast = n.body

@@ -171,6 +171,12 @@ if let r = c.decode(MessagesResponse.self, #"{"ok":true,"cmd":"list-messages","m
     c.check("list-messages attachment_path decodes", false)
 }
 
+// 11c. AttachmentMarker — the bridge marker that drives live-receive image backfill
+c.check("marker: text + marker -> true", AttachmentMarker.isPresent(in: "look\n[attachment: a.png]"))
+c.check("marker: bare marker -> true", AttachmentMarker.isPresent(in: "[attachment: image/jpeg]"))
+c.check("marker: plain text -> false", !AttachmentMarker.isPresent(in: "just a message"))
+c.check("marker: nil body -> false", !AttachmentMarker.isPresent(in: nil))
+
 // 12. whoami — registered with number
 if let r = c.decode(WhoamiResponse.self, #"{"ok":true,"cmd":"whoami","msg":"ok","data":{"registered":true,"number":"+15551234567"}}"#) {
     c.check("whoami registered==true", r.data?.registered == true)

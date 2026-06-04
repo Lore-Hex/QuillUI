@@ -384,6 +384,20 @@ by side, image bubble intact. Deferred: a last-activity time on each
 conversation-list row (needs a timestamp on `ChatListItem`) and date separators
 between message groups.
 
+**Live receive images (2026-06-04, user-directed feature 3 of 4):** the receive
+stream can't download attachments inline (it holds the manager mutably), so the
+app backfills. A new Foundation-only helper `AttachmentMarker.isPresent(in:)`
+(QuillSignalKit) detects the bridge's `[attachment: …]` marker; `appendIncoming`
+calls it on each pushed message and, when true, re-pulls the thread via
+`loadMessages(for:)` — `list-messages` then downloads the image (digest cache →
+only the new one fetches) and it backfills into the open bubble. `loadMessages`
+never re-enters `appendIncoming`, so there's no trigger loop, and its
+`seenTimestamps` reset stays consistent with the dedup. The trigger is a pure
+function so it's unit-tested in the decode-check (text+marker→true, bare→true,
+plain→false, nil→false, all green) alongside a clean `quill-signal` build; the
+live CDN download is gated on a linked account. Deferred: a small settle delay if
+the store write lags the event, and only refreshing the currently-open thread.
+
 **Bridge unit tests (2026-06-03):** the bridge gained its first `cargo test`
 coverage — 9 tests for the pure helpers `group_uuid` (too-short→None;
 deterministic 8-4-4-4-12 lowercase hex from the first 16 master-key bytes) and

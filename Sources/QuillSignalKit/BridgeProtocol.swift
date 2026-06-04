@@ -93,3 +93,20 @@ public struct WhoamiData: Codable, Sendable {
 public struct WhoamiResponse: Codable, Sendable {
     public let data: WhoamiData?
 }
+
+// MARK: - attachment marker
+
+/// Detects the bridge's `[attachment: …]` marker, which `display_body` folds into
+/// a message body for any message carrying an attachment. The receive stream
+/// can't download attachments inline (it holds the manager mutably), so when a
+/// pushed message contains this marker the app re-pulls the thread via
+/// `list-messages` — which downloads the image and backfills it into the bubble.
+public enum AttachmentMarker {
+    /// The literal prefix the bridge emits (see the bridge's `display_body`).
+    public static let prefix = "[attachment:"
+
+    /// True when `body` contains the attachment marker. Nil / plain text → false.
+    public static func isPresent(in body: String?) -> Bool {
+        body?.contains(prefix) ?? false
+    }
+}
