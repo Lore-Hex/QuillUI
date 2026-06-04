@@ -337,6 +337,13 @@ remaining major effort (likely user-directed):* full inline images = bridge
 careful QuillChatKit `ChatMessage` image-slot + bubble change (shared) or
 rendering attachments outside the bubble.
 
+**Bridge unit tests (2026-06-03):** the bridge gained its first `cargo test`
+coverage — 9 tests for the pure helpers `group_uuid` (too-short→None;
+deterministic 8-4-4-4-12 lowercase hex from the first 16 master-key bytes) and
+`display_body` (plain text; empty→None; attachment-only file_name→content_type→
+`file` fallback; text+attachment newline-joined; multiple attachments
+comma-joined). All passing; run with `cargo test -p quill-signal-bridge`.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile
