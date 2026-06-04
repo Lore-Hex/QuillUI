@@ -376,6 +376,17 @@ let appSwiftSettings: [SwiftSetting] = [
     .unsafeFlags(["-strict-concurrency=minimal"])
 ] + quillUIGTKSwiftImporterSettings
 
+// QuillIceCubesCore consumes the real vendored Models when present (gtk-Linux);
+// gated so macOS / qt (where the Models target isn't built) keep the reimpl.
+var quillIceCubesCoreDependencies: [Target.Dependency] = ["QuillUI", "QuillFoundation"]
+var quillIceCubesCoreSwiftSettings: [SwiftSetting] = appSwiftSettings
+#if os(Linux)
+if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
+    quillIceCubesCoreDependencies.append("Models")
+    quillIceCubesCoreSwiftSettings.append(.define("ICECUBES_REAL_MODELS"))
+}
+#endif
+
 #if os(Linux)
 let quillShimsDependencies: [Target.Dependency] = [
     "QuillKit", "QuillData", "os",
@@ -900,8 +911,8 @@ var targets: [Target] = [
     // `QuillIceCubesContentView` struct.
     .target(
         name: "QuillIceCubesCore",
-        dependencies: ["QuillUI", "QuillFoundation"],
-        swiftSettings: appSwiftSettings
+        dependencies: quillIceCubesCoreDependencies,
+        swiftSettings: quillIceCubesCoreSwiftSettings
     ),
     .executableTarget(
         name: "QuillIceCubes",

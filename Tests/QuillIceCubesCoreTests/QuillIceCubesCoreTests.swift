@@ -170,7 +170,10 @@ struct QuillIceCubesCoreTests {
         #expect(statuses.count >= 4)
         let ids = Set(statuses.map(\.id))
         #expect(ids.count == statuses.count)
-        #expect(QuillIceCubesProfileFixtures.rows.count == statuses.count)
+        // `rows` renders from the REAL vendored Models under ICECUBES_REAL_MODELS
+        // (gtk Linux) and from the reimpl statuses elsewhere, so assert it is
+        // populated rather than coupling its count to the reimpl statuses.
+        #expect(!QuillIceCubesProfileFixtures.rows.isEmpty)
     }
 
     @Test("Profile bare mode title is user-facing app content")
@@ -193,7 +196,10 @@ struct QuillIceCubesCoreTests {
 
     @Test("Timeline rows project render-facing status fields once")
     func timelineRowsProjectStoredStatusFields() {
-        for (status, row) in zip(QuillIceCubesProfileFixtures.statuses, QuillIceCubesProfileFixtures.rows) {
+        // Project freshly from the reimpl statuses — independent of the live
+        // `rows`, which renders from real vendored Models under gtk Linux.
+        for status in QuillIceCubesProfileFixtures.statuses {
+            let row = IceCubesTimelineRow(status: status)
             #expect(row.id == status.id)
             #expect(row.displayNameText == status.account.displayNameText)
             #expect(row.handleText == status.account.handleText)
