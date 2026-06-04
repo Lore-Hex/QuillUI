@@ -25,4 +25,22 @@ struct AppKitSurfaceTests {
         #expect(stack.edgeInsets.top == 5 && stack.edgeInsets.right == 5)
         stack.setCustomSpacing(8, after: a) // compiles (no-op until layout models spacing)
     }
+
+    @Test("NSLayoutGuide: addLayoutGuide stores + owns; anchors build constraints with the guide as item")
+    func layoutGuide() {
+        let view = NSView(frame: .zero)
+        let guide = NSLayoutGuide()
+        view.addLayoutGuide(guide)
+        #expect(view.layoutGuides.count == 1)
+        #expect(guide.owningView === view)
+
+        // The guide's anchors build real constraints, with the guide as the item.
+        let c = guide.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8)
+        #expect(c.quillConstant == 8)
+        #expect(c.quillFirstAnchor?.quillItem === guide)
+
+        view.removeLayoutGuide(guide)
+        #expect(view.layoutGuides.isEmpty)
+        #expect(guide.owningView == nil)
+    }
 }

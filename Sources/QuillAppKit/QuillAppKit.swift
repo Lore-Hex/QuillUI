@@ -389,6 +389,29 @@ open class NSResponder: NSObject {
     open func resignFirstResponder() -> Bool { true }
 }
 
+/// Mirrors `NSLayoutGuide`: a rectangular region that participates in Auto
+/// Layout without being a view (lighter than a spacer view). Exposes the same
+/// anchors as NSView so unmodified source can constrain to it. COMPILE-stub: the
+/// anchors build real NSLayoutConstraints, but the Qt solve pass currently only
+/// positions NSView items — honoring guide frames in the solve is a follow-up.
+public final class NSLayoutGuide: NSObject {
+    public weak var owningView: NSView?
+    public var identifier: String = ""
+
+    public override init() { super.init() }
+
+    public var topAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .top) }
+    public var bottomAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .bottom) }
+    public var leadingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .leading) }
+    public var trailingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .trailing) }
+    public var leftAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .leading) }
+    public var rightAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .trailing) }
+    public var widthAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .width) }
+    public var heightAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .height) }
+    public var centerXAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .centerX) }
+    public var centerYAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .centerY) }
+}
+
 open class NSView: NSResponder {
     public var frame: NSRect = .zero {
         didSet {
@@ -575,6 +598,16 @@ open class NSView: NSResponder {
     public var centerYAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .centerY) }
     public var firstBaselineAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .firstBaseline) }
     public var lastBaselineAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .lastBaseline) }
+
+    public private(set) var layoutGuides: [NSLayoutGuide] = []
+    public func addLayoutGuide(_ guide: NSLayoutGuide) {
+        layoutGuides.append(guide)
+        guide.owningView = self
+    }
+    public func removeLayoutGuide(_ guide: NSLayoutGuide) {
+        layoutGuides.removeAll { $0 === guide }
+        if guide.owningView === self { guide.owningView = nil }
+    }
 
     open func layout() {}
     open func draw(_ rect: NSRect) {}
