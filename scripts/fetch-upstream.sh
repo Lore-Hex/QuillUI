@@ -165,6 +165,41 @@ PY
     fi
 }
 
+patch_icecubes() {
+    # NetworkClient files `import Foundation` and use URLRequest / URLSession /
+    # HTTPURLResponse, which live in the FoundationNetworking module on Linux
+    # (swift-corelibs-foundation). Add a conditional `import FoundationNetworking`
+    # after the first `import Foundation`; canImport is false on macOS so the
+    # Apple build is unaffected. Idempotent.
+    local dir="$UPSTREAM_DIR/icecubes/Packages/NetworkClient/Sources/NetworkClient"
+    if [[ ! -d "$dir" ]]; then
+        return
+    fi
+    echo "==> patching IceCubes NetworkClient for the Linux FoundationNetworking split"
+    python3 - "$dir" <<'PY'
+import sys, os, glob
+
+directory = sys.argv[1]
+addition = (
+    "import Foundation\n"
+    "#if canImport(FoundationNetworking)\n"
+    "import FoundationNetworking\n"
+    "#endif"
+)
+for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
+    src = open(path).read()
+    if "FoundationNetworking" in src:
+        continue
+    lines = src.split("\n")
+    for i, line in enumerate(lines):
+        if line.strip() == "import Foundation":
+            lines[i] = addition
+            open(path, "w").write("\n".join(lines))
+            print("patched", os.path.basename(path))
+            break
+PY
+}
+
 want=("$@")
 if [[ ${#want[@]} -eq 0 ]]; then
     # Default set excludes codeedit/codeeditsymbols. CodeEditSymbols
@@ -190,6 +225,7 @@ for name in "${want[@]}"; do
             ;;
         icecubes)
             fetch_repo icecubes https://github.com/Dimillian/IceCubesApp.git
+            patch_icecubes
             ;;
         codeedit)
             fetch_repo codeedit https://github.com/CodeEditApp/CodeEdit.git
