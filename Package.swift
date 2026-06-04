@@ -1196,7 +1196,7 @@ if wireguardUpstreamPresent {
     #if os(Linux)
     targets.append(
         .target(
-            name: "QuillWireGuardConformanceKeyValueRow",
+            name: "QuillWireGuardConformanceUI",
             dependencies: ["Cocoa"],
             path: ".upstream/wireguard-apple",
             sources: [
