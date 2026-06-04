@@ -19,7 +19,7 @@ public enum NEVPNStatus: Int, Sendable {
     case disconnected = 1
     case connecting = 2
     case connected = 3
-    case reconnecting = 4
+    case reasserting = 4
     case disconnecting = 5
 }
 
@@ -45,6 +45,13 @@ public struct NEVPNError: Error, Equatable, Sendable {
     public static let configurationStale = Code.configurationStale
     public static let configurationReadWriteFailed = Code.configurationReadWriteFailed
     public static let configurationUnknown = Code.configurationUnknown
+
+    // Lets a `Code` pattern match an `NEVPNError` value in a switch, mirroring
+    // Apple's behavior — `switch systemError { case NEVPNError.configurationInvalid: … }`
+    // (TunnelErrors.swift maps NE errors to user-facing text this way).
+    public static func ~= (pattern: Code, value: NEVPNError) -> Bool {
+        value.code == pattern
+    }
 }
 
 /// Base protocol-configuration type (`NEVPNProtocol`). Subclassed by
@@ -84,14 +91,38 @@ open class NEVPNConnection: NSObject {
 /// Mirrors `NETunnelProviderSession` — a connection that can exchange messages
 /// with its provider extension.
 open class NETunnelProviderSession: NEVPNConnection {
+    /// Mirrors `NETunnelProviderSession.startTunnel(options:)` — distinct from
+    /// `NEVPNConnection.startVPNTunnel`. No-op on Linux; a runtime layer drives
+    /// the real tunnel out-of-band.
+    open func startTunnel(options: [String: Any]? = nil) throws {}
+    /// Mirrors `NETunnelProviderSession.stopTunnel()`.
+    open func stopTunnel() {}
     open func sendProviderMessage(_ messageData: Data, responseHandler: ((Data?) -> Void)? = nil) throws {
         responseHandler?(nil)
     }
 }
 
-/// Mirrors `NEOnDemandRule` (base). WireGuard builds connect/disconnect rules.
+/// Mirrors `NEOnDemandRuleInterfaceType` — the interface kind a rule matches.
+public enum NEOnDemandRuleInterfaceType: Int, Sendable {
+    case any = 0
+    case wiFi = 1
+    case cellular = 2
+    case ethernet = 3
+}
+
+/// Mirrors `NEOnDemandRule` (base). WireGuard builds connect/disconnect rules
+/// that match on interface type and (for Wi-Fi) SSID
+/// (ActivateOnDemandOption.apply).
 open class NEOnDemandRule: NSObject {
+    public var interfaceTypeMatch: NEOnDemandRuleInterfaceType = .any
+    public var ssidMatch: [String]?
     public override init() { super.init() }
+    /// Convenience the app uses: `NEOnDemandRuleConnect(interfaceType: .any)`,
+    /// `NEOnDemandRuleDisconnect(interfaceType: .wiFi)`.
+    public convenience init(interfaceType: NEOnDemandRuleInterfaceType) {
+        self.init()
+        self.interfaceTypeMatch = interfaceType
+    }
 }
 public final class NEOnDemandRuleConnect: NEOnDemandRule {}
 public final class NEOnDemandRuleDisconnect: NEOnDemandRule {}

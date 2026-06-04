@@ -60,4 +60,40 @@ struct NetworkExtensionVPNTests {
         // macOS-branch no-op method compiles + runs.
         NETunnelProviderProtocol().destroyConfigurationReference()
     }
+
+    @Test("NEVPNStatus.reasserting + NEVPNError Code-pattern switch (TunnelStatus / TunnelErrors)")
+    func statusReassertingAndErrorMatching() {
+        #expect(NEVPNStatus.reasserting.rawValue == 4)
+        // Mirrors TunnelErrors.swift: switch an NEVPNError value over Code cases (~=).
+        let systemError = NEVPNError(.configurationStale)
+        var matched = "other"
+        switch systemError {
+        case NEVPNError.configurationInvalid: matched = "invalid"
+        case NEVPNError.configurationStale: matched = "stale"
+        default: matched = "other"
+        }
+        #expect(matched == "stale")
+    }
+
+    @Test("NEOnDemandRule interface-type + SSID matching (ActivateOnDemandOption)")
+    func onDemandInterfaceAndSSID() {
+        // Mirrors ActivateOnDemandOption.apply: rules built with an interface type.
+        let connect = NEOnDemandRuleConnect(interfaceType: .any)
+        #expect(connect.interfaceTypeMatch == .any)
+        let disconnect = NEOnDemandRuleDisconnect(interfaceType: .wiFi)
+        #expect(disconnect.interfaceTypeMatch == .wiFi)
+        // Wi-Fi rule with SSID match (the read-back path uses interfaceTypeMatch == .wiFi && ssidMatch != nil).
+        let wifiRule = NEOnDemandRuleConnect()
+        wifiRule.interfaceTypeMatch = .wiFi
+        wifiRule.ssidMatch = ["HomeNet", "OfficeNet"]
+        #expect(wifiRule.interfaceTypeMatch == .wiFi && wifiRule.ssidMatch == ["HomeNet", "OfficeNet"])
+        #expect(NEOnDemandRuleInterfaceType.ethernet.rawValue == 3)
+    }
+
+    @Test("NETunnelProviderSession.startTunnel(options:)/stopTunnel() (TunnelsManager)")
+    func providerSessionStartStop() throws {
+        let session = NETunnelProviderSession()
+        try session.startTunnel(options: ["activationAttemptId": "abc"])
+        session.stopTunnel()
+    }
 }
