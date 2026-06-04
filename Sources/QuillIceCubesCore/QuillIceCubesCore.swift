@@ -514,13 +514,14 @@ public struct IceCubesTimelineRow: Identifiable, Hashable, Sendable {
         repliesCount: Int = 0,
         reblogsCount: Int = 0,
         favouritesCount: Int = 0,
-        avatar: URL? = nil
+        avatar: URL? = nil,
+        contentSegments: [IceCubesContentSegment]? = nil
     ) {
         self.id = id
         self.displayNameText = displayNameText
         self.handleText = handleText
         self.contentText = contentText
-        self.contentSegments = IceCubesContentRuns.segments(fromRawText: contentText)
+        self.contentSegments = contentSegments ?? IceCubesContentRuns.segments(fromRawText: contentText)
         self.timeText = timeText
         self.subtitleText = timeText.isEmpty ? handleText : "\(handleText) · \(timeText)"
         self.repliesCount = repliesCount
@@ -545,7 +546,8 @@ public struct IceCubesTimelineRow: Identifiable, Hashable, Sendable {
             repliesCount: status.repliesCount,
             reblogsCount: status.reblogsCount,
             favouritesCount: status.favouritesCount,
-            avatar: status.account.avatar
+            avatar: status.account.avatar,
+            contentSegments: IceCubesContentRuns.segments(fromHTML: status.content.htmlValue)
         )
     }
 }
@@ -560,10 +562,10 @@ public struct IceCubesContentSegment: Hashable, Sendable {
     }
 }
 
-/// Splits tag-stripped Mastodon post text into plain + accent segments:
-/// `@mentions` and `#hashtags` are flagged for accent tinting (IceCubes' link
-/// color); everything else stays plain. Full `<a>`-href styling is a follow-up
-/// — this colors the visible @handle / #tag tokens in the stripped text.
+/// Splits Mastodon post content into plain + accent segments for the timeline.
+/// `segments(fromHTML:)` is the real path (links/invisible-spans/line-breaks);
+/// `segments(fromRawText:)` is the tag-stripped fallback that flags bare
+/// `@mentions` / `#hashtags` (used when only plain text is available, e.g. tests).
 public enum IceCubesContentRuns {
     public static func segments(fromRawText text: String) -> [IceCubesContentSegment] {
         var segments: [IceCubesContentSegment] = []
@@ -598,6 +600,84 @@ public enum IceCubesContentRuns {
         }
         flushPlain()
         return segments
+    }
+
+    /// Parses Mastodon post HTML into styled segments: `<a>` link text
+    /// (mentions / hashtags / URLs) → accent; `<span class="invisible">`
+    /// content (Mastodon's hidden URL prefixes) is dropped; `<br>` and `</p>`
+    /// become newlines; other tags are stripped and HTML entities decoded.
+    public static func segments(fromHTML html: String) -> [IceCubesContentSegment] {
+        var segments: [IceCubesContentSegment] = []
+        var buffer = ""
+        var bufferAccent = false
+        var linkDepth = 0
+        var spanStack: [Bool] = [] // isInvisible per currently-open <span>
+        let chars = Array(html)
+        var i = 0
+
+        func emit(_ text: String, accent: Bool) {
+            if text.isEmpty { return }
+            if accent != bufferAccent, !buffer.isEmpty {
+                segments.append(IceCubesContentSegment(text: HTMLEntities.decode(buffer), isAccent: bufferAccent))
+                buffer = ""
+            }
+            bufferAccent = accent
+            buffer += text
+        }
+
+        while i < chars.count {
+            let c = chars[i]
+            if c == "<" {
+                var tag = ""
+                var j = i + 1
+                while j < chars.count, chars[j] != ">" { tag.append(chars[j]); j += 1 }
+                i = (j < chars.count) ? j + 1 : j
+                let lower = tag.lowercased()
+                let isClose = lower.hasPrefix("/")
+                let name = String(lower.drop(while: { $0 == "/" }).prefix(while: { $0.isLetter || $0.isNumber }))
+                let hidden = spanStack.contains(true)
+                switch name {
+                case "a":
+                    linkDepth = isClose ? max(0, linkDepth - 1) : linkDepth + 1
+                case "span":
+                    if isClose {
+                        if !spanStack.isEmpty { spanStack.removeLast() }
+                    } else {
+                        spanStack.append(lower.contains("invisible"))
+                    }
+                case "br":
+                    if !hidden { emit("\n", accent: linkDepth > 0) }
+                case "p":
+                    if isClose, !hidden { emit("\n", accent: linkDepth > 0) }
+                default:
+                    break
+                }
+                continue
+            }
+            if !spanStack.contains(true) {
+                emit(String(c), accent: linkDepth > 0)
+            }
+            i += 1
+        }
+        if !buffer.isEmpty {
+            segments.append(IceCubesContentSegment(text: HTMLEntities.decode(buffer), isAccent: bufferAccent))
+        }
+        return normalize(segments)
+    }
+
+    /// Drops empty segments and trims leading/trailing whitespace + newlines.
+    static func normalize(_ segments: [IceCubesContentSegment]) -> [IceCubesContentSegment] {
+        var result = segments.filter { !$0.text.isEmpty }
+        if let first = result.first {
+            let trimmed = String(first.text.drop(while: { $0 == "\n" || $0 == " " }))
+            result[0] = IceCubesContentSegment(text: trimmed, isAccent: first.isAccent)
+        }
+        if let last = result.last {
+            var t = last.text
+            while let lc = t.last, lc == "\n" || lc == " " { t.removeLast() }
+            result[result.count - 1] = IceCubesContentSegment(text: t, isAccent: last.isAccent)
+        }
+        return result.filter { !$0.text.isEmpty }
     }
 }
 
@@ -690,7 +770,7 @@ public enum QuillIceCubesProfileFixtures {
                 username: "deploybot",
                 displayName: "Deploy Bot"
             ),
-            content: HTMLString(stringLiteral: "<p>Canary rollout healthy after 30m. cc @deploybot</p>"),
+            content: HTMLString(stringLiteral: "<p>Canary rollout healthy after 30m. cc <a href=\"https://mastodon.social/@deploybot\" class=\"u-url mention\">@<span>deploybot</span></a></p>"),
             createdAt: "2026-01-01T00:01:00Z",
             repliesCount: 1,
             reblogsCount: 4,
@@ -704,7 +784,7 @@ public enum QuillIceCubesProfileFixtures {
                 username: "swiftlinux",
                 displayName: "Swift on Linux"
             ),
-            content: HTMLString(stringLiteral: "<p>Desktop packaging notes are ready for the next toolchain smoke run.</p>"),
+            content: HTMLString(stringLiteral: "<p>Desktop packaging notes are ready.<br>Next up: the toolchain smoke run.</p>"),
             createdAt: "2026-01-01T00:02:00Z",
             repliesCount: 6,
             reblogsCount: 19,
@@ -732,7 +812,7 @@ public enum QuillIceCubesProfileFixtures {
                 username: "design",
                 displayName: "Mastodon Design"
             ),
-            content: HTMLString(stringLiteral: "<p>Selection polish across GTK and Qt — see #SwiftOnLinux</p>"),
+            content: HTMLString(stringLiteral: "<p>Selection polish across GTK and Qt — see <a href=\"https://mastodon.social/tags/SwiftOnLinux\" class=\"mention hashtag\">#<span>SwiftOnLinux</span></a> <a href=\"https://swift.org/blog/swift-on-linux\"><span class=\"invisible\">https://</span><span class=\"ellipsis\">swift.org/blog</span><span class=\"invisible\">/swift-on-linux</span></a></p>"),
             createdAt: "2026-01-01T00:04:00Z",
             repliesCount: 12,
             reblogsCount: 140,

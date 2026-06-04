@@ -348,14 +348,54 @@ struct QuillIceCubesCoreTests {
         #expect(IceCubesContentRuns.segments(fromRawText: "a # b").allSatisfy { !$0.isAccent })
     }
 
-    @Test("Timeline row precomputes content segments with the mention flagged")
+    @Test("Timeline row precomputes content segments from the status HTML")
     func rowPrecomputesContentSegments() {
+        // Real Mastodon wraps mentions in <a>…</a>; the row parses the raw
+        // HTML (not the stripped text), so the linked @handle is accent-tinted.
         let status = Status(
             id: "1",
             account: Account(id: "1", acct: "a", username: "a"),
-            content: HTMLString(stringLiteral: "<p>hi @alex</p>")
+            content: HTMLString(stringLiteral: "<p>hi <a href=\"https://m.s/@alex\" class=\"mention\">@<span>alex</span></a></p>")
         )
         let row = IceCubesTimelineRow(status: status)
         #expect(row.contentSegments.contains(IceCubesContentSegment(text: "@alex", isAccent: true)))
+        #expect(row.contentSegments.contains(IceCubesContentSegment(text: "hi ", isAccent: false)))
+    }
+
+    // MARK: - Content segments from HTML (links / invisible spans / line breaks)
+
+    @Test("segments(fromHTML:) colors <a> link text and strips other tags")
+    func contentRunsFromHTMLColorsLinks() {
+        let html = "<p>Hello <a href=\"https://m.s/@alex\" class=\"u-url mention\">@<span>alex</span></a>!</p>"
+        #expect(IceCubesContentRuns.segments(fromHTML: html) == [
+            IceCubesContentSegment(text: "Hello ", isAccent: false),
+            IceCubesContentSegment(text: "@alex", isAccent: true),
+            IceCubesContentSegment(text: "!", isAccent: false),
+        ])
+    }
+
+    @Test("segments(fromHTML:) drops <span class=invisible> URL prefixes")
+    func contentRunsFromHTMLDropsInvisibleSpans() {
+        // Mastodon hides the scheme + trailing path in invisible spans,
+        // showing only the middle ellipsis span as the link's visible text.
+        let html = "<a href=\"https://example.com/very/long\">"
+            + "<span class=\"invisible\">https://</span>"
+            + "<span class=\"ellipsis\">example.com/very</span>"
+            + "<span class=\"invisible\">/long</span></a>"
+        #expect(IceCubesContentRuns.segments(fromHTML: html)
+            == [IceCubesContentSegment(text: "example.com/very", isAccent: true)])
+    }
+
+    @Test("segments(fromHTML:) turns <br> and </p> into line breaks")
+    func contentRunsFromHTMLLineBreaks() {
+        let html = "<p>line one<br>line two</p><p>para two</p>"
+        #expect(IceCubesContentRuns.segments(fromHTML: html)
+            == [IceCubesContentSegment(text: "line one\nline two\npara two", isAccent: false)])
+    }
+
+    @Test("segments(fromHTML:) decodes HTML entities")
+    func contentRunsFromHTMLDecodesEntities() {
+        #expect(IceCubesContentRuns.segments(fromHTML: "<p>a &amp; b &lt;tag&gt;</p>")
+            == [IceCubesContentSegment(text: "a & b <tag>", isAccent: false)])
     }
 }
