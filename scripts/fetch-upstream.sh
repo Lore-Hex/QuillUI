@@ -211,6 +211,43 @@ open(path, "w").write(patched)
 print("patched Logger.swift to import WireGuardRingLoggerC")
 PY
     fi
+
+    # Break the SwiftPM modularity wall for the model layer: the wg-quick parser
+    # methods (asWgQuickConfig / init(fromWgQuickConfig:)) live in the
+    # QuillWireGuardUpstreamConfig target but are `internal`, so the conformance
+    # target can't call them cross-module. Make them `public` (behaviour-neutral).
+    local wgquick="$UPSTREAM_DIR/wireguard-apple/Sources/Shared/Model/TunnelConfiguration+WgQuickConfig.swift"
+    if [[ -f "$wgquick" ]] && ! grep -q 'public convenience init(fromWgQuickConfig' "$wgquick"; then
+        echo "==> patching TunnelConfiguration+WgQuickConfig.swift parser methods to public"
+        python3 - "$wgquick" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('    convenience init(fromWgQuickConfig', '    public convenience init(fromWgQuickConfig', 1)
+src = src.replace('    func asWgQuickConfig()', '    public func asWgQuickConfig()', 1)
+open(path, "w").write(src)
+print("patched WgQuickConfig parser methods to public")
+PY
+    fi
+
+    # NETunnelProviderProtocol+Extension defines PacketTunnelProviderError + the
+    # NETunnelProviderProtocol<->TunnelConfiguration bridge. For SwiftPM it needs:
+    # Foundation (Bundle — the NE shadow doesn't re-export it), WireGuardKit
+    # (TunnelConfiguration), QuillWireGuardUpstreamConfig (the now-public
+    # asWgQuickConfig / fromWgQuickConfig), and Glibc on Linux (getuid).
+    local neext="$UPSTREAM_DIR/wireguard-apple/Sources/Shared/Model/NETunnelProviderProtocol+Extension.swift"
+    if [[ -f "$neext" ]] && ! grep -q '^import WireGuardKit' "$neext"; then
+        echo "==> patching NETunnelProviderProtocol+Extension.swift imports"
+        python3 - "$neext" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('import NetworkExtension\n',
+                  'import NetworkExtension\nimport Foundation\nimport WireGuardKit\nimport QuillWireGuardUpstreamConfig\n#if canImport(Glibc)\nimport Glibc\n#endif\n', 1)
+open(path, "w").write(src)
+print("patched NETunnelProviderProtocol+Extension.swift imports")
+PY
+    fi
 }
 
 patch_icecubes() {
