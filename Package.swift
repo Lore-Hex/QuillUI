@@ -306,6 +306,7 @@ products += [
     .library(name: "UniformTypeIdentifiers", targets: ["UniformTypeIdentifiers"]),
     .library(name: "Network", targets: ["Network"]),
     .library(name: "NetworkExtension", targets: ["NetworkExtension"]),
+    .library(name: "CoreWLAN", targets: ["CoreWLAN"]),
     .library(name: "AppKit", targets: ["AppKit"]),
     .library(name: "QuillAppKitGTK", targets: ["QuillAppKitGTK"]),
     .library(name: "os", targets: ["os"]),
@@ -1327,6 +1328,10 @@ targets.append(contentsOf: [
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
     .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),
     .testTarget(name: "NetworkExtensionTests", dependencies: ["NetworkExtension"], path: "Tests/NetworkExtensionTests"),
+    // CoreWLAN — Wi-Fi SSID shadow (the last missing framework module for the
+    // macOS WireGuard app; see Sources/CoreWLAN). Internal Linux shadow.
+    .target(name: "CoreWLAN", dependencies: [], path: "Sources/CoreWLAN"),
+    .testTarget(name: "CoreWLANTests", dependencies: ["CoreWLAN"], path: "Tests/CoreWLANTests"),
     // QuillAppKit — compile-only AppKit shadow. Target named `AppKit`
     // so upstream `import AppKit` resolves to this swiftmodule on
     // Linux. Phase A: type stubs only. Phase B will back the heavy
