@@ -160,10 +160,23 @@ A second-opinion review (codex, read-only) sharpened the plan — adopt this ord
    `DispatchQueue` — Apple supplied it implicitly; Linux needs an explicit-import
    injection step in the durable pipeline.
 
-   **✅ Spine progress (signal/real-backend):** root trio `SDSRecordDelegate` +
-   `TSYapDatabaseObject` + `BaseModel` (commit `2a68575`, 342605→340389) and the
-   keystone `TSInteraction` (commit `b8d9d8f`, 340389→338575) ported, each
-   compiling with zero errors. The validated NSObject port pattern: designated
+   **✅ Spine progress (signal/real-backend) — ENUMS 377k→343k, then bases
+   343k→314k (−63k from the 377k peak):** root trio `SDSRecordDelegate` +
+   `TSYapDatabaseObject` + `BaseModel` (`2a68575`, 342605→340389), keystone
+   `TSInteraction` (`b8d9d8f`, →338575), `TSQuotedMessage` (`8bacecd`, →332529,
+   standalone NSObject archived into the message blob), and the abstract base
+   `TSMessage` (`f4ffa05`, →**314063, −18466 the biggest single drop** — 83 files
+   descend from it; its 29-param generated SDS init is what subclass `+SDS`
+   deserializers call via `super`). Each port compiles with zero errors. Pattern
+   confirmed at scale: port the abstract base's FULL stored-prop surface + the SDS
+   init exactly (subclasses call it via super) but you may DEFER behavior with no
+   compile cost (write-hook overrides, 0-caller `updateWith…` mutators, derived
+   accessors that need an unported helper). Remaining top type-errors:
+   `TSGroupModel` (1160) + the message subclasses + a large `Date`/`Data`/
+   `DispatchQueue`/`TimeInterval` band that is **barely moving as bases land →
+   likely real missing `import Foundation` (DB.swift-style), not cascade**; the
+   import-injection pipeline step is becoming the next high-leverage lever.
+   The validated NSObject port pattern: designated
    inits set all stored props **before** `super.init()`; `required override
    init()` + `required init?(coder:)` for NSSecureCoding subclasses & dynamic init;
    `override var hash`/`func isEqual(_:)`; NSCoding via `decodeObject(of:forKey:)`/
