@@ -156,6 +156,9 @@ public final class QuillSignalModel: ObservableObject {
         if env["QUILLUI_SIGNAL_FAKELINKED"] == "1" {
             accountNumber = "+1 555 0100"
             conversations = QuillSignalFixtures.conversations
+            if env["QUILLUI_SIGNAL_FAKEEMPTY"] == "1" {
+                conversations = []   // linked but no conversations yet
+            }
             if env["QUILLUI_SIGNAL_FAKEERROR"] == "1" {
                 transientError = "Message not sent. Check your connection."
             }
@@ -554,7 +557,9 @@ public struct QuillSignalContentView: View {
                         }
                     ),
                     draft: $draft,
-                    placeholder: "Select a conversation",
+                    placeholder: model.conversations.isEmpty
+                        ? "No conversations yet. New messages will appear here."
+                        : "Select a conversation",
                     onSend: send
                 )
             }

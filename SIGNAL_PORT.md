@@ -256,6 +256,14 @@ completion, so the in-app link path populates the chat and goes live
 immediately. App + decode-check green; launch smoke unchanged (the path is only
 reached on a real link).
 
+**Empty-state for no conversations (2026-06-03):** when linked with an empty
+conversation list, the chat pane now reads "No conversations yet. New messages
+will appear here." instead of the confusing "Select a conversation" (a
+conditional `placeholder`). Verified by screenshot via a
+`QUILLUI_SIGNAL_FAKEEMPTY=1` sub-hook (with FAKELINKED): the empty-state renders
+centered under the account title with an empty sidebar and no broken layout; the
+normal fixtures chat still renders unchanged.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile
