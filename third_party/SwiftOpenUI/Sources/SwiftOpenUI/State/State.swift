@@ -32,7 +32,11 @@ public struct State<Value>: AnyStateStorageProvider {
     }
 
     public var projectedValue: Binding<Value> {
-        Binding(get: { self.storage.value }, set: { self.storage.setValue($0) })
+        Binding(
+            get: { self.storage.value },
+            set: { self.storage.setValue($0) },
+            quillUIIdentity: BindingIdentity(objectIdentifier: ObjectIdentifier(storage))
+        )
     }
 
     public var anyStorage: AnyStateStorage { storage }
