@@ -1339,6 +1339,9 @@ targets.append(contentsOf: [
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
     .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),
     .testTarget(name: "NetworkExtensionTests", dependencies: ["NetworkExtension"], path: "Tests/NetworkExtensionTests"),
+    // os shim — covers the two os_log overloads (Apple message-first + the
+    // xctest type-first) coexisting unambiguously; see Sources/osShim.
+    .testTarget(name: "osTests", dependencies: ["os"], path: "Tests/osTests"),
     // CoreWLAN — Wi-Fi SSID shadow (the last missing framework module for the
     // macOS WireGuard app; see Sources/CoreWLAN). Internal Linux shadow.
     .target(name: "CoreWLAN", dependencies: [], path: "Sources/CoreWLAN"),
