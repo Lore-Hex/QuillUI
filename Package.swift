@@ -178,6 +178,11 @@ let nnwUpstreamPresent: Bool = false
 let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/Sources/WireGuardKit")
 let codeEditSourceUpstreamPresent: Bool = upstreamPresent(".upstream/codeedit/CodeEdit")
 let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsymbols")
+// Real Dimillian/IceCubesApp Models + NetworkClient, vendored Linux-only.
+// The upstream iOS platform pin is a manifest constraint, not a source one —
+// the data/network layer is portable Swift+SwiftSoup; UI-coupled bits resolve
+// against the repo's SwiftUI shim + IceCubesShims. See fetch-upstream.sh.
+let iceCubesUpstreamPresent: Bool = upstreamPresent(".upstream/icecubes/Packages/Models/Sources/Models")
 
 enum QuillCanonicalLinuxAppQtRuntime {
     case genericQtNative
@@ -1456,6 +1461,15 @@ allPackageDependencies.append(
     .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0")
 )
 #endif
+#if os(Linux)
+// SwiftSoup (pure-Swift HTML parser) backs the vendored IceCubes Models
+// HTMLString; only pulled when the real upstream is present (Linux vendor).
+if iceCubesUpstreamPresent {
+allPackageDependencies.append(
+    .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.4.3")
+)
+}
+#endif
 #if !os(Linux)
 if codeEditSymbolsUpstreamPresent {
 allPackageDependencies += [
@@ -1925,6 +1939,36 @@ let packageTestTargets: [Target] = {
 
     return tests
 }()
+
+// Real Dimillian/IceCubesApp data + network layer, compiled from upstream
+// source on Linux (the iOS manifest pin is irrelevant on Linux). Targets are
+// NAMED `Models` / `NetworkClient` so upstream's own `import Models` resolves.
+// SwiftData/ is excluded (Apple-only local cache); the ~3 UI-coupled files
+// resolve against the repo `SwiftUI` shim + the auto-imported IceCubesShims
+// (LocalizedStringKey, RelativeDateTimeFormatter, AttributedString markdown).
+#if os(Linux)
+if iceCubesUpstreamPresent {
+    targets += [
+        .target(
+            name: "IceCubesShims",
+            path: "Sources/IceCubesShims"
+        ),
+        .target(
+            name: "Models",
+            dependencies: [
+                "SwiftUI",
+                "IceCubesShims",
+                .product(name: "SwiftSoup", package: "SwiftSoup"),
+            ],
+            path: ".upstream/icecubes/Packages/Models/Sources/Models",
+            exclude: ["SwiftData"],
+            swiftSettings: [
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+    ]
+}
+#endif
 
 let package = Package(
     name: "QuillUI",
