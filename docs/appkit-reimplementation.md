@@ -249,6 +249,27 @@ conformance.) Consequences / options:
 - **Lesson: file-by-file conformance scales until a file straddles two helper
   slices; plan for the single-app-module as the convergence point.**
 
+**UPDATE — the single-app-module works, and it's close (validated 2026-06-04).**
+A gap-analysis spike — lower the *entire* app (`quill-lower-appkit
+.../WireGuardApp`) and compile it as ONE target (deps Cocoa + WireGuardKit +
+NetworkExtension + os + ServiceManagement + CoreWLAN; `exclude` the C highlighter
++ resources) — compiled **~38 lowered Swift files together**. The modularity wall
+genuinely dissolves: `tr`/`splitToArray` resolve in-module, the **whole model
+layer compiles** (TunnelsManager / TunnelContainer / TunnelViewModel + the
+error/status/keychain types), and the **table VCs compile against the existing
+NSTableView shadow**. The earlier "the model layer is the big convergence" fear
+was an *artifact of file-by-file targeting*. With the module compiling as a
+whole, the only remaining failures were `no such module X` for **framework
+shadows** — surfaced one at a time (each missing module fails *all* ~38 files, so
+the raw error count is files-blocked, not distinct gaps). Nearly all already
+exist (Cocoa/AppKit, NetworkExtension, os, ServiceManagement, WireGuardKit,
+Security; Foundation is real on Linux); the last missing one was **CoreWLAN** (a
+tiny Wi-Fi SSID shim). **Takeaway: don't fear the model layer — fear the
+framework-shadow checklist. Compile the whole app as one module early to get a
+*true* gap list; the model layer comes along for free, and what's left is a short,
+enumerable list of frameworks to shadow (plus any C/resource pieces you excluded,
+e.g. the config-editor highlighter).**
+
 ---
 
 ## 6. CI & build-graph gotchas (these have bitten us)
@@ -264,6 +285,25 @@ conformance.) Consequences / options:
   shared target's deps to gain CI coverage — that breaks the hygiene test.
   Duplicating a target into another graph is fine *unless* it has a `== 1`
   assertion.
+- **Adding a Linux-only shim dependency to a cross-platform target: use a
+  statement-level `#if os(Linux)` helper array — NOT `.target(_:condition:)`.**
+  SwiftPM does *not* auto-resolve `import Foo` to a same-package target named
+  `Foo`; you must declare the dependency edge or Linux fails `no such module
+  'Foo'` (real bug: `QuillRSParser`'s `import CoreGraphics` had no edge, silently
+  breaking the shared Linux graph — and it had merged "green on macOS" only,
+  where the system framework hides the gap). Two traps when adding the edge: (1)
+  an inline array-element `#if os(Linux) "Foo" #endif` *inside* `dependencies:
+  [...]` is illegal ("expected expression"); (2) `.target(name: "Foo", condition:
+  .when(platforms: [.linux]))` *breaks macOS* — it leaves the dep entry in the
+  manifest there, where SwiftPM pulls the Darwin-unused shim target into the
+  graph and fails with a spurious *"source files for target Foo should be located
+  under Sources/Foo."* The robust idiom (mirrors `quillLinuxShimTestDependencies`):
+  `#if os(Linux)\nlet extraDeps: [Target.Dependency] = ["Foo"]\n#else\nlet
+  extraDeps: [Target.Dependency] = []\n#endif` above `var targets`, then
+  `dependencies: [...] + extraDeps`. On macOS that's byte-identical to no dep.
+- **The swarm merges despite the ~50-min Linux job hanging**, so Linux-graph
+  breaks land silently. Periodically Docker-build the *full default graph* (not
+  just `--target X`) to catch a neighbour's regression before it blocks you.
 - **The qt build graph is a separate, minimal target list** in `Package.swift`
   (`if quillUILinuxBuildBackend == .qt { targets = [...] }`). New AppKit-Qt
   targets must be added **there too**, not only to the default array.
