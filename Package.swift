@@ -1263,6 +1263,9 @@ if wireguardUpstreamPresent {
                 // stripped by fetch-upstream's (now whole-app) lowering. Grows
                 // this target toward the single-app-module.
                 "Sources/WireGuardApp/Tunnel/TunnelStatus.swift",
+                // ActivateOnDemandOption: maps on-demand config <-> NEOnDemandRule[]
+                // (NE on-demand surface from #338/#340 + wg_log from #345).
+                "Sources/WireGuardApp/Tunnel/ActivateOnDemandOption.swift",
                 // App error model: WireGuardAppError protocol + AlertText typealias
                 // + WireGuardResult<T> — self-contained (Foundation only); used pervasively
                 // by the rest of the model layer.
