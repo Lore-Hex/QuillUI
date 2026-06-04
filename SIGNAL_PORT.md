@@ -206,8 +206,15 @@ loaded batch and seeds the seen set; `appendIncoming` skips an already-seen
 timestamp; the optimistic send records its stamp. The helper is **fully
 unit-tested** in the decode-check (drops already-seen + intra-batch dups, keeps
 nil-timestamp items, preserves order, mutates the seen set). GTK app + check
-green; launch smoke unregressed. (Followup: client-generated send timestamps so
-the optimistic echo and the bridge-stored copy share a stamp and dedup exactly.)
+green; launch smoke unregressed.
+
+**Exact send dedup via client timestamps (2026-06-03):** the bridge `send` now
+accepts an optional `timestamp` (used for both the `DataMessage` and the
+`send_message` call, else stamped now); the app's `send` generates one millis
+timestamp and reuses it for the optimistic echo, the seen set, and the bridge
+payload — so the stored/echoed copy carries the same stamp and dedups against the
+optimistic message instead of appearing twice. Bridge + GTK app + decode-check
+green; launch smoke unregressed.
 
 ---
 

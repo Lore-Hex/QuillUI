@@ -334,22 +334,22 @@ public final class QuillSignalModel: ObservableObject {
     public func send(to threadUuid: String, body: String) {
         let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        // Optimistic echo into the open thread.
-        let now = Date()
+        // One client-generated timestamp shared by the optimistic echo, the seen
+        // set, and the bridge — so the stored/echoed copy dedups exactly.
+        let ts = UInt64(Date().timeIntervalSince1970 * 1000)
         if let idx = conversations.firstIndex(where: {
             $0.id.uuidString.caseInsensitiveCompare(threadUuid) == .orderedSame
         }) {
             conversations[idx].messages.append(
-                Message(sender: "Me", body: trimmed, fromSelf: true, timestamp: now)
+                Message(sender: "Me", body: trimmed, fromSelf: true,
+                        timestamp: Date(timeIntervalSince1970: Double(ts) / 1000.0))
             )
-            // Record the optimistic timestamp so the echoed/reloaded copy dedups
-            // (exact once the bridge accepts a client timestamp — see followup).
-            seenTimestamps[threadUuid.lowercased(), default: []]
-                .insert(UInt64(now.timeIntervalSince1970 * 1000))
+            seenTimestamps[threadUuid.lowercased(), default: []].insert(ts)
         }
         // Build the command with proper JSON escaping (body is arbitrary text).
+        // JSONSerialization needs Int, not UInt64, for the number.
         guard let data = try? JSONSerialization.data(withJSONObject: [
-            "cmd": "send", "thread": threadUuid, "body": trimmed,
+            "cmd": "send", "thread": threadUuid, "body": trimmed, "timestamp": Int(ts),
         ]), let cmd = String(data: data, encoding: .utf8) else { return }
         let path = socketPath
         Task.detached {
