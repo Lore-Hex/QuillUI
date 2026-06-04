@@ -1,5 +1,12 @@
 # QuillSignal — real Signal on QuillOS
 
+> **Status: feature-complete.** A native QuillUI/GTK Signal client over the real
+> presage/libsignal Rust engine — 1:1 **and** group conversations, send (optimistic
+> echo + timestamp dedup + failure banner), real-time receive + desktop
+> notifications, self-spawning/self-healing engine, QR device linking. All
+> real-account actions are user-gated; everything else is compile/screenshot/
+> contract-test verified. See `QUILLSIGNAL_RUN.md` to build, link, and run.
+
 ## ⮕ PIVOT (2026-06-03): Rust core, not the iOS app
 
 **Decision (user):** stop compiling `signalapp/Signal-iOS` on Linux; **pivot to
