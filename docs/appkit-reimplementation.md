@@ -225,6 +225,30 @@ views). Fix by including those files in the target, or pick a VC that has none
 shadow. Don't conflate them: (A) is "include more app source," (B) is "build more
 framework." A single `tr` inclusion can clear a hundred (A) errors at once.
 
+**The SwiftPM modularity wall (the limit of file-by-file conformance).** Upstream
+apps are usually ONE module (Xcode compiles `WireGuardApp` as a single target),
+so their files freely call in-module helpers — `tr(...)`, `"x".splitToArray()` —
+with no import. When you slice that one module into *several* SwiftPM conformance
+targets, those helpers can only live in **one** target each (SwiftPM forbids the
+same file in two targets, and `internal` helpers aren't visible cross-module). So
+a file that needs helpers from *different* slices can't join any of them. (Real
+example: `TunnelViewModel` needs `splitToArray` — which sits in the core parser
+target `QuillWireGuardUpstreamConfig` — and `tr` — which sits in
+`QuillWireGuardConformanceUI`. Neither target has both, and you can't merge them
+because the parser target is also a *runtime* dependency of the app, not just
+conformance.) Consequences / options:
+- The dependency-free VCs (no app helpers, no model layer) are the cheap wins —
+  do those first (we got `ButtonedDetail`, `UnusableTunnelDetail` this way).
+- Beyond them, the clean fix is the **end-state single `QuillWireGuardApp`
+  module** that compiles the whole app at once (helpers back in-module) — but
+  that's gated on *every* subsystem being ready (here: a NetworkExtension shadow,
+  complete NSTableView, the full model layer).
+- The hacky interim: make a helper `public` (a fetch-upstream patch) and inject
+  `import ThatModule` into consumers (another patch). Works, but fragile — prefer
+  the single-module once the subsystems land.
+- **Lesson: file-by-file conformance scales until a file straddles two helper
+  slices; plan for the single-app-module as the convergence point.**
+
 ---
 
 ## 6. CI & build-graph gotchas (these have bitten us)
