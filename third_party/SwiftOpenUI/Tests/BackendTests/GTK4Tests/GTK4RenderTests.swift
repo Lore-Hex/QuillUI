@@ -1,4 +1,5 @@
 import XCTest
+import Foundation
 import SwiftOpenUI
 @testable import BackendGTK4
 import CGTK
@@ -1843,6 +1844,31 @@ final class GTK4RenderTests: XCTestCase {
                         "onDisappear view with .environment(model) should render a widget")
     }
 
+    func testTaskRunsOnceAcrossUnrelatedStateRebuilds() throws {
+        try requireGTK()
+
+        let tick = State(wrappedValue: 0)
+        let counter = GTKTaskRunCounter()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            GTKTaskOnceProbeView(tick: tick, counter: counter)
+        ))
+        XCTAssertNotNil(widget)
+        XCTAssertTrue(counter.waitForCount(1, timeout: 1.0),
+                      "Initial .task should run")
+
+        for value in 1...5 {
+            tick.storage.setValue(value)
+            drainGTKMainContext()
+        }
+
+        Thread.sleep(forTimeInterval: 0.1)
+        drainGTKMainContext()
+
+        XCTAssertEqual(counter.value, 1,
+                       ".task should not re-run for unrelated rebuilds of the same descriptor identity")
+    }
+
     func testTapGestureRendersWithEnvironmentBinding() throws {
         try requireGTK()
 
@@ -2271,6 +2297,63 @@ final class GTK4RenderTests: XCTestCase {
 
 private final class GTKDelayedEnvModel {
     var count: Int = 0
+}
+
+private final class GTKTaskRunCounter: @unchecked Sendable {
+    private let condition = NSCondition()
+    private var count = 0
+
+    func increment() {
+        condition.lock()
+        count += 1
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    var value: Int {
+        condition.lock()
+        defer { condition.unlock() }
+        return count
+    }
+
+    func waitForCount(_ target: Int, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        condition.lock()
+        defer { condition.unlock() }
+
+        while count < target {
+            if !condition.wait(until: deadline) {
+                break
+            }
+        }
+        return count >= target
+    }
+}
+
+private func drainGTKMainContext(maxIterations: Int = 20) {
+    for _ in 0..<maxIterations {
+        if g_main_context_iteration(nil, 0) == 0 {
+            break
+        }
+    }
+}
+
+private struct GTKTaskOnceProbeView: View {
+    @State private var tick: Int
+    let counter: GTKTaskRunCounter
+
+    init(tick: State<Int>, counter: GTKTaskRunCounter) {
+        self._tick = tick
+        self.counter = counter
+    }
+
+    var body: some View {
+        Text("tick \(tick)")
+            .frame(width: tick.isMultiple(of: 2) ? 80 : 96)
+            .task {
+                counter.increment()
+            }
+    }
 }
 
 private struct GTKDelayedEnvButtonView: View {

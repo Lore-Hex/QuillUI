@@ -143,6 +143,26 @@ func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -
     }
 }
 
+private final class GTKEnvironmentCapture: @unchecked Sendable {
+    let environment: EnvironmentValues
+
+    init(_ environment: EnvironmentValues) {
+        self.environment = environment
+    }
+}
+
+func bindTaskActionToCurrentEnvironment(
+    _ action: @escaping @Sendable () async -> Void
+) -> @Sendable () async -> Void {
+    let capturedEnvironment = GTKEnvironmentCapture(getCurrentEnvironment())
+    return {
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(capturedEnvironment.environment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        await action()
+    }
+}
+
 // MARK: - View GTK extensions
 
 extension Text: GTKRenderable, GTKDescribable {
@@ -2780,6 +2800,101 @@ extension AnimatedView: GTKRenderable, GTKDescribable {
 }
 
 // MARK: - OnAppear / OnDisappear GTK extensions
+
+private let gtkStandaloneTaskBoxKey = "gtk-swift-standalone-task-box"
+
+private final class GTKStandaloneTaskBox {
+    let priority: TaskPriority
+    let action: @Sendable () async -> Void
+    var task: Task<Void, Never>?
+
+    init(priority: TaskPriority, action: @escaping @Sendable () async -> Void) {
+        self.priority = priority
+        self.action = action
+    }
+
+    func start() {
+        guard task == nil else { return }
+        let action = action
+        task = Task(priority: priority) {
+            await action()
+        }
+    }
+
+    func cancel() {
+        task?.cancel()
+        task = nil
+    }
+}
+
+private func gtkAttachStandaloneTaskLifecycle(
+    to widget: UnsafeMutablePointer<GtkWidget>,
+    priority: TaskPriority,
+    action: @escaping @Sendable () async -> Void
+) {
+    let box = Unmanaged.passRetained(
+        GTKStandaloneTaskBox(priority: priority, action: action)
+    ).toOpaque()
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data_full(
+        gobject,
+        gtkStandaloneTaskBoxKey,
+        box,
+        { userData in
+            let box = Unmanaged<GTKStandaloneTaskBox>.fromOpaque(userData!).takeRetainedValue()
+            box.cancel()
+        }
+    )
+
+    g_signal_connect_data(
+        gpointer(widget),
+        "map",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            let box = Unmanaged<GTKStandaloneTaskBox>.fromOpaque(userData!).takeUnretainedValue()
+            box.start()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        box,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    g_signal_connect_data(
+        gpointer(widget),
+        "unmap",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            let box = Unmanaged<GTKStandaloneTaskBox>.fromOpaque(userData!).takeUnretainedValue()
+            box.cancel()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        box,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+}
+
+extension TaskView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        gtkCollectTaskPayload(GTK4TaskPayload(
+            priority: priority,
+            action: bindTaskActionToCurrentEnvironment(action)
+        ))
+        return GTK4DescriptorNode(
+            kind: .task,
+            typeName: "TaskView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        let widget = widgetFromOpaque(gtkRenderView(content))
+        if GTKViewHost.getCurrentRebuilding() == nil {
+            gtkAttachStandaloneTaskLifecycle(
+                to: widget,
+                priority: priority,
+                action: bindTaskActionToCurrentEnvironment(action)
+            )
+        }
+        return opaqueFromWidget(widget)
+    }
+}
 
 extension OnAppearView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
@@ -6289,6 +6404,10 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
         let canvasPayloads = gtkCanvasPayloadsByIdentity(
             descriptorRoot: identified,
             payloads: described.canvasPayloads
+        )
+        host.updateTaskLifecycle(
+            descriptorRoot: identified,
+            taskPayloads: described.taskPayloads
         )
         host.lastRetainedDescriptor = gtkRetainDescriptorTree(identified)
         var executor = gtkMakeExecutorTree(

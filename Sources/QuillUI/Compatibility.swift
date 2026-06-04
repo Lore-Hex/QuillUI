@@ -740,25 +740,6 @@ private struct PresentationModeKey: EnvironmentKey {
     static let defaultValue = PresentationMode()
 }
 
-private struct QuillTaskOnceViewModifier: ViewModifier {
-    let priority: TaskPriority
-    let action: @Sendable () async -> Void
-
-    @State private var hasStarted = false
-
-    func body(content: Content) -> some View {
-        content.onAppear {
-            guard !hasStarted else { return }
-            hasStarted = true
-            let taskPriority = priority
-            let taskAction = action
-            Task(priority: taskPriority) {
-                await taskAction()
-            }
-        }
-    }
-}
-
 public extension EnvironmentValues {
     var presentationMode: PresentationMode {
         get { self[PresentationModeKey.self] }
@@ -779,10 +760,6 @@ public extension View {
     func listStyle(_ style: PlainListStyle) -> Self {
         recordCompatibilityFallback("listStyle(PlainListStyle)")
         return self
-    }
-
-    func task(priority: TaskPriority = .userInitiated, _ action: @escaping @Sendable () async -> Void) -> some View {
-        modifier(QuillTaskOnceViewModifier(priority: priority, action: action))
     }
 
     @ViewBuilder
