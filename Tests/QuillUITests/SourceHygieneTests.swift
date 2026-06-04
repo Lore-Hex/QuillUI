@@ -64,7 +64,6 @@ struct SourceHygieneTests {
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))
         #expect(manifest.contains("quillEnchantedDataTarget,"))
-        #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"QuillUI\", \"QuillFoundation\", \"QuillKit\"]"))
         #expect(manifest.contains("name: \"QuillQtNativeRuntimeSupport\""))
         #expect(manifest.contains("path: \"Sources/QuillQtNativeRuntimeSupport\""))
         #expect(manifest.contains(".library(name: \"QuillGenericQtNativeRuntime\", targets: [\"QuillGenericQtNativeRuntime\"])"))
@@ -83,8 +82,6 @@ struct SourceHygieneTests {
         #expect(manifest.contains("allPackageDependencies = quillDataPackageDependencies"))
         #expect(manifest.contains("let packageTestTargets: [Target] = {"))
         #expect(manifest.contains("name: \"QuillQtBackendManifestTests\""))
-        #expect(manifest.contains("name: \"QuillEnchantedTests\""))
-        #expect(manifest.contains("dependencies: [\"QuillEnchantedCore\", \"QuillUI\"]"))
         #expect(manifest.contains("targets: targets + packageTestTargets"))
         #expect(!manifest.contains("dependencies: quillQtInteractionSmokeDependencies"))
         #expect(qtCarrierHeader.contains("Linker carrier for Qt6 Widgets"))
@@ -126,7 +123,6 @@ struct SourceHygieneTests {
         let gtkAccessibility = try packageSource("Sources/QuillUI/GTKAccessibilityModifiers.swift")
         let gtkHover = try packageSource("Sources/QuillUI/GTKHoverModifiers.swift")
         let gtkPatchScript = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
-        let upstreamCompatibilityTests = try packageSource("Tests/QuillEnchantedTests/UpstreamCompatibilityTests.swift")
 
         #expect(compatibility.contains("public struct AccessibilityChildBehavior: Hashable, Sendable"))
         #expect(compatibility.contains("public static let combine = AccessibilityChildBehavior(\"combine\")"))
@@ -160,9 +156,6 @@ struct SourceHygieneTests {
         #expect(gtkPatchScript.contains("if \"gtk_swift_accessible_update_description(widget, textPointer)\" not in helpRenderer:"))
         #expect(gtkPatchScript.contains("helpRenderer = helpRenderer.replace(needle, replacement, 1)"))
         #expect(gtkPatchScript.contains("text = text[:helpStart] + helpRenderer + text[helpEnd:]"))
-        #expect(upstreamCompatibilityTests.contains(".accessibilityElement(children: .combine)"))
-        #expect(upstreamCompatibilityTests.contains(".accessibilityLabel(\"Composer\")"))
-        #expect(upstreamCompatibilityTests.contains(".accessibilityValue(\"Ready\")"))
     }
 
     @Test("Linux build preparation is gated by the selected backend")
@@ -693,9 +686,7 @@ struct SourceHygieneTests {
             "Sources/QuillCodeEdit/main.swift",
             "Sources/QuillNetNewsWire/main.swift",
             "Sources/QuillIceCubes/main.swift",
-            "Sources/QuillWireGuard/main.swift",
-            "Sources/QuillEnchantedCore/EnchantedApp.swift",
-            "Sources/QuillEnchantedUpstreamSlice/main.swift"
+            "Sources/QuillWireGuard/main.swift"
         ]
         let appLauncherPaths = [
             "Sources/QuillSignal/main.swift": "QuillApp.run(QuillSignalApp.self)",
@@ -704,8 +695,7 @@ struct SourceHygieneTests {
             "Sources/QuillCodeEdit/main.swift": "QuillApp.run(QuillCodeEditApp.self)",
             "Sources/QuillNetNewsWire/main.swift": "QuillApp.run(QuillNetNewsWireApp.self)",
             "Sources/QuillIceCubes/main.swift": "QuillApp.run(QuillIceCubesApp.self)",
-            "Sources/QuillWireGuard/main.swift": "QuillApp.run(QuillWireGuardApp.self)",
-            "Sources/QuillEnchantedUpstreamSlice/main.swift": "QuillApp.run(UpstreamSliceApp.self)"
+            "Sources/QuillWireGuard/main.swift": "QuillApp.run(QuillWireGuardApp.self)"
         ]
         let qtAppLauncherPaths = [
             "Sources/QuillWireGuardQt/main.swift": "QuillQtApp.run(QuillWireGuardQtApp.self)"
@@ -834,7 +824,6 @@ struct SourceHygieneTests {
         #expect(manifest.contains("path: \"Sources/QuillEnchantedData\""))
         #expect(manifest.contains("dependencies: [\"QuillData\"]"))
         #expect(manifest.contains("dependencies: [\"QuillEnchantedData\", \"QuillFoundation\"]"))
-        #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"QuillEnchantedData\", \"QuillUI\", \"QuillFoundation\", \"QuillKit\"]"))
         #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
         #expect(manifest.contains("nativeQt: [\"QuillWireGuardQtNativeRuntime\"]"))
         #expect(manifest.contains("dependencies: [\"CQuillQt6WidgetsShim\"]"))
@@ -3265,7 +3254,6 @@ struct SourceHygieneTests {
     @Test("QuillConversationHistoryList mirrors Enchanted row preview and accessibility")
     func quillConversationHistoryListMirrorsEnchantedRowPreviewAndAccessibility() throws {
         let controls = try packageSource("Sources/QuillUI/Controls.swift")
-        let upstreamSlice = try packageSource("Sources/QuillEnchantedUpstreamSlice/main.swift")
         guard let historyStart = controls.range(of: "public struct QuillConversationHistoryItem: Identifiable"),
               let nextSection = controls.range(of: "public struct QuillSidebarNavigationAction: Identifiable") else {
             Issue.record("Unable to locate QuillConversationHistoryList source")
@@ -3349,9 +3337,6 @@ struct SourceHygieneTests {
         #expect(historyList.contains("private func lastMessagePreview(for item: QuillConversationHistoryItem) -> String"))
         #expect(historyList.contains("item.lastMessage.trimmingCharacters(in: .whitespacesAndNewlines)"))
         #expect(historyList.contains("return \"\\(item.title)\\n\\(lastMessage)\""))
-        #expect(upstreamSlice.contains("var lastMessage: String"))
-        #expect(upstreamSlice.contains("self.lastMessage = conversation.lastMessage"))
-        #expect(upstreamSlice.contains("lastMessage: $0.lastMessage"))
     }
 
     @Test("QuillSidebarNavigationButton uses native image symbols")

@@ -20,7 +20,6 @@ struct QuillQtBackendManifestTests {
     }
 
     private static let expectedGenericQtCatalogProducts = [
-        "quill-enchanted-upstream-slice",
         "quill-icecubes",
         "quill-netnewswire",
         "quill-codeedit",
@@ -30,13 +29,6 @@ struct QuillQtBackendManifestTests {
     ]
 
     private static let expectedGenericQtCatalog: [String: GenericQtCatalogExpectation] = [
-        "quill-enchanted-upstream-slice": .init(
-            catalogCase: "enchantedUpstreamSlice",
-            selectedIndexEnvironmentKeys: EnchantedInitialSelection.selectedConversationIndexEnvironmentKeys + [
-                QuillGenericQtAppSnapshot.genericSelectedIndexEnvironmentKey
-            ],
-            snapshot: QuillGenericQtAppCatalog.enchantedUpstreamSlice
-        ),
         "quill-icecubes": .init(
             catalogCase: "iceCubes",
             selectedIndexEnvironmentKeys: [
@@ -183,9 +175,6 @@ struct QuillQtBackendManifestTests {
             }
 
             assertGenericQtSnapshot(expectation.snapshot, product: product, expectation: expectation)
-            if product == "quill-enchanted-upstream-slice" {
-                assertEnchantedSliceUsesSharedMetrics(expectation.snapshot)
-            }
 
             let sharedSelectionKeys = try genericSelectionEnvironmentKeys(product: product, smokeLib: smokeLib)
             #expect(
@@ -197,9 +186,6 @@ struct QuillQtBackendManifestTests {
             let decodedSnapshot = try JSONDecoder().decode(QuillGenericQtAppSnapshot.self, from: encodedSnapshot)
 
             assertGenericQtSnapshot(decodedSnapshot, product: product, expectation: expectation)
-            if product == "quill-enchanted-upstream-slice" {
-                assertEnchantedSliceUsesSharedMetrics(decodedSnapshot)
-            }
 
             #expect(decodedSnapshot.windowTitle == expectation.snapshot.windowTitle)
             #expect(decodedSnapshot.selectedIndex == expectation.snapshot.selectedIndex)

@@ -544,7 +544,6 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("click_enchanted_list_selection()"))
         #expect(interactionScript.contains("click_chat_list_selection()"))
         #expect(interactionScript.contains("click_backend_header_action()"))
-        #expect(interactionScript.contains("\"$SELECTED_BACKEND\" == \"gtk\" && \"$PRODUCT\" == \"quill-enchanted-upstream-slice\""))
         #expect(interactionScript.contains("quillui_backend_interaction_verify_product \"$PRODUCT\" \"$INTERACTION_MODE\" VERIFY_PRODUCT"))
         #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
         #expect(smokeLib.contains("quillui_backend_app_interaction_verify_product_for_product \"$product\" \"$selected_backend\" \"$interaction_mode\""))

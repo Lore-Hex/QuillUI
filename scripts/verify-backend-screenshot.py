@@ -2155,13 +2155,7 @@ def validate_quill_chatkit_gtk_list_selection(image: Screenshot, product: str) -
 
 def validate_quill_generic_gtk_list_selection(image: Screenshot, product: str) -> str:
     app_label = product.removesuffix("-gtk-list-selection")
-    # The upstream-slice uses the Enchanted palette; its selected row is the neutral
-    # #E8E8ED tint (matches enchanted_selected_row_pixel's shared-palette band), not
-    # the bluer generic_gtk tint. Mirror validate_quill_generic_qt_list_selection.
-    uses_enchanted_palette = app_label == "quill-enchanted-upstream-slice"
-    selected_row_pixel = (
-        enchanted_selected_row_pixel if uses_enchanted_palette else generic_gtk_selected_row_pixel
-    )
+    selected_row_pixel = generic_gtk_selected_row_pixel
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -2258,11 +2252,10 @@ def validate_quill_generic_gtk_list_selection(image: Screenshot, product: str) -
 
 def validate_quill_generic_qt_list_selection(image: Screenshot, product: str) -> str:
     app_label = product.removesuffix("-qt-list-selection")
-    uses_enchanted_palette = app_label == "quill-enchanted-upstream-slice"
-    palette_label = "Enchanted Qt" if uses_enchanted_palette else "Generic Qt"
-    sidebar_pixel = enchanted_sidebar_pixel if uses_enchanted_palette else generic_qt_sidebar_pixel
-    selected_row_pixel = enchanted_selected_row_pixel if uses_enchanted_palette else generic_qt_selected_row_pixel
-    detail_surface_pixel = enchanted_canvas_pixel if uses_enchanted_palette else generic_qt_detail_surface_pixel
+    palette_label = "Generic Qt"
+    sidebar_pixel = generic_qt_sidebar_pixel
+    selected_row_pixel = generic_qt_selected_row_pixel
+    detail_surface_pixel = generic_qt_detail_surface_pixel
 
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1

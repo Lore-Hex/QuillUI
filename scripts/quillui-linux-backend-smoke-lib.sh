@@ -538,10 +538,6 @@ quillui_backend_generic_selection_environment_keys() {
     quill-codeedit)
       printf '%s\n' QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START
       ;;
-    quill-enchanted-upstream-slice)
-      printf '%s\n' QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START
-      printf '%s\n' QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START
-      ;;
     quill-icecubes)
       printf '%s\n' QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START
       ;;
