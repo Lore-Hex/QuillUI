@@ -109,4 +109,15 @@ struct NetworkExtensionVPNTests {
         #expect(NEOnDemandRule().action == .ignore)   // base default
         #expect(NEOnDemandRuleAction.evaluateConnection.rawValue == 3)
     }
+
+    @Test("NEVPNConnection.manager links back to its manager + NE Notification.Names (TunnelsManager)")
+    func connectionManagerAndNotificationNames() {
+        // TunnelsManager: `session.manager as? NETunnelProviderManager`.
+        let mgr = NETunnelProviderManager()
+        #expect(mgr.connection.manager === mgr)
+        #expect((mgr.connection as? NETunnelProviderSession)?.manager as? NETunnelProviderManager === mgr)
+        // TunnelsManager observes these by name.
+        #expect(Notification.Name.NEVPNStatusDidChange.rawValue == "NEVPNStatusDidChange")
+        #expect(Notification.Name.NEVPNConfigurationChange.rawValue == "NEVPNConfigurationChange")
+    }
 }
