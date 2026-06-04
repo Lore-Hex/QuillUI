@@ -113,6 +113,7 @@ public extension NSColor {
     static let controlAccentColor = NSColor()
     static let selectedTextBackgroundColor = NSColor()
     static let selectedContentBackgroundColor = NSColor()
+    static let unemphasizedSelectedContentBackgroundColor = NSColor()
     static let separatorColor = NSColor()
     static let windowBackgroundColor = NSColor()
     static let underPageBackgroundColor = NSColor()
@@ -2764,6 +2765,33 @@ open class NSScrollView: NSView {
             addSubview(contentView)
         }
     }
+}
+
+/// Mirrors `NSBox`: a titled/bordered container. COMPILE-stub — properties are
+/// stored (defaults let it inherit NSView's initializers, so `NSBox()` works);
+/// a Qt backing (QGroupBox/QFrame) is a follow-up.
+open class NSBox: NSView {
+    public enum BoxType: UInt, Sendable { case primary, secondary, separator, oldStyle, custom }
+    public enum TitlePosition: UInt, Sendable {
+        case noTitle, aboveTop, atTop, belowTop, aboveBottom, atBottom, belowBottom
+    }
+    public enum BorderType: UInt, Sendable { case noBorder, lineBorder, bezelBorder, grooveBorder }
+
+    public var boxType: BoxType = .primary
+    public var titlePosition: TitlePosition = .atTop
+    public var borderType: BorderType = .lineBorder
+    public var title: String = ""
+    public var titleFont: NSFont?
+    public var fillColor: NSColor = NSColor()
+    public var borderColor: NSColor = NSColor()
+    public var borderWidth: CGFloat = 0
+    public var cornerRadius: CGFloat = 0
+    public var isTransparent: Bool = false
+    public var contentViewMargins: NSSize = NSSize(width: 0, height: 0)
+    public var contentView: NSView? {
+        didSet { if let v = contentView { addSubview(v) } }
+    }
+    public func sizeToFit() {}
 }
 
 open class NSClipView: NSView {
