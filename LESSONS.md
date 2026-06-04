@@ -94,9 +94,50 @@ Lower that ~2% glue automatically; keep ~98% byte-for-byte.
   subclass them — *that* is what the 492k cascade was.
 
 **Verdict:** Swift side lowers cleanly (`AppKitLowering`); the gating task is a
-**finite port of ~32 ObjC base-model files to Swift**, not an open-ended toolchain
-project. Sequence Track B as: AppKitLowering pass → port the ~32 `.m`/`.h` base
-classes → drive the residual error count down.
+**finite port of the central ObjC base-model spine to Swift**, not an open-ended
+toolchain project.
+
+### Codex-reviewed Track-B sequence (2026-06-04)
+
+A second-opinion review (codex, read-only) sharpened the plan — adopt this order:
+
+0. **Land the lowerer first (it's the unproven dependency).** `AppKitLowering`
+   exists and is tested, but **only in `QuillUI-wg/Sources/QuillSourceLowering/`**
+   — *not* in the `QuillSourceLowering` that `quillui-signal` builds (which only
+   has SwiftUI/SwiftData passes), and there is **no `quill-lower-appkit` CLI** yet.
+   First action: bring `AppKitLowering` into the shared `QuillSourceLowering`
+   (coordinate with QuillUI/WG — it should live in the shared module, not be
+   forked) + a CLI, and prove `lowerInPlace` runs on a slice of `.upstream/signal-ios`.
+   It rewrites `#selector(x)` → `QuillFoundation.Selector("x")`, so that dep must
+   resolve.
+1. **Port the central SPINE, NOT leaf-first.** The cascade is dominated by
+   high-fan-out types: `TSYapDatabaseObject`, `BaseModel`, `TSInteraction`,
+   `TSMessage`, `TSIncomingMessage`, `TSOutgoingMessage`, `TSInfoMessage`,
+   `TSErrorMessage`, `TSQuotedMessage`, `TSGroupModel` (+ `OWSAsserts`/`OWSLogs`).
+   Leaf-first is low-leverage and won't collapse the cannot-find-type cascade.
+2. **Shim, don't rewrite.** SDS is already mostly Swift/GRDB. Write
+   **interface-accurate Swift base classes** that preserve the source contract
+   (stored props, initializers — incl. the generated `+SDS.swift` `init(grdbId:…)`
+   signatures — `asRecord()`/`SDSRecordDelegate`, `copy`/`hash`/equality,
+   `NSCoding`/`NSSecureCoding`); **stub** deep send/delete/network side effects
+   until the smoke target links + runs. Port KVC as direct `NSNumber` boxing — do
+   not emulate dynamic KVC.
+3. **Smallest milestone (target this, not all of SSK):** one executable that
+   links `libsignal_ffi.a` (touch one `LibSignalClient` symbol), constructs a
+   `TSMessage` subclass + `TSGroupModelV2` via the generated SDS initializer,
+   calls `asRecord()`, archives/unarchives one legacy blob (`TSQuotedMessage` /
+   `TSGroupModel`), exits 0. Excludes SignalUI / linking / receive-send / Calls /
+   Payments / migrations.
+
+**Underestimated risks (codex):** stripping `@objc(ClassName)` can break
+**`NSKeyedArchiver` class-name compatibility** — a *runtime* wall, not just
+compile — so map class names deliberately. `NSKeyedArchiver` fidelity on Linux
+generally may bite at runtime. `NotificationCenter` selector observers compile
+after lowering but may need closure/runtime rewrites. `objc_sync_enter/exit`, KVO
+leftovers, atomic props, swizzling are few but semantically sharp. SQLCipher /
+keychain / file-protection / APNs are deferred, not gone. Hand ports will drift
+from the generated SDS contract unless the constructor/property surface is
+generated or test-pinned.
 
 ---
 
