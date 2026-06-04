@@ -1282,6 +1282,10 @@ if wireguardUpstreamPresent {
                 // TunnelViewModel: config edit/validation VM (pure Foundation +
                 // WireGuardKit + splitToArray; no AppKit/KVO). Used by TunnelEdit/Detail VCs.
                 "Sources/WireGuardApp/UI/TunnelViewModel.swift",
+                // Error presentation: ErrorPresenterProtocol + macOS ErrorPresenter
+                // (NSAlert-based; WireGuardAppError -> alert). Used by the VCs.
+                "Sources/WireGuardApp/UI/ErrorPresenterProtocol.swift",
+                "Sources/WireGuardApp/UI/macOS/ErrorPresenter.swift",
                 // Shared NotificationToken: a Foundation-only NotificationCenter
                 // observer wrapper (+ NotificationCenter.observe); used by the model
                 // layer (TunnelsManager/LogViewController). No ObjC.
