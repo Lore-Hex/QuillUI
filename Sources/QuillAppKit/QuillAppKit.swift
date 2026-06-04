@@ -430,6 +430,12 @@ public final class NSLayoutGuide: NSObject {
 }
 
 open class NSView: NSResponder {
+    /// Posted when a view's frame/bounds change (when posts*ChangedNotifications
+    /// is set). WireGuard's LogViewController observes these to autoscroll.
+    public static let frameDidChangeNotification = Notification.Name("NSViewFrameDidChangeNotification")
+    public static let boundsDidChangeNotification = Notification.Name("NSViewBoundsDidChangeNotification")
+    public var postsFrameChangedNotifications: Bool = false
+    public var postsBoundsChangedNotifications: Bool = false
     public var frame: NSRect = .zero {
         didSet {
             guard frame != oldValue else { return }
@@ -854,6 +860,9 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
 }
 
 @MainActor open class NSViewController: NSResponder {
+    /// The VC that presented this one (set on present; read as
+    /// `presentingViewController?.dismiss(self)`). Compile stub: nil unless set.
+    public weak var presentingViewController: NSViewController?
     private var quillView: NSView = NSView()
     public var view: NSView {
         get {
@@ -3668,6 +3677,8 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
 
 @MainActor open class NSTableView: NSControl {
     public static let selectionDidChangeNotification = Notification.Name("NSTableViewSelectionDidChangeNotification")
+    /// Auto row-height mode (WireGuard's LogViewController log table). No-op on Linux.
+    public var usesAutomaticRowHeights: Bool = false
 
     public weak var delegate: NSTableViewDelegate?
     public weak var dataSource: NSTableViewDataSource?

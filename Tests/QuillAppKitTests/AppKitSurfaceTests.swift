@@ -55,4 +55,18 @@ struct AppKitSurfaceTests {
         #expect(NSEvent.SpecialKey.delete == NSEvent.SpecialKey.delete)
         #expect(NSEvent.SpecialKey.delete != NSEvent.SpecialKey.tab)
     }
+
+    @Test("NSView frame/bounds change notifications + posts flags + NSTableView.usesAutomaticRowHeights")
+    @MainActor func viewNotificationsAndTableRowHeights() {
+        // WireGuard's LogViewController observes frame/bounds changes to autoscroll.
+        #expect(NSView.frameDidChangeNotification.rawValue == "NSViewFrameDidChangeNotification")
+        #expect(NSView.boundsDidChangeNotification.rawValue == "NSViewBoundsDidChangeNotification")
+        let v = NSView(frame: .zero)
+        v.postsFrameChangedNotifications = true
+        v.postsBoundsChangedNotifications = true
+        #expect(v.postsFrameChangedNotifications && v.postsBoundsChangedNotifications)
+        let table = NSTableView(frame: .zero)
+        table.usesAutomaticRowHeights = true
+        #expect(table.usesAutomaticRowHeights)
+    }
 }
