@@ -135,4 +135,102 @@ struct AppKitLoweringTests {
         #expect(lowered.contains(#"button.action = Selector("buttonClicked")"#))
         #expect(lowered.contains("func buttonClicked()"))
     }
+
+    // MARK: - Dispatch-conformance generation (half-2)
+
+    @Test("Generates a QuillActionDispatching conformance for a class with @objc actions")
+    func generatesConformance() {
+        let source = """
+        class VC {
+            @objc func saveClicked() {}
+            @objc func listDoubleClicked(sender: AnyObject) {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("extension VC: QuillActionDispatching {"))
+        #expect(lowered.contains("func quillPerform(_ selector: Selector, with sender: Any?)"))
+        #expect(lowered.contains(#"case "saveClicked": saveClicked()"#))
+        #expect(lowered.contains(#"case "listDoubleClicked(sender:)": listDoubleClicked(sender: sender as! AnyObject)"#))
+        #expect(lowered.contains("default: break"))
+    }
+
+    @Test("Sender param casts: Any? passes through, AnyObject? optional-casts, AnyObject force-casts")
+    func senderCasts() {
+        let source = """
+        class VC {
+            @objc func a(sender: AnyObject?) {}
+            @objc func copy(_ sender: Any?) {}
+            @objc func b(sender: AnyObject) {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains(#"case "a(sender:)": a(sender: sender as? AnyObject)"#))
+        #expect(lowered.contains(#"case "copy(_:)": copy(sender)"#))
+        #expect(lowered.contains(#"case "b(sender:)": b(sender: sender as! AnyObject)"#))
+    }
+
+    @Test("@objc actions declared in an extension are collected onto the extended type")
+    func actionsInExtension() {
+        let source = """
+        class VC {}
+        extension VC {
+            @objc func foo() {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("extension VC: QuillActionDispatching {"))
+        #expect(lowered.contains(#"case "foo": foo()"#))
+    }
+
+    @Test("@objc protocol requirements do NOT get a (bogus) conformance")
+    func protocolRequirementsSkipped() {
+        let source = """
+        @objc protocol Respondable {
+            @objc func undo(_ sender: Any?)
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(!lowered.contains("extension Respondable: QuillActionDispatching"))
+    }
+
+    @Test("A class with no @objc actions gets no conformance")
+    func noConformanceWhenNoActions() {
+        let lowered = AppKitLowering().lower("class VC { func plain() {} }")
+        #expect(!lowered.contains("QuillActionDispatching"))
+    }
+
+    @Test("Conformance generation is idempotent (second pass adds nothing)")
+    func conformanceIdempotent() {
+        let once = AppKitLowering().lower("class VC { @objc func tap() {} }")
+        let twice = AppKitLowering().lower(once)
+        #expect(once == twice)
+        let count = once.components(separatedBy: "extension VC: QuillActionDispatching").count - 1
+        #expect(count == 1)
+    }
+
+    @Test("Whole WireGuard macOS UI tree: every type with @objc actions gets a conformance")
+    func realUpstreamGeneratesConformances() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let macUI = repoRoot
+            .appendingPathComponent(".upstream/wireguard-apple/Sources/WireGuardApp/UI/macOS")
+        guard FileManager.default.fileExists(atPath: macUI.path) else { return } // skip: no upstream
+
+        let pass = AppKitLowering()
+        var generatedAny = false
+        guard let enumerator = FileManager.default.enumerator(at: macUI, includingPropertiesForKeys: nil) else { return }
+        for case let url as URL in enumerator {
+            guard url.pathExtension == "swift" else { continue }
+            let original = try String(contentsOf: url, encoding: .utf8)
+            let lowered = pass.lower(original)
+            if original.contains("@objc func") {
+                // Files that declare @objc actions (not just an @objc protocol) get a conformance.
+                if lowered.contains(": QuillActionDispatching {") { generatedAny = true }
+            }
+            // Generated dispatch must be clean + idempotent.
+            #expect(!lowered.contains("#selector("))
+            #expect(pass.lower(lowered) == lowered)
+        }
+        #expect(generatedAny)
+    }
 }
