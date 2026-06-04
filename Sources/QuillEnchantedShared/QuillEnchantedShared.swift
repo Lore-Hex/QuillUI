@@ -2,6 +2,70 @@ import Foundation
 import QuillEnchantedData
 import QuillFoundation
 
+public struct EnchantedConversationCopyPayload: Equatable, Sendable {
+    public struct Message: Codable, Equatable, Hashable, Sendable {
+        private enum CodingKeys: String, CodingKey {
+            case role
+            case content
+        }
+
+        public var role: String
+        public var content: String
+
+        public init(role: String, content: String) {
+            self.role = role
+            self.content = content
+        }
+
+        public init(_ message: ChatMessage) {
+            self.init(role: message.role.rawValue, content: message.content)
+        }
+    }
+
+    public var messages: [Message]
+
+    public init(messages: [Message]) {
+        self.messages = messages
+    }
+
+    public init(chatMessages: [ChatMessage]) {
+        self.init(messages: chatMessages.map(Message.init))
+    }
+
+    public var isEmpty: Bool {
+        messages.isEmpty
+    }
+
+    public func plainTextString() -> String {
+        messages
+            .map { "\($0.role.capitalized): \($0.content)" }
+            .joined(separator: "\n\n")
+    }
+
+    public func jsonString() throws -> String {
+        // JSONEncoder does not preserve key order on Linux corelibs-foundation
+        // (it emitted "content" before "role"), so assemble each object manually
+        // to guarantee genuine Enchanted's role-then-content order. Each value is
+        // still encoded via JSONEncoder for correct string escaping.
+        func encoded(_ value: String) throws -> String {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.withoutEscapingSlashes]
+            return String(decoding: try encoder.encode(value), as: UTF8.self)
+        }
+        let objects = try messages.map { message in
+            "{\"role\":\(try encoded(message.role)),\"content\":\(try encoded(message.content))}"
+        }
+        return "[\(objects.joined(separator: ","))]"
+    }
+
+    public func string(json: Bool) throws -> String {
+        if json {
+            return try jsonString()
+        }
+        return plainTextString()
+    }
+}
+
 public struct EnchantedPrompt: Codable, Equatable, Hashable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case title

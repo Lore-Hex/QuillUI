@@ -1,4 +1,7 @@
 import Foundation
+#if os(Linux)
+import Glibc
+#endif
 
 public enum QuillKitPlatform: String, Sendable {
     case linux = "Linux"
@@ -128,20 +131,71 @@ public final class QuillCompatibilityDiagnostics: @unchecked Sendable {
 public final class QuillClipboard: @unchecked Sendable {
     public static let shared = QuillClipboard()
 
-    private let lock = NSLock()
-    private var stringValues: [String: String] = [:]
-    private var dataValues: [String: Data] = [:]
+    public struct NativeStringBackend: Sendable {
+        public var name: String
+        public var setString: @Sendable (String) -> Bool
+        public var string: @Sendable () -> String?
 
-    public init() {}
-
-    public func setString(_ string: String?, forType type: String = "public.utf8-plain-text") {
-        lock.withLock {
-            stringValues[type] = string
+        public init(
+            name: String,
+            setString: @escaping @Sendable (String) -> Bool,
+            string: @escaping @Sendable () -> String?
+        ) {
+            self.name = name
+            self.setString = setString
+            self.string = string
         }
     }
 
+    private let lock = NSLock()
+    private var stringValues: [String: String] = [:]
+    private var dataValues: [String: Data] = [:]
+    private var nativeStringBackend: NativeStringBackend?
+
+    public init() {}
+
+    public func installNativeStringBackend(_ backend: NativeStringBackend?) {
+        lock.withLock {
+            nativeStringBackend = backend
+        }
+    }
+
+    public func setString(_ string: String?, forType type: String = "public.utf8-plain-text") {
+        let backend = lock.withLock {
+            stringValues[type] = string
+            return nativeStringBackend
+        }
+
+        guard Self.usesNativeClipboard(forType: type) else {
+            return
+        }
+
+        let clipboardString = string ?? ""
+        if backend?.setString(clipboardString) == true {
+            return
+        }
+
+        #if os(Linux)
+        _ = QuillLinuxClipboardBridge.setString(clipboardString)
+        #endif
+    }
+
     public func string(forType type: String = "public.utf8-plain-text") -> String? {
-        lock.withLock { stringValues[type] }
+        let backend = lock.withLock { nativeStringBackend }
+
+        if Self.usesNativeClipboard(forType: type) {
+            if let nativeString = backend?.string() {
+                return nativeString
+            }
+
+            #if os(Linux)
+            if let bridgeString = QuillLinuxClipboardBridge.string() {
+                return bridgeString
+            }
+            #endif
+        }
+
+        return lock.withLock { stringValues[type] }
     }
 
     public func setData(_ data: Data?, forType type: String) {
@@ -155,12 +209,84 @@ public final class QuillClipboard: @unchecked Sendable {
     }
 
     public func clear() {
-        lock.withLock {
+        let backend = lock.withLock {
             stringValues.removeAll()
             dataValues.removeAll()
+            return nativeStringBackend
+        }
+
+        if backend?.setString("") == true {
+            return
+        }
+
+        #if os(Linux)
+        _ = QuillLinuxClipboardBridge.setString("")
+        #endif
+    }
+
+    private static func usesNativeClipboard(forType type: String) -> Bool {
+        switch type {
+        case "public.utf8-plain-text", "public.text", "public.plain-text", "NSStringPboardType":
+            return true
+        default:
+            return false
         }
     }
 }
+
+#if os(Linux)
+private enum QuillLinuxClipboardBridge {
+    private typealias SetTextFunction = @convention(c) (UnsafePointer<CChar>?) -> CInt
+    private typealias GetTextFunction = @convention(c) () -> UnsafePointer<CChar>?
+
+    static func setString(_ string: String) -> Bool {
+        guard let setText = firstSymbol(
+            named: [
+                "quill_qt_bridge_clipboard_set_text",
+                "quill_qt_native_clipboard_set_text"
+            ],
+            as: SetTextFunction.self
+        ) else {
+            return false
+        }
+
+        return string.withCString { setText($0) != 0 }
+    }
+
+    static func string() -> String? {
+        guard let getText = firstSymbol(
+            named: [
+                "quill_qt_bridge_clipboard_text",
+                "quill_qt_native_clipboard_text"
+            ],
+            as: GetTextFunction.self
+        ),
+              let value = getText()
+        else {
+            return nil
+        }
+
+        return String(cString: value)
+    }
+
+    private static func firstSymbol<Function>(
+        named names: [String],
+        as type: Function.Type
+    ) -> Function? {
+        guard let handle = dlopen(nil, RTLD_NOW) else {
+            return nil
+        }
+
+        for name in names {
+            if let symbol = dlsym(handle, name) {
+                return unsafeBitCast(symbol, to: Function.self)
+            }
+        }
+
+        return nil
+    }
+}
+#endif
 
 public enum QuillWorkspace {
     @discardableResult

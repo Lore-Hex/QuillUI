@@ -13,6 +13,7 @@
 #include <QAction>
 #include <QByteArray>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QComboBox>
 #include <QFont>
 #include <QFontDatabase>
@@ -221,6 +222,25 @@ int quill_qt_bridge_application_exec(QuillQtAppHandle app) {
     const int status = reinterpret_cast<QApplication *>(app)->exec();
     bridgeTrace("application_exec: event loop returned");
     return status;
+}
+
+// --- Clipboard -------------------------------------------------------------
+
+int quill_qt_bridge_clipboard_set_text(const char *text) {
+    if (QClipboard *clipboard = QApplication::clipboard()) {
+        clipboard->setText(utf8(text));
+        return 1;
+    }
+    return 0;
+}
+
+const char *quill_qt_bridge_clipboard_text(void) {
+    static QByteArray text;
+    if (QClipboard *clipboard = QApplication::clipboard()) {
+        text = clipboard->text().toUtf8();
+        return text.constData();
+    }
+    return nullptr;
 }
 
 // --- Window ----------------------------------------------------------------

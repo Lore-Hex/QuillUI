@@ -1019,6 +1019,62 @@ gtk_swift_event_controller_get_widget(gpointer controller) {
     return gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(controller));
 }
 
+// --- Clipboard shims ---
+
+static inline gboolean
+gtk_swift_clipboard_set_text(const char *text) {
+    GdkDisplay *display = gdk_display_get_default();
+    if (!display) return FALSE;
+    GdkClipboard *clipboard = gdk_display_get_clipboard(display);
+    if (!clipboard) return FALSE;
+    gdk_clipboard_set_text(clipboard, text ? text : "");
+    return TRUE;
+}
+
+typedef struct {
+    GMainLoop *loop;
+    char *text;
+} GtkSwiftClipboardReadTextState;
+
+static inline void
+gtk_swift_clipboard_read_text_done(GObject *source,
+                                   GAsyncResult *result,
+                                   gpointer user_data) {
+    GtkSwiftClipboardReadTextState *state =
+        (GtkSwiftClipboardReadTextState *)user_data;
+    GError *error = NULL;
+    state->text = gdk_clipboard_read_text_finish(
+        GDK_CLIPBOARD(source),
+        result,
+        &error);
+    if (error) g_error_free(error);
+    g_main_loop_quit(state->loop);
+}
+
+static inline char *
+gtk_swift_clipboard_read_text(void) {
+    GdkDisplay *display = gdk_display_get_default();
+    if (!display) return NULL;
+    GdkClipboard *clipboard = gdk_display_get_clipboard(display);
+    if (!clipboard) return NULL;
+
+    GtkSwiftClipboardReadTextState state = {0};
+    state.loop = g_main_loop_new(NULL, FALSE);
+    gdk_clipboard_read_text_async(
+        clipboard,
+        NULL,
+        gtk_swift_clipboard_read_text_done,
+        &state);
+    g_main_loop_run(state.loop);
+    g_main_loop_unref(state.loop);
+    return state.text;
+}
+
+static inline void
+gtk_swift_clipboard_free_text(char *text) {
+    g_free(text);
+}
+
 /// Return the currently active GtkWindow for the default GApplication, or
 /// NULL if there is no default application or no active window. Used to
 /// supply a parent window to GtkFileDialog / GtkAlertDialog — without a
