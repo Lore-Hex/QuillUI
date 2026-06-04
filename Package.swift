@@ -1230,7 +1230,11 @@ if wireguardUpstreamPresent {
             dependencies: ["Cocoa"],
             path: ".upstream/wireguard-apple",
             sources: [
-                "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift"
+                "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift",
+                // First real ViewController: a full NSViewController (NSButton,
+                // target-action, Auto Layout) compiling against the shadow after
+                // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).
+                "Sources/WireGuardApp/UI/macOS/ViewController/ButtonedDetailViewController.swift"
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
