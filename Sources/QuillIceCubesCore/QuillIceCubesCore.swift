@@ -6,6 +6,74 @@ enum QuillIceCubesProfileLabels {
     static let bareTimelineTitle = "IceCubes Public Timeline"
 }
 
+/// The IceCubes sidebar sections. Home / Local / Federated drive the status
+/// timeline at different Mastodon localities; Notifications / Explore /
+/// Settings are standalone surfaces. Mirrors the tab set upstream IceCubes
+/// renders in its sidebar so the section model ports without app rewrites.
+public enum IceCubesTab: String, CaseIterable, Identifiable, Hashable, Sendable {
+    case home, local, federated, notifications, explore, settings
+
+    public var id: String { rawValue }
+
+    /// Sidebar label + column title.
+    public var title: String {
+        switch self {
+        case .home: return "Home"
+        case .local: return "Local"
+        case .federated: return "Federated"
+        case .notifications: return "Notifications"
+        case .explore: return "Explore"
+        case .settings: return "Settings"
+        }
+    }
+
+    /// SF Symbol name for the sidebar icon (mirrored to Material on GTK).
+    public var systemImage: String {
+        switch self {
+        case .home: return "house"
+        case .local: return "person.2"
+        case .federated: return "globe"
+        case .notifications: return "bell"
+        case .explore: return "magnifyingglass"
+        case .settings: return "gearshape"
+        }
+    }
+
+    /// Sub-header under the column title.
+    public var subtitle: String {
+        switch self {
+        case .home: return "Public timeline"
+        case .local: return "This server"
+        case .federated: return "Known fediverse"
+        case .notifications: return "Mentions & boosts"
+        case .explore: return "Trending now"
+        case .settings: return "Preferences"
+        }
+    }
+
+    /// Message shown on the standalone (non-timeline) surfaces.
+    public var placeholderMessage: String {
+        switch self {
+        case .notifications: return "Your mentions, boosts, and favorites will appear here."
+        case .explore: return "Trending posts, tags, and people will appear here."
+        case .settings: return "Account and appearance settings will appear here."
+        case .home, .local, .federated: return ""
+        }
+    }
+
+    /// Whether the tab renders the status timeline (vs a standalone surface).
+    public var showsTimeline: Bool {
+        switch self {
+        case .home, .local, .federated: return true
+        case .notifications, .explore, .settings: return false
+        }
+    }
+
+    /// The Mastodon public-timeline `local` flag. Local pins to the current
+    /// server; Home / Federated span the wider fediverse.
+    public var prefersLocalTimeline: Bool { self == .local }
+}
+
 /// Mastodon public-timeline shell. Mirrors the upstream
 /// IceCubes view shape so a future port of larger
 /// Dimillian/IceCubesApp views compiles unmodified against
@@ -30,6 +98,7 @@ public struct QuillIceCubesContentView: View {
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
     @State private var didStartTimelineLoad = false
+    @State private var selectedTab: IceCubesTab = .home
     private let initialSelectionEnvironment: [String: String]
 
     public init(environment: [String: String] = ProcessInfo.processInfo.environment) {
@@ -162,40 +231,70 @@ public struct QuillIceCubesContentView: View {
                 .font(.title2)
                 .bold()
                 .padding(16)
-            navItem("Home", systemImage: "house")
-            navItem("Local", systemImage: "person.2")
-            navItem("Federated", systemImage: "globe")
-            navItem("Notifications", systemImage: "bell")
-            navItem("Explore", systemImage: "magnifyingglass")
-            navItem("Settings", systemImage: "gearshape")
+            navItem(.home)
+            navItem(.local)
+            navItem(.federated)
+            navItem(.notifications)
+            navItem(.explore)
+            navItem(.settings)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(QuillDesktopChromeStyle.sidebarBackground)
     }
 
-    private func navItem(_ title: String, systemImage: String) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.body)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 7)
+    /// A sidebar tab. Tapping switches `selectedTab`; the active tab gets the
+    /// same tinted highlight (accent text + selected-row background) IceCubes
+    /// draws on its current section.
+    private func navItem(_ tab: IceCubesTab) -> some View {
+        let isActive = selectedTab == tab
+        return Button {
+            selectTab(tab)
+        } label: {
+            Label(tab.title, systemImage: tab.systemImage)
+                .font(.body)
+                .foregroundColor(isActive ? Self.activeTabAccent : Color.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(isActive ? QuillDesktopChromeStyle.selectedRowBackground : Color.clear)
+                .cornerRadius(QuillDesktopChromeStyle.selectedRowCornerRadius)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 8)
     }
+
+    /// Switch sections. Timeline tabs (Home/Local/Federated) re-fetch at the
+    /// new Mastodon locality; the `QUILLUI_DISABLE_FETCH` smoke keeps the
+    /// seeded fixtures so selection/layout stay deterministic.
+    private func selectTab(_ tab: IceCubesTab) {
+        guard tab != selectedTab else { return }
+        selectedTab = tab
+        let isFetchDisabled = ProcessInfo.processInfo.environment["QUILLUI_DISABLE_FETCH"] == "1"
+        if tab.showsTimeline, !isFetchDisabled {
+            Task { @MainActor in await fetchTimeline() }
+        }
+    }
+
+    private static let activeTabAccent = Color.blue
 
     /// The Home timeline column: the public-timeline rows, selectable into the
     /// detail column.
     private var timelineColumn: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Home")
+                Text(selectedTab.title)
                     .font(.title2)
                     .bold()
-                Text("Public timeline")
+                Text(selectedTab.subtitle)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
             .padding(16)
 
-            if isLoading && timelineRows.isEmpty {
+            if !selectedTab.showsTimeline {
+                tabPlaceholder(selectedTab)
+            } else if isLoading && timelineRows.isEmpty {
                 loadingPlaceholder
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let errorMessage, timelineRows.isEmpty {
@@ -219,6 +318,21 @@ public struct QuillIceCubesContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(QuillDesktopChromeStyle.detailBackground)
+    }
+
+    /// Standalone (non-timeline) sections — Notifications / Explore / Settings.
+    /// A focused placeholder surface; richer surfaces land in follow-ups.
+    private func tabPlaceholder(_ tab: IceCubesTab) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(tab.title, systemImage: tab.systemImage)
+                .font(.title3)
+                .bold()
+            Text(tab.placeholderMessage)
+                .font(.body)
+                .foregroundColor(.secondary)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func sidebarError(_ errorMessage: String) -> some View {
@@ -425,6 +539,7 @@ public struct QuillIceCubesContentView: View {
         guard !didStartTimelineLoad else { return }
         didStartTimelineLoad = true
         let env = ProcessInfo.processInfo.environment
+        selectedTab = QuillIceCubesInitialTab.selectedTab(environment: env)
         if env["QUILLUI_DISABLE_FETCH"] == "1" {
             seedProfileFixturesIfNeeded()
         } else {
@@ -455,7 +570,10 @@ public struct QuillIceCubesContentView: View {
         }
         do {
             let fetchedStatuses: [Status] = try await client.get(
-                endpoint: Timelines.pub(sinceId: nil, maxId: nil, minId: nil, local: true, limit: 20)
+                endpoint: Timelines.pub(
+                    sinceId: nil, maxId: nil, minId: nil,
+                    local: selectedTab.prefersLocalTimeline, limit: 20
+                )
             )
             let rows = fetchedStatuses.map(IceCubesTimelineRow.init(status:))
             if self.timelineRows != rows {
@@ -479,7 +597,10 @@ public struct QuillIceCubesContentView: View {
     }
 
     private var selectedRow: IceCubesTimelineRow? {
-        selectedRowID.flatMap { id in timelineRows.first { $0.id == id } } ?? timelineRows.first
+        // Standalone tabs (Notifications / Explore / Settings) have no status
+        // detail — keep the detail column on its empty state there.
+        guard selectedTab.showsTimeline else { return nil }
+        return selectedRowID.flatMap { id in timelineRows.first { $0.id == id } } ?? timelineRows.first
     }
 }
 
@@ -739,6 +860,26 @@ public enum QuillIceCubesInitialSelection {
             environmentKeys: [selectedTimelineIndexEnvironmentKey],
             environment: environment
         )
+    }
+}
+
+/// Resolves the initial sidebar tab from the environment, mirroring
+/// `QuillIceCubesInitialSelection`. Lets the deterministic Linux smoke /
+/// screenshots open a specific section (e.g. Notifications) without UI
+/// interaction. Unknown or unset → Home.
+public enum QuillIceCubesInitialTab {
+    public static let selectedTabEnvironmentKey = "QUILLUI_ICECUBES_SELECTED_TAB_ON_START"
+
+    public static func selectedTab(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> IceCubesTab {
+        guard
+            let raw = environment[selectedTabEnvironmentKey]?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased(),
+            let tab = IceCubesTab(rawValue: raw)
+        else { return .home }
+        return tab
     }
 }
 
