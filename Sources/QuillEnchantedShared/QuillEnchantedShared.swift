@@ -43,10 +43,19 @@ public struct EnchantedConversationCopyPayload: Equatable, Sendable {
     }
 
     public func jsonString() throws -> String {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.withoutEscapingSlashes]
-        let data = try encoder.encode(messages)
-        return String(decoding: data, as: UTF8.self)
+        // JSONEncoder does not preserve key order on Linux corelibs-foundation
+        // (it emitted "content" before "role"), so assemble each object manually
+        // to guarantee genuine Enchanted's role-then-content order. Each value is
+        // still encoded via JSONEncoder for correct string escaping.
+        func encoded(_ value: String) throws -> String {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.withoutEscapingSlashes]
+            return String(decoding: try encoder.encode(value), as: UTF8.self)
+        }
+        let objects = try messages.map { message in
+            "{\"role\":\(try encoded(message.role)),\"content\":\(try encoded(message.content))}"
+        }
+        return "[\(objects.joined(separator: ","))]"
     }
 
     public func string(json: Bool) throws -> String {
