@@ -714,6 +714,11 @@ open class NSView: NSResponder {
     public var bottomAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .bottom) }
     public var leadingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .leading) }
     public var trailingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .trailing) }
+    // Absolute left/right. Under the shadow's left-to-right assumption these are
+    // leading/trailing — enough for source-compat with VCs that pin to
+    // leftAnchor/rightAnchor (e.g. WireGuard's ManageTunnels/TunnelDetail).
+    public var leftAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .leading) }
+    public var rightAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .trailing) }
     public var widthAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .width) }
     public var heightAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .height) }
     public var centerXAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .centerX) }
@@ -3340,6 +3345,16 @@ open class NSStackView: NSView {
     public func insertArrangedSubview(_ v: NSView, at idx: Int) { arrangedSubviews.insert(v, at: idx); addSubview(v) }
     public func removeArrangedSubview(_ v: NSView) {
         arrangedSubviews.removeAll { $0 === v }
+    }
+    // Gravity-area APIs. The shadow keeps one ordered arranged-subview list
+    // (gravity isn't modeled yet — the constraint layout pass positions views),
+    // so addView appends like addArrangedSubview and setViews replaces the list.
+    public func addView(_ view: NSView, in gravity: Gravity) {
+        addArrangedSubview(view)
+    }
+    public func setViews(_ views: [NSView], in gravity: Gravity) {
+        arrangedSubviews.removeAll()
+        for view in views { addArrangedSubview(view) }
     }
     public convenience init() { self.init(frame: .zero) }
 }
