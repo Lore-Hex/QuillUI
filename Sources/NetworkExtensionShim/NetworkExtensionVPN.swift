@@ -110,10 +110,21 @@ public enum NEOnDemandRuleInterfaceType: Int, Sendable {
     case ethernet = 3
 }
 
+/// Mirrors `NEOnDemandRuleAction` — what a matched rule does.
+public enum NEOnDemandRuleAction: Int, Sendable {
+    case connect = 1
+    case disconnect = 2
+    case evaluateConnection = 3
+    case ignore = 4
+}
+
 /// Mirrors `NEOnDemandRule` (base). WireGuard builds connect/disconnect rules
 /// that match on interface type and (for Wi-Fi) SSID
-/// (ActivateOnDemandOption.apply).
+/// (ActivateOnDemandOption.apply / read-back reads `rule.action`).
 open class NEOnDemandRule: NSObject {
+    /// What this rule does when matched; set by the concrete subclass.
+    /// ActivateOnDemandOption reads `rule.action == .connect`/`.disconnect`.
+    public internal(set) var action: NEOnDemandRuleAction = .ignore
     public var interfaceTypeMatch: NEOnDemandRuleInterfaceType = .any
     public var ssidMatch: [String]?
     public override init() { super.init() }
@@ -124,8 +135,12 @@ open class NEOnDemandRule: NSObject {
         self.interfaceTypeMatch = interfaceType
     }
 }
-public final class NEOnDemandRuleConnect: NEOnDemandRule {}
-public final class NEOnDemandRuleDisconnect: NEOnDemandRule {}
+public final class NEOnDemandRuleConnect: NEOnDemandRule {
+    public override init() { super.init(); action = .connect }
+}
+public final class NEOnDemandRuleDisconnect: NEOnDemandRule {
+    public override init() { super.init(); action = .disconnect }
+}
 
 /// Mirrors `NEVPNManager`: load/save a VPN configuration + its `connection`.
 /// On Linux these persistence calls are no-ops (config lives elsewhere); the
