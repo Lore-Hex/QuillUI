@@ -1232,9 +1232,12 @@ final class RSSReaderModel: ObservableObject {
     /// offline demo timeline exercises the same relative-date rendering path
     /// (`RSSArticleRow.timelineDateText` → `RelativeTime`) as live feeds.
     private static func fixtureDate(_ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
-        var c = DateComponents()
+        // Fully qualify Foundation's types: on Linux, QuillUI re-exports
+        // SwiftOpenUI, which defines its own `DateComponents`/`Calendar` that
+        // would otherwise shadow Foundation's here.
+        var c = Foundation.DateComponents()
         c.year = 2026; c.month = month; c.day = day; c.hour = hour; c.minute = minute
-        return Calendar(identifier: .gregorian).date(from: c) ?? Date(timeIntervalSince1970: 0)
+        return Foundation.Calendar(identifier: .gregorian).date(from: c) ?? Date(timeIntervalSince1970: 0)
     }
 
     private static let profileFixtureItems: [RSSItem] = [
