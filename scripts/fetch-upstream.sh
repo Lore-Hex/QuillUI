@@ -181,6 +181,51 @@ PY
     fi
 }
 
+patch_icecubes() {
+    # NetworkClient files `import Foundation` and use URLRequest / URLSession /
+    # HTTPURLResponse, which live in the FoundationNetworking module on Linux
+    # (swift-corelibs-foundation). Add a conditional `import FoundationNetworking`
+    # after the first `import Foundation`; canImport is false on macOS so the
+    # Apple build is unaffected. Idempotent.
+    local dir="$UPSTREAM_DIR/icecubes/Packages/NetworkClient/Sources/NetworkClient"
+    if [[ ! -d "$dir" ]]; then
+        return
+    fi
+    echo "==> patching IceCubes NetworkClient for the Linux FoundationNetworking split"
+    python3 - "$dir" <<'PY'
+import sys, os, glob
+
+directory = sys.argv[1]
+addition = (
+    "import Foundation\n"
+    "#if canImport(FoundationNetworking)\n"
+    "import FoundationNetworking\n"
+    "#endif"
+)
+for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
+    src = open(path).read()
+    lines = src.split("\n")
+    out = []
+    fn_done = "FoundationNetworking" in src
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "import OSLog":
+            # Linux: the repo `os` shim provides Logger; there is no OSLog
+            # module, and an `@_exported import os` shim retains os_log symbols
+            # that break swift-syntax's link. Rewrite to the plain os import.
+            out.append("import os")
+        elif stripped == "import Foundation" and not fn_done:
+            out.append(addition)
+            fn_done = True
+        else:
+            out.append(line)
+    new = "\n".join(out)
+    if new != src:
+        open(path, "w").write(new)
+        print("patched", os.path.basename(path))
+PY
+}
+
 want=("$@")
 if [[ ${#want[@]} -eq 0 ]]; then
     # Default set excludes codeedit/codeeditsymbols. CodeEditSymbols
@@ -206,6 +251,7 @@ for name in "${want[@]}"; do
             ;;
         icecubes)
             fetch_repo icecubes https://github.com/Dimillian/IceCubesApp.git
+            patch_icecubes
             ;;
         codeedit)
             fetch_repo codeedit https://github.com/CodeEditApp/CodeEdit.git
