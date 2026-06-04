@@ -291,8 +291,15 @@ it matches the thread uuid against each group's derived uuid (re-enumeration) an
 uses `Thread::Group(master_key)`, else falls back to a contact `ServiceId` (a
 bare group uuid would otherwise mis-parse as a contact ACI, so groups are checked
 first). `store().messages` + the `from_self` logic then serve both contacts and
-groups. Bridge builds clean; compile-verified (empty until linked). Remaining:
-GROUPS3 = send-to-group + receive group messages.
+groups. Bridge builds clean; compile-verified (empty until linked).
+
+**Groups — slice 3a: send-to-group (2026-06-03):** extracted a shared
+`resolve_thread(store, thread_id)` (group-first by re-enumeration, else a contact
+`ServiceId`) used by both `list-messages` and `send`. `send_text` now branches:
+`Thread::Group` → `send_message_to_group(&master_key, …)`, `Thread::Contact` →
+`send_message(service_id, …)`. Bridge builds clean; compile-verified, never
+auto-invoked vs a real account. Remaining: GROUPS3b = receive group messages
+(derive the group uuid from `DataMessage.group_v2`).
 
 ---
 
