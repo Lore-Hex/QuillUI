@@ -1,6 +1,9 @@
 import Foundation
 import QuillFoundation
 import QuillUI
+#if ICECUBES_REAL_MODELS
+import Models
+#endif
 
 enum QuillIceCubesProfileLabels {
     static let bareTimelineTitle = "IceCubes Public Timeline"
@@ -811,6 +814,11 @@ public enum IceCubesRelativeTime {
         string(fromISO8601: createdAt, now: now, calendar: .current)
     }
 
+    /// Date-based overload for the real vendored `Models.ServerDate` (`.asDate`).
+    public static func string(fromDate date: Date, now: Date) -> String {
+        RelativeTime.string(for: date, now: now, calendar: .current)
+    }
+
     /// `calendar` (carrying its time zone) is injectable so the
     /// absolute-date branch is deterministic in unit tests; the
     /// app uses `.current` to show dates in the viewer's zone.
@@ -963,3 +971,31 @@ public enum QuillIceCubesProfileFixtures {
 
     public static let rows: [IceCubesTimelineRow] = statuses.map(IceCubesTimelineRow.init(status:))
 }
+
+#if ICECUBES_REAL_MODELS
+extension IceCubesTimelineRow {
+    /// Maps the REAL vendored `Models.Status` (Dimillian/IceCubesApp upstream
+    /// source) into the render projection. Available only where the real Models
+    /// target is built (gtk Linux); macOS / qt keep the reimpl `Status`. Derives
+    /// the reimpl convenience fields from the upstream shape (cachedDisplayName,
+    /// acct, content HTMLString, ServerDate.asDate) and reuses the merged
+    /// segments(fromHTML:) parser on the real status HTML.
+    public init(realStatus: Models.Status, now: Date = Date()) {
+        let account = realStatus.account
+        let rawDisplayName = account.cachedDisplayName.asRawText
+        let displayName = rawDisplayName.isEmpty ? account.username : rawDisplayName
+        self.init(
+            id: realStatus.id,
+            displayNameText: displayName,
+            handleText: "@\(account.acct)",
+            contentText: realStatus.content.asRawText,
+            timeText: IceCubesRelativeTime.string(fromDate: realStatus.createdAt.asDate, now: now),
+            repliesCount: realStatus.repliesCount,
+            reblogsCount: realStatus.reblogsCount,
+            favouritesCount: realStatus.favouritesCount,
+            avatar: account.avatar,
+            contentSegments: IceCubesContentRuns.segments(fromHTML: realStatus.content.htmlValue)
+        )
+    }
+}
+#endif
