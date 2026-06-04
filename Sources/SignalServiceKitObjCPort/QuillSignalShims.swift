@@ -31,6 +31,12 @@ public extension UIColor {
         self.init()
     }
 
+    // `init(white:alpha:)` lives in QuillAppKit and is not reachable from the SSK
+    // module, so SSK's `UIColor(white:alpha:)` call sites fail. Define it here.
+    convenience init(white: CGFloat, alpha: CGFloat) {
+        self.init()
+    }
+
     func getRed(_ red: UnsafeMutablePointer<CGFloat>?,
                 green: UnsafeMutablePointer<CGFloat>?,
                 blue: UnsafeMutablePointer<CGFloat>?,
