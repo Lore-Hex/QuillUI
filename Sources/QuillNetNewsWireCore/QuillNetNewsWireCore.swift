@@ -79,9 +79,11 @@ public struct QuillNetNewsWireContentView: View {
                 if env["QUILLUI_DISABLE_FETCH"] == "1" {
                     model.seedProfileFixtures()
                 } else {
-                    // Real-fetch path: persist read/starred across launches.
-                    // (Fixture mode above stays in-memory + deterministic.)
+                    // Real-fetch path: persist read/starred + the subscribed
+                    // feed list across launches. (Fixture mode above stays
+                    // in-memory + deterministic.)
                     model.enablePersistence()
+                    model.enableFeedPersistence()
                     Task { @MainActor in await model.loadIfNeeded(urlString: activeFeedURL) }
                     // Kick off the periodic auto-refresh Task.
                     // Skipped in profile/disable-fetch mode so the
@@ -744,6 +746,10 @@ final class RSSReaderModel: ObservableObject {
     /// on for the real-fetch path via `enablePersistence()`.
     private var stateStore: RSSReadStateStore?
 
+    /// Optional SQLite persistence (RSSFeedListStore) for the subscribed feed
+    /// list, so OPML imports / additions survive relaunch. Same opt-in shape.
+    private var feedStore: RSSFeedListStore?
+
     /// Live search query bound to the timeline filter field.
     /// Empty string → no filter (filteredRows == rows). Matching
     /// is case-insensitive and runs against the article title
@@ -927,6 +933,7 @@ final class RSSReaderModel: ObservableObject {
         if selectedFeedID == nil {
             selectedFeedID = subscribedFeeds.first?.id
         }
+        if added > 0 { persistFeedList() }
         return added
     }
 
@@ -1156,6 +1163,29 @@ final class RSSReaderModel: ObservableObject {
     /// Persist the whole read/starred set in one batch (for bulk actions).
     private func persistAllState() {
         try? stateStore?.replaceAll(read: readArticleIDs, starred: starredArticleIDs)
+    }
+
+    /// Turn on feed-list persistence. Loads a previously-saved subscription
+    /// list (the source of truth once it exists); on first run, persists the
+    /// current seed list so it's there next launch. Best-effort; injectable
+    /// for tests. Kept separate from `enablePersistence` so each store can be
+    /// exercised in isolation.
+    func enableFeedPersistence(store: RSSFeedListStore? = nil) {
+        guard let store = store ?? (try? RSSFeedListStore(url: RSSFeedListStore.defaultURL())) else { return }
+        feedStore = store
+        if let loaded = try? store.load(), !loaded.isEmpty {
+            subscribedFeeds = loaded
+            if selectedFeedID == nil || !loaded.contains(where: { $0.id == selectedFeedID }) {
+                selectedFeedID = loaded.first?.id
+            }
+        } else {
+            try? store.replaceAll(subscribedFeeds)
+        }
+    }
+
+    /// Persist the current subscription list (no-op without a store).
+    private func persistFeedList() {
+        try? feedStore?.replaceAll(subscribedFeeds)
     }
 
     /// Count of starred items in the currently-loaded timeline.
