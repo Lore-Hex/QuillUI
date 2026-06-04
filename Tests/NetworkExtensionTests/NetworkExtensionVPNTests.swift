@@ -96,4 +96,17 @@ struct NetworkExtensionVPNTests {
         try session.startTunnel(options: ["activationAttemptId": "abc"])
         session.stopTunnel()
     }
+
+    @Test("NEOnDemandRule.action is set by the Connect/Disconnect subtype (ActivateOnDemandOption read-back)")
+    func onDemandRuleAction() {
+        // ActivateOnDemandOption reads `rule.action == .connect`/`.disconnect`.
+        #expect(NEOnDemandRuleConnect().action == .connect)
+        #expect(NEOnDemandRuleDisconnect().action == .disconnect)
+        // The interfaceType convenience init still routes through the subtype init,
+        // so the action is set too.
+        let r = NEOnDemandRuleConnect(interfaceType: .wiFi)
+        #expect(r.action == .connect && r.interfaceTypeMatch == .wiFi)
+        #expect(NEOnDemandRule().action == .ignore)   // base default
+        #expect(NEOnDemandRuleAction.evaluateConnection.rawValue == 3)
+    }
 }
