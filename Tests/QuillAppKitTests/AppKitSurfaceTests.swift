@@ -69,4 +69,30 @@ struct AppKitSurfaceTests {
         table.usesAutomaticRowHeights = true
         #expect(table.usesAutomaticRowHeights)
     }
+
+    @Test("LogViewController AppKit deps: NSUserInterfaceItemIdentifier(_:), NSWindow.FrameAutosaveName, NSResponder.cancelOperation, NSTableView.row(at:)/NSView.scroll")
+    @MainActor func logViewControllerAppKitSurface() {
+        // NSTableColumn(identifier: NSUserInterfaceItemIdentifier("time")) — the
+        // unlabeled convenience init WireGuard uses to build its log columns.
+        let ident = NSUserInterfaceItemIdentifier("time")
+        #expect(ident.rawValue == "time")
+        let column = NSTableColumn(identifier: ident)
+        #expect(column.identifier.rawValue == "time")
+
+        // NSWindow.FrameAutosaveName (= String) flows into setFrameAutosaveName,
+        // which LogViewController calls to persist the log window's geometry.
+        let name = NSWindow.FrameAutosaveName("LogWindow")
+        #expect(name == "LogWindow")
+        let window = NSWindow()
+        #expect(window.setFrameAutosaveName(name))
+
+        // NSResponder.cancelOperation (Esc / Cmd-.) — compile-stub, callable.
+        NSResponder().cancelOperation(nil)
+
+        // NSTableView.row(at:) (compile-stub: -1 = no row) + NSView.scroll(_:):
+        // LogViewController uses these to keep the log scrolled to the tail.
+        let table = NSTableView(frame: .zero)
+        #expect(table.row(at: NSPoint(x: 0, y: 0)) == -1)
+        table.scroll(NSPoint(x: 0, y: 10))
+    }
 }
