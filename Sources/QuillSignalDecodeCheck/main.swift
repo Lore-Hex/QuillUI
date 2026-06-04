@@ -177,6 +177,20 @@ c.check("marker: bare marker -> true", AttachmentMarker.isPresent(in: "[attachme
 c.check("marker: plain text -> false", !AttachmentMarker.isPresent(in: "just a message"))
 c.check("marker: nil body -> false", !AttachmentMarker.isPresent(in: nil))
 
+// 11d. attachment_kind — list-messages + receive carry a typed-chip kind
+if let r = c.decode(MessagesResponse.self, #"{"ok":true,"cmd":"list-messages","msg":"ok","data":{"messages":[{"body":"clip","timestamp":1700000006000,"sender":"fff","from_self":false,"attachment_kind":"video"},{"body":"hi","timestamp":1700000007000,"sender":"ggg","from_self":false}]}}"#),
+   let msgs = r.data?.messages {
+    c.check("attachment_kind -> attachmentKind set", msgs[0].attachmentKind == "video")
+    c.check("missing attachment_kind -> attachmentKind nil", msgs[1].attachmentKind == nil)
+} else {
+    c.check("list-messages attachment_kind decodes", false)
+}
+if let m = c.decode(IncomingMessage.self, #"{"event":"message","thread":"t","sender":"t","body":"voice","timestamp":1,"from_self":false,"attachment_kind":"audio"}"#) {
+    c.check("incoming attachment_kind -> attachmentKind==audio", m.attachmentKind == "audio")
+} else {
+    c.check("incoming attachment_kind decodes", false)
+}
+
 // 12. whoami — registered with number
 if let r = c.decode(WhoamiResponse.self, #"{"ok":true,"cmd":"whoami","msg":"ok","data":{"registered":true,"number":"+15551234567"}}"#) {
     c.check("whoami registered==true", r.data?.registered == true)

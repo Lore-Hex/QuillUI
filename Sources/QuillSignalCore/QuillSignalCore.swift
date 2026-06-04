@@ -274,7 +274,8 @@ public final class QuillSignalModel: ObservableObject {
                         body: m.body ?? "",
                         fromSelf: m.fromSelf ?? false,
                         timestamp: m.timestamp.map { Date(timeIntervalSince1970: Double($0) / 1000.0) },
-                        attachmentImagePath: m.attachmentPath
+                        attachmentImagePath: m.attachmentPath,
+                        attachmentKind: m.attachmentKind
                     )
                 }
                 Self.log("loaded \(loaded.count) messages for \(threadUuid)")
@@ -340,7 +341,8 @@ public final class QuillSignalModel: ObservableObject {
                     sender: msg.sender ?? "",
                     body: body,
                     fromSelf: msg.fromSelf ?? false,
-                    timestamp: ts.map { Date(timeIntervalSince1970: Double($0) / 1000.0) }
+                    timestamp: ts.map { Date(timeIntervalSince1970: Double($0) / 1000.0) },
+                    attachmentKind: msg.attachmentKind
                 )
                 Task { @MainActor in self.appendIncoming(thread: thread, message: m, timestampMillis: ts, senderName: name) }
                 return true
@@ -701,6 +703,7 @@ public struct Message: ChatMessage {
     public let fromSelf: Bool
     public let timestamp: Date?
     public let attachmentImagePath: String?
+    public let attachmentKind: String?
 
     public init(
         id: UUID = UUID(),
@@ -708,7 +711,8 @@ public struct Message: ChatMessage {
         body: String,
         fromSelf: Bool,
         timestamp: Date? = Date(),
-        attachmentImagePath: String? = nil
+        attachmentImagePath: String? = nil,
+        attachmentKind: String? = nil
     ) {
         self.id = id
         self.sender = sender
@@ -716,6 +720,7 @@ public struct Message: ChatMessage {
         self.fromSelf = fromSelf
         self.timestamp = timestamp
         self.attachmentImagePath = attachmentImagePath
+        self.attachmentKind = attachmentKind
     }
 }
 

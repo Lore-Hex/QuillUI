@@ -41,11 +41,16 @@ public struct BridgeStoredMessage: Codable, Sendable {
     /// text-only message. The bridge downloads + downscales received images and
     /// reports the cached PNG path here. Optional, so older payloads still decode.
     public let attachmentPath: String?
+    /// Coarse attachment kind ("image"/"video"/"audio"/"file") so the UI can show
+    /// a typed chip for non-image attachments, or nil when there's no attachment.
+    /// Optional, so older payloads still decode.
+    public let attachmentKind: String?
 
     enum CodingKeys: String, CodingKey {
         case body, timestamp, sender
         case fromSelf = "from_self"
         case attachmentPath = "attachment_path"
+        case attachmentKind = "attachment_kind"
     }
 }
 
@@ -73,11 +78,15 @@ public struct IncomingMessage: Codable, Sendable {
     public let msg: String?
     public let timestamp: UInt64?
     public let fromSelf: Bool?
+    /// Coarse attachment kind for a typed chip ("image"/"video"/"audio"/"file"),
+    /// or nil. Mirrors the list-messages field.
+    public let attachmentKind: String?
 
     enum CodingKeys: String, CodingKey {
         case event, thread, sender, body, msg, timestamp
         case senderName = "sender_name"
         case fromSelf = "from_self"
+        case attachmentKind = "attachment_kind"
     }
 }
 

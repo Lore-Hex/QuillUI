@@ -446,9 +446,23 @@ new Swift Testing cases** (needsDaySeparator first/same-day/diff-day/nil;
 timelineRows structure `sep,msg,msg,sep,msg`; no-timestamp → no dividers, all
 timezone-robust), and the FAKELINKED screenshot shows `Monday` (two −3d msgs, one
 divider), `Yesterday` (−1d), `Today` (−8m) — exercising every branch including the
-same-day skip — with bubbles, image, and row times intact. Remaining polish:
-non-image attachment chips (bridge attachment-kind metadata), a download
-spinner/placeholder, downscale tuning.
+same-day skip — with bubbles, image, and row times intact.
+
+**Typed attachment chips — part 1, bridge + protocol (2026-06-04):** plumbing for
+non-image attachment chips so files/video/audio stop showing a bare `[attachment:
+name]`. Bridge (`e820fd4`): a pure `attachment_kind(content_type)` classifier
+(`image`/`video`/`audio` by content-type prefix, else `file`, including an absent
+type) + `first_attachment_kind(dm)`; `list-messages` rows and `receive` message
+events now carry an `attachment_kind` field (null when no attachment).
+`display_body` and the image-download path are untouched, so the text marker and
+the live-receive trigger keep working. App: `BridgeStoredMessage`, `IncomingMessage`,
+and `Message` gained an optional `attachmentKind` (key `attachment_kind`, defaulted
+nil → init stays backward-compatible); `loadMessages` and `startReceiving` thread
+it through. Verified: 4 new bridge unit tests (24 total green), 3 new decode-check
+asserts (list-messages set/absent + incoming → audio), clean `quill-signal` build;
+QuillSignalKit/Core only, so Telegram is unaffected. Part 2 (next): `ChatBubble`
+renders a glyph chip (🎬/🎵/📄) for non-image attachments. Remaining polish after:
+download spinner/placeholder, downscale tuning.
 
 **Bridge unit tests (2026-06-03):** the bridge gained its first `cargo test`
 coverage — 9 tests for the pure helpers `group_uuid` (too-short→None;
