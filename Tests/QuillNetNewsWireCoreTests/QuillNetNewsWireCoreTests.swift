@@ -162,6 +162,27 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("subscribed feed list persists (incl. OPML imports) across instances")
+    func modelPersistsFeedList() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nnw-feeds-\(UUID().uuidString).sqlite")
+        let seedCount = RSSReaderModel().subscribedFeeds.count
+        do {
+            let m1 = RSSReaderModel()
+            // First run persists the seed list, then an OPML import adds one.
+            m1.enableFeedPersistence(store: try RSSFeedListStore(url: url))
+            _ = m1.importOPML(xml: """
+            <opml><body><outline text="Added Feed" xmlUrl="https://added.test/feed"/></body></opml>
+            """)
+        }
+        // A fresh model on the same store loads the seed + the imported feed.
+        let m2 = RSSReaderModel()
+        m2.enableFeedPersistence(store: try RSSFeedListStore(url: url))
+        #expect(m2.subscribedFeeds.contains { $0.url == "https://added.test/feed" })
+        #expect(m2.subscribedFeeds.count == seedCount + 1)
+    }
+
+    @MainActor
     @Test("RSSReaderModel keeps selected item + status text cached")
     func readerModelDerivedState() {
         let model = RSSReaderModel()
