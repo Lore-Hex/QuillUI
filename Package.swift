@@ -1885,6 +1885,14 @@ let packageTestTargets: [Target] = {
             dependencies: ["QuillRSCoreShim"],
             swiftSettings: appSwiftSettings
         ),
+        // Pins the live RSWeb clone (Sources/QuillRSWebShim, the `RSWeb`
+        // module) — HTTP value types vendored verbatim from NetNewsWire's
+        // RSWeb. Foundation-only surface.
+        .testTarget(
+            name: "QuillRSWebShimTests",
+            dependencies: ["RSWeb"],
+            swiftSettings: appSwiftSettings
+        ),
         // Smoke tests for the vendored upstream RSParser. Pins
         // RSS 2.0 + Atom + FeedType detection so the
         // import-rewrite path (RSCore → QuillRSCoreShim) and the
