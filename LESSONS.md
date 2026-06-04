@@ -1,0 +1,186 @@
+# QuillSignal / Real-Apple-Apps-on-QuillOS — Lessons Learned
+
+Cross-cutting, high-level lessons + **cross-effort coordination** for compiling
+real Apple apps on QuillOS. Written so any future conversation skips the dead
+ends. Detail: `SIGNAL_PORT.md` (full chronology), `/Users/jperla/claude/QuillSignal/FINDINGS.md`
+(presage de-risk). Real upstream source lives under `.upstream/` (gitignored).
+
+> **READ FIRST if you are about to fight Objective-C on Linux:**
+> `/Users/jperla/claude/QuillUI-wg/docs/appkit-reimplementation.md` §3–4 and
+> `/Users/jperla/claude/QuillUI/docs/porting-lessons.md`. That frontier is
+> already mapped and **owned by QuillUI/QuillAppKit.** Coordinate, don't redo it.
+
+---
+
+## TL;DR — the two things to know
+
+1. **Two different products wear the name "Signal on QuillOS." Don't conflate
+   them.** Track A = a *reimplementation* (presage Rust core + hand-written
+   QuillUI/GTK UI) — works, but is not Signal's source. Track B = *compile the
+   real `signalapp/Signal-iOS` source* against QuillUI/QuillAppKit shims — the
+   real goal, gated behind the ObjC frontier below.
+2. **The ObjC wall on Linux is NOT solved by `libobjc2`/a custom toolchain.**
+   That was the tempting wrong answer (I chased it; so did others before me).
+   The decided answer is **automatic source-lowering** (`QuillSourceLowering` /
+   `AppKitLowering`), which already exists in QuillUI. See "THE WALL."
+
+---
+
+## The two tracks (decide which you're on before writing code)
+
+- **Track A — reimplementation (works today).** Real Signal *protocol* + real
+  *libsignal* crypto via `presage` (Rust) behind a unix-socket bridge, driven by
+  a hand-written QuillUI (SwiftOpenUI/GTK) front-end. Sidesteps ObjC entirely.
+  A *different app that speaks Signal* — not Signal's code. Most QuillSignal
+  commits build this.
+- **Track B — compile original `signalapp/Signal-iOS`.** The QuillAppKit
+  "recompile real Apple apps" thesis. Got far (real `libsignal_ffi.a` built;
+  `LibSignalClient` compiles **zero source edits**; `SignalServiceKit` wired,
+  ObjC/tests/Calls/Payments excluded) then parked at the ObjC wall.
+
+Track A, however polished, never becomes Track B. Choose deliberately.
+
+---
+
+## THE WALL: `@objc` on Linux — what does NOT work, and what does
+
+Real `SignalServiceKit` is pervasively `@objc` (its model layer: `TSMessage`,
+`TSGroupModel`, the `TS*Type` enums…). On Linux that is the dominant blocker.
+
+**Linux Swift ships no `ObjectiveC` overlay module.** `@objc`/`#selector` are
+compiler features bound to that Apple-SDK overlay; they **cannot compile** on
+Linux. Things that look like fixes but are NOT (QuillUI tried them; I re-tried
+some and confirmed):
+
+- **`-enable-objc-interop`** — unknown/ineffective; the overlay still isn't
+  there. A different wall, not a solution.
+- **`libobjc.so.4` / GNUstep `libobjc2`** — that's the *C* runtime. Swift's
+  `@objc`/`#selector` need the *Swift `ObjectiveC` overlay*, an Apple-SDK
+  component — **not** the C library. Installing it changes nothing for Swift.
+- **A fake same-named `ObjectiveC` shim module** — flips `canImport(ObjectiveC)`
+  true package-wide, **breaks Foundation's own `Selector` plumbing, and cascades.
+  Don't.** (This is precisely what produced a **~492k-error cascade** when I
+  tried it on `SignalServiceKit`. Documented anti-pattern in
+  `appkit-reimplementation.md` §3 — I hadn't read it first. Lesson: read it
+  first.)
+
+**What works — automatic source-lowering (`QuillSourceLowering` /
+`AppKitLowering`).** Host-side SwiftSyntax toolkit (builds macOS + Linux, no
+Docker/Qt). Key realization: in a source-recompile world with no ObjC runtime, a
+`Selector` is just an **opaque token** — it only has to be self-consistent, not
+match Apple's mangling. So:
+
+1. **Strip ObjC-exposure attributes** (`@objc`, `@objcMembers`, `@IB*`,
+   `@NSManaged`, `@NSApplicationMain`, …).
+2. **`#selector(x)` → `Selector("x")`** (normalize the type qualifier away).
+
+The ObjC surface of a real AppKit app is small + stereotyped (WireGuard's macOS
+UI: 55 `#selector` + 32 `@objc` ≈ **2.3%** of lines, **zero** hard-dynamic ObjC).
+Lower that ~2% glue automatically; keep ~98% byte-for-byte.
+
+**Open question that decides Track B's feasibility for Signal specifically:** how
+much *hard-dynamic* ObjC does Signal use — `perform`/KVO/`NSInvocation`/`objc_*`/
+`@NSManaged`? Those **cannot** be lowered to plain Swift. WireGuard had none;
+Signal's `TS*` model layer historically leaned on dynamic ObjC + YapDatabase.
+**Measure that before committing to Track B.** (Grep `.upstream/signal-ios` for
+`objc_`, `NSInvocation`, `.perform(`, `addObserver(.*forKeyPath`, `@NSManaged`.)
+
+---
+
+## COORDINATION — this is a shared frontier; converge, don't duplicate
+
+The "real `@objc` Apple code on Linux" problem is **owned by QuillUI/QuillAppKit**
+and shared across efforts. Do the lowering ONCE, centrally; each app *consumes*
+it.
+
+- **Owner / canonical docs:** `/Users/jperla/claude/QuillUI` —
+  `docs/appkit-reimplementation.md` (the ObjC strategy, §3–4) and
+  `docs/porting-lessons.md`. Tooling: `QuillSourceLowering` + `AppKitLowering`
+  (+ `quill-lower-*` CLIs). Orchestrated via **Loom** (labeled GitHub issues,
+  `.swarm/worktrees/codex-issue-*` — multiple agents already in this area).
+- **Shared consumers of the lowering pass:**
+  - **WireGuard** — AppKit conformance app #1 (clean ~2.3% glue; the proving
+    ground for `AppKitLowering`).
+  - **NetNewsWire** — same root blocker (`RSCoreObjC`/`RSDatabaseObjC` `#import
+    <Foundation/Foundation.h>`). In *this* repo its real-source graph is gated
+    **off** (`nnwUpstreamPresent = false`); the live port is in QuillUI. If an
+    NNW agent is extending lowering to ObjC `.m`/`.h` files (a harder case than
+    Swift `@objc`), **that work and Signal's overlap — coordinate there.**
+  - **Signal (Track B)** — needs the *same* `AppKitLowering` pass over
+    `.upstream/signal-ios` before `SignalServiceKit` can compile. Do **not**
+    rebuild a toolchain or add an `ObjectiveC` shim here; run the QuillUI pass.
+- **Coordination channel:** QuillUI's Loom issues + the two docs above. Before
+  starting ObjC-lowering work for Signal, check QuillUI open issues/worktrees so
+  Signal becomes another consumer of `AppKitLowering`, not a fork of it. Feed
+  Signal-specific findings (hard-dynamic ObjC, YapDatabase) **back** into the
+  QuillUI docs.
+
+---
+
+## The `canImport` shim leak (subtle, bites both ways)
+
+Adding "Apple-framework shim" modules (`Sources/AppleFrameworkShims/<Name>`) so
+`import UIKit` resolves has a catch: a shim named after a real framework flips
+`canImport(<Name>)` **true for EVERY target**, including unrelated checkout deps
+(GRDB), via SwiftPM's shared module dir.
+
+- **Helped — CoreGraphics.** GRDB does `#if canImport(CoreGraphics) import
+  CoreGraphics` then uses `CGFloat`; fix = shim re-exports the real symbol:
+  `@_exported import struct Foundation.CGFloat`.
+- **Hurt — ObjectiveC.** GRDB's own no-op `autoreleasepool` exists only
+  `#if !canImport(ObjectiveC)`; the shim deletes it, and GRDB never imports the
+  shim so a re-export can't reach it. (And per "THE WALL," an `ObjectiveC` shim
+  is an anti-pattern anyway — once source-lowering removes Signal's `import
+  ObjectiveC`, the shim should not exist at all and GRDB self-heals.)
+
+**Rule:** re-exporting from a shim only helps deps that actually `import` it.
+Deps that key off `canImport(X)` without importing X must be fixed at the dep —
+or, better, remove the need for module `X`.
+
+---
+
+## Other concrete lessons
+
+- **`swift-corelibs-foundation` gaps on Linux:** no `autoreleasepool`
+  (even `import Foundation` fails); `CGFloat` needs explicit re-export. Expect a
+  long tail once interop is handled.
+- **"It compiles" is per-target.** `Image(filePath:)` is **SwiftOpenUI-only** —
+  real SwiftUI (macOS) lacks it, so GTK-green code can fail on macOS. Gate it:
+  `#if os(Linux)` → `Image(filePath:)` else `NSImage(contentsOfFile:)`. **Build
+  the native-macOS product as a second, stricter gate.** (The macOS resolve
+  drops the Linux-only `opencombine` pin from `Package.resolved` — do not commit
+  that; restore it.)
+- **macOS is the pixel-perfect reference; capture by window ID.** Build native +
+  `QUILLUI_SIGNAL_FAKELINKED=1`, then `screencapture -l<CGWindowID>` (region
+  capture grabs whatever is visually at those coords — wrong app if occluded).
+  Get the ID via a `CGWindowListCopyWindowInfo` helper filtered by PID.
+- **Headless GTK render caveats:** no emoji font (📄 → tofu → use ASCII tags like
+  `FILE`), DejaVu not SF, no native chrome. The GTK render is a faithful *layout*
+  reproduction, **not** a pixel clone — "pixel-perfect on Linux" is font/env
+  dependent.
+- **SwiftOpenUI ViewBuilder:** `if`/`if case` only — **no `switch`, no standalone
+  `let`** inside a builder (fine in plain funcs). `@MainActor` calls are OK inside
+  `assumeIsolated`.
+- **Verification honesty:** "works" was Linux-GTK-only until the macOS build was
+  tried; and **no real Signal account was ever linked** (link/send/receive/
+  download are user-gated). Compile + unit + decode-contract + UI-fixture
+  verified ≠ functionally proven end-to-end. Say which.
+- **Why presage (Track A):** `signal-cli` is blocked on ARM (bundled
+  libsignal-client jar ships no linux-aarch64 `.so`); `presage` builds libsignal
+  from source for the target arch. Build the bridge as a **4th member of the
+  presage cargo workspace** (standalone git-dep = ~220 transitive-skew errors).
+
+---
+
+## Pointers
+
+- `SIGNAL_PORT.md` — chronology + "Historical: abandoned Signal-iOS compile"
+  (milestone ladder, pod→SPM map, exclude strategy).
+- `/Users/jperla/claude/QuillUI/docs/appkit-reimplementation.md`,
+  `/Users/jperla/claude/QuillUI/docs/porting-lessons.md` — the ObjC frontier +
+  `QuillSourceLowering`/`AppKitLowering` (the real fix). **Coordinate here.**
+- `/Users/jperla/claude/QuillSignal/FINDINGS.md` — presage de-risk phases.
+- `.upstream/signal-ios` (~2554 Swift + 33 `.m`), `.upstream/libsignal`
+  (`libsignal_ffi.a` built), `.upstream/wireguard-apple`.
+- Package.swift gates: `signalUpstreamPresent`, `libsignalUpstreamPresent`,
+  `nnwUpstreamPresent`; `signalAppleFrameworkShims`; `SignalServiceKit` ~L1489.
