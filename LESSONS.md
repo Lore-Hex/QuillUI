@@ -159,6 +159,32 @@ A second-opinion review (codex, read-only) sharpened the plan — adopt this ord
    use `public import GRDB` with **no `import Foundation`** yet reference
    `DispatchQueue` — Apple supplied it implicitly; Linux needs an explicit-import
    injection step in the durable pipeline.
+
+   **✅ Spine progress (signal/real-backend):** root trio `SDSRecordDelegate` +
+   `TSYapDatabaseObject` + `BaseModel` (commit `2a68575`, 342605→340389) and the
+   keystone `TSInteraction` (commit `b8d9d8f`, 340389→338575) ported, each
+   compiling with zero errors. The validated NSObject port pattern: designated
+   inits set all stored props **before** `super.init()`; `required override
+   init()` + `required init?(coder:)` for NSSecureCoding subclasses & dynamic init;
+   `override var hash`/`func isEqual(_:)`; NSCoding via `decodeObject(of:forKey:)`/
+   `encode(_:forKey:)`; relax setters to `public internal(set)`; **no `@objc`**.
+   Overlay: committed at `Sources/SignalServiceKitObjCPort/`, symlinked into
+   `QuillPort/`; **Quill-prefix the basename when it collides with an existing
+   tree `.swift`** (there is already a `TSInteraction.swift` extension file → SwiftPM
+   "multiple producers" object-file collision).
+
+   **⚠️ KEY GATING FINDING — override-in-extension.** Signal organizes subclass
+   overrides of base methods in **`extension` blocks** (e.g. `extension
+   TSInteraction { override func anyDidInsert(with:) { super… } }`). On Apple these
+   dispatch via `@objc`; **Swift forbids overriding a non-`@objc` member from an
+   extension** (Apple or Linux). Lowering stripped `@objc`, and the ported bases are
+   pure-Swift, so every such extension-override is at risk. `TSInteraction` had only
+   ~2 (negligible), but `TSMessage`/`TSOutgoingMessage` have many — **resolve this
+   before the big subclass ports.** Options to test: (a) does the Linux compiler
+   accept `@objc`/`@objc dynamic` on NSObject-subclass base members (swift-corelibs
+   NSObject may support it) → if so, mark base overridable members `@objc` and
+   extension-overrides work; (b) else a lowerer pass that **relocates `override`
+   members from extensions into the class body**. (a) is far cheaper if it compiles.
 1. **Port the central SPINE, NOT leaf-first.** The cascade is dominated by
    high-fan-out types: `TSYapDatabaseObject`, `BaseModel`, `TSInteraction`,
    `TSMessage`, `TSIncomingMessage`, `TSOutgoingMessage`, `TSInfoMessage`,
