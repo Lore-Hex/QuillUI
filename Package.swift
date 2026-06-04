@@ -1663,6 +1663,14 @@ let packageTestTargets: [Target] = {
                 dependencies: ["QuillAppKitQt", "AppKit"],
                 swiftSettings: appSwiftSettings
             ),
+            // Pure model-layer tests for the reimplemented AppKit
+            // (NSTableView / NSOutlineView data-source + tree logic). No Qt
+            // rendering — just exercises the AppKit module on Linux.
+            .testTarget(
+                name: "QuillAppKitTests",
+                dependencies: ["AppKit"],
+                swiftSettings: appSwiftSettings
+            ),
             .testTarget(
                 name: "QuillQtBackendManifestTests",
                 dependencies: ["QuillGenericQtNativeRuntime", "QuillQtNativeRuntimeSupport", "QuillEnchantedShared"],
