@@ -166,6 +166,9 @@ public extension NSColor {
     convenience init(deviceWhite: CGFloat, alpha: CGFloat) { self.init() }
     convenience init(calibratedWhite: CGFloat, alpha: CGFloat) { self.init() }
     convenience init(srgbRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { self.init() }
+    /// Apple's generic calibrated-RGB init (`NSColor(red:green:blue:alpha:)`).
+    /// WireGuard's NSColor(hex:) chains to it. Compile-stub (ignores components).
+    convenience init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { self.init() }
     convenience init(deviceRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { self.init() }
     convenience init(calibratedRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { self.init() }
     convenience init(hue: CGFloat, saturation: CGFloat, brightness: CGFloat, alpha: CGFloat) { self.init() }
