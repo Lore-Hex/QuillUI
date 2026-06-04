@@ -1900,21 +1900,40 @@ struct QuillDataSourceLoweringTests {
         }
 
         let buildDirectory = root.appendingPathComponent(".build", isDirectory: true)
-        guard let enumerator = fileManager.enumerator(
+        if let enumerator = fileManager.enumerator(
             at: buildDirectory,
             includingPropertiesForKeys: [.isRegularFileKey],
             options: [.skipsHiddenFiles]
-        ) else {
-            throw SourceLoweringTestError.quillSourceLowerNotBuilt
+        ) {
+            for case let candidate as URL in enumerator {
+                guard candidate.lastPathComponent == "quill-source-lower",
+                      fileManager.isExecutableFile(atPath: candidate.path)
+                else {
+                    continue
+                }
+                return candidate
+            }
         }
 
-        for case let candidate as URL in enumerator {
-            guard candidate.lastPathComponent == "quill-source-lower",
-                  fileManager.isExecutableFile(atPath: candidate.path)
-            else {
-                continue
-            }
-            return candidate
+        // `swift test` does not build executable products, so quill-source-lower
+        // may not exist yet. Build it on demand into the same dedicated scratch
+        // path the lowering script uses — separate from the in-use main .build,
+        // so there is no SwiftPM lock contention with the running test build.
+        let scratch = root.appendingPathComponent(".build/quill-source-lower-tool")
+        let build = Process()
+        build.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        build.arguments = [
+            "swift", "build", "--product", "quill-source-lower",
+            "--package-path", root.path, "--scratch-path", scratch.path,
+        ]
+        build.standardOutput = FileHandle.nullDevice
+        build.standardError = FileHandle.nullDevice
+        try build.run()
+        build.waitUntilExit()
+
+        let built = scratch.appendingPathComponent("debug/quill-source-lower")
+        if fileManager.isExecutableFile(atPath: built.path) {
+            return built
         }
 
         throw SourceLoweringTestError.quillSourceLowerNotBuilt
