@@ -101,15 +101,19 @@ toolchain project.
 
 A second-opinion review (codex, read-only) sharpened the plan — adopt this order:
 
-0. **Land the lowerer first (it's the unproven dependency).** `AppKitLowering`
-   exists and is tested, but **only in `QuillUI-wg/Sources/QuillSourceLowering/`**
-   — *not* in the `QuillSourceLowering` that `quillui-signal` builds (which only
-   has SwiftUI/SwiftData passes), and there is **no `quill-lower-appkit` CLI** yet.
-   First action: bring `AppKitLowering` into the shared `QuillSourceLowering`
-   (coordinate with QuillUI/WG — it should live in the shared module, not be
-   forked) + a CLI, and prove `lowerInPlace` runs on a slice of `.upstream/signal-ios`.
-   It rewrites `#selector(x)` → `QuillFoundation.Selector("x")`, so that dep must
-   resolve.
+0. ✅ **DONE — lowerer landed + proven on Signal at scale.** `AppKitLowering` is
+   already on QuillUI `main` (PR **#286** — the swarm landed it; note
+   `quillui-signal` is the *same repo* `Lore-Hex/QuillUI` on branch
+   `signal/real-backend`, just **behind main**, which is why its
+   `QuillSourceLowering` only had SwiftUI/SwiftData). The missing
+   `quill-lower-appkit` CLI was added on `main` in PR **#302**. **Proven on real
+   Signal:** running the CLI over all of `SignalServiceKit` (1412 Swift files,
+   ~88s, no crash) collapsed **`@objc` 2843 → 1** and **`#selector` 88 → 0** —
+   i.e. it mechanically removes essentially the entire ~61k "ObjC interop disabled"
+   wall. **To consume it in the Signal build:** sync `signal/real-backend` with
+   `main` (merge/rebase to pull #286 + #302), then wire the CLI into the build —
+   lower a *generated copy* of `.upstream/signal-ios` before compiling (mirroring
+   the SwiftUI lowering pipeline; never lower the upstream tree in place).
 1. **Port the central SPINE, NOT leaf-first.** The cascade is dominated by
    high-fan-out types: `TSYapDatabaseObject`, `BaseModel`, `TSInteraction`,
    `TSMessage`, `TSIncomingMessage`, `TSOutgoingMessage`, `TSInfoMessage`,
