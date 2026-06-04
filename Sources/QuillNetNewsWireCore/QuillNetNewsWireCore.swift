@@ -410,6 +410,18 @@ public struct QuillNetNewsWireContentView: View {
                                     .lineLimit(1)
                             }
                             Spacer()
+                            // Previous / next article — like NetNewsWire's
+                            // article navigation; grayed at the timeline ends.
+                            Image(systemName: "chevron.up")
+                                .font(.subheadline)
+                                .foregroundColor(model.canSelectPrevious ? .blue : .secondary)
+                                .contentShape(Rectangle())
+                                .onTapGesture { model.selectPreviousItem() }
+                            Image(systemName: "chevron.down")
+                                .font(.subheadline)
+                                .foregroundColor(model.canSelectNext ? .blue : .secondary)
+                                .contentShape(Rectangle())
+                                .onTapGesture { model.selectNextItem() }
                             // Star toggle — same affordance as upstream
                             // NetNewsWire's article-toolbar star button.
                             Image(systemName: model.isStarred(id: item.id) ? "star.fill" : "star")
@@ -842,6 +854,25 @@ final class RSSReaderModel: ObservableObject {
               index > 0
         else { return }
         selectItem(id: pool[index - 1].id)
+    }
+
+    /// Whether a later article exists to step to — drives the detail view's
+    /// next-article button (grayed at the end of the timeline).
+    var canSelectNext: Bool {
+        let pool = filteredItems
+        guard let id = selectedID, let i = pool.firstIndex(where: { $0.id == id }) else {
+            return !pool.isEmpty
+        }
+        return pool.index(after: i) < pool.endIndex
+    }
+
+    /// Whether an earlier article exists — drives the previous-article button.
+    var canSelectPrevious: Bool {
+        let pool = filteredItems
+        guard let id = selectedID, let i = pool.firstIndex(where: { $0.id == id }) else {
+            return false
+        }
+        return i > pool.startIndex
     }
 
     /// Mark the current article read and advance to the next.
