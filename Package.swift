@@ -1234,7 +1234,12 @@ if wireguardUpstreamPresent {
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
                 // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).
-                "Sources/WireGuardApp/UI/macOS/ViewController/ButtonedDetailViewController.swift"
+                "Sources/WireGuardApp/UI/macOS/ViewController/ButtonedDetailViewController.swift",
+                // Second real ViewController + its `tr` localization helper.
+                // Exercises NSStackView(views:)/setCustomSpacing, NSEdgeInsets,
+                // NSTextField(labelWithAttributedString:) (added in #314).
+                "Sources/WireGuardApp/LocalizationHelper.swift",
+                "Sources/WireGuardApp/UI/macOS/ViewController/UnusableTunnelDetailViewController.swift"
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
