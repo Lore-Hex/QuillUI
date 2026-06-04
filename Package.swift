@@ -1196,11 +1196,14 @@ if wireguardUpstreamPresent {
                 "Sources/Shared/Model/String+ArrayConversion.swift"
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]
-        ),
-        // Conformance: compile WireGuard's REAL macOS KeyValueRow (unmodified
-        // upstream AppKit) against the QuillAppKit reimplementation via the Cocoa
-        // shadow. The build IS the test — proves third-party AppKit source
-        // recompiles on the reimplementation (issue #231, M3 conformance capstone).
+        )
+    ]
+    // Conformance: compile WireGuard's REAL macOS KeyValueRow (unmodified upstream
+    // AppKit) against the reimplementation via the Cocoa shadow. The build IS the
+    // test. Linux-only — the Cocoa/AppKit shadows it depends on are #if os(Linux);
+    // on macOS the real frameworks are used (issue #231, M3 conformance capstone).
+    #if os(Linux)
+    targets.append(
         .target(
             name: "QuillWireGuardConformanceKeyValueRow",
             dependencies: ["Cocoa"],
@@ -1210,7 +1213,8 @@ if wireguardUpstreamPresent {
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
-    ]
+    )
+    #endif
 }
 
 // CodeEdit upstream — macOS-only (it's a pure AppKit/SwiftUI Mac app
