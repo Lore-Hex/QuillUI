@@ -366,6 +366,14 @@ public struct QuillNetNewsWireContentView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
             Spacer()
+            // Mark All as Read (checkmark.circle), like NetNewsWire's toolbar
+            // action; tinted blue when the timeline has unread items, gray
+            // (a no-op) once everything is read.
+            Image(systemName: "checkmark.circle")
+                .font(.caption2)
+                .foregroundColor(model.hasUnreadInTimeline ? .blue : .secondary)
+                .contentShape(Rectangle())
+                .onTapGesture { model.markAllRead() }
             // SF-Symbol refresh control (arrow.clockwise), like NetNewsWire's
             // toolbar refresh; grays out + ignores taps while a load is in
             // flight instead of a disabled text button.
@@ -1032,6 +1040,21 @@ final class RSSReaderModel: ObservableObject {
         } else {
             readArticleIDs.insert(selectedID)
         }
+    }
+
+    /// Mark every article currently shown in the timeline as read —
+    /// upstream NetNewsWire's "Mark All as Read" toolbar action. Unions the
+    /// visible IDs into `readArticleIDs` in a single assignment so the status
+    /// text refreshes once rather than per-article.
+    func markAllRead() {
+        let union = readArticleIDs.union(filteredRows.map(\.id))
+        if union != readArticleIDs { readArticleIDs = union }
+    }
+
+    /// True when any article in the current timeline is unread — drives the
+    /// Mark All as Read control's tinted/no-op state.
+    var hasUnreadInTimeline: Bool {
+        filteredRows.contains { !readArticleIDs.contains($0.id) }
     }
 
     func isRead(id: String) -> Bool {
