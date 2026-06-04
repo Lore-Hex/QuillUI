@@ -370,6 +370,20 @@ still shows the text marker — opening the thread renders the image. Deferred:
 receive-stream inline images (the stream holds `&mut manager`), non-image
 attachment chips, webp decode.
 
+**Relative timestamps (2026-06-04, user-directed feature 2 of 4):** the shared
+`ChatTimestampFormatter` (QuillChatKit) gained `relative(_:now:)`, a chat-style
+stamp that sharpens as a message ages — `Just now` (<1m) → `5m` (<1h) →
+time-of-day earlier today (`9:18 AM`) → `Yesterday` → an abbreviated weekday
+within the past week (`Mon`) → a short date (`Jun 4`). `now` is an injectable
+parameter so the branch choice is deterministic/testable. `ChatBubble` now uses
+`relative` for its caption (the absolute `formatted` stays for callers that want
+it). This is in the SHARED kit, so `quill-telegram` was rebuilt green
+(backward-compatible). FAKELINKED fixtures were spread across the ranges (−3d,
+−1d, −8m) and the screenshot confirms `Mon` / `Yesterday` / `8m` rendering side
+by side, image bubble intact. Deferred: a last-activity time on each
+conversation-list row (needs a timestamp on `ChatListItem`) and date separators
+between message groups.
+
 **Bridge unit tests (2026-06-03):** the bridge gained its first `cargo test`
 coverage — 9 tests for the pure helpers `group_uuid` (too-short→None;
 deterministic 8-4-4-4-12 lowercase hex from the first 16 master-key bytes) and

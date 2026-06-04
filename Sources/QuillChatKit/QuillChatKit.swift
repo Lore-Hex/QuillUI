@@ -225,8 +225,8 @@ private extension ChatAppearance {
     var chatComposerPadding: ChatLayoutLength { ChatLayoutLength(composerPadding) }
 }
 
-/// Cached time-only formatter used by `ChatBubble`. Static so the
-/// `ChatBubble` body doesn't allocate a new formatter every paint.
+/// Cached formatters + relative-stamp logic used by `ChatBubble`. Static so the
+/// `ChatBubble` body doesn't allocate a formatter every paint.
 @MainActor
 public enum ChatTimestampFormatter {
     public static let shortTime: DateFormatter = {
@@ -236,8 +236,46 @@ public enum ChatTimestampFormatter {
         return f
     }()
 
+    /// Abbreviated weekday ("Mon") for messages within the past week.
+    public static let weekday: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEE"
+        return f
+    }()
+
+    /// Month + day ("Jun 4") for older messages.
+    public static let shortDate: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f
+    }()
+
+    /// The time-of-day for a message ("9:18 AM"). Kept for callers that always
+    /// want an absolute stamp regardless of age.
     public static func formatted(_ timestamp: Date) -> String {
         shortTime.string(from: timestamp)
+    }
+
+    /// A compact, chat-style relative stamp that sharpens as a message ages:
+    /// "Just now" (<1m) → "5m" (<1h) → time-of-day earlier today ("9:18 AM") →
+    /// "Yesterday" → an abbreviated weekday within the past week ("Mon") →
+    /// a short date ("Jun 4"). `now` is injectable so the choice is testable.
+    public static func relative(_ timestamp: Date, now: Date = Date()) -> String {
+        let interval = now.timeIntervalSince(timestamp)
+        if interval < 60 { return "Just now" }
+        if interval < 3600 { return "\(Int(interval / 60))m" }
+        let cal = Calendar.current
+        if cal.isDate(timestamp, inSameDayAs: now) {
+            return shortTime.string(from: timestamp)
+        }
+        if let yesterday = cal.date(byAdding: .day, value: -1, to: now),
+           cal.isDate(timestamp, inSameDayAs: yesterday) {
+            return "Yesterday"
+        }
+        if interval < 7 * 24 * 3600 {
+            return weekday.string(from: timestamp)
+        }
+        return shortDate.string(from: timestamp)
     }
 }
 
@@ -276,7 +314,7 @@ public struct ChatBubble<M: ChatMessage>: View {
                 HStack(spacing: 6) {
                     Text(message.sender)
                     if let timestamp = message.timestamp {
-                        Text(ChatTimestampFormatter.formatted(timestamp))
+                        Text(ChatTimestampFormatter.relative(timestamp))
                     }
                 }
                 .font(.caption2)

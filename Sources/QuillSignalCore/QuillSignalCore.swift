@@ -732,26 +732,35 @@ public enum QuillSignalFixtures {
         Conversation(
             name: "Family",
             messages: [
-                Message(sender: "Mom", body: "Don't forget Sunday dinner.", fromSelf: false),
-                Message(sender: "Me", body: "I'll bring dessert.", fromSelf: true),
-                Message(sender: "Mom", body: "❤️", fromSelf: false),
+                // Spread across the relative-stamp ranges so a FAKELINKED screenshot
+                // exercises weekday / Yesterday / minutes formatting in one view.
+                Message(sender: "Mom", body: "Don't forget Sunday dinner.", fromSelf: false,
+                        timestamp: Date(timeIntervalSinceNow: -3 * 86400)),
+                Message(sender: "Me", body: "I'll bring dessert.", fromSelf: true,
+                        timestamp: Date(timeIntervalSinceNow: -3 * 86400 + 120)),
+                Message(sender: "Mom", body: "❤️", fromSelf: false,
+                        timestamp: Date(timeIntervalSinceNow: -86400)),
                 // An image attachment renders in the bubble when the file exists
                 // (a FAKELINKED screenshot writes one to this path; nil/absent => text only).
                 Message(sender: "Mom", body: "Look at the cake!", fromSelf: false,
+                        timestamp: Date(timeIntervalSinceNow: -480),
                         attachmentImagePath: "/tmp/qs-fixture-image.png"),
             ]
         ),
         Conversation(
             name: "Coworker",
             messages: [
-                Message(sender: "Jamie", body: "PR ready for review.", fromSelf: false),
-                Message(sender: "Me", body: "Looking now.", fromSelf: true),
+                Message(sender: "Jamie", body: "PR ready for review.", fromSelf: false,
+                        timestamp: Date(timeIntervalSinceNow: -2 * 86400)),
+                Message(sender: "Me", body: "Looking now.", fromSelf: true,
+                        timestamp: Date(timeIntervalSinceNow: -2700)),
             ]
         ),
         Conversation(
             name: "Notes To Self",
             messages: [
-                Message(sender: "Me", body: "Pick up groceries on the way home.", fromSelf: true),
+                Message(sender: "Me", body: "Pick up groceries on the way home.", fromSelf: true,
+                        timestamp: Date(timeIntervalSinceNow: -90000)),
             ]
         ),
     ]
