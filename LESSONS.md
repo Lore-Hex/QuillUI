@@ -122,12 +122,43 @@ A second-opinion review (codex, read-only) sharpened the plan — adopt this ord
    through SwiftProtobuf/deps. The **17 residual errors aren't in Signal source** —
    they're `cannot find type 'Selector'` in the **`QuillUIKit`** shim, caused by the
    still-present **`ObjectiveC` shim anti-pattern** (it flips `canImport(ObjectiveC)`
-   true and breaks Foundation's `Selector` plumbing, exactly as warned). **Next:
-   retire the `ObjectiveC` shim** — remove it from `signalAppleFrameworkShims`,
-   strip the vestigial `import ObjectiveC` from `Error+ErrorLocalizedDescription`/
-   `Error+IsRetryable`, and give `ObjectRetainer`/`ProxiedContentDownloader` a tiny
-   Swift associated-objects shim (they use `objc_set/getAssociatedObject`). That
-   should clear the 17 and finally reach the `TS*` base-model cascade (step 1).
+   true and breaks Foundation's `Selector` plumbing, exactly as warned).
+
+   **✅ DONE — `ObjectiveC` shim retired (commit `60a6a11`).** Removed it from
+   `signalAppleFrameworkShims`, stripped the vestigial `import ObjectiveC` from
+   `Error+ErrorLocalizedDescription`/`Error+IsRetryable`, and added a tiny
+   `ObjCAssoc` target (locked `[ObjectIdentifier:[UInt:Any]]` map) for
+   `ObjectRetainer`/`ProxiedContentDownloader`. **Gotcha:** `canImport` changes are
+   invisible to SwiftPM incremental builds — force-clean the stale `ObjectiveC`/
+   `QuillFoundation`/`QuillUIKit` scratch modules or the flip won't take. The 17
+   cleared; infra is fully green (objc-interop 0, Selector 0, missing-ObjectiveC 0)
+   and the build reached the `TS*` cascade: **377,483 errors.**
+
+   **✅ DONE — TS* model enums ported (commit `5a26b06`): 377k → 342,605.** First
+   spine sub-step. Ported the 11 ObjC `NS_ENUM` model enums the Swift layer needs
+   but that live in excluded `.h` (`TSOutgoingMessageState`, `OWSVerificationState`,
+   `TSEditState`, `TSInfoMessageType`, `TSErrorMessageType`, `RPRecentCallType`,
+   `TSRecentCallOfferType`, four `TSPayment*`) as faithful Swift enums. **Three
+   contract traps, all verified against call sites:** (a) match the exact ObjC raw
+   *type* — `int32_t`→`Int32`, `uint64_t`→`UInt64`, etc. — because `+SDS.swift` does
+   `Enum(rawValue: <column>)` and GRDB decodes the column to `RawValue`; (b) use the
+   Swift-*imported* (prefix-stripped, lower-camel) case names, and mixed-prefix
+   enums strip less (`TSInfoMessageType` keeps a leading `type` on its `...Type...`
+   cases, while `TSEditState_None`→`.none`); (c) Codable is already supplied by
+   `SDS+Enums.swift`'s empty extensions — **don't** redeclare it (redundant-
+   conformance error). Overlay pattern: committed source of truth at
+   `Sources/SignalServiceKitObjCPort/`, symlinked same-module into the SSK tree
+   under `QuillPort/` (no Package change; the durable pipeline overlay-copies).
+
+   **Spine-step finding:** remaining top errors are the base classes
+   (`TSMessage`/`TSInteraction`/`TSGroupModel`/`TSQuotedMessage`) plus a large
+   co-located cascade of *spurious* `cannot find type 'Date'/'Data'/'DispatchQueue'`
+   + `does not override … superclass` — a missing superclass degrades the whole
+   file's type resolution, so porting the base classes should clear far more than
+   face value. **But some are real:** a few files (e.g. `Storage/.../V2/DB.swift`)
+   use `public import GRDB` with **no `import Foundation`** yet reference
+   `DispatchQueue` — Apple supplied it implicitly; Linux needs an explicit-import
+   injection step in the durable pipeline.
 1. **Port the central SPINE, NOT leaf-first.** The cascade is dominated by
    high-fan-out types: `TSYapDatabaseObject`, `BaseModel`, `TSInteraction`,
    `TSMessage`, `TSIncomingMessage`, `TSOutgoingMessage`, `TSInfoMessage`,
