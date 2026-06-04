@@ -85,6 +85,10 @@ struct AppKitLoweringTests {
         let macUI = repoRoot
             .appendingPathComponent(".upstream/wireguard-apple/Sources/WireGuardApp/UI/macOS")
         guard FileManager.default.fileExists(atPath: macUI.path) else { return } // skip: no upstream
+        // fetch-upstream lowers .upstream in place on Linux CI; these whole-tree
+        // checks only hold on RAW source, so skip if the tree is already lowered.
+        let probe = macUI.appendingPathComponent("ViewController/ButtonedDetailViewController.swift")
+        if let probed = try? String(contentsOf: probe, encoding: .utf8), !probed.contains("#selector(") { return }
 
         let pass = AppKitLowering()
         var visited = 0, hadSelectorOrObjc = 0
@@ -215,6 +219,10 @@ struct AppKitLoweringTests {
         let macUI = repoRoot
             .appendingPathComponent(".upstream/wireguard-apple/Sources/WireGuardApp/UI/macOS")
         guard FileManager.default.fileExists(atPath: macUI.path) else { return } // skip: no upstream
+        // fetch-upstream lowers .upstream in place on Linux CI; these whole-tree
+        // checks only hold on RAW source, so skip if the tree is already lowered.
+        let probe = macUI.appendingPathComponent("ViewController/ButtonedDetailViewController.swift")
+        if let probed = try? String(contentsOf: probe, encoding: .utf8), !probed.contains("#selector(") { return }
 
         let pass = AppKitLowering()
         var generatedAny = false
