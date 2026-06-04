@@ -30,9 +30,14 @@ SOCK="${QS_SOCK:-/tmp/quill-signal-bridge.sock}"
 DB="${QS_DB:-/tmp/qs.db}"
 WAIT="${QS_WAIT:-9}"
 SCREEN_SIZE="${QS_SCREEN:-1100x820x24}"
+# QS_FAKELINKED=1 renders the linked chat shell from fixtures (no daemon, no
+# account) so the conversation UI can be captured; otherwise the link panel.
+FAKELINKED="${QS_FAKELINKED:-0}"
 
-[ -x "$APP_BIN" ]    || { echo "app binary not found/executable: $APP_BIN" >&2; exit 1; }
-[ -x "$BRIDGE_BIN" ] || { echo "bridge binary not found/executable: $BRIDGE_BIN" >&2; exit 1; }
+[ -x "$APP_BIN" ] || { echo "app binary not found/executable: $APP_BIN" >&2; exit 1; }
+if [ "$FAKELINKED" != "1" ]; then
+  [ -x "$BRIDGE_BIN" ] || { echo "bridge binary not found/executable: $BRIDGE_BIN" >&2; exit 1; }
+fi
 
 export HOME="${HOME:-/tmp}"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/xdgrt}"
@@ -48,20 +53,29 @@ XPID=$!
 sleep 2
 export DISPLAY="$DISP"
 
-echo ">> bridge daemon ($SOCK, db=$DB)"
-rm -f "$DB"*
-QSIGNAL_DB="$DB" "$BRIDGE_BIN" "$SOCK" >/tmp/qs-daemon.log 2>&1 &
-DPID=$!
-for _ in $(seq 1 40); do [ -S "$SOCK" ] && break; sleep 0.3; done
-[ -S "$SOCK" ] || { echo "bridge socket never appeared" >&2; cat /tmp/qs-daemon.log >&2; exit 1; }
+if [ "$FAKELINKED" = "1" ]; then
+  echo ">> app (FAKELINKED fixtures — no daemon, GTK on cairo)"
+  QUILLUI_SIGNAL_FAKELINKED=1 GTK_A11Y=none GSK_RENDERER=cairo \
+    "$APP_BIN" >/tmp/qs-app.log 2>&1 &
+  APID=$!
+  echo ">> waiting ${WAIT}s for the chat shell to render"
+  sleep "$WAIT"
+else
+  echo ">> bridge daemon ($SOCK, db=$DB)"
+  rm -f "$DB"*
+  QSIGNAL_DB="$DB" "$BRIDGE_BIN" "$SOCK" >/tmp/qs-daemon.log 2>&1 &
+  DPID=$!
+  for _ in $(seq 1 40); do [ -S "$SOCK" ] && break; sleep 0.3; done
+  [ -S "$SOCK" ] || { echo "bridge socket never appeared" >&2; cat /tmp/qs-daemon.log >&2; exit 1; }
 
-echo ">> app (autolink, GTK on cairo)"
-QUILLUI_SIGNAL_AUTOLINK=1 GTK_A11Y=none GSK_RENDERER=cairo \
-  "$APP_BIN" >/tmp/qs-app.log 2>&1 &
-APID=$!
+  echo ">> app (autolink, GTK on cairo)"
+  QUILLUI_SIGNAL_AUTOLINK=1 GTK_A11Y=none GSK_RENDERER=cairo \
+    "$APP_BIN" >/tmp/qs-app.log 2>&1 &
+  APID=$!
 
-echo ">> waiting ${WAIT}s for the QR to render"
-sleep "$WAIT"
+  echo ">> waiting ${WAIT}s for the QR to render"
+  sleep "$WAIT"
+fi
 
 echo ">> capturing X root -> $OUT"
 if ! import -window root "$OUT" 2>/tmp/qs-shot.log; then

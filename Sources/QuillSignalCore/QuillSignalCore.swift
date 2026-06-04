@@ -148,11 +148,20 @@ public final class QuillSignalModel: ObservableObject {
     public func startOnce() {
         guard !hasAutoStarted else { return }
         hasAutoStarted = true
+        let env = ProcessInfo.processInfo.environment
+        // Test hook (off by default): render the linked chat shell from fixtures —
+        // no daemon, no account touched — so the conversation UI can be screenshot.
+        if env["QUILLUI_SIGNAL_FAKELINKED"] == "1" {
+            accountNumber = "+1 555 0100"
+            conversations = QuillSignalFixtures.conversations
+            linkState = .linked
+            return
+        }
         // Each entry point (refreshStatus / beginLink) ensures the daemon in its
         // own background context, so just dispatch here. Test hook (off by
         // default): go straight to linking so a headless smoke can verify the
         // device-link flow (URL + QR) without a human clicking.
-        if ProcessInfo.processInfo.environment["QUILLUI_SIGNAL_AUTOLINK"] == "1" {
+        if env["QUILLUI_SIGNAL_AUTOLINK"] == "1" {
             linkState = .unlinked   // show the link panel so the QR is visible
             beginLink()
         } else {

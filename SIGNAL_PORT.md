@@ -216,6 +216,18 @@ payload — so the stored/echoed copy carries the same stamp and dedups against 
 optimistic message instead of appearing twice. Bridge + GTK app + decode-check
 green; launch smoke unregressed.
 
+**Chat UI visually verified (2026-06-03, first conversation-view screenshot):** a
+`QUILLUI_SIGNAL_FAKELINKED=1` test hook renders the linked chat shell from
+fixtures (no daemon, no account touched) so the conversation UI can be captured
+(`scripts/quill-signal-screenshot.sh` gained a `QS_FAKELINKED=1` mode). Read
+back, it's a polished messenger: a left sidebar of conversations
+(Family/Coworker/Notes To Self) each with a last-message preview, the account
+number in the title (`Quill Signal — +1 555 0100`), and a message pane with
+correctly attributed bubbles — **own messages right-aligned + blue, others
+left-aligned + gray** (the `fromSelf` wiring renders right), each with a sender +
+time caption, over a "Message" composer + Send button. No visual bugs. This
+unlocks screenshot-verification for the remaining chat-UI work.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile
