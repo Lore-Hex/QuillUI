@@ -54,11 +54,19 @@ public typealias NSColor = RSColor
 public typealias NSFont = RSFont
 
 public extension NSImage {
+    /// Apple's `NSImage.Name` (a String). Apps construct/extend it
+    /// (`NSImage.Name("StatusCircleYellow")`, `extension NSImage.Name { … }`).
+    typealias Name = String
     // Apple's standard template-image names (NSImage.Name = String). Used as
     // `NSImage(named: NSImage.addTemplateName)` (WireGuard's tunnels toolbar).
-    static let addTemplateName = "NSAddTemplate"
-    static let removeTemplateName = "NSRemoveTemplate"
-    static let actionTemplateName = "NSActionTemplate"
+    static let addTemplateName: Name = "NSAddTemplate"
+    static let removeTemplateName: Name = "NSRemoveTemplate"
+    static let actionTemplateName: Name = "NSActionTemplate"
+    // Standard status-dot image names (WireGuard's TunnelListRow status icon).
+    static let statusAvailableName: Name = "NSStatusAvailable"
+    static let statusNoneName: Name = "NSStatusNone"
+    static let statusPartiallyAvailableName: Name = "NSStatusPartiallyAvailable"
+    static let statusUnavailableName: Name = "NSStatusUnavailable"
 }
 public typealias NSScreen = RSScreen
 
