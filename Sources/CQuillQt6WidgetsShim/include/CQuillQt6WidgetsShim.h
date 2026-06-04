@@ -17,6 +17,9 @@ typedef void (*quill_enchanted_qt_free_string_callback)(char *string);
 
 int quill_qt_run_interaction_smoke(int argc, char **argv);
 
+int quill_qt_native_clipboard_set_text(const char *text);
+const char *quill_qt_native_clipboard_text(void);
+
 int quill_enchanted_qt_run_app_json(
     int argc,
     char **argv,

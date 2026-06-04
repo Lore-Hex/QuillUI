@@ -1849,7 +1849,7 @@ let packageTestTargets: [Target] = {
         // reimpl retirement, epic #188.
         .testTarget(
             name: "QuillEnchantedDataTests",
-            dependencies: ["QuillEnchantedData"],
+            dependencies: ["QuillEnchantedData", "QuillEnchantedShared"],
             swiftSettings: appSwiftSettings
         ),
         .testTarget(

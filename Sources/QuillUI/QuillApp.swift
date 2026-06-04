@@ -6,6 +6,8 @@ import SwiftOpenUI
 
 #if os(Linux)
 import BackendGTK4
+import CGTK
+import QuillKit
 #endif
 
 /// Shared scene builder for QuillUI executable targets.
@@ -116,6 +118,26 @@ public extension QuillBackend {
 }
 
 #if os(Linux)
+private enum QuillGTKClipboardRuntimeBridge {
+    static let backend = QuillClipboard.NativeStringBackend(
+        name: "GTK4",
+        setString: { string in
+            string.withCString { gtk_swift_clipboard_set_text($0) != 0 }
+        },
+        string: {
+            guard let value = gtk_swift_clipboard_read_text() else {
+                return nil
+            }
+            defer { gtk_swift_clipboard_free_text(value) }
+            return String(cString: value)
+        }
+    )
+
+    static func install() {
+        QuillClipboard.shared.installNativeStringBackend(backend)
+    }
+}
+
 struct QuillLinuxRuntimeHostDescriptor: Equatable, Sendable {
     let host: QuillLinuxRuntimeHost
     let backend: QuillBackendIdentifier
@@ -214,6 +236,7 @@ enum QuillLinuxRuntimeHost: CaseIterable, Sendable {
     func run<A: App>(_ appType: A.Type) {
         switch self {
         case .gtk4:
+            QuillGTKClipboardRuntimeBridge.install()
             GTK4Backend().run(appType)
         case .qt6:
             preconditionFailure("Native Qt6 Linux runtime host is declared but not linked.")

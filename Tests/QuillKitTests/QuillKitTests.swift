@@ -37,6 +37,58 @@ struct QuillKitTests {
         #expect(clipboard.data(forType: "public.tiff") == Data([2]))
     }
 
+    @Test("clipboard forwards plain text through the native backend")
+    func clipboardForwardsPlainTextThroughNativeBackend() {
+        let clipboard = QuillClipboard()
+        let writes = LockedValue<[String]>([])
+        let nativeReadback = LockedValue<String?>(nil)
+
+        clipboard.installNativeStringBackend(QuillClipboard.NativeStringBackend(
+            name: "test",
+            setString: { string in
+                writes.update { $0.append(string) }
+                nativeReadback.update { $0 = string }
+                return true
+            },
+            string: {
+                nativeReadback.value
+            }
+        ))
+
+        clipboard.setString("plain")
+        clipboard.setString("html", forType: "public.html")
+
+        #expect(writes.value == ["plain"])
+        #expect(clipboard.string() == "plain")
+        #expect(clipboard.string(forType: "public.html") == "html")
+
+        clipboard.clear()
+        #expect(writes.value == ["plain", ""])
+        #expect(clipboard.string(forType: "public.html") == nil)
+    }
+
+    @Test("clipboard keeps memory fallback when native backend cannot read")
+    func clipboardKeepsMemoryFallbackWhenNativeBackendCannotRead() {
+        let clipboard = QuillClipboard()
+        let writes = LockedValue<[String]>([])
+
+        clipboard.installNativeStringBackend(QuillClipboard.NativeStringBackend(
+            name: "test",
+            setString: { string in
+                writes.update { $0.append(string) }
+                return false
+            },
+            string: {
+                nil
+            }
+        ))
+
+        clipboard.setString("plain")
+
+        #expect(writes.value == ["plain"])
+        #expect(clipboard.string() == "plain")
+    }
+
     @Test("diagnostics record and clear compatibility events")
     func diagnosticsRecordAndClearEvents() {
         let diagnostics = QuillCompatibilityDiagnostics()

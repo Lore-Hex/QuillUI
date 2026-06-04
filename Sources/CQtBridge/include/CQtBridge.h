@@ -61,6 +61,14 @@ void quill_qt_bridge_application_set_stylesheet(
 // window closes / quit() is called.
 int quill_qt_bridge_application_exec(QuillQtAppHandle app);
 
+// --- Clipboard -------------------------------------------------------------
+
+// Write/read QApplication's process clipboard. Returns non-zero when a Qt
+// clipboard is available. The returned text pointer stays valid until the next
+// quill_qt_bridge_clipboard_text call.
+int quill_qt_bridge_clipboard_set_text(const char *text);
+const char *quill_qt_bridge_clipboard_text(void);
+
 // --- Window ----------------------------------------------------------------
 
 // Create a top-level window (a QWidget with WA_DeleteOnClose unset). Returns
