@@ -1324,6 +1324,10 @@ if wireguardUpstreamPresent {
                 "Sources/WireGuardApp/WireGuardAppError.swift",
                 "Sources/WireGuardApp/WireGuardResult.swift",
                 "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift",
+                // NSColor+Hex: NSColor(hex:) convenience init (chains to the shadow's
+                // new NSColor(red:green:blue:alpha:)). Foundation Scanner + AppKit only;
+                // the color base for the conf-editor theme (ConfTextColorTheme, later).
+                "Sources/WireGuardApp/UI/macOS/NSColor+Hex.swift",
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
                 // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).

@@ -95,4 +95,12 @@ struct AppKitSurfaceTests {
         #expect(table.row(at: NSPoint(x: 0, y: 0)) == -1)
         table.scroll(NSPoint(x: 0, y: 10))
     }
+
+    @Test("NSColor(red:green:blue:alpha:) generic RGB init exists (WireGuard's NSColor(hex:) chains to it)")
+    func nsColorGenericRGBInit() {
+        // Compile-stub (ignores components), but must exist + be callable so
+        // WireGuard's NSColor+Hex — NSColor(hex:) -> self.init(red:green:blue:alpha:) — compiles.
+        let c = NSColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 1)
+        #expect(c.withAlphaComponent(1) === c) // stub returns self; proves a usable NSColor
+    }
 }
