@@ -274,6 +274,18 @@ it doesn't block the UI; the restart only runs while `linkState == .linked`, so
 an unlinked session never loops. App + decode-check green; a 10s unlinked launch
 smoke shows a single status line, zero receive commands, no restart loop.
 
+**Groups — slice 1: enumeration (2026-06-03):** `list-conversations` now also
+returns groups from the presage store as `{type:"group", uuid, name}`. The uuid
+is a deterministic UUID-format string from the group master key's first 16 bytes
+(`group_uuid`) — the key is already random, so this is collision-free without
+hashing, keeping the **app fully UUID-based with no model change** (groups appear
+in the existing sidebar via the generic `BridgeConversation` decode). The bridge
+will map the uuid back to the group by re-enumeration in later slices. Bridge
+builds clean; the decode-check covers a group entry; the GTK app is unchanged.
+(Slices ahead: GROUPS2 = `list-messages` for a group uuid → `Thread::Group`;
+GROUPS3 = send to a group + receive derives the group uuid from
+`DataMessage.group_v2`.)
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile

@@ -137,6 +137,16 @@ if let r = c.decode(ConversationsResponse.self, #"{"ok":true,"cmd":"list-convers
     c.check("list-conversations empty decodes", false)
 }
 
+// 10c. list-conversations with a group entry (type:"group", uuid, name)
+if let r = c.decode(ConversationsResponse.self, #"{"ok":true,"cmd":"list-conversations","data":{"conversations":[{"type":"group","uuid":"44444444-4444-4444-4444-444444444444","name":"Weekend Trip"}]}}"#),
+   let g = r.data?.conversations.first {
+    c.check("group entry type==group", g.type == "group")
+    c.check("group entry uuid", g.uuid == "44444444-4444-4444-4444-444444444444")
+    c.check("group entry name", g.name == "Weekend Trip")
+} else {
+    c.check("group conversation decodes", false)
+}
+
 // 11. list-messages envelope — from_self true / false / missing(nil)
 if let r = c.decode(MessagesResponse.self, #"{"ok":true,"cmd":"list-messages","msg":"ok","data":{"messages":[{"body":"hi","timestamp":1700000000000,"sender":"aaa","from_self":true},{"body":"yo","timestamp":1700000001000,"sender":"bbb","from_self":false},{"body":"old","timestamp":1700000002000,"sender":"ccc"}]}}"#),
    let msgs = r.data?.messages {
