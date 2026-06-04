@@ -217,15 +217,30 @@ A second-opinion review (codex, read-only) sharpened the plan — adopt this ord
    `--target SignalServiceKit` build) so no relocate was needed. **From the 377k
    peak: −237,805 (~63%)** across 15 zero-error commits.
 
-   **NEXT BIG LEVER — `import FoundationNetworking`.** On Linux, `URLRequest`/
-   `URLSession`/`URLSessionWebSocketTask`/`URLSessionTask` live in the separate
-   **FoundationNetworking** module, not Foundation (the build literally says "moved
-   to the FoundationNetworking module. Import that module to use it."). ~900+ errors.
-   Same fix shape as the Foundation injection: add an `import FoundationNetworking`
-   (Linux-gated) pass to `quill-signal-inject-foundation.sh` for files using those
-   types. Then the residual is `Selector`/`#selector` (lowering missed some files),
-   the `UIColor.rgbHex` shim mismatch, and remaining leaf model classes
-   (`OWSOutgoingArchivedPaymentMessage`, `CallRecordStore`, `InMemoryDB`, …).
+   **✅ POST-SPINE RESIDUAL CLEARED (377k peak → 93,695, ~75%).** After the spine,
+   the long tail fell to import-injection + same-module shims + a test-strip:
+   - **`import FoundationNetworking`** (`8e52980`, −19,219): on Linux `URLRequest`/
+     `URLSession`/`URLSessionWebSocketTask`/… live in the separate
+     FoundationNetworking module. Added a `canImport`-gated pass to the inject
+     script (harmless on Apple).
+   - **Selector shims** (`968972b`, −15,128): the `Selector` band was NOT unlowered
+     `#selector` (zero remain) — it was the missing `Selector` *type* (ObjC overlay,
+     absent on Linux) + the missing `NotificationCenter.addObserver(_:selector:…)`
+     overload. Define `Selector` + a no-op `addObserver` SAME-MODULE.
+   - **UIColor / LocalizationNotNeeded / autoreleasepool shims** (`b23295c`,
+     `47cea89`, `298711c`): `LocalizationNotNeeded` (an excluded ObjC inline), the
+     `UIColor` `init(red:…)`/`init(white:…)`/`getRed` that the RSColor shim lacks
+     (delegate to the base init — cross-module reachability gotcha: only SOME color
+     inits are visible from SSK), and a no-op `autoreleasepool(invoking:)`.
+   - **TEST-STRIP** (`fed062b`, `d889ade`, −7k): Signal **co-locates** XCTest *and*
+     swift-testing test files (and `TESTABLE_BUILD`-only helpers like `InMemoryDB`)
+     INSIDE the SignalServiceKit dir; SwiftPM compiles everything under the target
+     path into the LIBRARY. `scripts/quill-signal-strip-tests.sh` removes any file
+     under a `tests/` dir, named `*Test(s).swift`, or importing `XCTest`/`Testing`.
+   Remaining (~94k): leaf ObjC classes to port (`OWSOutgoingArchivedPaymentMessage`),
+   cascade-broken Swift files to root-fix (`CallRecord`/`GroupCallManager`), and two
+   shim gaps (`UIApplication.State` needs the nested enum in QuillUIKit; the
+   `contentHint` override-in-extension needs the durable lowerer-relocate).
 
    The validated NSObject port pattern: designated
    inits set all stored props **before** `super.init()`; `required override
