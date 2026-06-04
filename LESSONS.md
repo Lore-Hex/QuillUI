@@ -204,11 +204,28 @@ A second-opinion review (codex, read-only) sharpened the plan — adopt this ord
    read }`; **SDS-tabled subclasses are NOT blob-archived** → mark `init()` AND
    `init?(coder:)` `@available(*, unavailable)` (no `encode`/`initWithCoder`
    needed); read-tracking `markAsRead`/`markAsViewed` set the flag directly in pass
-   1 (DB-write/receipt/notification side effects deferred). From the 377k peak this
-   is **−191,539 (~51%)** across 13 zero-error commits; remaining are
-   `TSInfoMessage`/`TSOutgoingMessage`, the 2 override-relocate sites, and a small
-   residual shim band (`URLRequest`/`URLSessionWebSocketTask`, `Selector`,
-   `UIColor.rgbHex`).
+   1 (DB-write/receipt/notification side effects deferred).
+
+   **✅ MESSAGE-SUBCLASS SPINE COMPLETE.** `TSInfoMessage` (+`InfoMessageUserInfoKey`
+   NS_STRING_ENUM, `5075929`, →168204), `TSOutgoingMessage` (pass 1, `b333766`,
+   →**139678, −28526** the biggest subclass: 13 columns, the 40-param SDS init,
+   real NSSecureCoding encode/initWithCoder + both builder inits, recipient-state
+   computation deferred). Notes: a subclass that re-declares an already-inherited
+   protocol (TSOutgoingMessage `<NSSecureCoding>`, inherited from TSMessage) is a
+   **redundant-conformance error → drop it**; the "1 extension-override" for
+   TSOutgoingMessage/TSGroupModel turned out to be **test-only** (not in the
+   `--target SignalServiceKit` build) so no relocate was needed. **From the 377k
+   peak: −237,805 (~63%)** across 15 zero-error commits.
+
+   **NEXT BIG LEVER — `import FoundationNetworking`.** On Linux, `URLRequest`/
+   `URLSession`/`URLSessionWebSocketTask`/`URLSessionTask` live in the separate
+   **FoundationNetworking** module, not Foundation (the build literally says "moved
+   to the FoundationNetworking module. Import that module to use it."). ~900+ errors.
+   Same fix shape as the Foundation injection: add an `import FoundationNetworking`
+   (Linux-gated) pass to `quill-signal-inject-foundation.sh` for files using those
+   types. Then the residual is `Selector`/`#selector` (lowering missed some files),
+   the `UIColor.rgbHex` shim mismatch, and remaining leaf model classes
+   (`OWSOutgoingArchivedPaymentMessage`, `CallRecordStore`, `InMemoryDB`, …).
 
    The validated NSObject port pattern: designated
    inits set all stored props **before** `super.init()`; `required override
