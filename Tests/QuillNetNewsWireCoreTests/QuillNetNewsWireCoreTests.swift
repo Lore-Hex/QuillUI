@@ -125,6 +125,23 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("canSelectNext/Previous reflect the selection's timeline position")
+    func articleNavGuards() {
+        let model = RSSReaderModel()
+        model.seedProfileFixtures()
+        // Seeded selection is the first item → no previous, has next.
+        #expect(model.selectedID == "1")
+        #expect(!model.canSelectPrevious)
+        #expect(model.canSelectNext)
+        // Step to the last item → has previous, no next.
+        model.selectNextItem(); model.selectNextItem()
+        model.selectNextItem(); model.selectNextItem()
+        #expect(model.selectedID == "5")
+        #expect(model.canSelectPrevious)
+        #expect(!model.canSelectNext)
+    }
+
+    @MainActor
     @Test("RSSReaderModel keeps selected item + status text cached")
     func readerModelDerivedState() {
         let model = RSSReaderModel()
