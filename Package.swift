@@ -821,14 +821,16 @@ var targets: [Target] = [
         dependencies: [
             "QuillRSCoreShim",
             "Tidemark",
-            // CoreGraphics (for CGSize in HTMLMetadata) is satisfied
-            // by Apple's system framework on Darwin and by the
-            // in-tree Sources/CoreGraphics shim on Linux. Both
-            // resolve automatically from `import CoreGraphics` —
-            // no explicit dep here because the Quill CoreGraphics
-            // target + library product only exist inside the
-            // #if os(Linux) block of this manifest, so an
-            // unconditional reference would fail on macOS.
+            // CoreGraphics (CGSize/CGFloat in HTMLMetadata): on Darwin the
+            // system framework satisfies `import CoreGraphics`; on Linux the
+            // in-tree shim must be an explicit *platform-conditional* dep.
+            // SwiftPM does NOT auto-resolve an `import` to a same-package
+            // target — the edge must be declared or the module is "not found"
+            // on Linux (which is why the Linux graph broke). The condition
+            // keeps it off macOS, where the shim's library product is gated
+            // out and Apple's framework should win. (CGSize/CGFloat
+            // themselves come from Linux Foundation once the import resolves.)
+            .target(name: "CoreGraphics", condition: .when(platforms: [.linux])),
         ],
         path: "Sources/QuillRSParser",
         swiftSettings: appSwiftSettings
