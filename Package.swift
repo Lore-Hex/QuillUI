@@ -590,6 +590,20 @@ let quillEnchantedDataTarget: Target = .target(
     swiftSettings: appSwiftSettings
 )
 
+// QuillRSParser's HTMLMetadata does `import CoreGraphics` (CGSize/CGFloat).
+// On Darwin the system framework satisfies it; on Linux the in-tree shim must
+// be an explicit dep (SwiftPM does not auto-resolve an `import` to a same-
+// package target). Declared as a statement-level `#if os(Linux)` helper (the
+// idiom used by quillLinuxShimTestDependencies) rather than an inline array
+// `#if` (illegal here) or a `.target(_:condition:)` (which leaves the dep in
+// the macOS manifest and trips a spurious "source files should be located
+// under Sources/CoreGraphics"). Empty on macOS.
+#if os(Linux)
+let quillRSParserPlatformDeps: [Target.Dependency] = ["CoreGraphics"]
+#else
+let quillRSParserPlatformDeps: [Target.Dependency] = []
+#endif
+
 var targets: [Target] = [
     cSQLiteTarget,
     cCairoTarget,
@@ -818,18 +832,13 @@ var targets: [Target] = [
     // across the tree, then re-run the parser tests.
     .target(
         name: "QuillRSParser",
+        // CoreGraphics (Linux-only) added via quillRSParserPlatformDeps — see
+        // the helper's definition above for why the Linux graph needed it and
+        // why a `.target(_:condition:)` breaks macOS.
         dependencies: [
             "QuillRSCoreShim",
             "Tidemark",
-            // CoreGraphics (for CGSize in HTMLMetadata) is satisfied
-            // by Apple's system framework on Darwin and by the
-            // in-tree Sources/CoreGraphics shim on Linux. Both
-            // resolve automatically from `import CoreGraphics` —
-            // no explicit dep here because the Quill CoreGraphics
-            // target + library product only exist inside the
-            // #if os(Linux) block of this manifest, so an
-            // unconditional reference would fail on macOS.
-        ],
+        ] + quillRSParserPlatformDeps,
         path: "Sources/QuillRSParser",
         swiftSettings: appSwiftSettings
     ),
