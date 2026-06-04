@@ -314,6 +314,9 @@ public final class QuillSignalModel: ObservableObject {
         isReceiving = true
         let path = socketPath
         Thread.detachNewThread {
+            // Ensure the daemon is up before connecting (covers a restart after a
+            // daemon crash, like beginLink does).
+            Self.ensureDaemon(socketPath: path)
             let client = BridgeClient(path: path)
             try? client.stream("{\"cmd\":\"receive\"}", timeoutSeconds: 0) { line in
                 guard let data = line.data(using: .utf8),
@@ -330,7 +333,15 @@ public final class QuillSignalModel: ObservableObject {
                 Task { @MainActor in self.appendIncoming(thread: thread, message: m, timestampMillis: ts) }
                 return true
             }
-            Task { @MainActor in self.isReceiving = false }
+            Task { @MainActor in
+                self.isReceiving = false
+                // Auto-restart the receive stream while still linked, so a daemon
+                // crash/restart is recovered (a 5s backoff keeps it gentle).
+                if self.linkState == .linked {
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                    if self.linkState == .linked { self.startReceiving() }
+                }
+            }
         }
     }
 

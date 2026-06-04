@@ -264,6 +264,16 @@ conditional `placeholder`). Verified by screenshot via a
 centered under the account title with an empty sidebar and no broken layout; the
 normal fixtures chat still renders unchanged.
 
+**Receive-stream auto-restart (2026-06-03):** the receive thread now
+`ensureDaemon`s before connecting, and when the stream ends while still linked it
+auto-restarts after a 5s backoff (re-checking `linkState`) — so a linked,
+receiving session recovers on its own from a daemon crash/restart, which the
+self-heal reconnect alone didn't cover (nothing re-ran `refreshStatus` in the
+linked view). The `guard !isReceiving` prevents overlap; `Task.sleep` is async so
+it doesn't block the UI; the restart only runs while `linkState == .linked`, so
+an unlinked session never loops. App + decode-check green; a 10s unlinked launch
+smoke shows a single status line, zero receive commands, no restart loop.
+
 ---
 
 ## Historical: the abandoned Signal-iOS compile
