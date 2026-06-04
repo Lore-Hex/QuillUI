@@ -107,6 +107,22 @@ PY
 }
 
 patch_wireguard_apple() {
+    # Lower the macOS UI's AppKit target-action for Linux (strip @objc,
+    # #selector(x) -> Selector("x"), generate the QuillActionDispatching
+    # dispatch) so the QuillWireGuardConformanceUI target compiles against the
+    # QuillAppKit shadow, which has no Objective-C runtime. Self-guarded +
+    # idempotent: only runs while un-lowered source is present, so it's safe
+    # regardless of the WireGuardKitC.h early-return below and of cached
+    # .upstream trees.
+    # Linux-only: on macOS the real AppKit handles #selector/@objc, and the
+    # generated QuillActionDispatching extension references a Linux-only shadow
+    # type — so leave the source pristine for any macOS consumer.
+    local macui="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS"
+    if [[ "$(uname -s)" == "Linux" && -d "$macui" ]] && grep -rqE '#selector|@objc' "$macui" 2>/dev/null; then
+        echo "==> lowering wireguard-apple macOS UI AppKit target-action for Linux"
+        ( cd "$ROOT_DIR" && swift run quill-lower-appkit "$macui" )
+    fi
+
     # `WireGuardKitC.h` uses `u_int32_t` / `u_char` / `u_int16_t`
     # / `sockaddr_ctl` from <sys/types.h> + <sys/kern_control.h>
     # but doesn't include them. macOS 15+ enforces strict
