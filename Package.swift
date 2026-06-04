@@ -840,11 +840,19 @@ var targets: [Target] = [
         path: "Sources/QuillArticles",
         swiftSettings: appSwiftSettings
     ),
+    // Minimal RSWeb shim — target named `RSWeb` so vendored `import RSWeb`
+    // resolves to it verbatim. Grows toward real RSWeb as Account needs more.
+    .target(
+        name: "RSWeb",
+        path: "Sources/QuillRSWebShim",
+        swiftSettings: appSwiftSettings
+    ),
     // Vendored Ranchero-Software/NetNewsWire Account module — incremental
-    // bring-up. Leaf types only so far (AccountBehavior, UnreadCountProvider);
-    // Foundation-only, no deps yet. More follows as RSWeb/RSDatabase shims land.
+    // bring-up: AccountBehavior / UnreadCountProvider / ContainerIdentifier /
+    // SidebarItemIdentifier / AccountError. Grows as RSWeb/RSDatabase land.
     .target(
         name: "QuillAccount",
+        dependencies: ["RSWeb", "QuillFoundation"],
         path: "Sources/QuillAccount",
         swiftSettings: appSwiftSettings
     ),
