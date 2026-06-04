@@ -274,12 +274,24 @@ PY
     local strconv="$UPSTREAM_DIR/wireguard-apple/Sources/Shared/Model/String+ArrayConversion.swift"
     if [[ -f "$strconv" ]] && ! grep -q 'public func splitToArray' "$strconv"; then
         echo "==> patching String+ArrayConversion.swift: splitToArray -> public"
-        sed -i 's/^    func splitToArray(/    public func splitToArray(/' "$strconv"
+        python3 - "$strconv" <<'PY'
+import sys
+path = sys.argv[1]; src = open(path).read()
+open(path, "w").write(src.replace('    func splitToArray(', '    public func splitToArray('))
+print("patched splitToArray -> public")
+PY
     fi
     local wgq="$UPSTREAM_DIR/wireguard-apple/Sources/Shared/Model/TunnelConfiguration+WgQuickConfig.swift"
     if [[ -f "$wgq" ]] && ! grep -q 'public enum ParseError' "$wgq"; then
         echo "==> patching WgQuickConfig.swift: ParserState/ParseError -> public"
-        sed -i -e 's/^    enum ParserState {/    public enum ParserState {/' -e 's/^    enum ParseError: Error {/    public enum ParseError: Error {/' "$wgq"
+        python3 - "$wgq" <<'PY'
+import sys
+path = sys.argv[1]; src = open(path).read()
+src = src.replace('    enum ParserState {', '    public enum ParserState {', 1)
+src = src.replace('    enum ParseError: Error {', '    public enum ParseError: Error {', 1)
+open(path, "w").write(src)
+print("patched ParserState/ParseError -> public")
+PY
     fi
     local tmgr="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/Tunnel/TunnelsManager.swift"
     if [[ -f "$tmgr" ]] && ! grep -q '^import QuillFoundation' "$tmgr"; then
