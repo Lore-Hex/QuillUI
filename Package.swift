@@ -1987,17 +1987,10 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
                 .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
             ]
         ),
-        // `import OSLog` shim (re-exports the repo `os` shim's Logger) for the
-        // NetworkClient clients on Linux.
-        .target(
-            name: "OSLog",
-            dependencies: ["os"],
-            path: "Sources/IceCubesOSLogShim"
-        ),
         // Real Dimillian/IceCubesApp NetworkClient. Compiles unmodified once
         // fetch-upstream.sh's patch_icecubes adds `import FoundationNetworking`
-        // (the Linux Foundation networking split). Named so upstream
-        // `import NetworkClient` resolves.
+        // (the Linux Foundation networking split) and rewrites `import OSLog`
+        // to the repo `os` shim. Named so upstream `import NetworkClient` resolves.
         .target(
             name: "NetworkClient",
             dependencies: [
@@ -2006,7 +1999,6 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
                 "IceCubesShims",
                 "Combine",
                 "os",
-                "OSLog",
             ],
             path: ".upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient",
             swiftSettings: [

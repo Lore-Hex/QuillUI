@@ -188,15 +188,25 @@ addition = (
 )
 for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
     src = open(path).read()
-    if "FoundationNetworking" in src:
-        continue
     lines = src.split("\n")
-    for i, line in enumerate(lines):
-        if line.strip() == "import Foundation":
-            lines[i] = addition
-            open(path, "w").write("\n".join(lines))
-            print("patched", os.path.basename(path))
-            break
+    out = []
+    fn_done = "FoundationNetworking" in src
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "import OSLog":
+            # Linux: the repo `os` shim provides Logger; there is no OSLog
+            # module, and an `@_exported import os` shim retains os_log symbols
+            # that break swift-syntax's link. Rewrite to the plain os import.
+            out.append("import os")
+        elif stripped == "import Foundation" and not fn_done:
+            out.append(addition)
+            fn_done = True
+        else:
+            out.append(line)
+    new = "\n".join(out)
+    if new != src:
+        open(path, "w").write(new)
+        print("patched", os.path.basename(path))
 PY
 }
 
