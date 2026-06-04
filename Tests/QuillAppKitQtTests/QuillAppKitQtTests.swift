@@ -232,6 +232,23 @@ struct QuillAppKitQtTests {
         #expect(box.qtGeometry.width == 100)
     }
 
+    @Test("NSViewController subclass: init() needs no override + loadView/view work (AppKit init model)")
+    func viewControllerInitModel() {
+        // Mirrors how real ViewControllers (e.g. ButtonedDetailViewController) are
+        // written: a designated init() that calls super.init(nibName:bundle:), with
+        // NO `override` (because NSViewController.init() is now convenience).
+        final class TestVC: NSViewController {
+            var loaded = false
+            init() { super.init(nibName: nil, bundle: nil) }
+            required init?(coder: NSCoder) { fatalError("not implemented") }
+            override func loadView() { view = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 10)); loaded = true }
+        }
+        let vc = TestVC()
+        vc.loadView()
+        #expect(vc.loaded)
+        #expect(vc.view.frame.width == 10)
+    }
+
     @Test("NSWindow.contentView attaches its QWidget into the Qt window")
     func contentViewAttaches() {
         guard QuillQt.ensureInitialized() else { return }
