@@ -117,10 +117,14 @@ patch_wireguard_apple() {
     # Linux-only: on macOS the real AppKit handles #selector/@objc, and the
     # generated QuillActionDispatching extension references a Linux-only shadow
     # type — so leave the source pristine for any macOS consumer.
-    local macui="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS"
-    if [[ "$(uname -s)" == "Linux" && -d "$macui" ]] && grep -rqE '#selector|@objc' "$macui" 2>/dev/null; then
-        echo "==> lowering wireguard-apple macOS UI AppKit target-action for Linux"
-        ( cd "$ROOT_DIR" && swift run quill-lower-appkit "$macui" )
+    # Lower the WHOLE app (UI/macOS + Tunnel/ + …), not just UI/macOS, so model
+    # files (e.g. Tunnel/TunnelStatus.swift, which has an @objc enum + an
+    # os(macOS) gate) also compile in the Linux conformance targets — toward the
+    # single-app-module convergence. The CLI is recursive + idempotent.
+    local wgapp="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp"
+    if [[ "$(uname -s)" == "Linux" && -d "$wgapp" ]] && grep -rqE '#selector|@objc' "$wgapp" 2>/dev/null; then
+        echo "==> lowering wireguard-apple app (UI + model) AppKit target-action for Linux"
+        ( cd "$ROOT_DIR" && swift run quill-lower-appkit "$wgapp" )
     fi
 
     # `WireGuardKitC.h` uses `u_int32_t` / `u_char` / `u_int16_t`
