@@ -176,6 +176,20 @@ A second-opinion review (codex, read-only) sharpened the plan — adopt this ord
    `DispatchQueue`/`TimeInterval` band that is **barely moving as bases land →
    likely real missing `import Foundation` (DB.swift-style), not cascade**; the
    import-injection pipeline step is becoming the next high-leverage lever.
+   **🏆 BIGGEST WIN — `import Foundation` injection (`84975ae`): 314063 → 207849,
+   −106,214 in ONE step** (confirming the hypothesis above). On Apple the
+   SignalServiceKit ObjC umbrella makes Foundation implicit for **every** Swift
+   file in the module; on Linux + SwiftPM there is no umbrella, so each file must
+   `import Foundation` itself. **290** SSK files used Foundation types while
+   importing only `GRDB`/`LibSignalClient`/`CryptoKit` — none of which re-export
+   Foundation on Linux — turning every such use into a `cannot find type` error
+   (plus cascade). Fix: `scripts/quill-signal-inject-foundation.sh`, an idempotent
+   prepare step that prepends `import Foundation` to any module file using a
+   Foundation type without importing it. **THE lesson for recompiling any
+   ObjC-umbrella framework on Linux: inject the implicit Foundation (and UIKit)
+   import per-file.** Run after fetch+lower; the committed SCRIPT is the durable
+   artifact (`.upstream` edits are disposable).
+
    The validated NSObject port pattern: designated
    inits set all stored props **before** `super.init()`; `required override
    init()` + `required init?(coder:)` for NSSecureCoding subclasses & dynamic init;
