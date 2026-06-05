@@ -70,6 +70,13 @@ public class UIApplication: NSObject {
 
 public enum UIApplicationState: Int { case active, inactive, background }
 
+// Text alignment. On iOS this lives in UIKit (and in AppKit on macOS, where
+// QuillAppKit already mirrors it). SignalServiceKit reaches it via `import
+// UIKit`, so it is mirrored here too. Case order matches QuillAppKit's.
+public enum NSTextAlignment: Int, Sendable {
+    case left, right, center, justified, natural
+}
+
 public class UIScene: NSObject {
     @MainActor public var delegate: Any?
 }
