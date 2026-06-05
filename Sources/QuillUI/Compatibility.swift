@@ -621,9 +621,9 @@ public extension EnvironmentValues {
 }
 
 public struct PresentationMode: @unchecked Sendable {
-    private let dismissAction: @Sendable () -> Void
+    private let dismissAction: () -> Void
 
-    public init(dismiss: @escaping @Sendable () -> Void = {}) {
+    public init(dismiss: @escaping () -> Void = {}) {
         dismissAction = dismiss
     }
 
@@ -641,8 +641,9 @@ private struct PresentationModeKey: EnvironmentKey {
 public extension EnvironmentValues {
     var presentationMode: PresentationMode {
         get {
+            let dismiss = self.dismiss
             self[PresentationModeKey.self] ?? PresentationMode {
-                self.dismiss()
+                dismiss()
             }
         }
         set { self[PresentationModeKey.self] = newValue }
