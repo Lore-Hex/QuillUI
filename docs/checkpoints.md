@@ -3171,3 +3171,17 @@ declared before the interaction script uses it to set
 generic sheet-window mode. This preserves working window-level sheet semantics
 for Enchanted while leaving the overlay experiment available for future
 root-attached presentation work.
+
+## Checkpoint 189: GTK Root-Attached Sheet Presentation
+
+Status: implemented locally; guarded by SwiftOpenUI patch assertions, shell
+syntax, focused SwiftPM target build, profile budget, backend product
+integrity, and CI visual follow-up.
+
+GTK windows now install a root presentation overlay around their rendered
+content, and `.sheet` modifiers attach centered panels to that window-level
+overlay by default. The old local inline overlay remains available through
+explicit sheet presentation environment modes, and the transient GTK window path
+stays as a fallback when no root overlay is available. This moves Quill Chat's
+Settings and Completions sheets toward macOS-style in-window presentation
+without adding Enchanted source edits.

@@ -1694,6 +1694,11 @@ struct QuillDataSourceLoweringTests {
         try """
         import Foundation
 
+        func gtkConfigureRootContentToFillWindow(_ contentWidget: UnsafeMutablePointer<GtkWidget>) {
+            gtk_widget_set_hexpand(contentWidget, 1)
+            gtk_widget_set_vexpand(contentWidget, 1)
+        }
+
         extension WindowGroup {
             func gtkResolvedDefaultWindowSize() -> (width: Double, height: Double)? {
                 switch windowSizing ?? .automatic {
@@ -1715,6 +1720,12 @@ struct QuillDataSourceLoweringTests {
                         gint(defaultSize.height)
                     )
                 }
+
+                gtkConfigureRootContentToFillWindow(contentWidget)
+
+                gtk_window_set_child(winPtr, contentWidget)
+                let winWidget = widgetPointer(winPtr)
+                gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: contentWidget, windowID: Int(bitPattern: winPtr))
             }
 
             func gtkInstallDefaultMenu(menuModel: OpaquePointer, fileMenu: OpaquePointer) {
@@ -1965,11 +1976,20 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtkResolveOrQueueScrollTo(id: anyID, anchor: anchor)"))
         #expect(patchedRenderer.contains("gtkRegisterScrollTarget(id: AnyHashable(id), widget: widget)"))
         #expect(!patchedRenderer.contains("lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>"))
+        #expect(patchedRenderer.contains("private func gtkSheetPresentationMode() -> String"))
+        #expect(patchedRenderer.contains("QUILLUI_BACKEND_SHEET_PRESENTATION"))
+        #expect(patchedRenderer.contains("private func gtkShouldRenderSheetInRootOverlay() -> Bool"))
+        #expect(patchedRenderer.contains("return mode.isEmpty || mode == \"root\" || mode == \"root-overlay\" || mode == \"window-overlay\""))
         #expect(patchedRenderer.contains("private func gtkShouldRenderSheetInWindow() -> Bool"))
         #expect(patchedRenderer.contains("QUILLUI_GTK_SHEET_PRESENTATION"))
         #expect(patchedRenderer.contains("return mode == \"overlay\" || mode == \"in-window\" || mode == \"inline\""))
+        #expect(patchedRenderer.contains("private func gtkRemoveSheetRootOverlay("))
+        #expect(patchedRenderer.contains("gtkRemoveSheetRootOverlay(\n                anchor: anchor,\n                overlayKey: overlayKey,\n                activeKey: activeKey"))
+        #expect(patchedRenderer.contains("private func gtkCreateSheetOverlayPanel("))
         #expect(patchedRenderer.contains("private func gtkCreateSheetOverlay("))
         #expect(patchedRenderer.contains("gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)"))
+        #expect(patchedRenderer.contains("gtkRootPresentationOverlay(for: root)"))
+        #expect(patchedRenderer.contains("gtk_overlay_add_overlay(rootOverlay, panel)"))
         #expect(patchedRenderer.contains("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)"))
         #expect(patchedRenderer.contains("remainingTicks: Int = 90"))
         #expect(patchedRenderer.contains("context.remainingTicks -= 1"))
@@ -2027,6 +2047,13 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedBackend.contains("QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL"))
         #expect(patchedBackend.contains("requestedWidth ?? defaultWindowWidth ?? defaultAutomaticWindowWidth"))
         #expect(patchedBackend.contains("gtk_widget_set_size_request(\n                contentWidget"))
+        #expect(patchedBackend.contains("private let gtkRootPresentationOverlayKey"))
+        #expect(patchedBackend.contains("func gtkCreateRootPresentationContainer("))
+        #expect(patchedBackend.contains("g_object_set_data(gobject, gtkRootPresentationOverlayKey, gpointer(overlay))"))
+        #expect(patchedBackend.contains("func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer?"))
+        #expect(patchedBackend.contains("let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)"))
+        #expect(patchedBackend.contains("gtk_window_set_child(winPtr, rootContentWidget)"))
+        #expect(patchedBackend.contains("gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget"))
 
         let patchedToolbar = try String(contentsOf: toolbar, encoding: .utf8)
         #expect(patchedToolbar.contains("public let renderedViews: [any View]"))

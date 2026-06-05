@@ -1284,6 +1284,7 @@ private func gtkSheetDefaultHeight() -> gint {
     new_bool_keys = '''        let gobject = UnsafeMutableRawPointer(anchor).assumingMemoryBound(to: GObject.self)
         let activeKey = gtkSheetDataKey("active", modifierType: type(of: self))
         let windowKey = gtkSheetDataKey("window", modifierType: type(of: self))
+        let overlayKey = gtkSheetDataKey("overlay", modifierType: type(of: self))
 
         if !isPresented.wrappedValue {
 '''
@@ -1298,6 +1299,7 @@ private func gtkSheetDefaultHeight() -> gint {
     new_item_keys = '''        let gobject = UnsafeMutableRawPointer(anchor).assumingMemoryBound(to: GObject.self)
         let activeKey = gtkSheetDataKey("active", modifierType: type(of: self))
         let windowKey = gtkSheetDataKey("window", modifierType: type(of: self))
+        let overlayKey = gtkSheetDataKey("overlay", modifierType: type(of: self))
         let itemIDKey = gtkSheetDataKey("item-id", modifierType: type(of: self))
 
         guard let currentItem = item.wrappedValue else {
@@ -1403,15 +1405,91 @@ private func gtkSheetDefaultHeight() -> gint {
     text = text.replace('g_object_set_data(anchorObj, "swift-sheet-window", gpointer(dialogWin))', 'g_object_set_data(anchorObj, info.windowKey, gpointer(dialogWin))')
     text = text.replace('g_object_set_data(anchorObj, "swift-sheet-item-id", gpointer(bitPattern: currentIdHash))', 'g_object_set_data(anchorObj, info.itemIDKey, gpointer(bitPattern: currentIdHash))')
 
+    bool_overlay_dismiss = '''        if !isPresented.wrappedValue {
+            gtkRemoveSheetRootOverlay(
+                anchor: anchor,
+                overlayKey: overlayKey,
+                activeKey: activeKey,
+                onDismiss: onDismiss
+            )
+            // Dismiss active sheet if binding turned false
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+'''
+    bool_overlay_dismiss_without_comment = '''        if !isPresented.wrappedValue {
+            gtkRemoveSheetRootOverlay(
+                anchor: anchor,
+                overlayKey: overlayKey,
+                activeKey: activeKey,
+                onDismiss: onDismiss
+            )
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+'''
+    if "gtkRemoveSheetRootOverlay(\n                anchor: anchor,\n                overlayKey: overlayKey,\n                activeKey: activeKey,\n                onDismiss: onDismiss" not in text:
+        text = text.replace(
+            '''        if !isPresented.wrappedValue {
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+''',
+            bool_overlay_dismiss_without_comment,
+            1,
+        )
+        text = text.replace(
+            '''        if !isPresented.wrappedValue {
+            // Dismiss active sheet if binding turned false
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+''',
+            bool_overlay_dismiss,
+            1,
+        )
+
+    item_overlay_dismiss = '''        guard let currentItem = item.wrappedValue else {
+            gtkRemoveSheetRootOverlay(
+                anchor: anchor,
+                overlayKey: overlayKey,
+                activeKey: activeKey,
+                itemIDKey: itemIDKey,
+                onDismiss: onDismiss
+            )
+            // Dismiss active sheet if item became nil
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+'''
+    item_overlay_dismiss_without_comment = '''        guard let currentItem = item.wrappedValue else {
+            gtkRemoveSheetRootOverlay(
+                anchor: anchor,
+                overlayKey: overlayKey,
+                activeKey: activeKey,
+                itemIDKey: itemIDKey,
+                onDismiss: onDismiss
+            )
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+'''
+    if "gtkRemoveSheetRootOverlay(\n                anchor: anchor,\n                overlayKey: overlayKey,\n                activeKey: activeKey,\n                itemIDKey: itemIDKey,\n                onDismiss: onDismiss" not in text:
+        text = text.replace(
+            '''        guard let currentItem = item.wrappedValue else {
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+''',
+            item_overlay_dismiss_without_comment,
+            1,
+        )
+        text = text.replace(
+            '''        guard let currentItem = item.wrappedValue else {
+            // Dismiss active sheet if item became nil
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+''',
+            item_overlay_dismiss,
+            1,
+        )
+
 if 'gtkDebugLog("sheet bool presented=' not in text:
     text = text.replace(
         """        let activeKey = gtkSheetDataKey("active", modifierType: type(of: self))
         let windowKey = gtkSheetDataKey("window", modifierType: type(of: self))
+        let overlayKey = gtkSheetDataKey("overlay", modifierType: type(of: self))
 
         if !isPresented.wrappedValue {
 """,
         """        let activeKey = gtkSheetDataKey("active", modifierType: type(of: self))
         let windowKey = gtkSheetDataKey("window", modifierType: type(of: self))
+        let overlayKey = gtkSheetDataKey("overlay", modifierType: type(of: self))
         gtkDebugLog("sheet bool presented=\\(isPresented.wrappedValue) activeKey=\\(activeKey)")
 
         if !isPresented.wrappedValue {
@@ -1447,11 +1525,63 @@ if 'gtkDebugLog("sheet bool idle present' not in text:
         1,
     )
 
-sheet_overlay_helpers = '''private func gtkShouldRenderSheetInWindow() -> Bool {
-    let mode = ProcessInfo.processInfo.environment["QUILLUI_GTK_SHEET_PRESENTATION"]?
+sheet_overlay_helpers = '''private func gtkSheetPresentationMode() -> String {
+    return (ProcessInfo.processInfo.environment["QUILLUI_BACKEND_SHEET_PRESENTATION"]
+        ?? ProcessInfo.processInfo.environment["QUILLUI_GTK_SHEET_PRESENTATION"]
+        ?? "root-overlay")
         .trimmingCharacters(in: .whitespacesAndNewlines)
         .lowercased()
+}
+
+private func gtkShouldRenderSheetInRootOverlay() -> Bool {
+    let mode = gtkSheetPresentationMode()
+    return mode.isEmpty || mode == "root" || mode == "root-overlay" || mode == "window-overlay"
+}
+
+private func gtkShouldRenderSheetInWindow() -> Bool {
+    let mode = gtkSheetPresentationMode()
     return mode == "overlay" || mode == "in-window" || mode == "inline"
+}
+
+private func gtkRemoveSheetRootOverlay(
+    anchor: UnsafeMutablePointer<GtkWidget>,
+    overlayKey: String,
+    activeKey: String,
+    itemIDKey: String? = nil,
+    onDismiss: (() -> Void)? = nil
+) {
+    let gobject = UnsafeMutableRawPointer(anchor).assumingMemoryBound(to: GObject.self)
+    guard let panelPtr = g_object_get_data(gobject, overlayKey) else {
+        return
+    }
+    let panel = panelPtr.assumingMemoryBound(to: GtkWidget.self)
+    gtk_widget_unparent(panel)
+    g_object_set_data(gobject, overlayKey, nil)
+    g_object_set_data(gobject, activeKey, nil)
+    if let itemIDKey {
+        g_object_set_data(gobject, itemIDKey, nil)
+    }
+    onDismiss?()
+}
+
+private func gtkCreateSheetOverlayPanel(
+    sheetWidget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+    gtk_widget_set_size_request(panel, gtkSheetDefaultWidth(), gtkSheetDefaultHeight())
+    gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)
+    gtk_widget_set_valign(panel, GTK_ALIGN_CENTER)
+    applyCSSToWidget(
+        panel,
+        properties: "background: #f8f8fb; border: 1px solid rgba(0,0,0,0.12); border-radius: 12px; box-shadow: 0 18px 48px rgba(0,0,0,0.18);"
+    )
+
+    gtk_widget_set_hexpand(sheetWidget, 1)
+    gtk_widget_set_vexpand(sheetWidget, 1)
+    gtk_widget_set_halign(sheetWidget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(sheetWidget, GTK_ALIGN_FILL)
+    gtk_box_append(boxPointer(panel), sheetWidget)
+    return panel
 }
 
 private func gtkCreateSheetOverlay(
@@ -1470,20 +1600,7 @@ private func gtkCreateSheetOverlay(
     gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
     gtk_overlay_set_child(OpaquePointer(overlay), contentWidget)
 
-    let panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-    gtk_widget_set_size_request(panel, gtkSheetDefaultWidth(), gtkSheetDefaultHeight())
-    gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)
-    gtk_widget_set_valign(panel, GTK_ALIGN_CENTER)
-    applyCSSToWidget(
-        panel,
-        properties: "background: #f8f8fb; border: 1px solid rgba(0,0,0,0.12); border-radius: 12px; box-shadow: 0 18px 48px rgba(0,0,0,0.18);"
-    )
-
-    gtk_widget_set_hexpand(sheetWidget, 1)
-    gtk_widget_set_vexpand(sheetWidget, 1)
-    gtk_widget_set_halign(sheetWidget, GTK_ALIGN_FILL)
-    gtk_widget_set_valign(sheetWidget, GTK_ALIGN_FILL)
-    gtk_box_append(boxPointer(panel), sheetWidget)
+    let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
     gtk_overlay_add_overlay(OpaquePointer(overlay), panel)
     return overlay
 }
@@ -1518,6 +1635,40 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             return opaqueFromWidget(gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget))
         }
 
+        if gtkShouldRenderSheetInRootOverlay(),
+           let root = gtk_widget_get_root(anchor).map({ gpointer($0) })
+                ?? GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot,
+           let rootOverlay = gtkRootPresentationOverlay(for: root) {
+            guard g_object_get_data(gobject, activeKey) == nil else {
+                return opaqueFromWidget(widget)
+            }
+            g_object_set_data(gobject, activeKey, gpointer(bitPattern: 1))
+            let sheetView = sheetContent
+            let binding = isPresented
+            let userOnDismiss = onDismiss
+            let dismissalConfig = gtkExtractDismissalConfig(from: sheetView)
+            let previous = getCurrentEnvironment()
+            var env = previous
+            if let config = dismissalConfig {
+                env.dismiss = DismissAction {
+                    config.isPresented.wrappedValue = true
+                }
+            } else {
+                env.dismiss = DismissAction {
+                    gtkRemoveSheetRootOverlay(anchor: anchor, overlayKey: overlayKey, activeKey: activeKey)
+                    binding.wrappedValue = false
+                    userOnDismiss?()
+                }
+            }
+            setCurrentEnvironment(env)
+            let sheetWidget = widgetFromOpaque(gtkRenderView(sheetView))
+            setCurrentEnvironment(previous)
+            let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            g_object_set_data(gobject, overlayKey, gpointer(panel))
+            gtk_overlay_add_overlay(rootOverlay, panel)
+            return opaqueFromWidget(widget)
+        }
+
 '''
 if "gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)" not in text:
     bool_marker = "        // Guard against duplicate presentation on rebuild\n"
@@ -1546,6 +1697,57 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             let sheetWidget = widgetFromOpaque(gtkRenderView(sheetBuilder(currentItem)))
             setCurrentEnvironment(previous)
             return opaqueFromWidget(gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget))
+        }
+
+        if gtkShouldRenderSheetInRootOverlay(),
+           let root = gtk_widget_get_root(anchor).map({ gpointer($0) })
+                ?? GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot,
+           let rootOverlay = gtkRootPresentationOverlay(for: root) {
+            let currentIdHash = currentItem.id.hashValue
+            if g_object_get_data(gobject, activeKey) != nil {
+                let storedHash = Int(bitPattern: g_object_get_data(gobject, itemIDKey))
+                if storedHash == currentIdHash {
+                    return opaqueFromWidget(widget)
+                }
+                gtkRemoveSheetRootOverlay(
+                    anchor: anchor,
+                    overlayKey: overlayKey,
+                    activeKey: activeKey,
+                    itemIDKey: itemIDKey,
+                    onDismiss: onDismiss
+                )
+            }
+            g_object_set_data(gobject, activeKey, gpointer(bitPattern: 1))
+            g_object_set_data(gobject, itemIDKey, gpointer(bitPattern: currentIdHash))
+            let sheetBuilder = sheetContent
+            let itemBinding = item
+            let userOnDismiss = onDismiss
+            let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))
+            let previous = getCurrentEnvironment()
+            var env = previous
+            if let config = itemDismissalConfig {
+                env.dismiss = DismissAction {
+                    config.isPresented.wrappedValue = true
+                }
+            } else {
+                env.dismiss = DismissAction {
+                    gtkRemoveSheetRootOverlay(
+                        anchor: anchor,
+                        overlayKey: overlayKey,
+                        activeKey: activeKey,
+                        itemIDKey: itemIDKey
+                    )
+                    itemBinding.wrappedValue = nil
+                    userOnDismiss?()
+                }
+            }
+            setCurrentEnvironment(env)
+            let sheetWidget = widgetFromOpaque(gtkRenderView(sheetBuilder(currentItem)))
+            setCurrentEnvironment(previous)
+            let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            g_object_set_data(gobject, overlayKey, gpointer(panel))
+            gtk_overlay_add_overlay(rootOverlay, panel)
+            return opaqueFromWidget(widget)
         }
 
 '''
@@ -2712,6 +2914,44 @@ from pathlib import Path
 
 path = Path(sys.argv[1])
 text = path.read_text()
+root_overlay_helpers = '''private let gtkRootPresentationOverlayKey = "quillui-root-presentation-overlay"
+
+func gtkCreateRootPresentationContainer(
+    winPtr: UnsafeMutablePointer<GtkWindow>,
+    contentWidget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let overlay = gtk_overlay_new()!
+    gtk_widget_set_hexpand(overlay, 1)
+    gtk_widget_set_vexpand(overlay, 1)
+    gtk_widget_set_halign(overlay, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(overlay, GTK_ALIGN_FILL)
+
+    gtk_widget_set_hexpand(contentWidget, 1)
+    gtk_widget_set_vexpand(contentWidget, 1)
+    gtk_widget_set_halign(contentWidget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
+    gtk_overlay_set_child(OpaquePointer(overlay), contentWidget)
+
+    let gobject = UnsafeMutableRawPointer(winPtr).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(gobject, gtkRootPresentationOverlayKey, gpointer(overlay))
+    return overlay
+}
+
+func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
+    let gobject = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
+    guard let overlayPtr = g_object_get_data(gobject, gtkRootPresentationOverlayKey) else {
+        return nil
+    }
+    let overlay = overlayPtr.assumingMemoryBound(to: GtkWidget.self)
+    return OpaquePointer(overlay)
+}
+
+'''
+if "gtkRootPresentationOverlayKey" not in text:
+    marker = "func gtkConfigureRootContentToFillWindow"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK root presentation helper insertion point was not recognized")
+    text = text.replace(marker, root_overlay_helpers + marker, 1)
 old = '''        case .automatic:
             return (
                 defaultWindowWidth ?? defaultAutomaticWindowWidth,
@@ -2773,6 +3013,23 @@ new_default_size = '''        if let defaultSize = gtkResolvedDefaultWindowSize(
 '''
 if "gtk_widget_set_size_request(\n                contentWidget,\n                gint(defaultSize.width)" not in text:
     text = text.replace(old_default_size, new_default_size, 1)
+root_content_old = '''        gtkConfigureRootContentToFillWindow(contentWidget)
+
+        gtk_window_set_child(winPtr, contentWidget)
+        let winWidget = widgetPointer(winPtr)
+        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: contentWidget, windowID: Int(bitPattern: winPtr))
+'''
+root_content_new = '''        let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)
+        gtkConfigureRootContentToFillWindow(rootContentWidget)
+
+        gtk_window_set_child(winPtr, rootContentWidget)
+        let winWidget = widgetPointer(winPtr)
+        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
+'''
+if "gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)" not in text:
+    if root_content_old not in text:
+        raise SystemExit("SwiftOpenUI GTK root presentation content insertion shape was not recognized")
+    text = text.replace(root_content_old, root_content_new)
 old_menubar_label = '''        gtk_swift_menu_append_submenu(menuModel, "File", fileMenu)
 '''
 new_menubar_label = '''        let environment = ProcessInfo.processInfo.environment
