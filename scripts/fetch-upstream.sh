@@ -408,6 +408,22 @@ print("patched ConfTextStorage.swift to import WireGuardHighlighterC")
 PY
     fi
 
+    # TunnelEditViewController references TunnelConfiguration/PrivateKey (WireGuardKit)
+    # + the wg-quick parser splitToArray (QuillWireGuardUpstreamConfig), so it needs
+    # both explicit imports.
+    local tevc="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/ViewController/TunnelEditViewController.swift"
+    if [[ -f "$tevc" ]] && ! grep -q '^import QuillWireGuardUpstreamConfig' "$tevc"; then
+        echo "==> patching TunnelEditViewController.swift imports"
+        python3 - "$tevc" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('import Cocoa\n', 'import Cocoa\nimport WireGuardKit\nimport QuillWireGuardUpstreamConfig\n', 1)
+open(path, "w").write(src)
+print("patched TunnelEditViewController.swift to import WireGuardKit + QuillWireGuardUpstreamConfig")
+PY
+    fi
+
     # Break the SwiftPM modularity wall for the model layer: the wg-quick parser
     # methods (asWgQuickConfig / init(fromWgQuickConfig:)) live in the
     # QuillWireGuardUpstreamConfig target but are `internal`, so the conformance

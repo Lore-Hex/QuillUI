@@ -1419,6 +1419,12 @@ if wireguardUpstreamPresent {
                 // (NSTokenField + NSPopUpButton + CWWiFiClient SSIDs via CoreWLAN). Dep of
                 // TunnelEditViewController + TunnelDetailTableViewController.
                 "Sources/WireGuardApp/UI/macOS/View/OnDemandWiFiControls.swift",
+                // TunnelEditViewController: the config-edit VC — the GATE for both table
+                // VCs (each presents it). ConfTextView editor + KeyValueRow name/key fields
+                // + OnDemandControlsRow + ActivateOnDemandViewModel + TunnelViewModel.
+                // Imports WireGuardKit + QuillWireGuardUpstreamConfig (fetch-upstream patch);
+                // @objc actions lowered; cancelOperation extension-override merged into class.
+                "Sources/WireGuardApp/UI/macOS/ViewController/TunnelEditViewController.swift",
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
                 // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).

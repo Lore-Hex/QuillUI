@@ -1088,6 +1088,9 @@ open class NSWindow: NSResponder {
     public var isMovable: Bool = true
     public var isMovableByWindowBackground: Bool = false
     public var isReleasedWhenClosed: Bool = true
+    /// When true, the window is transparent to mouse events (WireGuard toggles this
+    /// on the edit sheet during save). Compile-stub.
+    public var ignoresMouseEvents: Bool = false
     public var isVisible: Bool = false
     public var isMiniaturized: Bool = false
     public var isZoomed: Bool = false
@@ -3001,6 +3004,12 @@ public extension NSTokenFieldDelegate {
 
 open class NSText: NSView {
     open var string: String = ""
+    /// Layout bounds for the text (WireGuard's ConfTextView sets these to size the
+    /// config editor). Compile-stubs.
+    public var minSize: NSSize = .zero
+    public var maxSize: NSSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+    public var isHorizontallyResizable: Bool = false
+    public var isVerticallyResizable: Bool = false
 }
 
 open class NSTextView: NSText {
@@ -3155,6 +3164,9 @@ open class NSTextContainer: NSObject, @unchecked Sendable {
     public override init() {}
     public init(size: NSSize) {}
     public var containerSize: NSSize = .zero
+    /// Modern name for the container's text-layout size (containerSize is the
+    /// deprecated alias). WireGuard's ConfTextView reads/sets it.
+    public var size: NSSize = .zero
     public var widthTracksTextView: Bool = false
     public var heightTracksTextView: Bool = false
     public var lineFragmentPadding: CGFloat = 0
@@ -3421,6 +3433,9 @@ open class NSStackView: NSView {
     // Per-view trailing spacing. Recorded but not yet honored by the constraint
     // layout pass (like gravity), enough for source-compat.
     public func setCustomSpacing(_ spacing: CGFloat, after view: NSView) {}
+    /// Content-hugging priority for the stack axis (WireGuard's edit VC pins the
+    /// container). Compile-stub.
+    public func setHuggingPriority(_ priority: NSLayoutConstraint.Priority, for orientation: NSLayoutConstraint.Orientation) {}
     public func removeArrangedSubview(_ v: NSView) {
         arrangedSubviews.removeAll { $0 === v }
     }

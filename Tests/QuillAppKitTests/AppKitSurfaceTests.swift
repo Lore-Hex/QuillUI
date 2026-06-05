@@ -172,4 +172,22 @@ struct AppKitSurfaceTests {
         let d = D()
         #expect(d.tokenField(tf, completionsForSubstring: "x", indexOfToken: 0, indexOfSelectedItem: nil) == nil)
     }
+
+    @Test("TunnelEditViewController shadow gaps: NSText min/maxSize, NSWindow.ignoresMouseEvents, NSStackView.setHuggingPriority, NSTextContainer.size")
+    func tunnelEditShadowSurface() {
+        let tv = NSTextView()
+        tv.minSize = NSSize(width: 1, height: 1)
+        tv.maxSize = NSSize(width: 100, height: 100)
+        tv.isHorizontallyResizable = true
+        tv.isVerticallyResizable = true
+        #expect(tv.minSize.width == 1 && tv.maxSize.height == 100)
+        let w = NSWindow()
+        w.ignoresMouseEvents = true
+        #expect(w.ignoresMouseEvents)
+        let stack = NSStackView()
+        stack.setHuggingPriority(.defaultHigh, for: .horizontal) // compile-stub
+        let tc = NSTextContainer()
+        tc.size = NSSize(width: 50, height: 50)
+        #expect(tc.size.width == 50)
+    }
 }
