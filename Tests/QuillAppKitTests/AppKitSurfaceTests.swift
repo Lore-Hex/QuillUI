@@ -159,4 +159,17 @@ struct AppKitSurfaceTests {
         _ = v.effectiveAppearance
         v.viewDidChangeEffectiveAppearance()
     }
+
+    @Test("NSTokenField + NSTokenFieldDelegate (WireGuard's OnDemandControlsRow)")
+    func nsTokenFieldSurface() {
+        let tf = NSTokenField()
+        tf.tokenStyle = .squared
+        tf.tokenizingCharacterSet = CharacterSet([])
+        #expect(tf.tokenStyle == .squared)
+        // NSTokenFieldDelegate refines NSTextFieldDelegate; its completion hook
+        // has a default impl (nil) so conformers override only what they need.
+        final class D: NSObject, NSTokenFieldDelegate {}
+        let d = D()
+        #expect(d.tokenField(tf, completionsForSubstring: "x", indexOfToken: 0, indexOfSelectedItem: nil) == nil)
+    }
 }

@@ -1283,7 +1283,7 @@ if wireguardUpstreamPresent {
     targets.append(
         .target(
             name: "QuillWireGuardConformanceUI",
-            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "WireGuardMinizipC", "WireGuardHighlighterC", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
+            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "WireGuardMinizipC", "WireGuardHighlighterC", "CoreWLAN", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
             path: ".upstream/wireguard-apple",
             sources: [
                 // Shared logging: Logger.swift (wg_log) over the ringlogger C
@@ -1415,6 +1415,10 @@ if wireguardUpstreamPresent {
                 // LAST text-subsystem file. Hosts ConfTextStorage via a layout manager,
                 // syntax-highlights on edit, themes via NSAppearance, NSTextViewDelegate.
                 "Sources/WireGuardApp/UI/macOS/View/ConfTextView.swift",
+                // OnDemandWiFiControls (OnDemandControlsRow): on-demand SSID controls
+                // (NSTokenField + NSPopUpButton + CWWiFiClient SSIDs via CoreWLAN). Dep of
+                // TunnelEditViewController + TunnelDetailTableViewController.
+                "Sources/WireGuardApp/UI/macOS/View/OnDemandWiFiControls.swift",
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
                 // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).
