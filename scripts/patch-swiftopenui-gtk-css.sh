@@ -1859,7 +1859,7 @@ private final class GTKScrollToContext {
     let anchor: UnitPoint?
     var remainingTicks: Int
 
-    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 90) {
+    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 180) {
         self.target = target
         self.anchor = anchor
         self.remainingTicks = remainingTicks
@@ -1931,23 +1931,26 @@ private func gtkApplyScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor:
     }
 }
 
-private let gtkScrollToTickCallback: GtkTickCallback = { _, _, userData in
-    guard let userData else { return 0 }
-    let context = Unmanaged<GTKScrollToContext>.fromOpaque(userData).takeUnretainedValue()
-    gtkApplyScrollTo(context.target, anchor: context.anchor)
-    context.remainingTicks -= 1
-    return context.remainingTicks > 0 ? 1 : 0
-}
-
 private func gtkScheduleScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
     guard gtk_swift_is_widget(target) != 0 else { return }
+    g_object_ref(gpointer(target))
     let context = GTKScrollToContext(target: target, anchor: anchor)
-    _ = gtk_widget_add_tick_callback(
-        target,
-        gtkScrollToTickCallback,
-        Unmanaged.passRetained(context).toOpaque(),
-        { userData in Unmanaged<GTKScrollToContext>.fromOpaque(userData!).release() }
-    )
+    _ = g_timeout_add(16, { userData -> gboolean in
+        guard let userData else { return 0 }
+        let unmanaged = Unmanaged<GTKScrollToContext>.fromOpaque(userData)
+        let context = unmanaged.takeUnretainedValue()
+        guard gtk_swift_is_widget(context.target) != 0 else {
+            g_object_unref(gpointer(context.target))
+            unmanaged.release()
+            return 0
+        }
+        gtkApplyScrollTo(context.target, anchor: context.anchor)
+        context.remainingTicks -= 1
+        if context.remainingTicks > 0 { return 1 }
+        g_object_unref(gpointer(context.target))
+        unmanaged.release()
+        return 0
+    }, Unmanaged.passRetained(context).toOpaque())
 }
 
 private func gtkScheduleIdleScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
@@ -1988,7 +1991,7 @@ private final class GTKScrollToContext {
     let anchor: UnitPoint?
     var remainingTicks: Int
 
-    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 90) {
+    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 180) {
         self.target = target
         self.anchor = anchor
         self.remainingTicks = remainingTicks
@@ -2060,23 +2063,26 @@ private func gtkApplyScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor:
     }
 }
 
-private let gtkScrollToTickCallback: GtkTickCallback = { _, _, userData in
-    guard let userData else { return 0 }
-    let context = Unmanaged<GTKScrollToContext>.fromOpaque(userData).takeUnretainedValue()
-    gtkApplyScrollTo(context.target, anchor: context.anchor)
-    context.remainingTicks -= 1
-    return context.remainingTicks > 0 ? 1 : 0
-}
-
 private func gtkScheduleScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
     guard gtk_swift_is_widget(target) != 0 else { return }
+    g_object_ref(gpointer(target))
     let context = GTKScrollToContext(target: target, anchor: anchor)
-    _ = gtk_widget_add_tick_callback(
-        target,
-        gtkScrollToTickCallback,
-        Unmanaged.passRetained(context).toOpaque(),
-        { userData in Unmanaged<GTKScrollToContext>.fromOpaque(userData!).release() }
-    )
+    _ = g_timeout_add(16, { userData -> gboolean in
+        guard let userData else { return 0 }
+        let unmanaged = Unmanaged<GTKScrollToContext>.fromOpaque(userData)
+        let context = unmanaged.takeUnretainedValue()
+        guard gtk_swift_is_widget(context.target) != 0 else {
+            g_object_unref(gpointer(context.target))
+            unmanaged.release()
+            return 0
+        }
+        gtkApplyScrollTo(context.target, anchor: context.anchor)
+        context.remainingTicks -= 1
+        if context.remainingTicks > 0 { return 1 }
+        g_object_unref(gpointer(context.target))
+        unmanaged.release()
+        return 0
+    }, Unmanaged.passRetained(context).toOpaque())
 }
 
 private func gtkScheduleIdleScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
@@ -2136,7 +2142,7 @@ elif "gtkPendingScrollRequests" not in text:
     let anchor: UnitPoint?
     var remainingTicks: Int
 
-    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 90) {
+    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 180) {
         self.target = target
         self.anchor = anchor
         self.remainingTicks = remainingTicks
@@ -2164,7 +2170,7 @@ private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePoint
         raise SystemExit("SwiftOpenUI ScrollViewReader context upgrade shape was not recognized")
     text = text.replace(old_scroll_context_init, new_scroll_context_init, 1)
 if "remainingTicks: Int = 4" in text:
-    text = text.replace("remainingTicks: Int = 4", "remainingTicks: Int = 90")
+    text = text.replace("remainingTicks: Int = 4", "remainingTicks: Int = 180")
 old_apply_scroll = '''private func gtkApplyScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
     guard gtk_swift_is_widget(target) != 0 else { return }
 
@@ -2312,9 +2318,29 @@ if "gtkApplyOrScheduleScrollTo(_ widget" not in text and "private func gtkSchedu
 }
 
 '''
+    timeout_schedule_end = '''    g_object_ref(gpointer(target))
+    _ = g_timeout_add(16, { userData -> gboolean in
+        guard let userData else { return 0 }
+        let unmanaged = Unmanaged<GTKScrollToContext>.fromOpaque(userData)
+        let context = unmanaged.takeUnretainedValue()
+        guard gtk_swift_is_widget(context.target) != 0 else {
+            g_object_unref(gpointer(context.target))
+            unmanaged.release()
+            return 0
+        }
+        gtkApplyScrollTo(context.target, anchor: context.anchor)
+        context.remainingTicks -= 1
+        if context.remainingTicks > 0 { return 1 }
+        g_object_unref(gpointer(context.target))
+        unmanaged.release()
+        return 0
+    }, Unmanaged.passRetained(context).toOpaque())
+}
+
+'''
     text = text.replace(
         schedule_end,
-        schedule_end + '''private func gtkApplyOrScheduleScrollTo(_ widget: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
+        timeout_schedule_end + '''private func gtkApplyOrScheduleScrollTo(_ widget: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
     gtkApplyScrollTo(widget, anchor: anchor)
     gtkScheduleScrollTo(widget, anchor: anchor)
 }

@@ -332,17 +332,12 @@ public struct QuillPromptGrid: View {
             .frame(width: promptIconSize, height: promptIconSize)
         } else if prompt.systemImage.lowercased().contains("lightbulb") {
             // Same approach for the action prompts: draw the circle, overlay the
-            // plain (non-.circle) lightbulb glyph, matching the genuine app's
-            // circled bulb without the partial-arc .circle composite.
+            // bulb with primitive shapes, matching the genuine app's circled
+            // bulb without relying on tiny Material Symbol glyph rendering.
             ZStack {
                 Circle()
                     .stroke(Color(hex: "#2E2E31"), lineWidth: 1.3)
-                Image(systemName: QuillSystemSymbol.compatibleName("lightbulb"))
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: promptIconSize * 0.52, height: promptIconSize * 0.52)
-                    .foregroundColor(Color(hex: "#2E2E31"))
+                QuillPromptLightbulbGlyph(color: Color(hex: "#2E2E31"))
             }
             .frame(width: promptIconSize, height: promptIconSize)
         } else {
@@ -353,6 +348,25 @@ public struct QuillPromptGrid: View {
                 .frame(width: promptIconSize, height: promptIconSize)
                 .foregroundColor(Color(hex: "#2E2E31"))
         }
+    }
+}
+
+private struct QuillPromptLightbulbGlyph: View {
+    var color: Color
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Circle()
+                .stroke(color, lineWidth: 1.1)
+                .frame(width: 5.8, height: 5.8)
+            Rectangle()
+                .fill(color)
+                .frame(width: 3.3, height: 2)
+            Rectangle()
+                .fill(color)
+                .frame(width: 5.2, height: 1.2)
+        }
+        .frame(width: 8, height: 10, alignment: .center)
     }
 }
 
@@ -803,6 +817,12 @@ public struct QuillSidebarNavigationButton: View {
             Text("Abc")
                 .font(.system(size: 13, weight: .regular))
                 .frame(width: 24, height: 20, alignment: .leading)
+        } else if systemImage == "keyboard" || systemImage == "keyboard.fill" {
+            QuillSidebarKeyboardGlyph(color: Color(hex: "#3A3A3C"))
+                .frame(width: 24, height: 20, alignment: .leading)
+        } else if systemImage == "gearshape" || systemImage == "gearshape.fill" || systemImage == "gear" {
+            QuillSidebarGearGlyph(color: Color(hex: "#3A3A3C"))
+                .frame(width: 24, height: 20, alignment: .leading)
         } else {
             Image(systemName: sidebarSystemImageName)
                 .renderingMode(.template)
@@ -832,6 +852,68 @@ public struct QuillSidebarNavigationButton: View {
         #else
         return QuillSystemSymbol.compatibleName(systemImage)
         #endif
+    }
+}
+
+private struct QuillSidebarKeyboardGlyph: View {
+    var color: Color
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 2)
+                .stroke(color, lineWidth: 1.3)
+                .frame(width: 17, height: 11)
+
+            VStack(spacing: 1.5) {
+                HStack(spacing: 1.5) {
+                    key
+                    key
+                    key
+                    key
+                    key
+                }
+                HStack(spacing: 1.5) {
+                    key
+                    Rectangle()
+                        .fill(color)
+                        .frame(width: 5.6, height: 1.4)
+                    key
+                }
+            }
+            .padding(.top, 1)
+        }
+        .frame(width: 17, height: 13, alignment: .center)
+    }
+
+    private var key: some View {
+        Rectangle()
+            .fill(color)
+            .frame(width: 1.8, height: 1.4)
+    }
+}
+
+private struct QuillSidebarGearGlyph: View {
+    var color: Color
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(color)
+                .frame(width: 3.2, height: 17)
+            Rectangle()
+                .fill(color)
+                .frame(width: 17, height: 3.2)
+            Circle()
+                .fill(QuillDesktopChromeStyle.sidebarBackground)
+                .frame(width: 11.2, height: 11.2)
+            Circle()
+                .stroke(color, lineWidth: 1.6)
+                .frame(width: 10, height: 10)
+            Circle()
+                .fill(color)
+                .frame(width: 3.3, height: 3.3)
+        }
+        .frame(width: 17, height: 17, alignment: .center)
     }
 }
 

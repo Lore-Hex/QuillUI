@@ -3271,8 +3271,8 @@ struct SourceHygieneTests {
         #expect(!source.contains(".product(name: \"BackendGTK4\", package: \"SwiftOpenUI\")"))
     }
 
-    @Test("QuillPromptGrid uses image accessories on Linux")
-    func quillPromptGridUsesImageAccessoriesOnLinux() throws {
+    @Test("QuillPromptGrid uses backend-stable prompt accessories on Linux")
+    func quillPromptGridUsesBackendStablePromptAccessoriesOnLinux() throws {
         let controls = try packageSource("Sources/QuillUI/Controls.swift")
         guard let gridStart = controls.range(of: "public struct QuillPromptGrid: View"),
               let nextSection = controls.range(of: "public struct QuillConversationHistoryItem: Identifiable") else {
@@ -3290,6 +3290,9 @@ struct SourceHygieneTests {
         #expect(promptGrid.contains("private var promptCardContentHeight: CGFloat"))
         #expect(promptGrid.contains("max(1, cardHeight - (promptCardPaddingWidth * 2))"))
         #expect(promptGrid.contains("QuillDesktopChromeStyle.promptCardBackground"))
+        #expect(promptGrid.contains("QuillPromptLightbulbGlyph(color: Color(hex: \"#2E2E31\"))"))
+        #expect(promptGrid.contains("private struct QuillPromptLightbulbGlyph: View"))
+        #expect(!promptGrid.contains("Image(systemName: QuillSystemSymbol.compatibleName(\"lightbulb\"))"))
         #expect(!promptGrid.contains("prompt.systemImage.contains(\"lightbulb\") ? \"!\" : \"?\""))
         #expect(!promptGrid.contains("#if os(Linux)\n        ZStack"))
         #expect(!promptGrid.contains("Color(hex: \"#E8E8EE\")"))
@@ -3479,6 +3482,12 @@ struct SourceHygieneTests {
         #expect(sidebarButton.contains("Image(systemName: sidebarSystemImageName)"))
         #expect(sidebarButton.contains("if systemImage == \"textformat.abc\""))
         #expect(sidebarButton.contains("Text(\"Abc\")"))
+        #expect(sidebarButton.contains("QuillSidebarKeyboardGlyph(color: Color(hex: \"#3A3A3C\"))"))
+        #expect(sidebarButton.contains("QuillSidebarGearGlyph(color: Color(hex: \"#3A3A3C\"))"))
+        #expect(sidebarButton.contains("private struct QuillSidebarKeyboardGlyph: View"))
+        #expect(sidebarButton.contains("private struct QuillSidebarGearGlyph: View"))
+        #expect(sidebarButton.contains(".stroke(color, lineWidth: 1.3)"))
+        #expect(sidebarButton.contains(".stroke(color, lineWidth: 1.6)"))
         #expect(sidebarButton.contains("\"textformat\", \"textformat.abc\""))
         #expect(sidebarButton.contains("\"keyboard\", \"keyboard.fill\""))
         #expect(sidebarButton.contains("\"gearshape\", \"gearshape.fill\", \"gear\""))

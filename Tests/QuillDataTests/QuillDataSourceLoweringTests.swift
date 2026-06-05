@@ -1895,7 +1895,7 @@ struct QuillDataSourceLoweringTests {
         #expect(result.status == 0, Comment(rawValue: result.output))
 
         let patchScript = try String(contentsOf: script, encoding: .utf8)
-        #expect(patchScript.contains("text.replace(\"remainingTicks: Int = 4\", \"remainingTicks: Int = 90\")"))
+        #expect(patchScript.contains("text.replace(\"remainingTicks: Int = 4\", \"remainingTicks: Int = 180\")"))
         #expect(patchScript.contains("SwiftOpenUI ScrollViewReader scroll-range upgrade shape was not recognized"))
 
         let patchedSwiftOpenUIManifest = try String(contentsOf: swiftOpenUIManifest, encoding: .utf8)
@@ -1991,6 +1991,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtkScheduleScrollTo(widget, anchor: anchor)"))
         #expect(patchedRenderer.contains("gtkScheduleIdleScrollTo(_ target"))
         #expect(patchedRenderer.contains("g_object_ref(gpointer(target))"))
+        #expect(patchedRenderer.contains("g_timeout_add(16, { userData -> gboolean in"))
+        #expect(patchedRenderer.contains("let unmanaged = Unmanaged<GTKScrollToContext>.fromOpaque(userData)"))
+        #expect(patchedRenderer.contains("unmanaged.release()"))
         #expect(patchedRenderer.contains("defer { g_object_unref(gpointer(context.target)) }"))
         #expect(patchedRenderer.contains("g_idle_add({ userData -> gboolean in"))
         #expect(patchedRenderer.contains("gtkScheduleIdleScrollTo(widget, anchor: request.anchor)"))
@@ -2012,7 +2015,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtkRootPresentationOverlay(for: root)"))
         #expect(patchedRenderer.contains("gtk_overlay_add_overlay(rootOverlay, panel)"))
         #expect(patchedRenderer.contains("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)"))
-        #expect(patchedRenderer.contains("remainingTicks: Int = 90"))
+        #expect(patchedRenderer.contains("remainingTicks: Int = 180"))
         #expect(!patchedRenderer.contains("remainingTicks: Int = 4"))
         #expect(patchedRenderer.contains("context.remainingTicks -= 1"))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(_ action"))
