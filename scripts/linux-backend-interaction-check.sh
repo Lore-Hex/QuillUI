@@ -473,7 +473,11 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ;;
       transcript-selection|markdown-transcript-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 466))}"
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 530))}"
+        else
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 466))}"
+        fi
         sleep 2
         click_at "$click_x" "$click_y"
         sleep 1
@@ -482,7 +486,11 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ;;
       long-transcript-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 220))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 514))}"
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 574))}"
+        else
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 514))}"
+        fi
         sleep 2
         click_at "$click_x" "$click_y"
         sleep 1

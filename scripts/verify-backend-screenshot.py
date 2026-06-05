@@ -1983,6 +1983,13 @@ def validate_quill_enchanted_linux_gtk_snapshot(image: Screenshot) -> str:
     require(640 <= app_height <= 840, f"Generated Enchanted GTK window height is unexpected: {app_height}px")
 
     detail_left = left + min(360, max(300, int(app_width * 0.30)))
+    sidebar_text_pixels = dark_pixel_count(
+        image,
+        left + 10,
+        top + 60,
+        detail_left - 10,
+        bottom - 80,
+    )
     detail_surface_pixels = pixel_count(
         image,
         detail_left,
@@ -2016,12 +2023,16 @@ def validate_quill_enchanted_linux_gtk_snapshot(image: Screenshot) -> str:
         prompt_card_pixels >= 30000,
         f"Generated Enchanted GTK prompt cards were not detected: pixels={prompt_card_pixels}",
     )
-    require(wordmark_pixels >= 1200, f"Generated Enchanted GTK wordmark was not detected: pixels={wordmark_pixels}")
+    require(
+        sidebar_text_pixels >= 1200,
+        f"Generated Enchanted GTK sidebar history was not detected: pixels={sidebar_text_pixels}",
+    )
     require(detail_text_pixels >= 2500, f"Generated Enchanted GTK text content was not detected: pixels={detail_text_pixels}")
 
     return (
         "Quill Enchanted generated GTK snapshot: "
         f"app={app_width}x{app_height}, "
+        f"sidebar_text_pixels={sidebar_text_pixels}, "
         f"detail_surface_pixels={detail_surface_pixels}, "
         f"prompt_card_pixels={prompt_card_pixels}, "
         f"wordmark_pixels={wordmark_pixels}, "
@@ -2897,8 +2908,6 @@ def main() -> int:
         print(validate_quill_enchanted_mac_reference(image))
     elif product in {"quill-chat-mac-reference", "quill-chat-linux-mac-reference"}:
         print(validate_quill_chat_mac_reference(image))
-    elif product == "quill-enchanted-linux-gtk":
-        print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-enchanted-qt":
         print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-enchanted":

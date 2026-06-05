@@ -108,6 +108,30 @@ jobs:
               quill-chat-linux \
               gtk
 
+      - name: Run real-source sidebar and transcript interaction verifiers
+        env:
+          QUILLUI_BACKEND_SKIP_BUILD: "1"
+        run: |
+          # Gate the Mac-reference settings/completions/sidebar/transcript
+          # paths that exercise the Enchanted profile's real SwiftData-backed
+          # history, relationship fetches, markdown rendering, and long-scroll
+          # behavior.
+          for mode in \
+            settings-panel \
+            completions-panel \
+            history-selection \
+            transcript-selection \
+            markdown-transcript-selection \
+            long-transcript-selection
+          do
+            QUILLUI_BACKEND_INTERACTION_MODE="$mode" \
+            QUILLUI_BACKEND_INTERACTION_APP_LOG=".qa/quill-chat-linux-interaction-${mode}.log" \
+              scripts/linux-backend-interaction-check.sh \
+                ".qa/quill-chat-linux-mac-reference-${mode}-gtk.png" \
+                quill-chat-linux \
+                gtk
+          done
+
       - name: Run live composer-send and relaunch functional verifier
         env:
           QUILLUI_BACKEND_SKIP_BUILD: "1"

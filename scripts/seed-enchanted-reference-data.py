@@ -5,6 +5,7 @@ import datetime as dt
 import json
 import sqlite3
 import sys
+import uuid
 from pathlib import Path
 
 
@@ -82,49 +83,115 @@ def generated_message_payload(
     }
 
 
+def reference_uuid(value: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, "quill-chat-reference:" + value))
+
+
+def quill_chat_reference_items(now: dt.datetime) -> list[dict[str, object]]:
+    items = [
+        (3, 0, "Auto-config test: reply with one short phrase confirming you got this."),
+        (3, 1, "say one short word"),
+        (3, 2, "say hi in one word"),
+        (4, 0, "Write a text message asking a friend to be my plus-one at a wedding"),
+        (7, 0, "Give me phrases to learn in a new language"),
+        (7, 1, "How to center div in HTML?"),
+        (7, 2, "Long transcript scroll test"),
+    ]
+
+    conversations: list[dict[str, object]] = []
+    for days, rank, title in items:
+        updated = now - dt.timedelta(days=days, seconds=rank)
+        conversations.append(
+            {
+                "id": reference_uuid(title),
+                "title": title,
+                "created_at": updated,
+                "updated_at": updated,
+                "messages": [],
+            }
+        )
+
+    markdown_conversation = next(
+        conversation for conversation in conversations if conversation["title"] == "How to center div in HTML?"
+    )
+    markdown_time = markdown_conversation["updated_at"]
+    markdown_conversation["messages"] = [
+        (
+            "user",
+            "How to center div in HTML?",
+            markdown_time + dt.timedelta(seconds=1),
+        ),
+        (
+            "assistant",
+            "Use **flexbox**: set `display` to `flex`, then align-items and justify-content to center. "
+            "See [MDN flexbox](https://developer.mozilla.org/docs/Web/CSS/CSS_flexible_box_layout) for details.\n\n"
+            "## CSS example\n\n"
+            "```css\n"
+            ".parent {\n"
+            "  display: flex;\n"
+            "  align-items: center;\n"
+            "  justify-content: center;\n"
+            "}\n"
+            "```\n\n"
+            "| Property | Value |\n"
+            "| --- | --- |\n"
+            "| display | `flex` |\n"
+            "| align-items | `center` |\n"
+            "| justify-content | `center` |\n\n"
+            "> This keeps the child centered in both axes.\n\n"
+            "- Give the parent a height.\n"
+            "- Put the content inside one child element.",
+            markdown_time + dt.timedelta(seconds=2),
+        ),
+    ]
+
+    long_conversation = next(
+        conversation for conversation in conversations if conversation["title"] == "Long transcript scroll test"
+    )
+    long_time = long_conversation["updated_at"]
+    long_messages = []
+    for index in range(18):
+        pair = index + 1
+        long_messages.append(
+            (
+                "user",
+                f"Long transcript prompt {pair}: please keep the answer concise.",
+                long_time + dt.timedelta(seconds=index * 2 + 1),
+            )
+        )
+        long_messages.append(
+            (
+                "assistant",
+                f"Long transcript reply {pair}: this is enough content to make the chat scroll.",
+                long_time + dt.timedelta(seconds=index * 2 + 2),
+            )
+        )
+    long_messages.append(
+        (
+            "user",
+            "Final user check: bottom scroll target visible near the composer.",
+            long_time + dt.timedelta(seconds=101),
+        )
+    )
+    long_messages.append(
+        (
+            "assistant",
+            "Final answer: bottom scroll target is visible near the composer. "
+            "This intentionally long final response gives the Linux visual smoke test "
+            "a dense left-aligned bottom marker after ScrollViewReader scrolls to the newest message.",
+            long_time + dt.timedelta(seconds=102),
+        )
+    )
+    long_conversation["messages"] = long_messages
+
+    return conversations
+
+
 def seed_database_file(database_path: Path) -> None:
     database_path.parent.mkdir(parents=True, exist_ok=True)
 
-    base = dt.datetime(2026, 1, 12, 9, 0, tzinfo=dt.timezone.utc)
-    conversations = [
-        {
-            "id": "11111111-1111-4111-8111-111111111111",
-            "title": "Launch checklist",
-            "messages": [
-                ("21111111-1111-4111-8111-111111111111", "system", "You are chatting with a local Ollama model in Enchanted."),
-                ("21111111-1111-4111-8111-111111111112", "user", "Turn my meeting notes into a short launch checklist."),
-                (
-                    "21111111-1111-4111-8111-111111111113",
-                    "assistant",
-                    "Confirm the owner, send the revised timeline, collect final screenshots, and ask design for approval before Friday.",
-                ),
-            ],
-        },
-        {
-            "id": "11111111-1111-4111-8111-111111111112",
-            "title": "Local model setup",
-            "messages": [
-                ("21111111-1111-4111-8111-111111111114", "user", "What should I check before switching models for a longer draft?"),
-                (
-                    "21111111-1111-4111-8111-111111111115",
-                    "assistant",
-                    "Keep the endpoint reachable, choose the model with the right context window, and run a short prompt before pasting the full draft.",
-                ),
-            ],
-        },
-        {
-            "id": "11111111-1111-4111-8111-111111111113",
-            "title": "Image attachment flow",
-            "messages": [
-                ("21111111-1111-4111-8111-111111111116", "user", "Can you help turn this screenshot into release-note copy?"),
-                (
-                    "21111111-1111-4111-8111-111111111117",
-                    "assistant",
-                    "Use a concise caption, mention what changed, and keep the note focused on the user-facing setup flow.",
-                ),
-            ],
-        },
-    ]
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    conversations = quill_chat_reference_items(now)
 
     with sqlite3.connect(database_path) as connection:
         for table in [
@@ -144,41 +211,43 @@ def seed_database_file(database_path: Path) -> None:
             generated_model_payload(),
         )
 
-        for conversation_index, conversation in enumerate(conversations):
-            conversation_time = base + dt.timedelta(minutes=conversation_index * 5)
+        for conversation in conversations:
+            conversation_id = str(conversation["id"])
+            conversation_time = conversation["created_at"]
+            updated_at = conversation["updated_at"]
             generated_conversation = generated_conversation_payload(
-                conversation["id"],
-                conversation["title"],
+                conversation_id,
+                str(conversation["title"]),
                 conversation_time,
-                conversation_time + dt.timedelta(minutes=4),
+                updated_at,
             )
             insert_payload(
                 connection,
                 CONVERSATION_TABLE,
-                conversation["id"],
+                conversation_id,
                 {
-                    "id": conversation["id"],
+                    "id": conversation_id,
                     "title": conversation["title"],
                     "createdAt": seconds_since_reference(conversation_time),
-                    "updatedAt": seconds_since_reference(conversation_time + dt.timedelta(minutes=4)),
+                    "updatedAt": seconds_since_reference(updated_at),
                 },
             )
             insert_payload(
                 connection,
                 GENERATED_CONVERSATION_TABLE,
-                f'id:{conversation["id"]}',
+                f"id:{conversation_id}",
                 generated_conversation,
             )
 
-            for message_index, (message_id, role, content) in enumerate(conversation["messages"]):
-                message_time = conversation_time + dt.timedelta(minutes=message_index)
+            for role, content, message_time in conversation["messages"]:
+                message_id = reference_uuid(f"{conversation_id}:{role}:{content}")
                 insert_payload(
                     connection,
                     MESSAGE_TABLE,
                     message_id,
                     {
                         "id": message_id,
-                        "conversationID": conversation["id"],
+                        "conversationID": conversation_id,
                         "role": role,
                         "content": content,
                         "createdAt": seconds_since_reference(message_time),

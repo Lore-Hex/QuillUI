@@ -48,6 +48,7 @@ struct ConversationHistoryList: View {
                             .font(.system(size: 14))
                             .fontWeight(.semibold)
                             .foregroundColor(Color(.systemGray))
+                            .padding(.bottom, 30)
 
                         Spacer()
                     }
@@ -74,6 +75,7 @@ struct ConversationHistoryList: View {
                                 .transition(.opacity)
                             Spacer()
                         }
+                        .padding(.vertical, 12)
                         .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
                         .contentShape(Rectangle())
                         .onTapGesture { onTap(dailyConversation) }
