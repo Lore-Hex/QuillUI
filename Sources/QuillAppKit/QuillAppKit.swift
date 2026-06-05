@@ -439,6 +439,11 @@ open class NSResponder: NSObject {
     /// → closeClicked()) inherit the isolation and type-check. Compile-stub; real
     /// responder-chain dispatch is a runtime concern.
     @MainActor open func cancelOperation(_ sender: Any?) {}
+    /// Action-routing hook (NSResponder). WireGuard's ManageTunnelsRootViewController
+    /// overrides it to forward toolbar/menu actions (handleAddEmptyTunnelAction etc.)
+    /// to its child list/detail VCs. @MainActor so the override can reach those
+    /// @MainActor child-VC properties. Default returns nil (no supplemental target).
+    @MainActor open func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? { nil }
 }
 
 /// Mirrors `NSLayoutGuide`: a rectangular region that participates in Auto

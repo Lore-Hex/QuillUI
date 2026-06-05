@@ -1446,6 +1446,12 @@ if wireguardUpstreamPresent {
                 // own TunnelsListTableViewControllerDelegate, presents TunnelEditViewController for add;
                 // NSMenuItemValidation; @objc actions lowered to QuillActionDispatching. import Cocoa only.
                 "Sources/WireGuardApp/UI/macOS/ViewController/TunnelsListTableViewController.swift",
+                // ManageTunnelsRootViewController: the SPLIT-VIEW ROOT — the LAST VC of the
+                // WireGuard macOS UI. Hosts TunnelsListTableViewController (left) +
+                // TunnelDetail/Unusable/Buttoned detail VCs (right) via addChild + Auto Layout
+                // (NSLayoutGuide); routes toolbar/menu actions to children via
+                // supplementalTarget(forAction:). import Cocoa only; no @objc (pre-lowered).
+                "Sources/WireGuardApp/UI/macOS/ViewController/ManageTunnelsRootViewController.swift",
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
                 // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).
