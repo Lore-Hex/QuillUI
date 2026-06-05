@@ -684,6 +684,7 @@ struct QuillDataSourceLoweringTests {
         #expect(parityWorkflow.contains("QUILLUI_BACKEND_SKIP_BUILD: \"1\""))
         #expect(parityWorkflow.contains("Run real-source sidebar and transcript interaction verifiers"))
         #expect(parityWorkflow.contains("settings-panel"))
+        #expect(parityWorkflow.contains("settings-endpoint-typed"))
         #expect(parityWorkflow.contains("completions-panel"))
         #expect(parityWorkflow.contains("history-selection"))
         #expect(parityWorkflow.contains("transcript-selection"))

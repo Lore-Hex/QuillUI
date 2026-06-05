@@ -118,6 +118,7 @@ jobs:
           # behavior.
           for mode in \
             settings-panel \
+            settings-endpoint-typed \
             completions-panel \
             history-selection \
             transcript-selection \

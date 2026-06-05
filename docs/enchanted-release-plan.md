@@ -94,7 +94,9 @@ Required click-through flows:
 
 ## Current Priority Order
 
-1. Finish Settings and Completions sheet parity.
+1. Finish the remaining Settings and Completions mutation flows: bearer token,
+   ping interval/default model fields, delete-all confirmation, and
+   completion-create/edit/save.
 2. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
 3. Wire QuillPaint into the controls that currently fail visual parity.
 4. Produce a release artifact and rerun visual/interaction smoke against it.
@@ -116,6 +118,10 @@ Recently cleared:
   app with the same `QUILLDATA_HOME`, selects the persisted conversation from
   the sidebar, verifies no second `/api/chat` request was made, and checks the
   relaunched transcript screenshot.
+- Settings and Completions sheet presentation are covered by the real-source GTK
+  mac-reference interaction verifier.
+- Settings endpoint editing is covered by the same verifier via the
+  `settings-endpoint-typed` row.
 
 ## Non-Goals For The First Release
 
