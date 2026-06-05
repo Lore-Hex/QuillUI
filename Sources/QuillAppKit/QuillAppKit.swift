@@ -407,10 +407,12 @@ open class NSResponder: NSObject {
     open var acceptsFirstResponder: Bool { false }
     open func becomeFirstResponder() -> Bool { true }
     open func resignFirstResponder() -> Bool { true }
-    /// `cancelOperation(_:)` — the Esc / Cmd-. action method. WireGuard's
-    /// LogViewController overrides it (in an extension) to close the window.
-    /// Compile-stub; real responder-chain dispatch is a runtime concern.
-    open func cancelOperation(_ sender: Any?) {}
+    /// `cancelOperation(_:)` — the Esc / Cmd-. action method. Apple's NSResponder
+    /// is @MainActor, so this method is marked @MainActor: subclass overrides that
+    /// call @MainActor UI methods (e.g. WireGuard's LogViewController.cancelOperation
+    /// → closeClicked()) inherit the isolation and type-check. Compile-stub; real
+    /// responder-chain dispatch is a runtime concern.
+    @MainActor open func cancelOperation(_ sender: Any?) {}
 }
 
 /// Mirrors `NSLayoutGuide`: a rectangular region that participates in Auto
