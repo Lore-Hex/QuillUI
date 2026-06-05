@@ -77,24 +77,28 @@ public final class OllamaKit: @unchecked Sendable {
     #if canImport(Combine)
     public func chat(data requestData: OKChatRequestData) -> AnyPublisher<OKChatResponse, Error> {
         Deferred { [self] in
-            let box = OKChatSubjectBox()
-            let task = Task {
-                do {
-                    let responses = try await self.performChat(data: requestData)
-                    for response in responses {
+            let box = OKChatTaskBox()
+
+            return Future<[OKChatResponse], Error> { promise in
+                let promiseBox = OKChatPromiseBox(promise)
+                box.start {
+                    do {
+                        let responses = try await self.performChat(data: requestData)
                         guard !Task.isCancelled else { return }
-                        box.send(response)
+                        promiseBox.resolve(.success(responses))
+                    } catch {
+                        guard !Task.isCancelled else { return }
+                        promiseBox.resolve(.failure(error))
                     }
-                    box.send(completion: .finished)
-                } catch {
-                    box.send(completion: .failure(error))
                 }
             }
-
-            return box.publisher
                 .handleEvents(receiveCancel: {
-                    task.cancel()
+                    box.cancel()
                 })
+                .flatMap { responses in
+                    responses.publisher
+                        .setFailureType(to: Error.self)
+                }
                 .eraseToAnyPublisher()
         }
         .eraseToAnyPublisher()
@@ -183,15 +187,44 @@ public final class OllamaKit: @unchecked Sendable {
 }
 
 #if canImport(Combine)
-private final class OKChatSubjectBox: @unchecked Sendable {
-    let publisher = PassthroughSubject<OKChatResponse, Error>()
+private final class OKChatPromiseBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var promise: Future<[OKChatResponse], Error>.Promise?
 
-    func send(_ response: OKChatResponse) {
-        publisher.send(response)
+    init(_ promise: @escaping Future<[OKChatResponse], Error>.Promise) {
+        self.promise = promise
     }
 
-    func send(completion: Subscribers.Completion<Error>) {
-        publisher.send(completion: completion)
+    func resolve(_ result: Result<[OKChatResponse], Error>) {
+        let promise = lock.withLock {
+            let promise = self.promise
+            self.promise = nil
+            return promise
+        }
+        promise?(result)
+    }
+}
+
+private final class OKChatTaskBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: Task<Void, Never>?
+
+    func start(_ operation: @escaping @Sendable () async -> Void) {
+        lock.withLock {
+            guard task == nil else { return }
+            task = Task {
+                await operation()
+            }
+        }
+    }
+
+    func cancel() {
+        let task = lock.withLock {
+            let task = self.task
+            self.task = nil
+            return task
+        }
+        task?.cancel()
     }
 }
 #endif

@@ -849,6 +849,17 @@ struct QuillDataSourceLoweringTests {
         #expect(!historyTemplate.contains(".showIf("))
         #expect(!historyTemplate.contains("QuillConversationHistoryList("))
 
+        let messageListTemplate = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/MessageListVIew.swift"),
+            encoding: .utf8
+        )
+        #expect(messageListTemplate.contains("private let quillMessageListBottomID"))
+        #expect(messageListTemplate.contains(".id(quillMessageListBottomID)"))
+        #expect(messageListTemplate.contains("scrollViewProxy.scrollTo(quillMessageListBottomID, anchor: .bottom)"))
+        #expect(messageListTemplate.contains("DispatchQueue.main.async"))
+        #expect(messageListTemplate.contains(".onChange(of: messages.map(\\.id))"))
+        #expect(messageListTemplate.contains("#if os(Linux)"))
+
         let unreachableRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/UnreachableAPIView.swift.pl"),
             encoding: .utf8
