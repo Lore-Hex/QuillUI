@@ -260,6 +260,14 @@ public class RSImage: NSObject, @unchecked Sendable {
     public func withTintColor(_ color: Any) -> RSImage { self }
     public func draw(in rect: CGRect) {}
     public func draw(at point: CGPoint) {}
+
+    /// `UIImage(cgImage:scale:orientation:)` source-compat. On Linux the backing
+    /// CGImage is opaque (no raster), so this records the requested scale but
+    /// holds a placeholder size; callers that re-encode get an empty image.
+    public convenience init(cgImage: CGImage, scale: CGFloat = 1, orientation: Orientation = .up) {
+        self.init()
+        self.size = CGSize(width: 0, height: 0)
+    }
 }
 public typealias UIImage = RSImage
 
@@ -322,6 +330,8 @@ public class RSScreen: NSObject, @unchecked Sendable {
     public var backingScaleFactor: CGFloat {
         Double(ProcessInfo.processInfo.environment["GDK_SCALE"] ?? "1").map { CGFloat($0) } ?? 1
     }
+    /// `UIScreen.scale` source-compat (SSK avatar/thumbnail pixel math).
+    public var scale: CGFloat { backingScaleFactor }
     public var visibleFrame: CGRect { bounds }
     public var frame: CGRect { bounds }
     public var depth: Int { 32 }

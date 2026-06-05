@@ -1,5 +1,6 @@
 import Foundation
 import QuillKit
+import QuillFoundation  // CGImage (AVAssetImageGenerator.copyCGImage return type)
 
 #if os(Linux)
 public protocol AVSpeechSynthesizerDelegate: AnyObject {
@@ -228,4 +229,189 @@ public final class AVAudioTime: @unchecked Sendable {
         self.sampleRate = sampleRate
     }
 }
+
+// MARK: - Asset reading / media inspection (Linux placeholders)
+//
+// SignalServiceKit inspects video/audio attachments (dimensions, duration,
+// waveform samples) and exports them. CoreMedia / asset reading is unavailable
+// on Linux, so these are INERT: assets report not-readable, zero tracks, zero
+// duration; the reader produces no sample buffers; the image generator and the
+// exporter fail. Real media handling needs a Linux AV backend (GStreamer /
+// FFmpeg) -- deferred. HONEST STATUS: video thumbnails, durations and audio
+// waveforms are unavailable on Linux; callers already degrade to placeholders.
+
+fileprivate struct AVMediaUnavailableOnLinux: Error, CustomStringConvertible {
+    var description: String { "AVFoundation media operations are unavailable on Linux (no AV backend)." }
+}
+
+public struct AVMediaType: RawRepresentable, Equatable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+    public static let video = AVMediaType(rawValue: "vide")
+    public static let audio = AVMediaType(rawValue: "soun")
+    public static let text = AVMediaType(rawValue: "text")
+    public static let muxed = AVMediaType(rawValue: "muxx")
+    public static let timecode = AVMediaType(rawValue: "tmcd")
+}
+
+public struct AVFileType: RawRepresentable, Equatable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+    public static let mp4 = AVFileType(rawValue: "public.mpeg-4")
+    public static let mov = AVFileType(rawValue: "com.apple.quicktime-movie")
+    public static let m4a = AVFileType(rawValue: "com.apple.m4a-audio")
+    public static let m4v = AVFileType(rawValue: "public.m4v")
+}
+
+// MARK: CoreMedia time
+
+public struct CMTime: Sendable, Equatable {
+    public var value: Int64
+    public var timescale: Int32
+    public var flags: UInt32
+    public var epoch: Int64
+    public init(value: Int64 = 0, timescale: Int32 = 0, flags: UInt32 = 0, epoch: Int64 = 0) {
+        self.value = value; self.timescale = timescale; self.flags = flags; self.epoch = epoch
+    }
+    public init(seconds: Double, preferredTimescale: Int32) {
+        self.timescale = preferredTimescale
+        self.value = Int64(seconds * Double(preferredTimescale))
+        self.flags = 0; self.epoch = 0
+    }
+    public var seconds: Double { timescale == 0 ? 0 : Double(value) / Double(timescale) }
+    public static let zero = CMTime(value: 0, timescale: 1)
+    public static let invalid = CMTime(value: 0, timescale: 0)
+}
+
+public func CMTimeMake(value: Int64, timescale: Int32) -> CMTime { CMTime(value: value, timescale: timescale) }
+public func CMTimeMakeWithSeconds(_ seconds: Double, preferredTimescale: Int32) -> CMTime { CMTime(seconds: seconds, preferredTimescale: preferredTimescale) }
+public func CMTimeGetSeconds(_ time: CMTime) -> Float64 { time.seconds }
+
+// MARK: CoreMedia sample / block buffers (opaque, inert)
+
+public final class CMSampleBuffer: @unchecked Sendable { public init() {} }
+public final class CMBlockBuffer: @unchecked Sendable { public init() {} }
+public final class CMFormatDescription: @unchecked Sendable { public init() {} }
+
+public let kCMBlockBufferNoErr: Int32 = 0
+
+public func CMSampleBufferGetDataBuffer(_ sbuf: CMSampleBuffer) -> CMBlockBuffer? { nil }
+public func CMSampleBufferInvalidate(_ sbuf: CMSampleBuffer) {}
+public func CMSampleBufferGetNumSamples(_ sbuf: CMSampleBuffer) -> Int { 0 }
+
+public func CMBlockBufferGetDataPointer(
+    _ buffer: CMBlockBuffer,
+    atOffset offset: Int,
+    lengthAtOffsetOut: UnsafeMutablePointer<Int>?,
+    totalLengthOut: UnsafeMutablePointer<Int>?,
+    dataPointerOut: UnsafeMutablePointer<UnsafeMutablePointer<Int8>?>?
+) -> Int32 {
+    -1  // never kCMBlockBufferNoErr: no data is ever produced on Linux
+}
+
+// CoreAudio stream format (minimal; SSK reads only mChannelsPerFrame).
+public struct AudioStreamBasicDescription: Sendable {
+    public var mSampleRate: Float64 = 0
+    public var mFormatID: UInt32 = 0
+    public var mFormatFlags: UInt32 = 0
+    public var mBytesPerPacket: UInt32 = 0
+    public var mFramesPerPacket: UInt32 = 0
+    public var mBytesPerFrame: UInt32 = 0
+    public var mChannelsPerFrame: UInt32 = 0
+    public var mBitsPerChannel: UInt32 = 0
+    public var mReserved: UInt32 = 0
+    public init() {}
+}
+
+public func CMAudioFormatDescriptionGetStreamBasicDescription(_ desc: CMFormatDescription) -> UnsafePointer<AudioStreamBasicDescription>? { nil }
+
+// MARK: Assets
+
+public class AVAsset: @unchecked Sendable {
+    public init() {}
+    public var isReadable: Bool { false }
+    public var isPlayable: Bool { false }
+    public var duration: CMTime { .zero }
+    public var tracks: [AVAssetTrack] { [] }
+    public func tracks(withMediaType mediaType: AVMediaType) -> [AVAssetTrack] { [] }
+}
+
+public final class AVURLAsset: AVAsset, @unchecked Sendable {
+    public let url: URL
+    public init(url: URL, options: [AnyHashable: Any]? = nil) {
+        self.url = url
+        super.init()
+    }
+}
+
+public final class AVAssetTrack: @unchecked Sendable {
+    public var naturalSize: CGSize { .zero }
+    public var mediaType: AVMediaType { .video }
+    // CGAffineTransform is absent from swift-corelibs -> typed Any (unused on Linux).
+    public var preferredTransform: Any { 0 }
+    public var nominalFrameRate: Float { 0 }
+    public var estimatedDataRate: Float { 0 }
+    public var formatDescriptions: [Any]? { [] }
+    public init() {}
+}
+
+public final class AVAssetImageGenerator: @unchecked Sendable {
+    public var maximumSize: CGSize = .zero
+    public var appliesPreferredTrackTransform: Bool = false
+    public var requestedTimeToleranceBefore: CMTime = .zero
+    public var requestedTimeToleranceAfter: CMTime = .zero
+    public init(asset: AVAsset) {}
+    public func copyCGImage(at requestedTime: CMTime, actualTime: UnsafeMutablePointer<CMTime>?) throws -> CGImage {
+        throw AVMediaUnavailableOnLinux()
+    }
+}
+
+// MARK: Reader
+
+public class AVAssetReaderOutput: @unchecked Sendable {
+    public init() {}
+    public func copyNextSampleBuffer() -> CMSampleBuffer? { nil }
+}
+
+public final class AVAssetReaderTrackOutput: AVAssetReaderOutput, @unchecked Sendable {
+    public let track: AVAssetTrack
+    public init(track: AVAssetTrack, outputSettings: [String: Any]?) {
+        self.track = track
+        super.init()
+    }
+}
+
+public final class AVAssetReader: @unchecked Sendable {
+    public enum Status: Int, Sendable { case unknown, reading, completed, failed, cancelled }
+    public let asset: AVAsset
+    public private(set) var outputs: [AVAssetReaderOutput] = []
+    // Nothing to read on Linux -> immediately "completed" so read loops exit at once.
+    public var status: Status { .completed }
+    public var error: Error?
+    public init(asset: AVAsset) throws { self.asset = asset }
+    public func canAdd(_ output: AVAssetReaderOutput) -> Bool { true }
+    public func add(_ output: AVAssetReaderOutput) { outputs.append(output) }
+    @discardableResult public func startReading() -> Bool { true }
+    public func cancelReading() {}
+}
+
+// MARK: Export
+
+public final class AVAssetExportSession: @unchecked Sendable {
+    public enum Status: Int, Sendable { case unknown, waiting, exporting, completed, failed, cancelled }
+    public var outputURL: URL?
+    public var outputFileType: AVFileType?
+    public var shouldOptimizeForNetworkUse: Bool = false
+    public var error: Error?
+    public var status: Status { .failed }
+    public init?(asset: AVAsset, presetName: String) {}
+    public func exportAsynchronously(completionHandler handler: @escaping () -> Void) { handler() }
+    public func export(to url: URL, as fileType: AVFileType) async throws {
+        throw AVMediaUnavailableOnLinux()
+    }
+}
+
+public let AVAssetExportPresetHighestQuality = "AVAssetExportPresetHighestQuality"
+public let AVAssetExportPresetMediumQuality = "AVAssetExportPresetMediumQuality"
+public let AVAssetExportPresetPassthrough = "AVAssetExportPresetPassthrough"
 #endif
