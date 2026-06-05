@@ -18,8 +18,14 @@ test harness, and the meta-lessons about debugging this stack. Read this before 
 - It **works for card-driven chats**: launch → connects to Ollama → fetch/select model →
   click a prompt card → real `POST /api/chat` → streamed reply rendered → conversation
   persisted to QuillData. Visually mac-close; the empty-state render is CI-gated.
-- **Known gap:** *composer-typed* input loses focus after the first keystroke (a SwiftOpenUI
-  focus-restore bug — see "Known open issues"). Prompt cards are the working path today.
+- The real-source **composer typed-input path is now gated**: the GTK interaction smoke clicks
+  the composer, types text, and verifies rendered composer text against the mac-reference frame.
+- The real-source **composer-send UI path is now gated** under the deterministic mac-reference
+  runtime: the smoke types a message, submits with Return, verifies the empty state is gone, and
+  checks the trailing user message, alert, and composer against the mac-reference frame.
+- The real-source **composer-send functional path is now gated**: a mock Ollama server receives
+  exactly one typed user prompt on `/api/chat`, streams a reply, and the harness confirms both
+  user and assistant messages persisted to QuillData.
 - **Do NOT modify the genuine source.** All Linux fixes go through lowering rewrite-rules.
 
 ---
@@ -65,8 +71,9 @@ upstream source. Mechanism (`scripts/apply-profile-rewrites.sh`):
 
 Worked examples already in the tree (study these to learn the pattern):
 - `AppStore.swift.pl` — gate reachability polling by env (`*_FORCE_UNREACHABLE`, `*_PROFILE_MODE`).
-- `ConversationStore.swift.pl` — include the new user message in the Ollama request (see QuillData
-  relationship gotcha below).
+- `ConversationStore.swift.pl` — seed the in-memory selected conversation/messages after the
+  assistant row is created and flush the throttled assistant buffer before persistence (see
+  QuillData relationship gotcha below).
 - `InputFields_macOS.swift.pl` — composer layout tweaks.
 
 ---
@@ -75,12 +82,14 @@ Worked examples already in the tree (study these to learn the pattern):
 
 QuillData is the Linux SwiftData stand-in (SQLite-backed). Differences that bite:
 
-1. **No in-memory `@Relationship` inverse.** Setting the to-one side (`message.conversation = conv`)
-   does NOT auto-populate the to-many inverse (`conv.messages`) before save — unlike SwiftData,
-   which reflects it instantly in memory. Code that reads `conv.messages` *before* persisting the
-   new child sees stale/empty data. **This is why the first live chat turn went out with
-   `messages:[]`.** Fix pattern (in `ConversationStore.swift.pl`): include the freshly-built object
-   explicitly, e.g. `(conversation.messages + [userMessage])`.
+1. **No reliable in-memory `@Relationship` inverse before persistence/reload.** Setting the
+   to-one side (`message.conversation = conv`) does not behave like SwiftData's immediate inverse
+   reflection in every lowered path. Code that reads `conv.messages` before the save/reload cycle can
+   be stale, while manually appending the just-created user message into the request history can
+   double-count it on paths where the inverse is already visible. Current fix pattern (in
+   `ConversationStore.swift.pl`): keep the Ollama request history single, persist the user and
+   assistant rows, then seed `self.messages`/`self.selectedConversation` from the conversation shape
+   so streaming has a live assistant row to mutate.
 2. **Frozen stable model names.** Record table names are pinned to their original reflected name
    (e.g. `"QuillEnchantedCore.QuillDataConversationRecord"`) even after the type moves modules, so
    existing DBs keep working. These string literals are **keys, not target dependencies** — keep
@@ -106,30 +115,33 @@ on `develop`, don't merge to its `main` without instruction). Behaviors that cos
    in-place, but **structural** changes (e.g. a button appearing via `.showIf(...)`) force a full
    rebuild that destroys + recreates widgets.
 3. **`@FocusState`/`.focused()` → `grab_focus` is wired** (`FocusedView` registers
-   `onProgrammaticFocusChange`), but focus **does not survive full rebuilds reliably** — see the
-   open issue. `grab_focus` on a parented-but-not-yet-**mapped** widget silently no-ops.
+   `onProgrammaticFocusChange`). GTK input focus is restored across rebuilds by stable
+   focus identity first, descriptor identity second, and editable-index fallback last; keep
+   that order guarded because Enchanted's dense editable tree regresses quickly.
 4. **No window manager in headless Xvfb = no keyboard routing.** Mouse clicks (positional XTEST)
    work without a WM, but keystrokes don't reach the focused GTK widget. Run **`openbox`** in the
    Xvfb for any typing test (`Ctrl+Return` send shortcut also needs it).
 
 ---
 
-## Functional test harness (Docker)
+## Functional test harness
 
-There is no production hardware in CI; functional behavior is exercised locally in Docker.
+The live composer-send behavior is exercised by `scripts/quill-chat-functional-check.sh`; it runs
+locally, in Docker, and in the Enchanted parity workflow.
 
-- **Container `qui-func`** (`swift:6.2-noble`, worktree mounted at `/work`). Needs apt:
-  `libsqlite3-dev libgdk-pixbuf-2.0-dev libgtk-4-dev xvfb xdotool imagemagick openbox`.
-- **Mock Ollama** (`/work/.qa/mock_ollama.py`): serves `/api/version`, `/api/tags`, and a streamed
+- **Dependencies:** `libsqlite3-dev libgdk-pixbuf-2.0-dev libgtk-4-dev xvfb xdotool imagemagick
+  openbox`; the CI workflow installs them in `swift:6.2-noble`.
+- **Mock Ollama** (`scripts/mock-ollama.py`): serves `/api/version`, `/api/tags`, and streamed
   NDJSON `/api/chat`. `OllamaKit` buffers the full body then splits NDJSON, so the mock can emit
   all lines at once.
-- **Run scripts** (`/work/.qa/func_run*.sh`): start mock + Xvfb (+ openbox for typing) → launch the
-  binary with `GTK_A11Y=none DISPLAY=… QUILLUI_BACKEND=gtk HOME=<tmp> QUILLDATA_HOME=<tmp>` and **no**
-  `*_FORCE_UNREACHABLE` → drive via `xdotool` → screenshot → grep `mock.log` for `POST /api/chat`
-  (the functional proof) → query the QuillData sqlite for persisted rows.
-- The CI **Strict Mac-reference verifier** (`enchanted-parity.yml`) renders `quill-chat-linux` empty
-  state (with `FORCE_UNREACHABLE` for determinism) and checks structural landmarks — it does NOT
-  exercise live chat. Real functional verification is the Docker harness above.
+- **Harness flow:** start mock + Xvfb + openbox → launch the real `quill-chat-linux` binary with
+  `GTK_A11Y=none DISPLAY=… QUILLUI_BACKEND=gtk HOME=<tmp> QUILLDATA_HOME=<tmp>` and **no**
+  `*_FORCE_UNREACHABLE` → type a composer message via `xdotool` → submit Return → require exactly
+  one `/api/chat` user prompt → query `.quilldata/default.sqlite` for persisted user and assistant
+  rows → capture a screenshot.
+- The CI **Strict Mac-reference verifier** (`enchanted-parity.yml`) also renders the deterministic
+  empty state, gates typed-composer focus/input, gates deterministic composer-send UI transition,
+  and runs this live HTTP/persistence check. Relaunch persistence remains a separate open gate.
 
 ---
 
@@ -179,12 +191,10 @@ There is no production hardware in CI; functional behavior is exercised locally 
 
 ## Known open issues
 
-- **Composer-typed input loses focus (typed chats blocked).** SwiftOpenUI restores focus across
-  rebuilds by **DFS index**; the Enchanted composer is editable **idx≈21** in a dense-editable tree,
-  so after a structural rebuild the index lands on the wrong/non-focusable widget and `grab_focus`
-  doesn't take (`isFocus=false`, even when deferred to `g_idle_add` after map). **Proper fix:
-  identity-based focus restore** (re-grab the same descriptor-identity widget — the rebuild already
-  computes `gtkIdentifyDescriptorTree`) in `third_party/SwiftOpenUI`. Card-driven chat is unaffected.
+- **Relaunch persistence is not gated yet.** Composer focus/input, composer-send UI transition,
+  live Ollama `/api/chat`, streamed assistant reply, and first-run QuillData persistence are gated.
+  The next behavior gate should relaunch with the same `QUILLDATA_HOME` and verify the conversation
+  reloads from disk.
 - **`.task` re-fetch storm** mitigated by run-once/idempotent guards (rewrite-rules); the clean fix
   is run-once-per-identity `.task` semantics in SwiftOpenUI.
 - Settings/Completions sheets (`isPresented`) on the full app — unverified.

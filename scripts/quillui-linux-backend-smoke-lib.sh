@@ -721,6 +721,7 @@ quillui_install_linux_backend_smoke_packages() {
     libgdk-pixbuf-2.0-dev
     libgtk-4-dev
     libsqlite3-dev
+    openbox
     pkg-config
     qt6-base-dev
     x11-apps

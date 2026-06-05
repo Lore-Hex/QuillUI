@@ -1462,12 +1462,17 @@ def validate_quill_chat_mac_reference_markdown_transcript_selection(image: Scree
     )
 
 
-def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
+def validate_quill_chat_mac_reference_sent_message(
+    image: Screenshot,
+    label: str,
+    minimum_message_pixels: int,
+    minimum_right_aligned_message_pixels: int,
+) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
-    require(app_width >= 1800, f"Prompt-send window is too narrow: {app_width}px")
-    require(app_height >= 1200, f"Prompt-send window is too short: {app_height}px")
+    require(app_width >= 1800, f"{label} window is too narrow: {app_width}px")
+    require(app_height >= 1200, f"{label} window is too short: {app_height}px")
 
     divider_search = range(left + int(app_width * 0.23), left + int(app_width * 0.34))
     divider_x = max(
@@ -1487,7 +1492,7 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
     )
     require(
         prompt_card_like_pixels <= 8_000,
-        f"Mac-reference empty-state prompt cards remained after prompt send: pixels={prompt_card_like_pixels}",
+        f"Mac-reference empty-state prompt cards remained after {label}: pixels={prompt_card_like_pixels}",
     )
 
     wordmark_pixels = pixel_count(
@@ -1500,7 +1505,7 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
     )
     require(
         wordmark_pixels <= 650,
-        f"Mac-reference empty-state wordmark remained after prompt send: pixels={wordmark_pixels}",
+        f"Mac-reference empty-state wordmark remained after {label}: pixels={wordmark_pixels}",
     )
 
     message_pixels = dark_pixel_count(
@@ -1511,8 +1516,8 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
         top + int(app_height * 0.70),
     )
     require(
-        message_pixels >= 350,
-        f"Mac-reference prompt-send message content was not detected: pixels={message_pixels}",
+        message_pixels >= minimum_message_pixels,
+        f"Mac-reference {label} message content was not detected: pixels={message_pixels}",
     )
     right_aligned_message_pixels = dark_pixel_count(
         image,
@@ -1522,8 +1527,8 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
         top + int(app_height * 0.16),
     )
     require(
-        right_aligned_message_pixels >= 220,
-        "Mac-reference prompt-send message did not align to the trailing edge: "
+        right_aligned_message_pixels >= minimum_right_aligned_message_pixels,
+        f"Mac-reference {label} message did not align to the trailing edge: "
         f"right_aligned_pixels={right_aligned_message_pixels}",
     )
 
@@ -1536,7 +1541,7 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
         alert_pixel,
         min_width=int(detail_width * 0.55),
     )
-    require(alert is not None, "Mac-reference prompt-send alert was not detected")
+    require(alert is not None, f"Mac-reference {label} alert was not detected")
     alert_y, alert_segment = alert
 
     composer = best_horizontal_segment(
@@ -1548,11 +1553,11 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
         mac_reference_composer_pixel,
         min_width=int(detail_width * 0.55),
     )
-    require(composer is not None, "Mac-reference prompt-send composer was not detected")
+    require(composer is not None, f"Mac-reference {label} composer was not detected")
     composer_y, composer_segment = composer
 
     return (
-        "Quill Chat Mac-reference prompt send: "
+        f"Quill Chat Mac-reference {label}: "
         f"app={app_width}x{app_height}, "
         f"sidebar={divider_x - left}px, "
         f"prompt_card_pixels={prompt_card_like_pixels}, "
@@ -1561,6 +1566,24 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
         f"right_message_pixels={right_aligned_message_pixels}, "
         f"alert={alert_segment.width}px@{alert_y}, "
         f"composer={composer_segment.width}px@{composer_y}"
+    )
+
+
+def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
+    return validate_quill_chat_mac_reference_sent_message(
+        image,
+        "prompt-send",
+        minimum_message_pixels=350,
+        minimum_right_aligned_message_pixels=220,
+    )
+
+
+def validate_quill_chat_mac_reference_composer_send(image: Screenshot) -> str:
+    return validate_quill_chat_mac_reference_sent_message(
+        image,
+        "composer-send",
+        minimum_message_pixels=160,
+        minimum_right_aligned_message_pixels=120,
     )
 
 
@@ -2771,6 +2794,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_long_transcript_selection(image))
     elif product == "quill-chat-linux-mac-reference-prompt-send":
         print(validate_quill_chat_mac_reference_prompt_send(image))
+    elif product == "quill-chat-linux-mac-reference-composer-send":
+        print(validate_quill_chat_mac_reference_composer_send(image))
     elif product in {"quill-enchanted-mac-reference", "quill-enchanted-linux-mac-reference"}:
         print(validate_quill_enchanted_mac_reference(image))
     elif product in {"quill-chat-mac-reference", "quill-chat-linux-mac-reference"}:

@@ -560,6 +560,9 @@ quillui_backend_quill_chat_interaction_verify_product() {
     *:prompt-send)
       verify_product="quill-chat-linux-mac-reference-prompt-send"
       ;;
+    *:composer-send)
+      verify_product="quill-chat-linux-mac-reference-composer-send"
+      ;;
     *)
       verify_product="quill-chat-linux-toolbar-menu"
       if quillui_is_quill_chat_mac_reference_product quill-chat-linux; then

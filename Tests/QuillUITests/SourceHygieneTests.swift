@@ -2625,6 +2625,8 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-markdown-transcript-selection\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-long-transcript-selection\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-prompt-send\""))
+        #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-composer-send\""))
+        #expect(backendProducts.contains("*:composer-send)"))
         #expect(backendProducts.contains("verify_product=\"quill-wireguard-qt-tunnel-selection\""))
         #expect(backendProducts.contains("verify_product=\"quill-wireguard-qt-name-edit\""))
         #expect(backendProducts.contains("verify_product=\"quill-wireguard-qt-import-paste\""))

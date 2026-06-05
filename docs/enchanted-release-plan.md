@@ -94,12 +94,27 @@ Required click-through flows:
 
 ## Current Priority Order
 
-1. Fix the typed-composer focus/input path.
+1. Add the relaunch persistence gate: run the live composer-send flow, relaunch
+   with the same `QUILLDATA_HOME`, and verify the conversation reloads from
+   disk.
 2. Finish Settings and Completions sheet parity.
-3. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
-4. Wire QuillPaint into the controls that currently fail visual parity.
-5. Produce a release artifact and rerun visual/interaction smoke against it.
-6. Only then resume NetNewsWire as the next public app.
+3. Keep the typed-composer focus/input path gated in CI.
+4. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
+5. Wire QuillPaint into the controls that currently fail visual parity.
+6. Produce a release artifact and rerun visual/interaction smoke against it.
+7. Only then resume NetNewsWire as the next public app.
+
+Recently cleared:
+
+- Typed composer focus/input is covered by the real-source GTK mac-reference
+  interaction verifier.
+- Composer-send UI transition is covered by the real-source GTK mac-reference
+  interaction verifier: typed text submits with Return and becomes a trailing
+  user message while the unreachable banner and composer remain stable.
+- Live composer-send behavior is covered by `scripts/quill-chat-functional-check.sh`:
+  the real composer submits exactly one typed user prompt to mock Ollama, renders
+  the streamed assistant reply, and persists user plus assistant rows through
+  QuillData.
 
 ## Non-Goals For The First Release
 

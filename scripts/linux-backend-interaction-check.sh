@@ -405,6 +405,21 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
         sleep 1
         ;;
+      composer-send)
+        # Behavioral parity: type in the real-source composer and submit through
+        # the upstream TextField onSubmit path. The mac-reference runtime is kept
+        # unreachable for deterministic screenshots, so this verifies the typed
+        # message leaves the empty state and renders as a trailing user message;
+        # the live Ollama/persistence proof remains a separate functional smoke.
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 120))}"
+        click_at "$click_x" "$click_y"
+        sleep 1
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
+        sleep 1
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Return
+        sleep 3
+        ;;
       settings-panel)
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           click_x="${QUILLUI_BACKEND_CLICK_X:-52}"

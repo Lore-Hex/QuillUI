@@ -473,6 +473,7 @@ struct QuillDataSourceLoweringTests {
         #expect(visualScript.contains("quillui_find_quill_chat_reference_window \"$DISPLAY_ID\""))
         #expect(smokeLib.contains("quillui_find_quill_chat_reference_window()"))
         #expect(smokeLib.contains("quillui_place_reference_window()"))
+        #expect(smokeLib.contains("openbox"))
         #expect(visualScript.contains("capture_window=\"$window_id\""))
         #expect(smokeLib.contains("quillui_backend_visual_verify_product()"))
         #expect(smokeLib.contains("quill-chat-linux-mac-reference"))
@@ -507,6 +508,8 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("quill-chat-linux-mac-reference-long-transcript-selection"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_prompt_send"))
         #expect(verifier.contains("Mac-reference prompt-send message content was not detected"))
+        #expect(verifier.contains("validate_quill_chat_mac_reference_composer_send"))
+        #expect(verifier.contains("Mac-reference composer-send message content was not detected"))
 
         let interactionScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"),
@@ -548,6 +551,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("markdown-transcript-selection"))
         #expect(interactionScript.contains("long-transcript-selection"))
         #expect(interactionScript.contains("prompt-send"))
+        #expect(interactionScript.contains("composer-send"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_TYPE_TEXT"))
         #expect(interactionScript.contains("generic_backend_list_selection_y()"))
@@ -578,6 +582,51 @@ struct QuillDataSourceLoweringTests {
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-markdown-transcript-selection"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-long-transcript-selection"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-prompt-send"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-composer-send"))
+        #expect(backendProducts.contains("*:composer-send)"))
+
+        let functionalScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/quill-chat-functional-check.sh"),
+            encoding: .utf8
+        )
+        let mockOllama = try String(
+            contentsOf: root.appendingPathComponent("scripts/mock-ollama.py"),
+            encoding: .utf8
+        )
+        #expect(functionalScript.contains("scripts/mock-ollama.py"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_MESSAGE"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_REPLY"))
+        #expect(functionalScript.contains("QUILLDATA_HOME=$RUN_HOME"))
+        #expect(functionalScript.contains("mock Ollama did not start"))
+        #expect(functionalScript.contains("payload.get(\"path\") == \"/api/chat\""))
+        #expect(functionalScript.contains("home / \".quilldata\" / \"default.sqlite\""))
+        #expect(functionalScript.contains("row[0].endswith(\"_MessageSD\")"))
+        #expect(functionalScript.contains("len(matching_request_users) == 1"))
+        #expect(functionalScript.contains("request_ok and user_persisted and assistant_persisted"))
+        #expect(functionalScript.contains("Functional failure screenshot"))
+        #expect(functionalScript.contains("quillui_print_backend_app_log_tail"))
+        #expect(functionalScript.contains("Mock Ollama log"))
+        #expect(functionalScript.contains("window_height - 190"))
+        #expect(!functionalScript.contains("QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"))
+        #expect(!functionalScript.contains("QUILLUI_ENCHANTED_FORCE_UNREACHABLE=1"))
+        #expect(mockOllama.contains("class MockOllamaHandler"))
+        #expect(mockOllama.contains("\"method\": \"GET\""))
+        #expect(mockOllama.contains("\"method\": \"POST\""))
+        #expect(mockOllama.contains("self.path == \"/api/tags\""))
+        #expect(mockOllama.contains("self.path != \"/api/chat\""))
+        #expect(mockOllama.contains("application/x-ndjson"))
+
+        let parityWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/enchanted-parity.yml"),
+            encoding: .utf8
+        )
+        #expect(parityWorkflow.contains("openbox"))
+        #expect(parityWorkflow.contains("QUILLUI_BACKEND_SKIP_BUILD: \"1\""))
+        #expect(parityWorkflow.contains("Run live composer-send functional verifier"))
+        #expect(parityWorkflow.contains("scripts/quill-chat-functional-check.sh"))
+        #expect(parityWorkflow.contains(".qa/quill-chat-linux-functional-composer-send-gtk.png"))
+        #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_COMPOSER_X: \"700\""))
+        #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_COMPOSER_Y: \"1190\""))
 
         let seedScript = try String(
             contentsOf: root.appendingPathComponent("scripts/seed-quill-chat-reference-data.py"),
@@ -624,6 +673,47 @@ struct QuillDataSourceLoweringTests {
         #expect(modelStoreRule.contains("llava:latest"))
         #expect(modelStoreRule.contains("self.selectedModel = fallbackModel"))
         #expect(modelStoreRule.contains("self.selectedModel = fallbackModels.first"))
+        #expect(modelStoreRule.contains("let availableModels = storedModels.filter"))
+        #expect(modelStoreRule.contains("self.selectedModel = availableModels.first"))
+        #expect(modelStoreRule.contains("self.supportsImages = self.selectedModel?.supportsImages ?? availableModels.first?.supportsImages ?? false"))
+
+        let applicationEntryPointRule = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/Application/EnchantedApp.swift.pl"),
+            encoding: .utf8
+        )
+        #expect(applicationEntryPointRule.contains("WindowGroup(\"Quill Chat\")"))
+
+        let chatViewRule = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/macOS/Chat/ChatView_macOS.swift.pl"),
+            encoding: .utf8
+        )
+        #expect(chatViewRule.contains("Text(\"Quill Chat\")"))
+        #expect(chatViewRule.contains("title: \"Quill Chat\""))
+        #expect(chatViewRule.contains("(?:maxWidth|width): 800"))
+
+        let emptyConversationRule = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/EmptyConversaitonView.swift.pl"),
+            encoding: .utf8
+        )
+        #expect(emptyConversationRule.contains("Text(\"Quill\")"))
+        #expect(emptyConversationRule.contains("brandTitle: \"Quill\""))
+
+        let unreachableRule = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/UnreachableAPIView.swift.pl"),
+            encoding: .utf8
+        )
+        #expect(unreachableRule.contains("Quill is unreachable"))
+        #expect(unreachableRule.contains("update your Quill API endpoint"))
+
+        let conversationStoreRule = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/Stores/ConversationStore.swift.pl"),
+            encoding: .utf8
+        )
+        #expect(conversationStoreRule.contains("if !currentMessageBuffer.isEmpty"))
+        #expect(conversationStoreRule.contains("lastMesasge.content.append(currentMessageBuffer)"))
+        #expect(conversationStoreRule.contains("self.messages = conversation.messages.sorted"))
+        #expect(conversationStoreRule.contains("self.selectedConversation = conversation"))
+        #expect(!conversationStoreRule.contains("conversation.messages + [userMessage]"))
 
         let appStoreRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/Stores/AppStore.swift.pl"),
@@ -1857,6 +1947,62 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedSymbolValues["doc.text"] == "description")
         #expect(patchedSymbolValues["pause.fill"] == "pause")
         #expect(patchedSymbolValues["play.fill"] == "play_arrow")
+    }
+
+    @Test("vendored SwiftOpenUI restores GTK input focus by stable identity before DFS fallback")
+    func vendoredSwiftOpenUIRestoresGTKInputFocusByStableIdentity() throws {
+        let root = try packageRoot()
+        let viewHost = root
+            .appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift")
+        let source = try String(contentsOf: viewHost, encoding: .utf8)
+
+        #expect(source.contains("let descriptorIdentity: GTK4DescriptorIdentity?"))
+        #expect(source.contains("let stableFocusKey: String?"))
+        #expect(source.contains("private let focusIdentityKey = \"gtk-swift-focus-identity\""))
+        #expect(source.contains("gtkTagFocusableInputIdentities("))
+        #expect(source.contains("stableFocusKey(from: node.descriptor)"))
+        #expect(source.contains("target = findUniqueEditable(in: widget, stableFocusKey: stableFocusKey)"))
+        #expect(source.contains("target = findEditable(in: widget, descriptorIdentity: descriptorIdentity)"))
+        #expect(source.contains("target = findNthEditable(in: widget, targetIndex: info.editableIndex"))
+
+        let stableKeyIndex = source.range(
+            of: "target = findUniqueEditable(in: widget, stableFocusKey: stableFocusKey)"
+        )?.lowerBound
+        let descriptorIndex = source.range(
+            of: "target = findEditable(in: widget, descriptorIdentity: descriptorIdentity)"
+        )?.lowerBound
+        let fallbackIndex = source.range(
+            of: "target = findNthEditable(in: widget, targetIndex: info.editableIndex"
+        )?.lowerBound
+
+        #expect(stableKeyIndex != nil)
+        #expect(descriptorIndex != nil)
+        #expect(fallbackIndex != nil)
+        if let stableKeyIndex, let descriptorIndex, let fallbackIndex {
+            #expect(stableKeyIndex < descriptorIndex)
+            #expect(descriptorIndex < fallbackIndex)
+        }
+    }
+
+    @Test("vendored SwiftOpenUI starts GTK task modifiers after map")
+    func vendoredSwiftOpenUIStartsGTKTasksAfterMap() throws {
+        let root = try packageRoot()
+        let viewHost = root
+            .appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift")
+        let renderer = root
+            .appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let viewHostSource = try String(contentsOf: viewHost, encoding: .utf8)
+        let rendererSource = try String(contentsOf: renderer, encoding: .utf8)
+
+        #expect(viewHostSource.contains("private var taskLifecycleSuspended = true"))
+        #expect(viewHostSource.contains("host.resumeTasksAfterAppear()"))
+        #expect(viewHostSource.contains("if !taskLifecycleSuspended {"))
+        #expect(viewHostSource.contains("for (identity, payload) in taskPayloadsByIdentity where activeTasksByIdentity[identity] == nil"))
+        #expect(rendererSource.contains("extension TaskView: GTKRenderable, GTKDescribable"))
+        #expect(rendererSource.contains("gtkAttachStandaloneTaskLifecycle("))
+        #expect(rendererSource.contains("action: bindTaskActionToCurrentEnvironment(action)"))
+        #expect(!rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
+        #expect(!rendererSource.contains("gtkCollectTaskPayload(GTK4TaskPayload(\n            priority: priority"))
     }
 
     private func runScript(

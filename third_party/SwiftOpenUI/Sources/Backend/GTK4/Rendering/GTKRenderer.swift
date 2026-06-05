@@ -2932,10 +2932,6 @@ private func gtkAttachStandaloneTaskLifecycle(
 
 extension TaskView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
-        gtkCollectTaskPayload(GTK4TaskPayload(
-            priority: priority,
-            action: bindTaskActionToCurrentEnvironment(action)
-        ))
         return GTK4DescriptorNode(
             kind: .task,
             typeName: "TaskView",
@@ -2945,13 +2941,11 @@ extension TaskView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
-        if GTKViewHost.getCurrentRebuilding() == nil {
-            gtkAttachStandaloneTaskLifecycle(
-                to: widget,
-                priority: priority,
-                action: bindTaskActionToCurrentEnvironment(action)
-            )
-        }
+        gtkAttachStandaloneTaskLifecycle(
+            to: widget,
+            priority: priority,
+            action: bindTaskActionToCurrentEnvironment(action)
+        )
         return opaqueFromWidget(widget)
     }
 }

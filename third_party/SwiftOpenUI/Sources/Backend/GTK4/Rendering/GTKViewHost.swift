@@ -35,7 +35,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     private var pendingAnimation: Animation?
     private var taskPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4TaskPayload] = [:]
     private var activeTasksByIdentity: [GTK4DescriptorIdentity: Task<Void, Never>] = [:]
-    private var taskLifecycleSuspended = false
+    private var taskLifecycleSuspended = true
     /// True when the pending/next rebuild was requested by withObservationTracking's
     /// onChange callback. withObservationTracking is one-shot: once it fires, the
     /// observation is no longer registered, and the only way to re-subscribe is to
