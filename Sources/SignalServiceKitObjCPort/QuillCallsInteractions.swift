@@ -56,6 +56,17 @@ open class TSCall: TSInteraction, OWSPreviewText {
                    uniqueThreadId: uniqueThreadId)
     }
 
+    // Builder used by the Backups archivers / restore path.
+    public init(callType: RPRecentCallType,
+                offerType: TSRecentCallOfferType,
+                thread: TSContactThread,
+                sentAtTimestamp: UInt64) {
+        self.callType = callType
+        self.offerType = offerType
+        self.read = false
+        super.init(timestamp: sentAtTimestamp, receivedAtTimestamp: sentAtTimestamp, thread: thread)
+    }
+
     // OWSPreviewText (localized per-callType text deferred).
     public func previewText(transaction: DBReadTransaction) -> String { "" }
 }
@@ -109,5 +120,19 @@ open class OWSGroupCallMessage: TSInteraction {
                    sortId: sortId,
                    timestamp: timestamp,
                    uniqueThreadId: uniqueThreadId)
+    }
+
+    // Builder used by the Backups archivers / restore path. Persisting the ACI
+    // strings from the AciObjC arguments is deferred on Linux (stored nil/empty).
+    public init(joinedMemberAcis: [AciObjC],
+                creatorAci: AciObjC?,
+                thread: TSGroupThread,
+                sentAtTimestamp: UInt64) {
+        self.creatorUuid = nil
+        self.joinedMemberUuids = nil
+        self.hasEnded = false
+        self.read = false
+        self.eraId = nil
+        super.init(timestamp: sentAtTimestamp, receivedAtTimestamp: sentAtTimestamp, thread: thread)
     }
 }
