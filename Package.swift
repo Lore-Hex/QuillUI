@@ -1314,6 +1314,10 @@ if wireguardUpstreamPresent {
                 // TunnelViewModel: config edit/validation VM (pure Foundation +
                 // WireGuardKit + splitToArray; no AppKit/KVO). Used by TunnelEdit/Detail VCs.
                 "Sources/WireGuardApp/UI/TunnelViewModel.swift",
+                // ActivateOnDemandViewModel: on-demand config edit VM (Foundation;
+                // TunnelContainer + ActivateOnDemandOption, both in-target). Dep of
+                // TunnelEditViewController + TunnelDetailTableViewController.
+                "Sources/WireGuardApp/UI/ActivateOnDemandViewModel.swift",
                 // Error presentation: ErrorPresenterProtocol + macOS ErrorPresenter
                 // (NSAlert-based; WireGuardAppError -> alert). Used by the VCs.
                 "Sources/WireGuardApp/UI/ErrorPresenterProtocol.swift",
