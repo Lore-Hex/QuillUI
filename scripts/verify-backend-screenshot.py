@@ -175,6 +175,11 @@ def form_field_pixel(rgb: tuple[int, int, int]) -> bool:
     return sum(rgb) >= 735 and max(rgb) - min(rgb) <= 12
 
 
+def confirmation_dialog_surface_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 228 <= red <= 255 and 228 <= green <= 255 and 228 <= blue <= 255 and max(rgb) - min(rgb) <= 24
+
+
 def markdown_code_panel_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return (
@@ -1307,6 +1312,82 @@ def validate_quill_chat_mac_reference_settings_panel(
         f"body_pixels={body_dark_pixels}, "
         f"wordmark_pixels={wordmark_pixels}"
         f"{typed_summary}"
+    )
+
+
+def validate_quill_chat_mac_reference_settings_delete_confirmation(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(app_width >= 260, f"Settings delete confirmation dialog is too narrow: {app_width}px")
+    require(app_height >= 140, f"Settings delete confirmation dialog is too short: {app_height}px")
+    require(
+        app_width <= 720 and app_height <= 520,
+        f"Settings delete confirmation should capture the compact dialog window, got {app_width}x{app_height}",
+    )
+
+    dialog_left = left
+    dialog_right = right + 1
+    dialog_top = top
+    dialog_bottom = bottom + 1
+
+    dialog_width = dialog_right - dialog_left
+    dialog_height = dialog_bottom - dialog_top
+    surface_pixels = pixel_count(
+        image,
+        dialog_left,
+        dialog_top,
+        dialog_right,
+        dialog_bottom,
+        confirmation_dialog_surface_pixel,
+    )
+    require(
+        surface_pixels >= dialog_width * dialog_height * 0.45,
+        f"Settings delete confirmation dialog surface is too sparse: pixels={surface_pixels}",
+    )
+
+    title_pixels = dark_pixel_count(
+        image,
+        dialog_left + 14,
+        dialog_top + 12,
+        dialog_right - 14,
+        dialog_top + min(92, dialog_height),
+    )
+    require(
+        title_pixels >= 140,
+        f"Settings delete confirmation title/message was not detected: pixels={title_pixels}",
+    )
+
+    action_pixels = dark_pixel_count(
+        image,
+        dialog_left + 14,
+        dialog_top + max(72, dialog_height - 96),
+        dialog_right - 14,
+        dialog_bottom - 10,
+    )
+    require(
+        action_pixels >= 80,
+        f"Settings delete confirmation actions were not detected: pixels={action_pixels}",
+    )
+
+    separator = best_horizontal_segment(
+        image,
+        dialog_top + min(72, max(0, dialog_height - 80)),
+        dialog_bottom,
+        dialog_left + 10,
+        dialog_right - 10,
+        gray_line_pixel,
+        min_width=max(120, int(dialog_width * 0.55)),
+    )
+    require(separator is not None, "Settings delete confirmation separator was not detected")
+
+    return (
+        "Quill Chat Mac-reference settings delete confirmation: "
+        f"dialog={dialog_width}x{dialog_height} (child-window), "
+        f"surface_pixels={surface_pixels}, "
+        f"title_pixels={title_pixels}, "
+        f"action_pixels={action_pixels}, "
+        f"separator={separator[1].width}px@{separator[0]}"
     )
 
 
@@ -3056,7 +3137,13 @@ def main() -> int:
         "quill-wireguard-qt-import-invalid-paste",
         "quill-wireguard-qt-import-invalid-file",
     }
-    if compact_wireguard_dialog_product:
+    compact_quill_chat_dialog_product = product in {
+        "quill-chat-linux-mac-reference-settings-delete-confirmation",
+    }
+    if compact_quill_chat_dialog_product:
+        minimum_width = 260
+        minimum_height = 140
+    elif compact_wireguard_dialog_product:
         minimum_width = 500
         minimum_height = 360
     elif smoke_product:
@@ -3096,6 +3183,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_settings_panel(image, require_typed_bearer_token=True))
     elif product == "quill-chat-linux-mac-reference-settings-ping-interval-typed":
         print(validate_quill_chat_mac_reference_settings_panel(image, require_typed_ping_interval=True))
+    elif product == "quill-chat-linux-mac-reference-settings-delete-confirmation":
+        print(validate_quill_chat_mac_reference_settings_delete_confirmation(image))
     elif product == "quill-chat-linux-mac-reference-completions-panel":
         print(validate_quill_chat_mac_reference_completions_panel(image))
     elif product == "quill-chat-linux-mac-reference-history-selection":

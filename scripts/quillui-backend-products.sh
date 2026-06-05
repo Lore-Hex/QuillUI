@@ -548,6 +548,9 @@ quillui_backend_quill_chat_interaction_verify_product() {
     *:settings-ping-interval-typed)
       verify_product="quill-chat-linux-mac-reference-settings-ping-interval-typed"
       ;;
+    *:settings-delete-confirmation)
+      verify_product="quill-chat-linux-mac-reference-settings-delete-confirmation"
+      ;;
     *:completions-panel)
       verify_product="quill-chat-linux-mac-reference-completions-panel"
       ;;

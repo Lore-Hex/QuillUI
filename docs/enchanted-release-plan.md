@@ -95,7 +95,7 @@ Required click-through flows:
 ## Current Priority Order
 
 1. Finish the remaining Settings and Completions mutation flows: default model
-   field, delete-all confirmation, and completion-create/edit/save.
+   picker and completion-create/edit/save.
 2. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
 3. Wire QuillPaint into the controls that currently fail visual parity.
 4. Produce a release artifact and rerun visual/interaction smoke against it.
@@ -125,6 +125,8 @@ Recently cleared:
   `settings-bearer-token-typed` row.
 - Settings ping-interval editing is covered by the same verifier via the
   `settings-ping-interval-typed` row.
+- Settings delete-all confirmation is covered by the same verifier via the
+  `settings-delete-confirmation` row.
 
 ## Non-Goals For The First Release
 
