@@ -420,6 +420,42 @@ or, better, remove the need for module `X`.
   still `cannot find` may be EXCLUDED, not cascade-broken. Check
   `signalServiceKitExcludes` before hunting a root error.
 
+### Track B framework-shim mechanics (2026-06, cont.)
+
+- **Shim targets depend on QuillFoundation.** The Package.swift generator (~L1457)
+  gives every `Sources/AppleFrameworkShims/<Fw>` target a `QuillFoundation` dep so
+  a shim can return QuillFoundation's CoreGraphics shadow types (e.g. ImageIO's
+  CGImageSource returns `CGImage`). No cycle: QuillFoundation -> QuillKit only.
+  But NOT every CG type exists there yet -- `CGImage` does, `CGContext` does NOT
+  (AvatarBuilder's `context.cgContext` is still a gap; QuartzCore's `render(in:)`
+  takes `Any` to avoid referencing the missing type).
+- **Linux CF gotchas.** A shim using `CFString`/`CFData`/`CFDictionary`/`CFURL`/
+  `CFTimeInterval` must `import CoreFoundation` (swift-corelibs-foundation does
+  NOT re-export them via `import Foundation` the way Apple does). A String literal
+  is NOT convertible to `CFString` and a `CFString` GLOBAL is not Sendable, so
+  declare `kC*` string keys as plain `String` (SSK uses them via `as String` /
+  dict keys). `CACurrentMediaTime()` -> implement faithfully as
+  `ProcessInfo.processInfo.systemUptime` (a real monotonic clock on Linux), not a
+  stub -- timing stays accurate.
+- **Extend `inject-foundation.sh` per transitively-imported framework.** When SSK
+  files use an Apple-framework type WITHOUT importing it (transitive via the ObjC
+  umbrella / UIKit on Apple), add a rule: define `<FW>_TYPES` regex +
+  `inject_if_needed "$f" "<FW>" "$<FW>_TYPES"` in the loop, then re-run. Rules so
+  far: Foundation, UIKit, ImageIO, CoreFoundation, QuartzCore (+ gated
+  FoundationNetworking). `.upstream` is disposable -> the committed SCRIPT is the
+  durable artifact (never commit `.upstream`).
+- **Cross-module type-dodge.** When a shim init/method takes a type defined in a
+  DIFFERENT module not reachable from the shim (SSK's same-module `Selector`, the
+  missing `CGContext`), type the inert parameter `Any` -- the call site still
+  passes its real value and the shim never inspects it. Used for
+  `CADisplayLink(target:selector: Any)` and `CALayer.render(in: Any)`.
+- **Yields this sweep:** Intents -5,572, ImageIO -970, QuartzCore -1,152,
+  CoreFoundation-inject -858, UIApplication.State -1,004, LAError/Contacts -2,319.
+  The framework-shim-gap pattern is the highest-yield clean lever; SSK 377k peak
+  -> ~80k (~79% cleared). Remaining big bands are the EXCLUDED Calls (~7k occ) and
+  Payments (~3k occ) mixed-language dirs + unported TS*/OWS* interaction
+  subclasses (OWSRecoverableDecryptionPlaceholder, TSCall, ...).
+
 ---
 
 ## Pointers
