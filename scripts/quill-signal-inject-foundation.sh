@@ -54,6 +54,11 @@ IMAGEIO_TYPES='\bCGImageSource\b|\bkCGImage'
 # real module on both Apple and Linux) resolves them.
 COREFOUNDATION_TYPES='\bCFData\b|\bCFString\b|\bCFDictionary\b|\bCFArray\b|\bCFNumber\b|\bCFBoolean\b|\bCFURL\b|\bCFTypeRef\b|\bCFType\b|\bCFIndex\b|\bCFError\b|\bCFRange\b|\bCFMutable[A-Za-z]+\b|\bCFAllocator|\bCFTimeInterval\b|\bCFAbsoluteTime\b'
 
+# QuartzCore: CACurrentMediaTime (monotonic timing) and the CA* layer / display
+# -link types (the QuartzCore shim on Linux). On Apple these arrive transitively
+# via UIKit, so the upstream files do not import QuartzCore explicitly.
+QUARTZCORE_TYPES='\bCACurrentMediaTime\b|\bCADisplayLink\b|\bCAGradientLayer\b|\bCALayer\b|\bCAShapeLayer\b|\bCAMediaTimingFunction\b|\bCATransaction\b|\bCAAnimation\b'
+
 injected=0
 scanned=0
 
@@ -89,6 +94,7 @@ while IFS= read -r f; do
     if inject_if_needed "$f" "UIKit" "$UIKIT_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "ImageIO" "$IMAGEIO_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "CoreFoundation" "$COREFOUNDATION_TYPES"; then touched=1; fi
+    if inject_if_needed "$f" "QuartzCore" "$QUARTZCORE_TYPES"; then touched=1; fi
     if inject_gated_if_needed "$f" "FoundationNetworking" "$FOUNDATIONNETWORKING_TYPES"; then touched=1; fi
     injected=$((injected + touched))
 done < <(find "$ROOT" -name '*.swift' -not -path '*/QuillPort/*')
