@@ -1272,28 +1272,44 @@ def validate_quill_chat_mac_reference_history_selection(
     detail_left = divider_x + 1
     detail_width = right - detail_left + 1
 
-    bullet_pixels = pixel_count(
-        image,
-        left,
-        top + int(app_height * 0.30),
-        left + 28,
-        top + int(app_height * 0.47),
-        lambda rgb: sum(rgb) < 360,
+    marker_y0 = top + int(app_height * 0.30)
+    marker_y1 = top + int(app_height * 0.47)
+    marker_row_pixels = [
+        (
+            y,
+            pixel_count(
+                image,
+                left,
+                y,
+                left + 28,
+                y + 1,
+                lambda rgb: sum(rgb) < 360,
+            ),
+        )
+        for y in range(marker_y0, marker_y1)
+    ]
+    marker_y, marker_peak_pixels = max(
+        marker_row_pixels,
+        key=lambda row: row[1],
     )
+    bullet_pixels = sum(count for _, count in marker_row_pixels)
     require(
         bullet_pixels >= 5,
-        f"Mac-reference selected history marker was not detected: pixels={bullet_pixels}",
+        "Mac-reference selected history marker was not detected: "
+        f"pixels={bullet_pixels}, peak={marker_peak_pixels}@{marker_y}",
     )
 
+    selected_row_text_y0 = max(marker_y - int(app_height * 0.025), top)
+    selected_row_text_y1 = min(marker_y + int(app_height * 0.035), bottom + 1)
     selected_row_pixels = dark_pixel_count(
         image,
         left + 30,
-        top + int(app_height * 0.30),
+        selected_row_text_y0,
         divider_x - 20,
-        top + int(app_height * 0.47),
+        selected_row_text_y1,
     )
     require(
-        selected_row_pixels >= 450,
+        selected_row_pixels >= 180,
         f"Mac-reference selected history row text was not detected: pixels={selected_row_pixels}",
     )
 
@@ -1382,6 +1398,7 @@ def validate_quill_chat_mac_reference_history_selection(
         f"app={app_width}x{app_height}, "
         f"sidebar={divider_x - left}px, "
         f"selected_marker_pixels={bullet_pixels}, "
+        f"selected_marker_peak={marker_peak_pixels}@{marker_y}, "
         f"selected_text_pixels={selected_row_pixels}, "
         f"transcript_panel_pixels={transcript_panel_pixels}, "
         f"alert={alert_segment.width}px@{alert_y}, "

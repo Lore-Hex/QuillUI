@@ -3359,6 +3359,8 @@ struct SourceHygieneTests {
         #expect(historyList.contains("Text(dateTitle(group.date))"))
         #expect(historyList.contains("ForEach(group.items) { item in"))
         #expect(historyList.contains("private func groupedRow(for item: QuillConversationHistoryItem) -> some View"))
+        #expect(historyList.contains("let textState = PaintControlState(isHovered: isHovered, isSelected: false)"))
+        #expect(historyList.contains("MacListRowPaint.primaryTextColor(for: textState)"))
         #expect(historyList.contains("Button(role: .destructive, action: { onDeleteDay(date) })"))
         #expect(historyList.contains("Button(role: .destructive, action: { onDelete(item) })"))
         #expect(historyList.contains("private var groupedSectionFontSize: CGFloat { 24 }"))

@@ -607,7 +607,7 @@ public struct QuillDateGroupedConversationHistoryList: View {
     private func groupedRow(for item: QuillConversationHistoryItem) -> some View {
         let isSelected = selectedID == item.id
         let isHovered = hoveredItemID == item.id
-        let rowState = PaintControlState(isHovered: isHovered, isSelected: isSelected)
+        let textState = PaintControlState(isHovered: isHovered, isSelected: false)
 
         return HStack {
             if isSelected {
@@ -619,7 +619,7 @@ public struct QuillDateGroupedConversationHistoryList: View {
             Text(item.title)
                 .lineLimit(1)
                 .font(.system(size: groupedRowFontSize))
-                .foregroundColor(Color(quillPaint: MacListRowPaint.primaryTextColor(for: rowState)))
+                .foregroundColor(Color(quillPaint: MacListRowPaint.primaryTextColor(for: textState)))
                 .transition(.opacity)
 
             Spacer()
