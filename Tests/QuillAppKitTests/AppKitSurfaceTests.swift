@@ -247,6 +247,21 @@ struct AppKitSurfaceTests {
         let custom = MenuInitModelProbe()
         #expect(custom.title == "probe")
     }
+
+    @Test("StatusMenu shadow gaps: NSMenu.numberOfItems / removeItem(at:) / item(at:)")
+    @MainActor func statusMenuShadowSurface() {
+        let menu = NSMenu(title: "Status")
+        let a = menu.addItem(withTitle: "A", action: nil, keyEquivalent: "")
+        menu.addItem(NSMenuItem.separator())
+        let c = menu.addItem(withTitle: "C", action: nil, keyEquivalent: "")
+        #expect(menu.numberOfItems == 3)
+        #expect(menu.item(at: 0) === a)
+        menu.removeItem(at: 1) // remove the separator (StatusMenu rebuilds per-tunnel rows by index)
+        #expect(menu.numberOfItems == 2)
+        #expect(menu.item(at: 1) === c)
+        menu.removeItem(at: 99) // out-of-range → no-op (no crash)
+        #expect(menu.numberOfItems == 2)
+    }
 }
 
 /// Probes the NSMenu init-model fix: a subclass declaring `init()` (a new designated

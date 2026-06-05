@@ -2502,6 +2502,18 @@ open class NSMenu: NSObject {
         items.removeAll { $0 === i }
         if i.menu === self { i.menu = nil }
     }
+    /// Number of items (WireGuard's StatusMenu uses it to compute insert indices).
+    public var numberOfItems: Int { items.count }
+    /// Remove the item at `index` (WireGuard's StatusMenu rebuilds the per-tunnel rows).
+    public func removeItem(at index: Int) {
+        guard items.indices.contains(index) else { return }
+        let i = items.remove(at: index)
+        if i.menu === self { i.menu = nil }
+    }
+    /// The item at `index`, or nil if out of range.
+    public func item(at index: Int) -> NSMenuItem? {
+        items.indices.contains(index) ? items[index] : nil
+    }
     public func removeAllItems() {
         for item in items where item.menu === self {
             item.menu = nil
