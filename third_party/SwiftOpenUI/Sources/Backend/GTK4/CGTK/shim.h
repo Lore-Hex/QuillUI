@@ -451,6 +451,18 @@ gtk_swift_menu_button_set_label(GtkWidget *button, const char *label) {
     gtk_menu_button_set_label(GTK_MENU_BUTTON(button), label);
 }
 
+static inline void
+gtk_swift_menu_button_set_child(GtkWidget *button, GtkWidget *child) {
+    gtk_menu_button_set_child(GTK_MENU_BUTTON(button), child);
+}
+
+static inline void
+gtk_swift_menu_button_set_always_show_arrow(GtkWidget *button,
+                                            gboolean always_show_arrow) {
+    gtk_menu_button_set_always_show_arrow(GTK_MENU_BUTTON(button),
+                                          always_show_arrow);
+}
+
 // --- GtkListView / GtkListItem / GtkStringObject shims ---
 
 static inline gpointer

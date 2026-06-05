@@ -3130,3 +3130,16 @@ behavior for Signal-style account/key storage code. It adds
 `allKeys`, open result/config vars, false-on-missing delete, and
 upstream-shaped namespace `clear()` behavior while still documenting that Linux
 storage is process-local and not secure OS keychain persistence.
+
+## Checkpoint 186: GTK Toolbar Glyph Parity
+
+Status: implemented locally; guarded by QuillUI build, source hygiene build,
+shell syntax, profile budget, backend product integrity, and CI visual follow-up.
+
+Quill Chat's GTK toolbar controls now render from QuillUI-owned symbol children
+instead of text labels such as three bullets plus a chevron. The Linux toolbar
+menu primitive suppresses GTK's built-in arrow, installs a custom Material
+Symbols child, and keeps the native GTK popover/action path. The compose button
+uses the same GTK primitive path with `edit_square`, so the closed-state toolbar
+is closer to the macOS square-and-pencil affordance without Enchanted source
+changes.

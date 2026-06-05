@@ -4,7 +4,7 @@ import Foundation
 import SwiftOpenUI
 import BackendGTK4
 
-private final class QuillGTKMenuClosureBox {
+private final class QuillGTKToolbarClosureBox {
     let closure: () -> Void
 
     init(_ closure: @escaping () -> Void) {
@@ -13,7 +13,33 @@ private final class QuillGTKMenuClosureBox {
 }
 
 private final class QuillGTKMenuActionBox {
-    var actions: [QuillGTKMenuClosureBox] = []
+    var actions: [QuillGTKToolbarClosureBox] = []
+}
+
+struct QuillGTKToolbarIconButton: View, PrimitiveView, GTKRenderable {
+    typealias Body = Never
+
+    var systemImage: String
+    var showsChevron: Bool
+    var width: CGFloat
+    var action: () -> Void
+
+    var body: Never { fatalError("QuillGTKToolbarIconButton is a primitive view") }
+
+    func gtkCreateWidget() -> OpaquePointer {
+        let button = gtk_button_new()!
+        gtk_widget_set_size_request(button, gint(Int(width)), 30)
+        gtk_widget_set_halign(button, GTK_ALIGN_CENTER)
+        gtk_widget_set_valign(button, GTK_ALIGN_CENTER)
+        gtk_widget_add_css_class(button, "flat")
+        gtk_button_set_child(
+            toolbarButtonPointer(button),
+            makeToolbarGlyphChild(systemImage: systemImage, showsChevron: showsChevron)
+        )
+        applyToolbarControlCSS(to: button, className: "quill-toolbar-icon-button")
+        connectToolbarButton(button, action: action)
+        return OpaquePointer(button)
+    }
 }
 
 struct QuillGTKToolbarMenuButton: View, PrimitiveView, GTKRenderable {
@@ -32,8 +58,12 @@ struct QuillGTKToolbarMenuButton: View, PrimitiveView, GTKRenderable {
         gtk_widget_set_halign(button, GTK_ALIGN_CENTER)
         gtk_widget_set_valign(button, GTK_ALIGN_CENTER)
         gtk_widget_add_css_class(button, "flat")
-        applyToolbarMenuCSS(to: button)
-        gtk_swift_menu_button_set_label(button, menuTitle)
+        gtk_swift_menu_button_set_always_show_arrow(button, 0)
+        gtk_swift_menu_button_set_child(button, makeToolbarGlyphChild(
+            systemImage: systemImage,
+            showsChevron: showsChevron
+        ))
+        applyToolbarControlCSS(to: button, className: "quill-toolbar-menu-button")
 
         let actionGroup = g_simple_action_group_new()!
         let menuModel = gtk_swift_menu_new()!
@@ -60,17 +90,6 @@ struct QuillGTKToolbarMenuButton: View, PrimitiveView, GTKRenderable {
         }
 
         return OpaquePointer(button)
-    }
-
-    private var menuTitle: String {
-        switch systemImage {
-        case "ellipsis":
-            return showsChevron ? "•••⌄" : "•••"
-        case "chevron.down":
-            return "⌄"
-        default:
-            return QuillSystemSymbol.compatibleName(systemImage)
-        }
     }
 
     private func buildMenuModel(
@@ -130,7 +149,7 @@ struct QuillGTKToolbarMenuButton: View, PrimitiveView, GTKRenderable {
         let gAction = g_simple_action_new(actionName, nil)!
         gtk_swift_action_set_enabled(gpointer(gAction), action.isDisabled ? 0 : 1)
 
-        let box = QuillGTKMenuClosureBox {
+        let box = QuillGTKToolbarClosureBox {
             action.perform()
         }
         actionBox.actions.append(box)
@@ -141,7 +160,9 @@ struct QuillGTKToolbarMenuButton: View, PrimitiveView, GTKRenderable {
             "activate",
             unsafeBitCast({ (_: gpointer?, _: gpointer?, userData: gpointer?) in
                 guard let userData else { return }
-                Unmanaged<QuillGTKMenuClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+                Unmanaged<QuillGTKToolbarClosureBox>.fromOpaque(userData)
+                    .takeUnretainedValue()
+                    .closure()
             } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
             boxPointer,
             nil,
@@ -153,8 +174,106 @@ struct QuillGTKToolbarMenuButton: View, PrimitiveView, GTKRenderable {
     }
 }
 
-private func applyToolbarMenuCSS(to widget: UnsafeMutablePointer<GtkWidget>) {
-    let className = "quill-toolbar-menu-button"
+private struct QuillGTKToolbarGlyph {
+    var materialName: String
+    var pointSize: Int
+    var width: Int
+}
+
+private func makeToolbarGlyphChild(
+    systemImage: String,
+    showsChevron: Bool
+) -> UnsafeMutablePointer<GtkWidget> {
+    let box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)!
+    gtk_widget_set_halign(box, GTK_ALIGN_CENTER)
+    gtk_widget_set_valign(box, GTK_ALIGN_CENTER)
+    gtk_widget_add_css_class(box, "quill-toolbar-glyph-box")
+
+    for glyph in toolbarGlyphs(systemImage: systemImage, showsChevron: showsChevron) {
+        gtk_box_append(boxPointer(box), makeToolbarGlyphLabel(glyph))
+    }
+
+    return box
+}
+
+private func toolbarGlyphs(
+    systemImage: String,
+    showsChevron: Bool
+) -> [QuillGTKToolbarGlyph] {
+    switch systemImage {
+    case "chevron.down":
+        return [QuillGTKToolbarGlyph(materialName: "expand_more", pointSize: 20, width: 22)]
+    case "ellipsis":
+        var glyphs = [QuillGTKToolbarGlyph(materialName: "more_horiz", pointSize: 24, width: 24)]
+        if showsChevron {
+            glyphs.append(QuillGTKToolbarGlyph(materialName: "expand_more", pointSize: 16, width: 15))
+        }
+        return glyphs
+    case "square.and.pencil":
+        return [QuillGTKToolbarGlyph(materialName: "edit_square", pointSize: 26, width: 27)]
+    default:
+        return [QuillGTKToolbarGlyph(
+            materialName: QuillSystemSymbol.compatibleName(systemImage),
+            pointSize: 22,
+            width: 24
+        )]
+    }
+}
+
+private func makeToolbarGlyphLabel(_ glyph: QuillGTKToolbarGlyph) -> UnsafeMutablePointer<GtkWidget> {
+    let label = gtk_label_new(nil)!
+    gtk_widget_set_size_request(label, gint(glyph.width), gint(glyph.pointSize + 2))
+    gtk_widget_set_halign(label, GTK_ALIGN_CENTER)
+    gtk_widget_set_valign(label, GTK_ALIGN_CENTER)
+    gtk_widget_add_css_class(label, "quill-toolbar-symbol")
+    gtk_swift_label_set_markup(label, toolbarGlyphMarkup(glyph))
+    return label
+}
+
+private func toolbarGlyphMarkup(_ glyph: QuillGTKToolbarGlyph) -> String {
+    let familyName = toolbarEscapeMarkup("Material Symbols Rounded")
+    let materialName = toolbarEscapeMarkup(glyph.materialName)
+    return """
+    <span font_family="\(familyName)" font_size="\(glyph.pointSize * 1000)" foreground="#3A3A3C">\(materialName)</span>
+    """
+}
+
+private func toolbarEscapeMarkup(_ value: String) -> String {
+    value
+        .replacingOccurrences(of: "&", with: "&amp;")
+        .replacingOccurrences(of: "<", with: "&lt;")
+        .replacingOccurrences(of: ">", with: "&gt;")
+        .replacingOccurrences(of: "\"", with: "&quot;")
+}
+
+private func toolbarButtonPointer(_ widget: UnsafeMutablePointer<GtkWidget>) -> UnsafeMutablePointer<GtkButton> {
+    UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GtkButton.self)
+}
+
+private func connectToolbarButton(
+    _ button: UnsafeMutablePointer<GtkWidget>,
+    action: @escaping () -> Void
+) {
+    let box = Unmanaged.passRetained(QuillGTKToolbarClosureBox(action)).toOpaque()
+    g_signal_connect_data(
+        gpointer(button),
+        "clicked",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            Unmanaged<QuillGTKToolbarClosureBox>.fromOpaque(userData)
+                .takeUnretainedValue()
+                .closure()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        box,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<QuillGTKToolbarClosureBox>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+}
+
+private func applyToolbarControlCSS(to widget: UnsafeMutablePointer<GtkWidget>, className: String) {
     let css = """
     .\(className),
     button.\(className),
@@ -168,6 +287,8 @@ private func applyToolbarMenuCSS(to widget: UnsafeMutablePointer<GtkWidget>) {
         min-height: 28px;
         min-width: 28px;
         color: #3A3A3C;
+        -gtk-icon-shadow: none;
+        text-shadow: none;
     }
     .\(className):hover,
     button.\(className):hover,
@@ -176,6 +297,13 @@ private func applyToolbarMenuCSS(to widget: UnsafeMutablePointer<GtkWidget>) {
     menubutton.\(className) button:hover {
         background: rgba(0, 0, 0, 0.06);
         border-radius: 5px;
+    }
+    .quill-toolbar-glyph-box,
+    .quill-toolbar-symbol {
+        background: transparent;
+        color: #3A3A3C;
+        padding: 0;
+        margin: 0;
     }
     """
 

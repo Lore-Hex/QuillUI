@@ -1419,6 +1419,14 @@ public struct QuillToolbarIconButton: View {
     }
 
     public var body: some View {
+        #if os(Linux)
+        QuillGTKToolbarIconButton(
+            systemImage: systemImage,
+            showsChevron: showsChevron,
+            width: width,
+            action: action
+        )
+        #else
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
@@ -1440,6 +1448,7 @@ public struct QuillToolbarIconButton: View {
         .foregroundColor(toolbarIconColor)
         .frame(width: width, height: buttonHeight, alignment: .center)
         .contentShape(Rectangle())
+        #endif
     }
 
     #if os(Linux)

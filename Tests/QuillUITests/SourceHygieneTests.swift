@@ -3308,6 +3308,26 @@ struct SourceHygieneTests {
         #expect(!controls.contains(".fontWeight(.semibold)\n                            .foregroundColor(Color(hex: \"#444446\"))"))
     }
 
+    @Test("GTK toolbar primitives use custom glyph children instead of text arrows")
+    func gtkToolbarPrimitivesUseCustomGlyphChildrenInsteadOfTextArrows() throws {
+        let controls = try packageSource("Sources/QuillUI/Controls.swift")
+        let toolbar = try packageSource("Sources/QuillUI/GTKToolbarMenuButton.swift")
+        let shim = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h")
+
+        #expect(controls.contains("#if os(Linux)\n        QuillGTKToolbarIconButton("))
+        #expect(toolbar.contains("struct QuillGTKToolbarIconButton: View, PrimitiveView, GTKRenderable"))
+        #expect(toolbar.contains("gtk_swift_menu_button_set_always_show_arrow(button, 0)"))
+        #expect(toolbar.contains("gtk_swift_menu_button_set_child(button, makeToolbarGlyphChild("))
+        #expect(toolbar.contains("materialName: \"more_horiz\""))
+        #expect(toolbar.contains("materialName: \"expand_more\""))
+        #expect(toolbar.contains("materialName: \"edit_square\""))
+        #expect(!toolbar.contains("private var menuTitle"))
+        #expect(!toolbar.contains("\"\u{2022}\u{2022}\u{2022}"))
+        #expect(!toolbar.contains("\"\u{2304}\""))
+        #expect(shim.contains("gtk_swift_menu_button_set_child(GtkWidget *button, GtkWidget *child)"))
+        #expect(shim.contains("gtk_swift_menu_button_set_always_show_arrow(GtkWidget *button"))
+    }
+
     @Test("QuillConversationHistoryList mirrors Enchanted row preview and accessibility")
     func quillConversationHistoryListMirrorsEnchantedRowPreviewAndAccessibility() throws {
         let controls = try packageSource("Sources/QuillUI/Controls.swift")
