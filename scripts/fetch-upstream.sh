@@ -246,6 +246,44 @@ print("patched ParseError+WireGuardAppError.swift to import WireGuardKit + Quill
 PY
     fi
 
+    # B-wall: NSTableView+Reuse's `dequeueReusableCell<T: NSView>() { T() }` can't
+    # construct a generic class value on Linux without a `required init()` (macOS
+    # gets it free via the ObjC runtime). Rather than force `required init()` onto
+    # NSView (cascades repo-wide), narrow the cell constraint to NSView &
+    # QuillReusableView (a QuillAppKit protocol requiring init()), and make the
+    # cell types it dequeues conform with a `required init()`.
+    local reuse="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/NSTableView+Reuse.swift"
+    if [[ -f "$reuse" ]] && ! grep -q 'QuillReusableView' "$reuse"; then
+        echo "==> patching NSTableView+Reuse.swift cell constraint to NSView & QuillReusableView"
+        python3 - "$reuse" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('func dequeueReusableCell<T: NSView>() -> T',
+                  'func dequeueReusableCell<T: NSView & QuillReusableView>() -> T', 1)
+open(path, "w").write(src)
+print("patched NSTableView+Reuse.swift cell constraint")
+PY
+    fi
+
+    # LogViewCell (+ subclasses) conform to QuillReusableView so they can be
+    # dequeued: add the conformance + make their init() `required`.
+    local logcell="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/View/LogViewCell.swift"
+    if [[ -f "$logcell" ]] && ! grep -q 'QuillReusableView' "$logcell"; then
+        echo "==> patching LogViewCell.swift to conform to QuillReusableView (required init)"
+        python3 - "$logcell" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('class LogViewCell: NSTableCellView {',
+                  'class LogViewCell: NSTableCellView, QuillReusableView {', 1)
+src = src.replace('    init() {', '    required init() {', 1)             # LogViewCell's own init()
+src = src.replace('    override init() {', '    required init() {')       # the two subclasses
+open(path, "w").write(src)
+print("patched LogViewCell.swift for QuillReusableView")
+PY
+    fi
+
     # Break the SwiftPM modularity wall for the model layer: the wg-quick parser
     # methods (asWgQuickConfig / init(fromWgQuickConfig:)) live in the
     # QuillWireGuardUpstreamConfig target but are `internal`, so the conformance
