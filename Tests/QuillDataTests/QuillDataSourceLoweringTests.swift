@@ -774,7 +774,6 @@ struct QuillDataSourceLoweringTests {
             encoding: .utf8
         )
         #expect(chatViewTemplate.contains("QuillDesktopChatScaffold("))
-        #expect(chatViewTemplate.contains("composerWidth: 800"))
         #expect(chatViewTemplate.contains("hasSelection: selectedConversation != nil"))
         #expect(chatViewTemplate.contains("showsStatus: !reachable"))
         #expect(chatViewTemplate.contains("QuillDesktopChatToolbar("))
@@ -783,6 +782,7 @@ struct QuillDataSourceLoweringTests {
         #expect(!chatViewTemplate.contains("QuillDesktopSplitLayout("))
         #expect(!chatViewTemplate.contains("VStack(alignment: .center, spacing: 0)"))
         #expect(!chatViewTemplate.contains(".frame(width: 800)"))
+        #expect(!chatViewTemplate.contains("composerWidth:"))
 
         let emptyConversationRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/EmptyConversaitonView.swift.pl"),

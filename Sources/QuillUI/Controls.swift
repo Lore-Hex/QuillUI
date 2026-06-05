@@ -1273,7 +1273,9 @@ public struct QuillDesktopChatScaffold<
 >: View {
     public var title: String
     public var sidebarWidth: CGFloat
-    public var composerWidth: CGFloat
+    public var composerMaxWidth: CGFloat
+    public var composerHorizontalPadding: CGFloat
+    public var composerVerticalPadding: CGFloat
     public var hasSelection: Bool
     public var showsStatus: Bool
     private var sidebar: Sidebar
@@ -1286,7 +1288,9 @@ public struct QuillDesktopChatScaffold<
     public init(
         title: String,
         sidebarWidth: CGFloat = 320,
-        composerWidth: CGFloat = 800,
+        composerMaxWidth: CGFloat = .infinity,
+        composerHorizontalPadding: CGFloat = 40,
+        composerVerticalPadding: CGFloat = 16,
         hasSelection: Bool,
         showsStatus: Bool = false,
         @ViewBuilder sidebar: () -> Sidebar,
@@ -1298,7 +1302,9 @@ public struct QuillDesktopChatScaffold<
     ) {
         self.title = title
         self.sidebarWidth = sidebarWidth
-        self.composerWidth = composerWidth
+        self.composerMaxWidth = composerMaxWidth
+        self.composerHorizontalPadding = composerHorizontalPadding
+        self.composerVerticalPadding = composerVerticalPadding
         self.hasSelection = hasSelection
         self.showsStatus = showsStatus
         self.sidebar = sidebar()
@@ -1327,8 +1333,9 @@ public struct QuillDesktopChatScaffold<
                 }
 
                 composerContent
-                    .padding()
-                    .frame(width: composerWidth)
+                    .padding(.horizontal, composerHorizontalPadding)
+                    .padding(.vertical, composerVerticalPadding)
+                    .frame(maxWidth: composerMaxWidth)
             }
         }
     }

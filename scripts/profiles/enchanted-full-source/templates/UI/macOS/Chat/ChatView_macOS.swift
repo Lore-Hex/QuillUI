@@ -62,7 +62,6 @@ struct ChatView: View {
         QuillDesktopChatScaffold(
             title: "Enchanted",
             sidebarWidth: 320,
-            composerWidth: 800,
             hasSelection: selectedConversation != nil,
             showsStatus: !reachable
         ) {
