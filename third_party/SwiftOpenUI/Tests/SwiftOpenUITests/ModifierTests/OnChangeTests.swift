@@ -18,6 +18,23 @@ final class OnChangeTests: XCTestCase {
         XCTAssertFalse(fired)
     }
 
+    func testOneArgTrailingClosureCompilesAndFires() {
+        var received: Int?
+
+        let initial = Text("Hello").onChange(of: 1) { newValue in
+            received = newValue
+        }
+        onChangeCheckAndFire(value: initial.value, action: initial.action)
+
+        resetOnChangeTracking()
+        let updated = Text("Hello").onChange(of: 2) { newValue in
+            received = newValue
+        }
+        onChangeCheckAndFire(value: updated.value, action: updated.action)
+
+        XCTAssertEqual(received, 2)
+    }
+
     // MARK: - Value tracking
 
     func testFirstRenderDoesNotFire() {
@@ -91,6 +108,24 @@ final class OnChangeTests: XCTestCase {
         let view = Text("Hello").onChange(of: 1) { _, _ in }
         XCTAssertEqual(view.content.content, "Hello")
         XCTAssertEqual(view.value, 1)
+    }
+
+    func testTwoArgTrailingClosureCompilesAndFires() {
+        var received: (old: Int, new: Int)?
+
+        let initial = Text("Hello").onChange(of: 10) { oldValue, newValue in
+            received = (oldValue, newValue)
+        }
+        onChangeCheckAndFireTwoArg(value: initial.value, action: initial.action)
+
+        resetOnChangeTracking()
+        let updated = Text("Hello").onChange(of: 20) { oldValue, newValue in
+            received = (oldValue, newValue)
+        }
+        onChangeCheckAndFireTwoArg(value: updated.value, action: updated.action)
+
+        XCTAssertEqual(received?.old, 10)
+        XCTAssertEqual(received?.new, 20)
     }
 
     func testOnChangeTwoArgFiresWithOldAndNewValue() {
