@@ -1367,6 +1367,9 @@ if wireguardUpstreamPresent {
                 "Sources/WireGuardApp/ZipArchive/ZipArchive.swift",
                 "Sources/WireGuardApp/ZipArchive/ZipImporter.swift",
                 "Sources/WireGuardApp/ZipArchive/ZipExporter.swift",
+                // TunnelImporter: routes imported .zip/.conf URLs through ZipImporter
+                // + the wg-quick parser into TunnelsManager.addMultiple (DispatchGroup).
+                "Sources/WireGuardApp/UI/TunnelImporter.swift",
                 "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift",
                 // NSColor+Hex: NSColor(hex:) convenience init (chains to the shadow's
                 // new NSColor(red:green:blue:alpha:)). Foundation Scanner + AppKit only;

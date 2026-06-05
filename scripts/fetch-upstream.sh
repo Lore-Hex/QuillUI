@@ -317,6 +317,32 @@ PY
         fi
     done
 
+    # TunnelImporter: routes imported URLs through ZipImporter + the wg-quick parser.
+    # (1) imports: TunnelConfiguration (WireGuardKit) + fromWgQuickConfig
+    #     (QuillWireGuardUpstreamConfig). (2) it's a nonisolated static func, but its
+    #     dispatchGroup.notify(queue: .main) closure calls the @MainActor
+    #     ErrorPresenterProtocol.showErrorAlert — legal at runtime (it IS on main), so
+    #     wrap that one call in MainActor.assumeIsolated to satisfy the type-checker.
+    local timp="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/TunnelImporter.swift"
+    if [[ -f "$timp" ]] && ! grep -q '^import QuillWireGuardUpstreamConfig' "$timp"; then
+        echo "==> patching TunnelImporter.swift (imports + assumeIsolated showErrorAlert)"
+        python3 - "$timp" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('import Foundation\n',
+                  'import Foundation\nimport WireGuardKit\nimport QuillWireGuardUpstreamConfig\n', 1)
+old = '                    errorPresenterType.showErrorAlert(title: alertText.title, message: alertText.message, from: sourceVC, onPresented: completionHandler)\n'
+new = ('                    MainActor.assumeIsolated {\n'
+       '                        errorPresenterType.showErrorAlert(title: alertText.title, message: alertText.message, from: sourceVC, onPresented: completionHandler)\n'
+       '                    }\n')
+if old in src:
+    src = src.replace(old, new, 1)
+open(path, "w").write(src)
+print("patched TunnelImporter.swift")
+PY
+    fi
+
     # Break the SwiftPM modularity wall for the model layer: the wg-quick parser
     # methods (asWgQuickConfig / init(fromWgQuickConfig:)) live in the
     # QuillWireGuardUpstreamConfig target but are `internal`, so the conformance
