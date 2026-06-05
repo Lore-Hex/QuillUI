@@ -422,7 +422,11 @@ open class NSResponder: NSObject {
     open func mouseUp(with event: NSEvent) { nextResponder?.mouseUp(with: event) }
     open func mouseDragged(with event: NSEvent) { nextResponder?.mouseDragged(with: event) }
     open func mouseMoved(with event: NSEvent) { nextResponder?.mouseMoved(with: event) }
-    open func keyDown(with event: NSEvent) { nextResponder?.keyDown(with: event) }
+    // @MainActor: key events are delivered on the main thread, and overrides
+    // (e.g. WireGuard's TunnelsListTableViewController.keyDown calling the
+    // @MainActor handleRemoveTunnelAction on Delete) need that isolation. Same
+    // rationale as cancelOperation below.
+    @MainActor open func keyDown(with event: NSEvent) { nextResponder?.keyDown(with: event) }
     open func keyUp(with event: NSEvent) { nextResponder?.keyUp(with: event) }
     open func flagsChanged(with event: NSEvent) { nextResponder?.flagsChanged(with: event) }
     open func scrollWheel(with event: NSEvent) { nextResponder?.scrollWheel(with: event) }
@@ -1424,7 +1428,9 @@ open class NSApplication: NSResponder, @unchecked Sendable {
         case .mouseMoved:
             responder.mouseMoved(with: event)
         case .keyDown:
-            responder.keyDown(with: event)
+            // keyDown is @MainActor (key events are main-thread); the event pump
+            // dispatches on the main thread, so assume isolation for this one call.
+            MainActor.assumeIsolated { responder.keyDown(with: event) }
         case .keyUp:
             responder.keyUp(with: event)
         case .flagsChanged:
@@ -3210,6 +3216,10 @@ open class NSImageView: NSControl {
 }
 
 open class NSControl: NSView {
+    /// The control's backing cell (legacy AppKit). WireGuard's tunnels list reaches
+    /// it as `(popup.cell as? NSPopUpButtonCell)?.arrowPosition`. NSPopUpButton seeds
+    /// it with an NSPopUpButtonCell so that downcast succeeds; nil elsewhere.
+    public var cell: NSCell?
     private var storedDoubleValue: Double = 0
     private var storedFloatValue: Float = 0
     private var storedIntegerValue: Int = 0
@@ -3336,6 +3346,10 @@ open class NSControl: NSView {
 open class NSButton: NSControl {
     private var storedTitle: String = ""
     private var storedAttributedTitle: NSAttributedString = NSAttributedString(string: "")
+
+    /// Frame init — NSButton's title/image designated inits otherwise suppress
+    /// NSView's, so subclasses like WireGuard's FillerButton (super.init(frame:)) need it.
+    public override init(frame frameRect: NSRect) { super.init(frame: frameRect) }
 
     public var title: String {
         get { storedTitle }
@@ -3544,7 +3558,7 @@ open class NSPopUpButton: NSButton {
     public func itemWithTitle(_ t: String) -> NSMenuItem? {
         menu?.items.first { $0.title == t }
     }
-    public init(frame: NSRect, pullsDown: Bool) { super.init(title: "", target: nil, action: nil); self.pullsDown = pullsDown }
+    public init(frame: NSRect, pullsDown: Bool) { super.init(title: "", target: nil, action: nil); self.pullsDown = pullsDown; self.cell = NSPopUpButtonCell() }
     public convenience init() { self.init(frame: .zero, pullsDown: false) }
 
     private func ensureMenu() -> NSMenu {
@@ -3588,11 +3602,10 @@ open class NSPopUpButton: NSButton {
     }
 }
 
-open class NSPopUpButtonCell: NSObject {
-    public var menu: NSMenu? = NSMenu()
-    public var pullsDown: Bool = false
+open class NSPopUpButtonCell: NSCell {
     public var arrowPosition: ArrowPosition = .arrowAtBottom
     public enum ArrowPosition: UInt, Sendable { case noArrow, arrowAtCenter, arrowAtBottom }
+    public override init() { super.init() }
 }
 
 open class NSSearchField: NSTextField {

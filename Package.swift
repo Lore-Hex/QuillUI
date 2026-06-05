@@ -1440,6 +1440,12 @@ if wireguardUpstreamPresent {
                 // ActivateOnDemandViewModel + TunnelViewModel; KVO via Cocoa shim; @objc actions
                 // lowered to QuillActionDispatching. Imports WireGuardKit (TunnelConfiguration).
                 "Sources/WireGuardApp/UI/macOS/ViewController/TunnelDetailTableViewController.swift",
+                // TunnelsListTableViewController: the main tunnels list (the OTHER table VC).
+                // NSPopUpButton add/action menus (popup.cell as? NSPopUpButtonCell — arrowPosition),
+                // NSButton remove action, dequeues TunnelListRow (QuillReusableView ✓), declares its
+                // own TunnelsListTableViewControllerDelegate, presents TunnelEditViewController for add;
+                // NSMenuItemValidation; @objc actions lowered to QuillActionDispatching. import Cocoa only.
+                "Sources/WireGuardApp/UI/macOS/ViewController/TunnelsListTableViewController.swift",
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
                 // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).
