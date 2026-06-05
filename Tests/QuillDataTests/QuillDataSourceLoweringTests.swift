@@ -1891,6 +1891,7 @@ struct QuillDataSourceLoweringTests {
 
         let patchScript = try String(contentsOf: script, encoding: .utf8)
         #expect(patchScript.contains("text.replace(\"remainingTicks: Int = 4\", \"remainingTicks: Int = 90\")"))
+        #expect(patchScript.contains("SwiftOpenUI ScrollViewReader scroll-range upgrade shape was not recognized"))
 
         let patchedSwiftOpenUIManifest = try String(contentsOf: swiftOpenUIManifest, encoding: .utf8)
         #expect(patchedSwiftOpenUIManifest.contains("import Foundation"))
@@ -1974,6 +1975,10 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("private var gtkPendingScrollRequests"))
         #expect(patchedRenderer.contains("gtk_widget_translate_coordinates(target, scrolled"))
         #expect(patchedRenderer.contains("gtk_scrolled_window_get_vadjustment"))
+        #expect(patchedRenderer.contains("var applied = false"))
+        #expect(patchedRenderer.contains("if upper - lower > pageSize + 1.0"))
+        #expect(patchedRenderer.contains("parent = gtk_widget_get_parent(scrolled)\n                continue"))
+        #expect(patchedRenderer.contains("if applied { return }"))
         #expect(patchedRenderer.contains("let request = GTKPendingScrollRequest(anchor: anchor)"))
         #expect(patchedRenderer.contains("gtkPendingScrollRequests[id] = request"))
         #expect(patchedRenderer.contains("guard let widget = gtkScrollTargetRegistry[id] else { return }"))
