@@ -1549,7 +1549,7 @@ private final class GTKScrollToContext {
     let anchor: UnitPoint?
     var remainingTicks: Int
 
-    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 4) {
+    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 90) {
         self.target = target
         self.anchor = anchor
         self.remainingTicks = remainingTicks
@@ -1678,7 +1678,7 @@ private final class GTKScrollToContext {
     let anchor: UnitPoint?
     var remainingTicks: Int
 
-    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 4) {
+    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 90) {
         self.target = target
         self.anchor = anchor
         self.remainingTicks = remainingTicks
@@ -1826,7 +1826,7 @@ elif "gtkPendingScrollRequests" not in text:
     let anchor: UnitPoint?
     var remainingTicks: Int
 
-    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 4) {
+    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 90) {
         self.target = target
         self.anchor = anchor
         self.remainingTicks = remainingTicks

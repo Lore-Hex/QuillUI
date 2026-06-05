@@ -1963,6 +1963,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtkResolveOrQueueScrollTo(id: anyID, anchor: anchor)"))
         #expect(patchedRenderer.contains("gtkRegisterScrollTarget(id: AnyHashable(id), widget: widget)"))
         #expect(!patchedRenderer.contains("lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>"))
+        #expect(patchedRenderer.contains("remainingTicks: Int = 90"))
         #expect(patchedRenderer.contains("context.remainingTicks -= 1"))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(_ action"))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(boundAction, on: widget)"))
