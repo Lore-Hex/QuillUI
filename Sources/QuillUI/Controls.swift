@@ -312,7 +312,7 @@ public struct QuillPromptGrid: View {
     private var promptIconSize: CGFloat { 16 }
 
     private var cardBackgroundColor: Color {
-        Color(hex: "#F4F4F6")
+        QuillDesktopChromeStyle.promptCardBackground
     }
 
     @ViewBuilder
@@ -372,15 +372,19 @@ public struct QuillConversationHistoryItem: Identifiable, Hashable, Sendable {
 
 public enum QuillDesktopChromeStyle {
     public static var sidebarBackground: Color {
-        Color(red: 0.93, green: 0.95, blue: 0.92)
+        Color(red: 0.91, green: 0.93, blue: 0.89)
     }
 
     public static var detailBackground: Color {
-        Color(red: 0.97, green: 0.97, blue: 0.96)
+        Color(red: 0.985, green: 0.985, blue: 0.985)
     }
 
     public static var cardBackground: Color {
         Color.white
+    }
+
+    public static var promptCardBackground: Color {
+        Color(red: 0.925, green: 0.93, blue: 0.955)
     }
 
     public static var selectedRowBackground: Color {
@@ -1160,12 +1164,29 @@ public struct QuillChatEmptyState: View {
                 )
             )
         #else
-        Text(brandTitle)
-            .foregroundColor(Color(hex: "#9B72CB"))
-            .font(Font.system(size: 66, weight: .thin))
-            .multilineTextAlignment(.center)
+        HStack(spacing: 0) {
+            ForEach(Array(brandTitle.enumerated()), id: \.offset) { index, character in
+                Text(String(character))
+                    .foregroundColor(linuxWordmarkColor(at: index))
+                    .font(Font.system(size: 66, weight: .thin))
+            }
+        }
+        .multilineTextAlignment(.center)
         #endif
     }
+
+    #if !(os(macOS) || os(iOS) || os(visionOS))
+    private func linuxWordmarkColor(at index: Int) -> Color {
+        let colors = [
+            Color(hex: "#657BE8"),
+            Color(hex: "#8173DC"),
+            Color(hex: "#A66FBF"),
+            Color(hex: "#C76B8F"),
+            Color(hex: "#D96570"),
+        ]
+        return colors[min(index, colors.count - 1)]
+    }
+    #endif
 }
 
 public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Content: View>: View {
@@ -1198,11 +1219,7 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
             HStack(spacing: 0) {
                 sidebar
                     .frame(width: resolvedSidebarWidth, alignment: .leading)
-                    // macOS source-list sidebar color (matches EnchantedPalette.sidebarColor
-                    // and the Enchanted macOS reference screenshot). The previous #E9E9E7 was
-                    // slightly too dark/neutral — it rendered (233,233,231), failing the
-                    // backend visual verifier's sidebar check (needs green >= 235).
-                    .background(Color(hex: "#F5F5F7"))
+                    .background(QuillDesktopChromeStyle.sidebarBackground)
                     .overlay(alignment: .topLeading) {
                         #if os(Linux)
                         if Self.showsMacWindowControls {
@@ -1227,16 +1244,16 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
                     }
                     .padding(.horizontal, 16)
                     .frame(height: resolvedToolbarHeight, alignment: .center)
-                    .background(Color(hex: "#FAFAFA"))
+                    .background(QuillDesktopChromeStyle.detailBackground)
 
                     Divider()
 
                     content
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(hex: "#FAFAFA"))
+                        .background(QuillDesktopChromeStyle.detailBackground)
                 }
             }
-            .background(Color(hex: "#FAFAFA"))
+            .background(QuillDesktopChromeStyle.detailBackground)
         }
     }
 

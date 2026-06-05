@@ -484,6 +484,28 @@ def colorful_wordmark_pixel(rgb: tuple[int, int, int]) -> bool:
     return max(rgb) - min(rgb) >= 35 and 180 <= sum(rgb) <= 650
 
 
+def cool_wordmark_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return blue - red >= 20 and max(rgb) - min(rgb) >= 35 and 180 <= sum(rgb) <= 650
+
+
+def warm_wordmark_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return red - blue >= 15 and max(rgb) - min(rgb) >= 30 and 180 <= sum(rgb) <= 650
+
+
+def mac_reference_sidebar_tint_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        222 <= red <= 242
+        and 226 <= green <= 248
+        and 216 <= blue <= 242
+        and green >= red + 2
+        and green >= blue + 5
+        and max(rgb) - min(rgb) <= 24
+    )
+
+
 def best_horizontal_segment(
     image: Screenshot,
     y0: int,
@@ -665,6 +687,18 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         sidebar_footer_pixels >= 700,
         f"Mac-reference sidebar footer navigation was not detected: pixels={sidebar_footer_pixels}",
     )
+    sidebar_tint_pixels = pixel_count(
+        image,
+        left + int((divider_x - left) * 0.03),
+        top + int(app_height * 0.08),
+        divider_x - int((divider_x - left) * 0.03),
+        bottom - int(app_height * 0.18),
+        mac_reference_sidebar_tint_pixel,
+    )
+    require(
+        sidebar_tint_pixels >= 120_000,
+        f"Mac-reference sidebar lost its green-tinted source-list material: pixels={sidebar_tint_pixels}",
+    )
     window_control_pixels = pixel_count(
         image,
         left,
@@ -710,6 +744,27 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
     require(
         wordmark_pixels >= 750,
         f"Mac-reference wordmark was not detected: pixels={wordmark_pixels}",
+    )
+    cool_wordmark_pixels = pixel_count(
+        image,
+        detail_left + int(detail_width * 0.35),
+        top + int(app_height * 0.20),
+        detail_left + int(detail_width * 0.65),
+        top + int(app_height * 0.45),
+        cool_wordmark_pixel,
+    )
+    warm_wordmark_pixels = pixel_count(
+        image,
+        detail_left + int(detail_width * 0.35),
+        top + int(app_height * 0.20),
+        detail_left + int(detail_width * 0.65),
+        top + int(app_height * 0.45),
+        warm_wordmark_pixel,
+    )
+    require(
+        cool_wordmark_pixels >= 250 and warm_wordmark_pixels >= 180,
+        "Mac-reference wordmark lost its blue-to-red color range: "
+        f"cool_pixels={cool_wordmark_pixels}, warm_pixels={warm_wordmark_pixels}",
     )
 
     card_row = best_prompt_card_row(
@@ -835,8 +890,11 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         f"toolbar_pixels={toolbar_pixels}, "
         f"history_pixels={sidebar_history_pixels}, "
         f"footer_pixels={sidebar_footer_pixels}, "
+        f"sidebar_tint_pixels={sidebar_tint_pixels}, "
         f"window_controls={window_control_pixels}, "
         f"wordmark_pixels={wordmark_pixels}, "
+        f"wordmark_cool={cool_wordmark_pixels}, "
+        f"wordmark_warm={warm_wordmark_pixels}, "
         f"prompt_row={prompt_y}px, "
         f"cards={[f'{segment.start}-{segment.end}' for segment in prompt_segments]}, "
         f"card_height={prompt_card_height}px, "
