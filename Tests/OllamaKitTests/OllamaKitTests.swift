@@ -1,4 +1,3 @@
-import Dispatch
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -10,7 +9,7 @@ import Testing
 @Suite("OllamaKit compatibility")
 struct OllamaKitTests {
     @Test("chat publisher starts the HTTP request and publishes decoded stream values")
-    func chatPublisherStartsHTTPRequest() {
+    func chatPublisherStartsHTTPRequest() async throws {
         let transport = FakeOllamaTransport(routes: [
             "/api/chat": (
                 200,
@@ -35,7 +34,6 @@ struct OllamaKitTests {
         request.options = OKCompletionOptions(temperature: 0)
 
         let lock = NSLock()
-        let done = DispatchSemaphore(value: 0)
         var values: [OKChatResponse] = []
         var finished = false
         var failure: Error?
@@ -49,14 +47,18 @@ struct OllamaKitTests {
                         failure = error
                     }
                 }
-                done.signal()
             } receiveValue: { response in
                 lock.withLock {
                     values.append(response)
                 }
             }
 
-        #expect(done.wait(timeout: .now() + 2) == .success)
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline {
+            let complete = lock.withLock { finished || failure != nil }
+            if complete { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
         cancellable.cancel()
 
         let capturedValues = lock.withLock { values }
