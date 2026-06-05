@@ -2,9 +2,15 @@
 
 QuillUI should prove itself against real open-source Swift apps that stress different parts of the Apple stack.
 
+Current release focus: Enchanted / Quill Chat. The other app targets are
+conformance clients until Enchanted is credible as an installable Linux app.
+When an app target exposes a generic SwiftUI, AppKit, SwiftData, rendering, or
+platform-service gap, the fix should move into Quill libraries rather than
+remaining app-specific.
+
 ## 1. Enchanted
 
-Status: active first port. Compile-green hard-gated on macOS CI; full upstream gluonfield/enchanted source tree compiles + links + backend-renders end-to-end on Linux via the QuillUI / SwiftOpenUI / QuillFoundation / QuillAppKit / QuillDataMacros + 22-shim compatibility layer (CP80). Enchanted's canonical Qt row now compiles through the explicit Qt manifest graph and dedicated Enchanted Qt native host while the full SwiftUI tree remains on the GTK path.
+Status: first polished release target. Compile-green hard-gated on macOS CI; full upstream gluonfield/enchanted source tree compiles + links + backend-renders end-to-end on Linux via the QuillUI / SwiftOpenUI / QuillFoundation / QuillAppKit / QuillDataMacros + 22-shim compatibility layer (CP80). Enchanted's canonical Qt row now compiles through the explicit Qt manifest graph and dedicated Enchanted Qt native host while the full SwiftUI tree remains on the GTK path.
 
 Why it matters:
 
@@ -15,6 +21,7 @@ Current approach:
 
 - Build a reusable `QuillUI` facade and `QuillData` persistence layer while keeping app-specific changes small.
 - Keep moving Enchanted-only stand-ins back into reusable QuillUI controls and shims.
+- Treat [docs/enchanted-release-plan.md](enchanted-release-plan.md) as the release gate before promoting another app as the public proof point.
 
 ## 2. IceCubes
 
@@ -58,7 +65,7 @@ Why it matters:
 
 - It is a focused Apple app with settings, tunnel state, configuration import/export, key material handling, and privileged system integration.
 - It should be a relatively contained way to test QuillUI forms, lists, disclosure sections, file import/export, QR/config flows, and service-status UI.
-- The Linux app should not try to clone Apple's NetworkExtension stack. The likely Linux path is an adapter over installed WireGuard tooling or NetworkManager, with the Apple-specific tunnel implementation hidden behind a reusable service boundary.
+- The Linux app should not try to recreate Apple's NetworkExtension stack. The likely Linux path is an adapter over installed WireGuard tooling or NetworkManager, with the Apple-specific tunnel implementation hidden behind a reusable service boundary.
 
 Next milestone:
 
@@ -85,7 +92,7 @@ Likely first milestone:
 
 Status: compile-green hard-gated. Fixtures-only conversation shell shipped (CP85 + CP89 + CP92) — NavigationSplitView with sidebar list of seeded `Conversation`s, scrollable message timeline with rounded bubbles, and a functional `ChatComposer` (TextField + Send) that appends new self-messages to the active conversation. Bubble / sidebar-row / sidebar-list / timeline / composer chrome shared with Telegram via `QuillChatKit` (CP90 + CP96 + CP128). `QuillSignalCoreTests` (10 tests) pin fixture invariants, ChatMessage routing, and ChatListItem sidebar routing. The full libsignal / RingRTC / GRDB stack stays a follow-up.
 
-A process-local `Security` surface now covers `SecRandomCopyBytes` for Signal-style key-material generation, `SecKeyCreateWithData` imports, `SecKeyCreateRandomKey`, `SecKeyGeneratePair`, `SecKeyCopyPublicKey`, `SecKeyGetBlockSize`, `SecKeyCopyAttributes`, `SecKeyCopyExternalRepresentation`, metadata-gated `SecKeyIsAlgorithmSupported`, deterministic ECDSA message/digest `SecKeyCreateSignature` and `SecKeyVerifySignature` compatibility, deterministic symmetric ECDH `SecKeyCopyKeyExchangeResult` compatibility with requested-size/shared-info parameters, synthesized `SecKey` references for stored and generated key-class data, plus `SecItem` generic-password, internet-password, and key-class add/copy/update/delete, duplicate detection, returned attributes/data, persistent-reference handles, access-control metadata, authentication/use query controls, access-group namespace filters, synchronizable filters, `kSecAttrSynchronizableAny` matching, server/protocol/authentication/port/path endpoint separation, key-item application-tag/application-label/key-class/key-type/key-size/capability metadata, and match-all queries. The `KeychainSwift` clone also exposes upstream-shaped UTF-8 string bytes, raw data bytes, single-byte bool storage, `getData(_:asReference:)`, `allKeys`, prefix/access-group/synchronizable namespaces, accessibility options, namespace clear behavior, and `lastResultCode` tracking so future libsignal/account storage code has a Linux source target. Native secure persistence, OS-enforced access-control policy, real keychain sharing, real synchronization, cross-process keychain behavior, native key validation/handles, native cryptographic key generation, cryptographically valid sign/verify, native/cryptographically valid key agreement, and Secure Enclave behavior remain blockers.
+A process-local `Security` surface now covers `SecRandomCopyBytes` for Signal-style key-material generation, `SecKeyCreateWithData` imports, `SecKeyCreateRandomKey`, `SecKeyGeneratePair`, `SecKeyCopyPublicKey`, `SecKeyGetBlockSize`, `SecKeyCopyAttributes`, `SecKeyCopyExternalRepresentation`, metadata-gated `SecKeyIsAlgorithmSupported`, deterministic ECDSA message/digest `SecKeyCreateSignature` and `SecKeyVerifySignature` compatibility, deterministic symmetric ECDH `SecKeyCopyKeyExchangeResult` compatibility with requested-size/shared-info parameters, synthesized `SecKey` references for stored and generated key-class data, plus `SecItem` generic-password, internet-password, and key-class add/copy/update/delete, duplicate detection, returned attributes/data, persistent-reference handles, access-control metadata, authentication/use query controls, access-group namespace filters, synchronizable filters, `kSecAttrSynchronizableAny` matching, server/protocol/authentication/port/path endpoint separation, key-item application-tag/application-label/key-class/key-type/key-size/capability metadata, and match-all queries. The `KeychainSwift` compatibility surface also exposes upstream-shaped UTF-8 string bytes, raw data bytes, single-byte bool storage, `getData(_:asReference:)`, `allKeys`, prefix/access-group/synchronizable namespaces, accessibility options, namespace clear behavior, and `lastResultCode` tracking so future libsignal/account storage code has a Linux source target. Native secure persistence, OS-enforced access-control policy, real keychain sharing, real synchronization, cross-process keychain behavior, native key validation/handles, native cryptographic key generation, cryptographically valid sign/verify, native/cryptographically valid key agreement, and Secure Enclave behavior remain blockers.
 
 Why it matters:
 
