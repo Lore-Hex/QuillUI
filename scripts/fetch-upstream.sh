@@ -392,6 +392,22 @@ print("patched ConfTextColorTheme.swift to import WireGuardHighlighterC")
 PY
     fi
 
+    # ConfTextStorage (NSTextStorage subclass) runs the highlighter C
+    # (highlight_config / highlight_type / HighlightEnd) over the wg-quick text, so
+    # it needs `import WireGuardHighlighterC`.
+    local cts="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/View/ConfTextStorage.swift"
+    if [[ -f "$cts" ]] && ! grep -q '^import WireGuardHighlighterC' "$cts"; then
+        echo "==> patching ConfTextStorage.swift to import WireGuardHighlighterC"
+        python3 - "$cts" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('import Cocoa\n', 'import Cocoa\nimport WireGuardHighlighterC\n', 1)
+open(path, "w").write(src)
+print("patched ConfTextStorage.swift to import WireGuardHighlighterC")
+PY
+    fi
+
     # Break the SwiftPM modularity wall for the model layer: the wg-quick parser
     # methods (asWgQuickConfig / init(fromWgQuickConfig:)) live in the
     # QuillWireGuardUpstreamConfig target but are `internal`, so the conformance
