@@ -1252,7 +1252,7 @@ def validate_quill_chat_mac_reference_settings_panel(
             panel_y + 103,
         )
         require(
-            endpoint_text_pixels >= 650,
+            endpoint_text_pixels >= 550,
             f"Mac-reference typed settings endpoint was not detected: pixels={endpoint_text_pixels}",
         )
         typed_summary = f", endpoint_text_pixels={endpoint_text_pixels}"

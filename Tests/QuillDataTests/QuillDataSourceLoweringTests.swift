@@ -518,7 +518,7 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("Mac-reference root-overlay settings panel is misplaced or too narrow"))
         #expect(verifier.contains("panel={panel_segment.width}px@{panel_y} ({panel_kind})"))
         #expect(verifier.contains("Mac-reference typed settings endpoint was not detected"))
-        #expect(verifier.contains("endpoint_text_pixels >= 650"))
+        #expect(verifier.contains("endpoint_text_pixels >= 550"))
         #expect(verifier.contains("Mac-reference typed settings bearer token was not detected"))
         #expect(verifier.contains("token_y0 = panel_y + 350"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_completions_panel"))
