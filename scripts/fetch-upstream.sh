@@ -380,6 +380,38 @@ print("patched StatusMenu showManageTunnelsWindow completion @MainActor")
 PY
     fi
 
+    # TunnelsTracker is a plain (nonisolated) class implementing TunnelsManager's
+    # list/activation delegates, but those callbacks touch @MainActor UI:
+    # ManageTunnelsRootViewController.tunnelsListVC + .view (the VC is @MainActor) and
+    # the @MainActor-patched ErrorPresenter.showErrorAlert. The delegate protocols can't
+    # be made @MainActor (that cascades into TunnelsManager's many nonisolated call
+    # sites), so wrap the @MainActor work in MainActor.assumeIsolated — these callbacks
+    # fire on the main thread (and the conformance target is compile-only). Idempotent.
+    local tt="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/TunnelsTracker.swift"
+    if [[ -f "$tt" ]] && ! grep -q 'MainActor.assumeIsolated' "$tt"; then
+        echo "==> patching TunnelsTracker.swift @MainActor delegate forwards (assumeIsolated)"
+        python3 - "$tt" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+for call in [
+    'manageTunnelsRootVC?.tunnelsListVC?.tunnelAdded(at: index)',
+    'manageTunnelsRootVC?.tunnelsListVC?.tunnelModified(at: index)',
+    'manageTunnelsRootVC?.tunnelsListVC?.tunnelMoved(from: oldIndex, to: newIndex)',
+    'manageTunnelsRootVC?.tunnelsListVC?.tunnelRemoved(at: index)',
+]:
+    src = src.replace(call, 'MainActor.assumeIsolated { ' + call + ' }')
+block = '''        if let manageTunnelsRootVC = manageTunnelsRootVC, manageTunnelsRootVC.view.window?.isVisible ?? false {
+            ErrorPresenter.showErrorAlert(error: error, from: manageTunnelsRootVC)
+        } else {
+            ErrorPresenter.showErrorAlert(error: error, from: nil)
+        }'''
+src = src.replace(block, '        MainActor.assumeIsolated {\n' + block + '\n        }')
+open(path, "w").write(src)
+print("patched TunnelsTracker.swift @MainActor delegate forwards")
+PY
+    fi
+
     # TunnelListRow is dequeued by TunnelsListTableViewController, so it must conform
     # to QuillReusableView (init() requirement) with a `required init()` (the B-wall
     # protocol, like LogViewCell).
