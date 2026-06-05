@@ -43,6 +43,9 @@ jobs:
       QUILLUI_SKIP_APT: "1"
       QUILLUI_BACKEND_MAC_REFERENCE: "1"
       QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted
+      # Match Linux CI's tuned guard floor. The default 12 GiB threshold can
+      # fail after the generated Enchanted build on otherwise healthy runners.
+      QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB: "6"
 
     steps:
       - name: Checkout
