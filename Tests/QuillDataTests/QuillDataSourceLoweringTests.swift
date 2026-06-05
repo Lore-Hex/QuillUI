@@ -726,6 +726,29 @@ struct QuillDataSourceLoweringTests {
         #expect(emptyConversationRule.contains("Text(\"Quill\")"))
         #expect(emptyConversationRule.contains("brandTitle: \"Quill\""))
 
+        let sidebarTemplate = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/SidebarView.swift"),
+            encoding: .utf8
+        )
+        #expect(sidebarTemplate.contains("ConversationHistoryList("))
+        #expect(sidebarTemplate.contains(".padding(.top, 88)"))
+        #expect(!sidebarTemplate.contains("Text(\"New chat\")"))
+        #expect(!sidebarTemplate.contains("Color(red: 0.259, green: 0.522, blue: 0.957)"))
+
+        let historyTemplate = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/Components/ConversationHistoryListView.swift"),
+            encoding: .utf8
+        )
+        #expect(historyTemplate.contains("struct ConversationGroup: Hashable"))
+        #expect(historyTemplate.contains("conversationGroup.date.daysAgoString()"))
+        #expect(historyTemplate.contains("Circle()"))
+        #expect(historyTemplate.contains("if selectedConversation == dailyConversation"))
+        #expect(!historyTemplate.contains(".showIf("))
+        #expect(historyTemplate.contains(".frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)"))
+        #expect(historyTemplate.contains(".contentShape(Rectangle())"))
+        #expect(historyTemplate.contains(".onTapGesture { onTap(dailyConversation) }"))
+        #expect(!historyTemplate.contains("QuillConversationHistoryList("))
+
         let unreachableRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/UnreachableAPIView.swift.pl"),
             encoding: .utf8
@@ -739,7 +762,10 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(conversationStoreRule.contains("if !currentMessageBuffer.isEmpty"))
         #expect(conversationStoreRule.contains("lastMesasge.content.append(currentMessageBuffer)"))
-        #expect(conversationStoreRule.contains("self.messages = conversation.messages.sorted"))
+        #expect(conversationStoreRule.contains("var pendingMessages = conversation.messages.sorted"))
+        #expect(conversationStoreRule.contains("pendingMessages.append(userMessage)"))
+        #expect(conversationStoreRule.contains("pendingMessages.append(assistantMessage)"))
+        #expect(conversationStoreRule.contains("self.messages = pendingMessages.sorted"))
         #expect(conversationStoreRule.contains("self.selectedConversation = conversation"))
         #expect(conversationStoreRule.contains("let currentUserRequestMessage = OKChatRequestData.Message"))
         #expect(conversationStoreRule.contains("!messageHistory.contains(where: { \\$0.role == .user && \\$0.content == userPrompt })"))

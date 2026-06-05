@@ -14,7 +14,14 @@ s~        let assistantMessage = MessageSD\(content: "", role: "assistant"\)
         conversationState = \.loading~        let assistantMessage = MessageSD(content: "", role: "assistant")
         assistantMessage.conversation = conversation
 
-        self.messages = conversation.messages.sorted{\$0.createdAt < \$1.createdAt}
+        var pendingMessages = conversation.messages.sorted{\$0.createdAt < \$1.createdAt}
+        if !pendingMessages.contains(where: { \$0.id == userMessage.id }) {
+            pendingMessages.append(userMessage)
+        }
+        if !pendingMessages.contains(where: { \$0.id == assistantMessage.id }) {
+            pendingMessages.append(assistantMessage)
+        }
+        self.messages = pendingMessages.sorted{\$0.createdAt < \$1.createdAt}
         self.selectedConversation = conversation
         
         conversationState = .loading~g;
@@ -30,8 +37,6 @@ s~        print\(messageHistory\.map\(\{\$0\.content\}\)\)~        let currentUs
         print(messageHistory.map({\$0.content}))~g;
 
 s~            try await reloadConversation\(conversation\)
-            try\? await loadConversations\(\)
+            try\? await loadConversations\(\)~            Task { try? await self.loadConversations() }~g;
 
-            if await OllamaService\.shared\.ollamaKit\.reachable\(\) \{~            Task { try? await self.loadConversations() }
-
-            if await OllamaService.shared.ollamaKit.reachable() {~g;
+s~            if await OllamaService\.shared\.ollamaKit\.reachable\(\) \{~            if await OllamaService.shared.ollamaKit.reachable() {~g;

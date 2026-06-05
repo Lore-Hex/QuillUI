@@ -26,26 +26,6 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Primary "New chat" action — matches the macOS Enchanted sidebar
-            // (a full-width accent-blue button at the sidebar top, above the
-            // conversation list). Color is the Enchanted accent #4285F4.
-            Button(action: onNewConversationTap) {
-                HStack(spacing: 8) {
-                    Image(systemName: "square.and.pencil")
-                    Text("New chat")
-                        .fontWeight(.semibold)
-                    Spacer()
-                }
-                .foregroundColor(.white)
-                .padding(.vertical, 12)
-                .padding(.horizontal, 14)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .background(Color(red: 0.259, green: 0.522, blue: 0.957))
-                .cornerRadius(10)
-            }
-            .buttonStyle(.plain)
-            .padding(.bottom, 16)
-
             ConversationHistoryList(
                 selectedConversation: selectedConversation,
                 conversations: conversations,
@@ -68,7 +48,7 @@ struct SidebarView: View {
             .frame(maxWidth: .infinity, minHeight: 146, alignment: .topLeading)
         }
         .padding(.horizontal, 18)
-        .padding(.top, 74)
+        .padding(.top, 88)
         .padding(.bottom, 18)
 #if (os(macOS) || os(Linux))
         .focusedSceneValue(\.showSettings, $showSettings)
