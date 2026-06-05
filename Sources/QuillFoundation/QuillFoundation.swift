@@ -192,7 +192,9 @@ public final class CGContext {
     public func drawRadialGradient(_ gradient: Any?, startCenter: CGPoint, startRadius: CGFloat, endCenter: CGPoint, endRadius: CGFloat, options: CGGradientDrawingOptions) {}
 }
 
-public class RSImage: NSObject, @unchecked Sendable {
+// `open` (not just `public`) so framework shims can subclass it — e.g.
+// SDWebImage's SDAnimatedImage: UIImage. On Apple, UIImage/NSImage are open too.
+open class RSImage: NSObject, @unchecked Sendable {
     public override init() {}
     public init?(data: Data) {
         super.init()
