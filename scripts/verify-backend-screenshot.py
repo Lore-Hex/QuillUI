@@ -1096,7 +1096,7 @@ def validate_quill_chat_mac_reference_settings_panel(
     require(app_width >= 1800, f"Settings interaction window is too narrow: {app_width}px")
     require(app_height >= 1200, f"Settings interaction window is too short: {app_height}px")
 
-    panel = best_horizontal_segment(
+    legacy_panel = best_horizontal_segment(
         image,
         top + 36,
         top + 72,
@@ -1105,19 +1105,40 @@ def validate_quill_chat_mac_reference_settings_panel(
         settings_panel_background_pixel,
         min_width=int(app_width * 0.35),
     )
+    panel_kind = "legacy"
+    panel = legacy_panel
+    if panel is None or panel[1].start > left + 4:
+        panel_kind = "root-overlay"
+        panel = best_horizontal_segment(
+            image,
+            top + int(app_height * 0.18),
+            top + int(app_height * 0.72),
+            left + int(app_width * 0.20),
+            right + 1,
+            settings_panel_background_pixel,
+            min_width=int(app_width * 0.35),
+        )
     require(panel is not None, "Mac-reference settings panel background was not detected")
     panel_y, panel_segment = panel
-    require(
-        panel_segment.start <= left + 4 and panel_segment.width >= app_width * 0.39,
-        f"Mac-reference settings panel is misplaced or too narrow: {panel_segment}",
-    )
+    if panel_kind == "legacy":
+        require(
+            panel_segment.start <= left + 4 and panel_segment.width >= app_width * 0.39,
+            f"Mac-reference settings panel is misplaced or too narrow: {panel_segment}",
+        )
+    else:
+        detail_center = (left + right) / 2
+        require(
+            abs(panel_segment.center - detail_center) <= app_width * 0.18
+            and panel_segment.width >= app_width * 0.35,
+            f"Mac-reference root-overlay settings panel is misplaced or too narrow: {panel_segment}",
+        )
 
     header_dark_pixels = dark_pixel_count(
         image,
         panel_segment.start,
-        top,
+        max(top, panel_y - 44),
         panel_segment.end + 1,
-        top + 36,
+        panel_y + 36,
     )
     require(
         header_dark_pixels >= 90,
@@ -1127,9 +1148,9 @@ def validate_quill_chat_mac_reference_settings_panel(
     field_pixels = pixel_count(
         image,
         panel_segment.start + 20,
-        top + 80,
+        panel_y + 50,
         panel_segment.end - 20,
-        top + 430,
+        panel_y + 430,
         form_field_pixel,
     )
     require(
@@ -1140,9 +1161,9 @@ def validate_quill_chat_mac_reference_settings_panel(
     body_dark_pixels = dark_pixel_count(
         image,
         panel_segment.start + 18,
-        top + 80,
+        panel_y + 50,
         panel_segment.end - 18,
-        top + 450,
+        panel_y + 450,
     )
     require(
         body_dark_pixels >= 1_000,
@@ -1167,9 +1188,9 @@ def validate_quill_chat_mac_reference_settings_panel(
         endpoint_text_pixels = dark_pixel_count(
             image,
             panel_segment.start + 30,
-            top + 88,
+            panel_y + 58,
             min(panel_segment.end, panel_segment.start + 560),
-            top + 123,
+            panel_y + 103,
         )
         require(
             endpoint_text_pixels >= 300,
@@ -1180,7 +1201,7 @@ def validate_quill_chat_mac_reference_settings_panel(
     return (
         "Quill Chat Mac-reference settings panel: "
         f"app={app_width}x{app_height}, "
-        f"panel={panel_segment.width}px@{panel_y}, "
+        f"panel={panel_segment.width}px@{panel_y} ({panel_kind}), "
         f"header_pixels={header_dark_pixels}, "
         f"field_pixels={field_pixels}, "
         f"body_pixels={body_dark_pixels}, "
