@@ -584,6 +584,26 @@ or, better, remove the need for module `X`.
 - **Shim files (Sources/UIKitShim, Sources/<Fw>) are direct-edit -- NOT symlinked.**
   Only Sources/SignalServiceKitObjCPort/*.swift are symlinked into QuillPort (and
   need touch+link-ports.sh after edits). Editing a shim is a plain Edit + rebuild.
+- **Filling a placeholder framework shim (high-yield, low-risk):** an empty
+  Sources/AppleFrameworkShims/<Fw> stub leaves every type cannot-find. READ the
+  (often single) consumer first, then fill the shim with inert value-holders
+  mirroring its exact usage: init param order = call-site order; methods return
+  []/nil/false. UserNotifications (-1.7k) from the lone UserNotificationsPresenter
+  -- center drops requests, delivered/pending lists empty, requestAuthorization
+  reports NOT granted (honest: nothing is presented on Linux). NSDataDetector
+  (same module via a QuillPort file, matches()->[]) and UIEdgeInsets (-0.4k)
+  follow the same shape. Mark model classes `@unchecked Sendable`; a static-let
+  of a non-Sendable class needs `nonisolated(unsafe)`.
+- **Duplicate-type ambiguity across two shims -> consolidate + re-export:** a type
+  declared in BOTH a core module (QuillUIKit) AND a dedicated framework shim makes
+  any file importing both fail with `X is ambiguous for type lookup`, and that
+  cascades (downstream contextual-type + keypath-inference failures that look
+  unrelated). Fix: keep ONE authoritative declaration (the dedicated shim), DELETE
+  the duplicate, and have the umbrella module re-export the shim
+  (`@_exported import <Fw>` in UIKitShim + add the dep in Package.swift) so
+  import-umbrella-only callers still resolve it. One correct consolidation clears
+  the whole cascade, not just the ambiguous line (UN dedup: 41,371 -> 41,079 even
+  though only ~6 lines named the type). Touches shared infra -> swarm-sync to main.
 
 ---
 
