@@ -456,6 +456,39 @@ or, better, remove the need for module `X`.
   Payments (~3k occ) mixed-language dirs + unported TS*/OWS* interaction
   subclasses (OWSRecoverableDecryptionPlaceholder, TSCall, ...).
 
+### Track B subclass-port mechanics (2026-06, cont.)
+
+- **Port symlinks MUST be relative.** A port lives in
+  `Sources/SignalServiceKitObjCPort/Quill<Name>.swift` and is symlinked into
+  `<SSK>/QuillPort/`. The link target MUST be relative
+  (`../../../../Sources/SignalServiceKitObjCPort/<base>`): an ABSOLUTE symlink
+  compiles standalone but SSK still reports `cannot find type` because the build
+  container mounts the repo at a different path. `scripts/quill-signal-link-ports.sh`
+  (re)creates all links correctly -- run it after adding a port, and on fetch.
+- **Subclass-port override rules** (learned porting the TS*/OWS* interaction
+  subclasses): (a) if the subclass's SDS `init(grdbId:...)` has the SAME
+  signature as its base's -> it OVERRIDES, needs `public override init`; if it
+  adds columns (different signature) -> NO override. (b) `init?(coder:)` is
+  `@available(*, unavailable)` (fatalError) for any TSMessage/TSInfoMessage/
+  TSErrorMessage subclass -- "not NSCoder-archived"; `init()` likewise. (c) a new
+  readonly property is NOT an override unless the base actually declares it --
+  the FRESH-build error is authoritative ("does not override" -> drop `override`;
+  "requires an override keyword" -> add it). (d) port BOTH the SDS designated
+  init (interaction deserializers, e.g. TSInteraction+SDS.swift) AND any thread/
+  builder init that has Swift call sites; check call sites with
+  `grep -A1 'ClassName($'` (constructions are newline-formatted). Omit builder
+  inits with zero Swift callers.
+- **Build staleness after editing a symlinked port:** swift incremental can
+  serve a STALE compile -- the giveaway is an error citing a line number that no
+  longer matches the file. Bust it: `touch` the Sources file AND rm+ln-recreate
+  the symlink (link-ports.sh does the latter), then rebuild. Trust only a build
+  whose error lines match the current file.
+- **Ports landed:** OWSOutgoingArchivedPaymentMessage, OWSRecoverableDecryption
+  Placeholder (-1,242), OWSDisappearingConfigurationUpdateInfoMessage (-706),
+  OWSVerificationStateChangeMessage (-1,759). One TSInfoMessage/TSErrorMessage
+  subclass port = ~700-1,800 errors cleared. TSCall is in the EXCLUDED Calls/
+  dir -> not a simple port (part of the mixed-language band).
+
 ---
 
 ## Pointers
