@@ -360,6 +360,38 @@ print("patched ImportPanelPresenter @MainActor")
 PY
     fi
 
+    # TunnelListRow is dequeued by TunnelsListTableViewController, so it must conform
+    # to QuillReusableView (init() requirement) with a `required init()` (the B-wall
+    # protocol, like LogViewCell).
+    local tlr="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/View/TunnelListRow.swift"
+    if [[ -f "$tlr" ]] && ! grep -q 'QuillReusableView' "$tlr"; then
+        echo "==> patching TunnelListRow.swift to conform to QuillReusableView (required init)"
+        python3 - "$tlr" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('class TunnelListRow: NSView {', 'class TunnelListRow: NSView, QuillReusableView {', 1)
+src = src.replace('    init() {', '    required init() {', 1)
+open(path, "w").write(src)
+print("patched TunnelListRow.swift for QuillReusableView")
+PY
+    fi
+
+    # ConfTextColorTheme keys its color map by the highlighter C span types
+    # (HighlightSection etc.), so it needs `import WireGuardHighlighterC`.
+    local cct="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/View/ConfTextColorTheme.swift"
+    if [[ -f "$cct" ]] && ! grep -q '^import WireGuardHighlighterC' "$cct"; then
+        echo "==> patching ConfTextColorTheme.swift to import WireGuardHighlighterC"
+        python3 - "$cct" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('import Cocoa\n', 'import Cocoa\nimport WireGuardHighlighterC\n', 1)
+open(path, "w").write(src)
+print("patched ConfTextColorTheme.swift to import WireGuardHighlighterC")
+PY
+    fi
+
     # Break the SwiftPM modularity wall for the model layer: the wg-quick parser
     # methods (asWgQuickConfig / init(fromWgQuickConfig:)) live in the
     # QuillWireGuardUpstreamConfig target but are `internal`, so the conformance
