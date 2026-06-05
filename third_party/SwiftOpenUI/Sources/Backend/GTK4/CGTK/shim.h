@@ -69,6 +69,26 @@ gtk_swift_label_get_use_markup(GtkWidget *label) {
     return gtk_label_get_use_markup(GTK_LABEL(label));
 }
 
+// --- Accessibility shims ---
+
+static inline void
+gtk_swift_accessible_update_label(GtkWidget *widget, const char *label) {
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(widget),
+        GTK_ACCESSIBLE_PROPERTY_LABEL,
+        label ? label : "",
+        -1);
+}
+
+static inline void
+gtk_swift_accessible_update_description(GtkWidget *widget, const char *description) {
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(widget),
+        GTK_ACCESSIBLE_PROPERTY_DESCRIPTION,
+        description ? description : "",
+        -1);
+}
+
 // --- Widget type shims ---
 
 static inline gboolean
@@ -179,6 +199,8 @@ g_object_set_double(gpointer object, const char *property, double value) {
 
 static inline void
 gtk_swift_add_gesture(GtkWidget *widget, GtkGesture *gesture) {
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_BUBBLE);
+    gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE);
     gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
 }
 

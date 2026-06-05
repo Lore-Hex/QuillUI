@@ -10,6 +10,10 @@ public enum ButtonStyleType: Equatable {
     case bordered
     /// Filled/prominent background.
     case borderedProminent
+    /// QuillPaint macOS default button chrome.
+    case quillPaintMacDefault
+    /// QuillPaint macOS bordered button chrome.
+    case quillPaintMacBordered
 }
 
 struct ButtonStyleKey: EnvironmentKey {

@@ -539,7 +539,7 @@ extension Button: GTKRenderable, GTKDescribable {
                 min-width: 0;
                 text-shadow: none;
                 """)
-        case .borderedProminent:
+        case .borderedProminent, .quillPaintMacDefault:
             // Concrete macOS-like accent blue with explicit overrides of
             // GTK's default button gradient and inset shadow, both of which
             // stack on top of `background-color` and render it invisible
@@ -573,7 +573,7 @@ extension Button: GTKRenderable, GTKDescribable {
                     color: rgba(255, 255, 255, 0.7);
                     """
             )
-        case .bordered:
+        case .bordered, .quillPaintMacBordered:
             applyCSSToWidget(button, properties: """
                 border: 1px solid @borders; border-radius: 6px;
                 padding: 6px 12px;

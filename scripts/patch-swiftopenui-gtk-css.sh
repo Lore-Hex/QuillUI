@@ -1560,7 +1560,17 @@ private struct GTKPendingScrollRequest {
     let anchor: UnitPoint?
 }
 
+private var gtkScrollTargetRegistry: [AnyHashable: UnsafeMutablePointer<GtkWidget>] = [:]
 private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest] = [:]
+
+private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
+    g_object_ref(gpointer(widget))
+    if let previous = gtkScrollTargetRegistry.updateValue(widget, forKey: id) {
+        g_object_unref(gpointer(previous))
+    }
+    registerViewID(id, element: widget)
+    gtkResolvePendingScrollTo(id: id, widget: widget)
+}
 
 private func gtkClampScrollValue(_ value: Double, lower: Double, upper: Double) -> Double {
     return min(max(value, lower), upper)
@@ -1650,14 +1660,10 @@ private func gtkApplyOrScheduleScrollTo(_ widget: UnsafeMutablePointer<GtkWidget
 }
 
 private func gtkResolveOrQueueScrollTo(id: AnyHashable, anchor: UnitPoint?) {
-    guard
-        let widget = lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>,
-        gtk_swift_is_widget(widget) != 0
-    else {
-        gtkPendingScrollRequests[id] = GTKPendingScrollRequest(anchor: anchor)
-        return
-    }
-    gtkApplyOrScheduleScrollTo(widget, anchor: anchor)
+    let request = GTKPendingScrollRequest(anchor: anchor)
+    gtkPendingScrollRequests[id] = request
+    guard let widget = gtkScrollTargetRegistry[id] else { return }
+    gtkResolvePendingScrollTo(id: id, widget: widget)
 }
 
 private func gtkResolvePendingScrollTo(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
@@ -1683,7 +1689,17 @@ private struct GTKPendingScrollRequest {
     let anchor: UnitPoint?
 }
 
+private var gtkScrollTargetRegistry: [AnyHashable: UnsafeMutablePointer<GtkWidget>] = [:]
 private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest] = [:]
+
+private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
+    g_object_ref(gpointer(widget))
+    if let previous = gtkScrollTargetRegistry.updateValue(widget, forKey: id) {
+        g_object_unref(gpointer(previous))
+    }
+    registerViewID(id, element: widget)
+    gtkResolvePendingScrollTo(id: id, widget: widget)
+}
 
 private func gtkClampScrollValue(_ value: Double, lower: Double, upper: Double) -> Double {
     return min(max(value, lower), upper)
@@ -1773,14 +1789,10 @@ private func gtkApplyOrScheduleScrollTo(_ widget: UnsafeMutablePointer<GtkWidget
 }
 
 private func gtkResolveOrQueueScrollTo(id: AnyHashable, anchor: UnitPoint?) {
-    guard
-        let widget = lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>,
-        gtk_swift_is_widget(widget) != 0
-    else {
-        gtkPendingScrollRequests[id] = GTKPendingScrollRequest(anchor: anchor)
-        return
-    }
-    gtkApplyOrScheduleScrollTo(widget, anchor: anchor)
+    let request = GTKPendingScrollRequest(anchor: anchor)
+    gtkPendingScrollRequests[id] = request
+    guard let widget = gtkScrollTargetRegistry[id] else { return }
+    gtkResolvePendingScrollTo(id: id, widget: widget)
 }
 
 private func gtkResolvePendingScrollTo(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
@@ -1825,12 +1837,42 @@ private struct GTKPendingScrollRequest {
     let anchor: UnitPoint?
 }
 
+private var gtkScrollTargetRegistry: [AnyHashable: UnsafeMutablePointer<GtkWidget>] = [:]
 private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest] = [:]
+
+private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
+    g_object_ref(gpointer(widget))
+    if let previous = gtkScrollTargetRegistry.updateValue(widget, forKey: id) {
+        g_object_unref(gpointer(previous))
+    }
+    registerViewID(id, element: widget)
+    gtkResolvePendingScrollTo(id: id, widget: widget)
+}
 
 '''
     if old_scroll_context_init not in text:
         raise SystemExit("SwiftOpenUI ScrollViewReader context upgrade shape was not recognized")
     text = text.replace(old_scroll_context_init, new_scroll_context_init, 1)
+if "gtkScrollTargetRegistry" not in text:
+    old_scroll_registry = '''private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest] = [:]
+
+'''
+    new_scroll_registry = '''private var gtkScrollTargetRegistry: [AnyHashable: UnsafeMutablePointer<GtkWidget>] = [:]
+private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest] = [:]
+
+private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
+    g_object_ref(gpointer(widget))
+    if let previous = gtkScrollTargetRegistry.updateValue(widget, forKey: id) {
+        g_object_unref(gpointer(previous))
+    }
+    registerViewID(id, element: widget)
+    gtkResolvePendingScrollTo(id: id, widget: widget)
+}
+
+'''
+    if old_scroll_registry not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader GTK target registry shape was not recognized")
+    text = text.replace(old_scroll_registry, new_scroll_registry, 1)
 if "context.remainingTicks -= 1" not in text:
     text = text.replace(
         '''    gtkApplyScrollTo(context.target, anchor: context.anchor)
@@ -1971,6 +2013,19 @@ old_resolve_or_queue = '''private func gtkResolveOrQueueScrollTo(id: AnyHashable
 new_resolve_or_queue = '''private func gtkResolveOrQueueScrollTo(id: AnyHashable, anchor: UnitPoint?) {
     let request = GTKPendingScrollRequest(anchor: anchor)
     gtkPendingScrollRequests[id] = request
+    guard let widget = gtkScrollTargetRegistry[id] else { return }
+    gtkResolvePendingScrollTo(id: id, widget: widget)
+}
+
+'''
+if old_resolve_or_queue in text:
+    text = text.replace(old_resolve_or_queue, new_resolve_or_queue)
+elif "let request = GTKPendingScrollRequest(anchor: anchor)" not in text:
+    raise SystemExit("SwiftOpenUI ScrollViewReader request queue shape was not recognized")
+elif "lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>" in text:
+    stale_resolve_or_queue = '''private func gtkResolveOrQueueScrollTo(id: AnyHashable, anchor: UnitPoint?) {
+    let request = GTKPendingScrollRequest(anchor: anchor)
+    gtkPendingScrollRequests[id] = request
     guard
         let widget = lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>,
         gtk_swift_is_widget(widget) != 0
@@ -1979,10 +2034,9 @@ new_resolve_or_queue = '''private func gtkResolveOrQueueScrollTo(id: AnyHashable
 }
 
 '''
-if old_resolve_or_queue in text:
-    text = text.replace(old_resolve_or_queue, new_resolve_or_queue)
-elif "let request = GTKPendingScrollRequest(anchor: anchor)" not in text:
-    raise SystemExit("SwiftOpenUI ScrollViewReader request queue shape was not recognized")
+    if stale_resolve_or_queue not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader request queue stale-lookup shape was not recognized")
+    text = text.replace(stale_resolve_or_queue, new_resolve_or_queue)
 
 on_appear_helper = r'''
 private let gtkOnAppearTickCallback: GtkTickCallback = { _, _, userData in
@@ -2072,14 +2126,24 @@ old_id_view = '''extension IdView: GTKRenderable {
 new_id_view = '''extension IdView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
-        registerViewID(id, element: widget)
-        gtkResolvePendingScrollTo(id: AnyHashable(id), widget: widget)
+        gtkRegisterScrollTarget(id: AnyHashable(id), widget: widget)
         return opaqueFromWidget(widget)
     }
 }
 '''
 if "gtkResolvePendingScrollTo(id: AnyHashable(id), widget: widget)" not in text and old_id_view in text:
     text = text.replace(old_id_view, new_id_view, 1)
+elif "gtkResolvePendingScrollTo(id: AnyHashable(id), widget: widget)" in text:
+    old_patched_id_view = '''extension IdView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let widget = widgetFromOpaque(gtkRenderView(content))
+        registerViewID(id, element: widget)
+        gtkResolvePendingScrollTo(id: AnyHashable(id), widget: widget)
+        return opaqueFromWidget(widget)
+    }
+}
+'''
+    text = text.replace(old_patched_id_view, new_id_view, 1)
 
 old_on_appear_rebuild = '''        if !isRebuild {
             let boundAction = bindActionToCurrentEnvironment(action)
