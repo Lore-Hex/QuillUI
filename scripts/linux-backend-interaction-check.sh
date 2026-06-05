@@ -496,6 +496,27 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-quill-linux-token-12345}"
         sleep 1
         ;;
+      settings-ping-interval-typed)
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
+          ping_x="${QUILLUI_BACKEND_PING_CLICK_X:-650}"
+          ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-838}"
+        else
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
+          ping_x="${QUILLUI_BACKEND_PING_CLICK_X:-$((window_x + 120))}"
+          ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-$((window_y + 250))}"
+        fi
+        click_at "$settings_x" "$settings_y"
+        sleep 1
+        click_at "$ping_x" "$ping_y"
+        sleep 1
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
+        sleep 0.2
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-123456789012345}"
+        sleep 1
+        ;;
       completions-panel)
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           click_x="${QUILLUI_BACKEND_CLICK_X:-90}"

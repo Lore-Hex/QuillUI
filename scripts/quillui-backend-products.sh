@@ -545,6 +545,9 @@ quillui_backend_quill_chat_interaction_verify_product() {
     *:settings-bearer-token-typed)
       verify_product="quill-chat-linux-mac-reference-settings-bearer-token-typed"
       ;;
+    *:settings-ping-interval-typed)
+      verify_product="quill-chat-linux-mac-reference-settings-ping-interval-typed"
+      ;;
     *:completions-panel)
       verify_product="quill-chat-linux-mac-reference-completions-panel"
       ;;

@@ -120,6 +120,7 @@ jobs:
             settings-panel \
             settings-endpoint-typed \
             settings-bearer-token-typed \
+            settings-ping-interval-typed \
             completions-panel \
             history-selection \
             transcript-selection \

@@ -1148,6 +1148,7 @@ def validate_quill_chat_mac_reference_settings_panel(
     image: Screenshot,
     require_typed_endpoint: bool = False,
     require_typed_bearer_token: bool = False,
+    require_typed_ping_interval: bool = False,
 ) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1276,6 +1277,26 @@ def validate_quill_chat_mac_reference_settings_panel(
             f"Mac-reference typed settings bearer token was not detected: pixels={token_text_pixels}",
         )
         typed_summary += f", token_text_pixels={token_text_pixels}"
+
+    if require_typed_ping_interval:
+        if panel_kind == "root-overlay":
+            ping_y0 = panel_y + 384
+            ping_y1 = panel_y + 432
+        else:
+            ping_y0 = panel_y + 208
+            ping_y1 = panel_y + 257
+        ping_text_pixels = dark_pixel_count(
+            image,
+            panel_segment.start + 30,
+            ping_y0,
+            min(panel_segment.end, panel_segment.start + 560),
+            ping_y1,
+        )
+        require(
+            ping_text_pixels >= 140,
+            f"Mac-reference typed settings ping interval was not detected: pixels={ping_text_pixels}",
+        )
+        typed_summary += f", ping_text_pixels={ping_text_pixels}"
 
     return (
         "Quill Chat Mac-reference settings panel: "
@@ -3073,6 +3094,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_settings_panel(image, require_typed_endpoint=True))
     elif product == "quill-chat-linux-mac-reference-settings-bearer-token-typed":
         print(validate_quill_chat_mac_reference_settings_panel(image, require_typed_bearer_token=True))
+    elif product == "quill-chat-linux-mac-reference-settings-ping-interval-typed":
+        print(validate_quill_chat_mac_reference_settings_panel(image, require_typed_ping_interval=True))
     elif product == "quill-chat-linux-mac-reference-completions-panel":
         print(validate_quill_chat_mac_reference_completions_panel(image))
     elif product == "quill-chat-linux-mac-reference-history-selection":
