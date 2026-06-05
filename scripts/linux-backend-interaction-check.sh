@@ -231,13 +231,13 @@ enchanted_list_selection_y() {
 quill_chat_mac_reference_history_row_y() {
   case "$1" in
     recent-transcript)
-      printf '%s\n' "$((window_y + 507))"
+      printf '%s\n' "$((window_y + 540))"
       ;;
     markdown-transcript)
-      printf '%s\n' "$((window_y + 554))"
+      printf '%s\n' "$((window_y + 590))"
       ;;
     long-transcript)
-      printf '%s\n' "$((window_y + 598))"
+      printf '%s\n' "$((window_y + 638))"
       ;;
     *)
       echo "Unknown Quill Chat reference history row: $1" >&2

@@ -3396,6 +3396,13 @@ struct SourceHygieneTests {
     @Test("QuillSidebarNavigationButton uses native image symbols")
     func quillSidebarNavigationButtonUsesNativeImageSymbols() throws {
         let controls = try packageSource("Sources/QuillUI/Controls.swift")
+        #expect(controls.contains("public struct QuillDesktopSidebar<Content: View>: View"))
+        #expect(controls.contains("public var bottomActions: [QuillSidebarNavigationAction]"))
+        #expect(controls.contains("QuillSidebarBottomNavigation(actions: bottomActions)"))
+        #expect(controls.contains(".padding(.horizontal, 18)"))
+        #expect(controls.contains(".padding(.top, 88)"))
+        #expect(controls.contains(".padding(.bottom, 18)"))
+
         guard let buttonStart = controls.range(of: "public struct QuillSidebarNavigationButton: View"),
               let nextSection = controls.range(of: "public struct QuillStatusBanner: View") else {
             Issue.record("Unable to locate QuillSidebarNavigationButton source")

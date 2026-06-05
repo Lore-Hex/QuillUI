@@ -725,6 +725,35 @@ public struct QuillSidebarBottomNavigation: View {
     }
 }
 
+public struct QuillDesktopSidebar<Content: View>: View {
+    public var bottomActions: [QuillSidebarNavigationAction]
+    private var content: Content
+
+    public init(
+        bottomActions: [QuillSidebarNavigationAction],
+        @ViewBuilder content: () -> Content
+    ) {
+        self.bottomActions = bottomActions
+        self.content = content()
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            Divider()
+                .padding(.bottom, 24)
+
+            QuillSidebarBottomNavigation(actions: bottomActions)
+                .frame(maxWidth: .infinity, minHeight: 146, alignment: .topLeading)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 88)
+        .padding(.bottom, 18)
+    }
+}
+
 public struct QuillSidebarNavigationButton: View {
     public var title: String
     public var systemImage: String
