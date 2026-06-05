@@ -475,6 +475,23 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-http://127.0.0.1:11434}"
         sleep 1
         ;;
+      settings-bearer-token-typed)
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
+        else
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
+        fi
+        token_x="${QUILLUI_BACKEND_TOKEN_CLICK_X:-$((window_x + 120))}"
+        token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-$((window_y + 222))}"
+        click_at "$settings_x" "$settings_y"
+        sleep 1
+        click_at "$token_x" "$token_y"
+        sleep 1
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-quill-linux-token-12345}"
+        sleep 1
+        ;;
       completions-panel)
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           click_x="${QUILLUI_BACKEND_CLICK_X:-90}"

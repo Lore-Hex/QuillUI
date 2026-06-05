@@ -542,6 +542,9 @@ quillui_backend_quill_chat_interaction_verify_product() {
     *:settings-endpoint-typed)
       verify_product="quill-chat-linux-mac-reference-settings-endpoint-typed"
       ;;
+    *:settings-bearer-token-typed)
+      verify_product="quill-chat-linux-mac-reference-settings-bearer-token-typed"
+      ;;
     *:completions-panel)
       verify_product="quill-chat-linux-mac-reference-completions-panel"
       ;;

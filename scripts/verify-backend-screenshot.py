@@ -1147,6 +1147,7 @@ def validate_quill_chat_mac_reference_composer_typed(image: Screenshot) -> str:
 def validate_quill_chat_mac_reference_settings_panel(
     image: Screenshot,
     require_typed_endpoint: bool = False,
+    require_typed_bearer_token: bool = False,
 ) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1255,6 +1256,20 @@ def validate_quill_chat_mac_reference_settings_panel(
             f"Mac-reference typed settings endpoint was not detected: pixels={endpoint_text_pixels}",
         )
         typed_summary = f", endpoint_text_pixels={endpoint_text_pixels}"
+
+    if require_typed_bearer_token:
+        token_text_pixels = dark_pixel_count(
+            image,
+            panel_segment.start + 30,
+            panel_y + 174,
+            min(panel_segment.end, panel_segment.start + 560),
+            panel_y + 222,
+        )
+        require(
+            token_text_pixels >= 250,
+            f"Mac-reference typed settings bearer token was not detected: pixels={token_text_pixels}",
+        )
+        typed_summary += f", token_text_pixels={token_text_pixels}"
 
     return (
         "Quill Chat Mac-reference settings panel: "
@@ -3050,6 +3065,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_settings_panel(image))
     elif product == "quill-chat-linux-mac-reference-settings-endpoint-typed":
         print(validate_quill_chat_mac_reference_settings_panel(image, require_typed_endpoint=True))
+    elif product == "quill-chat-linux-mac-reference-settings-bearer-token-typed":
+        print(validate_quill_chat_mac_reference_settings_panel(image, require_typed_bearer_token=True))
     elif product == "quill-chat-linux-mac-reference-completions-panel":
         print(validate_quill_chat_mac_reference_completions_panel(image))
     elif product == "quill-chat-linux-mac-reference-history-selection":

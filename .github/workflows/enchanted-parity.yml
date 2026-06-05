@@ -119,6 +119,7 @@ jobs:
           for mode in \
             settings-panel \
             settings-endpoint-typed \
+            settings-bearer-token-typed \
             completions-panel \
             history-selection \
             transcript-selection \
