@@ -520,9 +520,9 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("Mac-reference long transcript did not scroll to the dense bottom marker"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-long-transcript-selection"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_prompt_send"))
-        #expect(verifier.contains("Mac-reference prompt-send message content was not detected"))
+        #expect(verifier.contains("Mac-reference {label} message content was not detected"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_composer_send"))
-        #expect(verifier.contains("Mac-reference composer-send message content was not detected"))
+        #expect(verifier.contains("Mac-reference {label} message did not align to the trailing edge"))
         #expect(verifier.contains("validate_quill_chat_functional_transcript"))
         #expect(verifier.contains("Functional transcript assistant reply was not detected"))
         #expect(verifier.contains("quill-chat-linux-functional-transcript"))
@@ -670,6 +670,19 @@ struct QuillDataSourceLoweringTests {
         #expect(seedScript.contains("Long transcript scroll test"))
         #expect(seedScript.contains("bottom scroll target is visible near the composer"))
         #expect(seedScript.contains("\"conversation\": transcript_conversation_payload"))
+
+        let enchantedSeedScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/seed-enchanted-reference-data.py"),
+            encoding: .utf8
+        )
+        #expect(enchantedSeedScript.contains("home / \".quilldata\" / \"default.sqlite\""))
+        #expect(enchantedSeedScript.contains("_quilldata_json_GeneratedSwiftUILinuxApp_ConversationSD"))
+        #expect(enchantedSeedScript.contains("_quilldata_json_GeneratedSwiftUILinuxApp_MessageSD"))
+        #expect(enchantedSeedScript.contains("_quilldata_json_GeneratedSwiftUILinuxApp_LanguageModelSD"))
+        #expect(enchantedSeedScript.contains("\"name\": name"))
+        #expect(enchantedSeedScript.contains("\"conversation\": conversation_payload"))
+        #expect(enchantedSeedScript.contains("\"modelProvider\": {\"ollama\": {}}"))
+        #expect(enchantedSeedScript.contains("home / \".quillui\" / \"enchanted\" / \"enchanted-quilldata.sqlite\""))
 
         let controls = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillUI/Controls.swift"),
