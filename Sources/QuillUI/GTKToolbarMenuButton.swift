@@ -190,7 +190,7 @@ private func makeToolbarGlyphChild(
     gtk_widget_add_css_class(box, "quill-toolbar-glyph-box")
 
     for glyph in toolbarGlyphs(systemImage: systemImage, showsChevron: showsChevron) {
-        gtk_box_append(boxPointer(box), makeToolbarGlyphLabel(glyph))
+        gtk_box_append(toolbarBoxPointer(box), makeToolbarGlyphLabel(glyph))
     }
 
     return box
@@ -201,6 +201,20 @@ private func toolbarGlyphs(
     showsChevron: Bool
 ) -> [QuillGTKToolbarGlyph] {
     switch systemImage {
+    case "arrow.clockwise":
+        return [QuillGTKToolbarGlyph(materialName: "refresh", pointSize: 24, width: 24)]
+    case "books.vertical":
+        return [QuillGTKToolbarGlyph(materialName: "library_books", pointSize: 24, width: 25)]
+    case "sparkles":
+        return [QuillGTKToolbarGlyph(materialName: "auto_awesome", pointSize: 24, width: 25)]
+    case "gearshape":
+        return [QuillGTKToolbarGlyph(materialName: "settings", pointSize: 24, width: 24)]
+    case "line.3.horizontal.decrease.circle":
+        var glyphs = [QuillGTKToolbarGlyph(materialName: "filter_list", pointSize: 24, width: 24)]
+        if showsChevron {
+            glyphs.append(QuillGTKToolbarGlyph(materialName: "expand_more", pointSize: 16, width: 15))
+        }
+        return glyphs
     case "chevron.down":
         return [QuillGTKToolbarGlyph(materialName: "expand_more", pointSize: 20, width: 22)]
     case "ellipsis":
@@ -248,6 +262,10 @@ private func toolbarEscapeMarkup(_ value: String) -> String {
 
 private func toolbarButtonPointer(_ widget: UnsafeMutablePointer<GtkWidget>) -> UnsafeMutablePointer<GtkButton> {
     UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GtkButton.self)
+}
+
+private func toolbarBoxPointer(_ widget: UnsafeMutablePointer<GtkWidget>) -> UnsafeMutablePointer<GtkBox> {
+    UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GtkBox.self)
 }
 
 private func connectToolbarButton(
