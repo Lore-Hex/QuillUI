@@ -223,4 +223,12 @@ struct AppKitSurfaceTests {
         // keyDown is @MainActor (TunnelsList.keyDown calls @MainActor handleRemoveTunnelAction on Delete).
         NSResponder().keyDown(with: NSEvent())
     }
+
+    @Test("ManageTunnelsRootViewController shadow gap: NSResponder.supplementalTarget(forAction:sender:)")
+    @MainActor func manageTunnelsRootShadowSurface() {
+        // The split-view root overrides supplementalTarget to route toolbar/menu actions
+        // to its child VCs; the base returns nil (no supplemental target).
+        let responder = NSResponder()
+        #expect(responder.supplementalTarget(forAction: Selector("handleAddEmptyTunnelAction"), sender: nil) == nil)
+    }
 }
