@@ -1272,12 +1272,13 @@ def validate_quill_chat_mac_reference_history_selection(
     detail_left = divider_x + 1
     detail_width = right - detail_left + 1
 
-    bullet_pixels = dark_pixel_count(
+    bullet_pixels = pixel_count(
         image,
         left,
-        top + int(app_height * 0.31),
-        left + 42,
-        top + int(app_height * 0.37),
+        top + int(app_height * 0.30),
+        left + 28,
+        top + int(app_height * 0.47),
+        lambda rgb: sum(rgb) < 360,
     )
     require(
         bullet_pixels >= 5,
@@ -1289,7 +1290,7 @@ def validate_quill_chat_mac_reference_history_selection(
         left + 30,
         top + int(app_height * 0.30),
         divider_x - 20,
-        top + int(app_height * 0.38),
+        top + int(app_height * 0.47),
     )
     require(
         selected_row_pixels >= 450,

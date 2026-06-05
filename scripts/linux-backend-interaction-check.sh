@@ -228,6 +228,24 @@ enchanted_list_selection_y() {
   fi
 }
 
+quill_chat_mac_reference_history_row_y() {
+  case "$1" in
+    recent-transcript)
+      printf '%s\n' "$((window_y + 507))"
+      ;;
+    markdown-transcript)
+      printf '%s\n' "$((window_y + 554))"
+      ;;
+    long-transcript)
+      printf '%s\n' "$((window_y + 598))"
+      ;;
+    *)
+      echo "Unknown Quill Chat reference history row: $1" >&2
+      exit 64
+      ;;
+  esac
+}
+
 click_enchanted_list_selection() {
   local click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
   local click_y="${QUILLUI_BACKEND_CLICK_Y:-$(enchanted_list_selection_y)}"
@@ -467,14 +485,14 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ;;
       history-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 466))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
         click_at "$click_x" "$click_y"
         sleep 1
         ;;
       transcript-selection|markdown-transcript-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 530))}"
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_mac_reference_history_row_y markdown-transcript)}"
         else
           click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 466))}"
         fi
@@ -487,7 +505,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
       long-transcript-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 220))}"
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 574))}"
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_mac_reference_history_row_y long-transcript)}"
         else
           click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 514))}"
         fi
