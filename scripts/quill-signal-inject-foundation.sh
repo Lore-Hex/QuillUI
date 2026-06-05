@@ -47,6 +47,13 @@ FOUNDATIONNETWORKING_TYPES='\bURLRequest\b|\bURLResponse\b|\bHTTPURLResponse\b|\
 # upstream files do not import ImageIO explicitly.
 IMAGEIO_TYPES='\bCGImageSource\b|\bkCGImage'
 
+# CoreFoundation: the CF* value types. swift-corelibs-foundation's `import
+# Foundation` does not re-export these on Linux (on Apple it does), so files
+# using a bare `CFDictionary`/`CFData`/... (often only in an `as CFDictionary`
+# cast) fail with "cannot find type". An explicit `import CoreFoundation` (a
+# real module on both Apple and Linux) resolves them.
+COREFOUNDATION_TYPES='\bCFData\b|\bCFString\b|\bCFDictionary\b|\bCFArray\b|\bCFNumber\b|\bCFBoolean\b|\bCFURL\b|\bCFTypeRef\b|\bCFType\b|\bCFIndex\b|\bCFError\b|\bCFRange\b|\bCFMutable[A-Za-z]+\b|\bCFAllocator|\bCFTimeInterval\b|\bCFAbsoluteTime\b'
+
 injected=0
 scanned=0
 
@@ -81,6 +88,7 @@ while IFS= read -r f; do
     if inject_if_needed "$f" "Foundation" "$FOUNDATION_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "UIKit" "$UIKIT_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "ImageIO" "$IMAGEIO_TYPES"; then touched=1; fi
+    if inject_if_needed "$f" "CoreFoundation" "$COREFOUNDATION_TYPES"; then touched=1; fi
     if inject_gated_if_needed "$f" "FoundationNetworking" "$FOUNDATIONNETWORKING_TYPES"; then touched=1; fi
     injected=$((injected + touched))
 done < <(find "$ROOT" -name '*.swift' -not -path '*/QuillPort/*')
