@@ -343,6 +343,23 @@ print("patched TunnelImporter.swift")
 PY
     fi
 
+    # ImportPanelPresenter is a UI presenter (NSOpenPanel) whose static func touches
+    # the @MainActor NSViewController.view (sourceVC.view.window). It's nonisolated in
+    # the source, so mark the class @MainActor (Apple-faithful — it presents UI on the
+    # main thread; its only caller, the @MainActor VC action handleImportTunnelAction,
+    # is fine). Same shape as the ErrorPresenter @MainActor patch.
+    local ipp="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/ImportPanelPresenter.swift"
+    if [[ -f "$ipp" ]] && ! grep -q '@MainActor' "$ipp"; then
+        echo "==> patching ImportPanelPresenter.swift @MainActor"
+        python3 - "$ipp" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+open(path, "w").write(src.replace('class ImportPanelPresenter {', '@MainActor\nclass ImportPanelPresenter {', 1))
+print("patched ImportPanelPresenter @MainActor")
+PY
+    fi
+
     # Break the SwiftPM modularity wall for the model layer: the wg-quick parser
     # methods (asWgQuickConfig / init(fromWgQuickConfig:)) live in the
     # QuillWireGuardUpstreamConfig target but are `internal`, so the conformance

@@ -1370,6 +1370,10 @@ if wireguardUpstreamPresent {
                 // TunnelImporter: routes imported .zip/.conf URLs through ZipImporter
                 // + the wg-quick parser into TunnelsManager.addMultiple (DispatchGroup).
                 "Sources/WireGuardApp/UI/TunnelImporter.swift",
+                // ImportPanelPresenter: NSOpenPanel (.conf/.zip) -> TunnelImporter.
+                // @MainActor (UI presenter touching sourceVC.view.window); its caller is
+                // the @MainActor VC action handleImportTunnelAction.
+                "Sources/WireGuardApp/UI/macOS/ImportPanelPresenter.swift",
                 "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift",
                 // NSColor+Hex: NSColor(hex:) convenience init (chains to the shadow's
                 // new NSColor(red:green:blue:alpha:)). Foundation Scanner + AppKit only;
