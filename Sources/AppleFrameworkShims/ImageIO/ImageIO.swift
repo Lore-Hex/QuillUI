@@ -19,6 +19,23 @@ import QuillFoundation
 public class CGImageSource {}
 public class CGDataProvider {}
 
+// MARK: - CGImagePropertyOrientation
+//
+// The EXIF-style orientation enum (raw UInt32, values 1...8 matching the EXIF
+// spec). Lives in ImageIO on Apple. SignalServiceKit reads it from image
+// metadata and extends it with `.uiImageOrientation`; that extension lives in
+// SSK, so only the base enum is needed here.
+public enum CGImagePropertyOrientation: UInt32, Sendable {
+    case up = 1
+    case upMirrored = 2
+    case down = 3
+    case downMirrored = 4
+    case leftMirrored = 5
+    case right = 6
+    case rightMirrored = 7
+    case left = 8
+}
+
 // MARK: - Create / query functions
 //
 // Inert: no image is ever decoded on Linux. Signatures match Core Graphics'
