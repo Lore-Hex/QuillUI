@@ -231,4 +231,28 @@ struct AppKitSurfaceTests {
         let responder = NSResponder()
         #expect(responder.supplementalTarget(forAction: Selector("handleAddEmptyTunnelAction"), sender: nil) == nil)
     }
+
+    @Test("MainMenu shadow gaps: NSMenuItem.separator() func + NSMenu(title:)/addItem(withTitle:action:keyEquivalent:)/setSubmenu + subclass init() w/o override")
+    @MainActor func mainMenuShadowSurface() {
+        let menu = NSMenu(title: "File")
+        #expect(menu.title == "File")
+        let item = menu.addItem(withTitle: "New", action: Selector("handleAddEmptyTunnelAction"), keyEquivalent: "n")
+        item.keyEquivalentModifierMask = [.command, .option]
+        #expect(item.keyEquivalent == "n")
+        // separator() is the call form (was a `static var separator` property; MainMenu/StatusMenu use ()).
+        menu.addItem(NSMenuItem.separator())
+        menu.setSubmenu(NSMenu(), for: item)
+        // NSMenu's init() is convenience (init(title:) designated) → a subclass can declare
+        // its own init() WITHOUT `override` (what WireGuard's MainMenu/StatusMenu rely on).
+        let custom = MenuInitModelProbe()
+        #expect(custom.title == "probe")
+    }
+}
+
+/// Probes the NSMenu init-model fix: a subclass declaring `init()` (a new designated
+/// init calling super.init(title:)) compiles WITHOUT an `override` keyword — exactly
+/// as WireGuard's MainMenu/StatusMenu do.
+private final class MenuInitModelProbe: NSMenu {
+    init() { super.init(title: "probe") }
+    required init(coder decoder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }

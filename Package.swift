@@ -1372,6 +1372,12 @@ if wireguardUpstreamPresent {
                 // QuillTimer.make. No table (no dequeueReusableCell/B), no extension
                 // override (C). Needs NSStatusItem.squareLength (added to the shadow).
                 "Sources/WireGuardApp/UI/macOS/StatusItemController.swift",
+                // MainMenu: the macOS menu bar (NSMenu subclass) — App/File/Edit/Tunnel/Window
+                // submenus built with NSMenu.addItem(withTitle:action:keyEquivalent:) +
+                // NSMenuItem.separator() + keyEquivalentModifierMask; actions are Selector("…")
+                // routed to NSApp/NSApp.delegate/responder chain (no @objc methods of its own).
+                // First file of the app-BOOTSTRAP layer (after the full VC/view layer).
+                "Sources/WireGuardApp/UI/macOS/MainMenu.swift",
                 // ActivateOnDemandOption: maps on-demand config <-> NEOnDemandRule[]
                 // (NE on-demand surface from #338/#340 + wg_log from #345).
                 "Sources/WireGuardApp/Tunnel/ActivateOnDemandOption.swift",
