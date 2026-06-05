@@ -3283,6 +3283,17 @@ struct SourceHygieneTests {
         #expect(!promptGrid.contains("Color(hex: \"#E8E8EE\")"))
     }
 
+    @Test("QuillDesktopSplitLayout mirrors Mac reference titlebar chrome")
+    func quillDesktopSplitLayoutMirrorsMacReferenceTitlebarChrome() throws {
+        let controls = try packageSource("Sources/QuillUI/Controls.swift")
+
+        #expect(controls.contains("private var sidebarToggleGlyph: some View"))
+        #expect(controls.contains(".frame(width: 176, height: 24, alignment: .leading)"))
+        #expect(controls.contains("Color.clear\n                .frame(width: 48, height: 1)"))
+        #expect(controls.contains(".font(.system(size: 16, weight: .regular))"))
+        #expect(!controls.contains(".fontWeight(.semibold)\n                            .foregroundColor(Color(hex: \"#444446\"))"))
+    }
+
     @Test("QuillConversationHistoryList mirrors Enchanted row preview and accessibility")
     func quillConversationHistoryListMirrorsEnchantedRowPreviewAndAccessibility() throws {
         let controls = try packageSource("Sources/QuillUI/Controls.swift")

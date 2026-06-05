@@ -541,7 +541,7 @@ def prompt_card_fill_height(
             fill_pixels = sum(
                 1
                 for x in range(segment.start, segment.end + 1)
-                if predicate(image.pixel(x, y))
+                if predicate(image.rgb(x, y))
             )
             if fill_pixels >= segment.width * 0.42:
                 matched_cards += 1

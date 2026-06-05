@@ -726,12 +726,32 @@ public struct QuillMacWindowControls: View {
     public init() {}
 
     public var body: some View {
-        HStack(spacing: 12) {
-            Circle().fill(Color(hex: "#FF605C"))
-            Circle().fill(Color(hex: "#FFBD44"))
-            Circle().fill(Color(hex: "#00CA4E"))
+        HStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Circle().fill(Color(hex: "#FF605C"))
+                Circle().fill(Color(hex: "#FFBD44"))
+                Circle().fill(Color(hex: "#00CA4E"))
+            }
+            .frame(width: 82, height: 14, alignment: .leading)
+
+            Color.clear
+                .frame(width: 48, height: 1)
+
+            sidebarToggleGlyph
         }
-        .frame(width: 82, height: 14, alignment: .leading)
+        .frame(width: 176, height: 24, alignment: .leading)
+    }
+
+    private var sidebarToggleGlyph: some View {
+        RoundedRectangle(cornerRadius: 3)
+            .stroke(Color(hex: "#6F7072"), lineWidth: 1.6)
+            .frame(width: 24, height: 24)
+            .overlay(alignment: .leading) {
+                Rectangle()
+                    .fill(Color(hex: "#6F7072"))
+                    .frame(width: 1.4, height: 17)
+                    .padding(.leading, 7)
+            }
     }
 }
 
@@ -997,8 +1017,7 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
                 VStack(spacing: 0) {
                     HStack(spacing: 16) {
                         Text(title)
-                            .font(.system(size: 16))
-                            .fontWeight(.semibold)
+                            .font(.system(size: 16, weight: .regular))
                             .foregroundColor(Color(hex: "#444446"))
                         Spacer()
                         HStack(spacing: 14) {
