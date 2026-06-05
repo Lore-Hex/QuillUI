@@ -113,4 +113,5 @@ jobs:
           # .qa is a DOT-directory; upload-artifact@v4 excludes hidden files by
           # default, which is why the render never uploaded ("No files found").
           include-hidden-files: true
+          retention-days: 1
           if-no-files-found: warn

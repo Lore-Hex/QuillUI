@@ -293,5 +293,6 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: linux-backend-qa
+          retention-days: 1
           if-no-files-found: ignore
           path: /tmp/quillui-qa-upload/
