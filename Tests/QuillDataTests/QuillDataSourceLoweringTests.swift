@@ -1965,6 +1965,7 @@ struct QuillDataSourceLoweringTests {
         #expect(!patchedRenderer.contains("lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>"))
         #expect(patchedRenderer.contains("private func gtkShouldRenderSheetInWindow() -> Bool"))
         #expect(patchedRenderer.contains("QUILLUI_GTK_SHEET_PRESENTATION"))
+        #expect(patchedRenderer.contains("return mode == \"overlay\" || mode == \"in-window\" || mode == \"inline\""))
         #expect(patchedRenderer.contains("private func gtkCreateSheetOverlay("))
         #expect(patchedRenderer.contains("gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)"))
         #expect(patchedRenderer.contains("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)"))

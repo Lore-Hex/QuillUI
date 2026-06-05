@@ -1451,7 +1451,7 @@ sheet_overlay_helpers = '''private func gtkShouldRenderSheetInWindow() -> Bool {
     let mode = ProcessInfo.processInfo.environment["QUILLUI_GTK_SHEET_PRESENTATION"]?
         .trimmingCharacters(in: .whitespacesAndNewlines)
         .lowercased()
-    return mode != "window"
+    return mode == "overlay" || mode == "in-window" || mode == "inline"
 }
 
 private func gtkCreateSheetOverlay(

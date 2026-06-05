@@ -2693,6 +2693,13 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("quillui_is_backend_smoke_product \"$PRODUCT\""))
         #expect(backendScript.contains("quillui_normalize_backend_smoke_interaction_mode \"$INTERACTION_MODE\""))
         #expect(backendScript.contains("quillui_is_backend_smoke_sheet_interaction \"$INTERACTION_MODE\""))
+        let sheetHelperDefinition = backendScript.range(of: "quillui_is_backend_smoke_sheet_interaction()")
+        let sheetHelperFirstUse = backendScript.range(of: "if quillui_is_backend_smoke_sheet_interaction \"$INTERACTION_MODE\"")
+        #expect(sheetHelperDefinition != nil)
+        #expect(sheetHelperFirstUse != nil)
+        if let sheetHelperDefinition, let sheetHelperFirstUse {
+            #expect(sheetHelperDefinition.lowerBound < sheetHelperFirstUse.lowerBound)
+        }
         #expect(backendScript.contains("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}"))
         #expect(backendScript.contains("refresh_capture_window_for_active_child_window"))
         #expect(backendScript.contains("refresh_capture_window_for_sheet_interaction"))

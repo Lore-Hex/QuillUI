@@ -108,6 +108,17 @@ quillui_is_wireguard_malformed_import_interaction() {
     || quillui_is_wireguard_malformed_import_file_interaction "$1"
 }
 
+quillui_is_backend_smoke_sheet_interaction() {
+  case "$1" in
+    nested-sheet|sidebar-sheet|banner-sheet)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 wireguard_import_configuration_file_for_mode() {
   if quillui_is_wireguard_malformed_import_file_interaction "$1"; then
     wireguard_malformed_import_configuration_file
@@ -361,17 +372,6 @@ wireguard_import_configuration_for_mode() {
   else
     wireguard_import_configuration
   fi
-}
-
-quillui_is_backend_smoke_sheet_interaction() {
-  case "$1" in
-    nested-sheet|sidebar-sheet|banner-sheet)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
 }
 
 refresh_capture_window_for_active_child_window() {
