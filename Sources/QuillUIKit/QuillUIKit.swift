@@ -581,13 +581,11 @@ public class UIApplicationShortcutItem: NSObject {
     public var type: String = ""
 }
 
-public class UNUserNotificationCenter: NSObject {
-    public static func current() -> UNUserNotificationCenter { UNUserNotificationCenter() }
-    public func requestAuthorization(options: Any, completionHandler: @escaping (Bool, Error?) -> Void) {}
-    @MainActor public weak var delegate: UNUserNotificationCenterDelegate?
-}
-
-public protocol UNUserNotificationCenterDelegate: AnyObject {}
+// UNUserNotificationCenter / UNUserNotificationCenterDelegate moved to the
+// dedicated `UserNotifications` shim (Sources/AppleFrameworkShims/UserNotifications),
+// which the `UIKit` shim re-exports — so `import UIKit` still resolves them while
+// SignalServiceKit's `import UserNotifications` no longer collides with a second
+// declaration here (the ambiguity that blocked the notifications presenter).
 
 @MainActor public protocol UIApplicationDelegate: AnyObject {}
 

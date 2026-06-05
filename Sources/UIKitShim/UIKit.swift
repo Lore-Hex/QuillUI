@@ -8,6 +8,10 @@
 @_exported import Foundation
 @_exported import QuillFoundation
 @_exported import QuillUIKit
+// Re-export the UserNotifications shim so the many `import UIKit`-only SSK files
+// (e.g. ExperienceUpgradeManifest) still resolve UNUserNotificationCenter & co.
+// now that QuillUIKit's stub was removed in favor of the dedicated shim.
+@_exported import UserNotifications
 import QuillKit
 
 #if !os(iOS)
