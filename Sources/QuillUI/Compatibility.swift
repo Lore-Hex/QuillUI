@@ -249,9 +249,8 @@ fileprivate func recordCompatibilityWarning(_ operation: String, message: String
     )
 }
 
-public typealias QuillPlatformImage = SwiftOpenUI.PlatformImage
-public typealias PlatformImage = SwiftOpenUI.PlatformImage
-public typealias ImageRenderer = SwiftOpenUI.ImageRenderer
+public typealias QuillPlatformImage = RSImage
+public typealias PlatformImage = RSImage
 
 public extension QuillPlatformImage {
     func convertImageToBase64String() -> String {
@@ -285,7 +284,7 @@ public extension QuillPlatformImage {
             return self
         }
 
-        return QuillPlatformImage(data: resizedData)
+        return QuillPlatformImage(data: resizedData) ?? self
     }
 
     func compressImageData() -> Data? {

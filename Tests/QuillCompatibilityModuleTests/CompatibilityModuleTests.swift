@@ -1226,9 +1226,17 @@ struct CompatibilityModuleTests {
         let renderer = ImageRenderer(content: Text("rendered"))
         #expect(renderer.uiImage == nil)
         #expect(renderer.nsImage == nil)
-        #expect(ImageRenderer(content: Color.red).cgImage?.data?.isEmpty == false)
+        let colorRenderer = ImageRenderer(content: Color.red)
+        let renderedPlatformImage: PlatformImage? = colorRenderer.nsImage
+        let renderedNSImage: NSImage? = colorRenderer.nsImage
+        #expect(renderedPlatformImage?.data?.isEmpty == false)
+        #expect(renderedNSImage?.data?.isEmpty == false)
+        #expect(colorRenderer.cgImage?.data?.isEmpty == false)
         #expect(Image(systemName: "photo").render() == nil)
-        let platformImage = PlatformImage(data: Data([1, 2, 3]))
+        guard let platformImage = PlatformImage(data: Data([1, 2, 3])) else {
+            Issue.record("PlatformImage(data:) should construct the RSImage-backed image container")
+            return
+        }
         #expect(platformImage.convertImageToBase64String() == "AQID")
         #expect(platformImage.aspectFittedToHeight(200).data == Data([1, 2, 3]))
         #expect(platformImage.compressImageData() == Data([1, 2, 3]))
@@ -2275,7 +2283,10 @@ struct CompatibilityModuleTests {
             return
         }
 
-        let image = PlatformImage(data: png)
+        guard let image = PlatformImage(data: png) else {
+            Issue.record("PlatformImage(data:) should construct from valid PNG bytes")
+            return
+        }
         let resized = image.aspectFittedToHeight(6)
         guard let resizedData = resized.data else {
             Issue.record("Expected resized PlatformImage to retain PNG data")

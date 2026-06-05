@@ -533,6 +533,19 @@ struct SourceHygieneTests {
         #expect(!rendererSource.contains("not yet wired up; see the TODO on `ImageRenderer`"))
     }
 
+    @Test("Enchanted image export rewrite rules stay removed")
+    func enchantedImageExportRewriteRulesStayRemoved() throws {
+        let root = try packageRoot()
+        let rules = root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules")
+
+        #expect(!FileManager.default.fileExists(
+            atPath: rules.appendingPathComponent("Extensions/View+Extension.swift.pl").path
+        ))
+        #expect(!FileManager.default.fileExists(
+            atPath: rules.appendingPathComponent("Services/Clipboard.swift.pl").path
+        ))
+    }
+
     @Test("Linux controls read backend-scoped reference environment")
     func linuxControlsReadBackendScopedReferenceEnvironment() throws {
         let root = try packageRoot()
