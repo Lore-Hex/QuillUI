@@ -184,6 +184,26 @@ public enum UIUserInterfaceIdiom: Int, Sendable {
     case unspecified = -1, phone = 0, pad = 1, tv = 2, carPlay = 3, mac = 5, vision = 6
 }
 
+// MARK: - UIEdgeInsets
+//
+// Layout-inset geometry (UIKit on iOS; NSEdgeInsets on macOS). SignalServiceKit
+// reaches it via `import UIKit`. Only the raw four-edge value-holder lives here;
+// SSK's own `UIEdgeInsets(margin:)` convenience init is an extension that builds
+// on this base.
+public struct UIEdgeInsets: Equatable, Sendable {
+    public var top: CGFloat
+    public var left: CGFloat
+    public var bottom: CGFloat
+    public var right: CGFloat
+    public init(top: CGFloat = 0, left: CGFloat = 0, bottom: CGFloat = 0, right: CGFloat = 0) {
+        self.top = top
+        self.left = left
+        self.bottom = bottom
+        self.right = right
+    }
+    public static let zero = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+}
+
 // MARK: - NSTextStorage (TextKit)
 //
 // On iOS NSTextStorage lives in UIKit. SignalServiceKit's
