@@ -1283,7 +1283,7 @@ if wireguardUpstreamPresent {
     targets.append(
         .target(
             name: "QuillWireGuardConformanceUI",
-            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "WireGuardMinizipC", "WireGuardHighlighterC", "CoreWLAN", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
+            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "WireGuardMinizipC", "WireGuardHighlighterC", "CoreWLAN", "LocalAuthentication", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
             path: ".upstream/wireguard-apple",
             sources: [
                 // Shared logging: Logger.swift (wg_log) over the ringlogger C
@@ -1425,6 +1425,11 @@ if wireguardUpstreamPresent {
                 // Imports WireGuardKit + QuillWireGuardUpstreamConfig (fetch-upstream patch);
                 // @objc actions lowered; cancelOperation extension-override merged into class.
                 "Sources/WireGuardApp/UI/macOS/ViewController/TunnelEditViewController.swift",
+                // PrivateDataConfirmation: gates revealing a tunnel's private/pre-shared
+                // key behind LAContext (import LocalAuthentication). Shared dep called by
+                // BOTH remaining table VCs (TunnelsList + TunnelDetail). No auth backend
+                // on Linux → the LocalAuthentication shadow always denies (safe default).
+                "Sources/WireGuardApp/UI/PrivateDataConfirmation.swift",
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
                 // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).
@@ -1512,6 +1517,10 @@ targets.append(contentsOf: [
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
     .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),
     .testTarget(name: "NetworkExtensionTests", dependencies: ["NetworkExtension"], path: "Tests/NetworkExtensionTests"),
+    // LocalAuthentication shim — LAContext/LAPolicy/LAError so WireGuard's
+    // PrivateDataConfirmation (key-reveal gate) recompiles; no auth backend on Linux.
+    .target(name: "LocalAuthentication", dependencies: [], path: "Sources/LocalAuthenticationShim"),
+    .testTarget(name: "LocalAuthenticationTests", dependencies: ["LocalAuthentication"], path: "Tests/LocalAuthenticationTests"),
     // os shim — covers the two os_log overloads (Apple message-first + the
     // xctest type-first) coexisting unambiguously; see Sources/osShim.
     .testTarget(name: "osTests", dependencies: ["os"], path: "Tests/osTests"),
