@@ -598,6 +598,8 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_REPLY"))
         #expect(functionalScript.contains("QUILLDATA_HOME=$RUN_HOME"))
         #expect(functionalScript.contains("mock Ollama did not start"))
+        #expect(functionalScript.contains("quillui_functional_xdotool()"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_XDOTOOL_TIMEOUT"))
         #expect(functionalScript.contains("payload.get(\"path\") == \"/api/chat\""))
         #expect(functionalScript.contains("home / \".quilldata\" / \"default.sqlite\""))
         #expect(functionalScript.contains("row[0].endswith(\"_MessageSD\")"))
@@ -625,6 +627,7 @@ struct QuillDataSourceLoweringTests {
         #expect(parityWorkflow.contains("Run live composer-send functional verifier"))
         #expect(parityWorkflow.contains("scripts/quill-chat-functional-check.sh"))
         #expect(parityWorkflow.contains(".qa/quill-chat-linux-functional-composer-send-gtk.png"))
+        #expect(parityWorkflow.contains("timeout --kill-after=15s 180s"))
         #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_COMPOSER_X: \"700\""))
         #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_COMPOSER_Y: \"1190\""))
 

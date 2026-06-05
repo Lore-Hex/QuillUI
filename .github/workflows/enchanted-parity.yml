@@ -118,6 +118,7 @@ jobs:
           # the streamed user/assistant turn through QuillData.
           QUILLUI_FUNCTIONAL_APP_LOG=.qa/quill-chat-linux-functional-app.log \
           QUILLUI_FUNCTIONAL_MOCK_LOG=.qa/quill-chat-linux-functional-ollama.log \
+            timeout --kill-after=15s 180s \
             scripts/quill-chat-functional-check.sh \
               .qa/quill-chat-linux-functional-composer-send-gtk.png \
               quill-chat-linux \

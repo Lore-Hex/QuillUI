@@ -47,6 +47,11 @@ if ! command -v xdotool >/dev/null 2>&1; then
   exit 69
 fi
 
+quillui_functional_xdotool() {
+  local timeout_seconds="${QUILLUI_FUNCTIONAL_XDOTOOL_TIMEOUT:-10}"
+  DISPLAY="$DISPLAY_ID" timeout "$timeout_seconds" xdotool "$@"
+}
+
 python3 "$ROOT_DIR/scripts/mock-ollama.py" \
   --host "$MOCK_HOST" \
   --port "$MOCK_PORT" \
@@ -141,8 +146,8 @@ fi
 if [[ -n "$window_id" ]]; then
   quillui_place_reference_window "$DISPLAY_ID" "$window_id" "$reference_window_width" "$reference_window_height"
   capture_window="$window_id"
-  DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
-  DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+  quillui_functional_xdotool windowactivate "$window_id" 2>/dev/null || true
+  quillui_functional_xdotool windowfocus "$window_id" 2>/dev/null || true
   while IFS='=' read -r key value; do
     case "$key" in
       X) window_x="$value" ;;
@@ -150,16 +155,16 @@ if [[ -n "$window_id" ]]; then
       WIDTH) window_width="$value" ;;
       HEIGHT) window_height="$value" ;;
     esac
-  done < <(DISPLAY="$DISPLAY_ID" xdotool getwindowgeometry --shell "$window_id")
+  done < <(DISPLAY="$DISPLAY_ID" timeout "${QUILLUI_FUNCTIONAL_XDOTOOL_TIMEOUT:-10}" xdotool getwindowgeometry --shell "$window_id")
 fi
 
 click_x="${QUILLUI_FUNCTIONAL_COMPOSER_X:-$((window_x + (window_width * 56 / 100)))}"
 click_y="${QUILLUI_FUNCTIONAL_COMPOSER_Y:-$((window_y + window_height - 190))}"
-DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$click_x" "$click_y" click 1
+quillui_functional_xdotool mousemove "$click_x" "$click_y" click 1
 sleep 1
-DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$MESSAGE_TEXT"
+quillui_functional_xdotool type --clearmodifiers --delay 30 "$MESSAGE_TEXT"
 sleep 1
-DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Return
+quillui_functional_xdotool key --clearmodifiers Return
 
 python3 - "$MOCK_LOG_PATH" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" <<'PY'
 from __future__ import annotations
