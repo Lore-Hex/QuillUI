@@ -1263,6 +1263,113 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
     #endif
 }
 
+public struct QuillDesktopChatScaffold<
+    Sidebar: View,
+    ToolbarContent: View,
+    SelectedContent: View,
+    EmptyContent: View,
+    StatusContent: View,
+    ComposerContent: View
+>: View {
+    public var title: String
+    public var sidebarWidth: CGFloat
+    public var composerWidth: CGFloat
+    public var hasSelection: Bool
+    public var showsStatus: Bool
+    private var sidebar: Sidebar
+    private var toolbarContent: ToolbarContent
+    private var selectedContent: SelectedContent
+    private var emptyContent: EmptyContent
+    private var statusContent: StatusContent
+    private var composerContent: ComposerContent
+
+    public init(
+        title: String,
+        sidebarWidth: CGFloat = 320,
+        composerWidth: CGFloat = 800,
+        hasSelection: Bool,
+        showsStatus: Bool = false,
+        @ViewBuilder sidebar: () -> Sidebar,
+        @ViewBuilder toolbar: () -> ToolbarContent,
+        @ViewBuilder selectedContent: () -> SelectedContent,
+        @ViewBuilder emptyContent: () -> EmptyContent,
+        @ViewBuilder statusContent: () -> StatusContent,
+        @ViewBuilder composer: () -> ComposerContent
+    ) {
+        self.title = title
+        self.sidebarWidth = sidebarWidth
+        self.composerWidth = composerWidth
+        self.hasSelection = hasSelection
+        self.showsStatus = showsStatus
+        self.sidebar = sidebar()
+        self.toolbarContent = toolbar()
+        self.selectedContent = selectedContent()
+        self.emptyContent = emptyContent()
+        self.statusContent = statusContent()
+        self.composerContent = composer()
+    }
+
+    public var body: some View {
+        QuillDesktopSplitLayout(title: title, sidebarWidth: sidebarWidth) {
+            sidebar
+        } toolbar: {
+            toolbarContent
+        } content: {
+            VStack(alignment: .center, spacing: 0) {
+                if hasSelection {
+                    selectedContent
+                } else {
+                    emptyContent
+                }
+
+                if showsStatus {
+                    statusContent
+                }
+
+                composerContent
+                    .padding()
+                    .frame(width: composerWidth)
+            }
+        }
+    }
+}
+
+public struct QuillDesktopChatToolbar: View {
+    public var modelActions: [QuillMenuAction]
+    public var optionsActions: [QuillMenuAction]
+    private var onNewConversation: () -> Void
+
+    public init(
+        modelActions: [QuillMenuAction],
+        optionsActions: [QuillMenuAction],
+        onNewConversation: @escaping () -> Void
+    ) {
+        self.modelActions = modelActions
+        self.optionsActions = optionsActions
+        self.onNewConversation = onNewConversation
+    }
+
+    public var body: some View {
+        QuillToolbarActionRow {
+            QuillToolbarMenuButton(
+                systemImage: "chevron.down",
+                menuWidth: 220,
+                actions: modelActions
+            )
+
+            QuillToolbarMenuButton(
+                systemImage: "ellipsis",
+                showsChevron: true,
+                width: 42,
+                menuWidth: 180,
+                actions: optionsActions
+            )
+
+            QuillToolbarIconButton(systemImage: "square.and.pencil", action: onNewConversation)
+        }
+    }
+}
+
 public struct QuillToolbarActionRow<Content: View>: View {
     public var spacing: Int
     private var content: Content

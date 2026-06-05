@@ -59,7 +59,13 @@ struct ChatView: View {
     }
 
     var body: some View {
-        QuillDesktopSplitLayout(title: "Enchanted", sidebarWidth: 320) {
+        QuillDesktopChatScaffold(
+            title: "Enchanted",
+            sidebarWidth: 320,
+            composerWidth: 800,
+            hasSelection: selectedConversation != nil,
+            showsStatus: !reachable
+        ) {
             SidebarView(
                 selectedConversation: selectedConversation,
                 conversations: conversations,
@@ -69,61 +75,43 @@ struct ChatView: View {
                 onNewConversationTap: onNewConversationTap
             )
         } toolbar: {
-            QuillToolbarActionRow {
-                QuillToolbarMenuButton(
-                    systemImage: "chevron.down",
-                    menuWidth: 220,
-                    actions: modelMenuActions
-                )
-
-                QuillToolbarMenuButton(
-                    systemImage: "ellipsis",
-                    showsChevron: true,
-                    width: 42,
-                    menuWidth: 180,
-                    actions: optionsMenuActions
-                )
-
-                QuillToolbarIconButton(systemImage: "square.and.pencil", action: onNewConversationTap)
-            }
-        } content: {
-            VStack(alignment: .center, spacing: 0) {
-                if selectedConversation != nil {
-                    MessageListView(
-                        messages: messages,
-                        conversationState: conversationState,
-                        userInitials: userInitials,
-                        editMessage: $editMessage
-                    )
-                } else {
-                    EmptyConversaitonView(sendPrompt: { selectedMessage in
-                        if let selectedModel = selectedModel {
-                            onSendMessageTap(selectedMessage, selectedModel, nil, nil)
-                        }
-                    })
-                }
-
-                if !reachable {
-                    UnreachableAPIView()
-                }
-
-                InputFieldsView(
-                    message: $message,
-                    conversationState: conversationState,
-                    onStopGenerateTap: onStopGenerateTap,
-                    selectedModel: selectedModel,
-                    onSendMessageTap: onSendMessageTap,
-                    editMessage: $editMessage
-                )
-                .padding()
-                .frame(width: 800)
-            }
+            QuillDesktopChatToolbar(
+                modelActions: modelMenuActions,
+                optionsActions: optionsMenuActions,
+                onNewConversation: onNewConversationTap
+            )
+        } selectedContent: {
+            MessageListView(
+                messages: messages,
+                conversationState: conversationState,
+                userInitials: userInitials,
+                editMessage: $editMessage
+            )
+        } emptyContent: {
+            EmptyConversaitonView(sendPrompt: sendPrompt)
+        } statusContent: {
+            UnreachableAPIView()
+        } composer: {
+            InputFieldsView(
+                message: $message,
+                conversationState: conversationState,
+                onStopGenerateTap: onStopGenerateTap,
+                selectedModel: selectedModel,
+                onSendMessageTap: onSendMessageTap,
+                editMessage: $editMessage
+            )
         }
         .onChange(of: editMessage, initial: false) { _, newMessage in
             if let newMessage = newMessage {
                 message = newMessage.content
                 isFocusedInput = true
             }
+        }
+    }
+
+    private func sendPrompt(_ selectedMessage: String) {
+        if let selectedModel = selectedModel {
+            onSendMessageTap(selectedMessage, selectedModel, nil, nil)
         }
     }
 }

@@ -3290,6 +3290,17 @@ struct SourceHygieneTests {
         #expect(controls.contains(".frame(width: 176, height: 24, alignment: .leading)"))
         #expect(controls.contains("Color.clear\n                .frame(width: 48, height: 1)"))
         #expect(controls.contains(".font(.system(size: 16, weight: .regular))"))
+        #expect(controls.contains("public struct QuillDesktopChatScaffold<"))
+        #expect(controls.contains("public var composerWidth: CGFloat"))
+        #expect(controls.contains("public var hasSelection: Bool"))
+        #expect(controls.contains("public var showsStatus: Bool"))
+        #expect(controls.contains("if hasSelection {\n                    selectedContent"))
+        #expect(controls.contains("if showsStatus {\n                    statusContent"))
+        #expect(controls.contains(".frame(width: composerWidth)"))
+        #expect(controls.contains("public struct QuillDesktopChatToolbar: View"))
+        #expect(controls.contains("public var modelActions: [QuillMenuAction]"))
+        #expect(controls.contains("public var optionsActions: [QuillMenuAction]"))
+        #expect(controls.contains("QuillToolbarIconButton(systemImage: \"square.and.pencil\", action: onNewConversation)"))
         #expect(!controls.contains(".fontWeight(.semibold)\n                            .foregroundColor(Color(hex: \"#444446\"))"))
     }
 

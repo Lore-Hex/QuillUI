@@ -769,6 +769,21 @@ struct QuillDataSourceLoweringTests {
         #expect(chatViewRule.contains("title: \"Quill Chat\""))
         #expect(chatViewRule.contains("(?:maxWidth|width): 800"))
 
+        let chatViewTemplate = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/macOS/Chat/ChatView_macOS.swift"),
+            encoding: .utf8
+        )
+        #expect(chatViewTemplate.contains("QuillDesktopChatScaffold("))
+        #expect(chatViewTemplate.contains("composerWidth: 800"))
+        #expect(chatViewTemplate.contains("hasSelection: selectedConversation != nil"))
+        #expect(chatViewTemplate.contains("showsStatus: !reachable"))
+        #expect(chatViewTemplate.contains("QuillDesktopChatToolbar("))
+        #expect(chatViewTemplate.contains("EmptyConversaitonView(sendPrompt: sendPrompt)"))
+        #expect(chatViewTemplate.contains("private func sendPrompt(_ selectedMessage: String)"))
+        #expect(!chatViewTemplate.contains("QuillDesktopSplitLayout("))
+        #expect(!chatViewTemplate.contains("VStack(alignment: .center, spacing: 0)"))
+        #expect(!chatViewTemplate.contains(".frame(width: 800)"))
+
         let emptyConversationRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/EmptyConversaitonView.swift.pl"),
             encoding: .utf8
