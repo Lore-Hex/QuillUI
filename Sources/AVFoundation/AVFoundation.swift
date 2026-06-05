@@ -338,6 +338,7 @@ public class AVAsset: @unchecked Sendable {
 
 public final class AVURLAsset: AVAsset, @unchecked Sendable {
     public let url: URL
+    public let resourceLoader = AVAssetResourceLoader()
     public init(url: URL, options: [AnyHashable: Any]? = nil) {
         self.url = url
         super.init()
@@ -414,4 +415,77 @@ public final class AVAssetExportSession: @unchecked Sendable {
 public let AVAssetExportPresetHighestQuality = "AVAssetExportPresetHighestQuality"
 public let AVAssetExportPresetMediumQuality = "AVAssetExportPresetMediumQuality"
 public let AVAssetExportPresetPassthrough = "AVAssetExportPresetPassthrough"
+
+// MARK: - Resource loader (custom URL scheme, used for encrypted-attachment playback)
+//
+// SSK installs a custom AVAssetResourceLoaderDelegate so AVAsset can stream
+// decrypted bytes for a private URL scheme. None of the asset machinery does
+// anything on Linux, so the delegate is simply never invoked; these types exist
+// only so the delegate class and its request-handling code compile.
+
+public final class AVAssetResourceLoader: @unchecked Sendable {
+    public var preloadsEligibleContentKeys: Bool = false
+    public init() {}
+    public func setDelegate(_ delegate: AVAssetResourceLoaderDelegate?, queue: DispatchQueue?) {}
+}
+
+public protocol AVAssetResourceLoaderDelegate: AnyObject {
+    func resourceLoader(_ resourceLoader: AVAssetResourceLoader, shouldWaitForLoadingOfRequestedResource loadingRequest: AVAssetResourceLoadingRequest) -> Bool
+}
+public extension AVAssetResourceLoaderDelegate {
+    func resourceLoader(_ resourceLoader: AVAssetResourceLoader, shouldWaitForLoadingOfRequestedResource loadingRequest: AVAssetResourceLoadingRequest) -> Bool { false }
+}
+
+public final class AVAssetResourceLoadingContentInformationRequest: @unchecked Sendable {
+    public var contentType: String?
+    public var contentLength: Int64 = 0
+    public var isByteRangeAccessSupported: Bool = false
+    public var isEntireLengthAvailableOnDemand: Bool = false
+    public init() {}
+}
+
+public final class AVAssetResourceLoadingDataRequest: @unchecked Sendable {
+    public var requestedOffset: Int64 = 0
+    public var requestedLength: Int = 0
+    public var currentOffset: Int64 = 0
+    public var requestsAllDataToEndOfResource: Bool = false
+    public init() {}
+    public func respond(with data: Data) {}
+}
+
+public final class AVAssetResourceLoadingRequest: @unchecked Sendable {
+    public var contentInformationRequest: AVAssetResourceLoadingContentInformationRequest?
+    public var dataRequest: AVAssetResourceLoadingDataRequest?
+    public init() {}
+    public func finishLoading() {}
+    public func finishLoading(with error: Error?) {}
+}
+
+// MARK: - AVAudioPlayer (inert) + audio-settings keys
+
+public final class AVAudioPlayer: @unchecked Sendable {
+    public var duration: TimeInterval { 0 }
+    public var numberOfChannels: Int { 0 }
+    public init(data: Data) throws {}
+    public init(contentsOf url: URL) throws {}
+    @discardableResult public func prepareToPlay() -> Bool { false }
+    @discardableResult public func play() -> Bool { false }
+    public func stop() {}
+}
+
+// AVAudioRecorder/AVAssetReaderTrackOutput settings dictionary keys (String on
+// Apple). Values are placed into a `[String: Any]` so the concrete value types
+// (UInt32 / Int / Bool) don't matter.
+public let AVFormatIDKey = "AVFormatIDKey"
+public let AVSampleRateKey = "AVSampleRateKey"
+public let AVNumberOfChannelsKey = "AVNumberOfChannelsKey"
+public let AVLinearPCMBitDepthKey = "AVLinearPCMBitDepthKey"
+public let AVLinearPCMIsBigEndianKey = "AVLinearPCMIsBigEndianKey"
+public let AVLinearPCMIsFloatKey = "AVLinearPCMIsFloatKey"
+public let AVLinearPCMIsNonInterleaved = "AVLinearPCMIsNonInterleaved"
+public let AVEncoderAudioQualityKey = "AVEncoderAudioQualityKey"
+public let AVEncoderBitRateKey = "AVEncoderBitRateKey"
+
+// CoreAudio format ID ('lpcm'); only ever a dictionary value on Linux.
+public let kAudioFormatLinearPCM: UInt32 = 0x6c70_636d
 #endif
