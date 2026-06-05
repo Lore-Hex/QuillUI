@@ -1263,10 +1263,27 @@ if wireguardUpstreamPresent {
             linkerSettings: [.linkedLibrary("z")]
         )
     )
+    // highlighter.c — WireGuard's wg-quick-config syntax highlighter (the
+    // `enum highlight_type` { HighlightSection, HighlightField, … } + highlight_config
+    // span scanner) backing ConfTextStorage/ConfTextColorTheme. Self-contained POSIX
+    // C (no external lib). It shares the View/ dir with the conformance target's
+    // .swift cells, so exclude those (the C target compiles only highlighter.c;
+    // highlighter.h is its public header) — same overlap pattern as WireGuardRingLoggerC.
+    targets.append(
+        .target(
+            name: "WireGuardHighlighterC",
+            path: ".upstream/wireguard-apple/Sources/WireGuardApp/UI/macOS/View",
+            exclude: ["ButtonRow.swift", "ConfTextColorTheme.swift", "ConfTextStorage.swift",
+                      "ConfTextView.swift", "DeleteTunnelsConfirmationAlert.swift", "KeyValueRow.swift",
+                      "LogViewCell.swift", "OnDemandWiFiControls.swift", "TunnelListRow.swift"],
+            sources: ["highlighter.c"],
+            publicHeadersPath: "."
+        )
+    )
     targets.append(
         .target(
             name: "QuillWireGuardConformanceUI",
-            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "WireGuardMinizipC", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
+            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "WireGuardMinizipC", "WireGuardHighlighterC", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
             path: ".upstream/wireguard-apple",
             sources: [
                 // Shared logging: Logger.swift (wg_log) over the ringlogger C
@@ -1379,6 +1396,11 @@ if wireguardUpstreamPresent {
                 // new NSColor(red:green:blue:alpha:)). Foundation Scanner + AppKit only;
                 // the color base for the conf-editor theme (ConfTextColorTheme, later).
                 "Sources/WireGuardApp/UI/macOS/NSColor+Hex.swift",
+                // ConfTextColorTheme: the conf-editor syntax color themes (Aqua +
+                // DarkAqua) keyed by the highlighter C span types (HighlightSection
+                // etc. — import WireGuardHighlighterC) → NSColor(hex:). First file of
+                // the NSTextView text subsystem (ConfTextStorage/ConfTextView follow).
+                "Sources/WireGuardApp/UI/macOS/View/ConfTextColorTheme.swift",
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
                 // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).
