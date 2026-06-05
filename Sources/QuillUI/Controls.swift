@@ -390,7 +390,7 @@ public enum QuillDesktopChromeStyle {
     }
 
     public static var detailBackground: Color {
-        Color(red: 0.985, green: 0.985, blue: 0.985)
+        Color(hex: "#FAFAFA")
     }
 
     public static var cardBackground: Color {

@@ -78,23 +78,20 @@ public final class OllamaKit: @unchecked Sendable {
     public func chat(data requestData: OKChatRequestData) -> AnyPublisher<OKChatResponse, Error> {
         Deferred { [self] in
             let box = OKChatSubjectBox()
-            let task = OKChatTaskBox()
+            let task = Task {
+                do {
+                    let responses = try await self.performChat(data: requestData)
+                    for response in responses {
+                        guard !Task.isCancelled else { return }
+                        box.send(response)
+                    }
+                    box.send(completion: .finished)
+                } catch {
+                    box.send(completion: .failure(error))
+                }
+            }
 
             return box.publisher
-                .handleEvents(receiveSubscription: { _ in
-                    task.start {
-                        do {
-                            let responses = try await self.performChat(data: requestData)
-                            for response in responses {
-                                guard !Task.isCancelled else { return }
-                                box.send(response)
-                            }
-                            box.send(completion: .finished)
-                        } catch {
-                            box.send(completion: .failure(error))
-                        }
-                    }
-                })
                 .handleEvents(receiveCancel: {
                     task.cancel()
                 })
@@ -198,27 +195,6 @@ private final class OKChatSubjectBox: @unchecked Sendable {
     }
 }
 #endif
-
-private final class OKChatTaskBox: @unchecked Sendable {
-    private let lock = NSLock()
-    private var task: Task<Void, Never>?
-
-    func start(_ operation: @escaping @Sendable () async -> Void) {
-        lock.withLock {
-            guard task == nil else { return }
-            task = Task {
-                await operation()
-            }
-        }
-    }
-
-    func cancel() {
-        lock.withLock {
-            task?.cancel()
-            task = nil
-        }
-    }
-}
 
 public struct OKModelsResponse: Codable, Equatable, Sendable {
     public var models: [OKModelResponse]

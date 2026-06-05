@@ -2228,6 +2228,11 @@ let packageTestTargets: [Target] = {
         dependencies: quillLinuxCompatibilityModuleTestDependencies,
         swiftSettings: appSwiftSettings
     ))
+    tests.append(.testTarget(
+        name: "OllamaKitTests",
+        dependencies: ["OllamaKit"],
+        swiftSettings: appSwiftSettings
+    ))
     #endif
 
     return tests
