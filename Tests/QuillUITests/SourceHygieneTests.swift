@@ -3413,10 +3413,11 @@ struct SourceHygieneTests {
 
         let sidebarButton = String(controls[buttonStart.lowerBound..<nextSection.lowerBound])
         #expect(sidebarButton.contains("Image(systemName: sidebarSystemImageName)"))
+        #expect(sidebarButton.contains("if systemImage == \"textformat.abc\""))
+        #expect(sidebarButton.contains("Text(\"Abc\")"))
         #expect(sidebarButton.contains("\"textformat\", \"textformat.abc\""))
         #expect(sidebarButton.contains("\"keyboard\", \"keyboard.fill\""))
         #expect(sidebarButton.contains("\"gearshape\", \"gearshape.fill\", \"gear\""))
-        #expect(!sidebarButton.contains("Text(\"Abc\")"))
         #expect(!sidebarButton.contains("case \"keyboard\", \"keyboard.fill\":"))
         #expect(!sidebarButton.contains("case \"gearshape\", \"gearshape.fill\", \"gear\":"))
     }

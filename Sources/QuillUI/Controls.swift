@@ -794,11 +794,25 @@ public struct QuillSidebarNavigationButton: View {
 
     @ViewBuilder
     private var sidebarIcon: some View {
+        #if os(Linux)
+        if systemImage == "textformat.abc" {
+            Text("Abc")
+                .font(.system(size: 13, weight: .regular))
+                .frame(width: 24, height: 20, alignment: .leading)
+        } else {
+            Image(systemName: sidebarSystemImageName)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 17, height: 17, alignment: .center)
+        }
+        #else
         Image(systemName: sidebarSystemImageName)
             .renderingMode(.template)
             .resizable()
             .scaledToFit()
             .frame(width: 17, height: 17, alignment: .center)
+        #endif
     }
 
     private var sidebarSystemImageName: String {
