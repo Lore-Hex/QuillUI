@@ -522,6 +522,33 @@ or, better, remove the need for module `X`.
   a net-negative one in the same commit, or just accept it -- the newly-visible
   errors are real work, not a regression.
 
+### Track B mixed-language-dir INCLUSION (2026-06, ~86% cleared, the big levers)
+
+- **The technique (Calls -10.6k, Payments -3.4k):** an EXCLUDED mixed-language
+  dir (`Calls/`, `Payments/` in `signalServiceKitExcludes`) blocks ALL its Swift,
+  which causes huge `cannot find type` bands in the rest of SSK (CallRecord*,
+  PaymentsHelperSwift, ...). To include the Swift: (1) PORT the dir's few ObjC
+  classes as `Sources/SignalServiceKitObjCPort/Quill*.swift` -- Calls had only
+  TSCall + OWSGroupCallMessage (TSInteraction subclasses); Payments had only
+  TSPaymentModels (TSPaymentAmount/Address/Notification value types). Include the
+  SDS init AND any BUILDER inits the (now-compiling) Backups archivers call --
+  grep `<Class>($` in Backups for the arg labels. (2) In Package.swift REPLACE the
+  bare dir-string with per-file excludes of ONLY its `.m`/`.h`. (3) rebuild +
+  MEASURE; revert Package.swift if net-regression. SignalRingRTC IS a Linux shim
+  module, so the Calls Swift's RingRTC imports resolve.
+- **Do the ports FIRST, the Package.swift include SECOND:** the ObjC-class ports
+  clear their `cannot find` bands independent of the dir inclusion (and are the
+  inclusion's prerequisite). Each is its own committable milestone; the
+  Package.swift one-liner is the next.
+- **Inclusion exposes the dir's own residual Swift gaps** (e.g. SignalRingRTC HTTP
+  types for CallHTTPClient; the OWSPaymentMessage ObjC chain in Messages/Payments/
+  which is a SEPARATE dir from Payments/). These are follow-ups; the net is still
+  hugely negative.
+- **CGSize/CGRect/CGPoint resolved:** swift-corelibs Foundation provides the CG
+  geometry value types -- the failing files just lacked `import Foundation` (they
+  matched no other Foundation type). Fixed by adding the CG geometry types to
+  inject-foundation.sh's FOUNDATION_TYPES.
+
 ---
 
 ## Pointers
