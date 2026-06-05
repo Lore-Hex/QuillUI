@@ -28,7 +28,7 @@ public protocol OWSReadTracking: NSObjectProtocol {
     var uniqueThreadId: String { get }
 
     /// Used both for responding to a remote read receipt and for local activity.
-    func markAsRead(at readTimestamp: UInt64,
+    func markAsRead(atTimestamp readTimestamp: UInt64,
                     thread: TSThread,
                     circumstance: OWSReceiptCircumstance,
                     shouldClearNotifications: Bool,

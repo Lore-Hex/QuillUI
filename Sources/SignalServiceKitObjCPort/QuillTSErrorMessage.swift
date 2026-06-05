@@ -128,7 +128,7 @@ open class TSErrorMessage: TSMessage, OWSReadTracking, OWSPreviewText {
 
     // MARK: OWSReadTracking
 
-    public func markAsRead(at readTimestamp: UInt64,
+    public func markAsRead(atTimestamp readTimestamp: UInt64,
                            thread: TSThread,
                            circumstance: OWSReceiptCircumstance,
                            shouldClearNotifications: Bool,

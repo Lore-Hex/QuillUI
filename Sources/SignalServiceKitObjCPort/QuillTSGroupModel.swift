@@ -31,8 +31,8 @@ private let tsGroupModelSchemaVersion: UInt = 2
 // MARK: - GroupsVersion (declared in TSGroupModel.h)
 
 public enum GroupsVersion: UInt32 {
-    case v1 = 0
-    case v2 = 1
+    case V1 = 0
+    case V2 = 1
 }
 
 // MARK: - TSGroupModel
@@ -53,7 +53,7 @@ open class TSGroupModel: NSObject, NSSecureCoding, NSCopying {
 
     // MARK: Computed
 
-    open var groupsVersion: GroupsVersion { .v1 }
+    open var groupsVersion: GroupsVersion { .V1 }
 
     open var groupMembership: GroupMembership { GroupMembership(v1Members: groupMembers) }
 
@@ -70,7 +70,7 @@ open class TSGroupModel: NSObject, NSSecureCoding, NSCopying {
                 name: String?,
                 avatarData: Data?,
                 members: [SignalServiceAddress],
-                addedByAddress: SignalServiceAddress?) {
+                addedBy addedByAddress: SignalServiceAddress?) {
         self.groupId = groupId
         self.groupName = name
         self.groupMembers = members
@@ -160,7 +160,7 @@ open class TSGroupModel: NSObject, NSSecureCoding, NSCopying {
                                   name: groupName,
                                   avatarData: nil,
                                   members: groupMembers,
-                                  addedByAddress: addedByAddress)
+                                  addedBy: addedByAddress)
         result.avatarHash = avatarHash
         result.legacyAvatarData = legacyAvatarData
         result.groupModelSchemaVersion = groupModelSchemaVersion
