@@ -1587,6 +1587,101 @@ def validate_quill_chat_mac_reference_composer_send(image: Screenshot) -> str:
     )
 
 
+def validate_quill_chat_functional_transcript(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(app_width >= 1800, f"Functional transcript window is too narrow: {app_width}px")
+    require(app_height >= 1200, f"Functional transcript window is too short: {app_height}px")
+
+    divider_search = range(left + int(app_width * 0.23), left + int(app_width * 0.34))
+    divider_x = max(
+        divider_search,
+        key=lambda x: line_column_score(image, x, top + int(app_height * 0.04), bottom - 40),
+    )
+    divider_score = line_column_score(image, divider_x, top + int(app_height * 0.04), bottom - 40)
+    sidebar_ratio = (divider_x - left) / app_width
+    require(
+        0.255 <= sidebar_ratio <= 0.305 and divider_score >= app_height * 0.72,
+        f"Functional transcript sidebar divider mismatch: x={divider_x}, ratio={sidebar_ratio:.3f}, score={divider_score}",
+    )
+
+    detail_left = divider_x + 1
+    detail_width = right - detail_left + 1
+    prompt_card_like_pixels = pixel_count(
+        image,
+        detail_left,
+        top + int(app_height * 0.25),
+        right + 1,
+        top + int(app_height * 0.62),
+        mac_reference_prompt_card_pixel,
+    )
+    require(
+        prompt_card_like_pixels <= 8_000,
+        f"Functional transcript still shows empty-state prompt cards: pixels={prompt_card_like_pixels}",
+    )
+
+    wordmark_pixels = pixel_count(
+        image,
+        detail_left + int(detail_width * 0.35),
+        top + int(app_height * 0.20),
+        detail_left + int(detail_width * 0.65),
+        top + int(app_height * 0.45),
+        colorful_wordmark_pixel,
+    )
+    require(
+        wordmark_pixels <= 650,
+        f"Functional transcript still shows the empty-state wordmark: pixels={wordmark_pixels}",
+    )
+
+    leading_message_pixels = dark_pixel_count(
+        image,
+        detail_left + int(detail_width * 0.02),
+        top + int(app_height * 0.12),
+        detail_left + int(detail_width * 0.45),
+        top + int(app_height * 0.26),
+    )
+    require(
+        leading_message_pixels >= 120,
+        f"Functional transcript assistant reply was not detected: pixels={leading_message_pixels}",
+    )
+
+    trailing_message_pixels = dark_pixel_count(
+        image,
+        detail_left + int(detail_width * 0.77),
+        top + int(app_height * 0.05),
+        right - int(detail_width * 0.01),
+        top + int(app_height * 0.18),
+    )
+    require(
+        trailing_message_pixels >= 120,
+        f"Functional transcript user message was not detected on the trailing edge: pixels={trailing_message_pixels}",
+    )
+
+    composer = best_horizontal_segment(
+        image,
+        top + int(app_height * 0.88),
+        bottom + 1,
+        detail_left,
+        right + 1,
+        mac_reference_composer_pixel,
+        min_width=int(detail_width * 0.55),
+    )
+    require(composer is not None, "Functional transcript composer was not detected")
+    composer_y, composer_segment = composer
+
+    return (
+        "Quill Chat functional transcript: "
+        f"app={app_width}x{app_height}, "
+        f"sidebar={divider_x - left}px, "
+        f"prompt_card_pixels={prompt_card_like_pixels}, "
+        f"wordmark_pixels={wordmark_pixels}, "
+        f"assistant_pixels={leading_message_pixels}, "
+        f"user_pixels={trailing_message_pixels}, "
+        f"composer={composer_segment.width}px@{composer_y}"
+    )
+
+
 def validate_quill_enchanted_qt_native(
     image: Screenshot,
     minimum_selected_center_offset: int | None = None,
@@ -2796,6 +2891,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_prompt_send(image))
     elif product == "quill-chat-linux-mac-reference-composer-send":
         print(validate_quill_chat_mac_reference_composer_send(image))
+    elif product == "quill-chat-linux-functional-transcript":
+        print(validate_quill_chat_functional_transcript(image))
     elif product in {"quill-enchanted-mac-reference", "quill-enchanted-linux-mac-reference"}:
         print(validate_quill_enchanted_mac_reference(image))
     elif product in {"quill-chat-mac-reference", "quill-chat-linux-mac-reference"}:

@@ -18,3 +18,20 @@ s~        let assistantMessage = MessageSD\(content: "", role: "assistant"\)
         self.selectedConversation = conversation
         
         conversationState = .loading~g;
+
+s~        print\(messageHistory\.map\(\{\$0\.content\}\)\)~        let currentUserRequestMessage = OKChatRequestData.Message(
+            role: .user,
+            content: userPrompt
+        )
+        if !messageHistory.contains(where: { \$0.role == .user && \$0.content == userPrompt }) {
+            messageHistory.append(currentUserRequestMessage)
+        }
+
+        print(messageHistory.map({\$0.content}))~g;
+
+s~            try await reloadConversation\(conversation\)
+            try\? await loadConversations\(\)
+
+            if await OllamaService\.shared\.ollamaKit\.reachable\(\) \{~            Task { try? await self.loadConversations() }
+
+            if await OllamaService.shared.ollamaKit.reachable() {~g;

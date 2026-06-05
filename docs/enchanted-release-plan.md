@@ -94,15 +94,11 @@ Required click-through flows:
 
 ## Current Priority Order
 
-1. Add the relaunch persistence gate: run the live composer-send flow, relaunch
-   with the same `QUILLDATA_HOME`, and verify the conversation reloads from
-   disk.
-2. Finish Settings and Completions sheet parity.
-3. Keep the typed-composer focus/input path gated in CI.
-4. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
-5. Wire QuillPaint into the controls that currently fail visual parity.
-6. Produce a release artifact and rerun visual/interaction smoke against it.
-7. Only then resume NetNewsWire as the next public app.
+1. Finish Settings and Completions sheet parity.
+2. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
+3. Wire QuillPaint into the controls that currently fail visual parity.
+4. Produce a release artifact and rerun visual/interaction smoke against it.
+5. Only then resume NetNewsWire as the next public app.
 
 Recently cleared:
 
@@ -115,6 +111,11 @@ Recently cleared:
   the real composer submits exactly one typed user prompt to mock Ollama, renders
   the streamed assistant reply, and persists user plus assistant rows through
   QuillData.
+- Relaunch persistence is covered by the same functional harness when
+  `QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH=1`: after the live send it restarts the
+  app with the same `QUILLDATA_HOME`, selects the persisted conversation from
+  the sidebar, verifies no second `/api/chat` request was made, and checks the
+  relaunched transcript screenshot.
 
 ## Non-Goals For The First Release
 

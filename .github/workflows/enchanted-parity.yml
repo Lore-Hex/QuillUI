@@ -108,14 +108,16 @@ jobs:
               quill-chat-linux \
               gtk
 
-      - name: Run live composer-send functional verifier
+      - name: Run live composer-send and relaunch functional verifier
         env:
           QUILLUI_BACKEND_SKIP_BUILD: "1"
           QUILLUI_FUNCTIONAL_COMPOSER_X: "700"
           QUILLUI_FUNCTIONAL_COMPOSER_Y: "1190"
+          QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH: "1"
         run: |
           # Prove the real-source composer submits to Ollama and persists
-          # the streamed user/assistant turn through QuillData.
+          # the streamed user/assistant turn through QuillData, then relaunch
+          # with the same data home and select the saved conversation from disk.
           QUILLUI_FUNCTIONAL_APP_LOG=.qa/quill-chat-linux-functional-app.log \
           QUILLUI_FUNCTIONAL_MOCK_LOG=.qa/quill-chat-linux-functional-ollama.log \
             timeout --kill-after=15s 180s \

@@ -16,16 +16,4 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_DIR="$1"
 OUTPUT_DIR="$2"
 
-if [[ -n "${QUILLUI_SOURCE_LOWER:-}" ]]; then
-  exec "$QUILLUI_SOURCE_LOWER" "$SOURCE_DIR" "$OUTPUT_DIR"
-fi
-
-SOURCE_LOWER_SCRATCH_PATH="${QUILLUI_SOURCE_LOWER_SCRATCH_PATH:-$ROOT_DIR/.build/quill-source-lower-tool}"
-
-exec swift run \
-  --package-path "$ROOT_DIR" \
-  --scratch-path "$SOURCE_LOWER_SCRATCH_PATH" \
-  --disable-sandbox \
-  quill-source-lower \
-  "$SOURCE_DIR" \
-  "$OUTPUT_DIR"
+exec "$ROOT_DIR/scripts/run-quill-source-lower.sh" "$SOURCE_DIR" "$OUTPUT_DIR"

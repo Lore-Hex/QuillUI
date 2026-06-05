@@ -10,6 +10,8 @@ APP_EXECUTABLE=""
 APP_LOG_PATH="${QUILLUI_FUNCTIONAL_APP_LOG:-/tmp/quill-chat-functional-app.log}"
 MOCK_LOG_PATH="${QUILLUI_FUNCTIONAL_MOCK_LOG:-/tmp/quill-chat-functional-ollama.log}"
 RUN_HOME="${QUILLUI_FUNCTIONAL_HOME:-$OUTPUT_DIR/quill-chat-functional-home}"
+RELAUNCH_SCREENSHOT_PATH="${QUILLUI_FUNCTIONAL_RELAUNCH_SCREENSHOT:-${SCREENSHOT_PATH%.png}-relaunch.png}"
+VERIFY_RELAUNCH="${QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH:-0}"
 MESSAGE_TEXT="${QUILLUI_FUNCTIONAL_MESSAGE:-hello from linux}"
 REPLY_TEXT="${QUILLUI_FUNCTIONAL_REPLY:-Linux composer reply}"
 MODEL_NAME="${QUILLUI_FUNCTIONAL_MODEL:-llava:latest}"
@@ -130,33 +132,46 @@ app_environment+=(
   "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT=$reference_window_height"
   "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"
 )
-env "${app_environment[@]}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
-app_pid=$!
 
-sleep "${QUILLUI_FUNCTIONAL_STARTUP_SLEEP:-6}"
+launch_app_instance() {
+  local log_redirect="$1"
 
-window_x=0
-window_y=0
-window_width="${reference_window_width:-1180}"
-window_height="${reference_window_height:-760}"
-window_id="$(quillui_find_visible_window_for_pid "$DISPLAY_ID" "$app_pid")"
-if [[ -z "$window_id" ]]; then
-  window_id="$(quillui_find_visible_window_by_name "$DISPLAY_ID" ".*")"
-fi
-if [[ -n "$window_id" ]]; then
-  quillui_place_reference_window "$DISPLAY_ID" "$window_id" "$reference_window_width" "$reference_window_height"
-  capture_window="$window_id"
-  quillui_functional_xdotool windowactivate "$window_id" 2>/dev/null || true
-  quillui_functional_xdotool windowfocus "$window_id" 2>/dev/null || true
-  while IFS='=' read -r key value; do
-    case "$key" in
-      X) window_x="$value" ;;
-      Y) window_y="$value" ;;
-      WIDTH) window_width="$value" ;;
-      HEIGHT) window_height="$value" ;;
-    esac
-  done < <(DISPLAY="$DISPLAY_ID" timeout "${QUILLUI_FUNCTIONAL_XDOTOOL_TIMEOUT:-10}" xdotool getwindowgeometry --shell "$window_id")
-fi
+  if [[ "$log_redirect" == "append" ]]; then
+    env "${app_environment[@]}" "$APP_EXECUTABLE" >>"$APP_LOG_PATH" 2>&1 &
+  else
+    env "${app_environment[@]}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
+  fi
+  app_pid=$!
+  sleep "${QUILLUI_FUNCTIONAL_STARTUP_SLEEP:-6}"
+}
+
+resolve_app_window_geometry() {
+  window_x=0
+  window_y=0
+  window_width="${reference_window_width:-1180}"
+  window_height="${reference_window_height:-760}"
+  window_id="$(quillui_find_visible_window_for_pid "$DISPLAY_ID" "$app_pid")"
+  if [[ -z "$window_id" ]]; then
+    window_id="$(quillui_find_visible_window_by_name "$DISPLAY_ID" ".*")"
+  fi
+  if [[ -n "$window_id" ]]; then
+    quillui_place_reference_window "$DISPLAY_ID" "$window_id" "$reference_window_width" "$reference_window_height"
+    capture_window="$window_id"
+    quillui_functional_xdotool windowactivate "$window_id" 2>/dev/null || true
+    quillui_functional_xdotool windowfocus "$window_id" 2>/dev/null || true
+    while IFS='=' read -r key value; do
+      case "$key" in
+        X) window_x="$value" ;;
+        Y) window_y="$value" ;;
+        WIDTH) window_width="$value" ;;
+        HEIGHT) window_height="$value" ;;
+      esac
+    done < <(DISPLAY="$DISPLAY_ID" timeout "${QUILLUI_FUNCTIONAL_XDOTOOL_TIMEOUT:-10}" xdotool getwindowgeometry --shell "$window_id")
+  fi
+}
+
+launch_app_instance truncate
+resolve_app_window_geometry
 
 click_x="${QUILLUI_FUNCTIONAL_COMPOSER_X:-$((window_x + (window_width * 56 / 100)))}"
 click_y="${QUILLUI_FUNCTIONAL_COMPOSER_Y:-$((window_y + window_height - 190))}"
@@ -248,3 +263,117 @@ PY
 
 DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 echo "Functional screenshot: $SCREENSHOT_PATH"
+
+if [[ "$VERIFY_RELAUNCH" == "1" ]]; then
+  baseline_chat_requests="$(
+    python3 - "$MOCK_LOG_PATH" <<'PY'
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+mock_log = Path(sys.argv[1])
+count = 0
+if mock_log.exists():
+    for line in mock_log.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        if json.loads(line).get("path") == "/api/chat":
+            count += 1
+print(count)
+PY
+  )"
+
+  quillui_stop_process_if_running "$app_pid"
+  app_pid=""
+  sleep 1
+  capture_window="root"
+
+  launch_app_instance append
+  resolve_app_window_geometry
+
+  history_x="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X:-$((window_x + 190))}"
+  history_y="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y:-$((window_y + 190))}"
+  quillui_functional_xdotool mousemove "$history_x" "$history_y" click 1
+  sleep "${QUILLUI_FUNCTIONAL_RELAUNCH_SETTLE_SLEEP:-3}"
+
+  python3 - "$MOCK_LOG_PATH" "$baseline_chat_requests" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" <<'PY'
+from __future__ import annotations
+
+import json
+import sqlite3
+import sys
+import time
+from pathlib import Path
+
+mock_log = Path(sys.argv[1])
+baseline_chat_requests = int(sys.argv[2])
+message_text = sys.argv[3]
+reply_text = sys.argv[4]
+home = Path(sys.argv[5])
+database_path = home / ".quilldata" / "default.sqlite"
+
+
+def chat_request_count() -> int:
+    if not mock_log.exists():
+        return 0
+    count = 0
+    for line in mock_log.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        if json.loads(line).get("path") == "/api/chat":
+            count += 1
+    return count
+
+
+def persisted_messages() -> list[dict[str, object]]:
+    if not database_path.exists():
+        return []
+    with sqlite3.connect(database_path) as connection:
+        tables = [
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+            if row[0].endswith("_MessageSD")
+        ]
+        rows = []
+        for table in tables:
+            rows.extend(connection.execute(f'SELECT payload FROM "{table}"').fetchall())
+    return [json.loads(bytes(row[0]).decode("utf-8")) for row in rows]
+
+
+deadline = time.time() + 15
+last_request_count = 0
+last_messages: list[dict[str, object]] = []
+while time.time() < deadline:
+    last_request_count = chat_request_count()
+    last_messages = persisted_messages()
+    user_persisted = any(
+        item.get("role") == "user" and message_text in str(item.get("content", ""))
+        for item in last_messages
+    )
+    assistant_persisted = any(
+        item.get("role") == "assistant" and reply_text in str(item.get("content", ""))
+        for item in last_messages
+    )
+    if last_request_count == baseline_chat_requests and user_persisted and assistant_persisted:
+        print(
+            "Quill Chat functional relaunch: "
+            f"chat_requests={last_request_count}, persisted_messages={len(last_messages)}"
+        )
+        raise SystemExit(0)
+    time.sleep(0.5)
+
+print("Functional relaunch persistence did not complete.", file=sys.stderr)
+print(f"baseline_chat_requests={baseline_chat_requests}", file=sys.stderr)
+print(f"chat_requests={last_request_count}", file=sys.stderr)
+print(f"persisted_messages={last_messages}", file=sys.stderr)
+raise SystemExit(1)
+PY
+
+  DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$RELAUNCH_SCREENSHOT_PATH"
+  python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+    "$RELAUNCH_SCREENSHOT_PATH" \
+    quill-chat-linux-functional-transcript
+  echo "Functional relaunch screenshot: $RELAUNCH_SCREENSHOT_PATH"
+fi

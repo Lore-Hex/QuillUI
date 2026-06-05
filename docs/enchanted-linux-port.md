@@ -26,6 +26,10 @@ test harness, and the meta-lessons about debugging this stack. Read this before 
 - The real-source **composer-send functional path is now gated**: a mock Ollama server receives
   exactly one typed user prompt on `/api/chat`, streams a reply, and the harness confirms both
   user and assistant messages persisted to QuillData.
+- The same functional harness can **relaunch from persisted QuillData**: with
+  `QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH=1`, it restarts the app with the same data
+  home, selects the saved sidebar conversation, verifies no second `/api/chat`
+  request happened, and validates the relaunched transcript screenshot.
 - **Do NOT modify the genuine source.** All Linux fixes go through lowering rewrite-rules.
 
 ---
@@ -37,6 +41,8 @@ genuine Enchanted source (.upstream/enchanted, fetched via scripts/fetch-upstrea
    │  scripts/profiles/enchanted-full-source/lower-profile-source.sh
    ▼
 swift-syntax lowering  (copies → source/ → lowered/ ; rewrites @Observable etc.)
+   │  scripts/run-quill-source-lower.sh isolates the lowerer tool package
+   │  from optional root fixtures such as CodeEdit / WireGuard / IINA
    +  perl rewrite-rules (scripts/profiles/enchanted-full-source/rewrite-rules/**.swift.pl)
    ▼
 generated SPM package (.build/quill-chat-linux-gtk/package) depending on:
@@ -141,7 +147,7 @@ locally, in Docker, and in the Enchanted parity workflow.
   rows → capture a screenshot.
 - The CI **Strict Mac-reference verifier** (`enchanted-parity.yml`) also renders the deterministic
   empty state, gates typed-composer focus/input, gates deterministic composer-send UI transition,
-  and runs this live HTTP/persistence check. Relaunch persistence remains a separate open gate.
+  and runs the live HTTP/persistence/relaunch check.
 
 ---
 
@@ -191,10 +197,9 @@ locally, in Docker, and in the Enchanted parity workflow.
 
 ## Known open issues
 
-- **Relaunch persistence is not gated yet.** Composer focus/input, composer-send UI transition,
-  live Ollama `/api/chat`, streamed assistant reply, and first-run QuillData persistence are gated.
-  The next behavior gate should relaunch with the same `QUILLDATA_HOME` and verify the conversation
-  reloads from disk.
+- **Normal-runtime visual parity is still behind the Mac reference.** The deterministic
+  mac-reference rows are gated, and live composer/relaunch behavior works, but the
+  normal live GTK runtime still shows Linux-default button/list chrome in the sidebar.
 - **`.task` re-fetch storm** mitigated by run-once/idempotent guards (rewrite-rules); the clean fix
   is run-once-per-identity `.task` semantics in SwiftOpenUI.
 - Settings/Completions sheets (`isPresented`) on the full app — unverified.

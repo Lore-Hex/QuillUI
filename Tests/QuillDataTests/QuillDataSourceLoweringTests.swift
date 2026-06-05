@@ -52,17 +52,30 @@ struct QuillDataSourceLoweringTests {
 
         let script = root.appendingPathComponent("scripts/lower-swiftdata-for-quilldata.sh")
         let scriptSource = try String(contentsOf: script, encoding: .utf8)
-        #expect(scriptSource.contains("quill-source-lower"))
-        #expect(scriptSource.contains("QUILLUI_SOURCE_LOWER"))
-        #expect(scriptSource.contains("--disable-sandbox"))
+        #expect(scriptSource.contains("run-quill-source-lower.sh"))
+        #expect(!scriptSource.contains("--package-path \"$ROOT_DIR\""))
         #expect(!scriptSource.contains("perl -0pi"))
-        let lowerer = try builtQuillSourceLowerExecutable(root: root)
+
+        let lowererWrapper = try String(
+            contentsOf: root.appendingPathComponent("scripts/run-quill-source-lower.sh"),
+            encoding: .utf8
+        )
+        #expect(lowererWrapper.contains("QUILLUI_SOURCE_LOWER"))
+        #expect(lowererWrapper.contains(".build/quill-source-lower-package"))
+        #expect(lowererWrapper.contains("ln -s \"$ROOT_DIR/Sources/QuillSourceLowering\""))
+        #expect(lowererWrapper.contains("--package-path \"$TOOL_PACKAGE_DIR\""))
+        #expect(!lowererWrapper.contains("--package-path \"$ROOT_DIR\""))
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path, source.path, output.path]
         process.environment = ProcessInfo.processInfo.environment.merging(
-            ["QUILLUI_SOURCE_LOWER": lowerer.path]
+            [
+                "QUILLUI_SOURCE_LOWER_PACKAGE_DIR": directory
+                    .appendingPathComponent("ToolPackage", isDirectory: true).path,
+                "QUILLUI_SOURCE_LOWER_SCRATCH_PATH": directory
+                    .appendingPathComponent("ToolScratch", isDirectory: true).path,
+            ]
         ) { _, new in new }
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -510,6 +523,9 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("Mac-reference prompt-send message content was not detected"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_composer_send"))
         #expect(verifier.contains("Mac-reference composer-send message content was not detected"))
+        #expect(verifier.contains("validate_quill_chat_functional_transcript"))
+        #expect(verifier.contains("Functional transcript assistant reply was not detected"))
+        #expect(verifier.contains("quill-chat-linux-functional-transcript"))
 
         let interactionScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"),
@@ -596,15 +612,23 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("scripts/mock-ollama.py"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_MESSAGE"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_REPLY"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_SCREENSHOT"))
         #expect(functionalScript.contains("QUILLDATA_HOME=$RUN_HOME"))
         #expect(functionalScript.contains("mock Ollama did not start"))
         #expect(functionalScript.contains("quillui_functional_xdotool()"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_XDOTOOL_TIMEOUT"))
+        #expect(functionalScript.contains("launch_app_instance()"))
+        #expect(functionalScript.contains("resolve_app_window_geometry()"))
         #expect(functionalScript.contains("payload.get(\"path\") == \"/api/chat\""))
         #expect(functionalScript.contains("home / \".quilldata\" / \"default.sqlite\""))
         #expect(functionalScript.contains("row[0].endswith(\"_MessageSD\")"))
         #expect(functionalScript.contains("len(matching_request_users) == 1"))
         #expect(functionalScript.contains("request_ok and user_persisted and assistant_persisted"))
+        #expect(functionalScript.contains("baseline_chat_requests"))
+        #expect(functionalScript.contains("last_request_count == baseline_chat_requests"))
+        #expect(functionalScript.contains("quill-chat-linux-functional-transcript"))
+        #expect(functionalScript.contains("Functional relaunch screenshot"))
         #expect(functionalScript.contains("Functional failure screenshot"))
         #expect(functionalScript.contains("quillui_print_backend_app_log_tail"))
         #expect(functionalScript.contains("Mock Ollama log"))
@@ -624,10 +648,11 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(parityWorkflow.contains("openbox"))
         #expect(parityWorkflow.contains("QUILLUI_BACKEND_SKIP_BUILD: \"1\""))
-        #expect(parityWorkflow.contains("Run live composer-send functional verifier"))
+        #expect(parityWorkflow.contains("Run live composer-send and relaunch functional verifier"))
         #expect(parityWorkflow.contains("scripts/quill-chat-functional-check.sh"))
         #expect(parityWorkflow.contains(".qa/quill-chat-linux-functional-composer-send-gtk.png"))
         #expect(parityWorkflow.contains("timeout --kill-after=15s 180s"))
+        #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH: \"1\""))
         #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_COMPOSER_X: \"700\""))
         #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_COMPOSER_Y: \"1190\""))
 
@@ -716,6 +741,10 @@ struct QuillDataSourceLoweringTests {
         #expect(conversationStoreRule.contains("lastMesasge.content.append(currentMessageBuffer)"))
         #expect(conversationStoreRule.contains("self.messages = conversation.messages.sorted"))
         #expect(conversationStoreRule.contains("self.selectedConversation = conversation"))
+        #expect(conversationStoreRule.contains("let currentUserRequestMessage = OKChatRequestData.Message"))
+        #expect(conversationStoreRule.contains("!messageHistory.contains(where: { \\$0.role == .user && \\$0.content == userPrompt })"))
+        #expect(conversationStoreRule.contains("messageHistory.append(currentUserRequestMessage)"))
+        #expect(conversationStoreRule.contains("Task { try? await self.loadConversations() }"))
         #expect(!conversationStoreRule.contains("conversation.messages + [userMessage]"))
 
         let appStoreRule = try String(
@@ -2041,55 +2070,8 @@ struct QuillDataSourceLoweringTests {
         throw SourceLoweringTestError.packageRootNotFound
     }
 
-    private func builtQuillSourceLowerExecutable(root: URL) throws -> URL {
-        let fileManager = FileManager.default
-        let direct = root.appendingPathComponent(".build/debug/quill-source-lower")
-        if fileManager.isExecutableFile(atPath: direct.path) {
-            return direct
-        }
-
-        let buildDirectory = root.appendingPathComponent(".build", isDirectory: true)
-        if let enumerator = fileManager.enumerator(
-            at: buildDirectory,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) {
-            for case let candidate as URL in enumerator {
-                guard candidate.lastPathComponent == "quill-source-lower",
-                      fileManager.isExecutableFile(atPath: candidate.path)
-                else {
-                    continue
-                }
-                return candidate
-            }
-        }
-
-        // `swift test` does not build executable products, so quill-source-lower
-        // may not exist yet. Build it on demand into the same dedicated scratch
-        // path the lowering script uses — separate from the in-use main .build,
-        // so there is no SwiftPM lock contention with the running test build.
-        let scratch = root.appendingPathComponent(".build/quill-source-lower-tool")
-        let build = Process()
-        build.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        build.arguments = [
-            "swift", "build", "--product", "quill-source-lower",
-            "--package-path", root.path, "--scratch-path", scratch.path,
-        ]
-        build.standardOutput = FileHandle.nullDevice
-        build.standardError = FileHandle.nullDevice
-        try build.run()
-        build.waitUntilExit()
-
-        let built = scratch.appendingPathComponent("debug/quill-source-lower")
-        if fileManager.isExecutableFile(atPath: built.path) {
-            return built
-        }
-
-        throw SourceLoweringTestError.quillSourceLowerNotBuilt
-    }
 }
 
 private enum SourceLoweringTestError: Error {
     case packageRootNotFound
-    case quillSourceLowerNotBuilt
 }
