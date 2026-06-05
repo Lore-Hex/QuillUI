@@ -188,3 +188,10 @@ public enum TSPaymentFailure: UInt {
     case invalid = 5
     case expired = 6
 }
+
+// MARK: - TSOutgoingMessage.h : NS_ENUM(NSInteger, EncryptionStyle)
+
+public enum EncryptionStyle: Int {
+    case whisper = 0
+    case plaintext = 1
+}
