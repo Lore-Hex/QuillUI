@@ -3,7 +3,7 @@
 @_exported import Combine
 public typealias ButtonStyleConfiguration = SwiftUI.ButtonStyle.Configuration
 #else
-@_exported import SwiftOpenUI
+import SwiftOpenUI
 @_exported import QuillSwiftUICompatibility
 
 public typealias QuillObservableObject = SwiftOpenUI.ObservableObject

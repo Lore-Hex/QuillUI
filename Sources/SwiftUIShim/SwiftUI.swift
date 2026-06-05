@@ -1,6 +1,5 @@
 @_exported import Foundation
 @_exported import Dispatch
-@_exported import SwiftOpenUI
 @_exported import QuillSwiftUICompatibility
 
 // NOTE: do NOT add `@_exported import QuillUI` here. QuillUI
