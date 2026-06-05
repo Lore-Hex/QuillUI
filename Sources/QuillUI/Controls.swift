@@ -262,7 +262,10 @@ public struct QuillPromptGrid: View {
             // Narrow multi-column card: wrapped title top-left, icon bottom-right.
             // Kept for the generated upstream profile's 2-column grid (a single
             // truncated line there is too little text for the visual-smoke budget).
-            VStack(alignment: .leading, spacing: 10) {
+            ZStack(alignment: .topLeading) {
+                Color.clear
+                    .frame(height: promptCardContentHeight)
+
                 Text(prompt.title.quillPromptGridDisplayTitle)
                     .font(.system(size: promptFontSize))
                     .foregroundColor(Color(hex: "#1D1D1F"))
@@ -272,11 +275,20 @@ public struct QuillPromptGrid: View {
                     // overflowed off the right edge. maxWidth:.infinity lets the card
                     // shrink with its LazyVGrid column.
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Spacer()
-                HStack {
-                    Spacer()
-                    promptAccessory(for: prompt)
+
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    HStack {
+                        Spacer()
+                        promptAccessory(for: prompt)
+                    }
                 }
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: promptCardContentHeight,
+                    maxHeight: promptCardContentHeight,
+                    alignment: .bottomTrailing
+                )
             }
         }
     }
@@ -288,6 +300,9 @@ public struct QuillPromptGrid: View {
     private var promptCardPadding: Int { 15 }
     #endif
     private var promptCardPaddingWidth: CGFloat { CGFloat(promptCardPadding) }
+    private var promptCardContentHeight: CGFloat {
+        max(1, cardHeight - (promptCardPaddingWidth * 2))
+    }
     private var promptIconSize: CGFloat { 16 }
 
     private var cardBackgroundColor: Color {

@@ -527,6 +527,31 @@ def best_prompt_card_row(
     return best
 
 
+def prompt_card_fill_height(
+    image: Screenshot,
+    y0: int,
+    y1: int,
+    segments: list[Segment],
+    predicate: Callable[[tuple[int, int, int]], bool],
+) -> int:
+    rows: list[int] = []
+    for y in range(max(0, y0), min(image.height, y1)):
+        matched_cards = 0
+        for segment in segments:
+            fill_pixels = sum(
+                1
+                for x in range(segment.start, segment.end + 1)
+                if predicate(image.pixel(x, y))
+            )
+            if fill_pixels >= segment.width * 0.42:
+                matched_cards += 1
+        if matched_cards == len(segments):
+            rows.append(y)
+    if not rows:
+        return 0
+    return rows[-1] - rows[0] + 1
+
+
 def validate_quill_enchanted_mac_reference(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -723,6 +748,21 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         and prompt_segments[-1].end <= right,
         f"Mac-reference prompt cards are outside the detail pane: {prompt_segments}",
     )
+    prompt_card_height = prompt_card_fill_height(
+        image,
+        top + int(app_height * 0.30),
+        top + int(app_height * 0.66),
+        prompt_segments,
+        mac_reference_or_gtk_prompt_card_pixel,
+    )
+    require(
+        prompt_card_height >= int(app_height * 0.15),
+        f"Mac-reference prompt cards are too short: height={prompt_card_height}px",
+    )
+    require(
+        prompt_card_height <= int(app_height * 0.28),
+        f"Mac-reference prompt cards are too tall: height={prompt_card_height}px",
+    )
     prompt_text_pixels = dark_pixel_count(
         image,
         prompt_segments[0].start + 18,
@@ -799,6 +839,7 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         f"wordmark_pixels={wordmark_pixels}, "
         f"prompt_row={prompt_y}px, "
         f"cards={[f'{segment.start}-{segment.end}' for segment in prompt_segments]}, "
+        f"card_height={prompt_card_height}px, "
         f"prompt_text_pixels={prompt_text_pixels}, "
         f"alert={alert_segment.width}px@{alert_y}/{alert_height}px, "
         f"composer={composer_segment.width}px@{composer_y}"
