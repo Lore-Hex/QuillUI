@@ -45,8 +45,22 @@ open class TSOutgoingMessage: TSMessage {
         hasLegacyMessageState && legacyWasDelivered && messageState == .sent
     }
 
-    public var isOnline: Bool { false }
-    public var isUrgent: Bool { true }
+    open var isOnline: Bool { false }
+    open var isUrgent: Bool { true }
+
+    // Send-machinery methods (SendableMessage requirements + TSOutgoingMessage's
+    // proto builders). Declared `open` in the class body so subclasses can
+    // override them -- they were missing from the port, which made every
+    // subclass override fail with "does not override". Base returns are inert
+    // (no real send/serialization on Linux); buildSyncTranscriptMessage is never
+    // reached because shouldSyncTranscript() is false by default.
+    open func contentBuilder(thread: TSThread, transaction: DBReadTransaction) -> SSKProtoContentBuilder? { nil }
+    open func dataMessageBuilder(with thread: TSThread, transaction: DBReadTransaction) -> SSKProtoDataMessageBuilder? { nil }
+    open func buildPlaintextData(inThread thread: TSThread, tx: DBWriteTransaction) throws -> Data { Data() }
+    open func shouldSyncTranscript() -> Bool { false }
+    open func buildSyncTranscriptMessage(localThread: TSContactThread, tx: DBWriteTransaction) throws -> OutgoingSyncMessage {
+        throw NSError(domain: "QuillSignalServiceKit", code: -1, userInfo: [NSLocalizedDescriptionKey: "buildSyncTranscriptMessage base is unreachable on Linux."])
+    }
 
     public func updateStoredMessageState() {
         storedMessageState = messageState
