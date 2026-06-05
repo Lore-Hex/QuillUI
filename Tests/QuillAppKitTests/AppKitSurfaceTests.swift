@@ -114,4 +114,16 @@ struct AppKitSurfaceTests {
         item.length = NSStatusItem.squareLength
         #expect(item.length == -2)
     }
+
+    @Test("NSTextStorage.edited(_:range:changeInLength:) + EditActions (WireGuard's ConfTextStorage)")
+    func nsTextStorageEditActions() {
+        // ConfTextStorage : NSTextStorage calls edited(.editedCharacters/.editedAttributes, …)
+        // after mutating its backing NSMutableAttributedString.
+        #expect(NSTextStorage.EditActions.editedCharacters != NSTextStorage.EditActions.editedAttributes)
+        let both: NSTextStorage.EditActions = [.editedCharacters, .editedAttributes]
+        #expect(both.contains(.editedCharacters) && both.contains(.editedAttributes))
+        let storage = NSTextStorage(string: "") // corelibs designated init (init() isn't)
+        storage.edited(.editedCharacters, range: NSRange(location: 0, length: 0), changeInLength: 0)
+        storage.processEditing() // compile-stubs, callable
+    }
 }

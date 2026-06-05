@@ -3056,6 +3056,18 @@ open class NSTextStorage: NSMutableAttributedString {
     public var layoutManagers: [NSLayoutManager] = []
     public func addLayoutManager(_ m: NSLayoutManager) { layoutManagers.append(m) }
     public func removeLayoutManager(_ m: NSLayoutManager) {}
+    /// Edit-notification mask passed to `edited(_:range:changeInLength:)`. A
+    /// custom NSTextStorage (e.g. WireGuard's ConfTextStorage) calls it after
+    /// mutating its backing store so layout managers can re-lay-out. Compile-stub
+    /// on Linux (no layout pass yet).
+    public struct EditActions: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let editedAttributes = EditActions(rawValue: 1 << 0)
+        public static let editedCharacters = EditActions(rawValue: 1 << 1)
+    }
+    open func edited(_ editedMask: EditActions, range editedRange: NSRange, changeInLength delta: Int) {}
+    open func processEditing() {}
 }
 
 open class NSLayoutManager: NSObject, @unchecked Sendable {
