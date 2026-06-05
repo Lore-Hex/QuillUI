@@ -141,4 +141,22 @@ struct AppKitSurfaceTests {
         storage.edited(.editedAttributes, range: NSRange(location: 0, length: 0), changeInLength: 0)
         _ = storage
     }
+
+    @Test("NSTextView init(frame:textContainer:) + preserved NSTextView()/(frame:) + edit hooks (ConfTextView)")
+    func confTextViewShadowSurface() {
+        // The new designated init ConfTextView uses:
+        let tv = NSTextView(frame: .zero, textContainer: NSTextContainer())
+        tv.isAutomaticDataDetectionEnabled = false
+        tv.isAutomaticLinkDetectionEnabled = false
+        tv.isAutomaticTextCompletionEnabled = false
+        #expect(tv.shouldChangeText(in: NSRange(location: 0, length: 0), replacementString: "x"))
+        tv.didChangeText()
+        // Preserved entry points (must still work — AppleCompatibilitySmoke uses NSTextView()):
+        _ = NSTextView()
+        _ = NSTextView(frame: .zero)
+        // NSView appearance hooks ConfTextView overrides:
+        let v = NSView(frame: .zero)
+        _ = v.effectiveAppearance
+        v.viewDidChangeEffectiveAppearance()
+    }
 }

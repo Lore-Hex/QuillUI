@@ -502,6 +502,11 @@ open class NSView: NSResponder {
             quillMarkNeedsDisplay()
         }
     }
+    /// The appearance the view actually renders with (light/dark). Compile-stub
+    /// (a default NSAppearance); WireGuard's ConfTextView reads it to theme its
+    /// syntax colors, and overrides `viewDidChangeEffectiveAppearance()` to re-theme.
+    public var effectiveAppearance: NSAppearance = NSAppearance()
+    open func viewDidChangeEffectiveAppearance() {}
     public var clipsToBounds: Bool = false
     public var autoresizingMask: AutoresizingMask = []
     public var identifier: NSUserInterfaceItemIdentifier?
@@ -2974,7 +2979,7 @@ public extension NSTextFieldDelegate {
 }
 
 open class NSText: NSView {
-    public var string: String = ""
+    open var string: String = ""
 }
 
 open class NSTextView: NSText {
@@ -3009,7 +3014,25 @@ open class NSTextView: NSText {
     public var backgroundColor: NSColor?
     public var drawsBackground: Bool = true
     public weak var delegate: NSTextViewDelegate?
+    public var isAutomaticDataDetectionEnabled: Bool = false
+    public var isAutomaticLinkDetectionEnabled: Bool = false
+    public var isAutomaticTextCompletionEnabled: Bool = false
     public var attributedString: NSAttributedString { NSAttributedString(string: string) }
+    /// NSTextView's designated init is `init(frame:textContainer:)` (Apple-faithful;
+    /// WireGuard's ConfTextView calls it). Declaring it means NSTextView stops
+    /// inheriting NSView's inits, so re-declare them to keep NSTextView() /
+    /// NSTextView(frame:) / NSTextView(coder:) working (zero blast radius).
+    public init(frame frameRect: NSRect, textContainer container: NSTextContainer?) {
+        super.init(frame: frameRect)
+        if let container { self.textContainer = container }
+    }
+    public override init(frame frameRect: NSRect) { super.init(frame: frameRect) }
+    public convenience init() { self.init(frame: .zero, textContainer: nil) }
+    public required init?(coder: NSCoder) { super.init(frame: .zero) }
+    /// Programmatic text-change hooks (compile-stubs). ConfTextView uses these to
+    /// replace text + notify the layout/delegate.
+    public func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool { true }
+    public func didChangeText() {}
     public func setSelectedRange(_ r: NSRange) {
         selectedRange = clampedTextRange(r)
         selectedRanges = [NSValue(range: selectedRange)]

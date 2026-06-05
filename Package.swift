@@ -1407,6 +1407,10 @@ if wireguardUpstreamPresent {
                 // the shadow's new NSTextStorage designated init() + NSFontManager.convert/
                 // convertWeight + NSFontTraitMask.
                 "Sources/WireGuardApp/UI/macOS/View/ConfTextStorage.swift",
+                // ConfTextView: NSTextView subclass (the wg-quick config editor) — the
+                // LAST text-subsystem file. Hosts ConfTextStorage via a layout manager,
+                // syntax-highlights on edit, themes via NSAppearance, NSTextViewDelegate.
+                "Sources/WireGuardApp/UI/macOS/View/ConfTextView.swift",
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
                 // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).
