@@ -157,6 +157,24 @@ public class RSImage: NSObject, @unchecked Sendable {
     public static func scaledImageData(_ data: Data, maxPixelSize: Int) -> Data? { data }
     public static var smartBadgeTemplateName: String { "" }
     public func maskWithColor(color: Any) -> RSImage? { self }
+
+    // MARK: UIImage source-compat surface (Linux placeholders)
+    public convenience init?(contentsOfFile path: String) {
+        self.init()
+        self.size = CGSize(width: 32, height: 32)
+    }
+    public func jpegData(compressionQuality: CGFloat) -> Data? { data }
+    public var cgImage: CGImage? { nil }
+    public var scale: CGFloat { 1 }
+
+    public enum Orientation: Int, Sendable {
+        case up, down, left, right, upMirrored, downMirrored, leftMirrored, rightMirrored
+    }
+    public var imageOrientation: Orientation { .up }
+
+    public func withTintColor(_ color: Any) -> RSImage { self }
+    public func draw(in rect: CGRect) {}
+    public func draw(at point: CGPoint) {}
 }
 public typealias UIImage = RSImage
 
