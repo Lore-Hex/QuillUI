@@ -2479,8 +2479,12 @@ open class NSMenu: NSObject {
     public private(set) var lastPopUpLocation: NSPoint = .zero
     public private(set) weak var lastPopUpView: NSView?
 
-    public override init() { super.init() }
+    // init(title:) is the designated init (as on macOS); init() is convenience.
+    // This lets NSMenu subclasses (MainMenu/StatusMenu) declare their own `init()`
+    // as a new designated init calling super.init(title:) WITHOUT an `override`
+    // keyword — matching the unmodified upstream source.
     public init(title: String) { super.init(); self.title = title }
+    public override convenience init() { self.init(title: "") }
     public func addItem(_ i: NSMenuItem) {
         i.menu = self
         items.append(i)
@@ -2582,7 +2586,10 @@ open class NSMenuItem: NSObject {
         self.title = title; self.action = action; self.keyEquivalent = keyEquivalent
     }
     public override init() { super.init() }
-    public static var separator: NSMenuItem { NSMenuItem() }
+    // WireGuard's MainMenu/StatusMenu build separators with `NSMenuItem.separator()`
+    // (the call form). Was a `static var separator` property (unused in-tree) — now a
+    // func so those call sites resolve. separatorItem() kept as the legacy alias.
+    public static func separator() -> NSMenuItem { NSMenuItem() }
     public static func separatorItem() -> NSMenuItem { NSMenuItem() }
 }
 
