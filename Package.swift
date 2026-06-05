@@ -1302,6 +1302,15 @@ if wireguardUpstreamPresent {
                 // is constrained to a protocol requiring init(), so T() compiles
                 // without forcing required init() onto NSView repo-wide).
                 "Sources/WireGuardApp/UI/macOS/NSTableView+Reuse.swift",
+                // LogViewController: the NSTableView-backed log viewer — the first full
+                // VC that needed ALL THREE concurrency/init/extension walls solved:
+                // A (its @Sendable Timer → QuillTimer.make via the lowering),
+                // B (dequeues LogViewTimestampCell/LogViewMessageCell, which conform to
+                //    QuillReusableView with required init()),
+                // C (its `override func cancelOperation` lives in an `extension` —
+                //    the lowering moves it into the class body so the override is legal
+                //    without an ObjC runtime).
+                "Sources/WireGuardApp/UI/macOS/ViewController/LogViewController.swift",
                 // ParseError+WireGuardAppError: retroactively conforms WireGuardKit's
                 // TunnelConfiguration.ParseError (public enum in QuillWireGuardUpstreamConfig)
                 // to the app's WireGuardAppError → localized alertText. Foundation-only

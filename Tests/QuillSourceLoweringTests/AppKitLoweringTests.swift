@@ -314,4 +314,42 @@ struct AppKitLoweringTests {
         #expect(lowered.contains("Timer.scheduledTimer(timeInterval: 1, repeats: true)"))
         #expect(!lowered.contains("QuillTimer.make"))
     }
+
+    // MARK: - extension { override … } merged into the local class
+
+    @Test("override in an extension of a local class is moved into the class body")
+    func extensionOverrideMergedIntoClass() {
+        let source = """
+        class VC: NSViewController {
+            func foo() {}
+        }
+        extension VC {
+            override func cancelOperation(_ sender: Any?) { closeClicked() }
+            func helper() {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        // The override moves into the class (before `extension VC`); helper stays.
+        let classPos = lowered.range(of: "class VC")!.lowerBound
+        let extPos = lowered.range(of: "extension VC")!.lowerBound
+        let cancelPos = lowered.range(of: "override func cancelOperation")!.lowerBound
+        #expect(cancelPos > classPos && cancelPos < extPos) // inside the class body
+        #expect(lowered.contains("func helper()"))          // non-override stays in the extension
+        // Idempotent: a second pass finds no override-in-extension.
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
+    @Test("override in an extension of a NON-local type is left alone")
+    func extensionOverrideExternalTypeUntouched() {
+        // No `class External` in the file → not a local class → not merged.
+        let source = """
+        extension External {
+            override func foo() {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        let extPos = lowered.range(of: "extension External")!.lowerBound
+        let fooPos = lowered.range(of: "override func foo")!.lowerBound
+        #expect(fooPos > extPos) // still inside the extension
+    }
 }
