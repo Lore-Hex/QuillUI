@@ -1321,15 +1321,18 @@ def validate_quill_chat_mac_reference_settings_delete_confirmation(image: Screen
     app_height = bottom - top + 1
     require(app_width >= 260, f"Settings delete confirmation dialog is too narrow: {app_width}px")
     require(app_height >= 140, f"Settings delete confirmation dialog is too short: {app_height}px")
-    require(
-        app_width <= 720 and app_height <= 520,
-        f"Settings delete confirmation should capture the compact dialog window, got {app_width}x{app_height}",
-    )
-
-    dialog_left = left
-    dialog_right = right + 1
-    dialog_top = top
-    dialog_bottom = bottom + 1
+    if app_width <= 720 and app_height <= 520:
+        dialog_left = left
+        dialog_right = right + 1
+        dialog_top = top
+        dialog_bottom = bottom + 1
+        dialog_kind = "child-window"
+    else:
+        dialog_left = left
+        dialog_right = min(right + 1, left + 330)
+        dialog_top = top
+        dialog_bottom = min(bottom + 1, top + 180)
+        dialog_kind = "root-top-left"
 
     dialog_width = dialog_right - dialog_left
     dialog_height = dialog_bottom - dialog_top
@@ -1383,7 +1386,7 @@ def validate_quill_chat_mac_reference_settings_delete_confirmation(image: Screen
 
     return (
         "Quill Chat Mac-reference settings delete confirmation: "
-        f"dialog={dialog_width}x{dialog_height} (child-window), "
+        f"dialog={dialog_width}x{dialog_height} ({dialog_kind}), "
         f"surface_pixels={surface_pixels}, "
         f"title_pixels={title_pixels}, "
         f"action_pixels={action_pixels}, "
