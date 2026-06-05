@@ -1241,6 +1241,7 @@ struct QuillDataSourceLoweringTests {
                     return opaqueFromWidget(widget)
                 }
 
+                // Guard against duplicate presentation on rebuild
                 guard g_object_get_data(gobject, "swift-sheet-active") == nil else {
                     return opaqueFromWidget(widget)
                 }
@@ -1313,6 +1314,7 @@ struct QuillDataSourceLoweringTests {
                     return opaqueFromWidget(widget)
                 }
 
+                // Check if the item identity changed while a sheet is already active
                 let currentIdHash = currentItem.id.hashValue
                 if g_object_get_data(gobject, "swift-sheet-active") != nil {
                     let storedHash = Int(bitPattern: g_object_get_data(gobject, "swift-sheet-item-id"))

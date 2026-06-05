@@ -1681,7 +1681,7 @@ struct CompatibilityModuleTests {
     @Test("Environment presentationMode falls back to dismiss")
     func environmentPresentationModeFallsBackToDismiss() {
         let fallbackInvoked = QuillTestBox<Int>(0)
-        let explicitInvoked = QuillTestBox<Int>(0)
+        let explicitInvoked = QuillTestBox<Int>(nil)
         var environment = EnvironmentValues()
 
         environment.dismiss = DismissAction {
