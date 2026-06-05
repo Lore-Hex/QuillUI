@@ -1475,12 +1475,14 @@ for shimName in signalAppleFrameworkShims {
 #if os(Linux)
 if signalUpstreamPresent && libsignalUpstreamPresent {
     let signalServiceKitExcludes: [String] = [
-        "tests", "Payments",
-        // Calls/ is mixed-language: its only ObjC files are the two interaction
-        // classes (TSCall / OWSGroupCallMessage), ported in QuillCallsInteractions
-        // .swift. Exclude just those 4 ObjC files so the 49 Calls Swift compile.
+        "tests",
+        // Calls/ and Payments/ are mixed-language: their only ObjC files are model
+        // /interaction classes ported under QuillPort (TSCall, OWSGroupCallMessage,
+        // TSPaymentModels). Exclude just those ObjC files so the dirs' Swift
+        // compiles.
         "Calls/Individual/TSCall.h", "Calls/Individual/TSCall.m",
         "Calls/Group/OWSGroupCallMessage.h", "Calls/Group/OWSGroupCallMessage.m",
+        "Payments/TSPaymentModels.h", "Payments/TSPaymentModels.m",
         "Concurrency/Threading.h", "Concurrency/Threading.m",
         "Debugging/DebuggerUtils.h", "Debugging/DebuggerUtils.m",
         "Debugging/OWSAsserts.h", "Debugging/OWSAsserts.m",
