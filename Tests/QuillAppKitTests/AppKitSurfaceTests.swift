@@ -207,4 +207,20 @@ struct AppKitSurfaceTests {
         #expect(table.selectionHighlightStyle == .none)
         #expect(NSTableView.SelectionHighlightStyle.none != NSTableView.SelectionHighlightStyle.regular)
     }
+
+    @Test("TunnelsListTableViewController shadow gaps: NSControl.cell as? NSPopUpButtonCell, NSButton(frame:), @MainActor keyDown")
+    @MainActor func tunnelsListShadowSurface() {
+        // The add/action menus do (popup.cell as? NSPopUpButtonCell)?.arrowPosition = .arrowAtBottom.
+        // NSPopUpButton seeds its cell with an NSPopUpButtonCell (now : NSCell) so the downcast succeeds.
+        let popup = NSPopUpButton(frame: .zero, pullsDown: true)
+        let cell = popup.cell as? NSPopUpButtonCell
+        #expect(cell != nil)
+        cell?.arrowPosition = .arrowAtBottom
+        #expect(cell?.arrowPosition == .arrowAtBottom)
+        // NSButton(frame:) — FillerButton: NSButton uses super.init(frame:).
+        let filler = NSButton(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
+        #expect(filler.frame.width == 10)
+        // keyDown is @MainActor (TunnelsList.keyDown calls @MainActor handleRemoveTunnelAction on Delete).
+        NSResponder().keyDown(with: NSEvent())
+    }
 }
