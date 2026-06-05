@@ -1383,6 +1383,11 @@ if wireguardUpstreamPresent {
                 // per-tunnel menu, manage/import/about/quit items; @objc actions lowered to
                 // QuillActionDispatching. The biggest bootstrap file; dep of TunnelsTracker.
                 "Sources/WireGuardApp/UI/macOS/StatusMenu.swift",
+                // TunnelsTracker: observes each tunnel's status (KVO) + the TunnelsManager
+                // list/activation delegates, forwarding changes to StatusMenu / StatusItemController /
+                // ManageTunnelsRootViewController.tunnelsListVC (all in-target). Plain class,
+                // import Cocoa, ErrorPresenter for activation failures.
+                "Sources/WireGuardApp/UI/macOS/TunnelsTracker.swift",
                 // ActivateOnDemandOption: maps on-demand config <-> NEOnDemandRule[]
                 // (NE on-demand surface from #338/#340 + wg_log from #345).
                 "Sources/WireGuardApp/Tunnel/ActivateOnDemandOption.swift",
