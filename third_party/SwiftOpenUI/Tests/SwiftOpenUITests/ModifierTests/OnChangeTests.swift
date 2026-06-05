@@ -18,6 +18,19 @@ final class OnChangeTests: XCTestCase {
         XCTAssertFalse(fired)
     }
 
+    func testOnChangeSingleArgTrailingClosureUsesNewValue() {
+        var received: Int?
+        let view = Text("Hello").onChange(of: 1) { newValue in
+            received = newValue
+        }
+
+        view.action(2)
+
+        XCTAssertEqual(view.content.content, "Hello")
+        XCTAssertEqual(view.value, 1)
+        XCTAssertEqual(received, 2)
+    }
+
     // MARK: - Value tracking
 
     func testFirstRenderDoesNotFire() {

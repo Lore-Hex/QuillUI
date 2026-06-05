@@ -1,1 +1,0 @@
-s/\.onChange\(of: keyboardShortcutKey\) \{ newValue in\n([ \t]*)if newValue\.count > 1 \{\n([ \t]*)keyboardShortcutKey = String\(newValue\.prefix\(1\)\)\n([ \t]*)\}\n([ \t]*)\}/.onChange(of: keyboardShortcutKey, perform: { newValue in\n$1if newValue.count > 1 {\n$2keyboardShortcutKey = String(newValue.prefix(1))\n$3}\n$4})/g;
