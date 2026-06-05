@@ -77,6 +77,54 @@ public enum NSTextAlignment: Int, Sendable {
     case left, right, center, justified, natural
 }
 
+// Text layout enums + paragraph style (UIKit on iOS, AppKit on macOS). Mirrored
+// here so SignalServiceKit's attributed-string code resolves them via import
+// UIKit. Case order matches QuillAppKit's.
+public enum NSLineBreakMode: Int, Sendable {
+    case byWordWrapping, byCharWrapping, byClipping, byTruncatingHead, byTruncatingTail, byTruncatingMiddle
+}
+
+public enum NSWritingDirection: Int, Sendable {
+    case natural = -1, leftToRight = 0, rightToLeft = 1
+}
+
+open class NSParagraphStyle: NSObject {
+    nonisolated(unsafe) public static let `default` = NSParagraphStyle()
+    public var alignment: NSTextAlignment = .natural
+    public var lineBreakMode: NSLineBreakMode = .byWordWrapping
+    public var lineSpacing: CGFloat = 0
+    public var paragraphSpacing: CGFloat = 0
+    public var firstLineHeadIndent: CGFloat = 0
+    public var headIndent: CGFloat = 0
+    public var tailIndent: CGFloat = 0
+    public var lineHeightMultiple: CGFloat = 0
+    public var minimumLineHeight: CGFloat = 0
+    public var maximumLineHeight: CGFloat = 0
+    public var baseWritingDirection: NSWritingDirection = .natural
+    public var defaultTabInterval: CGFloat = 0
+    public var tabStops: [Any]? = []
+    public override init() { super.init() }
+}
+
+open class NSMutableParagraphStyle: NSParagraphStyle {}
+
+// Standard attributed-string attribute keys (UIKit/AppKit additions; not in
+// swift-corelibs Foundation). Raw values match Apple's.
+public extension NSAttributedString.Key {
+    static let font = NSAttributedString.Key(rawValue: "NSFont")
+    static let foregroundColor = NSAttributedString.Key(rawValue: "NSColor")
+    static let backgroundColor = NSAttributedString.Key(rawValue: "NSBackgroundColor")
+    static let paragraphStyle = NSAttributedString.Key(rawValue: "NSParagraphStyle")
+    static let underlineStyle = NSAttributedString.Key(rawValue: "NSUnderline")
+    static let underlineColor = NSAttributedString.Key(rawValue: "NSUnderlineColor")
+    static let strikethroughStyle = NSAttributedString.Key(rawValue: "NSStrikethrough")
+    static let strikethroughColor = NSAttributedString.Key(rawValue: "NSStrikethroughColor")
+    static let link = NSAttributedString.Key(rawValue: "NSLink")
+    static let attachment = NSAttributedString.Key(rawValue: "NSAttachment")
+    static let kern = NSAttributedString.Key(rawValue: "NSKern")
+    static let baselineOffset = NSAttributedString.Key(rawValue: "NSBaselineOffset")
+}
+
 public class UIScene: NSObject {
     @MainActor public var delegate: Any?
 }
