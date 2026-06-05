@@ -1217,7 +1217,7 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
     require(app_width >= 1800, f"Completions interaction window is too narrow: {app_width}px")
     require(app_height >= 1200, f"Completions interaction window is too short: {app_height}px")
 
-    title_pixels = pixel_count(
+    legacy_title_pixels = pixel_count(
         image,
         left,
         top,
@@ -1225,6 +1225,29 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
         top + 54,
         colorful_wordmark_pixel,
     )
+    root_title_pixels = pixel_count(
+        image,
+        left + int(app_width * 0.25),
+        top + int(app_height * 0.25),
+        left + int(app_width * 0.60),
+        top + int(app_height * 0.38),
+        colorful_wordmark_pixel,
+    )
+    panel_kind = "legacy"
+    title_pixels = legacy_title_pixels
+    list_x0 = left
+    list_x1 = left + 820
+    list_y0 = top + 52
+    list_y1 = top + 330
+    divider_threshold = 360
+    if root_title_pixels >= 400:
+        panel_kind = "root-overlay"
+        title_pixels = root_title_pixels
+        list_x0 = left + int(app_width * 0.25)
+        list_x1 = left + int(app_width * 0.74)
+        list_y0 = top + int(app_height * 0.30)
+        list_y1 = top + int(app_height * 0.55)
+        divider_threshold = 700
     require(
         title_pixels >= 120,
         f"Mac-reference completions title was not detected: pixels={title_pixels}",
@@ -1232,10 +1255,10 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
 
     panel_dark_pixels = dark_pixel_count(
         image,
-        left,
-        top + 52,
-        left + 820,
-        top + 330,
+        list_x0,
+        list_y0,
+        list_x1,
+        list_y1,
     )
     require(
         panel_dark_pixels >= 1_200,
@@ -1244,8 +1267,8 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
 
     row_divider_count = sum(
         1
-        for y in range(top + 120, top + 330)
-        if line_row_score(image, y, left, left + 820) >= 360
+        for y in range(list_y0 + int(app_height * 0.04), list_y1)
+        if line_row_score(image, y, list_x0, list_x1) >= divider_threshold
     )
     require(
         row_divider_count >= 3,
@@ -1268,6 +1291,7 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
     return (
         "Quill Chat Mac-reference completions panel: "
         f"app={app_width}x{app_height}, "
+        f"panel={panel_kind}, "
         f"title_pixels={title_pixels}, "
         f"text_pixels={panel_dark_pixels}, "
         f"divider_rows={row_divider_count}, "
