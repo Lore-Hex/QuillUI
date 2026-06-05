@@ -525,9 +525,19 @@ extension Button: GTKRenderable, GTKDescribable {
         let buttonStyleType = getCurrentEnvironment().buttonStyle
         switch buttonStyleType {
         case .plain:
+            gtk_widget_add_css_class(button, "flat")
             applyCSSToWidget(button, properties: """
-                border: none; background: none; padding: 0;
-                min-height: 0; min-width: 0;
+                background: transparent;
+                background-color: transparent;
+                background-image: none;
+                border: none;
+                border-radius: 0;
+                box-shadow: none;
+                outline: none;
+                padding: 0;
+                min-height: 0;
+                min-width: 0;
+                text-shadow: none;
                 """)
         case .borderedProminent:
             // Concrete macOS-like accent blue with explicit overrides of

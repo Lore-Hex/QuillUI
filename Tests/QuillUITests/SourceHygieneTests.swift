@@ -3382,6 +3382,25 @@ struct SourceHygieneTests {
         #expect(!sidebarButton.contains("case \"gearshape\", \"gearshape.fill\", \"gear\":"))
     }
 
+    @Test("GTK plain button style suppresses platform chrome")
+    func gtkPlainButtonStyleSuppressesPlatformChrome() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+
+        for source in [renderer, patcher] {
+            #expect(source.contains("gtk_widget_add_css_class(button, \"flat\")"))
+            #expect(source.contains("background: transparent;"))
+            #expect(source.contains("background-color: transparent;"))
+            #expect(source.contains("background-image: none;"))
+            #expect(source.contains("border: none;"))
+            #expect(source.contains("border-radius: 0;"))
+            #expect(source.contains("box-shadow: none;"))
+            #expect(source.contains("outline: none;"))
+            #expect(source.contains("text-shadow: none;"))
+            #expect(!source.contains("border: none; background: none; padding: 0;"))
+        }
+    }
+
     private func packageRoot() throws -> URL {
         var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let fileManager = FileManager.default

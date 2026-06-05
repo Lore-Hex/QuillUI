@@ -294,7 +294,10 @@ PY
   resolve_app_window_geometry
 
   history_x="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X:-$((window_x + 44))}"
-  history_y="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y:-$((window_y + 132))}"
+  # The Mac-reference sidebar starts with a day header, then the first saved
+  # conversation row. Click the row band rather than the header so relaunch
+  # verification actually opens the persisted transcript.
+  history_y="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y:-$((window_y + 190))}"
   quillui_functional_xdotool mousemove "$history_x" "$history_y" click 1
   sleep "${QUILLUI_FUNCTIONAL_RELAUNCH_SETTLE_SLEEP:-3}"
 

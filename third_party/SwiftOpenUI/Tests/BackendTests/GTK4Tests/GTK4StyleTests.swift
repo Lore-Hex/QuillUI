@@ -22,6 +22,18 @@ final class GTK4StyleTests: XCTestCase {
         XCTAssertNotNil(widget)
     }
 
+    func testPlainButtonStyleUsesFlatGTKChrome() throws {
+        try requireGTK()
+        let widget = widgetFromOpaque(gtkRenderView(
+            Button("Tap") {}.buttonStyle(.plain)
+        ))
+
+        XCTAssertTrue(
+            gtk_widget_has_css_class(widget, "flat") != 0,
+            ".buttonStyle(.plain) should opt into GTK's flat chrome class"
+        )
+    }
+
     func testButtonStyleBorderedProminentRendersContent() throws {
         try requireGTK()
         let widget = widgetFromOpaque(gtkRenderView(
