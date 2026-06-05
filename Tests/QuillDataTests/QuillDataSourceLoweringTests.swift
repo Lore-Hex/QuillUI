@@ -1889,6 +1889,9 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(result.status == 0, Comment(rawValue: result.output))
 
+        let patchScript = try String(contentsOf: script, encoding: .utf8)
+        #expect(patchScript.contains("text.replace(\"remainingTicks: Int = 4\", \"remainingTicks: Int = 90\")"))
+
         let patchedSwiftOpenUIManifest = try String(contentsOf: swiftOpenUIManifest, encoding: .utf8)
         #expect(patchedSwiftOpenUIManifest.contains("import Foundation"))
         #expect(patchedSwiftOpenUIManifest.contains("func swiftOpenUIPkgConfigArguments("))
@@ -2000,6 +2003,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtk_overlay_add_overlay(rootOverlay, panel)"))
         #expect(patchedRenderer.contains("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)"))
         #expect(patchedRenderer.contains("remainingTicks: Int = 90"))
+        #expect(!patchedRenderer.contains("remainingTicks: Int = 4"))
         #expect(patchedRenderer.contains("context.remainingTicks -= 1"))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(_ action"))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(boundAction, on: widget)"))

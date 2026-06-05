@@ -2163,6 +2163,8 @@ private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePoint
     if old_scroll_context_init not in text:
         raise SystemExit("SwiftOpenUI ScrollViewReader context upgrade shape was not recognized")
     text = text.replace(old_scroll_context_init, new_scroll_context_init, 1)
+if "remainingTicks: Int = 4" in text:
+    text = text.replace("remainingTicks: Int = 4", "remainingTicks: Int = 90")
 if "gtkScrollTargetRegistry" not in text:
     old_scroll_registry = '''private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest] = [:]
 
