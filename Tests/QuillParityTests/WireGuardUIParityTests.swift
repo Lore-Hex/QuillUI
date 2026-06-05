@@ -28,7 +28,10 @@ struct WireGuardUIParityTests {
         
         // This is the cross-platform rendering bridge.
         // On macOS it uses real SwiftUI ImageRenderer.
-        // On Linux it uses QuillUI's GtkOffscreenRender bridge.
+        // On Linux it uses SwiftOpenUI's GTK ImageRenderer backend hook.
+        #if os(Linux)
+        quillInstallGTKImageRendererBackend()
+        #endif
         let renderer = ImageRenderer(content: view)
         
         #if os(macOS)

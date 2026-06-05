@@ -41,6 +41,11 @@ import CGTK
 import CGdkPixbuf
 import BackendGTK4
 
+@_spi(QuillTesting)
+public func quillInstallGTKImageRendererBackend() {
+    installGTK4ImageRendererBackend()
+}
+
 /// Default offscreen canvas size used when callers don't specify one.
 private let defaultRenderSize: (width: Int, height: Int) = (512, 512)
 private let offscreenRenderFlag = "QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER"
