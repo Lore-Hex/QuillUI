@@ -136,6 +136,36 @@ public enum UIUserInterfaceIdiom: Int, Sendable {
     case unspecified = -1, phone = 0, pad = 1, tv = 2, carPlay = 3, mac = 5, vision = 6
 }
 
+// MARK: - NSTextStorage (TextKit)
+//
+// On iOS NSTextStorage lives in UIKit. SignalServiceKit's
+// EditableMessageBodyTextStorage subclasses it and overrides the primitive
+// attributed-string methods plus the editing hooks, so it must exist (and be
+// open) here. Backed by NSMutableAttributedString; editing notifications are
+// inert on Linux.
+
+public struct NSTextStorageEditActions: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+    public static let editedAttributes = NSTextStorageEditActions(rawValue: 1 << 0)
+    public static let editedCharacters = NSTextStorageEditActions(rawValue: 1 << 1)
+}
+
+open class NSTextStorage: NSMutableAttributedString {
+    /// NSTextStorage.EditActions is the nested spelling used by callers.
+    public typealias EditActions = NSTextStorageEditActions
+
+    public weak var delegate: AnyObject?
+
+    open func processEditing() {}
+
+    open func edited(_ editedMask: NSTextStorageEditActions, range editedRange: NSRange, changeInLength delta: Int) {}
+
+    // beginEditing()/endEditing() are inherited from NSMutableAttributedString.
+    // fixAttributes(in:) is not exposed there, so declare it for the subclass.
+    open func fixAttributes(in range: NSRange) {}
+}
+
 // MARK: - UI* extras Ice Cubes references
 
 #if canImport(AppKit)
