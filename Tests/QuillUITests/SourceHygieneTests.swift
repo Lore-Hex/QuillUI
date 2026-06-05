@@ -1012,6 +1012,11 @@ struct SourceHygieneTests {
         #expect(enchantedQtRuntime.contains("imagePreviewFallback: EnchantedIcon.imagePreviewFallback"))
         #expect(enchantedQtRuntime.contains("unavailableModel: EnchantedIcon.unavailableModel"))
         #expect(enchantedQtRuntime.contains("prompts: EnchantedPromptCatalog.visibleEmptyConversationPrompts.map(QuillEnchantedQtSnapshot.Prompt.init)"))
+        let visiblePromptPositions = enchantedMacReferenceVisiblePromptTitles.compactMap { promptTitle in
+            enchantedShared.range(of: "title: \"\(promptTitle)\"")?.lowerBound
+        }
+        #expect(visiblePromptPositions.count == enchantedMacReferenceVisiblePromptTitles.count)
+        #expect(zip(visiblePromptPositions, visiblePromptPositions.dropFirst()).allSatisfy { pair in pair.0 < pair.1 })
         for promptTitle in enchantedNativeSamplePromptTitles {
             #expect(enchantedShared.contains("title: \"\(promptTitle)\""))
         }
@@ -3458,6 +3463,13 @@ private let enchantedNativeSamplePromptTitles: [String] = [
     "What are the largest cities in USA in population? Give a table",
     "Give me ideas about New Years resolutions",
     "What is bubble sort? Write example in python"
+]
+
+private let enchantedMacReferenceVisiblePromptTitles: [String] = [
+    "How to center div in HTML?",
+    "How to do personal taxes in USA?",
+    "Explain supercomputers like I'm five years old",
+    "Write a text message asking a friend to be my plus-one at a wedding"
 ]
 
 private extension String {

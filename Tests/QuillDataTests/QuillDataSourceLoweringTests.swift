@@ -633,7 +633,8 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("quillui_print_backend_app_log_tail"))
         #expect(functionalScript.contains("Mock Ollama log"))
         #expect(functionalScript.contains("window_height - 190"))
-        #expect(functionalScript.contains("window_y + 190"))
+        #expect(functionalScript.contains("window_x + 110"))
+        #expect(functionalScript.contains("window_y + 172"))
         #expect(functionalScript.contains("Click the row band rather than the header"))
         #expect(!functionalScript.contains("QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"))
         #expect(!functionalScript.contains("QUILLUI_ENCHANTED_FORCE_UNREACHABLE=1"))
@@ -756,6 +757,18 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(emptyConversationRule.contains("Text(\"Quill\")"))
         #expect(emptyConversationRule.contains("brandTitle: \"Quill\""))
+
+        let emptyConversationTemplate = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/EmptyConversaitonView.swift"),
+            encoding: .utf8
+        )
+        #expect(emptyConversationTemplate.contains("private let macReferencePromptTitles = ["))
+        #expect(emptyConversationTemplate.contains("\"How to center div in HTML?\""))
+        #expect(emptyConversationTemplate.contains("\"How to do personal taxes in USA?\""))
+        #expect(emptyConversationTemplate.contains("\"Explain supercomputers like I'm five years old\""))
+        #expect(emptyConversationTemplate.contains("\"Write a text message asking a friend to be my plus-one at a wedding\""))
+        #expect(emptyConversationTemplate.contains("SamplePrompts.samples.first { $0.prompt == title }"))
+        #expect(emptyConversationTemplate.contains(": Array(SamplePrompts.samples.prefix(4))"))
 
         let sidebarTemplate = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/SidebarView.swift"),
