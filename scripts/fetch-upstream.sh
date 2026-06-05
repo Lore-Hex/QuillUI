@@ -284,6 +284,39 @@ print("patched LogViewCell.swift for QuillReusableView")
 PY
     fi
 
+    # ZIP subsystem imports: ZipArchive.swift calls the vendored minizip C
+    # (import WireGuardMinizipC); ZipImporter/ZipExporter parse/serialize .conf via
+    # wg-quick (TunnelConfiguration = WireGuardKit; fromWgQuickConfig/asWgQuickConfig
+    # = QuillWireGuardUpstreamConfig). Xcode saw these via one app module; SwiftPM
+    # needs explicit imports.
+    local ziparch="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/ZipArchive/ZipArchive.swift"
+    if [[ -f "$ziparch" ]] && ! grep -q '^import WireGuardMinizipC' "$ziparch"; then
+        echo "==> patching ZipArchive.swift to import WireGuardMinizipC"
+        python3 - "$ziparch" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('import Foundation\n', 'import Foundation\nimport WireGuardMinizipC\n', 1)
+open(path, "w").write(src)
+print("patched ZipArchive.swift to import WireGuardMinizipC")
+PY
+    fi
+    for zf in ZipImporter.swift ZipExporter.swift; do
+        local zpath="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/ZipArchive/$zf"
+        if [[ -f "$zpath" ]] && ! grep -q '^import QuillWireGuardUpstreamConfig' "$zpath"; then
+            echo "==> patching $zf imports (WireGuardKit + QuillWireGuardUpstreamConfig)"
+            python3 - "$zpath" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('import Foundation\n',
+                  'import Foundation\nimport WireGuardKit\nimport QuillWireGuardUpstreamConfig\n', 1)
+open(path, "w").write(src)
+print("patched imports")
+PY
+        fi
+    done
+
     # Break the SwiftPM modularity wall for the model layer: the wg-quick parser
     # methods (asWgQuickConfig / init(fromWgQuickConfig:)) live in the
     # QuillWireGuardUpstreamConfig target but are `internal`, so the conformance

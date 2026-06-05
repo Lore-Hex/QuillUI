@@ -1248,10 +1248,25 @@ if wireguardUpstreamPresent {
             publicHeadersPath: "."
         )
     )
+    // Vendored minizip (Sources/WireGuardApp/ZipArchive/3rdparty/minizip) — the
+    // zip/unzip C backing ZipArchive.swift uses (zipOpen / unzOpen64 / …). Links
+    // system zlib (-lz); bzip2 is `#ifdef HAVE_BZIP2`-guarded so we don't define
+    // it (no libbz2 needed). zlib.h resolves via the system include path. Same
+    // shape as WireGuardRingLoggerC.
+    targets.append(
+        .target(
+            name: "WireGuardMinizipC",
+            path: ".upstream/wireguard-apple/Sources/WireGuardApp/ZipArchive/3rdparty/minizip",
+            exclude: ["MiniZip64_info.txt"],
+            sources: ["zip.c", "unzip.c", "ioapi.c"],
+            publicHeadersPath: ".",
+            linkerSettings: [.linkedLibrary("z")]
+        )
+    )
     targets.append(
         .target(
             name: "QuillWireGuardConformanceUI",
-            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
+            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "WireGuardMinizipC", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
             path: ".upstream/wireguard-apple",
             sources: [
                 // Shared logging: Logger.swift (wg_log) over the ringlogger C
@@ -1344,6 +1359,14 @@ if wireguardUpstreamPresent {
                 // by the rest of the model layer.
                 "Sources/WireGuardApp/WireGuardAppError.swift",
                 "Sources/WireGuardApp/WireGuardResult.swift",
+                // ZIP subsystem (config import/export): ZipArchive wraps the vendored
+                // minizip C (import WireGuardMinizipC) + zlib; ZipImporter/ZipExporter
+                // are Foundation logic (parse/serialize .conf via wg-quick — import
+                // WireGuardKit + QuillWireGuardUpstreamConfig). Critical path to
+                // ImportPanelPresenter → TunnelsListTableViewController.
+                "Sources/WireGuardApp/ZipArchive/ZipArchive.swift",
+                "Sources/WireGuardApp/ZipArchive/ZipImporter.swift",
+                "Sources/WireGuardApp/ZipArchive/ZipExporter.swift",
                 "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift",
                 // NSColor+Hex: NSColor(hex:) convenience init (chains to the shadow's
                 // new NSColor(red:green:blue:alpha:)). Foundation Scanner + AppKit only;
