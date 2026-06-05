@@ -1291,13 +1291,17 @@ if wireguardUpstreamPresent {
                 "Sources/WireGuardApp/UI/macOS/View/TunnelListRow.swift",
                 // Log viewer support files: LogViewHelper (reads the ringlogger C
                 // ring buffer → timestamped entries; import WireGuardRingLoggerC) +
-                // LogViewCell (NSTableCellView). LogViewController itself is deferred:
-                // it hits a pre-Concurrency wall — a @Sendable Timer block calls the
-                // @MainActor updateLogEntries() (-strict-concurrency=minimal does NOT
-                // relax @Sendable closure bodies). Needs a general @preconcurrency
-                // Foundation-import lowering pass; tracked for a follow-up.
+                // LogViewCell (NSTableCellView; lowered to conform to QuillReusableView
+                // so it's dequeuable). LogViewController itself is still deferred on C
+                // (cancelOperation override-from-extension); its A wall (the @Sendable
+                // Timer block) is now solved by QuillTimer.make + the lowering rewrite.
                 "Sources/WireGuardApp/UI/LogViewHelper.swift",
                 "Sources/WireGuardApp/UI/macOS/View/LogViewCell.swift",
+                // NSTableView+Reuse: the generic dequeueReusableCell<T: NSView &
+                // QuillReusableView>() the tables use — the B-wall fix (the cell type
+                // is constrained to a protocol requiring init(), so T() compiles
+                // without forcing required init() onto NSView repo-wide).
+                "Sources/WireGuardApp/UI/macOS/NSTableView+Reuse.swift",
                 // ParseError+WireGuardAppError: retroactively conforms WireGuardKit's
                 // TunnelConfiguration.ParseError (public enum in QuillWireGuardUpstreamConfig)
                 // to the app's WireGuardAppError → localized alertText. Foundation-only

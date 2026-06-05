@@ -4121,6 +4121,19 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     public enum DropOperation: UInt, Sendable { case on, above }
 }
 
+/// Compat constraint for `NSTableView.dequeueReusableCell<T>()`, which constructs
+/// a fresh cell via `T()`. On macOS that compiles because NSView is an `@objc`
+/// class (the ObjC runtime guarantees `init()`); on Linux NSView is plain Swift,
+/// so constructing a generic class value needs a `required init()`. Rather than
+/// force `required init()` onto NSView (which would cascade to *every* NSView
+/// subclass repo-wide), the WireGuard reuse extension is lowered to constrain its
+/// cell type to `NSView & QuillReusableView`, and the handful of cell types it
+/// dequeues conform (each with a `required init()`). App-agnostic: any AppKit app
+/// whose `dequeueReusableCell` constructs `T()` reuses this.
+public protocol QuillReusableView: AnyObject {
+    init()
+}
+
 open class NSTableHeaderView: NSView {}
 open class NSTableRowView: NSView {
     public var isSelected: Bool = false
