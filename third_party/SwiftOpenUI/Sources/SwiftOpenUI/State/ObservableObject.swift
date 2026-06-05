@@ -91,7 +91,33 @@ public struct ObservedObject<ObjectType: ObservableObject>: AnyStateStorageProvi
         storage.object
     }
 
+    public var projectedValue: Wrapper {
+        Wrapper(object: storage.object)
+    }
+
     public var anyStorage: AnyStateStorage { storage }
+
+    @dynamicMemberLookup
+    public struct Wrapper {
+        private let object: ObjectType
+
+        init(object: ObjectType) {
+            self.object = object
+        }
+
+        public subscript<Subject>(
+            dynamicMember keyPath: ReferenceWritableKeyPath<ObjectType, Subject>
+        ) -> Binding<Subject> {
+            Binding(
+                get: { object[keyPath: keyPath] },
+                set: { object[keyPath: keyPath] = $0 },
+                quillUIIdentity: BindingIdentity(
+                    objectIdentifier: ObjectIdentifier(object),
+                    discriminator: keyPath.hashValue
+                )
+            )
+        }
+    }
 }
 
 /// Backing storage for @ObservedObject. Conforms to AnyStateStorage so
@@ -130,7 +156,33 @@ public struct StateObject<ObjectType: ObservableObject>: AnyStateStorageProvider
     }
 
     public var wrappedValue: ObjectType { storage.object }
+    public var projectedValue: Wrapper {
+        Wrapper(object: storage.object)
+    }
+
     public var anyStorage: AnyStateStorage { storage }
+
+    @dynamicMemberLookup
+    public struct Wrapper {
+        private let object: ObjectType
+
+        init(object: ObjectType) {
+            self.object = object
+        }
+
+        public subscript<Subject>(
+            dynamicMember keyPath: ReferenceWritableKeyPath<ObjectType, Subject>
+        ) -> Binding<Subject> {
+            Binding(
+                get: { object[keyPath: keyPath] },
+                set: { object[keyPath: keyPath] = $0 },
+                quillUIIdentity: BindingIdentity(
+                    objectIdentifier: ObjectIdentifier(object),
+                    discriminator: keyPath.hashValue
+                )
+            )
+        }
+    }
 }
 
 /// Backing storage for @StateObject. Creates the object lazily on first
