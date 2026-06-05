@@ -471,6 +471,9 @@ open class NSView: NSResponder {
     /// WireGuard's LogViewController calls it on the table to keep the tail
     /// visible. Compile-stub until the Qt scroll-view backend honors it.
     public func scroll(_ point: NSPoint) {}
+    /// Hover tooltip. WireGuard sets it on detail-row buttons (ButtonRow.buttonToolTip)
+    /// and table cells. Compile-stub (stored) until the Qt backend wires native tooltips.
+    public var toolTip: String?
     public var frame: NSRect = .zero {
         didSet {
             guard frame != oldValue else { return }
@@ -2805,6 +2808,9 @@ open class NSOpenPanel: NSSavePanel {
 // MARK: - NSScrollView / NSScroller / NSTextField / NSTextView / NSImageView / NSButton / NSPopUpButton / NSSearchField / NSSplitView / NSSlider
 
 open class NSScrollView: NSView {
+    /// Whether the scroll view paints its background. WireGuard's TunnelDetail table
+    /// sets it false for a transparent detail view. Compile-stub (stored).
+    public var drawsBackground: Bool = true
     public var contentView: NSClipView = NSClipView() {
         didSet {
             quillInstallContentView(replacing: oldValue)
@@ -3797,6 +3803,13 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     public static let selectionDidChangeNotification = Notification.Name("NSTableViewSelectionDidChangeNotification")
     /// Auto row-height mode (WireGuard's LogViewController log table). No-op on Linux.
     public var usesAutomaticRowHeights: Bool = false
+
+    /// Row-selection highlight style. WireGuard's TunnelDetail table uses `.none`
+    /// (no highlight on the read-only detail rows). Compile-stub (stored).
+    public enum SelectionHighlightStyle: Int, Sendable {
+        case none = -1, regular = 0, sourceList = 1
+    }
+    public var selectionHighlightStyle: SelectionHighlightStyle = .regular
 
     public weak var delegate: NSTableViewDelegate?
     public weak var dataSource: NSTableViewDataSource?

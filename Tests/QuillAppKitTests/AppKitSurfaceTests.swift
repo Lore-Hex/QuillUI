@@ -190,4 +190,21 @@ struct AppKitSurfaceTests {
         tc.size = NSSize(width: 50, height: 50)
         #expect(tc.size.width == 50)
     }
+
+    @Test("TunnelDetailTableViewController shadow gaps: NSView.toolTip, NSScrollView.drawsBackground, NSTableView.selectionHighlightStyle")
+    @MainActor func tunnelDetailShadowSurface() {
+        // ButtonRow.buttonToolTip / cell tooltips set NSView.toolTip (NSButton is an NSView).
+        let button = NSButton()
+        button.toolTip = "Activate"
+        #expect(button.toolTip == "Activate")
+        // TunnelDetail's table is hosted in a transparent scroll view.
+        let scroll = NSScrollView(frame: .zero)
+        scroll.drawsBackground = false
+        #expect(scroll.drawsBackground == false)
+        // The read-only detail rows use selectionHighlightStyle = .none.
+        let table = NSTableView(frame: .zero)
+        table.selectionHighlightStyle = .none
+        #expect(table.selectionHighlightStyle == .none)
+        #expect(NSTableView.SelectionHighlightStyle.none != NSTableView.SelectionHighlightStyle.regular)
+    }
 }

@@ -424,6 +424,61 @@ print("patched TunnelEditViewController.swift to import WireGuardKit + QuillWire
 PY
     fi
 
+    # KeyValueRow + KeyValueImageRow (both : EditableKeyValueRow) are dequeued by
+    # TunnelDetailTableViewController, so they conform to QuillReusableView with a
+    # `required init()` (the B-wall protocol, like LogViewCell/TunnelListRow). The
+    # base EditableKeyValueRow has `convenience init()` / `init(hasValueImage:)`
+    # (distinct text), so the global `    init() {`→`    required init() {` replace
+    # hits exactly the two concrete cells.
+    local kvr="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift"
+    if [[ -f "$kvr" ]] && ! grep -q 'QuillReusableView' "$kvr"; then
+        echo "==> patching KeyValueRow.swift (KeyValueRow + KeyValueImageRow) for QuillReusableView"
+        python3 - "$kvr" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('class KeyValueRow: EditableKeyValueRow {',
+                  'class KeyValueRow: EditableKeyValueRow, QuillReusableView {', 1)
+src = src.replace('class KeyValueImageRow: EditableKeyValueRow {',
+                  'class KeyValueImageRow: EditableKeyValueRow, QuillReusableView {', 1)
+src = src.replace('    init() {', '    required init() {')   # both concrete cells (exactly 2)
+open(path, "w").write(src)
+print("patched KeyValueRow.swift for QuillReusableView")
+PY
+    fi
+
+    # ButtonRow is dequeued by TunnelDetailTableViewController → conform to
+    # QuillReusableView (required init()). It already carries a lowered
+    # `extension ButtonRow: QuillActionDispatching`, so guard on the class-line
+    # conformance specifically (not a bare QuillReusableView grep).
+    local btnrow="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/View/ButtonRow.swift"
+    if [[ -f "$btnrow" ]] && ! grep -q 'class ButtonRow: NSView, QuillReusableView' "$btnrow"; then
+        echo "==> patching ButtonRow.swift for QuillReusableView (required init)"
+        python3 - "$btnrow" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('class ButtonRow: NSView {', 'class ButtonRow: NSView, QuillReusableView {', 1)
+src = src.replace('    init() {', '    required init() {', 1)
+open(path, "w").write(src)
+print("patched ButtonRow.swift for QuillReusableView")
+PY
+    fi
+
+    # TunnelDetailTableViewController references TunnelConfiguration (WireGuardKit).
+    local tdvc="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/ViewController/TunnelDetailTableViewController.swift"
+    if [[ -f "$tdvc" ]] && ! grep -q '^import WireGuardKit' "$tdvc"; then
+        echo "==> patching TunnelDetailTableViewController.swift to import WireGuardKit"
+        python3 - "$tdvc" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('import Cocoa\n', 'import Cocoa\nimport WireGuardKit\n', 1)
+open(path, "w").write(src)
+print("patched TunnelDetailTableViewController.swift to import WireGuardKit")
+PY
+    fi
+
     # Break the SwiftPM modularity wall for the model layer: the wg-quick parser
     # methods (asWgQuickConfig / init(fromWgQuickConfig:)) live in the
     # QuillWireGuardUpstreamConfig target but are `internal`, so the conformance
