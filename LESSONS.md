@@ -489,6 +489,39 @@ or, better, remove the need for module `X`.
   subclass port = ~700-1,800 errors cleared. TSCall is in the EXCLUDED Calls/
   dir -> not a simple port (part of the mixed-language band).
 
+### Track B framework-shim + libc/header gaps (2026-06, ~81% cleared)
+
+- **CocoaLumberjack shim** (-2,530): SSK's Debugging layer logs through it. Filled
+  the shim with DDLogFlag/DDLogLevel (OptionSet), DDLogMessage (timestamp is a
+  non-optional `Date` -- consumed by `DateFormatter.string(from:)` -- but the init
+  takes `Date?` and defaults to `Date()`), the DDLogFormatter protocol, a no-op
+  DDLog, DDTTYLogger/DDFileLogger/DDLogFileManagerDefault (open + a
+  didArchiveLogFile override hook). A `static let sharedInstance` of a non-Sendable
+  class type needs `nonisolated(unsafe)`. The OWSLogs.h inline helpers
+  (ddLogLevel/ShouldLogFlag/ShouldLog{Error,Warning,Info,Debug,Verbose}) live in
+  an excluded header -> defined in the same shim (the Debugging files already
+  `import CocoaLumberjack`).
+- **Excluded-header NON-class symbols** go where they're reachable: an NS_ENUM ->
+  TSModelEnums.swift; OWSLogs.h log helpers -> the CocoaLumberjack shim;
+  DebuggerUtils.h `IsDebuggerAttached()`/`TrapDebugger()` -> a same-module
+  `QuillDebuggerUtils.swift` (mirror the non-DEBUG inline: false / no-op).
+- **`Darwin.x` used UNGUARDED on Linux:** OWSMath/ConnectionLock call
+  `Darwin.ceil/floor/round/close/fcntl` outside any `#if canImport(Darwin)`, so on
+  Linux (no Darwin module) they fail. Fix = a same-module caseless `enum Darwin`
+  forwarding to the stdlib (`x.rounded(.up)` etc.) and Glibc (close/fcntl). `flock`
+  the struct is referenceable for the fcntl pointer param.
+- **CGSize/CGRect/CGPoint -- DEFERRED, still open:** the QuillUI `CoreGraphics`
+  module (Sources/CoreGraphics) re-exports only CGFloat; QuillFoundation does
+  `@_exported import CoreGraphics`. Some SSK files `import Foundation` only and
+  still `cannot find CGSize` (~302). Resolve next: find which module actually
+  defines the geometry structs on this toolchain and inject that import (or add
+  them to Sources/CoreGraphics). CGContext is genuinely absent (only CGImage
+  exists in QuillFoundation) -> needs a class + CGColor/CGPath/CGGradient deps.
+- **A correct fix can tick the count UP:** porting DebuggerUtils unblocked
+  OWSSwiftUtils and exposed +31 real errors that were masked. Pair such a fix with
+  a net-negative one in the same commit, or just accept it -- the newly-visible
+  errors are real work, not a regression.
+
 ---
 
 ## Pointers
