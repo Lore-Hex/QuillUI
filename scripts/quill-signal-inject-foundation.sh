@@ -32,7 +32,7 @@ fi
 
 # Foundation types whose presence means the file needs `import Foundation`.
 # Word-boundaried so e.g. Data does not match Database / DataMessage.
-FOUNDATION_TYPES='DispatchQueue|DispatchTime|DispatchGroup|TimeInterval|URLRequest|URLSession|URLComponents|\bURL\b|FileManager|FileHandle|NotificationCenter|\bNotification\b|\bData\b|\bDate\b|DateComponents|DateFormatter|\bUUID\b|IndexSet|\bCalendar\b|\bLocale\b|TimeZone|\bData\(|\bNSObject\b|NSNumber|NSString|NSData|NSDate|NSError|NSRange|NSRegularExpression|JSONDecoder|JSONEncoder|JSONSerialization|PropertyListDecoder|OperationQueue|\bOperation\b|ProcessInfo|\bBundle\b|\bScanner\b|CharacterSet|\bPipe\b'
+FOUNDATION_TYPES='DispatchQueue|DispatchTime|DispatchGroup|TimeInterval|URLRequest|URLSession|URLComponents|\bURL\b|FileManager|FileHandle|NotificationCenter|\bNotification\b|\bData\b|\bDate\b|DateComponents|DateFormatter|\bUUID\b|IndexSet|\bCalendar\b|\bLocale\b|TimeZone|\bData\(|\bNSObject\b|NSNumber|NSString|NSData|NSDate|NSError|NSRange|NSRegularExpression|JSONDecoder|JSONEncoder|JSONSerialization|PropertyListDecoder|OperationQueue|\bOperation\b|ProcessInfo|\bBundle\b|\bScanner\b|CharacterSet|\bPipe\b|\bCGFloat\b|\bCGSize\b|\bCGRect\b|\bCGPoint\b|\bCGVector\b|\bCGAffineTransform\b'
 
 # UIKit types (resolved via the QuillUIKit shim on Linux).
 UIKIT_TYPES='\bUIColor\b|\bUIImage\b|\bUIFont\b|\bUIView\b|\bUIApplication\b|\bUIDevice\b|\bUIScreen\b|\bUIViewController\b|\bUIPasteboard\b|\bUIImpactFeedbackGenerator\b|\bUISelectionFeedbackGenerator\b|\bUINotificationFeedbackGenerator\b|\bUIBezierPath\b|\bUIEdgeInsets\b|\bUIInterfaceOrientation\b|\bUIBackgroundTaskIdentifier\b|\bUIActivityViewController\b|\bNSTextAlignment\b'
