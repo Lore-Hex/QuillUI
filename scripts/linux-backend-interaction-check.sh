@@ -161,6 +161,9 @@ quillui_append_backend_selection_start_environment \
   "$SELECTED_BACKEND" \
   "$INTERACTION_MODE" \
   "$OUTPUT_DIR"
+if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
+  app_environment+=("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}")
+fi
 env "${app_environment[@]}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
 app_pid=$!
 

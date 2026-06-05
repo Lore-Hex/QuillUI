@@ -635,12 +635,16 @@ public struct PresentationMode: @unchecked Sendable {
 }
 
 private struct PresentationModeKey: EnvironmentKey {
-    static let defaultValue = PresentationMode()
+    static let defaultValue: PresentationMode? = nil
 }
 
 public extension EnvironmentValues {
     var presentationMode: PresentationMode {
-        get { self[PresentationModeKey.self] }
+        get {
+            self[PresentationModeKey.self] ?? PresentationMode {
+                self.dismiss()
+            }
+        }
         set { self[PresentationModeKey.self] = newValue }
     }
 }

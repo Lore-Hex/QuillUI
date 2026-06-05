@@ -1447,6 +1447,114 @@ if 'gtkDebugLog("sheet bool idle present' not in text:
         1,
     )
 
+sheet_overlay_helpers = '''private func gtkShouldRenderSheetInWindow() -> Bool {
+    let mode = ProcessInfo.processInfo.environment["QUILLUI_GTK_SHEET_PRESENTATION"]?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    return mode != "window"
+}
+
+private func gtkCreateSheetOverlay(
+    contentWidget: UnsafeMutablePointer<GtkWidget>,
+    sheetWidget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let overlay = gtk_overlay_new()!
+    gtk_widget_set_hexpand(overlay, 1)
+    gtk_widget_set_vexpand(overlay, 1)
+    gtk_widget_set_halign(overlay, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(overlay, GTK_ALIGN_FILL)
+
+    gtk_widget_set_hexpand(contentWidget, 1)
+    gtk_widget_set_vexpand(contentWidget, 1)
+    gtk_widget_set_halign(contentWidget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
+    gtk_overlay_set_child(OpaquePointer(overlay), contentWidget)
+
+    let panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+    gtk_widget_set_size_request(panel, gtkSheetDefaultWidth(), gtkSheetDefaultHeight())
+    gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)
+    gtk_widget_set_valign(panel, GTK_ALIGN_CENTER)
+    applyCSSToWidget(
+        panel,
+        properties: "background: #f8f8fb; border: 1px solid rgba(0,0,0,0.12); border-radius: 12px; box-shadow: 0 18px 48px rgba(0,0,0,0.18);"
+    )
+
+    gtk_widget_set_hexpand(sheetWidget, 1)
+    gtk_widget_set_vexpand(sheetWidget, 1)
+    gtk_widget_set_halign(sheetWidget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(sheetWidget, GTK_ALIGN_FILL)
+    gtk_box_append(boxPointer(panel), sheetWidget)
+    gtk_overlay_add_overlay(OpaquePointer(overlay), panel)
+    return overlay
+}
+
+'''
+if "private func gtkShouldRenderSheetInWindow" not in text:
+    marker = "\nprivate func gtkSheetDataKey"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI sheet overlay helper insertion shape was not recognized")
+    text = text.replace(marker, "\n" + sheet_overlay_helpers + "private func gtkSheetDataKey", 1)
+
+bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
+            let sheetView = sheetContent
+            let binding = isPresented
+            let userOnDismiss = onDismiss
+            let dismissalConfig = gtkExtractDismissalConfig(from: sheetView)
+            let previous = getCurrentEnvironment()
+            var env = previous
+            if let config = dismissalConfig {
+                env.dismiss = DismissAction {
+                    config.isPresented.wrappedValue = true
+                }
+            } else {
+                env.dismiss = DismissAction {
+                    binding.wrappedValue = false
+                    userOnDismiss?()
+                }
+            }
+            setCurrentEnvironment(env)
+            let sheetWidget = widgetFromOpaque(gtkRenderView(sheetView))
+            setCurrentEnvironment(previous)
+            return opaqueFromWidget(gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget))
+        }
+
+'''
+if "gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)" not in text:
+    bool_marker = "        // Guard against duplicate presentation on rebuild\n"
+    if bool_marker not in text:
+        raise SystemExit("SwiftOpenUI bool sheet overlay insertion shape was not recognized")
+    text = text.replace(bool_marker, bool_sheet_overlay + bool_marker, 1)
+
+item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
+            let sheetBuilder = sheetContent
+            let itemBinding = item
+            let userOnDismiss = onDismiss
+            let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))
+            let previous = getCurrentEnvironment()
+            var env = previous
+            if let config = itemDismissalConfig {
+                env.dismiss = DismissAction {
+                    config.isPresented.wrappedValue = true
+                }
+            } else {
+                env.dismiss = DismissAction {
+                    itemBinding.wrappedValue = nil
+                    userOnDismiss?()
+                }
+            }
+            setCurrentEnvironment(env)
+            let sheetWidget = widgetFromOpaque(gtkRenderView(sheetBuilder(currentItem)))
+            setCurrentEnvironment(previous)
+            return opaqueFromWidget(gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget))
+        }
+
+'''
+if "let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))" in text and text.count("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)") < 2:
+    item_marker = "        // Check if the item identity changed while a sheet is already active\n"
+    if item_marker not in text:
+        raise SystemExit("SwiftOpenUI item sheet overlay insertion shape was not recognized")
+    text = text.replace(item_marker, item_sheet_overlay + item_marker, 1)
+
 text = text.replace(
     'gtk_window_set_default_size(dialogWin, 400, 300)',
     'gtk_window_set_default_size(dialogWin, gtkSheetDefaultWidth(), gtkSheetDefaultHeight())',

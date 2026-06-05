@@ -2693,6 +2693,7 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("quillui_is_backend_smoke_product \"$PRODUCT\""))
         #expect(backendScript.contains("quillui_normalize_backend_smoke_interaction_mode \"$INTERACTION_MODE\""))
         #expect(backendScript.contains("quillui_is_backend_smoke_sheet_interaction \"$INTERACTION_MODE\""))
+        #expect(backendScript.contains("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}"))
         #expect(backendScript.contains("refresh_capture_window_for_active_child_window"))
         #expect(backendScript.contains("refresh_capture_window_for_sheet_interaction"))
         #expect(backendScript.contains("quillui_find_visible_window_for_pid_except \"$DISPLAY_ID\" \"$app_pid\" \"$window_id\""))

@@ -3143,3 +3143,18 @@ Symbols child, and keeps the native GTK popover/action path. The compose button
 uses the same GTK primitive path with `edit_square`, so the closed-state toolbar
 is closer to the macOS square-and-pencil affordance without Enchanted source
 changes.
+
+## Checkpoint 187: GTK Sheet Overlay Presentation
+
+Status: implemented locally; guarded by QuillUI/QuillData/compatibility test
+target builds, isolated SwiftOpenUI patch execution, shell syntax, profile
+budget, backend product integrity, and CI visual follow-up.
+
+GTK `.sheet` presentations now have a centered in-window overlay path instead
+of relying only on separate GTK windows that CI/window managers place at the
+top-left. The legacy separate-window presentation remains available through
+`QUILLUI_GTK_SHEET_PRESENTATION=window` and is preserved for the generic sheet
+smoke tests. QuillUI's `presentationMode` compatibility now falls back to the
+current `dismiss` environment action, so sheet content that still uses
+`presentationMode.wrappedValue.dismiss()` can close through the same backend
+presentation state as `dismiss()`.

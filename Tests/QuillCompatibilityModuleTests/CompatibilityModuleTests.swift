@@ -1678,6 +1678,27 @@ struct CompatibilityModuleTests {
         PresentationMode().dismiss()
     }
 
+    @Test("Environment presentationMode falls back to dismiss")
+    func environmentPresentationModeFallsBackToDismiss() {
+        let fallbackInvoked = QuillTestBox<Int>(0)
+        let explicitInvoked = QuillTestBox<Int>(0)
+        var environment = EnvironmentValues()
+
+        environment.dismiss = DismissAction {
+            fallbackInvoked.value = (fallbackInvoked.value ?? 0) + 1
+        }
+        environment.presentationMode.dismiss()
+        #expect(fallbackInvoked.value == 1)
+        #expect(explicitInvoked.value == nil)
+
+        environment.presentationMode = PresentationMode {
+            explicitInvoked.value = (explicitInvoked.value ?? 0) + 1
+        }
+        environment.presentationMode.dismiss()
+        #expect(fallbackInvoked.value == 1)
+        #expect(explicitInvoked.value == 1)
+    }
+
     // MARK: - QuillCompatibilityError.errorDescription
 
     @Test("QuillCompatibilityError formats LocalizedError descriptions")
