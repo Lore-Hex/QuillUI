@@ -1454,7 +1454,11 @@ let signalAppleFrameworkShims = [
 ]
 #if os(Linux)
 for shimName in signalAppleFrameworkShims {
-    targets.append(.target(name: shimName, path: "Sources/AppleFrameworkShims/\(shimName)"))
+    // Each shim may build on QuillFoundation's Core Graphics / Foundation shadow
+    // types (e.g. ImageIO's CGImageSource returns QuillFoundation's CGImage).
+    // QuillFoundation depends only on QuillKit, so this introduces no cycle; the
+    // edge is inert for shims that do not import QuillFoundation.
+    targets.append(.target(name: shimName, dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/\(shimName)"))
 }
 #endif
 

@@ -42,6 +42,11 @@ UIKIT_TYPES='\bUIColor\b|\bUIImage\b|\bUIFont\b|\bUIView\b|\bUIApplication\b|\bU
 # import is canImport-gated so it is a no-op on Apple.
 FOUNDATIONNETWORKING_TYPES='\bURLRequest\b|\bURLResponse\b|\bHTTPURLResponse\b|\bURLSession\b|\bURLSessionTask\b|\bURLSessionDataTask\b|\bURLSessionUploadTask\b|\bURLSessionDownloadTask\b|\bURLSessionWebSocketTask\b|\bURLSessionConfiguration\b|\bURLSessionDelegate\b|\bURLSessionTaskDelegate\b|\bURLSessionDataDelegate\b|\bURLSessionWebSocketDelegate\b|\bURLAuthenticationChallenge\b|\bURLCredential\b|\bURLProtocol\b|\bURLProtectionSpace\b|\bHTTPCookie\b|\bURLCache\b|\bCachedURLResponse\b'
 
+# ImageIO: CGImageSource and the kCGImage* metadata keys (the ImageIO shim on
+# Linux). On Apple these arrive transitively via UIKit / CoreGraphics, so the
+# upstream files do not import ImageIO explicitly.
+IMAGEIO_TYPES='\bCGImageSource\b|\bkCGImage'
+
 injected=0
 scanned=0
 
@@ -75,6 +80,7 @@ while IFS= read -r f; do
     touched=0
     if inject_if_needed "$f" "Foundation" "$FOUNDATION_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "UIKit" "$UIKIT_TYPES"; then touched=1; fi
+    if inject_if_needed "$f" "ImageIO" "$IMAGEIO_TYPES"; then touched=1; fi
     if inject_gated_if_needed "$f" "FoundationNetworking" "$FOUNDATIONNETWORKING_TYPES"; then touched=1; fi
     injected=$((injected + touched))
 done < <(find "$ROOT" -name '*.swift' -not -path '*/QuillPort/*')
