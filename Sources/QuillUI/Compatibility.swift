@@ -642,7 +642,7 @@ public extension EnvironmentValues {
     var presentationMode: PresentationMode {
         get {
             let dismiss = self.dismiss
-            self[PresentationModeKey.self] ?? PresentationMode {
+            return self[PresentationModeKey.self] ?? PresentationMode {
                 dismiss()
             }
         }
