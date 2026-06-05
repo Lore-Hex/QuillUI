@@ -1378,6 +1378,11 @@ if wireguardUpstreamPresent {
                 // routed to NSApp/NSApp.delegate/responder chain (no @objc methods of its own).
                 // First file of the app-BOOTSTRAP layer (after the full VC/view layer).
                 "Sources/WireGuardApp/UI/macOS/MainMenu.swift",
+                // StatusMenu: the status-bar dropdown (NSMenu subclass) + TunnelMenuItem
+                // (NSMenuItem subclass observing tunnel name/status via KVO). Builds the
+                // per-tunnel menu, manage/import/about/quit items; @objc actions lowered to
+                // QuillActionDispatching. The biggest bootstrap file; dep of TunnelsTracker.
+                "Sources/WireGuardApp/UI/macOS/StatusMenu.swift",
                 // ActivateOnDemandOption: maps on-demand config <-> NEOnDemandRule[]
                 // (NE on-demand surface from #338/#340 + wg_log from #345).
                 "Sources/WireGuardApp/Tunnel/ActivateOnDemandOption.swift",

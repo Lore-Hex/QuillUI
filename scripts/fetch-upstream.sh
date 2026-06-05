@@ -360,6 +360,26 @@ print("patched ImportPanelPresenter @MainActor")
 PY
     fi
 
+    # StatusMenu's importTunnelsClicked calls the (now-@MainActor) ImportPanelPresenter
+    # inside the StatusMenuWindowDelegate.showManageTunnelsWindow completion closure.
+    # That completion presents UI on the main thread, so mark its type @MainActor — the
+    # closure then inherits the isolation and the presentImportPanel call type-checks.
+    # (AppDelegate, which conforms to StatusMenuWindowDelegate, gets the matching
+    # @MainActor completion patch when it lands.)
+    local smenu="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/StatusMenu.swift"
+    if [[ -f "$smenu" ]] && ! grep -q '@MainActor (NSWindow?)' "$smenu"; then
+        echo "==> patching StatusMenu.swift showManageTunnelsWindow completion @MainActor"
+        python3 - "$smenu" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('completion: ((NSWindow?) -> Void)?)',
+                  'completion: (@MainActor (NSWindow?) -> Void)?)', 1)
+open(path, "w").write(src)
+print("patched StatusMenu showManageTunnelsWindow completion @MainActor")
+PY
+    fi
+
     # TunnelListRow is dequeued by TunnelsListTableViewController, so it must conform
     # to QuillReusableView (init() requirement) with a `required init()` (the B-wall
     # protocol, like LogViewCell).
