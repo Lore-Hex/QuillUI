@@ -208,6 +208,73 @@ public struct UIEdgeInsets: Equatable, Sendable {
     public static let zero = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
 }
 
+// MARK: - UIGraphicsImageRenderer (Linux: placeholder images)
+//
+// SignalServiceKit renders avatars/thumbnails into a renderer context. On Linux
+// nothing is rasterized: the context's CGContext is the inert no-op from
+// QuillFoundation and `.image{}` returns a blank placeholder UIImage of the
+// requested size. Faithful image generation needs a real raster backend
+// (Cairo/Skia) -- deferred. HONEST STATUS: produced images are blank.
+//
+// Gated to Linux: macOS has no UIGraphicsImageRenderer and a real CGContext
+// (no `init()`), so this block must not compile there -- keeps the package green
+// for local `swift build` / `swift test` on macOS.
+#if os(Linux)
+public final class UIGraphicsImageRendererFormat {
+    public var scale: CGFloat = 1
+    public var opaque: Bool = false
+    public var prefersExtendedRange: Bool = false
+    public init() {}
+    public static var `default`: UIGraphicsImageRendererFormat { UIGraphicsImageRendererFormat() }
+    public static func preferred() -> UIGraphicsImageRendererFormat { UIGraphicsImageRendererFormat() }
+}
+
+public final class UIGraphicsImageRendererContext {
+    public let cgContext: CGContext
+    public let format: UIGraphicsImageRendererFormat
+    public init(cgContext: CGContext, format: UIGraphicsImageRendererFormat) {
+        self.cgContext = cgContext
+        self.format = format
+    }
+    public func fill(_ rect: CGRect) {}
+    public func fill(_ rect: CGRect, blendMode: CGBlendMode) {}
+    public func stroke(_ rect: CGRect) {}
+    public func stroke(_ rect: CGRect, blendMode: CGBlendMode) {}
+    public func clip(to rect: CGRect) {}
+}
+
+public final class UIGraphicsImageRenderer {
+    public let size: CGSize
+    public let format: UIGraphicsImageRendererFormat
+
+    public init(size: CGSize, format: UIGraphicsImageRendererFormat = UIGraphicsImageRendererFormat()) {
+        self.size = size
+        self.format = format
+    }
+    public convenience init(bounds: CGRect, format: UIGraphicsImageRendererFormat = UIGraphicsImageRendererFormat()) {
+        self.init(size: bounds.size, format: format)
+    }
+
+    private func runActions(_ actions: (UIGraphicsImageRendererContext) -> Void) {
+        actions(UIGraphicsImageRendererContext(cgContext: CGContext(), format: format))
+    }
+
+    /// Returns a blank placeholder image of `size` (nothing is rasterized).
+    public func image(_ actions: (UIGraphicsImageRendererContext) -> Void) -> UIImage {
+        runActions(actions)
+        return UIImage(size: size)
+    }
+    public func pngData(_ actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
+        runActions(actions)
+        return Data()
+    }
+    public func jpegData(withCompressionQuality quality: CGFloat, actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
+        runActions(actions)
+        return Data()
+    }
+}
+#endif
+
 // MARK: - NSTextStorage (TextKit)
 //
 // On iOS NSTextStorage lives in UIKit. SignalServiceKit's

@@ -107,6 +107,91 @@ public extension UIScreen {
 
 public class CGImage {}
 
+// MARK: - CoreGraphics drawing shim (Linux)
+//
+// SignalServiceKit's avatar/thumbnail rendering (AvatarBuilder, UIImage+OWS)
+// draws into a CGContext obtained from a UIGraphicsImageRenderer. CoreGraphics
+// rasterization is unavailable on Linux, so this is an INERT no-op context:
+// nothing is drawn, and the renderer returns a blank placeholder image of the
+// requested size. Color / gradient / path / image arguments are typed `Any?`
+// to avoid coupling to RSColor.cgColor (which returns Any?) and the optional
+// CGGradient/CGPath value-holders. A real raster backend (Cairo/Skia) is a
+// later milestone. HONEST STATUS: avatars render blank on Linux.
+
+public enum CGInterpolationQuality: Int32, Sendable {
+    case `default` = 0, none = 1, low = 2, high = 3, medium = 4
+}
+
+public enum CGBlendMode: Int32, Sendable {
+    case normal = 0, multiply, screen, overlay, darken, lighten, colorDodge,
+         colorBurn, softLight, hardLight, difference, exclusion, hue, saturation,
+         color, luminosity, clear, copy, sourceIn, sourceOut, sourceAtop,
+         destinationOver, destinationIn, destinationOut, destinationAtop, xor,
+         plusDarker, plusLighter
+}
+
+public struct CGGradientDrawingOptions: OptionSet, Sendable {
+    public let rawValue: UInt32
+    public init(rawValue: UInt32) { self.rawValue = rawValue }
+    public static let drawsBeforeStartLocation = CGGradientDrawingOptions(rawValue: 1 << 0)
+    public static let drawsAfterEndLocation = CGGradientDrawingOptions(rawValue: 1 << 1)
+}
+
+public final class CGColorSpace {
+    public init() {}
+}
+
+public func CGColorSpaceCreateDeviceRGB() -> CGColorSpace { CGColorSpace() }
+public func CGColorSpaceCreateDeviceGray() -> CGColorSpace { CGColorSpace() }
+
+public final class CGGradient {
+    /// Inert: no color stops are retained (nothing is drawn on Linux).
+    public init?(colorsSpace space: Any?, colors: Any?, locations: Any?) {}
+}
+
+public final class CGContext {
+    public init() {}
+
+    public var interpolationQuality: CGInterpolationQuality = .default
+
+    public func setFillColor(_ color: Any?) {}
+    public func setFillColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {}
+    public func setStrokeColor(_ color: Any?) {}
+    public func setStrokeColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {}
+    public func setLineWidth(_ width: CGFloat) {}
+    public func setAlpha(_ alpha: CGFloat) {}
+    public func setBlendMode(_ mode: CGBlendMode) {}
+
+    public func fill(_ rect: CGRect) {}
+    public func fill(_ rects: [CGRect]) {}
+    public func fillPath() {}
+    public func stroke(_ rect: CGRect) {}
+    public func strokePath() {}
+
+    public func beginPath() {}
+    public func closePath() {}
+    public func move(to point: CGPoint) {}
+    public func addLine(to point: CGPoint) {}
+    public func addRect(_ rect: CGRect) {}
+    public func addEllipse(in rect: CGRect) {}
+    public func addPath(_ path: Any?) {}
+    public func clip() {}
+    public func clip(to rect: CGRect) {}
+
+    public func saveGState() {}
+    public func restoreGState() {}
+    public func translateBy(x: CGFloat, y: CGFloat) {}
+    public func scaleBy(x: CGFloat, y: CGFloat) {}
+    public func rotate(by angle: CGFloat) {}
+    // `CGAffineTransform` is absent from swift-corelibs Foundation on this
+    // toolchain, so the param is typed `Any` (the op is an inert no-op anyway).
+    public func concatenate(_ transform: Any) {}
+
+    public func draw(_ image: Any, in rect: CGRect) {}
+    public func drawLinearGradient(_ gradient: Any?, start: CGPoint, end: CGPoint, options: CGGradientDrawingOptions) {}
+    public func drawRadialGradient(_ gradient: Any?, startCenter: CGPoint, startRadius: CGFloat, endCenter: CGPoint, endRadius: CGFloat, options: CGGradientDrawingOptions) {}
+}
+
 public class RSImage: NSObject, @unchecked Sendable {
     public override init() {}
     public init?(data: Data) {
