@@ -2978,6 +2978,27 @@ public extension NSTextFieldDelegate {
     func control(_ control: NSControl, textShouldEndEditing: NSText) -> Bool { true }
 }
 
+/// NSTokenField — a token-entry text field (WireGuard's on-demand SSID list).
+/// Inherits NSTextField's inits/value API; adds the token-specific surface.
+open class NSTokenField: NSTextField {
+    public enum TokenStyle: Int, Sendable { case `default` = 0, none, plainText, rounded, squared }
+    public var tokenizingCharacterSet: CharacterSet = CharacterSet(charactersIn: ",")
+    public var tokenStyle: TokenStyle = .default
+    public var completionDelay: TimeInterval = 0
+    public class var defaultCompletionDelay: TimeInterval { 0 }
+    public class var defaultTokenizingCharacterSet: CharacterSet { CharacterSet(charactersIn: ",") }
+}
+
+/// NSTokenFieldDelegate refines NSTextFieldDelegate; on macOS its methods are
+/// @objc-optional. Declared with a default impl so conformers (e.g. WireGuard's
+/// OnDemandControlsRow) only override what they need.
+public protocol NSTokenFieldDelegate: NSTextFieldDelegate {
+    func tokenField(_ tokenField: NSTokenField, completionsForSubstring substring: String, indexOfToken tokenIndex: Int, indexOfSelectedItem selectedIndex: UnsafeMutablePointer<Int>?) -> [Any]?
+}
+public extension NSTokenFieldDelegate {
+    func tokenField(_ tokenField: NSTokenField, completionsForSubstring substring: String, indexOfToken tokenIndex: Int, indexOfSelectedItem selectedIndex: UnsafeMutablePointer<Int>?) -> [Any]? { nil }
+}
+
 open class NSText: NSView {
     open var string: String = ""
 }
