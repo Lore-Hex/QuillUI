@@ -549,6 +549,42 @@ or, better, remove the need for module `X`.
   matched no other Foundation type). Fixed by adding the CG geometry types to
   inject-foundation.sh's FOUNDATION_TYPES.
 
+### Track B override-band + UIKit-text tail (2026-06, ~88% cleared, 45.7k)
+
+- **THE override-band distinction (clears thousands):** a subclass override error
+  is one of two kinds. (1) `method does not override any method from its
+  superclass` = the base member is genuinely MISSING -> ADD it `open` to the base
+  port's CLASS BODY. Adding contentBuilder/dataMessageBuilder/buildPlaintextData/
+  shouldSyncTranscript/buildSyncTranscriptMessage to QuillTSOutgoingMessage cleared
+  -2,522. The SendableMessage protocol's `extension TSOutgoingMessage:
+  SendableMessage` only implements threadUniqueId, so the rest were missing, not
+  walled. (2) `property/method X is declared in extension of TSOutgoingMessage and
+  cannot be overridden` (contentHint/shouldRecordSendLog/anyUpdateOutgoingMessage)
+  = the genuine override-in-extension WALL -> DEFER to a durable lowerer pass that
+  relocates the extension-declared members into the class body. This is the
+  largest remaining deferred band (~600).
+- **A whole missing superclass:** EditableMessageBodyTextStorage's overrides all
+  failed because its base NSTextStorage was absent ("super has no superclass").
+  Added `open class NSTextStorage: NSMutableAttributedString` to UIKitShim (the
+  UIKit module). swift-corelibs NSMutableAttributedString already has
+  beginEditing/endEditing (inherit, don't redeclare) but not fixAttributes; add
+  the nested `NSTextStorage.EditActions` alias for callers.
+- **UIKit text attributes are not in swift-corelibs Foundation** (-1,600): the
+  standard NSAttributedString.Key statics (.font/.foregroundColor/.background
+  Color/.paragraphStyle/.underline*/.strikethrough*/.link/.attachment) and
+  NSParagraphStyle/NSMutableParagraphStyle (+ NSLineBreakMode/NSWritingDirection)
+  are UIKit/AppKit additions -> add them to UIKitShim (raw values match Apple's;
+  QuillAppKit has the canonical copy to model).
+- **swift-corelibs-unavailable type -> shadow it:** DateComponentsFormatter is
+  declared `@available(*, unavailable)` in swift-corelibs Foundation; a same-module
+  class named `DateComponentsFormatter` shadows it (local declaration wins over
+  the imported, unavailable one). UTType lives in the `UniformTypeIdentifiers`
+  shim module; NSAdaptiveImageGlyph (iOS-18) needed even in dead `#available`
+  branches because Swift type-checks them.
+- **Shim files (Sources/UIKitShim, Sources/<Fw>) are direct-edit -- NOT symlinked.**
+  Only Sources/SignalServiceKitObjCPort/*.swift are symlinked into QuillPort (and
+  need touch+link-ports.sh after edits). Editing a shim is a plain Edit + rebuild.
+
 ---
 
 ## Pointers
