@@ -604,6 +604,28 @@ or, better, remove the need for module `X`.
   import-umbrella-only callers still resolve it. One correct consolidation clears
   the whole cascade, not just the ambiguous line (UN dedup: 41,371 -> 41,079 even
   though only ~6 lines named the type). Touches shared infra -> swarm-sync to main.
+- **A shim whose OWN compile fails makes ALL its types "cannot find" in every
+  consumer.** If a large existing shim shows a huge cannot-find for a type it
+  clearly declares (e.g. AVAsset = 616 cannot-find from a 200-line AVFoundation
+  shim), suspect the shim MODULE failed to build: one bad line emits no symbols,
+  so every `import <Fw>` consumer can't find anything. ALWAYS grep the shim's OWN
+  errors FIRST (`grep "<Fw>/<Fw>.swift.*error:"`). Root cause here: AVFoundation.
+  swift referenced CGImage (a QuillFoundation type) without `import QuillFoundation`
+  -> module failed -> AVAsset cannot-find module-wide. The AppleFrameworkShims
+  targets already depend on QuillFoundation; just add the import. errors:5 (not a
+  drop to 5 -- a dependency module failing to build aborts the whole SSK compile,
+  so the log holds only the shim's own handful of errors; that signature = "fix
+  the shim's own errors, rebuild").
+- **AVFoundation media was the single biggest fill (-3,812).** AVAsset/AVURLAsset/
+  AVAssetTrack/AVAssetImageGenerator/AVAssetReader(+TrackOutput)/AVAssetExportSession
+  + the resource-loader API + AVAudioPlayer + the CoreMedia spine (CMTime,
+  CMSampleBuffer/CMBlockBuffer, CM* getter funcs, AudioStreamBasicDescription) +
+  audio-settings String keys. SSK uses the OLDER SYNC AVFoundation API (tracks(
+  withMediaType:), asset.duration:CMTime, CMTimeMake) not the iOS-16 async `load`.
+  All inert: assets not-readable, reader yields no samples, generator/export throw.
+  CGAffineTransform is absent from swift-corelibs -> AVAssetTrack.preferredTransform
+  typed Any. A correct big fill EXPOSES coherent residuals in the same consumers
+  (audio keys, resourceLoader, AVAudioPlayer) -- pair them in a follow-on commit.
 
 ---
 
