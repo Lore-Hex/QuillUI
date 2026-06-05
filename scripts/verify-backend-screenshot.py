@@ -1252,18 +1252,24 @@ def validate_quill_chat_mac_reference_settings_panel(
             panel_y + 103,
         )
         require(
-            endpoint_text_pixels >= 300,
+            endpoint_text_pixels >= 650,
             f"Mac-reference typed settings endpoint was not detected: pixels={endpoint_text_pixels}",
         )
         typed_summary = f", endpoint_text_pixels={endpoint_text_pixels}"
 
     if require_typed_bearer_token:
+        if panel_kind == "root-overlay":
+            token_y0 = panel_y + 350
+            token_y1 = panel_y + 398
+        else:
+            token_y0 = panel_y + 174
+            token_y1 = panel_y + 222
         token_text_pixels = dark_pixel_count(
             image,
             panel_segment.start + 30,
-            panel_y + 174,
+            token_y0,
             min(panel_segment.end, panel_segment.start + 560),
-            panel_y + 222,
+            token_y1,
         )
         require(
             token_text_pixels >= 250,
