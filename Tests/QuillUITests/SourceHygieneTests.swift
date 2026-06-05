@@ -3272,14 +3272,13 @@ struct SourceHygieneTests {
         #expect(promptGrid.contains("Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columns)"))
         #expect(promptGrid.contains("ForEach(prompts)"))
         #expect(promptGrid.contains("Image(systemName: QuillSystemSymbol.compatibleName(prompt.systemImage))"))
-        #expect(promptGrid.contains("private var promptFontSize: CGFloat { 15 }"))
+        #expect(promptGrid.contains("private var promptFontSize: CGFloat {\n        #if os(Linux)\n        cardHeight >= 220 ? 24 : 15"))
         #expect(promptGrid.contains("Color.clear\n                    .frame(height: promptCardContentHeight)"))
         #expect(promptGrid.contains("private var promptCardContentHeight: CGFloat"))
         #expect(promptGrid.contains("max(1, cardHeight - (promptCardPaddingWidth * 2))"))
         #expect(promptGrid.contains("Color(hex: \"#F4F4F6\")"))
         #expect(!promptGrid.contains("prompt.systemImage.contains(\"lightbulb\") ? \"!\" : \"?\""))
         #expect(!promptGrid.contains("#if os(Linux)\n        ZStack"))
-        #expect(!promptGrid.contains("private var promptFontSize: CGFloat { 24 }"))
         #expect(!promptGrid.contains("Color(hex: \"#E8E8EE\")"))
     }
 

@@ -293,7 +293,13 @@ public struct QuillPromptGrid: View {
         }
     }
 
-    private var promptFontSize: CGFloat { 15 }
+    private var promptFontSize: CGFloat {
+        #if os(Linux)
+        cardHeight >= 220 ? 24 : 15
+        #else
+        15
+        #endif
+    }
     #if os(macOS) || os(iOS) || os(visionOS)
     private var promptCardPadding: CGFloat { 15 }
     #else
