@@ -1396,6 +1396,10 @@ if wireguardUpstreamPresent {
                 // the @MainActor VC action handleImportTunnelAction.
                 "Sources/WireGuardApp/UI/macOS/ImportPanelPresenter.swift",
                 "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift",
+                // ButtonRow: the action-button cell dequeued by TunnelDetailTableViewController
+                // (NSButton momentaryPushIn/rounded + onButtonClicked). Conforms QuillReusableView
+                // (required init()) for generic dequeue; target-action lowered to QuillActionDispatching.
+                "Sources/WireGuardApp/UI/macOS/View/ButtonRow.swift",
                 // NSColor+Hex: NSColor(hex:) convenience init (chains to the shadow's
                 // new NSColor(red:green:blue:alpha:)). Foundation Scanner + AppKit only;
                 // the color base for the conf-editor theme (ConfTextColorTheme, later).
@@ -1430,6 +1434,12 @@ if wireguardUpstreamPresent {
                 // BOTH remaining table VCs (TunnelsList + TunnelDetail). No auth backend
                 // on Linux → the LocalAuthentication shadow always denies (safe default).
                 "Sources/WireGuardApp/UI/PrivateDataConfirmation.swift",
+                // TunnelDetailTableViewController: the tunnel-detail table VC (one of the two
+                // remaining). Dequeues KeyValueRow/KeyValueImageRow/ButtonRow (all QuillReusableView);
+                // presents TunnelEditViewController; PrivateDataConfirmation key-reveal gate;
+                // ActivateOnDemandViewModel + TunnelViewModel; KVO via Cocoa shim; @objc actions
+                // lowered to QuillActionDispatching. Imports WireGuardKit (TunnelConfiguration).
+                "Sources/WireGuardApp/UI/macOS/ViewController/TunnelDetailTableViewController.swift",
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
                 // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).
