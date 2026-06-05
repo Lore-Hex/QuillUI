@@ -4,19 +4,7 @@
 //
 
 import SwiftUI
-
-struct ConversationGroup: Hashable {
-    let date: Date
-    var conversations: [ConversationSD]
-
-    static func == (lhs: ConversationGroup, rhs: ConversationGroup) -> Bool {
-        lhs.date == rhs.date
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(date)
-    }
-}
+import QuillUI
 
 struct ConversationHistoryList: View {
     var selectedConversation: ConversationSD?
@@ -25,72 +13,36 @@ struct ConversationHistoryList: View {
     var onDelete: (_ conversation: ConversationSD) -> ()
     var onDeleteDailyConversations: (_ date: Date) -> ()
 
-    func groupConversationsByDay(conversations: [ConversationSD]) -> [ConversationGroup] {
-        let groupedDictionary = Dictionary(grouping: conversations) { conversation -> Date in
-            Calendar.current.startOfDay(for: conversation.updatedAt)
-        }
-
-        return groupedDictionary.map { key, value in
-            ConversationGroup(date: key, conversations: value)
-        }.sorted(by: { $0.date > $1.date })
-    }
-
-    var conversationGroups: [ConversationGroup] {
-        groupConversationsByDay(conversations: conversations)
-    }
-
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 17) {
-                ForEach(conversationGroups, id: \.self) { conversationGroup in
-                    HStack {
-                        Text(conversationGroup.date.daysAgoString())
-                            .font(.system(size: 14))
-                            .fontWeight(.semibold)
-                            .foregroundColor(Color(.systemGray))
-                            .padding(.bottom, 30)
-
-                        Spacer()
-                    }
-                    .contextMenu(menuItems: {
-                        Button(role: .destructive, action: { onDeleteDailyConversations(conversationGroup.date) }) {
-                            Label("Delete daily conversations", systemImage: "trash")
-                        }
-                    })
-
-                    ForEach(conversationGroup.conversations, id: \.self) { dailyConversation in
-                        HStack {
-                            if selectedConversation == dailyConversation {
-                                Circle()
-                                    .frame(width: 6, height: 6)
-                                    .animation(.easeOut(duration: 0.15))
-                                    .transition(.opacity)
-                            }
-
-                            Text(dailyConversation.name)
-                                .lineLimit(1)
-                                .font(.system(size: 16))
-                                .foregroundColor(Color(.label))
-                                .animation(.easeOut(duration: 0.15))
-                                .transition(.opacity)
-                            Spacer()
-                        }
-                        .padding(.vertical, 12)
-                        .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture { onTap(dailyConversation) }
-                        .animation(.easeOut(duration: 0.15))
-                        .contextMenu(menuItems: {
-                            Button(role: .destructive, action: { onDelete(dailyConversation) }) {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        })
-                    }
-
-                    Divider()
+        QuillDateGroupedConversationHistoryList(
+            items: historyItems,
+            selectedID: selectedConversation?.id.uuidString,
+            dateTitle: { $0.daysAgoString() },
+            onSelect: { item in
+                if let conversation = conversation(for: item) {
+                    onTap(conversation)
                 }
-            }
+            },
+            onDelete: { item in
+                if let conversation = conversation(for: item) {
+                    onDelete(conversation)
+                }
+            },
+            onDeleteDay: onDeleteDailyConversations
+        )
+    }
+
+    private var historyItems: [QuillConversationHistoryItem] {
+        conversations.map { conversation in
+            QuillConversationHistoryItem(
+                id: conversation.id.uuidString,
+                title: conversation.name,
+                updatedAt: conversation.updatedAt
+            )
         }
-        .scrollIndicators(.never)
+    }
+
+    private func conversation(for item: QuillConversationHistoryItem) -> ConversationSD? {
+        conversations.first { $0.id.uuidString == item.id }
     }
 }

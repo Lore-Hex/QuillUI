@@ -786,16 +786,17 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/Components/ConversationHistoryListView.swift"),
             encoding: .utf8
         )
-        #expect(historyTemplate.contains("struct ConversationGroup: Hashable"))
-        #expect(historyTemplate.contains("conversationGroup.date.daysAgoString()"))
-        #expect(historyTemplate.contains(".padding(.bottom, 30)"))
-        #expect(historyTemplate.contains("Circle()"))
-        #expect(historyTemplate.contains("if selectedConversation == dailyConversation"))
+        #expect(historyTemplate.contains("import QuillUI"))
+        #expect(historyTemplate.contains("QuillDateGroupedConversationHistoryList("))
+        #expect(historyTemplate.contains("selectedID: selectedConversation?.id.uuidString"))
+        #expect(historyTemplate.contains("dateTitle: { $0.daysAgoString() }"))
+        #expect(historyTemplate.contains("private var historyItems: [QuillConversationHistoryItem]"))
+        #expect(historyTemplate.contains("id: conversation.id.uuidString"))
+        #expect(historyTemplate.contains("private func conversation(for item: QuillConversationHistoryItem) -> ConversationSD?"))
+        #expect(!historyTemplate.contains("struct ConversationGroup: Hashable"))
+        #expect(!historyTemplate.contains("conversationGroup.date.daysAgoString()"))
+        #expect(!historyTemplate.contains("if selectedConversation == dailyConversation"))
         #expect(!historyTemplate.contains(".showIf("))
-        #expect(historyTemplate.contains(".padding(.vertical, 12)"))
-        #expect(historyTemplate.contains(".frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)"))
-        #expect(historyTemplate.contains(".contentShape(Rectangle())"))
-        #expect(historyTemplate.contains(".onTapGesture { onTap(dailyConversation) }"))
         #expect(!historyTemplate.contains("QuillConversationHistoryList("))
 
         let unreachableRule = try String(

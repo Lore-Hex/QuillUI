@@ -524,6 +524,158 @@ public struct QuillConversationHistoryList: View {
     }
 }
 
+private struct QuillConversationHistoryDayGroup: Identifiable {
+    var date: Date
+    var items: [QuillConversationHistoryItem]
+
+    var id: Date { date }
+}
+
+public struct QuillDateGroupedConversationHistoryList: View {
+    public var items: [QuillConversationHistoryItem]
+    public var selectedID: String?
+    public var dateTitle: (Date) -> String
+    public var deleteDayTitle: String
+    public var deleteItemTitle: String
+    public var onSelect: (QuillConversationHistoryItem) -> Void
+    public var onDelete: ((QuillConversationHistoryItem) -> Void)?
+    public var onDeleteDay: ((Date) -> Void)?
+
+    @State private var hoveredItemID: String?
+
+    public init(
+        items: [QuillConversationHistoryItem],
+        selectedID: String? = nil,
+        dateTitle: @escaping (Date) -> String,
+        deleteDayTitle: String = "Delete daily conversations",
+        deleteItemTitle: String = "Delete",
+        onSelect: @escaping (QuillConversationHistoryItem) -> Void,
+        onDelete: ((QuillConversationHistoryItem) -> Void)? = nil,
+        onDeleteDay: ((Date) -> Void)? = nil
+    ) {
+        self.items = items
+        self.selectedID = selectedID
+        self.dateTitle = dateTitle
+        self.deleteDayTitle = deleteDayTitle
+        self.deleteItemTitle = deleteItemTitle
+        self.onSelect = onSelect
+        self.onDelete = onDelete
+        self.onDeleteDay = onDeleteDay
+    }
+
+    public var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: groupedListSpacing) {
+                ForEach(dayGroups) { group in
+                    HStack {
+                        Text(dateTitle(group.date))
+                            .font(.system(size: groupedSectionFontSize))
+                            .fontWeight(.semibold)
+                            .foregroundColor(Color(hex: "#8F8F96"))
+                            .padding(.bottom, groupedSectionBottomPadding)
+
+                        Spacer()
+                    }
+                    .contextMenu(menuItems: {
+                        dayContextMenu(for: group.date)
+                    })
+
+                    ForEach(group.items) { item in
+                        groupedRow(for: item)
+                    }
+
+                    Divider()
+                }
+            }
+        }
+        .scrollIndicators(.never)
+    }
+
+    private var dayGroups: [QuillConversationHistoryDayGroup] {
+        Dictionary(grouping: items) { item in
+            Calendar.current.startOfDay(for: item.updatedAt)
+        }
+        .map { date, items in
+            QuillConversationHistoryDayGroup(
+                date: date,
+                items: items.sorted { $0.updatedAt > $1.updatedAt }
+            )
+        }
+        .sorted { $0.date > $1.date }
+    }
+
+    private func groupedRow(for item: QuillConversationHistoryItem) -> some View {
+        let isSelected = selectedID == item.id
+        let isHovered = hoveredItemID == item.id
+        let rowState = PaintControlState(isHovered: isHovered, isSelected: isSelected)
+
+        return HStack {
+            if isSelected {
+                Circle()
+                    .frame(width: groupedSelectionDotSize, height: groupedSelectionDotSize)
+                    .transition(.opacity)
+            }
+
+            Text(item.title)
+                .lineLimit(1)
+                .font(.system(size: groupedRowFontSize))
+                .foregroundColor(Color(quillPaint: MacListRowPaint.primaryTextColor(for: rowState)))
+                .transition(.opacity)
+
+            Spacer()
+        }
+        .padding(.vertical, groupedRowVerticalPadding)
+        .frame(maxWidth: .infinity, minHeight: groupedRowMinHeight, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(item.title)
+        .help(item.title)
+        .onHover { hovering in
+            hoveredItemID = hovering ? item.id : nil
+        }
+        .onTapGesture { onSelect(item) }
+        .animation(.easeOut(duration: 0.15), value: isSelected)
+        .animation(.easeOut(duration: 0.15), value: isHovered)
+        .contextMenu(menuItems: {
+            itemContextMenu(for: item)
+        })
+    }
+
+    @ViewBuilder
+    private func dayContextMenu(for date: Date) -> some View {
+        if let onDeleteDay {
+            Button(role: .destructive, action: { onDeleteDay(date) }) {
+                Label(deleteDayTitle, systemImage: "trash")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func itemContextMenu(for item: QuillConversationHistoryItem) -> some View {
+        if let onDelete {
+            Button(role: .destructive, action: { onDelete(item) }) {
+                Label(deleteItemTitle, systemImage: "trash")
+            }
+        }
+    }
+
+    #if os(Linux)
+    private var groupedSectionFontSize: CGFloat { 24 }
+    private var groupedRowFontSize: CGFloat { 23 }
+    private var groupedRowMinHeight: CGFloat { 48 }
+    private var groupedRowVerticalPadding: CGFloat { 10 }
+    private var groupedSelectionDotSize: CGFloat { 8 }
+    #else
+    private var groupedSectionFontSize: CGFloat { 14 }
+    private var groupedRowFontSize: CGFloat { 16 }
+    private var groupedRowMinHeight: CGFloat { 32 }
+    private var groupedRowVerticalPadding: CGFloat { 12 }
+    private var groupedSelectionDotSize: CGFloat { 6 }
+    #endif
+    private var groupedListSpacing: CGFloat { 17 }
+    private var groupedSectionBottomPadding: CGFloat { 30 }
+}
+
 private extension Color {
     init(quillPaint color: PaintColor) {
         self.init(red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
