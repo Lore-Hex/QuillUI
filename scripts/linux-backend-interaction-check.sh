@@ -576,6 +576,11 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         click_at "$click_x" "$click_y"
         sleep 1
         click_at "$click_x" "$click_y"
+        sleep 1
+        scroll_x="${QUILLUI_BACKEND_SCROLL_X:-$((window_x + (window_width * 70 / 100)))}"
+        scroll_y="${QUILLUI_BACKEND_SCROLL_Y:-$((window_y + (window_height * 48 / 100)))}"
+        DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$scroll_x" "$scroll_y"
+        DISPLAY="$DISPLAY_ID" xdotool click --repeat "${QUILLUI_BACKEND_SCROLL_CLICKS:-24}" --delay 25 5
         sleep 2
         ;;
       prompt-send)

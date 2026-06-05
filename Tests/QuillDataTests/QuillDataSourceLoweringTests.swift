@@ -613,6 +613,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("window_y + 590"))
         #expect(interactionScript.contains("long-transcript)"))
         #expect(interactionScript.contains("window_y + 638"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_SCROLL_CLICKS"))
+        #expect(interactionScript.contains("xdotool click --repeat"))
         #expect(interactionScript.contains("prompt-send"))
         #expect(interactionScript.contains("composer-send"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"))
