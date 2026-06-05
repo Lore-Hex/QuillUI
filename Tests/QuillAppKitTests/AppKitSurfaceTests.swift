@@ -126,4 +126,19 @@ struct AppKitSurfaceTests {
         storage.edited(.editedCharacters, range: NSRange(location: 0, length: 0), changeInLength: 0)
         storage.processEditing() // compile-stubs, callable
     }
+
+    @Test("NSFontManager.convert/convertWeight + NSFontTraitMask + NSTextStorage() (ConfTextStorage shadow)")
+    func confTextStorageShadowSurface() {
+        // ConfTextStorage derives bold/italic fonts via NSFontManager + builds on
+        // NSTextStorage's designated init().
+        #expect(NSFontTraitMask.italicFontMask != NSFontTraitMask.boldFontMask)
+        let fm = NSFontManager.shared
+        let base = NSFont.systemFont(ofSize: 15)            // no-weight overload
+        _ = fm.convertWeight(true, of: base)                // compile-stubs (return the font)
+        _ = fm.convert(base, toHaveTrait: .italicFontMask)
+        // NSTextStorage() — the new designated init() ConfTextStorage overrides.
+        let storage = NSTextStorage()
+        storage.edited(.editedAttributes, range: NSRange(location: 0, length: 0), changeInLength: 0)
+        _ = storage
+    }
 }

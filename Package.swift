@@ -1401,6 +1401,12 @@ if wireguardUpstreamPresent {
                 // etc. — import WireGuardHighlighterC) → NSColor(hex:). First file of
                 // the NSTextView text subsystem (ConfTextStorage/ConfTextView follow).
                 "Sources/WireGuardApp/UI/macOS/View/ConfTextColorTheme.swift",
+                // ConfTextStorage: NSTextStorage subclass — runs the highlighter C over
+                // the wg-quick text + applies syntax colors (ConfTextColorTheme) to a
+                // backing NSMutableAttributedString (import WireGuardHighlighterC). Uses
+                // the shadow's new NSTextStorage designated init() + NSFontManager.convert/
+                // convertWeight + NSFontTraitMask.
+                "Sources/WireGuardApp/UI/macOS/View/ConfTextStorage.swift",
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
                 // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).

@@ -185,7 +185,24 @@ public extension NSColor {
     var brightnessComponent: CGFloat { 0 }
 }
 
+/// NSFontManager font-trait mask. WireGuard's ConfTextStorage derives its italic
+/// font via `convert(_:toHaveTrait: .italicFontMask)`. Compile-only constants.
+public struct NSFontTraitMask: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+    public static let italicFontMask = NSFontTraitMask(rawValue: 1 << 0)
+    public static let boldFontMask = NSFontTraitMask(rawValue: 1 << 1)
+    public static let unitalicFontMask = NSFontTraitMask(rawValue: 1 << 2)
+    public static let unboldFontMask = NSFontTraitMask(rawValue: 1 << 3)
+    public static let narrowFontMask = NSFontTraitMask(rawValue: 1 << 4)
+    public static let expandedFontMask = NSFontTraitMask(rawValue: 1 << 5)
+    public static let condensedFontMask = NSFontTraitMask(rawValue: 1 << 6)
+    public static let smallCapsFontMask = NSFontTraitMask(rawValue: 1 << 7)
+    public static let fixedPitchFontMask = NSFontTraitMask(rawValue: 1 << 8)
+}
+
 public extension NSFont {
+    static func systemFont(ofSize: CGFloat) -> NSFont { NSFont() }
     static func systemFont(ofSize: CGFloat, weight: NSFont.Weight) -> NSFont { NSFont() }
     static func boldSystemFont(ofSize: CGFloat) -> NSFont { NSFont() }
     static func monospacedSystemFont(ofSize: CGFloat, weight: NSFont.Weight) -> NSFont { NSFont() }
@@ -246,6 +263,11 @@ open class NSFontManager: NSObject, @unchecked Sendable {
 
     public func availableFonts() -> [String] { Self.fallbackFonts }
     public func availableFontFamilies() -> [String] { Self.fallbackFontFamilies }
+    /// Font-trait / weight conversion. Compile-stubs (return the input font);
+    /// WireGuard's ConfTextStorage derives bold/italic variants of its base font.
+    public func convert(_ font: NSFont, toHaveTrait trait: NSFontTraitMask) -> NSFont { font }
+    public func convert(_ font: NSFont, toNotHaveTrait trait: NSFontTraitMask) -> NSFont { font }
+    public func convertWeight(_ upFlag: Bool, of font: NSFont) -> NSFont { font }
     public func availableMembers(ofFontFamily fontFamily: String) -> [[Any]]? {
         switch fontFamily {
         case "Courier":
@@ -3068,6 +3090,14 @@ open class NSTextStorage: NSMutableAttributedString {
     }
     open func edited(_ editedMask: EditActions, range editedRange: NSRange, changeInLength delta: Int) {}
     open func processEditing() {}
+    /// corelibs NSMutableAttributedString's `init()` is NOT a designated initializer,
+    /// so a custom NSTextStorage (e.g. WireGuard's ConfTextStorage) can't `override
+    /// init()` against it. Declare a designated `init()` here (delegating to the
+    /// corelibs designated `init(string:)`) so subclasses can override it; re-declare
+    /// `init(string:)` so NSTextStorage(string:) still works; + the required NSCoding init.
+    public init() { super.init(string: "") }
+    public override init(string str: String) { super.init(string: str) }
+    public required init?(coder: NSCoder) { super.init(coder: coder) }
 }
 
 open class NSLayoutManager: NSObject, @unchecked Sendable {
