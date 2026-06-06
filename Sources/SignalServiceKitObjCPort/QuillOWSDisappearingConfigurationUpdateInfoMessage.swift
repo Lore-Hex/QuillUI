@@ -83,7 +83,7 @@ open class OWSDisappearingConfigurationUpdateInfoMessage: TSInfoMessage {
                 storyTimestamp: NSNumber?,
                 wasRemotelyDeleted: Bool,
                 customMessage: String?,
-                infoMessageUserInfo: [InfoMessageUserInfoKey: AnyObject]?,
+                infoMessageUserInfo: [InfoMessageUserInfoKey: Any]?,
                 messageType: TSInfoMessageType,
                 read: Bool,
                 serverGuid: String?,

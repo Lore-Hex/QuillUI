@@ -132,13 +132,13 @@ open class TSInfoMessage: TSMessage, OWSReadTracking {
                 storyTimestamp: NSNumber?,
                 wasRemotelyDeleted: Bool,
                 customMessage: String?,
-                infoMessageUserInfo: [InfoMessageUserInfoKey: AnyObject]?,
+                infoMessageUserInfo: [InfoMessageUserInfoKey: Any]?,
                 messageType: TSInfoMessageType,
                 read: Bool,
                 serverGuid: String?,
                 unregisteredAddress: SignalServiceAddress?) {
         self.customMessage = customMessage
-        self.infoMessageUserInfo = infoMessageUserInfo.map { $0 as [InfoMessageUserInfoKey: Any] }
+        self.infoMessageUserInfo = infoMessageUserInfo
         self.messageType = messageType
         self.read = read
         self.serverGuid = serverGuid
