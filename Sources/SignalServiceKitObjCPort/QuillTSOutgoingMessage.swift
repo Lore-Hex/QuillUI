@@ -282,4 +282,28 @@ open class TSOutgoingMessage: TSMessage {
             && storedMessageState == other.storedMessageState
             && wasNotCreatedLocally == other.wasNotCreatedLocally
     }
+
+    // MARK: - Send-path members relocated from upstream `extension TSOutgoingMessage`
+    //
+    // Declared `open` in the CLASS body (not an extension) so the many
+    // TSOutgoingMessage subclasses can `override` them -- Swift forbids overriding
+    // extension members on Linux (no @objc dynamic dispatch), which is the
+    // "declared in extension of TSOutgoingMessage and cannot be overridden" wall
+    // (~2,532 errors). The upstream extension copies are removed by
+    // quill-signal-relocate-extension-members.sh so there's no redeclaration.
+    // Declared `internal` (no modifier): the upstream subclass overrides are a MIX
+    // of `override var contentHint` (internal) and `override public var contentHint`
+    // (public). An override must be >= the base's access; internal is the minimum,
+    // so internal overrides match exactly and public overrides legally widen --
+    // both compile. (A public base would reject the internal overrides.) These are
+    // only used within the SSK module, so internal access is sufficient.
+    func updateWithSendSuccess(tx: DBWriteTransaction) {}
+    var isStorySend: Bool { isGroupStoryReply }
+    var relatedUniqueIds: Set<String> { Set([self.uniqueId]) }
+    var contentHint: SealedSenderContentHint { .resendable }
+    func envelopeGroupIdWithTransaction(_ transaction: DBReadTransaction) -> Data? {
+        (thread(tx: transaction) as? TSGroupThread)?.groupId
+    }
+    var shouldRecordSendLog: Bool { true }
+    var encryptionStyle: EncryptionStyle { .whisper }
 }
