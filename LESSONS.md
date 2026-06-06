@@ -842,6 +842,42 @@ each) and small cannot-find clusters. New patterns from this stretch:
   UIFont -296, NSString-drawing -425 (the String ext cascades widely; expect a
   few files to tick UP as masked downstream errors surface -- net strongly down).
 
+### Track B Mach/ImageIO/sqlite + shim-isolation pass (2026-06, ~96.8%, 12.1k)
+
+- **Find the SHARED shim that serves many call sites.** The cheapest fixes this
+  stretch each cleared multiple files at once: GRDBSQLite (12 raw-sqlite3 files,
+  -606), the Mach task_info+malloc-zone shim (Bench 267 + LocalDevice 240 -> 0,
+  -805 -- both did process-memory introspection via the same absent Mach APIs),
+  the GRDB Row-subscript prepare-pass (-389). When a recurring category spans
+  several TOPFILES, one shim usually covers them.
+- **Mach / Darwin-C symbols are used UNQUALIFIED** (Darwin makes them implicit on
+  Apple) -> put them as TOP-LEVEL decls in the QuillDarwin.swift port (it is in
+  the SSK module, so unqualified refs resolve). Inert task_info returns
+  KERN_SUCCESS with the info struct left zeroed (footprint 0); sysctlbyname sets
+  out-length 0 + returns -1 so `guard size > 0` cleanly bails.
+- **Inert @MainActor shim used from nonisolated SSK -> just drop @MainActor.**
+  The haptic generators were @MainActor (matching UIKit) but SSK constructs them
+  off-main. They are no-op shims, so relaxing isolation is correct and never
+  breaks a main-actor caller (-397, every caller's main-actor-init error).
+- **GRDB ships the C SQLite as a PRODUCT (GRDBSQLite, link sqlite3).** Before
+  shimming a C API, check whether a dependency already vends it -- add the
+  product to deps + inject the import.
+- **swift-corelibs renamed/removed APIs are HARD errors.** decodeTopLevelObject
+  -> decodeObject (fetch-upstream patch). And some bridges are simply absent:
+  URL->CFURL, [String:CFBoolean?]->CFDictionary (kCFBoolean* is real corelibs
+  CoreFoundation, optional) -- these need a real workaround, not a type shim.
+- **CGImage/UIFont/NSString-drawing are UIKit/CoreGraphics, not Foundation.**
+  Verified-absent (1-file swiftc) then added Linux-gated: CGImage decode inits +
+  CGColorRenderingIntent + width/height/cropping (inert, 0-dim); UIFont
+  withSize/init?(name:size:)/lineHeight/capHeight (approx metrics); the NSString
+  drawing surface. Cross-module type-dodge: param typed `Any` when the real type
+  (CGDataProvider) lives in a module that depends on you.
+- **NLLanguageRecognizer + NSHashTable**: two more verified-absent types; the
+  recognizer is inert (no on-device language model on Linux), NSHashTable is an
+  unconstrained-generic strong-ref stand-in (weak semantics deferred).
+- **COMMIT GOTCHA:** no backticks in `git commit -m` -- they trigger shell
+  command-substitution and silently eat text (parens in double quotes are fine).
+
 ---
 
 ## Pointers
