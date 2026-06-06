@@ -1401,6 +1401,9 @@ if wireguardUpstreamPresent {
                 // .currentAppleEvent for launch detection, toggles login-item via SMLoginItemSetEnabled
                 // (import ServiceManagement). @objc actions lowered to QuillActionDispatching.
                 "Sources/WireGuardApp/UI/macOS/AppDelegate.swift",
+                // Application: the NSApplication subclass that owns the AppDelegate (set as
+                // .delegate before NSApplicationMain). THE LAST FILE of the WireGuard macOS app.
+                "Sources/WireGuardApp/UI/macOS/Application.swift",
                 // ActivateOnDemandOption: maps on-demand config <-> NEOnDemandRule[]
                 // (NE on-demand surface from #338/#340 + wg_log from #345).
                 "Sources/WireGuardApp/Tunnel/ActivateOnDemandOption.swift",

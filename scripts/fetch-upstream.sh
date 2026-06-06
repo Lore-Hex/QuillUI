@@ -433,6 +433,31 @@ print("patched AppDelegate.swift: @MainActor completion + WIREGUARD_GO_VERSION s
 PY
     fi
 
+    # Application (NSApplication subclass) creates the @MainActor AppDelegate in its
+    # nonisolated init() (the shadow's NSApplication is @unchecked Sendable, not @MainActor —
+    # making it @MainActor would have a huge blast radius). App startup is on the main
+    # thread, so wrap the AppDelegate creation + delegate assignment in MainActor.assumeIsolated.
+    local appcls="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/Application.swift"
+    if [[ -f "$appcls" ]] && ! grep -q 'MainActor.assumeIsolated' "$appcls"; then
+        echo "==> patching Application.swift (assumeIsolated around AppDelegate creation)"
+        python3 - "$appcls" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+old = '''        super.init()
+        appDelegate = AppDelegate() // Keep a strong reference to the app delegate
+        delegate = appDelegate // Set delegate before app.run() gets called in NSApplicationMain()'''
+new = '''        super.init()
+        MainActor.assumeIsolated {
+            appDelegate = AppDelegate() // Keep a strong reference to the app delegate
+            delegate = appDelegate // Set delegate before app.run() gets called in NSApplicationMain()
+        }'''
+assert old in src, "Application.swift init body not found"
+open(path, "w").write(src.replace(old, new, 1))
+print("patched Application.swift assumeIsolated")
+PY
+    fi
+
     # TunnelListRow is dequeued by TunnelsListTableViewController, so it must conform
     # to QuillReusableView (init() requirement) with a `required init()` (the B-wall
     # protocol, like LogViewCell).
