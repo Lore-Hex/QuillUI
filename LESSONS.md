@@ -701,6 +701,62 @@ or, better, remove the need for module `X`.
   `TableRecord` requirement -> needs `public`. Same flavor of fix (a prepare-pass
   `public`-prefix, or relocate) -- separate sub-pass.
 
+### Track B small-bounded tail (2026-06, ~95% cleared, 17.8k and dropping)
+
+The override-in-extension wall (the 2.5k single lever) + GRDB-Columns + the
+framework-shim tail are DONE. What's left is small bounded categories (<=~150
+each) and small cannot-find clusters. New patterns from this stretch:
+
+- **A get-set property SATISFIES a `{ get }`-only protocol requirement.** When a
+  protocol declares `var x: T { get }` and the conformer needs `x` writable,
+  just make the concrete one `{ get set }` (or a stored var, or get-set
+  computed) -- NO protocol edit needed. (Used for `wasRead` across the
+  TS*/OWS* read-tracking ports: `var wasRead: Bool { get { read } set { read = newValue } }`.)
+- **cannot-override-mutable-with-readonly -> get-only computed over a private
+  backing var.** A subclass that must `override` a property with a derived
+  read-only value can't override a mutable stored prop ("cannot override mutable
+  property with read-only property"). Fix: base declares `private var _x` +
+  `open var x: T { _x }` (get-only computed); move the base's own sets to `_x`.
+  Now the subclass legally `override var x: T { ...derived... }`. (TSGroupModel
+  `groupMembers` so TSGroupModelV2 can derive it from membership.)
+- **`@inlinable` can only reference public / usableFromInline.** An `@inlinable`
+  function that calls into a C-shim module needs `public import <CShim>` -- a
+  plain `internal import` hides the C symbols from the inlinable body
+  ("X is internal and cannot be referenced from an @inlinable function").
+  (COSUnfairLock's `os_unfair_lock_lock` in the inlinable lock wrapper.)
+- **Darwin numeric constants (NSEC_PER_SEC/NSEC_PER_MSEC/MSEC_PER_SEC) are not
+  in swift-corelibs.** Darwin vends them via `<mach/clock_types.h>` as UInt64;
+  Linux Foundation does not. Fix: add them as **Linux-gated** `public let`
+  globals in QuillFoundation (Darwin already defines them, so an ungated global
+  collides on macOS), then `inject-foundation.sh` an `import QuillFoundation`
+  into the consumers -- they `import Foundation` only (not UIKit, which already
+  re-exports QuillFoundation), so they cannot see it otherwise. Also add
+  QuillFoundation as a **direct SSK-target dep** (it was only transitive via
+  UIKit) so the injected import resolves. -1392 (the constants were also
+  blocking type inference across all 17 consuming files).
+- **Methods declared in an EXCLUDED ObjC `.m` are simply MISSING from the port
+  (distinct from override-in-extension).** TSMessage.m's
+  `update(with: OWSLinkPreview/TSQuotedMessage/MessageSticker)` +
+  `update(withContactShare:)` + `update(withIsPoll:)` aren't overrides of an
+  extension member -- they don't exist in the compiled set at all (their .m is
+  excluded). Fix: add them as `open func` to the port class body, each setting
+  the matching stored prop directly (these run at message-PREP time, pre-insert,
+  so a direct set is faithful enough; the upstream anyUpdate-wrap is a
+  persistence concern). The three `update(with:)` overloads resolve by arg type.
+  -650 (also unblocked type inference in the two call-site files).
+
+- **PIPELINE MECHANICS GOTCHA (cost me a confused rebuild):**
+  `prepare-linux-build-backend.sh` only does the **GTK/backend** prep -- it does
+  NOT run the signal-upstream prepare scripts (inject-foundation / strip-tests /
+  relocate-extension-members / publicize-sds-columns). Those are SEPARATE manual
+  steps that mutate the **persistent** `.upstream` tree IN PLACE. So after you
+  edit `inject-foundation.sh` (e.g. add a new inject rule), the build alone will
+  NOT re-apply it -- you must re-run the script (inside docker: it uses GNU-grep
+  `\b`) against `.upstream` first. `.upstream` persists across turns, so prior
+  injections survive; re-running is idempotent, so just re-run the one you
+  changed. Symptom of forgetting: your new rule's symbol stays "cannot find in
+  scope" and the target file's `head` shows no injected import.
+
 ---
 
 ## Pointers
