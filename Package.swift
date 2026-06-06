@@ -576,6 +576,20 @@ let cCairoTarget: Target = .systemLibrary(
     ]
 )
 
+// Real system zlib (libz) — SignalServiceKit's CRC32 + GzipStreamTransform
+// `import zlib` and use the genuine C API (z_stream / deflate / inflate / crc32).
+// libz is present on Linux (zlib1g-dev) and macOS, so this is a REAL systemLibrary
+// (gzip actually works), not an inert framework shim. Module name is `zlib` so
+// the upstream `import zlib` resolves unmodified.
+let cZlibTarget: Target = .systemLibrary(
+    name: "zlib",
+    pkgConfig: "zlib",
+    providers: [
+        .apt(["zlib1g-dev"]),
+        .brew(["zlib"])
+    ]
+)
+
 // QuillDataMacros declares the @QuillModel / @Attribute /
 // @Relationship / @QuillPredicate / @Observable macros used
 // by QuillData. The compiler loads it as an out-of-process
@@ -626,6 +640,7 @@ let quillRSParserPlatformDeps: [Target.Dependency] = []
 var targets: [Target] = [
     cSQLiteTarget,
     cCairoTarget,
+    cZlibTarget,
     // Cassowary constraint solver (vendored nucleic/kiwi, C++), exposed to Swift via a
     // pure-C ABI. Backs Auto Layout (NSLayoutConstraint) for the AppKit→Qt compatibility
     // layer — issue #231, milestone M0. Default graph only (no Qt dependency).
@@ -1450,7 +1465,10 @@ let signalAppleFrameworkShims = [
     "UserNotifications", "SystemConfiguration", "StoreKit", "NaturalLanguage",
     "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio",
     "CocoaLumberjack", "SDWebImage", "SDWebImageWebPCoder", "blurhash",
-    "ObjCAssoc", "System", "notify", "zlib",
+    "ObjCAssoc", "System", "notify",
+    // NOTE: "zlib" is intentionally NOT here — it's a real systemLibrary
+    // (cZlibTarget, links libz) rather than an inert Swift shim, so it's added to
+    // SignalServiceKit's dependencies explicitly below.
 ]
 #if os(Linux)
 for shimName in signalAppleFrameworkShims {
@@ -1562,7 +1580,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "LibSignalClient",
                 "UIKit", "AVFoundation", "Network", "os", "Security", "CoreGraphics",
                 "CryptoKit", "CommonCrypto", "SignalRingRTC", "COSUnfairLock", "Contacts",
-                "libPhoneNumber_iOS", "UniformTypeIdentifiers",
+                "libPhoneNumber_iOS", "UniformTypeIdentifiers", "zlib",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
             ] + signalAppleFrameworkShims.map { Target.Dependency.target(name: $0) },
