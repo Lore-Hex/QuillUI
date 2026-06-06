@@ -28,6 +28,19 @@ public final class DateComponentsFormatter {
         public static let pad = ZeroFormattingBehavior(rawValue: 1 << 16)
     }
 
+    /// Mirrors `Formatter.Context` (inherited from NSFormatter on Apple). SSK sets
+    /// `formatter.formattingContext = .standalone`; it doesn't affect the inert
+    /// Linux formatting, but the property + cases must exist.
+    public enum Context: Int, Sendable {
+        case unknown = 0
+        case dynamic = 1
+        case standalone = 2
+        case listItem = 3
+        case beginningOfSentence = 4
+        case middleOfSentence = 5
+    }
+
+    public var formattingContext: Context = .unknown
     public var unitsStyle: UnitsStyle = .positional
     public var allowedUnits: NSCalendar.Unit = []
     public var zeroFormattingBehavior: ZeroFormattingBehavior = []
