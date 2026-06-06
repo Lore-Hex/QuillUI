@@ -539,6 +539,12 @@ public class RSScreen: NSObject, @unchecked Sendable {
     }
     /// `UIScreen.scale` source-compat (SSK avatar/thumbnail pixel math).
     public var scale: CGFloat { backingScaleFactor }
+    /// Pixel-space bounds (points * scale); SSK reads .nativeBounds.height for
+    /// device-class heuristics.
+    public var nativeBounds: CGRect {
+        CGRect(x: 0, y: 0, width: bounds.width * scale, height: bounds.height * scale)
+    }
+    public var nativeScale: CGFloat { scale }
     public var visibleFrame: CGRect { bounds }
     public var frame: CGRect { bounds }
     public var depth: Int { 32 }
