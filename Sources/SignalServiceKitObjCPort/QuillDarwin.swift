@@ -132,3 +132,17 @@ public func sysctlbyname(_ name: UnsafePointer<CChar>!,
     _ = (name, oldp, newp, newlen)
     return -1
 }
+
+// Dispatch QoS class (Darwin <sys/qos.h>; absent on Linux libdispatch).
+// DispatchQueue+OWS floors a qos_class_t to a DispatchQoS.QoSClass by comparing
+// rawValue ranges, so the constants need their real Darwin values + .rawValue.
+public struct qos_class_t: RawRepresentable, Equatable, Sendable {
+    public let rawValue: UInt32
+    public init(rawValue: UInt32) { self.rawValue = rawValue }
+}
+public let QOS_CLASS_USER_INTERACTIVE = qos_class_t(rawValue: 0x21)
+public let QOS_CLASS_USER_INITIATED = qos_class_t(rawValue: 0x19)
+public let QOS_CLASS_DEFAULT = qos_class_t(rawValue: 0x15)
+public let QOS_CLASS_UTILITY = qos_class_t(rawValue: 0x11)
+public let QOS_CLASS_BACKGROUND = qos_class_t(rawValue: 0x09)
+public let QOS_CLASS_UNSPECIFIED = qos_class_t(rawValue: 0x00)
