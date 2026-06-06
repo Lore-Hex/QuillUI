@@ -135,7 +135,10 @@ public class UIScene: NSObject {
 
 // MARK: - Haptic feedback (no-op on non-iOS)
 
-@MainActor public class UIImpactFeedbackGenerator: NSObject {
+// Not @MainActor: these are inert no-op shims (no real haptics on Linux), and
+// SSK's HapticFeedback constructs them from nonisolated contexts. Dropping the
+// isolation only relaxes (never breaks main-actor callers) and keeps macOS green.
+public class UIImpactFeedbackGenerator: NSObject {
     public enum FeedbackStyle: Int { case light, medium, heavy, soft, rigid }
     public init(style: FeedbackStyle = .medium) {}
     public func prepare() {
@@ -149,7 +152,7 @@ public class UIScene: NSObject {
     }
 }
 
-@MainActor public class UISelectionFeedbackGenerator: NSObject {
+public class UISelectionFeedbackGenerator: NSObject {
     public override init() {}
     public func prepare() {
         recordUIKitFallback(operation: "hapticPrepare", api: "UISelectionFeedbackGenerator.prepare")
@@ -159,7 +162,7 @@ public class UIScene: NSObject {
     }
 }
 
-@MainActor public class UINotificationFeedbackGenerator: NSObject {
+public class UINotificationFeedbackGenerator: NSObject {
     public enum FeedbackType: Int { case success, warning, error }
     public override init() {}
     public func prepare() {
