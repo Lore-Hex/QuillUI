@@ -227,6 +227,27 @@ public struct NSDirectionalEdgeInsets: Equatable, Sendable {
     public static let zero = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
 }
 
+// MARK: - UISwitch + UIInterfaceOrientationMask
+
+/// `UISwitch: UIControl`. SSK only references it as a callback parameter type
+/// (`switchDidChange(_ sender: UISwitch)` reading `.isOn`); never instantiated here.
+@MainActor open class UISwitch: UIControl {
+    public var isOn: Bool = false
+    public func setOn(_ on: Bool, animated: Bool) { isOn = on }
+}
+
+public struct UIInterfaceOrientationMask: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+    public static let portrait = UIInterfaceOrientationMask(rawValue: 1 << 1)
+    public static let portraitUpsideDown = UIInterfaceOrientationMask(rawValue: 1 << 2)
+    public static let landscapeRight = UIInterfaceOrientationMask(rawValue: 1 << 3)
+    public static let landscapeLeft = UIInterfaceOrientationMask(rawValue: 1 << 4)
+    public static let landscape: UIInterfaceOrientationMask = [.landscapeLeft, .landscapeRight]
+    public static let all: UIInterfaceOrientationMask = [.portrait, .portraitUpsideDown, .landscapeLeft, .landscapeRight]
+    public static let allButUpsideDown: UIInterfaceOrientationMask = [.portrait, .landscapeLeft, .landscapeRight]
+}
+
 // MARK: - UIGraphicsImageRenderer (Linux: placeholder images)
 //
 // SignalServiceKit renders avatars/thumbnails into a renderer context. On Linux
@@ -292,6 +313,33 @@ public final class UIGraphicsImageRenderer {
         return Data()
     }
 }
+
+// MARK: - Imperative UIGraphics* C-API (the pre-UIGraphicsImageRenderer style)
+//
+// AvatarBuilder still uses the old Begin/GetCurrentContext/GetImage/End flow. A
+// minimal current-context stack backs it: the inert CGContext records nothing and
+// the produced image is a blank placeholder of the begun size. Inert -- gated to
+// Linux (these don't exist on macOS, and CGContext() is Linux-only).
+nonisolated(unsafe) private var _uiGraphicsContextStack: [(context: CGContext, size: CGSize)] = []
+
+public func UIGraphicsBeginImageContextWithOptions(_ size: CGSize, _ opaque: Bool, _ scale: CGFloat) {
+    _uiGraphicsContextStack.append((CGContext(), size))
+}
+public func UIGraphicsBeginImageContext(_ size: CGSize) {
+    _uiGraphicsContextStack.append((CGContext(), size))
+}
+public func UIGraphicsGetCurrentContext() -> CGContext? {
+    _uiGraphicsContextStack.last?.context
+}
+public func UIGraphicsGetImageFromCurrentImageContext() -> UIImage? {
+    guard let top = _uiGraphicsContextStack.last else { return nil }
+    return UIImage(size: top.size)
+}
+public func UIGraphicsEndImageContext() {
+    if !_uiGraphicsContextStack.isEmpty { _uiGraphicsContextStack.removeLast() }
+}
+public func UIGraphicsPushContext(_ context: CGContext) {}
+public func UIGraphicsPopContext() {}
 #endif
 
 // MARK: - NSTextStorage (TextKit)
