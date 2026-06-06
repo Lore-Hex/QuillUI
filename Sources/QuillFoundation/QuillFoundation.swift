@@ -135,6 +135,16 @@ public class CGImage {
         self.init()
         _ = (source, decode, shouldInterpolate, intent)
     }
+
+    // Pixel dimensions + cropping (BadgeAssets spritesheets, image utilities).
+    // Inert decode means dimensions are 0 and cropping yields a blank sub-image
+    // until a real decoder (libpng/Cairo) lands.
+    public var width: Int = 0
+    public var height: Int = 0
+    public func cropping(to rect: CGRect) -> CGImage? {
+        _ = rect
+        return CGImage()
+    }
 }
 
 // NSHashTable (weak/strong object collection; Linux shim). swift-corelibs has no
