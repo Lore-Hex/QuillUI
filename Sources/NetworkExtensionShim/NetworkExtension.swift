@@ -17,6 +17,8 @@ public class NEPacketTunnelNetworkSettings: NSObject {
     public var ipv6Settings: NEIPv6Settings?
     public var dnsSettings: NEDNSSettings?
     public var mtu: NSNumber?
+    // macOS uses tunnelOverheadBytes (vs iOS's mtu) — WireGuard's PacketTunnelSettingsGenerator.
+    public var tunnelOverheadBytes: NSNumber?
 
     public init(tunnelRemoteAddress: String) {
         self.tunnelRemoteAddress = tunnelRemoteAddress

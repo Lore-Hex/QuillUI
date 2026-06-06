@@ -489,6 +489,24 @@ print("patched DNSResolver.swift for Linux")
 PY
     fi
 
+    # WireGuardKit/PacketTunnelSettingsGenerator: now compiled on Linux (un-excluded). Its
+    # only `#error("Unimplemented")` is the mtu==0 branch — widen `#elseif os(macOS)` (which
+    # sets tunnelOverheadBytes = 80) to include Linux. (NE settings/routes come from the
+    # NetworkExtension shim, incl. the tunnelOverheadBytes property added there.)
+    local ptsg="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardKit/PacketTunnelSettingsGenerator.swift"
+    if [[ -f "$ptsg" ]] && ! grep -q '#elseif os(macOS) || os(Linux)' "$ptsg"; then
+        echo "==> patching PacketTunnelSettingsGenerator.swift os-gate for Linux"
+        python3 - "$ptsg" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('            #elseif os(macOS)\n            networkSettings.tunnelOverheadBytes = 80',
+                  '            #elseif os(macOS) || os(Linux)\n            networkSettings.tunnelOverheadBytes = 80', 1)
+open(path, "w").write(src)
+print("patched PacketTunnelSettingsGenerator.swift os-gate")
+PY
+    fi
+
     # TunnelListRow is dequeued by TunnelsListTableViewController, so it must conform
     # to QuillReusableView (init() requirement) with a `required init()` (the B-wall
     # protocol, like LogViewCell).
