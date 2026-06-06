@@ -397,6 +397,25 @@ public class RSFont: NSObject, @unchecked Sendable {
     public convenience init(descriptor: UIFontDescriptor, size: CGFloat) {
         self.init(pointSize: size)
     }
+
+    // UIFont(name:size:) is failable on UIKit (nil if the named font is absent).
+    // The named font is unavailable on the Linux shim, so we return a font at the
+    // requested size (callers fall back / force-unwrap; keeping it failable lets
+    // `UIFont(name:size:)!` type-check).
+    public convenience init?(name: String, size: CGFloat) {
+        self.init(pointSize: size)
+        _ = name
+    }
+
+    public func withSize(_ size: CGFloat) -> RSFont { RSFont(pointSize: size) }
+
+    // Approximate metrics (the real values come from the font's glyph table,
+    // unavailable here). lineHeight ~1.2x, capHeight ~0.7x point size -- enough
+    // for the SSK avatar/text-measurement call sites to compile and lay out.
+    public var lineHeight: CGFloat { pointSize * 1.2 }
+    public var capHeight: CGFloat { pointSize * 0.7 }
+    public var ascender: CGFloat { pointSize * 0.95 }
+    public var descender: CGFloat { -pointSize * 0.25 }
 }
 public typealias UIFont = RSFont
 
