@@ -262,6 +262,22 @@ struct AppKitSurfaceTests {
         menu.removeItem(at: 99) // out-of-range → no-op (no crash)
         #expect(menu.numberOfItems == 2)
     }
+
+    @Test("Apple-Events detector shadow: NSAppleEventDescriptor + kAE constants + Darwin C stubs")
+    func appleEventsDetectorShadow() {
+        #if os(Linux)
+        // LaunchedAtLoginDetector/MacAppStoreUpdateDetector compare eventClass/eventID
+        // against these four-char-code constants (visible via AppKit → @_exported QuillFoundation).
+        #expect(kCoreEventClass == 0x6165_7674) // 'aevt'
+        #expect(kAEOpenApplication != kAEQuitApplication)
+        let desc = NSAppleEventDescriptor()
+        #expect(desc.eventClass == 0 && desc.eventID == 0 && desc.int32Value == 0)
+        #expect(desc.attributeDescriptor(forKeyword: keySenderPIDAttr) == nil)
+        // Darwin-only C the detectors call — compile-stubs, never executed on Linux.
+        #expect(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) == 0)
+        #expect(proc_pidpath(0, nil, 0) == 0)
+        #endif
+    }
 }
 
 /// Probes the NSMenu init-model fix: a subclass declaring `init()` (a new designated

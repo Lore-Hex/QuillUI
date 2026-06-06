@@ -1388,6 +1388,13 @@ if wireguardUpstreamPresent {
                 // ManageTunnelsRootViewController.tunnelsListVC (all in-target). Plain class,
                 // import Cocoa, ErrorPresenter for activation failures.
                 "Sources/WireGuardApp/UI/macOS/TunnelsTracker.swift",
+                // LaunchedAtLoginDetector + MacAppStoreUpdateDetector: inspect the open/quit
+                // Apple events (NSAppleEventDescriptor + kCoreEventClass/kAEOpenApplication/
+                // kAEQuitApplication/keySenderPIDAttr) and call Darwin C (clock_gettime_nsec_np/
+                // proc_pidpath) — all shadowed in QuillFoundation/AppleEventsShim.swift (Linux:
+                // these features don't exist, so compile-faithful stubs). FileManager.loginHelperTimestampURL ✓.
+                "Sources/WireGuardApp/UI/macOS/LaunchedAtLoginDetector.swift",
+                "Sources/WireGuardApp/UI/macOS/MacAppStoreUpdateDetector.swift",
                 // ActivateOnDemandOption: maps on-demand config <-> NEOnDemandRule[]
                 // (NE on-demand surface from #338/#340 + wg_log from #345).
                 "Sources/WireGuardApp/Tunnel/ActivateOnDemandOption.swift",
