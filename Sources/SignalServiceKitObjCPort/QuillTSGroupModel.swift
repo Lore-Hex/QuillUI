@@ -39,8 +39,14 @@ public enum GroupsVersion: UInt32 {
 
 open class TSGroupModel: NSObject, NSSecureCoding, NSCopying {
 
+    /// Backing store for `groupMembers`. The public property is a get-only
+    /// computed (below) so TSGroupModelV2 can `override` it with its
+    /// membership-derived value -- Swift forbids overriding a mutable stored
+    /// property with a read-only computed one ("cannot override mutable property
+    /// with read-only property 'groupMembers'").
+    private var _groupMembers: [SignalServiceAddress]
     /// Includes administrators and normal members.
-    public internal(set) var groupMembers: [SignalServiceAddress]
+    open var groupMembers: [SignalServiceAddress] { _groupMembers }
     public internal(set) var groupName: String?
     public internal(set) var groupId: Data
     public internal(set) var addedByAddress: SignalServiceAddress?
@@ -73,7 +79,7 @@ open class TSGroupModel: NSObject, NSSecureCoding, NSCopying {
                 addedBy addedByAddress: SignalServiceAddress?) {
         self.groupId = groupId
         self.groupName = name
-        self.groupMembers = members
+        self._groupMembers = members
         self.addedByAddress = addedByAddress
         self.legacyAvatarData = nil
         self.avatarHash = nil
@@ -101,7 +107,7 @@ open class TSGroupModel: NSObject, NSSecureCoding, NSCopying {
            let memberE164s = coder.decodeObject(forKey: "groupMemberIds") as? [String] {
             members = memberE164s.map { SignalServiceAddress.legacyAddress(serviceIdString: nil, phoneNumber: $0) }
         }
-        self.groupMembers = members
+        self._groupMembers = members
 
         // schemaVersion < 2: legacy groupAvatarData key.
         if schema < 2 {
