@@ -107,6 +107,74 @@ public extension UIScreen {
 
 public class CGImage {}
 
+// MARK: - CGAffineTransform (Linux)
+//
+// Pure 2-D affine math — no platform dependency — so this is a FAITHFUL
+// implementation (not an inert stub). swift-corelibs Foundation ships the other
+// CG geometry types (CGFloat/CGSize/CGRect/CGPoint) but NOT CGAffineTransform,
+// so SSK's image/avatar geometry (e.g. a vertical-flip transform) needs it here.
+public struct CGAffineTransform: Equatable, Sendable {
+    public var a: CGFloat
+    public var b: CGFloat
+    public var c: CGFloat
+    public var d: CGFloat
+    public var tx: CGFloat
+    public var ty: CGFloat
+
+    public init(a: CGFloat, b: CGFloat, c: CGFloat, d: CGFloat, tx: CGFloat, ty: CGFloat) {
+        self.a = a; self.b = b; self.c = c; self.d = d; self.tx = tx; self.ty = ty
+    }
+    public init() { self.init(a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0) }
+    public init(translationX tx: CGFloat, y ty: CGFloat) {
+        self.init(a: 1, b: 0, c: 0, d: 1, tx: tx, ty: ty)
+    }
+    public init(scaleX sx: CGFloat, y sy: CGFloat) {
+        self.init(a: sx, b: 0, c: 0, d: sy, tx: 0, ty: 0)
+    }
+    public init(rotationAngle angle: CGFloat) {
+        let cosA = CGFloat(cos(Double(angle)))
+        let sinA = CGFloat(sin(Double(angle)))
+        self.init(a: cosA, b: sinA, c: -sinA, d: cosA, tx: 0, ty: 0)
+    }
+
+    public static let identity = CGAffineTransform(a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0)
+    public var isIdentity: Bool { self == .identity }
+
+    /// `t1.concatenating(t2)` = t1 followed by t2 (matrix product t1 * t2).
+    public func concatenating(_ t: CGAffineTransform) -> CGAffineTransform {
+        CGAffineTransform(
+            a: a * t.a + b * t.c,
+            b: a * t.b + b * t.d,
+            c: c * t.a + d * t.c,
+            d: c * t.b + d * t.d,
+            tx: tx * t.a + ty * t.c + t.tx,
+            ty: tx * t.b + ty * t.d + t.ty
+        )
+    }
+    public func translatedBy(x: CGFloat, y: CGFloat) -> CGAffineTransform {
+        CGAffineTransform(translationX: x, y: y).concatenating(self)
+    }
+    public func scaledBy(x: CGFloat, y: CGFloat) -> CGAffineTransform {
+        CGAffineTransform(scaleX: x, y: y).concatenating(self)
+    }
+    public func rotated(by angle: CGFloat) -> CGAffineTransform {
+        CGAffineTransform(rotationAngle: angle).concatenating(self)
+    }
+    public func inverted() -> CGAffineTransform {
+        let det = a * d - b * c
+        if det == 0 { return self }
+        let inv = 1 / det
+        return CGAffineTransform(
+            a: d * inv,
+            b: -b * inv,
+            c: -c * inv,
+            d: a * inv,
+            tx: (c * ty - d * tx) * inv,
+            ty: (b * tx - a * ty) * inv
+        )
+    }
+}
+
 // MARK: - CoreGraphics drawing shim (Linux)
 //
 // SignalServiceKit's avatar/thumbnail rendering (AvatarBuilder, UIImage+OWS)
