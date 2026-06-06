@@ -65,6 +65,12 @@ QUARTZCORE_TYPES='\bCACurrentMediaTime\b|\bCADisplayLink\b|\bCAGradientLayer\b|\
 # /SecCertificate/...), errSec* status codes, and kSec* dictionary keys.
 SECURITY_TYPES='\bSec[A-Z][A-Za-z]+|\berrSec[A-Za-z]+|\bkSec[A-Za-z]+'
 
+# CFNetwork: the system-proxy lookup (the CFNetwork shim on Linux). NetworkManager
+# reads kCFProxy* + CFNetworkCopySystemProxySettings/CFNetworkCopyProxiesForURL but
+# imports only CoreFoundation/Foundation on Apple (CFNetwork arrives via the
+# umbrella). On Linux it needs an explicit `import CFNetwork`.
+CFNETWORK_TYPES='\bkCFProxy[A-Za-z]+|\bCFNetworkCopy[A-Za-z]+'
+
 injected=0
 scanned=0
 
@@ -102,6 +108,7 @@ while IFS= read -r f; do
     if inject_if_needed "$f" "CoreFoundation" "$COREFOUNDATION_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "QuartzCore" "$QUARTZCORE_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "Security" "$SECURITY_TYPES"; then touched=1; fi
+    if inject_if_needed "$f" "CFNetwork" "$CFNETWORK_TYPES"; then touched=1; fi
     if inject_gated_if_needed "$f" "FoundationNetworking" "$FOUNDATIONNETWORKING_TYPES"; then touched=1; fi
     injected=$((injected + touched))
 done < <(find "$ROOT" -name '*.swift' -not -path '*/QuillPort/*')
