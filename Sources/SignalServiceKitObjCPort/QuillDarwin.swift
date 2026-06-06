@@ -117,3 +117,18 @@ public func malloc_default_zone() -> OpaquePointer? { nil }
 public func malloc_zone_statistics(_ zone: OpaquePointer?, _ stats: UnsafeMutablePointer<malloc_statistics_t>?) {
     _ = (zone, stats)
 }
+
+// sysctlbyname (BSD/Darwin by-name sysctl; Linux has no by-name sysctl).
+// String(sysctlKey:) queries hardware strings (hw.machine etc). Inert: report
+// zero length + failure so the caller's `guard size > 0` returns nil (no value,
+// no allocation) rather than reading uninitialized size.
+@discardableResult
+public func sysctlbyname(_ name: UnsafePointer<CChar>!,
+                         _ oldp: UnsafeMutableRawPointer!,
+                         _ oldlenp: UnsafeMutablePointer<Int>!,
+                         _ newp: UnsafeMutableRawPointer!,
+                         _ newlen: Int) -> Int32 {
+    oldlenp?.pointee = 0
+    _ = (name, oldp, newp, newlen)
+    return -1
+}
