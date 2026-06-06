@@ -937,6 +937,25 @@ final class RSSReaderModel: ObservableObject {
         return added
     }
 
+    /// Subscribe to a single feed by URL — the NetNewsWire "Add Feed" action.
+    /// Validates the URL (must be http/https with a host), derives a display
+    /// title from `title` or the host, and merges it through the same
+    /// dedupe/persist path as OPML import. Returns true if a new feed was added
+    /// (false for an invalid URL or a feed already subscribed).
+    @discardableResult
+    func addFeed(urlString: String, title: String? = nil) -> Bool {
+        let trimmedURL = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmedURL),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = url.host, !host.isEmpty else {
+            return false
+        }
+        let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayTitle = (trimmedTitle?.isEmpty == false) ? trimmedTitle! : host
+        return mergeImportedFeeds([Feed(title: displayTitle, url: trimmedURL)]) > 0
+    }
+
     /// Serialize the current subscribed feed list as OPML 2.0.
     /// The result round-trips through `importOPML(xml:)` to the
     /// same feed list (modulo the optional list title).
