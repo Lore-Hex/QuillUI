@@ -208,6 +208,25 @@ public struct UIEdgeInsets: Equatable, Sendable {
     public static let zero = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
 }
 
+// MARK: - NSDirectionalEdgeInsets
+//
+// Leading/trailing (writing-direction-relative) inset geometry. SSK reaches it
+// via `import UIKit`; only the base value-holder is needed (SSK adds its own
+// hMargin/vMargin/margin convenience inits in an extension).
+public struct NSDirectionalEdgeInsets: Equatable, Sendable {
+    public var top: CGFloat
+    public var leading: CGFloat
+    public var bottom: CGFloat
+    public var trailing: CGFloat
+    public init(top: CGFloat = 0, leading: CGFloat = 0, bottom: CGFloat = 0, trailing: CGFloat = 0) {
+        self.top = top
+        self.leading = leading
+        self.bottom = bottom
+        self.trailing = trailing
+    }
+    public static let zero = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+}
+
 // MARK: - UIGraphicsImageRenderer (Linux: placeholder images)
 //
 // SignalServiceKit renders avatars/thumbnails into a renderer context. On Linux

@@ -376,8 +376,43 @@ public class RSFont: NSObject, @unchecked Sendable {
     public override init() { self.pointSize = 13 }
     public static func systemFont(ofSize size: CGFloat) -> RSFont { RSFont(pointSize: size) }
     public enum Weight { case regular, bold }
+
+    // UIFont descriptor surface (SSK's bold/italic body-range styling).
+    public var fontDescriptor: UIFontDescriptor { UIFontDescriptor() }
+    public convenience init(descriptor: UIFontDescriptor, size: CGFloat) {
+        self.init(pointSize: size)
+    }
 }
 public typealias UIFont = RSFont
+
+// MARK: - UIFontDescriptor (Linux)
+//
+// On iOS this lives in UIKit; it's declared here (re-exported by UIKitShim) so
+// QuillFoundation's RSFont.fontDescriptor can return it. The trait set is inert
+// (no real font substitution on Linux) but withSymbolicTraits round-trips the
+// requested traits so callers get a non-nil descriptor + a same-size font back.
+public final class UIFontDescriptor: @unchecked Sendable {
+    public struct SymbolicTraits: OptionSet, Sendable {
+        public let rawValue: UInt32
+        public init(rawValue: UInt32) { self.rawValue = rawValue }
+        public static let traitItalic = SymbolicTraits(rawValue: 1 << 0)
+        public static let traitBold = SymbolicTraits(rawValue: 1 << 1)
+        public static let traitExpanded = SymbolicTraits(rawValue: 1 << 5)
+        public static let traitCondensed = SymbolicTraits(rawValue: 1 << 6)
+        public static let traitMonoSpace = SymbolicTraits(rawValue: 1 << 10)
+        public static let traitVertical = SymbolicTraits(rawValue: 1 << 11)
+        public static let traitUIOptimized = SymbolicTraits(rawValue: 1 << 12)
+        public static let traitTightLeading = SymbolicTraits(rawValue: 1 << 15)
+        public static let traitLooseLeading = SymbolicTraits(rawValue: 1 << 16)
+    }
+    public var symbolicTraits: SymbolicTraits
+    public init(symbolicTraits: SymbolicTraits = []) {
+        self.symbolicTraits = symbolicTraits
+    }
+    public func withSymbolicTraits(_ traits: SymbolicTraits) -> UIFontDescriptor? {
+        UIFontDescriptor(symbolicTraits: symbolicTraits.union(traits))
+    }
+}
 
 public class RSScreen: NSObject, @unchecked Sendable {
     public static let main = RSScreen()
