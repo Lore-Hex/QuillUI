@@ -105,7 +105,37 @@ public extension UIScreen {
 // lookup" in upstream code. CGImage is the only Apple type we still
 // stub here (Linux Foundation has no equivalent).
 
-public class CGImage {}
+public enum CGColorRenderingIntent: Int32, Sendable {
+    case defaultIntent = 0
+    case absoluteColorimetric = 1
+    case relativeColorimetric = 2
+    case perceptual = 3
+    case saturation = 4
+}
+
+public class CGImage {
+    public init() {}
+
+    // PNG/JPEG decode inits (SSK's UIImage+Attachment). The dataProviderSource is
+    // a CGDataProvider (defined in the ImageIO shim, which depends on us) -- typed
+    // `Any` to dodge the cross-module dependency. Real decoding needs libpng/
+    // libjpeg/Cairo; deferred, so these return a blank CGImage (never nil) -- the
+    // attachment pipeline compiles and proceeds (image content is not yet real).
+    public convenience init?(pngDataProviderSource source: Any,
+                             decode: [CGFloat]?,
+                             shouldInterpolate: Bool,
+                             intent: CGColorRenderingIntent) {
+        self.init()
+        _ = (source, decode, shouldInterpolate, intent)
+    }
+    public convenience init?(jpegDataProviderSource source: Any,
+                             decode: [CGFloat]?,
+                             shouldInterpolate: Bool,
+                             intent: CGColorRenderingIntent) {
+        self.init()
+        _ = (source, decode, shouldInterpolate, intent)
+    }
+}
 
 // Opaque path types (Linux). SSK builds UIBezierPaths and reads `.cgPath`; the
 // CGContext drawing shim takes paths as `Any`, so these only need to exist as
