@@ -276,6 +276,40 @@ open(path, "w").write(src.replace("decodeTopLevelObject(", "decodeObject("))
 PY
     fi
 
+    # MessageProcessingPipelineStage was an `@objc protocol` with `optional func`
+    # members on Apple. The lowering pass strips `@objc` (-> plain `public
+    # protocol`), which makes `optional` invalid ("'optional' can only be applied
+    # to members of an '@objc' protocol"). Model optionality the Swift-native way:
+    # drop `optional`, add a default no-op extension, and drop the `?` optional-
+    # chaining at the two call sites. Conformers implement only the Resume method,
+    # so the Suspend default impl is load-bearing.
+    local mps="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Messages/MessagePipelineSupervisor.swift"
+    if [[ -f "$mps" ]] && grep -q 'optional func supervisorDid' "$mps"; then
+        echo "==> patching signal-ios MessagePipelineSupervisor.swift optional-protocol lowering"
+        python3 - "$mps" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+s = s.replace(
+    "    optional func supervisorDidSuspendMessageProcessing(_ supervisor: MessagePipelineSupervisor)",
+    "    func supervisorDidSuspendMessageProcessing(_ supervisor: MessagePipelineSupervisor)")
+s = s.replace(
+    "    optional func supervisorDidResumeMessageProcessing(_ supervisor: MessagePipelineSupervisor)\n}",
+    "    func supervisorDidResumeMessageProcessing(_ supervisor: MessagePipelineSupervisor)\n}\n\n"
+    "public extension MessageProcessingPipelineStage {\n"
+    "    // @objc `optional func` -> Swift-native default no-op impls.\n"
+    "    func supervisorDidSuspendMessageProcessing(_ supervisor: MessagePipelineSupervisor) {}\n"
+    "    func supervisorDidResumeMessageProcessing(_ supervisor: MessagePipelineSupervisor) {}\n"
+    "}")
+s = s.replace("supervisorDidSuspendMessageProcessing?(self)",
+              "supervisorDidSuspendMessageProcessing(self)")
+s = s.replace("supervisorDidResumeMessageProcessing?(self)",
+              "supervisorDidResumeMessageProcessing(self)")
+open(path, "w").write(s)
+print("patched MessagePipelineSupervisor.swift optional-protocol lowering")
+PY
+    fi
+
     # Signal's SignalServiceKit/Concurrency/TSMutex.swift does
     # `internal import os.lock` for os_unfair_lock. The `os` framework's clang
     # `lock` submodule does not exist on Linux, and QuillUI's `os` is a Swift
