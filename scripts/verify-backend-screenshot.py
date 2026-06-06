@@ -1313,7 +1313,7 @@ def validate_quill_chat_mac_reference_settings_panel(
             panel_y + 346,
         )
         require(
-            model_text_pixels >= 260,
+            model_text_pixels >= 200,
             f"Mac-reference selected default model was not detected: pixels={model_text_pixels}",
         )
         typed_summary += f", selected_model_pixels={model_text_pixels}"

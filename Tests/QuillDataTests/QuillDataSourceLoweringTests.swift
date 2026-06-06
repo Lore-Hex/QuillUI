@@ -524,6 +524,7 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("Mac-reference typed settings ping interval was not detected"))
         #expect(verifier.contains("ping_y0 = panel_y + 384"))
         #expect(verifier.contains("Mac-reference selected default model was not detected"))
+        #expect(verifier.contains("model_text_pixels >= 200"))
         #expect(verifier.contains("selected_model_pixels={model_text_pixels}"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_completions_panel"))
         #expect(verifier.contains("root_title_pixels = pixel_count"))
