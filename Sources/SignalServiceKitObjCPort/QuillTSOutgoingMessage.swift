@@ -321,6 +321,13 @@ open class TSOutgoingMessage: TSMessage {
         }
     }
 
+    // SendableMessage requirement (upstream lives in the excluded TSOutgoingMessage.m).
+    func update(withHasSyncedTranscript hasSyncedTranscript: Bool, transaction: DBWriteTransaction) {
+        anyUpdateOutgoingMessage(transaction: transaction) { message in
+            message.hasSyncedTranscript = hasSyncedTranscript
+        }
+    }
+
     func updateWithAllSendingRecipientsMarkedAsFailed(
         error: (any Error)? = nil,
         transaction tx: DBWriteTransaction
