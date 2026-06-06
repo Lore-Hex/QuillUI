@@ -236,6 +236,35 @@ public struct NSDirectionalEdgeInsets: Equatable, Sendable {
     public func setOn(_ on: Bool, animated: Bool) { isOn = on }
 }
 
+/// UIBezierPath. Inert on Linux (no real geometry recorded): `.cgPath` is an
+/// opaque handle that the inert CGContext drawing shim accepts as `Any`. SSK uses
+/// `UIBezierPath(ovalIn:)` + `.cgPath` for avatar clipping.
+public final class UIBezierPath {
+    public let cgPath: CGPath
+    public var lineWidth: CGFloat = 1
+    public init() { self.cgPath = CGPath() }
+    public init(ovalIn rect: CGRect) { self.cgPath = CGPath() }
+    public init(rect: CGRect) { self.cgPath = CGPath() }
+    public init(roundedRect rect: CGRect, cornerRadius: CGFloat) { self.cgPath = CGPath() }
+    public init(cgPath: CGPath) { self.cgPath = cgPath }
+    public func move(to point: CGPoint) {}
+    public func addLine(to point: CGPoint) {}
+    public func addArc(withCenter center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {}
+    public func close() {}
+    public func append(_ bezierPath: UIBezierPath) {}
+    public func addClip() {}
+    public func fill() {}
+    public func stroke() {}
+}
+
+public enum UIDeviceOrientation: Int, Sendable {
+    case unknown, portrait, portraitUpsideDown, landscapeLeft, landscapeRight, faceUp, faceDown
+    public var isPortrait: Bool { self == .portrait || self == .portraitUpsideDown }
+    public var isLandscape: Bool { self == .landscapeLeft || self == .landscapeRight }
+    public var isFlat: Bool { self == .faceUp || self == .faceDown }
+    public var isValidInterfaceOrientation: Bool { isPortrait || isLandscape }
+}
+
 public struct UIInterfaceOrientationMask: OptionSet, Sendable {
     public let rawValue: UInt
     public init(rawValue: UInt) { self.rawValue = rawValue }

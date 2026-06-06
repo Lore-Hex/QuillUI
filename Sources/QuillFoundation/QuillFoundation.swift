@@ -107,6 +107,21 @@ public extension UIScreen {
 
 public class CGImage {}
 
+// Opaque path types (Linux). SSK builds UIBezierPaths and reads `.cgPath`; the
+// CGContext drawing shim takes paths as `Any`, so these only need to exist as
+// inert handles (no real geometry is recorded).
+public class CGPath {
+    public init() {}
+}
+public final class CGMutablePath: CGPath {
+    public override init() { super.init() }
+    public func move(to point: CGPoint) {}
+    public func addLine(to point: CGPoint) {}
+    public func addRect(_ rect: CGRect) {}
+    public func addEllipse(in rect: CGRect) {}
+    public func closeSubpath() {}
+}
+
 // MARK: - CGAffineTransform (Linux)
 //
 // Pure 2-D affine math — no platform dependency — so this is a FAITHFUL
