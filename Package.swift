@@ -1582,6 +1582,12 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "CryptoKit", "CommonCrypto", "SignalRingRTC", "COSUnfairLock", "Contacts",
                 "libPhoneNumber_iOS", "UniformTypeIdentifiers", "zlib", "QuillFoundation",
                 .product(name: "GRDB", package: "GRDB.swift"),
+                // Raw sqlite3 C symbols (SQLITE_OK / sqlite3_errmsg / sqlite3_step
+                // ...) used by ~12 SSK files. On Apple these arrive via the
+                // bridging header; on Linux GRDB vends them through its GRDBSQLite
+                // system-library module (link "sqlite3"). inject-foundation adds
+                // `import GRDBSQLite` to the files that need it.
+                .product(name: "GRDBSQLite", package: "GRDB.swift"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
             ] + signalAppleFrameworkShims.map { Target.Dependency.target(name: $0) },
             path: ".upstream/signal-ios/SignalServiceKit",

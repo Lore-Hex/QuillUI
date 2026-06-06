@@ -77,6 +77,11 @@ CFNETWORK_TYPES='\bkCFProxy[A-Za-z]+|\bCFNetworkCopy[A-Za-z]+'
 # import only Foundation, so they need an explicit `import QuillFoundation`.
 TIMECONST_TYPES='\bNSEC_PER_SEC\b|\bNSEC_PER_MSEC\b|\bNSEC_PER_USEC\b|\bMSEC_PER_SEC\b|\bUSEC_PER_SEC\b'
 
+# Raw sqlite3 C API (SQLITE_OK / sqlite3_errmsg / sqlite3_step ...): ~12 SSK files
+# drop to the C API under GRDB. On Apple these come via the bridging header; on
+# Linux GRDB vends them through its GRDBSQLite system-library module.
+SQLITE_TYPES='\bSQLITE_[A-Z][A-Z0-9_]*\b|\bsqlite3_[a-z][a-z0-9_]*\b'
+
 injected=0
 scanned=0
 
@@ -131,6 +136,7 @@ while IFS= read -r f; do
     if inject_if_needed "$f" "Security" "$SECURITY_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "CFNetwork" "$CFNETWORK_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "QuillFoundation" "$TIMECONST_TYPES"; then touched=1; fi
+    if inject_if_needed "$f" "GRDBSQLite" "$SQLITE_TYPES"; then touched=1; fi
     if inject_gated_if_needed "$f" "FoundationNetworking" "$FOUNDATIONNETWORKING_TYPES"; then touched=1; fi
     injected=$((injected + touched))
 done < <(find "$ROOT" -name '*.swift' -not -path '*/QuillPort/*')
