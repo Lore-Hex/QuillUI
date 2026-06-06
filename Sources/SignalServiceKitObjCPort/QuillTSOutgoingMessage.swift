@@ -306,4 +306,55 @@ open class TSOutgoingMessage: TSMessage {
     }
     var shouldRecordSendLog: Bool { true }
     var encryptionStyle: EncryptionStyle { .whisper }
+
+    // Relocated from upstream `extension TSOutgoingMessage` (TSOutgoingMessage+SDS.swift
+    // / TSOutgoingMessage.swift) for the same override-in-extension reason. anyUpdate
+    // is itself an extension method on the TSInteraction base (callable, just not
+    // overridable), so this class-body wrapper resolves the subclass overrides.
+    func anyUpdateOutgoingMessage(transaction: DBWriteTransaction, block: (TSOutgoingMessage) -> Void) {
+        anyUpdate(transaction: transaction) { object in
+            guard let instance = object as? TSOutgoingMessage else {
+                owsFailDebug("Object has unexpected type: \(type(of: object))")
+                return
+            }
+            block(instance)
+        }
+    }
+
+    func updateWithAllSendingRecipientsMarkedAsFailed(
+        error: (any Error)? = nil,
+        transaction tx: DBWriteTransaction
+    ) {
+        anyUpdateOutgoingMessage(transaction: tx) { outgoingMessage in
+            if error is AppExpiredError {
+                outgoingMessage.mostRecentFailureText = OWSLocalizedString(
+                    "ERROR_SENDING_EXPIRED",
+                    comment: "Error indicating a send failure due to an expired application.")
+            } else if error is NotRegisteredError {
+                let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+                switch tsAccountManager.registrationState(tx: tx).isPrimaryDevice {
+                case .some(true), .none:
+                    outgoingMessage.mostRecentFailureText = OWSLocalizedString(
+                        "ERROR_SENDING_DEREGISTERED",
+                        comment: "Error indicating a send failure due to a deregistered application.")
+                case .some(false):
+                    outgoingMessage.mostRecentFailureText = OWSLocalizedString(
+                        "ERROR_SENDING_DELINKED",
+                        comment: "Error indicating a send failure due to a delinked application.")
+                }
+            } else if let error {
+                outgoingMessage.mostRecentFailureText = error.userErrorDescription
+            }
+
+            guard let recipientAddressStates = outgoingMessage.recipientAddressStates else {
+                return
+            }
+
+            for recipientState in recipientAddressStates.values {
+                if recipientState.status == .sending {
+                    recipientState.updateStatusIfPossible(.failed)
+                }
+            }
+        }
+    }
 }

@@ -42,6 +42,11 @@ TARGETS = {
         r'(?ms)^    func envelopeGroupIdWithTransaction\(_ transaction: DBReadTransaction\) -> Data\? \{\n.*?\n    \}\n',
         r'(?m)^    var shouldRecordSendLog: Bool \{ true \}\n',
         r'(?m)^    var encryptionStyle: EncryptionStyle \{ \.whisper \}\n',
+        # The long send-failure updater (multi-line signature -> first 4-space close).
+        r'(?ms)^    public func updateWithAllSendingRecipientsMarkedAsFailed\(\n.*?\n    \}\n',
+    ],
+    "Messages/Interactions/TSOutgoingMessage+SDS.swift": [
+        r'(?ms)^    func anyUpdateOutgoingMessage\(transaction: DBWriteTransaction, block: \(TSOutgoingMessage\) -> Void\) \{\n.*?\n    \}\n',
     ],
 }
 
