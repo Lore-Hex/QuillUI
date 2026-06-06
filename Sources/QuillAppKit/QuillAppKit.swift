@@ -1088,6 +1088,9 @@ open class NSWindow: NSResponder {
         }
     }
     public var contentViewController: NSViewController?
+    /// The sheet currently presented on this window, if any (WireGuard's AppDelegate.quit
+    /// checks it before terminating). Compile-stub: nil until sheets are modelled.
+    public var attachedSheet: NSWindow?
     public weak var windowController: NSWindowController?
     public weak var delegate: NSWindowDelegate?
     public var styleMask: StyleMask = []
@@ -1177,6 +1180,11 @@ open class NSWindow: NSResponder {
         self.frame = contentRect
         self.styleMask = styleMask
         contentView?.quillSetWindowRecursively(self)
+    }
+    /// Window hosting a view controller (WireGuard's AppDelegate manage-tunnels window).
+    public convenience init(contentViewController: NSViewController) {
+        self.init(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)
+        self.contentViewController = contentViewController
     }
 
     public func makeKeyAndOrderFront(_ sender: Any?) { isVisible = true; isKeyWindow = true }
@@ -1327,7 +1335,7 @@ open class NSApplication: NSResponder, @unchecked Sendable {
     public var orderedWindows: [NSWindow] = []
     public var orderedDocuments: [NSDocument] = []
     public var isActive: Bool = false
-    public var activationPolicy: ActivationPolicy = .regular
+    private var _activationPolicy: ActivationPolicy = .regular
     public var dockTile: NSDockTile = NSDockTile()
     public var presentationOptions: PresentationOptions = []
     public var currentEvent: NSEvent?
@@ -1355,7 +1363,21 @@ open class NSApplication: NSResponder, @unchecked Sendable {
         public static let alertThirdButtonReturn = ModalResponse(rawValue: 1002)
     }
 
-    public func setActivationPolicy(_ p: ActivationPolicy) -> Bool { activationPolicy = p; return true }
+    public func setActivationPolicy(_ p: ActivationPolicy) -> Bool { _activationPolicy = p; return true }
+    /// Current activation policy (macOS is a method, not a property). WireGuard's
+    /// AppDelegate calls `NSApp.activationPolicy()` to toggle dock-icon visibility.
+    public func activationPolicy() -> ActivationPolicy { _activationPolicy }
+    /// Standard About panel (WireGuard's AppDelegate.aboutClicked). Compile-stub.
+    public struct AboutPanelOptionKey: Hashable, RawRepresentable, Sendable {
+        public let rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public static let applicationName = AboutPanelOptionKey(rawValue: "ApplicationName")
+        public static let applicationIcon = AboutPanelOptionKey(rawValue: "ApplicationIcon")
+        public static let applicationVersion = AboutPanelOptionKey(rawValue: "ApplicationVersion")
+        public static let version = AboutPanelOptionKey(rawValue: "Version")
+        public static let credits = AboutPanelOptionKey(rawValue: "Credits")
+    }
+    public func orderFrontStandardAboutPanel(options: [AboutPanelOptionKey: Any] = [:]) {}
     public func activate(ignoringOtherApps: Bool = false) { isActive = true }
     public func activate() { isActive = true }
     public func deactivate() { isActive = false }

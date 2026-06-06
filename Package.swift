@@ -1283,7 +1283,7 @@ if wireguardUpstreamPresent {
     targets.append(
         .target(
             name: "QuillWireGuardConformanceUI",
-            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "WireGuardMinizipC", "WireGuardHighlighterC", "CoreWLAN", "LocalAuthentication", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
+            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "WireGuardMinizipC", "WireGuardHighlighterC", "CoreWLAN", "LocalAuthentication", "ServiceManagement", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
             path: ".upstream/wireguard-apple",
             sources: [
                 // Shared logging: Logger.swift (wg_log) over the ringlogger C
@@ -1395,6 +1395,12 @@ if wireguardUpstreamPresent {
                 // these features don't exist, so compile-faithful stubs). FileManager.loginHelperTimestampURL ✓.
                 "Sources/WireGuardApp/UI/macOS/LaunchedAtLoginDetector.swift",
                 "Sources/WireGuardApp/UI/macOS/MacAppStoreUpdateDetector.swift",
+                // AppDelegate: the macOS app entry/integration (NSApplicationDelegate, @MainActor) —
+                // builds MainMenu/StatusMenu/TunnelsTracker/ManageTunnelsRootViewController, conforms
+                // StatusMenuWindowDelegate (showManageTunnelsWindow), reads NSAppleEventManager.shared()
+                // .currentAppleEvent for launch detection, toggles login-item via SMLoginItemSetEnabled
+                // (import ServiceManagement). @objc actions lowered to QuillActionDispatching.
+                "Sources/WireGuardApp/UI/macOS/AppDelegate.swift",
                 // ActivateOnDemandOption: maps on-demand config <-> NEOnDemandRule[]
                 // (NE on-demand surface from #338/#340 + wg_log from #345).
                 "Sources/WireGuardApp/Tunnel/ActivateOnDemandOption.swift",

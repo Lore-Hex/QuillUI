@@ -278,6 +278,24 @@ struct AppKitSurfaceTests {
         #expect(proc_pidpath(0, nil, 0) == 0)
         #endif
     }
+
+    @Test("AppDelegate shadow gaps: NSApp.activationPolicy() method/AboutPanel, NSWindow(contentViewController:)/attachedSheet, NSAppleEventManager")
+    @MainActor func appDelegateShadowSurface() {
+        // activationPolicy() is now a method (was a property); setActivationPolicy round-trips.
+        _ = NSApp.setActivationPolicy(.accessory)
+        #expect(NSApp.activationPolicy() == .accessory)
+        _ = NSApp.setActivationPolicy(.regular)
+        // Standard About panel (compile-stub) + its option keys.
+        NSApp.orderFrontStandardAboutPanel(options: [.applicationVersion: "1.0", .version: "", .credits: ""])
+        #expect(NSApplication.AboutPanelOptionKey.applicationVersion != NSApplication.AboutPanelOptionKey.credits)
+        // NSWindow hosting a VC + attachedSheet (nil until sheets are modelled).
+        let win = NSWindow(contentViewController: NSViewController())
+        #expect(win.contentViewController != nil && win.attachedSheet == nil)
+        // NSAppleEventManager (via AppKit → @_exported QuillFoundation): no current event on Linux.
+        #if os(Linux)
+        #expect(NSAppleEventManager.shared().currentAppleEvent == nil)
+        #endif
+    }
 }
 
 /// Probes the NSMenu init-model fix: a subclass declaring `init()` (a new designated

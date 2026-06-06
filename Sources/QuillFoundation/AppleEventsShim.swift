@@ -33,6 +33,15 @@ open class NSAppleEventDescriptor {
     open func attributeDescriptor(forKeyword keyword: AEKeyword) -> NSAppleEventDescriptor? { nil }
 }
 
+/// NSAppleEventManager shadow — AppDelegate reads `.shared().currentAppleEvent` to get
+/// the open/quit Apple event at launch. nil on Linux (no Apple Events subsystem).
+open class NSAppleEventManager: @unchecked Sendable {
+    private static let _shared = NSAppleEventManager()
+    public static func shared() -> NSAppleEventManager { _shared }
+    public init() {}
+    open var currentAppleEvent: NSAppleEventDescriptor? { nil }
+}
+
 // Darwin-only C APIs the detectors call. Linux has no equivalents (CLOCK_UPTIME_RAW and
 // clock_gettime_nsec_np are Apple extensions; proc_pidpath is Darwin libproc), so these
 // are compile-stubs — never executed on Linux. pid_t/clockid_t come from Glibc.

@@ -412,6 +412,27 @@ print("patched TunnelsTracker.swift @MainActor delegate forwards")
 PY
     fi
 
+    # AppDelegate conforms to StatusMenuWindowDelegate (whose completion was marked
+    # @MainActor in StatusMenu.swift), and references WIREGUARD_GO_VERSION — a constant
+    # generated as a C #define by WireGuardKitGo/Makefile that isn't present in the Linux
+    # conformance build. (1) match the @MainActor completion in the conformance; (2) inject
+    # a Linux-only stub constant so the About-panel string compiles.
+    local appdel="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/AppDelegate.swift"
+    if [[ -f "$appdel" ]]; then
+        python3 - "$appdel" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('func showManageTunnelsWindow(completion: ((NSWindow?) -> Void)?)',
+                  'func showManageTunnelsWindow(completion: (@MainActor (NSWindow?) -> Void)?)', 1)
+if 'let WIREGUARD_GO_VERSION' not in src:
+    needle = 'import ServiceManagement\n'
+    src = src.replace(needle, needle + '#if os(Linux)\nlet WIREGUARD_GO_VERSION = "0.0.0"  // generated C #define on macOS; stub for the Linux conformance build\n#endif\n', 1)
+open(path, "w").write(src)
+print("patched AppDelegate.swift: @MainActor completion + WIREGUARD_GO_VERSION stub")
+PY
+    fi
+
     # TunnelListRow is dequeued by TunnelsListTableViewController, so it must conform
     # to QuillReusableView (init() requirement) with a `required init()` (the B-wall
     # protocol, like LogViewCell).
