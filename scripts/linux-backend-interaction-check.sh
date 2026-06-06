@@ -521,12 +521,12 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
           settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
-          model_x="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-650}"
+          model_x="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-770}"
           model_y="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-763}"
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
           settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
-          model_x="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-$((window_x + 120))}"
+          model_x="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-$((window_x + 180))}"
           model_y="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-$((window_y + 210))}"
         fi
         click_at "$settings_x" "$settings_y"
