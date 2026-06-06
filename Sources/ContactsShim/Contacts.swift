@@ -110,6 +110,16 @@ public class CNContact: NSObject {
 
     public func isKeyAvailable(_ key: CNKeyDescriptor) -> Bool { true }
     public func areKeysAvailable(_ keys: [CNKeyDescriptor]) -> Bool { true }
+
+    // Fetch predicates. Inert on Linux (no system address book) -> match nothing.
+    public static func predicateForContacts(withIdentifiers identifiers: [String]) -> NSPredicate {
+        _ = identifiers
+        return NSPredicate(value: false)
+    }
+    public static func predicateForContacts(matchingName name: String) -> NSPredicate {
+        _ = name
+        return NSPredicate(value: false)
+    }
 }
 
 public final class CNMutableContact: CNContact {}
@@ -144,6 +154,18 @@ public enum CNContactVCardSerialization {
     // the source of truth on Linux.
     public static func data(with contacts: [CNContact]) throws -> Data { Data() }
     public static func contacts(with data: Data) throws -> [CNContact] { [] }
+    public static func descriptorForRequiredKeys() -> CNKeyDescriptor { CNContactIdentifierKey }
+}
+
+// ContactsUI's CNContactViewController (SSK only needs the required-keys
+// descriptor). The view controller itself is not presented on Linux.
+public class CNContactViewController {
+    public static func descriptorForRequiredKeys() -> CNKeyDescriptor { CNContactIdentifierKey }
+    public init() {}
+}
+
+public extension NSNotification.Name {
+    static let CNContactStoreDidChange = NSNotification.Name("CNContactStoreDidChangeNotification")
 }
 
 // MARK: - Store (system access deferred on Linux)
@@ -158,7 +180,7 @@ public enum CNAuthorizationStatus: Int, Sendable {
     case limited = 4
 }
 
-public struct CNErrorCode: RawRepresentable, Sendable {
+public struct CNErrorCode: RawRepresentable, Equatable, Sendable {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }
     public static let communicationError = CNErrorCode(rawValue: 1)
@@ -168,11 +190,21 @@ public struct CNErrorCode: RawRepresentable, Sendable {
 public struct CNError: Error {
     public let code: CNErrorCode
     public init(_ code: CNErrorCode = .dataAccessError) { self.code = code }
+
+    // On Apple `CNError.communicationError` is the bridged-error pattern; SSK uses
+    // it in `catch CNError.communicationError` / `case CNError.communicationError`.
+    // Provide the value + an expression-pattern operator so both type-check (the
+    // inert store never actually throws CNError, so this is compile-only).
+    public static let communicationError = CNError(.communicationError)
+    public static func ~= (pattern: CNError, error: any Error) -> Bool {
+        (error as? CNError)?.code == pattern.code
+    }
 }
 
 public class CNContactFetchRequest {
     public var keysToFetch: [CNKeyDescriptor]
-    public var sortOrder: Int = 0
+    public var sortOrder: CNContactSortOrder = .userDefault
+    public var predicate: NSPredicate?
     public init(keysToFetch: [CNKeyDescriptor]) { self.keysToFetch = keysToFetch }
 }
 
