@@ -71,11 +71,12 @@ SECURITY_TYPES='\bSec[A-Z][A-Za-z]+|\berrSec[A-Za-z]+|\bkSec[A-Za-z]+'
 # umbrella). On Linux it needs an explicit `import CFNetwork`.
 CFNETWORK_TYPES='\bkCFProxy[A-Za-z]+|\bCFNetworkCopy[A-Za-z]+'
 
-# Darwin time-scale constants (NSEC_PER_SEC / NSEC_PER_MSEC / MSEC_PER_SEC):
-# vended by Darwin's <mach/clock_types.h> but not by swift-corelibs-foundation.
-# QuillFoundation provides them (Linux-gated). Utility files like MonotonicDate
-# import only Foundation, so they need an explicit `import QuillFoundation`.
-TIMECONST_TYPES='\bNSEC_PER_SEC\b|\bNSEC_PER_MSEC\b|\bNSEC_PER_USEC\b|\bMSEC_PER_SEC\b|\bUSEC_PER_SEC\b'
+# Symbols QuillFoundation provides (Linux-gated) but swift-corelibs does NOT,
+# used by files importing only Foundation -> they need an explicit
+# `import QuillFoundation`: the Darwin time-scale constants (NSEC_PER_SEC etc,
+# from <mach/clock_types.h>) and NSHashTable (the weak-collection shim, e.g.
+# MessagePipelineSupervisor).
+TIMECONST_TYPES='\bNSEC_PER_SEC\b|\bNSEC_PER_MSEC\b|\bNSEC_PER_USEC\b|\bMSEC_PER_SEC\b|\bUSEC_PER_SEC\b|\bNSHashTable\b'
 
 # Raw sqlite3 C API (SQLITE_OK / sqlite3_errmsg / sqlite3_step ...): ~12 SSK files
 # drop to the C API under GRDB. On Apple these come via the bridging header; on
