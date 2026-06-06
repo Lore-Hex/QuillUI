@@ -259,6 +259,23 @@ PY
 }
 
 patch_signal_ios() {
+    # GRDBSchemaMigrator.swift calls NSCoder.decodeTopLevelObject(of:forKey:),
+    # which swift-corelibs-foundation has renamed to decodeObject(of:forKey:)
+    # (same signature; corelibs makes the old spelling a hard error, not a mere
+    # deprecation). SSK builds Linux-only here, so the rename is safe. The `try`
+    # on the now-non-throwing call is a harmless warning. (Placed before the
+    # TSMutex block, which has early returns that would otherwise skip this.)
+    local mig="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift"
+    if [[ -f "$mig" ]] && grep -q 'decodeTopLevelObject(' "$mig"; then
+        echo "==> patching signal-ios GRDBSchemaMigrator.swift decodeTopLevelObject -> decodeObject"
+        python3 - "$mig" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+open(path, "w").write(src.replace("decodeTopLevelObject(", "decodeObject("))
+PY
+    fi
+
     # Signal's SignalServiceKit/Concurrency/TSMutex.swift does
     # `internal import os.lock` for os_unfair_lock. The `os` framework's clang
     # `lock` submodule does not exist on Linux, and QuillUI's `os` is a Swift
