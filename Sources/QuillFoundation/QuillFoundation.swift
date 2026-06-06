@@ -137,6 +137,34 @@ public class CGImage {
     }
 }
 
+// NSHashTable (weak/strong object collection; Linux shim). swift-corelibs has no
+// NSHashTable. SSK uses it for a weak set of message-pipeline stages. Weak
+// semantics are deferred -- this holds STRONG refs (could retain-cycle; revisit
+// if it matters) which is enough to compile + behave for the bounded usage
+// (.weakObjects / add / remove / allObjects). ObjectType is unconstrained to
+// match `NSHashTable<SomeProtocol>`; identity uses `as AnyObject` (valid for the
+// class instances actually stored).
+public final class NSHashTable<ObjectType>: @unchecked Sendable {
+    private var storage: [ObjectType] = []
+    public init() {}
+    public static func weakObjects() -> NSHashTable<ObjectType> { NSHashTable<ObjectType>() }
+    public func add(_ object: ObjectType?) {
+        guard let object else { return }
+        storage.append(object)
+    }
+    public func remove(_ object: ObjectType?) {
+        guard let object else { return }
+        storage.removeAll { ($0 as AnyObject) === (object as AnyObject) }
+    }
+    public func contains(_ object: ObjectType?) -> Bool {
+        guard let object else { return false }
+        return storage.contains { ($0 as AnyObject) === (object as AnyObject) }
+    }
+    public func removeAllObjects() { storage.removeAll() }
+    public var allObjects: [ObjectType] { storage }
+    public var count: Int { storage.count }
+}
+
 // Opaque path types (Linux). SSK builds UIBezierPaths and reads `.cgPath`; the
 // CGContext drawing shim takes paths as `Any`, so these only need to exist as
 // inert handles (no real geometry is recorded).
