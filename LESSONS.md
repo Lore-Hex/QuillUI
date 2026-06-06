@@ -649,6 +649,31 @@ or, better, remove the need for module `X`.
   Defer as a CFURL-bridging residual (a pipeline-level `as CFURL`-strip or a real bridge),
   not a per-shim fix -- typing the shim param `CFURL` vs `URL` doesn't help; the cast itself
   is what fails.
+- **Pure-math types can be FAITHFUL, not inert.** CGAffineTransform is absent from
+  swift-corelibs but is just 2-D matrix math (no platform backend), so it's implemented
+  for real in QuillFoundation (concatenating/inverted/rotated actually compute). Same
+  could apply to any value type whose semantics are pure computation.
+- **@convention(c) callback typealias can't take Swift class/struct params.** A SystemConfiguration
+  `SCNetworkReachabilityCallBack` whose params are the (Swift class) reachability handle +
+  (struct) flags is "not representable in Objective-C". Since the callback is inert (never
+  fires) and the consumer passes a non-capturing closure literal, drop `@convention(c)` and
+  use a plain Swift closure type -- the literal still converts. (The Context's pointer-only
+  retain/release closures keep `@convention(c)` fine.)
+- **A cross-shim residual is OK to DEFER rather than force a Package edit.** PassKit's
+  `PKContact.phoneNumber`/`.postalAddress` are `CNPhoneNumber`/`CNPostalAddress` (Contacts),
+  so PKContact needs a PassKit->Contacts package dep. Land the PassKit bulk, note the
+  coupled residual, do it as a focused follow-on -- don't bloat one milestone with a
+  cross-shim dependency mid-fill.
+- **Real system C libs: prefer a `.systemLibrary` over an inert Swift shim.** `zlib` was an
+  inert Swift framework-shim, but libz is present on Linux (zlib1g-dev) + macOS, so it became
+  a real `.systemLibrary` (Sources/zlib: module.modulemap `link "z"` + shim.h `#include <zlib.h>`,
+  pkgConfig "zlib") -- gzip/crc32 ACTUALLY work, and the upstream `import zlib` resolves
+  unmodified. -1,979 (the whole z_stream/deflate/inflate/crc32/Z_* surface). To convert: remove
+  it from the shim-name list, add the systemLibrary target + an explicit SSK dep, delete the
+  Swift stub. **CRITICAL GOTCHA:** SwiftPM REUSES the stale `<name>.swiftmodule` from the cached
+  `.build-linux` after a Swift-shim->systemLibrary switch, so `import zlib` resolves but exposes
+  ZERO symbols. Delete the stale artifacts (`.build-linux/**/Modules/zlib.swiftmodule` +
+  `**/zlib.build`) and rebuild -- then the systemLibrary takes and the symbols appear.
 
 ---
 
