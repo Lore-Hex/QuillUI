@@ -478,6 +478,21 @@ public extension CGImage {
 }
 #endif
 
+// MARK: - Darwin time-scale constants (Linux shim)
+
+// <mach/clock_types.h>/<time.h> on Darwin define these as `unsigned long long`
+// (UInt64). swift-corelibs-foundation does not vend them on Linux, yet SSK uses
+// them for monotonic-clock and millisecond math (MonotonicDate, OWSReceiptManager,
+// RemoteConfigManager, TSMessage, ...). Faithful values, Linux-gated so they
+// can't collide with Darwin's own definitions on macOS/iOS.
+#if os(Linux)
+public let NSEC_PER_SEC: UInt64 = 1_000_000_000
+public let NSEC_PER_MSEC: UInt64 = 1_000_000
+public let NSEC_PER_USEC: UInt64 = 1_000
+public let USEC_PER_SEC: UInt64 = 1_000_000
+public let MSEC_PER_SEC: UInt64 = 1_000
+#endif
+
 // MARK: - Localization
 
 #if !os(macOS) && !os(iOS)

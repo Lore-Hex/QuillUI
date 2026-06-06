@@ -1580,7 +1580,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "LibSignalClient",
                 "UIKit", "AVFoundation", "Network", "os", "Security", "CoreGraphics",
                 "CryptoKit", "CommonCrypto", "SignalRingRTC", "COSUnfairLock", "Contacts",
-                "libPhoneNumber_iOS", "UniformTypeIdentifiers", "zlib",
+                "libPhoneNumber_iOS", "UniformTypeIdentifiers", "zlib", "QuillFoundation",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
             ] + signalAppleFrameworkShims.map { Target.Dependency.target(name: $0) },
