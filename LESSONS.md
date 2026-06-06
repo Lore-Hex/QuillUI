@@ -626,6 +626,29 @@ or, better, remove the need for module `X`.
   CGAffineTransform is absent from swift-corelibs -> AVAssetTrack.preferredTransform
   typed Any. A correct big fill EXPOSES coherent residuals in the same consumers
   (audio keys, resourceLoader, AVAudioPlayer) -- pair them in a follow-on commit.
+- **Framework-shim tail cleared (~91% of peak):** Network (NWConnection+NWListener
+  added to the 1445-line shim -> SignalProxy), SDWebImage (SDAnimatedImage), DeviceCheck
+  (DCError/DCAppAttestService App-Attest), AudioToolbox (SystemSoundID/AudioServices),
+  SignalRingRTC (the big one, -1,436: SFUClient peek + PeekInfo/PeekRequest/PeekResponse/
+  GroupMemberInfo + CallId + callIdFromEra/RingId + RingUpdate + the RingRTC HTTP bridge
+  HTTPClient/HTTPDelegate/HTTPRequest/HTTPResponse/HTTPMethod). Each = read the consumer,
+  fill inert, build, confirm shim own-errors empty, commit.
+- **Cross-module UIImage subclass needs RSImage `open`** (was `public`). SDWebImage's
+  `SDAnimatedImage: UIImage` couldn't subclass it from another module until RSImage
+  became `open` (matches Apple, where UIImage/NSImage are open). A subclass adding NO
+  stored properties INHERITS all of RSImage's inits (so `SDAnimatedImage(data:)` just works).
+- **Exhaustive-switch enums: match the consumer's case set EXACTLY.** A consumer
+  `switch x { ... }` with NO `default`/`@unknown default` (RingRTC enums are non-resilient
+  Swift enums, treated as exhaustive) means the shim enum must declare PRECISELY the cases
+  used -- extra cases break exhaustiveness, missing cases break the `.case` references.
+  RingUpdate = the 7 cases the ring handler switches; HTTPMethod = exactly get/post/put/delete.
+- **A member the consumer adds in its OWN extension must NOT be a stored member of the
+  shim type.** SSK declares `var callId` in a `private extension PeekInfo`, so the PeekInfo
+  shim must omit `callId` or it collides ("invalid redeclaration"/ambiguity).
+- **swift-corelibs has no URL<->CFURL toll-free bridging** (`url as CFURL` fails on Linux).
+  Defer as a CFURL-bridging residual (a pipeline-level `as CFURL`-strip or a real bridge),
+  not a per-shim fix -- typing the shim param `CFURL` vs `URL` doesn't help; the cast itself
+  is what fails.
 
 ---
 
