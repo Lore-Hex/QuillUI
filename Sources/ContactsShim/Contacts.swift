@@ -155,6 +155,7 @@ public enum CNAuthorizationStatus: Int, Sendable {
     case restricted = 1
     case denied = 2
     case authorized = 3
+    case limited = 4
 }
 
 public struct CNErrorCode: RawRepresentable, Sendable {
@@ -201,4 +202,23 @@ public class CNContactStore {
                                keysToFetch keys: [CNKeyDescriptor]) throws -> CNContact {
         throw CNError(.dataAccessError)
     }
+}
+
+// MARK: - CNContactsUserDefaults
+
+public enum CNContactSortOrder: Int, Sendable {
+    case none = 0
+    case userDefault = 1
+    case givenName = 2
+    case familyName = 3
+}
+
+/// The Contacts.app sort-order / country preference. Inert on Linux (there is no
+/// system Contacts store): reports a sensible default (sort by given name).
+public final class CNContactsUserDefaults: @unchecked Sendable {
+    private static let _shared = CNContactsUserDefaults()
+    public static func shared() -> CNContactsUserDefaults { _shared }
+    public var sortOrder: CNContactSortOrder = .givenName
+    public var countryCode: String = "us"
+    public init() {}
 }
