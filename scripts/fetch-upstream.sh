@@ -562,6 +562,36 @@ print("patched WireGuardAdapter.swift for Linux")
 PY
     fi
 
+    # The NE extension (WireGuardNetworkExtension): missing imports that Apple supplies
+    # transitively. PacketTunnelProvider uses WireGuardKit's WireGuardAdapter but imports
+    # only Foundation/NetworkExtension/os; ErrorNotifier uses Foundation's FileManager but
+    # imports only NetworkExtension. Add the explicit imports so they compile on Linux.
+    local ptp="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardNetworkExtension/PacketTunnelProvider.swift"
+    if [[ -f "$ptp" ]] && ! grep -q '^import WireGuardKit' "$ptp"; then
+        echo "==> patching PacketTunnelProvider.swift to import WireGuardKit"
+        python3 - "$ptp" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('import Foundation\nimport NetworkExtension\nimport os\n',
+                  'import Foundation\nimport NetworkExtension\nimport os\nimport WireGuardKit\n', 1)
+open(path, "w").write(src)
+print("patched PacketTunnelProvider.swift import WireGuardKit")
+PY
+    fi
+    local enotifier="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardNetworkExtension/ErrorNotifier.swift"
+    if [[ -f "$enotifier" ]] && ! grep -q '^import Foundation' "$enotifier"; then
+        echo "==> patching ErrorNotifier.swift to import Foundation"
+        python3 - "$enotifier" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('import NetworkExtension\n', 'import Foundation\nimport NetworkExtension\n', 1)
+open(path, "w").write(src)
+print("patched ErrorNotifier.swift import Foundation")
+PY
+    fi
+
     # TunnelListRow is dequeued by TunnelsListTableViewController, so it must conform
     # to QuillReusableView (init() requirement) with a `required init()` (the B-wall
     # protocol, like LogViewCell).
